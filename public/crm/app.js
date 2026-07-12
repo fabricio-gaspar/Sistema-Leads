@@ -3,12 +3,12 @@ const state = {
   activeUser: { id: 'u1', name: 'Fabrício Admin', role: 'Administrador', avatar: 'F', email: 'comercial@wfdigital.com.br' },
   
   users: [
-    { id: 'u1', name: 'Fabrício Admin', email: 'comercial@wfdigital.com.br', role: 'Administrador', leads: 0, canUseIA: true, discountLimit: 'Sem limite', active: true, avatar: 'F' },
-    { id: 'u2', name: 'Marina Vendas', email: 'marina@wfdigital.com.br', role: 'Vendedor', leads: 4, canUseIA: true, discountLimit: '10%', active: true, avatar: 'M' },
-    { id: 'u3', name: 'Roberto KA', email: 'roberto@wfdigital.com.br', role: 'Vendedor', leads: 2, canUseIA: true, discountLimit: '5%', active: true, avatar: 'R' },
-    { id: 'u4', name: 'Carlos SDR', email: 'carlos@wfdigital.com.br', role: 'Vendedor', leads: 0, canUseIA: false, discountLimit: 'Até 5%', active: true, avatar: 'C' },
-    { id: 'u5', name: 'Patrícia CX', email: 'patricia@wfdigital.com.br', role: 'Vendedor', leads: 0, canUseIA: true, discountLimit: 'Até 10%', active: true, avatar: 'P' },
-    { id: 'u_ia', name: 'Ana (IA)', email: 'ana@wfdigital.com.br', role: 'Vendedor Virtual', leads: 6, canUseIA: true, discountLimit: '10%', active: true, avatar: '◈' }
+    { id: 'u1', name: 'Fabrício Admin', email: 'comercial@wfdigital.com.br', phone: '(11) 99000-0001', role: 'Administrador', leads: 0, canUseIA: true, discountLimit: 'Sem limite', active: true, avatar: 'F' },
+    { id: 'u2', name: 'Marina Vendas', email: 'marina@wfdigital.com.br', phone: '(11) 99000-0002', role: 'Vendedor', leads: 4, canUseIA: true, discountLimit: '10%', active: true, avatar: 'M' },
+    { id: 'u3', name: 'Roberto KA', email: 'roberto@wfdigital.com.br', phone: '(11) 99000-0003', role: 'Vendedor', leads: 2, canUseIA: true, discountLimit: '5%', active: true, avatar: 'R' },
+    { id: 'u4', name: 'Carlos SDR', email: 'carlos@wfdigital.com.br', phone: '(11) 99000-0004', role: 'Vendedor', leads: 0, canUseIA: false, discountLimit: 'Até 5%', active: true, avatar: 'C' },
+    { id: 'u5', name: 'Patrícia CX', email: 'patricia@wfdigital.com.br', phone: '(11) 99000-0005', role: 'Vendedor', leads: 0, canUseIA: true, discountLimit: 'Até 10%', active: true, avatar: 'P' },
+    { id: 'u_ia', name: 'Ana (IA)', email: 'ana@wfdigital.com.br', phone: '(11) 99000-9999', role: 'Vendedor Virtual', leads: 6, canUseIA: true, discountLimit: '10%', active: true, avatar: '◈' }
   ],
   
   services: [
@@ -25,18 +25,18 @@ const state = {
   ],
   
   leads: [
-    { id: 'l1', company: 'Aço Vale', contact: 'Renato Souza', title: 'Diretor Comercial', phone: '(11) 98231-4402', segment: 'Indústrias Metalúrgicas', uf: 'SP', distance: 12, score: 91, temp: 'hot', stage: 'Negociação', value: 8500, owner: 'ia', staleHours: 4, escalated: true, escalationReason: 'Pediu 18% de desconto; a alçada da IA é 10%', slaInfo: '⚠ escalado', lastContact: 'Hoje, 12:40' },
-    { id: 'l2', company: 'Sabor Mineiro', contact: 'Gisele Santos', title: 'Proprietária', phone: '(31) 97723-5599', segment: 'Serviços Médicos', uf: 'MG', distance: 340, score: 78, temp: 'hot', stage: 'Proposta', value: 5000, owner: 'ia', staleHours: 1, escalated: false, escalationReason: '', slaInfo: 'sugestão pronta', lastContact: 'Hoje, 10:15' },
-    { id: 'l3', company: 'Ápice Contábil', contact: 'Marcos Silva', title: 'Sócio', phone: '(11) 96655-1122', segment: 'Tecnologia', uf: 'SP', distance: 8, score: 85, temp: 'hot', stage: 'Qualificado', value: 5000, owner: 'ia', staleHours: 49, escalated: false, escalationReason: '', slaInfo: '3d parado', lastContact: 'Há 3 dias' },
-    { id: 'l4', company: 'TechFrota', contact: 'Júlia Mendes', title: 'Gerente Comercial', phone: '(21) 99881-2244', segment: 'Tecnologia', uf: 'RJ', distance: 410, score: 82, temp: 'hot', stage: 'Prospecção', value: 7000, owner: 'ia', staleHours: 0, escalated: false, escalationReason: '', slaInfo: 'vence hoje', lastContact: 'Hoje, 09:30' },
-    { id: 'l5', company: 'Corpo em Movimento', contact: 'Dr. Fabiano', title: 'Diretor', phone: '(11) 98822-7711', segment: 'Serviços Médicos', uf: 'SP', distance: 15, score: 71, temp: 'warm', stage: 'Proposta', value: 5490, owner: 'human', ownerName: 'Marina Vendas', staleHours: 24, escalated: false, escalationReason: '', slaInfo: '8 dias', lastContact: 'Ontem, 15:40' },
-    { id: 'l6', company: 'Rota Sul Cargas', contact: 'Eduardo Lima', title: 'CEO', phone: '(51) 95532-6633', segment: 'Tecnologia', uf: 'RS', distance: 950, score: 64, temp: 'warm', stage: 'Negociação', value: 12000, owner: 'human', ownerName: 'Marina Vendas', staleHours: 52, escalated: false, escalationReason: '', slaInfo: '3d parado', lastContact: 'Há 3 dias' },
-    { id: 'l7', company: 'Semente Ouro', contact: 'Amanda Costa', title: 'Comercial', phone: '(62) 94411-9988', segment: 'Outro', uf: 'GO', distance: 880, score: 55, temp: 'warm', stage: 'Qualificado', value: 6500, owner: 'human', ownerName: 'Marina Vendas', staleHours: 12, escalated: false, escalationReason: '', slaInfo: '8 dias', lastContact: 'Hoje, 08:00' },
-    { id: 'l8', company: 'Farmácias Vida Plena', contact: 'Roberto Albuquerque', title: 'Diretor Compras', phone: '(11) 93322-8877', segment: 'Serviços Médicos', uf: 'SP', distance: 20, score: 88, temp: 'hot', stage: 'Fechado', value: 7000, owner: 'human', ownerName: 'Marina Vendas', staleHours: 0, escalated: false, escalationReason: '', slaInfo: '✓ pedido', lastContact: 'Ontem, 17:30' },
-    { id: 'l9', company: 'Bella Napoli', contact: 'Giovanni', title: 'Sócio', phone: '(11) 92211-5544', segment: 'Outro', uf: 'SP', distance: 5, score: 48, temp: 'warm', stage: 'Prospecção', value: 2490, owner: 'human', ownerName: 'Roberto KA', staleHours: 6, escalated: false, escalationReason: '', slaInfo: '8 dias', lastContact: 'Hoje, 14:10' },
-    { id: 'l10', company: 'Alicerce Forte', contact: 'Carlos Ramos', title: 'Engenheiro Chefe', phone: '(21) 91100-3322', segment: 'Indústrias Metalúrgicas', uf: 'RJ', distance: 430, score: 62, temp: 'warm', stage: 'Negociação', value: 15000, owner: 'human', ownerName: 'Roberto KA', staleHours: 36, escalated: false, escalationReason: '', slaInfo: '8 dias', lastContact: 'Ontem, 09:15' },
-    { id: 'l11', company: 'Sorriso Prime', contact: 'Dra. Sandra', title: 'Diretora Clínicas', phone: '(11) 97766-4433', segment: 'Serviços Médicos', uf: 'SP', distance: 18, score: 82, temp: 'hot', stage: 'Pedido', value: 10000, owner: 'ia', staleHours: 0, escalated: false, escalationReason: '', slaInfo: '✓ pedido', lastContact: 'Ontem, 11:30' },
-    { id: 'l12', company: 'Global Talk', contact: 'Peter Jordan', title: 'CEO', phone: '(11) 96655-4422', segment: 'Tecnologia', uf: 'SP', distance: 10, score: 38, temp: 'cold', stage: 'Perdido', value: 5000, owner: 'ia', staleHours: 0, escalated: false, escalationReason: '', slaInfo: 'descartado', lastContact: '08/07/2026', lostReason: 'Preço' }
+    { id: 'l1', company: 'Aço Vale', contact: 'Renato Souza', title: 'Diretor Comercial', phone: '(11) 98231-4402', segment: 'Indústrias Metalúrgicas', uf: 'SP', distance: 12, score: 91, temp: 'hot', stage: 'Negociação', value: 8500, owner: 'ia', staleHours: 4, escalated: true, escalationReason: 'Pediu 18% de desconto; a alçada da IA é 10%', slaInfo: '⚠ escalado', lastContact: 'Hoje, 12:40', assignedTo: null },
+    { id: 'l2', company: 'Sabor Mineiro', contact: 'Gisele Santos', title: 'Proprietária', phone: '(31) 97723-5599', segment: 'Serviços Médicos', uf: 'MG', distance: 340, score: 78, temp: 'hot', stage: 'Proposta', value: 5000, owner: 'ia', staleHours: 1, escalated: false, escalationReason: '', slaInfo: 'sugestão pronta', lastContact: 'Hoje, 10:15', assignedTo: null },
+    { id: 'l3', company: 'Ápice Contábil', contact: 'Marcos Silva', title: 'Sócio', phone: '(11) 96655-1122', segment: 'Tecnologia', uf: 'SP', distance: 8, score: 85, temp: 'hot', stage: 'Qualificado', value: 5000, owner: 'ia', staleHours: 49, escalated: false, escalationReason: '', slaInfo: '3d parado', lastContact: 'Há 3 dias', assignedTo: null },
+    { id: 'l4', company: 'TechFrota', contact: 'Júlia Mendes', title: 'Gerente Comercial', phone: '(21) 99881-2244', segment: 'Tecnologia', uf: 'RJ', distance: 410, score: 82, temp: 'hot', stage: 'Prospecção', value: 7000, owner: 'ia', staleHours: 0, escalated: false, escalationReason: '', slaInfo: 'vence hoje', lastContact: 'Hoje, 09:30', assignedTo: null },
+    { id: 'l5', company: 'Corpo em Movimento', contact: 'Dr. Fabiano', title: 'Diretor', phone: '(11) 98822-7711', segment: 'Serviços Médicos', uf: 'SP', distance: 15, score: 71, temp: 'warm', stage: 'Proposta', value: 5490, owner: 'human', ownerName: 'Marina Vendas', staleHours: 24, escalated: false, escalationReason: '', slaInfo: '8 dias', lastContact: 'Ontem, 15:40', assignedTo: null },
+    { id: 'l6', company: 'Rota Sul Cargas', contact: 'Eduardo Lima', title: 'CEO', phone: '(51) 95532-6633', segment: 'Tecnologia', uf: 'RS', distance: 950, score: 64, temp: 'warm', stage: 'Negociação', value: 12000, owner: 'human', ownerName: 'Marina Vendas', staleHours: 52, escalated: false, escalationReason: '', slaInfo: '3d parado', lastContact: 'Há 3 dias', assignedTo: null },
+    { id: 'l7', company: 'Semente Ouro', contact: 'Amanda Costa', title: 'Comercial', phone: '(62) 94411-9988', segment: 'Outro', uf: 'GO', distance: 880, score: 55, temp: 'warm', stage: 'Qualificado', value: 6500, owner: 'human', ownerName: 'Marina Vendas', staleHours: 12, escalated: false, escalationReason: '', slaInfo: '8 dias', lastContact: 'Hoje, 08:00', assignedTo: null },
+    { id: 'l8', company: 'Farmácias Vida Plena', contact: 'Roberto Albuquerque', title: 'Diretor Compras', phone: '(11) 93322-8877', segment: 'Serviços Médicos', uf: 'SP', distance: 20, score: 88, temp: 'hot', stage: 'Fechado', value: 7000, owner: 'human', ownerName: 'Marina Vendas', staleHours: 0, escalated: false, escalationReason: '', slaInfo: '✓ pedido', lastContact: 'Ontem, 17:30', assignedTo: null },
+    { id: 'l9', company: 'Bella Napoli', contact: 'Giovanni', title: 'Sócio', phone: '(11) 92211-5544', segment: 'Outro', uf: 'SP', distance: 5, score: 48, temp: 'warm', stage: 'Prospecção', value: 2490, owner: 'human', ownerName: 'Roberto KA', staleHours: 6, escalated: false, escalationReason: '', slaInfo: '8 dias', lastContact: 'Hoje, 14:10', assignedTo: null },
+    { id: 'l10', company: 'Alicerce Forte', contact: 'Carlos Ramos', title: 'Engenheiro Chefe', phone: '(21) 91100-3322', segment: 'Indústrias Metalúrgicas', uf: 'RJ', distance: 430, score: 62, temp: 'warm', stage: 'Negociação', value: 15000, owner: 'human', ownerName: 'Roberto KA', staleHours: 36, escalated: false, escalationReason: '', slaInfo: '8 dias', lastContact: 'Ontem, 09:15', assignedTo: null },
+    { id: 'l11', company: 'Sorriso Prime', contact: 'Dra. Sandra', title: 'Diretora Clínicas', phone: '(11) 97766-4433', segment: 'Serviços Médicos', uf: 'SP', distance: 18, score: 82, temp: 'hot', stage: 'Pedido', value: 10000, owner: 'ia', staleHours: 0, escalated: false, escalationReason: '', slaInfo: '✓ pedido', lastContact: 'Ontem, 11:30', assignedTo: null },
+    { id: 'l12', company: 'Global Talk', contact: 'Peter Jordan', title: 'CEO', phone: '(11) 96655-4422', segment: 'Tecnologia', uf: 'SP', distance: 10, score: 38, temp: 'cold', stage: 'Perdido', value: 5000, owner: 'ia', staleHours: 0, escalated: false, escalationReason: '', slaInfo: 'descartado', lastContact: '08/07/2026', lostReason: 'Preço', assignedTo: null }
   ],
   
   proposals: [
@@ -91,11 +91,32 @@ const state = {
     'l2': [
       { sender: 'ia', senderName: 'Ana (IA)', type: 'ia', text: 'Olá, Gisele! Vi que a Sabor Mineiro atua no ramo alimentício em BH. Nós ajudamos a mapear leads qualificados. Teria interesse?', time: '10:00' },
       { sender: 'client', senderName: 'Gisele Santos', type: 'client', text: 'Sim, qual é o preço da assessoria de implantação?', time: '10:10' }
+    ],
+    'l3': [
+      { sender: 'ia', senderName: 'Ana (IA)', type: 'ia', text: 'Olá, Marcos! Sou a Ana da WF Digital. Escritórios contábeis como o Ápice têm reduzido em 60% o tempo de prospecção com nosso vendedor virtual. Posso te mostrar como funciona?', time: 'Há 3 dias' },
+      { sender: 'client', senderName: 'Marcos Silva', type: 'client', text: 'Pode enviar mais detalhes por aqui mesmo.', time: 'Há 3 dias' },
+      { sender: 'ia', senderName: 'Ana (IA)', type: 'ia', text: 'Claro! Enviei nossa apresentação em PDF. O projeto de implantação é R$ 5.000 + licença de R$ 490/mês. Qual seria o melhor dia para uma demonstração de 20 minutos?', time: 'Há 3 dias' }
+    ],
+    'l5': [
+      { sender: 'human', senderName: 'Marina Vendas', type: 'human', text: 'Dr. Fabiano, boa tarde! Segue a proposta #0144 revisada com o setup incluso, conforme conversamos.', time: 'Ontem, 15:40' },
+      { sender: 'client', senderName: 'Dr. Fabiano', type: 'client', text: 'Recebido, Marina. Vou analisar com meu sócio e retorno até sexta.', time: 'Ontem, 16:02' }
+    ],
+    'l11': [
+      { sender: 'ia', senderName: 'Ana (IA)', type: 'ia', text: 'Dra. Sandra, contrato assinado e pedido #2026-042 gerado! Nossa equipe técnica inicia o setup amanhã. Obrigada pela confiança!', time: 'Ontem, 11:30' },
+      { sender: 'client', senderName: 'Dra. Sandra', type: 'client', text: 'Perfeito, Ana! Ficamos no aguardo do cronograma.', time: 'Ontem, 11:45' }
     ]
   },
   
   activeLeadId: 'l1',
   aiPaused: false,
+
+  // --- PORTAL DO VENDEDOR: sessao ativa e historico de tempo conectado ---
+  vendorSession: { loggedIn: false, userId: null, startedAt: null, otp: null, token: null },
+  vendorSessions: [
+    { userId: 'u2', userName: 'Marina Vendas', start: '08:12', end: '12:04', minutes: 232, date: '11/07/2026' },
+    { userId: 'u3', userName: 'Roberto KA',    start: '09:30', end: '11:15', minutes: 105, date: '11/07/2026' }
+  ],
+  vendorActiveLeadId: null,
   weights: {
     segment: 30,
     whatsapp: 20,
@@ -216,6 +237,7 @@ function renderAll() {
   renderVendorPortal();
   renderOrders();
   renderReports();
+  renderVendorSessions();
   renderSettings();
   updateSidebarCounters();
 }
@@ -400,18 +422,20 @@ function toggleTask(taskId) {
 }
 
 function addNewTask() {
-  const text = prompt("Digite a descrição da próxima tarefa comercial:");
-  if (text) {
+  crmPrompt("Nova tarefa comercial", [
+    { id: 'text', label: 'Descrição da tarefa', placeholder: 'ex: Ligar para o cliente X às 15h' }
+  ], v => {
+    if (!v.text) return;
     state.tasks.unshift({
       id: `t${Date.now()}`,
-      text: text,
+      text: v.text,
       time: 'Hoje, ' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
       owner: state.activeUser.name,
       completed: false
     });
     showNotification("Tarefa comercial agendada!");
     renderDashboard();
-  }
+  }, "Agendar");
 }
 
 // ================= TELA 02-05 · MINHA EMPRESA =================
@@ -462,15 +486,17 @@ function removeChip(btn) {
 }
 
 function addChip(containerId) {
-  const text = prompt("Digite o nome da nova tag comercial:");
-  if (text) {
+  crmPrompt("Nova tag comercial", [
+    { id: 'text', label: 'Nome da tag', placeholder: 'ex: Clínicas Odontológicas' }
+  ], v => {
+    if (!v.text) return;
     const container = document.getElementById(containerId);
     const addBtn = container.querySelector(".chip-add");
     const span = document.createElement("span");
     span.className = "chip";
-    span.innerHTML = `${text}<button class="chip-remove" onclick="removeChip(this)">×</button>`;
+    span.innerHTML = `${v.text}<button class="chip-remove" onclick="removeChip(this)">×</button>`;
     container.insertBefore(span, addBtn);
-  }
+  }, "Adicionar");
 }
 
 function updateScoreWeightVal(slider) {
@@ -516,17 +542,15 @@ function saveNewService() {
 }
 
 function addNewObjectionRow() {
-  const trigger = prompt("Quando o cliente disser:");
-  const response = prompt("A IA Ana deve responder:");
-  
-  if (trigger && response) {
-    state.objections.push({
-      id: `o${Date.now()}`,
-      trigger, response
-    });
+  crmPrompt("Nova objeção comercial", [
+    { id: 'trigger', label: 'Quando o cliente disser:', placeholder: 'ex: Está caro / Não tenho verba' },
+    { id: 'response', label: 'A Ana deve responder:', type: 'textarea', placeholder: 'Como a IA reposiciona o valor...' }
+  ], v => {
+    if (!v.trigger || !v.response) { showNotification("Preencha os dois campos."); return; }
+    state.objections.push({ id: `o${Date.now()}`, trigger: v.trigger, response: v.response });
     renderCompany();
     showNotification("Objeção cadastrada!");
-  }
+  }, "Cadastrar");
 }
 
 function removeObjection(id) {
@@ -761,13 +785,24 @@ function handleBulkSend(ownerType) {
   });
   
   if (checked.length === 0) {
-    alert("Nenhuma empresa selecionada para enviar.");
+    showNotification("Nenhuma empresa selecionada para enviar.");
     return;
   }
   
+  const created = [];
   checked.forEach(idx => {
     sendProspectToCRM(idx, ownerType);
+    const last = state.leads[state.leads.length - 1];
+    if (last) created.push(last.id);
   });
+
+  // Vendedor humano: perguntar PARA QUEM enviar (o lead cai no Portal do Vendedor)
+  if (ownerType === 'human') {
+    showNotification(`${checked.length} lead(s) importados. Escolha o vendedor de destino.`);
+    openEnviarVendedorModal(created);
+    return;
+  }
+
   showNotification(`${checked.length} leads importados em massa com sucesso!`);
 }
 
@@ -941,8 +976,10 @@ function handleDropCard(event, targetColumnName) {
     document.getElementById("lost-lead-id").value = lead.id;
     openModal("modal-perdido");
   } else if (targetColumnName === 'Fechado') {
-    const create = confirm("Mover para Fechado? Deseja criar o Pedido automático pós-venda?");
     lead.stage = targetColumnName;
+    crmConfirm("Lead fechado! 🎉",
+      `Deseja criar o <strong>Pedido automático pós-venda</strong> para ${lead.company}? O contrato e o link Pix serão emitidos.`,
+      () => { createOrderFromLead(lead); }, "Criar pedido");
     lead.slaInfo = '✓ pedido';
     
     // Save log
@@ -954,24 +991,6 @@ function handleDropCard(event, targetColumnName) {
       detail: `Contrato em geração e link Pix de faturamento emitido.`,
       rule: 'intervenção humana'
     });
-    
-    if (create) {
-      const orderNum = `#2026-${Math.floor(Math.random()*1000)}`;
-      state.orders.unshift({
-        id: `o_${Date.now()}`,
-        number: orderNum,
-        company: lead.company,
-        seller: lead.owner === 'ia' ? 'Ana (IA)' : lead.ownerName,
-        sellerType: lead.owner === 'ia' ? 'ia' : 'human',
-        date: 'Hoje',
-        items: 'Assessoria de IA Comercial',
-        value: lead.value,
-        payment: 'Pix à vista',
-        contract: 'Aguardando assinatura',
-        status: 'Aguardando pagamento'
-      });
-      showNotification(`Pedido ${orderNum} gerado com sucesso para ${lead.company}!`);
-    }
     
     renderLeadsBoard();
     updateSidebarCounters();
@@ -1025,12 +1044,15 @@ function submitLeadLostReason() {
 }
 
 function openNewLeadModal() {
-  const company = prompt("Nome da Empresa:");
-  const contact = prompt("Contato Principal:");
-  const phone = prompt("WhatsApp:");
-  const segment = prompt("Segmento (Tecnologia, Indústrias Metalúrgicas, Serviços Médicos, Outro):");
-  
-  if (company && contact && phone) {
+  crmPrompt("Novo lead manual", [
+    { id: 'company', label: 'Nome da Empresa', placeholder: 'ex: Aço Vale' },
+    { id: 'contact', label: 'Contato Principal', placeholder: 'ex: Renato Souza' },
+    { id: 'phone',   label: 'WhatsApp', placeholder: '(11) 90000-0000' },
+    { id: 'segment', label: 'Segmento', type: 'select', options: ['Tecnologia', 'Indústrias Metalúrgicas', 'Serviços Médicos', 'Advocacia B2B', 'Logística', 'Outro'] }
+  ], v => {
+    const company = v.company, contact = v.contact, phone = v.phone, segment = v.segment;
+    if (!(company && contact && phone)) { showNotification("Empresa, contato e WhatsApp são obrigatórios."); return; }
+    {
     const leadId = `l${Date.now()}`;
     state.leads.unshift({
       id: leadId,
@@ -1060,7 +1082,8 @@ function openNewLeadModal() {
     showNotification("Novo lead cadastrado e IA comercial ativada!");
     renderLeadsBoard();
     updateSidebarCounters();
-  }
+    }
+  }, "Criar lead");
 }
 
 // ================= TELA 08 · LEADS · DETALHE DO LEAD =================
@@ -1433,10 +1456,11 @@ function approveCopilotSuggestion() {
 
 function editCopilotSuggestion() {
   const text = document.getElementById("copilot-suggestion-text").innerText;
-  const newText = prompt("Edite a sugestão da Ana comercial:", text);
-  if (newText) {
-    document.getElementById("copilot-suggestion-text").innerText = newText;
-  }
+  crmPrompt("Editar sugestão da Ana", [
+    { id: 'text', label: 'Sugestão de resposta', type: 'textarea', value: text }
+  ], v => {
+    if (v.text) document.getElementById("copilot-suggestion-text").innerText = v.text;
+  }, "Salvar edição");
 }
 
 function insertProposalInChat(propId) {
@@ -1688,14 +1712,27 @@ function renderBudgets() {
 function approveProposal(propId) {
   const prop = state.proposals.find(p => p.id === propId);
   if (prop) {
-    const act = confirm(`Aprovar proposta ${prop.number} de ${prop.client} com desconto solicitado?`);
-    if (act) {
+    crmConfirm("Aprovar proposta escalada",
+      `Aprovar a proposta <strong>${prop.number}</strong> de <strong>${prop.client}</strong> com o desconto solicitado (${prop.discount})?<br><br>Ao aprovar, a <span style="color:var(--color-ia);">◈ Ana</span> retoma a negociação e envia a proposta aprovada ao cliente automaticamente.`,
+      () => {
       prop.needApproval = false;
       prop.status = 'Aguardando cliente';
       
       const lead = state.leads.find(l => l.id === prop.leadId);
       if (lead) {
         lead.escalated = false;
+        lead.slaInfo = 'proposta aprovada';
+        
+        // MELHORIA DE FLUXO: a Ana retoma a conversa com o cliente após a aprovação
+        const history = state.chatHistory[lead.id] || [];
+        history.push({
+          sender: 'ia',
+          senderName: 'Ana (IA)',
+          type: 'ia',
+          text: `Ótima notícia, ${lead.contact.split(' ')[0]}! Nosso diretor comercial aprovou a condição especial. Segue a proposta ${prop.number} no valor de R$ ${prop.value.toLocaleString('pt-BR')} (${prop.items}). Posso emitir o contrato para assinatura eletrônica?`,
+          time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+        });
+        state.chatHistory[lead.id] = history;
       }
       
       state.auditLogs.unshift({
@@ -1707,19 +1744,22 @@ function approveProposal(propId) {
         rule: 'alçada de aprovação'
       });
       
-      showNotification(`Proposta ${prop.number} aprovada! IA retoma contato.`);
+      showNotification(`Proposta ${prop.number} aprovada! A Ana retomou o contato.`);
       renderBudgets();
+      renderLeadsBoard();
       updateSidebarCounters();
-    }
+      }, "Aprovar desconto");
   }
 }
 
 function openNewProposalModal() {
-  const client = prompt("Qual o nome da empresa comercial?");
-  const items = prompt("Digite os serviços contratados:");
-  const value = prompt("Valor total da proposta comercial (R$):");
-  
-  if (client && items && value) {
+  crmPrompt("Nova proposta comercial", [
+    { id: 'client', label: 'Empresa', placeholder: 'ex: Aço Vale' },
+    { id: 'items',  label: 'Serviços contratados', placeholder: 'ex: Assessoria de IA + Setup' },
+    { id: 'value',  label: 'Valor total (R$)', type: 'number', placeholder: '5000' }
+  ], v => {
+    const client = v.client, items = v.items, value = v.value;
+    if (!(client && items && value)) { showNotification("Preencha todos os campos."); return; }
     state.proposals.unshift({
       id: `pr${Date.now()}`,
       number: `#01${Math.floor(100 + Math.random()*900)}`,
@@ -1735,13 +1775,16 @@ function openNewProposalModal() {
     
     showNotification("Orçamento e proposta cadastrados com sucesso!");
     renderBudgets();
-  }
+  }, "Criar proposta");
 }
 
 function uploadKnowledgeDoc() {
-  const name = prompt("Nome do arquivo para upload comercial:");
-  const type = prompt("Categoria (Institucional, Catálogo, Técnico, Jurídico):");
-  if (name) {
+  crmPrompt("Upload de documento comercial", [
+    { id: 'name', label: 'Nome do arquivo', placeholder: 'ex: Tabela_Precos_2026.pdf' },
+    { id: 'type', label: 'Categoria', type: 'select', options: ['Institucional', 'Catálogo', 'Técnico', 'Jurídico', 'FAQ', 'Geral'] }
+  ], v => {
+    const name = v.name, type = v.type;
+    if (!name) { showNotification("Informe o nome do arquivo."); return; }
     state.docs.unshift({
       id: `d${Date.now()}`,
       name,
@@ -1760,13 +1803,16 @@ function uploadKnowledgeDoc() {
       renderBudgets();
       showNotification("Documento comercial indexado e pronto para a IA!");
     }, 4000);
-  }
+  }, "Enviar documento");
 }
 
 function answerQuestion(qId) {
   const q = state.unanswered.find(un => un.id === qId);
-  const text = prompt(`Escreva a resposta padrão para:\n"${q.text}"`);
-  if (text) {
+  crmPrompt("Ensinar a Ana", [
+    { id: 'text', label: `Resposta padrão para: "${q.text}"`, type: 'textarea', placeholder: 'A resposta será indexada e a Ana passará a usá-la.' }
+  ], v => {
+    const text = v.text;
+    if (text) {
     state.unanswered = state.unanswered.filter(un => un.id !== qId);
     state.docs.unshift({
       id: `d${Date.now()}`,
@@ -1789,19 +1835,37 @@ function answerQuestion(qId) {
     
     showNotification("Resposta indexada com sucesso!");
     renderBudgets();
-  }
+    }
+  }, "Indexar resposta");
 }
 
 // ================= TELA 13 · PORTAL DO VENDEDOR =================
 function renderVendorPortal() {
+  // Estado de login do portal (QR + OTP)
+  const gate    = document.getElementById("vendor-login-gate");
+  const content = document.getElementById("vendor-portal-content");
+  if (gate && content) {
+    if (!state.vendorSession.loggedIn) {
+      gate.style.display = "block";
+      content.style.display = "none";
+      generateVendorQR();
+      return;                      // não renderiza a fila enquanto não logar
+    }
+    gate.style.display = "none";
+    content.style.display = "block";
+  }
+
   const leadsQueue = document.getElementById("vendor-portal-leads-queue");
   leadsQueue.innerHTML = "";
-  
-  // Custom filter queue for sales reps
-  const vendorLeads = state.leads.filter(l => l.stage !== 'Fechado' && l.stage !== 'Pedido' && l.stage !== 'Perdido');
-  
+
+  // A fila mostra APENAS os leads enviados a este vendedor pelo painel principal
+  const myId = state.vendorSession.userId;
+  const vendorLeads = state.leads.filter(l =>
+    l.assignedTo === myId && l.stage !== 'Fechado' && l.stage !== 'Pedido' && l.stage !== 'Perdido'
+  );
+
   if (vendorLeads.length === 0) {
-    leadsQueue.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:16px;">Sem pendências na sua fila comercial hoje!</td></tr>`;
+    leadsQueue.innerHTML = `<tr><td colspan="5" style="text-align:center; padding:16px; color:var(--text-ter);">Nenhum lead enviado para você ainda. O admin envia pelo painel principal.</td></tr>`;
   } else {
     vendorLeads.forEach(lead => {
       const tr = document.createElement("tr");
@@ -1824,7 +1888,8 @@ function renderVendorPortal() {
         <td><span class="badge badge-gray">${lead.stage}</span></td>
         <td><strong>R$ ${lead.value.toLocaleString('pt-BR')}</strong></td>
         <td style="text-align: right;">
-          <button class="btn btn-sm btn-primary" onclick="viewLeadDetail('${lead.id}')">Atender</button>
+          <button class="btn btn-sm btn-primary" onclick="vendorOpenChat('${lead.id}')">Atender</button>
+          <button class="btn btn-sm btn-secondary" onclick="viewLeadDetail('${lead.id}')">Ficha</button>
         </td>
       `;
       leadsQueue.appendChild(tr);
@@ -2039,6 +2104,15 @@ function renderReports() {
 
 // ================= TELA 16-20 · CONFIGURAÇÕES =================
 function renderSettings() {
+  // Recalcula contadores de leads (o seed pode divergir dos dados reais)
+  state.users.forEach(u => {
+    if (u.role === 'Vendedor Virtual') {
+      u.leads = state.leads.filter(l => l.owner === 'ia' && !['Perdido'].includes(l.stage)).length;
+    } else if (u.role === 'Vendedor') {
+      u.leads = state.leads.filter(l => (l.ownerName === u.name || l.assignedTo === u.id) && !['Perdido'].includes(l.stage)).length;
+    }
+  });
+
   // Aba 1: Users Grid Commercial Team
   const teamGrid = document.getElementById("settings-team-grid");
   teamGrid.innerHTML = "";
@@ -2071,6 +2145,8 @@ function renderSettings() {
     tr.innerHTML = `
       <td><strong>${u.name}</strong></td>
       <td>${u.email}</td>
+      <td>${u.phone ? u.phone : '<span style="color:var(--color-error); font-size:11px;">sem telefone</span>'}</td>
+      <td>${formatMinutes(state.vendorSessions.filter(s => s.userId === u.id).reduce((a, s) => a + s.minutes, 0))}</td>
       <td>
         <select class="form-control form-control-sm" style="width:120px;" ${u.id==='u1' ? 'disabled' : ''}>
           <option ${u.role==='Administrador' ? 'selected' : ''}>Administrador</option>
@@ -2167,18 +2243,36 @@ function filterAuditLogs() {
 }
 
 function handleAddNewUser() {
-  const name = document.getElementById("new-user-name").value;
-  const email = document.getElementById("new-user-email").value;
+  const name  = document.getElementById("new-user-name").value.trim();
+  const email = document.getElementById("new-user-email").value.trim();
+  const phone = document.getElementById("new-user-phone").value.trim();
   const password = document.getElementById("new-user-password").value;
-  const role = document.getElementById("new-user-role").value;
-  
+  const role  = document.getElementById("new-user-role").value;
+
+  if (!name || !email || !phone) {
+    showNotification("Nome, e-mail e telefone (WhatsApp) são obrigatórios.");
+    return;
+  }
+
   state.users.push({
     id: `u${Date.now()}`,
-    name, email, role, leads: 0, canUseIA: true, discountLimit: '5%', active: true, avatar: name.substring(0,1).toUpperCase()
+    name, email, phone, role, leads: 0, canUseIA: true,
+    discountLimit: '5%', active: true, avatar: name.substring(0,1).toUpperCase()
   });
-  
-  document.getElementById("new-user-form").reset();
-  showNotification(`Vendedor ${name} cadastrado!`);
+
+  // o <form> virou <div> (submit é bloqueado em iframe), então limpamos manualmente
+  ["new-user-name","new-user-email","new-user-phone","new-user-password"]
+    .forEach(id => document.getElementById(id).value = "");
+
+  state.auditLogs.unshift({
+    time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+    actor: state.activeUser.name, actorType: 'human',
+    action: `Vendedor ${name} cadastrado`,
+    detail: `Telefone ${phone} habilitado para login no Portal do Vendedor.`,
+    rule: 'gestão de usuários'
+  });
+
+  showNotification(`Vendedor ${name} cadastrado! WhatsApp: ${phone}`);
   renderSettings();
 }
 
@@ -2270,4 +2364,530 @@ function useMsgTemplate(type) {
 
 function openTemplatesModal() {
   openModal("modal-templates");
+}
+
+// ================= FUNÇÕES AUSENTES (chamadas pelo HTML, mas não implementadas) =================
+
+// Salvar anotação privada no lead (input #detail-note-input, tela Detalhe do Lead)
+function saveLeadNote() {
+  const input = document.getElementById("detail-note-input");
+  const text = input.value.trim();
+  if (!text) {
+    showNotification("Digite uma anotação antes de salvar.");
+    return;
+  }
+  const lead = state.leads.find(l => l.id === state.activeLeadId);
+  if (!lead) return;
+
+  state.auditLogs.unshift({
+    time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+    actor: state.activeUser.name,
+    actorType: 'human',
+    action: `Anotação registrada em ${lead.company}`,
+    detail: text,
+    rule: 'nota privada do vendedor'
+  });
+
+  input.value = "";
+  showNotification("Anotação salva na timeline do lead!");
+  renderLeadDetail();
+}
+
+// Criar tarefa vinculada ao lead aberto (botão "+ Criar" no card Tarefas do Lead)
+function addNewLeadTask() {
+  const lead = state.leads.find(l => l.id === state.activeLeadId);
+  if (!lead) return;
+
+  crmPrompt(`Nova tarefa · ${lead.company}`, [
+    { id: 'text', label: 'Descrição da tarefa', placeholder: 'ex: Enviar proposta revisada até sexta' }
+  ], v => {
+    if (!v.text) return;
+    state.tasks.unshift({
+      id: `t${Date.now()}`,
+      text: v.text,
+      time: 'Hoje, ' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      owner: lead.owner === 'ia' ? 'Ana (IA)' : (lead.ownerName || state.activeUser.name),
+      completed: false
+    });
+    showNotification("Tarefa vinculada ao lead!");
+    renderLeadDetail();
+    renderDashboard();
+  }, "Criar tarefa");
+}
+
+// Novo item do catálogo (botão "+ Novo item" na aba Catálogo de Orçamentos)
+function openNewItemCatalogModal() {
+  openModal("modal-novo-servico");
+}
+
+// Novo pedido manual (botão "+ Novo pedido" na tela Pedidos)
+function createNewOrderModal() {
+  crmPrompt("Novo pedido manual", [
+    { id: 'company', label: 'Empresa', placeholder: 'ex: Farmácias Vida Plena' },
+    { id: 'value',   label: 'Valor do pedido (R$)', type: 'number', placeholder: '5000' }
+  ], v => {
+    const company = v.company;
+    if (!company) { showNotification("Informe a empresa."); return; }
+    const value = parseFloat(v.value) || 0;
+
+  const seq = String(state.orders.length + 41).padStart(3, '0');
+  state.orders.unshift({
+    id: `o_2026_${seq}`,
+    number: `#2026-${seq}`,
+    company: company,
+    seller: state.activeUser.name,
+    sellerType: 'human',
+    date: 'Hoje',
+    items: 'Pedido lançado manualmente',
+    value: value,
+    payment: 'A definir',
+    contract: 'Aguardando assinatura',
+    status: 'Aguardando pagamento'
+  });
+
+  showNotification(`Pedido #2026-${seq} criado!`);
+  renderOrders();
+  updateSidebarCounters();
+  }, "Criar pedido");
+}
+
+// Sino de notificações da topbar
+function toggleNotifications() {
+  const pendentes = state.leads.filter(l => l.escalated).length;
+  const aprovacoes = state.proposals.filter(p => p.needApproval).length;
+  showNotification(`${pendentes} escalonamento(s) da IA · ${aprovacoes} proposta(s) aguardando aprovação`);
+}
+
+// ================= PORTAL DO VENDEDOR · LOGIN POR QR PRÓPRIO + OTP NO WHATSAPP =================
+// NOTA: o QR é gerado pelo próprio CRM (não é o QR do WhatsApp Web).
+// O vendedor lê o QR, recebe um código de 6 dígitos no WhatsApp dele e entra.
+// Isso evita as bibliotecas não-oficiais do WhatsApp (risco de banimento do número).
+
+let vendorTimerInterval = null;
+
+function vendorSellers() {
+  return state.users.filter(u => u.role === 'Vendedor' && u.phone);
+}
+
+// Desenha um QR Code simulado (padrão determinístico a partir do token)
+function drawFakeQR(token) {
+  const size = 21, cell = 8, pad = 8;
+  let seed = 0;
+  for (let i = 0; i < token.length; i++) seed = (seed * 31 + token.charCodeAt(i)) >>> 0;
+  const rnd = () => (seed = (seed * 1103515245 + 12345) >>> 0) / 4294967296;
+
+  const isFinder = (r, c) =>
+    (r < 7 && c < 7) || (r < 7 && c >= size - 7) || (r >= size - 7 && c < 7);
+
+  let rects = '';
+  for (let r = 0; r < size; r++) {
+    for (let c = 0; c < size; c++) {
+      let on = false;
+      if (isFinder(r, c)) {
+        const rr = r >= size - 7 ? r - (size - 7) : r;
+        const cc = c >= size - 7 ? c - (size - 7) : c;
+        const edge = rr === 0 || rr === 6 || cc === 0 || cc === 6;
+        const core = rr >= 2 && rr <= 4 && cc >= 2 && cc <= 4;
+        on = edge || core;
+      } else {
+        on = rnd() > 0.5;
+      }
+      if (on) rects += `<rect x="${pad + c * cell}" y="${pad + r * cell}" width="${cell}" height="${cell}" fill="#0F172A"/>`;
+    }
+  }
+  const total = size * cell + pad * 2;
+  return `<svg width="${total}" height="${total}" viewBox="0 0 ${total} ${total}" xmlns="http://www.w3.org/2000/svg">
+    <rect width="${total}" height="${total}" fill="white"/>${rects}</svg>`;
+}
+
+function generateVendorQR() {
+  // popula o select de vendedores (apenas quem tem telefone cadastrado)
+  const sel = document.getElementById("vendor-login-user");
+  if (sel && sel.options.length === 0) {
+    vendorSellers().forEach(u => {
+      const opt = document.createElement("option");
+      opt.value = u.id;
+      opt.text = `${u.name} · ${u.phone}`;
+      sel.appendChild(opt);
+    });
+  }
+
+  const token = 'WF-' + Math.random().toString(36).substring(2, 10).toUpperCase();
+  state.vendorSession.token = token;
+  state.vendorSession.otp = null;
+
+  document.getElementById("vendor-qr-box").innerHTML = drawFakeQR(token);
+  const otpArea = document.getElementById("vendor-otp-area");
+  if (otpArea) otpArea.style.display = "none";
+}
+
+function simulateQrScan() {
+  const sel = document.getElementById("vendor-login-user");
+  const user = state.users.find(u => u.id === sel.value);
+  if (!user) { showNotification("Cadastre um vendedor com telefone primeiro."); return; }
+
+  // gera o código que "chega" no WhatsApp do vendedor
+  const otp = String(Math.floor(100000 + Math.random() * 900000));
+  state.vendorSession.otp = otp;
+  state.vendorSession.userId = user.id;
+
+  document.getElementById("vendor-otp-phone").innerText = user.phone;
+  document.getElementById("vendor-otp-code").innerText = otp;
+  document.getElementById("vendor-otp-area").style.display = "block";
+  document.getElementById("vendor-otp-input").value = "";
+  document.getElementById("vendor-otp-input").focus();
+
+  showNotification(`Código enviado no WhatsApp ${user.phone}`);
+}
+
+function verifyVendorOtp() {
+  const typed = document.getElementById("vendor-otp-input").value.trim();
+  if (typed !== state.vendorSession.otp) {
+    showNotification("Código inválido. Confira o WhatsApp.");
+    return;
+  }
+
+  const user = state.users.find(u => u.id === state.vendorSession.userId);
+  state.vendorSession.loggedIn = true;
+  state.vendorSession.startedAt = Date.now();
+
+  document.getElementById("vendor-login-gate").style.display = "none";
+  document.getElementById("vendor-portal-content").style.display = "block";
+
+  document.getElementById("vendor-session-name").innerText = user.name;
+  document.getElementById("vendor-session-phone").innerText = user.phone + " · conectado via QR + WhatsApp";
+  document.getElementById("vendor-session-avatar").innerText = user.avatar;
+
+  clearInterval(vendorTimerInterval);
+  vendorTimerInterval = setInterval(updateVendorTimer, 1000);
+  updateVendorTimer();
+
+  state.auditLogs.unshift({
+    time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+    actor: user.name, actorType: 'human',
+    action: `${user.name} conectou-se ao Portal do Vendedor`,
+    detail: `Autenticação por QR Code do CRM + código enviado ao WhatsApp ${user.phone}.`,
+    rule: 'login do portal do vendedor'
+  });
+
+  showNotification(`Bem-vindo(a), ${user.name}!`);
+  renderVendorPortal();
+}
+
+function updateVendorTimer() {
+  if (!state.vendorSession.loggedIn) return;
+  const s = Math.floor((Date.now() - state.vendorSession.startedAt) / 1000);
+  const hh = String(Math.floor(s / 3600)).padStart(2, '0');
+  const mm = String(Math.floor((s % 3600) / 60)).padStart(2, '0');
+  const ss = String(s % 60).padStart(2, '0');
+  const el = document.getElementById("vendor-session-timer");
+  if (el) el.innerText = `${hh}:${mm}:${ss}`;
+}
+
+function vendorLogout() {
+  const user = state.users.find(u => u.id === state.vendorSession.userId);
+  const minutes = Math.max(1, Math.round((Date.now() - state.vendorSession.startedAt) / 60000));
+  const now = new Date();
+
+  // grava a sessão no histórico visível pelo painel principal
+  state.vendorSessions.unshift({
+    userId: user.id,
+    userName: user.name,
+    start: new Date(state.vendorSession.startedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+    end: now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+    minutes: minutes,
+    date: now.toLocaleDateString('pt-BR')
+  });
+
+  state.auditLogs.unshift({
+    time: now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+    actor: user.name, actorType: 'human',
+    action: `${user.name} encerrou a sessão no Portal do Vendedor`,
+    detail: `Tempo conectado nesta sessão: ${minutes} minuto(s).`,
+    rule: 'controle de jornada do vendedor'
+  });
+
+  clearInterval(vendorTimerInterval);
+  state.vendorSession = { loggedIn: false, userId: null, startedAt: null, otp: null, token: null };
+  state.vendorActiveLeadId = null;
+
+  document.getElementById("vendor-portal-content").style.display = "none";
+  document.getElementById("vendor-login-gate").style.display = "block";
+  generateVendorQR();
+
+  showNotification(`Sessão encerrada · ${minutes} min trabalhados`);
+  renderSettings();
+  renderReports();
+}
+
+// ================= ENVIO DE LEAD AO PORTAL DO VENDEDOR =================
+let enviarVendedorTargets = [];   // ids de leads a enviar
+
+function openEnviarVendedorModal(leadIds) {
+  const sellers = vendorSellers();
+  if (sellers.length === 0) {
+    showNotification("Cadastre um vendedor com telefone em Configurações.");
+    return;
+  }
+
+  enviarVendedorTargets = leadIds && leadIds.length ? leadIds : [state.activeLeadId];
+
+  const sel = document.getElementById("enviar-vendedor-select");
+  sel.innerHTML = "";
+  sellers.forEach(u => {
+    const opt = document.createElement("option");
+    opt.value = u.id;
+    opt.text = `${u.name} — ${u.phone}`;
+    sel.appendChild(opt);
+  });
+
+  const nomes = enviarVendedorTargets
+    .map(id => (state.leads.find(l => l.id === id) || {}).company)
+    .filter(Boolean).join(", ");
+  document.getElementById("enviar-vendedor-resumo").innerHTML =
+    `<strong>${enviarVendedorTargets.length}</strong> lead(s) serão enviados: ${nomes}`;
+
+  updateEnviarVendedorInfo();
+  openModal("modal-enviar-vendedor");
+}
+
+function updateEnviarVendedorInfo() {
+  const u = state.users.find(x => x.id === document.getElementById("enviar-vendedor-select").value);
+  if (!u) return;
+  document.getElementById("enviar-vendedor-phone").innerText = u.phone;
+  document.getElementById("enviar-vendedor-msg").innerText =
+    `Olá ${u.name}! Você recebeu ${enviarVendedorTargets.length} novo(s) lead(s) no Portal do Vendedor. Acesse e leia o QR para atender.`;
+}
+
+function confirmEnviarVendedor() {
+  const u = state.users.find(x => x.id === document.getElementById("enviar-vendedor-select").value);
+  if (!u) return;
+
+  enviarVendedorTargets.forEach(id => {
+    const lead = state.leads.find(l => l.id === id);
+    if (!lead) return;
+    lead.assignedTo = u.id;
+    lead.owner = 'human';
+    lead.ownerName = u.name;
+
+    state.auditLogs.unshift({
+      time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      actor: state.activeUser.name, actorType: 'human',
+      action: `Lead ${lead.company} enviado para ${u.name}`,
+      detail: `Notificação disparada no WhatsApp ${u.phone}. Lead disponível no Portal do Vendedor.`,
+      rule: 'distribuição de leads'
+    });
+  });
+
+  u.leads = state.leads.filter(l => l.assignedTo === u.id).length;
+
+  closeModal("modal-enviar-vendedor");
+  showNotification(`${enviarVendedorTargets.length} lead(s) enviados para ${u.name} (${u.phone})`);
+  renderAll();
+}
+
+// ================= CHAT DENTRO DO PORTAL (gera histórico no painel principal) =================
+function vendorOpenChat(leadId) {
+  state.vendorActiveLeadId = leadId;
+  const lead = state.leads.find(l => l.id === leadId);
+
+  document.getElementById("vendor-chat-title").innerText = `${lead.company} · ${lead.contact} (${lead.phone})`;
+  document.getElementById("vendor-chat-empty").style.display = "none";
+  document.getElementById("vendor-chat-wrapper").style.display = "block";
+  renderVendorChat();
+}
+
+function renderVendorChat() {
+  const leadId = state.vendorActiveLeadId;
+  if (!leadId) return;
+  const box = document.getElementById("vendor-chat-messages");
+  const msgs = state.chatHistory[leadId] || [];
+  box.innerHTML = "";
+
+  if (msgs.length === 0) {
+    box.innerHTML = `<p style="font-size:11px; color:var(--text-sec); text-align:center;">Nenhuma mensagem ainda. Inicie a conversa.</p>`;
+    return;
+  }
+
+  msgs.forEach(m => {
+    const mine = m.sender !== 'client';
+    const bg = m.sender === 'client' ? 'white' : (m.type === 'ia' || m.sender === 'ia' ? '#F1ECFE' : '#DCF8C6');
+    const div = document.createElement("div");
+    div.style.cssText = `align-self:${mine ? 'flex-end' : 'flex-start'}; max-width:75%; background:${bg}; padding:8px 10px; border-radius:8px; box-shadow:0 1px 1px rgba(0,0,0,.08);`;
+    div.innerHTML = `
+      <div style="font-size:10px; color:var(--text-sec); margin-bottom:2px;">${m.senderName}</div>
+      <div style="font-size:12px; color:var(--text-body);">${m.text}</div>
+      <div style="font-size:9px; color:var(--text-ter); text-align:right; margin-top:2px;">${m.time}</div>`;
+    box.appendChild(div);
+  });
+  box.scrollTop = box.scrollHeight;
+}
+
+function vendorSendMessage() {
+  const input = document.getElementById("vendor-chat-input");
+  const text = input.value.trim();
+  if (!text || !state.vendorActiveLeadId) return;
+
+  const lead = state.leads.find(l => l.id === state.vendorActiveLeadId);
+  const user = state.users.find(u => u.id === state.vendorSession.userId);
+  const history = state.chatHistory[lead.id] || [];
+
+  history.push({
+    sender: 'human',
+    senderName: `${user.name} (Portal do Vendedor)`,
+    type: 'human',
+    text: text,
+    time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+  });
+  state.chatHistory[lead.id] = history;
+
+  state.auditLogs.unshift({
+    time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+    actor: user.name, actorType: 'human',
+    action: `Mensagem enviada a ${lead.company} pelo Portal do Vendedor`,
+    detail: text,
+    rule: 'atendimento via WhatsApp Business API'
+  });
+
+  lead.lastContact = 'Hoje, ' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  input.value = "";
+  renderVendorChat();
+}
+
+
+// Formata minutos em "3h 42min"
+function formatMinutes(min) {
+  if (!min) return '<span style="color:var(--text-ter);">—</span>';
+  const h = Math.floor(min / 60), m = min % 60;
+  return h ? `${h}h ${m}min` : `${m}min`;
+}
+
+// ================= RELATÓRIOS · JORNADA DOS VENDEDORES =================
+function renderVendorSessions() {
+  const body = document.getElementById("vendor-sessions-body");
+  if (!body) return;
+  body.innerHTML = "";
+
+  const sessions = [...state.vendorSessions];
+
+  // sessão em andamento aparece ao vivo
+  if (state.vendorSession.loggedIn) {
+    const u = state.users.find(x => x.id === state.vendorSession.userId);
+    sessions.unshift({
+      userId: u.id, userName: u.name,
+      start: new Date(state.vendorSession.startedAt).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+      end: null,
+      minutes: Math.max(0, Math.round((Date.now() - state.vendorSession.startedAt) / 60000)),
+      date: new Date().toLocaleDateString('pt-BR'),
+      live: true
+    });
+  }
+
+  if (sessions.length === 0) {
+    body.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:16px; color:var(--text-ter);">Nenhuma sessão registrada.</td></tr>`;
+  } else {
+    sessions.forEach(s => {
+      const leadsQtd = state.leads.filter(l => l.assignedTo === s.userId).length;
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td><strong>${s.userName}</strong></td>
+        <td>${s.date}</td>
+        <td>${s.start}</td>
+        <td>${s.end ? s.end : '<span class="badge badge-success">● online agora</span>'}</td>
+        <td><strong>${formatMinutes(s.minutes)}</strong></td>
+        <td>${leadsQtd} lead(s)</td>`;
+      body.appendChild(tr);
+    });
+  }
+
+  const total = sessions.reduce((a, s) => a + s.minutes, 0);
+  const totalEl = document.getElementById("vendor-sessions-total");
+  if (totalEl) totalEl.innerText = `Total: ${formatMinutes(total) === '—' ? '0min' : formatMinutes(total).replace(/<[^>]*>/g,'')}`;
+}
+
+// ================= SISTEMA DE DIÁLOGO PRÓPRIO =================
+// prompt(), confirm() e alert() nativos são bloqueados em iframes sandboxed.
+// crmConfirm / crmPrompt substituem todos com um modal do próprio CRM.
+
+let _crmDialogOnOk = null;
+
+function crmConfirm(title, message, onOk, okText = "Confirmar", danger = false) {
+  document.getElementById("crm-dialog-title").innerText = title;
+  document.getElementById("crm-dialog-body").innerHTML =
+    `<p style="font-size:13px; color:var(--text-body); line-height:1.5;">${message}</p>`;
+  const okBtn = document.getElementById("crm-dialog-ok");
+  okBtn.innerText = okText;
+  okBtn.className = danger ? "btn btn-danger" : "btn btn-primary";
+  _crmDialogOnOk = () => onOk();
+  openModal("modal-crm-dialog");
+}
+
+// fields: [{ id, label, placeholder, type: 'text'|'number'|'textarea'|'select', options, value }]
+function crmPrompt(title, fields, onOk, okText = "Salvar") {
+  document.getElementById("crm-dialog-title").innerText = title;
+  const body = document.getElementById("crm-dialog-body");
+  body.innerHTML = "";
+
+  fields.forEach((f, i) => {
+    const group = document.createElement("div");
+    group.className = "form-group";
+    let control = "";
+    if (f.type === "textarea") {
+      control = `<textarea class="form-control" id="crm-dlg-${f.id}" rows="4" placeholder="${f.placeholder || ''}">${f.value || ''}</textarea>`;
+    } else if (f.type === "select") {
+      const opts = (f.options || []).map(o => `<option ${o === f.value ? 'selected' : ''}>${o}</option>`).join("");
+      control = `<select class="form-control" id="crm-dlg-${f.id}">${opts}</select>`;
+    } else {
+      control = `<input type="${f.type || 'text'}" class="form-control" id="crm-dlg-${f.id}" placeholder="${f.placeholder || ''}" value="${f.value || ''}" ${i === fields.length - 1 ? `onkeydown="if(event.key==='Enter') crmDialogOk()"` : ''}>`;
+    }
+    group.innerHTML = `<label class="form-label">${f.label}</label>${control}`;
+    body.appendChild(group);
+  });
+
+  const okBtn = document.getElementById("crm-dialog-ok");
+  okBtn.innerText = okText;
+  okBtn.className = "btn btn-primary";
+
+  _crmDialogOnOk = () => {
+    const values = {};
+    fields.forEach(f => values[f.id] = document.getElementById(`crm-dlg-${f.id}`).value.trim());
+    onOk(values);
+  };
+
+  openModal("modal-crm-dialog");
+  setTimeout(() => { const first = document.getElementById(`crm-dlg-${fields[0].id}`); if (first) first.focus(); }, 60);
+}
+
+function crmDialogOk() {
+  const fn = _crmDialogOnOk;
+  closeModal("modal-crm-dialog");
+  _crmDialogOnOk = null;
+  if (fn) fn();
+}
+
+function crmDialogCancel() {
+  _crmDialogOnOk = null;
+  closeModal("modal-crm-dialog");
+}
+
+
+// Cria pedido a partir de um lead fechado (chamado pelo crmConfirm do kanban)
+function createOrderFromLead(lead) {
+  const orderNum = `#2026-${Math.floor(Math.random() * 1000)}`;
+  state.orders.unshift({
+    id: `o_${Date.now()}`,
+    number: orderNum,
+    company: lead.company,
+    seller: lead.owner === 'ia' ? 'Ana (IA)' : lead.ownerName,
+    sellerType: lead.owner === 'ia' ? 'ia' : 'human',
+    date: 'Hoje',
+    items: 'Assessoria de IA Comercial',
+    value: lead.value,
+    payment: 'Pix à vista',
+    contract: 'Aguardando assinatura',
+    status: 'Aguardando pagamento'
+  });
+  showNotification(`Pedido ${orderNum} gerado com sucesso para ${lead.company}!`);
+  renderOrders();
+  updateSidebarCounters();
 }
