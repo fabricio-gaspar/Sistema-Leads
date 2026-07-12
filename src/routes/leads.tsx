@@ -1,8 +1,9 @@
 import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { useState, type DragEvent } from "react";
-import { Flame, Thermometer, Snowflake, Bot, User as UserIcon, Clock, AlertTriangle, Plus, Filter } from "lucide-react";
+import { Flame, Thermometer, Snowflake, Bot, User as UserIcon, Clock, AlertTriangle, Plus, Filter, Download } from "lucide-react";
 import { STAGES, type Stage, type Lead, formatBRL } from "@/lib/leads-data";
 import { useLeads, leadsStore } from "@/hooks/use-leads-store";
+import { exportLeadsCSV } from "@/lib/exports";
 
 export const Route = createFileRoute("/leads")({ component: LeadsPage });
 
@@ -39,6 +40,12 @@ function Kanban() {
           <Stat label="Parados 2+ dias" value={parados.toString()} accent={parados > 0 ? "error" : undefined} />
         </div>
         <div className="ml-auto flex items-center gap-2">
+          <button
+            onClick={() => exportLeadsCSV(leads)}
+            className="inline-flex h-9 items-center gap-2 rounded-md border border-border-card bg-bg-card px-3 text-[13px] text-text-body hover:bg-bg-general"
+          >
+            <Download className="h-4 w-4" /> Exportar CSV
+          </button>
           <button className="inline-flex h-9 items-center gap-2 rounded-md border border-border-card bg-bg-card px-3 text-[13px] text-text-body hover:bg-bg-general">
             <Filter className="h-4 w-4" /> Filtros
           </button>

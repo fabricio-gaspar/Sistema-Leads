@@ -12,8 +12,15 @@ import {
   Settings,
   Bell,
   Search as SearchIcon,
+  Moon,
+  Sun,
+  Bot,
+  Sparkles,
+  CheckCheck,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useNotifications, notificationsStore } from "@/hooks/use-notifications";
+import { useTheme, themeStore, hydrateTheme } from "@/hooks/use-theme";
 
 const NAV = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -41,11 +48,39 @@ const TITLES: Record<string, string> = {
   "/configuracoes": "Configurações",
 };
 
+const NOTIF_ICONS = {
+  ana: Bot,
+  lead: Users,
+  orcamento: FileText,
+  pedido: ShoppingCart,
+  sistema: Sparkles,
+} as const;
+
 export function AppShell({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const title =
     TITLES[pathname] ??
     (pathname.startsWith("/leads/") ? "Detalhe do Lead" : "WF Digital CRM");
+
+  const notifications = useNotifications();
+  const unread = notifications.filter((n) => !n.read).length;
+  const theme = useTheme();
+  const [notifOpen, setNotifOpen] = useState(false);
+  const notifRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    hydrateTheme();
+  }, []);
+
+  useEffect(() => {
+    const onClick = (e: MouseEvent) => {
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
+        setNotifOpen(false);
+      }
+    };
+    if (notifOpen) document.addEventListener("mousedown", onClick);
+    return () => document.removeEventListener("mousedown", onClick);
+  }, [notifOpen]);
 
   // Portal do Vendedor usa layout próprio (sem sidebar)
   if (pathname.startsWith("/portal-vendedor/")) {
@@ -76,11 +111,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 : pathname === item.to || pathname.startsWith(item.to + "/");
             const Icon = item.icon;
             const badge =
-              item.to === "/leads"
-                ? 3
-                : item.to === "/orcamentos"
-                  ? 1
-                  : undefined;
+              item.to === "/leads" ? 3 : item.to === "/orcamentos" ? 1 : undefined;
             return (
               <Link
                 key={item.to}
@@ -96,9 +127,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 {badge ? (
                   <span
                     className={`inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] font-semibold ${
-                      item.to === "/orcamentos"
-                        ? "bg-error text-white"
-                        : "bg-hot text-white"
+                      item.to === "/orcamentos" ? "bg-error text-white" : "bg-hot text-white"
                     }`}
                   >
                     {badge}
@@ -139,12 +168,90 @@ export function AppShell({ children }: { children: ReactNode }) {
           </div>
 
           <button
-            className="relative flex h-9 w-9 items-center justify-center rounded-md text-text-sec hover:bg-bg-general"
-            aria-label="Notificações"
+            onClick={() => themeStore.toggle()}
+            className="flex h-9 w-9 items-center justify-center rounded-md text-text-sec hover:bg-bg-general"
+            aria-label="Alternar tema"
+            title={theme === "dark" ? "Tema claro" : "Tema escuro"}
           >
-            <Bell className="h-4 w-4" />
-            <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-hot" />
+            {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           </button>
+
+          <div className="relative" ref={notifRef}>
+            <button
+              onClick={() => setNotifOpen((v) => !v)}
+              className="relative flex h-9 w-9 items-center justify-center rounded-md text-text-sec hover:bg-bg-general"
+              aria-label="Notificações"
+            >
+              <Bell className="h-4 w-4" />
+              {unread > 0 && (
+                <span className="absolute right-1 top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-hot px-1 text-[9px] font-bold text-white">
+                  {unread}
+                </span>
+              )}
+            </button>
+
+            {notifOpen && (
+              <div className="absolute right-0 top-11 z-40 w-[360px] overflow-hidden rounded-lg border border-border-card bg-bg-card shadow-xl">
+                <div className="flex items-center justify-between border-b border-border-card px-3 py-2.5">
+                  <div className="text-[13px] font-semibold text-text-title">Notificações</div>
+                  <button
+                    onClick={() => notificationsStore.markAllRead()}
+                    className="inline-flex items-center gap-1 text-[11px] text-text-sec hover:text-primary"
+                  >
+                    <CheckCheck className="h-3 w-3" /> Marcar tudo como lido
+                  </button>
+                </div>
+                <div className="max-h-[420px] overflow-y-auto">
+                  {notifications.length === 0 && (
+                    <div className="p-6 text-center text-[12px] text-text-ter">
+                      Nenhuma notificação
+                    </div>
+                  )}
+                  {notifications.map((n) => {
+                    const Icon = NOTIF_ICONS[n.kind];
+                    return (
+                      <div
+                        key={n.id}
+                        className={`flex gap-2.5 border-b border-border-card px-3 py-2.5 last:border-b-0 ${
+                          n.read ? "opacity-60" : ""
+                        }`}
+                      >
+                        <div
+                          className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${
+                            n.kind === "ana"
+                              ? "bg-ia-bg text-ia"
+                              : n.kind === "orcamento"
+                                ? "bg-warm-bg text-warm"
+                                : n.kind === "pedido"
+                                  ? "bg-success-bg text-success"
+                                  : n.kind === "lead"
+                                    ? "bg-error-bg text-error"
+                                    : "bg-bg-general text-text-sec"
+                          }`}
+                        >
+                          <Icon className="h-3.5 w-3.5" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-baseline justify-between gap-2">
+                            <div className="truncate text-[12px] font-semibold text-text-title">
+                              {n.title}
+                            </div>
+                            <div className="shrink-0 text-[10px] text-text-ter">{n.at}</div>
+                          </div>
+                          <div className="mt-0.5 text-[11px] leading-snug text-text-sec">
+                            {n.desc}
+                          </div>
+                        </div>
+                        {!n.read && (
+                          <span className="mt-1 inline-block h-2 w-2 shrink-0 rounded-full bg-primary" />
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
 
           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-semibold">
             F

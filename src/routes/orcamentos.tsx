@@ -1,8 +1,9 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { FileText, Plus, Send, CheckCircle2, Clock, XCircle, Sparkles } from "lucide-react";
+import { FileText, Plus, Send, CheckCircle2, Clock, XCircle, Sparkles, Download } from "lucide-react";
 import { Card, SectionTitle } from "@/components/ui-kit";
 import { formatBRL } from "@/lib/leads-data";
+import { generateOrcamentoPDF } from "@/lib/exports";
 
 export const Route = createFileRoute("/orcamentos")({ component: Orcamentos });
 
@@ -101,6 +102,7 @@ function Orcamentos() {
               <th className="p-3">Validade</th>
               <th className="p-3">Origem</th>
               <th className="p-3">Status</th>
+              <th className="p-3 text-right">Ações</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border-card">
@@ -124,6 +126,15 @@ function Orcamentos() {
                     <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${m.cls}`}>
                       <Icon className="h-3 w-3" /> {m.label}
                     </span>
+                  </td>
+                  <td className="p-3 text-right">
+                    <button
+                      onClick={() => generateOrcamentoPDF(o)}
+                      className="inline-flex items-center gap-1 rounded-md border border-border-card bg-bg-card px-2 py-1 text-[11px] font-medium text-text-body hover:bg-primary hover:text-primary-foreground hover:border-primary"
+                      title="Baixar PDF"
+                    >
+                      <Download className="h-3 w-3" /> PDF
+                    </button>
                   </td>
                 </tr>
               );
