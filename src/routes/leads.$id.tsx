@@ -56,6 +56,11 @@ function LeadDetail() {
     setText("");
   };
 
+  const simulateIncoming = async () => {
+    const { simulateLeadMessage } = await import("@/lib/ana-brain");
+    leadsStore.receiveLeadMessage(lead.id, simulateLeadMessage(), mode === "ia");
+  };
+
   return (
     <div className="flex flex-col gap-4">
       {/* Header */}
