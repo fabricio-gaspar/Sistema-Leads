@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { Search, Sparkles, User, Filter, Download } from "lucide-react";
 import { Card, SectionTitle, TempBadge } from "@/components/ui-kit";
 import { formatBRL } from "@/lib/leads-data";
