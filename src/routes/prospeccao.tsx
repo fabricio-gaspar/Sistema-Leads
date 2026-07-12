@@ -147,7 +147,7 @@ function Prospeccao() {
           </thead>
           <tbody className="divide-y divide-border-card">
             {rows.map((p) => (
-              <>
+              <Fragment key={p.id}>
                 <tr key={p.id} className="hover:bg-bg-general/40">
                   <td className="p-3"><input type="checkbox" checked={selected.has(p.id)} onChange={() => toggle(p.id)} /></td>
                   <td className="p-3">
@@ -185,7 +185,7 @@ function Prospeccao() {
                     </td>
                   </tr>
                 )}
-              </>
+              </Fragment>
             ))}
           </tbody>
         </table>
