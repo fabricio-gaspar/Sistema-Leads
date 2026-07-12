@@ -242,6 +242,12 @@ function LeadDetail() {
                 Enviar
               </button>
             </div>
+            <button
+              onClick={simulateIncoming}
+              className="mt-2 text-[11px] text-text-sec underline-offset-2 hover:text-ia hover:underline"
+            >
+              ⚡ Simular mensagem do lead {mode === "ia" ? "(Ana responderá automaticamente)" : ""}
+            </button>
           </div>
         </div>
 
