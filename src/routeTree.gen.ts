@@ -20,6 +20,7 @@ import { Route as ConfiguracoesRouteImport } from './routes/configuracoes'
 import { Route as AtendimentoRouteImport } from './routes/atendimento'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as LeadsIdRouteImport } from './routes/leads.$id'
+import { Route as ApiAnaRouteImport } from './routes/api/ana'
 
 const RelatoriosRoute = RelatoriosRouteImport.update({
   id: '/relatorios',
@@ -76,6 +77,11 @@ const LeadsIdRoute = LeadsIdRouteImport.update({
   path: '/$id',
   getParentRoute: () => LeadsRoute,
 } as any)
+const ApiAnaRoute = ApiAnaRouteImport.update({
+  id: '/api/ana',
+  path: '/api/ana',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -88,6 +94,7 @@ export interface FileRoutesByFullPath {
   '/portal-vendedor': typeof PortalVendedorRoute
   '/prospeccao': typeof ProspeccaoRoute
   '/relatorios': typeof RelatoriosRoute
+  '/api/ana': typeof ApiAnaRoute
   '/leads/$id': typeof LeadsIdRoute
 }
 export interface FileRoutesByTo {
@@ -101,6 +108,7 @@ export interface FileRoutesByTo {
   '/portal-vendedor': typeof PortalVendedorRoute
   '/prospeccao': typeof ProspeccaoRoute
   '/relatorios': typeof RelatoriosRoute
+  '/api/ana': typeof ApiAnaRoute
   '/leads/$id': typeof LeadsIdRoute
 }
 export interface FileRoutesById {
@@ -115,6 +123,7 @@ export interface FileRoutesById {
   '/portal-vendedor': typeof PortalVendedorRoute
   '/prospeccao': typeof ProspeccaoRoute
   '/relatorios': typeof RelatoriosRoute
+  '/api/ana': typeof ApiAnaRoute
   '/leads/$id': typeof LeadsIdRoute
 }
 export interface FileRouteTypes {
@@ -130,6 +139,7 @@ export interface FileRouteTypes {
     | '/portal-vendedor'
     | '/prospeccao'
     | '/relatorios'
+    | '/api/ana'
     | '/leads/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -143,6 +153,7 @@ export interface FileRouteTypes {
     | '/portal-vendedor'
     | '/prospeccao'
     | '/relatorios'
+    | '/api/ana'
     | '/leads/$id'
   id:
     | '__root__'
@@ -156,6 +167,7 @@ export interface FileRouteTypes {
     | '/portal-vendedor'
     | '/prospeccao'
     | '/relatorios'
+    | '/api/ana'
     | '/leads/$id'
   fileRoutesById: FileRoutesById
 }
@@ -170,6 +182,7 @@ export interface RootRouteChildren {
   PortalVendedorRoute: typeof PortalVendedorRoute
   ProspeccaoRoute: typeof ProspeccaoRoute
   RelatoriosRoute: typeof RelatoriosRoute
+  ApiAnaRoute: typeof ApiAnaRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -251,6 +264,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LeadsIdRouteImport
       parentRoute: typeof LeadsRoute
     }
+    '/api/ana': {
+      id: '/api/ana'
+      path: '/api/ana'
+      fullPath: '/api/ana'
+      preLoaderRoute: typeof ApiAnaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -275,6 +295,7 @@ const rootRouteChildren: RootRouteChildren = {
   PortalVendedorRoute: PortalVendedorRoute,
   ProspeccaoRoute: ProspeccaoRoute,
   RelatoriosRoute: RelatoriosRoute,
+  ApiAnaRoute: ApiAnaRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
