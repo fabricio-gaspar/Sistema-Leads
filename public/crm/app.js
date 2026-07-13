@@ -2183,7 +2183,7 @@ function renderSettings() {
   // Aba 2: Integrations list
   const integrations = [
     { name: 'WhatsApp Business API (Meta)', desc: 'Canal de comunicação oficial para disparos automatizados.', connected: true },
-    { name: 'Modelo de Linguagem Comercial (GPT-4o)', desc: 'Cérebro conversacional para prospecção autônoma.', connected: true },
+    { name: 'Modelo de Linguagem Claude (Anthropic)', desc: 'Cérebro conversacional para prospecção autônoma.', connected: true },
     { name: 'Google Maps Places Search API', desc: 'Pesquisa ativa de CNPJs e estabelecimentos no mapa.', connected: true },
     { name: 'Asaas Pagamentos Gateway', desc: 'Emissão automática de links Pix copy-paste e cobranças.', connected: true },
     { name: 'Clicksign Assinaturas API', desc: 'Emissão e verificação de assinatura eletrônica do contrato.', connected: true },
