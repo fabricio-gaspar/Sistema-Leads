@@ -1946,7 +1946,56 @@ Aumento verificado na taxa de resposta em prospecção fria para 94%.</textarea>
           
           <!-- Tab 3: AI Limits and controls (Tela 18) -->
           <div id="tab-settings-limits" class="tab-panel">
+            <!-- Prompt do Cérebro Conversacional -->
+            <div class="card" style="margin-bottom: 16px; border-color: var(--color-ia);">
+              <div class="card-header" style="background-color: rgba(139, 92, 246, 0.08); border-bottom-color: rgba(139, 92, 246, 0.2); display:flex; align-items:center; justify-content:space-between;">
+                <span style="color: var(--color-ia); font-weight: 700;">◈ Prompt do Cérebro Conversacional (Prospecção Autônoma)</span>
+                <span style="font-size: 11px; color: var(--text-sec);">Modelo ativo: <strong>Claude (Anthropic)</strong></span>
+              </div>
+              <div class="card-body d-flex flex-column gap-3">
+                <div style="font-size: 12px; color: var(--text-sec); line-height: 1.5;">
+                  Define a persona, o tom de voz e as regras que a Ana usa nas conversas de prospecção 100% autônoma no WhatsApp. Alterações são aplicadas nas próximas mensagens.
+                </div>
+                <div class="form-group">
+                  <label class="form-label">System prompt da Ana</label>
+                  <textarea class="form-control" id="settings-ai-brain-prompt" rows="12" style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size: 12.5px; line-height: 1.55; resize: vertical;">Você é a Ana, vendedora virtual da WF Digital, especialista em prospecção B2B consultiva no WhatsApp.
+
+Objetivo: qualificar leads, apresentar o vendedor virtual + assessoria de IA comercial e conduzir até o fechamento do pedido, respeitando a alçada de desconto e limites financeiros configurados.
+
+Persona e tom de voz:
+- Profissional, cordial e direta ao ponto. Nunca robótica.
+- Frases curtas, no máximo 3 por mensagem. Use o primeiro nome do lead.
+- Português do Brasil, sem gírias, sem emojis em excesso (no máximo 1 por mensagem).
+
+Método de venda:
+1) Abertura personalizada citando segmento e cidade do lead.
+2) Pergunta de descoberta sobre a dor comercial (prospecção, follow-up, tempo do time).
+3) Apresentação da solução conectada à dor: Assessoria de IA Comercial (R$ 5.000 setup) + Licença Vendedor Virtual (R$ 490/mês).
+4) Tratamento das objeções listadas no CRM (preço, "vou pensar", "já tenho fornecedor").
+5) Fechamento com envio de proposta e link de pagamento Asaas + contrato Clicksign.
+
+Regras rígidas:
+- Nunca ultrapassar o desconto máximo definido (padrão 10%). Se pedirem mais, escalar para humano.
+- Nunca prometer prazo fora da tabela, citar concorrentes, garantir resultado financeiro ou alterar contrato.
+- Se o lead pedir humano, demonstrar irritação ou fizer pergunta jurídica, escalar imediatamente para a fila "Precisa de Você".
+- Se não souber a resposta, dizer que vai confirmar com o especialista e registrar a pergunta na base "A ensinar".
+
+Formato de saída: apenas o texto da próxima mensagem a enviar no WhatsApp, sem prefixos, sem markdown.</textarea>
+                </div>
+                <div class="d-flex align-items-center justify-content-between" style="flex-wrap: wrap; gap: 8px;">
+                  <div style="font-size: 11px; color: var(--text-ter);">
+                    Dica: use <code>{{lead.nome}}</code>, <code>{{lead.empresa}}</code>, <code>{{lead.segmento}}</code>, <code>{{lead.cidade}}</code> como variáveis.
+                  </div>
+                  <div class="d-flex gap-2">
+                    <button class="btn btn-secondary btn-sm" onclick="document.getElementById('settings-ai-brain-prompt').value=this.dataset.original || document.getElementById('settings-ai-brain-prompt').defaultValue">Restaurar padrão</button>
+                    <button class="btn btn-primary btn-sm" onclick="showNotification('Prompt do Cérebro Conversacional salvo!')">Salvar prompt</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
             <div class="grid-12" style="align-items: start;">
+
               <!-- Left Limits -->
               <div style="grid-column: span 7; display: flex; flex-direction: column; gap: 16px;">
                 <!-- Operation mode -->
