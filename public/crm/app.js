@@ -578,26 +578,45 @@ function handleMiniChatSend() {
   input.value = "";
   box.scrollTop = box.scrollHeight;
   
-  // Ana answers simulated
-  setTimeout(() => {
-    let response = "Interessante sua dúvida comercial. De acordo com o catálogo da WF Digital, nós conseguimos implantar sua automação de prospecção em até 15 dias.";
-    if (msg.toLowerCase().includes("caro") || msg.toLowerCase().includes("preço") || msg.toLowerCase().includes("desconto")) {
-      response = state.objections[0].response;
-    } else if (msg.toLowerCase().includes("pensar") || msg.toLowerCase().includes("retorno")) {
-      response = state.objections[1].response;
-    } else if (msg.toLowerCase().includes("concorrente") || msg.toLowerCase().includes("fornecedor")) {
-      response = state.objections[2].response;
-    }
-    
-    const iaBubble = document.createElement("div");
-    iaBubble.className = "chat-bubble chat-bubble-out-ia";
-    iaBubble.style.fontSize = "11px";
-    iaBubble.style.padding = "6px 10px";
-    iaBubble.innerHTML = `<div class="chat-bubble-author">Ana (IA)</div>${response}`;
-    box.appendChild(iaBubble);
-    box.scrollTop = box.scrollHeight;
-  }, 1000);
+  // Ana responde via Claude (server route /api/ana). Fallback para mock em caso de erro.
+  const iaBubble = document.createElement("div");
+  iaBubble.className = "chat-bubble chat-bubble-out-ia";
+  iaBubble.style.fontSize = "11px";
+  iaBubble.style.padding = "6px 10px";
+  iaBubble.innerHTML = `<div class="chat-bubble-author">Ana (IA)</div><em style="opacity:.7">digitando…</em>`;
+  box.appendChild(iaBubble);
+  box.scrollTop = box.scrollHeight;
+
+  const systemPrompt = (typeof localStorage !== 'undefined' && localStorage.getItem('ana_prompt')) || '';
+  fetch('/api/ana', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      system: systemPrompt || undefined,
+      messages: [{ role: 'user', content: msg }]
+    })
+  })
+    .then(r => r.json().then(d => ({ ok: r.ok, d })))
+    .then(({ ok, d }) => {
+      let response;
+      if (ok && d && d.text) {
+        response = d.text.replace(/</g, '&lt;').replace(/\n/g, '<br>');
+      } else {
+        // Fallback mock por objeção
+        response = "Interessante sua dúvida comercial. De acordo com o catálogo da WF Digital, nós conseguimos implantar sua automação de prospecção em até 15 dias.";
+        if (msg.toLowerCase().includes("caro") || msg.toLowerCase().includes("preço") || msg.toLowerCase().includes("desconto")) response = state.objections[0].response;
+        else if (msg.toLowerCase().includes("pensar") || msg.toLowerCase().includes("retorno")) response = state.objections[1].response;
+        else if (msg.toLowerCase().includes("concorrente") || msg.toLowerCase().includes("fornecedor")) response = state.objections[2].response;
+        if (d && d.error) response += `<div style="opacity:.6;font-size:10px;margin-top:4px">(fallback: ${d.error})</div>`;
+      }
+      iaBubble.innerHTML = `<div class="chat-bubble-author">Ana (IA)</div>${response}`;
+      box.scrollTop = box.scrollHeight;
+    })
+    .catch(err => {
+      iaBubble.innerHTML = `<div class="chat-bubble-author">Ana (IA)</div><span style="opacity:.7">Erro de rede: ${err.message}</span>`;
+    });
 }
+
 
 // ================= TELA 06 · PROSPECÇÃO =================
 const mockProspects = [
