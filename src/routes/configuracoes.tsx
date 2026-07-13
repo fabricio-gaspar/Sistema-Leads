@@ -65,7 +65,26 @@ function AbaAna() {
               <option>Descontraído</option>
             </select>
           </Field>
+          <Field label="Modelo de Linguagem" hint="Cérebro conversacional para prospecção autônoma">
+            <select className="h-9 w-full max-w-md rounded-md border border-border-card bg-bg-card px-3 text-[13px] outline-none" defaultValue="claude-sonnet-4.5">
+              <optgroup label="Anthropic Claude (recomendado)">
+                <option value="claude-opus-4.1">Claude Opus 4.1 — máxima qualidade</option>
+                <option value="claude-sonnet-4.5">Claude Sonnet 4.5 — equilíbrio (padrão)</option>
+                <option value="claude-haiku-4.5">Claude Haiku 4.5 — rápido e econômico</option>
+              </optgroup>
+              <optgroup label="OpenAI">
+                <option value="gpt-5.5">GPT-5.5</option>
+                <option value="gpt-5-mini">GPT-5 mini</option>
+              </optgroup>
+              <optgroup label="Google">
+                <option value="gemini-3-flash">Gemini 3 Flash</option>
+                <option value="gemini-2.5-pro">Gemini 2.5 Pro</option>
+              </optgroup>
+            </select>
+            <div className="mt-1 text-[11px] text-text-ter">Usado pela Ana em prospecção, qualificação e follow-ups automáticos.</div>
+          </Field>
           <Field label={`Autonomia da Ana — ${autonomia}%`} hint="Quanto ela pode decidir antes de escalar para um humano">
+
             <input type="range" min={0} max={100} value={autonomia} onChange={(e) => setAutonomia(Number(e.target.value))} className="w-full max-w-md accent-ia" />
             <div className="mt-1 flex max-w-md justify-between text-[11px] text-text-ter">
               <span>Só sugere</span><span>Escala rápido</span><span>Age sozinha</span>
