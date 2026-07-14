@@ -115,7 +115,7 @@ export const runMockScan = createServerFn({ method: 'POST' })
     // Só admins podem rodar
     const { data: isAdmin } = await supabase.rpc('has_role', {
       _user_id: userId,
-      _role: 'admin',
+      _role: 'administrador',
     })
     if (!isAdmin) throw new Error('Apenas administradores podem executar a varredura.')
 
@@ -142,124 +142,131 @@ export const runMockScan = createServerFn({ method: 'POST' })
 
     // ===== LEADS =====
     {
-      const { data: rows = [] } = await supabase
+      const { data: rows } = await supabase
         .from('leads')
         .select('id, company, contact, email, phone, segment, city')
         .limit(2000)
+      const list = (rows ?? []) as Array<Record<string, unknown>>
       let f = 0
-      for (const r of rows ?? []) {
-        for (const col of ['company', 'contact', 'segment', 'city'] as const) {
+      for (const r of list) {
+        for (const col of ['company', 'contact', 'segment', 'city']) {
           const c = checkText(r[col])
-          if (c.hit) { push('leads', r.id, col, r[col], c.reason, 'high'); f++ }
+          if (c.hit) { push('leads', r.id as string, col, r[col], c.reason, 'high'); f++ }
         }
         const em = checkEmail(r.email)
-        if (em.hit) { push('leads', r.id, 'email', r.email, em.reason, 'high'); f++ }
+        if (em.hit) { push('leads', r.id as string, 'email', r.email, em.reason, 'high'); f++ }
         const ph = checkPhone(r.phone)
-        if (ph.hit) { push('leads', r.id, 'phone', r.phone, ph.reason, 'medium'); f++ }
+        if (ph.hit) { push('leads', r.id as string, 'phone', r.phone, ph.reason, 'medium'); f++ }
       }
-      totals.push({ table: 'leads', rows: rows?.length ?? 0, findings: f })
+      totals.push({ table: 'leads', rows: list.length, findings: f })
     }
 
     // ===== PROFILES =====
     {
-      const { data: rows = [] } = await supabase
+      const { data: rows } = await supabase
         .from('profiles')
         .select('id, name, email')
         .limit(2000)
+      const list = (rows ?? []) as Array<Record<string, unknown>>
       let f = 0
-      for (const r of rows ?? []) {
+      for (const r of list) {
         const n = checkText(r.name)
-        if (n.hit) { push('profiles', r.id, 'name', r.name, n.reason, 'medium'); f++ }
+        if (n.hit) { push('profiles', r.id as string, 'name', r.name, n.reason, 'medium'); f++ }
         const em = checkEmail(r.email)
-        if (em.hit) { push('profiles', r.id, 'email', r.email, em.reason, 'medium'); f++ }
+        if (em.hit) { push('profiles', r.id as string, 'email', r.email, em.reason, 'medium'); f++ }
       }
-      totals.push({ table: 'profiles', rows: rows?.length ?? 0, findings: f })
+      totals.push({ table: 'profiles', rows: list.length, findings: f })
     }
 
     // ===== COMPANY_SETTINGS =====
     {
-      const { data: rows = [] } = await supabase
+      const { data: rows } = await supabase
         .from('company_settings')
         .select('id, name, cnpj, city, segment, email, phone')
         .limit(500)
+      const list = (rows ?? []) as Array<Record<string, unknown>>
       let f = 0
-      for (const r of rows ?? []) {
-        for (const col of ['name', 'city', 'segment'] as const) {
+      for (const r of list) {
+        for (const col of ['name', 'city', 'segment']) {
           const c = checkText(r[col])
-          if (c.hit) { push('company_settings', r.id, col, r[col], c.reason, 'high'); f++ }
+          if (c.hit) { push('company_settings', r.id as string, col, r[col], c.reason, 'high'); f++ }
         }
         const cn = checkCnpj(r.cnpj)
-        if (cn.hit) { push('company_settings', r.id, 'cnpj', r.cnpj, cn.reason, 'high'); f++ }
+        if (cn.hit) { push('company_settings', r.id as string, 'cnpj', r.cnpj, cn.reason, 'high'); f++ }
         const em = checkEmail(r.email)
-        if (em.hit) { push('company_settings', r.id, 'email', r.email, em.reason, 'medium'); f++ }
+        if (em.hit) { push('company_settings', r.id as string, 'email', r.email, em.reason, 'medium'); f++ }
         const ph = checkPhone(r.phone)
-        if (ph.hit) { push('company_settings', r.id, 'phone', r.phone, ph.reason, 'medium'); f++ }
+        if (ph.hit) { push('company_settings', r.id as string, 'phone', r.phone, ph.reason, 'medium'); f++ }
       }
-      totals.push({ table: 'company_settings', rows: rows?.length ?? 0, findings: f })
+      totals.push({ table: 'company_settings', rows: list.length, findings: f })
     }
 
     // ===== PROPOSALS =====
     {
-      const { data: rows = [] } = await supabase
+      const { data: rows } = await supabase
         .from('proposals')
         .select('id, client, number')
         .limit(2000)
+      const list = (rows ?? []) as Array<Record<string, unknown>>
       let f = 0
-      for (const r of rows ?? []) {
+      for (const r of list) {
         const c = checkText(r.client)
-        if (c.hit) { push('proposals', r.id, 'client', r.client, c.reason, 'medium'); f++ }
+        if (c.hit) { push('proposals', r.id as string, 'client', r.client, c.reason, 'medium'); f++ }
       }
-      totals.push({ table: 'proposals', rows: rows?.length ?? 0, findings: f })
+      totals.push({ table: 'proposals', rows: list.length, findings: f })
     }
 
     // ===== ORDERS =====
     {
-      const { data: rows = [] } = await supabase
+      const { data: rows } = await supabase
         .from('orders')
-        .select('id, company, number, contact')
+        .select('id, company, number, seller_name')
         .limit(2000)
+      const list = (rows ?? []) as Array<Record<string, unknown>>
       let f = 0
-      for (const r of rows ?? []) {
-        for (const col of ['company', 'contact'] as const) {
+      for (const r of list) {
+        for (const col of ['company', 'seller_name']) {
           const c = checkText(r[col])
-          if (c.hit) { push('orders', r.id, col, r[col], c.reason, 'medium'); f++ }
+          if (c.hit) { push('orders', r.id as string, col, r[col], c.reason, 'medium'); f++ }
         }
       }
-      totals.push({ table: 'orders', rows: rows?.length ?? 0, findings: f })
+      totals.push({ table: 'orders', rows: list.length, findings: f })
     }
 
     // ===== SERVICES =====
     {
-      const { data: rows = [] } = await supabase
+      const { data: rows } = await supabase
         .from('services')
         .select('id, name, description')
         .limit(1000)
+      const list = (rows ?? []) as Array<Record<string, unknown>>
       let f = 0
-      for (const r of rows ?? []) {
-        for (const col of ['name', 'description'] as const) {
+      for (const r of list) {
+        for (const col of ['name', 'description']) {
           const c = checkText(r[col])
-          if (c.hit) { push('services', r.id, col, r[col], c.reason, 'low'); f++ }
+          if (c.hit) { push('services', r.id as string, col, r[col], c.reason, 'low'); f++ }
         }
       }
-      totals.push({ table: 'services', rows: rows?.length ?? 0, findings: f })
+      totals.push({ table: 'services', rows: list.length, findings: f })
     }
 
-    // ===== INTEGRATIONS (detectar status "conectado" sem config) =====
+    // ===== INTEGRATIONS (detectar "conectado" sem config real) =====
     {
-      const { data: rows = [] } = await supabase
+      const { data: rows } = await supabase
         .from('integrations')
-        .select('id, provider, status, config')
+        .select('id, key, label, connected, config')
         .limit(200)
+      const list = (rows ?? []) as Array<Record<string, unknown>>
       let f = 0
-      for (const r of rows ?? []) {
+      for (const r of list) {
         const cfg = r.config as Record<string, unknown> | null
-        const empty = !cfg || Object.keys(cfg).length === 0
-        if (r.status === 'connected' && empty) {
-          push('integrations', r.id, 'status', r.status, 'Marcada como conectada sem configuração real', 'high')
+        const empty = !cfg || (typeof cfg === 'object' && Object.keys(cfg).length === 0)
+        if (r.connected === true && empty) {
+          push('integrations', r.id as string, 'connected', String(r.key ?? r.label ?? ''), 'Marcada como conectada sem configuração real', 'high')
           f++
         }
       }
-      totals.push({ table: 'integrations', rows: rows?.length ?? 0, findings: f })
+      totals.push({ table: 'integrations', rows: list.length, findings: f })
     }
 
     findings.sort((a, b) => {
