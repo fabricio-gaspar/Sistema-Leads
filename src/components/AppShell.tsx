@@ -21,7 +21,10 @@ import {
   LogOut,
 } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { useNotifications, notificationsStore } from "@/hooks/use-notifications";
+import { useNotifications, useNotificationsActions } from "@/hooks/use-notifications";
+import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { getSidebarCounts, globalSearch } from "@/lib/crm.functions";
 import { useTheme, themeStore, hydrateTheme } from "@/hooks/use-theme";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -66,10 +69,28 @@ export function AppShell({ children }: { children: ReactNode }) {
     (pathname.startsWith("/leads/") ? "Detalhe do Lead" : "WF Digital CRM");
 
   const notifications = useNotifications();
+  const notifActions = useNotificationsActions();
   const unread = notifications.filter((n) => !n.read).length;
   const theme = useTheme();
   const [notifOpen, setNotifOpen] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
+
+  const countsFn = useServerFn(getSidebarCounts);
+  const { data: counts } = useQuery({
+    queryKey: ["sidebar-counts"],
+    queryFn: () => countsFn(),
+    refetchInterval: 60_000,
+  });
+
+  const searchFn = useServerFn(globalSearch);
+  const [searchQ, setSearchQ] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
+  const { data: searchRes } = useQuery({
+    queryKey: ["global-search", searchQ],
+    queryFn: () => searchFn({ data: { q: searchQ } }),
+    enabled: searchQ.trim().length >= 2,
+  });
 
   useEffect(() => {
     hydrateTheme();
@@ -80,10 +101,13 @@ export function AppShell({ children }: { children: ReactNode }) {
       if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
         setNotifOpen(false);
       }
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setSearchOpen(false);
+      }
     };
-    if (notifOpen) document.addEventListener("mousedown", onClick);
+    document.addEventListener("mousedown", onClick);
     return () => document.removeEventListener("mousedown", onClick);
-  }, [notifOpen]);
+  }, []);
 
   // Portal do Vendedor usa layout próprio (sem sidebar)
   if (pathname.startsWith("/portal-vendedor/")) {
@@ -114,7 +138,11 @@ export function AppShell({ children }: { children: ReactNode }) {
                 : pathname === item.to || pathname.startsWith(item.to + "/");
             const Icon = item.icon;
             const badge =
-              item.to === "/leads" ? 3 : item.to === "/orcamentos" ? 1 : undefined;
+              item.to === "/leads"
+                ? counts?.leads
+                : item.to === "/orcamentos"
+                  ? counts?.proposals
+                  : undefined;
             return (
               <Link
                 key={item.to}
@@ -148,14 +176,42 @@ export function AppShell({ children }: { children: ReactNode }) {
         <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b border-border-card bg-bg-card px-6">
           <h1 className="text-[15px] font-semibold text-text-title">{title}</h1>
 
-          <div className="ml-6 flex-1 max-w-md">
+          <div className="ml-6 flex-1 max-w-md relative" ref={searchRef}>
             <div className="flex h-9 items-center gap-2 rounded-md border border-border-card bg-bg-general px-3">
               <SearchIcon className="h-4 w-4 text-text-ter" />
               <input
+                value={searchQ}
+                onChange={(e) => {
+                  setSearchQ(e.target.value);
+                  setSearchOpen(true);
+                }}
+                onFocus={() => setSearchOpen(true)}
                 placeholder="Buscar leads, empresas, propostas..."
                 className="flex-1 bg-transparent text-[13px] outline-none placeholder:text-text-ter"
               />
+              {searchQ && (
+                <button
+                  onClick={() => {
+                    setSearchQ("");
+                    setSearchOpen(false);
+                  }}
+                  className="text-[11px] text-text-ter hover:text-text-body"
+                >
+                  ×
+                </button>
+              )}
             </div>
+            {searchOpen && searchQ.trim().length >= 2 && (
+              <div className="absolute left-0 right-0 top-11 z-40 max-h-[420px] overflow-y-auto rounded-lg border border-border-card bg-bg-card shadow-xl">
+                <SearchResults
+                  res={searchRes}
+                  onPick={() => {
+                    setSearchOpen(false);
+                    setSearchQ("");
+                  }}
+                />
+              </div>
+            )}
           </div>
 
           <button
@@ -186,7 +242,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <div className="flex items-center justify-between border-b border-border-card px-3 py-2.5">
                   <div className="text-[13px] font-semibold text-text-title">Notificações</div>
                   <button
-                    onClick={() => notificationsStore.markAllRead()}
+                    onClick={() => notifActions.markAllRead()}
                     className="inline-flex items-center gap-1 text-[11px] text-text-sec hover:text-primary"
                   >
                     <CheckCheck className="h-3 w-3" /> Marcar tudo como lido
@@ -309,6 +365,72 @@ function UserPanel() {
           <LogOut className="h-3.5 w-3.5" />
         </button>
       </div>
+    </div>
+  );
+}
+
+type SearchResData = {
+  leads: Array<{ id: string; company: string; contact: string | null; email: string | null }>;
+  proposals: Array<{ id: string; number: string; client: string }>;
+  orders: Array<{ id: string; number: string; company: string }>;
+};
+
+function SearchResults({ res, onPick }: { res: SearchResData | undefined; onPick: () => void }) {
+  if (!res) {
+    return <div className="p-4 text-[12px] text-text-ter">Buscando…</div>;
+  }
+  const empty =
+    res.leads.length === 0 && res.proposals.length === 0 && res.orders.length === 0;
+  if (empty) {
+    return <div className="p-4 text-[12px] text-text-ter">Nenhum resultado.</div>;
+  }
+  return (
+    <div className="py-1">
+      {res.leads.length > 0 && (
+        <div className="px-3 pt-2 pb-1 text-[10px] uppercase text-text-ter">Leads</div>
+      )}
+      {res.leads.map((l) => (
+        <Link
+          key={l.id}
+          to="/leads/$id"
+          params={{ id: l.id }}
+          onClick={onPick}
+          className="flex items-center justify-between px-3 py-2 text-[12.5px] hover:bg-bg-general"
+        >
+          <span className="truncate font-medium text-text-title">{l.company}</span>
+          <span className="ml-2 truncate text-[11px] text-text-ter">
+            {l.contact ?? l.email ?? ""}
+          </span>
+        </Link>
+      ))}
+      {res.proposals.length > 0 && (
+        <div className="px-3 pt-2 pb-1 text-[10px] uppercase text-text-ter">Orçamentos</div>
+      )}
+      {res.proposals.map((p) => (
+        <Link
+          key={p.id}
+          to="/orcamentos"
+          onClick={onPick}
+          className="flex items-center justify-between px-3 py-2 text-[12.5px] hover:bg-bg-general"
+        >
+          <span className="font-mono text-[11px] text-text-sec">{p.number}</span>
+          <span className="ml-2 truncate text-text-title">{p.client}</span>
+        </Link>
+      ))}
+      {res.orders.length > 0 && (
+        <div className="px-3 pt-2 pb-1 text-[10px] uppercase text-text-ter">Pedidos</div>
+      )}
+      {res.orders.map((o) => (
+        <Link
+          key={o.id}
+          to="/pedidos"
+          onClick={onPick}
+          className="flex items-center justify-between px-3 py-2 text-[12.5px] hover:bg-bg-general"
+        >
+          <span className="font-mono text-[11px] text-text-sec">{o.number}</span>
+          <span className="ml-2 truncate text-text-title">{o.company}</span>
+        </Link>
+      ))}
     </div>
   );
 }

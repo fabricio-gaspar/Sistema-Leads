@@ -10,7 +10,9 @@ import {
   deleteDocument,
   getDocumentSignedUrl,
   listDocuments,
+  retrainAna,
 } from "@/lib/crm.functions";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/empresa")({ component: Empresa });
 
@@ -104,9 +106,7 @@ function Empresa() {
           <p className="mt-1.5 text-[12.5px] text-text-body leading-relaxed">
             "Sou a Ana, assistente comercial da WF Digital. Trabalhamos com estamparia e corte a laser para indústrias de médio porte. Nosso diferencial é lead time curto e ferramentaria própria."
           </p>
-          <button className="mt-3 w-full rounded-md bg-ia px-3 py-2 text-[12px] font-medium text-white hover:opacity-90">
-            Retreinar a Ana
-          </button>
+          <RetrainAnaButton />
         </Card>
 
         <Card>
@@ -241,3 +241,29 @@ function DocumentosCard() {
   );
 }
 
+
+function RetrainAnaButton() {
+  const retrainFn = useServerFn(retrainAna);
+  const qc = useQueryClient();
+  const mut = useMutation({
+    mutationFn: () => retrainFn(),
+    onSuccess: (r) => {
+      toast.success("Ana foi retreinada", {
+        description: `${r.objections} objeções · ${r.learned} respostas aprendidas.`,
+      });
+      qc.invalidateQueries({ queryKey: ["notifications"] });
+      qc.invalidateQueries({ queryKey: ["sidebar-counts"] });
+    },
+    onError: (e) => toast.error("Falha ao retreinar", { description: (e as Error).message }),
+  });
+  return (
+    <button
+      onClick={() => mut.mutate()}
+      disabled={mut.isPending}
+      className="mt-3 inline-flex w-full items-center justify-center gap-2 rounded-md bg-ia px-3 py-2 text-[12px] font-medium text-white hover:opacity-90 disabled:opacity-60"
+    >
+      {mut.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+      {mut.isPending ? "Retreinando…" : "Retreinar a Ana"}
+    </button>
+  );
+}
