@@ -65,6 +65,8 @@ export type Database = {
           ai_model: string | null
           ai_prompt: string | null
           ai_temperature: number | null
+          annual_revenue: string | null
+          city: string | null
           cnpj: string | null
           created_at: string
           description: string | null
@@ -75,6 +77,8 @@ export type Database = {
           name: string
           phone: string | null
           segment: string | null
+          size: string | null
+          state: string | null
           tone_of_voice: string | null
           updated_at: string
           website: string | null
@@ -85,6 +89,8 @@ export type Database = {
           ai_model?: string | null
           ai_prompt?: string | null
           ai_temperature?: number | null
+          annual_revenue?: string | null
+          city?: string | null
           cnpj?: string | null
           created_at?: string
           description?: string | null
@@ -95,6 +101,8 @@ export type Database = {
           name: string
           phone?: string | null
           segment?: string | null
+          size?: string | null
+          state?: string | null
           tone_of_voice?: string | null
           updated_at?: string
           website?: string | null
@@ -105,6 +113,8 @@ export type Database = {
           ai_model?: string | null
           ai_prompt?: string | null
           ai_temperature?: number | null
+          annual_revenue?: string | null
+          city?: string | null
           cnpj?: string | null
           created_at?: string
           description?: string | null
@@ -115,6 +125,8 @@ export type Database = {
           name?: string
           phone?: string | null
           segment?: string | null
+          size?: string | null
+          state?: string | null
           tone_of_voice?: string | null
           updated_at?: string
           website?: string | null
@@ -167,6 +179,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      integrations: {
+        Row: {
+          config: Json
+          connected: boolean
+          id: string
+          key: string
+          label: string
+          updated_at: string
+        }
+        Insert: {
+          config?: Json
+          connected?: boolean
+          id?: string
+          key: string
+          label: string
+          updated_at?: string
+        }
+        Update: {
+          config?: Json
+          connected?: boolean
+          id?: string
+          key?: string
+          label?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       lead_messages: {
         Row: {
