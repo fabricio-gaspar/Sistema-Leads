@@ -11,6 +11,7 @@ import {
   ShoppingCart,
   BarChart3,
   Settings,
+  ShieldAlert,
   Bell,
   Search as SearchIcon,
   Moon,
@@ -38,6 +39,7 @@ const NAV = [
   { to: "/portal-vendedor", label: "Portal do Vendedor", icon: Smartphone },
   { to: "/pedidos", label: "Pedidos", icon: ShoppingCart },
   { to: "/relatorios", label: "Relatórios", icon: BarChart3 },
+  { to: "/diagnostico", label: "Diagnóstico", icon: ShieldAlert },
   { to: "/configuracoes", label: "Configurações", icon: Settings },
 ] as const;
 
@@ -51,6 +53,7 @@ const TITLES: Record<string, string> = {
   "/portal-vendedor": "Portal do Vendedor",
   "/pedidos": "Pedidos",
   "/relatorios": "Relatórios",
+  "/diagnostico": "Diagnóstico de dados",
   "/configuracoes": "Configurações",
 };
 
