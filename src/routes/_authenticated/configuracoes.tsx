@@ -2,15 +2,23 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Sparkles, User, Bell, Shield, Zap, Plus, Loader2, Check } from "lucide-react";
+import { Sparkles, User, Bell, Shield, Zap, Loader2, Check, ClipboardList, AlertCircle } from "lucide-react";
 import { Card, SectionTitle } from "@/components/ui-kit";
-import { getCompanySettings, updateCompanySettings } from "@/lib/crm.functions";
+import {
+  getCompanySettings,
+  updateCompanySettings,
+  listTeam,
+  setUserRole,
+  updateTeamMember,
+  listAuditLogs,
+} from "@/lib/crm.functions";
 
 export const Route = createFileRoute("/_authenticated/configuracoes")({ component: Configuracoes });
 
 const TABS = [
   { id: "ana", label: "Ana (IA)", icon: Sparkles },
   { id: "equipe", label: "Equipe", icon: User },
+  { id: "auditoria", label: "Auditoria", icon: ClipboardList },
   { id: "notificacoes", label: "Notificações", icon: Bell },
   { id: "integracoes", label: "Integrações", icon: Zap },
   { id: "seguranca", label: "Segurança", icon: Shield },
