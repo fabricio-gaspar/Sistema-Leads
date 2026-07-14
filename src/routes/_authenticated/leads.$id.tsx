@@ -329,7 +329,7 @@ function LeadDetail() {
                   }
                 }}
                 rows={2}
-                placeholder={mode === "ia" ? "Escrever como Ana…" : "Digite sua mensagem…"}
+                placeholder={mode === "ia" ? "Instrua a Ana (ex.: responder objeção de preço)…" : "Digite sua mensagem…"}
                 className="flex-1 resize-none rounded-md border border-border-card bg-bg-card px-3 py-2 text-[13px] outline-none focus:border-primary"
               />
               <button
