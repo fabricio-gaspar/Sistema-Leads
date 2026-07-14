@@ -21,7 +21,10 @@ import {
   LogOut,
 } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { useNotifications, notificationsStore } from "@/hooks/use-notifications";
+import { useNotifications, useNotificationsActions } from "@/hooks/use-notifications";
+import { useQuery } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { getSidebarCounts, globalSearch } from "@/lib/crm.functions";
 import { useTheme, themeStore, hydrateTheme } from "@/hooks/use-theme";
 import { supabase } from "@/integrations/supabase/client";
 
