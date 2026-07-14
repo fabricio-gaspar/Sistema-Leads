@@ -301,7 +301,9 @@ export type Database = {
       }
       leads: {
         Row: {
+          annual_revenue: number | null
           assigned_to: string | null
+          city: string | null
           company: string
           contact: string | null
           created_at: string
@@ -318,6 +320,7 @@ export type Database = {
           phone: string | null
           score: number
           segment: string | null
+          size: string | null
           sla_info: string | null
           stage: Database["public"]["Enums"]["lead_stage"]
           stale_hours: number
@@ -328,7 +331,9 @@ export type Database = {
           value: number
         }
         Insert: {
+          annual_revenue?: number | null
           assigned_to?: string | null
+          city?: string | null
           company: string
           contact?: string | null
           created_at?: string
@@ -345,6 +350,7 @@ export type Database = {
           phone?: string | null
           score?: number
           segment?: string | null
+          size?: string | null
           sla_info?: string | null
           stage?: Database["public"]["Enums"]["lead_stage"]
           stale_hours?: number
@@ -355,7 +361,9 @@ export type Database = {
           value?: number
         }
         Update: {
+          annual_revenue?: number | null
           assigned_to?: string | null
+          city?: string | null
           company?: string
           contact?: string | null
           created_at?: string
@@ -372,6 +380,7 @@ export type Database = {
           phone?: string | null
           score?: number
           segment?: string | null
+          size?: string | null
           sla_info?: string | null
           stage?: Database["public"]["Enums"]["lead_stage"]
           stale_hours?: number

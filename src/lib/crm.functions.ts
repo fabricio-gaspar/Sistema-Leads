@@ -869,7 +869,10 @@ export const listProspects = createServerFn({ method: 'GET' })
         segment: z.string().optional().nullable(),
         uf: z.string().optional().nullable(),
         min_score: z.number().int().optional().nullable(),
-        search: z.string().optional().nullable(),
+        size: z.string().optional().nullable(),
+        city: z.string().optional().nullable(),
+        min_revenue: z.number().optional().nullable(),
+        max_revenue: z.number().optional().nullable(),
       })
       .partial()
       .parse(d ?? {}),
@@ -879,7 +882,10 @@ export const listProspects = createServerFn({ method: 'GET' })
     if (data.segment) q = q.eq('segment', data.segment)
     if (data.uf) q = q.eq('uf', data.uf)
     if (data.min_score) q = q.gte('score', data.min_score)
-    if (data.search) q = q.ilike('company', `%${data.search}%`)
+    if (data.size) q = q.eq('size', data.size)
+    if (data.city) q = q.ilike('city', `%${data.city}%`)
+    if (data.min_revenue != null) q = q.gte('annual_revenue', data.min_revenue)
+    if (data.max_revenue != null) q = q.lte('annual_revenue', data.max_revenue)
     const { data: rows, error } = await q.order('score', { ascending: false }).limit(200)
     if (error) throw new Error(error.message)
     return rows ?? []
