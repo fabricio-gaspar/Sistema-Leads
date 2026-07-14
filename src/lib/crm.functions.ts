@@ -135,7 +135,7 @@ export const createLeadMessage = createServerFn({ method: 'POST' })
   .handler(async ({ data, context }) => {
     const { data: row, error } = await context.supabase
       .from('lead_messages')
-      .insert({ ...data, sent_at: new Date().toISOString() })
+      .insert({ ...data, sent_at: new Date().toISOString() } as never)
       .select()
       .single()
     if (error) throw new Error(error.message)
