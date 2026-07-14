@@ -553,3 +553,120 @@ export const getDocumentSignedUrl = createServerFn({ method: 'POST' })
     if (error) throw new Error(error.message)
     return signed
   })
+
+// ============= ROLES / PERMISSIONS =============
+
+const appRole = z.enum(['administrador', 'vendedor', 'sdr', 'cx'])
+
+async function assertAdmin(ctx: { supabase: any; userId: string }) {
+  const { data, error } = await ctx.supabase.rpc('has_role', { _user_id: ctx.userId, _role: 'administrador' })
+  if (error) throw new Error(error.message)
+  if (!data) throw new Error('Acesso restrito a administradores')
+}
+
+export const getMyRoles = createServerFn({ method: 'GET' })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data, error } = await context.supabase.from('user_roles').select('role').eq('user_id', context.userId)
+    if (error) throw new Error(error.message)
+    return (data ?? []).map((r: { role: string }) => r.role)
+  })
+
+export const listTeam = createServerFn({ method: 'GET' })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await assertAdmin(context)
+    const [{ data: profiles, error: e1 }, { data: roles, error: e2 }] = await Promise.all([
+      context.supabase.from('profiles').select('*').order('created_at', { ascending: true }),
+      context.supabase.from('user_roles').select('user_id, role'),
+    ])
+    if (e1) throw new Error(e1.message)
+    if (e2) throw new Error(e2.message)
+    const byUser = new Map<string, string[]>()
+    for (const r of roles ?? []) {
+      const arr = byUser.get(r.user_id) ?? []
+      arr.push(r.role)
+      byUser.set(r.user_id, arr)
+    }
+    return (profiles ?? []).map((p: { id: string }) => ({ ...p, roles: byUser.get(p.id) ?? [] }))
+  })
+
+export const setUserRole = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ user_id: z.string().uuid(), role: appRole }).parse(d))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context)
+    // Substitui roles do usuário pela role escolhida (perfil único de exibição)
+    const { error: delErr } = await context.supabase.from('user_roles').delete().eq('user_id', data.user_id)
+    if (delErr) throw new Error(delErr.message)
+    const { error } = await context.supabase.from('user_roles').insert({ user_id: data.user_id, role: data.role } as never)
+    if (error) throw new Error(error.message)
+    await context.supabase.from('audit_logs').insert({
+      actor_id: context.userId,
+      actor_name: context.claims?.email ?? 'admin',
+      actor_type: 'human',
+      action: 'role_change',
+      detail: `Usuário ${data.user_id} → ${data.role}`,
+    } as never)
+    return { ok: true }
+  })
+
+export const removeUserRole = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ user_id: z.string().uuid(), role: appRole }).parse(d))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context)
+    const { error } = await context.supabase
+      .from('user_roles')
+      .delete()
+      .eq('user_id', data.user_id)
+      .eq('role', data.role)
+    if (error) throw new Error(error.message)
+    return { ok: true }
+  })
+
+export const updateTeamMember = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        id: z.string().uuid(),
+        patch: z
+          .object({
+            name: z.string().optional().nullable(),
+            phone: z.string().optional().nullable(),
+            active: z.boolean().optional(),
+            can_use_ia: z.boolean().optional(),
+            discount_limit: z.string().optional().nullable(),
+          })
+          .partial(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context)
+    const { data: row, error } = await context.supabase
+      .from('profiles')
+      .update(data.patch as never)
+      .eq('id', data.id)
+      .select()
+      .single()
+    if (error) throw new Error(error.message)
+    return row
+  })
+
+// ============= AUDIT LOGS =============
+
+export const listAuditLogs = createServerFn({ method: 'GET' })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    await assertAdmin(context)
+    const { data, error } = await context.supabase
+      .from('audit_logs')
+      .select('*')
+      .order('occurred_at', { ascending: false })
+      .limit(200)
+    if (error) throw new Error(error.message)
+    return data ?? []
+  })
+
