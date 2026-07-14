@@ -1,6 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Building2, Upload, Sparkles, CheckCircle2 } from "lucide-react";
+import { useRef, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { Building2, Upload, Sparkles, CheckCircle2, FileText, Trash2, Loader2, Download } from "lucide-react";
 import { Card, SectionTitle } from "@/components/ui-kit";
+import { supabase } from "@/integrations/supabase/client";
+import {
+  createDocumentRecord,
+  deleteDocument,
+  getDocumentSignedUrl,
+  listDocuments,
+} from "@/lib/crm.functions";
 
 export const Route = createFileRoute("/_authenticated/empresa")({ component: Empresa });
 
