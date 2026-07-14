@@ -106,9 +106,7 @@ function Empresa() {
           <p className="mt-1.5 text-[12.5px] text-text-body leading-relaxed">
             "Sou a Ana, assistente comercial da WF Digital. Trabalhamos com estamparia e corte a laser para indústrias de médio porte. Nosso diferencial é lead time curto e ferramentaria própria."
           </p>
-          <button className="mt-3 w-full rounded-md bg-ia px-3 py-2 text-[12px] font-medium text-white hover:opacity-90">
-            Retreinar a Ana
-          </button>
+          <RetrainAnaButton />
         </Card>
 
         <Card>
