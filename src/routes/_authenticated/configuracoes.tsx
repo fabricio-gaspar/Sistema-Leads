@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Sparkles, User, Bell, Shield, Zap, Loader2, Check, ClipboardList, AlertCircle } from "lucide-react";
+import { Sparkles, User, Bell, Shield, Zap, Loader2, Check, ClipboardList, AlertCircle, Package, MessageSquareWarning, Gauge, HelpCircle, Plus, Trash2 } from "lucide-react";
 import { Card, SectionTitle } from "@/components/ui-kit";
 import {
   getCompanySettings,
@@ -11,6 +11,17 @@ import {
   setUserRole,
   updateTeamMember,
   listAuditLogs,
+  listServices,
+  upsertService,
+  deleteService,
+  listObjections,
+  upsertObjection,
+  deleteObjection,
+  getScoreWeights,
+  updateScoreWeights,
+  listUnansweredQuestions,
+  resolveUnansweredQuestion,
+  deleteUnansweredQuestion,
 } from "@/lib/crm.functions";
 
 export const Route = createFileRoute("/_authenticated/configuracoes")({ component: Configuracoes });
@@ -18,11 +29,16 @@ export const Route = createFileRoute("/_authenticated/configuracoes")({ componen
 const TABS = [
   { id: "ana", label: "Ana (IA)", icon: Sparkles },
   { id: "equipe", label: "Equipe", icon: User },
+  { id: "servicos", label: "Serviços", icon: Package },
+  { id: "objecoes", label: "Objeções", icon: MessageSquareWarning },
+  { id: "score", label: "Score", icon: Gauge },
+  { id: "governanca", label: "Governança IA", icon: HelpCircle },
   { id: "auditoria", label: "Auditoria", icon: ClipboardList },
   { id: "notificacoes", label: "Notificações", icon: Bell },
   { id: "integracoes", label: "Integrações", icon: Zap },
   { id: "seguranca", label: "Segurança", icon: Shield },
 ] as const;
+
 
 function Configuracoes() {
   const [tab, setTab] = useState<(typeof TABS)[number]["id"]>("ana");
