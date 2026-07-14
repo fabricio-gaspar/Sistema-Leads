@@ -67,6 +67,10 @@ function Configuracoes() {
       <div>
         {tab === "ana" && <AbaAna />}
         {tab === "equipe" && <AbaEquipe />}
+        {tab === "servicos" && <AbaServicos />}
+        {tab === "objecoes" && <AbaObjecoes />}
+        {tab === "score" && <AbaScore />}
+        {tab === "governanca" && <AbaGovernanca />}
         {tab === "auditoria" && <AbaAuditoria />}
         {tab === "notificacoes" && <AbaNotif />}
         {tab === "integracoes" && <AbaInt />}
@@ -75,6 +79,7 @@ function Configuracoes() {
     </div>
   );
 }
+
 
 const DEFAULT_PROMPT = `Você é Ana, vendedora virtual da WF Digital.
 Seja consultiva, cordial, objetiva e comercial.
