@@ -23,6 +23,12 @@ export function downloadCSV(filename: string, rows: Record<string, string | numb
 }
 
 
+export type OrcPdfItem = {
+  descricao: string;
+  qtd: number;
+  valor_unit: number;
+};
+
 export type OrcPdfInput = {
   id: string;
   cliente: string;
@@ -31,6 +37,7 @@ export type OrcPdfInput = {
   emissao: string;
   validade: string;
   vendedor: string;
+  linhas?: OrcPdfItem[];
 };
 
 export function generateOrcamentoPDF(orc: OrcPdfInput) {
@@ -62,18 +69,26 @@ export function generateOrcamentoPDF(orc: OrcPdfInput) {
   doc.text(orc.cliente, 14, 49);
   doc.text(`Responsável: ${orc.vendedor}`, 14, 55);
 
-  // Itens (mock — 1 linha agregada)
+  // Itens — usa linhas reais quando disponíveis, senão uma linha agregada
+  const body =
+    orc.linhas && orc.linhas.length > 0
+      ? orc.linhas.map((l) => [
+          l.descricao,
+          String(l.qtd),
+          formatBRL(l.valor_unit),
+          formatBRL(l.qtd * l.valor_unit),
+        ])
+      : [[
+          `Fornecimento conforme escopo (${orc.itens} item(s))`,
+          String(orc.itens),
+          formatBRL(orc.valor / Math.max(1, orc.itens)),
+          formatBRL(orc.valor),
+        ]];
+
   autoTable(doc, {
     startY: 65,
     head: [["Descrição", "Qtd", "Valor unit.", "Total"]],
-    body: [
-      [
-        `Fornecimento conforme escopo (${orc.itens} item(s))`,
-        String(orc.itens),
-        formatBRL(orc.valor / Math.max(1, orc.itens)),
-        formatBRL(orc.valor),
-      ],
-    ],
+    body,
     headStyles: { fillColor: [14, 107, 97], textColor: 255 },
     styles: { fontSize: 10 },
   });
