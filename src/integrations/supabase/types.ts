@@ -359,6 +359,36 @@ export type Database = {
           },
         ]
       }
+      notifications: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          kind: string
+          read: boolean
+          title: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          kind?: string
+          read?: boolean
+          title: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          kind?: string
+          read?: boolean
+          title?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       objections: {
         Row: {
           created_at: string
@@ -389,14 +419,14 @@ export type Database = {
           contract_status: string | null
           created_at: string
           id: string
-          items: string
+          items: string | null
           lead_id: string | null
           number: string
           order_date: string
           owner_id: string | null
           payment: string | null
           proposal_id: string | null
-          seller_name: string
+          seller_name: string | null
           seller_type: Database["public"]["Enums"]["owner_type"]
           status: string
           updated_at: string
@@ -407,14 +437,14 @@ export type Database = {
           contract_status?: string | null
           created_at?: string
           id?: string
-          items: string
+          items?: string | null
           lead_id?: string | null
           number: string
           order_date?: string
           owner_id?: string | null
           payment?: string | null
           proposal_id?: string | null
-          seller_name: string
+          seller_name?: string | null
           seller_type?: Database["public"]["Enums"]["owner_type"]
           status?: string
           updated_at?: string
@@ -425,14 +455,14 @@ export type Database = {
           contract_status?: string | null
           created_at?: string
           id?: string
-          items?: string
+          items?: string | null
           lead_id?: string | null
           number?: string
           order_date?: string
           owner_id?: string | null
           payment?: string | null
           proposal_id?: string | null
-          seller_name?: string
+          seller_name?: string | null
           seller_type?: Database["public"]["Enums"]["owner_type"]
           status?: string
           updated_at?: string
