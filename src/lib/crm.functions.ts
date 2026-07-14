@@ -52,6 +52,13 @@ export const createLead = createServerFn({ method: 'POST' })
     const payload = { ...data, email: data.email || null, owner_id: context.userId }
     const { data: row, error } = await context.supabase.from('leads').insert(payload as never).select().single()
     if (error) throw new Error(error.message)
+    await context.supabase.from('audit_logs').insert({
+      actor_id: context.userId,
+      actor_name: context.claims?.email ?? 'user',
+      actor_type: 'human',
+      action: 'lead_create',
+      detail: `Lead criado: ${data.company}`,
+    } as never)
     return row
   })
 
