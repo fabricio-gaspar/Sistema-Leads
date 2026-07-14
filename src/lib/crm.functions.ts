@@ -1254,3 +1254,16 @@ export const getSidebarCounts = createServerFn({ method: 'GET' })
       notifications: unreadNotif.count ?? 0,
     }
   })
+
+// ============= INTEGRATIONS =============
+
+export const listIntegrations = createServerFn({ method: 'GET' })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data, error } = await context.supabase
+      .from('integrations')
+      .select('id, key, label, connected, updated_at')
+      .order('label', { ascending: true })
+    if (error) throw new Error(error.message)
+    return data ?? []
+  })
