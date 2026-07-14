@@ -722,7 +722,7 @@ export const getDashboardStats = createServerFn({ method: 'GET' })
     const pipelineValue = active.reduce((a, l) => a + Number(l.value || 0), 0)
 
     const msgs = msgsRes.data ?? []
-    const msgsAna = msgs.filter((m) => m.sender === 'Ana').length
+    const msgsAna = msgs.filter((m) => m.sender === 'ia').length
 
     const proposals = propsRes.data ?? []
     const proposalsOpen = proposals.filter((p) => p.status !== 'Fechada' && p.status !== 'Perdida').length
@@ -785,8 +785,8 @@ export const getReportsData = createServerFn({ method: 'GET' })
       })
       return {
         label: m.label,
-        ia: inMonth.filter((l) => l.owner === 'Ana').length,
-        humano: inMonth.filter((l) => l.owner !== 'Ana').length,
+        ia: inMonth.filter((l) => l.owner === 'ia').length,
+        humano: inMonth.filter((l) => l.owner !== 'ia').length,
       }
     })
 
