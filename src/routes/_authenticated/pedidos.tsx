@@ -116,6 +116,7 @@ function Pedidos() {
 
       {creating && (
         <NewOrderModal
+          nextNumber={`PED-${String(rows.length + 1).padStart(4, "0")}`}
           onClose={() => setCreating(false)}
           onSubmit={async (v) => {
             await createFn({ data: v });
@@ -131,12 +132,14 @@ function Pedidos() {
 function NewOrderModal({
   onClose,
   onSubmit,
+  nextNumber,
 }: {
   onClose: () => void;
   onSubmit: (v: { number: string; company: string; value: number; status?: string; seller_name?: string }) => Promise<void>;
+  nextNumber: string;
 }) {
   const [form, setForm] = useState({
-    number: `PED-${Math.floor(Math.random() * 900 + 100)}`,
+    number: nextNumber,
     company: "",
     value: "",
     status: "producao",
