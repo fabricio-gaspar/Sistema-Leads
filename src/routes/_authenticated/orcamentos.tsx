@@ -151,6 +151,7 @@ function Orcamentos() {
 
       {creating && (
         <NewProposalModal
+          nextNumber={`ORC-${String(rows.length + 1).padStart(4, "0")}`}
           onClose={() => setCreating(false)}
           onSubmit={async (v) => {
             await createFn({ data: v });
@@ -166,6 +167,7 @@ function Orcamentos() {
 function NewProposalModal({
   onClose,
   onSubmit,
+  nextNumber,
 }: {
   onClose: () => void;
   onSubmit: (v: {
@@ -174,9 +176,10 @@ function NewProposalModal({
     value: number;
     status?: string;
   }) => Promise<void>;
+  nextNumber: string;
 }) {
   const [form, setForm] = useState({
-    number: `ORC-${Math.floor(Math.random() * 900 + 100)}`,
+    number: nextNumber,
     client: "",
     value: "",
     status: "rascunho",

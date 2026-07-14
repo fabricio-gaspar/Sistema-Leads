@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { QrCode, Smartphone, MessageCircle, Phone, ChevronRight, Loader2 } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import { Card } from "@/components/ui-kit";
 import { formatBRL } from "@/lib/leads-data";
 import { listLeads } from "@/lib/crm.functions";
@@ -16,9 +17,15 @@ export const Route = createFileRoute("/_authenticated/portal-vendedor")({ compon
 function PortalVendedor() {
   const [connected, setConnected] = useState(false);
   const [me, setMe] = useState<string | null>(null);
+  const [portalUrl, setPortalUrl] = useState<string>("");
+
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setMe(data.user?.id ?? null));
+    if (typeof window !== "undefined") {
+      setPortalUrl(`${window.location.origin}/portal-vendedor`);
+    }
   }, []);
+
   const listFn = useServerFn(listLeads);
   const { data: leads = [], isLoading } = useQuery<LeadRow[]>({
     queryKey: ["leads"],
@@ -28,6 +35,11 @@ function PortalVendedor() {
 
   const meus = leads.filter((l) => l.owner === "human" && (!me || l.assigned_to === me || !l.assigned_to));
 
+  const waLink = (phone?: string | null) => {
+    const digits = (phone ?? "").replace(/\D/g, "");
+    if (!digits) return null;
+    return `https://wa.me/${digits.startsWith("55") ? digits : `55${digits}`}`;
+  };
 
   if (!connected) {
     return (
@@ -54,21 +66,25 @@ function PortalVendedor() {
             </li>
             <li className="flex gap-3">
               <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground text-[11px] font-semibold">3</span>
-              Pronto — seus leads, conversas e propostas na palma da mão
+              Faça login com sua conta e visualize seus leads na palma da mão
             </li>
           </ol>
 
           <button onClick={() => setConnected(true)} className="mt-5 w-full rounded-md bg-primary px-4 py-2.5 text-[13px] font-medium text-primary-foreground hover:bg-primary-hover">
-            <QrCode className="mr-2 inline h-4 w-4" /> Simular acesso mobile
+            <QrCode className="mr-2 inline h-4 w-4" /> Pré-visualizar aqui
           </button>
         </Card>
 
         <Card className="flex flex-col items-center justify-center text-center">
           <div className="rounded-2xl border-4 border-primary bg-white p-4">
-            <QrCodeArt />
+            {portalUrl ? (
+              <QRCodeSVG value={portalUrl} size={168} level="M" />
+            ) : (
+              <div className="h-[168px] w-[168px] animate-pulse bg-bg-general" />
+            )}
           </div>
-          <div className="mt-4 text-[13px] font-semibold text-text-title">wf.digital/vendedor/preview</div>
-          <div className="text-[11px] text-text-ter">Modo demonstração · geração de sessão real na próxima fase</div>
+          <div className="mt-4 break-all text-[13px] font-semibold text-text-title">{portalUrl || "…"}</div>
+          <div className="text-[11px] text-text-ter">Aponte a câmera para acessar o portal no celular</div>
         </Card>
       </div>
     );
@@ -115,57 +131,68 @@ function PortalVendedor() {
             </div>
           )}
 
-          {meus.map((l) => (
-            <Link
-              key={l.id}
-              to="/leads/$id"
-              params={{ id: l.id }}
-              className="block rounded-lg bg-bg-card p-3 shadow-sm active:scale-[0.98] transition-transform"
-            >
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <div className="truncate text-[13px] font-semibold text-text-title">{l.company}</div>
-                  <div className="truncate text-[11px] text-text-sec">{l.contact ?? "—"} · {l.uf ?? ""}</div>
+          {meus.map((l) => {
+            const wa = waLink(l.phone);
+            const tel = l.phone ? `tel:${l.phone.replace(/\s+/g, "")}` : null;
+            return (
+              <Link
+                key={l.id}
+                to="/leads/$id"
+                params={{ id: l.id }}
+                className="block rounded-lg bg-bg-card p-3 shadow-sm active:scale-[0.98] transition-transform"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="truncate text-[13px] font-semibold text-text-title">{l.company}</div>
+                    <div className="truncate text-[11px] text-text-sec">{l.contact ?? "—"} · {l.uf ?? ""}</div>
+                  </div>
+                  <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${l.temp === "hot" ? "bg-hot-bg text-hot" : l.temp === "warm" ? "bg-warm-bg text-warm" : "bg-cold-bg text-cold"}`}>
+                    {l.score}
+                  </span>
                 </div>
-                <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${l.temp === "hot" ? "bg-hot-bg text-hot" : l.temp === "warm" ? "bg-warm-bg text-warm" : "bg-cold-bg text-cold"}`}>
-                  {l.score}
-                </span>
-              </div>
-              <div className="mt-2 flex items-center justify-between">
-                <div className="text-[13px] font-semibold text-primary">{formatBRL(Number(l.value || 0))}</div>
-                <div className="flex gap-1">
-                  <button className="flex h-8 w-8 items-center justify-center rounded-full bg-success text-white" onClick={(e) => e.preventDefault()}>
-                    <MessageCircle className="h-3.5 w-3.5" />
-                  </button>
-                  <button className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground" onClick={(e) => e.preventDefault()}>
-                    <Phone className="h-3.5 w-3.5" />
-                  </button>
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-bg-general text-text-sec">
-                    <ChevronRight className="h-3.5 w-3.5" />
+                <div className="mt-2 flex items-center justify-between">
+                  <div className="text-[13px] font-semibold text-primary">{formatBRL(Number(l.value || 0))}</div>
+                  <div className="flex gap-1">
+                    {wa ? (
+                      <a
+                        href={wa}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="flex h-8 w-8 items-center justify-center rounded-full bg-success text-white"
+                        aria-label="Abrir WhatsApp"
+                      >
+                        <MessageCircle className="h-3.5 w-3.5" />
+                      </a>
+                    ) : (
+                      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-bg-general text-text-ter opacity-50">
+                        <MessageCircle className="h-3.5 w-3.5" />
+                      </span>
+                    )}
+                    {tel ? (
+                      <a
+                        href={tel}
+                        onClick={(e) => e.stopPropagation()}
+                        className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground"
+                        aria-label="Ligar"
+                      >
+                        <Phone className="h-3.5 w-3.5" />
+                      </a>
+                    ) : (
+                      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-bg-general text-text-ter opacity-50">
+                        <Phone className="h-3.5 w-3.5" />
+                      </span>
+                    )}
+                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-bg-general text-text-sec">
+                      <ChevronRight className="h-3.5 w-3.5" />
+                    </div>
                   </div>
                 </div>
-              </div>
-            </Link>
-          ))}
+              </Link>
+            );
+          })}
         </div>
       </div>
-    </div>
-  );
-}
-
-function QrCodeArt() {
-  const cells = 21;
-  const seed = "10111011101110001010100010001000101110001000101110111011100011110010100011101000101010001010101110001010100010101000111011101110001010101110001110001110101011";
-  return (
-    <div className="grid" style={{ gridTemplateColumns: `repeat(${cells}, 8px)` }}>
-      {Array.from({ length: cells * cells }).map((_, i) => {
-        const on = seed[i % seed.length] === "1";
-        const corner =
-          (i < cells * 5 && (i % cells) < 5) ||
-          (i < cells * 5 && (i % cells) >= cells - 5) ||
-          (i >= cells * (cells - 5) && (i % cells) < 5);
-        return <div key={i} className="h-2 w-2" style={{ background: corner ? "#0F172A" : on ? "#0F172A" : "transparent" }} />;
-      })}
     </div>
   );
 }
