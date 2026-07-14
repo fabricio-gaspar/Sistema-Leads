@@ -105,6 +105,13 @@ export const deleteLead = createServerFn({ method: 'POST' })
   .handler(async ({ data, context }) => {
     const { error } = await context.supabase.from('leads').delete().eq('id', data.id)
     if (error) throw new Error(error.message)
+    await context.supabase.from('audit_logs').insert({
+      actor_id: context.userId,
+      actor_name: context.claims?.email ?? 'user',
+      actor_type: 'human',
+      action: 'lead_delete',
+      detail: `Lead ${data.id} removido`,
+    } as never)
     return { ok: true }
   })
 
