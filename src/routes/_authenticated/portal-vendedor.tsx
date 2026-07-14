@@ -1,11 +1,12 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { QrCode, Smartphone, MessageCircle, Phone, ChevronRight, Sparkles, Loader2 } from "lucide-react";
+import { QrCode, Smartphone, MessageCircle, Phone, ChevronRight, Loader2 } from "lucide-react";
 import { Card } from "@/components/ui-kit";
 import { formatBRL } from "@/lib/leads-data";
 import { listLeads } from "@/lib/crm.functions";
+import { supabase } from "@/integrations/supabase/client";
 import type { Database } from "@/integrations/supabase/types";
 
 type LeadRow = Database["public"]["Tables"]["leads"]["Row"];
@@ -14,6 +15,10 @@ export const Route = createFileRoute("/_authenticated/portal-vendedor")({ compon
 
 function PortalVendedor() {
   const [connected, setConnected] = useState(false);
+  const [me, setMe] = useState<string | null>(null);
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setMe(data.user?.id ?? null));
+  }, []);
   const listFn = useServerFn(listLeads);
   const { data: leads = [], isLoading } = useQuery<LeadRow[]>({
     queryKey: ["leads"],
@@ -21,7 +26,8 @@ function PortalVendedor() {
     enabled: connected,
   });
 
-  const meus = leads.filter((l) => l.owner === "human");
+  const meus = leads.filter((l) => l.owner === "human" && (!me || l.assigned_to === me || !l.assigned_to));
+
 
   if (!connected) {
     return (
