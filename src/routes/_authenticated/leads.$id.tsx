@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { formatBRL } from "@/lib/leads-data";
 import {
+  chatWithAna,
   createLeadMessage,
   deleteLeadTask,
   getLead,
@@ -56,6 +57,7 @@ function LeadDetail() {
   const upsertTaskFn = useServerFn(upsertLeadTask);
   const deleteTaskFn = useServerFn(deleteLeadTask);
   const moveFn = useServerFn(moveLeadStage);
+  const anaFn = useServerFn(chatWithAna);
 
   const leadQ = useQuery({ queryKey: ["lead", id], queryFn: () => getLeadFn({ data: { id } }) });
   const msgsQ = useQuery({
@@ -79,16 +81,20 @@ function LeadDetail() {
   }, [msgsQ.data?.length]);
 
   const sendMut = useMutation({
-    mutationFn: (v: { text: string }) =>
-      createMsgFn({
+    mutationFn: async (v: { text: string }) => {
+      if (mode === "ia") {
+        return anaFn({ data: { lead_id: id, user_text: v.text, as_client: false } });
+      }
+      return createMsgFn({
         data: {
           lead_id: id,
-          sender: mode === "ia" ? "ia" : "human",
-          sender_name: mode === "ia" ? "Ana (IA)" : "Vendedor",
-          type: mode === "ia" ? "ia" : "human",
+          sender: "human",
+          sender_name: "Vendedor",
+          type: "human",
           text: v.text,
         },
-      }),
+      });
+    },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["lead-messages", id] });
       qc.invalidateQueries({ queryKey: ["lead", id] });
@@ -323,7 +329,7 @@ function LeadDetail() {
                   }
                 }}
                 rows={2}
-                placeholder={mode === "ia" ? "Escrever como Ana…" : "Digite sua mensagem…"}
+                placeholder={mode === "ia" ? "Instrua a Ana (ex.: responder objeção de preço)…" : "Digite sua mensagem…"}
                 className="flex-1 resize-none rounded-md border border-border-card bg-bg-card px-3 py-2 text-[13px] outline-none focus:border-primary"
               />
               <button
