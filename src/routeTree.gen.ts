@@ -19,6 +19,7 @@ import { Route as AuthenticatedPedidosRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedOrcamentosRouteImport } from './routes/_authenticated/orcamentos'
 import { Route as AuthenticatedLeadsRouteImport } from './routes/_authenticated/leads'
 import { Route as AuthenticatedEmpresaRouteImport } from './routes/_authenticated/empresa'
+import { Route as AuthenticatedDiagnosticoRouteImport } from './routes/_authenticated/diagnostico'
 import { Route as AuthenticatedConfiguracoesRouteImport } from './routes/_authenticated/configuracoes'
 import { Route as AuthenticatedAtendimentoRouteImport } from './routes/_authenticated/atendimento'
 import { Route as AuthenticatedLeadsIdRouteImport } from './routes/_authenticated/leads.$id'
@@ -73,6 +74,12 @@ const AuthenticatedEmpresaRoute = AuthenticatedEmpresaRouteImport.update({
   path: '/empresa',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedDiagnosticoRoute =
+  AuthenticatedDiagnosticoRouteImport.update({
+    id: '/diagnostico',
+    path: '/diagnostico',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedConfiguracoesRoute =
   AuthenticatedConfiguracoesRouteImport.update({
     id: '/configuracoes',
@@ -96,6 +103,7 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/atendimento': typeof AuthenticatedAtendimentoRoute
   '/configuracoes': typeof AuthenticatedConfiguracoesRoute
+  '/diagnostico': typeof AuthenticatedDiagnosticoRoute
   '/empresa': typeof AuthenticatedEmpresaRoute
   '/leads': typeof AuthenticatedLeadsRouteWithChildren
   '/orcamentos': typeof AuthenticatedOrcamentosRoute
@@ -109,6 +117,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/atendimento': typeof AuthenticatedAtendimentoRoute
   '/configuracoes': typeof AuthenticatedConfiguracoesRoute
+  '/diagnostico': typeof AuthenticatedDiagnosticoRoute
   '/empresa': typeof AuthenticatedEmpresaRoute
   '/leads': typeof AuthenticatedLeadsRouteWithChildren
   '/orcamentos': typeof AuthenticatedOrcamentosRoute
@@ -125,6 +134,7 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/_authenticated/atendimento': typeof AuthenticatedAtendimentoRoute
   '/_authenticated/configuracoes': typeof AuthenticatedConfiguracoesRoute
+  '/_authenticated/diagnostico': typeof AuthenticatedDiagnosticoRoute
   '/_authenticated/empresa': typeof AuthenticatedEmpresaRoute
   '/_authenticated/leads': typeof AuthenticatedLeadsRouteWithChildren
   '/_authenticated/orcamentos': typeof AuthenticatedOrcamentosRoute
@@ -142,6 +152,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/atendimento'
     | '/configuracoes'
+    | '/diagnostico'
     | '/empresa'
     | '/leads'
     | '/orcamentos'
@@ -155,6 +166,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/atendimento'
     | '/configuracoes'
+    | '/diagnostico'
     | '/empresa'
     | '/leads'
     | '/orcamentos'
@@ -170,6 +182,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/_authenticated/atendimento'
     | '/_authenticated/configuracoes'
+    | '/_authenticated/diagnostico'
     | '/_authenticated/empresa'
     | '/_authenticated/leads'
     | '/_authenticated/orcamentos'
@@ -258,6 +271,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedEmpresaRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/diagnostico': {
+      id: '/_authenticated/diagnostico'
+      path: '/diagnostico'
+      fullPath: '/diagnostico'
+      preLoaderRoute: typeof AuthenticatedDiagnosticoRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/configuracoes': {
       id: '/_authenticated/configuracoes'
       path: '/configuracoes'
@@ -296,6 +316,7 @@ const AuthenticatedLeadsRouteWithChildren =
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedAtendimentoRoute: typeof AuthenticatedAtendimentoRoute
   AuthenticatedConfiguracoesRoute: typeof AuthenticatedConfiguracoesRoute
+  AuthenticatedDiagnosticoRoute: typeof AuthenticatedDiagnosticoRoute
   AuthenticatedEmpresaRoute: typeof AuthenticatedEmpresaRoute
   AuthenticatedLeadsRoute: typeof AuthenticatedLeadsRouteWithChildren
   AuthenticatedOrcamentosRoute: typeof AuthenticatedOrcamentosRoute
@@ -309,6 +330,7 @@ interface AuthenticatedRouteRouteChildren {
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAtendimentoRoute: AuthenticatedAtendimentoRoute,
   AuthenticatedConfiguracoesRoute: AuthenticatedConfiguracoesRoute,
+  AuthenticatedDiagnosticoRoute: AuthenticatedDiagnosticoRoute,
   AuthenticatedEmpresaRoute: AuthenticatedEmpresaRoute,
   AuthenticatedLeadsRoute: AuthenticatedLeadsRouteWithChildren,
   AuthenticatedOrcamentosRoute: AuthenticatedOrcamentosRoute,
