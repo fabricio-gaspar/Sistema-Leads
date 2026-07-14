@@ -330,3 +330,226 @@ export const deleteOrder = createServerFn({ method: 'POST' })
     if (error) throw new Error(error.message)
     return { ok: true }
   })
+
+// ============= COMPANY SETTINGS =============
+
+const companySettingsInput = z.object({
+  name: z.string().optional().nullable(),
+  cnpj: z.string().optional().nullable(),
+  segment: z.string().optional().nullable(),
+  website: z.string().optional().nullable(),
+  address: z.string().optional().nullable(),
+  phone: z.string().optional().nullable(),
+  email: z.string().optional().nullable(),
+  description: z.string().optional().nullable(),
+  tone_of_voice: z.string().optional().nullable(),
+  differentiators: z.string().optional().nullable(),
+  logo_url: z.string().optional().nullable(),
+  ai_prompt: z.string().optional().nullable(),
+  ai_model: z.string().optional().nullable(),
+  ai_temperature: z.number().optional().nullable(),
+  ai_max_tokens: z.number().int().optional().nullable(),
+})
+
+export const getCompanySettings = createServerFn({ method: 'GET' })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data, error } = await context.supabase
+      .from('company_settings')
+      .select('*')
+      .limit(1)
+      .maybeSingle()
+    if (error) throw new Error(error.message)
+    return data
+  })
+
+export const updateCompanySettings = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => companySettingsInput.parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: existing } = await context.supabase
+      .from('company_settings')
+      .select('id')
+      .limit(1)
+      .maybeSingle()
+    if (existing?.id) {
+      const { data: row, error } = await context.supabase
+        .from('company_settings')
+        .update(data as never)
+        .eq('id', existing.id)
+        .select()
+        .single()
+      if (error) throw new Error(error.message)
+      return row
+    }
+    const { data: row, error } = await context.supabase
+      .from('company_settings')
+      .insert(data as never)
+      .select()
+      .single()
+    if (error) throw new Error(error.message)
+    return row
+  })
+
+// ============= ANA (Anthropic) =============
+
+const ANA_DEFAULT_SYSTEM = `Você é Ana, vendedora virtual da WF Digital.
+Seja consultiva, cordial, objetiva e comercial. Reposicione objeções (preço, "vou pensar", concorrente) com valor.
+Responda em português do Brasil, mensagens curtas de WhatsApp (2 a 4 frases).`
+
+export const chatWithAna = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        lead_id: z.string().uuid(),
+        user_text: z.string().min(1).max(4000),
+        as_client: z.boolean().optional(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const apiKey = process.env.ANTHROPIC_API_KEY
+    if (!apiKey) throw new Error('ANTHROPIC_API_KEY não configurada')
+
+    const [{ data: settings }, { data: history }, { data: lead }] = await Promise.all([
+      context.supabase.from('company_settings').select('ai_prompt, ai_model, ai_temperature, ai_max_tokens, name, description, differentiators, tone_of_voice').limit(1).maybeSingle(),
+      context.supabase.from('lead_messages').select('sender, text').eq('lead_id', data.lead_id).order('sent_at', { ascending: true }).limit(20),
+      context.supabase.from('leads').select('company, contact, segment, stage').eq('id', data.lead_id).maybeSingle(),
+    ])
+
+    const senderLabel = data.as_client ? 'client' : 'human'
+    await context.supabase.from('lead_messages').insert({
+      lead_id: data.lead_id,
+      sender: senderLabel,
+      sender_name: data.as_client ? (lead?.contact ?? 'Cliente') : (context.claims?.email ?? 'Vendedor'),
+      type: data.as_client ? 'client' : 'human',
+      text: data.user_text,
+      sent_at: new Date().toISOString(),
+    } as never)
+
+    const systemBase = (settings?.ai_prompt && settings.ai_prompt.trim()) || ANA_DEFAULT_SYSTEM
+    const leadCtx = lead
+      ? `\n\nContexto do lead:\n- Empresa: ${lead.company}\n- Contato: ${lead.contact ?? '—'}\n- Segmento: ${lead.segment ?? '—'}\n- Estágio: ${lead.stage}`
+      : ''
+    const companyCtx = settings
+      ? `\n\nSua empresa: ${settings.name ?? 'WF Digital'}${settings.description ? `\nDescrição: ${settings.description}` : ''}${settings.differentiators ? `\nDiferenciais: ${settings.differentiators}` : ''}${settings.tone_of_voice ? `\nTom de voz: ${settings.tone_of_voice}` : ''}`
+      : ''
+    const system = `${systemBase}${companyCtx}${leadCtx}`
+
+    const messages = [
+      ...(history ?? []).map((m) => ({
+        role: m.sender === 'client' ? ('user' as const) : ('assistant' as const),
+        content: m.text,
+      })),
+      { role: data.as_client ? ('user' as const) : ('assistant' as const), content: data.user_text },
+    ]
+    // If vendor typed as themselves asking Ana to reply, treat prior as-is and add a user "prompt-me" turn:
+    if (!data.as_client) {
+      messages.push({ role: 'user' as const, content: 'Como Ana, responda à conversa acima de forma comercial, curta e cordial.' })
+    }
+
+    const model = settings?.ai_model || 'claude-sonnet-4-5-20250929'
+    const upstream = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: Number(settings?.ai_max_tokens ?? 512),
+        temperature: Number(settings?.ai_temperature ?? 0.7),
+        system,
+        messages,
+      }),
+    })
+
+    const payload = (await upstream.json()) as {
+      content?: Array<{ type: string; text?: string }>
+      error?: { message?: string }
+    }
+    if (!upstream.ok) throw new Error(payload?.error?.message || `Anthropic ${upstream.status}`)
+    const text =
+      (payload.content || [])
+        .filter((c) => c.type === 'text')
+        .map((c) => c.text || '')
+        .join('\n')
+        .trim() || '…'
+
+    const { data: anaRow, error: anaErr } = await context.supabase
+      .from('lead_messages')
+      .insert({
+        lead_id: data.lead_id,
+        sender: 'ia',
+        sender_name: 'Ana (IA)',
+        type: 'ia',
+        text,
+        sent_at: new Date().toISOString(),
+      } as never)
+      .select()
+      .single()
+    if (anaErr) throw new Error(anaErr.message)
+
+    await context.supabase.from('leads').update({ last_contact: new Date().toISOString() }).eq('id', data.lead_id)
+    return { reply: text, message: anaRow }
+  })
+
+// ============= DOCUMENTS =============
+
+export const listDocuments = createServerFn({ method: 'GET' })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data, error } = await context.supabase
+      .from('documents')
+      .select('*')
+      .order('created_at', { ascending: false })
+    if (error) throw new Error(error.message)
+    return data ?? []
+  })
+
+export const createDocumentRecord = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        name: z.string().min(1),
+        type: z.string().optional().nullable(),
+        size: z.string().optional().nullable(),
+        storage_path: z.string().min(1),
+        status: z.string().optional().nullable(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { data: row, error } = await context.supabase
+      .from('documents')
+      .insert({ ...data, uploaded_by: context.userId, status: data.status ?? 'active' } as never)
+      .select()
+      .single()
+    if (error) throw new Error(error.message)
+    return row
+  })
+
+export const deleteDocument = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: doc } = await context.supabase.from('documents').select('storage_path').eq('id', data.id).maybeSingle()
+    if (doc?.storage_path) {
+      await context.supabase.storage.from('docs').remove([doc.storage_path])
+    }
+    const { error } = await context.supabase.from('documents').delete().eq('id', data.id)
+    if (error) throw new Error(error.message)
+    return { ok: true }
+  })
+
+export const getDocumentSignedUrl = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ storage_path: z.string().min(1) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: signed, error } = await context.supabase.storage.from('docs').createSignedUrl(data.storage_path, 3600)
+    if (error) throw new Error(error.message)
+    return signed
+  })
