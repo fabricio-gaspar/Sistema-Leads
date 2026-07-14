@@ -1,4 +1,5 @@
-import { Link, useRouterState } from "@tanstack/react-router";
+import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   LayoutDashboard,
   Building2,
@@ -17,10 +18,12 @@ import {
   Bot,
   Sparkles,
   CheckCheck,
+  LogOut,
 } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useNotifications, notificationsStore } from "@/hooks/use-notifications";
 import { useTheme, themeStore, hydrateTheme } from "@/hooks/use-theme";
+import { supabase } from "@/integrations/supabase/client";
 
 const NAV = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -138,19 +141,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           })}
         </nav>
 
-        <div className="border-t border-sidebar-border p-3">
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-semibold">
-              F
-            </div>
-            <div className="min-w-0 leading-tight">
-              <div className="truncate text-[13px] text-white">Fabrício</div>
-              <div className="truncate text-[11px] text-sidebar-foreground/60">
-                Administrador
-              </div>
-            </div>
-          </div>
-        </div>
+        <UserPanel />
       </aside>
 
       <div className="flex-1" style={{ marginLeft: 230 }}>
