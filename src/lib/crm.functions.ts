@@ -694,3 +694,157 @@ export const listAuditLogs = createServerFn({ method: 'GET' })
     return data ?? []
   })
 
+// ============= DASHBOARD & REPORTS =============
+
+export const getDashboardStats = createServerFn({ method: 'GET' })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const startOfDay = new Date()
+    startOfDay.setHours(0, 0, 0, 0)
+    const startOfMonth = new Date()
+    startOfMonth.setDate(1)
+    startOfMonth.setHours(0, 0, 0, 0)
+
+    const [leadsRes, msgsRes, propsRes, ordersRes] = await Promise.all([
+      context.supabase.from('leads').select('id, stage, value, temp, stale_hours, owner'),
+      context.supabase
+        .from('lead_messages')
+        .select('id, sender', { count: 'exact', head: false })
+        .gte('sent_at', startOfDay.toISOString()),
+      context.supabase.from('proposals').select('id, status, value'),
+      context.supabase.from('orders').select('id, value, created_at').gte('created_at', startOfMonth.toISOString()),
+    ])
+
+    const leads = leadsRes.data ?? []
+    const active = leads.filter((l) => l.stage !== 'Fechado' && l.stage !== 'Perdido')
+    const hot = leads.filter((l) => l.temp === 'hot').length
+    const stale = leads.filter((l) => (l.stale_hours ?? 0) >= 48).length
+    const pipelineValue = active.reduce((a, l) => a + Number(l.value || 0), 0)
+
+    const msgs = msgsRes.data ?? []
+    const msgsAna = msgs.filter((m) => m.sender === 'ia').length
+
+    const proposals = propsRes.data ?? []
+    const proposalsOpen = proposals.filter((p) => p.status !== 'Fechada' && p.status !== 'Perdida').length
+    const proposalsValue = proposals
+      .filter((p) => p.status !== 'Perdida')
+      .reduce((a, p) => a + Number(p.value || 0), 0)
+
+    const orders = ordersRes.data ?? []
+    const ordersValue = orders.reduce((a, o) => a + Number(o.value || 0), 0)
+
+    return {
+      leadsActive: active.length,
+      leadsTotal: leads.length,
+      leadsHot: hot,
+      leadsStale: stale,
+      pipelineValue,
+      messagesToday: msgs.length,
+      messagesAnaToday: msgsAna,
+      proposalsOpen,
+      proposalsValue,
+      ordersMonthCount: orders.length,
+      ordersMonthValue: ordersValue,
+    }
+  })
+
+export const getReportsData = createServerFn({ method: 'GET' })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    // Últimos 7 meses
+    const now = new Date()
+    const months: { key: string; label: string; year: number; month: number }[] = []
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
+      const label = d.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '')
+      months.push({ key, label: label.charAt(0).toUpperCase() + label.slice(1), year: d.getFullYear(), month: d.getMonth() })
+    }
+    const start = new Date(months[0].year, months[0].month, 1)
+
+    const [closedRes, allLeadsRes, teamRes] = await Promise.all([
+      context.supabase
+        .from('leads')
+        .select('id, updated_at, owner, assigned_to, value, origin, stage')
+        .eq('stage', 'Fechado')
+        .gte('updated_at', start.toISOString()),
+      context.supabase.from('leads').select('id, origin, value, stage'),
+      context.supabase.from('profiles').select('id, name'),
+    ])
+
+    const closed = closedRes.data ?? []
+    const allLeads = allLeadsRes.data ?? []
+    const team = teamRes.data ?? []
+    const nameById = new Map(team.map((p) => [p.id, p.name] as const))
+
+    // Série mensal IA vs Humano (por owner do lead fechado)
+    const series = months.map((m) => {
+      const inMonth = closed.filter((l) => {
+        const d = new Date(l.updated_at)
+        return d.getFullYear() === m.year && d.getMonth() === m.month
+      })
+      return {
+        label: m.label,
+        ia: inMonth.filter((l) => l.owner === 'ia').length,
+        humano: inMonth.filter((l) => l.owner !== 'ia').length,
+      }
+    })
+
+    // Ranking por assigned_to (+ Ana agregada)
+    type RankRow = { nome: string; isAI: boolean; leads: number; fechados: number; receita: number }
+    const map = new Map<string, RankRow>()
+    const add = (key: string, nome: string, isAI: boolean, fechado: boolean, valor: number) => {
+      const cur = map.get(key) ?? { nome, isAI, leads: 0, fechados: 0, receita: 0 }
+      cur.leads += 1
+      if (fechado) {
+        cur.fechados += 1
+        cur.receita += valor
+      }
+      map.set(key, cur)
+    }
+    for (const l of allLeads) {
+      const fechado = l.stage === 'Fechado'
+      const valor = Number(l.value || 0)
+      // heurística: se sem assigned_to e owner=Ana → linha "Ana (IA)"
+      if (!('assigned_to' in l) || !(l as { assigned_to?: string | null }).assigned_to) {
+        add('__ana__', 'Ana (IA)', true, fechado, valor)
+      } else {
+        const assigned = (l as { assigned_to?: string | null }).assigned_to as string
+        const nome = nameById.get(assigned) ?? 'Vendedor'
+        add(assigned, nome, false, fechado, valor)
+      }
+    }
+    const ranking = Array.from(map.values())
+      .map((r) => ({ ...r, taxa: r.leads > 0 ? ((r.fechados / r.leads) * 100).toFixed(1) + '%' : '0%' }))
+      .sort((a, b) => b.receita - a.receita)
+
+    // Canais / origem
+    const origemMap = new Map<string, number>()
+    for (const l of allLeads) {
+      const o = l.origin || 'Outros'
+      origemMap.set(o, (origemMap.get(o) ?? 0) + 1)
+    }
+    const totalOrigem = Array.from(origemMap.values()).reduce((a, b) => a + b, 0) || 1
+    const canais = Array.from(origemMap.entries())
+      .map(([canal, leads]) => ({ canal, leads, pct: Math.round((leads / totalOrigem) * 100) }))
+      .sort((a, b) => b.leads - a.leads)
+
+    // KPIs topo
+    const receita7m = closed.reduce((a, l) => a + Number(l.value || 0), 0)
+    const totalFechados = closed.length
+    const ticket = totalFechados > 0 ? Math.round(receita7m / totalFechados) : 0
+
+    return {
+      months: series,
+      ranking,
+      canais,
+      kpis: {
+        receita7m,
+        leadsGerados: allLeads.length,
+        ticket,
+        fechados7m: totalFechados,
+      },
+    }
+  })
+
+

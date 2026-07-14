@@ -1,6 +1,5 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import type { Lead } from "./leads-data";
 import { formatBRL } from "./leads-data";
 
 export function downloadCSV(filename: string, rows: Record<string, string | number>[]) {
@@ -23,28 +22,6 @@ export function downloadCSV(filename: string, rows: Record<string, string | numb
   URL.revokeObjectURL(url);
 }
 
-export function exportLeadsCSV(leads: Lead[]) {
-  downloadCSV(
-    `leads-${new Date().toISOString().slice(0, 10)}.csv`,
-    leads.map((l) => ({
-      ID: l.id,
-      Empresa: l.empresa,
-      Contato: l.contato,
-      Cargo: l.cargo,
-      Telefone: l.telefone,
-      Email: l.email,
-      Cidade: l.cidade,
-      Segmento: l.segmento,
-      Valor: l.valor,
-      Score: l.score,
-      Temperatura: l.temperatura,
-      Estagio: l.stage,
-      Responsavel: l.responsavel,
-      UltimaInteracao: l.ultimaInteracao,
-      Origem: l.origem,
-    })),
-  );
-}
 
 export type OrcPdfInput = {
   id: string;
