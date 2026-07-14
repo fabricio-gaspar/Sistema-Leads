@@ -4,7 +4,7 @@ import { Search, Sparkles, User, Filter, Download } from "lucide-react";
 import { Card, SectionTitle, TempBadge } from "@/components/ui-kit";
 import { formatBRL } from "@/lib/leads-data";
 
-export const Route = createFileRoute("/prospeccao")({ component: Prospeccao });
+export const Route = createFileRoute("/_authenticated/prospeccao")({ component: Prospeccao });
 
 type Prospect = {
   id: string;

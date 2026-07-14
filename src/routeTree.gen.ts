@@ -9,127 +9,120 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as RelatoriosRouteImport } from './routes/relatorios'
-import { Route as ProspeccaoRouteImport } from './routes/prospeccao'
-import { Route as PortalVendedorRouteImport } from './routes/portal-vendedor'
-import { Route as PedidosRouteImport } from './routes/pedidos'
-import { Route as OrcamentosRouteImport } from './routes/orcamentos'
-import { Route as LeadsRouteImport } from './routes/leads'
-import { Route as EmpresaRouteImport } from './routes/empresa'
-import { Route as ConfiguracoesRouteImport } from './routes/configuracoes'
-import { Route as AtendimentoRouteImport } from './routes/atendimento'
-import { Route as IndexRouteImport } from './routes/index'
-import { Route as LeadsIdRouteImport } from './routes/leads.$id'
 import { Route as ApiAnaRouteImport } from './routes/api/ana'
+import { Route as AuthenticatedRelatoriosRouteImport } from './routes/_authenticated/relatorios'
+import { Route as AuthenticatedProspeccaoRouteImport } from './routes/_authenticated/prospeccao'
+import { Route as AuthenticatedPortalVendedorRouteImport } from './routes/_authenticated/portal-vendedor'
+import { Route as AuthenticatedPedidosRouteImport } from './routes/_authenticated/pedidos'
+import { Route as AuthenticatedOrcamentosRouteImport } from './routes/_authenticated/orcamentos'
+import { Route as AuthenticatedLeadsRouteImport } from './routes/_authenticated/leads'
+import { Route as AuthenticatedEmpresaRouteImport } from './routes/_authenticated/empresa'
+import { Route as AuthenticatedConfiguracoesRouteImport } from './routes/_authenticated/configuracoes'
+import { Route as AuthenticatedAtendimentoRouteImport } from './routes/_authenticated/atendimento'
+import { Route as AuthenticatedLeadsIdRouteImport } from './routes/_authenticated/leads.$id'
 
-const RelatoriosRoute = RelatoriosRouteImport.update({
-  id: '/relatorios',
-  path: '/relatorios',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ProspeccaoRoute = ProspeccaoRouteImport.update({
-  id: '/prospeccao',
-  path: '/prospeccao',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PortalVendedorRoute = PortalVendedorRouteImport.update({
-  id: '/portal-vendedor',
-  path: '/portal-vendedor',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PedidosRoute = PedidosRouteImport.update({
-  id: '/pedidos',
-  path: '/pedidos',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const OrcamentosRoute = OrcamentosRouteImport.update({
-  id: '/orcamentos',
-  path: '/orcamentos',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LeadsRoute = LeadsRouteImport.update({
-  id: '/leads',
-  path: '/leads',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const EmpresaRoute = EmpresaRouteImport.update({
-  id: '/empresa',
-  path: '/empresa',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ConfiguracoesRoute = ConfiguracoesRouteImport.update({
-  id: '/configuracoes',
-  path: '/configuracoes',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AtendimentoRoute = AtendimentoRouteImport.update({
-  id: '/atendimento',
-  path: '/atendimento',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LeadsIdRoute = LeadsIdRouteImport.update({
-  id: '/$id',
-  path: '/$id',
-  getParentRoute: () => LeadsRoute,
-} as any)
 const ApiAnaRoute = ApiAnaRouteImport.update({
   id: '/api/ana',
   path: '/api/ana',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedRelatoriosRoute = AuthenticatedRelatoriosRouteImport.update({
+  id: '/_authenticated/relatorios',
+  path: '/relatorios',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedProspeccaoRoute = AuthenticatedProspeccaoRouteImport.update({
+  id: '/_authenticated/prospeccao',
+  path: '/prospeccao',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedPortalVendedorRoute =
+  AuthenticatedPortalVendedorRouteImport.update({
+    id: '/_authenticated/portal-vendedor',
+    path: '/portal-vendedor',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const AuthenticatedPedidosRoute = AuthenticatedPedidosRouteImport.update({
+  id: '/_authenticated/pedidos',
+  path: '/pedidos',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedOrcamentosRoute = AuthenticatedOrcamentosRouteImport.update({
+  id: '/_authenticated/orcamentos',
+  path: '/orcamentos',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedLeadsRoute = AuthenticatedLeadsRouteImport.update({
+  id: '/_authenticated/leads',
+  path: '/leads',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedEmpresaRoute = AuthenticatedEmpresaRouteImport.update({
+  id: '/_authenticated/empresa',
+  path: '/empresa',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedConfiguracoesRoute =
+  AuthenticatedConfiguracoesRouteImport.update({
+    id: '/_authenticated/configuracoes',
+    path: '/configuracoes',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const AuthenticatedAtendimentoRoute =
+  AuthenticatedAtendimentoRouteImport.update({
+    id: '/_authenticated/atendimento',
+    path: '/atendimento',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const AuthenticatedLeadsIdRoute = AuthenticatedLeadsIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => AuthenticatedLeadsRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
-  '/atendimento': typeof AtendimentoRoute
-  '/configuracoes': typeof ConfiguracoesRoute
-  '/empresa': typeof EmpresaRoute
-  '/leads': typeof LeadsRouteWithChildren
-  '/orcamentos': typeof OrcamentosRoute
-  '/pedidos': typeof PedidosRoute
-  '/portal-vendedor': typeof PortalVendedorRoute
-  '/prospeccao': typeof ProspeccaoRoute
-  '/relatorios': typeof RelatoriosRoute
+  '/atendimento': typeof AuthenticatedAtendimentoRoute
+  '/configuracoes': typeof AuthenticatedConfiguracoesRoute
+  '/empresa': typeof AuthenticatedEmpresaRoute
+  '/leads': typeof AuthenticatedLeadsRouteWithChildren
+  '/orcamentos': typeof AuthenticatedOrcamentosRoute
+  '/pedidos': typeof AuthenticatedPedidosRoute
+  '/portal-vendedor': typeof AuthenticatedPortalVendedorRoute
+  '/prospeccao': typeof AuthenticatedProspeccaoRoute
+  '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/api/ana': typeof ApiAnaRoute
-  '/leads/$id': typeof LeadsIdRoute
+  '/leads/$id': typeof AuthenticatedLeadsIdRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
-  '/atendimento': typeof AtendimentoRoute
-  '/configuracoes': typeof ConfiguracoesRoute
-  '/empresa': typeof EmpresaRoute
-  '/leads': typeof LeadsRouteWithChildren
-  '/orcamentos': typeof OrcamentosRoute
-  '/pedidos': typeof PedidosRoute
-  '/portal-vendedor': typeof PortalVendedorRoute
-  '/prospeccao': typeof ProspeccaoRoute
-  '/relatorios': typeof RelatoriosRoute
+  '/atendimento': typeof AuthenticatedAtendimentoRoute
+  '/configuracoes': typeof AuthenticatedConfiguracoesRoute
+  '/empresa': typeof AuthenticatedEmpresaRoute
+  '/leads': typeof AuthenticatedLeadsRouteWithChildren
+  '/orcamentos': typeof AuthenticatedOrcamentosRoute
+  '/pedidos': typeof AuthenticatedPedidosRoute
+  '/portal-vendedor': typeof AuthenticatedPortalVendedorRoute
+  '/prospeccao': typeof AuthenticatedProspeccaoRoute
+  '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/api/ana': typeof ApiAnaRoute
-  '/leads/$id': typeof LeadsIdRoute
+  '/leads/$id': typeof AuthenticatedLeadsIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
-  '/atendimento': typeof AtendimentoRoute
-  '/configuracoes': typeof ConfiguracoesRoute
-  '/empresa': typeof EmpresaRoute
-  '/leads': typeof LeadsRouteWithChildren
-  '/orcamentos': typeof OrcamentosRoute
-  '/pedidos': typeof PedidosRoute
-  '/portal-vendedor': typeof PortalVendedorRoute
-  '/prospeccao': typeof ProspeccaoRoute
-  '/relatorios': typeof RelatoriosRoute
+  '/_authenticated/atendimento': typeof AuthenticatedAtendimentoRoute
+  '/_authenticated/configuracoes': typeof AuthenticatedConfiguracoesRoute
+  '/_authenticated/empresa': typeof AuthenticatedEmpresaRoute
+  '/_authenticated/leads': typeof AuthenticatedLeadsRouteWithChildren
+  '/_authenticated/orcamentos': typeof AuthenticatedOrcamentosRoute
+  '/_authenticated/pedidos': typeof AuthenticatedPedidosRoute
+  '/_authenticated/portal-vendedor': typeof AuthenticatedPortalVendedorRoute
+  '/_authenticated/prospeccao': typeof AuthenticatedProspeccaoRoute
+  '/_authenticated/relatorios': typeof AuthenticatedRelatoriosRoute
   '/api/ana': typeof ApiAnaRoute
-  '/leads/$id': typeof LeadsIdRoute
+  '/_authenticated/leads/$id': typeof AuthenticatedLeadsIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    | '/'
     | '/atendimento'
     | '/configuracoes'
     | '/empresa'
@@ -143,7 +136,6 @@ export interface FileRouteTypes {
     | '/leads/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
-    | '/'
     | '/atendimento'
     | '/configuracoes'
     | '/empresa'
@@ -157,113 +149,34 @@ export interface FileRouteTypes {
     | '/leads/$id'
   id:
     | '__root__'
-    | '/'
-    | '/atendimento'
-    | '/configuracoes'
-    | '/empresa'
-    | '/leads'
-    | '/orcamentos'
-    | '/pedidos'
-    | '/portal-vendedor'
-    | '/prospeccao'
-    | '/relatorios'
+    | '/_authenticated/atendimento'
+    | '/_authenticated/configuracoes'
+    | '/_authenticated/empresa'
+    | '/_authenticated/leads'
+    | '/_authenticated/orcamentos'
+    | '/_authenticated/pedidos'
+    | '/_authenticated/portal-vendedor'
+    | '/_authenticated/prospeccao'
+    | '/_authenticated/relatorios'
     | '/api/ana'
-    | '/leads/$id'
+    | '/_authenticated/leads/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
-  AtendimentoRoute: typeof AtendimentoRoute
-  ConfiguracoesRoute: typeof ConfiguracoesRoute
-  EmpresaRoute: typeof EmpresaRoute
-  LeadsRoute: typeof LeadsRouteWithChildren
-  OrcamentosRoute: typeof OrcamentosRoute
-  PedidosRoute: typeof PedidosRoute
-  PortalVendedorRoute: typeof PortalVendedorRoute
-  ProspeccaoRoute: typeof ProspeccaoRoute
-  RelatoriosRoute: typeof RelatoriosRoute
+  AuthenticatedAtendimentoRoute: typeof AuthenticatedAtendimentoRoute
+  AuthenticatedConfiguracoesRoute: typeof AuthenticatedConfiguracoesRoute
+  AuthenticatedEmpresaRoute: typeof AuthenticatedEmpresaRoute
+  AuthenticatedLeadsRoute: typeof AuthenticatedLeadsRouteWithChildren
+  AuthenticatedOrcamentosRoute: typeof AuthenticatedOrcamentosRoute
+  AuthenticatedPedidosRoute: typeof AuthenticatedPedidosRoute
+  AuthenticatedPortalVendedorRoute: typeof AuthenticatedPortalVendedorRoute
+  AuthenticatedProspeccaoRoute: typeof AuthenticatedProspeccaoRoute
+  AuthenticatedRelatoriosRoute: typeof AuthenticatedRelatoriosRoute
   ApiAnaRoute: typeof ApiAnaRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/relatorios': {
-      id: '/relatorios'
-      path: '/relatorios'
-      fullPath: '/relatorios'
-      preLoaderRoute: typeof RelatoriosRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/prospeccao': {
-      id: '/prospeccao'
-      path: '/prospeccao'
-      fullPath: '/prospeccao'
-      preLoaderRoute: typeof ProspeccaoRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/portal-vendedor': {
-      id: '/portal-vendedor'
-      path: '/portal-vendedor'
-      fullPath: '/portal-vendedor'
-      preLoaderRoute: typeof PortalVendedorRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/pedidos': {
-      id: '/pedidos'
-      path: '/pedidos'
-      fullPath: '/pedidos'
-      preLoaderRoute: typeof PedidosRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/orcamentos': {
-      id: '/orcamentos'
-      path: '/orcamentos'
-      fullPath: '/orcamentos'
-      preLoaderRoute: typeof OrcamentosRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/leads': {
-      id: '/leads'
-      path: '/leads'
-      fullPath: '/leads'
-      preLoaderRoute: typeof LeadsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/empresa': {
-      id: '/empresa'
-      path: '/empresa'
-      fullPath: '/empresa'
-      preLoaderRoute: typeof EmpresaRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/configuracoes': {
-      id: '/configuracoes'
-      path: '/configuracoes'
-      fullPath: '/configuracoes'
-      preLoaderRoute: typeof ConfiguracoesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/atendimento': {
-      id: '/atendimento'
-      path: '/atendimento'
-      fullPath: '/atendimento'
-      preLoaderRoute: typeof AtendimentoRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/leads/$id': {
-      id: '/leads/$id'
-      path: '/$id'
-      fullPath: '/leads/$id'
-      preLoaderRoute: typeof LeadsIdRouteImport
-      parentRoute: typeof LeadsRoute
-    }
     '/api/ana': {
       id: '/api/ana'
       path: '/api/ana'
@@ -271,30 +184,100 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAnaRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/_authenticated/relatorios': {
+      id: '/_authenticated/relatorios'
+      path: '/relatorios'
+      fullPath: '/relatorios'
+      preLoaderRoute: typeof AuthenticatedRelatoriosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/prospeccao': {
+      id: '/_authenticated/prospeccao'
+      path: '/prospeccao'
+      fullPath: '/prospeccao'
+      preLoaderRoute: typeof AuthenticatedProspeccaoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/portal-vendedor': {
+      id: '/_authenticated/portal-vendedor'
+      path: '/portal-vendedor'
+      fullPath: '/portal-vendedor'
+      preLoaderRoute: typeof AuthenticatedPortalVendedorRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/pedidos': {
+      id: '/_authenticated/pedidos'
+      path: '/pedidos'
+      fullPath: '/pedidos'
+      preLoaderRoute: typeof AuthenticatedPedidosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/orcamentos': {
+      id: '/_authenticated/orcamentos'
+      path: '/orcamentos'
+      fullPath: '/orcamentos'
+      preLoaderRoute: typeof AuthenticatedOrcamentosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/leads': {
+      id: '/_authenticated/leads'
+      path: '/leads'
+      fullPath: '/leads'
+      preLoaderRoute: typeof AuthenticatedLeadsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/empresa': {
+      id: '/_authenticated/empresa'
+      path: '/empresa'
+      fullPath: '/empresa'
+      preLoaderRoute: typeof AuthenticatedEmpresaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/configuracoes': {
+      id: '/_authenticated/configuracoes'
+      path: '/configuracoes'
+      fullPath: '/configuracoes'
+      preLoaderRoute: typeof AuthenticatedConfiguracoesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/atendimento': {
+      id: '/_authenticated/atendimento'
+      path: '/atendimento'
+      fullPath: '/atendimento'
+      preLoaderRoute: typeof AuthenticatedAtendimentoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/leads/$id': {
+      id: '/_authenticated/leads/$id'
+      path: '/$id'
+      fullPath: '/leads/$id'
+      preLoaderRoute: typeof AuthenticatedLeadsIdRouteImport
+      parentRoute: typeof AuthenticatedLeadsRoute
+    }
   }
 }
 
-interface LeadsRouteChildren {
-  LeadsIdRoute: typeof LeadsIdRoute
+interface AuthenticatedLeadsRouteChildren {
+  AuthenticatedLeadsIdRoute: typeof AuthenticatedLeadsIdRoute
 }
 
-const LeadsRouteChildren: LeadsRouteChildren = {
-  LeadsIdRoute: LeadsIdRoute,
+const AuthenticatedLeadsRouteChildren: AuthenticatedLeadsRouteChildren = {
+  AuthenticatedLeadsIdRoute: AuthenticatedLeadsIdRoute,
 }
 
-const LeadsRouteWithChildren = LeadsRoute._addFileChildren(LeadsRouteChildren)
+const AuthenticatedLeadsRouteWithChildren =
+  AuthenticatedLeadsRoute._addFileChildren(AuthenticatedLeadsRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
-  AtendimentoRoute: AtendimentoRoute,
-  ConfiguracoesRoute: ConfiguracoesRoute,
-  EmpresaRoute: EmpresaRoute,
-  LeadsRoute: LeadsRouteWithChildren,
-  OrcamentosRoute: OrcamentosRoute,
-  PedidosRoute: PedidosRoute,
-  PortalVendedorRoute: PortalVendedorRoute,
-  ProspeccaoRoute: ProspeccaoRoute,
-  RelatoriosRoute: RelatoriosRoute,
+  AuthenticatedAtendimentoRoute: AuthenticatedAtendimentoRoute,
+  AuthenticatedConfiguracoesRoute: AuthenticatedConfiguracoesRoute,
+  AuthenticatedEmpresaRoute: AuthenticatedEmpresaRoute,
+  AuthenticatedLeadsRoute: AuthenticatedLeadsRouteWithChildren,
+  AuthenticatedOrcamentosRoute: AuthenticatedOrcamentosRoute,
+  AuthenticatedPedidosRoute: AuthenticatedPedidosRoute,
+  AuthenticatedPortalVendedorRoute: AuthenticatedPortalVendedorRoute,
+  AuthenticatedProspeccaoRoute: AuthenticatedProspeccaoRoute,
+  AuthenticatedRelatoriosRoute: AuthenticatedRelatoriosRoute,
   ApiAnaRoute: ApiAnaRoute,
 }
 export const routeTree = rootRouteImport

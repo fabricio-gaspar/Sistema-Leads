@@ -5,7 +5,7 @@ import { STAGES, type Stage, type Lead, formatBRL } from "@/lib/leads-data";
 import { useLeads, leadsStore } from "@/hooks/use-leads-store";
 import { exportLeadsCSV } from "@/lib/exports";
 
-export const Route = createFileRoute("/leads")({ component: LeadsPage });
+export const Route = createFileRoute("/_authenticated/leads")({ component: LeadsPage });
 
 function LeadsPage() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });

@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Building2, Upload, Sparkles, CheckCircle2 } from "lucide-react";
 import { Card, SectionTitle } from "@/components/ui-kit";
 
-export const Route = createFileRoute("/empresa")({ component: Empresa });
+export const Route = createFileRoute("/_authenticated/empresa")({ component: Empresa });
 
 function Empresa() {
   return (

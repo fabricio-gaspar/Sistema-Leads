@@ -3,7 +3,7 @@ import { Package, Truck, CheckCircle2, Factory } from "lucide-react";
 import { Card } from "@/components/ui-kit";
 import { formatBRL } from "@/lib/leads-data";
 
-export const Route = createFileRoute("/pedidos")({ component: Pedidos });
+export const Route = createFileRoute("/_authenticated/pedidos")({ component: Pedidos });
 
 type Etapa = "producao" | "expedicao" | "entregue";
 type Pedido = { id: string; cliente: string; valor: number; itens: number; emissao: string; etapa: Etapa; vendedor: string; origem: "Ana" | "Humano" };

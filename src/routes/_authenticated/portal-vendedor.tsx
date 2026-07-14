@@ -5,7 +5,7 @@ import { Card } from "@/components/ui-kit";
 import { useLeads } from "@/hooks/use-leads-store";
 import { formatBRL } from "@/lib/leads-data";
 
-export const Route = createFileRoute("/portal-vendedor")({ component: PortalVendedor });
+export const Route = createFileRoute("/_authenticated/portal-vendedor")({ component: PortalVendedor });
 
 function PortalVendedor() {
   const leads = useLeads();
