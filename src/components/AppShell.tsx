@@ -69,10 +69,28 @@ export function AppShell({ children }: { children: ReactNode }) {
     (pathname.startsWith("/leads/") ? "Detalhe do Lead" : "WF Digital CRM");
 
   const notifications = useNotifications();
+  const notifActions = useNotificationsActions();
   const unread = notifications.filter((n) => !n.read).length;
   const theme = useTheme();
   const [notifOpen, setNotifOpen] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
+
+  const countsFn = useServerFn(getSidebarCounts);
+  const { data: counts } = useQuery({
+    queryKey: ["sidebar-counts"],
+    queryFn: () => countsFn(),
+    refetchInterval: 60_000,
+  });
+
+  const searchFn = useServerFn(globalSearch);
+  const [searchQ, setSearchQ] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
+  const searchRef = useRef<HTMLDivElement>(null);
+  const { data: searchRes } = useQuery({
+    queryKey: ["global-search", searchQ],
+    queryFn: () => searchFn({ data: { q: searchQ } }),
+    enabled: searchQ.trim().length >= 2,
+  });
 
   useEffect(() => {
     hydrateTheme();
