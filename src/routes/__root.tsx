@@ -123,7 +123,7 @@ function RootComponent() {
   const router = useRouter();
 
   useEffect(() => {
-    // Lazy import to avoid loading in SSR contexts where it isn't needed.
+    let subscription: { unsubscribe: () => void } | undefined;
     import("@/integrations/supabase/client").then(({ supabase }) => {
       const { data } = supabase.auth.onAuthStateChange((event) => {
         if (event !== "SIGNED_IN" && event !== "SIGNED_OUT" && event !== "USER_UPDATED") return;
@@ -132,7 +132,6 @@ function RootComponent() {
       });
       subscription = data.subscription;
     });
-    let subscription: { unsubscribe: () => void } | undefined;
     return () => subscription?.unsubscribe();
   }, [queryClient, router]);
 
