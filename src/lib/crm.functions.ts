@@ -602,7 +602,17 @@ export const listTeam = createServerFn({ method: 'GET' })
       arr.push(r.role)
       byUser.set(r.user_id, arr)
     }
-    return (profiles ?? []).map((p: { id: string }) => ({ ...p, roles: byUser.get(p.id) ?? [] }))
+    type Profile = {
+      id: string
+      name: string | null
+      email: string | null
+      phone: string | null
+      avatar: string | null
+      active: boolean | null
+      can_use_ia: boolean | null
+      discount_limit: string | null
+    }
+    return ((profiles ?? []) as Profile[]).map((p) => ({ ...p, roles: byUser.get(p.id) ?? [] }))
   })
 
 export const setUserRole = createServerFn({ method: 'POST' })
