@@ -138,7 +138,11 @@ export function AppShell({ children }: { children: ReactNode }) {
                 : pathname === item.to || pathname.startsWith(item.to + "/");
             const Icon = item.icon;
             const badge =
-              item.to === "/leads" ? 3 : item.to === "/orcamentos" ? 1 : undefined;
+              item.to === "/leads"
+                ? counts?.leads
+                : item.to === "/orcamentos"
+                  ? counts?.proposals
+                  : undefined;
             return (
               <Link
                 key={item.to}
