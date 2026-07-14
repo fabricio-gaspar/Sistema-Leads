@@ -39,8 +39,8 @@ function Dashboard() {
               <span className="font-medium text-text-title">Claude Sonnet 4.5</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-text-sec">Endpoint</span>
-              <span className="font-medium text-success">/api/ana</span>
+              <span className="text-text-sec">Runtime</span>
+              <span className="font-medium text-success">Server Function</span>
             </div>
             <div className="flex justify-between">
               <span className="text-text-sec">Chave API</span>

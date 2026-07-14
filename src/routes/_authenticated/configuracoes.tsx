@@ -2,15 +2,23 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Sparkles, User, Bell, Shield, Zap, Plus, Loader2, Check } from "lucide-react";
+import { Sparkles, User, Bell, Shield, Zap, Loader2, Check, ClipboardList, AlertCircle } from "lucide-react";
 import { Card, SectionTitle } from "@/components/ui-kit";
-import { getCompanySettings, updateCompanySettings } from "@/lib/crm.functions";
+import {
+  getCompanySettings,
+  updateCompanySettings,
+  listTeam,
+  setUserRole,
+  updateTeamMember,
+  listAuditLogs,
+} from "@/lib/crm.functions";
 
 export const Route = createFileRoute("/_authenticated/configuracoes")({ component: Configuracoes });
 
 const TABS = [
   { id: "ana", label: "Ana (IA)", icon: Sparkles },
   { id: "equipe", label: "Equipe", icon: User },
+  { id: "auditoria", label: "Auditoria", icon: ClipboardList },
   { id: "notificacoes", label: "Notificações", icon: Bell },
   { id: "integracoes", label: "Integrações", icon: Zap },
   { id: "seguranca", label: "Segurança", icon: Shield },
@@ -43,6 +51,7 @@ function Configuracoes() {
       <div>
         {tab === "ana" && <AbaAna />}
         {tab === "equipe" && <AbaEquipe />}
+        {tab === "auditoria" && <AbaAuditoria />}
         {tab === "notificacoes" && <AbaNotif />}
         {tab === "integracoes" && <AbaInt />}
         {tab === "seguranca" && <AbaSeg />}
@@ -184,50 +193,182 @@ function AbaAna() {
   );
 }
 
+const ROLE_LABEL: Record<string, string> = {
+  administrador: "Administrador",
+  vendedor: "Vendedor",
+  sdr: "SDR",
+  cx: "Customer Success",
+};
+
+function AdminGate({ error, children }: { error: unknown; children: React.ReactNode }) {
+  const msg = error instanceof Error ? error.message : "";
+  if (msg.includes("administradores")) {
+    return (
+      <Card>
+        <div className="flex items-center gap-2 text-[13px] text-text-sec">
+          <AlertCircle className="h-4 w-4 text-warm" />
+          Acesso restrito a administradores.
+        </div>
+      </Card>
+    );
+  }
+  return <>{children}</>;
+}
+
 function AbaEquipe() {
-  const team = [
-    { n: "Fabrício Rocha", e: "fabricio@wfdigital.com.br", r: "Administrador" },
-    { n: "Camila Souza", e: "camila@wfdigital.com.br", r: "Vendedor Sr." },
-    { n: "Diego Martins", e: "diego@wfdigital.com.br", r: "Vendedor" },
-  ];
+  const qc = useQueryClient();
+  const listFn = useServerFn(listTeam);
+  const setRoleFn = useServerFn(setUserRole);
+  const updateFn = useServerFn(updateTeamMember);
+  const { data, isLoading, error } = useQuery({ queryKey: ["team"], queryFn: () => listFn() });
+
+  const setRoleMut = useMutation({
+    mutationFn: (v: { user_id: string; role: "administrador" | "vendedor" | "sdr" | "cx" }) =>
+      setRoleFn({ data: v }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["team"] }),
+  });
+  const toggleActiveMut = useMutation({
+    mutationFn: (v: { id: string; active: boolean }) =>
+      updateFn({ data: { id: v.id, patch: { active: v.active } } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["team"] }),
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-2 p-6 text-text-sec">
+        <Loader2 className="h-4 w-4 animate-spin" /> Carregando equipe…
+      </div>
+    );
+  }
+
   return (
-    <Card>
-      <SectionTitle
-        title="Equipe de vendas"
-        hint="3 usuários ativos"
-        action={
-          <button className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-[12px] font-medium text-primary-foreground hover:bg-primary-hover">
-            <Plus className="h-3.5 w-3.5" /> Convidar
-          </button>
-        }
-      />
-      <table className="w-full text-[13px]">
-        <thead>
-          <tr className="text-left text-[11px] uppercase text-text-ter">
-            <th className="pb-2">Nome</th>
-            <th className="pb-2">E-mail</th>
-            <th className="pb-2">Perfil</th>
-            <th />
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-border-card">
-          {team.map((t) => (
-            <tr key={t.e}>
-              <td className="py-2.5 font-medium text-text-title">{t.n}</td>
-              <td className="py-2.5 text-text-body">{t.e}</td>
-              <td className="py-2.5">
-                <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">{t.r}</span>
-              </td>
-              <td className="py-2.5 text-right">
-                <button className="text-[12px] text-text-sec hover:text-primary">Editar</button>
-              </td>
+    <AdminGate error={error}>
+      <Card>
+        <SectionTitle title="Equipe" hint={`${data?.length ?? 0} usuário(s)`} />
+        <table className="w-full text-[13px]">
+          <thead>
+            <tr className="text-left text-[11px] uppercase text-text-ter">
+              <th className="pb-2">Nome</th>
+              <th className="pb-2">E-mail</th>
+              <th className="pb-2">Perfil</th>
+              <th className="pb-2">Status</th>
+              <th />
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </Card>
+          </thead>
+          <tbody className="divide-y divide-border-card">
+            {(data ?? []).map((t) => {
+              const currentRole = (t.roles?.[0] as string | undefined) ?? "vendedor";
+              return (
+                <tr key={t.id}>
+                  <td className="py-2.5 font-medium text-text-title">{t.name ?? "—"}</td>
+                  <td className="py-2.5 text-text-body">{t.email ?? "—"}</td>
+                  <td className="py-2.5">
+                    <select
+                      value={currentRole}
+                      onChange={(e) =>
+                        setRoleMut.mutate({
+                          user_id: t.id,
+                          role: e.target.value as "administrador" | "vendedor" | "sdr" | "cx",
+                        })
+                      }
+                      className="h-8 rounded-md border border-border-card bg-bg-card px-2 text-[12px] outline-none"
+                    >
+                      {Object.entries(ROLE_LABEL).map(([v, l]) => (
+                        <option key={v} value={v}>
+                          {l}
+                        </option>
+                      ))}
+                    </select>
+                  </td>
+                  <td className="py-2.5">
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${t.active ? "bg-success-bg text-success" : "bg-error-bg text-error"}`}
+                    >
+                      {t.active ? "Ativo" : "Inativo"}
+                    </span>
+                  </td>
+                  <td className="py-2.5 text-right">
+                    <button
+                      onClick={() => toggleActiveMut.mutate({ id: t.id, active: !t.active })}
+                      className="text-[12px] text-text-sec hover:text-primary"
+                    >
+                      {t.active ? "Desativar" : "Reativar"}
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        <div className="mt-3 text-[11.5px] text-text-ter">
+          Novos usuários são criados através da tela de cadastro (/auth) — perfil padrão: Vendedor.
+        </div>
+      </Card>
+    </AdminGate>
   );
 }
+
+function AbaAuditoria() {
+  const listFn = useServerFn(listAuditLogs);
+  const { data, isLoading, error } = useQuery({ queryKey: ["audit-logs"], queryFn: () => listFn() });
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-2 p-6 text-text-sec">
+        <Loader2 className="h-4 w-4 animate-spin" /> Carregando auditoria…
+      </div>
+    );
+  }
+
+  return (
+    <AdminGate error={error}>
+      <Card>
+        <SectionTitle title="Trilha de auditoria" hint="Últimos 200 eventos do sistema" />
+        <div className="max-h-[560px] overflow-y-auto">
+          <table className="w-full text-[13px]">
+            <thead className="sticky top-0 bg-bg-card">
+              <tr className="text-left text-[11px] uppercase text-text-ter">
+                <th className="pb-2">Quando</th>
+                <th className="pb-2">Autor</th>
+                <th className="pb-2">Tipo</th>
+                <th className="pb-2">Ação</th>
+                <th className="pb-2">Detalhe</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border-card">
+              {(data ?? []).map((l) => (
+                <tr key={l.id}>
+                  <td className="py-2 text-text-sec whitespace-nowrap">
+                    {new Date(l.occurred_at ?? l.created_at).toLocaleString("pt-BR")}
+                  </td>
+                  <td className="py-2 text-text-body">{l.actor_name ?? "—"}</td>
+                  <td className="py-2">
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[10.5px] font-medium ${l.actor_type === "ia" ? "bg-ia-bg text-ia" : "bg-primary/10 text-primary"}`}
+                    >
+                      {l.actor_type}
+                    </span>
+                  </td>
+                  <td className="py-2 font-medium text-text-title">{l.action}</td>
+                  <td className="py-2 text-text-body">{l.detail ?? "—"}</td>
+                </tr>
+              ))}
+              {(data ?? []).length === 0 && (
+                <tr>
+                  <td colSpan={5} className="py-8 text-center text-[12px] text-text-ter">
+                    Nenhum evento registrado ainda.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+    </AdminGate>
+  );
+}
+
+
 
 function AbaNotif() {
   const items = [

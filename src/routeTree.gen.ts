@@ -12,7 +12,6 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
-import { Route as ApiAnaRouteImport } from './routes/api/ana'
 import { Route as AuthenticatedRelatoriosRouteImport } from './routes/_authenticated/relatorios'
 import { Route as AuthenticatedProspeccaoRouteImport } from './routes/_authenticated/prospeccao'
 import { Route as AuthenticatedPortalVendedorRouteImport } from './routes/_authenticated/portal-vendedor'
@@ -37,11 +36,6 @@ const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
-const ApiAnaRoute = ApiAnaRouteImport.update({
-  id: '/api/ana',
-  path: '/api/ana',
-  getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedRelatoriosRoute = AuthenticatedRelatoriosRouteImport.update({
   id: '/relatorios',
@@ -109,7 +103,6 @@ export interface FileRoutesByFullPath {
   '/portal-vendedor': typeof AuthenticatedPortalVendedorRoute
   '/prospeccao': typeof AuthenticatedProspeccaoRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
-  '/api/ana': typeof ApiAnaRoute
   '/leads/$id': typeof AuthenticatedLeadsIdRoute
 }
 export interface FileRoutesByTo {
@@ -123,7 +116,6 @@ export interface FileRoutesByTo {
   '/portal-vendedor': typeof AuthenticatedPortalVendedorRoute
   '/prospeccao': typeof AuthenticatedProspeccaoRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
-  '/api/ana': typeof ApiAnaRoute
   '/': typeof AuthenticatedIndexRoute
   '/leads/$id': typeof AuthenticatedLeadsIdRoute
 }
@@ -140,7 +132,6 @@ export interface FileRoutesById {
   '/_authenticated/portal-vendedor': typeof AuthenticatedPortalVendedorRoute
   '/_authenticated/prospeccao': typeof AuthenticatedProspeccaoRoute
   '/_authenticated/relatorios': typeof AuthenticatedRelatoriosRoute
-  '/api/ana': typeof ApiAnaRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/leads/$id': typeof AuthenticatedLeadsIdRoute
 }
@@ -158,7 +149,6 @@ export interface FileRouteTypes {
     | '/portal-vendedor'
     | '/prospeccao'
     | '/relatorios'
-    | '/api/ana'
     | '/leads/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -172,7 +162,6 @@ export interface FileRouteTypes {
     | '/portal-vendedor'
     | '/prospeccao'
     | '/relatorios'
-    | '/api/ana'
     | '/'
     | '/leads/$id'
   id:
@@ -188,7 +177,6 @@ export interface FileRouteTypes {
     | '/_authenticated/portal-vendedor'
     | '/_authenticated/prospeccao'
     | '/_authenticated/relatorios'
-    | '/api/ana'
     | '/_authenticated/'
     | '/_authenticated/leads/$id'
   fileRoutesById: FileRoutesById
@@ -196,7 +184,6 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
-  ApiAnaRoute: typeof ApiAnaRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -221,13 +208,6 @@ declare module '@tanstack/react-router' {
       fullPath: '/'
       preLoaderRoute: typeof AuthenticatedIndexRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/api/ana': {
-      id: '/api/ana'
-      path: '/api/ana'
-      fullPath: '/api/ana'
-      preLoaderRoute: typeof ApiAnaRouteImport
-      parentRoute: typeof rootRouteImport
     }
     '/_authenticated/relatorios': {
       id: '/_authenticated/relatorios'
@@ -345,7 +325,6 @@ const AuthenticatedRouteRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
-  ApiAnaRoute: ApiAnaRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
