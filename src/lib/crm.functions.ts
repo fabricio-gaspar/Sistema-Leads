@@ -63,7 +63,7 @@ export const updateLead = createServerFn({ method: 'POST' })
   .handler(async ({ data, context }) => {
     const { data: row, error } = await context.supabase
       .from('leads')
-      .update(data.patch)
+      .update(data.patch as never)
       .eq('id', data.id)
       .select()
       .single()
@@ -238,7 +238,7 @@ export const createProposal = createServerFn({ method: 'POST' })
   .handler(async ({ data, context }) => {
     const { data: row, error } = await context.supabase
       .from('proposals')
-      .insert({ ...data, owner_id: context.userId, creator: context.userId })
+      .insert({ ...data, owner_id: context.userId, creator: context.userId } as never)
       .select()
       .single()
     if (error) throw new Error(error.message)
@@ -253,7 +253,7 @@ export const updateProposal = createServerFn({ method: 'POST' })
   .handler(async ({ data, context }) => {
     const { data: row, error } = await context.supabase
       .from('proposals')
-      .update(data.patch)
+      .update(data.patch as never)
       .eq('id', data.id)
       .select()
       .single()
@@ -301,7 +301,7 @@ export const createOrder = createServerFn({ method: 'POST' })
   .handler(async ({ data, context }) => {
     const { data: row, error } = await context.supabase
       .from('orders')
-      .insert({ ...data, owner_id: context.userId })
+      .insert({ ...data, owner_id: context.userId } as never)
       .select()
       .single()
     if (error) throw new Error(error.message)
@@ -314,7 +314,7 @@ export const updateOrder = createServerFn({ method: 'POST' })
   .handler(async ({ data, context }) => {
     const { data: row, error } = await context.supabase
       .from('orders')
-      .update(data.patch)
+      .update(data.patch as never)
       .eq('id', data.id)
       .select()
       .single()
