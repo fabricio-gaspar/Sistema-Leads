@@ -77,7 +77,10 @@ function Empresa() {
             ))}
           </ul>
         </Card>
+
+        <DocumentosCard />
       </div>
+
 
       <div className="space-y-4">
         <Card>
@@ -128,3 +131,113 @@ function Empresa() {
     </div>
   );
 }
+
+function DocumentosCard() {
+  const qc = useQueryClient();
+  const listFn = useServerFn(listDocuments);
+  const createFn = useServerFn(createDocumentRecord);
+  const deleteFn = useServerFn(deleteDocument);
+  const signFn = useServerFn(getDocumentSignedUrl);
+
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const docsQ = useQuery({ queryKey: ["documents"], queryFn: () => listFn() });
+
+  const delMut = useMutation({
+    mutationFn: (id: string) => deleteFn({ data: { id } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["documents"] }),
+  });
+
+  const onPick = async (file: File) => {
+    setError(null);
+    setUploading(true);
+    try {
+      const path = `${Date.now()}-${file.name.replace(/[^\w.\-]+/g, "_")}`;
+      const { error: upErr } = await supabase.storage.from("docs").upload(path, file, {
+        cacheControl: "3600",
+        upsert: false,
+      });
+      if (upErr) throw upErr;
+      await createFn({
+        data: {
+          name: file.name,
+          type: file.type || "application/octet-stream",
+          size: `${Math.max(1, Math.round(file.size / 1024))} KB`,
+          storage_path: path,
+          status: "active",
+        },
+      });
+      qc.invalidateQueries({ queryKey: ["documents"] });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Falha no upload");
+    } finally {
+      setUploading(false);
+      if (inputRef.current) inputRef.current.value = "";
+    }
+  };
+
+  const download = async (storage_path: string) => {
+    const signed = await signFn({ data: { storage_path } });
+    if (signed?.signedUrl) window.open(signed.signedUrl, "_blank");
+  };
+
+  return (
+    <Card>
+      <SectionTitle
+        title="Documentos"
+        hint="Materiais que treinam a Ana (PDF, DOC, TXT)"
+        action={
+          <>
+            <input
+              ref={inputRef}
+              type="file"
+              className="hidden"
+              onChange={(e) => e.target.files?.[0] && onPick(e.target.files[0])}
+            />
+            <button
+              onClick={() => inputRef.current?.click()}
+              disabled={uploading}
+              className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-[12px] font-medium text-primary-foreground hover:bg-primary-hover disabled:opacity-50"
+            >
+              {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+              Enviar
+            </button>
+          </>
+        }
+      />
+      {error && <div className="mb-2 rounded-md bg-error-bg p-2 text-[12px] text-error">{error}</div>}
+      {docsQ.isLoading && <div className="text-[12px] text-text-ter">Carregando…</div>}
+      {docsQ.data && docsQ.data.length === 0 && (
+        <div className="text-[12px] text-text-ter">Nenhum documento enviado.</div>
+      )}
+      <ul className="space-y-1.5">
+        {docsQ.data?.map((d) => (
+          <li key={d.id} className="flex items-center gap-2 rounded-md border border-border-card p-2 text-[12.5px]">
+            <FileText className="h-4 w-4 text-text-ter shrink-0" />
+            <div className="min-w-0 flex-1">
+              <div className="truncate text-text-title">{d.name}</div>
+              <div className="text-[10.5px] text-text-ter">{d.type} · {d.size ?? "—"}</div>
+            </div>
+            <button
+              onClick={() => d.storage_path && download(d.storage_path)}
+              className="text-text-ter hover:text-primary"
+              title="Baixar"
+            >
+              <Download className="h-3.5 w-3.5" />
+            </button>
+            <button
+              onClick={() => delMut.mutate(d.id)}
+              className="text-text-ter hover:text-error"
+              title="Remover"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+            </button>
+          </li>
+        ))}
+      </ul>
+    </Card>
+  );
+}
+
