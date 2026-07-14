@@ -176,14 +176,42 @@ export function AppShell({ children }: { children: ReactNode }) {
         <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b border-border-card bg-bg-card px-6">
           <h1 className="text-[15px] font-semibold text-text-title">{title}</h1>
 
-          <div className="ml-6 flex-1 max-w-md">
+          <div className="ml-6 flex-1 max-w-md relative" ref={searchRef}>
             <div className="flex h-9 items-center gap-2 rounded-md border border-border-card bg-bg-general px-3">
               <SearchIcon className="h-4 w-4 text-text-ter" />
               <input
+                value={searchQ}
+                onChange={(e) => {
+                  setSearchQ(e.target.value);
+                  setSearchOpen(true);
+                }}
+                onFocus={() => setSearchOpen(true)}
                 placeholder="Buscar leads, empresas, propostas..."
                 className="flex-1 bg-transparent text-[13px] outline-none placeholder:text-text-ter"
               />
+              {searchQ && (
+                <button
+                  onClick={() => {
+                    setSearchQ("");
+                    setSearchOpen(false);
+                  }}
+                  className="text-[11px] text-text-ter hover:text-text-body"
+                >
+                  ×
+                </button>
+              )}
             </div>
+            {searchOpen && searchQ.trim().length >= 2 && (
+              <div className="absolute left-0 right-0 top-11 z-40 max-h-[420px] overflow-y-auto rounded-lg border border-border-card bg-bg-card shadow-xl">
+                <SearchResults
+                  res={searchRes}
+                  onPick={() => {
+                    setSearchOpen(false);
+                    setSearchQ("");
+                  }}
+                />
+              </div>
+            )}
           </div>
 
           <button
