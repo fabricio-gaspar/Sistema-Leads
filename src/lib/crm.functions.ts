@@ -1124,3 +1124,129 @@ export const deleteUnansweredQuestion = createServerFn({ method: 'POST' })
     return { ok: true }
   })
 
+
+// ============= NOTIFICATIONS =============
+
+export const listNotifications = createServerFn({ method: 'GET' })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data, error } = await context.supabase
+      .from('notifications')
+      .select('*')
+      .eq('user_id', context.userId)
+      .order('created_at', { ascending: false })
+      .limit(50)
+    if (error) throw new Error(error.message)
+    return data ?? []
+  })
+
+export const markAllNotificationsRead = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { error } = await context.supabase
+      .from('notifications')
+      .update({ read: true } as never)
+      .eq('user_id', context.userId)
+      .eq('read', false)
+    if (error) throw new Error(error.message)
+    return { ok: true }
+  })
+
+export const pushNotification = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z.object({
+      kind: z.enum(['ana', 'lead', 'orcamento', 'pedido', 'sistema']).default('sistema'),
+      title: z.string().min(1),
+      description: z.string().optional().nullable(),
+    }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { data: row, error } = await context.supabase
+      .from('notifications')
+      .insert({
+        user_id: context.userId,
+        kind: data.kind,
+        title: data.title,
+        description: data.description ?? null,
+      } as never)
+      .select()
+      .single()
+    if (error) throw new Error(error.message)
+    return row
+  })
+
+// ============= GLOBAL SEARCH =============
+
+export const globalSearch = createServerFn({ method: 'GET' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ q: z.string().min(1) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const q = data.q.trim()
+    const pattern = `%${q}%`
+    const [leads, proposals, orders] = await Promise.all([
+      context.supabase
+        .from('leads')
+        .select('id, company, contact, email')
+        .or(`company.ilike.${pattern},contact.ilike.${pattern},email.ilike.${pattern}`)
+        .limit(8),
+      context.supabase
+        .from('proposals')
+        .select('id, number, client')
+        .or(`number.ilike.${pattern},client.ilike.${pattern}`)
+        .limit(8),
+      context.supabase
+        .from('orders')
+        .select('id, number, company')
+        .or(`number.ilike.${pattern},company.ilike.${pattern}`)
+        .limit(8),
+    ])
+    return {
+      leads: leads.data ?? [],
+      proposals: proposals.data ?? [],
+      orders: orders.data ?? [],
+    }
+  })
+
+// ============= AI RETRAIN =============
+
+export const retrainAna = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    // Records a retrain event; the actual model context is rebuilt from company_settings + objections at chat time.
+    const [{ count: objectionsCount }, { count: questionsCount }] = await Promise.all([
+      context.supabase.from('objections').select('id', { count: 'exact', head: true }),
+      context.supabase.from('unanswered_questions').select('id', { count: 'exact', head: true }).eq('resolved', true),
+    ])
+    await context.supabase.from('audit_logs').insert({
+      actor_id: context.userId,
+      actor_name: (context.claims?.email as string | undefined) ?? 'user',
+      actor_type: 'human',
+      action: 'ana_retrain',
+      detail: `Ana retreinada com ${objectionsCount ?? 0} objeções e ${questionsCount ?? 0} respostas aprendidas.`,
+    } as never)
+    await context.supabase.from('notifications').insert({
+      user_id: context.userId,
+      kind: 'ana',
+      title: 'Ana foi retreinada',
+      description: `Base atualizada: ${objectionsCount ?? 0} objeções · ${questionsCount ?? 0} respostas aprendidas.`,
+    } as never)
+    return { ok: true, objections: objectionsCount ?? 0, learned: questionsCount ?? 0 }
+  })
+
+// ============= COUNTS (for sidebar badges) =============
+
+export const getSidebarCounts = createServerFn({ method: 'GET' })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const [leads, proposalsPending, unreadNotif] = await Promise.all([
+      context.supabase.from('leads').select('id', { count: 'exact', head: true }).in('stage', ['Prospecção', 'Qualificado']),
+      context.supabase.from('proposals').select('id', { count: 'exact', head: true }).in('status', ['Rascunho', 'Enviado', 'Visualizado']),
+      context.supabase.from('notifications').select('id', { count: 'exact', head: true }).eq('user_id', context.userId).eq('read', false),
+    ])
+    return {
+      leads: leads.count ?? 0,
+      proposals: proposalsPending.count ?? 0,
+      notifications: unreadNotif.count ?? 0,
+    }
+  })
