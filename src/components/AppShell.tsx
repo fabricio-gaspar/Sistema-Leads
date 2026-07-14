@@ -242,7 +242,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <div className="flex items-center justify-between border-b border-border-card px-3 py-2.5">
                   <div className="text-[13px] font-semibold text-text-title">Notificações</div>
                   <button
-                    onClick={() => notificationsStore.markAllRead()}
+                    onClick={() => notifActions.markAllRead()}
                     className="inline-flex items-center gap-1 text-[11px] text-text-sec hover:text-primary"
                   >
                     <CheckCheck className="h-3 w-3" /> Marcar tudo como lido
