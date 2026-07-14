@@ -101,10 +101,13 @@ export function AppShell({ children }: { children: ReactNode }) {
       if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
         setNotifOpen(false);
       }
+      if (searchRef.current && !searchRef.current.contains(e.target as Node)) {
+        setSearchOpen(false);
+      }
     };
-    if (notifOpen) document.addEventListener("mousedown", onClick);
+    document.addEventListener("mousedown", onClick);
     return () => document.removeEventListener("mousedown", onClick);
-  }, [notifOpen]);
+  }, []);
 
   // Portal do Vendedor usa layout próprio (sem sidebar)
   if (pathname.startsWith("/portal-vendedor/")) {
