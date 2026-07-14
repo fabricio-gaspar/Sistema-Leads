@@ -51,6 +51,7 @@ function Configuracoes() {
       <div>
         {tab === "ana" && <AbaAna />}
         {tab === "equipe" && <AbaEquipe />}
+        {tab === "auditoria" && <AbaAuditoria />}
         {tab === "notificacoes" && <AbaNotif />}
         {tab === "integracoes" && <AbaInt />}
         {tab === "seguranca" && <AbaSeg />}
