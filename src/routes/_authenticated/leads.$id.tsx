@@ -1,5 +1,7 @@
 import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { useState, useRef, useEffect } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
 import {
   ArrowLeft,
   Bot,
@@ -7,16 +9,29 @@ import {
   Send,
   Phone,
   Mail,
-  MapPin,
   Building2,
   Sparkles,
   UserCheck,
-  FileText,
   Clock,
+  Plus,
+  Trash2,
+  Loader2,
 } from "lucide-react";
-import { STAGES, formatBRL } from "@/lib/leads-data";
-import { useLead, leadsStore } from "@/hooks/use-leads-store";
+import { formatBRL } from "@/lib/leads-data";
+import {
+  createLeadMessage,
+  deleteLeadTask,
+  getLead,
+  listLeadMessages,
+  listLeadTasks,
+  moveLeadStage,
+  upsertLeadTask,
+} from "@/lib/crm.functions";
 import { TempBadge } from "./leads";
+import type { Database } from "@/integrations/supabase/types";
+
+type Stage = Database["public"]["Enums"]["lead_stage"];
+const STAGES: Stage[] = ["Prospecção", "Qualificado", "Proposta", "Negociação", "Pedido", "Fechado", "Perdido"];
 
 export const Route = createFileRoute("/_authenticated/leads/$id")({
   component: LeadDetail,
@@ -32,38 +47,102 @@ export const Route = createFileRoute("/_authenticated/leads/$id")({
 
 function LeadDetail() {
   const { id } = Route.useParams();
-  const lead = useLead(id);
-  if (!lead) throw notFound();
+  const qc = useQueryClient();
 
-  const [mode, setMode] = useState<"ia" | "humano">(
-    lead.responsavel === "Ana (IA)" ? "ia" : "humano",
-  );
+  const getLeadFn = useServerFn(getLead);
+  const listMsgsFn = useServerFn(listLeadMessages);
+  const createMsgFn = useServerFn(createLeadMessage);
+  const listTasksFn = useServerFn(listLeadTasks);
+  const upsertTaskFn = useServerFn(upsertLeadTask);
+  const deleteTaskFn = useServerFn(deleteLeadTask);
+  const moveFn = useServerFn(moveLeadStage);
+
+  const leadQ = useQuery({ queryKey: ["lead", id], queryFn: () => getLeadFn({ data: { id } }) });
+  const msgsQ = useQuery({
+    queryKey: ["lead-messages", id],
+    queryFn: () => listMsgsFn({ data: { lead_id: id } }),
+    enabled: !!leadQ.data,
+  });
+  const tasksQ = useQuery({
+    queryKey: ["lead-tasks", id],
+    queryFn: () => listTasksFn({ data: { lead_id: id } }),
+    enabled: !!leadQ.data,
+  });
+
+  const [mode, setMode] = useState<"ia" | "humano">("humano");
   const [text, setText] = useState("");
+  const [taskText, setTaskText] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
-  }, [lead.chat.length]);
+  }, [msgsQ.data?.length]);
+
+  const sendMut = useMutation({
+    mutationFn: (v: { text: string }) =>
+      createMsgFn({
+        data: {
+          lead_id: id,
+          sender: mode === "ia" ? "ia" : "human",
+          sender_name: mode === "ia" ? "Ana (IA)" : "Vendedor",
+          type: mode === "ia" ? "ia" : "human",
+          text: v.text,
+        },
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["lead-messages", id] });
+      qc.invalidateQueries({ queryKey: ["lead", id] });
+      setText("");
+    },
+  });
+
+  const stageMut = useMutation({
+    mutationFn: (v: { stage: Stage }) => moveFn({ data: { id, stage: v.stage } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["lead", id] });
+      qc.invalidateQueries({ queryKey: ["leads"] });
+    },
+  });
+
+  const addTaskMut = useMutation({
+    mutationFn: (v: { text: string }) => upsertTaskFn({ data: { lead_id: id, text: v.text } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["lead-tasks", id] });
+      setTaskText("");
+    },
+  });
+
+  const toggleTaskMut = useMutation({
+    mutationFn: (v: { id: string; text: string; completed: boolean }) =>
+      upsertTaskFn({ data: { id: v.id, lead_id: id, text: v.text, completed: v.completed } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["lead-tasks", id] }),
+  });
+
+  const delTaskMut = useMutation({
+    mutationFn: (v: { id: string }) => deleteTaskFn({ data: { id: v.id } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["lead-tasks", id] }),
+  });
+
+  if (leadQ.isLoading) {
+    return (
+      <div className="flex items-center gap-2 p-8 text-text-sec">
+        <Loader2 className="h-4 w-4 animate-spin" /> Carregando lead…
+      </div>
+    );
+  }
+  if (leadQ.error) {
+    return <div className="rounded-md bg-error-bg p-4 text-error">{(leadQ.error as Error).message}</div>;
+  }
+  const lead = leadQ.data;
+  if (!lead) throw notFound();
 
   const send = () => {
     if (!text.trim()) return;
-    leadsStore.addMessage(lead.id, {
-      id: `m-${Date.now()}`,
-      from: mode === "ia" ? "ana" : "vendedor",
-      at: new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
-      text: text.trim(),
-    });
-    setText("");
-  };
-
-  const simulateIncoming = async () => {
-    const { simulateLeadMessage } = await import("@/lib/ana-brain");
-    leadsStore.receiveLeadMessage(lead.id, simulateLeadMessage(), mode === "ia");
+    sendMut.mutate({ text: text.trim() });
   };
 
   return (
     <div className="flex flex-col gap-4">
-      {/* Header */}
       <div className="flex flex-wrap items-center gap-3">
         <Link
           to="/leads"
@@ -73,15 +152,15 @@ function LeadDetail() {
         </Link>
         <div>
           <div className="flex items-center gap-2">
-            <h2 className="text-[16px] font-semibold text-text-title">{lead.empresa}</h2>
-            <TempBadge t={lead.temperatura} score={lead.score} />
+            <h2 className="text-[16px] font-semibold text-text-title">{lead.company}</h2>
+            <TempBadge t={lead.temp} score={lead.score} />
           </div>
           <div className="text-[12px] text-text-sec">
-            {lead.contato} · {lead.cargo} · #{lead.id}
+            {lead.contact ?? "—"}
+            {lead.title ? ` · ${lead.title}` : ""}
           </div>
         </div>
 
-        {/* Controle IA / Humano */}
         <div className="ml-auto flex items-center rounded-md border border-border-card bg-bg-card p-0.5">
           <button
             onClick={() => setMode("ia")}
@@ -103,111 +182,128 @@ function LeadDetail() {
       </div>
 
       <div className="grid gap-4 lg:grid-cols-[280px_1fr_320px]">
-        {/* Coluna esquerda: dados */}
         <div className="space-y-4">
           <Card title="Contato">
-            <InfoRow icon={Building2} text={`${lead.segmento} · ${lead.cidade}`} />
-            <InfoRow icon={Phone} text={lead.telefone} />
-            <InfoRow icon={Mail} text={lead.email} />
-            <InfoRow icon={MapPin} text={`Origem: ${lead.origem}`} />
+            <InfoRow icon={Building2} text={`${lead.segment ?? "—"} · ${lead.uf ?? "—"}`} />
+            <InfoRow icon={Phone} text={lead.phone ?? "—"} />
+            <InfoRow icon={Mail} text={lead.email ?? "—"} />
+            <InfoRow icon={Clock} text={`Origem: ${lead.origin ?? "—"}`} />
           </Card>
 
           <Card title="Negócio">
             <div className="flex items-baseline justify-between">
               <span className="text-[11px] uppercase text-text-ter">Valor</span>
-              <span className="text-[15px] font-semibold text-text-title">
-                {formatBRL(lead.valor)}
-              </span>
+              <span className="text-[15px] font-semibold text-text-title">{formatBRL(Number(lead.value || 0))}</span>
             </div>
             <div className="mt-2">
               <span className="text-[11px] uppercase text-text-ter">Estágio</span>
               <select
                 value={lead.stage}
-                onChange={(e) =>
-                  leadsStore.moveStage(lead.id, e.target.value as typeof lead.stage)
-                }
+                onChange={(e) => stageMut.mutate({ stage: e.target.value as Stage })}
                 className="mt-1 w-full rounded-md border border-border-card bg-bg-card px-2 py-1.5 text-[13px]"
               >
                 {STAGES.map((s) => (
-                  <option key={s.id} value={s.id}>
-                    {s.label}
+                  <option key={s} value={s}>
+                    {s}
                   </option>
                 ))}
               </select>
             </div>
             <div className="mt-2">
-              <span className="text-[11px] uppercase text-text-ter">Responsável</span>
-              <div className="mt-1 flex items-center gap-1.5 text-[13px] text-text-body">
-                {lead.responsavel === "Ana (IA)" ? (
-                  <Bot className="h-3.5 w-3.5 text-ia" />
-                ) : (
-                  <UserIcon className="h-3.5 w-3.5" />
-                )}
-                {lead.responsavel}
-              </div>
+              <span className="text-[11px] uppercase text-text-ter">Score</span>
+              <div className="mt-1 text-[13px] text-text-body">{lead.score}/100</div>
             </div>
           </Card>
 
-          <Card title={`Score explicável · ${lead.score}`}>
-            {lead.scoreBreakdown.map((b) => (
-              <div key={b.label} className="mb-2 last:mb-0">
-                <div className="flex justify-between text-[12px]">
-                  <span className="text-text-body">{b.label}</span>
-                  <span className="text-text-sec">
-                    {b.nota}/{b.peso}
-                  </span>
-                </div>
-                <div className="mt-1 h-1.5 rounded-full bg-bg-general">
-                  <div
-                    className="h-full rounded-full bg-primary"
-                    style={{ width: `${(b.nota / b.peso) * 100}%` }}
+          <Card title="Tarefas">
+            <div className="mb-2 flex gap-2">
+              <input
+                value={taskText}
+                onChange={(e) => setTaskText(e.target.value)}
+                placeholder="Nova tarefa…"
+                className="h-8 flex-1 rounded-md border border-border-card bg-bg-card px-2 text-[12px] outline-none focus:border-primary"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && taskText.trim()) addTaskMut.mutate({ text: taskText.trim() });
+                }}
+              />
+              <button
+                onClick={() => taskText.trim() && addTaskMut.mutate({ text: taskText.trim() })}
+                className="inline-flex h-8 items-center rounded-md bg-primary px-2 text-primary-foreground"
+              >
+                <Plus className="h-3.5 w-3.5" />
+              </button>
+            </div>
+            <ul className="space-y-1.5">
+              {tasksQ.data?.length === 0 && <li className="text-[12px] text-text-ter">Sem tarefas.</li>}
+              {tasksQ.data?.map((t) => (
+                <li key={t.id} className="flex items-center gap-2 text-[12px]">
+                  <input
+                    type="checkbox"
+                    checked={t.completed}
+                    onChange={(e) =>
+                      toggleTaskMut.mutate({ id: t.id, text: t.text, completed: e.target.checked })
+                    }
                   />
-                </div>
-              </div>
-            ))}
+                  <span className={`flex-1 ${t.completed ? "line-through text-text-ter" : "text-text-body"}`}>
+                    {t.text}
+                  </span>
+                  <button
+                    onClick={() => delTaskMut.mutate({ id: t.id })}
+                    className="text-text-ter hover:text-error"
+                    title="Remover"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                </li>
+              ))}
+            </ul>
           </Card>
         </div>
 
-        {/* Meio: chat */}
         <div className="flex h-[70vh] flex-col overflow-hidden rounded-lg border border-border-card bg-bg-card">
           <div className="flex items-center justify-between border-b border-border-card px-4 py-2.5">
-            <div className="text-[13px] font-semibold text-text-title">WhatsApp · {lead.telefone}</div>
-            <div className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${
-              mode === "ia" ? "bg-ia-bg text-ia" : "bg-primary-light text-primary"
-            }`}>
+            <div className="text-[13px] font-semibold text-text-title">WhatsApp · {lead.phone ?? "—"}</div>
+            <div
+              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                mode === "ia" ? "bg-ia-bg text-ia" : "bg-primary-light text-primary"
+              }`}
+            >
               {mode === "ia" ? <Bot className="h-3 w-3" /> : <UserIcon className="h-3 w-3" />}
               {mode === "ia" ? "Ana respondendo" : "Vendedor no controle"}
             </div>
           </div>
 
           <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto bg-bg-general p-4">
-            {lead.chat.length === 0 && (
+            {msgsQ.isLoading && (
+              <div className="mt-10 text-center text-[12px] text-text-ter">Carregando conversa…</div>
+            )}
+            {msgsQ.data?.length === 0 && (
               <div className="mt-10 text-center text-[12px] text-text-ter">
                 Nenhuma conversa ainda — envie a primeira mensagem.
               </div>
             )}
-            {lead.chat.map((m) => {
-              const mine = m.from !== "lead";
+            {msgsQ.data?.map((m) => {
+              const mine = m.sender !== "client";
               return (
                 <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
                   <div
                     className={`max-w-[75%] rounded-lg px-3 py-2 text-[13px] shadow-sm ${
-                      m.from === "lead"
+                      m.sender === "client"
                         ? "bg-bg-card text-text-body"
-                        : m.from === "ana"
+                        : m.sender === "ia"
                           ? "bg-ia text-white"
                           : "bg-primary text-primary-foreground"
                     }`}
                   >
                     {mine && (
                       <div className="mb-0.5 flex items-center gap-1 text-[10px] opacity-80">
-                        {m.from === "ana" ? <Bot className="h-3 w-3" /> : <UserIcon className="h-3 w-3" />}
-                        {m.from === "ana" ? "Ana" : "Vendedor"}
+                        {m.sender === "ia" ? <Bot className="h-3 w-3" /> : <UserIcon className="h-3 w-3" />}
+                        {m.sender_name}
                       </div>
                     )}
-                    <div>{m.text}</div>
+                    <div className="whitespace-pre-wrap">{m.text}</div>
                     <div className={`mt-1 text-right text-[10px] ${mine ? "opacity-70" : "text-text-ter"}`}>
-                      {m.at}
+                      {new Date(m.sent_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
                     </div>
                   </div>
                 </div>
@@ -227,57 +323,26 @@ function LeadDetail() {
                   }
                 }}
                 rows={2}
-                placeholder={
-                  mode === "ia"
-                    ? "Sugerir mensagem para a Ana enviar…"
-                    : "Digite sua mensagem…"
-                }
+                placeholder={mode === "ia" ? "Escrever como Ana…" : "Digite sua mensagem…"}
                 className="flex-1 resize-none rounded-md border border-border-card bg-bg-card px-3 py-2 text-[13px] outline-none focus:border-primary"
               />
               <button
                 onClick={send}
-                className="inline-flex h-10 items-center gap-1.5 rounded-md bg-primary px-4 text-[13px] font-medium text-primary-foreground hover:bg-primary-hover"
+                disabled={sendMut.isPending}
+                className="inline-flex h-10 items-center gap-1.5 rounded-md bg-primary px-4 text-[13px] font-medium text-primary-foreground hover:bg-primary-hover disabled:opacity-50"
               >
-                <Send className="h-4 w-4" />
+                {sendMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                 Enviar
               </button>
             </div>
-            <button
-              onClick={simulateIncoming}
-              className="mt-2 text-[11px] text-text-sec underline-offset-2 hover:text-ia hover:underline"
-            >
-              ⚡ Simular mensagem do lead {mode === "ia" ? "(Ana responderá automaticamente)" : ""}
-            </button>
           </div>
         </div>
 
-        {/* Direita: timeline */}
         <div className="space-y-4">
-          <Card title="Timeline comercial">
-            <ol className="space-y-3">
-              {lead.timeline.length === 0 && (
-                <li className="text-[12px] text-text-ter">Sem eventos ainda.</li>
-              )}
-              {lead.timeline.map((ev) => (
-                <li key={ev.id} className="flex gap-2.5">
-                  <div className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full ${
-                    ev.kind === "ana" ? "bg-ia-bg text-ia" :
-                    ev.kind === "humano" ? "bg-primary-light text-primary" :
-                    ev.kind === "proposta" ? "bg-warm-bg text-warm" :
-                    "bg-bg-general text-text-sec"
-                  }`}>
-                    {ev.kind === "ana" ? <Bot className="h-3 w-3" /> :
-                     ev.kind === "humano" ? <UserIcon className="h-3 w-3" /> :
-                     ev.kind === "proposta" ? <FileText className="h-3 w-3" /> :
-                     <Clock className="h-3 w-3" />}
-                  </div>
-                  <div className="min-w-0">
-                    <div className="text-[12px] text-text-body">{ev.text}</div>
-                    <div className="text-[11px] text-text-ter">{ev.at}</div>
-                  </div>
-                </li>
-              ))}
-            </ol>
+          <Card title="Meta">
+            <InfoRow icon={Clock} text={`Última: ${lead.last_contact ? new Date(lead.last_contact).toLocaleString("pt-BR") : "—"}`} />
+            <InfoRow icon={Clock} text={`Parado há: ${lead.stale_hours ?? 0}h`} />
+            <InfoRow icon={UserIcon} text={`Owner: ${lead.owner}`} />
           </Card>
         </div>
       </div>
@@ -288,9 +353,7 @@ function LeadDetail() {
 function Card({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="rounded-lg border border-border-card bg-bg-card p-4">
-      <div className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-text-ter">
-        {title}
-      </div>
+      <div className="mb-3 text-[11px] font-semibold uppercase tracking-wide text-text-ter">{title}</div>
       {children}
     </div>
   );

@@ -1,112 +1,176 @@
 import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { useState, type DragEvent } from "react";
-import { Flame, Thermometer, Snowflake, Bot, User as UserIcon, Clock, AlertTriangle, Plus, Filter, Download } from "lucide-react";
-import { STAGES, type Stage, type Lead, formatBRL } from "@/lib/leads-data";
-import { useLeads, leadsStore } from "@/hooks/use-leads-store";
-import { exportLeadsCSV } from "@/lib/exports";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useServerFn } from "@tanstack/react-start";
+import { Flame, Thermometer, Snowflake, Bot, User as UserIcon, Plus, Download, Loader2 } from "lucide-react";
+import { formatBRL } from "@/lib/leads-data";
+import { downloadCSV } from "@/lib/exports";
+import { createLead, listLeads, moveLeadStage } from "@/lib/crm.functions";
+import type { Database } from "@/integrations/supabase/types";
+
+type LeadRow = Database["public"]["Tables"]["leads"]["Row"];
+type Stage = Database["public"]["Enums"]["lead_stage"];
 
 export const Route = createFileRoute("/_authenticated/leads")({ component: LeadsPage });
 
+const STAGES: Stage[] = ["Prospecção", "Qualificado", "Proposta", "Negociação", "Pedido", "Fechado", "Perdido"];
+
 function LeadsPage() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  // se estiver em /leads/:id, delega para a rota filha
   if (pathname !== "/leads") return <Outlet />;
   return <Kanban />;
 }
 
 function Kanban() {
-  const leads = useLeads();
+  const qc = useQueryClient();
+  const listFn = useServerFn(listLeads);
+  const moveFn = useServerFn(moveLeadStage);
+  const createFn = useServerFn(createLead);
+
+  const { data: leads = [], isLoading, error } = useQuery({
+    queryKey: ["leads"],
+    queryFn: () => listFn(),
+  });
+
+  const moveMut = useMutation({
+    mutationFn: (v: { id: string; stage: Stage }) => moveFn({ data: v }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["leads"] }),
+  });
+
   const [dragId, setDragId] = useState<string | null>(null);
   const [overStage, setOverStage] = useState<Stage | null>(null);
+  const [showNew, setShowNew] = useState(false);
 
   const byStage = (s: Stage) => leads.filter((l) => l.stage === s);
   const total = leads.length;
-  const valorTotal = leads.reduce((acc, l) => acc + l.valor, 0);
-  const parados = leads.filter((l) => l.paradoHa >= 2).length;
+  const valorTotal = leads.reduce((a, l) => a + Number(l.value || 0), 0);
+  const parados = leads.filter((l) => (l.stale_hours ?? 0) >= 48).length;
 
   const onDrop = (stage: Stage) => {
-    if (dragId) leadsStore.moveStage(dragId, stage);
+    if (dragId) {
+      const cur = leads.find((l) => l.id === dragId);
+      if (cur && cur.stage !== stage) moveMut.mutate({ id: dragId, stage });
+    }
     setDragId(null);
     setOverStage(null);
   };
 
+  const exportCsv = () =>
+    downloadCSV(
+      `leads-${new Date().toISOString().slice(0, 10)}.csv`,
+      leads.map((l) => ({
+        ID: l.id,
+        Empresa: l.company,
+        Contato: l.contact ?? "",
+        Cargo: l.title ?? "",
+        Telefone: l.phone ?? "",
+        Email: l.email ?? "",
+        UF: l.uf ?? "",
+        Segmento: l.segment ?? "",
+        Valor: Number(l.value || 0),
+        Score: l.score,
+        Temperatura: l.temp,
+        Estagio: l.stage,
+        Origem: l.origin ?? "",
+      })),
+    );
+
+  if (error) {
+    return (
+      <div className="rounded-md border border-error/40 bg-error-bg p-4 text-[13px] text-error">
+        Erro ao carregar leads: {(error as Error).message}
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-[calc(100vh-3.5rem-3rem)] flex-col">
-      {/* Barra de resumo */}
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <div className="flex items-center gap-6 rounded-lg border border-border-card bg-bg-card px-4 py-2.5">
           <Stat label="Leads" value={total.toString()} />
           <Stat label="Pipeline" value={formatBRL(valorTotal)} />
-          <Stat label="Parados 2+ dias" value={parados.toString()} accent={parados > 0 ? "error" : undefined} />
+          <Stat label="Parados 48h+" value={parados.toString()} accent={parados > 0 ? "error" : undefined} />
         </div>
         <div className="ml-auto flex items-center gap-2">
           <button
-            onClick={() => exportLeadsCSV(leads)}
-            className="inline-flex h-9 items-center gap-2 rounded-md border border-border-card bg-bg-card px-3 text-[13px] text-text-body hover:bg-bg-general"
+            onClick={exportCsv}
+            disabled={leads.length === 0}
+            className="inline-flex h-9 items-center gap-2 rounded-md border border-border-card bg-bg-card px-3 text-[13px] text-text-body hover:bg-bg-general disabled:opacity-50"
           >
             <Download className="h-4 w-4" /> Exportar CSV
           </button>
-          <button className="inline-flex h-9 items-center gap-2 rounded-md border border-border-card bg-bg-card px-3 text-[13px] text-text-body hover:bg-bg-general">
-            <Filter className="h-4 w-4" /> Filtros
-          </button>
-          <button className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-3 text-[13px] font-medium text-primary-foreground hover:bg-primary-hover">
+          <button
+            onClick={() => setShowNew(true)}
+            className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-3 text-[13px] font-medium text-primary-foreground hover:bg-primary-hover"
+          >
             <Plus className="h-4 w-4" /> Novo lead
           </button>
         </div>
       </div>
 
-      {/* Kanban */}
-      <div className="flex-1 overflow-x-auto">
-        <div className="flex h-full min-w-max gap-3 pb-2">
-          {STAGES.map((s) => {
-            const items = byStage(s.id);
-            const stageValor = items.reduce((a, l) => a + l.valor, 0);
-            const isOver = overStage === s.id;
-            return (
-              <div
-                key={s.id}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  setOverStage(s.id);
-                }}
-                onDragLeave={() => setOverStage((v) => (v === s.id ? null : v))}
-                onDrop={() => onDrop(s.id)}
-                className={`flex w-[280px] flex-col rounded-lg border ${
-                  isOver ? "border-primary bg-primary-light" : "border-border-card bg-bg-general"
-                }`}
-              >
-                <div className="flex items-center justify-between px-3 py-2.5">
-                  <div className="flex items-center gap-2">
-                    <span className={`h-2 w-2 rounded-full ${stageDotColor(s.id)}`} />
-                    <span className="text-[12px] font-semibold uppercase tracking-wide text-text-title">
-                      {s.label}
-                    </span>
-                    <span className="rounded-full bg-bg-card px-1.5 text-[11px] text-text-sec">
-                      {items.length}
-                    </span>
-                  </div>
-                  <span className="text-[11px] text-text-ter">{formatBRL(stageValor)}</span>
-                </div>
-                <div className="flex-1 overflow-y-auto px-2 pb-2">
-                  {items.map((lead) => (
-                    <LeadCard
-                      key={lead.id}
-                      lead={lead}
-                      onDragStart={() => setDragId(lead.id)}
-                      dragging={dragId === lead.id}
-                    />
-                  ))}
-                  {items.length === 0 && (
-                    <div className="mt-2 rounded-md border border-dashed border-border-card px-3 py-6 text-center text-[12px] text-text-ter">
-                      Arraste um lead para cá
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+      {isLoading ? (
+        <div className="flex flex-1 items-center justify-center text-text-sec">
+          <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Carregando leads…
         </div>
-      </div>
+      ) : (
+        <div className="flex-1 overflow-x-auto">
+          <div className="flex h-full min-w-max gap-3 pb-2">
+            {STAGES.map((s) => {
+              const items = byStage(s);
+              const stageValor = items.reduce((a, l) => a + Number(l.value || 0), 0);
+              const isOver = overStage === s;
+              return (
+                <div
+                  key={s}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    setOverStage(s);
+                  }}
+                  onDragLeave={() => setOverStage((v) => (v === s ? null : v))}
+                  onDrop={() => onDrop(s)}
+                  className={`flex w-[280px] flex-col rounded-lg border ${
+                    isOver ? "border-primary bg-primary-light" : "border-border-card bg-bg-general"
+                  }`}
+                >
+                  <div className="flex items-center justify-between px-3 py-2.5">
+                    <div className="flex items-center gap-2">
+                      <span className="text-[12px] font-semibold uppercase tracking-wide text-text-title">{s}</span>
+                      <span className="rounded-full bg-bg-card px-1.5 text-[11px] text-text-sec">{items.length}</span>
+                    </div>
+                    <span className="text-[11px] text-text-ter">{formatBRL(stageValor)}</span>
+                  </div>
+                  <div className="flex-1 overflow-y-auto px-2 pb-2">
+                    {items.map((lead) => (
+                      <LeadCard
+                        key={lead.id}
+                        lead={lead}
+                        onDragStart={() => setDragId(lead.id)}
+                        dragging={dragId === lead.id}
+                      />
+                    ))}
+                    {items.length === 0 && (
+                      <div className="mt-2 rounded-md border border-dashed border-border-card px-3 py-6 text-center text-[12px] text-text-ter">
+                        Sem leads nesta etapa
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {showNew && (
+        <NewLeadModal
+          onClose={() => setShowNew(false)}
+          onCreate={async (payload) => {
+            await createFn({ data: payload });
+            qc.invalidateQueries({ queryKey: ["leads"] });
+            setShowNew(false);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -115,22 +179,9 @@ function Stat({ label, value, accent }: { label: string; value: string; accent?:
   return (
     <div className="flex flex-col">
       <span className="text-[11px] uppercase tracking-wide text-text-ter">{label}</span>
-      <span className={`text-[15px] font-semibold ${accent === "error" ? "text-error" : "text-text-title"}`}>
-        {value}
-      </span>
+      <span className={`text-[15px] font-semibold ${accent === "error" ? "text-error" : "text-text-title"}`}>{value}</span>
     </div>
   );
-}
-
-function stageDotColor(s: Stage) {
-  switch (s) {
-    case "novo": return "bg-text-ter";
-    case "contatado": return "bg-cold";
-    case "qualificado": return "bg-warm";
-    case "proposta": return "bg-ia";
-    case "negociacao": return "bg-hot";
-    case "fechado": return "bg-success";
-  }
 }
 
 function LeadCard({
@@ -138,53 +189,43 @@ function LeadCard({
   onDragStart,
   dragging,
 }: {
-  lead: Lead;
+  lead: LeadRow;
   onDragStart: (e: DragEvent) => void;
   dragging: boolean;
 }) {
-  const isAI = lead.responsavel === "Ana (IA)";
-  const parado = lead.paradoHa >= 2;
+  const isAI = lead.owner === "ia";
   return (
     <Link
       to="/leads/$id"
       params={{ id: lead.id }}
       draggable
       onDragStart={onDragStart}
-      className={`mb-2 block cursor-grab rounded-md border bg-bg-card p-3 shadow-sm transition-all hover:border-primary/40 hover:shadow ${
+      className={`mb-2 block cursor-grab rounded-md border border-border-card bg-bg-card p-3 shadow-sm transition-all hover:border-primary/40 hover:shadow ${
         dragging ? "opacity-40" : ""
-      } ${parado ? "border-error/40" : "border-border-card"}`}
+      }`}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <div className="truncate text-[13px] font-semibold text-text-title">{lead.empresa}</div>
+          <div className="truncate text-[13px] font-semibold text-text-title">{lead.company}</div>
           <div className="truncate text-[11px] text-text-sec">
-            {lead.contato} · {lead.cargo}
+            {lead.contact ?? "—"}
+            {lead.title ? ` · ${lead.title}` : ""}
           </div>
         </div>
-        <TempBadge t={lead.temperatura} score={lead.score} />
+        <TempBadge t={lead.temp} score={lead.score} />
       </div>
 
       <div className="mt-2.5 flex items-center justify-between">
-        <span className="text-[13px] font-semibold text-text-title">{formatBRL(lead.valor)}</span>
-        <span className="text-[11px] text-text-ter">{lead.segmento}</span>
+        <span className="text-[13px] font-semibold text-text-title">{formatBRL(Number(lead.value || 0))}</span>
+        <span className="text-[11px] text-text-ter">{lead.segment ?? ""}</span>
       </div>
 
       <div className="mt-2.5 flex items-center justify-between border-t border-border-card pt-2">
         <div className={`inline-flex items-center gap-1 text-[11px] ${isAI ? "text-ia" : "text-text-sec"}`}>
           {isAI ? <Bot className="h-3 w-3" /> : <UserIcon className="h-3 w-3" />}
-          <span className="truncate">{lead.responsavel}</span>
-        </div>
-        <div className="inline-flex items-center gap-1 text-[11px] text-text-ter">
-          <Clock className="h-3 w-3" />
-          {lead.ultimaInteracao}
+          <span className="truncate">{isAI ? "Ana (IA)" : "Humano"}</span>
         </div>
       </div>
-
-      {parado && (
-        <div className="mt-2 inline-flex items-center gap-1 rounded bg-error-bg px-1.5 py-0.5 text-[10px] font-medium text-error">
-          <AlertTriangle className="h-3 w-3" /> Parado há {lead.paradoHa}d
-        </div>
-      )}
     </Link>
   );
 }
@@ -201,5 +242,172 @@ export function TempBadge({ t, score }: { t: "hot" | "warm" | "cold"; score?: nu
       <Icon className="h-3 w-3" />
       {score ?? label}
     </span>
+  );
+}
+
+function NewLeadModal({
+  onClose,
+  onCreate,
+}: {
+  onClose: () => void;
+  onCreate: (v: {
+    company: string;
+    contact?: string;
+    phone?: string;
+    email?: string;
+    segment?: string;
+    value?: number;
+    temp?: "hot" | "warm" | "cold";
+    stage?: Stage;
+  }) => Promise<void>;
+}) {
+  const [form, setForm] = useState({
+    company: "",
+    contact: "",
+    phone: "",
+    email: "",
+    segment: "",
+    value: "",
+    temp: "warm" as "hot" | "warm" | "cold",
+    stage: "Prospecção" as Stage,
+  });
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setErr(null);
+    try {
+      await onCreate({
+        company: form.company.trim(),
+        contact: form.contact || undefined,
+        phone: form.phone || undefined,
+        email: form.email || undefined,
+        segment: form.segment || undefined,
+        value: form.value ? Number(form.value) : undefined,
+        temp: form.temp,
+        stage: form.stage,
+      });
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+      <form
+        onSubmit={submit}
+        className="w-[520px] rounded-lg bg-bg-card p-6 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h3 className="mb-4 text-[15px] font-semibold text-text-title">Novo lead</h3>
+        <div className="space-y-3">
+          <Field label="Empresa *">
+            <input
+              required
+              value={form.company}
+              onChange={(e) => setForm({ ...form, company: e.target.value })}
+              className="h-9 w-full rounded-md border border-border-card bg-bg-card px-3 text-[13px] outline-none focus:border-primary"
+            />
+          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Contato">
+              <input
+                value={form.contact}
+                onChange={(e) => setForm({ ...form, contact: e.target.value })}
+                className="h-9 w-full rounded-md border border-border-card bg-bg-card px-3 text-[13px] outline-none focus:border-primary"
+              />
+            </Field>
+            <Field label="Telefone">
+              <input
+                value={form.phone}
+                onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                className="h-9 w-full rounded-md border border-border-card bg-bg-card px-3 text-[13px] outline-none focus:border-primary"
+              />
+            </Field>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Email">
+              <input
+                type="email"
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                className="h-9 w-full rounded-md border border-border-card bg-bg-card px-3 text-[13px] outline-none focus:border-primary"
+              />
+            </Field>
+            <Field label="Segmento">
+              <input
+                value={form.segment}
+                onChange={(e) => setForm({ ...form, segment: e.target.value })}
+                className="h-9 w-full rounded-md border border-border-card bg-bg-card px-3 text-[13px] outline-none focus:border-primary"
+              />
+            </Field>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <Field label="Valor (R$)">
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.value}
+                onChange={(e) => setForm({ ...form, value: e.target.value })}
+                className="h-9 w-full rounded-md border border-border-card bg-bg-card px-3 text-[13px] outline-none focus:border-primary"
+              />
+            </Field>
+            <Field label="Temperatura">
+              <select
+                value={form.temp}
+                onChange={(e) => setForm({ ...form, temp: e.target.value as "hot" | "warm" | "cold" })}
+                className="h-9 w-full rounded-md border border-border-card bg-bg-card px-2 text-[13px] outline-none focus:border-primary"
+              >
+                <option value="hot">Quente</option>
+                <option value="warm">Morno</option>
+                <option value="cold">Frio</option>
+              </select>
+            </Field>
+            <Field label="Etapa">
+              <select
+                value={form.stage}
+                onChange={(e) => setForm({ ...form, stage: e.target.value as Stage })}
+                className="h-9 w-full rounded-md border border-border-card bg-bg-card px-2 text-[13px] outline-none focus:border-primary"
+              >
+                {STAGES.map((s) => (
+                  <option key={s}>{s}</option>
+                ))}
+              </select>
+            </Field>
+          </div>
+        </div>
+        {err && <div className="mt-3 rounded bg-error-bg px-3 py-2 text-[12px] text-error">{err}</div>}
+        <div className="mt-5 flex justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md border border-border-card px-3 py-2 text-[12px] text-text-body hover:bg-bg-general"
+          >
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            disabled={busy}
+            className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-[12px] font-medium text-primary-foreground hover:bg-primary-hover disabled:opacity-50"
+          >
+            {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />} Criar lead
+          </button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="block">
+      <div className="mb-1 text-[11px] uppercase text-text-ter">{label}</div>
+      {children}
+    </label>
   );
 }
