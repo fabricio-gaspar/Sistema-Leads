@@ -61,6 +61,10 @@ export type Database = {
       company_settings: {
         Row: {
           address: string | null
+          ai_max_tokens: number | null
+          ai_model: string | null
+          ai_prompt: string | null
+          ai_temperature: number | null
           cnpj: string | null
           created_at: string
           description: string | null
@@ -77,6 +81,10 @@ export type Database = {
         }
         Insert: {
           address?: string | null
+          ai_max_tokens?: number | null
+          ai_model?: string | null
+          ai_prompt?: string | null
+          ai_temperature?: number | null
           cnpj?: string | null
           created_at?: string
           description?: string | null
@@ -93,6 +101,10 @@ export type Database = {
         }
         Update: {
           address?: string | null
+          ai_max_tokens?: number | null
+          ai_model?: string | null
+          ai_prompt?: string | null
+          ai_temperature?: number | null
           cnpj?: string | null
           created_at?: string
           description?: string | null
@@ -263,6 +275,7 @@ export type Database = {
           lost_reason: string | null
           origin: string | null
           owner: Database["public"]["Enums"]["owner_type"]
+          owner_id: string | null
           phone: string | null
           score: number
           segment: string | null
@@ -289,6 +302,7 @@ export type Database = {
           lost_reason?: string | null
           origin?: string | null
           owner?: Database["public"]["Enums"]["owner_type"]
+          owner_id?: string | null
           phone?: string | null
           score?: number
           segment?: string | null
@@ -315,6 +329,7 @@ export type Database = {
           lost_reason?: string | null
           origin?: string | null
           owner?: Database["public"]["Enums"]["owner_type"]
+          owner_id?: string | null
           phone?: string | null
           score?: number
           segment?: string | null
@@ -331,6 +346,13 @@ export type Database = {
           {
             foreignKeyName: "leads_assigned_to_fkey"
             columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "leads_owner_id_fkey"
+            columns: ["owner_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -371,6 +393,7 @@ export type Database = {
           lead_id: string | null
           number: string
           order_date: string
+          owner_id: string | null
           payment: string | null
           proposal_id: string | null
           seller_name: string
@@ -388,6 +411,7 @@ export type Database = {
           lead_id?: string | null
           number: string
           order_date?: string
+          owner_id?: string | null
           payment?: string | null
           proposal_id?: string | null
           seller_name: string
@@ -405,6 +429,7 @@ export type Database = {
           lead_id?: string | null
           number?: string
           order_date?: string
+          owner_id?: string | null
           payment?: string | null
           proposal_id?: string | null
           seller_name?: string
@@ -419,6 +444,13 @@ export type Database = {
             columns: ["lead_id"]
             isOneToOne: false
             referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "orders_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
           {
@@ -481,6 +513,7 @@ export type Database = {
           lead_id: string | null
           need_approval: boolean
           number: string
+          owner_id: string | null
           status: string
           updated_at: string
           value: number
@@ -496,6 +529,7 @@ export type Database = {
           lead_id?: string | null
           need_approval?: boolean
           number: string
+          owner_id?: string | null
           status?: string
           updated_at?: string
           value?: number
@@ -511,6 +545,7 @@ export type Database = {
           lead_id?: string | null
           need_approval?: boolean
           number?: string
+          owner_id?: string | null
           status?: string
           updated_at?: string
           value?: number
@@ -521,6 +556,13 @@ export type Database = {
             columns: ["lead_id"]
             isOneToOne: false
             referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "proposals_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
