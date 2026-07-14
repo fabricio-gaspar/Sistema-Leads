@@ -4,7 +4,7 @@ import { Search, Sparkles, User, Phone, Mail } from "lucide-react";
 import { Card, TempBadge } from "@/components/ui-kit";
 import { useLeads } from "@/hooks/use-leads-store";
 
-export const Route = createFileRoute("/atendimento")({ component: Atendimento });
+export const Route = createFileRoute("/_authenticated/atendimento")({ component: Atendimento });
 
 function Atendimento() {
   const leads = useLeads().filter((l) => l.chat.length > 0 || ["contatado", "qualificado", "proposta", "negociacao"].includes(l.stage));

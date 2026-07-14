@@ -5,7 +5,7 @@ import { Card, SectionTitle } from "@/components/ui-kit";
 import { formatBRL } from "@/lib/leads-data";
 import { generateOrcamentoPDF } from "@/lib/exports";
 
-export const Route = createFileRoute("/orcamentos")({ component: Orcamentos });
+export const Route = createFileRoute("/_authenticated/orcamentos")({ component: Orcamentos });
 
 type Status = "rascunho" | "enviado" | "visualizado" | "aprovado" | "recusado";
 type Orc = {

@@ -18,7 +18,7 @@ import { STAGES, formatBRL } from "@/lib/leads-data";
 import { useLead, leadsStore } from "@/hooks/use-leads-store";
 import { TempBadge } from "./leads";
 
-export const Route = createFileRoute("/leads/$id")({
+export const Route = createFileRoute("/_authenticated/leads/$id")({
   component: LeadDetail,
   notFoundComponent: () => (
     <div className="rounded-lg border border-border-card bg-bg-card p-8 text-center">

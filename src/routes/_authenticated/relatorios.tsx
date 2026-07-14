@@ -3,7 +3,7 @@ import { TrendingUp, Sparkles, User } from "lucide-react";
 import { Card, SectionTitle } from "@/components/ui-kit";
 import { formatBRL } from "@/lib/leads-data";
 
-export const Route = createFileRoute("/relatorios")({ component: Relatorios });
+export const Route = createFileRoute("/_authenticated/relatorios")({ component: Relatorios });
 
 function Relatorios() {
   const meses = ["Jan", "Fev", "Mar", "Abr", "Mai", "Jun", "Jul"];

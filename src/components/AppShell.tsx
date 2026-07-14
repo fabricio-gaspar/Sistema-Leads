@@ -1,4 +1,5 @@
-import { Link, useRouterState } from "@tanstack/react-router";
+import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   LayoutDashboard,
   Building2,
@@ -17,10 +18,12 @@ import {
   Bot,
   Sparkles,
   CheckCheck,
+  LogOut,
 } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useNotifications, notificationsStore } from "@/hooks/use-notifications";
 import { useTheme, themeStore, hydrateTheme } from "@/hooks/use-theme";
+import { supabase } from "@/integrations/supabase/client";
 
 const NAV = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -138,19 +141,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           })}
         </nav>
 
-        <div className="border-t border-sidebar-border p-3">
-          <div className="flex items-center gap-2">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-semibold">
-              F
-            </div>
-            <div className="min-w-0 leading-tight">
-              <div className="truncate text-[13px] text-white">Fabrício</div>
-              <div className="truncate text-[11px] text-sidebar-foreground/60">
-                Administrador
-              </div>
-            </div>
-          </div>
-        </div>
+        <UserPanel />
       </aside>
 
       <div className="flex-1" style={{ marginLeft: 230 }}>
@@ -259,6 +250,64 @@ export function AppShell({ children }: { children: ReactNode }) {
         </header>
 
         <main className="p-6">{children}</main>
+      </div>
+    </div>
+  );
+}
+
+function UserPanel() {
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [email, setEmail] = useState<string>("");
+  const [name, setName] = useState<string>("");
+  const [pending, setPending] = useState(false);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      if (data.user) {
+        setEmail(data.user.email ?? "");
+        setName(
+          (data.user.user_metadata?.name as string | undefined) ??
+            data.user.email?.split("@")[0] ??
+            "Usuário",
+        );
+      }
+    });
+  }, []);
+
+  async function handleSignOut() {
+    if (pending) return;
+    setPending(true);
+    try {
+      await queryClient.cancelQueries();
+      queryClient.clear();
+      await supabase.auth.signOut();
+      navigate({ to: "/auth", replace: true });
+    } finally {
+      setPending(false);
+    }
+  }
+
+  const initial = (name || email || "U").charAt(0).toUpperCase();
+
+  return (
+    <div className="border-t border-sidebar-border p-3">
+      <div className="flex items-center gap-2">
+        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-semibold">
+          {initial}
+        </div>
+        <div className="min-w-0 flex-1 leading-tight">
+          <div className="truncate text-[13px] text-white">{name || "Carregando..."}</div>
+          <div className="truncate text-[11px] text-sidebar-foreground/60">{email}</div>
+        </div>
+        <button
+          onClick={handleSignOut}
+          disabled={pending}
+          title="Sair"
+          className="flex h-7 w-7 items-center justify-center rounded-md text-sidebar-foreground/60 hover:bg-sidebar-border hover:text-white disabled:opacity-50"
+        >
+          <LogOut className="h-3.5 w-3.5" />
+        </button>
       </div>
     </div>
   );

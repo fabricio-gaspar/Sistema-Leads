@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Sparkles, User, Bell, Shield, Zap, Plus } from "lucide-react";
 import { Card, SectionTitle } from "@/components/ui-kit";
 
-export const Route = createFileRoute("/configuracoes")({ component: Configuracoes });
+export const Route = createFileRoute("/_authenticated/configuracoes")({ component: Configuracoes });
 
 const TABS = [
   { id: "ana", label: "Ana (IA)", icon: Sparkles },
