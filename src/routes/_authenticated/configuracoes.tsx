@@ -397,80 +397,177 @@ function AbaAuditoria() {
 
 
 function AbaNotif() {
-  const items = [
-    "Novo lead quente (score ≥ 85)",
-    "Ana escalou lead para você",
-    "Proposta visualizada pelo cliente",
-    "Lead parado há mais de 2 dias",
-    "Pedido confirmado",
-  ];
+  const qc = useQueryClient();
+  const listFn = useServerFn(listNotifications);
+  const markAllFn = useServerFn(markAllNotificationsRead);
+  const { data = [], isLoading } = useQuery({ queryKey: ["notifications"], queryFn: () => listFn() });
+
+  const markMut = useMutation({
+    mutationFn: () => markAllFn(),
+    onSuccess: () => {
+      toast.success("Todas marcadas como lidas");
+      qc.invalidateQueries({ queryKey: ["notifications"] });
+      qc.invalidateQueries({ queryKey: ["sidebar-counts"] });
+    },
+  });
+
+  const unread = data.filter((n) => !n.read).length;
+
   return (
     <Card>
-      <SectionTitle title="Notificações" hint="Escolha o canal de cada evento" />
-      <table className="w-full text-[13px]">
-        <thead>
-          <tr className="text-left text-[11px] uppercase text-text-ter">
-            <th />
-            <th className="pb-2">E-mail</th>
-            <th className="pb-2">Push</th>
-            <th className="pb-2">WhatsApp</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-border-card">
-          {items.map((i) => (
-            <tr key={i}>
-              <td className="py-2.5 text-text-body">{i}</td>
-              <td className="py-2.5"><input type="checkbox" defaultChecked className="accent-primary" /></td>
-              <td className="py-2.5"><input type="checkbox" defaultChecked className="accent-primary" /></td>
-              <td className="py-2.5"><input type="checkbox" className="accent-primary" /></td>
-            </tr>
+      <SectionTitle
+        title="Notificações"
+        hint={`${data.length} recente(s) · ${unread} não lida(s)`}
+        action={
+          <button
+            onClick={() => markMut.mutate()}
+            disabled={markMut.isPending || unread === 0}
+            className="rounded-md border border-border-card bg-bg-card px-3 py-1.5 text-[12px] hover:bg-bg-general disabled:opacity-50"
+          >
+            {markMut.isPending ? "…" : "Marcar todas como lidas"}
+          </button>
+        }
+      />
+      {isLoading ? (
+        <div className="flex items-center gap-2 p-4 text-text-sec">
+          <Loader2 className="h-4 w-4 animate-spin" /> Carregando…
+        </div>
+      ) : data.length === 0 ? (
+        <div className="p-4 text-[12.5px] text-text-ter">Nenhuma notificação registrada.</div>
+      ) : (
+        <ul className="divide-y divide-border-card">
+          {data.map((n) => (
+            <li key={n.id} className="flex items-start justify-between gap-3 py-2.5">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary capitalize">
+                    {n.kind}
+                  </span>
+                  <span className="truncate text-[13px] font-medium text-text-title">{n.title}</span>
+                </div>
+                {n.description && <div className="mt-0.5 text-[12px] text-text-sec">{n.description}</div>}
+                <div className="mt-0.5 text-[10.5px] text-text-ter">
+                  {new Date(n.created_at).toLocaleString("pt-BR")}
+                </div>
+              </div>
+              {!n.read && <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-primary" />}
+            </li>
           ))}
-        </tbody>
-      </table>
+        </ul>
+      )}
     </Card>
   );
 }
 
 function AbaInt() {
+  const listFn = useServerFn(listIntegrations);
+  const { data = [], isLoading } = useQuery({ queryKey: ["integrations"], queryFn: () => listFn() });
+
   return (
     <Card>
-      <SectionTitle title="Integrações" />
-      <div className="grid grid-cols-2 gap-3">
-        {[
-          { n: "WhatsApp Business", d: "Canal principal da Ana", ok: true },
-          { n: "E-mail (SMTP)", d: "Envio de propostas", ok: true },
-          { n: "ERP Bling", d: "Sincroniza pedidos", ok: false },
-          { n: "Meta Ads", d: "Importa leads de campanhas", ok: false },
-        ].map((i) => (
-          <div key={i.n} className="flex items-center justify-between rounded-md border border-border-card p-3">
-            <div>
-              <div className="text-[13px] font-semibold text-text-title">{i.n}</div>
-              <div className="text-[11.5px] text-text-sec">{i.d}</div>
+      <SectionTitle title="Integrações" hint="Status real de cada canal — leituras da tabela integrations" />
+      {isLoading ? (
+        <div className="flex items-center gap-2 p-4 text-text-sec">
+          <Loader2 className="h-4 w-4 animate-spin" /> Carregando…
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-3">
+          {data.map((i) => (
+            <div key={i.id} className="flex items-center justify-between rounded-md border border-border-card p-3">
+              <div className="min-w-0">
+                <div className="text-[13px] font-semibold text-text-title">{i.label}</div>
+                <div className="text-[11.5px] text-text-sec truncate">
+                  {i.connected ? "Configurado e ativo" : "Aguardando credenciais"}
+                </div>
+              </div>
+              {i.connected ? (
+                <span className="rounded-full bg-success-bg px-2 py-0.5 text-[10.5px] font-semibold text-success">
+                  Conectado
+                </span>
+              ) : (
+                <button
+                  onClick={() =>
+                    toast.info(`${i.label} ainda não configurado`, {
+                      description:
+                        "Cadastre as credenciais no cofre de secrets do projeto. O status muda automaticamente quando a integração ficar ativa.",
+                    })
+                  }
+                  className="inline-flex items-center gap-1 rounded-md border border-border-card bg-bg-card px-2.5 py-1 text-[11.5px] font-medium text-text-body hover:bg-primary hover:text-primary-foreground hover:border-primary"
+                >
+                  <Plug className="h-3 w-3" /> Conectar
+                </button>
+              )}
             </div>
-            <button className={`rounded-md px-3 py-1.5 text-[12px] font-medium ${i.ok ? "bg-success-bg text-success" : "bg-primary text-primary-foreground"}`}>
-              {i.ok ? "Conectado" : "Conectar"}
-            </button>
-          </div>
-        ))}
-      </div>
+          ))}
+          {data.length === 0 && (
+            <div className="col-span-2 rounded-md border border-dashed border-border-card p-4 text-center text-[12px] text-text-ter">
+              Nenhuma integração cadastrada.
+            </div>
+          )}
+        </div>
+      )}
     </Card>
   );
 }
 
 function AbaSeg() {
+  const [pwd, setPwd] = useState("");
+  const [pwd2, setPwd2] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const onSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (pwd.length < 8) {
+      toast.error("A senha precisa ter no mínimo 8 caracteres.");
+      return;
+    }
+    if (pwd !== pwd2) {
+      toast.error("As senhas não coincidem.");
+      return;
+    }
+    setBusy(true);
+    const { error } = await supabase.auth.updateUser({ password: pwd });
+    setBusy(false);
+    if (error) {
+      toast.error("Falha ao alterar senha", { description: error.message });
+      return;
+    }
+    setPwd("");
+    setPwd2("");
+    toast.success("Senha atualizada com sucesso.");
+  };
+
   return (
     <Card>
-      <SectionTitle title="Segurança" />
-      <div className="space-y-3 max-w-md">
-        <Field label="Alterar senha">
-          <input type="password" placeholder="Nova senha" className="h-9 w-full rounded-md border border-border-card bg-bg-card px-3 text-[13px]" />
+      <SectionTitle title="Segurança" hint="Sua conta de acesso ao CRM" />
+      <form onSubmit={onSubmit} className="space-y-3 max-w-md">
+        <Field label="Nova senha" hint="Mínimo 8 caracteres">
+          <input
+            type="password"
+            value={pwd}
+            onChange={(e) => setPwd(e.target.value)}
+            autoComplete="new-password"
+            className="h-9 w-full rounded-md border border-border-card bg-bg-card px-3 text-[13px] outline-none focus:border-primary"
+          />
         </Field>
-        <Field label="Autenticação em 2 fatores" hint="Recomendado para administradores">
-          <label className="inline-flex items-center gap-2 text-[13px] text-text-body">
-            <input type="checkbox" className="accent-primary" /> Ativar 2FA por app autenticador
-          </label>
+        <Field label="Confirmar nova senha">
+          <input
+            type="password"
+            value={pwd2}
+            onChange={(e) => setPwd2(e.target.value)}
+            autoComplete="new-password"
+            className="h-9 w-full rounded-md border border-border-card bg-bg-card px-3 text-[13px] outline-none focus:border-primary"
+          />
         </Field>
-      </div>
+        <button
+          type="submit"
+          disabled={busy || !pwd || !pwd2}
+          className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-2 text-[12.5px] font-medium text-primary-foreground hover:bg-primary-hover disabled:opacity-50"
+        >
+          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+          Alterar senha
+        </button>
+      </form>
     </Card>
   );
 }
