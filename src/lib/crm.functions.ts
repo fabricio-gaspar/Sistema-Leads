@@ -250,9 +250,17 @@ export const createProposal = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => proposalInput.parse(d))
   .handler(async ({ data, context }) => {
+    const payload = {
+      ...data,
+      items: data.items ?? '[]',
+      discount: data.discount == null ? null : String(data.discount),
+      owner_id: context.userId,
+      creator: 'human' as const,
+      creator_name: data.creator_name ?? (context.claims?.email as string | undefined) ?? null,
+    }
     const { data: row, error } = await context.supabase
       .from('proposals')
-      .insert({ ...data, owner_id: context.userId, creator: context.userId } as never)
+      .insert(payload as never)
       .select()
       .single()
     if (error) throw new Error(error.message)
