@@ -480,3 +480,335 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
     </div>
   );
 }
+
+// ============= SERVIÇOS =============
+type ServiceRow = {
+  id: string;
+  name: string;
+  category: string | null;
+  description: string | null;
+  price: number | null;
+  unit: string | null;
+  term: string | null;
+  max_discount: number | null;
+  active: boolean | null;
+};
+
+function AbaServicos() {
+  const qc = useQueryClient();
+  const listFn = useServerFn(listServices);
+  const upsertFn = useServerFn(upsertService);
+  const delFn = useServerFn(deleteService);
+  const { data = [], isLoading } = useQuery<ServiceRow[]>({ queryKey: ["services"], queryFn: () => listFn() as Promise<ServiceRow[]> });
+  const [draft, setDraft] = useState<Partial<ServiceRow> | null>(null);
+
+  const save = useMutation({
+    mutationFn: (payload: Partial<ServiceRow>) =>
+      upsertFn({
+        data: {
+          id: payload.id ?? null,
+          patch: {
+            name: payload.name!,
+            category: payload.category ?? null,
+            description: payload.description ?? null,
+            price: payload.price != null ? Number(payload.price) : null,
+            unit: payload.unit ?? null,
+            term: payload.term ?? null,
+            max_discount: payload.max_discount != null ? Number(payload.max_discount) : null,
+            active: payload.active ?? true,
+          },
+        },
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["services"] });
+      setDraft(null);
+    },
+  });
+  const del = useMutation({
+    mutationFn: (id: string) => delFn({ data: { id } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["services"] }),
+  });
+
+  return (
+    <Card>
+      <div className="flex items-center justify-between">
+        <SectionTitle title="Catálogo de Serviços" hint="Ana usa este catálogo em propostas e respostas" />
+        <button
+          onClick={() => setDraft({ active: true })}
+          className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-2 text-[12px] font-medium text-primary-foreground"
+        >
+          <Plus className="h-3.5 w-3.5" /> Novo serviço
+        </button>
+      </div>
+      {isLoading ? (
+        <Loader2 className="mx-auto my-6 h-4 w-4 animate-spin text-text-sec" />
+      ) : (
+        <table className="mt-3 w-full text-[13px]">
+          <thead>
+            <tr className="border-b border-border-card text-left text-[11px] uppercase text-text-ter">
+              <th className="pb-2">Nome</th>
+              <th className="pb-2">Categoria</th>
+              <th className="pb-2">Preço</th>
+              <th className="pb-2">Unidade</th>
+              <th className="pb-2">Desc. máx.</th>
+              <th className="pb-2">Ativo</th>
+              <th />
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border-card">
+            {data.map((s) => (
+              <tr key={s.id}>
+                <td className="py-2 font-medium text-text-title">{s.name}</td>
+                <td className="py-2 text-text-body">{s.category ?? "—"}</td>
+                <td className="py-2 text-text-body">{s.price != null ? `R$ ${Number(s.price).toFixed(2)}` : "—"}</td>
+                <td className="py-2 text-text-body">{s.unit ?? "—"}</td>
+                <td className="py-2 text-text-body">{s.max_discount != null ? `${s.max_discount}%` : "—"}</td>
+                <td className="py-2">{s.active ? <span className="text-success">Sim</span> : <span className="text-text-ter">Não</span>}</td>
+                <td className="py-2 text-right">
+                  <button onClick={() => setDraft(s)} className="mr-2 text-[12px] text-primary">Editar</button>
+                  <button onClick={() => del.mutate(s.id)} className="text-[12px] text-red-500">
+                    <Trash2 className="inline h-3.5 w-3.5" />
+                  </button>
+                </td>
+              </tr>
+            ))}
+            {!data.length && (
+              <tr>
+                <td colSpan={7} className="py-6 text-center text-[13px] text-text-sec">Nenhum serviço cadastrado.</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      )}
+
+      {draft && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setDraft(null)}>
+          <div className="w-full max-w-lg rounded-lg bg-bg-card p-5" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-3 text-[15px] font-semibold text-text-title">{draft.id ? "Editar" : "Novo"} serviço</div>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Nome"><input value={draft.name ?? ""} onChange={(e) => setDraft({ ...draft, name: e.target.value })} className="h-9 w-full rounded-md border border-border-card bg-bg-card px-3 text-[13px]" /></Field>
+              <Field label="Categoria"><input value={draft.category ?? ""} onChange={(e) => setDraft({ ...draft, category: e.target.value })} className="h-9 w-full rounded-md border border-border-card bg-bg-card px-3 text-[13px]" /></Field>
+              <Field label="Preço (R$)"><input type="number" value={draft.price ?? ""} onChange={(e) => setDraft({ ...draft, price: e.target.value === "" ? null : Number(e.target.value) })} className="h-9 w-full rounded-md border border-border-card bg-bg-card px-3 text-[13px]" /></Field>
+              <Field label="Unidade"><input value={draft.unit ?? ""} onChange={(e) => setDraft({ ...draft, unit: e.target.value })} className="h-9 w-full rounded-md border border-border-card bg-bg-card px-3 text-[13px]" /></Field>
+              <Field label="Prazo"><input value={draft.term ?? ""} onChange={(e) => setDraft({ ...draft, term: e.target.value })} className="h-9 w-full rounded-md border border-border-card bg-bg-card px-3 text-[13px]" /></Field>
+              <Field label="Desconto máx. (%)"><input type="number" value={draft.max_discount ?? ""} onChange={(e) => setDraft({ ...draft, max_discount: e.target.value === "" ? null : Number(e.target.value) })} className="h-9 w-full rounded-md border border-border-card bg-bg-card px-3 text-[13px]" /></Field>
+            </div>
+            <Field label="Descrição">
+              <textarea value={draft.description ?? ""} onChange={(e) => setDraft({ ...draft, description: e.target.value })} rows={3} className="w-full rounded-md border border-border-card bg-bg-card px-3 py-2 text-[13px]" />
+            </Field>
+            <label className="mt-2 flex items-center gap-2 text-[12px] text-text-body">
+              <input type="checkbox" checked={draft.active ?? true} onChange={(e) => setDraft({ ...draft, active: e.target.checked })} /> Ativo
+            </label>
+            <div className="mt-4 flex justify-end gap-2">
+              <button onClick={() => setDraft(null)} className="rounded-md border border-border-card px-3 py-1.5 text-[12px]">Cancelar</button>
+              <button
+                disabled={!draft.name || save.isPending}
+                onClick={() => save.mutate(draft)}
+                className="rounded-md bg-primary px-3 py-1.5 text-[12px] font-medium text-primary-foreground disabled:opacity-50"
+              >
+                Salvar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+// ============= OBJEÇÕES =============
+type ObjectionRow = { id: string; trigger: string; response: string };
+
+function AbaObjecoes() {
+  const qc = useQueryClient();
+  const listFn = useServerFn(listObjections);
+  const upsertFn = useServerFn(upsertObjection);
+  const delFn = useServerFn(deleteObjection);
+  const { data = [], isLoading } = useQuery<ObjectionRow[]>({ queryKey: ["objections"], queryFn: () => listFn() as Promise<ObjectionRow[]> });
+  const [draft, setDraft] = useState<Partial<ObjectionRow> | null>(null);
+  const save = useMutation({
+    mutationFn: (p: Partial<ObjectionRow>) => upsertFn({ data: { id: p.id ?? null, trigger: p.trigger!, response: p.response! } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["objections"] });
+      setDraft(null);
+    },
+  });
+  const del = useMutation({ mutationFn: (id: string) => delFn({ data: { id } }), onSuccess: () => qc.invalidateQueries({ queryKey: ["objections"] }) });
+
+  return (
+    <Card>
+      <div className="flex items-center justify-between">
+        <SectionTitle title="Biblioteca de Objeções" hint="Ana reage automaticamente quando o cliente diz o gatilho" />
+        <button onClick={() => setDraft({})} className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-2 text-[12px] font-medium text-primary-foreground">
+          <Plus className="h-3.5 w-3.5" /> Nova objeção
+        </button>
+      </div>
+      {isLoading ? (
+        <Loader2 className="mx-auto my-6 h-4 w-4 animate-spin text-text-sec" />
+      ) : (
+        <div className="mt-3 space-y-2">
+          {data.map((o) => (
+            <div key={o.id} className="rounded-md border border-border-card p-3">
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex-1">
+                  <div className="text-[12px] font-semibold text-warm">Gatilho: {o.trigger}</div>
+                  <div className="mt-1 text-[13px] text-text-body">{o.response}</div>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => setDraft(o)} className="text-[12px] text-primary">Editar</button>
+                  <button onClick={() => del.mutate(o.id)} className="text-red-500"><Trash2 className="h-3.5 w-3.5" /></button>
+                </div>
+              </div>
+            </div>
+          ))}
+          {!data.length && <div className="py-6 text-center text-[13px] text-text-sec">Nenhuma objeção cadastrada.</div>}
+        </div>
+      )}
+      {draft && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setDraft(null)}>
+          <div className="w-full max-w-lg rounded-lg bg-bg-card p-5" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-3 text-[15px] font-semibold text-text-title">{draft.id ? "Editar" : "Nova"} objeção</div>
+            <Field label="Gatilho (ex.: 'está caro')">
+              <input value={draft.trigger ?? ""} onChange={(e) => setDraft({ ...draft, trigger: e.target.value })} className="h-9 w-full rounded-md border border-border-card bg-bg-card px-3 text-[13px]" />
+            </Field>
+            <Field label="Resposta da Ana">
+              <textarea value={draft.response ?? ""} onChange={(e) => setDraft({ ...draft, response: e.target.value })} rows={4} className="w-full rounded-md border border-border-card bg-bg-card px-3 py-2 text-[13px]" />
+            </Field>
+            <div className="mt-4 flex justify-end gap-2">
+              <button onClick={() => setDraft(null)} className="rounded-md border border-border-card px-3 py-1.5 text-[12px]">Cancelar</button>
+              <button disabled={!draft.trigger || !draft.response || save.isPending} onClick={() => save.mutate(draft)} className="rounded-md bg-primary px-3 py-1.5 text-[12px] font-medium text-primary-foreground disabled:opacity-50">Salvar</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+// ============= SCORE WEIGHTS =============
+type Weights = { segment: number; whatsapp: number; site: number; porte: number; google: number; regiao: number };
+const DEFAULT_WEIGHTS: Weights = { segment: 25, whatsapp: 20, site: 15, porte: 15, google: 15, regiao: 10 };
+
+function AbaScore() {
+  const qc = useQueryClient();
+  const getFn = useServerFn(getScoreWeights);
+  const updFn = useServerFn(updateScoreWeights);
+  const { data, isLoading } = useQuery({ queryKey: ["score-weights"], queryFn: () => getFn() });
+  const [w, setW] = useState<Weights>(DEFAULT_WEIGHTS);
+  useEffect(() => {
+    if (data) setW({ segment: data.segment ?? 25, whatsapp: data.whatsapp ?? 20, site: data.site ?? 15, porte: data.porte ?? 15, google: data.google ?? 15, regiao: data.regiao ?? 10 });
+  }, [data]);
+  const save = useMutation({
+    mutationFn: () => updFn({ data: w }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["score-weights"] }),
+  });
+  const total = w.segment + w.whatsapp + w.site + w.porte + w.google + w.regiao;
+
+  const rows: { key: keyof Weights; label: string }[] = [
+    { key: "segment", label: "Segmento" },
+    { key: "whatsapp", label: "WhatsApp ativo" },
+    { key: "site", label: "Site institucional" },
+    { key: "porte", label: "Porte / faturamento" },
+    { key: "google", label: "Presença Google" },
+    { key: "regiao", label: "Região atendida" },
+  ];
+
+  return (
+    <Card>
+      <SectionTitle title="Pesos do Score da Ana" hint="Como Ana pontua um novo prospect (soma sugerida: 100)" />
+      {isLoading ? (
+        <Loader2 className="mx-auto my-6 h-4 w-4 animate-spin text-text-sec" />
+      ) : (
+        <div className="max-w-md space-y-3">
+          {rows.map((r) => (
+            <div key={r.key} className="flex items-center gap-3">
+              <div className="w-40 text-[13px] text-text-body">{r.label}</div>
+              <input type="range" min={0} max={50} value={w[r.key]} onChange={(e) => setW({ ...w, [r.key]: Number(e.target.value) })} className="flex-1 accent-primary" />
+              <div className="w-10 text-right text-[13px] font-semibold text-text-title">{w[r.key]}</div>
+            </div>
+          ))}
+          <div className={`text-[12px] ${total === 100 ? "text-success" : "text-warm"}`}>Soma atual: {total} {total !== 100 && "(recomendado: 100)"}</div>
+          <button disabled={save.isPending} onClick={() => save.mutate()} className="mt-2 rounded-md bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground disabled:opacity-50">
+            {save.isPending ? <Loader2 className="mr-1 inline h-3.5 w-3.5 animate-spin" /> : <Check className="mr-1 inline h-3.5 w-3.5" />} Salvar pesos
+          </button>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+// ============= GOVERNANÇA IA =============
+type UQ = { id: string; text: string; count: number | null; resolved: boolean | null; created_at: string };
+
+function AbaGovernanca() {
+  const qc = useQueryClient();
+  const listFn = useServerFn(listUnansweredQuestions);
+  const resolveFn = useServerFn(resolveUnansweredQuestion);
+  const delFn = useServerFn(deleteUnansweredQuestion);
+  const { data = [], isLoading } = useQuery<UQ[]>({ queryKey: ["unanswered"], queryFn: () => listFn() as Promise<UQ[]> });
+  const resolve = useMutation({
+    mutationFn: (vars: { id: string; resolved: boolean }) => resolveFn({ data: vars }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["unanswered"] }),
+  });
+  const del = useMutation({ mutationFn: (id: string) => delFn({ data: { id } }), onSuccess: () => qc.invalidateQueries({ queryKey: ["unanswered"] }) });
+
+  const abertas = data.filter((q) => !q.resolved);
+  const resolvidas = data.filter((q) => q.resolved);
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-warm-bg text-warm">
+            <AlertCircle className="h-5 w-5" />
+          </div>
+          <div>
+            <div className="text-[14px] font-semibold text-text-title">Perguntas sem resposta — {abertas.length}</div>
+            <div className="text-[12px] text-text-sec">Dúvidas de clientes que a Ana não conseguiu responder. Treine a base para reduzir escalações.</div>
+          </div>
+        </div>
+      </Card>
+
+      <Card>
+        <SectionTitle title="Em aberto" />
+        {isLoading ? (
+          <Loader2 className="mx-auto my-6 h-4 w-4 animate-spin text-text-sec" />
+        ) : abertas.length === 0 ? (
+          <div className="py-6 text-center text-[13px] text-text-sec">🎉 Nenhuma pergunta em aberto.</div>
+        ) : (
+          <ul className="divide-y divide-border-card">
+            {abertas.map((q) => (
+              <li key={q.id} className="flex items-start justify-between gap-3 py-3">
+                <div className="flex-1">
+                  <div className="text-[13px] text-text-body">{q.text}</div>
+                  <div className="text-[11px] text-text-ter">Ocorrências: {q.count ?? 1} · {new Date(q.created_at).toLocaleDateString("pt-BR")}</div>
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => resolve.mutate({ id: q.id, resolved: true })} className="rounded-md bg-success-bg px-2.5 py-1 text-[11.5px] font-medium text-success">
+                    Marcar resolvida
+                  </button>
+                  <button onClick={() => del.mutate(q.id)} className="text-red-500"><Trash2 className="h-3.5 w-3.5" /></button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+
+      {resolvidas.length > 0 && (
+        <Card>
+          <SectionTitle title={`Resolvidas (${resolvidas.length})`} />
+          <ul className="divide-y divide-border-card">
+            {resolvidas.map((q) => (
+              <li key={q.id} className="flex items-center justify-between gap-3 py-2">
+                <div className="text-[12.5px] text-text-sec line-through">{q.text}</div>
+                <button onClick={() => resolve.mutate({ id: q.id, resolved: false })} className="text-[11px] text-primary">Reabrir</button>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+    </div>
+  );
+}
+
