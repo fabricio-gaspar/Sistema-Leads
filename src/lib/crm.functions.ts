@@ -847,4 +847,272 @@ export const getReportsData = createServerFn({ method: 'GET' })
     }
   })
 
+// ============= PROSPECÇÃO =============
+
+export const listProspects = createServerFn({ method: 'GET' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        segment: z.string().optional().nullable(),
+        uf: z.string().optional().nullable(),
+        min_score: z.number().int().optional().nullable(),
+        search: z.string().optional().nullable(),
+      })
+      .partial()
+      .parse(d ?? {}),
+  )
+  .handler(async ({ data, context }) => {
+    let q = context.supabase.from('leads').select('*').eq('stage', 'Prospecção')
+    if (data.segment) q = q.eq('segment', data.segment)
+    if (data.uf) q = q.eq('uf', data.uf)
+    if (data.min_score) q = q.gte('score', data.min_score)
+    if (data.search) q = q.ilike('company', `%${data.search}%`)
+    const { data: rows, error } = await q.order('score', { ascending: false }).limit(200)
+    if (error) throw new Error(error.message)
+    return rows ?? []
+  })
+
+export const bulkAssignProspects = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        ids: z.array(z.string().uuid()).min(1),
+        target: z.enum(['ana', 'human']),
+        assigned_to: z.string().uuid().optional().nullable(),
+        next_stage: leadStage.optional(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const patch: Record<string, unknown> = {
+      owner: data.target === 'ana' ? 'ia' : 'human',
+      stage: data.next_stage ?? 'Qualificado',
+    }
+    if (data.target === 'human' && data.assigned_to) patch.assigned_to = data.assigned_to
+    if (data.target === 'ana') patch.assigned_to = null
+    const { error } = await context.supabase.from('leads').update(patch as never).in('id', data.ids)
+    if (error) throw new Error(error.message)
+    await context.supabase.from('audit_logs').insert({
+      actor_id: context.userId,
+      actor_name: context.claims?.email ?? 'user',
+      actor_type: 'human',
+      action: 'bulk_assign',
+      detail: `${data.ids.length} prospect(s) → ${data.target === 'ana' ? 'Ana (IA)' : 'Vendedor humano'}`,
+    } as never)
+    return { ok: true, count: data.ids.length }
+  })
+
+// ============= SERVICES (Catálogo) =============
+
+const serviceInput = z.object({
+  name: z.string().min(1),
+  category: z.string().optional().nullable(),
+  description: z.string().optional().nullable(),
+  price: z.number().optional().nullable(),
+  unit: z.string().optional().nullable(),
+  term: z.string().optional().nullable(),
+  max_discount: z.number().optional().nullable(),
+  active: z.boolean().optional(),
+})
+
+export const listServices = createServerFn({ method: 'GET' })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data, error } = await context.supabase.from('services').select('*').order('name')
+    if (error) throw new Error(error.message)
+    return data ?? []
+  })
+
+export const upsertService = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z.object({ id: z.string().uuid().optional().nullable(), patch: serviceInput.partial() }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context)
+    if (data.id) {
+      const { data: row, error } = await context.supabase
+        .from('services')
+        .update(data.patch as never)
+        .eq('id', data.id)
+        .select()
+        .single()
+      if (error) throw new Error(error.message)
+      return row
+    }
+    const { data: row, error } = await context.supabase
+      .from('services')
+      .insert({ ...(data.patch as Record<string, unknown>), active: data.patch.active ?? true } as never)
+      .select()
+      .single()
+    if (error) throw new Error(error.message)
+    return row
+  })
+
+export const deleteService = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context)
+    const { error } = await context.supabase.from('services').delete().eq('id', data.id)
+    if (error) throw new Error(error.message)
+    return { ok: true }
+  })
+
+// ============= OBJEÇÕES =============
+
+export const listObjections = createServerFn({ method: 'GET' })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data, error } = await context.supabase.from('objections').select('*').order('created_at', { ascending: false })
+    if (error) throw new Error(error.message)
+    return data ?? []
+  })
+
+export const upsertObjection = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        id: z.string().uuid().optional().nullable(),
+        trigger: z.string().min(1),
+        response: z.string().min(1),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context)
+    if (data.id) {
+      const { data: row, error } = await context.supabase
+        .from('objections')
+        .update({ trigger: data.trigger, response: data.response } as never)
+        .eq('id', data.id)
+        .select()
+        .single()
+      if (error) throw new Error(error.message)
+      return row
+    }
+    const { data: row, error } = await context.supabase
+      .from('objections')
+      .insert({ trigger: data.trigger, response: data.response } as never)
+      .select()
+      .single()
+    if (error) throw new Error(error.message)
+    return row
+  })
+
+export const deleteObjection = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context)
+    const { error } = await context.supabase.from('objections').delete().eq('id', data.id)
+    if (error) throw new Error(error.message)
+    return { ok: true }
+  })
+
+// ============= SCORE WEIGHTS =============
+
+export const getScoreWeights = createServerFn({ method: 'GET' })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data, error } = await context.supabase.from('score_weights').select('*').limit(1).maybeSingle()
+    if (error) throw new Error(error.message)
+    return data
+  })
+
+export const updateScoreWeights = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        segment: z.number().int().min(0).max(100),
+        whatsapp: z.number().int().min(0).max(100),
+        site: z.number().int().min(0).max(100),
+        porte: z.number().int().min(0).max(100),
+        google: z.number().int().min(0).max(100),
+        regiao: z.number().int().min(0).max(100),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context)
+    const { data: existing } = await context.supabase.from('score_weights').select('id').limit(1).maybeSingle()
+    if (existing?.id) {
+      const { data: row, error } = await context.supabase
+        .from('score_weights')
+        .update(data as never)
+        .eq('id', existing.id)
+        .select()
+        .single()
+      if (error) throw new Error(error.message)
+      return row
+    }
+    const { data: row, error } = await context.supabase.from('score_weights').insert(data as never).select().single()
+    if (error) throw new Error(error.message)
+    return row
+  })
+
+// ============= UNANSWERED QUESTIONS (Governança IA) =============
+
+export const listUnansweredQuestions = createServerFn({ method: 'GET' })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data, error } = await context.supabase
+      .from('unanswered_questions')
+      .select('*')
+      .order('count', { ascending: false })
+      .limit(200)
+    if (error) throw new Error(error.message)
+    return data ?? []
+  })
+
+export const registerUnansweredQuestion = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ text: z.string().min(2) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: existing } = await context.supabase
+      .from('unanswered_questions')
+      .select('id, count')
+      .eq('text', data.text)
+      .maybeSingle()
+    if (existing?.id) {
+      const { error } = await context.supabase
+        .from('unanswered_questions')
+        .update({ count: (existing.count ?? 1) + 1, resolved: false } as never)
+        .eq('id', existing.id)
+      if (error) throw new Error(error.message)
+      return { ok: true }
+    }
+    const { error } = await context.supabase
+      .from('unanswered_questions')
+      .insert({ text: data.text, count: 1, resolved: false } as never)
+    if (error) throw new Error(error.message)
+    return { ok: true }
+  })
+
+export const resolveUnansweredQuestion = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid(), resolved: z.boolean() }).parse(d))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context)
+    const { error } = await context.supabase
+      .from('unanswered_questions')
+      .update({ resolved: data.resolved } as never)
+      .eq('id', data.id)
+    if (error) throw new Error(error.message)
+    return { ok: true }
+  })
+
+export const deleteUnansweredQuestion = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context)
+    const { error } = await context.supabase.from('unanswered_questions').delete().eq('id', data.id)
+    if (error) throw new Error(error.message)
+    return { ok: true }
+  })
 
