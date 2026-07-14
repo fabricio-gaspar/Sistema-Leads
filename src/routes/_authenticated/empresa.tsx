@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Building2, Upload, Sparkles, CheckCircle2, FileText, Trash2, Loader2, Download } from "lucide-react";
+import { Building2, Upload, Sparkles, FileText, Trash2, Loader2, Download, Pencil, Save, X, Plug } from "lucide-react";
 import { Card, SectionTitle } from "@/components/ui-kit";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -11,126 +11,293 @@ import {
   getDocumentSignedUrl,
   listDocuments,
   retrainAna,
+  getCompanySettings,
+  updateCompanySettings,
+  listIntegrations,
 } from "@/lib/crm.functions";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/empresa")({ component: Empresa });
 
+const SIZE_LABEL: Record<string, string> = {
+  pequena: "Pequena empresa",
+  media: "Média empresa",
+  grande: "Grande empresa",
+};
+
 function Empresa() {
   return (
     <div className="grid grid-cols-3 gap-4">
       <div className="col-span-2 space-y-4">
-        <Card>
-          <SectionTitle title="Perfil da empresa" hint="Estas informações treinam a Ana sobre o seu negócio" />
-          <div className="grid grid-cols-2 gap-4">
-            {[
-              ["Razão social", "WF Digital Indústria Ltda."],
-              ["CNPJ", "42.183.559/0001-08"],
-              ["Segmento principal", "Metalurgia · Estamparia"],
-              ["Porte", "Média empresa"],
-              ["Website", "wfdigital.com.br"],
-              ["Faturamento anual", "R$ 24 milhões"],
-            ].map(([k, v]) => (
-              <div key={k}>
-                <div className="text-[11px] uppercase text-text-ter">{k}</div>
-                <div className="text-[13px] text-text-title font-medium">{v}</div>
-              </div>
-            ))}
-          </div>
-        </Card>
-
-        <Card>
-          <SectionTitle title="Produtos e serviços" hint="A Ana usa isso para qualificar leads" />
-          <div className="space-y-2">
-            {[
-              { name: "Peças estampadas sob desenho", tag: "Principal" },
-              { name: "Corte a laser de chapas", tag: "Complementar" },
-              { name: "Montagem e solda de conjuntos", tag: "Complementar" },
-              { name: "Ferramentaria — projetos especiais", tag: "Premium" },
-            ].map((p) => (
-              <div key={p.name} className="flex items-center justify-between rounded-md border border-border-card p-3">
-                <div className="text-[13px] text-text-title">{p.name}</div>
-                <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
-                  {p.tag}
-                </span>
-              </div>
-            ))}
-          </div>
-        </Card>
-
-        <Card>
-          <SectionTitle
-            title="Diferenciais competitivos"
-            hint="Argumentos que a Ana usa na abordagem"
-          />
-          <ul className="grid grid-cols-2 gap-2">
-            {[
-              "Entrega em até 15 dias úteis",
-              "Redução comprovada de 22% no lead time",
-              "Certificação ISO 9001:2015",
-              "Atendimento técnico dedicado",
-              "Ferramentaria própria",
-              "Mínimo de 500 peças por pedido",
-            ].map((d) => (
-              <li key={d} className="flex items-center gap-2 text-[13px] text-text-body">
-                <CheckCircle2 className="h-4 w-4 text-success shrink-0" />
-                {d}
-              </li>
-            ))}
-          </ul>
-        </Card>
-
+        <PerfilCard />
         <DocumentosCard />
       </div>
 
-
       <div className="space-y-4">
-        <Card>
-          <div className="flex flex-col items-center text-center">
-            <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-primary text-primary-foreground">
-              <Building2 className="h-9 w-9" />
-            </div>
-            <div className="mt-3 text-[15px] font-semibold text-text-title">WF Digital</div>
-            <div className="text-[12px] text-text-sec">São Paulo · SP</div>
-            <button className="mt-3 flex items-center gap-1.5 rounded-md border border-border-card px-3 py-1.5 text-[12px] text-text-body hover:bg-bg-general">
-              <Upload className="h-3.5 w-3.5" /> Enviar logotipo
-            </button>
-          </div>
-        </Card>
-
-        <Card>
-          <div className="flex items-center gap-2 text-ia">
-            <Sparkles className="h-4 w-4" />
-            <div className="text-[13px] font-semibold">Ana aprendeu</div>
-          </div>
-          <p className="mt-1.5 text-[12.5px] text-text-body leading-relaxed">
-            "Sou a Ana, assistente comercial da WF Digital. Trabalhamos com estamparia e corte a laser para indústrias de médio porte. Nosso diferencial é lead time curto e ferramentaria própria."
-          </p>
-          <RetrainAnaButton />
-        </Card>
-
-        <Card>
-          <SectionTitle title="Integrações" />
-          <ul className="space-y-2">
-            {[
-              { name: "WhatsApp Business", ok: true },
-              { name: "E-mail (SMTP)", ok: true },
-              { name: "ERP — Bling", ok: false },
-              { name: "Meta Ads", ok: false },
-            ].map((i) => (
-              <li key={i.name} className="flex items-center justify-between text-[12.5px]">
-                <span className="text-text-body">{i.name}</span>
-                <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${i.ok ? "bg-success-bg text-success" : "bg-bg-general text-text-ter"}`}>
-                  {i.ok ? "Conectado" : "Conectar"}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </Card>
+        <IdentidadeCard />
+        <AnaCard />
+        <IntegracoesCard />
       </div>
     </div>
   );
 }
+
+// ---------- Perfil (editável) ----------
+
+type CompanyForm = {
+  name: string;
+  cnpj: string;
+  segment: string;
+  size: "" | "pequena" | "media" | "grande";
+  website: string;
+  annual_revenue: string;
+  city: string;
+  state: string;
+  phone: string;
+  email: string;
+};
+
+const EMPTY: CompanyForm = {
+  name: "", cnpj: "", segment: "", size: "", website: "",
+  annual_revenue: "", city: "", state: "", phone: "", email: "",
+};
+
+function PerfilCard() {
+  const qc = useQueryClient();
+  const loadFn = useServerFn(getCompanySettings);
+  const saveFn = useServerFn(updateCompanySettings);
+  const q = useQuery({ queryKey: ["company_settings"], queryFn: () => loadFn() });
+
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState<CompanyForm>(EMPTY);
+
+  useEffect(() => {
+    if (q.data) {
+      setForm({
+        name: q.data.name ?? "",
+        cnpj: q.data.cnpj ?? "",
+        segment: q.data.segment ?? "",
+        size: (q.data.size as CompanyForm["size"]) ?? "",
+        website: q.data.website ?? "",
+        annual_revenue: q.data.annual_revenue ?? "",
+        city: q.data.city ?? "",
+        state: q.data.state ?? "",
+        phone: q.data.phone ?? "",
+        email: q.data.email ?? "",
+      });
+    }
+  }, [q.data]);
+
+  const mut = useMutation({
+    mutationFn: (payload: CompanyForm) =>
+      saveFn({
+        data: {
+          ...payload,
+          size: payload.size === "" ? null : payload.size,
+        },
+      }),
+    onSuccess: () => {
+      toast.success("Perfil da empresa atualizado");
+      setEditing(false);
+      qc.invalidateQueries({ queryKey: ["company_settings"] });
+    },
+    onError: (e) => toast.error("Falha ao salvar", { description: (e as Error).message }),
+  });
+
+  const set = <K extends keyof CompanyForm>(k: K, v: CompanyForm[K]) =>
+    setForm((f) => ({ ...f, [k]: v }));
+
+  return (
+    <Card>
+      <SectionTitle
+        title="Perfil da empresa"
+        hint="Estas informações treinam a Ana sobre o seu negócio"
+        action={
+          !editing ? (
+            <button
+              onClick={() => setEditing(true)}
+              className="inline-flex items-center gap-1.5 rounded-md border border-border-card px-3 py-1.5 text-[12px] text-text-body hover:bg-bg-general"
+            >
+              <Pencil className="h-3.5 w-3.5" /> Editar
+            </button>
+          ) : (
+            <div className="flex gap-2">
+              <button
+                onClick={() => { setEditing(false); if (q.data) qc.invalidateQueries({ queryKey: ["company_settings"] }); }}
+                className="inline-flex items-center gap-1.5 rounded-md border border-border-card px-3 py-1.5 text-[12px] text-text-body hover:bg-bg-general"
+              >
+                <X className="h-3.5 w-3.5" /> Cancelar
+              </button>
+              <button
+                disabled={mut.isPending}
+                onClick={() => mut.mutate(form)}
+                className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-[12px] font-medium text-primary-foreground hover:bg-primary-hover disabled:opacity-60"
+              >
+                {mut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                Salvar
+              </button>
+            </div>
+          )
+        }
+      />
+
+      {q.isLoading ? (
+        <div className="text-[12px] text-text-ter">Carregando…</div>
+      ) : !editing ? (
+        <div className="grid grid-cols-2 gap-4">
+          <ReadItem label="Razão social" value={form.name} />
+          <ReadItem label="CNPJ" value={form.cnpj} />
+          <ReadItem label="Segmento principal" value={form.segment} />
+          <ReadItem label="Porte" value={form.size ? SIZE_LABEL[form.size] : ""} />
+          <ReadItem label="Website" value={form.website} />
+          <ReadItem label="Faturamento anual" value={form.annual_revenue} />
+          <ReadItem label="Cidade" value={form.city} />
+          <ReadItem label="Estado (UF)" value={form.state} />
+          <ReadItem label="Telefone" value={form.phone} />
+          <ReadItem label="E-mail" value={form.email} />
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Razão social" value={form.name} onChange={(v) => set("name", v)} />
+          <Field label="CNPJ" value={form.cnpj} onChange={(v) => set("cnpj", v)} placeholder="00.000.000/0000-00" />
+          <Field label="Segmento principal" value={form.segment} onChange={(v) => set("segment", v)} />
+          <div>
+            <div className="mb-1 text-[11px] uppercase text-text-ter">Porte</div>
+            <select
+              value={form.size}
+              onChange={(e) => set("size", e.target.value as CompanyForm["size"])}
+              className="w-full rounded-md border border-border-card bg-bg-elev px-2.5 py-2 text-[13px] text-text-title focus:border-primary focus:outline-none"
+            >
+              <option value="">Selecione…</option>
+              <option value="pequena">Pequena empresa</option>
+              <option value="media">Média empresa</option>
+              <option value="grande">Grande empresa</option>
+            </select>
+          </div>
+          <Field label="Website" value={form.website} onChange={(v) => set("website", v)} placeholder="wfdigital.com.br" />
+          <Field label="Faturamento anual" value={form.annual_revenue} onChange={(v) => set("annual_revenue", v)} placeholder="R$ 24 milhões" />
+          <Field label="Cidade" value={form.city} onChange={(v) => set("city", v)} />
+          <Field label="Estado (UF)" value={form.state} onChange={(v) => set("state", v.toUpperCase().slice(0, 2))} placeholder="SP" />
+          <Field label="Telefone" value={form.phone} onChange={(v) => set("phone", v)} />
+          <Field label="E-mail" value={form.email} onChange={(v) => set("email", v)} />
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function ReadItem({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div className="text-[11px] uppercase text-text-ter">{label}</div>
+      <div className="text-[13px] text-text-title font-medium">{value || <span className="text-text-ter">—</span>}</div>
+    </div>
+  );
+}
+
+function Field({
+  label, value, onChange, placeholder,
+}: { label: string; value: string; onChange: (v: string) => void; placeholder?: string }) {
+  return (
+    <div>
+      <div className="mb-1 text-[11px] uppercase text-text-ter">{label}</div>
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        className="w-full rounded-md border border-border-card bg-bg-elev px-2.5 py-2 text-[13px] text-text-title focus:border-primary focus:outline-none"
+      />
+    </div>
+  );
+}
+
+// ---------- Identidade (sidebar) ----------
+
+function IdentidadeCard() {
+  const loadFn = useServerFn(getCompanySettings);
+  const q = useQuery({ queryKey: ["company_settings"], queryFn: () => loadFn() });
+  const name = q.data?.name || "Sua empresa";
+  const loc =
+    [q.data?.city, q.data?.state].filter(Boolean).join(" · ") || "Sem localização definida";
+  return (
+    <Card>
+      <div className="flex flex-col items-center text-center">
+        <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-primary text-primary-foreground">
+          <Building2 className="h-9 w-9" />
+        </div>
+        <div className="mt-3 text-[15px] font-semibold text-text-title">{name}</div>
+        <div className="text-[12px] text-text-sec">{loc}</div>
+      </div>
+    </Card>
+  );
+}
+
+// ---------- Ana ----------
+
+function AnaCard() {
+  const loadFn = useServerFn(getCompanySettings);
+  const q = useQuery({ queryKey: ["company_settings"], queryFn: () => loadFn() });
+  const description = q.data?.description?.trim();
+  return (
+    <Card>
+      <div className="flex items-center gap-2 text-ia">
+        <Sparkles className="h-4 w-4" />
+        <div className="text-[13px] font-semibold">Ana aprendeu</div>
+      </div>
+      <p className="mt-1.5 text-[12.5px] text-text-body leading-relaxed">
+        {description || (
+          <span className="text-text-ter">
+            Nenhum contexto cadastrado ainda. Vá em Configurações → IA / Ana para descrever o negócio e treinar a Ana.
+          </span>
+        )}
+      </p>
+      <RetrainAnaButton />
+    </Card>
+  );
+}
+
+// ---------- Integrações (real) ----------
+
+function IntegracoesCard() {
+  const listFn = useServerFn(listIntegrations);
+  const q = useQuery({ queryKey: ["integrations"], queryFn: () => listFn() });
+
+  return (
+    <Card>
+      <SectionTitle title="Integrações" hint="Status real de cada canal" />
+      {q.isLoading ? (
+        <div className="text-[12px] text-text-ter">Carregando…</div>
+      ) : (
+        <ul className="space-y-2">
+          {q.data?.map((i) => (
+            <li key={i.id} className="flex items-center justify-between text-[12.5px]">
+              <span className="text-text-body">{i.label}</span>
+              {i.connected ? (
+                <span className="rounded-full bg-success-bg px-2 py-0.5 text-[10px] font-semibold text-success">
+                  Conectado
+                </span>
+              ) : (
+                <button
+                  onClick={() =>
+                    toast.info(`${i.label} ainda não configurado`, {
+                      description:
+                        "Peça para o admin conectar essa integração — quando as credenciais forem cadastradas, o status muda automaticamente.",
+                    })
+                  }
+                  className="inline-flex items-center gap-1 rounded-full border border-border-card px-2 py-0.5 text-[10px] font-semibold text-text-ter hover:bg-bg-general"
+                >
+                  <Plug className="h-3 w-3" /> Conectar
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  );
+}
+
+// ---------- Documentos ----------
 
 function DocumentosCard() {
   const qc = useQueryClient();
@@ -240,7 +407,6 @@ function DocumentosCard() {
     </Card>
   );
 }
-
 
 function RetrainAnaButton() {
   const retrainFn = useServerFn(retrainAna);
