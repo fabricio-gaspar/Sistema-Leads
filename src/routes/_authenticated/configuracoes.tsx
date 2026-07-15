@@ -916,3 +916,148 @@ function AbaGovernanca() {
   );
 }
 
+// ============= PROSPECÇÃO — Fontes ativas =============
+import { getEnabledSources } from "@/lib/prospecting.functions";
+
+function AbaProspeccao() {
+  const qc = useQueryClient();
+  const getEnabled = useServerFn(getEnabledSources);
+  const getSettings = useServerFn(getCompanySettings);
+  const updateSettings = useServerFn(updateCompanySettings);
+
+  const { data: enabled, isLoading } = useQuery({ queryKey: ["enabled-sources"], queryFn: () => getEnabled() });
+  const { data: settings } = useQuery({ queryKey: ["company-settings"], queryFn: () => getSettings() });
+
+  const [state, setState] = useState({ cnpj_ws: true, google_places: false, ai_only: false });
+
+  useEffect(() => {
+    if (enabled) {
+      setState({
+        cnpj_ws: enabled.cnpj_ws,
+        google_places: enabled.google_places,
+        ai_only: enabled.ai_only,
+      });
+    }
+  }, [enabled]);
+
+  const save = useMutation({
+    mutationFn: () =>
+      updateSettings({
+        data: {
+          // Preserve other fields
+          name: settings?.name ?? null,
+          prospecting_sources: state,
+        },
+      }),
+    onSuccess: () => {
+      toast.success("Fontes de prospecção atualizadas.");
+      qc.invalidateQueries({ queryKey: ["enabled-sources"] });
+      qc.invalidateQueries({ queryKey: ["company-settings"] });
+    },
+    onError: (e: Error) => toast.error("Erro ao salvar", { description: e.message }),
+  });
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center gap-2 p-6 text-text-sec">
+        <Loader2 className="h-4 w-4 animate-spin" /> Carregando fontes…
+      </div>
+    );
+  }
+
+  const sources: Array<{
+    id: "cnpj_ws" | "google_places" | "ai_only";
+    title: string;
+    desc: string;
+    cost: string;
+    keyStatus: { ok: boolean; msg: string } | null;
+  }> = [
+    {
+      id: "cnpj_ws",
+      title: "CNPJ.ws / BrasilAPI (Receita Federal)",
+      desc: "Busca empresas ativas na base pública da Receita por CNAE, UF, cidade e porte. Dados oficiais.",
+      cost: "Grátis (3 req/min sem chave). Chave opcional em cnpj.ws para maior volume.",
+      keyStatus: null,
+    },
+    {
+      id: "google_places",
+      title: "Google Places API",
+      desc: "Busca empresas por palavra-chave (ex.: 'restaurantes em Curitiba'). Traz telefone, endereço, site.",
+      cost: "Paga — requer chave da Google Cloud (Places API New).",
+      keyStatus: enabled
+        ? enabled.has_google_key
+          ? { ok: true, msg: "GOOGLE_PLACES_API_KEY configurada" }
+          : { ok: false, msg: "GOOGLE_PLACES_API_KEY ausente — solicite ao administrador para adicionar nas secrets." }
+        : null,
+    },
+    {
+      id: "ai_only",
+      title: "Só IA (Claude gera sugestões)",
+      desc: "Ana usa o perfil da sua empresa para sugerir potenciais clientes plausíveis do mercado brasileiro. Não retorna CNPJ/telefone reais.",
+      cost: "Usa créditos do Anthropic (ANTHROPIC_API_KEY já configurada).",
+      keyStatus: enabled
+        ? enabled.has_anthropic_key
+          ? { ok: true, msg: "ANTHROPIC_API_KEY configurada" }
+          : { ok: false, msg: "ANTHROPIC_API_KEY ausente" }
+        : null,
+    },
+  ];
+
+  return (
+    <Card>
+      <SectionTitle
+        title="Fontes de prospecção"
+        hint="Ative apenas as fontes que quer usar na tela de Prospecção"
+        action={
+          <button
+            onClick={() => save.mutate()}
+            disabled={save.isPending}
+            className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-[12px] font-medium text-primary-foreground hover:bg-primary-hover disabled:opacity-50"
+          >
+            {save.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+            Salvar
+          </button>
+        }
+      />
+      <div className="space-y-3">
+        {sources.map((s) => {
+          const on = state[s.id];
+          return (
+            <div
+              key={s.id}
+              className={`rounded-lg border p-4 transition ${on ? "border-primary/60 bg-primary/5" : "border-border-card"}`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="text-[13.5px] font-semibold text-text-title">{s.title}</div>
+                  <div className="mt-1 text-[12.5px] text-text-body">{s.desc}</div>
+                  <div className="mt-1.5 text-[11.5px] text-text-ter">{s.cost}</div>
+                  {s.keyStatus && (
+                    <div
+                      className={`mt-2 inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium ${s.keyStatus.ok ? "bg-success-bg text-success" : "bg-error-bg text-error"}`}
+                    >
+                      <span className="h-1.5 w-1.5 rounded-full bg-current" /> {s.keyStatus.msg}
+                    </div>
+                  )}
+                </div>
+                <label className="relative inline-flex cursor-pointer items-center">
+                  <input
+                    type="checkbox"
+                    className="peer sr-only"
+                    checked={on}
+                    onChange={(e) => setState({ ...state, [s.id]: e.target.checked })}
+                  />
+                  <div className="peer h-6 w-11 rounded-full bg-bg-general after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-all after:content-[''] peer-checked:bg-primary peer-checked:after:translate-x-full" />
+                </label>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-900">
+        <b>Como adicionar a chave do Google Places:</b> peça ao administrador para cadastrar a secret <code>GOOGLE_PLACES_API_KEY</code> no cofre do projeto. Gere a chave em console.cloud.google.com → APIs & Services → Credentials, e ative a <i>Places API (New)</i>.
+      </div>
+    </Card>
+  );
+}
+
