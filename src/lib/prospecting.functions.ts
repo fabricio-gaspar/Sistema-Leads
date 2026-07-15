@@ -237,7 +237,7 @@ export const searchExternalCompanies = createServerFn({ method: 'POST' })
     const raw = await fetchFromCnpjWs(data)
     const { data: settings } = await context.supabase
       .from('company_settings')
-      .select('name, description, differentiators, ideal_customer_profile')
+      .select('name, description, differentiators')
       .limit(1)
       .maybeSingle()
 
@@ -245,7 +245,7 @@ export const searchExternalCompanies = createServerFn({ method: 'POST' })
       name: settings?.name,
       description: settings?.description,
       differentiators: settings?.differentiators,
-      icp: (settings as { ideal_customer_profile?: string | null } | null)?.ideal_customer_profile ?? null,
+      icp: null,
     })
 
     const { data: row, error: insErr } = await context.supabase
