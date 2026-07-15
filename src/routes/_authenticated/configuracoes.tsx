@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Sparkles, User, Bell, Shield, Zap, Loader2, Check, ClipboardList, AlertCircle, Package, MessageSquareWarning, Gauge, HelpCircle, Plus, Trash2, Plug } from "lucide-react";
+import { Sparkles, User, Bell, Shield, Zap, Loader2, Check, ClipboardList, AlertCircle, Package, MessageSquareWarning, Gauge, HelpCircle, Plus, Trash2, Plug, Search } from "lucide-react";
 import { Card, SectionTitle } from "@/components/ui-kit";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
