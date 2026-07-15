@@ -943,11 +943,7 @@ function AbaProspeccao() {
   const save = useMutation({
     mutationFn: () =>
       updateSettings({
-        data: {
-          // Preserve other fields
-          name: settings?.name ?? null,
-          prospecting_sources: state,
-        },
+        data: { prospecting_sources: state },
       }),
     onSuccess: () => {
       toast.success("Fontes de prospecção atualizadas.");
