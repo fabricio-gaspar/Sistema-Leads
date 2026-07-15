@@ -72,6 +72,7 @@ function Configuracoes() {
 
       <div>
         {tab === "ana" && <AbaAna />}
+        {tab === "prospeccao" && <AbaProspeccao />}
         {tab === "equipe" && <AbaEquipe />}
         {tab === "servicos" && <AbaServicos />}
         {tab === "objecoes" && <AbaObjecoes />}
