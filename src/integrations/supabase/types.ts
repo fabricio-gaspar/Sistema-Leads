@@ -645,6 +645,42 @@ export type Database = {
           },
         ]
       }
+      prospecting_cache: {
+        Row: {
+          created_at: string
+          expires_at: string
+          filters: Json
+          filters_hash: string
+          id: string
+          results: Json
+          scored: boolean
+          total_found: number
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string
+          filters: Json
+          filters_hash: string
+          id?: string
+          results?: Json
+          scored?: boolean
+          total_found?: number
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          filters?: Json
+          filters_hash?: string
+          id?: string
+          results?: Json
+          scored?: boolean
+          total_found?: number
+          user_id?: string
+        }
+        Relationships: []
+      }
       score_weights: {
         Row: {
           google: number
