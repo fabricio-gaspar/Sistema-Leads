@@ -922,11 +922,9 @@ import { getEnabledSources } from "@/lib/prospecting.functions";
 function AbaProspeccao() {
   const qc = useQueryClient();
   const getEnabled = useServerFn(getEnabledSources);
-  const getSettings = useServerFn(getCompanySettings);
   const updateSettings = useServerFn(updateCompanySettings);
 
   const { data: enabled, isLoading } = useQuery({ queryKey: ["enabled-sources"], queryFn: () => getEnabled() });
-  const { data: settings } = useQuery({ queryKey: ["company-settings"], queryFn: () => getSettings() });
 
   const [state, setState] = useState({ cnpj_ws: true, google_places: false, ai_only: false });
 
