@@ -33,6 +33,7 @@ export const Route = createFileRoute("/_authenticated/configuracoes")({ componen
 
 const TABS = [
   { id: "ana", label: "Ana (IA)", icon: Sparkles },
+  { id: "prospeccao", label: "Prospecção", icon: Search },
   { id: "equipe", label: "Equipe", icon: User },
   { id: "servicos", label: "Serviços", icon: Package },
   { id: "objecoes", label: "Objeções", icon: MessageSquareWarning },
