@@ -76,6 +76,7 @@ export type Database = {
           logo_url: string | null
           name: string
           phone: string | null
+          prospecting_sources: Json
           segment: string | null
           size: string | null
           state: string | null
@@ -100,6 +101,7 @@ export type Database = {
           logo_url?: string | null
           name: string
           phone?: string | null
+          prospecting_sources?: Json
           segment?: string | null
           size?: string | null
           state?: string | null
@@ -124,6 +126,7 @@ export type Database = {
           logo_url?: string | null
           name?: string
           phone?: string | null
+          prospecting_sources?: Json
           segment?: string | null
           size?: string | null
           state?: string | null
