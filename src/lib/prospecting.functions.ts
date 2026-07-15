@@ -3,6 +3,8 @@ import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware'
 import { z } from 'zod'
 
 // ============= Types =============
+export type SourceId = 'cnpj_ws' | 'google_places' | 'ai_only'
+
 export type ExternalCompany = {
   cnpj: string
   razao_social: string
@@ -21,17 +23,21 @@ export type ExternalCompany = {
   municipio: string | null
   uf: string | null
   cep: string | null
+  website?: string | null
   score?: number
   score_reason?: string
+  source: SourceId
 }
 
 // ============= Filters schema =============
 const filtersSchema = z.object({
+  source: z.enum(['cnpj_ws', 'google_places', 'ai_only']).default('cnpj_ws'),
   cnae: z.string().optional().nullable(),
   uf: z.string().length(2).optional().nullable(),
   municipio: z.string().optional().nullable(),
   porte: z.string().optional().nullable(),
   min_capital: z.number().optional().nullable(),
+  keyword: z.string().optional().nullable(),
   limit: z.number().int().min(1).max(30).default(15),
 })
 
@@ -39,11 +45,13 @@ type Filters = z.infer<typeof filtersSchema>
 
 function hashFilters(f: Filters): string {
   return JSON.stringify({
+    source: f.source,
     cnae: f.cnae || null,
     uf: f.uf || null,
     municipio: (f.municipio || '').toLowerCase().trim() || null,
     porte: f.porte || null,
     min_capital: f.min_capital || null,
+    keyword: (f.keyword || '').toLowerCase().trim() || null,
     limit: f.limit,
   })
 }
@@ -74,7 +82,7 @@ type CnpjWsEstab = {
   }
 }
 
-function normalize(item: CnpjWsEstab): ExternalCompany {
+function normalizeCnpjWs(item: CnpjWsEstab): ExternalCompany {
   const e = item.estabelecimento || {}
   const porte = typeof item.porte === 'string' ? item.porte : (item.porte?.descricao ?? null)
   const capital = item.capital_social != null ? Number(item.capital_social) : null
@@ -99,6 +107,7 @@ function normalize(item: CnpjWsEstab): ExternalCompany {
     municipio: e.cidade?.nome ?? null,
     uf: e.estado?.sigla ?? null,
     cep: e.cep ?? null,
+    source: 'cnpj_ws',
   }
 }
 
@@ -125,7 +134,7 @@ async function fetchFromCnpjWs(filters: Filters): Promise<ExternalCompany[]> {
   }
   const payload = (await res.json()) as { data?: CnpjWsEstab[] } | CnpjWsEstab[]
   const items = Array.isArray(payload) ? payload : (payload.data ?? [])
-  const mapped = items.map(normalize)
+  const mapped = items.map(normalizeCnpjWs)
 
   const porteFilter = filters.porte?.toLowerCase()
   const minCap = filters.min_capital ?? 0
@@ -135,7 +144,166 @@ async function fetchFromCnpjWs(filters: Filters): Promise<ExternalCompany[]> {
     .slice(0, filters.limit)
 }
 
-// ============= Claude scoring =============
+// ============= Google Places (New) adapter =============
+type GPlace = {
+  id?: string
+  displayName?: { text?: string }
+  formattedAddress?: string
+  internationalPhoneNumber?: string
+  nationalPhoneNumber?: string
+  websiteUri?: string
+  primaryTypeDisplayName?: { text?: string }
+  primaryType?: string
+  addressComponents?: Array<{ types?: string[]; longText?: string; shortText?: string }>
+}
+
+function pickAddr(place: GPlace, type: string): string | null {
+  const c = (place.addressComponents || []).find((x) => (x.types || []).includes(type))
+  return c?.longText ?? c?.shortText ?? null
+}
+
+function normalizeGoogle(p: GPlace): ExternalCompany {
+  const uf = pickAddr(p, 'administrative_area_level_1')
+  const municipio = pickAddr(p, 'administrative_area_level_2') || pickAddr(p, 'locality')
+  const bairro = pickAddr(p, 'sublocality') || pickAddr(p, 'sublocality_level_1')
+  const cep = pickAddr(p, 'postal_code')
+  return {
+    cnpj: p.id || '',
+    razao_social: p.displayName?.text || '',
+    nome_fantasia: p.displayName?.text || null,
+    cnae_principal: null,
+    cnae_descricao: p.primaryTypeDisplayName?.text || p.primaryType || null,
+    porte: null,
+    capital_social: null,
+    situacao: null,
+    data_abertura: null,
+    telefone: p.internationalPhoneNumber || p.nationalPhoneNumber || null,
+    email: null,
+    logradouro: p.formattedAddress || null,
+    numero: null,
+    bairro,
+    municipio,
+    uf: uf ? uf.slice(0, 2).toUpperCase() : null,
+    cep,
+    website: p.websiteUri || null,
+    source: 'google_places',
+  }
+}
+
+async function fetchFromGooglePlaces(filters: Filters): Promise<ExternalCompany[]> {
+  const key = process.env.GOOGLE_PLACES_API_KEY
+  if (!key) {
+    throw new Error('Chave da API do Google Places não configurada. Adicione a secret GOOGLE_PLACES_API_KEY nas configurações.')
+  }
+  const query = [filters.keyword, filters.municipio, filters.uf].filter(Boolean).join(' ').trim()
+  if (!query) throw new Error('Informe uma palavra-chave (ex.: "restaurantes", "clínicas") para o Google Places.')
+
+  const res = await fetch('https://places.googleapis.com/v1/places:searchText', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'X-Goog-Api-Key': key,
+      'X-Goog-FieldMask':
+        'places.id,places.displayName,places.formattedAddress,places.internationalPhoneNumber,places.nationalPhoneNumber,places.websiteUri,places.primaryType,places.primaryTypeDisplayName,places.addressComponents',
+    },
+    body: JSON.stringify({ textQuery: query, languageCode: 'pt-BR', regionCode: 'BR', pageSize: Math.min(20, filters.limit) }),
+  })
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new Error(`Google Places ${res.status}: ${text.slice(0, 200)}`)
+  }
+  const payload = (await res.json()) as { places?: GPlace[] }
+  return (payload.places || []).slice(0, filters.limit).map(normalizeGoogle)
+}
+
+// ============= AI-only (Claude gera sugestões) =============
+async function fetchFromAI(
+  filters: Filters,
+  ctx: { name?: string | null; description?: string | null; differentiators?: string | null },
+): Promise<ExternalCompany[]> {
+  const apiKey = process.env.ANTHROPIC_API_KEY
+  if (!apiKey) throw new Error('ANTHROPIC_API_KEY não configurada.')
+
+  const prompt = `Você é analista de inteligência comercial B2B no Brasil. Gere ${filters.limit} sugestões REALISTAS de empresas brasileiras que provavelmente existem e se encaixariam como potenciais clientes.
+
+Contexto da minha empresa:
+- Nome: ${ctx.name ?? 'N/D'}
+- Descrição: ${ctx.description ?? 'N/D'}
+- Diferenciais: ${ctx.differentiators ?? 'N/D'}
+
+Filtros do usuário:
+- Palavra-chave / setor: ${filters.keyword || 'qualquer'}
+- CNAE: ${filters.cnae || 'qualquer'}
+- UF: ${filters.uf || 'qualquer'}
+- Município: ${filters.municipio || 'qualquer'}
+- Porte: ${filters.porte || 'qualquer'}
+
+Retorne APENAS JSON válido no formato:
+{"empresas":[{"razao_social":"","nome_fantasia":"","cnae_descricao":"","porte":"","municipio":"","uf":"","website":"","motivo":"por que é um bom fit em 1 frase","score":0-100}]}
+
+Não invente CNPJ. Não invente telefone/email. Priorize empresas plausíveis do mercado real.`
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-5-20250929',
+      max_tokens: 3000,
+      temperature: 0.6,
+      messages: [{ role: 'user', content: prompt }],
+    }),
+  })
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new Error(`Claude ${res.status}: ${text.slice(0, 200)}`)
+  }
+  const payload = (await res.json()) as { content?: Array<{ type: string; text?: string }> }
+  const text = (payload.content || []).filter((c) => c.type === 'text').map((c) => c.text || '').join('')
+  const match = text.match(/\{[\s\S]*\}/)
+  if (!match) return []
+  const parsed = JSON.parse(match[0]) as {
+    empresas?: Array<{
+      razao_social: string
+      nome_fantasia?: string
+      cnae_descricao?: string
+      porte?: string
+      municipio?: string
+      uf?: string
+      website?: string
+      motivo?: string
+      score?: number
+    }>
+  }
+  return (parsed.empresas || []).slice(0, filters.limit).map((e, i) => ({
+    cnpj: `ai-${Date.now()}-${i}`,
+    razao_social: e.razao_social || '',
+    nome_fantasia: e.nome_fantasia || null,
+    cnae_principal: null,
+    cnae_descricao: e.cnae_descricao || null,
+    porte: e.porte || null,
+    capital_social: null,
+    situacao: null,
+    data_abertura: null,
+    telefone: null,
+    email: null,
+    logradouro: null,
+    numero: null,
+    bairro: null,
+    municipio: e.municipio || null,
+    uf: e.uf || null,
+    cep: null,
+    website: e.website || null,
+    score: typeof e.score === 'number' ? Math.max(0, Math.min(100, Math.round(e.score))) : undefined,
+    score_reason: e.motivo || undefined,
+    source: 'ai_only' as SourceId,
+  }))
+}
+
+// ============= Claude scoring for real sources =============
 async function scoreWithClaude(
   companies: ExternalCompany[],
   ctx: { name?: string | null; description?: string | null; differentiators?: string | null; icp?: string | null },
@@ -169,7 +337,7 @@ ${JSON.stringify(list, null, 2)}
 Retorne APENAS um JSON no formato:
 {"scores":[{"idx":0,"score":0-100,"reason":"1 frase curta"}]}
 
-Score alto = alto potencial de fechamento. Considere porte, CNAE compatível, região, capital social e tempo de atividade.`
+Score alto = alto potencial de fechamento.`
 
   try {
     const res = await fetch('https://api.anthropic.com/v1/messages', {
@@ -208,13 +376,44 @@ Score alto = alto potencial de fechamento. Considere porte, CNAE compatível, re
 
 // ============= Server functions =============
 
+export const getEnabledSources = createServerFn({ method: 'GET' })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data } = await context.supabase
+      .from('company_settings')
+      .select('prospecting_sources')
+      .limit(1)
+      .maybeSingle()
+    const src = (data?.prospecting_sources as Record<string, boolean> | null) ?? null
+    return {
+      cnpj_ws: src?.cnpj_ws ?? true,
+      google_places: src?.google_places ?? false,
+      ai_only: src?.ai_only ?? false,
+      has_google_key: !!process.env.GOOGLE_PLACES_API_KEY,
+      has_anthropic_key: !!process.env.ANTHROPIC_API_KEY,
+    }
+  })
+
 export const searchExternalCompanies = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => filtersSchema.parse(d))
   .handler(async ({ data, context }) => {
+    // Validate source is enabled
+    const { data: settingsRow } = await context.supabase
+      .from('company_settings')
+      .select('name, description, differentiators, prospecting_sources')
+      .limit(1)
+      .maybeSingle()
+
+    const enabled = (settingsRow?.prospecting_sources as Record<string, boolean> | null) ?? {
+      cnpj_ws: true, google_places: false, ai_only: false,
+    }
+    if (!enabled[data.source]) {
+      throw new Error(`A fonte "${data.source}" está desativada. Ative-a em Configurações → Prospecção.`)
+    }
+
     const hash = hashFilters(data)
 
-    // Cache hit (< 7 days)
     const { data: cached } = await context.supabase
       .from('prospecting_cache')
       .select('*')
@@ -229,24 +428,35 @@ export const searchExternalCompanies = createServerFn({ method: 'POST' })
       return {
         cache_id: cached.id as string,
         cached: true,
+        source: data.source,
         results: cached.results as unknown as ExternalCompany[],
       }
     }
 
-    // Fresh fetch + score
-    const raw = await fetchFromCnpjWs(data)
-    const { data: settings } = await context.supabase
-      .from('company_settings')
-      .select('name, description, differentiators')
-      .limit(1)
-      .maybeSingle()
-
-    const scored = await scoreWithClaude(raw, {
-      name: settings?.name,
-      description: settings?.description,
-      differentiators: settings?.differentiators,
-      icp: null,
-    })
+    let raw: ExternalCompany[] = []
+    if (data.source === 'cnpj_ws') {
+      raw = await fetchFromCnpjWs(data)
+      raw = await scoreWithClaude(raw, {
+        name: settingsRow?.name,
+        description: settingsRow?.description,
+        differentiators: settingsRow?.differentiators,
+        icp: null,
+      })
+    } else if (data.source === 'google_places') {
+      raw = await fetchFromGooglePlaces(data)
+      raw = await scoreWithClaude(raw, {
+        name: settingsRow?.name,
+        description: settingsRow?.description,
+        differentiators: settingsRow?.differentiators,
+        icp: null,
+      })
+    } else {
+      raw = await fetchFromAI(data, {
+        name: settingsRow?.name,
+        description: settingsRow?.description,
+        differentiators: settingsRow?.differentiators,
+      })
+    }
 
     const { data: row, error: insErr } = await context.supabase
       .from('prospecting_cache')
@@ -254,21 +464,21 @@ export const searchExternalCompanies = createServerFn({ method: 'POST' })
         user_id: context.userId,
         filters: data as never,
         filters_hash: hash,
-        results: scored as never,
-        total_found: scored.length,
-        scored: scored.some((s) => s.score != null),
+        results: raw as never,
+        total_found: raw.length,
+        scored: raw.some((s) => s.score != null),
       } as never)
       .select('id')
       .single()
     if (insErr) throw new Error(insErr.message)
 
-    return { cache_id: row.id as string, cached: false, results: scored }
+    return { cache_id: row.id as string, cached: false, source: data.source, results: raw }
   })
 
 export const importExternalAsLead = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) =>
-    z.object({ cache_id: z.string().uuid(), cnpj: z.string().min(8) }).parse(d),
+    z.object({ cache_id: z.string().uuid(), cnpj: z.string().min(3) }).parse(d),
   )
   .handler(async ({ data, context }) => {
     const { data: cache } = await context.supabase
@@ -282,15 +492,14 @@ export const importExternalAsLead = createServerFn({ method: 'POST' })
     const company = ((cache.results as unknown as ExternalCompany[]) || []).find((c) => c.cnpj === data.cnpj)
     if (!company) throw new Error('Empresa não encontrada no resultado')
 
-    // Duplicate check by cnpj on leads (stored in `origin` field prefixed)
-    const originTag = `cnpj:${company.cnpj}`
+    const originTag = `${company.source}:${company.cnpj}`
     const { data: dup } = await context.supabase
       .from('leads')
       .select('id')
       .eq('owner_id', context.userId)
       .eq('origin', originTag)
       .maybeSingle()
-    if (dup) throw new Error('Este CNPJ já foi importado como lead')
+    if (dup) throw new Error('Esta empresa já foi importada como lead')
 
     const sizeMap: Record<string, 'pequena' | 'media' | 'grande'> = {
       'micro empresa': 'pequena',
@@ -328,7 +537,7 @@ export const importExternalAsLead = createServerFn({ method: 'POST' })
       actor_name: context.claims?.email ?? 'user',
       actor_type: 'human',
       action: 'lead_import_external',
-      detail: `Importado da Receita Federal: ${company.razao_social} (${company.cnpj})`,
+      detail: `Importado de ${company.source}: ${company.razao_social}`,
     } as never)
 
     return row

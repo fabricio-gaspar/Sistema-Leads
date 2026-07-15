@@ -375,6 +375,14 @@ const companySettingsInput = z.object({
   ai_model: z.string().optional().nullable(),
   ai_temperature: z.number().optional().nullable(),
   ai_max_tokens: z.number().int().optional().nullable(),
+  prospecting_sources: z
+    .object({
+      cnpj_ws: z.boolean(),
+      google_places: z.boolean(),
+      ai_only: z.boolean(),
+    })
+    .optional()
+    .nullable(),
 })
 
 export const getCompanySettings = createServerFn({ method: 'GET' })
