@@ -1,125 +1,66 @@
-# Plano de Correção — WF Digital CRM
 
-Baseado na auditoria anterior. A execução é **incremental**: cada bloco é aplicado, testado e reportado antes do próximo. **Nada é feito em uma única alteração gigante.**
+# Fluxo de primeiro contato automático (Prospecção → Leads)
 
----
+Objetivo: quando um lead é enviado da Prospecção para Leads, a IA inicia uma cadência de contato **sequencial** (nunca simultânea) começando por WhatsApp (Z-API), com fallback para E-mail e, por último, tarefa de ligação. O sistema diferencia **falha** de **entregue-sem-resposta** e só avança de canal em falha real.
 
-## Diagnóstico consolidado
+## 1. Banco (uma migration)
 
-O sistema hoje é um protótipo HTML/JS estático (`public/crm/*`) servido dentro de um `<iframe>` na rota `/`. As tabelas Supabase existem mas estão **vazias**, **nenhuma tela grava/lê do banco**, **não há autenticação real**, e a chave da Anthropic já está protegida via server route `/api/ana` (único ponto realmente funcional).
+Nova tabela `lead_outreach` (auditável, uma linha por tentativa):
+- `lead_id`, `channel` (whatsapp|email|phone), `status` (pending|sent|delivered|read|replied|failed|skipped), `provider` (zapi|smtp|manual), `provider_message_id`, `content`, `error`, `attempt`, `scheduled_for`, `sent_at`, `delivered_at`, `read_at`, `replied_at`, `failed_at`, `actor_type` (ia|human|system), `metadata jsonb`.
 
-## Problemas classificados
+Novas colunas em `leads`:
+- `contact_channels jsonb` — snapshot de disponibilidade por canal (whatsapp/email/phone) com `available`, `last_status`, `last_attempt_at`.
+- `active_channel` (text) — canal atual da cadência.
+- `next_action_at` (timestamptz) — quando a próxima tentativa está agendada.
+- `ai_paused` (bool default false).
+- `opt_out` (bool default false).
 
-### CRÍTICOS (bloqueiam uso real)
-| # | Problema | Arquivos | Correção |
-|---|---|---|---|
-| C1 | UI oficial é iframe estático desconectado do banco | `public/crm/*`, `src/routes/index.tsx` | Migrar para rotas React `/leads`, `/atendimento`, etc. já existentes; aposentar iframe |
-| C2 | Sem autenticação — qualquer um acessa tudo | inexistente | Criar `/auth` (email/senha) + layout `_authenticated` gerenciado |
-| C3 | Nenhuma tela conectada ao Supabase (CRUD real) | todas rotas React | Plugar leads, mensagens, tarefas, propostas, pedidos via server functions |
-| C4 | RLS "internal collaborative" abre dados entre usuários indevidamente | migrations existentes | Refinar policies por `owner_id` + `has_role('admin')` |
-| C5 | Ana no CRM legado grava só em memória do navegador | `public/crm/app.js` | Após C1, chat da Ana grava em `lead_messages` |
+Novas colunas em `company_settings` (cadência configurável):
+- `outreach_wait_hours` (int default 24)
+- `outreach_max_attempts` (int default 3)
 
-### ALTA PRIORIDADE
-| # | Problema | Correção |
-|---|---|---|
-| A1 | Sem tabela `organizations` — sem separação multi-tenant | Adicionar `organization_id` em tabelas de negócio + policies |
-| A2 | Storage buckets criados mas sem UI de upload/download | Componentes de upload em Empresa/Documentos/Contratos |
-| A3 | Prompt da Ana salvo em `localStorage` | Mover para `company_settings.ai_prompt` |
-| A4 | Configurações da IA (modelo, temperatura) só no cliente | Persistir em `company_settings` |
-| A5 | Sem tratamento de erro/duplo clique nos forms | Estados `pending`, `disabled`, toasts de erro reais |
+Grants + RLS por `owner_id` como no restante do CRM.
 
-### MÉDIA PRIORIDADE
-| # | Problema | Correção |
-|---|---|---|
-| M1 | Sem paginação nas listas (funciona só com poucos dados) | Cursor pagination nas queries |
-| M2 | Sem realtime nos leads/mensagens | Supabase Realtime nas telas de atendimento |
-| M3 | Exportação PDF/CSV usa dados de memória | Gerar a partir do banco |
-| M4 | Notificações in-memory (perdem no refresh) | Tabela `notifications` + realtime |
-| M5 | Sem testes automatizados | Vitest para server fns críticas, Playwright para fluxos ponta a ponta |
+## 2. Backend (`src/lib/outreach.functions.ts` novo, `prospecting.functions.ts` ajustado)
 
-### BAIXA PRIORIDADE
-| # | Problema | Correção |
-|---|---|---|
-| B1 | Dark mode incompleto em algumas telas | Auditoria visual |
-| B2 | Sem logs estruturados no lado do servidor | `console.info` padronizado + campos em `audit_logs` |
-| B3 | Integração real WhatsApp/Z-API ausente | Fora do escopo até você fornecer credenciais de sandbox |
+- `startOutreach(lead_id)` — decide o canal (WhatsApp > E-mail > Telefone) baseado em `contact_channels` e opt-out; grava `lead_outreach` como `pending`, aciona envio.
+- `sendWhatsappZapi(lead_id, text)` — chamada server-only à Z-API usando `ZAPI_INSTANCE_ID`, `ZAPI_TOKEN`, `ZAPI_CLIENT_TOKEN` (secrets). Marca `sent`/`failed` e devolve `provider_message_id`.
+- `sendEmailFallback(lead_id, subject, text)` — usa a integração de e-mail já existente (ou registra `failed:no_provider` se ainda não houver, sem quebrar o fluxo).
+- `scheduleFollowUp(lead_id)` — se WhatsApp foi entregue mas ainda não respondeu, agenda `next_action_at = now + outreach_wait_hours`, mantém canal.
+- `advanceChannelOnFailure(lead_id)` — só troca de canal quando `failed`; se acabar canais, cria `lead_task` "Ligação pendente" com roteiro gerado pela IA.
+- `pauseAi(lead_id)` / `assumeManually(lead_id)` / `handoffToHuman(lead_id, reason)`.
+- `recordZapiWebhook` — server route em `src/routes/api/public/zapi-webhook.ts` recebe eventos da Z-API (delivered/read/replied), atualiza `lead_outreach` e `contact_channels`, e se `replied` → cria `lead_message` (evita duplicar via `provider_message_id`) e dispara handoff quando detectar interesse/pedido humano.
+- Ajuste em `prospecting.functions.ts::sendToLeads`: remover `anaFirstContact` local; chamar `startOutreach(lead.id)` no lugar. Preencher `contact_channels` no insert.
 
----
+Gatilhos de handoff da IA (já usa Claude via `chatWithAna`): pedido explícito por humano, sinais de compra (orçamento/proposta/reunião), termos de preço/contrato/jurídico, opt-out, baixa confiança (heurística por prompt).
 
-## Ordem de execução (blocos)
+## 3. Frontend
 
-**BLOCO 0 — Decisão de UI (aprovação necessária uma vez)**
-Aposentar o iframe `public/crm/*` e adotar as rotas React (`/leads`, `/atendimento`, etc.) como UI oficial. Sem essa decisão nada mais faz sentido: o iframe roda 100% no navegador e nunca poderá acessar o banco com segurança.
+- **Card do Kanban** (`leads.tsx`): badges dos canais em `contact_channels` com cores por status; badge do canal recomendado.
+- **Detalhe do lead** (`leads.$id.tsx`): nova seção **"Canais de contato"** e nova seção **"Estratégia de aquecimento"** mostrando canal atual, próxima ação com data/hora, histórico completo de `lead_outreach`, botões **Pausar IA** e **Assumir manualmente**.
+- **Prospecção** (`prospeccao.tsx`): toast pós-envio agora diz "Ana iniciará contato via WhatsApp em instantes".
+- **Configurações → Integrações**: campos para credenciais Z-API + botão "Testar Z-API" (segue o padrão do Apify).
 
-**BLOCO 1 — Auth + gate `_authenticated`**
-- Rota pública `/auth` (login + cadastro email/senha)
-- Layout `src/routes/_authenticated/route.tsx` (gerenciado pela integração)
-- Mover rotas atuais para `_authenticated/`
-- Sign-in reflete estado no shell, sign-out com cache teardown
-- Criar 1 usuário admin para o próprio Fabricio para você testar
+## 4. Cadência agendada
 
-**BLOCO 2 — Banco: refinar schema + RLS**
-- Adicionar `organization_id`/`owner_id` onde falta
-- Policies por `auth.uid()` + `has_role('admin')`
-- Índices em FKs quentes (`leads.organization_id`, `lead_messages.lead_id`)
-- Migração de dados: nenhum dado de produção a preservar (tabelas vazias hoje)
-- Rodar `supabase--linter` e resolver warnings
+`pg_cron` a cada 5 min chama `POST /api/public/outreach-tick` (protegido por `apikey` anon) que:
+- pega leads com `next_action_at <= now()` e `ai_paused=false`,
+- executa próximo passo (retry, avançar canal, ou criar tarefa de ligação).
 
-**BLOCO 3 — Server functions CRUD (leads, mensagens, tarefas, propostas, pedidos)**
-- `src/lib/leads.functions.ts` com `list/get/create/update/moveStage/delete`
-- Mesma coisa para mensagens, tarefas, propostas, pedidos
-- Todas com `.middleware([requireSupabaseAuth])` + validação Zod
-- Tratamento de erro padronizado
+## 5. LGPD & auditoria
 
-**BLOCO 4 — Plugar telas React ao Supabase**
-- `/leads` (Kanban): read + drag→moveStage grava no banco
-- `/leads/$id`: chat grava em `lead_messages`, timeline lê de `audit_logs`
-- `/atendimento`, `/orcamentos`, `/pedidos`: idem
-- `/configuracoes`: persiste em `company_settings`
-- Realtime nos leads e mensagens
-- Loading/empty/error states reais
+- Toda ação da IA vira `audit_logs` (canal, conteúdo resumido, status, motivo do fallback, executor).
+- Botão **"Não contatar"** no detalhe do lead → `opt_out=true` cancela cadência.
+- Nenhuma mensagem duplicada: Central de Atendimentos e histórico do lead leem a mesma `lead_messages`; Z-API dedupe por `provider_message_id`.
 
-**BLOCO 5 — Storage UI**
-- Upload de avatar em `/empresa` (bucket público `avatars`)
-- Upload/download de documentos em `/leads/$id` (bucket privado `docs`)
-- Upload/download de contratos em `/orcamentos` (bucket privado `contracts`)
-- URLs assinadas para os privados
+## Detalhes técnicos
 
-**BLOCO 6 — Ana no fluxo real**
-- `/api/ana` continua, mas passa a receber `lead_id` e gravar tanto a mensagem do usuário quanto a resposta da Ana em `lead_messages`
-- Prompt customizado vem de `company_settings.ai_prompt` (não `localStorage`)
-- Rate limit simples por usuário
-- Logging em `audit_logs`
+- Z-API: `POST https://api.z-api.io/instances/{INSTANCE}/token/{TOKEN}/send-text` com header `Client-Token`. Webhook configurado no painel Z-API apontando para `https://<projeto>.lovable.app/api/public/zapi-webhook`.
+- Secrets novos a criar (via `add_secret` após aprovação): `ZAPI_INSTANCE_ID`, `ZAPI_TOKEN`, `ZAPI_CLIENT_TOKEN`.
+- Cadência não simultânea: `advanceChannelOnFailure` só é chamado em `status='failed'`; `delivered` sem reply agenda follow-up no mesmo canal.
+- Reuso total: `lead_messages`, `lead_tasks`, `audit_logs`, `company_settings`, integrações e componentes de chat já existentes.
 
-**BLOCO 7 — Testes + segurança final**
-- Vitest para server fns críticas
-- Playwright ponta a ponta: login → criar lead → mover estágio → mensagem → refresh persiste
-- `supabase--linter` + `security--run_security_scan` limpos
-- `bun run build` sem erros
+## Fora de escopo
 
----
-
-## Critérios de aprovação por bloco
-
-Só avanço para o próximo quando o bloco atual atende:
-1. Build passa
-2. Fluxo manual via Playwright (screenshot) mostra dado persistindo após refresh
-3. `supabase--read_query` confirma linhas no banco
-4. Sem erro crítico no console
-5. RLS testada com 2 usuários distintos quando aplicável
-
-## Relatório após cada bloco
-Problemas corrigidos, arquivos alterados, migrations criadas, testes rodados, próximo bloco.
-
----
-
-## Fora do escopo (preciso de sinal verde separado)
-- Integração real Z-API (precisa credenciais sandbox)
-- Multi-organização real com convite/aceite (posso fazer se confirmar que quer)
-- Cobrança / Stripe
-
-## O que preciso de você antes de começar
-
-**Uma única decisão** — Bloco 0: **posso aposentar o iframe `public/crm/*` e usar as rotas React como UI oficial?** Sem isso os demais blocos não têm efeito prático porque o iframe é código estático no navegador. Design visual das telas React já existe e segue o padrão WF Digital.
-
-Se responder "sim", já começo pelo Bloco 1 (auth) e sigo automaticamente pelos próximos até bater num bloco que precise de decisão sua.
+- Discagem automática (só cria a tarefa de ligação).
+- Provedor de e-mail próprio se ainda não houver integração — o passo grava tentativa `failed:no_provider` para o vendedor tratar, sem travar o fluxo.
