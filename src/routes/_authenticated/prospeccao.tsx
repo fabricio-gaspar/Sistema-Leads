@@ -458,7 +458,7 @@ function Prospeccao() {
               </button>
               <button
                 onClick={apply}
-                disabled={search.isFetching || (form.source === "google_places" && !form.keyword.trim())}
+                disabled={search.isFetching || ((form.source === "google_places" || form.source === "apify") && !form.keyword.trim())}
                 className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-2 text-[12px] font-medium text-primary-foreground hover:bg-primary-hover disabled:opacity-60"
               >
                 {search.isFetching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
