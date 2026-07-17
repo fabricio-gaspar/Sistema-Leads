@@ -3,7 +3,7 @@ import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware'
 import { z } from 'zod'
 
 // ============= Types =============
-export type SourceId = 'cnpj_ws' | 'google_places' | 'ai_only'
+export type SourceId = 'cnpj_ws' | 'google_places' | 'ai_only' | 'apify'
 
 export type ExternalCompany = {
   cnpj: string
