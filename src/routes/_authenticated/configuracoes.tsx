@@ -1124,3 +1124,74 @@ function AbaProspeccao() {
   );
 }
 
+
+function ZapiCadenceCard() {
+  const getFn = useServerFn(getCompanySettings);
+  const updateFn = useServerFn(updateCompanySettings);
+  const qc = useQueryClient();
+  const { data } = useQuery({ queryKey: ["company-settings"], queryFn: () => getFn() });
+  const [waitH, setWaitH] = useState<number>(24);
+  const [maxA, setMaxA] = useState<number>(3);
+  useEffect(() => {
+    if (data) {
+      setWaitH(Number((data as any).outreach_wait_hours ?? 24));
+      setMaxA(Number((data as any).outreach_max_attempts ?? 3));
+    }
+  }, [data]);
+
+  const saveMut = useMutation({
+    mutationFn: () =>
+      updateFn({ data: { outreach_wait_hours: waitH, outreach_max_attempts: maxA } as any }),
+    onSuccess: () => {
+      toast.success("Cadência salva");
+      qc.invalidateQueries({ queryKey: ["company-settings"] });
+    },
+    onError: (e: Error) => toast.error("Erro ao salvar", { description: e.message }),
+  });
+
+  return (
+    <div className="mt-4 rounded-md border border-border-card p-4">
+      <div className="mb-1 text-[13px] font-semibold text-text-title">
+        Cadência de primeiro contato (IA)
+      </div>
+      <div className="mb-3 text-[11.5px] text-text-sec">
+        Configure a estratégia sequencial WhatsApp → E-mail → Ligação. A IA só
+        avança de canal se o anterior falhar. Credenciais Z-API são gerenciadas
+        no cofre de secrets (ZAPI_INSTANCE_ID, ZAPI_TOKEN, ZAPI_CLIENT_TOKEN).
+      </div>
+      <div className="grid grid-cols-2 gap-3 max-w-md">
+        <label className="block text-[12px]">
+          <span className="text-text-sec">Aguardar (horas) sem resposta</span>
+          <input
+            type="number"
+            min={1}
+            max={168}
+            value={waitH}
+            onChange={(e) => setWaitH(Number(e.target.value))}
+            className="mt-1 w-full rounded-md border border-border-card bg-bg-card px-2 py-1.5 text-[13px]"
+          />
+        </label>
+        <label className="block text-[12px]">
+          <span className="text-text-sec">Tentativas por canal</span>
+          <input
+            type="number"
+            min={1}
+            max={10}
+            value={maxA}
+            onChange={(e) => setMaxA(Number(e.target.value))}
+            className="mt-1 w-full rounded-md border border-border-card bg-bg-card px-2 py-1.5 text-[13px]"
+          />
+        </label>
+      </div>
+      <div className="mt-3">
+        <button
+          onClick={() => saveMut.mutate()}
+          disabled={saveMut.isPending}
+          className="inline-flex h-8 items-center rounded-md bg-primary px-3 text-[12px] font-medium text-primary-foreground hover:bg-primary-hover disabled:opacity-50"
+        >
+          {saveMut.isPending ? "Salvando…" : "Salvar cadência"}
+        </button>
+      </div>
+    </div>
+  );
+}
