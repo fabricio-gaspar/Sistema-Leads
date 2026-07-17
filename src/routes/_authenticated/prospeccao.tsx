@@ -367,12 +367,12 @@ function Prospeccao() {
             )}
 
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
-              {(form.source === "google_places" || form.source === "ai_only") && (
-                <Field label={form.source === "google_places" ? "Palavra-chave (obrigatório)" : "Palavra-chave / setor"}>
+              {(form.source === "google_places" || form.source === "ai_only" || form.source === "apify") && (
+                <Field label={form.source === "ai_only" ? "Palavra-chave / setor" : "Palavra-chave (obrigatório)"}>
                   <input
                     value={form.keyword}
                     onChange={(e) => setForm({ ...form, keyword: e.target.value })}
-                    placeholder={form.source === "google_places" ? "Ex.: clínicas odontológicas" : "Ex.: indústrias de embalagens"}
+                    placeholder={form.source === "google_places" ? "Ex.: clínicas odontológicas" : form.source === "apify" ? "Ex.: academias" : "Ex.: indústrias de embalagens"}
                     className="h-9 w-full rounded-md border border-border-card bg-bg-card px-2 text-[13px] outline-none"
                   />
                 </Field>
