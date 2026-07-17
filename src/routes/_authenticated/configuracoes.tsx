@@ -29,7 +29,15 @@ import {
   markAllNotificationsRead,
 } from "@/lib/crm.functions";
 
-export const Route = createFileRoute("/_authenticated/configuracoes")({ component: Configuracoes });
+type TabId = "ana" | "prospeccao" | "equipe" | "servicos" | "objecoes" | "score" | "governanca" | "auditoria" | "notificacoes" | "integracoes" | "seguranca";
+export const Route = createFileRoute("/_authenticated/configuracoes")({
+  component: Configuracoes,
+  validateSearch: (s: Record<string, unknown>): { tab?: TabId } => {
+    const t = s.tab;
+    const valid: TabId[] = ["ana","prospeccao","equipe","servicos","objecoes","score","governanca","auditoria","notificacoes","integracoes","seguranca"];
+    return typeof t === "string" && (valid as string[]).includes(t) ? { tab: t as TabId } : {};
+  },
+});
 
 const TABS = [
   { id: "ana", label: "Ana (IA)", icon: Sparkles },
@@ -47,7 +55,9 @@ const TABS = [
 
 
 function Configuracoes() {
-  const [tab, setTab] = useState<(typeof TABS)[number]["id"]>("ana");
+  const search = Route.useSearch();
+  const [tab, setTab] = useState<(typeof TABS)[number]["id"]>(search.tab ?? "ana");
+  useEffect(() => { if (search.tab && search.tab !== tab) setTab(search.tab); }, [search.tab]);
 
   return (
     <div className="grid gap-4" style={{ gridTemplateColumns: "220px 1fr" }}>

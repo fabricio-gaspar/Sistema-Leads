@@ -219,7 +219,7 @@ function Prospeccao() {
           <div className="flex-1">
             <div className="text-[14px] font-semibold text-text-title">Prospecção externa multi-fonte</div>
             <div className="text-[12px] text-text-sec">
-              Escolha a fonte de dados abaixo. Ative/desative fontes em <Link to="/configuracoes" className="underline text-primary">Configurações → Prospecção</Link>.
+              Escolha a fonte de dados abaixo. Ative/desative fontes em <Link to="/configuracoes" search={{ tab: "prospeccao" }} className="underline text-primary">Configurações → Prospecção</Link>.
             </div>
           </div>
         </div>
@@ -289,7 +289,7 @@ function Prospeccao() {
       {noneEnabled && (
         <Card>
           <div className="text-[13px] text-warm">
-            Nenhuma fonte de prospecção está ativa. Vá em <Link to="/configuracoes" className="underline">Configurações → Prospecção</Link> para ativar.
+            Nenhuma fonte de prospecção está ativa. Vá em <Link to="/configuracoes" search={{ tab: "prospeccao" }} className="underline">Configurações → Prospecção</Link> para ativar.
           </div>
         </Card>
       )}
