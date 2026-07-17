@@ -357,6 +357,14 @@ function Prospeccao() {
                 </span>
               </div>
             )}
+            {form.source === "apify" && (
+              <div className="mb-3 flex items-start gap-2 rounded-md border border-orange-200 bg-orange-50 px-3 py-2 text-[12px] text-orange-900">
+                <Zap className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <span>
+                  Usa o actor <b>Google Maps Scraper</b> da Apify. Informe uma <b>palavra-chave</b> (ex.: "academias", "advogados"). Cidade/UF refinam a busca. Requer <code>APIFY_TOKEN</code>.
+                </span>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
               {(form.source === "google_places" || form.source === "ai_only") && (
