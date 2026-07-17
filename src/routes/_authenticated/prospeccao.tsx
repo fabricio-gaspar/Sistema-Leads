@@ -77,10 +77,18 @@ function Prospeccao() {
 
   const { data: enabled } = useQuery({ queryKey: ["enabled-sources"], queryFn: () => enabledFn() });
 
+  const savedListFn = useServerFn(listSavedSearches);
+  const savedGetFn = useServerFn(getSavedSearch);
+  const savedSaveFn = useServerFn(saveProspectingSearch);
+  const savedDelFn = useServerFn(deleteSavedSearch);
+  const savedQuery = useQuery({ queryKey: ["saved-searches"], queryFn: () => savedListFn() });
+
   const [form, setForm] = useState<FormState>(INITIAL);
   const [applied, setApplied] = useState<FormState | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
   const [openReason, setOpenReason] = useState<string | null>(null);
+  const [saveName, setSaveName] = useState("");
+  const [loadedSaved, setLoadedSaved] = useState<{ id: string; name: string; results: ExternalCompany[]; source: SourceId; created_at: string } | null>(null);
 
   // If current source becomes disabled, switch to first enabled
   useEffect(() => {
