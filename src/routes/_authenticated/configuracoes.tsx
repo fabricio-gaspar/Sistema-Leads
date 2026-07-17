@@ -55,7 +55,9 @@ const TABS = [
 
 
 function Configuracoes() {
-  const [tab, setTab] = useState<(typeof TABS)[number]["id"]>("ana");
+  const search = Route.useSearch();
+  const [tab, setTab] = useState<(typeof TABS)[number]["id"]>(search.tab ?? "ana");
+  useEffect(() => { if (search.tab && search.tab !== tab) setTab(search.tab); }, [search.tab]);
 
   return (
     <div className="grid gap-4" style={{ gridTemplateColumns: "220px 1fr" }}>
