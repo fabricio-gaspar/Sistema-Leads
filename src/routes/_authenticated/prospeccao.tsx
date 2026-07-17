@@ -215,6 +215,67 @@ function Prospeccao() {
         </div>
       </Card>
 
+      {/* Saved searches */}
+      {(savedQuery.data?.length ?? 0) > 0 && (
+        <Card>
+          <div className="mb-2 flex items-center gap-2">
+            <Bookmark className="h-4 w-4 text-primary" />
+            <div className="text-[13px] font-semibold text-text-title">Buscas salvas</div>
+            <span className="text-[11px] text-text-ter">({savedQuery.data!.length})</span>
+          </div>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {savedQuery.data!.map((s) => {
+              const meta = SOURCE_META[s.source];
+              const Icon = meta.icon;
+              const isActive = loadedSaved?.id === s.id;
+              return (
+                <div
+                  key={s.id}
+                  className={`flex items-start justify-between gap-2 rounded-md border p-2.5 ${
+                    isActive ? "border-primary bg-primary/5" : "border-border-card"
+                  }`}
+                >
+                  <button
+                    type="button"
+                    onClick={() => loadMut.mutate(s.id)}
+                    className="flex-1 min-w-0 text-left"
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <Icon className={`h-3.5 w-3.5 ${meta.color}`} />
+                      <div className="truncate text-[13px] font-medium text-text-title">{s.name}</div>
+                    </div>
+                    <div className="mt-1 text-[11px] text-text-ter">
+                      {new Date(s.created_at).toLocaleString("pt-BR")} · {s.total_found} resultado{s.total_found === 1 ? "" : "s"} · {meta.label}
+                    </div>
+                  </button>
+                  <div className="flex flex-col gap-1">
+                    <button
+                      type="button"
+                      title="Abrir"
+                      onClick={() => loadMut.mutate(s.id)}
+                      disabled={loadMut.isPending}
+                      className="rounded p-1 text-text-ter hover:bg-bg-general hover:text-primary"
+                    >
+                      <FolderOpen className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      title="Excluir"
+                      onClick={() => {
+                        if (confirm(`Excluir a busca "${s.name}"?`)) delMut.mutate(s.id);
+                      }}
+                      className="rounded p-1 text-text-ter hover:bg-bg-general hover:text-red-600"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
+
       {noneEnabled && (
         <Card>
           <div className="text-[13px] text-warm">
