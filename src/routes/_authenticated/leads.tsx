@@ -220,15 +220,54 @@ function LeadCard({
         <span className="text-[11px] text-text-ter">{lead.segment ?? ""}</span>
       </div>
 
-      <div className="mt-2.5 flex items-center justify-between border-t border-border-card pt-2">
+      <ChannelBadges lead={lead} />
+
+      <div className="mt-2 flex items-center justify-between border-t border-border-card pt-2">
         <div className={`inline-flex items-center gap-1 text-[11px] ${isAI ? "text-ia" : "text-text-sec"}`}>
           {isAI ? <Bot className="h-3 w-3" /> : <UserIcon className="h-3 w-3" />}
           <span className="truncate">{isAI ? "Ana (IA)" : "Humano"}</span>
         </div>
+        {(lead as any).ai_paused && (
+          <span className="rounded-full bg-warm-bg px-1.5 py-0.5 text-[10px] font-medium text-warm">IA pausada</span>
+        )}
       </div>
     </Link>
   );
 }
+
+function ChannelBadges({ lead }: { lead: LeadRow }) {
+  const ch = ((lead as any).contact_channels ?? {}) as Record<string, { available?: boolean; last_status?: string | null }>;
+  const items = [
+    { key: "whatsapp", label: "WA" },
+    { key: "email", label: "@" },
+    { key: "phone", label: "Tel" },
+  ];
+  const has = items.some((i) => ch[i.key]?.available);
+  if (!has) return null;
+  return (
+    <div className="mt-2 flex items-center gap-1">
+      {items.map((i) => {
+        const s = ch[i.key];
+        if (!s?.available) return null;
+        const st = s.last_status;
+        const cls =
+          st === "replied"
+            ? "bg-success-bg text-success"
+            : st === "sent" || st === "delivered" || st === "read"
+              ? "bg-primary/10 text-primary"
+              : st === "failed" || st === "skipped"
+                ? "bg-hot-bg text-hot"
+                : "bg-bg-general text-text-sec";
+        return (
+          <span key={i.key} className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${cls}`}>
+            {i.label}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
 
 export function TempBadge({ t, score }: { t: "hot" | "warm" | "cold"; score?: number }) {
   const map = {

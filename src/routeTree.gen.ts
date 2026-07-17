@@ -22,6 +22,8 @@ import { Route as AuthenticatedEmpresaRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedDiagnosticoRouteImport } from './routes/_authenticated/diagnostico'
 import { Route as AuthenticatedConfiguracoesRouteImport } from './routes/_authenticated/configuracoes'
 import { Route as AuthenticatedAtendimentoRouteImport } from './routes/_authenticated/atendimento'
+import { Route as ApiPublicZapiWebhookRouteImport } from './routes/api/public/zapi-webhook'
+import { Route as ApiPublicOutreachTickRouteImport } from './routes/api/public/outreach-tick'
 import { Route as AuthenticatedLeadsIdRouteImport } from './routes/_authenticated/leads.$id'
 
 const AuthRoute = AuthRouteImport.update({
@@ -92,6 +94,16 @@ const AuthenticatedAtendimentoRoute =
     path: '/atendimento',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const ApiPublicZapiWebhookRoute = ApiPublicZapiWebhookRouteImport.update({
+  id: '/api/public/zapi-webhook',
+  path: '/api/public/zapi-webhook',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPublicOutreachTickRoute = ApiPublicOutreachTickRouteImport.update({
+  id: '/api/public/outreach-tick',
+  path: '/api/public/outreach-tick',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AuthenticatedLeadsIdRoute = AuthenticatedLeadsIdRouteImport.update({
   id: '/$id',
   path: '/$id',
@@ -112,6 +124,8 @@ export interface FileRoutesByFullPath {
   '/prospeccao': typeof AuthenticatedProspeccaoRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/leads/$id': typeof AuthenticatedLeadsIdRoute
+  '/api/public/outreach-tick': typeof ApiPublicOutreachTickRoute
+  '/api/public/zapi-webhook': typeof ApiPublicZapiWebhookRoute
 }
 export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
@@ -127,6 +141,8 @@ export interface FileRoutesByTo {
   '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/': typeof AuthenticatedIndexRoute
   '/leads/$id': typeof AuthenticatedLeadsIdRoute
+  '/api/public/outreach-tick': typeof ApiPublicOutreachTickRoute
+  '/api/public/zapi-webhook': typeof ApiPublicZapiWebhookRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -144,6 +160,8 @@ export interface FileRoutesById {
   '/_authenticated/relatorios': typeof AuthenticatedRelatoriosRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/leads/$id': typeof AuthenticatedLeadsIdRoute
+  '/api/public/outreach-tick': typeof ApiPublicOutreachTickRoute
+  '/api/public/zapi-webhook': typeof ApiPublicZapiWebhookRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -161,6 +179,8 @@ export interface FileRouteTypes {
     | '/prospeccao'
     | '/relatorios'
     | '/leads/$id'
+    | '/api/public/outreach-tick'
+    | '/api/public/zapi-webhook'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/auth'
@@ -176,6 +196,8 @@ export interface FileRouteTypes {
     | '/relatorios'
     | '/'
     | '/leads/$id'
+    | '/api/public/outreach-tick'
+    | '/api/public/zapi-webhook'
   id:
     | '__root__'
     | '/_authenticated'
@@ -192,11 +214,15 @@ export interface FileRouteTypes {
     | '/_authenticated/relatorios'
     | '/_authenticated/'
     | '/_authenticated/leads/$id'
+    | '/api/public/outreach-tick'
+    | '/api/public/zapi-webhook'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
   AuthRoute: typeof AuthRoute
+  ApiPublicOutreachTickRoute: typeof ApiPublicOutreachTickRoute
+  ApiPublicZapiWebhookRoute: typeof ApiPublicZapiWebhookRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -292,6 +318,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAtendimentoRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/api/public/zapi-webhook': {
+      id: '/api/public/zapi-webhook'
+      path: '/api/public/zapi-webhook'
+      fullPath: '/api/public/zapi-webhook'
+      preLoaderRoute: typeof ApiPublicZapiWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/outreach-tick': {
+      id: '/api/public/outreach-tick'
+      path: '/api/public/outreach-tick'
+      fullPath: '/api/public/outreach-tick'
+      preLoaderRoute: typeof ApiPublicOutreachTickRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/_authenticated/leads/$id': {
       id: '/_authenticated/leads/$id'
       path: '/$id'
@@ -347,6 +387,8 @@ const AuthenticatedRouteRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
   AuthRoute: AuthRoute,
+  ApiPublicOutreachTickRoute: ApiPublicOutreachTickRoute,
+  ApiPublicZapiWebhookRoute: ApiPublicZapiWebhookRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

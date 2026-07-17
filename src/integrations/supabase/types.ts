@@ -75,6 +75,8 @@ export type Database = {
           id: string
           logo_url: string | null
           name: string
+          outreach_max_attempts: number
+          outreach_wait_hours: number
           phone: string | null
           prospecting_sources: Json
           segment: string | null
@@ -100,6 +102,8 @@ export type Database = {
           id?: string
           logo_url?: string | null
           name: string
+          outreach_max_attempts?: number
+          outreach_wait_hours?: number
           phone?: string | null
           prospecting_sources?: Json
           segment?: string | null
@@ -125,6 +129,8 @@ export type Database = {
           id?: string
           logo_url?: string | null
           name?: string
+          outreach_max_attempts?: number
+          outreach_wait_hours?: number
           phone?: string | null
           prospecting_sources?: Json
           segment?: string | null
@@ -251,6 +257,83 @@ export type Database = {
           },
         ]
       }
+      lead_outreach: {
+        Row: {
+          actor_type: string
+          attempt: number
+          channel: Database["public"]["Enums"]["outreach_channel"]
+          content: string | null
+          created_at: string
+          delivered_at: string | null
+          error: string | null
+          failed_at: string | null
+          id: string
+          lead_id: string
+          metadata: Json
+          owner_id: string
+          provider: string | null
+          provider_message_id: string | null
+          read_at: string | null
+          replied_at: string | null
+          scheduled_for: string | null
+          sent_at: string | null
+          status: Database["public"]["Enums"]["outreach_status"]
+          updated_at: string
+        }
+        Insert: {
+          actor_type?: string
+          attempt?: number
+          channel: Database["public"]["Enums"]["outreach_channel"]
+          content?: string | null
+          created_at?: string
+          delivered_at?: string | null
+          error?: string | null
+          failed_at?: string | null
+          id?: string
+          lead_id: string
+          metadata?: Json
+          owner_id: string
+          provider?: string | null
+          provider_message_id?: string | null
+          read_at?: string | null
+          replied_at?: string | null
+          scheduled_for?: string | null
+          sent_at?: string | null
+          status?: Database["public"]["Enums"]["outreach_status"]
+          updated_at?: string
+        }
+        Update: {
+          actor_type?: string
+          attempt?: number
+          channel?: Database["public"]["Enums"]["outreach_channel"]
+          content?: string | null
+          created_at?: string
+          delivered_at?: string | null
+          error?: string | null
+          failed_at?: string | null
+          id?: string
+          lead_id?: string
+          metadata?: Json
+          owner_id?: string
+          provider?: string | null
+          provider_message_id?: string | null
+          read_at?: string | null
+          replied_at?: string | null
+          scheduled_for?: string | null
+          sent_at?: string | null
+          status?: Database["public"]["Enums"]["outreach_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_outreach_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lead_tasks: {
         Row: {
           completed: boolean
@@ -304,11 +387,14 @@ export type Database = {
       }
       leads: {
         Row: {
+          active_channel: Database["public"]["Enums"]["outreach_channel"] | null
+          ai_paused: boolean
           annual_revenue: number | null
           assigned_to: string | null
           city: string | null
           company: string
           contact: string | null
+          contact_channels: Json
           created_at: string
           distance: number | null
           email: string | null
@@ -317,6 +403,8 @@ export type Database = {
           id: string
           last_contact: string | null
           lost_reason: string | null
+          next_action_at: string | null
+          opt_out: boolean
           origin: string | null
           owner: Database["public"]["Enums"]["owner_type"]
           owner_id: string | null
@@ -335,11 +423,16 @@ export type Database = {
           whatsapp: string | null
         }
         Insert: {
+          active_channel?:
+            | Database["public"]["Enums"]["outreach_channel"]
+            | null
+          ai_paused?: boolean
           annual_revenue?: number | null
           assigned_to?: string | null
           city?: string | null
           company: string
           contact?: string | null
+          contact_channels?: Json
           created_at?: string
           distance?: number | null
           email?: string | null
@@ -348,6 +441,8 @@ export type Database = {
           id?: string
           last_contact?: string | null
           lost_reason?: string | null
+          next_action_at?: string | null
+          opt_out?: boolean
           origin?: string | null
           owner?: Database["public"]["Enums"]["owner_type"]
           owner_id?: string | null
@@ -366,11 +461,16 @@ export type Database = {
           whatsapp?: string | null
         }
         Update: {
+          active_channel?:
+            | Database["public"]["Enums"]["outreach_channel"]
+            | null
+          ai_paused?: boolean
           annual_revenue?: number | null
           assigned_to?: string | null
           city?: string | null
           company?: string
           contact?: string | null
+          contact_channels?: Json
           created_at?: string
           distance?: number | null
           email?: string | null
@@ -379,6 +479,8 @@ export type Database = {
           id?: string
           last_contact?: string | null
           lost_reason?: string | null
+          next_action_at?: string | null
+          opt_out?: boolean
           origin?: string | null
           owner?: Database["public"]["Enums"]["owner_type"]
           owner_id?: string | null
@@ -930,6 +1032,15 @@ export type Database = {
       lead_temp: "hot" | "warm" | "cold"
       message_sender: "ia" | "human" | "client"
       message_type: "ia" | "ia-escalated" | "human" | "client"
+      outreach_channel: "whatsapp" | "email" | "phone"
+      outreach_status:
+        | "pending"
+        | "sent"
+        | "delivered"
+        | "read"
+        | "replied"
+        | "failed"
+        | "skipped"
       owner_type: "ia" | "human"
     }
     CompositeTypes: {
@@ -1071,6 +1182,16 @@ export const Constants = {
       lead_temp: ["hot", "warm", "cold"],
       message_sender: ["ia", "human", "client"],
       message_type: ["ia", "ia-escalated", "human", "client"],
+      outreach_channel: ["whatsapp", "email", "phone"],
+      outreach_status: [
+        "pending",
+        "sent",
+        "delivered",
+        "read",
+        "replied",
+        "failed",
+        "skipped",
+      ],
       owner_type: ["ia", "human"],
     },
   },
