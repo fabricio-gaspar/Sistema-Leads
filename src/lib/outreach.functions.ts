@@ -181,8 +181,66 @@ Gere ${kind}. Não use "prezado/a". Personalize pelo segmento/empresa do lead.`
 }
 
 // ============================================================================
-// Z-API (WhatsApp) — server only
+// WhatsApp senders (server only) — prefer Evolution Go, fallback Z-API
 // ============================================================================
+
+async function loadEvolutionConfig(ctx: Ctx): Promise<{
+  url: string | null
+  apiKey: string | null
+  instance: string | null
+  active: boolean
+} | null> {
+  const { data } = await ctx.supabase
+    .from('company_settings')
+    .select('evolution_url, evolution_api_key, evolution_instance, evolution_active')
+    .limit(1)
+    .maybeSingle()
+  if (!data) return null
+  return {
+    url: (data.evolution_url ?? '').trim() || null,
+    apiKey: (data.evolution_api_key ?? '').trim() || null,
+    instance: (data.evolution_instance ?? '').trim() || null,
+    active: !!data.evolution_active,
+  }
+}
+
+async function sendEvolutionText(
+  cfg: { url: string; apiKey: string; instance?: string | null },
+  to: string,
+  message: string,
+): Promise<{ ok: boolean; messageId?: string; error?: string }> {
+  const phone = to.replace(/\D/g, '')
+  if (phone.length < 10) return { ok: false, error: 'invalid_phone' }
+  const base = cfg.url.replace(/\/+$/, '')
+  // Evolution Go endpoint: POST /send/text — instance derives from apikey.
+  // If an instance name is provided we still forward it as a header for
+  // servers that support instance-scoped keys.
+  const url = `${base}/send/text`
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        apikey: cfg.apiKey,
+        ...(cfg.instance ? { instance: cfg.instance } : {}),
+      },
+      body: JSON.stringify({ number: phone, text: message }),
+    })
+    const body = (await res.json().catch(() => ({}))) as any
+    if (!res.ok || body?.success === false) {
+      return { ok: false, error: body?.error?.message || body?.error || `http_${res.status}` }
+    }
+    const messageId =
+      body?.data?.Info?.ID ||
+      body?.messageId ||
+      body?.key?.id ||
+      body?.id ||
+      undefined
+    return { ok: true, messageId }
+  } catch (err) {
+    return { ok: false, error: (err as Error).message }
+  }
+}
 
 async function sendZapiText(to: string, message: string): Promise<{
   ok: boolean
@@ -215,6 +273,20 @@ async function sendZapiText(to: string, message: string): Promise<{
   } catch (err) {
     return { ok: false, error: (err as Error).message }
   }
+}
+
+async function sendWhatsappText(
+  ctx: Ctx,
+  to: string,
+  message: string,
+): Promise<{ ok: boolean; messageId?: string; error?: string; provider: 'evolution' | 'zapi' | 'none' }> {
+  const evo = await loadEvolutionConfig(ctx)
+  if (evo?.active && evo.url && evo.apiKey) {
+    const r = await sendEvolutionText({ url: evo.url, apiKey: evo.apiKey, instance: evo.instance }, to, message)
+    return { ...r, provider: 'evolution' }
+  }
+  const r = await sendZapiText(to, message)
+  return { ...r, provider: r.ok || r.error !== 'zapi_not_configured' ? 'zapi' : 'none' }
 }
 
 // ============================================================================
