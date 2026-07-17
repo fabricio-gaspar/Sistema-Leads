@@ -681,6 +681,24 @@ export const importExternalAsLead = createServerFn({ method: 'POST' })
     const porteLower = (company.porte ?? '').toLowerCase()
     const size = Object.entries(sizeMap).find(([k]) => porteLower.includes(k))?.[1] ?? 'media'
 
+    const initialChannels = {
+      whatsapp: {
+        available: ((company.whatsapp ?? detectWhatsapp(company.telefone)) || '').replace(/\D/g, '').length >= 10,
+        last_status: null,
+        last_attempt_at: null,
+      },
+      email: {
+        available: /.+@.+\..+/.test((company.email ?? '').trim()),
+        last_status: null,
+        last_attempt_at: null,
+      },
+      phone: {
+        available: (company.telefone ?? '').replace(/\D/g, '').length >= 10,
+        last_status: null,
+        last_attempt_at: null,
+      },
+    }
+
     const payload = {
       owner_id: context.userId,
       company: company.nome_fantasia || company.razao_social,
@@ -699,6 +717,7 @@ export const importExternalAsLead = createServerFn({ method: 'POST' })
       temp: (company.score ?? 0) >= 75 ? 'hot' : (company.score ?? 0) >= 50 ? 'warm' : 'cold',
       stage: 'Prospecção',
       origin: originTag,
+      contact_channels: initialChannels,
     }
 
     const { data: row, error } = await context.supabase.from('leads').insert(payload as never).select().single()
@@ -712,17 +731,17 @@ export const importExternalAsLead = createServerFn({ method: 'POST' })
       detail: `Importado de ${company.source}: ${company.razao_social}`,
     } as never)
 
-    // Ana faz o primeiro contato automaticamente
+    // Ana inicia a cadência automática (WhatsApp → E-mail → Ligação)
     try {
-      await anaFirstContact(context, row as { id: string; company: string; contact: string | null; segment: string | null }, {
-        name: null, description: null, differentiators: null, tone_of_voice: null,
-      })
+      const { triggerOutreachInternal } = await import('./outreach.functions')
+      await triggerOutreachInternal(context as never, row.id as string)
     } catch (err) {
-      console.error('Ana first-contact failed:', err)
+      console.error('Ana outreach start failed:', err)
     }
 
     return row
   })
+
 
 async function anaFirstContact(
   context: { supabase: any; userId: string },
