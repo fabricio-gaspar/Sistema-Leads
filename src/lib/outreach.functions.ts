@@ -561,9 +561,68 @@ export const testZapi = createServerFn({ method: 'POST' })
     }
   })
 
-// ============================================================================
-// Exposed helpers for other server modules (prospecting) & webhooks
-// ============================================================================
+export const testEvolution = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const cfg = await loadEvolutionConfig(context as Ctx)
+    if (!cfg?.url || !cfg?.apiKey) {
+      return { ok: false, error: 'Preencha URL e API Key da Evolution Go antes de testar.' }
+    }
+    const base = cfg.url.replace(/\/+$/, '')
+    // Try instance status first, then fall back to fetchInstances.
+    const endpoints = [
+      `${base}/instance/status`,
+      `${base}/instance/fetchInstances`,
+      `${base}/instances`,
+    ]
+    for (const url of endpoints) {
+      try {
+        const res = await fetch(url, {
+          method: 'GET',
+          headers: {
+            apikey: cfg.apiKey,
+            ...(cfg.instance ? { instance: cfg.instance } : {}),
+          },
+        })
+        if (res.status === 401 || res.status === 403) {
+          return { ok: false, error: 'API Key inválida (401/403)' }
+        }
+        if (res.ok) {
+          const body = (await res.json().catch(() => ({}))) as any
+          return {
+            ok: true,
+            endpoint: url,
+            connected:
+              body?.data?.state === 'open' ||
+              body?.state === 'open' ||
+              body?.connected === true ||
+              body?.status === 'connected',
+            raw: body,
+          }
+        }
+      } catch {
+        // try next
+      }
+    }
+    return { ok: false, error: 'Servidor Evolution Go inacessível a partir da nuvem.' }
+  })
+
+export const sendEvolutionTest = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z.object({ to: z.string().min(10), text: z.string().min(1) }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const cfg = await loadEvolutionConfig(context as Ctx)
+    if (!cfg?.url || !cfg?.apiKey) return { ok: false, error: 'Evolution Go não configurada' }
+    const r = await sendEvolutionText(
+      { url: cfg.url, apiKey: cfg.apiKey, instance: cfg.instance },
+      data.to,
+      data.text,
+    )
+    return r
+  })
+
 
 export async function initialContactChannels(lead: {
   whatsapp?: string | null
