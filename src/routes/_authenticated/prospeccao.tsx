@@ -106,6 +106,13 @@ function Prospeccao() {
     retry: false,
   });
 
+  useEffect(() => {
+    if (search.data?.cache_id) {
+      qc.invalidateQueries({ queryKey: ["saved-searches"] });
+    }
+  }, [search.data?.cache_id, qc]);
+
+
   // Unified view: either a live search result or a loaded saved search
   const currentCacheId: string | null = loadedSaved?.id ?? search.data?.cache_id ?? null;
   const currentResults: ExternalCompany[] = loadedSaved?.results ?? search.data?.results ?? [];
