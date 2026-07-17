@@ -72,6 +72,10 @@ export type Database = {
           description: string | null
           differentiators: string | null
           email: string | null
+          evolution_active: boolean
+          evolution_api_key: string | null
+          evolution_instance: string | null
+          evolution_url: string | null
           id: string
           logo_url: string | null
           name: string
@@ -99,6 +103,10 @@ export type Database = {
           description?: string | null
           differentiators?: string | null
           email?: string | null
+          evolution_active?: boolean
+          evolution_api_key?: string | null
+          evolution_instance?: string | null
+          evolution_url?: string | null
           id?: string
           logo_url?: string | null
           name: string
@@ -126,6 +134,10 @@ export type Database = {
           description?: string | null
           differentiators?: string | null
           email?: string | null
+          evolution_active?: boolean
+          evolution_api_key?: string | null
+          evolution_instance?: string | null
+          evolution_url?: string | null
           id?: string
           logo_url?: string | null
           name?: string
