@@ -9,6 +9,7 @@ import {
   Send,
   Phone,
   Mail,
+  MessageCircle,
   Building2,
   Sparkles,
   UserCheck,
