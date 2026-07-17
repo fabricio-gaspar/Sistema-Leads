@@ -114,7 +114,9 @@ function normalizeCnpjWs(item: CnpjWsEstab): ExternalCompany {
     situacao: e.situacao_cadastral ?? null,
     data_abertura: e.data_inicio_atividade ?? null,
     telefone: phone,
+    whatsapp: detectWhatsapp(phone),
     email: e.email ?? null,
+
     logradouro,
     numero: e.numero ?? null,
     bairro: e.bairro ?? null,
