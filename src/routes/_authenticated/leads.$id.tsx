@@ -155,6 +155,28 @@ function LeadDetail() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["lead-tasks", id] }),
   });
 
+  const pauseMut = useMutation({
+    mutationFn: (v: { paused: boolean }) => pauseAiFn({ data: { lead_id: id, paused: v.paused } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["lead", id] }),
+  });
+  const assumeMut = useMutation({
+    mutationFn: () => assumeFn({ data: { lead_id: id } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["lead", id] }),
+  });
+  const optOutMut = useMutation({
+    mutationFn: (v: { opt_out: boolean }) => optOutFn({ data: { lead_id: id, opt_out: v.opt_out } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["lead", id] }),
+  });
+  const restartMut = useMutation({
+    mutationFn: () => startOutreachFn({ data: { lead_id: id } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["lead", id] });
+      qc.invalidateQueries({ queryKey: ["lead-outreach", id] });
+      qc.invalidateQueries({ queryKey: ["lead-messages", id] });
+    },
+  });
+
+
   if (leadQ.isLoading) {
     return (
       <div className="flex items-center gap-2 p-8 text-text-sec">
