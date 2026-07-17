@@ -29,7 +29,15 @@ import {
   markAllNotificationsRead,
 } from "@/lib/crm.functions";
 
-export const Route = createFileRoute("/_authenticated/configuracoes")({ component: Configuracoes });
+type TabId = "ana" | "prospeccao" | "equipe" | "servicos" | "objecoes" | "score" | "governanca" | "auditoria" | "notificacoes" | "integracoes" | "seguranca";
+export const Route = createFileRoute("/_authenticated/configuracoes")({
+  component: Configuracoes,
+  validateSearch: (s: Record<string, unknown>): { tab?: TabId } => {
+    const t = s.tab;
+    const valid: TabId[] = ["ana","prospeccao","equipe","servicos","objecoes","score","governanca","auditoria","notificacoes","integracoes","seguranca"];
+    return typeof t === "string" && (valid as string[]).includes(t) ? { tab: t as TabId } : {};
+  },
+});
 
 const TABS = [
   { id: "ana", label: "Ana (IA)", icon: Sparkles },
