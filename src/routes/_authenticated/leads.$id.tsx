@@ -193,9 +193,11 @@ function LeadDetail() {
           <Card title="Contato">
             <InfoRow icon={Building2} text={`${lead.segment ?? "—"} · ${lead.uf ?? "—"}`} />
             <InfoRow icon={Phone} text={lead.phone ?? "—"} />
+            <InfoRow icon={MessageCircle} text={lead.whatsapp ? `WhatsApp: ${lead.whatsapp}` : "WhatsApp: —"} />
             <InfoRow icon={Mail} text={lead.email ?? "—"} />
             <InfoRow icon={Clock} text={`Origem: ${lead.origin ?? "—"}`} />
           </Card>
+
 
           <Card title="Negócio">
             <div className="flex items-baseline justify-between">
