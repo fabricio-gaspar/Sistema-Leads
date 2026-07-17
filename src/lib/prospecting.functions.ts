@@ -458,6 +458,8 @@ export const searchExternalCompanies = createServerFn({ method: 'POST' })
       })
     }
 
+    const autoName = buildAutoName(data, raw.length)
+    const farFuture = new Date(Date.now() + 1000 * 60 * 60 * 24 * 365 * 10).toISOString()
     const { data: row, error: insErr } = await context.supabase
       .from('prospecting_cache')
       .insert({
@@ -467,6 +469,9 @@ export const searchExternalCompanies = createServerFn({ method: 'POST' })
         results: raw as never,
         total_found: raw.length,
         scored: raw.some((s) => s.score != null),
+        name: autoName,
+        saved: true,
+        expires_at: farFuture,
       } as never)
       .select('id')
       .single()
@@ -474,6 +479,13 @@ export const searchExternalCompanies = createServerFn({ method: 'POST' })
 
     return { cache_id: row.id as string, cached: false, source: data.source, results: raw }
   })
+
+function buildAutoName(f: Filters, count: number): string {
+  const src = f.source === 'cnpj_ws' ? 'Receita' : f.source === 'google_places' ? 'Google' : 'IA'
+  const bits = [f.keyword, f.municipio, f.uf, f.porte].filter(Boolean).join(' · ')
+  const when = new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+  return `${src} — ${bits || 'sem filtros'} (${count}) · ${when}`
+}
 
 export const importExternalAsLead = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
@@ -540,8 +552,62 @@ export const importExternalAsLead = createServerFn({ method: 'POST' })
       detail: `Importado de ${company.source}: ${company.razao_social}`,
     } as never)
 
+    // Ana faz o primeiro contato automaticamente
+    try {
+      await anaFirstContact(context, row as { id: string; company: string; contact: string | null; segment: string | null }, {
+        name: null, description: null, differentiators: null, tone_of_voice: null,
+      })
+    } catch (err) {
+      console.error('Ana first-contact failed:', err)
+    }
+
     return row
   })
+
+async function anaFirstContact(
+  context: { supabase: any; userId: string },
+  lead: { id: string; company: string; contact: string | null; segment: string | null },
+  _fallback: { name: string | null; description: string | null; differentiators: string | null; tone_of_voice: string | null },
+) {
+  const apiKey = process.env.ANTHROPIC_API_KEY
+  if (!apiKey) return
+
+  const { data: settings } = await context.supabase
+    .from('company_settings')
+    .select('name, description, differentiators, tone_of_voice, ai_prompt, ai_model')
+    .limit(1)
+    .maybeSingle()
+
+  const system = `${settings?.ai_prompt || 'Você é Ana, vendedora virtual consultiva, cordial e comercial.'}\n\nSua empresa: ${settings?.name ?? 'WF Digital'}${settings?.description ? `\nDescrição: ${settings.description}` : ''}${settings?.differentiators ? `\nDiferenciais: ${settings.differentiators}` : ''}${settings?.tone_of_voice ? `\nTom: ${settings.tone_of_voice}` : ''}\n\nEscreva uma mensagem CURTA (2-3 frases) de PRIMEIRO CONTATO via WhatsApp para o lead abaixo. Apresente-se, mencione o nome da empresa dele e pergunte se pode explicar rapidamente como podem se ajudar. Não use "prezado/a".`
+
+  const userPrompt = `Lead:\n- Empresa: ${lead.company}\n- Contato: ${lead.contact ?? 'sem nome ainda'}\n- Segmento: ${lead.segment ?? 'não informado'}\n\nGere a mensagem de abertura.`
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+    body: JSON.stringify({
+      model: settings?.ai_model || 'claude-sonnet-4-5-20250929',
+      max_tokens: 300,
+      temperature: 0.7,
+      system,
+      messages: [{ role: 'user', content: userPrompt }],
+    }),
+  })
+  if (!res.ok) return
+  const payload = (await res.json()) as { content?: Array<{ type: string; text?: string }> }
+  const text = (payload.content || []).filter((c) => c.type === 'text').map((c) => c.text || '').join('').trim()
+  if (!text) return
+
+  await context.supabase.from('lead_messages').insert({
+    lead_id: lead.id,
+    sender: 'ia',
+    sender_name: 'Ana (IA)',
+    type: 'ia',
+    text,
+    sent_at: new Date().toISOString(),
+  } as never)
+  await context.supabase.from('leads').update({ last_contact: new Date().toISOString() }).eq('id', lead.id)
+}
 
 // ============= Saved searches =============
 
@@ -557,13 +623,15 @@ export type SavedSearch = {
 export const saveProspectingSearch = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) =>
-    z.object({ cache_id: z.string().uuid(), name: z.string().trim().min(1).max(120) }).parse(d),
+    z.object({ cache_id: z.string().uuid(), name: z.string().trim().max(120).optional() }).parse(d),
   )
   .handler(async ({ data, context }) => {
     const farFuture = new Date(Date.now() + 1000 * 60 * 60 * 24 * 365 * 10).toISOString()
+    const patch: Record<string, unknown> = { saved: true, expires_at: farFuture }
+    if (data.name && data.name.length > 0) patch.name = data.name
     const { error } = await context.supabase
       .from('prospecting_cache')
-      .update({ name: data.name, saved: true, expires_at: farFuture } as never)
+      .update(patch as never)
       .eq('id', data.cache_id)
       .eq('user_id', context.userId)
     if (error) throw new Error(error.message)

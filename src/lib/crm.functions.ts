@@ -526,7 +526,60 @@ export const chatWithAna = createServerFn({ method: 'POST' })
       .single()
     if (anaErr) throw new Error(anaErr.message)
 
-    await context.supabase.from('leads').update({ last_contact: new Date().toISOString() }).eq('id', data.lead_id)
+    const leadUpdate: Record<string, unknown> = { last_contact: new Date().toISOString() }
+
+    // Classificar interesse quando é mensagem do cliente e escalar para humano
+    if (data.as_client) {
+      try {
+        const clsRes = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+          body: JSON.stringify({
+            model,
+            max_tokens: 150,
+            temperature: 0,
+            system: 'Classifique a última mensagem do cliente em um funil B2B. Responda APENAS JSON: {"intencao":"interesse|duvida|objecao|desinteresse|neutro","confianca":0-100}. "interesse" = cliente quer avançar (pedir proposta, agendar, quer saber preço para comprar, aceita reunião).',
+            messages: [{ role: 'user', content: `Mensagem do cliente: "${data.user_text}"` }],
+          }),
+        })
+        if (clsRes.ok) {
+          const cls = (await clsRes.json()) as { content?: Array<{ type: string; text?: string }> }
+          const raw = (cls.content || []).filter((c) => c.type === 'text').map((c) => c.text || '').join('')
+          const m = raw.match(/\{[\s\S]*\}/)
+          if (m) {
+            const parsed = JSON.parse(m[0]) as { intencao?: string; confianca?: number }
+            if (parsed.intencao === 'interesse' && (parsed.confianca ?? 0) >= 60) {
+              leadUpdate.stage = 'Qualificado'
+              await context.supabase.from('lead_messages').insert({
+                lead_id: data.lead_id,
+                sender: 'ia',
+                sender_name: 'Ana (IA)',
+                type: 'ia-escalated',
+                text: '🔔 Cliente demonstrou interesse — encaminhando para um vendedor humano.',
+                sent_at: new Date().toISOString(),
+              } as never)
+              await context.supabase.from('notifications').insert({
+                user_id: context.userId,
+                kind: 'lead_escalated',
+                title: 'Lead pronto para vendedor',
+                description: `${lead?.company ?? 'Lead'} demonstrou interesse. Assuma o atendimento.`,
+              } as never)
+              await context.supabase.from('audit_logs').insert({
+                actor_id: context.userId,
+                actor_name: 'Ana (IA)',
+                actor_type: 'ia',
+                action: 'lead_escalated',
+                detail: `Lead ${data.lead_id} escalado para humano (interesse detectado)`,
+              } as never)
+            }
+          }
+        }
+      } catch (err) {
+        console.error('intent classification failed', err)
+      }
+    }
+
+    await context.supabase.from('leads').update(leadUpdate as never).eq('id', data.lead_id)
     return { reply: text, message: anaRow }
   })
 

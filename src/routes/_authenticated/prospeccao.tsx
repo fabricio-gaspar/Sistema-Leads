@@ -106,6 +106,13 @@ function Prospeccao() {
     retry: false,
   });
 
+  useEffect(() => {
+    if (search.data?.cache_id) {
+      qc.invalidateQueries({ queryKey: ["saved-searches"] });
+    }
+  }, [search.data?.cache_id, qc]);
+
+
   // Unified view: either a live search result or a loaded saved search
   const currentCacheId: string | null = loadedSaved?.id ?? search.data?.cache_id ?? null;
   const currentResults: ExternalCompany[] = loadedSaved?.results ?? search.data?.results ?? [];
@@ -478,29 +485,11 @@ function Prospeccao() {
                 <>
                   <b>{results.length}</b> empresas encontradas via <b>{SOURCE_META[currentSource].label}</b>
                   {search.data?.cached && <span className="ml-2 text-[11px] text-text-ter">(cache)</span>}
+                  <span className="ml-2 text-[11px] text-primary">· Auto-salva em "Buscas salvas"</span>
                 </>
               )}
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              {!isSavedView && currentCacheId && results.length > 0 && (
-                <div className="flex items-center gap-1.5">
-                  <input
-                    value={saveName}
-                    onChange={(e) => setSaveName(e.target.value)}
-                    placeholder="Nome da busca (ex.: Clínicas SP outubro)"
-                    maxLength={120}
-                    className="h-8 w-56 rounded-md border border-border-card bg-bg-card px-2 text-[12px] outline-none"
-                  />
-                  <button
-                    onClick={() => saveMut.mutate(saveName.trim())}
-                    disabled={!saveName.trim() || saveMut.isPending}
-                    className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-[12px] font-medium text-primary-foreground hover:bg-primary-hover disabled:opacity-50"
-                  >
-                    {saveMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-                    Salvar busca
-                  </button>
-                </div>
-              )}
               {isSavedView && (
                 <button
                   onClick={() => setLoadedSaved(null)}
@@ -518,6 +507,30 @@ function Prospeccao() {
               </button>
             </div>
           </div>
+
+          {!isSavedView && currentCacheId && results.length > 0 && (
+            <div className="flex flex-col gap-2 border-b border-border-card bg-primary/5 px-4 py-3 sm:flex-row sm:items-center">
+              <label className="text-[12px] font-medium text-text-title whitespace-nowrap">
+                <Bookmark className="mr-1 inline h-3.5 w-3.5 text-primary" />
+                Renomear esta busca:
+              </label>
+              <input
+                value={saveName}
+                onChange={(e) => setSaveName(e.target.value)}
+                placeholder="Ex.: Clínicas SP outubro"
+                maxLength={120}
+                className="h-9 flex-1 rounded-md border border-border-card bg-bg-card px-3 text-[13px] outline-none focus:border-primary"
+              />
+              <button
+                onClick={() => saveMut.mutate(saveName.trim())}
+                disabled={!saveName.trim() || saveMut.isPending}
+                className="flex items-center justify-center gap-1.5 rounded-md bg-primary px-4 py-2 text-[12px] font-medium text-primary-foreground hover:bg-primary-hover disabled:opacity-50"
+              >
+                {saveMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                Salvar nome
+              </button>
+            </div>
+          )}
           {results.length === 0 ? (
             <div className="p-10 text-center text-[13px] text-text-sec">
               Nenhuma empresa encontrada. Tente ampliar os filtros.
