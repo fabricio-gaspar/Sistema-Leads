@@ -655,7 +655,9 @@ export type Database = {
           filters: Json
           filters_hash: string
           id: string
+          name: string | null
           results: Json
+          saved: boolean
           scored: boolean
           total_found: number
           user_id: string
@@ -666,7 +668,9 @@ export type Database = {
           filters: Json
           filters_hash: string
           id?: string
+          name?: string | null
           results?: Json
+          saved?: boolean
           scored?: boolean
           total_found?: number
           user_id: string
@@ -677,7 +681,9 @@ export type Database = {
           filters?: Json
           filters_hash?: string
           id?: string
+          name?: string | null
           results?: Json
+          saved?: boolean
           scored?: boolean
           total_found?: number
           user_id?: string
