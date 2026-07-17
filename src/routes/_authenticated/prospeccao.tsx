@@ -235,7 +235,7 @@ function Prospeccao() {
           </div>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {savedQuery.data!.map((s) => {
-              const meta = SOURCE_META[s.source];
+              const meta = SOURCE_META[s.source] ?? { label: String(s.source ?? "Manual"), icon: Building2, color: "text-text-sec" };
               const Icon = meta.icon;
               const isActive = loadedSaved?.id === s.id;
               return (
