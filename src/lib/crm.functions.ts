@@ -380,6 +380,7 @@ const companySettingsInput = z.object({
       cnpj_ws: z.boolean(),
       google_places: z.boolean(),
       ai_only: z.boolean(),
+      apify: z.boolean(),
     })
     .optional()
     .nullable(),
