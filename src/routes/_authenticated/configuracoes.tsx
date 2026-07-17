@@ -917,14 +917,32 @@ function AbaGovernanca() {
 }
 
 // ============= PROSPECÇÃO — Fontes ativas =============
-import { getEnabledSources } from "@/lib/prospecting.functions";
+import { getEnabledSources, testApifyToken } from "@/lib/prospecting.functions";
 
 function AbaProspeccao() {
   const qc = useQueryClient();
   const getEnabled = useServerFn(getEnabledSources);
   const updateSettings = useServerFn(updateCompanySettings);
+  const testApify = useServerFn(testApifyToken);
 
   const { data: enabled, isLoading } = useQuery({ queryKey: ["enabled-sources"], queryFn: () => getEnabled() });
+
+  const [apifyResult, setApifyResult] = useState<
+    | { ok: boolean; message: string; username?: string | null; email?: string | null; plan?: string | null }
+    | null
+  >(null);
+  const testApifyMut = useMutation({
+    mutationFn: () => testApify(),
+    onSuccess: (r) => {
+      setApifyResult(r);
+      if (r.ok) toast.success("Apify: token válido");
+      else toast.error("Apify: falha na verificação", { description: r.message });
+    },
+    onError: (e: Error) => {
+      setApifyResult({ ok: false, message: e.message });
+      toast.error("Erro ao testar Apify", { description: e.message });
+    },
+  });
 
   const [state, setState] = useState({ cnpj_ws: true, google_places: false, ai_only: false, apify: false });
 
@@ -1043,6 +1061,33 @@ function AbaProspeccao() {
                       className={`mt-2 inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[11px] font-medium ${s.keyStatus.ok ? "bg-success-bg text-success" : "bg-error-bg text-error"}`}
                     >
                       <span className="h-1.5 w-1.5 rounded-full bg-current" /> {s.keyStatus.msg}
+                    </div>
+                  )}
+                  {s.id === "apify" && (
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => testApifyMut.mutate()}
+                        disabled={testApifyMut.isPending}
+                        className="inline-flex items-center gap-1.5 rounded-md border border-border-card bg-bg-card px-3 py-1.5 text-[12px] font-medium hover:bg-bg-general disabled:opacity-50"
+                      >
+                        {testApifyMut.isPending ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Plug className="h-3.5 w-3.5" />
+                        )}
+                        Testar token Apify
+                      </button>
+                      {apifyResult && (
+                        <span
+                          className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[11.5px] font-medium ${apifyResult.ok ? "bg-success-bg text-success" : "bg-error-bg text-error"}`}
+                        >
+                          {apifyResult.ok ? <Check className="h-3.5 w-3.5" /> : <AlertCircle className="h-3.5 w-3.5" />}
+                          {apifyResult.ok
+                            ? `Conectado${apifyResult.username ? ` como ${apifyResult.username}` : ""}${apifyResult.plan ? ` · plano ${apifyResult.plan}` : ""}`
+                            : apifyResult.message}
+                        </span>
+                      )}
                     </div>
                   )}
                 </div>
