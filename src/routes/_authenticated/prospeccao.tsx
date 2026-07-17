@@ -67,6 +67,7 @@ const SOURCE_META: Record<SourceId, { label: string; icon: typeof Building2; col
   cnpj_ws: { label: "Receita Federal", icon: Building2, color: "text-primary" },
   google_places: { label: "Google Places", icon: MapPin, color: "text-blue-600" },
   ai_only: { label: "IA (Claude)", icon: Bot, color: "text-ia" },
+  apify: { label: "Apify (Google Maps)", icon: Zap, color: "text-orange-600" },
 };
 
 function Prospeccao() {
