@@ -293,34 +293,43 @@ Para telefone/whatsapp/email: SOMENTE inclua se forem informações públicas pl
       municipio?: string
       uf?: string
       website?: string
+      email?: string
+      telefone?: string
+      whatsapp?: string
       motivo?: string
       score?: number
     }>
   }
-  return (parsed.empresas || []).slice(0, filters.limit).map((e, i) => ({
-    cnpj: `ai-${Date.now()}-${i}`,
-    razao_social: e.razao_social || '',
-    nome_fantasia: e.nome_fantasia || null,
-    cnae_principal: null,
-    cnae_descricao: e.cnae_descricao || null,
-    porte: e.porte || null,
-    capital_social: null,
-    situacao: null,
-    data_abertura: null,
-    telefone: null,
-    email: null,
-    logradouro: null,
-    numero: null,
-    bairro: null,
-    municipio: e.municipio || null,
-    uf: e.uf || null,
-    cep: null,
-    website: e.website || null,
-    score: typeof e.score === 'number' ? Math.max(0, Math.min(100, Math.round(e.score))) : undefined,
-    score_reason: e.motivo || undefined,
-    source: 'ai_only' as SourceId,
-  }))
+  return (parsed.empresas || []).slice(0, filters.limit).map<ExternalCompany>((e, i) => {
+    const tel = (e.telefone || '').trim() || null
+    const wa = (e.whatsapp || '').trim() || detectWhatsapp(tel)
+    return {
+      cnpj: `ai-${Date.now()}-${i}`,
+      razao_social: e.razao_social || '',
+      nome_fantasia: e.nome_fantasia || null,
+      cnae_principal: null,
+      cnae_descricao: e.cnae_descricao || null,
+      porte: e.porte || null,
+      capital_social: null,
+      situacao: null,
+      data_abertura: null,
+      telefone: tel,
+      whatsapp: wa,
+      email: (e.email || '').trim() || null,
+      logradouro: null,
+      numero: null,
+      bairro: null,
+      municipio: e.municipio || null,
+      uf: e.uf || null,
+      cep: null,
+      website: e.website || null,
+      score: typeof e.score === 'number' ? Math.max(0, Math.min(100, Math.round(e.score))) : undefined,
+      score_reason: e.motivo || undefined,
+      source: 'ai_only' as SourceId,
+    }
+  })
 }
+
 
 // ============= Claude scoring for real sources =============
 async function scoreWithClaude(
