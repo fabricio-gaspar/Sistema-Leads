@@ -509,7 +509,7 @@ export const searchExternalCompanies = createServerFn({ method: 'POST' })
       .maybeSingle()
 
     const enabled = (settingsRow?.prospecting_sources as Record<string, boolean> | null) ?? {
-      cnpj_ws: true, google_places: false, ai_only: false,
+      cnpj_ws: true, google_places: false, ai_only: false, apify: false,
     }
     if (!enabled[data.source]) {
       throw new Error(`A fonte "${data.source}" está desativada. Ative-a em Configurações → Prospecção.`)
