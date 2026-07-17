@@ -1063,6 +1063,33 @@ function AbaProspeccao() {
                       <span className="h-1.5 w-1.5 rounded-full bg-current" /> {s.keyStatus.msg}
                     </div>
                   )}
+                  {s.id === "apify" && (
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => testApifyMut.mutate()}
+                        disabled={testApifyMut.isPending}
+                        className="inline-flex items-center gap-1.5 rounded-md border border-border-card bg-bg-card px-3 py-1.5 text-[12px] font-medium hover:bg-bg-general disabled:opacity-50"
+                      >
+                        {testApifyMut.isPending ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Plug className="h-3.5 w-3.5" />
+                        )}
+                        Testar token Apify
+                      </button>
+                      {apifyResult && (
+                        <span
+                          className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[11.5px] font-medium ${apifyResult.ok ? "bg-success-bg text-success" : "bg-error-bg text-error"}`}
+                        >
+                          {apifyResult.ok ? <Check className="h-3.5 w-3.5" /> : <AlertCircle className="h-3.5 w-3.5" />}
+                          {apifyResult.ok
+                            ? `Conectado${apifyResult.username ? ` como ${apifyResult.username}` : ""}${apifyResult.plan ? ` · plano ${apifyResult.plan}` : ""}`
+                            : apifyResult.message}
+                        </span>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <label className="relative inline-flex cursor-pointer items-center">
                   <input
