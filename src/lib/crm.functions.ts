@@ -562,8 +562,7 @@ export const chatWithAna = createServerFn({ method: 'POST' })
                 user_id: context.userId,
                 kind: 'lead_escalated',
                 title: 'Lead pronto para vendedor',
-                body: `${lead?.company ?? 'Lead'} demonstrou interesse. Assuma o atendimento.`,
-                lead_id: data.lead_id,
+                description: `${lead?.company ?? 'Lead'} demonstrou interesse. Assuma o atendimento.`,
               } as never)
               await context.supabase.from('audit_logs').insert({
                 actor_id: context.userId,
