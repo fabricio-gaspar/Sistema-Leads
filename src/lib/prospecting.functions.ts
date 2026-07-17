@@ -542,3 +542,90 @@ export const importExternalAsLead = createServerFn({ method: 'POST' })
 
     return row
   })
+
+// ============= Saved searches =============
+
+export type SavedSearch = {
+  id: string
+  name: string
+  source: SourceId
+  filters: Filters
+  total_found: number
+  created_at: string
+}
+
+export const saveProspectingSearch = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z.object({ cache_id: z.string().uuid(), name: z.string().trim().min(1).max(120) }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const farFuture = new Date(Date.now() + 1000 * 60 * 60 * 24 * 365 * 10).toISOString()
+    const { error } = await context.supabase
+      .from('prospecting_cache')
+      .update({ name: data.name, saved: true, expires_at: farFuture } as never)
+      .eq('id', data.cache_id)
+      .eq('user_id', context.userId)
+    if (error) throw new Error(error.message)
+    return { ok: true }
+  })
+
+export const listSavedSearches = createServerFn({ method: 'GET' })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data, error } = await context.supabase
+      .from('prospecting_cache')
+      .select('id, name, filters, total_found, created_at')
+      .eq('user_id', context.userId)
+      .eq('saved', true)
+      .order('created_at', { ascending: false })
+    if (error) throw new Error(error.message)
+    return (data ?? []).map((r) => {
+      const f = r.filters as unknown as Filters
+      return {
+        id: r.id as string,
+        name: (r.name as string) ?? 'Sem nome',
+        source: f.source,
+        filters: f,
+        total_found: r.total_found as number,
+        created_at: r.created_at as string,
+      } satisfies SavedSearch
+    })
+  })
+
+export const getSavedSearch = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: row, error } = await context.supabase
+      .from('prospecting_cache')
+      .select('id, name, filters, results, created_at')
+      .eq('id', data.id)
+      .eq('user_id', context.userId)
+      .maybeSingle()
+    if (error) throw new Error(error.message)
+    if (!row) throw new Error('Busca salva não encontrada')
+    const f = row.filters as unknown as Filters
+    return {
+      cache_id: row.id as string,
+      name: (row.name as string) ?? 'Sem nome',
+      source: f.source,
+      filters: f,
+      created_at: row.created_at as string,
+      results: (row.results as unknown as ExternalCompany[]) ?? [],
+    }
+  })
+
+export const deleteSavedSearch = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase
+      .from('prospecting_cache')
+      .delete()
+      .eq('id', data.id)
+      .eq('user_id', context.userId)
+      .eq('saved', true)
+    if (error) throw new Error(error.message)
+    return { ok: true }
+  })
