@@ -330,6 +330,81 @@ Para telefone/whatsapp/email: SOMENTE inclua se forem informações públicas pl
   })
 }
 
+// ============= Apify adapter (Google Maps Scraper) =============
+type ApifyPlace = {
+  title?: string
+  categoryName?: string
+  address?: string
+  street?: string
+  city?: string
+  state?: string
+  postalCode?: string
+  phone?: string
+  phoneUnformatted?: string
+  website?: string
+  url?: string
+  placeId?: string
+  emails?: string[]
+  locatedIn?: string
+}
+
+function normalizeApify(p: ApifyPlace): ExternalCompany {
+  const phone = p.phone || p.phoneUnformatted || null
+  const email = (p.emails && p.emails.length > 0 ? p.emails[0] : null) || null
+  return {
+    cnpj: p.placeId || `apify-${Math.random().toString(36).slice(2, 10)}`,
+    razao_social: p.title || '',
+    nome_fantasia: p.title || null,
+    cnae_principal: null,
+    cnae_descricao: p.categoryName || null,
+    porte: null,
+    capital_social: null,
+    situacao: null,
+    data_abertura: null,
+    telefone: phone,
+    whatsapp: detectWhatsapp(phone),
+    email,
+    logradouro: p.street || p.address || null,
+    numero: null,
+    bairro: null,
+    municipio: p.city || null,
+    uf: p.state ? p.state.slice(0, 2).toUpperCase() : null,
+    cep: p.postalCode || null,
+    website: p.website || p.url || null,
+    source: 'apify',
+  }
+}
+
+async function fetchFromApify(filters: Filters): Promise<ExternalCompany[]> {
+  const token = process.env.APIFY_TOKEN
+  if (!token) {
+    throw new Error('APIFY_TOKEN não configurado. Adicione a secret nas configurações do projeto.')
+  }
+  const query = [filters.keyword, filters.municipio, filters.uf].filter(Boolean).join(' ').trim()
+  if (!query) throw new Error('Informe uma palavra-chave (ex.: "restaurantes", "clínicas") para o Apify.')
+
+  const actorId = process.env.APIFY_ACTOR_ID || 'compass~crawler-google-places'
+  const url = `https://api.apify.com/v2/acts/${actorId}/run-sync-get-dataset-items?token=${encodeURIComponent(token)}`
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      searchStringsArray: [query],
+      maxCrawledPlacesPerSearch: Math.min(30, filters.limit),
+      language: 'pt-BR',
+      countryCode: 'br',
+      scrapeContacts: true,
+    }),
+  })
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new Error(`Apify ${res.status}: ${text.slice(0, 300)}`)
+  }
+  const items = (await res.json()) as ApifyPlace[]
+  return (Array.isArray(items) ? items : []).slice(0, filters.limit).map(normalizeApify)
+}
+
 
 // ============= Claude scoring for real sources =============
 async function scoreWithClaude(
