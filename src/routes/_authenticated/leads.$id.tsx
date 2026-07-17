@@ -9,6 +9,7 @@ import {
   Send,
   Phone,
   Mail,
+  MessageCircle,
   Building2,
   Sparkles,
   UserCheck,
@@ -192,9 +193,11 @@ function LeadDetail() {
           <Card title="Contato">
             <InfoRow icon={Building2} text={`${lead.segment ?? "—"} · ${lead.uf ?? "—"}`} />
             <InfoRow icon={Phone} text={lead.phone ?? "—"} />
+            <InfoRow icon={MessageCircle} text={lead.whatsapp ? `WhatsApp: ${lead.whatsapp}` : "WhatsApp: —"} />
             <InfoRow icon={Mail} text={lead.email ?? "—"} />
             <InfoRow icon={Clock} text={`Origem: ${lead.origin ?? "—"}`} />
           </Card>
+
 
           <Card title="Negócio">
             <div className="flex items-baseline justify-between">
@@ -268,7 +271,7 @@ function LeadDetail() {
 
         <div className="flex h-[70vh] flex-col overflow-hidden rounded-lg border border-border-card bg-bg-card">
           <div className="flex items-center justify-between border-b border-border-card px-4 py-2.5">
-            <div className="text-[13px] font-semibold text-text-title">WhatsApp · {lead.phone ?? "—"}</div>
+            <div className="text-[13px] font-semibold text-text-title">WhatsApp · {lead.whatsapp ?? lead.phone ?? "—"}</div>
             <div
               className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${
                 mode === "ia" ? "bg-ia-bg text-ia" : "bg-primary-light text-primary"

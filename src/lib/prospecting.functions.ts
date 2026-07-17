@@ -16,6 +16,7 @@ export type ExternalCompany = {
   situacao: string | null
   data_abertura: string | null
   telefone: string | null
+  whatsapp: string | null
   email: string | null
   logradouro: string | null
   numero: string | null
@@ -28,6 +29,19 @@ export type ExternalCompany = {
   score_reason?: string
   source: SourceId
 }
+
+// Detecta se um telefone brasileiro é celular (11 dígitos, começa com 9 após DDD)
+function detectWhatsapp(phone: string | null): string | null {
+  if (!phone) return null
+  const digits = phone.replace(/\D/g, '')
+  // Formatos: 11 dígitos (DDD + 9XXXXXXXX) ou 13 (55 + DDD + 9XXXXXXXX)
+  const local = digits.length === 13 && digits.startsWith('55') ? digits.slice(2) : digits
+  if (local.length === 11 && local[2] === '9') {
+    return `(${local.slice(0, 2)}) ${local.slice(2, 7)}-${local.slice(7)}`
+  }
+  return null
+}
+
 
 // ============= Filters schema =============
 const filtersSchema = z.object({
@@ -100,7 +114,9 @@ function normalizeCnpjWs(item: CnpjWsEstab): ExternalCompany {
     situacao: e.situacao_cadastral ?? null,
     data_abertura: e.data_inicio_atividade ?? null,
     telefone: phone,
+    whatsapp: detectWhatsapp(phone),
     email: e.email ?? null,
+
     logradouro,
     numero: e.numero ?? null,
     bairro: e.bairro ?? null,
@@ -178,7 +194,9 @@ function normalizeGoogle(p: GPlace): ExternalCompany {
     situacao: null,
     data_abertura: null,
     telefone: p.internationalPhoneNumber || p.nationalPhoneNumber || null,
+    whatsapp: detectWhatsapp(p.nationalPhoneNumber || p.internationalPhoneNumber || null),
     email: null,
+
     logradouro: p.formattedAddress || null,
     numero: null,
     bairro,
@@ -239,9 +257,10 @@ Filtros do usuário:
 - Porte: ${filters.porte || 'qualquer'}
 
 Retorne APENAS JSON válido no formato:
-{"empresas":[{"razao_social":"","nome_fantasia":"","cnae_descricao":"","porte":"","municipio":"","uf":"","website":"","motivo":"por que é um bom fit em 1 frase","score":0-100}]}
+{"empresas":[{"razao_social":"","nome_fantasia":"","cnae_descricao":"","porte":"","municipio":"","uf":"","website":"","email":"","telefone":"","whatsapp":"","motivo":"por que é um bom fit em 1 frase","score":0-100}]}
 
-Não invente CNPJ. Não invente telefone/email. Priorize empresas plausíveis do mercado real.`
+Para telefone/whatsapp/email: SOMENTE inclua se forem informações públicas plausíveis (ex.: SAC divulgado no site). Se não tiver certeza, use "" (string vazia). Nunca invente CNPJ nem dados pessoais. Priorize empresas plausíveis do mercado real.`
+
 
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -274,34 +293,43 @@ Não invente CNPJ. Não invente telefone/email. Priorize empresas plausíveis do
       municipio?: string
       uf?: string
       website?: string
+      email?: string
+      telefone?: string
+      whatsapp?: string
       motivo?: string
       score?: number
     }>
   }
-  return (parsed.empresas || []).slice(0, filters.limit).map((e, i) => ({
-    cnpj: `ai-${Date.now()}-${i}`,
-    razao_social: e.razao_social || '',
-    nome_fantasia: e.nome_fantasia || null,
-    cnae_principal: null,
-    cnae_descricao: e.cnae_descricao || null,
-    porte: e.porte || null,
-    capital_social: null,
-    situacao: null,
-    data_abertura: null,
-    telefone: null,
-    email: null,
-    logradouro: null,
-    numero: null,
-    bairro: null,
-    municipio: e.municipio || null,
-    uf: e.uf || null,
-    cep: null,
-    website: e.website || null,
-    score: typeof e.score === 'number' ? Math.max(0, Math.min(100, Math.round(e.score))) : undefined,
-    score_reason: e.motivo || undefined,
-    source: 'ai_only' as SourceId,
-  }))
+  return (parsed.empresas || []).slice(0, filters.limit).map<ExternalCompany>((e, i) => {
+    const tel = (e.telefone || '').trim() || null
+    const wa = (e.whatsapp || '').trim() || detectWhatsapp(tel)
+    return {
+      cnpj: `ai-${Date.now()}-${i}`,
+      razao_social: e.razao_social || '',
+      nome_fantasia: e.nome_fantasia || null,
+      cnae_principal: null,
+      cnae_descricao: e.cnae_descricao || null,
+      porte: e.porte || null,
+      capital_social: null,
+      situacao: null,
+      data_abertura: null,
+      telefone: tel,
+      whatsapp: wa,
+      email: (e.email || '').trim() || null,
+      logradouro: null,
+      numero: null,
+      bairro: null,
+      municipio: e.municipio || null,
+      uf: e.uf || null,
+      cep: null,
+      website: e.website || null,
+      score: typeof e.score === 'number' ? Math.max(0, Math.min(100, Math.round(e.score))) : undefined,
+      score_reason: e.motivo || undefined,
+      source: 'ai_only' as SourceId,
+    }
+  })
 }
+
 
 // ============= Claude scoring for real sources =============
 async function scoreWithClaude(
@@ -529,7 +557,9 @@ export const importExternalAsLead = createServerFn({ method: 'POST' })
       contact: null,
       title: null,
       phone: company.telefone,
+      whatsapp: company.whatsapp ?? detectWhatsapp(company.telefone),
       email: company.email,
+
       segment: company.cnae_descricao,
       uf: company.uf,
       city: company.municipio,

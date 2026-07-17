@@ -198,7 +198,9 @@ function Prospeccao() {
         municipio: c.municipio ?? "",
         uf: c.uf ?? "",
         telefone: c.telefone ?? "",
+        whatsapp: c.whatsapp ?? "",
         email: c.email ?? "",
+
         website: c.website ?? "",
         score_ia: c.score ?? "",
         motivo: c.score_reason ?? "",
@@ -579,8 +581,12 @@ function Prospeccao() {
                       </td>
                       <td className="p-3 align-top text-text-body">
                         <div>{c.telefone ?? "—"}</div>
+                        {c.whatsapp && (
+                          <div className="text-[11px] text-success">📱 WhatsApp: {c.whatsapp}</div>
+                        )}
                         <div className="text-[11px] text-text-ter">{c.email ?? c.website ?? ""}</div>
                       </td>
+
                       <td className="p-3 align-top">
                         {c.score != null ? (
                           <button
