@@ -289,7 +289,7 @@ function Prospeccao() {
       {noneEnabled && (
         <Card>
           <div className="text-[13px] text-warm">
-            Nenhuma fonte de prospecção está ativa. Vá em <Link to="/configuracoes" className="underline">Configurações → Prospecção</Link> para ativar.
+            Nenhuma fonte de prospecção está ativa. Vá em <Link to="/configuracoes" search={{ tab: "prospeccao" }} className="underline">Configurações → Prospecção</Link> para ativar.
           </div>
         </Card>
       )}
