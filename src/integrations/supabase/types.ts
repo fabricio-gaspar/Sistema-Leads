@@ -332,6 +332,7 @@ export type Database = {
           uf: string | null
           updated_at: string
           value: number
+          whatsapp: string | null
         }
         Insert: {
           annual_revenue?: number | null
@@ -362,6 +363,7 @@ export type Database = {
           uf?: string | null
           updated_at?: string
           value?: number
+          whatsapp?: string | null
         }
         Update: {
           annual_revenue?: number | null
@@ -392,6 +394,7 @@ export type Database = {
           uf?: string | null
           updated_at?: string
           value?: number
+          whatsapp?: string | null
         }
         Relationships: [
           {
