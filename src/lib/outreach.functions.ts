@@ -338,13 +338,14 @@ async function tryChannel(ctx: Ctx, lead: any, channel: Channel): Promise<void> 
 
   if (channel === 'whatsapp') {
     const to = lead.whatsapp || lead.phone || ''
-    const result = await sendZapiText(to, content)
+    const result = await sendWhatsappText(ctx, to, content)
     if (result.ok) {
       await ctx.supabase
         .from('lead_outreach')
         .update({
           status: 'sent',
           sent_at: new Date().toISOString(),
+          provider: result.provider === 'evolution' ? 'evolution' : 'zapi',
           provider_message_id: result.messageId ?? null,
         } as never)
         .eq('id', row.id)
