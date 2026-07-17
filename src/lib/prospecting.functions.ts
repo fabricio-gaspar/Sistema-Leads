@@ -499,6 +499,51 @@ export const getEnabledSources = createServerFn({ method: 'GET' })
     }
   })
 
+export const testApifyToken = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .handler(async () => {
+    const token = process.env.APIFY_TOKEN
+    if (!token) {
+      return {
+        ok: false as const,
+        status: 0,
+        message: 'APIFY_TOKEN não configurado no cofre de secrets do projeto.',
+      }
+    }
+    try {
+      const res = await fetch(`https://api.apify.com/v2/users/me?token=${encodeURIComponent(token)}`)
+      if (!res.ok) {
+        const text = await res.text().catch(() => '')
+        return {
+          ok: false as const,
+          status: res.status,
+          message:
+            res.status === 401
+              ? 'Token inválido ou revogado (401). Gere um novo em apify.com → Settings → Integrations.'
+              : `Falha na verificação (HTTP ${res.status}). ${text.slice(0, 200)}`,
+        }
+      }
+      const json = (await res.json()) as {
+        data?: { username?: string; email?: string; plan?: string; proxy?: unknown }
+      }
+      const u = json.data ?? {}
+      return {
+        ok: true as const,
+        status: 200,
+        message: 'Token válido — conectado à Apify.',
+        username: u.username ?? null,
+        email: u.email ?? null,
+        plan: u.plan ?? null,
+      }
+    } catch (e) {
+      return {
+        ok: false as const,
+        status: 0,
+        message: `Erro de rede ao contatar api.apify.com: ${e instanceof Error ? e.message : String(e)}`,
+      }
+    }
+  })
+
 export const searchExternalCompanies = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => filtersSchema.parse(d))
