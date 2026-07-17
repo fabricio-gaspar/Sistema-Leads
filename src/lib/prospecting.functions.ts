@@ -555,6 +555,14 @@ export const searchExternalCompanies = createServerFn({ method: 'POST' })
         differentiators: settingsRow?.differentiators,
         icp: null,
       })
+    } else if (data.source === 'apify') {
+      raw = await fetchFromApify(data)
+      raw = await scoreWithClaude(raw, {
+        name: settingsRow?.name,
+        description: settingsRow?.description,
+        differentiators: settingsRow?.differentiators,
+        icp: null,
+      })
     } else {
       raw = await fetchFromAI(data, {
         name: settingsRow?.name,
