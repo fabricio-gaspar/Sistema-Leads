@@ -395,12 +395,23 @@ function LeadDetail() {
         </div>
 
         <div className="space-y-4">
+          <ContactChannelsCard lead={lead} />
+          <WarmingStrategyCard
+            lead={lead}
+            outreach={outreachQ.data ?? []}
+            onPause={(paused) => pauseMut.mutate({ paused })}
+            onAssume={() => assumeMut.mutate()}
+            onOptOut={(v) => optOutMut.mutate({ opt_out: v })}
+            onRestart={() => restartMut.mutate()}
+            busy={pauseMut.isPending || assumeMut.isPending || optOutMut.isPending || restartMut.isPending}
+          />
           <Card title="Meta">
             <InfoRow icon={Clock} text={`Última: ${lead.last_contact ? new Date(lead.last_contact).toLocaleString("pt-BR") : "—"}`} />
             <InfoRow icon={Clock} text={`Parado há: ${lead.stale_hours ?? 0}h`} />
             <InfoRow icon={UserIcon} text={`Owner: ${lead.owner}`} />
           </Card>
         </div>
+
       </div>
     </div>
   );
