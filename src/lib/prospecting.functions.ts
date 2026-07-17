@@ -557,7 +557,9 @@ export const importExternalAsLead = createServerFn({ method: 'POST' })
       contact: null,
       title: null,
       phone: company.telefone,
+      whatsapp: company.whatsapp ?? detectWhatsapp(company.telefone),
       email: company.email,
+
       segment: company.cnae_descricao,
       uf: company.uf,
       city: company.municipio,
