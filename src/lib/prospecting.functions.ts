@@ -492,8 +492,10 @@ export const getEnabledSources = createServerFn({ method: 'GET' })
       cnpj_ws: src?.cnpj_ws ?? true,
       google_places: src?.google_places ?? false,
       ai_only: src?.ai_only ?? false,
+      apify: src?.apify ?? false,
       has_google_key: !!process.env.GOOGLE_PLACES_API_KEY,
       has_anthropic_key: !!process.env.ANTHROPIC_API_KEY,
+      has_apify_token: !!process.env.APIFY_TOKEN,
     }
   })
 
