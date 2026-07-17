@@ -926,7 +926,7 @@ function AbaProspeccao() {
 
   const { data: enabled, isLoading } = useQuery({ queryKey: ["enabled-sources"], queryFn: () => getEnabled() });
 
-  const [state, setState] = useState({ cnpj_ws: true, google_places: false, ai_only: false });
+  const [state, setState] = useState({ cnpj_ws: true, google_places: false, ai_only: false, apify: false });
 
   useEffect(() => {
     if (enabled) {
@@ -934,6 +934,7 @@ function AbaProspeccao() {
         cnpj_ws: enabled.cnpj_ws,
         google_places: enabled.google_places,
         ai_only: enabled.ai_only,
+        apify: (enabled as { apify?: boolean }).apify ?? false,
       });
     }
   }, [enabled]);
