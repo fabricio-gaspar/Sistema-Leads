@@ -106,9 +106,15 @@ function Prospeccao() {
     retry: false,
   });
 
+  // Unified view: either a live search result or a loaded saved search
+  const currentCacheId: string | null = loadedSaved?.id ?? search.data?.cache_id ?? null;
+  const currentResults: ExternalCompany[] = loadedSaved?.results ?? search.data?.results ?? [];
+  const currentSource: SourceId | null = loadedSaved?.source ?? applied?.source ?? null;
+  const isSavedView = !!loadedSaved;
+
   const importMut = useMutation({
     mutationFn: (cnpj: string) =>
-      importFn({ data: { cache_id: search.data!.cache_id, cnpj } }),
+      importFn({ data: { cache_id: currentCacheId!, cnpj } }),
     onSuccess: () => {
       setFlash("✔ Empresa importada como Lead em 'Prospecção'.");
       qc.invalidateQueries({ queryKey: ["leads"] });
@@ -120,18 +126,55 @@ function Prospeccao() {
     },
   });
 
+  const saveMut = useMutation({
+    mutationFn: (name: string) => savedSaveFn({ data: { cache_id: currentCacheId!, name } }),
+    onSuccess: () => {
+      setFlash("✔ Busca salva com sucesso.");
+      setSaveName("");
+      qc.invalidateQueries({ queryKey: ["saved-searches"] });
+      setTimeout(() => setFlash(null), 3000);
+    },
+    onError: (e: Error) => {
+      setFlash(`Erro ao salvar: ${e.message}`);
+      setTimeout(() => setFlash(null), 4000);
+    },
+  });
+
+  const loadMut = useMutation({
+    mutationFn: (id: string) => savedGetFn({ data: { id } }),
+    onSuccess: (r) => {
+      setLoadedSaved({ id: r.cache_id, name: r.name, results: r.results, source: r.source, created_at: r.created_at });
+      setApplied(null);
+    },
+    onError: (e: Error) => {
+      setFlash(`Erro ao carregar: ${e.message}`);
+      setTimeout(() => setFlash(null), 4000);
+    },
+  });
+
+  const delMut = useMutation({
+    mutationFn: (id: string) => savedDelFn({ data: { id } }),
+    onSuccess: (_r, id) => {
+      if (loadedSaved?.id === id) setLoadedSaved(null);
+      qc.invalidateQueries({ queryKey: ["saved-searches"] });
+    },
+  });
+
   function apply() {
+    setLoadedSaved(null);
     setApplied({ ...form });
   }
 
   function reset() {
     setForm({ ...INITIAL, source: form.source });
     setApplied(null);
+    setLoadedSaved(null);
   }
 
-  const results: ExternalCompany[] = search.data?.results ?? [];
+  const results = currentResults;
   const activeSources = enabled ? (["cnpj_ws", "google_places", "ai_only"] as SourceId[]).filter((s) => enabled[s]) : [];
   const noneEnabled = enabled && activeSources.length === 0;
+
 
   function exportCSV() {
     if (!results.length) return;
