@@ -518,6 +518,7 @@ function AbaInt() {
           )}
         </div>
       )}
+      <EvolutionGoCard />
       <ZapiCadenceCard />
     </Card>
   );
@@ -1191,6 +1192,164 @@ function ZapiCadenceCard() {
         >
           {saveMut.isPending ? "Salvando…" : "Salvar cadência"}
         </button>
+      </div>
+    </div>
+  );
+}
+
+function EvolutionGoCard() {
+  const getFn = useServerFn(getCompanySettings);
+  const updateFn = useServerFn(updateCompanySettings);
+  const qc = useQueryClient();
+  const { data } = useQuery({ queryKey: ["company-settings"], queryFn: () => getFn() });
+  const [url, setUrl] = useState("");
+  const [apiKey, setApiKey] = useState("");
+  const [instance, setInstance] = useState("");
+  const [active, setActive] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
+
+  useEffect(() => {
+    if (data) {
+      const d = data as any;
+      setUrl(d.evolution_url ?? "");
+      setApiKey(d.evolution_api_key ?? "");
+      setInstance(d.evolution_instance ?? "");
+      setActive(!!d.evolution_active);
+    }
+  }, [data]);
+
+  const saveMut = useMutation({
+    mutationFn: () =>
+      updateFn({
+        data: {
+          evolution_url: url.trim() || null,
+          evolution_api_key: apiKey.trim() || null,
+          evolution_instance: instance.trim() || null,
+          evolution_active: active,
+        } as any,
+      }),
+    onSuccess: () => {
+      toast.success("Evolution Go salva");
+      qc.invalidateQueries({ queryKey: ["company-settings"] });
+      qc.invalidateQueries({ queryKey: ["integrations"] });
+    },
+    onError: (e: Error) => toast.error("Erro ao salvar", { description: e.message }),
+  });
+
+  const testConnection = async () => {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      // Salva antes de testar para garantir que o backend leia os valores mais novos
+      await saveMut.mutateAsync();
+      const mod = await import("@/lib/outreach.functions");
+      const res: any = await (mod as any).testEvolution({});
+      if (res?.ok) {
+        setTestResult({
+          ok: true,
+          message: res.connected
+            ? "Conectado — instância pareada e pronta para enviar."
+            : "Credenciais válidas, mas a instância ainda não está pareada (leia o QR no painel da Evolution).",
+        });
+      } else {
+        setTestResult({ ok: false, message: res?.error ?? "Falha desconhecida" });
+      }
+    } catch (e) {
+      setTestResult({ ok: false, message: (e as Error).message });
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  const projectId = (import.meta as any).env?.VITE_LOVABLE_PROJECT_ID as string | undefined;
+  const webhookHint = projectId
+    ? `https://project--${projectId}.lovable.app/api/public/evolution-webhook`
+    : "https://<seu-projeto>.lovable.app/api/public/evolution-webhook";
+
+  return (
+    <div className="mt-4 rounded-md border border-border-card p-4">
+      <div className="mb-1 flex items-center justify-between">
+        <div>
+          <div className="text-[13px] font-semibold text-text-title">Evolution Go (WhatsApp)</div>
+          <div className="text-[11.5px] text-text-sec">
+            Configure sua instância Evolution Go — quando ativa, todas as mensagens de WhatsApp da IA passam por ela.
+          </div>
+        </div>
+        <label className="relative inline-flex cursor-pointer items-center">
+          <input type="checkbox" className="peer sr-only" checked={active} onChange={(e) => setActive(e.target.checked)} />
+          <div className="peer h-6 w-11 rounded-full bg-bg-general after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-all after:content-[''] peer-checked:bg-primary peer-checked:after:translate-x-full" />
+        </label>
+      </div>
+
+      <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+        <label className="block text-[12px]">
+          <span className="text-text-sec">URL do servidor</span>
+          <input
+            type="url"
+            placeholder="https://evolution.seudominio.com"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            className="mt-1 w-full rounded-md border border-border-card bg-bg-card px-2 py-1.5 text-[13px]"
+          />
+        </label>
+        <label className="block text-[12px]">
+          <span className="text-text-sec">API Key (global ou da instância)</span>
+          <input
+            type="password"
+            placeholder="apikey"
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+            className="mt-1 w-full rounded-md border border-border-card bg-bg-card px-2 py-1.5 text-[13px]"
+          />
+        </label>
+        <label className="block text-[12px] md:col-span-2">
+          <span className="text-text-sec">Nome da instância (opcional — apenas se sua API key não é da instância)</span>
+          <input
+            type="text"
+            placeholder="ex.: wf-digital"
+            value={instance}
+            onChange={(e) => setInstance(e.target.value)}
+            className="mt-1 w-full rounded-md border border-border-card bg-bg-card px-2 py-1.5 text-[13px]"
+          />
+        </label>
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <button
+          onClick={() => saveMut.mutate()}
+          disabled={saveMut.isPending}
+          className="inline-flex h-8 items-center rounded-md bg-primary px-3 text-[12px] font-medium text-primary-foreground hover:bg-primary-hover disabled:opacity-50"
+        >
+          {saveMut.isPending ? "Salvando…" : "Salvar"}
+        </button>
+        <button
+          onClick={testConnection}
+          disabled={testing || !url || !apiKey}
+          className="inline-flex h-8 items-center rounded-md border border-border-card bg-bg-card px-3 text-[12px] font-medium text-text-body hover:bg-bg-general disabled:opacity-50"
+        >
+          {testing ? "Testando…" : "Testar conexão"}
+        </button>
+        {testResult && (
+          <span
+            className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
+              testResult.ok
+                ? "bg-success-bg text-success"
+                : "bg-red-100 text-red-700"
+            }`}
+          >
+            {testResult.message}
+          </span>
+        )}
+      </div>
+
+      <div className="mt-3 rounded-md border border-dashed border-border-card bg-bg-general/40 px-3 py-2 text-[11.5px] text-text-sec">
+        <div className="mb-1 font-semibold text-text-title">Webhook para receber respostas</div>
+        No painel da Evolution Go, configure o webhook apontando para:
+        <div className="mt-1 rounded bg-bg-card px-2 py-1 font-mono text-[11px] text-text-title">
+          {webhookHint}
+        </div>
+        Envie a mesma <code>apikey</code> configurada acima no header — as respostas do WhatsApp cairão automaticamente no chat do lead.
       </div>
     </div>
   );
