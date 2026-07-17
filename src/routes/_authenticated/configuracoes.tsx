@@ -518,9 +518,11 @@ function AbaInt() {
           )}
         </div>
       )}
+      <ZapiCadenceCard />
     </Card>
   );
 }
+
 
 function AbaSeg() {
   const [pwd, setPwd] = useState("");
