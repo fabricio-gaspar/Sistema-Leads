@@ -552,8 +552,62 @@ export const importExternalAsLead = createServerFn({ method: 'POST' })
       detail: `Importado de ${company.source}: ${company.razao_social}`,
     } as never)
 
+    // Ana faz o primeiro contato automaticamente
+    try {
+      await anaFirstContact(context, row as { id: string; company: string; contact: string | null; segment: string | null }, {
+        name: null, description: null, differentiators: null, tone_of_voice: null,
+      })
+    } catch (err) {
+      console.error('Ana first-contact failed:', err)
+    }
+
     return row
   })
+
+async function anaFirstContact(
+  context: { supabase: any; userId: string },
+  lead: { id: string; company: string; contact: string | null; segment: string | null },
+  _fallback: { name: string | null; description: string | null; differentiators: string | null; tone_of_voice: string | null },
+) {
+  const apiKey = process.env.ANTHROPIC_API_KEY
+  if (!apiKey) return
+
+  const { data: settings } = await context.supabase
+    .from('company_settings')
+    .select('name, description, differentiators, tone_of_voice, ai_prompt, ai_model')
+    .limit(1)
+    .maybeSingle()
+
+  const system = `${settings?.ai_prompt || 'Você é Ana, vendedora virtual consultiva, cordial e comercial.'}\n\nSua empresa: ${settings?.name ?? 'WF Digital'}${settings?.description ? `\nDescrição: ${settings.description}` : ''}${settings?.differentiators ? `\nDiferenciais: ${settings.differentiators}` : ''}${settings?.tone_of_voice ? `\nTom: ${settings.tone_of_voice}` : ''}\n\nEscreva uma mensagem CURTA (2-3 frases) de PRIMEIRO CONTATO via WhatsApp para o lead abaixo. Apresente-se, mencione o nome da empresa dele e pergunte se pode explicar rapidamente como podem se ajudar. Não use "prezado/a".`
+
+  const userPrompt = `Lead:\n- Empresa: ${lead.company}\n- Contato: ${lead.contact ?? 'sem nome ainda'}\n- Segmento: ${lead.segment ?? 'não informado'}\n\nGere a mensagem de abertura.`
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+    body: JSON.stringify({
+      model: settings?.ai_model || 'claude-sonnet-4-5-20250929',
+      max_tokens: 300,
+      temperature: 0.7,
+      system,
+      messages: [{ role: 'user', content: userPrompt }],
+    }),
+  })
+  if (!res.ok) return
+  const payload = (await res.json()) as { content?: Array<{ type: string; text?: string }> }
+  const text = (payload.content || []).filter((c) => c.type === 'text').map((c) => c.text || '').join('').trim()
+  if (!text) return
+
+  await context.supabase.from('lead_messages').insert({
+    lead_id: lead.id,
+    sender: 'ia',
+    sender_name: 'Ana (IA)',
+    type: 'ia',
+    text,
+    sent_at: new Date().toISOString(),
+  } as never)
+  await context.supabase.from('leads').update({ last_contact: new Date().toISOString() }).eq('id', lead.id)
+}
 
 // ============= Saved searches =============
 
