@@ -917,7 +917,7 @@ function AbaGovernanca() {
 }
 
 // ============= PROSPECÇÃO — Fontes ativas =============
-import { getEnabledSources } from "@/lib/prospecting.functions";
+import { getEnabledSources, testApifyToken } from "@/lib/prospecting.functions";
 
 function AbaProspeccao() {
   const qc = useQueryClient();
