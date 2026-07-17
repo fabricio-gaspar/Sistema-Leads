@@ -923,8 +923,26 @@ function AbaProspeccao() {
   const qc = useQueryClient();
   const getEnabled = useServerFn(getEnabledSources);
   const updateSettings = useServerFn(updateCompanySettings);
+  const testApify = useServerFn(testApifyToken);
 
   const { data: enabled, isLoading } = useQuery({ queryKey: ["enabled-sources"], queryFn: () => getEnabled() });
+
+  const [apifyResult, setApifyResult] = useState<
+    | { ok: boolean; message: string; username?: string | null; email?: string | null; plan?: string | null }
+    | null
+  >(null);
+  const testApifyMut = useMutation({
+    mutationFn: () => testApify(),
+    onSuccess: (r) => {
+      setApifyResult(r);
+      if (r.ok) toast.success("Apify: token válido");
+      else toast.error("Apify: falha na verificação", { description: r.message });
+    },
+    onError: (e: Error) => {
+      setApifyResult({ ok: false, message: e.message });
+      toast.error("Erro ao testar Apify", { description: e.message });
+    },
+  });
 
   const [state, setState] = useState({ cnpj_ws: true, google_places: false, ai_only: false, apify: false });
 
