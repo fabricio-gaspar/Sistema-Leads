@@ -194,7 +194,9 @@ function normalizeGoogle(p: GPlace): ExternalCompany {
     situacao: null,
     data_abertura: null,
     telefone: p.internationalPhoneNumber || p.nationalPhoneNumber || null,
+    whatsapp: detectWhatsapp(p.nationalPhoneNumber || p.internationalPhoneNumber || null),
     email: null,
+
     logradouro: p.formattedAddress || null,
     numero: null,
     bairro,
