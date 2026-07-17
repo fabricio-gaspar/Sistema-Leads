@@ -434,3 +434,182 @@ function InfoRow({ icon: Icon, text }: { icon: React.ComponentType<{ className?:
     </div>
   );
 }
+
+type ChannelKey = "whatsapp" | "email" | "phone";
+type ChannelStatus = { available: boolean; last_status?: string | null; last_attempt_at?: string | null };
+
+const CHANNEL_META: Record<ChannelKey, { label: string; icon: React.ComponentType<{ className?: string }> }> = {
+  whatsapp: { label: "WhatsApp", icon: MessageCircle },
+  email: { label: "E-mail", icon: Mail },
+  phone: { label: "Telefone", icon: Phone },
+};
+
+function statusLabel(s?: string | null) {
+  switch (s) {
+    case "pending": return "aguardando";
+    case "sent": return "enviada";
+    case "delivered": return "entregue";
+    case "read": return "lida";
+    case "replied": return "respondeu";
+    case "failed": return "falhou";
+    case "skipped": return "pulou";
+    default: return "disponível";
+  }
+}
+
+function statusTone(s?: string | null) {
+  if (s === "replied") return "bg-success-bg text-success";
+  if (s === "delivered" || s === "read" || s === "sent") return "bg-primary/10 text-primary";
+  if (s === "failed" || s === "skipped") return "bg-hot-bg text-hot";
+  if (s === "pending") return "bg-warm-bg text-warm";
+  return "bg-bg-general text-text-sec";
+}
+
+function ContactChannelsCard({ lead }: { lead: any }) {
+  const channels = (lead.contact_channels ?? {}) as Record<ChannelKey, ChannelStatus>;
+  const recommended: ChannelKey =
+    (["whatsapp", "email", "phone"] as ChannelKey[]).find((c) => channels[c]?.available && channels[c]?.last_status !== "failed") ?? "whatsapp";
+  return (
+    <Card title="Canais de contato">
+      <div className="space-y-2">
+        {(["whatsapp", "email", "phone"] as ChannelKey[]).map((c) => {
+          const Icon = CHANNEL_META[c].icon;
+          const s = channels[c];
+          return (
+            <div key={c} className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 text-[12px] text-text-body">
+                <Icon className="h-3.5 w-3.5 text-text-ter" />
+                <span className={s?.available ? "" : "text-text-ter line-through"}>{CHANNEL_META[c].label}</span>
+                {c === recommended && s?.available && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-ia-bg px-1.5 py-0.5 text-[10px] font-medium text-ia">
+                    <Radio className="h-2.5 w-2.5" /> recomendado
+                  </span>
+                )}
+              </div>
+              <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${statusTone(s?.last_status ?? (s?.available ? null : "skipped"))}`}>
+                {s?.available ? statusLabel(s.last_status) : "indisponível"}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      {lead.opt_out && (
+        <div className="mt-3 flex items-center gap-1 rounded-md bg-hot-bg px-2 py-1 text-[11px] text-hot">
+          <ShieldOff className="h-3 w-3" /> Lead pediu para não receber contato (LGPD)
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function WarmingStrategyCard({
+  lead,
+  outreach,
+  onPause,
+  onAssume,
+  onOptOut,
+  onRestart,
+  busy,
+}: {
+  lead: any;
+  outreach: any[];
+  onPause: (paused: boolean) => void;
+  onAssume: () => void;
+  onOptOut: (v: boolean) => void;
+  onRestart: () => void;
+  busy: boolean;
+}) {
+  const active = (lead.active_channel as ChannelKey | null) ?? null;
+  const next = lead.next_action_at ? new Date(lead.next_action_at) : null;
+  return (
+    <Card title="Estratégia de aquecimento">
+      <div className="space-y-1.5 text-[12px] text-text-body">
+        <div className="flex justify-between">
+          <span className="text-text-ter">Canal atual</span>
+          <span className="font-medium">{active ? CHANNEL_META[active].label : "—"}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-text-ter">Próxima ação</span>
+          <span className="font-medium">{next ? next.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "—"}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-text-ter">IA</span>
+          <span className={`font-medium ${lead.ai_paused ? "text-warm" : "text-success"}`}>
+            {lead.ai_paused ? "pausada" : "ativa"}
+          </span>
+        </div>
+      </div>
+
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button
+          disabled={busy}
+          onClick={() => onPause(!lead.ai_paused)}
+          className="inline-flex h-7 items-center gap-1 rounded-md border border-border-card bg-bg-card px-2 text-[11px] hover:bg-bg-general disabled:opacity-50"
+        >
+          {lead.ai_paused ? <Play className="h-3 w-3" /> : <Pause className="h-3 w-3" />}
+          {lead.ai_paused ? "Retomar IA" : "Pausar IA"}
+        </button>
+        <button
+          disabled={busy}
+          onClick={onAssume}
+          className="inline-flex h-7 items-center gap-1 rounded-md bg-primary px-2 text-[11px] text-primary-foreground hover:bg-primary-hover disabled:opacity-50"
+        >
+          <UserCheck className="h-3 w-3" /> Assumir
+        </button>
+        <button
+          disabled={busy || lead.opt_out}
+          onClick={onRestart}
+          className="inline-flex h-7 items-center gap-1 rounded-md border border-border-card bg-bg-card px-2 text-[11px] hover:bg-bg-general disabled:opacity-50"
+          title="Refazer primeiro contato"
+        >
+          <Sparkles className="h-3 w-3" /> Reiniciar cadência
+        </button>
+        <button
+          disabled={busy}
+          onClick={() => onOptOut(!lead.opt_out)}
+          className={`inline-flex h-7 items-center gap-1 rounded-md border border-border-card px-2 text-[11px] hover:bg-bg-general disabled:opacity-50 ${lead.opt_out ? "bg-hot-bg text-hot" : "bg-bg-card"}`}
+        >
+          <ShieldOff className="h-3 w-3" />
+          {lead.opt_out ? "Reativar contato" : "Não contatar"}
+        </button>
+      </div>
+
+      <div className="mt-4">
+        <div className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-text-ter">Histórico</div>
+        {outreach.length === 0 && (
+          <div className="text-[12px] text-text-ter">Nenhuma tentativa ainda.</div>
+        )}
+        <ul className="space-y-2 max-h-64 overflow-y-auto pr-1">
+          {outreach.map((o) => {
+            const Icon = CHANNEL_META[(o.channel as ChannelKey) ?? "whatsapp"]?.icon ?? Bot;
+            const failed = o.status === "failed" || o.status === "skipped";
+            return (
+              <li key={o.id} className="rounded-md border border-border-card bg-bg-general p-2 text-[11px]">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-1.5 font-medium text-text-body">
+                    <Icon className="h-3 w-3" />
+                    {CHANNEL_META[(o.channel as ChannelKey) ?? "whatsapp"]?.label ?? o.channel}
+                    <span className="text-text-ter">· tent. {o.attempt}</span>
+                  </div>
+                  <span className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${statusTone(o.status)}`}>
+                    {failed ? <AlertTriangle className="h-2.5 w-2.5" /> : <CheckCheck className="h-2.5 w-2.5" />}
+                    {statusLabel(o.status)}
+                  </span>
+                </div>
+                {o.content && (
+                  <div className="mt-1 line-clamp-2 text-text-sec">{o.content}</div>
+                )}
+                {o.error && (
+                  <div className="mt-1 text-hot">Erro: {o.error}</div>
+                )}
+                <div className="mt-1 text-text-ter">
+                  {new Date(o.created_at).toLocaleString("pt-BR")}
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+    </Card>
+  );
+}
