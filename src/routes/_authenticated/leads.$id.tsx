@@ -17,6 +17,12 @@ import {
   Plus,
   Trash2,
   Loader2,
+  Pause,
+  Play,
+  ShieldOff,
+  Radio,
+  CheckCheck,
+  AlertTriangle,
 } from "lucide-react";
 import { formatBRL } from "@/lib/leads-data";
 import {
@@ -29,8 +35,16 @@ import {
   moveLeadStage,
   upsertLeadTask,
 } from "@/lib/crm.functions";
+import {
+  listOutreach,
+  pauseAi,
+  assumeManually,
+  setOptOut,
+  startOutreach,
+} from "@/lib/outreach.functions";
 import { TempBadge } from "./leads";
 import type { Database } from "@/integrations/supabase/types";
+
 
 type Stage = Database["public"]["Enums"]["lead_stage"];
 const STAGES: Stage[] = ["Prospecção", "Qualificado", "Proposta", "Negociação", "Pedido", "Fechado", "Perdido"];
