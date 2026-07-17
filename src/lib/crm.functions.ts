@@ -384,7 +384,10 @@ const companySettingsInput = z.object({
     })
     .optional()
     .nullable(),
+  outreach_wait_hours: z.number().int().min(1).max(720).optional().nullable(),
+  outreach_max_attempts: z.number().int().min(1).max(10).optional().nullable(),
 })
+
 
 export const getCompanySettings = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
