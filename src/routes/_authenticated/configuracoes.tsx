@@ -961,7 +961,7 @@ function AbaProspeccao() {
   }
 
   const sources: Array<{
-    id: "cnpj_ws" | "google_places" | "ai_only";
+    id: "cnpj_ws" | "google_places" | "ai_only" | "apify";
     title: string;
     desc: string;
     cost: string;
@@ -983,6 +983,17 @@ function AbaProspeccao() {
         ? enabled.has_google_key
           ? { ok: true, msg: "GOOGLE_PLACES_API_KEY configurada" }
           : { ok: false, msg: "GOOGLE_PLACES_API_KEY ausente — solicite ao administrador para adicionar nas secrets." }
+        : null,
+    },
+    {
+      id: "apify",
+      title: "Apify (Google Maps Scraper)",
+      desc: "Usa actors da Apify para extrair empresas do Google Maps com telefone, e-mail (quando disponível), site e endereço.",
+      cost: "Pago por consumo — plano free da Apify traz US$5/mês. Requer APIFY_TOKEN.",
+      keyStatus: enabled
+        ? (enabled as { has_apify_token?: boolean }).has_apify_token
+          ? { ok: true, msg: "APIFY_TOKEN configurado" }
+          : { ok: false, msg: "APIFY_TOKEN ausente — peça ao administrador para adicionar nas secrets." }
         : null,
     },
     {
