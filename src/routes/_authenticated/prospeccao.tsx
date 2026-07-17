@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Sparkles, Search, Loader2, Download, Plus, ExternalLink, RotateCcw, Info, Building2, MapPin, Bot, Save, Bookmark, Trash2, FolderOpen } from "lucide-react";
+import { Sparkles, Search, Loader2, Download, Plus, ExternalLink, RotateCcw, Info, Building2, MapPin, Bot, Save, Bookmark, Trash2, FolderOpen, Zap } from "lucide-react";
 import { Card } from "@/components/ui-kit";
 import {
   searchExternalCompanies,
@@ -67,6 +67,7 @@ const SOURCE_META: Record<SourceId, { label: string; icon: typeof Building2; col
   cnpj_ws: { label: "Receita Federal", icon: Building2, color: "text-primary" },
   google_places: { label: "Google Places", icon: MapPin, color: "text-blue-600" },
   ai_only: { label: "IA (Claude)", icon: Bot, color: "text-ia" },
+  apify: { label: "Apify (Google Maps)", icon: Zap, color: "text-orange-600" },
 };
 
 function Prospeccao() {
@@ -93,7 +94,7 @@ function Prospeccao() {
   // If current source becomes disabled, switch to first enabled
   useEffect(() => {
     if (!enabled) return;
-    const active = (["cnpj_ws", "google_places", "ai_only"] as SourceId[]).filter((s) => enabled[s]);
+    const active = (["cnpj_ws", "google_places", "apify", "ai_only"] as SourceId[]).filter((s) => enabled[s]);
     if (active.length > 0 && !enabled[form.source]) {
       setForm((f) => ({ ...f, source: active[0] }));
     }
@@ -179,7 +180,7 @@ function Prospeccao() {
   }
 
   const results = currentResults;
-  const activeSources = enabled ? (["cnpj_ws", "google_places", "ai_only"] as SourceId[]).filter((s) => enabled[s]) : [];
+  const activeSources = enabled ? (["cnpj_ws", "google_places", "apify", "ai_only"] as SourceId[]).filter((s) => enabled[s]) : [];
   const noneEnabled = enabled && activeSources.length === 0;
 
 
@@ -299,7 +300,7 @@ function Prospeccao() {
           <Card>
             <div className="mb-2 text-[11px] uppercase text-text-ter">Fonte de dados</div>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-              {(["cnpj_ws", "google_places", "ai_only"] as SourceId[]).map((s) => {
+              {(["cnpj_ws", "google_places", "apify", "ai_only"] as SourceId[]).map((s) => {
                 const meta = SOURCE_META[s];
                 const Icon = meta.icon;
                 const active = form.source === s;
@@ -356,14 +357,22 @@ function Prospeccao() {
                 </span>
               </div>
             )}
+            {form.source === "apify" && (
+              <div className="mb-3 flex items-start gap-2 rounded-md border border-orange-200 bg-orange-50 px-3 py-2 text-[12px] text-orange-900">
+                <Zap className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <span>
+                  Usa o actor <b>Google Maps Scraper</b> da Apify. Informe uma <b>palavra-chave</b> (ex.: "academias", "advogados"). Cidade/UF refinam a busca. Requer <code>APIFY_TOKEN</code>.
+                </span>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-3">
-              {(form.source === "google_places" || form.source === "ai_only") && (
-                <Field label={form.source === "google_places" ? "Palavra-chave (obrigatório)" : "Palavra-chave / setor"}>
+              {(form.source === "google_places" || form.source === "ai_only" || form.source === "apify") && (
+                <Field label={form.source === "ai_only" ? "Palavra-chave / setor" : "Palavra-chave (obrigatório)"}>
                   <input
                     value={form.keyword}
                     onChange={(e) => setForm({ ...form, keyword: e.target.value })}
-                    placeholder={form.source === "google_places" ? "Ex.: clínicas odontológicas" : "Ex.: indústrias de embalagens"}
+                    placeholder={form.source === "google_places" ? "Ex.: clínicas odontológicas" : form.source === "apify" ? "Ex.: academias" : "Ex.: indústrias de embalagens"}
                     className="h-9 w-full rounded-md border border-border-card bg-bg-card px-2 text-[13px] outline-none"
                   />
                 </Field>
@@ -449,7 +458,7 @@ function Prospeccao() {
               </button>
               <button
                 onClick={apply}
-                disabled={search.isFetching || (form.source === "google_places" && !form.keyword.trim())}
+                disabled={search.isFetching || ((form.source === "google_places" || form.source === "apify") && !form.keyword.trim())}
                 className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-2 text-[12px] font-medium text-primary-foreground hover:bg-primary-hover disabled:opacity-60"
               >
                 {search.isFetching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}

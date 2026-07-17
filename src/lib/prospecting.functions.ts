@@ -3,7 +3,7 @@ import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware'
 import { z } from 'zod'
 
 // ============= Types =============
-export type SourceId = 'cnpj_ws' | 'google_places' | 'ai_only'
+export type SourceId = 'cnpj_ws' | 'google_places' | 'ai_only' | 'apify'
 
 export type ExternalCompany = {
   cnpj: string
@@ -45,7 +45,7 @@ function detectWhatsapp(phone: string | null): string | null {
 
 // ============= Filters schema =============
 const filtersSchema = z.object({
-  source: z.enum(['cnpj_ws', 'google_places', 'ai_only']).default('cnpj_ws'),
+  source: z.enum(['cnpj_ws', 'google_places', 'ai_only', 'apify']).default('cnpj_ws'),
   cnae: z.string().optional().nullable(),
   uf: z.string().length(2).optional().nullable(),
   municipio: z.string().optional().nullable(),
@@ -330,6 +330,81 @@ Para telefone/whatsapp/email: SOMENTE inclua se forem informações públicas pl
   })
 }
 
+// ============= Apify adapter (Google Maps Scraper) =============
+type ApifyPlace = {
+  title?: string
+  categoryName?: string
+  address?: string
+  street?: string
+  city?: string
+  state?: string
+  postalCode?: string
+  phone?: string
+  phoneUnformatted?: string
+  website?: string
+  url?: string
+  placeId?: string
+  emails?: string[]
+  locatedIn?: string
+}
+
+function normalizeApify(p: ApifyPlace): ExternalCompany {
+  const phone = p.phone || p.phoneUnformatted || null
+  const email = (p.emails && p.emails.length > 0 ? p.emails[0] : null) || null
+  return {
+    cnpj: p.placeId || `apify-${Math.random().toString(36).slice(2, 10)}`,
+    razao_social: p.title || '',
+    nome_fantasia: p.title || null,
+    cnae_principal: null,
+    cnae_descricao: p.categoryName || null,
+    porte: null,
+    capital_social: null,
+    situacao: null,
+    data_abertura: null,
+    telefone: phone,
+    whatsapp: detectWhatsapp(phone),
+    email,
+    logradouro: p.street || p.address || null,
+    numero: null,
+    bairro: null,
+    municipio: p.city || null,
+    uf: p.state ? p.state.slice(0, 2).toUpperCase() : null,
+    cep: p.postalCode || null,
+    website: p.website || p.url || null,
+    source: 'apify',
+  }
+}
+
+async function fetchFromApify(filters: Filters): Promise<ExternalCompany[]> {
+  const token = process.env.APIFY_TOKEN
+  if (!token) {
+    throw new Error('APIFY_TOKEN não configurado. Adicione a secret nas configurações do projeto.')
+  }
+  const query = [filters.keyword, filters.municipio, filters.uf].filter(Boolean).join(' ').trim()
+  if (!query) throw new Error('Informe uma palavra-chave (ex.: "restaurantes", "clínicas") para o Apify.')
+
+  const actorId = process.env.APIFY_ACTOR_ID || 'compass~crawler-google-places'
+  const url = `https://api.apify.com/v2/acts/${actorId}/run-sync-get-dataset-items?token=${encodeURIComponent(token)}`
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      searchStringsArray: [query],
+      maxCrawledPlacesPerSearch: Math.min(30, filters.limit),
+      language: 'pt-BR',
+      countryCode: 'br',
+      scrapeContacts: true,
+    }),
+  })
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new Error(`Apify ${res.status}: ${text.slice(0, 300)}`)
+  }
+  const items = (await res.json()) as ApifyPlace[]
+  return (Array.isArray(items) ? items : []).slice(0, filters.limit).map(normalizeApify)
+}
+
 
 // ============= Claude scoring for real sources =============
 async function scoreWithClaude(
@@ -417,8 +492,10 @@ export const getEnabledSources = createServerFn({ method: 'GET' })
       cnpj_ws: src?.cnpj_ws ?? true,
       google_places: src?.google_places ?? false,
       ai_only: src?.ai_only ?? false,
+      apify: src?.apify ?? false,
       has_google_key: !!process.env.GOOGLE_PLACES_API_KEY,
       has_anthropic_key: !!process.env.ANTHROPIC_API_KEY,
+      has_apify_token: !!process.env.APIFY_TOKEN,
     }
   })
 
@@ -434,7 +511,7 @@ export const searchExternalCompanies = createServerFn({ method: 'POST' })
       .maybeSingle()
 
     const enabled = (settingsRow?.prospecting_sources as Record<string, boolean> | null) ?? {
-      cnpj_ws: true, google_places: false, ai_only: false,
+      cnpj_ws: true, google_places: false, ai_only: false, apify: false,
     }
     if (!enabled[data.source]) {
       throw new Error(`A fonte "${data.source}" está desativada. Ative-a em Configurações → Prospecção.`)
@@ -478,6 +555,14 @@ export const searchExternalCompanies = createServerFn({ method: 'POST' })
         differentiators: settingsRow?.differentiators,
         icp: null,
       })
+    } else if (data.source === 'apify') {
+      raw = await fetchFromApify(data)
+      raw = await scoreWithClaude(raw, {
+        name: settingsRow?.name,
+        description: settingsRow?.description,
+        differentiators: settingsRow?.differentiators,
+        icp: null,
+      })
     } else {
       raw = await fetchFromAI(data, {
         name: settingsRow?.name,
@@ -509,7 +594,7 @@ export const searchExternalCompanies = createServerFn({ method: 'POST' })
   })
 
 function buildAutoName(f: Filters, count: number): string {
-  const src = f.source === 'cnpj_ws' ? 'Receita' : f.source === 'google_places' ? 'Google' : 'IA'
+  const src = f.source === 'cnpj_ws' ? 'Receita' : f.source === 'google_places' ? 'Google' : f.source === 'apify' ? 'Apify' : 'IA'
   const bits = [f.keyword, f.municipio, f.uf, f.porte].filter(Boolean).join(' · ')
   const when = new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
   return `${src} — ${bits || 'sem filtros'} (${count}) · ${when}`
