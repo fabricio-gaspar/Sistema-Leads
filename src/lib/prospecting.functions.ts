@@ -16,6 +16,7 @@ export type ExternalCompany = {
   situacao: string | null
   data_abertura: string | null
   telefone: string | null
+  whatsapp: string | null
   email: string | null
   logradouro: string | null
   numero: string | null
@@ -28,6 +29,19 @@ export type ExternalCompany = {
   score_reason?: string
   source: SourceId
 }
+
+// Detecta se um telefone brasileiro é celular (11 dígitos, começa com 9 após DDD)
+function detectWhatsapp(phone: string | null): string | null {
+  if (!phone) return null
+  const digits = phone.replace(/\D/g, '')
+  // Formatos: 11 dígitos (DDD + 9XXXXXXXX) ou 13 (55 + DDD + 9XXXXXXXX)
+  const local = digits.length === 13 && digits.startsWith('55') ? digits.slice(2) : digits
+  if (local.length === 11 && local[2] === '9') {
+    return `(${local.slice(0, 2)}) ${local.slice(2, 7)}-${local.slice(7)}`
+  }
+  return null
+}
+
 
 // ============= Filters schema =============
 const filtersSchema = z.object({
