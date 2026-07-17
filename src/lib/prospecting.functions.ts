@@ -257,9 +257,10 @@ Filtros do usuário:
 - Porte: ${filters.porte || 'qualquer'}
 
 Retorne APENAS JSON válido no formato:
-{"empresas":[{"razao_social":"","nome_fantasia":"","cnae_descricao":"","porte":"","municipio":"","uf":"","website":"","motivo":"por que é um bom fit em 1 frase","score":0-100}]}
+{"empresas":[{"razao_social":"","nome_fantasia":"","cnae_descricao":"","porte":"","municipio":"","uf":"","website":"","email":"","telefone":"","whatsapp":"","motivo":"por que é um bom fit em 1 frase","score":0-100}]}
 
-Não invente CNPJ. Não invente telefone/email. Priorize empresas plausíveis do mercado real.`
+Para telefone/whatsapp/email: SOMENTE inclua se forem informações públicas plausíveis (ex.: SAC divulgado no site). Se não tiver certeza, use "" (string vazia). Nunca invente CNPJ nem dados pessoais. Priorize empresas plausíveis do mercado real.`
+
 
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
