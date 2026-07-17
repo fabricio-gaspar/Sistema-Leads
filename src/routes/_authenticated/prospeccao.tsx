@@ -219,7 +219,7 @@ function Prospeccao() {
           <div className="flex-1">
             <div className="text-[14px] font-semibold text-text-title">Prospecção externa multi-fonte</div>
             <div className="text-[12px] text-text-sec">
-              Escolha a fonte de dados abaixo. Ative/desative fontes em <Link to="/configuracoes" className="underline text-primary">Configurações → Prospecção</Link>.
+              Escolha a fonte de dados abaixo. Ative/desative fontes em <Link to="/configuracoes" search={{ tab: "prospeccao" }} className="underline text-primary">Configurações → Prospecção</Link>.
             </div>
           </div>
         </div>
