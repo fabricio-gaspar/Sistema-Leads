@@ -458,6 +458,8 @@ export const searchExternalCompanies = createServerFn({ method: 'POST' })
       })
     }
 
+    const autoName = buildAutoName(data, raw.length)
+    const farFuture = new Date(Date.now() + 1000 * 60 * 60 * 24 * 365 * 10).toISOString()
     const { data: row, error: insErr } = await context.supabase
       .from('prospecting_cache')
       .insert({
@@ -467,6 +469,9 @@ export const searchExternalCompanies = createServerFn({ method: 'POST' })
         results: raw as never,
         total_found: raw.length,
         scored: raw.some((s) => s.score != null),
+        name: autoName,
+        saved: true,
+        expires_at: farFuture,
       } as never)
       .select('id')
       .single()
@@ -474,6 +479,13 @@ export const searchExternalCompanies = createServerFn({ method: 'POST' })
 
     return { cache_id: row.id as string, cached: false, source: data.source, results: raw }
   })
+
+function buildAutoName(f: Filters, count: number): string {
+  const src = f.source === 'cnpj_ws' ? 'Receita' : f.source === 'google_places' ? 'Google' : 'IA'
+  const bits = [f.keyword, f.municipio, f.uf, f.porte].filter(Boolean).join(' · ')
+  const when = new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
+  return `${src} — ${bits || 'sem filtros'} (${count}) · ${when}`
+}
 
 export const importExternalAsLead = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
