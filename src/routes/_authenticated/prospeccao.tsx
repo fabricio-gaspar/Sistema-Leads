@@ -2,12 +2,16 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Sparkles, Search, Loader2, Download, Plus, ExternalLink, RotateCcw, Info, Building2, MapPin, Bot } from "lucide-react";
+import { Sparkles, Search, Loader2, Download, Plus, ExternalLink, RotateCcw, Info, Building2, MapPin, Bot, Save, Bookmark, Trash2, FolderOpen } from "lucide-react";
 import { Card } from "@/components/ui-kit";
 import {
   searchExternalCompanies,
   importExternalAsLead,
   getEnabledSources,
+  saveProspectingSearch,
+  listSavedSearches,
+  getSavedSearch,
+  deleteSavedSearch,
   type ExternalCompany,
   type SourceId,
 } from "@/lib/prospecting.functions";
@@ -73,10 +77,18 @@ function Prospeccao() {
 
   const { data: enabled } = useQuery({ queryKey: ["enabled-sources"], queryFn: () => enabledFn() });
 
+  const savedListFn = useServerFn(listSavedSearches);
+  const savedGetFn = useServerFn(getSavedSearch);
+  const savedSaveFn = useServerFn(saveProspectingSearch);
+  const savedDelFn = useServerFn(deleteSavedSearch);
+  const savedQuery = useQuery({ queryKey: ["saved-searches"], queryFn: () => savedListFn() });
+
   const [form, setForm] = useState<FormState>(INITIAL);
   const [applied, setApplied] = useState<FormState | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
   const [openReason, setOpenReason] = useState<string | null>(null);
+  const [saveName, setSaveName] = useState("");
+  const [loadedSaved, setLoadedSaved] = useState<{ id: string; name: string; results: ExternalCompany[]; source: SourceId; created_at: string } | null>(null);
 
   // If current source becomes disabled, switch to first enabled
   useEffect(() => {
@@ -94,9 +106,15 @@ function Prospeccao() {
     retry: false,
   });
 
+  // Unified view: either a live search result or a loaded saved search
+  const currentCacheId: string | null = loadedSaved?.id ?? search.data?.cache_id ?? null;
+  const currentResults: ExternalCompany[] = loadedSaved?.results ?? search.data?.results ?? [];
+  const currentSource: SourceId | null = loadedSaved?.source ?? applied?.source ?? null;
+  const isSavedView = !!loadedSaved;
+
   const importMut = useMutation({
     mutationFn: (cnpj: string) =>
-      importFn({ data: { cache_id: search.data!.cache_id, cnpj } }),
+      importFn({ data: { cache_id: currentCacheId!, cnpj } }),
     onSuccess: () => {
       setFlash("✔ Empresa importada como Lead em 'Prospecção'.");
       qc.invalidateQueries({ queryKey: ["leads"] });
@@ -108,18 +126,55 @@ function Prospeccao() {
     },
   });
 
+  const saveMut = useMutation({
+    mutationFn: (name: string) => savedSaveFn({ data: { cache_id: currentCacheId!, name } }),
+    onSuccess: () => {
+      setFlash("✔ Busca salva com sucesso.");
+      setSaveName("");
+      qc.invalidateQueries({ queryKey: ["saved-searches"] });
+      setTimeout(() => setFlash(null), 3000);
+    },
+    onError: (e: Error) => {
+      setFlash(`Erro ao salvar: ${e.message}`);
+      setTimeout(() => setFlash(null), 4000);
+    },
+  });
+
+  const loadMut = useMutation({
+    mutationFn: (id: string) => savedGetFn({ data: { id } }),
+    onSuccess: (r) => {
+      setLoadedSaved({ id: r.cache_id, name: r.name, results: r.results, source: r.source, created_at: r.created_at });
+      setApplied(null);
+    },
+    onError: (e: Error) => {
+      setFlash(`Erro ao carregar: ${e.message}`);
+      setTimeout(() => setFlash(null), 4000);
+    },
+  });
+
+  const delMut = useMutation({
+    mutationFn: (id: string) => savedDelFn({ data: { id } }),
+    onSuccess: (_r, id) => {
+      if (loadedSaved?.id === id) setLoadedSaved(null);
+      qc.invalidateQueries({ queryKey: ["saved-searches"] });
+    },
+  });
+
   function apply() {
+    setLoadedSaved(null);
     setApplied({ ...form });
   }
 
   function reset() {
     setForm({ ...INITIAL, source: form.source });
     setApplied(null);
+    setLoadedSaved(null);
   }
 
-  const results: ExternalCompany[] = search.data?.results ?? [];
+  const results = currentResults;
   const activeSources = enabled ? (["cnpj_ws", "google_places", "ai_only"] as SourceId[]).filter((s) => enabled[s]) : [];
   const noneEnabled = enabled && activeSources.length === 0;
+
 
   function exportCSV() {
     if (!results.length) return;
@@ -159,6 +214,67 @@ function Prospeccao() {
           </div>
         </div>
       </Card>
+
+      {/* Saved searches */}
+      {(savedQuery.data?.length ?? 0) > 0 && (
+        <Card>
+          <div className="mb-2 flex items-center gap-2">
+            <Bookmark className="h-4 w-4 text-primary" />
+            <div className="text-[13px] font-semibold text-text-title">Buscas salvas</div>
+            <span className="text-[11px] text-text-ter">({savedQuery.data!.length})</span>
+          </div>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {savedQuery.data!.map((s) => {
+              const meta = SOURCE_META[s.source];
+              const Icon = meta.icon;
+              const isActive = loadedSaved?.id === s.id;
+              return (
+                <div
+                  key={s.id}
+                  className={`flex items-start justify-between gap-2 rounded-md border p-2.5 ${
+                    isActive ? "border-primary bg-primary/5" : "border-border-card"
+                  }`}
+                >
+                  <button
+                    type="button"
+                    onClick={() => loadMut.mutate(s.id)}
+                    className="flex-1 min-w-0 text-left"
+                  >
+                    <div className="flex items-center gap-1.5">
+                      <Icon className={`h-3.5 w-3.5 ${meta.color}`} />
+                      <div className="truncate text-[13px] font-medium text-text-title">{s.name}</div>
+                    </div>
+                    <div className="mt-1 text-[11px] text-text-ter">
+                      {new Date(s.created_at).toLocaleString("pt-BR")} · {s.total_found} resultado{s.total_found === 1 ? "" : "s"} · {meta.label}
+                    </div>
+                  </button>
+                  <div className="flex flex-col gap-1">
+                    <button
+                      type="button"
+                      title="Abrir"
+                      onClick={() => loadMut.mutate(s.id)}
+                      disabled={loadMut.isPending}
+                      className="rounded p-1 text-text-ter hover:bg-bg-general hover:text-primary"
+                    >
+                      <FolderOpen className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      title="Excluir"
+                      onClick={() => {
+                        if (confirm(`Excluir a busca "${s.name}"?`)) delMut.mutate(s.id);
+                      }}
+                      className="rounded p-1 text-text-ter hover:bg-bg-general hover:text-red-600"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
 
       {noneEnabled && (
         <Card>
@@ -345,20 +461,62 @@ function Prospeccao() {
         </Card>
       )}
 
-      {applied && !search.isFetching && !search.isError && (
+      {(applied || isSavedView) && !search.isFetching && !search.isError && currentSource && (
         <Card padded={false}>
-          <div className="flex items-center justify-between border-b border-border-card px-4 py-3">
+          <div className="flex flex-col gap-3 border-b border-border-card px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="text-[13px] text-text-body">
-              <b>{results.length}</b> empresas encontradas via <b>{SOURCE_META[applied.source].label}</b>
-              {search.data?.cached && <span className="ml-2 text-[11px] text-text-ter">(cache)</span>}
+              {isSavedView ? (
+                <>
+                  <Bookmark className="mr-1 inline h-3.5 w-3.5 text-primary" />
+                  <b>{loadedSaved!.name}</b>
+                  <span className="mx-1 text-text-ter">·</span>
+                  <span className="text-[11px] text-text-ter">
+                    Salva em {new Date(loadedSaved!.created_at).toLocaleString("pt-BR")}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <b>{results.length}</b> empresas encontradas via <b>{SOURCE_META[currentSource].label}</b>
+                  {search.data?.cached && <span className="ml-2 text-[11px] text-text-ter">(cache)</span>}
+                </>
+              )}
             </div>
-            <button
-              onClick={exportCSV}
-              disabled={!results.length}
-              className="flex items-center gap-1.5 rounded-md border border-border-card px-3 py-1.5 text-[12px] text-text-body hover:bg-bg-general disabled:opacity-50"
-            >
-              <Download className="h-3.5 w-3.5" /> Exportar CSV
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              {!isSavedView && currentCacheId && results.length > 0 && (
+                <div className="flex items-center gap-1.5">
+                  <input
+                    value={saveName}
+                    onChange={(e) => setSaveName(e.target.value)}
+                    placeholder="Nome da busca (ex.: Clínicas SP outubro)"
+                    maxLength={120}
+                    className="h-8 w-56 rounded-md border border-border-card bg-bg-card px-2 text-[12px] outline-none"
+                  />
+                  <button
+                    onClick={() => saveMut.mutate(saveName.trim())}
+                    disabled={!saveName.trim() || saveMut.isPending}
+                    className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-[12px] font-medium text-primary-foreground hover:bg-primary-hover disabled:opacity-50"
+                  >
+                    {saveMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                    Salvar busca
+                  </button>
+                </div>
+              )}
+              {isSavedView && (
+                <button
+                  onClick={() => setLoadedSaved(null)}
+                  className="flex items-center gap-1.5 rounded-md border border-border-card px-3 py-1.5 text-[12px] text-text-body hover:bg-bg-general"
+                >
+                  Fechar busca salva
+                </button>
+              )}
+              <button
+                onClick={exportCSV}
+                disabled={!results.length}
+                className="flex items-center gap-1.5 rounded-md border border-border-card px-3 py-1.5 text-[12px] text-text-body hover:bg-bg-general disabled:opacity-50"
+              >
+                <Download className="h-3.5 w-3.5" /> Exportar CSV
+              </button>
+            </div>
           </div>
           {results.length === 0 ? (
             <div className="p-10 text-center text-[13px] text-text-sec">
@@ -474,7 +632,7 @@ function Prospeccao() {
         </Card>
       )}
 
-      {!applied && !noneEnabled && (
+      {!applied && !isSavedView && !noneEnabled && (
         <Card>
           <div className="text-center text-[13px] text-text-sec py-6">
             Escolha a fonte, preencha os filtros e clique em <b>Buscar</b>.
