@@ -198,7 +198,9 @@ function Prospeccao() {
         municipio: c.municipio ?? "",
         uf: c.uf ?? "",
         telefone: c.telefone ?? "",
+        whatsapp: c.whatsapp ?? "",
         email: c.email ?? "",
+
         website: c.website ?? "",
         score_ia: c.score ?? "",
         motivo: c.score_reason ?? "",
