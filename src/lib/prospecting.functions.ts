@@ -45,7 +45,7 @@ function detectWhatsapp(phone: string | null): string | null {
 
 // ============= Filters schema =============
 const filtersSchema = z.object({
-  source: z.enum(['cnpj_ws', 'google_places', 'ai_only']).default('cnpj_ws'),
+  source: z.enum(['cnpj_ws', 'google_places', 'ai_only', 'apify']).default('cnpj_ws'),
   cnae: z.string().optional().nullable(),
   uf: z.string().length(2).optional().nullable(),
   municipio: z.string().optional().nullable(),
