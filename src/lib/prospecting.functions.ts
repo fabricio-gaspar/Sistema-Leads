@@ -594,7 +594,7 @@ export const searchExternalCompanies = createServerFn({ method: 'POST' })
   })
 
 function buildAutoName(f: Filters, count: number): string {
-  const src = f.source === 'cnpj_ws' ? 'Receita' : f.source === 'google_places' ? 'Google' : 'IA'
+  const src = f.source === 'cnpj_ws' ? 'Receita' : f.source === 'google_places' ? 'Google' : f.source === 'apify' ? 'Apify' : 'IA'
   const bits = [f.keyword, f.municipio, f.uf, f.porte].filter(Boolean).join(' · ')
   const when = new Date().toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })
   return `${src} — ${bits || 'sem filtros'} (${count}) · ${when}`
