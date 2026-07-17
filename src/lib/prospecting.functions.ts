@@ -569,13 +569,15 @@ export type SavedSearch = {
 export const saveProspectingSearch = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) =>
-    z.object({ cache_id: z.string().uuid(), name: z.string().trim().min(1).max(120) }).parse(d),
+    z.object({ cache_id: z.string().uuid(), name: z.string().trim().max(120).optional() }).parse(d),
   )
   .handler(async ({ data, context }) => {
     const farFuture = new Date(Date.now() + 1000 * 60 * 60 * 24 * 365 * 10).toISOString()
+    const patch: Record<string, unknown> = { saved: true, expires_at: farFuture }
+    if (data.name && data.name.length > 0) patch.name = data.name
     const { error } = await context.supabase
       .from('prospecting_cache')
-      .update({ name: data.name, saved: true, expires_at: farFuture } as never)
+      .update(patch as never)
       .eq('id', data.cache_id)
       .eq('user_id', context.userId)
     if (error) throw new Error(error.message)
