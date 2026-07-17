@@ -94,7 +94,7 @@ function Prospeccao() {
   // If current source becomes disabled, switch to first enabled
   useEffect(() => {
     if (!enabled) return;
-    const active = (["cnpj_ws", "google_places", "ai_only"] as SourceId[]).filter((s) => enabled[s]);
+    const active = (["cnpj_ws", "google_places", "apify", "ai_only"] as SourceId[]).filter((s) => enabled[s]);
     if (active.length > 0 && !enabled[form.source]) {
       setForm((f) => ({ ...f, source: active[0] }));
     }
@@ -180,7 +180,7 @@ function Prospeccao() {
   }
 
   const results = currentResults;
-  const activeSources = enabled ? (["cnpj_ws", "google_places", "ai_only"] as SourceId[]).filter((s) => enabled[s]) : [];
+  const activeSources = enabled ? (["cnpj_ws", "google_places", "apify", "ai_only"] as SourceId[]).filter((s) => enabled[s]) : [];
   const noneEnabled = enabled && activeSources.length === 0;
 
 
@@ -300,7 +300,7 @@ function Prospeccao() {
           <Card>
             <div className="mb-2 text-[11px] uppercase text-text-ter">Fonte de dados</div>
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-              {(["cnpj_ws", "google_places", "ai_only"] as SourceId[]).map((s) => {
+              {(["cnpj_ws", "google_places", "apify", "ai_only"] as SourceId[]).map((s) => {
                 const meta = SOURCE_META[s];
                 const Icon = meta.icon;
                 const active = form.source === s;
