@@ -73,6 +73,11 @@ function LeadDetail() {
   const deleteTaskFn = useServerFn(deleteLeadTask);
   const moveFn = useServerFn(moveLeadStage);
   const anaFn = useServerFn(chatWithAna);
+  const listOutreachFn = useServerFn(listOutreach);
+  const pauseAiFn = useServerFn(pauseAi);
+  const assumeFn = useServerFn(assumeManually);
+  const optOutFn = useServerFn(setOptOut);
+  const startOutreachFn = useServerFn(startOutreach);
 
   const leadQ = useQuery({ queryKey: ["lead", id], queryFn: () => getLeadFn({ data: { id } }) });
   const msgsQ = useQuery({
@@ -85,6 +90,12 @@ function LeadDetail() {
     queryFn: () => listTasksFn({ data: { lead_id: id } }),
     enabled: !!leadQ.data,
   });
+  const outreachQ = useQuery({
+    queryKey: ["lead-outreach", id],
+    queryFn: () => listOutreachFn({ data: { lead_id: id } }),
+    enabled: !!leadQ.data,
+  });
+
 
   const [mode, setMode] = useState<"ia" | "humano">("humano");
   const [text, setText] = useState("");
