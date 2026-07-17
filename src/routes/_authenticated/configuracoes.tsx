@@ -518,6 +518,7 @@ function AbaInt() {
           )}
         </div>
       )}
+      <EvolutionGoCard />
       <ZapiCadenceCard />
     </Card>
   );
