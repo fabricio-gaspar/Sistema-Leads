@@ -461,20 +461,62 @@ function Prospeccao() {
         </Card>
       )}
 
-      {applied && !search.isFetching && !search.isError && (
+      {(applied || isSavedView) && !search.isFetching && !search.isError && currentSource && (
         <Card padded={false}>
-          <div className="flex items-center justify-between border-b border-border-card px-4 py-3">
+          <div className="flex flex-col gap-3 border-b border-border-card px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="text-[13px] text-text-body">
-              <b>{results.length}</b> empresas encontradas via <b>{SOURCE_META[applied.source].label}</b>
-              {search.data?.cached && <span className="ml-2 text-[11px] text-text-ter">(cache)</span>}
+              {isSavedView ? (
+                <>
+                  <Bookmark className="mr-1 inline h-3.5 w-3.5 text-primary" />
+                  <b>{loadedSaved!.name}</b>
+                  <span className="mx-1 text-text-ter">·</span>
+                  <span className="text-[11px] text-text-ter">
+                    Salva em {new Date(loadedSaved!.created_at).toLocaleString("pt-BR")}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <b>{results.length}</b> empresas encontradas via <b>{SOURCE_META[currentSource].label}</b>
+                  {search.data?.cached && <span className="ml-2 text-[11px] text-text-ter">(cache)</span>}
+                </>
+              )}
             </div>
-            <button
-              onClick={exportCSV}
-              disabled={!results.length}
-              className="flex items-center gap-1.5 rounded-md border border-border-card px-3 py-1.5 text-[12px] text-text-body hover:bg-bg-general disabled:opacity-50"
-            >
-              <Download className="h-3.5 w-3.5" /> Exportar CSV
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              {!isSavedView && currentCacheId && results.length > 0 && (
+                <div className="flex items-center gap-1.5">
+                  <input
+                    value={saveName}
+                    onChange={(e) => setSaveName(e.target.value)}
+                    placeholder="Nome da busca (ex.: Clínicas SP outubro)"
+                    maxLength={120}
+                    className="h-8 w-56 rounded-md border border-border-card bg-bg-card px-2 text-[12px] outline-none"
+                  />
+                  <button
+                    onClick={() => saveMut.mutate(saveName.trim())}
+                    disabled={!saveName.trim() || saveMut.isPending}
+                    className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-[12px] font-medium text-primary-foreground hover:bg-primary-hover disabled:opacity-50"
+                  >
+                    {saveMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                    Salvar busca
+                  </button>
+                </div>
+              )}
+              {isSavedView && (
+                <button
+                  onClick={() => setLoadedSaved(null)}
+                  className="flex items-center gap-1.5 rounded-md border border-border-card px-3 py-1.5 text-[12px] text-text-body hover:bg-bg-general"
+                >
+                  Fechar busca salva
+                </button>
+              )}
+              <button
+                onClick={exportCSV}
+                disabled={!results.length}
+                className="flex items-center gap-1.5 rounded-md border border-border-card px-3 py-1.5 text-[12px] text-text-body hover:bg-bg-general disabled:opacity-50"
+              >
+                <Download className="h-3.5 w-3.5" /> Exportar CSV
+              </button>
+            </div>
           </div>
           {results.length === 0 ? (
             <div className="p-10 text-center text-[13px] text-text-sec">
