@@ -27,6 +27,9 @@ import {
   listIntegrations,
   listNotifications,
   markAllNotificationsRead,
+  markNotificationRead,
+  deleteNotification,
+  disconnectIntegration,
 } from "@/lib/crm.functions";
 
 type TabId = "ana" | "prospeccao" | "equipe" | "servicos" | "objecoes" | "score" | "governanca" | "auditoria" | "notificacoes" | "integracoes" | "seguranca";
