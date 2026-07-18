@@ -151,7 +151,7 @@ export function AppShell({
         </div>
 
         <nav className="flex-1 overflow-y-auto py-3">
-          {NAV.map((item) => {
+          {visibleNav.map((item) => {
             const active =
               item.to === "/"
                 ? pathname === "/"
