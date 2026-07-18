@@ -170,6 +170,15 @@ function Prospeccao() {
     },
   });
 
+  const renameMut = useMutation({
+    mutationFn: (v: { id: string; name: string }) => savedRenameFn({ data: v }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["saved-searches"] });
+      setFlash("✔ Busca renomeada.");
+      setTimeout(() => setFlash(null), 2500);
+    },
+  });
+
   function apply() {
     setLoadedSaved(null);
     setApplied({ ...form });
