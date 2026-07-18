@@ -281,6 +281,17 @@ function Prospeccao() {
                     </button>
                     <button
                       type="button"
+                      title="Renomear"
+                      onClick={() => {
+                        const n = prompt("Novo nome da busca:", s.name);
+                        if (n && n.trim() && n.trim() !== s.name) renameMut.mutate({ id: s.id, name: n.trim() });
+                      }}
+                      className="rounded p-1 text-text-ter hover:bg-bg-general hover:text-primary"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
                       title="Excluir"
                       onClick={() => {
                         if (confirm(`Excluir a busca "${s.name}"?`)) delMut.mutate(s.id);
