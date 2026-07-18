@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Sparkles, Search, Loader2, Download, Plus, ExternalLink, RotateCcw, Info, Building2, MapPin, Bot, Save, Bookmark, Trash2, FolderOpen, Zap } from "lucide-react";
+import { Sparkles, Search, Loader2, Download, Plus, ExternalLink, RotateCcw, Info, Building2, MapPin, Bot, Save, Bookmark, Trash2, FolderOpen, Zap, Pencil } from "lucide-react";
 import { Card } from "@/components/ui-kit";
 import {
   searchExternalCompanies,
@@ -12,6 +12,7 @@ import {
   listSavedSearches,
   getSavedSearch,
   deleteSavedSearch,
+  renameSavedSearch,
   type ExternalCompany,
   type SourceId,
 } from "@/lib/prospecting.functions";
