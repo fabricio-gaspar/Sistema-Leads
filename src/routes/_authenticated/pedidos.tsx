@@ -108,9 +108,14 @@ function Pedidos() {
                 </div>
                 <div className="text-right">
                   <div className="text-[15px] font-semibold text-text-title">{formatBRL(Number(p.value || 0))}</div>
-                  <span className="inline-flex rounded-full bg-bg-general px-2 py-0.5 text-[11px] capitalize">
-                    {p.status ?? "novo"}
-                  </span>
+                  <select
+                    value={(p.status ?? "producao").toLowerCase()}
+                    disabled={statusMut.isPending}
+                    onChange={(e) => statusMut.mutate({ id: p.id, status: e.target.value })}
+                    className="mt-1 h-7 rounded-md border border-border-card bg-bg-card px-2 text-[11px] capitalize outline-none focus:border-primary"
+                  >
+                    {ORDER_STATUS.map((s) => <option key={s} value={s}>{s}</option>)}
+                  </select>
                 </div>
                 <button
                   onClick={() => confirm(`Excluir pedido ${p.number}?`) && delMut.mutate(p.id)}
