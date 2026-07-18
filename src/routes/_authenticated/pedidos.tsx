@@ -17,6 +17,8 @@ function Pedidos() {
   const listFn = useServerFn(listOrders);
   const createFn = useServerFn(createOrder);
   const delFn = useServerFn(deleteOrder);
+  const statusFn = useServerFn(setOrderStatus);
+
 
   const { data: rows = [], isLoading, error } = useQuery({
     queryKey: ["orders"],
