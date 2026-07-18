@@ -832,3 +832,18 @@ export const deleteSavedSearch = createServerFn({ method: 'POST' })
     if (error) throw new Error(error.message)
     return { ok: true }
   })
+
+export const renameSavedSearch = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z.object({ id: z.string().uuid(), name: z.string().trim().min(1).max(120) }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase
+      .from('prospecting_cache')
+      .update({ name: data.name } as never)
+      .eq('id', data.id)
+      .eq('user_id', context.userId)
+    if (error) throw new Error(error.message)
+    return { ok: true }
+  })
