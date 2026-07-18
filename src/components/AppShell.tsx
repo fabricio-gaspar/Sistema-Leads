@@ -65,11 +65,31 @@ const NOTIF_ICONS = {
   sistema: Sparkles,
 } as const;
 
-export function AppShell({ children }: { children: ReactNode }) {
+export function AppShell({
+  children,
+  isSellerOnly = false,
+  isAdmin = false,
+}: {
+  children: ReactNode;
+  isSellerOnly?: boolean;
+  isAdmin?: boolean;
+}) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const title =
     TITLES[pathname] ??
     (pathname.startsWith("/leads/") ? "Detalhe do Lead" : "WF Digital CRM");
+
+  // Vendedor puro: renderiza apenas o Portal, sem sidebar/header administrativo
+  if (isSellerOnly) {
+    return <div className="min-h-screen w-full bg-bg-general">{children}</div>;
+  }
+
+  // Filtra itens sensíveis para não-admins (sdr/cx sem admin)
+  const visibleNav = NAV.filter((item) => {
+    if (isAdmin) return true;
+    const adminOnly = ["/empresa", "/configuracoes", "/diagnostico", "/relatorios"];
+    return !adminOnly.includes(item.to);
+  });
 
   const notifications = useNotifications();
   const notifActions = useNotificationsActions();
