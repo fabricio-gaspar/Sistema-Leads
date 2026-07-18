@@ -567,7 +567,7 @@ function MeusOrcamentosList({ proposals }: { proposals: ProposalRow[] }) {
           </div>
           <div className="mt-2 flex items-center justify-between">
             <div className="text-[13px] font-semibold text-primary">
-              {formatBRL(Number(p.total || 0))}
+              {formatBRL(Number(p.value || 0))}
             </div>
             <div className="text-[10px] text-text-ter">
               {new Date(p.created_at).toLocaleDateString("pt-BR")}
