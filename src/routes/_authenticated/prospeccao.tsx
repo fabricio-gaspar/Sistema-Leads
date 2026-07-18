@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Sparkles, Search, Loader2, Download, Plus, ExternalLink, RotateCcw, Info, Building2, MapPin, Bot, Save, Bookmark, Trash2, FolderOpen, Zap } from "lucide-react";
+import { Sparkles, Search, Loader2, Download, Plus, ExternalLink, RotateCcw, Info, Building2, MapPin, Bot, Save, Bookmark, Trash2, FolderOpen, Zap, Pencil } from "lucide-react";
 import { Card } from "@/components/ui-kit";
 import {
   searchExternalCompanies,
@@ -12,6 +12,7 @@ import {
   listSavedSearches,
   getSavedSearch,
   deleteSavedSearch,
+  renameSavedSearch,
   type ExternalCompany,
   type SourceId,
 } from "@/lib/prospecting.functions";
@@ -82,6 +83,7 @@ function Prospeccao() {
   const savedGetFn = useServerFn(getSavedSearch);
   const savedSaveFn = useServerFn(saveProspectingSearch);
   const savedDelFn = useServerFn(deleteSavedSearch);
+  const savedRenameFn = useServerFn(renameSavedSearch);
   const savedQuery = useQuery({ queryKey: ["saved-searches"], queryFn: () => savedListFn() });
 
   const [form, setForm] = useState<FormState>(INITIAL);
@@ -165,6 +167,15 @@ function Prospeccao() {
     onSuccess: (_r, id) => {
       if (loadedSaved?.id === id) setLoadedSaved(null);
       qc.invalidateQueries({ queryKey: ["saved-searches"] });
+    },
+  });
+
+  const renameMut = useMutation({
+    mutationFn: (v: { id: string; name: string }) => savedRenameFn({ data: v }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["saved-searches"] });
+      setFlash("✔ Busca renomeada.");
+      setTimeout(() => setFlash(null), 2500);
     },
   });
 
@@ -267,6 +278,17 @@ function Prospeccao() {
                       className="rounded p-1 text-text-ter hover:bg-bg-general hover:text-primary"
                     >
                       <FolderOpen className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      title="Renomear"
+                      onClick={() => {
+                        const n = prompt("Novo nome da busca:", s.name);
+                        if (n && n.trim() && n.trim() !== s.name) renameMut.mutate({ id: s.id, name: n.trim() });
+                      }}
+                      className="rounded p-1 text-text-ter hover:bg-bg-general hover:text-primary"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
                     </button>
                     <button
                       type="button"

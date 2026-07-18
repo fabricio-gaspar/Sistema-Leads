@@ -27,6 +27,9 @@ import {
   listIntegrations,
   listNotifications,
   markAllNotificationsRead,
+  markNotificationRead,
+  deleteNotification,
+  disconnectIntegration,
 } from "@/lib/crm.functions";
 
 type TabId = "ana" | "prospeccao" | "equipe" | "servicos" | "objecoes" | "score" | "governanca" | "auditoria" | "notificacoes" | "integracoes" | "seguranca";
@@ -412,15 +415,26 @@ function AbaNotif() {
   const qc = useQueryClient();
   const listFn = useServerFn(listNotifications);
   const markAllFn = useServerFn(markAllNotificationsRead);
+  const markFn = useServerFn(markNotificationRead);
+  const delFn = useServerFn(deleteNotification);
   const { data = [], isLoading } = useQuery({ queryKey: ["notifications"], queryFn: () => listFn() });
 
-  const markMut = useMutation({
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["notifications"] });
+    qc.invalidateQueries({ queryKey: ["sidebar-counts"] });
+  };
+
+  const markAllMut = useMutation({
     mutationFn: () => markAllFn(),
-    onSuccess: () => {
-      toast.success("Todas marcadas como lidas");
-      qc.invalidateQueries({ queryKey: ["notifications"] });
-      qc.invalidateQueries({ queryKey: ["sidebar-counts"] });
-    },
+    onSuccess: () => { toast.success("Todas marcadas como lidas"); invalidate(); },
+  });
+  const toggleMut = useMutation({
+    mutationFn: (v: { id: string; read: boolean }) => markFn({ data: v }),
+    onSuccess: () => invalidate(),
+  });
+  const delMut = useMutation({
+    mutationFn: (id: string) => delFn({ data: { id } }),
+    onSuccess: () => { toast.success("Notificação removida"); invalidate(); },
   });
 
   const unread = data.filter((n) => !n.read).length;
@@ -432,11 +446,11 @@ function AbaNotif() {
         hint={`${data.length} recente(s) · ${unread} não lida(s)`}
         action={
           <button
-            onClick={() => markMut.mutate()}
-            disabled={markMut.isPending || unread === 0}
+            onClick={() => markAllMut.mutate()}
+            disabled={markAllMut.isPending || unread === 0}
             className="rounded-md border border-border-card bg-bg-card px-3 py-1.5 text-[12px] hover:bg-bg-general disabled:opacity-50"
           >
-            {markMut.isPending ? "…" : "Marcar todas como lidas"}
+            {markAllMut.isPending ? "…" : "Marcar todas como lidas"}
           </button>
         }
       />
@@ -450,7 +464,7 @@ function AbaNotif() {
         <ul className="divide-y divide-border-card">
           {data.map((n) => (
             <li key={n.id} className="flex items-start justify-between gap-3 py-2.5">
-              <div className="min-w-0">
+              <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
                   <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary capitalize">
                     {n.kind}
@@ -462,7 +476,22 @@ function AbaNotif() {
                   {new Date(n.created_at).toLocaleString("pt-BR")}
                 </div>
               </div>
-              {!n.read && <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-primary" />}
+              <div className="flex items-center gap-1">
+                {!n.read && <span className="h-2 w-2 shrink-0 rounded-full bg-primary" />}
+                <button
+                  onClick={() => toggleMut.mutate({ id: n.id, read: !n.read })}
+                  className="rounded px-2 py-0.5 text-[11px] text-text-sec hover:bg-bg-general"
+                >
+                  {n.read ? "Marcar não lida" : "Marcar lida"}
+                </button>
+                <button
+                  onClick={() => confirm("Excluir esta notificação?") && delMut.mutate(n.id)}
+                  className="rounded p-1 text-text-ter hover:bg-error-bg hover:text-error"
+                  title="Excluir"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
             </li>
           ))}
         </ul>
@@ -472,8 +501,16 @@ function AbaNotif() {
 }
 
 function AbaInt() {
+  const qc = useQueryClient();
   const listFn = useServerFn(listIntegrations);
+  const disconnectFn = useServerFn(disconnectIntegration);
   const { data = [], isLoading } = useQuery({ queryKey: ["integrations"], queryFn: () => listFn() });
+
+  const disconnectMut = useMutation({
+    mutationFn: (key: string) => disconnectFn({ data: { key } }),
+    onSuccess: () => { toast.success("Integração desconectada"); qc.invalidateQueries({ queryKey: ["integrations"] }); },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   return (
     <Card>
@@ -493,9 +530,18 @@ function AbaInt() {
                 </div>
               </div>
               {i.connected ? (
-                <span className="rounded-full bg-success-bg px-2 py-0.5 text-[10.5px] font-semibold text-success">
-                  Conectado
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="rounded-full bg-success-bg px-2 py-0.5 text-[10.5px] font-semibold text-success">
+                    Conectado
+                  </span>
+                  <button
+                    onClick={() => confirm(`Desconectar ${i.label}?`) && disconnectMut.mutate(i.key)}
+                    disabled={disconnectMut.isPending}
+                    className="rounded-md border border-border-card px-2 py-1 text-[11px] text-text-sec hover:bg-error hover:text-white hover:border-error disabled:opacity-50"
+                  >
+                    Desconectar
+                  </button>
+                </div>
               ) : (
                 <button
                   onClick={() =>

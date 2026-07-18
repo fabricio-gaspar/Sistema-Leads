@@ -5,7 +5,10 @@ import { useServerFn } from "@tanstack/react-start";
 import { Package, Plus, Loader2, Trash2 } from "lucide-react";
 import { Card, SectionTitle } from "@/components/ui-kit";
 import { formatBRL } from "@/lib/leads-data";
-import { createOrder, deleteOrder, listOrders } from "@/lib/crm.functions";
+import { createOrder, deleteOrder, listOrders, setOrderStatus } from "@/lib/crm.functions";
+import { toast } from "sonner";
+
+const ORDER_STATUS = ["producao", "expedicao", "entregue", "cancelado"];
 
 export const Route = createFileRoute("/_authenticated/pedidos")({ component: Pedidos });
 
@@ -14,6 +17,8 @@ function Pedidos() {
   const listFn = useServerFn(listOrders);
   const createFn = useServerFn(createOrder);
   const delFn = useServerFn(deleteOrder);
+  const statusFn = useServerFn(setOrderStatus);
+
 
   const { data: rows = [], isLoading, error } = useQuery({
     queryKey: ["orders"],
@@ -33,6 +38,11 @@ function Pedidos() {
   const delMut = useMutation({
     mutationFn: (id: string) => delFn({ data: { id } }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["orders"] }),
+  });
+  const statusMut = useMutation({
+    mutationFn: (v: { id: string; status: string }) => statusFn({ data: v }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["orders"] }); toast.success("Status atualizado"); },
+    onError: (e: Error) => toast.error(e.message),
   });
 
   return (
@@ -98,9 +108,14 @@ function Pedidos() {
                 </div>
                 <div className="text-right">
                   <div className="text-[15px] font-semibold text-text-title">{formatBRL(Number(p.value || 0))}</div>
-                  <span className="inline-flex rounded-full bg-bg-general px-2 py-0.5 text-[11px] capitalize">
-                    {p.status ?? "novo"}
-                  </span>
+                  <select
+                    value={(p.status ?? "producao").toLowerCase()}
+                    disabled={statusMut.isPending}
+                    onChange={(e) => statusMut.mutate({ id: p.id, status: e.target.value })}
+                    className="mt-1 h-7 rounded-md border border-border-card bg-bg-card px-2 text-[11px] capitalize outline-none focus:border-primary"
+                  >
+                    {ORDER_STATUS.map((s) => <option key={s} value={s}>{s}</option>)}
+                  </select>
                 </div>
                 <button
                   onClick={() => confirm(`Excluir pedido ${p.number}?`) && delMut.mutate(p.id)}

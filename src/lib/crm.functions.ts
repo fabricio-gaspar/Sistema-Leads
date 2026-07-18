@@ -1342,3 +1342,128 @@ export const listIntegrations = createServerFn({ method: 'GET' })
     if (error) throw new Error(error.message)
     return data ?? []
   })
+
+// ============= EXTRA ACTIONS (edit/status/duplicate/disconnect) =============
+
+export const setProposalStatus = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z.object({ id: z.string().uuid(), status: z.string().min(1) }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { data: row, error } = await context.supabase
+      .from('proposals')
+      .update({ status: data.status } as never)
+      .eq('id', data.id)
+      .select()
+      .single()
+    if (error) throw new Error(error.message)
+    return row
+  })
+
+export const duplicateProposal = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: src, error: e1 } = await context.supabase
+      .from('proposals').select('*').eq('id', data.id).single()
+    if (e1 || !src) throw new Error(e1?.message ?? 'Proposta não encontrada')
+    const { count } = await context.supabase.from('proposals').select('id', { count: 'exact', head: true })
+    const number = `ORC-${String((count ?? 0) + 1).padStart(4, '0')}`
+    const clone: Record<string, unknown> = { ...src }
+    delete clone.id; delete clone.created_at; delete clone.updated_at
+    clone.number = number
+    clone.status = 'rascunho'
+    clone.owner_id = context.userId
+    const { data: row, error } = await context.supabase
+      .from('proposals').insert(clone as never).select().single()
+    if (error) throw new Error(error.message)
+    return row
+  })
+
+export const convertProposalToOrder = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: p, error: e1 } = await context.supabase
+      .from('proposals').select('*').eq('id', data.id).single()
+    if (e1 || !p) throw new Error(e1?.message ?? 'Proposta não encontrada')
+    const { count } = await context.supabase.from('orders').select('id', { count: 'exact', head: true })
+    const number = `PED-${String((count ?? 0) + 1).padStart(4, '0')}`
+    const orderPayload: Record<string, unknown> = {
+      number,
+      lead_id: (p as any).lead_id ?? null,
+      proposal_id: (p as any).id,
+      company: (p as any).client,
+      seller_name: (p as any).creator_name ?? null,
+      seller_type: 'human',
+      order_date: new Date().toISOString().slice(0, 10),
+      items: (p as any).items ?? '[]',
+      value: (p as any).value,
+      status: 'producao',
+      owner_id: context.userId,
+    }
+    const { data: order, error: e2 } = await context.supabase
+      .from('orders').insert(orderPayload as never).select().single()
+    if (e2) throw new Error(e2.message)
+    await context.supabase.from('proposals').update({ status: 'aprovado' } as never).eq('id', data.id)
+    return order
+  })
+
+export const setOrderStatus = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z.object({ id: z.string().uuid(), status: z.string().min(1) }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const { data: row, error } = await context.supabase
+      .from('orders')
+      .update({ status: data.status } as never)
+      .eq('id', data.id)
+      .select()
+      .single()
+    if (error) throw new Error(error.message)
+    return row
+  })
+
+// ============= NOTIFICATIONS (individual) =============
+
+export const markNotificationRead = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid(), read: z.boolean().default(true) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase
+      .from('notifications')
+      .update({ read: data.read } as never)
+      .eq('id', data.id)
+      .eq('user_id', context.userId)
+    if (error) throw new Error(error.message)
+    return { ok: true }
+  })
+
+export const deleteNotification = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase
+      .from('notifications')
+      .delete()
+      .eq('id', data.id)
+      .eq('user_id', context.userId)
+    if (error) throw new Error(error.message)
+    return { ok: true }
+  })
+
+// ============= INTEGRATIONS (disconnect) =============
+
+export const disconnectIntegration = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ key: z.string().min(1) }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { error } = await context.supabase
+      .from('integrations')
+      .update({ connected: false } as never)
+      .eq('key', data.key)
+    if (error) throw new Error(error.message)
+    return { ok: true }
+  })
