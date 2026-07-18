@@ -73,6 +73,7 @@ function Atendimento() {
           )}
           {filtered.map((l) => {
             const isAI = l.owner === "ia";
+            const wait = waitMin(l.last_contact);
             return (
               <li key={l.id}>
                 <button
@@ -90,8 +91,18 @@ function Atendimento() {
                       {isAI ? "🤖" : "👤"}
                     </span>
                   </div>
-                  <div className="mt-1 text-[11px] text-text-ter">
-                    {l.stage} · score {l.score}
+                  <div className="mt-1 flex items-center justify-between text-[11px] text-text-ter">
+                    <span>{l.stage} · score {l.score}</span>
+                    {wait != null && (
+                      <span
+                        className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${
+                          wait > 60 ? "bg-hot-bg text-hot" : wait > 15 ? "bg-warm-bg text-warm" : "bg-cold-bg text-cold"
+                        }`}
+                        title="Tempo desde último contato"
+                      >
+                        {wait < 60 ? `${wait}min` : `${Math.floor(wait / 60)}h`}
+                      </span>
+                    )}
                   </div>
                 </button>
               </li>
