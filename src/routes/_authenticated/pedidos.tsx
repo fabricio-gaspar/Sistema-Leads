@@ -5,7 +5,10 @@ import { useServerFn } from "@tanstack/react-start";
 import { Package, Plus, Loader2, Trash2 } from "lucide-react";
 import { Card, SectionTitle } from "@/components/ui-kit";
 import { formatBRL } from "@/lib/leads-data";
-import { createOrder, deleteOrder, listOrders } from "@/lib/crm.functions";
+import { createOrder, deleteOrder, listOrders, setOrderStatus } from "@/lib/crm.functions";
+import { toast } from "sonner";
+
+const ORDER_STATUS = ["producao", "expedicao", "entregue", "cancelado"];
 
 export const Route = createFileRoute("/_authenticated/pedidos")({ component: Pedidos });
 
