@@ -2,10 +2,11 @@ import { createFileRoute, Link, Outlet, useRouterState } from "@tanstack/react-r
 import { useState, type DragEvent } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Flame, Thermometer, Snowflake, Bot, User as UserIcon, Plus, Download, Loader2 } from "lucide-react";
+import { Flame, Thermometer, Snowflake, Bot, User as UserIcon, Plus, Download, Loader2, Trash2, Archive } from "lucide-react";
+import { toast } from "sonner";
 import { formatBRL } from "@/lib/leads-data";
 import { downloadCSV } from "@/lib/exports";
-import { createLead, listLeads, moveLeadStage } from "@/lib/crm.functions";
+import { createLead, listLeads, moveLeadStage, deleteLead } from "@/lib/crm.functions";
 import type { Database } from "@/integrations/supabase/types";
 
 type LeadRow = Database["public"]["Tables"]["leads"]["Row"];
