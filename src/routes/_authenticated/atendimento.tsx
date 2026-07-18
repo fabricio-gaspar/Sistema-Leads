@@ -230,3 +230,10 @@ function ConversationPane({ lead }: { lead: LeadRow }) {
     </Card>
   );
 }
+
+function waitMin(lastContact: string | null | undefined): number | null {
+  if (!lastContact) return null;
+  const t = new Date(lastContact).getTime();
+  if (Number.isNaN(t)) return null;
+  return Math.floor((Date.now() - t) / 60000);
+}
