@@ -2,19 +2,32 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { FileText, Plus, Download, Loader2, Trash2 } from "lucide-react";
+import { FileText, Plus, Download, Loader2, Trash2, Copy, ArrowRightCircle } from "lucide-react";
 import { Card, SectionTitle } from "@/components/ui-kit";
+import { toast } from "sonner";
 import { formatBRL } from "@/lib/leads-data";
 import { generateOrcamentoPDF } from "@/lib/exports";
-import { createProposal, deleteProposal, listProposals } from "@/lib/crm.functions";
+import {
+  createProposal,
+  deleteProposal,
+  listProposals,
+  setProposalStatus,
+  duplicateProposal,
+  convertProposalToOrder,
+} from "@/lib/crm.functions";
 
 export const Route = createFileRoute("/_authenticated/orcamentos")({ component: Orcamentos });
+
+const STATUS_OPTIONS = ["rascunho", "enviado", "visualizado", "aprovado", "recusado"];
 
 function Orcamentos() {
   const qc = useQueryClient();
   const listFn = useServerFn(listProposals);
   const createFn = useServerFn(createProposal);
   const delFn = useServerFn(deleteProposal);
+  const setStatusFn = useServerFn(setProposalStatus);
+  const dupFn = useServerFn(duplicateProposal);
+  const convertFn = useServerFn(convertProposalToOrder);
 
   const { data: rows = [], isLoading, error } = useQuery({
     queryKey: ["proposals"],
@@ -31,9 +44,30 @@ function Orcamentos() {
     .filter((r) => (r.status ?? "").toLowerCase() === "aprovado")
     .reduce((a, r) => a + Number(r.value || 0), 0);
 
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["proposals"] });
+    qc.invalidateQueries({ queryKey: ["orders"] });
+    qc.invalidateQueries({ queryKey: ["sidebar-counts"] });
+  };
+
   const delMut = useMutation({
     mutationFn: (id: string) => delFn({ data: { id } }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["proposals"] }),
+    onSuccess: () => { invalidate(); toast.success("Proposta excluída"); },
+  });
+  const statusMut = useMutation({
+    mutationFn: (v: { id: string; status: string }) => setStatusFn({ data: v }),
+    onSuccess: () => { invalidate(); toast.success("Status atualizado"); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const dupMut = useMutation({
+    mutationFn: (id: string) => dupFn({ data: { id } }),
+    onSuccess: () => { invalidate(); toast.success("Proposta duplicada"); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const convertMut = useMutation({
+    mutationFn: (id: string) => convertFn({ data: { id } }),
+    onSuccess: (o: any) => { invalidate(); toast.success(`Convertida em pedido ${o?.number ?? ""}`); },
+    onError: (e: Error) => toast.error(e.message),
   });
 
   return (
@@ -58,7 +92,7 @@ function Orcamentos() {
 
       <div className="flex items-center justify-between">
         <div className="flex gap-1 rounded-md bg-bg-card p-1 border border-border-card">
-          {["todos", "rascunho", "enviado", "visualizado", "aprovado", "recusado"].map((t) => (
+          {["todos", ...STATUS_OPTIONS].map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -103,47 +137,79 @@ function Orcamentos() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border-card">
-              {filtered.map((o) => (
-                <tr key={o.id} className="hover:bg-bg-general/40">
-                  <td className="p-3 font-mono text-[12px] text-text-title">{o.number}</td>
-                  <td className="p-3 font-medium text-text-title">{o.client}</td>
-                  <td className="p-3 font-medium text-text-title">{formatBRL(Number(o.value || 0))}</td>
-                  <td className="p-3 text-text-body">
-                    {new Date(o.created_at).toLocaleDateString("pt-BR")}
-                  </td>
-                  <td className="p-3">
-                    <span className="rounded-full bg-bg-general px-2 py-0.5 text-[11px] capitalize">
-                      {o.status ?? "rascunho"}
-                    </span>
-                  </td>
-                  <td className="p-3 text-right">
-                    <div className="inline-flex gap-2">
-                      <button
-                        onClick={() =>
-                          generateOrcamentoPDF({
-                            id: o.number,
-                            cliente: o.client,
-                            itens: Array.isArray(o.items) ? o.items.length : 1,
-                            valor: Number(o.value || 0),
-                            emissao: new Date(o.created_at).toLocaleDateString("pt-BR"),
-                            validade: "—",
-                            vendedor: o.creator_name ?? "—",
-                          })
-                        }
-                        className="inline-flex items-center gap-1 rounded-md border border-border-card bg-bg-card px-2 py-1 text-[11px] hover:bg-primary hover:text-primary-foreground hover:border-primary"
+              {filtered.map((o) => {
+                const st = (o.status ?? "rascunho").toLowerCase();
+                const canConvert = st === "aprovado";
+                return (
+                  <tr key={o.id} className="hover:bg-bg-general/40">
+                    <td className="p-3 font-mono text-[12px] text-text-title">{o.number}</td>
+                    <td className="p-3 font-medium text-text-title">{o.client}</td>
+                    <td className="p-3 font-medium text-text-title">{formatBRL(Number(o.value || 0))}</td>
+                    <td className="p-3 text-text-body">
+                      {new Date(o.created_at).toLocaleDateString("pt-BR")}
+                    </td>
+                    <td className="p-3">
+                      <select
+                        value={st}
+                        disabled={statusMut.isPending}
+                        onChange={(e) => statusMut.mutate({ id: o.id, status: e.target.value })}
+                        className="h-7 rounded-md border border-border-card bg-bg-card px-2 text-[11px] capitalize outline-none focus:border-primary"
                       >
-                        <Download className="h-3 w-3" /> PDF
-                      </button>
-                      <button
-                        onClick={() => confirm(`Excluir proposta ${o.number}?`) && delMut.mutate(o.id)}
-                        className="inline-flex items-center gap-1 rounded-md border border-border-card bg-bg-card px-2 py-1 text-[11px] text-text-sec hover:bg-error hover:text-white hover:border-error"
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                        {STATUS_OPTIONS.map((s) => (
+                          <option key={s} value={s}>{s}</option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="p-3 text-right">
+                      <div className="inline-flex gap-1.5">
+                        <button
+                          title="Converter em pedido"
+                          disabled={!canConvert || convertMut.isPending}
+                          onClick={() =>
+                            confirm(`Converter proposta ${o.number} em pedido?`) &&
+                            convertMut.mutate(o.id)
+                          }
+                          className="inline-flex items-center gap-1 rounded-md border border-border-card bg-bg-card px-2 py-1 text-[11px] hover:bg-success hover:text-white hover:border-success disabled:opacity-40"
+                        >
+                          <ArrowRightCircle className="h-3 w-3" /> Pedido
+                        </button>
+                        <button
+                          title="Duplicar"
+                          disabled={dupMut.isPending}
+                          onClick={() => dupMut.mutate(o.id)}
+                          className="inline-flex items-center gap-1 rounded-md border border-border-card bg-bg-card px-2 py-1 text-[11px] hover:bg-bg-general disabled:opacity-40"
+                        >
+                          <Copy className="h-3 w-3" />
+                        </button>
+                        <button
+                          title="PDF"
+                          onClick={() =>
+                            generateOrcamentoPDF({
+                              id: o.number,
+                              cliente: o.client,
+                              itens: Array.isArray(o.items) ? o.items.length : 1,
+                              valor: Number(o.value || 0),
+                              emissao: new Date(o.created_at).toLocaleDateString("pt-BR"),
+                              validade: "—",
+                              vendedor: o.creator_name ?? "—",
+                            })
+                          }
+                          className="inline-flex items-center gap-1 rounded-md border border-border-card bg-bg-card px-2 py-1 text-[11px] hover:bg-primary hover:text-primary-foreground hover:border-primary"
+                        >
+                          <Download className="h-3 w-3" />
+                        </button>
+                        <button
+                          title="Excluir"
+                          onClick={() => confirm(`Excluir proposta ${o.number}?`) && delMut.mutate(o.id)}
+                          className="inline-flex items-center gap-1 rounded-md border border-border-card bg-bg-card px-2 py-1 text-[11px] text-text-sec hover:bg-error hover:text-white hover:border-error"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         )}
@@ -155,7 +221,7 @@ function Orcamentos() {
           onClose={() => setCreating(false)}
           onSubmit={async (v) => {
             await createFn({ data: v });
-            qc.invalidateQueries({ queryKey: ["proposals"] });
+            invalidate();
             setCreating(false);
           }}
         />
@@ -229,11 +295,9 @@ function NewProposalModal({
                 onChange={(e) => setForm({ ...form, status: e.target.value })}
                 className="h-9 w-full rounded-md border border-border-card bg-bg-card px-2 text-[13px]"
               >
-                <option>rascunho</option>
-                <option>enviado</option>
-                <option>visualizado</option>
-                <option>aprovado</option>
-                <option>recusado</option>
+                {STATUS_OPTIONS.map((s) => (
+                  <option key={s} value={s}>{s}</option>
+                ))}
               </select>
             </div>
           </div>
