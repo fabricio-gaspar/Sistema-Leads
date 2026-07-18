@@ -205,50 +205,76 @@ function LeadCard({
   lead,
   onDragStart,
   dragging,
+  onArchive,
+  onDelete,
 }: {
   lead: LeadRow;
   onDragStart: (e: DragEvent) => void;
   dragging: boolean;
+  onArchive: () => void;
+  onDelete: () => void;
 }) {
   const isAI = lead.owner === "ia";
   return (
-    <Link
-      to="/leads/$id"
-      params={{ id: lead.id }}
-      draggable
-      onDragStart={onDragStart}
-      className={`mb-2 block cursor-grab rounded-md border border-border-card bg-bg-card p-3 shadow-sm transition-all hover:border-primary/40 hover:shadow ${
+    <div
+      className={`mb-2 rounded-md border border-border-card bg-bg-card shadow-sm transition-all hover:border-primary/40 hover:shadow ${
         dragging ? "opacity-40" : ""
       }`}
+      draggable
+      onDragStart={onDragStart}
     >
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <div className="truncate text-[13px] font-semibold text-text-title">{lead.company}</div>
-          <div className="truncate text-[11px] text-text-sec">
-            {lead.contact ?? "—"}
-            {lead.title ? ` · ${lead.title}` : ""}
+      <Link
+        to="/leads/$id"
+        params={{ id: lead.id }}
+        className="block cursor-grab p-3"
+      >
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <div className="truncate text-[13px] font-semibold text-text-title">{lead.company}</div>
+            <div className="truncate text-[11px] text-text-sec">
+              {lead.contact ?? "—"}
+              {lead.title ? ` · ${lead.title}` : ""}
+            </div>
           </div>
+          <TempBadge t={lead.temp} score={lead.score} />
         </div>
-        <TempBadge t={lead.temp} score={lead.score} />
-      </div>
 
-      <div className="mt-2.5 flex items-center justify-between">
-        <span className="text-[13px] font-semibold text-text-title">{formatBRL(Number(lead.value || 0))}</span>
-        <span className="text-[11px] text-text-ter">{lead.segment ?? ""}</span>
-      </div>
-
-      <ChannelBadges lead={lead} />
-
-      <div className="mt-2 flex items-center justify-between border-t border-border-card pt-2">
-        <div className={`inline-flex items-center gap-1 text-[11px] ${isAI ? "text-ia" : "text-text-sec"}`}>
-          {isAI ? <Bot className="h-3 w-3" /> : <UserIcon className="h-3 w-3" />}
-          <span className="truncate">{isAI ? "Ana (IA)" : "Humano"}</span>
+        <div className="mt-2.5 flex items-center justify-between">
+          <span className="text-[13px] font-semibold text-text-title">{formatBRL(Number(lead.value || 0))}</span>
+          <span className="text-[11px] text-text-ter">{lead.segment ?? ""}</span>
         </div>
-        {(lead as any).ai_paused && (
-          <span className="rounded-full bg-warm-bg px-1.5 py-0.5 text-[10px] font-medium text-warm">IA pausada</span>
-        )}
+
+        <ChannelBadges lead={lead} />
+
+        <div className="mt-2 flex items-center justify-between border-t border-border-card pt-2">
+          <div className={`inline-flex items-center gap-1 text-[11px] ${isAI ? "text-ia" : "text-text-sec"}`}>
+            {isAI ? <Bot className="h-3 w-3" /> : <UserIcon className="h-3 w-3" />}
+            <span className="truncate">{isAI ? "Ana (IA)" : "Humano"}</span>
+          </div>
+          {(lead as any).ai_paused && (
+            <span className="rounded-full bg-warm-bg px-1.5 py-0.5 text-[10px] font-medium text-warm">IA pausada</span>
+          )}
+        </div>
+      </Link>
+      <div className="flex items-center justify-end gap-1 border-t border-border-card px-2 py-1">
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); e.preventDefault(); onArchive(); }}
+          title="Arquivar como Perdido"
+          className="rounded p-1 text-text-ter hover:bg-warm-bg hover:text-warm"
+        >
+          <Archive className="h-3.5 w-3.5" />
+        </button>
+        <button
+          type="button"
+          onClick={(e) => { e.stopPropagation(); e.preventDefault(); onDelete(); }}
+          title="Excluir"
+          className="rounded p-1 text-text-ter hover:bg-error-bg hover:text-error"
+        >
+          <Trash2 className="h-3.5 w-3.5" />
+        </button>
       </div>
-    </Link>
+    </div>
   );
 }
 
