@@ -132,11 +132,8 @@ export function AppShell({
     return () => document.removeEventListener("mousedown", onClick);
   }, []);
 
-  // Portal do Vendedor usa layout próprio (sem sidebar)
-  if (pathname.startsWith("/portal-vendedor/")) {
-    return <>{children}</>;
-  }
-
+  // Portal do Vendedor (admin em preview) usa layout próprio (sem sidebar) apenas para sub-rotas
+  // Mantém sidebar em /portal-vendedor raiz para admin poder navegar de volta
   return (
     <div className="flex min-h-screen w-full bg-bg-general">
       <aside
