@@ -39,6 +39,11 @@ function Pedidos() {
     mutationFn: (id: string) => delFn({ data: { id } }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["orders"] }),
   });
+  const statusMut = useMutation({
+    mutationFn: (v: { id: string; status: string }) => statusFn({ data: v }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["orders"] }); toast.success("Status atualizado"); },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   return (
     <div className="space-y-4">
