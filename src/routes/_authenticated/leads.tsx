@@ -27,6 +27,7 @@ function Kanban() {
   const listFn = useServerFn(listLeads);
   const moveFn = useServerFn(moveLeadStage);
   const createFn = useServerFn(createLead);
+  const delFn = useServerFn(deleteLead);
 
   const { data: leads = [], isLoading, error } = useQuery({
     queryKey: ["leads"],
@@ -36,6 +37,15 @@ function Kanban() {
   const moveMut = useMutation({
     mutationFn: (v: { id: string; stage: Stage }) => moveFn({ data: v }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["leads"] }),
+  });
+  const delMut = useMutation({
+    mutationFn: (id: string) => delFn({ data: { id } }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["leads"] }); toast.success("Lead excluído"); },
+    onError: (e: Error) => toast.error(e.message),
+  });
+  const archiveMut = useMutation({
+    mutationFn: (id: string) => moveFn({ data: { id, stage: "Perdido" as Stage } }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["leads"] }); toast.success("Lead arquivado como Perdido"); },
   });
 
   const [dragId, setDragId] = useState<string | null>(null);
