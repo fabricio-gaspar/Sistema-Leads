@@ -83,6 +83,7 @@ function Prospeccao() {
   const savedGetFn = useServerFn(getSavedSearch);
   const savedSaveFn = useServerFn(saveProspectingSearch);
   const savedDelFn = useServerFn(deleteSavedSearch);
+  const savedRenameFn = useServerFn(renameSavedSearch);
   const savedQuery = useQuery({ queryKey: ["saved-searches"], queryFn: () => savedListFn() });
 
   const [form, setForm] = useState<FormState>(INITIAL);
