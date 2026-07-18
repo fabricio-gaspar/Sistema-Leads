@@ -157,6 +157,12 @@ function Kanban() {
                         lead={lead}
                         onDragStart={() => setDragId(lead.id)}
                         dragging={dragId === lead.id}
+                        onArchive={() => {
+                          if (confirm(`Arquivar ${lead.company} como Perdido?`)) archiveMut.mutate(lead.id);
+                        }}
+                        onDelete={() => {
+                          if (confirm(`Excluir permanentemente ${lead.company}?`)) delMut.mutate(lead.id);
+                        }}
                       />
                     ))}
                     {items.length === 0 && (
