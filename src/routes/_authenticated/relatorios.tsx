@@ -39,12 +39,28 @@ function Relatorios() {
 
   return (
     <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="text-[12px] text-text-sec">Período de análise</div>
+        <div className="flex gap-1 rounded-md border border-border-card bg-bg-card p-0.5">
+          {PERIODS.map((p) => (
+            <button
+              key={p.id}
+              onClick={() => setPeriod(p.id)}
+              className={`rounded px-3 py-1 text-[12px] font-medium transition ${period === p.id ? "bg-primary text-white" : "text-text-body hover:bg-bg-general"}`}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="grid grid-cols-4 gap-4">
         {[
-          { l: "Receita 7 meses", v: formatBRL(kpis.receita7m) },
+          { l: `Receita (${PERIODS.find((p) => p.id === period)?.label.toLowerCase()})`, v: formatBRL(kpis.receita7m) },
           { l: "Leads gerados", v: String(kpis.leadsGerados) },
           { l: "Ticket médio", v: formatBRL(kpis.ticket) },
-          { l: "Fechados", v: String(kpis.fechados7m), d: "Últimos 7 meses" },
+          { l: "Fechados", v: String(kpis.fechados7m) },
+
         ].map((k) => (
           <Card key={k.l}>
             <div className="text-[11px] uppercase text-text-ter">{k.l}</div>
