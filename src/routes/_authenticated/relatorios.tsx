@@ -65,8 +65,8 @@ function Relatorios() {
           <Card key={k.l}>
             <div className="text-[11px] uppercase text-text-ter">{k.l}</div>
             <div className="text-[22px] font-semibold text-text-title">{k.v}</div>
-            {k.d && <div className="text-[11px] text-text-sec">{k.d}</div>}
           </Card>
+
         ))}
       </div>
 
