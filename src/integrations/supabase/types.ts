@@ -142,6 +142,110 @@ export type Database = {
         }
         Relationships: []
       }
+      consent_events: {
+        Row: {
+          actor_id: string | null
+          channel: string
+          contact_point_id: string | null
+          created_at: string
+          event: string
+          id: string
+          lead_id: string | null
+          source: string
+          text: string | null
+        }
+        Insert: {
+          actor_id?: string | null
+          channel: string
+          contact_point_id?: string | null
+          created_at?: string
+          event: string
+          id?: string
+          lead_id?: string | null
+          source: string
+          text?: string | null
+        }
+        Update: {
+          actor_id?: string | null
+          channel?: string
+          contact_point_id?: string | null
+          created_at?: string
+          event?: string
+          id?: string
+          lead_id?: string | null
+          source?: string
+          text?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "consent_events_contact_point_id_fkey"
+            columns: ["contact_point_id"]
+            isOneToOne: false
+            referencedRelation: "contact_points"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "consent_events_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contact_points: {
+        Row: {
+          created_at: string
+          id: string
+          kind: string
+          lead_id: string
+          preferred: boolean
+          source: string | null
+          status: string
+          updated_at: string
+          value: string
+          value_hash: string
+          value_normalized: string
+          verified: boolean
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          kind: string
+          lead_id: string
+          preferred?: boolean
+          source?: string | null
+          status?: string
+          updated_at?: string
+          value: string
+          value_hash: string
+          value_normalized: string
+          verified?: boolean
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          kind?: string
+          lead_id?: string
+          preferred?: boolean
+          source?: string | null
+          status?: string
+          updated_at?: string
+          value?: string
+          value_hash?: string
+          value_normalized?: string
+          verified?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contact_points_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       contact_suppressions: {
         Row: {
           channel: string
@@ -251,6 +355,88 @@ export type Database = {
         }
         Relationships: []
       }
+      knowledge_chunks: {
+        Row: {
+          chunk_index: number
+          content: string
+          created_at: string
+          document_id: string
+          id: string
+          status: string
+          tokens: number | null
+          version: number
+        }
+        Insert: {
+          chunk_index: number
+          content: string
+          created_at?: string
+          document_id: string
+          id?: string
+          status?: string
+          tokens?: number | null
+          version?: number
+        }
+        Update: {
+          chunk_index?: number
+          content?: string
+          created_at?: string
+          document_id?: string
+          id?: string
+          status?: string
+          tokens?: number | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "knowledge_chunks_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lead_assignments: {
+        Row: {
+          changed_by: string | null
+          created_at: string
+          from_user: string | null
+          id: string
+          lead_id: string
+          reason: string | null
+          source: string
+          to_user: string | null
+        }
+        Insert: {
+          changed_by?: string | null
+          created_at?: string
+          from_user?: string | null
+          id?: string
+          lead_id: string
+          reason?: string | null
+          source?: string
+          to_user?: string | null
+        }
+        Update: {
+          changed_by?: string | null
+          created_at?: string
+          from_user?: string | null
+          id?: string
+          lead_id?: string
+          reason?: string | null
+          source?: string
+          to_user?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_assignments_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lead_messages: {
         Row: {
           created_at: string
@@ -288,6 +474,44 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "lead_messages_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lead_notes: {
+        Row: {
+          author_id: string | null
+          body: string
+          created_at: string
+          id: string
+          lead_id: string
+          updated_at: string
+          visibility: string
+        }
+        Insert: {
+          author_id?: string | null
+          body: string
+          created_at?: string
+          id?: string
+          lead_id: string
+          updated_at?: string
+          visibility?: string
+        }
+        Update: {
+          author_id?: string | null
+          body?: string
+          created_at?: string
+          id?: string
+          lead_id?: string
+          updated_at?: string
+          visibility?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_notes_lead_id_fkey"
             columns: ["lead_id"]
             isOneToOne: false
             referencedRelation: "leads"
@@ -365,6 +589,47 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "lead_outreach_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lead_stage_history: {
+        Row: {
+          changed_by: string | null
+          created_at: string
+          from_stage: string | null
+          id: string
+          lead_id: string
+          reason: string | null
+          source: string
+          to_stage: string
+        }
+        Insert: {
+          changed_by?: string | null
+          created_at?: string
+          from_stage?: string | null
+          id?: string
+          lead_id: string
+          reason?: string | null
+          source?: string
+          to_stage: string
+        }
+        Update: {
+          changed_by?: string | null
+          created_at?: string
+          from_stage?: string | null
+          id?: string
+          lead_id?: string
+          reason?: string | null
+          source?: string
+          to_stage?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_stage_history_lead_id_fkey"
             columns: ["lead_id"]
             isOneToOne: false
             referencedRelation: "leads"
@@ -682,6 +947,75 @@ export type Database = {
             columns: ["proposal_id"]
             isOneToOne: false
             referencedRelation: "proposals"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      outreach_jobs: {
+        Row: {
+          attempt: number
+          channel: string
+          created_at: string
+          error: string | null
+          id: string
+          idempotency_key: string | null
+          lead_id: string
+          locked_at: string | null
+          locked_by: string | null
+          outreach_id: string | null
+          payload: Json
+          processed_at: string | null
+          run_at: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempt?: number
+          channel: string
+          created_at?: string
+          error?: string | null
+          id?: string
+          idempotency_key?: string | null
+          lead_id: string
+          locked_at?: string | null
+          locked_by?: string | null
+          outreach_id?: string | null
+          payload?: Json
+          processed_at?: string | null
+          run_at?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempt?: number
+          channel?: string
+          created_at?: string
+          error?: string | null
+          id?: string
+          idempotency_key?: string | null
+          lead_id?: string
+          locked_at?: string | null
+          locked_by?: string | null
+          outreach_id?: string | null
+          payload?: Json
+          processed_at?: string | null
+          run_at?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outreach_jobs_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outreach_jobs_outreach_id_fkey"
+            columns: ["outreach_id"]
+            isOneToOne: false
+            referencedRelation: "lead_outreach"
             referencedColumns: ["id"]
           },
         ]
@@ -1043,6 +1377,63 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      webhook_events: {
+        Row: {
+          created_at: string
+          error: string | null
+          event_type: string | null
+          external_id: string | null
+          id: string
+          lead_id: string | null
+          outreach_id: string | null
+          payload_sha: string | null
+          processed_at: string | null
+          provider: string
+          status: string
+        }
+        Insert: {
+          created_at?: string
+          error?: string | null
+          event_type?: string | null
+          external_id?: string | null
+          id?: string
+          lead_id?: string | null
+          outreach_id?: string | null
+          payload_sha?: string | null
+          processed_at?: string | null
+          provider: string
+          status?: string
+        }
+        Update: {
+          created_at?: string
+          error?: string | null
+          event_type?: string | null
+          external_id?: string | null
+          id?: string
+          lead_id?: string | null
+          outreach_id?: string | null
+          payload_sha?: string | null
+          processed_at?: string | null
+          provider?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "webhook_events_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "webhook_events_outreach_id_fkey"
+            columns: ["outreach_id"]
+            isOneToOne: false
+            referencedRelation: "lead_outreach"
             referencedColumns: ["id"]
           },
         ]
