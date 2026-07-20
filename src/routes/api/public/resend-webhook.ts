@@ -38,7 +38,7 @@ async function verifyResendWebhook(request: Request, rawBody: string): Promise<b
     const keyBytes = base64Bytes(secret.replace(/^whsec_/, ''))
     const key = await crypto.subtle.importKey(
       'raw',
-      keyBytes,
+      keyBytes as BufferSource,
       { name: 'HMAC', hash: 'SHA-256' },
       false,
       ['sign'],
