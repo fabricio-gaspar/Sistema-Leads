@@ -621,3 +621,117 @@ function WarmingStrategyCard({
     </Card>
   );
 }
+
+function NotesCard({ leadId }: { leadId: string }) {
+  const qc = useQueryClient();
+  const listFn = useServerFn(listLeadNotes);
+  const createFn = useServerFn(createLeadNote);
+  const deleteFn = useServerFn(deleteLeadNote);
+  const [body, setBody] = useState("");
+  const q = useQuery({ queryKey: ["lead-notes", leadId], queryFn: () => listFn({ data: { lead_id: leadId } }) });
+  const createMut = useMutation({
+    mutationFn: (b: string) => createFn({ data: { lead_id: leadId, body: b } }),
+    onSuccess: () => { setBody(""); qc.invalidateQueries({ queryKey: ["lead-notes", leadId] }); },
+  });
+  const delMut = useMutation({
+    mutationFn: (id: string) => deleteFn({ data: { id } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["lead-notes", leadId] }),
+  });
+  const notes = (q.data ?? []) as Array<{ id: string; body: string; created_at: string }>;
+  return (
+    <Card title="Notas internas">
+      <form
+        onSubmit={(e) => { e.preventDefault(); if (body.trim()) createMut.mutate(body.trim()); }}
+        className="mb-3 space-y-2"
+      >
+        <textarea
+          value={body}
+          onChange={(e) => setBody(e.target.value)}
+          placeholder="Nota visível apenas para a equipe interna…"
+          rows={3}
+          className="w-full rounded-md border border-border-card bg-bg-general px-2 py-1.5 text-[12px] text-text-body outline-none focus:border-primary"
+        />
+        <button
+          type="submit"
+          disabled={createMut.isPending || !body.trim()}
+          className="inline-flex h-7 items-center gap-1 rounded-md bg-primary px-2 text-[11px] font-medium text-white hover:opacity-90 disabled:opacity-50"
+        >
+          <Plus className="h-3 w-3" /> Adicionar nota
+        </button>
+      </form>
+      {notes.length === 0 ? (
+        <div className="text-[12px] text-text-ter">Nenhuma nota interna.</div>
+      ) : (
+        <ul className="space-y-2 max-h-64 overflow-y-auto pr-1">
+          {notes.map((n) => (
+            <li key={n.id} className="rounded-md border border-border-card bg-bg-general p-2 text-[11px]">
+              <div className="whitespace-pre-wrap text-text-body">{n.body}</div>
+              <div className="mt-1 flex items-center justify-between text-text-ter">
+                <span>{new Date(n.created_at).toLocaleString("pt-BR")}</span>
+                <button
+                  onClick={() => delMut.mutate(n.id)}
+                  className="inline-flex items-center gap-1 rounded px-1 text-hot hover:bg-hot-bg"
+                  title="Excluir nota"
+                >
+                  <Trash2 className="h-3 w-3" />
+                </button>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  );
+}
+
+function StageHistoryCard({ leadId }: { leadId: string }) {
+  const listFn = useServerFn(listStageHistory);
+  const listAssignFn = useServerFn(listAssignmentHistory);
+  const stageQ = useQuery({ queryKey: ["lead-stage-history", leadId], queryFn: () => listFn({ data: { lead_id: leadId } }) });
+  const assignQ = useQuery({ queryKey: ["lead-assign-history", leadId], queryFn: () => listAssignFn({ data: { lead_id: leadId } }) });
+  const stages = (stageQ.data ?? []) as Array<{ id: string; from_stage: string | null; to_stage: string; source: string; created_at: string }>;
+  const assigns = (assignQ.data ?? []) as Array<{ id: string; from_user: string | null; to_user: string | null; source: string; created_at: string }>;
+  const empty = stages.length === 0 && assigns.length === 0;
+  return (
+    <Card title="Auditoria">
+      {empty && <div className="text-[12px] text-text-ter">Sem eventos ainda.</div>}
+      {stages.length > 0 && (
+        <div className="mb-3">
+          <div className="mb-1 text-[10px] font-semibold uppercase text-text-ter">Etapas</div>
+          <ul className="space-y-1 max-h-40 overflow-y-auto pr-1">
+            {stages.map((s) => (
+              <li key={s.id} className="rounded-md border border-border-card bg-bg-general px-2 py-1 text-[11px]">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-text-body">
+                    {s.from_stage ? `${s.from_stage} → ${s.to_stage}` : `criado em ${s.to_stage}`}
+                  </span>
+                  <span className="text-text-ter">{s.source}</span>
+                </div>
+                <div className="text-text-ter">{new Date(s.created_at).toLocaleString("pt-BR")}</div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {assigns.length > 0 && (
+        <div>
+          <div className="mb-1 text-[10px] font-semibold uppercase text-text-ter">Atribuições</div>
+          <ul className="space-y-1 max-h-40 overflow-y-auto pr-1">
+            {assigns.map((a) => (
+              <li key={a.id} className="rounded-md border border-border-card bg-bg-general px-2 py-1 text-[11px]">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-text-body">
+                    {a.from_user ? `${a.from_user.slice(0, 8)}… → ${a.to_user?.slice(0, 8) ?? "—"}…` : `atribuído a ${a.to_user?.slice(0, 8) ?? "—"}…`}
+                  </span>
+                  <span className="text-text-ter">{a.source}</span>
+                </div>
+                <div className="text-text-ter">{new Date(a.created_at).toLocaleString("pt-BR")}</div>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </Card>
+  );
+}
+
