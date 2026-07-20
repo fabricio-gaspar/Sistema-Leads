@@ -28,10 +28,15 @@ import { formatBRL } from "@/lib/leads-data";
 import {
   chatWithAna,
   createLeadMessage,
+  createLeadNote,
+  deleteLeadNote,
   deleteLeadTask,
   getLead,
+  listAssignmentHistory,
   listLeadMessages,
+  listLeadNotes,
   listLeadTasks,
+  listStageHistory,
   moveLeadStage,
   upsertLeadTask,
 } from "@/lib/crm.functions";
