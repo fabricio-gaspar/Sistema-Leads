@@ -8,16 +8,25 @@ type ZapiEvent = {
   type?: string
   phone?: string
   messageId?: string
+  zaapId?: string
   ids?: string[]
   status?: string
   text?: { message?: string } | string
   fromMe?: boolean
+  instanceId?: string
 }
 
 export const Route = createFileRoute('/api/public/zapi-webhook')({
   server: {
     handlers: {
       POST: async ({ request }) => {
+        const expected = process.env.ZAPI_WEBHOOK_SECRET
+        if (!expected) {
+          return Response.json({ ok: false, error: 'webhook_secret_not_configured' }, { status: 503 })
+        }
+        const got = request.headers.get('x-webhook-secret') || new URL(request.url).searchParams.get('secret')
+        if (got !== expected) return new Response('unauthorized', { status: 401 })
+
         const bodyText = await request.text()
         let event: ZapiEvent
         try {
@@ -25,23 +34,23 @@ export const Route = createFileRoute('/api/public/zapi-webhook')({
         } catch {
           return new Response('bad json', { status: 400 })
         }
-
-        // Optional shared-secret protection: Z-API allows sending a custom
-        // header via the webhook config. We accept a secret via header if set.
-        const expected = process.env.ZAPI_WEBHOOK_SECRET
-        if (expected) {
-          const got = request.headers.get('x-webhook-secret')
-          if (got !== expected) return new Response('unauthorized', { status: 401 })
+        const expectedInstance = process.env.ZAPI_INSTANCE_ID
+        if (expectedInstance && event.instanceId && event.instanceId !== expectedInstance) {
+          return new Response('unauthorized instance', { status: 401 })
         }
 
         const { supabaseAdmin } = await import('@/integrations/supabase/client.server')
 
-        const ids = event.ids ?? (event.messageId ? [event.messageId] : [])
+        const ids = event.ids ?? [event.messageId, event.zaapId].filter((id): id is string => Boolean(id))
         const phone = (event.phone || '').replace(/\D/g, '')
         const status = (event.status || event.type || '').toString().toLowerCase()
+        const hasText = typeof event.text === 'string' || Boolean(event.text?.message)
+        const isStatusCallback =
+          status.includes('status') || status.includes('delivery') || status.includes('sent') || status.includes('read')
+        const isIncoming = event.fromMe === false || (event.fromMe == null && hasText && !isStatusCallback)
 
         // --- Status updates on outbound messages (sent/delivered/read) ---
-        if (ids.length > 0 && ['sent', 'delivered', 'read', 'received', 'played'].some((s) => status.includes(s))) {
+        if (!isIncoming && ids.length > 0 && ['sent', 'delivery', 'delivered', 'read', 'received', 'played'].some((s) => status.includes(s))) {
           const patch: Record<string, unknown> = {}
           const now = new Date().toISOString()
           if (status.includes('deliver') || status.includes('received')) {
@@ -82,16 +91,12 @@ export const Route = createFileRoute('/api/public/zapi-webhook')({
         }
 
         // --- Incoming reply from the lead ---
-        const isIncoming =
-          (event.type || '').toLowerCase().includes('received') ||
-          (event.type || '').toLowerCase().includes('message') ||
-          event.fromMe === false
         if (isIncoming && phone) {
           // Find lead by whatsapp/phone match (last 10 digits to handle country codes)
           const tail = phone.slice(-10)
           const { data: leads } = await supabaseAdmin
             .from('leads')
-            .select('id, owner_id, whatsapp, phone, contact_channels, ai_paused')
+            .select('id, owner_id, assigned_to, whatsapp, phone, contact_channels, ai_paused')
             .or(`whatsapp.ilike.%${tail},phone.ilike.%${tail}`)
             .limit(5)
           const lead = leads?.[0]
@@ -100,13 +105,14 @@ export const Route = createFileRoute('/api/public/zapi-webhook')({
           const text =
             typeof event.text === 'string' ? event.text : event.text?.message ?? '[mensagem]'
           const now = new Date().toISOString()
+          const inboundId = event.messageId || event.zaapId
 
           // Dedup: same provider_message_id already stored?
-          if (event.messageId) {
+          if (inboundId) {
             const { data: dup } = await supabaseAdmin
-              .from('lead_outreach')
+              .from('lead_messages')
               .select('id')
-              .eq('provider_message_id', event.messageId)
+              .eq('provider_message_id', inboundId)
               .maybeSingle()
             if (dup) return Response.json({ ok: true, dedup: true })
           }
@@ -128,14 +134,19 @@ export const Route = createFileRoute('/api/public/zapi-webhook')({
           }
 
           // Insert message in chat
-          await supabaseAdmin.from('lead_messages').insert({
+          const { error: messageError } = await supabaseAdmin.from('lead_messages').insert({
             lead_id: lead.id,
             sender: 'client',
             sender_name: 'Cliente',
             type: 'client',
             text,
             sent_at: now,
+            provider_message_id: inboundId ?? null,
           } as never)
+          if (messageError?.code === '23505') return Response.json({ ok: true, dedup: true })
+          if (messageError) {
+            return Response.json({ ok: false, error: messageError.message }, { status: 500 })
+          }
 
           // Update channel snapshot & handoff hints
           const channels = ((lead.contact_channels as any) ?? {}) as Record<string, any>
@@ -174,22 +185,47 @@ export const Route = createFileRoute('/api/public/zapi-webhook')({
           if (optOut) {
             patch.opt_out = true
             patch.ai_paused = true
-          } else if (interest) {
-            patch.ai_paused = true
-            patch.escalated = true
-            patch.escalation_reason = 'interesse_detectado'
           }
           await supabaseAdmin.from('leads').update(patch as never).eq('id', lead.id)
 
+          if (optOut) {
+            const { suppressLeadContactsInternal } = await import('@/lib/outreach.functions')
+            const actorId = lead.assigned_to || lead.owner_id
+            if (actorId) {
+              await suppressLeadContactsInternal(
+                { supabase: supabaseAdmin, userId: actorId, claims: { email: 'Z-API' } },
+                lead.id,
+              )
+            }
+          }
+
           await supabaseAdmin.from('audit_logs').insert({
-            actor_id: lead.owner_id,
+            actor_id: lead.assigned_to || lead.owner_id,
             actor_name: 'Z-API',
             actor_type: 'system',
-            action: optOut ? 'lead_opt_out' : interest ? 'handoff_interesse' : 'lead_reply',
+            action: optOut ? 'lead_opt_out' : 'lead_reply',
             detail: `Resposta recebida via WhatsApp de lead ${lead.id}`,
           } as never)
 
-          return Response.json({ ok: true, matched: true, escalated: interest, opt_out: optOut })
+          let automation: unknown = null
+          if (!optOut) {
+            const outreach = await import('@/lib/outreach.functions')
+            const actorId = lead.assigned_to || lead.owner_id
+            if (actorId) {
+              const ctx = {
+                supabase: supabaseAdmin,
+                userId: actorId,
+                claims: { email: 'Ana (IA)' },
+              }
+              automation = interest
+                ? await outreach.handoffLeadInternal(ctx, lead.id, text, 'Interesse comercial detectado')
+                : lead.ai_paused
+                  ? { ok: false, action: 'ignored', reason: 'ai_paused' }
+                  : await outreach.handleInboundWithAiInternal(ctx, lead.id, text)
+            }
+          }
+
+          return Response.json({ ok: true, matched: true, escalated: interest, opt_out: optOut, automation })
         }
 
         return Response.json({ ok: true, ignored: true })

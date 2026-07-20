@@ -7,7 +7,6 @@ import {
   Users,
   MessagesSquare,
   FileText,
-  Smartphone,
   ShoppingCart,
   BarChart3,
   Settings,
@@ -36,7 +35,6 @@ const NAV = [
   { to: "/leads", label: "Leads", icon: Users },
   { to: "/atendimento", label: "Central de Atendimento", icon: MessagesSquare },
   { to: "/orcamentos", label: "Orçamentos", icon: FileText },
-  { to: "/portal-vendedor", label: "Portal do Vendedor", icon: Smartphone },
   { to: "/pedidos", label: "Pedidos", icon: ShoppingCart },
   { to: "/relatorios", label: "Relatórios", icon: BarChart3 },
   { to: "/diagnostico", label: "Diagnóstico", icon: ShieldAlert },
@@ -50,7 +48,6 @@ const TITLES: Record<string, string> = {
   "/leads": "Leads",
   "/atendimento": "Central de Atendimento",
   "/orcamentos": "Orçamentos",
-  "/portal-vendedor": "Portal do Vendedor",
   "/pedidos": "Pedidos",
   "/relatorios": "Relatórios",
   "/diagnostico": "Diagnóstico de dados",
@@ -79,13 +76,9 @@ export function AppShell({
     TITLES[pathname] ??
     (pathname.startsWith("/leads/") ? "Detalhe do Lead" : "WF Digital CRM");
 
-  // Vendedor puro: renderiza apenas o Portal, sem sidebar/header administrativo
-  if (isSellerOnly) {
-    return <div className="min-h-screen w-full bg-bg-general">{children}</div>;
-  }
-
-  // Filtra itens sensíveis para não-admins (sdr/cx sem admin)
+  // Vendedor puro vê somente a Central. Outros perfis seguem a matriz padrão.
   const visibleNav = NAV.filter((item) => {
+    if (isSellerOnly) return item.to === "/atendimento";
     if (isAdmin) return true;
     const adminOnly = ["/empresa", "/configuracoes", "/diagnostico", "/relatorios"];
     return !adminOnly.includes(item.to);
@@ -102,6 +95,7 @@ export function AppShell({
   const { data: counts } = useQuery({
     queryKey: ["sidebar-counts"],
     queryFn: () => countsFn(),
+    enabled: !isSellerOnly,
     refetchInterval: 60_000,
   });
 
@@ -112,7 +106,7 @@ export function AppShell({
   const { data: searchRes } = useQuery({
     queryKey: ["global-search", searchQ],
     queryFn: () => searchFn({ data: { q: searchQ } }),
-    enabled: searchQ.trim().length >= 2,
+    enabled: !isSellerOnly && searchQ.trim().length >= 2,
   });
 
   useEffect(() => {
@@ -132,8 +126,6 @@ export function AppShell({
     return () => document.removeEventListener("mousedown", onClick);
   }, []);
 
-  // Portal do Vendedor (admin em preview) usa layout próprio (sem sidebar) apenas para sub-rotas
-  // Mantém sidebar em /portal-vendedor raiz para admin poder navegar de volta
   return (
     <div className="flex min-h-screen w-full bg-bg-general">
       <aside
@@ -196,7 +188,7 @@ export function AppShell({
         <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b border-border-card bg-bg-card px-6">
           <h1 className="text-[15px] font-semibold text-text-title">{title}</h1>
 
-          <div className="ml-6 flex-1 max-w-md relative" ref={searchRef}>
+          {!isSellerOnly && <div className="ml-6 flex-1 max-w-md relative" ref={searchRef}>
             <div className="flex h-9 items-center gap-2 rounded-md border border-border-card bg-bg-general px-3">
               <SearchIcon className="h-4 w-4 text-text-ter" />
               <input
@@ -232,7 +224,9 @@ export function AppShell({
                 />
               </div>
             )}
-          </div>
+          </div>}
+
+          {isSellerOnly && <div className="flex-1" />}
 
           <button
             onClick={() => themeStore.toggle()}
@@ -243,7 +237,7 @@ export function AppShell({
             {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           </button>
 
-          <div className="relative" ref={notifRef}>
+          {!isSellerOnly && <div className="relative" ref={notifRef}>
             <button
               onClick={() => setNotifOpen((v) => !v)}
               className="relative flex h-9 w-9 items-center justify-center rounded-md text-text-sec hover:bg-bg-general"
@@ -318,7 +312,7 @@ export function AppShell({
                 </div>
               </div>
             )}
-          </div>
+          </div>}
 
           <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-semibold">
             F

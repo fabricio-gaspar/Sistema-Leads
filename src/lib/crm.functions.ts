@@ -386,10 +386,6 @@ const companySettingsInput = z.object({
     .nullable(),
   outreach_wait_hours: z.number().int().min(1).max(720).optional().nullable(),
   outreach_max_attempts: z.number().int().min(1).max(10).optional().nullable(),
-  evolution_url: z.string().optional().nullable(),
-  evolution_api_key: z.string().optional().nullable(),
-  evolution_instance: z.string().optional().nullable(),
-  evolution_active: z.boolean().optional().nullable(),
 })
 
 
@@ -409,6 +405,7 @@ export const updateCompanySettings = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => companySettingsInput.parse(d))
   .handler(async ({ data, context }) => {
+    await assertAdmin(context)
     const { data: existing } = await context.supabase
       .from('company_settings')
       .select('id')
@@ -614,10 +611,12 @@ export const createDocumentRecord = createServerFn({ method: 'POST' })
         size: z.string().optional().nullable(),
         storage_path: z.string().min(1),
         status: z.string().optional().nullable(),
+        content_text: z.string().max(500_000).optional().nullable(),
       })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
+    await assertAdmin(context)
     const { data: row, error } = await context.supabase
       .from('documents')
       .insert({ ...data, uploaded_by: context.userId, status: data.status ?? 'active' } as never)
@@ -631,6 +630,7 @@ export const deleteDocument = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
+    await assertAdmin(context)
     const { data: doc } = await context.supabase.from('documents').select('storage_path').eq('id', data.id).maybeSingle()
     if (doc?.storage_path) {
       await context.supabase.storage.from('docs').remove([doc.storage_path])
@@ -694,6 +694,45 @@ export const listTeam = createServerFn({ method: 'GET' })
       discount_limit: string | null
     }
     return ((profiles ?? []) as Profile[]).map((p) => ({ ...p, roles: byUser.get(p.id) ?? [] }))
+  })
+
+export const assignLeadToSeller = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z.object({ lead_id: z.string().uuid(), seller_id: z.string().uuid().nullable() }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context)
+    if (data.seller_id) {
+      const { data: role, error: roleError } = await context.supabase
+        .from('user_roles')
+        .select('user_id')
+        .eq('user_id', data.seller_id)
+        .eq('role', 'vendedor')
+        .maybeSingle()
+      if (roleError) throw new Error(roleError.message)
+      if (!role) throw new Error('O usuário selecionado não possui o perfil de vendedor')
+    }
+
+    const { data: lead, error } = await context.supabase
+      .from('leads')
+      .update({
+        assigned_to: data.seller_id,
+        ...(data.seller_id ? { owner: 'human', ai_paused: true } : {}),
+      } as never)
+      .eq('id', data.lead_id)
+      .select('id, company, assigned_to')
+      .single()
+    if (error) throw new Error(error.message)
+
+    await context.supabase.from('audit_logs').insert({
+      actor_id: context.userId,
+      actor_name: context.claims?.email ?? 'admin',
+      actor_type: 'human',
+      action: 'lead_assignment',
+      detail: `${lead.company} → ${data.seller_id ?? 'sem vendedor'}`,
+    } as never)
+    return lead
   })
 
 export const setUserRole = createServerFn({ method: 'POST' })
@@ -843,19 +882,23 @@ export const getReportsData = createServerFn({ method: 'GET' })
     }
     const start = new Date(months[0].year, months[0].month, 1)
 
-    const [closedRes, allLeadsRes, teamRes] = await Promise.all([
+    const [closedRes, allLeadsRes, teamRes, outreachRes] = await Promise.all([
       context.supabase
         .from('leads')
         .select('id, updated_at, owner, assigned_to, value, origin, stage')
         .eq('stage', 'Fechado')
         .gte('updated_at', start.toISOString()),
-      context.supabase.from('leads').select('id, origin, value, stage'),
+      context.supabase.from('leads').select('id, origin, value, stage, owner, assigned_to, created_at, escalated'),
       context.supabase.from('profiles').select('id, name'),
+      context.supabase
+        .from('lead_outreach')
+        .select('lead_id, channel, status, created_at, sent_at, replied_at, owner_id'),
     ])
 
     const closed = closedRes.data ?? []
     const allLeads = allLeadsRes.data ?? []
     const team = teamRes.data ?? []
+    const outreach = outreachRes.data ?? []
     const nameById = new Map(team.map((p) => [p.id, p.name] as const))
 
     // Série mensal IA vs Humano (por owner do lead fechado)
@@ -915,15 +958,64 @@ export const getReportsData = createServerFn({ method: 'GET' })
     const totalFechados = closed.length
     const ticket = totalFechados > 0 ? Math.round(receita7m / totalFechados) : 0
 
+    const sentStatuses = new Set(['sent', 'delivered', 'read', 'replied'])
+    const channelPerformance = (['whatsapp', 'email', 'phone'] as const).map((channel) => {
+      const rows = outreach.filter((row) => row.channel === channel)
+      const attemptedLeads = new Set(rows.map((row) => row.lead_id)).size
+      const sent = rows.filter((row) => sentStatuses.has(row.status)).length
+      const replied = rows.filter((row) => row.status === 'replied' || row.replied_at).length
+      const failed = rows.filter((row) => row.status === 'failed').length
+      return {
+        channel,
+        attempts: rows.length,
+        leads: attemptedLeads,
+        sent,
+        replied,
+        failed,
+        responseRate: sent > 0 ? Number(((replied / sent) * 100).toFixed(1)) : 0,
+      }
+    })
+    const firstSentByLead = new Map<string, number>()
+    for (const row of outreach) {
+      if (!row.sent_at) continue
+      const time = new Date(row.sent_at).getTime()
+      const current = firstSentByLead.get(row.lead_id)
+      if (current == null || time < current) firstSentByLead.set(row.lead_id, time)
+    }
+    const firstContactMinutes = allLeads
+      .map((lead) => {
+        const first = firstSentByLead.get(lead.id)
+        return first == null ? null : Math.max(0, (first - new Date(lead.created_at).getTime()) / 60_000)
+      })
+      .filter((value): value is number => value != null && Number.isFinite(value))
+    const avgFirstContactMinutes = firstContactMinutes.length
+      ? Math.round(firstContactMinutes.reduce((sum, value) => sum + value, 0) / firstContactMinutes.length)
+      : null
+    const funnelOrder = ['Prospecção', 'Qualificado', 'Proposta', 'Negociação', 'Pedido', 'Fechado', 'Perdido']
+    const funnel = funnelOrder.map((stage) => ({
+      stage,
+      count: allLeads.filter((lead) => lead.stage === stage).length,
+    }))
+    const contactedLeads = firstSentByLead.size
+    const responseLeads = new Set(outreach.filter((row) => row.status === 'replied' || row.replied_at).map((row) => row.lead_id)).size
+
     return {
       months: series,
       ranking,
       canais,
+      funnel,
+      channelPerformance,
       kpis: {
         receita7m,
         leadsGerados: allLeads.length,
         ticket,
         fechados7m: totalFechados,
+        contactedLeads,
+        responseLeads,
+        responseRate: contactedLeads > 0 ? Number(((responseLeads / contactedLeads) * 100).toFixed(1)) : 0,
+        conversionRate: allLeads.length > 0 ? Number(((allLeads.filter((lead) => lead.stage === 'Fechado').length / allLeads.length) * 100).toFixed(1)) : 0,
+        escalated: allLeads.filter((lead) => lead.escalated).length,
+        avgFirstContactMinutes,
       },
     }
   })
@@ -1182,12 +1274,17 @@ export const registerUnansweredQuestion = createServerFn({ method: 'POST' })
 
 export const resolveUnansweredQuestion = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ id: z.string().uuid(), resolved: z.boolean() }).parse(d))
+  .inputValidator((d: unknown) => z.object({
+    id: z.string().uuid(),
+    resolved: z.boolean(),
+    answer: z.string().trim().min(2).max(4000).optional().nullable(),
+  }).parse(d))
   .handler(async ({ data, context }) => {
     await assertAdmin(context)
+    if (data.resolved && !data.answer) throw new Error('Informe a resposta aprovada antes de resolver.')
     const { error } = await context.supabase
       .from('unanswered_questions')
-      .update({ resolved: data.resolved } as never)
+      .update({ resolved: data.resolved, ...(data.answer ? { answer: data.answer } : {}) } as never)
       .eq('id', data.id)
     if (error) throw new Error(error.message)
     return { ok: true }
@@ -1340,7 +1437,25 @@ export const listIntegrations = createServerFn({ method: 'GET' })
       .select('id, key, label, connected, updated_at')
       .order('label', { ascending: true })
     if (error) throw new Error(error.message)
-    return data ?? []
+    return (data ?? []).map((integration) => {
+      if (integration.key === 'whatsapp') {
+        return {
+          ...integration,
+          label: 'WhatsApp (Z-API)',
+          connected: Boolean(process.env.ZAPI_INSTANCE_ID && process.env.ZAPI_TOKEN),
+          managed: true,
+        }
+      }
+      if (integration.key === 'email') {
+        return {
+          ...integration,
+          label: 'E-mail (Resend)',
+          connected: Boolean(process.env.RESEND_API_KEY && process.env.OUTREACH_EMAIL_FROM),
+          managed: true,
+        }
+      }
+      return { ...integration, managed: false }
+    })
   })
 
 // ============= EXTRA ACTIONS (edit/status/duplicate/disconnect) =============

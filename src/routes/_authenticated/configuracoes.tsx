@@ -31,6 +31,7 @@ import {
   deleteNotification,
   disconnectIntegration,
 } from "@/lib/crm.functions";
+import { getOutreachHealth, testZapi } from "@/lib/outreach.functions";
 
 type TabId = "ana" | "prospeccao" | "equipe" | "servicos" | "objecoes" | "score" | "governanca" | "auditoria" | "notificacoes" | "integracoes" | "seguranca";
 export const Route = createFileRoute("/_authenticated/configuracoes")({
@@ -514,7 +515,7 @@ function AbaInt() {
 
   return (
     <Card>
-      <SectionTitle title="Integrações" hint="Status real de cada canal — leituras da tabela integrations" />
+      <SectionTitle title="Integrações" hint="Status real dos canais e do cofre de secrets" />
       {isLoading ? (
         <div className="flex items-center gap-2 p-4 text-text-sec">
           <Loader2 className="h-4 w-4 animate-spin" /> Carregando…
@@ -534,13 +535,15 @@ function AbaInt() {
                   <span className="rounded-full bg-success-bg px-2 py-0.5 text-[10.5px] font-semibold text-success">
                     Conectado
                   </span>
-                  <button
+                  {i.managed ? (
+                    <span className="rounded-full border border-border-card px-2 py-0.5 text-[10.5px] text-text-ter">Cofre de secrets</span>
+                  ) : <button
                     onClick={() => confirm(`Desconectar ${i.label}?`) && disconnectMut.mutate(i.key)}
                     disabled={disconnectMut.isPending}
                     className="rounded-md border border-border-card px-2 py-1 text-[11px] text-text-sec hover:bg-error hover:text-white hover:border-error disabled:opacity-50"
                   >
                     Desconectar
-                  </button>
+                  </button>}
                 </div>
               ) : (
                 <button
@@ -564,7 +567,6 @@ function AbaInt() {
           )}
         </div>
       )}
-      <EvolutionGoCard />
       <ZapiCadenceCard />
     </Card>
   );
@@ -901,7 +903,7 @@ function AbaScore() {
 }
 
 // ============= GOVERNANÇA IA =============
-type UQ = { id: string; text: string; count: number | null; resolved: boolean | null; created_at: string };
+type UQ = { id: string; text: string; answer: string | null; count: number | null; resolved: boolean | null; created_at: string };
 
 function AbaGovernanca() {
   const qc = useQueryClient();
@@ -910,7 +912,7 @@ function AbaGovernanca() {
   const delFn = useServerFn(deleteUnansweredQuestion);
   const { data = [], isLoading } = useQuery<UQ[]>({ queryKey: ["unanswered"], queryFn: () => listFn() as Promise<UQ[]> });
   const resolve = useMutation({
-    mutationFn: (vars: { id: string; resolved: boolean }) => resolveFn({ data: vars }),
+    mutationFn: (vars: { id: string; resolved: boolean; answer?: string | null }) => resolveFn({ data: vars }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["unanswered"] }),
   });
   const del = useMutation({ mutationFn: (id: string) => delFn({ data: { id } }), onSuccess: () => qc.invalidateQueries({ queryKey: ["unanswered"] }) });
@@ -947,8 +949,11 @@ function AbaGovernanca() {
                   <div className="text-[11px] text-text-ter">Ocorrências: {q.count ?? 1} · {new Date(q.created_at).toLocaleDateString("pt-BR")}</div>
                 </div>
                 <div className="flex gap-2">
-                  <button onClick={() => resolve.mutate({ id: q.id, resolved: true })} className="rounded-md bg-success-bg px-2.5 py-1 text-[11.5px] font-medium text-success">
-                    Marcar resolvida
+                  <button onClick={() => {
+                    const answer = prompt("Resposta aprovada que a Ana poderá usar:");
+                    if (answer?.trim()) resolve.mutate({ id: q.id, resolved: true, answer: answer.trim() });
+                  }} className="rounded-md bg-success-bg px-2.5 py-1 text-[11.5px] font-medium text-success">
+                    Responder e aprovar
                   </button>
                   <button onClick={() => del.mutate(q.id)} className="text-red-500"><Trash2 className="h-3.5 w-3.5" /></button>
                 </div>
@@ -964,7 +969,10 @@ function AbaGovernanca() {
           <ul className="divide-y divide-border-card">
             {resolvidas.map((q) => (
               <li key={q.id} className="flex items-center justify-between gap-3 py-2">
-                <div className="text-[12.5px] text-text-sec line-through">{q.text}</div>
+                <div>
+                  <div className="text-[12.5px] text-text-sec">{q.text}</div>
+                  <div className="mt-0.5 text-[11.5px] text-success">Resposta aprovada: {q.answer}</div>
+                </div>
                 <button onClick={() => resolve.mutate({ id: q.id, resolved: false })} className="text-[11px] text-primary">Reabrir</button>
               </li>
             ))}
@@ -1165,7 +1173,7 @@ function AbaProspeccao() {
         })}
       </div>
       <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] text-amber-900">
-        <b>Como adicionar a chave do Google Places:</b> peça ao administrador para cadastrar a secret <code>GOOGLE_PLACES_API_KEY</code> no cofre do projeto. Gere a chave em console.cloud.google.com → APIs & Services → Credentials, e ative a <i>Places API (New)</i>.
+        <b>Como adicionar a chave do Google:</b> cadastre a secret <code>GOOGLE_PLACES_API_KEY</code> no cofre do projeto. Gere a chave em console.cloud.google.com → APIs & Services → Credentials e ative <i>Places API (New)</i> e <i>Geocoding API</i> para a busca por raio.
       </div>
     </Card>
   );
@@ -1175,10 +1183,15 @@ function AbaProspeccao() {
 function ZapiCadenceCard() {
   const getFn = useServerFn(getCompanySettings);
   const updateFn = useServerFn(updateCompanySettings);
+  const healthFn = useServerFn(getOutreachHealth);
+  const testFn = useServerFn(testZapi);
   const qc = useQueryClient();
   const { data } = useQuery({ queryKey: ["company-settings"], queryFn: () => getFn() });
+  const { data: health } = useQuery({ queryKey: ["outreach-health"], queryFn: () => healthFn() });
   const [waitH, setWaitH] = useState<number>(24);
   const [maxA, setMaxA] = useState<number>(3);
+  const [testing, setTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
   useEffect(() => {
     if (data) {
       setWaitH(Number((data as any).outreach_wait_hours ?? 24));
@@ -1196,6 +1209,35 @@ function ZapiCadenceCard() {
     onError: (e: Error) => toast.error("Erro ao salvar", { description: e.message }),
   });
 
+  const testConnection = async () => {
+    setTesting(true);
+    setTestResult(null);
+    try {
+      const result: any = await testFn();
+      setTestResult({
+        ok: result.ok,
+        message: result.ok
+          ? result.connected
+            ? "Z-API conectada e pronta para envio."
+            : "Credenciais válidas, mas a instância ainda não está conectada."
+          : result.error || "Falha ao testar a Z-API.",
+      });
+    } catch (error) {
+      setTestResult({ ok: false, message: (error as Error).message });
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  const healthItems = [
+    ["Z-API", health?.zapi],
+    ["Client Token", health?.zapiClientToken],
+    ["Webhook", health?.zapiWebhook],
+    ["Agendador", health?.scheduler],
+    ["E-mail (Resend)", health?.email],
+    ["Webhook e-mail", health?.emailWebhook],
+  ] as const;
+
   return (
     <div className="mt-4 rounded-md border border-border-card p-4">
       <div className="mb-1 text-[13px] font-semibold text-text-title">
@@ -1203,8 +1245,18 @@ function ZapiCadenceCard() {
       </div>
       <div className="mb-3 text-[11.5px] text-text-sec">
         Configure a estratégia sequencial WhatsApp → E-mail → Ligação. A IA só
-        avança de canal se o anterior falhar. Credenciais Z-API são gerenciadas
-        no cofre de secrets (ZAPI_INSTANCE_ID, ZAPI_TOKEN, ZAPI_CLIENT_TOKEN).
+        avança de canal se o anterior falhar ou não tiver resposta no prazo. A Z-API
+        é o único provedor de WhatsApp deste sistema.
+      </div>
+      <div className="mb-3 grid grid-cols-2 gap-2 md:grid-cols-6">
+        {healthItems.map(([label, ready]) => (
+          <div key={label} className="rounded-md border border-border-card px-2 py-1.5">
+            <div className="text-[10.5px] text-text-ter">{label}</div>
+            <div className={`text-[11.5px] font-semibold ${ready ? "text-success" : "text-error"}`}>
+              {ready ? "Configurado" : "Pendente"}
+            </div>
+          </div>
+        ))}
       </div>
       <div className="grid grid-cols-2 gap-3 max-w-md">
         <label className="block text-[12px]">
@@ -1230,7 +1282,7 @@ function ZapiCadenceCard() {
           />
         </label>
       </div>
-      <div className="mt-3">
+      <div className="mt-3 flex flex-wrap items-center gap-2">
         <button
           onClick={() => saveMut.mutate()}
           disabled={saveMut.isPending}
@@ -1238,164 +1290,23 @@ function ZapiCadenceCard() {
         >
           {saveMut.isPending ? "Salvando…" : "Salvar cadência"}
         </button>
-      </div>
-    </div>
-  );
-}
-
-function EvolutionGoCard() {
-  const getFn = useServerFn(getCompanySettings);
-  const updateFn = useServerFn(updateCompanySettings);
-  const qc = useQueryClient();
-  const { data } = useQuery({ queryKey: ["company-settings"], queryFn: () => getFn() });
-  const [url, setUrl] = useState("");
-  const [apiKey, setApiKey] = useState("");
-  const [instance, setInstance] = useState("");
-  const [active, setActive] = useState(false);
-  const [testing, setTesting] = useState(false);
-  const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
-
-  useEffect(() => {
-    if (data) {
-      const d = data as any;
-      setUrl(d.evolution_url ?? "");
-      setApiKey(d.evolution_api_key ?? "");
-      setInstance(d.evolution_instance ?? "");
-      setActive(!!d.evolution_active);
-    }
-  }, [data]);
-
-  const saveMut = useMutation({
-    mutationFn: () =>
-      updateFn({
-        data: {
-          evolution_url: url.trim() || null,
-          evolution_api_key: apiKey.trim() || null,
-          evolution_instance: instance.trim() || null,
-          evolution_active: active,
-        } as any,
-      }),
-    onSuccess: () => {
-      toast.success("Evolution Go salva");
-      qc.invalidateQueries({ queryKey: ["company-settings"] });
-      qc.invalidateQueries({ queryKey: ["integrations"] });
-    },
-    onError: (e: Error) => toast.error("Erro ao salvar", { description: e.message }),
-  });
-
-  const testConnection = async () => {
-    setTesting(true);
-    setTestResult(null);
-    try {
-      // Salva antes de testar para garantir que o backend leia os valores mais novos
-      await saveMut.mutateAsync();
-      const mod = await import("@/lib/outreach.functions");
-      const res: any = await (mod as any).testEvolution({});
-      if (res?.ok) {
-        setTestResult({
-          ok: true,
-          message: res.connected
-            ? "Conectado — instância pareada e pronta para enviar."
-            : "Credenciais válidas, mas a instância ainda não está pareada (leia o QR no painel da Evolution).",
-        });
-      } else {
-        setTestResult({ ok: false, message: res?.error ?? "Falha desconhecida" });
-      }
-    } catch (e) {
-      setTestResult({ ok: false, message: (e as Error).message });
-    } finally {
-      setTesting(false);
-    }
-  };
-
-  const projectId = (import.meta as any).env?.VITE_LOVABLE_PROJECT_ID as string | undefined;
-  const webhookHint = projectId
-    ? `https://project--${projectId}.lovable.app/api/public/evolution-webhook`
-    : "https://<seu-projeto>.lovable.app/api/public/evolution-webhook";
-
-  return (
-    <div className="mt-4 rounded-md border border-border-card p-4">
-      <div className="mb-1 flex items-center justify-between">
-        <div>
-          <div className="text-[13px] font-semibold text-text-title">Evolution Go (WhatsApp)</div>
-          <div className="text-[11.5px] text-text-sec">
-            Configure sua instância Evolution Go — quando ativa, todas as mensagens de WhatsApp da IA passam por ela.
-          </div>
-        </div>
-        <label className="relative inline-flex cursor-pointer items-center">
-          <input type="checkbox" className="peer sr-only" checked={active} onChange={(e) => setActive(e.target.checked)} />
-          <div className="peer h-6 w-11 rounded-full bg-bg-general after:absolute after:left-0.5 after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-all after:content-[''] peer-checked:bg-primary peer-checked:after:translate-x-full" />
-        </label>
-      </div>
-
-      <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
-        <label className="block text-[12px]">
-          <span className="text-text-sec">URL do servidor</span>
-          <input
-            type="url"
-            placeholder="https://evolution.seudominio.com"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            className="mt-1 w-full rounded-md border border-border-card bg-bg-card px-2 py-1.5 text-[13px]"
-          />
-        </label>
-        <label className="block text-[12px]">
-          <span className="text-text-sec">API Key (global ou da instância)</span>
-          <input
-            type="password"
-            placeholder="apikey"
-            value={apiKey}
-            onChange={(e) => setApiKey(e.target.value)}
-            className="mt-1 w-full rounded-md border border-border-card bg-bg-card px-2 py-1.5 text-[13px]"
-          />
-        </label>
-        <label className="block text-[12px] md:col-span-2">
-          <span className="text-text-sec">Nome da instância (opcional — apenas se sua API key não é da instância)</span>
-          <input
-            type="text"
-            placeholder="ex.: wf-digital"
-            value={instance}
-            onChange={(e) => setInstance(e.target.value)}
-            className="mt-1 w-full rounded-md border border-border-card bg-bg-card px-2 py-1.5 text-[13px]"
-          />
-        </label>
-      </div>
-
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        <button
-          onClick={() => saveMut.mutate()}
-          disabled={saveMut.isPending}
-          className="inline-flex h-8 items-center rounded-md bg-primary px-3 text-[12px] font-medium text-primary-foreground hover:bg-primary-hover disabled:opacity-50"
-        >
-          {saveMut.isPending ? "Salvando…" : "Salvar"}
-        </button>
         <button
           onClick={testConnection}
-          disabled={testing || !url || !apiKey}
+          disabled={testing || !health?.zapi}
           className="inline-flex h-8 items-center rounded-md border border-border-card bg-bg-card px-3 text-[12px] font-medium text-text-body hover:bg-bg-general disabled:opacity-50"
         >
-          {testing ? "Testando…" : "Testar conexão"}
+          {testing ? "Testando…" : "Testar Z-API"}
         </button>
         {testResult && (
-          <span
-            className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${
-              testResult.ok
-                ? "bg-success-bg text-success"
-                : "bg-red-100 text-red-700"
-            }`}
-          >
+          <span className={`text-[11.5px] font-medium ${testResult.ok ? "text-success" : "text-error"}`}>
             {testResult.message}
           </span>
         )}
       </div>
-
-      <div className="mt-3 rounded-md border border-dashed border-border-card bg-bg-general/40 px-3 py-2 text-[11.5px] text-text-sec">
-        <div className="mb-1 font-semibold text-text-title">Webhook para receber respostas</div>
-        No painel da Evolution Go, configure o webhook apontando para:
-        <div className="mt-1 rounded bg-bg-card px-2 py-1 font-mono text-[11px] text-text-title">
-          {webhookHint}
-        </div>
-        Envie a mesma <code>apikey</code> configurada acima no header — as respostas do WhatsApp cairão automaticamente no chat do lead.
+      <div className="mt-3 text-[11px] text-text-ter">
+        Secrets necessários: ZAPI_INSTANCE_ID, ZAPI_TOKEN, ZAPI_CLIENT_TOKEN,
+        ZAPI_WEBHOOK_SECRET, OUTREACH_CRON_SECRET, RESEND_API_KEY e OUTREACH_EMAIL_FROM.
+        Para respostas por e-mail, configure também RESEND_WEBHOOK_SECRET.
       </div>
     </div>
   );
