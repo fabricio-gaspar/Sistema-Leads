@@ -19,9 +19,9 @@ export const Route = createFileRoute("/_authenticated")({
     const isAdmin = roles.includes("administrador");
     const isSellerOnly = roles.includes("vendedor") && !isAdmin;
 
-    // Vendedor puro só pode acessar o portal
-    if (isSellerOnly && !location.pathname.startsWith("/portal-vendedor")) {
-      throw redirect({ to: "/portal-vendedor" });
+    // Vendedor puro opera exclusivamente pela Central de Atendimento.
+    if (isSellerOnly && location.pathname !== "/atendimento") {
+      throw redirect({ to: "/atendimento" });
     }
 
     return { user: data.user, roles, isAdmin, isSellerOnly };

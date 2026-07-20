@@ -320,13 +320,24 @@ function DocumentosCard() {
   const onPick = async (file: File) => {
     setError(null);
     setUploading(true);
+    let uploadedPath: string | null = null;
     try {
+      const isTextKnowledge = file.type.startsWith("text/") || /\.(txt|md|csv|json)$/i.test(file.name);
+      if (!isTextKnowledge) {
+        throw new Error("Use TXT, Markdown, CSV ou JSON. PDF/DOC ainda exigem extração antes de poderem orientar a IA.");
+      }
+      if (file.size > 500_000) {
+        throw new Error("O documento deve ter no máximo 500 KB para entrar na base de conhecimento.");
+      }
+      const contentText = (await file.text()).trim();
+      if (!contentText) throw new Error("O documento está vazio.");
       const path = `${Date.now()}-${file.name.replace(/[^\w.\-]+/g, "_")}`;
       const { error: upErr } = await supabase.storage.from("docs").upload(path, file, {
         cacheControl: "3600",
         upsert: false,
       });
       if (upErr) throw upErr;
+      uploadedPath = path;
       await createFn({
         data: {
           name: file.name,
@@ -334,10 +345,12 @@ function DocumentosCard() {
           size: `${Math.max(1, Math.round(file.size / 1024))} KB`,
           storage_path: path,
           status: "active",
+          content_text: contentText,
         },
       });
       qc.invalidateQueries({ queryKey: ["documents"] });
     } catch (e) {
+      if (uploadedPath) await supabase.storage.from("docs").remove([uploadedPath]);
       setError(e instanceof Error ? e.message : "Falha no upload");
     } finally {
       setUploading(false);
@@ -354,12 +367,13 @@ function DocumentosCard() {
     <Card>
       <SectionTitle
         title="Documentos"
-        hint="Materiais que treinam a Ana (PDF, DOC, TXT)"
+        hint="Base aprovada usada pela Ana nas respostas (TXT, Markdown, CSV ou JSON)"
         action={
           <>
             <input
               ref={inputRef}
               type="file"
+              accept=".txt,.md,.csv,.json,text/plain,text/markdown,text/csv,application/json"
               className="hidden"
               onChange={(e) => e.target.files?.[0] && onPick(e.target.files[0])}
             />

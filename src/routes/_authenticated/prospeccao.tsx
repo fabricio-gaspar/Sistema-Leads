@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { Sparkles, Search, Loader2, Download, Plus, ExternalLink, RotateCcw, Info, Building2, MapPin, Bot, Save, Bookmark, Trash2, FolderOpen, Zap, Pencil } from "lucide-react";
@@ -50,6 +50,7 @@ type FormState = {
   porte: string;
   min_capital: number;
   keyword: string;
+  radius_km: number;
   limit: number;
 };
 
@@ -61,6 +62,7 @@ const INITIAL: FormState = {
   porte: "",
   min_capital: 0,
   keyword: "",
+  radius_km: 10,
   limit: 15,
 };
 
@@ -92,6 +94,7 @@ function Prospeccao() {
   const [openReason, setOpenReason] = useState<string | null>(null);
   const [saveName, setSaveName] = useState("");
   const [loadedSaved, setLoadedSaved] = useState<{ id: string; name: string; results: ExternalCompany[]; source: SourceId; created_at: string } | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   // If current source becomes disabled, switch to first enabled
   useEffect(() => {
@@ -122,11 +125,33 @@ function Prospeccao() {
   const currentSource: SourceId | null = loadedSaved?.source ?? applied?.source ?? null;
   const isSavedView = !!loadedSaved;
 
+  useEffect(() => {
+    setSelected(new Set());
+  }, [currentCacheId]);
+
   const importMut = useMutation({
-    mutationFn: (cnpj: string) =>
-      importFn({ data: { cache_id: currentCacheId!, cnpj } }),
-    onSuccess: () => {
-      setFlash("✔ Empresa importada como Lead em 'Prospecção'.");
+    mutationFn: async (ids: string[]) => {
+      let imported = 0;
+      const errors: string[] = [];
+      for (const cnpj of ids) {
+        try {
+          await importFn({ data: { cache_id: currentCacheId!, cnpj } });
+          imported += 1;
+        } catch (error) {
+          errors.push((error as Error).message);
+        }
+      }
+      return { imported, errors };
+    },
+    onSuccess: ({ imported, errors }, ids) => {
+      setFlash(errors.length
+        ? `✔ ${imported} enviado(s) para Leads. ${errors.length} não enviado(s): ${errors[0]}`
+        : `✔ ${imported} prospecto(s) enviado(s) para Leads. A IA iniciou o primeiro contato.`);
+      setSelected((current) => {
+        const next = new Set(current);
+        ids.forEach((id) => next.delete(id));
+        return next;
+      });
       qc.invalidateQueries({ queryKey: ["leads"] });
       setTimeout(() => setFlash(null), 3500);
     },
@@ -191,6 +216,8 @@ function Prospeccao() {
   }
 
   const results = currentResults;
+  const eligibleResults = useMemo(() => results.filter(isEligibleForLeads), [results]);
+  const selectedEligible = eligibleResults.filter((company) => selected.has(company.cnpj));
   const activeSources = enabled ? (["cnpj_ws", "google_places", "apify", "ai_only"] as SourceId[]).filter((s) => enabled[s]) : [];
   const noneEnabled = enabled && activeSources.length === 0;
 
@@ -209,6 +236,7 @@ function Prospeccao() {
         capital_social: c.capital_social ?? 0,
         municipio: c.municipio ?? "",
         uf: c.uf ?? "",
+        distancia_km: c.distance_km ?? "",
         telefone: c.telefone ?? "",
         whatsapp: c.whatsapp ?? "",
         email: c.email ?? "",
@@ -434,6 +462,25 @@ function Prospeccao() {
                 />
               </Field>
 
+              {form.source === "google_places" && (
+                <Field label="Raio da prospecção (km)">
+                  <input
+                    type="number"
+                    min={1}
+                    max={50}
+                    value={form.radius_km}
+                    onChange={(e) => setForm({
+                      ...form,
+                      radius_km: Math.min(50, Math.max(1, Number(e.target.value) || 10)),
+                    })}
+                    className="h-9 w-full rounded-md border border-border-card bg-bg-card px-2 text-[13px] outline-none"
+                  />
+                  <div className="mt-1 text-[10px] text-text-ter">
+                    Centro no município informado · máximo de 50 km
+                  </div>
+                </Field>
+              )}
+
               {form.source !== "google_places" && (
                 <Field label="Porte">
                   <select
@@ -480,7 +527,11 @@ function Prospeccao() {
               </button>
               <button
                 onClick={apply}
-                disabled={search.isFetching || ((form.source === "google_places" || form.source === "apify") && !form.keyword.trim())}
+                disabled={
+                  search.isFetching ||
+                  ((form.source === "google_places" || form.source === "apify") && !form.keyword.trim()) ||
+                  (form.source === "google_places" && !form.municipio.trim())
+                }
                 className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-2 text-[12px] font-medium text-primary-foreground hover:bg-primary-hover disabled:opacity-60"
               >
                 {search.isFetching ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
@@ -523,6 +574,18 @@ function Prospeccao() {
               )}
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => importMut.mutate(selectedEligible.map((company) => company.cnpj))}
+                disabled={!selectedEligible.length || importMut.isPending}
+                className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-[12px] font-medium text-primary-foreground hover:bg-primary-hover disabled:opacity-50"
+              >
+                {importMut.isPending ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Plus className="h-3.5 w-3.5" />
+                )}
+                Enviar selecionados para Leads ({selectedEligible.length})
+              </button>
               {isSavedView && (
                 <button
                   onClick={() => setLoadedSaved(null)}
@@ -572,6 +635,18 @@ function Prospeccao() {
             <table className="w-full text-[13px]">
               <thead className="border-b border-border-card bg-bg-general/50">
                 <tr className="text-left text-[11px] uppercase text-text-ter">
+                  <th className="p-3">
+                    <input
+                      type="checkbox"
+                      aria-label="Selecionar todos os prospectos elegíveis"
+                      checked={eligibleResults.length > 0 && selectedEligible.length === eligibleResults.length}
+                      onChange={(event) => setSelected(
+                        event.target.checked
+                          ? new Set(eligibleResults.map((company) => company.cnpj))
+                          : new Set(),
+                      )}
+                    />
+                  </th>
                   <th className="p-3">Empresa</th>
                   <th className="p-3">Segmento</th>
                   <th className="p-3">Porte / Capital</th>
@@ -582,9 +657,25 @@ function Prospeccao() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border-card">
-                {results.map((c) => (
-                  <>
-                    <tr key={c.cnpj} className="hover:bg-bg-general/40">
+                {results.map((c) => {
+                  const eligible = isEligibleForLeads(c);
+                  return (
+                  <Fragment key={c.cnpj}>
+                    <tr className="hover:bg-bg-general/40">
+                      <td className="p-3 align-top">
+                        <input
+                          type="checkbox"
+                          aria-label={`Selecionar ${c.nome_fantasia || c.razao_social}`}
+                          checked={selected.has(c.cnpj)}
+                          disabled={!eligible || importMut.isPending}
+                          onChange={(event) => setSelected((current) => {
+                            const next = new Set(current);
+                            if (event.target.checked) next.add(c.cnpj);
+                            else next.delete(c.cnpj);
+                            return next;
+                          })}
+                        />
+                      </td>
                       <td className="p-3 align-top">
                         <div className="font-medium text-text-title">{c.nome_fantasia || c.razao_social}</div>
                         <div className="text-[11px] text-text-ter">
@@ -608,7 +699,10 @@ function Prospeccao() {
                         </div>
                       </td>
                       <td className="p-3 align-top text-text-body">
-                        {[c.municipio, c.uf].filter(Boolean).join(" / ") || "—"}
+                        <div>{[c.municipio, c.uf].filter(Boolean).join(" / ") || "—"}</div>
+                        {c.distance_km != null && (
+                          <div className="text-[11px] text-primary">{c.distance_km} km do centro</div>
+                        )}
                       </td>
                       <td className="p-3 align-top text-text-body">
                         <div>{c.telefone ?? "—"}</div>
@@ -653,18 +747,25 @@ function Prospeccao() {
                             </a>
                           )}
                           <button
-                            onClick={() => importMut.mutate(c.cnpj)}
-                            disabled={importMut.isPending}
+                            onClick={() => importMut.mutate([c.cnpj])}
+                            disabled={!eligible || importMut.isPending}
+                            title={
+                              !eligible
+                                ? c.source === "ai_only"
+                                  ? "Valide esta sugestão em uma fonte real"
+                                  : "Prospecto sem canal de contato"
+                                : "Enviar para Leads e iniciar contato da IA"
+                            }
                             className="inline-flex items-center gap-1 rounded-md bg-primary px-2.5 py-1 text-[11px] font-medium text-primary-foreground hover:bg-primary-hover disabled:opacity-50"
                           >
-                            <Plus className="h-3 w-3" /> Importar
+                            <Plus className="h-3 w-3" /> Enviar para Leads
                           </button>
                         </div>
                       </td>
                     </tr>
                     {openReason === c.cnpj && c.score_reason && (
                       <tr key={c.cnpj + "-r"} className="bg-ia-bg/30">
-                        <td colSpan={7} className="p-4">
+                        <td colSpan={8} className="p-4">
                           <div className="flex items-start gap-2">
                             <Sparkles className="mt-0.5 h-4 w-4 text-ia" />
                             <div className="text-[12.5px] text-text-body">
@@ -674,8 +775,9 @@ function Prospeccao() {
                         </td>
                       </tr>
                     )}
-                  </>
-                ))}
+                  </Fragment>
+                  );
+                })}
               </tbody>
             </table>
           )}
@@ -706,4 +808,9 @@ function formatCnpj(cnpj: string): string {
   const c = cnpj.replace(/\D/g, "");
   if (c.length !== 14) return cnpj;
   return `${c.slice(0, 2)}.${c.slice(2, 5)}.${c.slice(5, 8)}/${c.slice(8, 12)}-${c.slice(12)}`;
+}
+
+function isEligibleForLeads(company: ExternalCompany): boolean {
+  if (company.source === "ai_only") return false;
+  return !!(company.whatsapp || company.telefone || company.email);
 }

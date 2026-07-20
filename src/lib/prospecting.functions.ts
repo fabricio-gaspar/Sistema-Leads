@@ -25,6 +25,9 @@ export type ExternalCompany = {
   uf: string | null
   cep: string | null
   website?: string | null
+  latitude?: number | null
+  longitude?: number | null
+  distance_km?: number | null
   score?: number
   score_reason?: string
   source: SourceId
@@ -52,6 +55,7 @@ const filtersSchema = z.object({
   porte: z.string().optional().nullable(),
   min_capital: z.number().optional().nullable(),
   keyword: z.string().optional().nullable(),
+  radius_km: z.number().min(1).max(50).optional().nullable(),
   limit: z.number().int().min(1).max(30).default(15),
 })
 
@@ -66,6 +70,7 @@ function hashFilters(f: Filters): string {
     porte: f.porte || null,
     min_capital: f.min_capital || null,
     keyword: (f.keyword || '').toLowerCase().trim() || null,
+    radius_km: f.radius_km || null,
     limit: f.limit,
   })
 }
@@ -171,6 +176,7 @@ type GPlace = {
   primaryTypeDisplayName?: { text?: string }
   primaryType?: string
   addressComponents?: Array<{ types?: string[]; longText?: string; shortText?: string }>
+  location?: { latitude?: number; longitude?: number }
 }
 
 function pickAddr(place: GPlace, type: string): string | null {
@@ -204,8 +210,41 @@ function normalizeGoogle(p: GPlace): ExternalCompany {
     uf: uf ? uf.slice(0, 2).toUpperCase() : null,
     cep,
     website: p.websiteUri || null,
+    latitude: p.location?.latitude ?? null,
+    longitude: p.location?.longitude ?? null,
     source: 'google_places',
   }
+}
+
+async function geocodeSearchCenter(filters: Filters): Promise<{ latitude: number; longitude: number } | null> {
+  if (!filters.radius_km) return null
+  if (!filters.municipio) throw new Error('Informe o município para usar a busca por raio.')
+  const key = process.env.GOOGLE_PLACES_API_KEY
+  if (!key) throw new Error('GOOGLE_PLACES_API_KEY não configurada.')
+  const address = [filters.municipio, filters.uf, 'Brasil'].filter(Boolean).join(', ')
+  const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${encodeURIComponent(key)}&language=pt-BR&region=br`
+  const res = await fetch(url)
+  if (!res.ok) throw new Error(`Google Geocoding ${res.status}`)
+  const payload = (await res.json()) as {
+    status?: string
+    results?: Array<{ geometry?: { location?: { lat?: number; lng?: number } } }>
+    error_message?: string
+  }
+  const location = payload.results?.[0]?.geometry?.location
+  if (payload.status !== 'OK' || location?.lat == null || location.lng == null) {
+    throw new Error(payload.error_message || `Não foi possível localizar ${address}. Ative também a Geocoding API no Google Cloud.`)
+  }
+  return { latitude: location.lat, longitude: location.lng }
+}
+
+function distanceKm(a: { latitude: number; longitude: number }, b: { latitude: number; longitude: number }): number {
+  const toRad = (value: number) => (value * Math.PI) / 180
+  const earthRadiusKm = 6371
+  const lat = toRad(b.latitude - a.latitude)
+  const lng = toRad(b.longitude - a.longitude)
+  const h = Math.sin(lat / 2) ** 2
+    + Math.cos(toRad(a.latitude)) * Math.cos(toRad(b.latitude)) * Math.sin(lng / 2) ** 2
+  return earthRadiusKm * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h))
 }
 
 async function fetchFromGooglePlaces(filters: Filters): Promise<ExternalCompany[]> {
@@ -215,6 +254,8 @@ async function fetchFromGooglePlaces(filters: Filters): Promise<ExternalCompany[
   }
   const query = [filters.keyword, filters.municipio, filters.uf].filter(Boolean).join(' ').trim()
   if (!query) throw new Error('Informe uma palavra-chave (ex.: "restaurantes", "clínicas") para o Google Places.')
+  const center = await geocodeSearchCenter(filters)
+  const radiusMeters = Math.min(50_000, Math.round((filters.radius_km ?? 0) * 1000))
 
   const res = await fetch('https://places.googleapis.com/v1/places:searchText', {
     method: 'POST',
@@ -222,16 +263,35 @@ async function fetchFromGooglePlaces(filters: Filters): Promise<ExternalCompany[
       'content-type': 'application/json',
       'X-Goog-Api-Key': key,
       'X-Goog-FieldMask':
-        'places.id,places.displayName,places.formattedAddress,places.internationalPhoneNumber,places.nationalPhoneNumber,places.websiteUri,places.primaryType,places.primaryTypeDisplayName,places.addressComponents',
+        'places.id,places.displayName,places.formattedAddress,places.internationalPhoneNumber,places.nationalPhoneNumber,places.websiteUri,places.primaryType,places.primaryTypeDisplayName,places.addressComponents,places.location',
     },
-    body: JSON.stringify({ textQuery: query, languageCode: 'pt-BR', regionCode: 'BR', pageSize: Math.min(20, filters.limit) }),
+    body: JSON.stringify({
+      textQuery: query,
+      languageCode: 'pt-BR',
+      regionCode: 'BR',
+      pageSize: Math.min(20, filters.limit),
+      ...(center ? { locationBias: { circle: { center, radius: radiusMeters } } } : {}),
+    }),
   })
   if (!res.ok) {
     const text = await res.text().catch(() => '')
     throw new Error(`Google Places ${res.status}: ${text.slice(0, 200)}`)
   }
   const payload = (await res.json()) as { places?: GPlace[] }
-  return (payload.places || []).slice(0, filters.limit).map(normalizeGoogle)
+  return (payload.places || [])
+    .map(normalizeGoogle)
+    .map((company) => {
+      if (!center || company.latitude == null || company.longitude == null) return company
+      return {
+        ...company,
+        distance_km: Number(distanceKm(center, {
+          latitude: company.latitude,
+          longitude: company.longitude,
+        }).toFixed(1)),
+      }
+    })
+    .filter((company) => !center || (company.distance_km != null && company.distance_km <= (filters.radius_km ?? 50)))
+    .slice(0, filters.limit)
 }
 
 // ============= AI-only (Claude gera sugestões) =============
@@ -661,6 +721,20 @@ export const importExternalAsLead = createServerFn({ method: 'POST' })
 
     const company = ((cache.results as unknown as ExternalCompany[]) || []).find((c) => c.cnpj === data.cnpj)
     if (!company) throw new Error('Empresa não encontrada no resultado')
+    if (company.source === 'ai_only') {
+      throw new Error('Sugestões geradas somente por IA precisam ser validadas em uma fonte real antes do contato.')
+    }
+    if (!company.whatsapp && !company.telefone && !company.email) {
+      throw new Error('Este prospecto não possui canal de contato validado.')
+    }
+    const { isAnyContactSuppressed } = await import('./outreach.functions')
+    if (await isAnyContactSuppressed(context as never, {
+      whatsapp: company.whatsapp,
+      phone: company.telefone,
+      email: company.email,
+    })) {
+      throw new Error('Este contato está na lista de supressão (opt-out/LGPD) e não pode ser reativado.')
+    }
 
     const originTag = `${company.source}:${company.cnpj}`
     const { data: dup } = await context.supabase
@@ -711,6 +785,7 @@ export const importExternalAsLead = createServerFn({ method: 'POST' })
       segment: company.cnae_descricao,
       uf: company.uf,
       city: company.municipio,
+      distance: company.distance_km == null ? null : Math.round(company.distance_km),
       size,
       annual_revenue: null,
       score: company.score ?? null,

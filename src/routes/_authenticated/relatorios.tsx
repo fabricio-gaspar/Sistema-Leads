@@ -24,7 +24,7 @@ function Relatorios() {
     );
   }
 
-  const { months, ranking, canais, kpis } = data;
+  const { months, ranking, canais, kpis, funnel, channelPerformance } = data;
   const max = Math.max(1, ...months.map((m) => Math.max(m.ia, m.humano)));
 
   return (
@@ -40,6 +40,24 @@ function Relatorios() {
             <div className="text-[11px] uppercase text-text-ter">{k.l}</div>
             <div className="text-[22px] font-semibold text-text-title">{k.v}</div>
             {k.d && <div className="text-[11px] text-text-sec">{k.d}</div>}
+          </Card>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-5 gap-4">
+        {[
+          { l: "Leads contatados", v: String(kpis.contactedLeads) },
+          { l: "Leads que responderam", v: String(kpis.responseLeads) },
+          { l: "Taxa de resposta", v: `${kpis.responseRate}%` },
+          { l: "Conversão em venda", v: `${kpis.conversionRate}%` },
+          {
+            l: "Tempo até 1º contato",
+            v: kpis.avgFirstContactMinutes == null ? "—" : `${kpis.avgFirstContactMinutes} min`,
+          },
+        ].map((k) => (
+          <Card key={k.l}>
+            <div className="text-[11px] uppercase text-text-ter">{k.l}</div>
+            <div className="text-[20px] font-semibold text-text-title">{k.v}</div>
           </Card>
         ))}
       </div>
@@ -67,6 +85,56 @@ function Relatorios() {
           ))}
         </div>
       </Card>
+
+      <div className="grid grid-cols-2 gap-4">
+        <Card>
+          <SectionTitle title="Desempenho por canal" hint="Tentativas, entregas e respostas" />
+          <table className="w-full text-[12.5px]">
+            <thead>
+              <tr className="text-left text-[10.5px] uppercase text-text-ter">
+                <th className="pb-2">Canal</th>
+                <th className="pb-2">Tentativas</th>
+                <th className="pb-2">Enviadas</th>
+                <th className="pb-2">Respostas</th>
+                <th className="pb-2">Taxa</th>
+                <th className="pb-2">Falhas</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border-card">
+              {channelPerformance.map((row) => (
+                <tr key={row.channel}>
+                  <td className="py-2.5 font-medium capitalize text-text-title">{row.channel}</td>
+                  <td className="py-2.5">{row.attempts}</td>
+                  <td className="py-2.5">{row.sent}</td>
+                  <td className="py-2.5">{row.replied}</td>
+                  <td className="py-2.5 font-semibold text-success">{row.responseRate}%</td>
+                  <td className="py-2.5 text-error">{row.failed}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </Card>
+
+        <Card>
+          <SectionTitle title="Funil atual" hint={`${kpis.escalated} lead(s) encaminhado(s) ao time`} />
+          <div className="space-y-2">
+            {funnel.map((row) => {
+              const pct = kpis.leadsGerados > 0 ? Math.round((row.count / kpis.leadsGerados) * 100) : 0;
+              return (
+                <div key={row.stage}>
+                  <div className="mb-1 flex justify-between text-[12px]">
+                    <span className="text-text-body">{row.stage}</span>
+                    <span className="text-text-sec">{row.count} ({pct}%)</span>
+                  </div>
+                  <div className="h-2 rounded-full bg-bg-general">
+                    <div className="h-full rounded-full bg-primary" style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      </div>
 
       <div className="grid grid-cols-2 gap-4">
         <Card>

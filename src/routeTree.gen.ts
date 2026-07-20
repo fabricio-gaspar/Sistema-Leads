@@ -23,6 +23,7 @@ import { Route as AuthenticatedDiagnosticoRouteImport } from './routes/_authenti
 import { Route as AuthenticatedConfiguracoesRouteImport } from './routes/_authenticated/configuracoes'
 import { Route as AuthenticatedAtendimentoRouteImport } from './routes/_authenticated/atendimento'
 import { Route as ApiPublicZapiWebhookRouteImport } from './routes/api/public/zapi-webhook'
+import { Route as ApiPublicResendWebhookRouteImport } from './routes/api/public/resend-webhook'
 import { Route as ApiPublicOutreachTickRouteImport } from './routes/api/public/outreach-tick'
 import { Route as ApiPublicEvolutionWebhookRouteImport } from './routes/api/public/evolution-webhook'
 import { Route as AuthenticatedLeadsIdRouteImport } from './routes/_authenticated/leads.$id'
@@ -100,6 +101,11 @@ const ApiPublicZapiWebhookRoute = ApiPublicZapiWebhookRouteImport.update({
   path: '/api/public/zapi-webhook',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicResendWebhookRoute = ApiPublicResendWebhookRouteImport.update({
+  id: '/api/public/resend-webhook',
+  path: '/api/public/resend-webhook',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicOutreachTickRoute = ApiPublicOutreachTickRouteImport.update({
   id: '/api/public/outreach-tick',
   path: '/api/public/outreach-tick',
@@ -133,6 +139,7 @@ export interface FileRoutesByFullPath {
   '/leads/$id': typeof AuthenticatedLeadsIdRoute
   '/api/public/evolution-webhook': typeof ApiPublicEvolutionWebhookRoute
   '/api/public/outreach-tick': typeof ApiPublicOutreachTickRoute
+  '/api/public/resend-webhook': typeof ApiPublicResendWebhookRoute
   '/api/public/zapi-webhook': typeof ApiPublicZapiWebhookRoute
 }
 export interface FileRoutesByTo {
@@ -151,6 +158,7 @@ export interface FileRoutesByTo {
   '/leads/$id': typeof AuthenticatedLeadsIdRoute
   '/api/public/evolution-webhook': typeof ApiPublicEvolutionWebhookRoute
   '/api/public/outreach-tick': typeof ApiPublicOutreachTickRoute
+  '/api/public/resend-webhook': typeof ApiPublicResendWebhookRoute
   '/api/public/zapi-webhook': typeof ApiPublicZapiWebhookRoute
 }
 export interface FileRoutesById {
@@ -171,6 +179,7 @@ export interface FileRoutesById {
   '/_authenticated/leads/$id': typeof AuthenticatedLeadsIdRoute
   '/api/public/evolution-webhook': typeof ApiPublicEvolutionWebhookRoute
   '/api/public/outreach-tick': typeof ApiPublicOutreachTickRoute
+  '/api/public/resend-webhook': typeof ApiPublicResendWebhookRoute
   '/api/public/zapi-webhook': typeof ApiPublicZapiWebhookRoute
 }
 export interface FileRouteTypes {
@@ -191,6 +200,7 @@ export interface FileRouteTypes {
     | '/leads/$id'
     | '/api/public/evolution-webhook'
     | '/api/public/outreach-tick'
+    | '/api/public/resend-webhook'
     | '/api/public/zapi-webhook'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -209,6 +219,7 @@ export interface FileRouteTypes {
     | '/leads/$id'
     | '/api/public/evolution-webhook'
     | '/api/public/outreach-tick'
+    | '/api/public/resend-webhook'
     | '/api/public/zapi-webhook'
   id:
     | '__root__'
@@ -228,6 +239,7 @@ export interface FileRouteTypes {
     | '/_authenticated/leads/$id'
     | '/api/public/evolution-webhook'
     | '/api/public/outreach-tick'
+    | '/api/public/resend-webhook'
     | '/api/public/zapi-webhook'
   fileRoutesById: FileRoutesById
 }
@@ -236,6 +248,7 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   ApiPublicEvolutionWebhookRoute: typeof ApiPublicEvolutionWebhookRoute
   ApiPublicOutreachTickRoute: typeof ApiPublicOutreachTickRoute
+  ApiPublicResendWebhookRoute: typeof ApiPublicResendWebhookRoute
   ApiPublicZapiWebhookRoute: typeof ApiPublicZapiWebhookRoute
 }
 
@@ -339,6 +352,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicZapiWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/resend-webhook': {
+      id: '/api/public/resend-webhook'
+      path: '/api/public/resend-webhook'
+      fullPath: '/api/public/resend-webhook'
+      preLoaderRoute: typeof ApiPublicResendWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/outreach-tick': {
       id: '/api/public/outreach-tick'
       path: '/api/public/outreach-tick'
@@ -410,18 +430,9 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   ApiPublicEvolutionWebhookRoute: ApiPublicEvolutionWebhookRoute,
   ApiPublicOutreachTickRoute: ApiPublicOutreachTickRoute,
+  ApiPublicResendWebhookRoute: ApiPublicResendWebhookRoute,
   ApiPublicZapiWebhookRoute: ApiPublicZapiWebhookRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
