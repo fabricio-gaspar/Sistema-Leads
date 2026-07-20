@@ -337,8 +337,13 @@ export const createOrder = createServerFn({ method: 'POST' })
       .select()
       .single()
     if (error) throw new Error(error.message)
+    // Auto-avançar Kanban do lead vinculado para "Fechado"
+    if (data.lead_id) {
+      await context.supabase.from('leads').update({ stage: 'Fechado' } as never).eq('id', data.lead_id)
+    }
     return row
   })
+
 
 export const updateOrder = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
