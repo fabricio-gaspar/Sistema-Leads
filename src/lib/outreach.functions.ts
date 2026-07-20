@@ -687,7 +687,7 @@ export async function handleInboundWithAiInternal(
     services: services ?? [],
     approved_objections: objections ?? [],
     approved_answers: learnedAnswers ?? [],
-    approved_documents: (documents ?? []).map((document) => ({
+    approved_documents: (documents ?? []).map((document: { name: string; content_text: string | null }) => ({
       name: document.name,
       content: document.content_text?.slice(0, 4_000),
     })),
