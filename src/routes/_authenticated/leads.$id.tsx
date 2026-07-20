@@ -415,7 +415,10 @@ function LeadDetail() {
             <InfoRow icon={Clock} text={`Parado há: ${lead.stale_hours ?? 0}h`} />
             <InfoRow icon={UserIcon} text={`Owner: ${lead.owner}`} />
           </Card>
+          <NotesCard leadId={id} />
+          <StageHistoryCard leadId={id} />
         </div>
+
 
       </div>
     </div>
