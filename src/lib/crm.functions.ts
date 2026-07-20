@@ -541,9 +541,10 @@ export const chatWithAna = createServerFn({ method: 'POST' })
           headers: { 'content-type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
           body: JSON.stringify({
             model,
-            max_tokens: 150,
+            max_tokens: 200,
             temperature: 0,
-            system: 'Classifique a última mensagem do cliente em um funil B2B. Responda APENAS JSON: {"intencao":"interesse|duvida|objecao|desinteresse|neutro","confianca":0-100}. "interesse" = cliente quer avançar (pedir proposta, agendar, quer saber preço para comprar, aceita reunião).',
+            system:
+              'Classifique a última mensagem do cliente em um funil B2B. Responda APENAS JSON: {"intencao":"interesse|pedido_proposta|negociacao|fechamento|objecao|desinteresse|duvida|neutro","confianca":0-100}. Definições: "interesse"=quer avançar/agendar/saber preço; "pedido_proposta"=pediu orçamento/proposta; "negociacao"=negocia preço/prazo/condição; "fechamento"=aceita fechar/comprar; "objecao"=barreira contornável; "desinteresse"=recusa clara; "duvida"=quer informação; "neutro"=saudação/vazio.',
             messages: [{ role: 'user', content: `Mensagem do cliente: "${data.user_text}"` }],
           }),
         })
@@ -553,32 +554,73 @@ export const chatWithAna = createServerFn({ method: 'POST' })
           const m = raw.match(/\{[\s\S]*\}/)
           if (m) {
             const parsed = JSON.parse(m[0]) as { intencao?: string; confianca?: number }
-            if (parsed.intencao === 'interesse' && (parsed.confianca ?? 0) >= 60) {
-              leadUpdate.stage = 'Qualificado'
+            const conf = parsed.confianca ?? 0
+            const intent = parsed.intencao ?? 'neutro'
+
+            // Map intent → stage transition (respect current stage; never regride)
+            const stageOrder = ['Prospecção', 'Qualificado', 'Proposta', 'Negociação', 'Pedido', 'Fechado', 'Perdido']
+            const curIdx = stageOrder.indexOf(lead?.stage ?? 'Prospecção')
+            let nextStage: string | null = null
+            let escalate = false
+            let escalateMsg = ''
+
+            if (conf >= 60) {
+              if (intent === 'desinteresse') {
+                nextStage = 'Perdido'
+                escalate = false
+              } else if (intent === 'fechamento') {
+                nextStage = 'Negociação'
+                escalate = true
+                escalateMsg = '🔔 Cliente sinalizou fechamento — assuma para fechar o pedido.'
+              } else if (intent === 'negociacao') {
+                nextStage = 'Negociação'
+                escalate = true
+                escalateMsg = '🔔 Cliente entrou em negociação — assuma o atendimento.'
+              } else if (intent === 'pedido_proposta') {
+                nextStage = 'Proposta'
+                escalate = true
+                escalateMsg = '🔔 Cliente pediu proposta — assuma para elaborar o orçamento.'
+              } else if (intent === 'interesse') {
+                nextStage = 'Qualificado'
+                escalate = true
+                escalateMsg = '🔔 Cliente demonstrou interesse — encaminhando para um vendedor humano.'
+              }
+            }
+
+            if (nextStage) {
+              const nextIdx = stageOrder.indexOf(nextStage)
+              // Perdido é terminal permitido; caso contrário, só avança
+              if (nextStage === 'Perdido' || nextIdx > curIdx) {
+                leadUpdate.stage = nextStage
+              }
+            }
+
+            if (escalate && leadUpdate.stage) {
               await context.supabase.from('lead_messages').insert({
                 lead_id: data.lead_id,
                 sender: 'ia',
                 sender_name: 'Ana (IA)',
                 type: 'ia-escalated',
-                text: '🔔 Cliente demonstrou interesse — encaminhando para um vendedor humano.',
+                text: escalateMsg,
                 sent_at: new Date().toISOString(),
               } as never)
               await context.supabase.from('notifications').insert({
                 user_id: context.userId,
                 kind: 'lead_escalated',
                 title: 'Lead pronto para vendedor',
-                description: `${lead?.company ?? 'Lead'} demonstrou interesse. Assuma o atendimento.`,
+                description: `${lead?.company ?? 'Lead'} — ${intent} (${conf}%). Assuma o atendimento.`,
               } as never)
               await context.supabase.from('audit_logs').insert({
                 actor_id: context.userId,
                 actor_name: 'Ana (IA)',
                 actor_type: 'ia',
                 action: 'lead_escalated',
-                detail: `Lead ${data.lead_id} escalado para humano (interesse detectado)`,
+                detail: `Lead ${data.lead_id} → ${leadUpdate.stage} (${intent}, ${conf}%)`,
               } as never)
             }
           }
         }
+
       } catch (err) {
         console.error('intent classification failed', err)
       }
