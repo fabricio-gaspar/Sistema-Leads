@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { TrendingUp, Sparkles, User, Loader2 } from "lucide-react";
+import { useState } from "react";
 import { Card, SectionTitle } from "@/components/ui-kit";
 import { formatBRL } from "@/lib/leads-data";
 import { getReportsData } from "@/lib/crm.functions";
@@ -9,10 +10,18 @@ import { getReportsData } from "@/lib/crm.functions";
 export const Route = createFileRoute("/_authenticated/relatorios")({ component: Relatorios });
 
 const CANAL_COR = ["bg-ia", "bg-primary", "bg-success", "bg-warm", "bg-text-ter"];
+type Period = "30d" | "3m" | "6m" | "12m";
+const PERIODS: { id: Period; label: string }[] = [
+  { id: "30d", label: "Mensal" },
+  { id: "3m", label: "Trimestral" },
+  { id: "6m", label: "Semestral" },
+  { id: "12m", label: "Anual" },
+];
 
 function Relatorios() {
   const fn = useServerFn(getReportsData);
-  const { data, isLoading } = useQuery({ queryKey: ["reports"], queryFn: () => fn() });
+  const [period, setPeriod] = useState<Period>("6m");
+  const { data, isLoading } = useQuery({ queryKey: ["reports", period], queryFn: () => fn({ data: { period } }) });
 
   if (isLoading || !data) {
     return (
@@ -26,6 +35,7 @@ function Relatorios() {
 
   const { months, ranking, canais, kpis, funnel, channelPerformance } = data;
   const max = Math.max(1, ...months.map((m) => Math.max(m.ia, m.humano)));
+
 
   return (
     <div className="space-y-4">
