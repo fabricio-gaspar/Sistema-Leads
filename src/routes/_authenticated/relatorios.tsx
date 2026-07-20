@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { TrendingUp, Sparkles, User, Loader2 } from "lucide-react";
+import { useState } from "react";
 import { Card, SectionTitle } from "@/components/ui-kit";
 import { formatBRL } from "@/lib/leads-data";
 import { getReportsData } from "@/lib/crm.functions";
@@ -9,10 +10,18 @@ import { getReportsData } from "@/lib/crm.functions";
 export const Route = createFileRoute("/_authenticated/relatorios")({ component: Relatorios });
 
 const CANAL_COR = ["bg-ia", "bg-primary", "bg-success", "bg-warm", "bg-text-ter"];
+type Period = "30d" | "3m" | "6m" | "12m";
+const PERIODS: { id: Period; label: string }[] = [
+  { id: "30d", label: "Mensal" },
+  { id: "3m", label: "Trimestral" },
+  { id: "6m", label: "Semestral" },
+  { id: "12m", label: "Anual" },
+];
 
 function Relatorios() {
   const fn = useServerFn(getReportsData);
-  const { data, isLoading } = useQuery({ queryKey: ["reports"], queryFn: () => fn() });
+  const [period, setPeriod] = useState<Period>("6m");
+  const { data, isLoading } = useQuery({ queryKey: ["reports", period], queryFn: () => fn({ data: { period } }) });
 
   if (isLoading || !data) {
     return (
@@ -27,20 +36,37 @@ function Relatorios() {
   const { months, ranking, canais, kpis, funnel, channelPerformance } = data;
   const max = Math.max(1, ...months.map((m) => Math.max(m.ia, m.humano)));
 
+
   return (
     <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <div className="text-[12px] text-text-sec">Período de análise</div>
+        <div className="flex gap-1 rounded-md border border-border-card bg-bg-card p-0.5">
+          {PERIODS.map((p) => (
+            <button
+              key={p.id}
+              onClick={() => setPeriod(p.id)}
+              className={`rounded px-3 py-1 text-[12px] font-medium transition ${period === p.id ? "bg-primary text-white" : "text-text-body hover:bg-bg-general"}`}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="grid grid-cols-4 gap-4">
         {[
-          { l: "Receita 7 meses", v: formatBRL(kpis.receita7m) },
+          { l: `Receita (${PERIODS.find((p) => p.id === period)?.label.toLowerCase()})`, v: formatBRL(kpis.receita7m) },
           { l: "Leads gerados", v: String(kpis.leadsGerados) },
           { l: "Ticket médio", v: formatBRL(kpis.ticket) },
-          { l: "Fechados", v: String(kpis.fechados7m), d: "Últimos 7 meses" },
+          { l: "Fechados", v: String(kpis.fechados7m) },
+
         ].map((k) => (
           <Card key={k.l}>
             <div className="text-[11px] uppercase text-text-ter">{k.l}</div>
             <div className="text-[22px] font-semibold text-text-title">{k.v}</div>
-            {k.d && <div className="text-[11px] text-text-sec">{k.d}</div>}
           </Card>
+
         ))}
       </div>
 
