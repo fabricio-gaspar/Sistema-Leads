@@ -1,8 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { FileText, Plus, Download, Loader2, Trash2, Copy, ArrowRightCircle } from "lucide-react";
+import { FileText, Plus, Download, Loader2, Trash2, Copy, ArrowRightCircle, X } from "lucide-react";
 import { Card, SectionTitle } from "@/components/ui-kit";
 import { toast } from "sonner";
 import { formatBRL } from "@/lib/leads-data";
@@ -14,11 +14,15 @@ import {
   setProposalStatus,
   duplicateProposal,
   convertProposalToOrder,
+  listServices,
+  listLeads,
 } from "@/lib/crm.functions";
 
 export const Route = createFileRoute("/_authenticated/orcamentos")({ component: Orcamentos });
 
 const STATUS_OPTIONS = ["rascunho", "enviado", "visualizado", "aprovado", "recusado"];
+
+type LineItem = { name: string; qty: number; price: number; unit?: string | null };
 
 function Orcamentos() {
   const qc = useQueryClient();
@@ -230,6 +234,8 @@ function Orcamentos() {
   );
 }
 
+// ================ Modal ================
+
 function NewProposalModal({
   onClose,
   onSubmit,
@@ -241,82 +247,218 @@ function NewProposalModal({
     client: string;
     value: number;
     status?: string;
+    items?: LineItem[];
+    discount?: number;
+    lead_id?: string | null;
   }) => Promise<void>;
   nextNumber: string;
 }) {
+  const servicesFn = useServerFn(listServices);
+  const leadsFn = useServerFn(listLeads);
+  const { data: services = [] } = useQuery({ queryKey: ["services"], queryFn: () => servicesFn() });
+  const { data: leads = [] } = useQuery({ queryKey: ["leads"], queryFn: () => leadsFn() });
+
   const [form, setForm] = useState({
     number: nextNumber,
     client: "",
-    value: "",
     status: "rascunho",
+    discount: 0,
+    lead_id: "" as string,
   });
+  const [items, setItems] = useState<LineItem[]>([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
+  const categories = useMemo(() => {
+    const set = new Set<string>();
+    (services as any[]).forEach((s) => s?.category && set.add(s.category));
+    return Array.from(set).sort();
+  }, [services]);
+
+  const subtotal = items.reduce((a, it) => a + it.qty * it.price, 0);
+  const total = Math.max(0, subtotal - Number(form.discount || 0));
+
+  const addFromService = (id: string) => {
+    const s = (services as any[]).find((x) => x.id === id);
+    if (!s) return;
+    setItems((prev) => [...prev, { name: s.name, qty: 1, price: Number(s.price || 0), unit: s.unit }]);
+  };
+  const addFromTemplate = (cat: string) => {
+    const bundle = (services as any[]).filter((s) => s.category === cat && s.active !== false);
+    if (bundle.length === 0) return toast.error("Nenhum item no template");
+    setItems((prev) => [
+      ...prev,
+      ...bundle.map((s) => ({ name: s.name, qty: 1, price: Number(s.price || 0), unit: s.unit })),
+    ]);
+    if (!form.client && bundle[0]) toast.info(`Template "${cat}" carregado (${bundle.length} itens)`);
+  };
+  const addBlank = () => setItems((prev) => [...prev, { name: "", qty: 1, price: 0 }]);
+  const patchItem = (i: number, p: Partial<LineItem>) =>
+    setItems((prev) => prev.map((it, idx) => (idx === i ? { ...it, ...p } : it)));
+  const removeItem = (i: number) => setItems((prev) => prev.filter((_, idx) => idx !== i));
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
       <form
         onSubmit={async (e) => {
           e.preventDefault();
-          setBusy(true);
-          setErr(null);
+          if (items.length === 0) { setErr("Adicione pelo menos um item"); return; }
+          setBusy(true); setErr(null);
           try {
             await onSubmit({
               number: form.number.trim(),
               client: form.client.trim(),
-              value: Number(form.value) || 0,
+              value: total,
               status: form.status,
+              items,
+              discount: Number(form.discount) || 0,
+              lead_id: form.lead_id || null,
             });
-          } catch (e) {
-            setErr((e as Error).message);
-          } finally {
-            setBusy(false);
-          }
+          } catch (e) { setErr((e as Error).message); } finally { setBusy(false); }
         }}
-        className="w-[520px] rounded-lg bg-bg-card p-6 shadow-2xl"
+        className="max-h-[90vh] w-[760px] overflow-y-auto rounded-lg bg-bg-card p-6 shadow-2xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <SectionTitle title="Nova proposta" hint="Cadastro rápido" />
-        <div className="space-y-3">
-          <Input label="Número *" value={form.number} onChange={(v) => setForm({ ...form, number: v })} required />
-          <Input label="Cliente *" value={form.client} onChange={(v) => setForm({ ...form, client: v })} required />
-          <div className="grid grid-cols-2 gap-3">
-            <Input
-              label="Valor (R$) *"
-              type="number"
-              value={form.value}
-              onChange={(v) => setForm({ ...form, value: v })}
-              required
-            />
-            <div>
-              <div className="mb-1 text-[11px] uppercase text-text-ter">Status</div>
-              <select
-                value={form.status}
-                onChange={(e) => setForm({ ...form, status: e.target.value })}
-                className="h-9 w-full rounded-md border border-border-card bg-bg-card px-2 text-[13px]"
-              >
-                {STATUS_OPTIONS.map((s) => (
-                  <option key={s} value={s}>{s}</option>
-                ))}
-              </select>
+        <SectionTitle title="Nova proposta" hint="Use um template ou monte item a item" />
+
+        {/* Templates por tipo de produto */}
+        {categories.length > 0 && (
+          <div className="mb-4 rounded-md border border-border-card bg-bg-general/40 p-3">
+            <div className="mb-2 text-[11px] uppercase text-text-ter">Templates (categorias do catálogo)</div>
+            <div className="flex flex-wrap gap-1.5">
+              {categories.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => addFromTemplate(c)}
+                  className="rounded-full border border-primary/40 bg-primary/10 px-3 py-1 text-[11px] text-primary hover:bg-primary hover:text-primary-foreground"
+                >
+                  + {c}
+                </button>
+              ))}
             </div>
           </div>
+        )}
+
+        <div className="grid grid-cols-2 gap-3">
+          <Input label="Número *" value={form.number} onChange={(v) => setForm({ ...form, number: v })} required />
+          <div>
+            <div className="mb-1 text-[11px] uppercase text-text-ter">Vincular ao lead</div>
+            <select
+              value={form.lead_id}
+              onChange={(e) => {
+                const l = (leads as any[]).find((x) => x.id === e.target.value);
+                setForm({ ...form, lead_id: e.target.value, client: l?.company ?? form.client });
+              }}
+              className="h-9 w-full rounded-md border border-border-card bg-bg-card px-2 text-[13px]"
+            >
+              <option value="">— nenhum —</option>
+              {(leads as any[]).map((l) => (
+                <option key={l.id} value={l.id}>{l.company}</option>
+              ))}
+            </select>
+          </div>
+          <Input label="Cliente *" value={form.client} onChange={(v) => setForm({ ...form, client: v })} required />
+          <div>
+            <div className="mb-1 text-[11px] uppercase text-text-ter">Status</div>
+            <select
+              value={form.status}
+              onChange={(e) => setForm({ ...form, status: e.target.value })}
+              className="h-9 w-full rounded-md border border-border-card bg-bg-card px-2 text-[13px]"
+            >
+              {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
         </div>
+
+        {/* Itens */}
+        <div className="mt-4">
+          <div className="mb-2 flex items-center justify-between">
+            <div className="text-[11px] uppercase text-text-ter">Itens</div>
+            <div className="flex gap-2">
+              {services.length > 0 && (
+                <select
+                  onChange={(e) => { if (e.target.value) { addFromService(e.target.value); e.target.value = ""; } }}
+                  className="h-8 rounded-md border border-border-card bg-bg-card px-2 text-[12px]"
+                  defaultValue=""
+                >
+                  <option value="">+ do catálogo…</option>
+                  {(services as any[]).map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.name} — {formatBRL(Number(s.price || 0))}
+                    </option>
+                  ))}
+                </select>
+              )}
+              <button type="button" onClick={addBlank}
+                className="rounded-md border border-border-card bg-bg-card px-2 py-1 text-[11px] hover:bg-bg-general">
+                + item vazio
+              </button>
+            </div>
+          </div>
+
+          {items.length === 0 ? (
+            <div className="rounded-md border border-dashed border-border-card p-6 text-center text-[12px] text-text-ter">
+              Selecione um template acima ou adicione um item do catálogo.
+            </div>
+          ) : (
+            <table className="w-full text-[12px]">
+              <thead className="text-[10px] uppercase text-text-ter">
+                <tr><th className="pb-1 text-left">Descrição</th><th className="pb-1 w-16">Qtd</th><th className="pb-1 w-28">Preço</th><th className="pb-1 w-28 text-right">Subtotal</th><th className="pb-1 w-8"></th></tr>
+              </thead>
+              <tbody>
+                {items.map((it, i) => (
+                  <tr key={i} className="border-t border-border-card">
+                    <td className="py-1.5 pr-2">
+                      <input value={it.name} onChange={(e) => patchItem(i, { name: e.target.value })}
+                        className="h-8 w-full rounded border border-border-card bg-bg-card px-2 text-[12px]" required />
+                    </td>
+                    <td className="py-1.5 pr-2">
+                      <input type="number" min={0} step="1" value={it.qty}
+                        onChange={(e) => patchItem(i, { qty: Number(e.target.value) })}
+                        className="h-8 w-full rounded border border-border-card bg-bg-card px-2 text-[12px]" />
+                    </td>
+                    <td className="py-1.5 pr-2">
+                      <input type="number" min={0} step="0.01" value={it.price}
+                        onChange={(e) => patchItem(i, { price: Number(e.target.value) })}
+                        className="h-8 w-full rounded border border-border-card bg-bg-card px-2 text-[12px]" />
+                    </td>
+                    <td className="py-1.5 pr-2 text-right font-medium text-text-title">{formatBRL(it.qty * it.price)}</td>
+                    <td className="py-1.5">
+                      <button type="button" onClick={() => removeItem(i)} className="text-text-ter hover:text-error">
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        {/* Totais */}
+        <div className="mt-4 flex items-end justify-between gap-4 border-t border-border-card pt-4">
+          <div className="w-40">
+            <div className="mb-1 text-[11px] uppercase text-text-ter">Desconto (R$)</div>
+            <input type="number" min={0} step="0.01" value={form.discount}
+              onChange={(e) => setForm({ ...form, discount: Number(e.target.value) })}
+              className="h-9 w-full rounded-md border border-border-card bg-bg-card px-2 text-[13px]" />
+          </div>
+          <div className="text-right">
+            <div className="text-[11px] text-text-ter">Subtotal: {formatBRL(subtotal)}</div>
+            <div className="text-[20px] font-semibold text-text-title">Total: {formatBRL(total)}</div>
+          </div>
+        </div>
+
         {err && <div className="mt-3 rounded bg-error-bg px-3 py-2 text-[12px] text-error">{err}</div>}
         <div className="mt-5 flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-md border border-border-card px-3 py-2 text-[12px] text-text-body hover:bg-bg-general"
-          >
+          <button type="button" onClick={onClose}
+            className="rounded-md border border-border-card px-3 py-2 text-[12px] text-text-body hover:bg-bg-general">
             Cancelar
           </button>
-          <button
-            type="submit"
-            disabled={busy}
-            className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-[12px] font-medium text-primary-foreground hover:bg-primary-hover disabled:opacity-50"
-          >
-            {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />} Criar
+          <button type="submit" disabled={busy}
+            className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-[12px] font-medium text-primary-foreground hover:bg-primary-hover disabled:opacity-50">
+            {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />} Criar proposta
           </button>
         </div>
       </form>
@@ -325,24 +467,15 @@ function NewProposalModal({
 }
 
 function Input({
-  label,
-  value,
-  onChange,
-  ...rest
+  label, value, onChange, ...rest
 }: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
+  label: string; value: string; onChange: (v: string) => void;
 } & Omit<React.InputHTMLAttributes<HTMLInputElement>, "value" | "onChange">) {
   return (
     <div>
       <div className="mb-1 text-[11px] uppercase text-text-ter">{label}</div>
-      <input
-        {...rest}
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="h-9 w-full rounded-md border border-border-card bg-bg-card px-3 text-[13px] outline-none focus:border-primary"
-      />
+      <input {...rest} value={value} onChange={(e) => onChange(e.target.value)}
+        className="h-9 w-full rounded-md border border-border-card bg-bg-card px-3 text-[13px] outline-none focus:border-primary" />
     </div>
   );
 }
