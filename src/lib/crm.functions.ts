@@ -925,19 +925,24 @@ export const getDashboardStats = createServerFn({ method: 'GET' })
     }
   })
 
-export const getReportsData = createServerFn({ method: 'GET' })
+export const getReportsData = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
-    // Últimos 7 meses
+  .inputValidator((d: unknown) =>
+    z.object({ period: z.enum(['30d', '3m', '6m', '12m']).optional() }).partial().parse(d ?? {}),
+  )
+  .handler(async ({ data, context }) => {
+    const period = data.period ?? '6m'
+    const monthsBack = period === '30d' ? 1 : period === '3m' ? 3 : period === '6m' ? 6 : 12
     const now = new Date()
     const months: { key: string; label: string; year: number; month: number }[] = []
-    for (let i = 6; i >= 0; i--) {
+    for (let i = monthsBack; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
       const label = d.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '')
       months.push({ key, label: label.charAt(0).toUpperCase() + label.slice(1), year: d.getFullYear(), month: d.getMonth() })
     }
     const start = new Date(months[0].year, months[0].month, 1)
+
 
     const [closedRes, allLeadsRes, teamRes, outreachRes] = await Promise.all([
       context.supabase
