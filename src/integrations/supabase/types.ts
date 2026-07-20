@@ -72,10 +72,6 @@ export type Database = {
           description: string | null
           differentiators: string | null
           email: string | null
-          evolution_active: boolean
-          evolution_api_key: string | null
-          evolution_instance: string | null
-          evolution_url: string | null
           id: string
           logo_url: string | null
           name: string
@@ -103,10 +99,6 @@ export type Database = {
           description?: string | null
           differentiators?: string | null
           email?: string | null
-          evolution_active?: boolean
-          evolution_api_key?: string | null
-          evolution_instance?: string | null
-          evolution_url?: string | null
           id?: string
           logo_url?: string | null
           name: string
@@ -134,10 +126,6 @@ export type Database = {
           description?: string | null
           differentiators?: string | null
           email?: string | null
-          evolution_active?: boolean
-          evolution_api_key?: string | null
-          evolution_instance?: string | null
-          evolution_url?: string | null
           id?: string
           logo_url?: string | null
           name?: string
@@ -154,8 +142,41 @@ export type Database = {
         }
         Relationships: []
       }
+      contact_suppressions: {
+        Row: {
+          channel: string
+          contact_hash: string
+          created_at: string
+          lead_id: string | null
+          reason: string
+        }
+        Insert: {
+          channel: string
+          contact_hash: string
+          created_at?: string
+          lead_id?: string | null
+          reason?: string
+        }
+        Update: {
+          channel?: string
+          contact_hash?: string
+          created_at?: string
+          lead_id?: string | null
+          reason?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contact_suppressions_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       documents: {
         Row: {
+          content_text: string | null
           created_at: string
           id: string
           name: string
@@ -168,6 +189,7 @@ export type Database = {
           uses: number
         }
         Insert: {
+          content_text?: string | null
           created_at?: string
           id?: string
           name: string
@@ -180,6 +202,7 @@ export type Database = {
           uses?: number
         }
         Update: {
+          content_text?: string | null
           created_at?: string
           id?: string
           name?: string
@@ -233,6 +256,7 @@ export type Database = {
           created_at: string
           id: string
           lead_id: string
+          provider_message_id: string | null
           sender: Database["public"]["Enums"]["message_sender"]
           sender_name: string
           sent_at: string
@@ -243,6 +267,7 @@ export type Database = {
           created_at?: string
           id?: string
           lead_id: string
+          provider_message_id?: string | null
           sender: Database["public"]["Enums"]["message_sender"]
           sender_name: string
           sent_at?: string
@@ -253,6 +278,7 @@ export type Database = {
           created_at?: string
           id?: string
           lead_id?: string
+          provider_message_id?: string | null
           sender?: Database["public"]["Enums"]["message_sender"]
           sender_name?: string
           sent_at?: string
@@ -928,6 +954,7 @@ export type Database = {
       }
       unanswered_questions: {
         Row: {
+          answer: string | null
           count: number
           created_at: string
           id: string
@@ -936,6 +963,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          answer?: string | null
           count?: number
           created_at?: string
           id?: string
@@ -944,6 +972,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          answer?: string | null
           count?: number
           created_at?: string
           id?: string
