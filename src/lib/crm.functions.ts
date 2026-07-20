@@ -264,8 +264,18 @@ export const createProposal = createServerFn({ method: 'POST' })
       .select()
       .single()
     if (error) throw new Error(error.message)
+    // Auto-avançar Kanban do lead vinculado para "Proposta" (só se estiver antes)
+    if (data.lead_id) {
+      const { data: lead } = await context.supabase.from('leads').select('stage').eq('id', data.lead_id).maybeSingle()
+      const order = ['Prospecção', 'Qualificado', 'Proposta', 'Negociação', 'Pedido', 'Fechado']
+      const cur = order.indexOf(lead?.stage ?? '')
+      if (cur >= 0 && cur < order.indexOf('Proposta')) {
+        await context.supabase.from('leads').update({ stage: 'Proposta' } as never).eq('id', data.lead_id)
+      }
+    }
     return row
   })
+
 
 export const updateProposal = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
