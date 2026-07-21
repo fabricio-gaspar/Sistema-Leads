@@ -140,6 +140,7 @@ function AbaAna() {
   const [maxTokens, setMaxTokens] = useState(512);
   const [prompt, setPrompt] = useState(DEFAULT_PROMPT);
   const [tone, setTone] = useState("Profissional cordial");
+  const [sandboxMode, setSandboxMode] = useState(false);
 
   useEffect(() => {
     if (!data) return;
@@ -148,6 +149,7 @@ function AbaAna() {
     if (data.ai_max_tokens != null) setMaxTokens(Number(data.ai_max_tokens));
     if (data.ai_prompt) setPrompt(data.ai_prompt);
     if (data.tone_of_voice) setTone(data.tone_of_voice);
+    if (typeof (data as any).sandbox_mode === "boolean") setSandboxMode((data as any).sandbox_mode);
   }, [data]);
 
   const saveMut = useMutation({
@@ -159,6 +161,7 @@ function AbaAna() {
           ai_max_tokens: maxTokens,
           ai_prompt: prompt,
           tone_of_voice: tone,
+          sandbox_mode: sandboxMode,
         },
       }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["company-settings"] }),
