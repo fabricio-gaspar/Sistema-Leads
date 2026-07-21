@@ -39,6 +39,10 @@ import {
   listStageHistory,
   moveLeadStage,
   upsertLeadTask,
+  listContactPoints,
+  upsertContactPoint,
+  deleteContactPoint,
+  listConsentEvents,
 } from "@/lib/crm.functions";
 import {
   listOutreach,
@@ -416,6 +420,8 @@ function LeadDetail() {
             <InfoRow icon={UserIcon} text={`Owner: ${lead.owner}`} />
           </Card>
           <NotesCard leadId={id} />
+          <ContactPointsCard leadId={id} lead={lead} />
+          <ConsentEventsCard leadId={id} lead={lead} />
           <StageHistoryCard leadId={id} />
         </div>
 
