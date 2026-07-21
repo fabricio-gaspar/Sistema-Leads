@@ -22,7 +22,7 @@ export const Route = createFileRoute("/_authenticated")({
     // Bloqueia usuários desativados
     if (profile && profile.active === false) {
       await supabase.auth.signOut();
-      throw redirect({ to: "/auth", search: { inactive: "1" } as never });
+      throw redirect({ to: "/auth" });
     }
 
     const roles = (rolesRows ?? []).map((r) => r.role as string);
