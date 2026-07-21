@@ -132,21 +132,25 @@ function Prospeccao() {
   const importMut = useMutation({
     mutationFn: async (ids: string[]) => {
       let imported = 0;
+      let skipped = 0;
       const errors: string[] = [];
       for (const cnpj of ids) {
         try {
-          await importFn({ data: { cache_id: currentCacheId!, cnpj } });
-          imported += 1;
+          const res = await importFn({ data: { cache_id: currentCacheId!, cnpj } });
+          if ((res as { _already_imported?: boolean })?._already_imported) skipped += 1;
+          else imported += 1;
         } catch (error) {
           errors.push((error as Error).message);
         }
       }
-      return { imported, errors };
+      return { imported, skipped, errors };
     },
-    onSuccess: ({ imported, errors }, ids) => {
-      setFlash(errors.length
-        ? `✔ ${imported} enviado(s) para Leads. ${errors.length} não enviado(s): ${errors[0]}`
-        : `✔ ${imported} prospecto(s) enviado(s) para Leads. A IA iniciou o primeiro contato.`);
+    onSuccess: ({ imported, skipped, errors }, ids) => {
+      const parts: string[] = [];
+      if (imported) parts.push(`✔ ${imported} enviado(s) para Leads`);
+      if (skipped) parts.push(`⤼ ${skipped} já importado(s)`);
+      if (errors.length) parts.push(`✖ ${errors.length} falharam: ${errors[0]}`);
+      setFlash(parts.join(' · ') || 'Nada a importar');
       setSelected((current) => {
         const next = new Set(current);
         ids.forEach((id) => next.delete(id));

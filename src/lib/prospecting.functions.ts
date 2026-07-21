@@ -739,11 +739,11 @@ export const importExternalAsLead = createServerFn({ method: 'POST' })
     const originTag = `${company.source}:${company.cnpj}`
     const { data: dup } = await context.supabase
       .from('leads')
-      .select('id')
+      .select('*')
       .eq('owner_id', context.userId)
       .eq('origin', originTag)
       .maybeSingle()
-    if (dup) throw new Error('Esta empresa já foi importada como lead')
+    if (dup) return { ...dup, _already_imported: true }
 
     const sizeMap: Record<string, 'pequena' | 'media' | 'grande'> = {
       'micro empresa': 'pequena',
