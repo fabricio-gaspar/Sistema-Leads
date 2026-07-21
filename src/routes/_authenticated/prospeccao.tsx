@@ -562,7 +562,7 @@ function Prospeccao() {
                 <>
                   <b>{results.length}</b> empresas encontradas via <b>{SOURCE_META[currentSource]?.label ?? String(currentSource)}</b>
                   {search.data?.cached && <span className="ml-2 text-[11px] text-text-ter">(cache)</span>}
-                  <span className="ml-2 text-[11px] text-primary">· Salvo no Histórico</span>
+                  
                 </>
               )}
             </div>
