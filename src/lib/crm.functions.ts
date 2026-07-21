@@ -1110,10 +1110,10 @@ export const inviteTeamMember = createServerFn({ method: 'POST' })
   .inputValidator((d: unknown) =>
     z
       .object({
-        email: z.string().email().transform((v) => v.trim().toLowerCase()),
-        name: z.string().min(1, 'Nome obrigatório').max(200).transform((v) => v.trim()),
+        email: z.string().trim().toLowerCase().email('E-mail inválido'),
+        name: z.string().trim().min(1, 'Nome obrigatório').max(200),
         role: appRole,
-        phone: z.string().max(40).optional().nullable(),
+        phone: z.string().trim().max(40).optional().nullable(),
         can_use_ia: z.boolean().optional().default(true),
         active: z.boolean().optional().default(true),
       })
@@ -1123,23 +1123,24 @@ export const inviteTeamMember = createServerFn({ method: 'POST' })
     await assertAdmin(context)
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server')
 
-    // Duplicidade
+    // Duplicidade case-insensitive
     const { data: existing, error: existErr } = await supabaseAdmin
       .from('profiles')
       .select('id, email')
-      .eq('email', data.email)
+      .ilike('email', data.email)
       .maybeSingle()
     if (existErr) throw new Error(existErr.message)
     if (existing) throw new Error('Já existe um usuário com este e-mail.')
 
     // Origin seguro
-    const origin = deriveOriginFromRequest()
+    const origin = await deriveOriginFromRequest()
     const redirectTo = origin ? `${origin}/reset-password` : undefined
 
     const { data: invite, error } = await supabaseAdmin.auth.admin.inviteUserByEmail(data.email, {
       data: { name: data.name },
       redirectTo,
     })
+    // Mantém erro do Auth caso o usuário exista apenas em auth.users
     if (error) throw new Error(error.message)
     const userId = invite.user?.id
     if (!userId) throw new Error('Falha ao criar usuário no Auth')
@@ -1168,9 +1169,10 @@ export const inviteTeamMember = createServerFn({ method: 'POST' })
       if (insErr) throw new Error(`user_roles insert: ${insErr.message}`)
 
       if (!data.active) {
-        await supabaseAdmin.auth.admin.updateUserById(userId, {
+        const { error: banErr } = await supabaseAdmin.auth.admin.updateUserById(userId, {
           ban_duration: '87600h',
         } as never)
+        if (banErr) throw new Error(`auth ban: ${banErr.message}`)
       }
     } catch (err) {
       // Rollback completo do usuário
