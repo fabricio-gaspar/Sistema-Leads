@@ -128,6 +128,32 @@ async function loadLead(ctx: Ctx, leadId: string) {
   return data
 }
 
+/**
+ * Sandbox guard: quando `company_settings.sandbox_mode` está ativo, apenas
+ * leads que possuem ao menos um `contact_points` marcado como `sandbox=true`
+ * podem receber mensagens. Contatos reais são preservados de disparos de teste.
+ * Retorna `{ allowed: true }` quando o sandbox está desligado.
+ */
+export async function assertSandboxAllowed(
+  ctx: Ctx,
+  leadId: string,
+): Promise<{ allowed: boolean; reason?: string }> {
+  const { data: settings } = await ctx.supabase
+    .from('company_settings')
+    .select('sandbox_mode')
+    .limit(1)
+    .maybeSingle()
+  if (!settings?.sandbox_mode) return { allowed: true }
+  const { data: rows } = await ctx.supabase
+    .from('contact_points')
+    .select('id')
+    .eq('lead_id', leadId)
+    .eq('sandbox', true)
+    .limit(1)
+  if (rows && rows.length > 0) return { allowed: true }
+  return { allowed: false, reason: 'sandbox_no_test_contact' }
+}
+
 async function updateChannelStatus(
   ctx: Ctx,
   leadId: string,
@@ -719,6 +745,19 @@ async function handoffInbound(
   const rule = categorizeHandoff(`${question}\n${reason}`)
   const channelLabel = delivery.channel === 'email' ? 'e-mail' : 'WhatsApp'
 
+  // Dedup: se já existe tarefa aberta da mesma categoria criada na última 1h,
+  // não recria; apenas mantém pausa/etapa e envia mensagem-ponte.
+  const dedupWindow = new Date(Date.now() - 60 * 60 * 1000).toISOString()
+  const { data: existingTasks } = await ctx.supabase
+    .from('lead_tasks')
+    .select('id')
+    .eq('lead_id', lead.id)
+    .eq('completed', false)
+    .ilike('text', `[${rule.label}]%`)
+    .gte('created_at', dedupWindow)
+    .limit(1)
+  const alreadyOpen = Boolean(existingTasks && existingTasks.length > 0)
+
   // Avança etapa se aplicável e sem regredir
   const leadPatch: Record<string, unknown> = {
     ai_paused: true,
@@ -730,29 +769,32 @@ async function handoffInbound(
   if (rule.nextStage) {
     const curIdx = STAGE_ORDER.indexOf(lead?.stage ?? 'Prospecção')
     const nextIdx = STAGE_ORDER.indexOf(rule.nextStage)
+    // Nunca regride etapa; apenas avança
     if (nextIdx > curIdx) leadPatch.stage = rule.nextStage
   }
   await ctx.supabase.from('leads').update(leadPatch as never).eq('id', lead.id)
 
-  const taskText = `[${rule.label}] ${lead.company} via ${channelLabel} — ${reason}. Mensagem: "${question.slice(0, 200)}"`
-  await ctx.supabase.from('lead_tasks').insert({
-    lead_id: lead.id,
-    owner_id: responsible,
-    owner_label: rule.priority === 'high' ? 'Vendedor (prioritário)' : 'Vendedor',
-    text: taskText,
-  } as never)
-  if (responsible) {
-    await ctx.supabase.from('notifications').insert({
-      user_id: responsible,
-      kind: rule.priority === 'high' ? 'lead_escalated_urgent' : 'lead_escalated',
-      title: rule.priority === 'high' ? `⚠️ ${rule.label}` : rule.label,
-      description: `${lead.company} (${channelLabel}): ${reason}`,
+  if (!alreadyOpen) {
+    const taskText = `[${rule.label}] ${lead.company} via ${channelLabel} — ${reason}. Mensagem: "${question.slice(0, 200)}"`
+    await ctx.supabase.from('lead_tasks').insert({
+      lead_id: lead.id,
+      owner_id: responsible,
+      owner_label: rule.priority === 'high' ? 'Vendedor (prioritário)' : 'Vendedor',
+      text: taskText,
     } as never)
+    if (responsible) {
+      await ctx.supabase.from('notifications').insert({
+        user_id: responsible,
+        kind: rule.priority === 'high' ? 'lead_escalated_urgent' : 'lead_escalated',
+        title: rule.priority === 'high' ? `⚠️ ${rule.label}` : rule.label,
+        description: `${lead.company} (${channelLabel}): ${reason}`,
+      } as never)
+    }
   }
   const bridge = 'Obrigado pela mensagem. Vou encaminhar você agora para um especialista da WayFlex, que continuará o atendimento por aqui.'
   const result = await deliverAiMessage(ctx, lead, bridge, delivery, 'ia-escalated')
-  await audit(ctx, 'handoff_automatic', `[${rule.category}] ${lead.company}: ${reason}`, 'ia')
-  return { ok: true, action: 'handoff' as const, category: rule.category, reason, sent: result.ok, at: now }
+  await audit(ctx, 'handoff_automatic', `[${rule.category}] ${lead.company}: ${reason}${alreadyOpen ? ' (dedup)' : ''}`, 'ia')
+  return { ok: true, action: 'handoff' as const, category: rule.category, reason, sent: result.ok, at: now, dedup: alreadyOpen }
 }
 
 
@@ -878,6 +920,13 @@ export const startOutreach = createServerFn({ method: 'POST' })
     if (lead.opt_out) return { ok: false, reason: 'opt_out' }
     if (lead.ai_paused) return { ok: false, reason: 'paused' }
 
+    // Sandbox guard: quando ativo, só permite envio a leads com contato de teste
+    const sandbox = await assertSandboxAllowed(context as Ctx, lead.id)
+    if (!sandbox.allowed) {
+      await audit(context as Ctx, 'outreach_blocked_sandbox', `Sandbox ativo: ${lead.company} sem contato de teste`, 'system')
+      return { ok: false, reason: sandbox.reason }
+    }
+
     // Garante contact_channels populado
     let channels = (lead.contact_channels ?? {}) as ContactChannels
     if (!channels.whatsapp && !channels.email && !channels.phone) {
@@ -944,6 +993,11 @@ export const sendManualWhatsapp = createServerFn({ method: 'POST' })
     const ctx = context as Ctx
     const lead = await loadLead(ctx, data.lead_id)
     if (lead.opt_out) return { ok: false, error: 'Este contato solicitou não receber mensagens.' }
+
+    const sandbox = await assertSandboxAllowed(ctx, lead.id)
+    if (!sandbox.allowed) {
+      return { ok: false, error: 'Modo sandbox ativo: adicione um contato marcado como Teste no lead antes de enviar.' }
+    }
 
     const to = lead.whatsapp || lead.phone || ''
     if (!to) return { ok: false, error: 'O lead não possui WhatsApp ou telefone cadastrado.' }
