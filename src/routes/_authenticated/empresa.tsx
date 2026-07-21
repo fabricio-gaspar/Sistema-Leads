@@ -408,12 +408,16 @@ function DocumentosCard() {
             <FileText className="h-4 w-4 text-text-ter shrink-0" />
             <div className="min-w-0 flex-1">
               <div className="truncate text-text-title">{d.name}</div>
-              <div className="text-[10.5px] text-text-ter">{d.type} · {d.size ?? "—"} · {d.status ?? "active"}</div>
+              <div className="text-[10.5px] text-text-ter">
+                {d.type} · {d.size ?? "—"} · {d.status ?? "active"}
+                {d.created_at && ` · enviado ${new Date(d.created_at as string).toLocaleDateString("pt-BR")}`}
+                {d.updated_at && d.updated_at !== d.created_at && ` · editado ${new Date(d.updated_at as string).toLocaleDateString("pt-BR")}`}
+              </div>
             </div>
-            <button onClick={() => setViewingId(d.id)} className="text-text-ter hover:text-primary" title="Visualizar">
+            <button onClick={() => setViewingId(d.id)} className="text-text-ter hover:text-primary" aria-label={`Visualizar ${d.name}`} title="Visualizar">
               <Eye className="h-3.5 w-3.5" />
             </button>
-            <button onClick={() => setEditingId(d.id)} className="text-text-ter hover:text-primary" title="Editar">
+            <button onClick={() => setEditingId(d.id)} className="text-text-ter hover:text-primary" aria-label={`Editar ${d.name}`} title="Editar">
               <Pencil className="h-3.5 w-3.5" />
             </button>
             <button onClick={() => d.storage_path && download(d.storage_path)} className="text-text-ter hover:text-primary" title="Baixar">
