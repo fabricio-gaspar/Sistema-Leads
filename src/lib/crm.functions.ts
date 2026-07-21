@@ -1735,3 +1735,149 @@ export const listContactPoints = createServerFn({ method: 'GET' })
     return rows ?? []
   })
 
+
+// ============= CONTACT POINTS (múltiplos contatos por lead) =============
+
+const contactKind = z.enum(['whatsapp', 'phone', 'email', 'site'])
+
+function normalizeContactValue(kind: z.infer<typeof contactKind>, value: string): string {
+  if (kind === 'email' || kind === 'site') return value.trim().toLowerCase()
+  return value.replace(/\D/g, '')
+}
+
+export const upsertContactPoint = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z.object({
+      id: z.string().uuid().optional(),
+      lead_id: z.string().uuid(),
+      kind: contactKind,
+      value: z.string().trim().min(3).max(200),
+      preferred: z.boolean().optional(),
+      verified: z.boolean().optional(),
+      sandbox: z.boolean().optional(),
+      status: z.string().optional(),
+    }).parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    const supabase = context.supabase as any
+    const normalized = normalizeContactValue(data.kind, data.value)
+    // Se marcar preferred, desmarca os demais desse lead
+    if (data.preferred) {
+      await supabase
+        .from('contact_points')
+        .update({ preferred: false } as never)
+        .eq('lead_id', data.lead_id)
+    }
+    const payload = {
+      lead_id: data.lead_id,
+      kind: data.kind,
+      value: data.value.trim(),
+      value_normalized: normalized,
+      preferred: data.preferred ?? false,
+      verified: data.verified ?? false,
+      sandbox: data.sandbox ?? false,
+      status: data.status ?? 'active',
+      source: 'manual',
+    }
+    if (data.id) {
+      const { data: row, error } = await supabase
+        .from('contact_points')
+        .update(payload as never)
+        .eq('id', data.id)
+        .select()
+        .single()
+      if (error) throw new Error(error.message)
+      return row
+    }
+    const { data: row, error } = await supabase
+      .from('contact_points')
+      .insert(payload as never)
+      .select()
+      .single()
+    if (error) throw new Error(error.message)
+    return row
+  })
+
+export const deleteContactPoint = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { error } = await (context.supabase as any).from('contact_points').delete().eq('id', data.id)
+    if (error) throw new Error(error.message)
+    return { ok: true }
+  })
+
+// ============= CONSENT EVENTS =============
+
+export const listConsentEvents = createServerFn({ method: 'GET' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ lead_id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: rows, error } = await (context.supabase as any)
+      .from('consent_events')
+      .select('id, event, channel, source, text, actor_id, created_at, contact_point_id')
+      .eq('lead_id', data.lead_id)
+      .order('created_at', { ascending: false })
+      .limit(100)
+    if (error) throw new Error(error.message)
+    return rows ?? []
+  })
+
+// ============= OPS METRICS (Relatórios operacionais) =============
+
+export const getOpsMetrics = createServerFn({ method: 'GET' })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const supabase = context.supabase as any
+    const since = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString()
+    const [outreachRes, optOutRes, handoffRes, anaTasksRes] = await Promise.all([
+      supabase
+        .from('lead_outreach')
+        .select('channel, status')
+        .gte('created_at', since),
+      supabase
+        .from('leads')
+        .select('id', { count: 'exact', head: true })
+        .eq('opt_out', true),
+      supabase
+        .from('audit_logs')
+        .select('detail')
+        .eq('action', 'handoff_automatic')
+        .gte('created_at', since)
+        .limit(500),
+      supabase
+        .from('lead_tasks')
+        .select('id', { count: 'exact', head: true })
+        .in('owner_label', ['Vendedor', 'Vendedor (prioritário)'])
+        .gte('created_at', since),
+    ])
+    const outreach = (outreachRes.data ?? []) as Array<{ channel: string; status: string }>
+    const byChannel: Record<string, { attempts: number; sent: number; failed: number; replied: number }> = {
+      whatsapp: { attempts: 0, sent: 0, failed: 0, replied: 0 },
+      email: { attempts: 0, sent: 0, failed: 0, replied: 0 },
+      phone: { attempts: 0, sent: 0, failed: 0, replied: 0 },
+    }
+    const sentSet = new Set(['sent', 'delivered', 'read', 'replied'])
+    for (const row of outreach) {
+      const b = byChannel[row.channel]
+      if (!b) continue
+      b.attempts += 1
+      if (sentSet.has(row.status)) b.sent += 1
+      if (row.status === 'failed') b.failed += 1
+      if (row.status === 'replied') b.replied += 1
+    }
+    const handoffByCategory: Record<string, number> = {}
+    for (const row of (handoffRes.data ?? []) as Array<{ detail: string }>) {
+      const m = row.detail?.match(/^\[(\w+)\]/)
+      const cat = m?.[1] ?? 'geral'
+      handoffByCategory[cat] = (handoffByCategory[cat] ?? 0) + 1
+    }
+    return {
+      byChannel,
+      optOutCount: optOutRes.count ?? 0,
+      handoffByCategory,
+      anaTaskCount: anaTasksRes.count ?? 0,
+      windowDays: 30,
+    }
+  })
