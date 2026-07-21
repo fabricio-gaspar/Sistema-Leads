@@ -146,6 +146,38 @@ async function updateChannelStatus(
   await ctx.supabase.from('leads').update(patch as never).eq('id', leadId)
 }
 
+/**
+ * Enqueues a durable timeout job in `outreach_jobs`. The cron drains this queue,
+ * so multiple manual/webhook/cron triggers converging on the same lead+channel
+ * only produce a single follow-up job (guarded by `idempotency_key`).
+ */
+export async function enqueueOutreachTimeoutInternal(
+  ctx: Ctx,
+  args: {
+    lead_id: string
+    outreach_id?: string | null
+    channel: Channel
+    attempt: number
+    run_at: string
+  },
+): Promise<void> {
+  const idempotencyKey = `${args.lead_id}:${args.channel}:${args.attempt}:timeout`
+  const { error } = await ctx.supabase.from('outreach_jobs').insert({
+    lead_id: args.lead_id,
+    outreach_id: args.outreach_id ?? null,
+    channel: args.channel,
+    payload: { kind: 'timeout' },
+    status: 'queued',
+    attempt: args.attempt,
+    idempotency_key: idempotencyKey,
+    run_at: args.run_at,
+  } as never)
+  // 23505 = idempotency_key already exists → same timeout already scheduled
+  if (error && (error as any).code !== '23505') {
+    console.error('[outreach_jobs] enqueue failed', error.message)
+  }
+}
+
 async function audit(
   ctx: Ctx,
   action: string,
