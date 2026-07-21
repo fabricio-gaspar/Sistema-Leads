@@ -368,8 +368,13 @@ function DocumentosCard() {
   };
 
   const download = async (storage_path: string) => {
-    const signed = await signFn({ data: { storage_path } });
-    if (signed?.signedUrl) window.open(signed.signedUrl, "_blank");
+    try {
+      const signed = await signFn({ data: { storage_path } });
+      if (signed?.signedUrl) window.open(signed.signedUrl, "_blank");
+      else throw new Error("URL indisponível");
+    } catch (e) {
+      toast.error("Falha ao gerar link", { description: (e as Error).message });
+    }
   };
 
   return (
@@ -420,10 +425,16 @@ function DocumentosCard() {
             <button onClick={() => setEditingId(d.id)} className="text-text-ter hover:text-primary" aria-label={`Editar ${d.name}`} title="Editar">
               <Pencil className="h-3.5 w-3.5" />
             </button>
-            <button onClick={() => d.storage_path && download(d.storage_path)} className="text-text-ter hover:text-primary" title="Baixar">
+            <button onClick={() => d.storage_path && download(d.storage_path)} disabled={!d.storage_path} className="text-text-ter hover:text-primary disabled:opacity-40" aria-label={`Baixar ${d.name}`} title="Baixar original">
               <Download className="h-3.5 w-3.5" />
             </button>
-            <button onClick={() => { if (confirm(`Remover "${d.name}"?`)) delMut.mutate(d.id); }} className="text-text-ter hover:text-error" title="Remover">
+            <button
+              onClick={() => { if (confirm(`Remover "${d.name}"?`)) delMut.mutate(d.id); }}
+              disabled={delMut.isPending}
+              className="text-text-ter hover:text-error disabled:opacity-40"
+              aria-label={`Remover ${d.name}`}
+              title="Remover"
+            >
               <Trash2 className="h-3.5 w-3.5" />
             </button>
           </li>
@@ -440,7 +451,8 @@ function DocumentModal({ id, mode, onClose }: { id: string; mode: "view" | "edit
   const qc = useQueryClient();
   const getFn = useServerFn(getDocument);
   const updateFn = useServerFn(updateDocument);
-  const { data, isLoading } = useQuery({ queryKey: ["document", id], queryFn: () => getFn({ data: { id } }) });
+  const signFn = useServerFn(getDocumentSignedUrl);
+  const { data, isLoading, error: loadErr } = useQuery({ queryKey: ["document", id], queryFn: () => getFn({ data: { id } }) });
   const [name, setName] = useState("");
   const [content, setContent] = useState("");
   const [status, setStatus] = useState<"active" | "inactive">("active");
@@ -455,18 +467,38 @@ function DocumentModal({ id, mode, onClose }: { id: string; mode: "view" | "edit
     }
   }, [data]);
 
+  const trimmedName = name.trim();
+  const canSave = !saving && trimmedName.length > 0 && trimmedName.length <= 200 && content.length <= 500_000;
+
   async function save() {
+    if (!canSave) return;
     setSaving(true);
     setError(null);
     try {
-      await updateFn({ data: { id, patch: { name, status, content_text: content } } });
-      await qc.invalidateQueries({ queryKey: ["documents"] });
+      await updateFn({ data: { id, patch: { name: trimmedName, status, content_text: content } } });
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["documents"] }),
+        qc.invalidateQueries({ queryKey: ["document", id] }),
+        qc.invalidateQueries({ queryKey: ["knowledge-stats"] }),
+      ]);
       toast.success("Documento atualizado", { description: "A base de conhecimento foi reindexada." });
       onClose();
     } catch (e) {
       setError((e as Error).message);
+      toast.error("Falha ao salvar", { description: (e as Error).message });
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function downloadOriginal() {
+    if (!data?.storage_path) return;
+    try {
+      const signed = await signFn({ data: { storage_path: data.storage_path as string } });
+      if (signed?.signedUrl) window.open(signed.signedUrl, "_blank");
+      else throw new Error("URL indisponível");
+    } catch (e) {
+      toast.error("Falha ao gerar link", { description: (e as Error).message });
     }
   }
 
@@ -477,6 +509,7 @@ function DocumentModal({ id, mode, onClose }: { id: string; mode: "view" | "edit
   }, [onClose]);
 
   const dlgId = `doc-modal-${id}`;
+  const emptyContent = !isLoading && !loadErr && !(data?.content_text && (data.content_text as string).trim().length > 0);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
@@ -502,11 +535,20 @@ function DocumentModal({ id, mode, onClose }: { id: string; mode: "view" | "edit
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
           {isLoading ? (
             <div className="text-[12px] text-text-ter">Carregando…</div>
+          ) : loadErr ? (
+            <div className="rounded-md bg-error-bg px-3 py-2 text-[12px] text-error">
+              Falha ao carregar documento: {(loadErr as Error).message}
+            </div>
           ) : (
             <>
+              {mode === "edit" && (
+                <div className="rounded-md border border-border-card bg-bg-general px-3 py-2 text-[11.5px] text-text-ter">
+                  Este é o conteúdo usado pela Ana. O arquivo original não será alterado.
+                </div>
+              )}
               <div>
                 <label className="mb-1 block text-[11px] uppercase text-text-ter">Nome</label>
-                <input value={name} onChange={(e) => setName(e.target.value)} disabled={mode === "view"} className="w-full h-9 rounded-md border border-border-card bg-bg-general px-2 text-[13px] disabled:opacity-70" />
+                <input value={name} onChange={(e) => setName(e.target.value)} disabled={mode === "view"} maxLength={200} className="w-full h-9 rounded-md border border-border-card bg-bg-general px-2 text-[13px] disabled:opacity-70" />
               </div>
               <div>
                 <label className="mb-1 block text-[11px] uppercase text-text-ter">Status</label>
@@ -517,22 +559,49 @@ function DocumentModal({ id, mode, onClose }: { id: string; mode: "view" | "edit
               </div>
               <div>
                 <label className="mb-1 block text-[11px] uppercase text-text-ter">Conteúdo</label>
-                <textarea value={content} onChange={(e) => setContent(e.target.value)} readOnly={mode === "view"} rows={16} className="w-full rounded-md border border-border-card bg-bg-general p-2 text-[12.5px] font-mono leading-relaxed" />
-                <div className="mt-1 text-right text-[11px] text-text-ter">{content.length.toLocaleString("pt-BR")} caracteres</div>
+                {mode === "view" && emptyContent ? (
+                  <div className="rounded-md border border-dashed border-border-card p-4 text-[12px] text-text-ter">
+                    Este documento não possui conteúdo textual indexado.
+                    {data?.storage_path ? " Use \"Baixar original\" para visualizar o arquivo enviado." : ""}
+                  </div>
+                ) : (
+                  <>
+                    <textarea
+                      value={content}
+                      onChange={(e) => setContent(e.target.value)}
+                      readOnly={mode === "view"}
+                      rows={16}
+                      maxLength={500_000}
+                      className="w-full rounded-md border border-border-card bg-bg-general p-2 text-[12.5px] font-mono leading-relaxed"
+                    />
+                    <div className="mt-1 text-right text-[11px] text-text-ter">{content.length.toLocaleString("pt-BR")} / 500.000 caracteres</div>
+                  </>
+                )}
               </div>
               {error && <div className="rounded-md bg-error-bg px-3 py-2 text-[12px] text-error">{error}</div>}
             </>
           )}
         </div>
-        {mode === "edit" && (
-          <div className="flex justify-end gap-2 border-t border-border-card p-3">
-            <button onClick={onClose} className="rounded-md border border-border-card px-3 py-1.5 text-[12px] text-text-body hover:bg-bg-general">Cancelar</button>
-            <button onClick={save} disabled={saving} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-[12px] font-medium text-primary-foreground hover:bg-primary-hover disabled:opacity-50">
-              {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
-              Salvar e reindexar
-            </button>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border-card p-3">
+          <div>
+            {data?.storage_path ? (
+              <button onClick={downloadOriginal} className="inline-flex items-center gap-1.5 rounded-md border border-border-card px-3 py-1.5 text-[12px] text-text-body hover:bg-bg-general" aria-label="Baixar arquivo original">
+                <Download className="h-3.5 w-3.5" /> Baixar original
+              </button>
+            ) : <span />}
           </div>
-        )}
+          <div className="flex gap-2">
+            <button onClick={onClose} className="rounded-md border border-border-card px-3 py-1.5 text-[12px] text-text-body hover:bg-bg-general">
+              {mode === "edit" ? "Cancelar" : "Fechar"}
+            </button>
+            {mode === "edit" && (
+              <button onClick={save} disabled={!canSave} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-[12px] font-medium text-primary-foreground hover:bg-primary-hover disabled:opacity-50">
+                {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                Salvar e reindexar
+              </button>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );

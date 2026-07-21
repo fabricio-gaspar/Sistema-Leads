@@ -327,8 +327,12 @@ function AbaEquipe() {
   const setRoleMut = useMutation({
     mutationFn: (v: { user_id: string; role: "administrador" | "vendedor" | "sdr" | "cx" }) =>
       setRoleFn({ data: v }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["team"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["team"] });
+      toast.success("Perfil atualizado");
+    },
     onError: (e: Error) => {
+      toast.error("Falha ao alterar perfil", { description: e.message });
       setFlash(`Erro: ${e.message}`);
       setTimeout(() => setFlash(null), 4000);
     },
@@ -336,8 +340,12 @@ function AbaEquipe() {
   const toggleActiveMut = useMutation({
     mutationFn: (v: { id: string; active: boolean }) =>
       updateFn({ data: { id: v.id, patch: { active: v.active } } }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["team"] }),
+    onSuccess: (_r, v) => {
+      qc.invalidateQueries({ queryKey: ["team"] });
+      toast.success(v.active ? "Usuário reativado" : "Usuário desativado");
+    },
     onError: (e: Error) => {
+      toast.error("Falha ao alterar status", { description: e.message });
       setFlash(`Erro: ${e.message}`);
       setTimeout(() => setFlash(null), 4000);
     },
@@ -345,8 +353,12 @@ function AbaEquipe() {
   const toggleIaMut = useMutation({
     mutationFn: (v: { id: string; can_use_ia: boolean }) =>
       updateFn({ data: { id: v.id, patch: { can_use_ia: v.can_use_ia } } }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["team"] }),
+    onSuccess: (_r, v) => {
+      qc.invalidateQueries({ queryKey: ["team"] });
+      toast.success(v.can_use_ia ? "IA permitida" : "IA bloqueada");
+    },
     onError: (e: Error) => {
+      toast.error("Falha ao atualizar IA", { description: e.message });
       setFlash(`Erro: ${e.message}`);
       setTimeout(() => setFlash(null), 4000);
     },
@@ -367,22 +379,36 @@ function AbaEquipe() {
       qc.invalidateQueries({ queryKey: ["team"] });
       setInviteOpen(false);
       setInv({ email: "", name: "", role: "vendedor", phone: "", can_use_ia: true, active: true });
+      toast.success("Convite enviado por e-mail");
       setFlash("✔ Convite enviado por e-mail.");
       setTimeout(() => setFlash(null), 3500);
     },
-    onError: (e: Error) => setInviteError(e.message),
+    onError: (e: Error) => {
+      setInviteError(e.message);
+      toast.error("Falha ao convidar", { description: e.message });
+    },
   });
   const resetMut = useMutation({
     mutationFn: (email: string) => resetFn({ data: { email } }),
     onSuccess: () => {
+      toast.success("Link de redefinição enviado");
       setFlash("✔ Link de redefinição enviado.");
       setTimeout(() => setFlash(null), 3500);
     },
     onError: (e: Error) => {
+      toast.error("Falha ao enviar link", { description: e.message });
       setFlash(`Erro: ${e.message}`);
       setTimeout(() => setFlash(null), 4000);
     },
   });
+
+  // Escape fecha o dialog de convite
+  useEffect(() => {
+    if (!inviteOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setInviteOpen(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [inviteOpen]);
 
   if (isLoading) {
     return (
@@ -408,77 +434,107 @@ function AbaEquipe() {
           }
         />
         {flash && <div className="mb-2 rounded-md bg-primary/5 border border-primary/40 px-3 py-2 text-[12px] text-text-title">{flash}</div>}
-        <table className="w-full text-[13px]">
-          <thead>
-            <tr className="text-left text-[11px] uppercase text-text-ter">
-              <th className="pb-2">Nome</th>
-              <th className="pb-2">E-mail</th>
-              <th className="pb-2">Perfil</th>
-              <th className="pb-2">IA</th>
-              <th className="pb-2">Status</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border-card">
-            {(data ?? []).map((t) => {
-              const currentRole = (t.roles?.[0] as string | undefined) ?? "vendedor";
-              return (
-                <tr key={t.id}>
-                  <td className="py-2.5 font-medium text-text-title">{t.name ?? "—"}</td>
-                  <td className="py-2.5 text-text-body">{t.email ?? "—"}</td>
-                  <td className="py-2.5">
-                    <select
-                      value={currentRole}
-                      onChange={(e) =>
-                        setRoleMut.mutate({
-                          user_id: t.id,
-                          role: e.target.value as "administrador" | "vendedor" | "sdr" | "cx",
-                        })
-                      }
-                      className="h-8 rounded-md border border-border-card bg-bg-card px-2 text-[12px] outline-none"
-                    >
-                      {Object.entries(ROLE_LABEL).map(([v, l]) => (
-                        <option key={v} value={v}>{l}</option>
-                      ))}
-                    </select>
-                  </td>
-                  <td className="py-2.5">
-                    <label className="inline-flex items-center gap-1.5 text-[12px] text-text-body">
-                      <input
-                        type="checkbox"
-                        checked={Boolean(t.can_use_ia)}
-                        onChange={(e) => toggleIaMut.mutate({ id: t.id, can_use_ia: e.target.checked })}
-                        className="h-3.5 w-3.5 accent-primary"
-                        aria-label={`Permitir uso da IA para ${t.name ?? t.email}`}
-                      />
-                      {t.can_use_ia ? "Permitido" : "Bloqueado"}
-                    </label>
-                  </td>
-                  <td className="py-2.5">
-                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${t.active ? "bg-success-bg text-success" : "bg-error-bg text-error"}`}>
-                      {t.active ? "Ativo" : "Inativo"}
-                    </span>
-                  </td>
-                  <td className="py-2.5 text-right space-x-3">
-                    <button
-                      onClick={() => t.email && resetMut.mutate(t.email)}
-                      disabled={!t.email || resetMut.isPending}
-                      className="text-[12px] text-text-sec hover:text-primary disabled:opacity-50"
-                    >
-                      Redefinir senha
-                    </button>
-                    <button
-                      onClick={() => toggleActiveMut.mutate({ id: t.id, active: !t.active })}
-                      className="text-[12px] text-text-sec hover:text-primary"
-                    >
-                      {t.active ? "Desativar" : "Reativar"}
-                    </button>
-                  </td>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[720px] text-[13px]">
+            <thead>
+              <tr className="text-left text-[11px] uppercase text-text-ter">
+                <th className="pb-2">Nome</th>
+                <th className="pb-2">E-mail</th>
+                <th className="pb-2">Perfil</th>
+                <th className="pb-2">IA</th>
+                <th className="pb-2">Status</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border-card">
+              {(data ?? []).length === 0 && (
+                <tr>
+                  <td colSpan={6} className="py-6 text-center text-[12.5px] text-text-ter">Nenhum integrante cadastrado ainda.</td>
                 </tr>
-              );
-            })}
-          </tbody>
-        </table>
+              )}
+              {(data ?? []).map((t) => {
+                const currentRole = (t.roles?.[0] as string | undefined) ?? "vendedor";
+                const rolePending = setRoleMut.isPending && setRoleMut.variables?.user_id === t.id;
+                const activePending = toggleActiveMut.isPending && toggleActiveMut.variables?.id === t.id;
+                const iaPending = toggleIaMut.isPending && toggleIaMut.variables?.id === t.id;
+                const resetPending = resetMut.isPending && resetMut.variables === t.email;
+                return (
+                  <tr key={t.id}>
+                    <td className="py-2.5 font-medium text-text-title">{t.name ?? "—"}</td>
+                    <td className="py-2.5 text-text-body">{t.email ?? "—"}</td>
+                    <td className="py-2.5">
+                      <select
+                        value={currentRole}
+                        disabled={rolePending}
+                        onChange={(e) => {
+                          const nextRole = e.target.value as "administrador" | "vendedor" | "sdr" | "cx";
+                          if (nextRole === currentRole) return;
+                          const willTouchAdmin = currentRole === "administrador" || nextRole === "administrador";
+                          const msg = willTouchAdmin
+                            ? `Confirmar alteração de perfil de ${t.name ?? t.email} para "${ROLE_LABEL[nextRole] ?? nextRole}"?\n\nMudanças envolvendo administrador impactam o acesso ao sistema.`
+                            : `Alterar perfil de ${t.name ?? t.email} para "${ROLE_LABEL[nextRole] ?? nextRole}"?`;
+                          if (!confirm(msg)) {
+                            // reverte visual: força re-render pela query
+                            qc.invalidateQueries({ queryKey: ["team"] });
+                            return;
+                          }
+                          setRoleMut.mutate({ user_id: t.id, role: nextRole });
+                        }}
+                        className="h-8 rounded-md border border-border-card bg-bg-card px-2 text-[12px] outline-none disabled:opacity-50"
+                        aria-label={`Perfil de ${t.name ?? t.email}`}
+                      >
+                        {Object.entries(ROLE_LABEL).map(([v, l]) => (
+                          <option key={v} value={v}>{l}</option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="py-2.5">
+                      <label className="inline-flex items-center gap-1.5 text-[12px] text-text-body">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(t.can_use_ia)}
+                          disabled={iaPending}
+                          onChange={(e) => toggleIaMut.mutate({ id: t.id, can_use_ia: e.target.checked })}
+                          className="h-3.5 w-3.5 accent-primary disabled:opacity-50"
+                          aria-label={`Permitir uso da IA para ${t.name ?? t.email}`}
+                        />
+                        {t.can_use_ia ? "Permitido" : "Bloqueado"}
+                      </label>
+                    </td>
+                    <td className="py-2.5">
+                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${t.active ? "bg-success-bg text-success" : "bg-error-bg text-error"}`}>
+                        {t.active ? "Ativo" : "Inativo"}
+                      </span>
+                    </td>
+                    <td className="py-2.5 text-right space-x-3 whitespace-nowrap">
+                      <button
+                        onClick={() => t.email && resetMut.mutate(t.email)}
+                        disabled={!t.email || resetPending}
+                        className="text-[12px] text-text-sec hover:text-primary disabled:opacity-50"
+                      >
+                        {resetPending ? "Enviando…" : "Redefinir senha"}
+                      </button>
+                      <button
+                        onClick={() => {
+                          const next = !t.active;
+                          const msg = next
+                            ? `Reativar ${t.name ?? t.email}? O histórico do usuário será preservado.`
+                            : `Desativar ${t.name ?? t.email}? O acesso será bloqueado, mas todo o histórico será preservado.`;
+                          if (!confirm(msg)) return;
+                          toggleActiveMut.mutate({ id: t.id, active: next });
+                        }}
+                        disabled={activePending}
+                        className="text-[12px] text-text-sec hover:text-primary disabled:opacity-50"
+                      >
+                        {activePending ? "Aguarde…" : t.active ? "Desativar" : "Reativar"}
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </Card>
 
       {inviteOpen && (
@@ -490,9 +546,19 @@ function AbaEquipe() {
             className="w-full max-w-md rounded-xl border border-border-card bg-bg-card shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="border-b border-border-card p-4">
-              <div id="invite-title" className="text-[14px] font-semibold text-text-title">Adicionar integrante</div>
-              <div className="text-[11px] text-text-ter">Enviaremos um e-mail para o novo usuário definir a senha.</div>
+            <div className="flex items-start justify-between gap-3 border-b border-border-card p-4">
+              <div>
+                <div id="invite-title" className="text-[14px] font-semibold text-text-title">Adicionar integrante</div>
+                <div className="text-[11px] text-text-ter">Enviaremos um e-mail para o novo usuário definir a senha.</div>
+              </div>
+              <button
+                type="button"
+                aria-label="Fechar"
+                onClick={() => setInviteOpen(false)}
+                className="rounded-md p-1 text-text-ter hover:bg-bg-general hover:text-text-title"
+              >
+                ✕
+              </button>
             </div>
             <div className="p-4 space-y-3">
               <label className="block">

@@ -719,17 +719,24 @@ export const deleteDocument = createServerFn({ method: 'POST' })
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     await assertAdmin(context)
-    const { data: doc } = await context.supabase
+    const { data: doc, error: readErr } = await context.supabase
       .from('documents')
       .select('name, storage_path')
       .eq('id', data.id)
       .maybeSingle()
-    if (doc?.storage_path) {
-      await context.supabase.storage.from('docs').remove([doc.storage_path])
+    if (readErr) throw new Error(readErr.message)
+    if (!doc) throw new Error('Documento não encontrado')
+    if (doc.storage_path) {
+      const { error: storageErr } = await context.supabase.storage
+        .from('docs')
+        .remove([doc.storage_path])
+      if (storageErr) {
+        throw new Error(`Falha ao remover arquivo do Storage: ${storageErr.message}`)
+      }
     }
     const { error } = await context.supabase.from('documents').delete().eq('id', data.id)
     if (error) throw new Error(error.message)
-    await auditDocument(context, 'document_delete', data.id, doc?.name ?? '(sem nome)')
+    await auditDocument(context, 'document_delete', data.id, doc.name ?? '(sem nome)')
     return { ok: true }
   })
 
@@ -756,7 +763,7 @@ export const updateDocument = createServerFn({ method: 'POST' })
         id: z.string().uuid(),
         patch: z
           .object({
-            name: z.string().min(1).max(200).optional(),
+            name: z.string().trim().min(1).max(200).optional(),
             status: z.enum(['active', 'inactive']).optional(),
             content_text: z.string().max(500_000).optional().nullable(),
           })
@@ -813,12 +820,14 @@ async function assertAdmin(ctx: { supabase: any; userId: string }) {
 }
 
 async function countAdmins(admin: any): Promise<number> {
-  const { count, error } = await admin
+  // Conta apenas administradores ATIVOS (roles + profiles.active = true)
+  const { data, error } = await admin
     .from('user_roles')
-    .select('user_id', { count: 'exact', head: true })
+    .select('user_id, profiles!inner(active)')
     .eq('role', 'administrador')
+    .eq('profiles.active', true)
   if (error) throw new Error(error.message)
-  return count ?? 0
+  return (data ?? []).length
 }
 
 async function isAdminUser(admin: any, userId: string): Promise<boolean> {
@@ -832,9 +841,8 @@ async function isAdminUser(admin: any, userId: string): Promise<boolean> {
   return Boolean(data)
 }
 
-function deriveOriginFromRequest(): string | null {
+async function deriveOriginFromRequest(): Promise<string | null> {
   try {
-    // Prefer explicit env, otherwise use current request origin
     const envUrl =
       (process.env.PUBLIC_SITE_URL as string | undefined) ||
       (process.env.SITE_URL as string | undefined)
@@ -846,18 +854,17 @@ function deriveOriginFromRequest(): string | null {
     // fall through
   }
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { getRequest } = require('@tanstack/react-start/server') as {
-      getRequest: () => Request
-    }
+    const { getRequest } = await import('@tanstack/react-start/server')
     const req = getRequest()
-    const u = new URL(req.url)
-    if (u.protocol === 'http:' || u.protocol === 'https:') return u.origin
     const forwardedHost = req.headers.get('x-forwarded-host')
     const forwardedProto = req.headers.get('x-forwarded-proto') ?? 'https'
-    if (forwardedHost) return `${forwardedProto}://${forwardedHost}`
-  } catch {
-    // ignore
+    if (forwardedHost && (forwardedProto === 'http' || forwardedProto === 'https')) {
+      return `${forwardedProto}://${forwardedHost}`
+    }
+    const u = new URL(req.url)
+    if (u.protocol === 'http:' || u.protocol === 'https:') return u.origin
+  } catch (err) {
+    console.error('[deriveOriginFromRequest] failed:', (err as Error).message)
   }
   return null
 }
@@ -981,9 +988,12 @@ export const setUserRole = createServerFn({ method: 'POST' })
     if (insErr) {
       // Rollback: restaura papéis anteriores para não deixar usuário órfão
       if (prevRoles.length) {
-        await supabaseAdmin
+        const { error: rbErr } = await supabaseAdmin
           .from('user_roles')
           .insert(prevRoles.map((r) => ({ user_id: data.user_id, role: r })) as never)
+        if (rbErr) {
+          console.error('[setUserRole] rollback failed:', rbErr.message, 'user:', data.user_id)
+        }
       }
       throw new Error(insErr.message)
     }
@@ -1018,11 +1028,11 @@ export const updateTeamMember = createServerFn({ method: 'POST' })
         id: z.string().uuid(),
         patch: z
           .object({
-            name: z.string().min(1).max(200).optional().nullable(),
-            phone: z.string().max(40).optional().nullable(),
+            name: z.string().trim().min(1).max(200).optional().nullable(),
+            phone: z.string().trim().max(40).optional().nullable(),
             active: z.boolean().optional(),
             can_use_ia: z.boolean().optional(),
-            discount_limit: z.string().max(40).optional().nullable(),
+            discount_limit: z.string().trim().max(40).optional().nullable(),
           })
           .partial(),
       })
@@ -1063,17 +1073,25 @@ export const updateTeamMember = createServerFn({ method: 'POST' })
 
     // Sincroniza ban do usuário no Auth
     if (data.patch.active !== undefined) {
+      let authError: Error | null = null
       try {
-        await supabaseAdmin.auth.admin.updateUserById(data.id, {
+        const { error: authErr } = await supabaseAdmin.auth.admin.updateUserById(data.id, {
           ban_duration: data.patch.active ? 'none' : '87600h', // ~10 anos
         } as never)
+        if (authErr) authError = new Error(authErr.message)
       } catch (err) {
+        authError = err as Error
+      }
+      if (authError) {
         // rollback do profile
-        await supabaseAdmin
+        const { error: rbErr } = await supabaseAdmin
           .from('profiles')
           .update({ active: before?.active ?? true } as never)
           .eq('id', data.id)
-        throw new Error(`Falha ao sincronizar Auth: ${(err as Error).message}`)
+        if (rbErr) {
+          console.error('[updateTeamMember] rollback profile failed:', rbErr.message)
+        }
+        throw new Error(`Falha ao sincronizar Auth: ${authError.message}`)
       }
       await auditTeam(
         context,
@@ -1092,10 +1110,10 @@ export const inviteTeamMember = createServerFn({ method: 'POST' })
   .inputValidator((d: unknown) =>
     z
       .object({
-        email: z.string().email().transform((v) => v.trim().toLowerCase()),
-        name: z.string().min(1, 'Nome obrigatório').max(200).transform((v) => v.trim()),
+        email: z.string().trim().toLowerCase().email('E-mail inválido'),
+        name: z.string().trim().min(1, 'Nome obrigatório').max(200),
         role: appRole,
-        phone: z.string().max(40).optional().nullable(),
+        phone: z.string().trim().max(40).optional().nullable(),
         can_use_ia: z.boolean().optional().default(true),
         active: z.boolean().optional().default(true),
       })
@@ -1105,23 +1123,24 @@ export const inviteTeamMember = createServerFn({ method: 'POST' })
     await assertAdmin(context)
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server')
 
-    // Duplicidade
+    // Duplicidade case-insensitive
     const { data: existing, error: existErr } = await supabaseAdmin
       .from('profiles')
       .select('id, email')
-      .eq('email', data.email)
+      .ilike('email', data.email)
       .maybeSingle()
     if (existErr) throw new Error(existErr.message)
     if (existing) throw new Error('Já existe um usuário com este e-mail.')
 
     // Origin seguro
-    const origin = deriveOriginFromRequest()
+    const origin = await deriveOriginFromRequest()
     const redirectTo = origin ? `${origin}/reset-password` : undefined
 
     const { data: invite, error } = await supabaseAdmin.auth.admin.inviteUserByEmail(data.email, {
       data: { name: data.name },
       redirectTo,
     })
+    // Mantém erro do Auth caso o usuário exista apenas em auth.users
     if (error) throw new Error(error.message)
     const userId = invite.user?.id
     if (!userId) throw new Error('Falha ao criar usuário no Auth')
@@ -1150,9 +1169,10 @@ export const inviteTeamMember = createServerFn({ method: 'POST' })
       if (insErr) throw new Error(`user_roles insert: ${insErr.message}`)
 
       if (!data.active) {
-        await supabaseAdmin.auth.admin.updateUserById(userId, {
+        const { error: banErr } = await supabaseAdmin.auth.admin.updateUserById(userId, {
           ban_duration: '87600h',
         } as never)
+        if (banErr) throw new Error(`auth ban: ${banErr.message}`)
       }
     } catch (err) {
       // Rollback completo do usuário
@@ -1171,7 +1191,7 @@ export const inviteTeamMember = createServerFn({ method: 'POST' })
 export const resendMemberInvite = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) =>
-    z.object({ email: z.string().email().transform((v) => v.trim().toLowerCase()) }).parse(d),
+    z.object({ email: z.string().trim().toLowerCase().email('E-mail inválido') }).parse(d),
   )
   .handler(async ({ data, context }) => {
     await assertAdmin(context)
@@ -1183,7 +1203,7 @@ export const resendMemberInvite = createServerFn({ method: 'POST' })
     if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
       throw new Error('Supabase não configurado no servidor.')
     }
-    const origin = deriveOriginFromRequest()
+    const origin = await deriveOriginFromRequest()
     const redirectTo = origin ? `${origin}/reset-password` : undefined
 
     const { createClient } = await import('@supabase/supabase-js')
