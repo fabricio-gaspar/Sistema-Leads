@@ -313,7 +313,14 @@ function AbaEquipe() {
   const { data, isLoading, error } = useQuery({ queryKey: ["team"], queryFn: () => listFn() });
 
   const [inviteOpen, setInviteOpen] = useState(false);
-  const [inv, setInv] = useState({ email: "", name: "", role: "vendedor" as "administrador" | "vendedor" | "sdr" | "cx", phone: "" });
+  const [inv, setInv] = useState({
+    email: "",
+    name: "",
+    role: "vendedor" as "administrador" | "vendedor" | "sdr" | "cx",
+    phone: "",
+    can_use_ia: true,
+    active: true,
+  });
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
 
@@ -321,18 +328,45 @@ function AbaEquipe() {
     mutationFn: (v: { user_id: string; role: "administrador" | "vendedor" | "sdr" | "cx" }) =>
       setRoleFn({ data: v }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["team"] }),
+    onError: (e: Error) => {
+      setFlash(`Erro: ${e.message}`);
+      setTimeout(() => setFlash(null), 4000);
+    },
   });
   const toggleActiveMut = useMutation({
     mutationFn: (v: { id: string; active: boolean }) =>
       updateFn({ data: { id: v.id, patch: { active: v.active } } }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["team"] }),
+    onError: (e: Error) => {
+      setFlash(`Erro: ${e.message}`);
+      setTimeout(() => setFlash(null), 4000);
+    },
+  });
+  const toggleIaMut = useMutation({
+    mutationFn: (v: { id: string; can_use_ia: boolean }) =>
+      updateFn({ data: { id: v.id, patch: { can_use_ia: v.can_use_ia } } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["team"] }),
+    onError: (e: Error) => {
+      setFlash(`Erro: ${e.message}`);
+      setTimeout(() => setFlash(null), 4000);
+    },
   });
   const inviteMut = useMutation({
-    mutationFn: () => inviteFn({ data: { email: inv.email.trim(), name: inv.name.trim() || undefined, role: inv.role, phone: inv.phone.trim() || null } }),
+    mutationFn: () =>
+      inviteFn({
+        data: {
+          email: inv.email.trim().toLowerCase(),
+          name: inv.name.trim(),
+          role: inv.role,
+          phone: inv.phone.trim() || null,
+          can_use_ia: inv.can_use_ia,
+          active: inv.active,
+        },
+      }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["team"] });
       setInviteOpen(false);
-      setInv({ email: "", name: "", role: "vendedor", phone: "" });
+      setInv({ email: "", name: "", role: "vendedor", phone: "", can_use_ia: true, active: true });
       setFlash("✔ Convite enviado por e-mail.");
       setTimeout(() => setFlash(null), 3500);
     },
