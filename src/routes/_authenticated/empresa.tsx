@@ -2,12 +2,14 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Building2, Upload, Sparkles, FileText, Trash2, Loader2, Download, Pencil, Save, X, Plug } from "lucide-react";
+import { Building2, Upload, Sparkles, FileText, Trash2, Loader2, Download, Pencil, Save, X, Plug, Eye } from "lucide-react";
 import { Card, SectionTitle } from "@/components/ui-kit";
 import { supabase } from "@/integrations/supabase/client";
 import {
   createDocumentRecord,
   deleteDocument,
+  getDocument,
+  updateDocument,
   getDocumentSignedUrl,
   listDocuments,
   retrainAna,
@@ -309,6 +311,8 @@ function DocumentosCard() {
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [viewingId, setViewingId] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   const docsQ = useQuery({ queryKey: ["documents"], queryFn: () => listFn() });
 
@@ -399,26 +403,109 @@ function DocumentosCard() {
             <FileText className="h-4 w-4 text-text-ter shrink-0" />
             <div className="min-w-0 flex-1">
               <div className="truncate text-text-title">{d.name}</div>
-              <div className="text-[10.5px] text-text-ter">{d.type} · {d.size ?? "—"}</div>
+              <div className="text-[10.5px] text-text-ter">{d.type} · {d.size ?? "—"} · {d.status ?? "active"}</div>
             </div>
-            <button
-              onClick={() => d.storage_path && download(d.storage_path)}
-              className="text-text-ter hover:text-primary"
-              title="Baixar"
-            >
+            <button onClick={() => setViewingId(d.id)} className="text-text-ter hover:text-primary" title="Visualizar">
+              <Eye className="h-3.5 w-3.5" />
+            </button>
+            <button onClick={() => setEditingId(d.id)} className="text-text-ter hover:text-primary" title="Editar">
+              <Pencil className="h-3.5 w-3.5" />
+            </button>
+            <button onClick={() => d.storage_path && download(d.storage_path)} className="text-text-ter hover:text-primary" title="Baixar">
               <Download className="h-3.5 w-3.5" />
             </button>
-            <button
-              onClick={() => delMut.mutate(d.id)}
-              className="text-text-ter hover:text-error"
-              title="Remover"
-            >
+            <button onClick={() => { if (confirm(`Remover "${d.name}"?`)) delMut.mutate(d.id); }} className="text-text-ter hover:text-error" title="Remover">
               <Trash2 className="h-3.5 w-3.5" />
             </button>
           </li>
         ))}
       </ul>
+
+      {viewingId && <DocumentModal id={viewingId} mode="view" onClose={() => setViewingId(null)} />}
+      {editingId && <DocumentModal id={editingId} mode="edit" onClose={() => setEditingId(null)} />}
     </Card>
+  );
+}
+
+function DocumentModal({ id, mode, onClose }: { id: string; mode: "view" | "edit"; onClose: () => void }) {
+  const qc = useQueryClient();
+  const getFn = useServerFn(getDocument);
+  const updateFn = useServerFn(updateDocument);
+  const { data, isLoading } = useQuery({ queryKey: ["document", id], queryFn: () => getFn({ data: { id } }) });
+  const [name, setName] = useState("");
+  const [content, setContent] = useState("");
+  const [status, setStatus] = useState<"active" | "inactive">("active");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (data) {
+      setName((data.name as string) ?? "");
+      setContent((data.content_text as string) ?? "");
+      setStatus(((data.status as string) === "inactive" ? "inactive" : "active"));
+    }
+  }, [data]);
+
+  async function save() {
+    setSaving(true);
+    setError(null);
+    try {
+      await updateFn({ data: { id, patch: { name, status, content_text: content } } });
+      await qc.invalidateQueries({ queryKey: ["documents"] });
+      onClose();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
+      <div className="w-full max-w-3xl max-h-[90vh] flex flex-col rounded-xl border border-border-card bg-bg-card shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between border-b border-border-card p-4">
+          <div>
+            <div className="text-[14px] font-semibold text-text-title">{mode === "view" ? "Visualizar documento" : "Editar documento"}</div>
+            <div className="text-[11px] text-text-ter">{data?.type ?? ""}</div>
+          </div>
+          <button onClick={onClose} className="text-text-ter hover:text-text-body"><X className="h-4 w-4" /></button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          {isLoading ? (
+            <div className="text-[12px] text-text-ter">Carregando…</div>
+          ) : (
+            <>
+              <div>
+                <label className="mb-1 block text-[11px] uppercase text-text-ter">Nome</label>
+                <input value={name} onChange={(e) => setName(e.target.value)} disabled={mode === "view"} className="w-full h-9 rounded-md border border-border-card bg-bg-general px-2 text-[13px] disabled:opacity-70" />
+              </div>
+              <div>
+                <label className="mb-1 block text-[11px] uppercase text-text-ter">Status</label>
+                <select value={status} onChange={(e) => setStatus(e.target.value as "active" | "inactive")} disabled={mode === "view"} className="h-9 rounded-md border border-border-card bg-bg-general px-2 text-[13px] disabled:opacity-70">
+                  <option value="active">Ativo</option>
+                  <option value="inactive">Inativo</option>
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-[11px] uppercase text-text-ter">Conteúdo</label>
+                <textarea value={content} onChange={(e) => setContent(e.target.value)} readOnly={mode === "view"} rows={16} className="w-full rounded-md border border-border-card bg-bg-general p-2 text-[12.5px] font-mono leading-relaxed" />
+                <div className="mt-1 text-right text-[11px] text-text-ter">{content.length.toLocaleString("pt-BR")} caracteres</div>
+              </div>
+              {error && <div className="rounded-md bg-error-bg px-3 py-2 text-[12px] text-error">{error}</div>}
+            </>
+          )}
+        </div>
+        {mode === "edit" && (
+          <div className="flex justify-end gap-2 border-t border-border-card p-3">
+            <button onClick={onClose} className="rounded-md border border-border-card px-3 py-1.5 text-[12px] text-text-body hover:bg-bg-general">Cancelar</button>
+            <button onClick={save} disabled={saving} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-[12px] font-medium text-primary-foreground hover:bg-primary-hover disabled:opacity-50">
+              {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+              Salvar e reindexar
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 

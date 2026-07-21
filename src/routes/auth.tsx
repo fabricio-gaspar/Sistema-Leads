@@ -14,35 +14,31 @@ export const Route = createFileRoute("/auth")({
 
 function AuthPage() {
   const navigate = useNavigate();
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
-  const [name, setName] = useState("");
+  const [mode, setMode] = useState<"signin" | "forgot">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [info, setInfo] = useState<string | null>(null);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     if (pending) return;
     setPending(true);
     setError(null);
+    setInfo(null);
     try {
       if (mode === "signin") {
         const { error: err } = await supabase.auth.signInWithPassword({ email, password });
         if (err) throw err;
+        navigate({ to: "/", replace: true });
       } else {
-        if (password.length < 8) throw new Error("A senha deve ter ao menos 8 caracteres.");
-        const { error: err } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            emailRedirectTo: `${window.location.origin}/`,
-            data: { name: name || email.split("@")[0] },
-          },
+        const { error: err } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: `${window.location.origin}/reset-password`,
         });
         if (err) throw err;
+        setInfo("Se este e-mail existir na equipe, enviamos um link de redefinição.");
       }
-      navigate({ to: "/", replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Falha na autenticação.");
     } finally {
@@ -60,23 +56,12 @@ function AuthPage() {
           <div>
             <div className="text-base font-semibold text-text-title">WF Digital CRM</div>
             <div className="text-[12px] text-text-sec">
-              {mode === "signin" ? "Entre na sua conta" : "Crie sua conta"}
+              {mode === "signin" ? "Entre na sua conta" : "Recuperar senha"}
             </div>
           </div>
         </div>
 
         <form onSubmit={onSubmit} className="space-y-3">
-          {mode === "signup" && (
-            <Field label="Nome">
-              <input
-                required
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="input"
-                placeholder="Seu nome"
-              />
-            </Field>
-          )}
           <Field label="E-mail">
             <input
               required
@@ -88,22 +73,22 @@ function AuthPage() {
               placeholder="voce@empresa.com"
             />
           </Field>
-          <Field label="Senha">
-            <input
-              required
-              type="password"
-              autoComplete={mode === "signin" ? "current-password" : "new-password"}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="input"
-              placeholder="••••••••"
-              minLength={mode === "signup" ? 8 : undefined}
-            />
-          </Field>
-
-          {error && (
-            <div className="rounded-md bg-error-bg px-3 py-2 text-[12px] text-error">{error}</div>
+          {mode === "signin" && (
+            <Field label="Senha">
+              <input
+                required
+                type="password"
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="input"
+                placeholder="••••••••"
+              />
+            </Field>
           )}
+
+          {error && <div className="rounded-md bg-error-bg px-3 py-2 text-[12px] text-error">{error}</div>}
+          {info && <div className="rounded-md bg-success-bg px-3 py-2 text-[12px] text-success">{info}</div>}
 
           <button
             type="submit"
@@ -111,26 +96,24 @@ function AuthPage() {
             className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-primary text-[13px] font-medium text-primary-foreground hover:bg-primary-hover disabled:opacity-60"
           >
             {pending && <Loader2 className="h-4 w-4 animate-spin" />}
-            {mode === "signin" ? "Entrar" : "Criar conta"}
+            {mode === "signin" ? "Entrar" : "Enviar link de redefinição"}
           </button>
         </form>
 
         <div className="mt-4 text-center text-[12px] text-text-sec">
           {mode === "signin" ? (
-            <>
-              Não tem conta?{" "}
-              <button onClick={() => setMode("signup")} className="text-primary hover:underline">
-                Criar conta
-              </button>
-            </>
+            <button onClick={() => { setMode("forgot"); setError(null); setInfo(null); }} className="text-primary hover:underline">
+              Esqueci minha senha
+            </button>
           ) : (
-            <>
-              Já tem conta?{" "}
-              <button onClick={() => setMode("signin")} className="text-primary hover:underline">
-                Entrar
-              </button>
-            </>
+            <button onClick={() => { setMode("signin"); setError(null); setInfo(null); }} className="text-primary hover:underline">
+              Voltar para login
+            </button>
           )}
+        </div>
+
+        <div className="mt-3 text-center text-[11px] text-text-ter">
+          Novo por aqui? Solicite acesso ao administrador da conta.
         </div>
       </div>
 
