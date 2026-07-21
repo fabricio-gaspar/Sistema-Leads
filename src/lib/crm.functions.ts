@@ -401,6 +401,7 @@ const companySettingsInput = z.object({
     .nullable(),
   outreach_wait_hours: z.number().int().min(1).max(720).optional().nullable(),
   outreach_max_attempts: z.number().int().min(1).max(10).optional().nullable(),
+  sandbox_mode: z.boolean().optional().nullable(),
 })
 
 

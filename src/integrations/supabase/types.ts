@@ -79,6 +79,7 @@ export type Database = {
           outreach_wait_hours: number
           phone: string | null
           prospecting_sources: Json
+          sandbox_mode: boolean
           segment: string | null
           size: string | null
           state: string | null
@@ -106,6 +107,7 @@ export type Database = {
           outreach_wait_hours?: number
           phone?: string | null
           prospecting_sources?: Json
+          sandbox_mode?: boolean
           segment?: string | null
           size?: string | null
           state?: string | null
@@ -133,6 +135,7 @@ export type Database = {
           outreach_wait_hours?: number
           phone?: string | null
           prospecting_sources?: Json
+          sandbox_mode?: boolean
           segment?: string | null
           size?: string | null
           state?: string | null

@@ -206,7 +206,7 @@ async function generateOutreachMessage(
   const [{ data: settings }, { data: services }] = await Promise.all([
     ctx.supabase
       .from('company_settings')
-      .select('name, description, differentiators, tone_of_voice, ai_prompt, ai_model')
+      .select('name, description, differentiators, tone_of_voice, ai_prompt, ai_model, sandbox_mode')
       .limit(1)
       .maybeSingle(),
     ctx.supabase
@@ -216,6 +216,19 @@ async function generateOutreachMessage(
       .order('name')
       .limit(5),
   ])
+
+  // Modo SANDBOX: substitui a mensagem gerada pelo template de teste,
+  // sinalizando que é ambiente de validação e oferecendo opt-out.
+  if (settings?.sandbox_mode) {
+    if (channel === 'whatsapp') {
+      return `Olá, tudo bem?\n\nEsta é uma mensagem de teste do Sistema-Leads, simulando o atendimento da WayFlex, empresa especializada em soluções industriais em borracha, silicone e poliuretano.\nNão é um contato comercial real, estamos apenas validando nosso fluxo de WhatsApp.\nSe preferir não participar dos testes, responda "SAIR" e vamos registrar o opt-out.`
+    }
+    if (channel === 'email') {
+      return `Assunto: Teste do Sistema-Leads — Fluxo WayFlex\n\nOlá,\n\nEste e-mail faz parte de um teste interno do Sistema-Leads, simulando o contato da WayFlex, especialista em soluções industriais em borracha, silicone e poliuretano.\nNão se trata de uma prospecção comercial real; estamos apenas validando automações de envio, registro de entrega e resposta.\nSe não quiser receber mensagens de teste, basta responder com "SAIR" para registrarmos o opt-out.\n\nAtenciosamente,\nEquipe de testes CRM`
+    }
+    return `- Abertura: informar que é ligação de TESTE do Sistema-Leads (WayFlex)\n- Confirmar se pode falar 1 minuto\n- Explicar que não é venda, é validação do fluxo\n- Oferecer opt-out imediato caso não queira participar`
+  }
+
   const portfolio = (services ?? [])
     .map((service: { name: string; description?: string | null }) =>
       service.description ? `${service.name}: ${service.description}` : service.name,
