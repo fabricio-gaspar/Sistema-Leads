@@ -66,23 +66,32 @@ export function AppShell({
   children,
   isSellerOnly = false,
   isAdmin = false,
+  isSdrOnly = false,
+  isCxOnly = false,
+  roles = [],
 }: {
   children: ReactNode;
   isSellerOnly?: boolean;
   isAdmin?: boolean;
+  isSdrOnly?: boolean;
+  isCxOnly?: boolean;
+  roles?: string[];
 }) {
+  void roles;
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const title =
     TITLES[pathname] ??
     (pathname.startsWith("/leads/") ? "Detalhe do Lead" : "WF Digital CRM");
 
-  // Vendedor puro vê somente a Central. Outros perfis seguem a matriz padrão.
+  // Matriz de navegação por papel (mesma de _authenticated/route.tsx)
   const visibleNav = NAV.filter((item) => {
-    if (isSellerOnly) return item.to === "/atendimento";
     if (isAdmin) return true;
-    const adminOnly = ["/empresa", "/configuracoes", "/diagnostico", "/relatorios"];
-    return !adminOnly.includes(item.to);
+    if (isSellerOnly) return item.to === "/atendimento";
+    if (isCxOnly) return item.to === "/atendimento";
+    if (isSdrOnly) return ["/prospeccao", "/leads", "/atendimento"].includes(item.to);
+    return false;
   });
+  const showChrome = isAdmin; // busca global e notificações apenas para admin
 
   const notifications = useNotifications();
   const notifActions = useNotificationsActions();
