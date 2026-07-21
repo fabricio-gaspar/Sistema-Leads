@@ -461,6 +461,7 @@ function DocumentModal({ id, mode, onClose }: { id: string; mode: "view" | "edit
     try {
       await updateFn({ data: { id, patch: { name, status, content_text: content } } });
       await qc.invalidateQueries({ queryKey: ["documents"] });
+      toast.success("Documento atualizado", { description: "A base de conhecimento foi reindexada." });
       onClose();
     } catch (e) {
       setError((e as Error).message);
@@ -469,15 +470,34 @@ function DocumentModal({ id, mode, onClose }: { id: string; mode: "view" | "edit
     }
   }
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const dlgId = `doc-modal-${id}`;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <div className="w-full max-w-3xl max-h-[90vh] flex flex-col rounded-xl border border-border-card bg-bg-card shadow-2xl" onClick={(e) => e.stopPropagation()}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={`${dlgId}-title`}
+        className="w-full max-w-3xl max-h-[90vh] flex flex-col rounded-xl border border-border-card bg-bg-card shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between border-b border-border-card p-4">
           <div>
-            <div className="text-[14px] font-semibold text-text-title">{mode === "view" ? "Visualizar documento" : "Editar documento"}</div>
-            <div className="text-[11px] text-text-ter">{data?.type ?? ""}</div>
+            <div id={`${dlgId}-title`} className="text-[14px] font-semibold text-text-title">{mode === "view" ? "Visualizar documento" : "Editar documento"}</div>
+            <div className="text-[11px] text-text-ter">
+              {data?.type ?? ""}
+              {data?.size ? ` · ${data.size as string}` : ""}
+              {data?.created_at ? ` · enviado ${new Date(data.created_at as string).toLocaleString("pt-BR")}` : ""}
+              {data?.updated_at && data.updated_at !== data.created_at ? ` · editado ${new Date(data.updated_at as string).toLocaleString("pt-BR")}` : ""}
+            </div>
           </div>
-          <button onClick={onClose} className="text-text-ter hover:text-text-body"><X className="h-4 w-4" /></button>
+          <button onClick={onClose} aria-label="Fechar" className="text-text-ter hover:text-text-body"><X className="h-4 w-4" /></button>
         </div>
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
           {isLoading ? (
