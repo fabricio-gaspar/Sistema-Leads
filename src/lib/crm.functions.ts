@@ -1073,17 +1073,25 @@ export const updateTeamMember = createServerFn({ method: 'POST' })
 
     // Sincroniza ban do usuário no Auth
     if (data.patch.active !== undefined) {
+      let authError: Error | null = null
       try {
-        await supabaseAdmin.auth.admin.updateUserById(data.id, {
+        const { error: authErr } = await supabaseAdmin.auth.admin.updateUserById(data.id, {
           ban_duration: data.patch.active ? 'none' : '87600h', // ~10 anos
         } as never)
+        if (authErr) authError = new Error(authErr.message)
       } catch (err) {
+        authError = err as Error
+      }
+      if (authError) {
         // rollback do profile
-        await supabaseAdmin
+        const { error: rbErr } = await supabaseAdmin
           .from('profiles')
           .update({ active: before?.active ?? true } as never)
           .eq('id', data.id)
-        throw new Error(`Falha ao sincronizar Auth: ${(err as Error).message}`)
+        if (rbErr) {
+          console.error('[updateTeamMember] rollback profile failed:', rbErr.message)
+        }
+        throw new Error(`Falha ao sincronizar Auth: ${authError.message}`)
       }
       await auditTeam(
         context,
