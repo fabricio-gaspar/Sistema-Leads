@@ -1203,7 +1203,7 @@ export const resendMemberInvite = createServerFn({ method: 'POST' })
     if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
       throw new Error('Supabase não configurado no servidor.')
     }
-    const origin = deriveOriginFromRequest()
+    const origin = await deriveOriginFromRequest()
     const redirectTo = origin ? `${origin}/reset-password` : undefined
 
     const { createClient } = await import('@supabase/supabase-js')
