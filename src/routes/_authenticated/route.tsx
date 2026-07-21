@@ -2,9 +2,18 @@ import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/AppShell";
 
-const ADMIN_ONLY = ["/empresa", "/configuracoes", "/diagnostico", "/relatorios"];
-const SDR_ALLOWED = ["/", "/prospeccao", "/leads", "/atendimento"];
-const CX_ALLOWED = ["/atendimento", "/leads"];
+// Matriz de navegação aprovada:
+// - administrador: tudo
+// - vendedor: somente /atendimento
+// - SDR:      /prospeccao, /leads (+detalhe) e /atendimento
+// - CX:       somente /atendimento
+const ADMIN_ONLY = ["/", "/empresa", "/configuracoes", "/diagnostico", "/relatorios", "/orcamentos", "/pedidos"];
+const SDR_ALLOWED = ["/prospeccao", "/leads", "/atendimento"];
+const CX_ALLOWED = ["/atendimento"];
+const VENDEDOR_ALLOWED = ["/atendimento"];
+
+const allows = (allowed: string[], path: string) =>
+  allowed.some((p) => path === p || path.startsWith(p + "/"));
 
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
@@ -27,26 +36,33 @@ export const Route = createFileRoute("/_authenticated")({
 
     const roles = (rolesRows ?? []).map((r) => r.role as string);
     const isAdmin = roles.includes("administrador");
-    const isSellerOnly = roles.includes("vendedor") && !isAdmin;
-    const isSdrOnly = roles.includes("sdr") && !isAdmin && !roles.includes("vendedor");
-    const isCxOnly = roles.includes("cx") && !isAdmin && !roles.includes("vendedor") && !roles.includes("sdr");
+    const isSellerOnly = !isAdmin && roles.includes("vendedor");
+    const isSdrOnly = !isAdmin && !roles.includes("vendedor") && roles.includes("sdr");
+    const isCxOnly =
+      !isAdmin && !roles.includes("vendedor") && !roles.includes("sdr") && roles.includes("cx");
+    const hasValidRole = isAdmin || isSellerOnly || isSdrOnly || isCxOnly;
+
+    // Bloqueia usuário autenticado sem papel válido
+    if (!hasValidRole) {
+      await supabase.auth.signOut();
+      throw redirect({ to: "/auth" });
+    }
+
     const path = location.pathname;
 
-    // Vendedor puro → Central de Atendimento
-    if (isSellerOnly && path !== "/atendimento") {
+    if (isSellerOnly && !allows(VENDEDOR_ALLOWED, path)) {
       throw redirect({ to: "/atendimento" });
     }
-    // SDR puro → prospecção/leads/atendimento
-    if (isSdrOnly && !SDR_ALLOWED.some((p) => (p === "/" ? path === "/" : path === p || path.startsWith(p + "/")))) {
+    if (isSdrOnly && !allows(SDR_ALLOWED, path)) {
       throw redirect({ to: "/prospeccao" });
     }
-    // CX puro → atendimento/leads
-    if (isCxOnly && !CX_ALLOWED.some((p) => path === p || path.startsWith(p + "/"))) {
+    if (isCxOnly && !allows(CX_ALLOWED, path)) {
       throw redirect({ to: "/atendimento" });
     }
-    // Rotas administrativas
     if (!isAdmin && ADMIN_ONLY.some((p) => path === p || path.startsWith(p + "/"))) {
-      throw redirect({ to: "/" });
+      // Admin-only route reached por não-admin
+      if (isSdrOnly) throw redirect({ to: "/prospeccao" });
+      throw redirect({ to: "/atendimento" });
     }
 
     return { user: data.user, roles, isAdmin, isSellerOnly, isSdrOnly, isCxOnly };
@@ -55,9 +71,15 @@ export const Route = createFileRoute("/_authenticated")({
 });
 
 function AuthenticatedLayout() {
-  const { isSellerOnly, isAdmin } = Route.useRouteContext();
+  const { isSellerOnly, isAdmin, isSdrOnly, isCxOnly, roles } = Route.useRouteContext();
   return (
-    <AppShell isSellerOnly={isSellerOnly} isAdmin={isAdmin}>
+    <AppShell
+      isSellerOnly={isSellerOnly}
+      isAdmin={isAdmin}
+      isSdrOnly={isSdrOnly}
+      isCxOnly={isCxOnly}
+      roles={roles}
+    >
       <Outlet />
     </AppShell>
   );
