@@ -820,14 +820,22 @@ async function assertAdmin(ctx: { supabase: any; userId: string }) {
 }
 
 async function countAdmins(admin: any): Promise<number> {
-  // Conta apenas administradores ATIVOS (roles + profiles.active = true)
-  const { data, error } = await admin
+  // Conta apenas administradores ATIVOS. user_roles e profiles referenciam auth.users
+  // sem FK direta entre si (Relationships: []), portanto não é possível usar join PostgREST.
+  const { data: roleRows, error: roleErr } = await admin
     .from('user_roles')
-    .select('user_id, profiles!inner(active)')
+    .select('user_id')
     .eq('role', 'administrador')
-    .eq('profiles.active', true)
-  if (error) throw new Error(error.message)
-  return (data ?? []).length
+  if (roleErr) throw new Error(roleErr.message)
+  const ids = (roleRows ?? []).map((r: any) => r.user_id).filter(Boolean)
+  if (ids.length === 0) return 0
+  const { data: profRows, error: profErr } = await admin
+    .from('profiles')
+    .select('id')
+    .in('id', ids)
+    .eq('active', true)
+  if (profErr) throw new Error(profErr.message)
+  return (profRows ?? []).length
 }
 
 async function isAdminUser(admin: any, userId: string): Promise<boolean> {
