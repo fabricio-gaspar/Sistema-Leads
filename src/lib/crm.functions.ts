@@ -646,11 +646,32 @@ export const chatWithAna = createServerFn({ method: 'POST' })
     return { reply: text, message: anaRow }
   })
 
-// ============= DOCUMENTS =============
+// ============= DOCUMENTS (admin-only) =============
+
+async function auditDocument(
+  ctx: { supabase: any; userId: string; claims?: any },
+  action: 'document_create' | 'document_update' | 'document_delete',
+  docId: string,
+  detail: string,
+) {
+  try {
+    const { error } = await ctx.supabase.from('audit_logs').insert({
+      actor_id: ctx.userId,
+      actor_name: ctx.claims?.email ?? 'admin',
+      actor_type: 'human',
+      action,
+      detail: `[${docId}] ${detail}`,
+    } as never)
+    if (error) console.error('[audit_logs] insert failed:', error.message)
+  } catch (err) {
+    console.error('[audit_logs] insert threw:', (err as Error).message)
+  }
+}
 
 export const listDocuments = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    await assertAdmin(context)
     const { data, error } = await context.supabase
       .from('documents')
       .select('*')
@@ -664,7 +685,7 @@ export const createDocumentRecord = createServerFn({ method: 'POST' })
   .inputValidator((d: unknown) =>
     z
       .object({
-        name: z.string().min(1),
+        name: z.string().min(1).max(200),
         type: z.string().optional().nullable(),
         size: z.string().optional().nullable(),
         storage_path: z.string().min(1),
@@ -681,7 +702,7 @@ export const createDocumentRecord = createServerFn({ method: 'POST' })
       .select()
       .single()
     if (error) throw new Error(error.message)
-    // Auto-indexa em knowledge_chunks quando há texto aprovado
+    await auditDocument(context, 'document_create', row.id, `${data.name} (${data.status ?? 'active'})`)
     if (row?.id && data.content_text && (data.status ?? 'active') === 'active') {
       try {
         const { reindexDocumentInternal } = await import('@/lib/knowledge.functions')
@@ -698,12 +719,17 @@ export const deleteDocument = createServerFn({ method: 'POST' })
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     await assertAdmin(context)
-    const { data: doc } = await context.supabase.from('documents').select('storage_path').eq('id', data.id).maybeSingle()
+    const { data: doc } = await context.supabase
+      .from('documents')
+      .select('name, storage_path')
+      .eq('id', data.id)
+      .maybeSingle()
     if (doc?.storage_path) {
       await context.supabase.storage.from('docs').remove([doc.storage_path])
     }
     const { error } = await context.supabase.from('documents').delete().eq('id', data.id)
     if (error) throw new Error(error.message)
+    await auditDocument(context, 'document_delete', data.id, doc?.name ?? '(sem nome)')
     return { ok: true }
   })
 
@@ -711,6 +737,7 @@ export const getDocument = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
+    await assertAdmin(context)
     const { data: row, error } = await context.supabase
       .from('documents')
       .select('*')
@@ -729,7 +756,7 @@ export const updateDocument = createServerFn({ method: 'POST' })
         id: z.string().uuid(),
         patch: z
           .object({
-            name: z.string().min(1).optional(),
+            name: z.string().min(1).max(200).optional(),
             status: z.enum(['active', 'inactive']).optional(),
             content_text: z.string().max(500_000).optional().nullable(),
           })
@@ -746,7 +773,12 @@ export const updateDocument = createServerFn({ method: 'POST' })
       .select()
       .single()
     if (error) throw new Error(error.message)
-    // Se conteúdo ou status mudou, reindexa
+    const parts: string[] = []
+    if ('name' in data.patch && data.patch.name) parts.push(`name="${data.patch.name}"`)
+    if ('status' in data.patch && data.patch.status) parts.push(`status=${data.patch.status}`)
+    if ('content_text' in data.patch)
+      parts.push(`content_text(${(data.patch.content_text ?? '').length}c)`)
+    await auditDocument(context, 'document_update', data.id, parts.join(', ') || '(sem alterações)')
     if ('content_text' in data.patch || 'status' in data.patch) {
       try {
         const { reindexDocumentInternal } = await import('@/lib/knowledge.functions')
@@ -762,7 +794,10 @@ export const getDocumentSignedUrl = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ storage_path: z.string().min(1) }).parse(d))
   .handler(async ({ data, context }) => {
-    const { data: signed, error } = await context.supabase.storage.from('docs').createSignedUrl(data.storage_path, 3600)
+    await assertAdmin(context)
+    const { data: signed, error } = await context.supabase.storage
+      .from('docs')
+      .createSignedUrl(data.storage_path, 3600)
     if (error) throw new Error(error.message)
     return signed
   })
