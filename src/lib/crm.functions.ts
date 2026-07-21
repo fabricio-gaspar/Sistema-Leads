@@ -1028,11 +1028,11 @@ export const updateTeamMember = createServerFn({ method: 'POST' })
         id: z.string().uuid(),
         patch: z
           .object({
-            name: z.string().min(1).max(200).optional().nullable(),
-            phone: z.string().max(40).optional().nullable(),
+            name: z.string().trim().min(1).max(200).optional().nullable(),
+            phone: z.string().trim().max(40).optional().nullable(),
             active: z.boolean().optional(),
             can_use_ia: z.boolean().optional(),
-            discount_limit: z.string().max(40).optional().nullable(),
+            discount_limit: z.string().trim().max(40).optional().nullable(),
           })
           .partial(),
       })
