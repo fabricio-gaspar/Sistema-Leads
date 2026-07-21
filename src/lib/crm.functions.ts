@@ -820,12 +820,14 @@ async function assertAdmin(ctx: { supabase: any; userId: string }) {
 }
 
 async function countAdmins(admin: any): Promise<number> {
-  const { count, error } = await admin
+  // Conta apenas administradores ATIVOS (roles + profiles.active = true)
+  const { data, error } = await admin
     .from('user_roles')
-    .select('user_id', { count: 'exact', head: true })
+    .select('user_id, profiles!inner(active)')
     .eq('role', 'administrador')
+    .eq('profiles.active', true)
   if (error) throw new Error(error.message)
-  return count ?? 0
+  return (data ?? []).length
 }
 
 async function isAdminUser(admin: any, userId: string): Promise<boolean> {
@@ -839,9 +841,8 @@ async function isAdminUser(admin: any, userId: string): Promise<boolean> {
   return Boolean(data)
 }
 
-function deriveOriginFromRequest(): string | null {
+async function deriveOriginFromRequest(): Promise<string | null> {
   try {
-    // Prefer explicit env, otherwise use current request origin
     const envUrl =
       (process.env.PUBLIC_SITE_URL as string | undefined) ||
       (process.env.SITE_URL as string | undefined)
@@ -853,18 +854,17 @@ function deriveOriginFromRequest(): string | null {
     // fall through
   }
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { getRequest } = require('@tanstack/react-start/server') as {
-      getRequest: () => Request
-    }
+    const { getRequest } = await import('@tanstack/react-start/server')
     const req = getRequest()
-    const u = new URL(req.url)
-    if (u.protocol === 'http:' || u.protocol === 'https:') return u.origin
     const forwardedHost = req.headers.get('x-forwarded-host')
     const forwardedProto = req.headers.get('x-forwarded-proto') ?? 'https'
-    if (forwardedHost) return `${forwardedProto}://${forwardedHost}`
-  } catch {
-    // ignore
+    if (forwardedHost && (forwardedProto === 'http' || forwardedProto === 'https')) {
+      return `${forwardedProto}://${forwardedHost}`
+    }
+    const u = new URL(req.url)
+    if (u.protocol === 'http:' || u.protocol === 'https:') return u.origin
+  } catch (err) {
+    console.error('[deriveOriginFromRequest] failed:', (err as Error).message)
   }
   return null
 }
