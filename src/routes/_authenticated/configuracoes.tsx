@@ -414,6 +414,7 @@ function AbaEquipe() {
               <th className="pb-2">Nome</th>
               <th className="pb-2">E-mail</th>
               <th className="pb-2">Perfil</th>
+              <th className="pb-2">IA</th>
               <th className="pb-2">Status</th>
               <th />
             </tr>
@@ -440,6 +441,18 @@ function AbaEquipe() {
                         <option key={v} value={v}>{l}</option>
                       ))}
                     </select>
+                  </td>
+                  <td className="py-2.5">
+                    <label className="inline-flex items-center gap-1.5 text-[12px] text-text-body">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(t.can_use_ia)}
+                        onChange={(e) => toggleIaMut.mutate({ id: t.id, can_use_ia: e.target.checked })}
+                        className="h-3.5 w-3.5 accent-primary"
+                        aria-label={`Permitir uso da IA para ${t.name ?? t.email}`}
+                      />
+                      {t.can_use_ia ? "Permitido" : "Bloqueado"}
+                    </label>
                   </td>
                   <td className="py-2.5">
                     <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${t.active ? "bg-success-bg text-success" : "bg-error-bg text-error"}`}>
