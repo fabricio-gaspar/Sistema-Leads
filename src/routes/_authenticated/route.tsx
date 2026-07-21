@@ -2,6 +2,10 @@ import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { AppShell } from "@/components/AppShell";
 
+const ADMIN_ONLY = ["/empresa", "/configuracoes", "/diagnostico", "/relatorios"];
+const SDR_ALLOWED = ["/", "/prospeccao", "/leads", "/atendimento"];
+const CX_ALLOWED = ["/atendimento", "/leads"];
+
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
   beforeLoad: async ({ location }) => {
@@ -10,21 +14,42 @@ export const Route = createFileRoute("/_authenticated")({
       throw redirect({ to: "/auth" });
     }
 
-    // Fetch roles client-side to decide portal-only redirect
-    const { data: rolesRows } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", data.user.id);
+    const [{ data: profile }, { data: rolesRows }] = await Promise.all([
+      supabase.from("profiles").select("active").eq("id", data.user.id).maybeSingle(),
+      supabase.from("user_roles").select("role").eq("user_id", data.user.id),
+    ]);
+
+    // Bloqueia usuários desativados
+    if (profile && profile.active === false) {
+      await supabase.auth.signOut();
+      throw redirect({ to: "/auth", search: { inactive: "1" } as never });
+    }
+
     const roles = (rolesRows ?? []).map((r) => r.role as string);
     const isAdmin = roles.includes("administrador");
     const isSellerOnly = roles.includes("vendedor") && !isAdmin;
+    const isSdrOnly = roles.includes("sdr") && !isAdmin && !roles.includes("vendedor");
+    const isCxOnly = roles.includes("cx") && !isAdmin && !roles.includes("vendedor") && !roles.includes("sdr");
+    const path = location.pathname;
 
-    // Vendedor puro opera exclusivamente pela Central de Atendimento.
-    if (isSellerOnly && location.pathname !== "/atendimento") {
+    // Vendedor puro → Central de Atendimento
+    if (isSellerOnly && path !== "/atendimento") {
       throw redirect({ to: "/atendimento" });
     }
+    // SDR puro → prospecção/leads/atendimento
+    if (isSdrOnly && !SDR_ALLOWED.some((p) => (p === "/" ? path === "/" : path === p || path.startsWith(p + "/")))) {
+      throw redirect({ to: "/prospeccao" });
+    }
+    // CX puro → atendimento/leads
+    if (isCxOnly && !CX_ALLOWED.some((p) => path === p || path.startsWith(p + "/"))) {
+      throw redirect({ to: "/atendimento" });
+    }
+    // Rotas administrativas
+    if (!isAdmin && ADMIN_ONLY.some((p) => path === p || path.startsWith(p + "/"))) {
+      throw redirect({ to: "/" });
+    }
 
-    return { user: data.user, roles, isAdmin, isSellerOnly };
+    return { user: data.user, roles, isAdmin, isSellerOnly, isSdrOnly, isCxOnly };
   },
   component: AuthenticatedLayout,
 });

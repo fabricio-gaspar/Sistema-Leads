@@ -707,6 +707,57 @@ export const deleteDocument = createServerFn({ method: 'POST' })
     return { ok: true }
   })
 
+export const getDocument = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    const { data: row, error } = await context.supabase
+      .from('documents')
+      .select('*')
+      .eq('id', data.id)
+      .maybeSingle()
+    if (error) throw new Error(error.message)
+    if (!row) throw new Error('Documento não encontrado')
+    return row
+  })
+
+export const updateDocument = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        id: z.string().uuid(),
+        patch: z
+          .object({
+            name: z.string().min(1).optional(),
+            status: z.enum(['active', 'inactive']).optional(),
+            content_text: z.string().max(500_000).optional().nullable(),
+          })
+          .partial(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context)
+    const { data: row, error } = await context.supabase
+      .from('documents')
+      .update(data.patch as never)
+      .eq('id', data.id)
+      .select()
+      .single()
+    if (error) throw new Error(error.message)
+    // Se conteúdo ou status mudou, reindexa
+    if ('content_text' in data.patch || 'status' in data.patch) {
+      try {
+        const { reindexDocumentInternal } = await import('@/lib/knowledge.functions')
+        await reindexDocumentInternal(context, data.id)
+      } catch (err) {
+        console.error('[documents] reindex failed', (err as Error).message)
+      }
+    }
+    return row
+  })
+
 export const getDocumentSignedUrl = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ storage_path: z.string().min(1) }).parse(d))
@@ -863,8 +914,96 @@ export const updateTeamMember = createServerFn({ method: 'POST' })
       .select()
       .single()
     if (error) throw new Error(error.message)
+    // Se o admin desativou o membro, revoga sessões via admin API
+    if (data.patch.active === false) {
+      try {
+        const { supabaseAdmin } = await import('@/integrations/supabase/client.server')
+        await supabaseAdmin.auth.admin.signOut(data.id, 'global')
+      } catch (err) {
+        console.error('[team] signOut failed', (err as Error).message)
+      }
+    }
     return row
   })
+
+export const inviteTeamMember = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) =>
+    z
+      .object({
+        email: z.string().email(),
+        name: z.string().min(1).optional(),
+        role: appRole,
+        phone: z.string().optional().nullable(),
+      })
+      .parse(d),
+  )
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context)
+    const { supabaseAdmin } = await import('@/integrations/supabase/client.server')
+    const origin =
+      (process.env.PUBLIC_SITE_URL as string | undefined) ||
+      (process.env.SITE_URL as string | undefined) ||
+      undefined
+    const { data: invite, error } = await supabaseAdmin.auth.admin.inviteUserByEmail(data.email, {
+      data: { name: data.name ?? data.email.split('@')[0] },
+      redirectTo: origin ? `${origin}/reset-password` : undefined,
+    })
+    if (error) throw new Error(error.message)
+    const userId = invite.user?.id
+    if (!userId) throw new Error('Falha ao criar usuário no Auth')
+
+    // Garante perfil e role
+    await supabaseAdmin.from('profiles').upsert(
+      {
+        id: userId,
+        name: data.name ?? data.email.split('@')[0],
+        email: data.email,
+        phone: data.phone ?? null,
+        active: true,
+        avatar: (data.name ?? data.email).charAt(0).toUpperCase(),
+      } as never,
+      { onConflict: 'id' } as never,
+    )
+    await supabaseAdmin.from('user_roles').delete().eq('user_id', userId)
+    await supabaseAdmin.from('user_roles').insert({ user_id: userId, role: data.role } as never)
+
+    await context.supabase.from('audit_logs').insert({
+      actor_id: context.userId,
+      actor_name: context.claims?.email ?? 'admin',
+      actor_type: 'human',
+      action: 'invite_member',
+      detail: `${data.email} → ${data.role}`,
+    } as never)
+    return { ok: true, user_id: userId }
+  })
+
+export const resendMemberInvite = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ email: z.string().email() }).parse(d))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context)
+    const { supabaseAdmin } = await import('@/integrations/supabase/client.server')
+    const origin =
+      (process.env.PUBLIC_SITE_URL as string | undefined) ||
+      (process.env.SITE_URL as string | undefined) ||
+      undefined
+    const { error } = await supabaseAdmin.auth.admin.generateLink({
+      type: 'recovery',
+      email: data.email,
+      options: { redirectTo: origin ? `${origin}/reset-password` : undefined },
+    })
+    if (error) throw new Error(error.message)
+    await context.supabase.from('audit_logs').insert({
+      actor_id: context.userId,
+      actor_name: context.claims?.email ?? 'admin',
+      actor_type: 'human',
+      action: 'reset_password',
+      detail: data.email,
+    } as never)
+    return { ok: true }
+  })
+
 
 // ============= AUDIT LOGS =============
 

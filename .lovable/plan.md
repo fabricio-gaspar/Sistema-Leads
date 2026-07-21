@@ -1,96 +1,87 @@
+## Escopo aprovado × estado atual
 
-# Auditoria Sistema-Leads (Fase 1 — nada aplicado ainda)
-
-## 1. Já existe e funciona
-
-- **Auth + roles**: `profiles`, `user_roles` (`administrador`, `vendedor`, `sdr`, `cx`), gate em `_authenticated/route.tsx`, vendedor puro é redirecionado para `/atendimento`.
-- **Core comercial**: `leads`, `lead_messages` (com `provider_message_id` para dedup), `lead_tasks`, `lead_outreach`, `proposals`, `orders`, `services`, `objections`, `documents`, `notifications`, `audit_logs`, `integrations`, `company_settings`, `contact_suppressions`, `score_weights`, `prospecting_cache`, `vendor_sessions`.
-- **Prospecção**: CNPJ.ws, Google Places (com raio 1–50 km e cálculo de distância), Apify, sugestões IA; salva buscas; seleção em massa; importação com dedup por CNPJ/telefone/email.
-- **Cadência WhatsApp→E-mail→Ligação** com `lead_outreach`, `contact_channels`, `active_channel`, `next_action_at`, `ai_paused`, `opt_out`.
-- **Z-API**: envio + webhook (`/api/public/zapi-webhook`) com dedup por `provider_message_id`, status delivered/read/replied, detecção de opt-out e interesse (handoff).
-- **Resend**: envio + webhook Svix (`/api/public/resend-webhook`) com verificação de assinatura.
-- **Cron**: `/api/public/outreach-tick` protegido por `OUTREACH_CRON_SECRET`, marca timeout como `skipped` e chama próximo canal.
-- **IA Ana**: `chatWithAna` com base em serviços, objeções, documentos textuais, FAQ; classifica intenção e move Kanban (Qualificado/Proposta/Negociação/Perdido); `unanswered_questions` para perguntas sem resposta.
-- **Central de Atendimento**: badges SLA (verde/amarelo/vermelho), filtros, ações rápidas.
-- **Relatórios**: filtro Mensal/Trimestral/Semestral/Anual; funil, canal, vendedores.
-- **Storage**: buckets `docs`, `avatars`, `contracts`.
-- **Orçamentos**: templates por categoria do catálogo, auto-avanço do Kanban.
-
-## 2. Existe, mas está incompleto ou inseguro
-
-| Item | Problema |
-|---|---|
-| Etapa do lead | `leads.stage` muda, mas não há **histórico imutável** (`lead_stage_history`). Auditoria hoje mistura tudo em `audit_logs` como texto. |
-| Atribuição de vendedor | Só `leads.assigned_to`. Sem histórico de transferências (quem, quando, motivo). |
-| Contatos do lead | Um único `whatsapp`/`email`/`phone` no `leads`. Sem múltiplos contatos, sem verificação, sem preferencial. |
-| Cadência | `outreach-tick` varre `leads.next_action_at` diretamente. Sem fila com lock → risco de execução concorrente entre cron/webhook/ação manual. Sem `idempotency_key` na fila. |
-| Webhooks | Sem tabela `webhook_events` para dedup por evento + reprocessamento. Dedup atual só existe por mensagem. |
-| Base de conhecimento IA | `documents.content_text` é o texto inteiro; sem fragmentação (`knowledge_chunks`). PDF/DOCX não têm extração — o sistema já reconhece isso, mas não há indexador. |
-| Opt-out | `contact_suppressions` bloqueia envios, mas não há trilha de **evento de consentimento** (`consent_events`) com origem/texto/data. |
-| Prospecção auditável | Resultados vivem em `prospecting_cache` (JSON). Sem tabelas normalizadas para busca/resultado revisável (`prospecting_searches`, `prospecting_results`). |
-| RLS | Precisa **revisão completa** de qualquer `USING (true)`; garantir que vendedor só leia próprios leads/mensagens/tarefas/propostas/outreach. |
-| Notas internas | Não existe `lead_notes` separado do chat do cliente. Hoje qualquer texto vira mensagem. |
-| Central de Atendimento vs Leads | Duas telas com sobreposição. Auditar se vendedor consegue acessar `/leads`, `/relatorios`, etc. via URL direta (RLS + guard de rota). |
-
-## 3. Não existe e precisa ser criado
-
-- Histórico de etapa e histórico de atribuição.
-- Múltiplos contatos por lead + normalização/hash.
-- Fila `outreach_jobs` com lock + idempotência.
-- Tabela `webhook_events` para dedup/reprocesso.
-- `knowledge_chunks` (indexação de documentos).
-- `consent_events` (trilha auditável).
-- `lead_notes` (visibilidade interna).
-- Guard de rota por role para `/leads`, `/relatorios`, `/prospeccao`, `/configuracoes`, `/empresa`, `/orcamentos`, `/pedidos`, `/diagnostico` (hoje o gate redireciona vendedor puro só se estiver fora de `/atendimento` — está OK, mas RLS ainda precisa ser a fronteira final).
-
-## 4. Tabelas / migrations necessárias
-
-### 4.1 Obrigatórias agora (aditivas, sem drop)
-
-1. **`lead_stage_history`** — id, lead_id, from_stage, to_stage, changed_by, reason, source (`ia|human|system`), created_at. Trigger em `leads` para popular automaticamente.
-2. **`lead_assignments`** — id, lead_id, from_user, to_user, changed_by, reason, source, created_at. Trigger em `leads.assigned_to`.
-3. **`contact_points`** — id, lead_id, kind (`whatsapp|phone|email|site`), value, value_normalized, value_hash, verified, preferred, status, source, created_at, updated_at. Backfill dos campos atuais de `leads`. Não remover colunas antigas nesta fase.
-4. **`outreach_jobs`** — id, lead_id, channel, payload jsonb, status (`queued|locked|done|failed|cancelled`), attempt, idempotency_key (unique), run_at, locked_at, locked_by, processed_at, error, created_at. `outreach-tick` passa a consumir a fila.
-5. **`webhook_events`** — id, provider (`zapi|resend|apify|other`), external_id (unique com provider), event_type, payload_sha, status, processed_at, error, lead_id, outreach_id, created_at.
-6. **`knowledge_chunks`** — id, document_id, chunk_index, content, tokens, embedding (opcional `vector`), version, status, created_at. `chatWithAna` passa a montar contexto a partir dos chunks relevantes.
-7. **`consent_events`** — id, lead_id, contact_point_id, event (`opt_in|opt_out|complaint|resubscribe`), channel, source (`client_reply|admin|webhook`), text, actor_id, created_at.
-8. **`lead_notes`** — id, lead_id, author_id, body, visibility (`internal`), created_at, updated_at.
-
-Todas com: `GRANT` para `authenticated`/`service_role`, RLS habilitado, políticas escopadas por `owner_id`/`assigned_to`/role admin, `updated_at` trigger onde aplicável.
-
-### 4.2 Recomendadas para fase posterior (não aplicar agora)
-
-- `organizations` + `organization_members` + `organization_id` em entidades comerciais (multi-tenant real). Como hoje o produto é da WAYFLEX, documentar decisão de operar single-tenant e reforçar RLS.
-- `prospecting_searches` + `prospecting_results` substituindo gradualmente `prospecting_cache`.
-- `campaigns`, `lead_campaigns`, `tags`, `lead_tags`.
-- Views/materialized views para relatórios pesados.
-
-### 4.3 Revisão de RLS (obrigatória, sem novas tabelas)
-
-- Auditar cada política existente; substituir qualquer `USING (true)` em tabelas com dados do lead.
-- Vendedor: SELECT/UPDATE apenas quando `assigned_to = auth.uid()` ou `owner_id = auth.uid()`.
-- Admin: `has_role(auth.uid(),'administrador')`.
-- Aplicar o mesmo padrão em `lead_messages`, `lead_tasks`, `lead_outreach`, `proposals`, `orders`, `lead_notes`, `contact_points`, `consent_events`, `lead_stage_history`, `lead_assignments`.
-
-## 5. Impacto e risco
-
-- Todas as migrations propostas são **aditivas** (novas tabelas + colunas + triggers). Nenhuma coluna existente será removida nesta fase.
-- Backfill de `contact_points` a partir de `leads.whatsapp/email/phone` é idempotente.
-- Cadência migra para `outreach_jobs` sem parar a atual: primeiro a fila passa a ser populada em paralelo; num segundo momento o `outreach-tick` deixa de varrer `leads.next_action_at`.
-- Risco principal: alterar RLS pode ocultar dados de vendedor. Validaremos com um usuário `vendedor` real antes de finalizar.
-
-## 6. Validação prevista (Fase 2)
-
-- `tsgo` + build limpos.
-- Testes manuais: criar lead, iniciar cadência, receber webhook (mock), disparar opt-out, verificar histórico de etapa/atribuição, verificar dedup de webhook.
-- Checar como admin e como vendedor: vendedor não vê lead alheio nem rotas administrativas.
+Antes de escrever código, alinho o plano em 4 blocos independentes. Cada bloco entrega valor isolado e pode ser revisado individualmente.
 
 ---
 
-## Próximo passo
+### Bloco 1 — Minha Empresa › Documentos: Visualizar e Editar
 
-**Aguardando sua aprovação para aplicar 4.1 + 4.3.** Responda com:
+Ajustes de UI em `src/routes/_authenticated/empresa.tsx` (card `DocumentosCard`) e nova server function em `src/lib/crm.functions.ts`.
 
-- `aprovar tudo` — aplico todas as 8 migrations + revisão de RLS + refactor da cadência para fila.
-- `aprovar parcial: X,Y,Z` — aplico só os itens listados.
-- `ajustar` — descreva o que mudar antes.
+- Novo botão `Visualizar` (ícone `Eye`, tooltip) em cada linha → abre `Dialog` (shadcn) com nome, tipo, tamanho, status, `updated_at` e `content_text` em `<pre>` rolável. Botão "Baixar original" quando `storage_path` existir. Vazio → mensagem clara.
+- Novo botão `Editar` visível somente se o usuário for administrador (via `useQuery` de `has_role`). Abre `Dialog` com:
+  - Campo Nome (obrigatório, ≤ 200).
+  - Textarea "Conteúdo usado pela Ana" (≤ 500 000 chars, mesmo limite do upload).
+  - Select Status (`active` / `archived`), refletindo o enum atual.
+  - Nota explicando que o arquivo original no Storage não é substituído.
+- Nova server function admin-only `updateDocument({ id, name, content_text, status })` (zod + `assertAdmin`):
+  - Atualiza a linha em `documents`.
+  - Se `status = active`: chama `reindexDocumentInternal` para regenerar chunks.
+  - Se `status = archived` (ou conteúdo vazio): marca chunks ativos como `stale`.
+  - Grava evento em `audit_logs` (autor, doc_id, ação).
+- Confirmação nativa (`window.confirm`) já existe para exclusão — mantida, apenas adicionada mensagem clara.
+- `invalidateQueries(["documents"])` + `["knowledge-stats"]` no sucesso.
+
+### Bloco 2 — Prospecção: renomear + reposicionar histórico
+
+Somente `src/routes/_authenticated/prospeccao.tsx`:
+
+- Rótulo "Buscas salvas" → **"Histórico de prospecção"** (título do card + microcópia em torno).
+- Reordenar layout para: [filtros de busca] → [Histórico de prospecção] → [Resultados].
+- Card sempre visível; quando vazio: "Nenhuma prospecção salva ainda."
+- Cada item exibe data/hora, fonte, município/UF quando existir, raio quando aplicável e total de resultados. Ações `Abrir/Reabrir`, `Renomear`, `Excluir` são preservadas (já existem).
+- Nenhuma mudança em server function nem em `prospecting_cache`.
+
+### Bloco 3 — Configurações › Equipe: convite, senha, RBAC operacional
+
+**UI (`configuracoes.tsx › AbaEquipe`):**
+- Botão "Adicionar integrante" abre `Dialog` com Nome, E-mail, Telefone (opcional), Perfil (administrador/vendedor/sdr/cx), toggle "Pode usar IA", toggle Ativo.
+- Submit chama `inviteTeamMember` (server); toast "Convite enviado — o integrante recebeu um e-mail para definir a senha."
+- Nova coluna de ações: mudar perfil (com `confirm` para "administrador" ou desativação do último admin), ativar/desativar (bloqueia auto-desativação), "Redefinir senha/Reenviar acesso" (server fn separada).
+- Skeleton/erro/estado vazio; layout responsivo com overflow horizontal na tabela.
+
+**Server (`src/lib/crm.functions.ts`):**
+- `inviteTeamMember` (admin-only, zod): normaliza e-mail, verifica duplicidade em `profiles`, chama `supabaseAdmin.auth.admin.inviteUserByEmail(email, { redirectTo: <APP_ORIGIN>/reset-password })`. Em seguida: upsert em `profiles` (name, phone, active), insert exatamente um registro em `user_roles`. Rollback (`supabaseAdmin.auth.admin.deleteUser`) se etapas pós-criação falharem. Grava em `audit_logs`.
+- `resendTeamInvite` (admin-only): `supabaseAdmin.auth.admin.generateLink({ type: "recovery", email, redirectTo })`.
+- Atualiza `updateTeamMember` para banir/desbanir no Auth (`ban_duration: "876600h"` / `"none"`) quando `active` muda, e bloquear auto-desativação/rebaixamento do último admin. Grava em `audit_logs`.
+- `APP_ORIGIN` derivado de `getRequest()` + validação server-side (host precisa bater com `SITE_URL` ou domínio conhecido) para impedir open redirect.
+
+**Auth flow (`src/routes/auth.tsx` + nova rota `/reset-password`):**
+- Remover a alternância signin/signup — deixar apenas login e link "Esqueci minha senha" (usa `resetPasswordForEmail` com `redirectTo` para `/reset-password`). Mensagem neutra ("Se o e-mail existir, enviaremos instruções.").
+- Criar `src/routes/reset-password.tsx` (ssr:false, público): detecta `type=recovery`/`access_token`, chama `supabase.auth.updateUser({ password })` com validação de mínimo 8 chars.
+
+**Gate autenticada (`src/routes/_authenticated/route.tsx`):**
+- Depois de `getUser`, ler `profiles.active` — se `false`, executar `signOut()` e redirect para `/auth?blocked=1`.
+- RBAC de rota: mapa `path → roles permitidos`; se rota não permitida, redirect para a home do perfil (admin → `/`, vendedor/cx → `/atendimento`, sdr → `/prospeccao`).
+- Sidebar (`AppShell`) já esconde itens; agora a rota bloqueia acesso direto por URL.
+
+### Bloco 4 — Migration incremental + regeneração de tipos
+
+Uma única migration idempotente, apenas o que estiver realmente faltando após leitura das políticas atuais:
+
+- `profiles.can_use_ai boolean not null default true` (se ainda não existir).
+- Índices em `user_roles(user_id)` e `profiles(active)` se ausentes.
+- Revisar RLS de `documents` para que só administradores possam `UPDATE`. Adicionar policy apenas se não existir uma equivalente.
+- **Não** cria política nova em `audit_logs`, `leads`, `prospecting_cache` — as existentes já cobrem a matriz aprovada.
+
+Após aprovação da migration, regenerar `src/integrations/supabase/types.ts` e rodar typecheck/build. Corrijo erros até o build ficar limpo.
+
+---
+
+### Fora do escopo (declarado)
+- Não altero cadência da Ana, `outreach_jobs`, webhooks, nem `atendimento.tsx`.
+- Não crio Portal do Vendedor separado — Central de Atendimento continua sendo o painel do vendedor.
+- Não abro `authenticated` global em nenhuma RLS.
+
+### Dependências externas para o usuário
+- No painel Supabase Auth → **URL Configuration**, garantir que `https://<preview>.lovable.app/reset-password` e o domínio publicado estejam na lista de **Redirect URLs** (senão o link de convite/recuperação não redireciona).
+- Sem novos secrets: usa `SUPABASE_SERVICE_ROLE_KEY` já configurado.
+
+### Ordem de execução
+1. Bloco 2 (baixo risco, só UI).
+2. Bloco 1 (UI + 1 server fn + reuso de `reindexDocumentInternal`).
+3. Migration do Bloco 4 (mínima).
+4. Bloco 3 (maior — auth admin, RBAC, reset-password).
+5. Lint + build + correções.
+
+Confirma que posso executar nessa ordem? Se preferir dividir em entregas separadas (ex.: aprovar Blocos 1+2 primeiro e depois Blocos 3+4), me avise.

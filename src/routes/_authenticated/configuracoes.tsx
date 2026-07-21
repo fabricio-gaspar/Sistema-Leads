@@ -12,6 +12,8 @@ import {
   listTeam,
   setUserRole,
   updateTeamMember,
+  inviteTeamMember,
+  resendMemberInvite,
   listAuditLogs,
   listServices,
   upsertService,
