@@ -66,23 +66,32 @@ export function AppShell({
   children,
   isSellerOnly = false,
   isAdmin = false,
+  isSdrOnly = false,
+  isCxOnly = false,
+  roles = [],
 }: {
   children: ReactNode;
   isSellerOnly?: boolean;
   isAdmin?: boolean;
+  isSdrOnly?: boolean;
+  isCxOnly?: boolean;
+  roles?: string[];
 }) {
+  void roles;
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const title =
     TITLES[pathname] ??
     (pathname.startsWith("/leads/") ? "Detalhe do Lead" : "WF Digital CRM");
 
-  // Vendedor puro vê somente a Central. Outros perfis seguem a matriz padrão.
+  // Matriz de navegação por papel (mesma de _authenticated/route.tsx)
   const visibleNav = NAV.filter((item) => {
-    if (isSellerOnly) return item.to === "/atendimento";
     if (isAdmin) return true;
-    const adminOnly = ["/empresa", "/configuracoes", "/diagnostico", "/relatorios"];
-    return !adminOnly.includes(item.to);
+    if (isSellerOnly) return item.to === "/atendimento";
+    if (isCxOnly) return item.to === "/atendimento";
+    if (isSdrOnly) return ["/prospeccao", "/leads", "/atendimento"].includes(item.to);
+    return false;
   });
+  const showChrome = isAdmin; // busca global e notificações apenas para admin
 
   const notifications = useNotifications();
   const notifActions = useNotificationsActions();
@@ -95,7 +104,7 @@ export function AppShell({
   const { data: counts } = useQuery({
     queryKey: ["sidebar-counts"],
     queryFn: () => countsFn(),
-    enabled: !isSellerOnly,
+    enabled: showChrome,
     refetchInterval: 60_000,
   });
 
@@ -106,7 +115,7 @@ export function AppShell({
   const { data: searchRes } = useQuery({
     queryKey: ["global-search", searchQ],
     queryFn: () => searchFn({ data: { q: searchQ } }),
-    enabled: !isSellerOnly && searchQ.trim().length >= 2,
+    enabled: showChrome && searchQ.trim().length >= 2,
   });
 
   useEffect(() => {
@@ -188,7 +197,7 @@ export function AppShell({
         <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b border-border-card bg-bg-card px-6">
           <h1 className="text-[15px] font-semibold text-text-title">{title}</h1>
 
-          {!isSellerOnly && <div className="ml-6 flex-1 max-w-md relative" ref={searchRef}>
+          {showChrome && <div className="ml-6 flex-1 max-w-md relative" ref={searchRef}>
             <div className="flex h-9 items-center gap-2 rounded-md border border-border-card bg-bg-general px-3">
               <SearchIcon className="h-4 w-4 text-text-ter" />
               <input
@@ -226,7 +235,7 @@ export function AppShell({
             )}
           </div>}
 
-          {isSellerOnly && <div className="flex-1" />}
+          {!showChrome && <div className="flex-1" />}
 
           <button
             onClick={() => themeStore.toggle()}
@@ -237,7 +246,7 @@ export function AppShell({
             {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           </button>
 
-          {!isSellerOnly && <div className="relative" ref={notifRef}>
+          {showChrome && <div className="relative" ref={notifRef}>
             <button
               onClick={() => setNotifOpen((v) => !v)}
               className="relative flex h-9 w-9 items-center justify-center rounded-md text-text-sec hover:bg-bg-general"

@@ -318,7 +318,11 @@ function DocumentosCard() {
 
   const delMut = useMutation({
     mutationFn: (id: string) => deleteFn({ data: { id } }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["documents"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["documents"] });
+      toast.success("Documento removido");
+    },
+    onError: (e) => toast.error("Falha ao remover", { description: (e as Error).message }),
   });
 
   const onPick = async (file: File) => {
@@ -353,6 +357,7 @@ function DocumentosCard() {
         },
       });
       qc.invalidateQueries({ queryKey: ["documents"] });
+      toast.success("Documento enviado", { description: "A base de conhecimento foi reindexada." });
     } catch (e) {
       if (uploadedPath) await supabase.storage.from("docs").remove([uploadedPath]);
       setError(e instanceof Error ? e.message : "Falha no upload");
@@ -403,12 +408,16 @@ function DocumentosCard() {
             <FileText className="h-4 w-4 text-text-ter shrink-0" />
             <div className="min-w-0 flex-1">
               <div className="truncate text-text-title">{d.name}</div>
-              <div className="text-[10.5px] text-text-ter">{d.type} · {d.size ?? "—"} · {d.status ?? "active"}</div>
+              <div className="text-[10.5px] text-text-ter">
+                {d.type} · {d.size ?? "—"} · {d.status ?? "active"}
+                {d.created_at && ` · enviado ${new Date(d.created_at as string).toLocaleDateString("pt-BR")}`}
+                {d.updated_at && d.updated_at !== d.created_at && ` · editado ${new Date(d.updated_at as string).toLocaleDateString("pt-BR")}`}
+              </div>
             </div>
-            <button onClick={() => setViewingId(d.id)} className="text-text-ter hover:text-primary" title="Visualizar">
+            <button onClick={() => setViewingId(d.id)} className="text-text-ter hover:text-primary" aria-label={`Visualizar ${d.name}`} title="Visualizar">
               <Eye className="h-3.5 w-3.5" />
             </button>
-            <button onClick={() => setEditingId(d.id)} className="text-text-ter hover:text-primary" title="Editar">
+            <button onClick={() => setEditingId(d.id)} className="text-text-ter hover:text-primary" aria-label={`Editar ${d.name}`} title="Editar">
               <Pencil className="h-3.5 w-3.5" />
             </button>
             <button onClick={() => d.storage_path && download(d.storage_path)} className="text-text-ter hover:text-primary" title="Baixar">
@@ -452,6 +461,7 @@ function DocumentModal({ id, mode, onClose }: { id: string; mode: "view" | "edit
     try {
       await updateFn({ data: { id, patch: { name, status, content_text: content } } });
       await qc.invalidateQueries({ queryKey: ["documents"] });
+      toast.success("Documento atualizado", { description: "A base de conhecimento foi reindexada." });
       onClose();
     } catch (e) {
       setError((e as Error).message);
@@ -460,15 +470,34 @@ function DocumentModal({ id, mode, onClose }: { id: string; mode: "view" | "edit
     }
   }
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const dlgId = `doc-modal-${id}`;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <div className="w-full max-w-3xl max-h-[90vh] flex flex-col rounded-xl border border-border-card bg-bg-card shadow-2xl" onClick={(e) => e.stopPropagation()}>
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={`${dlgId}-title`}
+        className="w-full max-w-3xl max-h-[90vh] flex flex-col rounded-xl border border-border-card bg-bg-card shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="flex items-center justify-between border-b border-border-card p-4">
           <div>
-            <div className="text-[14px] font-semibold text-text-title">{mode === "view" ? "Visualizar documento" : "Editar documento"}</div>
-            <div className="text-[11px] text-text-ter">{data?.type ?? ""}</div>
+            <div id={`${dlgId}-title`} className="text-[14px] font-semibold text-text-title">{mode === "view" ? "Visualizar documento" : "Editar documento"}</div>
+            <div className="text-[11px] text-text-ter">
+              {data?.type ?? ""}
+              {data?.size ? ` · ${data.size as string}` : ""}
+              {data?.created_at ? ` · enviado ${new Date(data.created_at as string).toLocaleString("pt-BR")}` : ""}
+              {data?.updated_at && data.updated_at !== data.created_at ? ` · editado ${new Date(data.updated_at as string).toLocaleString("pt-BR")}` : ""}
+            </div>
           </div>
-          <button onClick={onClose} className="text-text-ter hover:text-text-body"><X className="h-4 w-4" /></button>
+          <button onClick={onClose} aria-label="Fechar" className="text-text-ter hover:text-text-body"><X className="h-4 w-4" /></button>
         </div>
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
           {isLoading ? (

@@ -313,7 +313,14 @@ function AbaEquipe() {
   const { data, isLoading, error } = useQuery({ queryKey: ["team"], queryFn: () => listFn() });
 
   const [inviteOpen, setInviteOpen] = useState(false);
-  const [inv, setInv] = useState({ email: "", name: "", role: "vendedor" as "administrador" | "vendedor" | "sdr" | "cx", phone: "" });
+  const [inv, setInv] = useState({
+    email: "",
+    name: "",
+    role: "vendedor" as "administrador" | "vendedor" | "sdr" | "cx",
+    phone: "",
+    can_use_ia: true,
+    active: true,
+  });
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
 
@@ -321,18 +328,45 @@ function AbaEquipe() {
     mutationFn: (v: { user_id: string; role: "administrador" | "vendedor" | "sdr" | "cx" }) =>
       setRoleFn({ data: v }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["team"] }),
+    onError: (e: Error) => {
+      setFlash(`Erro: ${e.message}`);
+      setTimeout(() => setFlash(null), 4000);
+    },
   });
   const toggleActiveMut = useMutation({
     mutationFn: (v: { id: string; active: boolean }) =>
       updateFn({ data: { id: v.id, patch: { active: v.active } } }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["team"] }),
+    onError: (e: Error) => {
+      setFlash(`Erro: ${e.message}`);
+      setTimeout(() => setFlash(null), 4000);
+    },
+  });
+  const toggleIaMut = useMutation({
+    mutationFn: (v: { id: string; can_use_ia: boolean }) =>
+      updateFn({ data: { id: v.id, patch: { can_use_ia: v.can_use_ia } } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["team"] }),
+    onError: (e: Error) => {
+      setFlash(`Erro: ${e.message}`);
+      setTimeout(() => setFlash(null), 4000);
+    },
   });
   const inviteMut = useMutation({
-    mutationFn: () => inviteFn({ data: { email: inv.email.trim(), name: inv.name.trim() || undefined, role: inv.role, phone: inv.phone.trim() || null } }),
+    mutationFn: () =>
+      inviteFn({
+        data: {
+          email: inv.email.trim().toLowerCase(),
+          name: inv.name.trim(),
+          role: inv.role,
+          phone: inv.phone.trim() || null,
+          can_use_ia: inv.can_use_ia,
+          active: inv.active,
+        },
+      }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["team"] });
       setInviteOpen(false);
-      setInv({ email: "", name: "", role: "vendedor", phone: "" });
+      setInv({ email: "", name: "", role: "vendedor", phone: "", can_use_ia: true, active: true });
       setFlash("✔ Convite enviado por e-mail.");
       setTimeout(() => setFlash(null), 3500);
     },
@@ -380,6 +414,7 @@ function AbaEquipe() {
               <th className="pb-2">Nome</th>
               <th className="pb-2">E-mail</th>
               <th className="pb-2">Perfil</th>
+              <th className="pb-2">IA</th>
               <th className="pb-2">Status</th>
               <th />
             </tr>
@@ -406,6 +441,18 @@ function AbaEquipe() {
                         <option key={v} value={v}>{l}</option>
                       ))}
                     </select>
+                  </td>
+                  <td className="py-2.5">
+                    <label className="inline-flex items-center gap-1.5 text-[12px] text-text-body">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(t.can_use_ia)}
+                        onChange={(e) => toggleIaMut.mutate({ id: t.id, can_use_ia: e.target.checked })}
+                        className="h-3.5 w-3.5 accent-primary"
+                        aria-label={`Permitir uso da IA para ${t.name ?? t.email}`}
+                      />
+                      {t.can_use_ia ? "Permitido" : "Bloqueado"}
+                    </label>
                   </td>
                   <td className="py-2.5">
                     <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${t.active ? "bg-success-bg text-success" : "bg-error-bg text-error"}`}>
@@ -436,9 +483,15 @@ function AbaEquipe() {
 
       {inviteOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setInviteOpen(false)}>
-          <div className="w-full max-w-md rounded-xl border border-border-card bg-bg-card shadow-2xl" onClick={(e) => e.stopPropagation()}>
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="invite-title"
+            className="w-full max-w-md rounded-xl border border-border-card bg-bg-card shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="border-b border-border-card p-4">
-              <div className="text-[14px] font-semibold text-text-title">Adicionar integrante</div>
+              <div id="invite-title" className="text-[14px] font-semibold text-text-title">Adicionar integrante</div>
               <div className="text-[11px] text-text-ter">Enviaremos um e-mail para o novo usuário definir a senha.</div>
             </div>
             <div className="p-4 space-y-3">
@@ -447,8 +500,8 @@ function AbaEquipe() {
                 <input type="email" required value={inv.email} onChange={(e) => setInv({ ...inv, email: e.target.value })} className="w-full h-9 rounded-md border border-border-card bg-bg-general px-2 text-[13px]" />
               </label>
               <label className="block">
-                <span className="mb-1 block text-[11px] uppercase text-text-ter">Nome</span>
-                <input value={inv.name} onChange={(e) => setInv({ ...inv, name: e.target.value })} className="w-full h-9 rounded-md border border-border-card bg-bg-general px-2 text-[13px]" />
+                <span className="mb-1 block text-[11px] uppercase text-text-ter">Nome *</span>
+                <input required value={inv.name} onChange={(e) => setInv({ ...inv, name: e.target.value })} className="w-full h-9 rounded-md border border-border-card bg-bg-general px-2 text-[13px]" />
               </label>
               <label className="block">
                 <span className="mb-1 block text-[11px] uppercase text-text-ter">Telefone</span>
@@ -462,13 +515,23 @@ function AbaEquipe() {
                   ))}
                 </select>
               </label>
+              <div className="flex flex-wrap items-center gap-4 pt-1">
+                <label className="inline-flex items-center gap-1.5 text-[12.5px] text-text-body">
+                  <input type="checkbox" checked={inv.can_use_ia} onChange={(e) => setInv({ ...inv, can_use_ia: e.target.checked })} className="h-3.5 w-3.5 accent-primary" />
+                  Pode usar a IA (Ana)
+                </label>
+                <label className="inline-flex items-center gap-1.5 text-[12.5px] text-text-body">
+                  <input type="checkbox" checked={inv.active} onChange={(e) => setInv({ ...inv, active: e.target.checked })} className="h-3.5 w-3.5 accent-primary" />
+                  Usuário ativo
+                </label>
+              </div>
               {inviteError && <div className="rounded-md bg-error-bg px-3 py-2 text-[12px] text-error">{inviteError}</div>}
             </div>
             <div className="flex justify-end gap-2 border-t border-border-card p-3">
               <button onClick={() => setInviteOpen(false)} className="rounded-md border border-border-card px-3 py-1.5 text-[12px] text-text-body hover:bg-bg-general">Cancelar</button>
               <button
                 onClick={() => { setInviteError(null); inviteMut.mutate(); }}
-                disabled={!inv.email || inviteMut.isPending}
+                disabled={!inv.email || !inv.name || inviteMut.isPending}
                 className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-[12px] font-medium text-primary-foreground hover:bg-primary-hover disabled:opacity-50"
               >
                 {inviteMut.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
