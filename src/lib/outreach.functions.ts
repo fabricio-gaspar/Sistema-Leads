@@ -704,7 +704,7 @@ async function handoffInbound(
   if (registerQuestion) await registerUnanswered(ctx, question)
 
   const rule = categorizeHandoff(`${question}\n${reason}`)
-  const channelLabel = delivery.channel === 'email' ? 'e-mail' : delivery.channel === 'phone' ? 'ligação' : 'WhatsApp'
+  const channelLabel = delivery.channel === 'email' ? 'e-mail' : 'WhatsApp'
 
   // Avança etapa se aplicável e sem regredir
   const leadPatch: Record<string, unknown> = {
