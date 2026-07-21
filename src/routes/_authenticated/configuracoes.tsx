@@ -254,6 +254,24 @@ function AbaAna() {
               Variáveis disponíveis no runtime: contexto da empresa e do lead são anexados automaticamente.
             </div>
           </Field>
+
+          <div className="rounded-lg border border-border-card bg-bg-card p-3">
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={sandboxMode}
+                onChange={(e) => setSandboxMode(e.target.checked)}
+                className="mt-1 h-4 w-4 accent-primary"
+              />
+              <div>
+                <div className="text-[13px] font-semibold text-text-pri">Modo sandbox / teste</div>
+                <div className="text-[12px] text-text-sec">
+                  Substitui as mensagens geradas pela Ana por templates de teste padrão (WhatsApp, e-mail e roteiro de ligação),
+                  deixando claro que é validação do fluxo e oferecendo opt-out. Use enquanto valida integrações; desative para operar em produção.
+                </div>
+              </div>
+            </label>
+          </div>
         </div>
       </Card>
     </div>
