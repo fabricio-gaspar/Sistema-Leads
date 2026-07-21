@@ -434,77 +434,107 @@ function AbaEquipe() {
           }
         />
         {flash && <div className="mb-2 rounded-md bg-primary/5 border border-primary/40 px-3 py-2 text-[12px] text-text-title">{flash}</div>}
-        <table className="w-full text-[13px]">
-          <thead>
-            <tr className="text-left text-[11px] uppercase text-text-ter">
-              <th className="pb-2">Nome</th>
-              <th className="pb-2">E-mail</th>
-              <th className="pb-2">Perfil</th>
-              <th className="pb-2">IA</th>
-              <th className="pb-2">Status</th>
-              <th />
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-border-card">
-            {(data ?? []).map((t) => {
-              const currentRole = (t.roles?.[0] as string | undefined) ?? "vendedor";
-              return (
-                <tr key={t.id}>
-                  <td className="py-2.5 font-medium text-text-title">{t.name ?? "—"}</td>
-                  <td className="py-2.5 text-text-body">{t.email ?? "—"}</td>
-                  <td className="py-2.5">
-                    <select
-                      value={currentRole}
-                      onChange={(e) =>
-                        setRoleMut.mutate({
-                          user_id: t.id,
-                          role: e.target.value as "administrador" | "vendedor" | "sdr" | "cx",
-                        })
-                      }
-                      className="h-8 rounded-md border border-border-card bg-bg-card px-2 text-[12px] outline-none"
-                    >
-                      {Object.entries(ROLE_LABEL).map(([v, l]) => (
-                        <option key={v} value={v}>{l}</option>
-                      ))}
-                    </select>
-                  </td>
-                  <td className="py-2.5">
-                    <label className="inline-flex items-center gap-1.5 text-[12px] text-text-body">
-                      <input
-                        type="checkbox"
-                        checked={Boolean(t.can_use_ia)}
-                        onChange={(e) => toggleIaMut.mutate({ id: t.id, can_use_ia: e.target.checked })}
-                        className="h-3.5 w-3.5 accent-primary"
-                        aria-label={`Permitir uso da IA para ${t.name ?? t.email}`}
-                      />
-                      {t.can_use_ia ? "Permitido" : "Bloqueado"}
-                    </label>
-                  </td>
-                  <td className="py-2.5">
-                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${t.active ? "bg-success-bg text-success" : "bg-error-bg text-error"}`}>
-                      {t.active ? "Ativo" : "Inativo"}
-                    </span>
-                  </td>
-                  <td className="py-2.5 text-right space-x-3">
-                    <button
-                      onClick={() => t.email && resetMut.mutate(t.email)}
-                      disabled={!t.email || resetMut.isPending}
-                      className="text-[12px] text-text-sec hover:text-primary disabled:opacity-50"
-                    >
-                      Redefinir senha
-                    </button>
-                    <button
-                      onClick={() => toggleActiveMut.mutate({ id: t.id, active: !t.active })}
-                      className="text-[12px] text-text-sec hover:text-primary"
-                    >
-                      {t.active ? "Desativar" : "Reativar"}
-                    </button>
-                  </td>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[720px] text-[13px]">
+            <thead>
+              <tr className="text-left text-[11px] uppercase text-text-ter">
+                <th className="pb-2">Nome</th>
+                <th className="pb-2">E-mail</th>
+                <th className="pb-2">Perfil</th>
+                <th className="pb-2">IA</th>
+                <th className="pb-2">Status</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border-card">
+              {(data ?? []).length === 0 && (
+                <tr>
+                  <td colSpan={6} className="py-6 text-center text-[12.5px] text-text-ter">Nenhum integrante cadastrado ainda.</td>
                 </tr>
-              );
-            })}
-          </tbody>
-        </table>
+              )}
+              {(data ?? []).map((t) => {
+                const currentRole = (t.roles?.[0] as string | undefined) ?? "vendedor";
+                const rolePending = setRoleMut.isPending && setRoleMut.variables?.user_id === t.id;
+                const activePending = toggleActiveMut.isPending && toggleActiveMut.variables?.id === t.id;
+                const iaPending = toggleIaMut.isPending && toggleIaMut.variables?.id === t.id;
+                const resetPending = resetMut.isPending && resetMut.variables === t.email;
+                return (
+                  <tr key={t.id}>
+                    <td className="py-2.5 font-medium text-text-title">{t.name ?? "—"}</td>
+                    <td className="py-2.5 text-text-body">{t.email ?? "—"}</td>
+                    <td className="py-2.5">
+                      <select
+                        value={currentRole}
+                        disabled={rolePending}
+                        onChange={(e) => {
+                          const nextRole = e.target.value as "administrador" | "vendedor" | "sdr" | "cx";
+                          if (nextRole === currentRole) return;
+                          const willTouchAdmin = currentRole === "administrador" || nextRole === "administrador";
+                          const msg = willTouchAdmin
+                            ? `Confirmar alteração de perfil de ${t.name ?? t.email} para "${ROLE_LABEL[nextRole] ?? nextRole}"?\n\nMudanças envolvendo administrador impactam o acesso ao sistema.`
+                            : `Alterar perfil de ${t.name ?? t.email} para "${ROLE_LABEL[nextRole] ?? nextRole}"?`;
+                          if (!confirm(msg)) {
+                            // reverte visual: força re-render pela query
+                            qc.invalidateQueries({ queryKey: ["team"] });
+                            return;
+                          }
+                          setRoleMut.mutate({ user_id: t.id, role: nextRole });
+                        }}
+                        className="h-8 rounded-md border border-border-card bg-bg-card px-2 text-[12px] outline-none disabled:opacity-50"
+                        aria-label={`Perfil de ${t.name ?? t.email}`}
+                      >
+                        {Object.entries(ROLE_LABEL).map(([v, l]) => (
+                          <option key={v} value={v}>{l}</option>
+                        ))}
+                      </select>
+                    </td>
+                    <td className="py-2.5">
+                      <label className="inline-flex items-center gap-1.5 text-[12px] text-text-body">
+                        <input
+                          type="checkbox"
+                          checked={Boolean(t.can_use_ia)}
+                          disabled={iaPending}
+                          onChange={(e) => toggleIaMut.mutate({ id: t.id, can_use_ia: e.target.checked })}
+                          className="h-3.5 w-3.5 accent-primary disabled:opacity-50"
+                          aria-label={`Permitir uso da IA para ${t.name ?? t.email}`}
+                        />
+                        {t.can_use_ia ? "Permitido" : "Bloqueado"}
+                      </label>
+                    </td>
+                    <td className="py-2.5">
+                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${t.active ? "bg-success-bg text-success" : "bg-error-bg text-error"}`}>
+                        {t.active ? "Ativo" : "Inativo"}
+                      </span>
+                    </td>
+                    <td className="py-2.5 text-right space-x-3 whitespace-nowrap">
+                      <button
+                        onClick={() => t.email && resetMut.mutate(t.email)}
+                        disabled={!t.email || resetPending}
+                        className="text-[12px] text-text-sec hover:text-primary disabled:opacity-50"
+                      >
+                        {resetPending ? "Enviando…" : "Redefinir senha"}
+                      </button>
+                      <button
+                        onClick={() => {
+                          const next = !t.active;
+                          const msg = next
+                            ? `Reativar ${t.name ?? t.email}? O histórico do usuário será preservado.`
+                            : `Desativar ${t.name ?? t.email}? O acesso será bloqueado, mas todo o histórico será preservado.`;
+                          if (!confirm(msg)) return;
+                          toggleActiveMut.mutate({ id: t.id, active: next });
+                        }}
+                        disabled={activePending}
+                        className="text-[12px] text-text-sec hover:text-primary disabled:opacity-50"
+                      >
+                        {activePending ? "Aguarde…" : t.active ? "Desativar" : "Reativar"}
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </Card>
 
       {inviteOpen && (
