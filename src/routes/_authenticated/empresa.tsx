@@ -420,10 +420,16 @@ function DocumentosCard() {
             <button onClick={() => setEditingId(d.id)} className="text-text-ter hover:text-primary" aria-label={`Editar ${d.name}`} title="Editar">
               <Pencil className="h-3.5 w-3.5" />
             </button>
-            <button onClick={() => d.storage_path && download(d.storage_path)} className="text-text-ter hover:text-primary" title="Baixar">
+            <button onClick={() => d.storage_path && download(d.storage_path)} disabled={!d.storage_path} className="text-text-ter hover:text-primary disabled:opacity-40" aria-label={`Baixar ${d.name}`} title="Baixar original">
               <Download className="h-3.5 w-3.5" />
             </button>
-            <button onClick={() => { if (confirm(`Remover "${d.name}"?`)) delMut.mutate(d.id); }} className="text-text-ter hover:text-error" title="Remover">
+            <button
+              onClick={() => { if (confirm(`Remover "${d.name}"?`)) delMut.mutate(d.id); }}
+              disabled={delMut.isPending}
+              className="text-text-ter hover:text-error disabled:opacity-40"
+              aria-label={`Remover ${d.name}`}
+              title="Remover"
+            >
               <Trash2 className="h-3.5 w-3.5" />
             </button>
           </li>
