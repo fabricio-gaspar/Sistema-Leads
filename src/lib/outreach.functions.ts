@@ -1065,6 +1065,14 @@ export const setOptOut = createServerFn({ method: 'POST' })
         next_action_at: data.opt_out ? null : undefined,
       } as never)
       .eq('id', data.lead_id)
+    // Trilha auditável de consentimento
+    await context.supabase.from('consent_events').insert({
+      lead_id: data.lead_id,
+      event: data.opt_out ? 'opt_out' : 'resubscribe',
+      source: 'admin',
+      text: data.opt_out ? 'Opt-out registrado manualmente' : 'Reativação de contato',
+      actor_id: context.userId,
+    } as never)
     await audit(
       context as Ctx,
       data.opt_out ? 'opt_out_set' : 'opt_out_cleared',
