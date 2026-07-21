@@ -812,6 +812,75 @@ async function assertAdmin(ctx: { supabase: any; userId: string }) {
   if (!data) throw new Error('Acesso restrito a administradores')
 }
 
+async function countAdmins(admin: any): Promise<number> {
+  const { count, error } = await admin
+    .from('user_roles')
+    .select('user_id', { count: 'exact', head: true })
+    .eq('role', 'administrador')
+  if (error) throw new Error(error.message)
+  return count ?? 0
+}
+
+async function isAdminUser(admin: any, userId: string): Promise<boolean> {
+  const { data, error } = await admin
+    .from('user_roles')
+    .select('user_id')
+    .eq('user_id', userId)
+    .eq('role', 'administrador')
+    .maybeSingle()
+  if (error) throw new Error(error.message)
+  return Boolean(data)
+}
+
+function deriveOriginFromRequest(): string | null {
+  try {
+    // Prefer explicit env, otherwise use current request origin
+    const envUrl =
+      (process.env.PUBLIC_SITE_URL as string | undefined) ||
+      (process.env.SITE_URL as string | undefined)
+    if (envUrl) {
+      const u = new URL(envUrl)
+      if (u.protocol === 'http:' || u.protocol === 'https:') return u.origin
+    }
+  } catch {
+    // fall through
+  }
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { getRequest } = require('@tanstack/react-start/server') as {
+      getRequest: () => Request
+    }
+    const req = getRequest()
+    const u = new URL(req.url)
+    if (u.protocol === 'http:' || u.protocol === 'https:') return u.origin
+    const forwardedHost = req.headers.get('x-forwarded-host')
+    const forwardedProto = req.headers.get('x-forwarded-proto') ?? 'https'
+    if (forwardedHost) return `${forwardedProto}://${forwardedHost}`
+  } catch {
+    // ignore
+  }
+  return null
+}
+
+async function auditTeam(
+  ctx: { supabase: any; userId: string; claims?: any },
+  action: string,
+  detail: string,
+) {
+  try {
+    const { error } = await ctx.supabase.from('audit_logs').insert({
+      actor_id: ctx.userId,
+      actor_name: ctx.claims?.email ?? 'admin',
+      actor_type: 'human',
+      action,
+      detail,
+    } as never)
+    if (error) console.error('[audit_logs] insert failed:', error.message)
+  } catch (err) {
+    console.error('[audit_logs] insert threw:', (err as Error).message)
+  }
+}
+
 export const getMyRoles = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
@@ -878,13 +947,7 @@ export const assignLeadToSeller = createServerFn({ method: 'POST' })
       .single()
     if (error) throw new Error(error.message)
 
-    await context.supabase.from('audit_logs').insert({
-      actor_id: context.userId,
-      actor_name: context.claims?.email ?? 'admin',
-      actor_type: 'human',
-      action: 'lead_assignment',
-      detail: `${lead.company} → ${data.seller_id ?? 'sem vendedor'}`,
-    } as never)
+    await auditTeam(context, 'lead_assignment', `${lead.company} → ${data.seller_id ?? 'sem vendedor'}`)
     return lead
   })
 
@@ -893,18 +956,38 @@ export const setUserRole = createServerFn({ method: 'POST' })
   .inputValidator((d: unknown) => z.object({ user_id: z.string().uuid(), role: appRole }).parse(d))
   .handler(async ({ data, context }) => {
     await assertAdmin(context)
-    // Substitui roles do usuário pela role escolhida (perfil único de exibição)
-    const { error: delErr } = await context.supabase.from('user_roles').delete().eq('user_id', data.user_id)
+    const { supabaseAdmin } = await import('@/integrations/supabase/client.server')
+
+    // Bloqueia rebaixar o último administrador
+    const wasAdmin = await isAdminUser(supabaseAdmin, data.user_id)
+    if (wasAdmin && data.role !== 'administrador') {
+      const total = await countAdmins(supabaseAdmin)
+      if (total <= 1) throw new Error('Não é possível remover o último administrador do sistema.')
+    }
+
+    // Snapshot para rollback
+    const { data: prev, error: readErr } = await supabaseAdmin
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', data.user_id)
+    if (readErr) throw new Error(readErr.message)
+    const prevRoles = (prev ?? []).map((r: { role: string }) => r.role)
+
+    const { error: delErr } = await supabaseAdmin.from('user_roles').delete().eq('user_id', data.user_id)
     if (delErr) throw new Error(delErr.message)
-    const { error } = await context.supabase.from('user_roles').insert({ user_id: data.user_id, role: data.role } as never)
-    if (error) throw new Error(error.message)
-    await context.supabase.from('audit_logs').insert({
-      actor_id: context.userId,
-      actor_name: context.claims?.email ?? 'admin',
-      actor_type: 'human',
-      action: 'role_change',
-      detail: `Usuário ${data.user_id} → ${data.role}`,
-    } as never)
+    const { error: insErr } = await supabaseAdmin
+      .from('user_roles')
+      .insert({ user_id: data.user_id, role: data.role } as never)
+    if (insErr) {
+      // Rollback: restaura papéis anteriores para não deixar usuário órfão
+      if (prevRoles.length) {
+        await supabaseAdmin
+          .from('user_roles')
+          .insert(prevRoles.map((r) => ({ user_id: data.user_id, role: r })) as never)
+      }
+      throw new Error(insErr.message)
+    }
+    await auditTeam(context, 'role_change', `Usuário ${data.user_id} → ${data.role}`)
     return { ok: true }
   })
 
@@ -913,7 +996,12 @@ export const removeUserRole = createServerFn({ method: 'POST' })
   .inputValidator((d: unknown) => z.object({ user_id: z.string().uuid(), role: appRole }).parse(d))
   .handler(async ({ data, context }) => {
     await assertAdmin(context)
-    const { error } = await context.supabase
+    const { supabaseAdmin } = await import('@/integrations/supabase/client.server')
+    if (data.role === 'administrador') {
+      const total = await countAdmins(supabaseAdmin)
+      if (total <= 1) throw new Error('Não é possível remover o último administrador do sistema.')
+    }
+    const { error } = await supabaseAdmin
       .from('user_roles')
       .delete()
       .eq('user_id', data.user_id)
@@ -930,11 +1018,11 @@ export const updateTeamMember = createServerFn({ method: 'POST' })
         id: z.string().uuid(),
         patch: z
           .object({
-            name: z.string().optional().nullable(),
-            phone: z.string().optional().nullable(),
+            name: z.string().min(1).max(200).optional().nullable(),
+            phone: z.string().max(40).optional().nullable(),
             active: z.boolean().optional(),
             can_use_ia: z.boolean().optional(),
-            discount_limit: z.string().optional().nullable(),
+            discount_limit: z.string().max(40).optional().nullable(),
           })
           .partial(),
       })
@@ -942,21 +1030,59 @@ export const updateTeamMember = createServerFn({ method: 'POST' })
   )
   .handler(async ({ data, context }) => {
     await assertAdmin(context)
-    const { data: row, error } = await context.supabase
+    const { supabaseAdmin } = await import('@/integrations/supabase/client.server')
+
+    // Impede auto-desativação
+    if (data.patch.active === false && data.id === context.userId) {
+      throw new Error('Você não pode desativar o próprio usuário.')
+    }
+    // Impede desativar o último administrador
+    if (data.patch.active === false) {
+      const targetIsAdmin = await isAdminUser(supabaseAdmin, data.id)
+      if (targetIsAdmin) {
+        const total = await countAdmins(supabaseAdmin)
+        if (total <= 1) throw new Error('Não é possível desativar o último administrador do sistema.')
+      }
+    }
+
+    // Snapshot para rollback
+    const { data: before, error: readErr } = await supabaseAdmin
+      .from('profiles')
+      .select('active, can_use_ia, name, phone, discount_limit')
+      .eq('id', data.id)
+      .maybeSingle()
+    if (readErr) throw new Error(readErr.message)
+
+    const { data: row, error } = await supabaseAdmin
       .from('profiles')
       .update(data.patch as never)
       .eq('id', data.id)
       .select()
       .single()
     if (error) throw new Error(error.message)
-    // Se o admin desativou o membro, revoga sessões via admin API
-    if (data.patch.active === false) {
+
+    // Sincroniza ban do usuário no Auth
+    if (data.patch.active !== undefined) {
       try {
-        const { supabaseAdmin } = await import('@/integrations/supabase/client.server')
-        await supabaseAdmin.auth.admin.signOut(data.id, 'global')
+        await supabaseAdmin.auth.admin.updateUserById(data.id, {
+          ban_duration: data.patch.active ? 'none' : '87600h', // ~10 anos
+        } as never)
       } catch (err) {
-        console.error('[team] signOut failed', (err as Error).message)
+        // rollback do profile
+        await supabaseAdmin
+          .from('profiles')
+          .update({ active: before?.active ?? true } as never)
+          .eq('id', data.id)
+        throw new Error(`Falha ao sincronizar Auth: ${(err as Error).message}`)
       }
+      await auditTeam(
+        context,
+        data.patch.active ? 'user_activate' : 'user_deactivate',
+        `Usuário ${data.id}`,
+      )
+    }
+    if (data.patch.can_use_ia !== undefined && before?.can_use_ia !== data.patch.can_use_ia) {
+      await auditTeam(context, 'can_use_ia_change', `Usuário ${data.id} → ${data.patch.can_use_ia}`)
     }
     return row
   })
@@ -966,78 +1092,125 @@ export const inviteTeamMember = createServerFn({ method: 'POST' })
   .inputValidator((d: unknown) =>
     z
       .object({
-        email: z.string().email(),
-        name: z.string().min(1).optional(),
+        email: z.string().email().transform((v) => v.trim().toLowerCase()),
+        name: z.string().min(1, 'Nome obrigatório').max(200).transform((v) => v.trim()),
         role: appRole,
-        phone: z.string().optional().nullable(),
+        phone: z.string().max(40).optional().nullable(),
+        can_use_ia: z.boolean().optional().default(true),
+        active: z.boolean().optional().default(true),
       })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
     await assertAdmin(context)
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server')
-    const origin =
-      (process.env.PUBLIC_SITE_URL as string | undefined) ||
-      (process.env.SITE_URL as string | undefined) ||
-      undefined
+
+    // Duplicidade
+    const { data: existing, error: existErr } = await supabaseAdmin
+      .from('profiles')
+      .select('id, email')
+      .eq('email', data.email)
+      .maybeSingle()
+    if (existErr) throw new Error(existErr.message)
+    if (existing) throw new Error('Já existe um usuário com este e-mail.')
+
+    // Origin seguro
+    const origin = deriveOriginFromRequest()
+    const redirectTo = origin ? `${origin}/reset-password` : undefined
+
     const { data: invite, error } = await supabaseAdmin.auth.admin.inviteUserByEmail(data.email, {
-      data: { name: data.name ?? data.email.split('@')[0] },
-      redirectTo: origin ? `${origin}/reset-password` : undefined,
+      data: { name: data.name },
+      redirectTo,
     })
     if (error) throw new Error(error.message)
     const userId = invite.user?.id
     if (!userId) throw new Error('Falha ao criar usuário no Auth')
 
-    // Garante perfil e role
-    await supabaseAdmin.from('profiles').upsert(
-      {
-        id: userId,
-        name: data.name ?? data.email.split('@')[0],
-        email: data.email,
-        phone: data.phone ?? null,
-        active: true,
-        avatar: (data.name ?? data.email).charAt(0).toUpperCase(),
-      } as never,
-      { onConflict: 'id' } as never,
-    )
-    await supabaseAdmin.from('user_roles').delete().eq('user_id', userId)
-    await supabaseAdmin.from('user_roles').insert({ user_id: userId, role: data.role } as never)
+    // Persiste perfil + papel com rollback em qualquer falha
+    try {
+      const { error: upErr } = await supabaseAdmin.from('profiles').upsert(
+        {
+          id: userId,
+          name: data.name,
+          email: data.email,
+          phone: data.phone ?? null,
+          active: data.active,
+          can_use_ia: data.can_use_ia,
+          avatar: data.name.charAt(0).toUpperCase(),
+        } as never,
+        { onConflict: 'id' } as never,
+      )
+      if (upErr) throw new Error(`profiles: ${upErr.message}`)
 
-    await context.supabase.from('audit_logs').insert({
-      actor_id: context.userId,
-      actor_name: context.claims?.email ?? 'admin',
-      actor_type: 'human',
-      action: 'invite_member',
-      detail: `${data.email} → ${data.role}`,
-    } as never)
+      const { error: delErr } = await supabaseAdmin.from('user_roles').delete().eq('user_id', userId)
+      if (delErr) throw new Error(`user_roles delete: ${delErr.message}`)
+      const { error: insErr } = await supabaseAdmin
+        .from('user_roles')
+        .insert({ user_id: userId, role: data.role } as never)
+      if (insErr) throw new Error(`user_roles insert: ${insErr.message}`)
+
+      if (!data.active) {
+        await supabaseAdmin.auth.admin.updateUserById(userId, {
+          ban_duration: '87600h',
+        } as never)
+      }
+    } catch (err) {
+      // Rollback completo do usuário
+      try {
+        await supabaseAdmin.auth.admin.deleteUser(userId)
+      } catch (delErr) {
+        console.error('[invite] rollback deleteUser failed:', (delErr as Error).message)
+      }
+      throw err
+    }
+
+    await auditTeam(context, 'invite_member', `${data.email} → ${data.role}`)
     return { ok: true, user_id: userId }
   })
 
 export const resendMemberInvite = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ email: z.string().email() }).parse(d))
+  .inputValidator((d: unknown) =>
+    z.object({ email: z.string().email().transform((v) => v.trim().toLowerCase()) }).parse(d),
+  )
   .handler(async ({ data, context }) => {
     await assertAdmin(context)
-    const { supabaseAdmin } = await import('@/integrations/supabase/client.server')
-    const origin =
-      (process.env.PUBLIC_SITE_URL as string | undefined) ||
-      (process.env.SITE_URL as string | undefined) ||
-      undefined
-    const { error } = await supabaseAdmin.auth.admin.generateLink({
-      type: 'recovery',
-      email: data.email,
-      options: { redirectTo: origin ? `${origin}/reset-password` : undefined },
+    // Envia e-mail de recovery (o método público resetPasswordForEmail dispara
+    // efetivamente o e-mail via GoTrue). Constroi um client server-side com a
+    // publishable key.
+    const SUPABASE_URL = process.env.SUPABASE_URL!
+    const SUPABASE_PUBLISHABLE_KEY = process.env.SUPABASE_PUBLISHABLE_KEY!
+    if (!SUPABASE_URL || !SUPABASE_PUBLISHABLE_KEY) {
+      throw new Error('Supabase não configurado no servidor.')
+    }
+    const origin = deriveOriginFromRequest()
+    const redirectTo = origin ? `${origin}/reset-password` : undefined
+
+    const { createClient } = await import('@supabase/supabase-js')
+    const isOpaque =
+      SUPABASE_PUBLISHABLE_KEY.startsWith('sb_publishable_') ||
+      SUPABASE_PUBLISHABLE_KEY.startsWith('sb_secret_')
+    const client = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false },
+      global: {
+        fetch: (input, init) => {
+          const headers = new Headers(init?.headers)
+          if (isOpaque && headers.get('Authorization') === `Bearer ${SUPABASE_PUBLISHABLE_KEY}`) {
+            headers.delete('Authorization')
+          }
+          headers.set('apikey', SUPABASE_PUBLISHABLE_KEY)
+          return fetch(input, { ...init, headers })
+        },
+      },
     })
+    const { error } = await client.auth.resetPasswordForEmail(data.email, { redirectTo })
     if (error) throw new Error(error.message)
-    await context.supabase.from('audit_logs').insert({
-      actor_id: context.userId,
-      actor_name: context.claims?.email ?? 'admin',
-      actor_type: 'human',
-      action: 'reset_password',
-      detail: data.email,
-    } as never)
+
+    await auditTeam(context, 'reset_password', data.email)
     return { ok: true }
   })
+
+
 
 
 // ============= AUDIT LOGS =============
