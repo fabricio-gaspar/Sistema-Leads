@@ -92,6 +92,17 @@ export const Route = createFileRoute('/api/public/resend-webhook')({
         const emailId = event.data?.email_id
         if (!emailId) return Response.json({ ok: true, ignored: true })
         const { supabaseAdmin } = await import('@/integrations/supabase/client.server')
+        const { registerWebhookEvent } = await import('@/lib/webhook-dedup.server')
+
+        // Dedup a nível de evento
+        const eventKey = `${event.type || 'unknown'}:${emailId}`
+        const { isDuplicate } = await registerWebhookEvent(supabaseAdmin, {
+          provider: 'resend',
+          external_id: eventKey,
+          event_type: event.type ?? null,
+          payload: rawBody,
+        })
+        if (isDuplicate) return Response.json({ ok: true, dedup: true })
 
         if (event.type !== 'email.received') {
           const now = new Date().toISOString()

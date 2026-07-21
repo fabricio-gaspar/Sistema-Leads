@@ -680,6 +680,15 @@ export const createDocumentRecord = createServerFn({ method: 'POST' })
       .select()
       .single()
     if (error) throw new Error(error.message)
+    // Auto-indexa em knowledge_chunks quando há texto aprovado
+    if (row?.id && data.content_text && (data.status ?? 'active') === 'active') {
+      try {
+        const { reindexDocumentInternal } = await import('@/lib/knowledge.functions')
+        await reindexDocumentInternal(context, row.id)
+      } catch (err) {
+        console.error('[documents] reindex failed', (err as Error).message)
+      }
+    }
     return row
   })
 

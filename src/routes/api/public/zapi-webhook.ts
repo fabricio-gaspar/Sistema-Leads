@@ -40,6 +40,7 @@ export const Route = createFileRoute('/api/public/zapi-webhook')({
         }
 
         const { supabaseAdmin } = await import('@/integrations/supabase/client.server')
+        const { registerWebhookEvent, markWebhookEventProcessed } = await import('@/lib/webhook-dedup.server')
 
         const ids = event.ids ?? [event.messageId, event.zaapId].filter((id): id is string => Boolean(id))
         const phone = (event.phone || '').replace(/\D/g, '')
@@ -48,6 +49,17 @@ export const Route = createFileRoute('/api/public/zapi-webhook')({
         const isStatusCallback =
           status.includes('status') || status.includes('delivery') || status.includes('sent') || status.includes('read')
         const isIncoming = event.fromMe === false || (event.fromMe == null && hasText && !isStatusCallback)
+
+        // Dedup a nível de evento (não só mensagem): mesmo id + tipo já processado?
+        const primaryId = event.messageId || event.zaapId || ids[0] || null
+        const eventKey = primaryId ? `${status || (isIncoming ? 'inbound' : 'status')}:${primaryId}` : null
+        const { isDuplicate, eventRowId } = await registerWebhookEvent(supabaseAdmin, {
+          provider: 'zapi',
+          external_id: eventKey,
+          event_type: status || (isIncoming ? 'inbound' : 'status'),
+          payload: bodyText,
+        })
+        if (isDuplicate) return Response.json({ ok: true, dedup: true })
 
         // --- Status updates on outbound messages (sent/delivered/read) ---
         if (!isIncoming && ids.length > 0 && ['sent', 'delivery', 'delivered', 'read', 'received', 'played'].some((s) => status.includes(s))) {
