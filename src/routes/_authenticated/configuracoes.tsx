@@ -308,7 +308,14 @@ function AbaEquipe() {
   const listFn = useServerFn(listTeam);
   const setRoleFn = useServerFn(setUserRole);
   const updateFn = useServerFn(updateTeamMember);
+  const inviteFn = useServerFn(inviteTeamMember);
+  const resetFn = useServerFn(resendMemberInvite);
   const { data, isLoading, error } = useQuery({ queryKey: ["team"], queryFn: () => listFn() });
+
+  const [inviteOpen, setInviteOpen] = useState(false);
+  const [inv, setInv] = useState({ email: "", name: "", role: "vendedor" as "administrador" | "vendedor" | "sdr" | "cx", phone: "" });
+  const [inviteError, setInviteError] = useState<string | null>(null);
+  const [flash, setFlash] = useState<string | null>(null);
 
   const setRoleMut = useMutation({
     mutationFn: (v: { user_id: string; role: "administrador" | "vendedor" | "sdr" | "cx" }) =>
@@ -319,6 +326,28 @@ function AbaEquipe() {
     mutationFn: (v: { id: string; active: boolean }) =>
       updateFn({ data: { id: v.id, patch: { active: v.active } } }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["team"] }),
+  });
+  const inviteMut = useMutation({
+    mutationFn: () => inviteFn({ data: { email: inv.email.trim(), name: inv.name.trim() || undefined, role: inv.role, phone: inv.phone.trim() || null } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["team"] });
+      setInviteOpen(false);
+      setInv({ email: "", name: "", role: "vendedor", phone: "" });
+      setFlash("✔ Convite enviado por e-mail.");
+      setTimeout(() => setFlash(null), 3500);
+    },
+    onError: (e: Error) => setInviteError(e.message),
+  });
+  const resetMut = useMutation({
+    mutationFn: (email: string) => resetFn({ data: { email } }),
+    onSuccess: () => {
+      setFlash("✔ Link de redefinição enviado.");
+      setTimeout(() => setFlash(null), 3500);
+    },
+    onError: (e: Error) => {
+      setFlash(`Erro: ${e.message}`);
+      setTimeout(() => setFlash(null), 4000);
+    },
   });
 
   if (isLoading) {
@@ -332,7 +361,19 @@ function AbaEquipe() {
   return (
     <AdminGate error={error}>
       <Card>
-        <SectionTitle title="Equipe" hint={`${data?.length ?? 0} usuário(s)`} />
+        <SectionTitle
+          title="Equipe"
+          hint={`${data?.length ?? 0} usuário(s)`}
+          action={
+            <button
+              onClick={() => { setInviteError(null); setInviteOpen(true); }}
+              className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-[12px] font-medium text-primary-foreground hover:bg-primary-hover"
+            >
+              + Adicionar integrante
+            </button>
+          }
+        />
+        {flash && <div className="mb-2 rounded-md bg-primary/5 border border-primary/40 px-3 py-2 text-[12px] text-text-title">{flash}</div>}
         <table className="w-full text-[13px]">
           <thead>
             <tr className="text-left text-[11px] uppercase text-text-ter">
@@ -362,20 +403,23 @@ function AbaEquipe() {
                       className="h-8 rounded-md border border-border-card bg-bg-card px-2 text-[12px] outline-none"
                     >
                       {Object.entries(ROLE_LABEL).map(([v, l]) => (
-                        <option key={v} value={v}>
-                          {l}
-                        </option>
+                        <option key={v} value={v}>{l}</option>
                       ))}
                     </select>
                   </td>
                   <td className="py-2.5">
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${t.active ? "bg-success-bg text-success" : "bg-error-bg text-error"}`}
-                    >
+                    <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${t.active ? "bg-success-bg text-success" : "bg-error-bg text-error"}`}>
                       {t.active ? "Ativo" : "Inativo"}
                     </span>
                   </td>
-                  <td className="py-2.5 text-right">
+                  <td className="py-2.5 text-right space-x-3">
+                    <button
+                      onClick={() => t.email && resetMut.mutate(t.email)}
+                      disabled={!t.email || resetMut.isPending}
+                      className="text-[12px] text-text-sec hover:text-primary disabled:opacity-50"
+                    >
+                      Redefinir senha
+                    </button>
                     <button
                       onClick={() => toggleActiveMut.mutate({ id: t.id, active: !t.active })}
                       className="text-[12px] text-text-sec hover:text-primary"
@@ -388,10 +432,52 @@ function AbaEquipe() {
             })}
           </tbody>
         </table>
-        <div className="mt-3 text-[11.5px] text-text-ter">
-          Novos usuários são criados através da tela de cadastro (/auth) — perfil padrão: Vendedor.
-        </div>
       </Card>
+
+      {inviteOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setInviteOpen(false)}>
+          <div className="w-full max-w-md rounded-xl border border-border-card bg-bg-card shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="border-b border-border-card p-4">
+              <div className="text-[14px] font-semibold text-text-title">Adicionar integrante</div>
+              <div className="text-[11px] text-text-ter">Enviaremos um e-mail para o novo usuário definir a senha.</div>
+            </div>
+            <div className="p-4 space-y-3">
+              <label className="block">
+                <span className="mb-1 block text-[11px] uppercase text-text-ter">E-mail *</span>
+                <input type="email" required value={inv.email} onChange={(e) => setInv({ ...inv, email: e.target.value })} className="w-full h-9 rounded-md border border-border-card bg-bg-general px-2 text-[13px]" />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-[11px] uppercase text-text-ter">Nome</span>
+                <input value={inv.name} onChange={(e) => setInv({ ...inv, name: e.target.value })} className="w-full h-9 rounded-md border border-border-card bg-bg-general px-2 text-[13px]" />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-[11px] uppercase text-text-ter">Telefone</span>
+                <input value={inv.phone} onChange={(e) => setInv({ ...inv, phone: e.target.value })} className="w-full h-9 rounded-md border border-border-card bg-bg-general px-2 text-[13px]" />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-[11px] uppercase text-text-ter">Perfil *</span>
+                <select value={inv.role} onChange={(e) => setInv({ ...inv, role: e.target.value as typeof inv.role })} className="w-full h-9 rounded-md border border-border-card bg-bg-general px-2 text-[13px]">
+                  {Object.entries(ROLE_LABEL).map(([v, l]) => (
+                    <option key={v} value={v}>{l}</option>
+                  ))}
+                </select>
+              </label>
+              {inviteError && <div className="rounded-md bg-error-bg px-3 py-2 text-[12px] text-error">{inviteError}</div>}
+            </div>
+            <div className="flex justify-end gap-2 border-t border-border-card p-3">
+              <button onClick={() => setInviteOpen(false)} className="rounded-md border border-border-card px-3 py-1.5 text-[12px] text-text-body hover:bg-bg-general">Cancelar</button>
+              <button
+                onClick={() => { setInviteError(null); inviteMut.mutate(); }}
+                disabled={!inv.email || inviteMut.isPending}
+                className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-[12px] font-medium text-primary-foreground hover:bg-primary-hover disabled:opacity-50"
+              >
+                {inviteMut.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                Enviar convite
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </AdminGate>
   );
 }
