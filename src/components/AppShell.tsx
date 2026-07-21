@@ -104,7 +104,7 @@ export function AppShell({
   const { data: counts } = useQuery({
     queryKey: ["sidebar-counts"],
     queryFn: () => countsFn(),
-    enabled: !isSellerOnly,
+    enabled: showChrome,
     refetchInterval: 60_000,
   });
 
@@ -115,7 +115,7 @@ export function AppShell({
   const { data: searchRes } = useQuery({
     queryKey: ["global-search", searchQ],
     queryFn: () => searchFn({ data: { q: searchQ } }),
-    enabled: !isSellerOnly && searchQ.trim().length >= 2,
+    enabled: showChrome && searchQ.trim().length >= 2,
   });
 
   useEffect(() => {
