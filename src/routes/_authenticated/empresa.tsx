@@ -368,8 +368,13 @@ function DocumentosCard() {
   };
 
   const download = async (storage_path: string) => {
-    const signed = await signFn({ data: { storage_path } });
-    if (signed?.signedUrl) window.open(signed.signedUrl, "_blank");
+    try {
+      const signed = await signFn({ data: { storage_path } });
+      if (signed?.signedUrl) window.open(signed.signedUrl, "_blank");
+      else throw new Error("URL indisponível");
+    } catch (e) {
+      toast.error("Falha ao gerar link", { description: (e as Error).message });
+    }
   };
 
   return (
