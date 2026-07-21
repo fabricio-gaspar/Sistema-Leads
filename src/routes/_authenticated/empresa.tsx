@@ -357,6 +357,7 @@ function DocumentosCard() {
         },
       });
       qc.invalidateQueries({ queryKey: ["documents"] });
+      toast.success("Documento enviado", { description: "A base de conhecimento foi reindexada." });
     } catch (e) {
       if (uploadedPath) await supabase.storage.from("docs").remove([uploadedPath]);
       setError(e instanceof Error ? e.message : "Falha no upload");
