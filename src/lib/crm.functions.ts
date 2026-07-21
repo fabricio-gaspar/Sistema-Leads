@@ -1183,11 +1183,14 @@ export const inviteTeamMember = createServerFn({ method: 'POST' })
         if (banErr) throw new Error(`auth ban: ${banErr.message}`)
       }
     } catch (err) {
-      // Rollback completo do usuário
+      // Rollback completo do usuário. auth.admin.deleteUser retorna { error } sem lançar.
       try {
-        await supabaseAdmin.auth.admin.deleteUser(userId)
+        const { error: rollbackError } = await supabaseAdmin.auth.admin.deleteUser(userId)
+        if (rollbackError) {
+          console.error('[invite] rollback deleteUser failed:', rollbackError.message)
+        }
       } catch (delErr) {
-        console.error('[invite] rollback deleteUser failed:', (delErr as Error).message)
+        console.error('[invite] rollback deleteUser threw:', (delErr as Error).message)
       }
       throw err
     }
