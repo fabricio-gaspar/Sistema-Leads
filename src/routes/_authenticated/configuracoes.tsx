@@ -327,8 +327,12 @@ function AbaEquipe() {
   const setRoleMut = useMutation({
     mutationFn: (v: { user_id: string; role: "administrador" | "vendedor" | "sdr" | "cx" }) =>
       setRoleFn({ data: v }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["team"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["team"] });
+      toast.success("Perfil atualizado");
+    },
     onError: (e: Error) => {
+      toast.error("Falha ao alterar perfil", { description: e.message });
       setFlash(`Erro: ${e.message}`);
       setTimeout(() => setFlash(null), 4000);
     },
@@ -336,8 +340,12 @@ function AbaEquipe() {
   const toggleActiveMut = useMutation({
     mutationFn: (v: { id: string; active: boolean }) =>
       updateFn({ data: { id: v.id, patch: { active: v.active } } }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["team"] }),
+    onSuccess: (_r, v) => {
+      qc.invalidateQueries({ queryKey: ["team"] });
+      toast.success(v.active ? "Usuário reativado" : "Usuário desativado");
+    },
     onError: (e: Error) => {
+      toast.error("Falha ao alterar status", { description: e.message });
       setFlash(`Erro: ${e.message}`);
       setTimeout(() => setFlash(null), 4000);
     },
@@ -345,8 +353,12 @@ function AbaEquipe() {
   const toggleIaMut = useMutation({
     mutationFn: (v: { id: string; can_use_ia: boolean }) =>
       updateFn({ data: { id: v.id, patch: { can_use_ia: v.can_use_ia } } }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["team"] }),
+    onSuccess: (_r, v) => {
+      qc.invalidateQueries({ queryKey: ["team"] });
+      toast.success(v.can_use_ia ? "IA permitida" : "IA bloqueada");
+    },
     onError: (e: Error) => {
+      toast.error("Falha ao atualizar IA", { description: e.message });
       setFlash(`Erro: ${e.message}`);
       setTimeout(() => setFlash(null), 4000);
     },
@@ -367,22 +379,36 @@ function AbaEquipe() {
       qc.invalidateQueries({ queryKey: ["team"] });
       setInviteOpen(false);
       setInv({ email: "", name: "", role: "vendedor", phone: "", can_use_ia: true, active: true });
+      toast.success("Convite enviado por e-mail");
       setFlash("✔ Convite enviado por e-mail.");
       setTimeout(() => setFlash(null), 3500);
     },
-    onError: (e: Error) => setInviteError(e.message),
+    onError: (e: Error) => {
+      setInviteError(e.message);
+      toast.error("Falha ao convidar", { description: e.message });
+    },
   });
   const resetMut = useMutation({
     mutationFn: (email: string) => resetFn({ data: { email } }),
     onSuccess: () => {
+      toast.success("Link de redefinição enviado");
       setFlash("✔ Link de redefinição enviado.");
       setTimeout(() => setFlash(null), 3500);
     },
     onError: (e: Error) => {
+      toast.error("Falha ao enviar link", { description: e.message });
       setFlash(`Erro: ${e.message}`);
       setTimeout(() => setFlash(null), 4000);
     },
   });
+
+  // Escape fecha o dialog de convite
+  useEffect(() => {
+    if (!inviteOpen) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setInviteOpen(false); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [inviteOpen]);
 
   if (isLoading) {
     return (
