@@ -427,11 +427,19 @@ async function tryChannel(ctx: Ctx, lead: any, channel: Channel): Promise<void> 
         sent_at: new Date().toISOString(),
         provider_message_id: result.messageId ?? null,
       } as never)
+      const waRunAt = new Date(Date.now() + cadence.waitHours * 3600 * 1000).toISOString()
       await updateChannelStatus(ctx, lead.id, 'whatsapp', 'sent', {
         active_channel: 'whatsapp',
         // aguardar delivered/read/reply antes de trocar de canal
-        next_action_at: new Date(Date.now() + cadence.waitHours * 3600 * 1000).toISOString(),
+        next_action_at: waRunAt,
         last_contact: new Date().toISOString(),
+      })
+      await enqueueOutreachTimeoutInternal(ctx, {
+        lead_id: lead.id,
+        outreach_id: row.id,
+        channel: 'whatsapp',
+        attempt,
+        run_at: waRunAt,
       })
       await audit(ctx, 'outreach_whatsapp_sent', `Ana enviou WhatsApp para ${lead.company} (tent. ${attempt})`)
       return
@@ -474,10 +482,18 @@ async function tryChannel(ctx: Ctx, lead: any, channel: Channel): Promise<void> 
         sent_at: now,
         provider_message_id: result.messageId ?? null,
       } as never)
+      const emailRunAt = new Date(Date.now() + cadence.waitHours * 3600 * 1000).toISOString()
       await updateChannelStatus(ctx, lead.id, 'email', 'sent', {
         active_channel: 'email',
-        next_action_at: new Date(Date.now() + cadence.waitHours * 3600 * 1000).toISOString(),
+        next_action_at: emailRunAt,
         last_contact: now,
+      })
+      await enqueueOutreachTimeoutInternal(ctx, {
+        lead_id: lead.id,
+        outreach_id: row.id,
+        channel: 'email',
+        attempt,
+        run_at: emailRunAt,
       })
       await audit(ctx, 'outreach_email_sent', `Ana enviou e-mail para ${lead.company} (tent. ${attempt})`)
       return
