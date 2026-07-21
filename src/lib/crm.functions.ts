@@ -719,17 +719,24 @@ export const deleteDocument = createServerFn({ method: 'POST' })
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     await assertAdmin(context)
-    const { data: doc } = await context.supabase
+    const { data: doc, error: readErr } = await context.supabase
       .from('documents')
       .select('name, storage_path')
       .eq('id', data.id)
       .maybeSingle()
-    if (doc?.storage_path) {
-      await context.supabase.storage.from('docs').remove([doc.storage_path])
+    if (readErr) throw new Error(readErr.message)
+    if (!doc) throw new Error('Documento não encontrado')
+    if (doc.storage_path) {
+      const { error: storageErr } = await context.supabase.storage
+        .from('docs')
+        .remove([doc.storage_path])
+      if (storageErr) {
+        throw new Error(`Falha ao remover arquivo do Storage: ${storageErr.message}`)
+      }
     }
     const { error } = await context.supabase.from('documents').delete().eq('id', data.id)
     if (error) throw new Error(error.message)
-    await auditDocument(context, 'document_delete', data.id, doc?.name ?? '(sem nome)')
+    await auditDocument(context, 'document_delete', data.id, doc.name ?? '(sem nome)')
     return { ok: true }
   })
 
