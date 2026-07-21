@@ -988,9 +988,12 @@ export const setUserRole = createServerFn({ method: 'POST' })
     if (insErr) {
       // Rollback: restaura papéis anteriores para não deixar usuário órfão
       if (prevRoles.length) {
-        await supabaseAdmin
+        const { error: rbErr } = await supabaseAdmin
           .from('user_roles')
           .insert(prevRoles.map((r) => ({ user_id: data.user_id, role: r })) as never)
+        if (rbErr) {
+          console.error('[setUserRole] rollback failed:', rbErr.message, 'user:', data.user_id)
+        }
       }
       throw new Error(insErr.message)
     }
