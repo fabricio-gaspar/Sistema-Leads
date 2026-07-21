@@ -637,6 +637,60 @@ async function registerUnanswered(ctx: Ctx, text: string) {
   } as never)
 }
 
+// ============================================================================
+// Handoff categorization (regras de encaminhamento para vendedor)
+// ============================================================================
+
+export type HandoffCategory =
+  | 'orcamento'
+  | 'agendamento'
+  | 'fechamento'
+  | 'urgente'
+  | 'geral'
+
+const STAGE_ORDER = ['Prospecção', 'Qualificado', 'Proposta', 'Negociação', 'Pedido', 'Fechado', 'Perdido']
+
+const HANDOFF_RULES: Array<{ category: HandoffCategory; label: string; nextStage: string | null; priority: 'normal' | 'high'; patterns: RegExp[] }> = [
+  {
+    category: 'urgente',
+    label: 'Atendimento técnico/urgente',
+    nextStage: null,
+    priority: 'high',
+    patterns: [/urgente/i, /urg[eê]ncia/i, /reclama/i, /problema grave/i, /parad[ao]/i, /falar com (uma )?pessoa/i, /atendente/i, /humano/i, /d[uú]vida t[eé]cnica/i, /especialista/i],
+  },
+  {
+    category: 'fechamento',
+    label: 'Fechamento WayFlex',
+    nextStage: 'Pedido',
+    priority: 'high',
+    patterns: [/quero fechar/i, /vou fechar/i, /fechar (o )?(pedido|neg[oó]cio|compra)/i, /pode faturar/i, /pode emitir/i, /aceito/i, /pode mandar (o )?boleto/i],
+  },
+  {
+    category: 'orcamento',
+    label: 'Orçamento WayFlex',
+    nextStage: 'Proposta',
+    priority: 'normal',
+    patterns: [/or[çc]amento/i, /proposta/i, /pre[çc]o/i, /valor/i, /quanto custa/i, /desconto/i, /contrato/i, /cota[çc][ãa]o/i],
+  },
+  {
+    category: 'agendamento',
+    label: 'Agendar visita/reunião',
+    nextStage: 'Negociação',
+    priority: 'normal',
+    patterns: [/visita/i, /demonstra[çc][ãa]o/i, /reuni[ãa]o/i, /agendar/i, /ligar/i, /liga[çc][ãa]o/i, /me ligue/i, /call\b/i, /meet/i],
+  },
+]
+
+export function categorizeHandoff(text: string): { category: HandoffCategory; label: string; nextStage: string | null; priority: 'normal' | 'high' } {
+  const clean = (text || '').slice(0, 2000)
+  for (const rule of HANDOFF_RULES) {
+    if (rule.patterns.some((p) => p.test(clean))) {
+      return { category: rule.category, label: rule.label, nextStage: rule.nextStage, priority: rule.priority }
+    }
+  }
+  return { category: 'geral', label: 'Assumir atendimento', nextStage: null, priority: 'normal' }
+}
+
 async function handoffInbound(
   ctx: Ctx,
   lead: any,
@@ -648,32 +702,46 @@ async function handoffInbound(
   const responsible = lead.assigned_to || lead.owner_id || ctx.userId
   const now = new Date().toISOString()
   if (registerQuestion) await registerUnanswered(ctx, question)
-  await ctx.supabase.from('leads').update({
+
+  const rule = categorizeHandoff(`${question}\n${reason}`)
+  const channelLabel = delivery.channel === 'email' ? 'e-mail' : 'WhatsApp'
+
+  // Avança etapa se aplicável e sem regredir
+  const leadPatch: Record<string, unknown> = {
     ai_paused: true,
     escalated: true,
-    escalation_reason: reason,
+    escalation_reason: `[${rule.category}] ${reason}`,
     owner: 'human',
     next_action_at: null,
-  } as never).eq('id', lead.id)
+  }
+  if (rule.nextStage) {
+    const curIdx = STAGE_ORDER.indexOf(lead?.stage ?? 'Prospecção')
+    const nextIdx = STAGE_ORDER.indexOf(rule.nextStage)
+    if (nextIdx > curIdx) leadPatch.stage = rule.nextStage
+  }
+  await ctx.supabase.from('leads').update(leadPatch as never).eq('id', lead.id)
+
+  const taskText = `[${rule.label}] ${lead.company} via ${channelLabel} — ${reason}. Mensagem: "${question.slice(0, 200)}"`
   await ctx.supabase.from('lead_tasks').insert({
     lead_id: lead.id,
     owner_id: responsible,
-    owner_label: 'Vendedor',
-    text: `Assumir conversa com ${lead.company}: ${reason}. Pergunta: ${question.slice(0, 180)}`,
+    owner_label: rule.priority === 'high' ? 'Vendedor (prioritário)' : 'Vendedor',
+    text: taskText,
   } as never)
   if (responsible) {
     await ctx.supabase.from('notifications').insert({
       user_id: responsible,
-      kind: 'lead_escalated',
-      title: 'Lead precisa de atendimento humano',
-      description: `${lead.company}: ${reason}`,
+      kind: rule.priority === 'high' ? 'lead_escalated_urgent' : 'lead_escalated',
+      title: rule.priority === 'high' ? `⚠️ ${rule.label}` : rule.label,
+      description: `${lead.company} (${channelLabel}): ${reason}`,
     } as never)
   }
-  const bridge = 'Obrigado pela mensagem. Vou encaminhar você agora para um de nossos vendedores, que continuará o atendimento por aqui.'
+  const bridge = 'Obrigado pela mensagem. Vou encaminhar você agora para um especialista da WayFlex, que continuará o atendimento por aqui.'
   const result = await deliverAiMessage(ctx, lead, bridge, delivery, 'ia-escalated')
-  await audit(ctx, 'handoff_automatic', `Lead ${lead.company} encaminhado: ${reason}`, 'ia')
-  return { ok: true, action: 'handoff' as const, reason, sent: result.ok, at: now }
+  await audit(ctx, 'handoff_automatic', `[${rule.category}] ${lead.company}: ${reason}`, 'ia')
+  return { ok: true, action: 'handoff' as const, category: rule.category, reason, sent: result.ok, at: now }
 }
+
 
 export async function handoffLeadInternal(
   ctx: Ctx,
