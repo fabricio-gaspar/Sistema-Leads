@@ -197,7 +197,7 @@ export function AppShell({
         <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b border-border-card bg-bg-card px-6">
           <h1 className="text-[15px] font-semibold text-text-title">{title}</h1>
 
-          {!isSellerOnly && <div className="ml-6 flex-1 max-w-md relative" ref={searchRef}>
+          {showChrome && <div className="ml-6 flex-1 max-w-md relative" ref={searchRef}>
             <div className="flex h-9 items-center gap-2 rounded-md border border-border-card bg-bg-general px-3">
               <SearchIcon className="h-4 w-4 text-text-ter" />
               <input
@@ -235,7 +235,7 @@ export function AppShell({
             )}
           </div>}
 
-          {isSellerOnly && <div className="flex-1" />}
+          {!showChrome && <div className="flex-1" />}
 
           <button
             onClick={() => themeStore.toggle()}
@@ -246,7 +246,7 @@ export function AppShell({
             {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           </button>
 
-          {!isSellerOnly && <div className="relative" ref={notifRef}>
+          {showChrome && <div className="relative" ref={notifRef}>
             <button
               onClick={() => setNotifOpen((v) => !v)}
               className="relative flex h-9 w-9 items-center justify-center rounded-md text-text-sec hover:bg-bg-general"
