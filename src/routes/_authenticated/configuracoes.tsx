@@ -31,6 +31,7 @@ import {
   deleteNotification,
   disconnectIntegration,
 } from "@/lib/crm.functions";
+import { reindexAllDocuments, getKnowledgeStats } from "@/lib/knowledge.functions";
 import { getOutreachHealth, testZapi } from "@/lib/outreach.functions";
 
 type TabId = "ana" | "prospeccao" | "equipe" | "servicos" | "objecoes" | "score" | "governanca" | "auditoria" | "notificacoes" | "integracoes" | "seguranca";
@@ -953,7 +954,18 @@ function AbaGovernanca() {
   const listFn = useServerFn(listUnansweredQuestions);
   const resolveFn = useServerFn(resolveUnansweredQuestion);
   const delFn = useServerFn(deleteUnansweredQuestion);
+  const reindexFn = useServerFn(reindexAllDocuments);
+  const statsFn = useServerFn(getKnowledgeStats);
   const { data = [], isLoading } = useQuery<UQ[]>({ queryKey: ["unanswered"], queryFn: () => listFn() as Promise<UQ[]> });
+  const statsQ = useQuery({ queryKey: ["knowledge-stats"], queryFn: () => statsFn() });
+  const reindexMut = useMutation({
+    mutationFn: () => reindexFn(),
+    onSuccess: (r: { documents: number; chunks: number }) => {
+      toast.success(`Base reindexada: ${r.documents} documento(s), ${r.chunks} chunk(s).`);
+      qc.invalidateQueries({ queryKey: ["knowledge-stats"] });
+    },
+    onError: (e: Error) => toast.error("Falha ao reindexar", { description: e.message }),
+  });
   const resolve = useMutation({
     mutationFn: (vars: { id: string; resolved: boolean; answer?: string | null }) => resolveFn({ data: vars }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["unanswered"] }),
@@ -962,9 +974,41 @@ function AbaGovernanca() {
 
   const abertas = data.filter((q) => !q.resolved);
   const resolvidas = data.filter((q) => q.resolved);
+  const stats = statsQ.data;
 
   return (
     <div className="space-y-4">
+      <Card>
+        <SectionTitle
+          title="Base de conhecimento da Ana"
+          hint="Documentos indexados que a Ana usa como contexto"
+          action={
+            <button
+              onClick={() => reindexMut.mutate()}
+              disabled={reindexMut.isPending}
+              className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-[12px] font-medium text-primary-foreground hover:bg-primary-hover disabled:opacity-50"
+            >
+              {reindexMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />}
+              Reindexar base
+            </button>
+          }
+        />
+        <div className="grid grid-cols-3 gap-3">
+          <div className="rounded-md border border-border-card bg-bg-general p-3">
+            <div className="text-[11px] uppercase text-text-ter">Documentos ativos</div>
+            <div className="mt-1 text-[20px] font-semibold text-text-title">{stats?.documentsWithText ?? "—"}</div>
+          </div>
+          <div className="rounded-md border border-border-card bg-bg-general p-3">
+            <div className="text-[11px] uppercase text-text-ter">Chunks ativos</div>
+            <div className="mt-1 text-[20px] font-semibold text-text-title">{stats?.activeChunks ?? "—"}</div>
+          </div>
+          <div className="rounded-md border border-border-card bg-bg-general p-3">
+            <div className="text-[11px] uppercase text-text-ter">Chunks antigos</div>
+            <div className="mt-1 text-[20px] font-semibold text-text-title">{stats?.staleChunks ?? "—"}</div>
+          </div>
+        </div>
+      </Card>
+
       <Card>
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-warm-bg text-warm">
