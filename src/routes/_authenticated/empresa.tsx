@@ -318,7 +318,11 @@ function DocumentosCard() {
 
   const delMut = useMutation({
     mutationFn: (id: string) => deleteFn({ data: { id } }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["documents"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["documents"] });
+      toast.success("Documento removido");
+    },
+    onError: (e) => toast.error("Falha ao remover", { description: (e as Error).message }),
   });
 
   const onPick = async (file: File) => {
