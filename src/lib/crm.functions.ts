@@ -1191,7 +1191,7 @@ export const inviteTeamMember = createServerFn({ method: 'POST' })
 export const resendMemberInvite = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) =>
-    z.object({ email: z.string().email().transform((v) => v.trim().toLowerCase()) }).parse(d),
+    z.object({ email: z.string().trim().toLowerCase().email('E-mail inválido') }).parse(d),
   )
   .handler(async ({ data, context }) => {
     await assertAdmin(context)
