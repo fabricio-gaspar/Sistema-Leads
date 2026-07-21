@@ -146,6 +146,38 @@ async function updateChannelStatus(
   await ctx.supabase.from('leads').update(patch as never).eq('id', leadId)
 }
 
+/**
+ * Enqueues a durable timeout job in `outreach_jobs`. The cron drains this queue,
+ * so multiple manual/webhook/cron triggers converging on the same lead+channel
+ * only produce a single follow-up job (guarded by `idempotency_key`).
+ */
+export async function enqueueOutreachTimeoutInternal(
+  ctx: Ctx,
+  args: {
+    lead_id: string
+    outreach_id?: string | null
+    channel: Channel
+    attempt: number
+    run_at: string
+  },
+): Promise<void> {
+  const idempotencyKey = `${args.lead_id}:${args.channel}:${args.attempt}:timeout`
+  const { error } = await ctx.supabase.from('outreach_jobs').insert({
+    lead_id: args.lead_id,
+    outreach_id: args.outreach_id ?? null,
+    channel: args.channel,
+    payload: { kind: 'timeout' },
+    status: 'queued',
+    attempt: args.attempt,
+    idempotency_key: idempotencyKey,
+    run_at: args.run_at,
+  } as never)
+  // 23505 = idempotency_key already exists → same timeout already scheduled
+  if (error && (error as any).code !== '23505') {
+    console.error('[outreach_jobs] enqueue failed', error.message)
+  }
+}
+
 async function audit(
   ctx: Ctx,
   action: string,
@@ -395,11 +427,19 @@ async function tryChannel(ctx: Ctx, lead: any, channel: Channel): Promise<void> 
         sent_at: new Date().toISOString(),
         provider_message_id: result.messageId ?? null,
       } as never)
+      const waRunAt = new Date(Date.now() + cadence.waitHours * 3600 * 1000).toISOString()
       await updateChannelStatus(ctx, lead.id, 'whatsapp', 'sent', {
         active_channel: 'whatsapp',
         // aguardar delivered/read/reply antes de trocar de canal
-        next_action_at: new Date(Date.now() + cadence.waitHours * 3600 * 1000).toISOString(),
+        next_action_at: waRunAt,
         last_contact: new Date().toISOString(),
+      })
+      await enqueueOutreachTimeoutInternal(ctx, {
+        lead_id: lead.id,
+        outreach_id: row.id,
+        channel: 'whatsapp',
+        attempt,
+        run_at: waRunAt,
       })
       await audit(ctx, 'outreach_whatsapp_sent', `Ana enviou WhatsApp para ${lead.company} (tent. ${attempt})`)
       return
@@ -442,10 +482,18 @@ async function tryChannel(ctx: Ctx, lead: any, channel: Channel): Promise<void> 
         sent_at: now,
         provider_message_id: result.messageId ?? null,
       } as never)
+      const emailRunAt = new Date(Date.now() + cadence.waitHours * 3600 * 1000).toISOString()
       await updateChannelStatus(ctx, lead.id, 'email', 'sent', {
         active_channel: 'email',
-        next_action_at: new Date(Date.now() + cadence.waitHours * 3600 * 1000).toISOString(),
+        next_action_at: emailRunAt,
         last_contact: now,
+      })
+      await enqueueOutreachTimeoutInternal(ctx, {
+        lead_id: lead.id,
+        outreach_id: row.id,
+        channel: 'email',
+        attempt,
+        run_at: emailRunAt,
       })
       await audit(ctx, 'outreach_email_sent', `Ana enviou e-mail para ${lead.company} (tent. ${attempt})`)
       return
@@ -650,7 +698,8 @@ export async function handleInboundWithAiInternal(
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) return handoffInbound(ctx, lead, userText, 'IA indisponível', true, delivery)
 
-  const [{ data: settings }, { data: services }, { data: objections }, { data: documents }, { data: learnedAnswers }, { data: history }] = await Promise.all([
+  const { loadKnowledgeSnippetInternal } = await import('@/lib/knowledge.functions')
+  const [{ data: settings }, { data: services }, { data: objections }, knowledgeChunks, { data: learnedAnswers }, { data: history }] = await Promise.all([
     ctx.supabase
       .from('company_settings')
       .select('name, description, differentiators, tone_of_voice, ai_prompt, ai_model')
@@ -658,12 +707,7 @@ export async function handleInboundWithAiInternal(
       .maybeSingle(),
     ctx.supabase.from('services').select('name, description, price, unit, term').eq('active', true).order('name'),
     ctx.supabase.from('objections').select('trigger, response').order('created_at', { ascending: false }).limit(30),
-    ctx.supabase
-      .from('documents')
-      .select('name, content_text')
-      .eq('status', 'active')
-      .not('content_text', 'is', null)
-      .limit(5),
+    loadKnowledgeSnippetInternal(ctx.supabase, 8000),
     ctx.supabase
       .from('unanswered_questions')
       .select('text, answer')
@@ -687,10 +731,7 @@ export async function handleInboundWithAiInternal(
     services: services ?? [],
     approved_objections: objections ?? [],
     approved_answers: learnedAnswers ?? [],
-    approved_documents: (documents ?? []).map((document: { name: string; content_text: string | null }) => ({
-      name: document.name,
-      content: document.content_text?.slice(0, 4_000),
-    })),
+    approved_documents: knowledgeChunks,
   })
   const conversation = [...(history ?? [])].reverse().map((message) => ({
     role: message.sender === 'client' ? ('user' as const) : ('assistant' as const),
