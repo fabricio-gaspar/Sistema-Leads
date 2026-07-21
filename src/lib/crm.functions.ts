@@ -763,7 +763,7 @@ export const updateDocument = createServerFn({ method: 'POST' })
         id: z.string().uuid(),
         patch: z
           .object({
-            name: z.string().min(1).max(200).optional(),
+            name: z.string().trim().min(1).max(200).optional(),
             status: z.enum(['active', 'inactive']).optional(),
             content_text: z.string().max(500_000).optional().nullable(),
           })
