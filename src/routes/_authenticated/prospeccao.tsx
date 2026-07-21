@@ -484,7 +484,7 @@ function Prospeccao() {
         </div>
         {(savedQuery.data?.length ?? 0) === 0 ? (
           <div className="rounded-md border border-dashed border-border-card px-3 py-4 text-center text-[12px] text-text-ter">
-            Nenhuma prospecção realizada ainda. Ao executar uma busca acima, ela é salva automaticamente aqui.
+            Nenhuma prospecção salva ainda. Faça uma busca e use Salvar nome para adicioná-la ao histórico.
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
