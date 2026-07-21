@@ -203,6 +203,7 @@ export type Database = {
           kind: string
           lead_id: string
           preferred: boolean
+          sandbox: boolean
           source: string | null
           status: string
           updated_at: string
@@ -217,6 +218,7 @@ export type Database = {
           kind: string
           lead_id: string
           preferred?: boolean
+          sandbox?: boolean
           source?: string | null
           status?: string
           updated_at?: string
@@ -231,6 +233,7 @@ export type Database = {
           kind?: string
           lead_id?: string
           preferred?: boolean
+          sandbox?: boolean
           source?: string | null
           status?: string
           updated_at?: string

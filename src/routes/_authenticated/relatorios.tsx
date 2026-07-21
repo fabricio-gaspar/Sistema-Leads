@@ -5,7 +5,7 @@ import { TrendingUp, Sparkles, User, Loader2 } from "lucide-react";
 import { useState } from "react";
 import { Card, SectionTitle } from "@/components/ui-kit";
 import { formatBRL } from "@/lib/leads-data";
-import { getReportsData } from "@/lib/crm.functions";
+import { getReportsData, getOpsMetrics } from "@/lib/crm.functions";
 
 export const Route = createFileRoute("/_authenticated/relatorios")({ component: Relatorios });
 
@@ -223,6 +223,82 @@ function Relatorios() {
           </div>
         </Card>
       </div>
+
+      <OpsMetricsCard />
     </div>
+  );
+}
+
+function OpsMetricsCard() {
+  const fn = useServerFn(getOpsMetrics);
+  const { data } = useQuery({ queryKey: ["ops-metrics"], queryFn: () => fn() });
+  if (!data) return null;
+  const channels: Array<{ id: "whatsapp" | "email" | "phone"; label: string }> = [
+    { id: "whatsapp", label: "WhatsApp" },
+    { id: "email", label: "E-mail" },
+    { id: "phone", label: "Ligação" },
+  ];
+  const catLabels: Record<string, string> = {
+    orcamento: "Orçamento",
+    agendamento: "Visita",
+    fechamento: "Fechamento",
+    urgente: "Urgente",
+    geral: "Geral",
+  };
+  return (
+    <Card>
+      <SectionTitle title="Operação (últimos 30 dias)" hint="Cadência, opt-outs e handoffs para vendedores" />
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div>
+          <div className="mb-2 text-[12px] font-semibold text-text-title">Cadência por canal</div>
+          <div className="space-y-2">
+            {channels.map((c) => {
+              const b = data.byChannel[c.id];
+              const rate = b.attempts ? Math.round((b.sent / b.attempts) * 100) : 0;
+              return (
+                <div key={c.id} className="rounded-md border border-border-card bg-bg-general p-2 text-[11.5px]">
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium text-text-body">{c.label}</span>
+                    <span className="text-text-ter">{b.attempts} tentativa(s)</span>
+                  </div>
+                  <div className="mt-1 flex flex-wrap gap-2 text-[10.5px] text-text-sec">
+                    <span>✓ {b.sent} entregues ({rate}%)</span>
+                    <span>↩ {b.replied} respostas</span>
+                    <span className="text-hot">✕ {b.failed} falhas</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        <div>
+          <div className="mb-2 text-[12px] font-semibold text-text-title">Handoffs por categoria</div>
+          {Object.keys(data.handoffByCategory).length === 0 ? (
+            <div className="text-[12px] text-text-ter">Sem handoffs no período.</div>
+          ) : (
+            <ul className="space-y-1.5">
+              {Object.entries(data.handoffByCategory).map(([k, v]) => (
+                <li key={k} className="flex items-center justify-between rounded-md border border-border-card bg-bg-general px-2 py-1.5 text-[12px]">
+                  <span>{catLabels[k] ?? k}</span>
+                  <span className="font-semibold text-primary">{v}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="mt-2 rounded-md bg-ia-bg p-2 text-[11px] text-text-body">
+            <span className="font-semibold text-ia">Tarefas geradas para vendedores: </span>
+            {data.anaTaskCount}
+          </div>
+        </div>
+        <div>
+          <div className="mb-2 text-[12px] font-semibold text-text-title">Consentimento</div>
+          <div className="rounded-md border border-border-card bg-bg-general p-3">
+            <div className="text-[11px] uppercase text-text-ter">Opt-outs ativos</div>
+            <div className="mt-1 text-[22px] font-semibold text-hot">{data.optOutCount}</div>
+            <p className="mt-1 text-[11px] text-text-sec">Leads que solicitaram parar de receber mensagens.</p>
+          </div>
+        </div>
+      </div>
+    </Card>
   );
 }
