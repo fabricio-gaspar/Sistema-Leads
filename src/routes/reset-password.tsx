@@ -99,7 +99,7 @@ function ResetPasswordPage() {
         )}
 
 
-        {ready && !done && (
+        {state === "ready" && !done && (
           <form onSubmit={onSubmit} className="space-y-3">
             <label className="block">
               <span className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-text-ter">Nova senha</span>
