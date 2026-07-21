@@ -650,7 +650,8 @@ export async function handleInboundWithAiInternal(
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) return handoffInbound(ctx, lead, userText, 'IA indisponível', true, delivery)
 
-  const [{ data: settings }, { data: services }, { data: objections }, { data: documents }, { data: learnedAnswers }, { data: history }] = await Promise.all([
+  const { loadKnowledgeSnippetInternal } = await import('@/lib/knowledge.functions')
+  const [{ data: settings }, { data: services }, { data: objections }, knowledgeChunks, { data: learnedAnswers }, { data: history }] = await Promise.all([
     ctx.supabase
       .from('company_settings')
       .select('name, description, differentiators, tone_of_voice, ai_prompt, ai_model')
@@ -658,12 +659,7 @@ export async function handleInboundWithAiInternal(
       .maybeSingle(),
     ctx.supabase.from('services').select('name, description, price, unit, term').eq('active', true).order('name'),
     ctx.supabase.from('objections').select('trigger, response').order('created_at', { ascending: false }).limit(30),
-    ctx.supabase
-      .from('documents')
-      .select('name, content_text')
-      .eq('status', 'active')
-      .not('content_text', 'is', null)
-      .limit(5),
+    loadKnowledgeSnippetInternal(ctx.supabase, 8000),
     ctx.supabase
       .from('unanswered_questions')
       .select('text, answer')
@@ -687,10 +683,7 @@ export async function handleInboundWithAiInternal(
     services: services ?? [],
     approved_objections: objections ?? [],
     approved_answers: learnedAnswers ?? [],
-    approved_documents: (documents ?? []).map((document: { name: string; content_text: string | null }) => ({
-      name: document.name,
-      content: document.content_text?.slice(0, 4_000),
-    })),
+    approved_documents: knowledgeChunks,
   })
   const conversation = [...(history ?? [])].reverse().map((message) => ({
     role: message.sender === 'client' ? ('user' as const) : ('assistant' as const),
