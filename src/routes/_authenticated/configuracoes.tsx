@@ -546,9 +546,19 @@ function AbaEquipe() {
             className="w-full max-w-md rounded-xl border border-border-card bg-bg-card shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="border-b border-border-card p-4">
-              <div id="invite-title" className="text-[14px] font-semibold text-text-title">Adicionar integrante</div>
-              <div className="text-[11px] text-text-ter">Enviaremos um e-mail para o novo usuário definir a senha.</div>
+            <div className="flex items-start justify-between gap-3 border-b border-border-card p-4">
+              <div>
+                <div id="invite-title" className="text-[14px] font-semibold text-text-title">Adicionar integrante</div>
+                <div className="text-[11px] text-text-ter">Enviaremos um e-mail para o novo usuário definir a senha.</div>
+              </div>
+              <button
+                type="button"
+                aria-label="Fechar"
+                onClick={() => setInviteOpen(false)}
+                className="rounded-md p-1 text-text-ter hover:bg-bg-general hover:text-text-title"
+              >
+                ✕
+              </button>
             </div>
             <div className="p-4 space-y-3">
               <label className="block">
