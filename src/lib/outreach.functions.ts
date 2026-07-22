@@ -1168,6 +1168,10 @@ export const setOptOut = createServerFn({ method: 'POST' })
         next_action_at: data.opt_out ? null : undefined,
       } as never)
       .eq('id', data.lead_id)
+    if (data.opt_out) {
+      await cancelEnrollmentInternal(context.supabase, data.lead_id, 'opt_out')
+    }
+
     // Trilha auditável de consentimento
     await context.supabase.from('consent_events').insert({
       lead_id: data.lead_id,
