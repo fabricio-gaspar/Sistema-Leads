@@ -104,22 +104,49 @@ function buildChannels(lead: {
   }
 }
 
-function recommendChannel(
+/**
+ * Sequence-aware channel picker.
+ * 1) If any step's channel already got a reply, reuse that step (keep the
+ *    conversation on the responding channel).
+ * 2) Otherwise iterate from `startIndex` and return the first step whose
+ *    channel is available and not marked failed/skipped.
+ * The order comes from the persisted `outreach_sequence_steps`, so admins
+ * can reorder cadence in the DB without touching this file.
+ */
+function recommendStep(
   channels: ContactChannels,
-  cadenceCap: number,
-): Channel | null {
-  const order: Channel[] = ['whatsapp', 'email', 'phone']
-  for (const c of order) {
-    const s = channels[c]
+  steps: SequenceStep[],
+  startIndex: number,
+): SequenceStep | null {
+  if (!steps.length) return null
+  for (const step of steps) {
+    const s = channels[step.channel]
+    if (s?.available && s.last_status === 'replied') return step
+  }
+  const from = Math.max(0, startIndex)
+  for (let i = from; i < steps.length; i++) {
+    const step = steps[i]
+    const s = channels[step.channel]
     if (!s?.available) continue
     if (s.last_status === 'failed' || s.last_status === 'skipped') continue
-    if (s.last_status === 'replied') return c
-    // pending/sent/delivered/read/null are all valid to (re)use
-    void cadenceCap
-    return c
+    return step
   }
   return null
 }
+
+function stepAllowsContinue(step: SequenceStep, status: 'failed' | 'skipped') {
+  return Array.isArray(step.continue_on) && step.continue_on.includes(status)
+}
+
+function renderTemplate(template: string, lead: any): string {
+  return template
+    .replaceAll('{{company}}', String(lead.company ?? ''))
+    .replaceAll('{{contact}}', String(lead.contact ?? ''))
+    .replaceAll('{{segment}}', String(lead.segment ?? ''))
+    .replaceAll('{{city}}', String(lead.city ?? ''))
+    .replaceAll('{{uf}}', String(lead.uf ?? ''))
+}
+
 
 async function loadCadence(ctx: Ctx): Promise<{ waitHours: number; maxAttempts: number }> {
   const { data } = await ctx.supabase
