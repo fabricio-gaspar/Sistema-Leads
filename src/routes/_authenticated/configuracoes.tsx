@@ -839,6 +839,7 @@ function AbaInt() {
       )}
       <ZapiCadenceCard />
       <SequenceEditorCard />
+      <HandoffAutomationCard />
 
     </Card>
   );
@@ -1667,6 +1668,7 @@ function SequenceEditorCard() {
       order_index: number;
       channel: SequenceChannel;
       delay_minutes: number;
+      max_attempts?: number;
       template?: string | null;
       active?: boolean;
       continue_on?: Array<"failed" | "skipped">;
@@ -1729,6 +1731,7 @@ function SequenceEditorCard() {
               <th className="py-1 pr-2">#</th>
               <th className="py-1 pr-2">Canal</th>
               <th className="py-1 pr-2">Atraso (min)</th>
+              <th className="py-1 pr-2">Tentativas</th>
               <th className="py-1 pr-2">Continua em</th>
               <th className="py-1 pr-2">Ativo</th>
               <th className="py-1 pr-2">Ações</th>
@@ -1772,6 +1775,24 @@ function SequenceEditorCard() {
                     }
                   />
                 </td>
+                <td className="py-1 pr-2">
+                  <input
+                    type="number"
+                    min={1}
+                    max={10}
+                    defaultValue={s.max_attempts ?? 1}
+                    className="w-20 rounded border border-border-card bg-bg-card px-1 py-0.5"
+                    onBlur={(e) =>
+                      saveStep.mutate({
+                        id: s.id,
+                        order_index: s.order_index,
+                        channel: s.channel,
+                        delay_minutes: s.delay_minutes,
+                        max_attempts: Number(e.target.value),
+                      })
+                    }
+                  />
+                </td>
                 <td className="py-1 pr-2 text-text-sec">
                   {(s.continue_on ?? []).join(", ") || "—"}
                 </td>
@@ -1807,15 +1828,16 @@ function SequenceEditorCard() {
       <button
         onClick={() =>
           saveStep.mutate({
-            order_index: steps.length,
-            channel: "whatsapp",
+            order_index: Math.max(1, steps.find((step) => step.active && step.channel === "phone")?.order_index ?? steps.length),
+            channel: "email",
             delay_minutes: 1440,
+            max_attempts: 1,
             continue_on: ["failed", "skipped"],
           })
         }
         className="mt-3 inline-flex h-8 items-center rounded-md border border-border-card bg-bg-card px-3 text-[12px] font-medium text-text-body hover:bg-bg-general"
       >
-        + Adicionar passo
+        + Adicionar e-mail antes da ligação
       </button>
 
       <div className="mt-3 text-[11px] text-text-ter">
@@ -1823,6 +1845,70 @@ function SequenceEditorCard() {
         cria uma tarefa humana e nunca é disparado automaticamente. Uma
         resposta, opt-out ou handoff pausa a cadência automaticamente.
       </div>
+    </div>
+  );
+}
+
+function HandoffAutomationCard() {
+  const getFn = useServerFn(getCompanySettings);
+  const updateFn = useServerFn(updateCompanySettings);
+  const qc = useQueryClient();
+  const { data } = useQuery({ queryKey: ["company-settings"], queryFn: () => getFn() });
+  const [strategy, setStrategy] = useState<"manual" | "round_robin" | "least_loaded">("manual");
+  const [sla, setSla] = useState(30);
+  const [readiness, setReadiness] = useState(70);
+
+  useEffect(() => {
+    if (!data) return;
+    setStrategy(((data as any).assignment_strategy ?? "manual") as typeof strategy);
+    setSla(Number((data as any).handoff_sla_minutes ?? 30));
+    setReadiness(Number((data as any).handoff_readiness_score ?? 70));
+  }, [data]);
+
+  const saveMut = useMutation({
+    mutationFn: () => updateFn({ data: {
+      assignment_strategy: strategy,
+      handoff_sla_minutes: sla,
+      handoff_readiness_score: readiness,
+    } }),
+    onSuccess: () => {
+      toast.success("Distribuição e handoff salvos");
+      qc.invalidateQueries({ queryKey: ["company-settings"] });
+    },
+    onError: (e: Error) => toast.error("Erro ao salvar", { description: e.message }),
+  });
+
+  return (
+    <div className="mt-4 rounded-md border border-border-card p-4">
+      <div className="text-[13px] font-semibold text-text-title">Distribuição e handoff para vendedores</div>
+      <div className="mt-1 text-[11.5px] text-text-sec">
+        Define quando a Ana transfere a conversa, como escolhe o vendedor e em quanto tempo o atendimento deve ser assumido.
+      </div>
+      <div className="mt-3 grid gap-3 md:grid-cols-3">
+        <label className="block text-[12px]">
+          <span className="text-text-sec">Distribuição</span>
+          <select value={strategy} onChange={(e) => setStrategy(e.target.value as typeof strategy)}
+            className="mt-1 h-9 w-full rounded-md border border-border-card bg-bg-card px-2 text-[13px]">
+            <option value="manual">Manual</option>
+            <option value="round_robin">Rodízio entre vendedores</option>
+            <option value="least_loaded">Menor carteira ativa</option>
+          </select>
+        </label>
+        <label className="block text-[12px]">
+          <span className="text-text-sec">SLA para assumir (minutos)</span>
+          <input type="number" min={5} max={1440} value={sla} onChange={(e) => setSla(Number(e.target.value))}
+            className="mt-1 h-9 w-full rounded-md border border-border-card bg-bg-card px-2 text-[13px]" />
+        </label>
+        <label className="block text-[12px]">
+          <span className="text-text-sec">Prontidão para handoff (0–100)</span>
+          <input type="number" min={0} max={100} value={readiness} onChange={(e) => setReadiness(Number(e.target.value))}
+            className="mt-1 h-9 w-full rounded-md border border-border-card bg-bg-card px-2 text-[13px]" />
+        </label>
+      </div>
+      <button onClick={() => saveMut.mutate()} disabled={saveMut.isPending}
+        className="mt-3 inline-flex h-8 items-center rounded-md bg-primary px-3 text-[12px] font-medium text-primary-foreground hover:bg-primary-hover disabled:opacity-50">
+        {saveMut.isPending ? "Salvando…" : "Salvar distribuição"}
+      </button>
     </div>
   );
 }

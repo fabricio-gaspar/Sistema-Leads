@@ -1,10 +1,11 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { AlertTriangle, CheckCircle2, Loader2, Play, Download, ShieldAlert } from "lucide-react";
 import { Card, SectionTitle } from "@/components/ui-kit";
 import { runMockScan, type MockScanReport, type MockFinding } from "@/lib/mock-scan.functions";
+import { getOutreachHealth } from "@/lib/outreach.functions";
 
 export const Route = createFileRoute("/_authenticated/diagnostico")({
   component: DiagnosticoPage,
@@ -18,6 +19,7 @@ const SEV_STYLE: Record<MockFinding["severity"], string> = {
 
 function DiagnosticoPage() {
   const scanFn = useServerFn(runMockScan);
+  const healthFn = useServerFn(getOutreachHealth);
   const [report, setReport] = useState<MockScanReport | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
@@ -28,6 +30,10 @@ function DiagnosticoPage() {
       setErr(null);
     },
     onError: (e) => setErr(e instanceof Error ? e.message : "Falha ao executar."),
+  });
+  const { data: health, isLoading: healthLoading } = useQuery({
+    queryKey: ["outreach-health"],
+    queryFn: () => healthFn(),
   });
 
   function downloadCSV() {
@@ -57,6 +63,44 @@ function DiagnosticoPage() {
 
   return (
     <div className="space-y-4">
+      <Card>
+        <SectionTitle
+          title="Saúde das integrações"
+          hint="Verifica se as credenciais obrigatórias estão presentes, sem exibir segredos"
+        />
+        {healthLoading || !health ? (
+          <div className="flex items-center gap-2 text-[12px] text-text-sec">
+            <Loader2 className="h-4 w-4 animate-spin" /> Verificando configurações…
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
+            {[
+              ["Ana (IA)", health.ai],
+              ["Google Places", health.prospecting],
+              ["WhatsApp Z-API", health.zapi],
+              ["Token cliente Z-API", health.zapiClientToken],
+              ["Webhook WhatsApp", health.zapiWebhook],
+              ["E-mail Resend", health.email],
+              ["Webhook de e-mail", health.emailWebhook],
+              ["Agendador da cadência", health.scheduler],
+            ].map(([label, configured]) => (
+              <div key={String(label)} className="flex items-center justify-between rounded-md border border-border-card bg-bg-general p-2.5">
+                <span className="text-[11.5px] text-text-body">{String(label)}</span>
+                {configured ? (
+                  <span className="inline-flex items-center gap-1 text-[10.5px] font-medium text-success">
+                    <CheckCircle2 className="h-3.5 w-3.5" /> Configurada
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center gap-1 text-[10.5px] font-medium text-warm">
+                    <AlertTriangle className="h-3.5 w-3.5" /> Pendente
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
       <Card>
         <div className="flex items-start justify-between gap-4">
           <div>

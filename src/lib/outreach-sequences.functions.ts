@@ -14,6 +14,7 @@ export type SequenceStep = {
   order_index: number
   channel: SequenceChannel
   delay_minutes: number
+  max_attempts: number
   template: string | null
   continue_on: string[]
   active: boolean
@@ -42,6 +43,8 @@ export type Enrollment = {
   pause_reason: string | null
   started_at: string
   last_step_at: string | null
+  next_run_at: string | null
+  last_error: string | null
   completed_at: string | null
   created_at: string
   updated_at: string
@@ -116,7 +119,8 @@ export async function patchEnrollmentInternal(
   leadId: string,
   patch: Partial<Enrollment>,
 ) {
-  await supabase.from('lead_sequence_enrollments').update(patch as never).eq('lead_id', leadId)
+  const { error } = await supabase.from('lead_sequence_enrollments').update(patch as never).eq('lead_id', leadId)
+  if (error) throw new Error(error.message)
 }
 
 export async function pauseEnrollmentInternal(supabase: any, leadId: string, reason: string) {
@@ -225,6 +229,17 @@ const seqUpdateSchema = z.object({
   active: z.boolean().optional(),
 })
 
+function validateSequenceSteps(steps: SequenceStep[]) {
+  const active = [...steps].filter((step) => step.active).sort((a, b) => a.order_index - b.order_index)
+  if (!active.length) throw new Error('Ative pelo menos um passo da cadência.')
+  if (active[0]?.channel !== 'whatsapp') throw new Error('O primeiro passo ativo deve ser WhatsApp.')
+  if (active.at(-1)?.channel !== 'phone') throw new Error('O último passo ativo deve ser a tarefa humana de telefone.')
+  const channelOrder: Record<SequenceChannel, number> = { whatsapp: 0, email: 1, phone: 2 }
+  if (active.some((step, index) => index > 0 && channelOrder[step.channel] < channelOrder[active[index - 1].channel])) {
+    throw new Error('A ordem dos canais deve ser WhatsApp → e-mail → telefone.')
+  }
+}
+
 export const updateSequence = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => seqUpdateSchema.parse(d))
@@ -249,11 +264,12 @@ const stepUpsertSchema = z.object({
   order_index: z.number().int().min(0).max(50),
   channel: z.enum(['whatsapp', 'email', 'phone']),
   delay_minutes: z.number().int().min(0).max(60 * 24 * 30),
+  max_attempts: z.number().int().min(1).max(10).optional(),
   template: z.string().trim().max(2000).nullish(),
   continue_on: z
     .array(z.enum(['sent', 'delivered', 'read', 'replied', 'failed', 'skipped']))
-    .default([]),
-  active: z.boolean().default(true),
+    .optional(),
+  active: z.boolean().optional(),
 })
 
 export const upsertSequenceStep = createServerFn({ method: 'POST' })
@@ -261,20 +277,68 @@ export const upsertSequenceStep = createServerFn({ method: 'POST' })
   .inputValidator((d: unknown) => stepUpsertSchema.parse(d))
   .handler(async ({ data, context }) => {
     await assertAdmin(context)
+    const { data: currentRows, error: currentError } = await context.supabase
+      .from('outreach_sequence_steps')
+      .select('*')
+      .eq('sequence_id', data.sequence_id)
+      .order('order_index', { ascending: true })
+    if (currentError) throw new Error(currentError.message)
+    const current = (currentRows ?? []) as SequenceStep[]
     if (data.id) {
+      const existing = current.find((step) => step.id === data.id)
+      if (!existing) throw new Error('Passo da cadência não encontrado.')
+      const next = {
+        ...existing,
+        order_index: data.order_index,
+        channel: data.channel,
+        delay_minutes: data.delay_minutes,
+        max_attempts: data.max_attempts ?? existing.max_attempts ?? 1,
+        template: data.template === undefined ? existing.template : (data.template ?? null),
+        continue_on: data.continue_on ?? existing.continue_on,
+        active: data.active ?? existing.active,
+      }
+      validateSequenceSteps(current.map((step) => step.id === data.id ? next : step))
       const { error } = await context.supabase
         .from('outreach_sequence_steps')
         .update({
-          order_index: data.order_index,
-          channel: data.channel,
-          delay_minutes: data.delay_minutes,
-          template: data.template ?? null,
-          continue_on: data.continue_on,
-          active: data.active,
+          order_index: next.order_index,
+          channel: next.channel,
+          delay_minutes: next.delay_minutes,
+          max_attempts: next.max_attempts,
+          template: next.template,
+          continue_on: next.continue_on,
+          active: next.active,
         } as never)
         .eq('id', data.id)
       if (error) throw new Error(error.message)
       return { ok: true, id: data.id }
+    }
+    const shiftedCurrent = current.map((step) =>
+      step.order_index >= data.order_index ? { ...step, order_index: step.order_index + 1 } : step,
+    )
+    const candidate = {
+      id: 'new',
+      sequence_id: data.sequence_id,
+      order_index: data.order_index,
+      channel: data.channel,
+      delay_minutes: data.delay_minutes,
+      max_attempts: data.max_attempts ?? 1,
+      template: data.template ?? null,
+      continue_on: data.continue_on ?? ['failed', 'skipped'],
+      active: data.active ?? true,
+      created_at: '',
+      updated_at: '',
+    } satisfies SequenceStep
+    validateSequenceSteps([...shiftedCurrent, candidate])
+    const shiftedRows = [...current]
+      .filter((step) => step.order_index >= data.order_index)
+      .sort((a, b) => b.order_index - a.order_index)
+    for (const step of shiftedRows) {
+      const { error: shiftError } = await context.supabase
+        .from('outreach_sequence_steps')
+        .update({ order_index: step.order_index + 1 } as never)
+        .eq('id', step.id)
+      if (shiftError) throw new Error(`Não foi possível abrir espaço para o novo passo: ${shiftError.message}`)
     }
     const { data: inserted, error } = await context.supabase
       .from('outreach_sequence_steps')
@@ -283,13 +347,22 @@ export const upsertSequenceStep = createServerFn({ method: 'POST' })
         order_index: data.order_index,
         channel: data.channel,
         delay_minutes: data.delay_minutes,
+        max_attempts: data.max_attempts ?? 1,
         template: data.template ?? null,
-        continue_on: data.continue_on,
-        active: data.active,
+        continue_on: data.continue_on ?? ['failed', 'skipped'],
+        active: data.active ?? true,
       } as never)
       .select('id')
       .maybeSingle()
-    if (error) throw new Error(error.message)
+    if (error) {
+      for (const step of [...shiftedRows].reverse()) {
+        await context.supabase
+          .from('outreach_sequence_steps')
+          .update({ order_index: step.order_index } as never)
+          .eq('id', step.id)
+      }
+      throw new Error(error.message)
+    }
     return { ok: true, id: (inserted as { id?: string } | null)?.id }
   })
 
@@ -298,6 +371,19 @@ export const deleteSequenceStep = createServerFn({ method: 'POST' })
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     await assertAdmin(context)
+    const { data: row, error: rowError } = await context.supabase
+      .from('outreach_sequence_steps')
+      .select('*')
+      .eq('id', data.id)
+      .maybeSingle()
+    if (rowError) throw new Error(rowError.message)
+    if (!row) throw new Error('Passo da cadência não encontrado.')
+    const { data: siblings, error: siblingsError } = await context.supabase
+      .from('outreach_sequence_steps')
+      .select('*')
+      .eq('sequence_id', row.sequence_id)
+    if (siblingsError) throw new Error(siblingsError.message)
+    validateSequenceSteps(((siblings ?? []) as SequenceStep[]).filter((step) => step.id !== data.id))
     const { error } = await context.supabase
       .from('outreach_sequence_steps')
       .delete()
