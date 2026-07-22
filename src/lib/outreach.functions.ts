@@ -1024,15 +1024,22 @@ export const startOutreach = createServerFn({ method: 'POST' })
       lead.contact_channels = channels
     }
 
-    const cadence = await loadCadence(context as Ctx)
-    const target = recommendChannel(channels, cadence.maxAttempts)
+    const bundle = await loadDefaultSequenceInternal(context.supabase)
+    if (!bundle) {
+      await audit(context as Ctx, 'outreach_no_sequence', `Sem cadência ativa para ${lead.company}`, 'system')
+      return { ok: false, reason: 'no_active_sequence' }
+    }
+    await ensureEnrollmentInternal(context.supabase, lead.id)
+    const target = recommendStep(channels, bundle.steps, 0)
     if (!target) {
       await audit(context as Ctx, 'outreach_no_channel', `Sem canais para ${lead.company}`, 'system')
+      await pauseEnrollmentInternal(context.supabase, lead.id, 'no_channel_available')
       return { ok: false, reason: 'no_channel_available' }
     }
-    await tryChannel(context as Ctx, lead, target)
-    return { ok: true, channel: target }
+    await tryStep(context as Ctx, lead, target)
+    return { ok: true, channel: target.channel, step_id: target.id }
   })
+
 
 export const pauseAi = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
