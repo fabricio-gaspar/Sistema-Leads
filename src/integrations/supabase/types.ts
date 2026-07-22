@@ -602,6 +602,63 @@ export type Database = {
           },
         ]
       }
+      lead_sequence_enrollments: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          current_step_index: number
+          id: string
+          last_step_at: string | null
+          lead_id: string
+          pause_reason: string | null
+          sequence_id: string
+          started_at: string
+          status: Database["public"]["Enums"]["enrollment_status"]
+          updated_at: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          current_step_index?: number
+          id?: string
+          last_step_at?: string | null
+          lead_id: string
+          pause_reason?: string | null
+          sequence_id: string
+          started_at?: string
+          status?: Database["public"]["Enums"]["enrollment_status"]
+          updated_at?: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          current_step_index?: number
+          id?: string
+          last_step_at?: string | null
+          lead_id?: string
+          pause_reason?: string | null
+          sequence_id?: string
+          started_at?: string
+          status?: Database["public"]["Enums"]["enrollment_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_sequence_enrollments_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: true
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_sequence_enrollments_sequence_id_fkey"
+            columns: ["sequence_id"]
+            isOneToOne: false
+            referencedRelation: "outreach_sequences"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lead_stage_history: {
         Row: {
           changed_by: string | null
@@ -1025,6 +1082,86 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      outreach_sequence_steps: {
+        Row: {
+          active: boolean
+          channel: Database["public"]["Enums"]["sequence_step_channel"]
+          continue_on: Json
+          created_at: string
+          delay_minutes: number
+          id: string
+          order_index: number
+          sequence_id: string
+          template: string | null
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          channel: Database["public"]["Enums"]["sequence_step_channel"]
+          continue_on?: Json
+          created_at?: string
+          delay_minutes?: number
+          id?: string
+          order_index: number
+          sequence_id: string
+          template?: string | null
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          channel?: Database["public"]["Enums"]["sequence_step_channel"]
+          continue_on?: Json
+          created_at?: string
+          delay_minutes?: number
+          id?: string
+          order_index?: number
+          sequence_id?: string
+          template?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outreach_sequence_steps_sequence_id_fkey"
+            columns: ["sequence_id"]
+            isOneToOne: false
+            referencedRelation: "outreach_sequences"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      outreach_sequences: {
+        Row: {
+          active: boolean
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          is_default: boolean
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_default?: boolean
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_default?: boolean
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       profiles: {
         Row: {
@@ -1459,6 +1596,7 @@ export type Database = {
     }
     Enums: {
       app_role: "administrador" | "vendedor" | "sdr" | "cx"
+      enrollment_status: "active" | "paused" | "completed" | "cancelled"
       lead_stage:
         | "Prospecção"
         | "Qualificado"
@@ -1480,6 +1618,7 @@ export type Database = {
         | "failed"
         | "skipped"
       owner_type: "ia" | "human"
+      sequence_step_channel: "whatsapp" | "email" | "phone"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1608,6 +1747,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["administrador", "vendedor", "sdr", "cx"],
+      enrollment_status: ["active", "paused", "completed", "cancelled"],
       lead_stage: [
         "Prospecção",
         "Qualificado",
@@ -1631,6 +1771,7 @@ export const Constants = {
         "skipped",
       ],
       owner_type: ["ia", "human"],
+      sequence_step_channel: ["whatsapp", "email", "phone"],
     },
   },
 } as const

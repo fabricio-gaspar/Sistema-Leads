@@ -145,6 +145,14 @@ export const Route = createFileRoute('/api/public/zapi-webhook')({
               .eq('id', lastOut.id)
           }
 
+          // Pausa a cadência: cliente respondeu, próxima ação passa a ser conduzida
+          // pela IA/humano no fluxo de resposta, não pela sequência automática.
+          try {
+            const { pauseEnrollmentInternal } = await import('@/lib/outreach-sequences.functions')
+            await pauseEnrollmentInternal(supabaseAdmin, lead.id, 'client_reply')
+          } catch { /* enrollment é best-effort */ }
+
+
           // Insert message in chat
           const { error: messageError } = await supabaseAdmin.from('lead_messages').insert({
             lead_id: lead.id,

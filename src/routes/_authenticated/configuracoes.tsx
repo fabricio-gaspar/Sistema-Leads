@@ -35,6 +35,15 @@ import {
 } from "@/lib/crm.functions";
 import { reindexAllDocuments, getKnowledgeStats } from "@/lib/knowledge.functions";
 import { getOutreachHealth, testZapi } from "@/lib/outreach.functions";
+import {
+  listSequences,
+  getSequenceWithSteps,
+  updateSequence,
+  upsertSequenceStep,
+  deleteSequenceStep,
+  type SequenceChannel,
+} from "@/lib/outreach-sequences.functions";
+
 
 type TabId = "ana" | "prospeccao" | "equipe" | "servicos" | "objecoes" | "score" | "governanca" | "auditoria" | "notificacoes" | "integracoes" | "seguranca";
 export const Route = createFileRoute("/_authenticated/configuracoes")({
@@ -829,6 +838,8 @@ function AbaInt() {
         </div>
       )}
       <ZapiCadenceCard />
+      <SequenceEditorCard />
+
     </Card>
   );
 }
@@ -1611,6 +1622,206 @@ function ZapiCadenceCard() {
         Secrets necessários: ZAPI_INSTANCE_ID, ZAPI_TOKEN, ZAPI_CLIENT_TOKEN,
         ZAPI_WEBHOOK_SECRET, OUTREACH_CRON_SECRET, RESEND_API_KEY e OUTREACH_EMAIL_FROM.
         Para respostas por e-mail, configure também RESEND_WEBHOOK_SECRET.
+      </div>
+    </div>
+  );
+}
+
+// Editor da sequência de outreach padrão. Reutiliza os server fns admin em
+// outreach-sequences.functions.ts. Interface mínima: lista passos ordenados,
+// permite adicionar/editar/remover passos e ativar/desativar a sequência.
+function SequenceEditorCard() {
+  const listFn = useServerFn(listSequences);
+  const getFn = useServerFn(getSequenceWithSteps);
+  const updSeq = useServerFn(updateSequence);
+  const upsertStep = useServerFn(upsertSequenceStep);
+  const delStep = useServerFn(deleteSequenceStep);
+  const qc = useQueryClient();
+  const { data: sequences } = useQuery({
+    queryKey: ["outreach-sequences"],
+    queryFn: () => listFn(),
+  });
+  const seqId = sequences?.[0]?.id;
+  const { data: bundle } = useQuery({
+    queryKey: ["outreach-sequence", seqId],
+    queryFn: () => getFn({ data: { id: seqId! } }),
+    enabled: !!seqId,
+  });
+
+  const seq = bundle?.sequence;
+  const steps = bundle?.steps ?? [];
+
+  const saveActive = useMutation({
+    mutationFn: (active: boolean) =>
+      updSeq({ data: { id: seq!.id, active } }),
+    onSuccess: () => {
+      toast.success("Sequência atualizada");
+      qc.invalidateQueries({ queryKey: ["outreach-sequences"] });
+      qc.invalidateQueries({ queryKey: ["outreach-sequence", seqId] });
+    },
+  });
+
+  const saveStep = useMutation({
+    mutationFn: (payload: {
+      id?: string;
+      order_index: number;
+      channel: SequenceChannel;
+      delay_minutes: number;
+      template?: string | null;
+      active?: boolean;
+      continue_on?: Array<"failed" | "skipped">;
+    }) =>
+      upsertStep({
+        data: {
+          sequence_id: seq!.id,
+          ...payload,
+        },
+      }),
+    onSuccess: () => {
+      toast.success("Passo salvo");
+      qc.invalidateQueries({ queryKey: ["outreach-sequence", seqId] });
+    },
+    onError: (e: Error) => toast.error("Erro", { description: e.message }),
+  });
+
+  const removeStep = useMutation({
+    mutationFn: (id: string) => delStep({ data: { id } }),
+    onSuccess: () => {
+      toast.success("Passo removido");
+      qc.invalidateQueries({ queryKey: ["outreach-sequence", seqId] });
+    },
+  });
+
+  if (!seq) {
+    return (
+      <div className="mt-4 rounded-md border border-border-card p-4 text-[12px] text-text-sec">
+        Nenhuma cadência cadastrada. Uma sequência padrão é criada
+        automaticamente na primeira migração.
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-4 rounded-md border border-border-card p-4">
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="text-[13px] font-semibold text-text-title">
+            {seq.name}
+          </div>
+          <div className="text-[11.5px] text-text-sec">
+            {seq.description ?? "Sequência configurável passo a passo."}
+          </div>
+        </div>
+        <label className="flex items-center gap-2 text-[12px] text-text-sec">
+          <input
+            type="checkbox"
+            checked={seq.active}
+            onChange={(e) => saveActive.mutate(e.target.checked)}
+          />
+          {seq.active ? "Ativa" : "Inativa"}
+        </label>
+      </div>
+
+      <div className="mt-3 overflow-x-auto">
+        <table className="w-full text-[12px]">
+          <thead className="text-left text-text-ter">
+            <tr>
+              <th className="py-1 pr-2">#</th>
+              <th className="py-1 pr-2">Canal</th>
+              <th className="py-1 pr-2">Atraso (min)</th>
+              <th className="py-1 pr-2">Continua em</th>
+              <th className="py-1 pr-2">Ativo</th>
+              <th className="py-1 pr-2">Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            {steps.map((s) => (
+              <tr key={s.id} className="border-t border-border-card">
+                <td className="py-1 pr-2">{s.order_index + 1}</td>
+                <td className="py-1 pr-2">
+                  <select
+                    defaultValue={s.channel}
+                    className="rounded border border-border-card bg-bg-card px-1 py-0.5"
+                    onChange={(e) =>
+                      saveStep.mutate({
+                        id: s.id,
+                        order_index: s.order_index,
+                        channel: e.target.value as SequenceChannel,
+                        delay_minutes: s.delay_minutes,
+                      })
+                    }
+                  >
+                    <option value="whatsapp">WhatsApp</option>
+                    <option value="email">E-mail</option>
+                    <option value="phone">Telefone (tarefa)</option>
+                  </select>
+                </td>
+                <td className="py-1 pr-2">
+                  <input
+                    type="number"
+                    min={0}
+                    defaultValue={s.delay_minutes}
+                    className="w-24 rounded border border-border-card bg-bg-card px-1 py-0.5"
+                    onBlur={(e) =>
+                      saveStep.mutate({
+                        id: s.id,
+                        order_index: s.order_index,
+                        channel: s.channel,
+                        delay_minutes: Number(e.target.value),
+                      })
+                    }
+                  />
+                </td>
+                <td className="py-1 pr-2 text-text-sec">
+                  {(s.continue_on ?? []).join(", ") || "—"}
+                </td>
+                <td className="py-1 pr-2">
+                  <input
+                    type="checkbox"
+                    defaultChecked={s.active}
+                    onChange={(e) =>
+                      saveStep.mutate({
+                        id: s.id,
+                        order_index: s.order_index,
+                        channel: s.channel,
+                        delay_minutes: s.delay_minutes,
+                        active: e.target.checked,
+                      })
+                    }
+                  />
+                </td>
+                <td className="py-1 pr-2">
+                  <button
+                    onClick={() => removeStep.mutate(s.id)}
+                    className="text-error hover:underline"
+                  >
+                    Remover
+                  </button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <button
+        onClick={() =>
+          saveStep.mutate({
+            order_index: steps.length,
+            channel: "whatsapp",
+            delay_minutes: 1440,
+            continue_on: ["failed", "skipped"],
+          })
+        }
+        className="mt-3 inline-flex h-8 items-center rounded-md border border-border-card bg-bg-card px-3 text-[12px] font-medium text-text-body hover:bg-bg-general"
+      >
+        + Adicionar passo
+      </button>
+
+      <div className="mt-3 text-[11px] text-text-ter">
+        Ordem WhatsApp → E-mail → Telefone é o padrão obrigatório. Telefone
+        cria uma tarefa humana e nunca é disparado automaticamente. Uma
+        resposta, opt-out ou handoff pausa a cadência automaticamente.
       </div>
     </div>
   );

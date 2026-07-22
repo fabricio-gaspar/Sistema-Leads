@@ -228,6 +228,14 @@ export const Route = createFileRoute('/api/public/resend-webhook')({
           ...(optOut ? { opt_out: true, ai_paused: true } : {}),
         } as never).eq('id', lead.id)
 
+        // Cliente respondeu -> pausa cadência automática.
+        try {
+          const seq = await import('@/lib/outreach-sequences.functions')
+          if (optOut) await seq.cancelEnrollmentInternal(supabaseAdmin, lead.id, 'opt_out')
+          else await seq.pauseEnrollmentInternal(supabaseAdmin, lead.id, 'client_reply')
+        } catch { /* best-effort */ }
+
+
         const actorId = lead.assigned_to || lead.owner_id
         if (!actorId) return Response.json({ ok: true, matched: true, automation: 'no_owner' })
         const outreach = await import('@/lib/outreach.functions')
