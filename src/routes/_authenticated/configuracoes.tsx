@@ -829,6 +829,8 @@ function AbaInt() {
         </div>
       )}
       <ZapiCadenceCard />
+      <SequenceEditorCard />
+
     </Card>
   );
 }
