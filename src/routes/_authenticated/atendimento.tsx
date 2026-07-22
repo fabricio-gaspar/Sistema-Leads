@@ -24,6 +24,7 @@ import {
   listTeam,
 } from "@/lib/crm.functions";
 import { listOutreach, sendManualWhatsapp } from "@/lib/outreach.functions";
+import { acceptHandoff, getLeadAutomation } from "@/lib/sales-automation.functions";
 import type { Database } from "@/integrations/supabase/types";
 
 type LeadRow = Database["public"]["Tables"]["leads"]["Row"];
@@ -251,6 +252,8 @@ function ConversationPane({
   const qc = useQueryClient();
   const messagesFn = useServerFn(listLeadMessages);
   const outreachFn = useServerFn(listOutreach);
+  const automationFn = useServerFn(getLeadAutomation);
+  const acceptFn = useServerFn(acceptHandoff);
   const sendFn = useServerFn(sendManualWhatsapp);
   const assignFn = useServerFn(assignLeadToSeller);
   const [text, setText] = useState("");
@@ -263,6 +266,11 @@ function ConversationPane({
   const { data: attempts = [] } = useQuery<OutreachRow[]>({
     queryKey: ["lead-outreach", lead.id],
     queryFn: () => outreachFn({ data: { lead_id: lead.id } }),
+    refetchInterval: 15_000,
+  });
+  const { data: automation } = useQuery({
+    queryKey: ["lead-automation", lead.id],
+    queryFn: () => automationFn({ data: { lead_id: lead.id } }),
     refetchInterval: 15_000,
   });
 
@@ -282,6 +290,13 @@ function ConversationPane({
   const assignMutation = useMutation({
     mutationFn: (sellerId: string | null) => assignFn({ data: { lead_id: lead.id, seller_id: sellerId } }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["leads"] }),
+  });
+  const acceptMutation = useMutation({
+    mutationFn: (handoffId: string) => acceptFn({ data: { handoff_id: handoffId } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["lead-automation", lead.id] });
+      qc.invalidateQueries({ queryKey: ["leads"] });
+    },
   });
 
   const canSend = !!(lead.whatsapp || lead.phone) && !lead.opt_out;
@@ -317,6 +332,20 @@ function ConversationPane({
           {isAdmin && <Link to="/leads/$id" params={{ id: lead.id }} className="rounded-md bg-primary px-3 py-2 text-[11px] font-medium text-primary-foreground">Abrir lead</Link>}
         </div>
       </div>
+
+      {automation?.handoff?.status === "pending" && (
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-warm bg-warm-bg px-4 py-2.5 text-[11.5px]">
+          <div>
+            <span className="font-semibold text-text-title">Atendimento aguardando vendedor:</span>{" "}
+            <span className="text-text-sec">{automation.handoff.reason}</span>
+            {automation.handoff.due_at && <span className="ml-2 text-text-ter">SLA {new Date(automation.handoff.due_at).toLocaleString("pt-BR")}</span>}
+          </div>
+          <button onClick={() => acceptMutation.mutate(automation.handoff.id)} disabled={acceptMutation.isPending}
+            className="rounded-md bg-primary px-3 py-1.5 font-medium text-primary-foreground disabled:opacity-50">
+            {acceptMutation.isPending ? "Assumindo…" : "Aceitar atendimento"}
+          </button>
+        </div>
+      )}
 
       <div className="grid min-h-0 flex-1 lg:grid-cols-[minmax(0,1fr)_290px]">
         <div className="flex min-h-[420px] flex-col border-r border-border-card">

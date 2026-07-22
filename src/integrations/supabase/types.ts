@@ -66,6 +66,7 @@ export type Database = {
           ai_prompt: string | null
           ai_temperature: number | null
           annual_revenue: string | null
+          assignment_strategy: string
           city: string | null
           cnpj: string | null
           created_at: string
@@ -75,6 +76,8 @@ export type Database = {
           id: string
           logo_url: string | null
           name: string
+          handoff_readiness_score: number
+          handoff_sla_minutes: number
           outreach_max_attempts: number
           outreach_wait_hours: number
           phone: string | null
@@ -94,6 +97,7 @@ export type Database = {
           ai_prompt?: string | null
           ai_temperature?: number | null
           annual_revenue?: string | null
+          assignment_strategy?: string
           city?: string | null
           cnpj?: string | null
           created_at?: string
@@ -103,6 +107,8 @@ export type Database = {
           id?: string
           logo_url?: string | null
           name: string
+          handoff_readiness_score?: number
+          handoff_sla_minutes?: number
           outreach_max_attempts?: number
           outreach_wait_hours?: number
           phone?: string | null
@@ -122,6 +128,7 @@ export type Database = {
           ai_prompt?: string | null
           ai_temperature?: number | null
           annual_revenue?: string | null
+          assignment_strategy?: string
           city?: string | null
           cnpj?: string | null
           created_at?: string
@@ -131,6 +138,8 @@ export type Database = {
           id?: string
           logo_url?: string | null
           name?: string
+          handoff_readiness_score?: number
+          handoff_sla_minutes?: number
           outreach_max_attempts?: number
           outreach_wait_hours?: number
           phone?: string | null
@@ -608,8 +617,10 @@ export type Database = {
           created_at: string
           current_step_index: number
           id: string
+          last_error: string | null
           last_step_at: string | null
           lead_id: string
+          next_run_at: string | null
           pause_reason: string | null
           sequence_id: string
           started_at: string
@@ -621,8 +632,10 @@ export type Database = {
           created_at?: string
           current_step_index?: number
           id?: string
+          last_error?: string | null
           last_step_at?: string | null
           lead_id: string
+          next_run_at?: string | null
           pause_reason?: string | null
           sequence_id: string
           started_at?: string
@@ -634,8 +647,10 @@ export type Database = {
           created_at?: string
           current_step_index?: number
           id?: string
+          last_error?: string | null
           last_step_at?: string | null
           lead_id?: string
+          next_run_at?: string | null
           pause_reason?: string | null
           sequence_id?: string
           started_at?: string
@@ -776,6 +791,10 @@ export type Database = {
           owner_id: string | null
           phone: string | null
           score: number
+          score_explanation: string | null
+          score_snapshot: Json
+          score_source: string | null
+          score_verified_at: string | null
           segment: string | null
           size: string | null
           sla_info: string | null
@@ -814,6 +833,10 @@ export type Database = {
           owner_id?: string | null
           phone?: string | null
           score?: number
+          score_explanation?: string | null
+          score_snapshot?: Json
+          score_source?: string | null
+          score_verified_at?: string | null
           segment?: string | null
           size?: string | null
           sla_info?: string | null
@@ -852,6 +875,10 @@ export type Database = {
           owner_id?: string | null
           phone?: string | null
           score?: number
+          score_explanation?: string | null
+          score_snapshot?: Json
+          score_source?: string | null
+          score_verified_at?: string | null
           segment?: string | null
           size?: string | null
           sla_info?: string | null
@@ -1091,6 +1118,7 @@ export type Database = {
           created_at: string
           delay_minutes: number
           id: string
+          max_attempts: number
           order_index: number
           sequence_id: string
           template: string | null
@@ -1103,6 +1131,7 @@ export type Database = {
           created_at?: string
           delay_minutes?: number
           id?: string
+          max_attempts?: number
           order_index: number
           sequence_id: string
           template?: string | null
@@ -1115,6 +1144,7 @@ export type Database = {
           created_at?: string
           delay_minutes?: number
           id?: string
+          max_attempts?: number
           order_index?: number
           sequence_id?: string
           template?: string | null
@@ -1162,6 +1192,189 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      lead_qualifications: {
+        Row: {
+          budget_range: string | null
+          created_at: string
+          decision_maker: string | null
+          evidence: Json
+          id: string
+          intent: string | null
+          lead_id: string
+          next_action: string | null
+          objections: Json
+          pain: string | null
+          readiness_score: number | null
+          sentiment: string | null
+          service_interest: string | null
+          summary: string | null
+          updated_at: string
+          updated_by: string
+          urgency: string | null
+        }
+        Insert: {
+          budget_range?: string | null
+          created_at?: string
+          decision_maker?: string | null
+          evidence?: Json
+          id?: string
+          intent?: string | null
+          lead_id: string
+          next_action?: string | null
+          objections?: Json
+          pain?: string | null
+          readiness_score?: number | null
+          sentiment?: string | null
+          service_interest?: string | null
+          summary?: string | null
+          updated_at?: string
+          updated_by?: string
+          urgency?: string | null
+        }
+        Update: {
+          budget_range?: string | null
+          created_at?: string
+          decision_maker?: string | null
+          evidence?: Json
+          id?: string
+          intent?: string | null
+          lead_id?: string
+          next_action?: string | null
+          objections?: Json
+          pain?: string | null
+          readiness_score?: number | null
+          sentiment?: string | null
+          service_interest?: string | null
+          summary?: string | null
+          updated_at?: string
+          updated_by?: string
+          urgency?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_qualifications_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: true
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lead_handoffs: {
+        Row: {
+          accepted_at: string | null
+          assigned_to: string | null
+          category: string
+          closed_at: string | null
+          context: Json
+          created_at: string
+          due_at: string | null
+          id: string
+          lead_id: string
+          reason: string
+          requested_at: string
+          status: string
+          summary: string | null
+          updated_at: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          assigned_to?: string | null
+          category?: string
+          closed_at?: string | null
+          context?: Json
+          created_at?: string
+          due_at?: string | null
+          id?: string
+          lead_id: string
+          reason: string
+          requested_at?: string
+          status?: string
+          summary?: string | null
+          updated_at?: string
+        }
+        Update: {
+          accepted_at?: string | null
+          assigned_to?: string | null
+          category?: string
+          closed_at?: string | null
+          context?: Json
+          created_at?: string
+          due_at?: string | null
+          id?: string
+          lead_id?: string
+          reason?: string
+          requested_at?: string
+          status?: string
+          summary?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_handoffs_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      appointments: {
+        Row: {
+          created_at: string
+          ends_at: string | null
+          external_id: string | null
+          id: string
+          lead_id: string
+          notes: string | null
+          origin: string
+          owner_id: string | null
+          provider: string | null
+          starts_at: string
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          ends_at?: string | null
+          external_id?: string | null
+          id?: string
+          lead_id: string
+          notes?: string | null
+          origin?: string
+          owner_id?: string | null
+          provider?: string | null
+          starts_at: string
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          ends_at?: string | null
+          external_id?: string | null
+          id?: string
+          lead_id?: string
+          notes?: string | null
+          origin?: string
+          owner_id?: string | null
+          provider?: string | null
+          starts_at?: string
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointments_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -1586,6 +1799,14 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      clear_contact_suppressions: {
+        Args: { _hashes: string[]; _lead_id: string }
+        Returns: number
+      }
+      has_contact_suppression: {
+        Args: { _hashes: string[]; _lead_id: string | null }
+        Returns: boolean
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

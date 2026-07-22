@@ -401,6 +401,9 @@ const companySettingsInput = z.object({
     .nullable(),
   outreach_wait_hours: z.number().int().min(1).max(720).optional().nullable(),
   outreach_max_attempts: z.number().int().min(1).max(10).optional().nullable(),
+  assignment_strategy: z.enum(['manual', 'round_robin', 'least_loaded']).optional(),
+  handoff_sla_minutes: z.number().int().min(5).max(1440).optional(),
+  handoff_readiness_score: z.number().int().min(0).max(100).optional(),
   sandbox_mode: z.boolean().optional().nullable(),
 })
 
@@ -1323,7 +1326,7 @@ export const getReportsData = createServerFn({ method: 'POST' })
     const monthsBack = period === '30d' ? 1 : period === '3m' ? 3 : period === '6m' ? 6 : 12
     const now = new Date()
     const months: { key: string; label: string; year: number; month: number }[] = []
-    for (let i = monthsBack; i >= 0; i--) {
+    for (let i = monthsBack - 1; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
       const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`
       const label = d.toLocaleDateString('pt-BR', { month: 'short' }).replace('.', '')
@@ -1338,11 +1341,15 @@ export const getReportsData = createServerFn({ method: 'POST' })
         .select('id, updated_at, owner, assigned_to, value, origin, stage')
         .eq('stage', 'Fechado')
         .gte('updated_at', start.toISOString()),
-      context.supabase.from('leads').select('id, origin, value, stage, owner, assigned_to, created_at, escalated'),
+      context.supabase
+        .from('leads')
+        .select('id, origin, value, stage, owner, assigned_to, created_at, escalated')
+        .gte('created_at', start.toISOString()),
       context.supabase.from('profiles').select('id, name'),
       context.supabase
         .from('lead_outreach')
-        .select('lead_id, channel, status, created_at, sent_at, replied_at, owner_id'),
+        .select('lead_id, channel, status, created_at, sent_at, replied_at, owner_id, actor_type')
+        .gte('created_at', start.toISOString()),
     ])
 
     const closed = closedRes.data ?? []
@@ -1410,7 +1417,7 @@ export const getReportsData = createServerFn({ method: 'POST' })
 
     const sentStatuses = new Set(['sent', 'delivered', 'read', 'replied'])
     const channelPerformance = (['whatsapp', 'email', 'phone'] as const).map((channel) => {
-      const rows = outreach.filter((row) => row.channel === channel)
+      const rows = outreach.filter((row) => row.channel === channel && row.actor_type !== 'system')
       const attemptedLeads = new Set(rows.map((row) => row.lead_id)).size
       const sent = rows.filter((row) => sentStatuses.has(row.status)).length
       const replied = rows.filter((row) => row.status === 'replied' || row.replied_at).length
@@ -2209,10 +2216,10 @@ export const getOpsMetrics = createServerFn({ method: 'GET' })
   .handler(async ({ context }) => {
     const supabase = context.supabase as any
     const since = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString()
-    const [outreachRes, optOutRes, handoffRes, anaTasksRes] = await Promise.all([
+    const [outreachRes, optOutRes, legacyHandoffRes, anaTasksRes, handoffRes, enrollmentRes, appointmentRes] = await Promise.all([
       supabase
         .from('lead_outreach')
-        .select('channel, status')
+        .select('channel, status, actor_type')
         .gte('created_at', since),
       supabase
         .from('leads')
@@ -2229,8 +2236,23 @@ export const getOpsMetrics = createServerFn({ method: 'GET' })
         .select('id', { count: 'exact', head: true })
         .in('owner_label', ['Vendedor', 'Vendedor (prioritário)'])
         .gte('created_at', since),
+      supabase
+        .from('lead_handoffs')
+        .select('status, category, requested_at, due_at, accepted_at')
+        .gte('requested_at', since)
+        .limit(1000),
+      supabase
+        .from('lead_sequence_enrollments')
+        .select('status, pause_reason')
+        .gte('started_at', since)
+        .limit(2000),
+      supabase
+        .from('appointments')
+        .select('status')
+        .gte('created_at', since)
+        .limit(1000),
     ])
-    const outreach = (outreachRes.data ?? []) as Array<{ channel: string; status: string }>
+    const outreach = (outreachRes.data ?? []) as Array<{ channel: string; status: string; actor_type: string }>
     const byChannel: Record<string, { attempts: number; sent: number; failed: number; replied: number }> = {
       whatsapp: { attempts: 0, sent: 0, failed: 0, replied: 0 },
       email: { attempts: 0, sent: 0, failed: 0, replied: 0 },
@@ -2238,6 +2260,7 @@ export const getOpsMetrics = createServerFn({ method: 'GET' })
     }
     const sentSet = new Set(['sent', 'delivered', 'read', 'replied'])
     for (const row of outreach) {
+      if (row.actor_type === 'system') continue
       const b = byChannel[row.channel]
       if (!b) continue
       b.attempts += 1
@@ -2245,17 +2268,60 @@ export const getOpsMetrics = createServerFn({ method: 'GET' })
       if (row.status === 'failed') b.failed += 1
       if (row.status === 'replied') b.replied += 1
     }
+    const structuredHandoffs = (handoffRes.data ?? []) as Array<{
+      status: string
+      category: string
+      requested_at: string
+      due_at: string | null
+      accepted_at: string | null
+    }>
+    const legacyHandoffs = (legacyHandoffRes.data ?? []) as Array<{ detail: string }>
     const handoffByCategory: Record<string, number> = {}
-    for (const row of (handoffRes.data ?? []) as Array<{ detail: string }>) {
-      const m = row.detail?.match(/^\[(\w+)\]/)
-      const cat = m?.[1] ?? 'geral'
-      handoffByCategory[cat] = (handoffByCategory[cat] ?? 0) + 1
+    if (structuredHandoffs.length) {
+      for (const row of structuredHandoffs) {
+        const category = row.category || 'geral'
+        handoffByCategory[category] = (handoffByCategory[category] ?? 0) + 1
+      }
+    } else {
+      for (const row of legacyHandoffs) {
+        const m = row.detail?.match(/^\[(\w+)\]/)
+        const category = m?.[1] ?? 'geral'
+        handoffByCategory[category] = (handoffByCategory[category] ?? 0) + 1
+      }
     }
+    const responseMinutes = structuredHandoffs
+      .filter((row) => row.accepted_at)
+      .map((row) => (new Date(row.accepted_at as string).getTime() - new Date(row.requested_at).getTime()) / 60_000)
+      .filter((value) => Number.isFinite(value) && value >= 0)
+    const now = Date.now()
+    const enrollments = (enrollmentRes.data ?? []) as Array<{ status: string; pause_reason: string | null }>
+    const appointments = (appointmentRes.data ?? []) as Array<{ status: string }>
     return {
       byChannel,
       optOutCount: optOutRes.count ?? 0,
       handoffByCategory,
       anaTaskCount: anaTasksRes.count ?? 0,
+      handoffs: {
+        total: structuredHandoffs.length || legacyHandoffs.length,
+        pending: structuredHandoffs.filter((row) => row.status === 'pending').length,
+        accepted: structuredHandoffs.filter((row) => row.status === 'accepted' || row.status === 'closed').length,
+        overdue: structuredHandoffs.filter((row) =>
+          row.status === 'pending' && row.due_at && new Date(row.due_at).getTime() < now,
+        ).length,
+        avgResponseMinutes: responseMinutes.length
+          ? Math.round(responseMinutes.reduce((sum, value) => sum + value, 0) / responseMinutes.length)
+          : null,
+      },
+      sequences: {
+        active: enrollments.filter((row) => row.status === 'active' || row.status === 'paused').length,
+        completed: enrollments.filter((row) => row.status === 'completed').length,
+        handedOff: enrollments.filter((row) => row.pause_reason?.startsWith('handoff:')).length,
+      },
+      appointments: {
+        scheduled: appointments.filter((row) => row.status === 'scheduled').length,
+        completed: appointments.filter((row) => row.status === 'completed').length,
+        noShow: appointments.filter((row) => row.status === 'no_show').length,
+      },
       windowDays: 30,
     }
   })

@@ -2,6 +2,7 @@ import { createFileRoute, Link, notFound } from "@tanstack/react-router";
 import { useState, useRef, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
+import { toast } from "sonner";
 import {
   ArrowLeft,
   Bot,
@@ -23,6 +24,7 @@ import {
   Radio,
   CheckCheck,
   AlertTriangle,
+  CalendarDays,
 } from "lucide-react";
 import { formatBRL } from "@/lib/leads-data";
 import {
@@ -55,6 +57,11 @@ import { getLeadEnrollment } from "@/lib/outreach-sequences.functions";
 
 import { TempBadge } from "./leads";
 import type { Database } from "@/integrations/supabase/types";
+import {
+  acceptHandoff,
+  getLeadAutomation,
+  scheduleAppointment,
+} from "@/lib/sales-automation.functions";
 
 
 type Stage = Database["public"]["Enums"]["lead_stage"];
@@ -179,11 +186,25 @@ function LeadDetail() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["lead", id] }),
   });
   const restartMut = useMutation({
-    mutationFn: () => startOutreachFn({ data: { lead_id: id } }),
-    onSuccess: () => {
+    mutationFn: () => startOutreachFn({ data: { lead_id: id, restart: true } }),
+    onSuccess: (result) => {
+      if (!result.ok) {
+        const messages: Record<string, string> = {
+          opt_out: "O contato está em opt-out.",
+          paused: "Retome a IA antes de reiniciar a cadência.",
+          contact_suppressed: "O contato está na lista de supressão.",
+          no_active_sequence: "Não há uma cadência ativa.",
+          no_channel_available: "O lead não possui canal disponível.",
+        };
+        toast.error(messages[result.reason ?? ""] ?? "Não foi possível reiniciar a cadência.");
+        return;
+      }
+      toast.success("Cadência reiniciada");
       qc.invalidateQueries({ queryKey: ["lead", id] });
       qc.invalidateQueries({ queryKey: ["lead-outreach", id] });
       qc.invalidateQueries({ queryKey: ["lead-messages", id] });
+      qc.invalidateQueries({ queryKey: ["lead-enrollment", id] });
+      qc.invalidateQueries({ queryKey: ["lead-automation", id] });
     },
   });
 
@@ -407,6 +428,7 @@ function LeadDetail() {
 
         <div className="space-y-4">
           <ContactChannelsCard lead={lead} />
+          <AutomationCard leadId={id} lead={lead} />
           <WarmingStrategyCard
             lead={lead}
             outreach={outreachQ.data ?? []}
@@ -430,6 +452,131 @@ function LeadDetail() {
 
       </div>
     </div>
+  );
+}
+
+function AutomationCard({ leadId, lead }: { leadId: string; lead: any }) {
+  const qc = useQueryClient();
+  const getFn = useServerFn(getLeadAutomation);
+  const acceptFn = useServerFn(acceptHandoff);
+  const scheduleFn = useServerFn(scheduleAppointment);
+  const [showSchedule, setShowSchedule] = useState(false);
+  const [startsAt, setStartsAt] = useState("");
+  const [title, setTitle] = useState("Reunião comercial");
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["lead-automation", leadId],
+    queryFn: () => getFn({ data: { lead_id: leadId } }),
+  });
+  const acceptMut = useMutation({
+    mutationFn: (handoffId: string) => acceptFn({ data: { handoff_id: handoffId } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["lead-automation", leadId] });
+      qc.invalidateQueries({ queryKey: ["lead", leadId] });
+    },
+  });
+  const scheduleMut = useMutation({
+    mutationFn: () => scheduleFn({ data: {
+      lead_id: leadId,
+      title,
+      starts_at: new Date(startsAt).toISOString(),
+      ends_at: null,
+      notes: null,
+    } }),
+    onSuccess: () => {
+      setShowSchedule(false);
+      setStartsAt("");
+      qc.invalidateQueries({ queryKey: ["lead-automation", leadId] });
+      qc.invalidateQueries({ queryKey: ["lead-tasks", leadId] });
+    },
+  });
+
+  const enrollment = data?.enrollment as any;
+  const qualification = data?.qualification as any;
+  const handoff = data?.handoff as any;
+  const appointments = (data?.appointments ?? []) as any[];
+  const sequenceSteps = enrollment?.outreach_sequences?.outreach_sequence_steps;
+  const steps = Array.isArray(sequenceSteps)
+    ? sequenceSteps.filter((step: any) => step.active).sort((a: any, b: any) => a.order_index - b.order_index)
+    : [];
+  const currentStep = steps.find((step: any) => step.order_index === enrollment?.current_step_index);
+
+  return (
+    <Card title="Automação comercial">
+      {isLoading && <div className="text-[11px] text-text-ter">Carregando automação…</div>}
+      {error && <div className="text-[11px] text-error">{(error as Error).message}</div>}
+      {!isLoading && !error && (
+        <div className="space-y-3 text-[11.5px]">
+          <div className="rounded-md bg-bg-general p-2.5">
+            <div className="font-semibold text-text-title">Cadência</div>
+            <div className="mt-1 text-text-sec">
+              {enrollment ? `${enrollment.outreach_sequences?.name ?? "Cadência"} · ${enrollment.status}` : "Ainda não iniciada"}
+            </div>
+            {currentStep && <div className="mt-1 text-text-ter">Passo {currentStep.order_index + 1}: {currentStep.channel} · máximo {currentStep.max_attempts} tentativa(s)</div>}
+            {enrollment?.next_run_at && <div className="mt-1 text-text-ter">Próxima ação: {new Date(enrollment.next_run_at).toLocaleString("pt-BR")}</div>}
+            {enrollment?.last_error && <div className="mt-1 text-error">{enrollment.last_error}</div>}
+          </div>
+
+          <div>
+            <div className="font-semibold text-text-title">Score explicável: {lead.score ?? "—"}/100</div>
+            <div className="mt-1 text-text-sec">{lead.score_explanation || "Detalhamento será registrado na próxima conversão/prospecção."}</div>
+            {lead.score_verified_at && <div className="mt-1 text-text-ter">Verificado em {new Date(lead.score_verified_at).toLocaleString("pt-BR")}</div>}
+          </div>
+
+          <div>
+            <div className="font-semibold text-text-title">Qualificação da Ana</div>
+            {qualification ? (
+              <div className="mt-1 space-y-1 text-text-sec">
+                <div>Intenção: {qualification.intent || "não informada"}</div>
+                <div>Serviço: {qualification.service_interest || "não informado"}</div>
+                <div>Prontidão: {qualification.readiness_score ?? "—"}/100</div>
+                {qualification.summary && <div className="line-clamp-4">{qualification.summary}</div>}
+              </div>
+            ) : <div className="mt-1 text-text-ter">Aguardando interação suficiente para qualificar.</div>}
+          </div>
+
+          {handoff && (
+            <div className={`rounded-md border p-2.5 ${handoff.status === "pending" ? "border-warm bg-warm-bg" : "border-border-card"}`}>
+              <div className="font-semibold text-text-title">Handoff: {handoff.status}</div>
+              <div className="mt-1 text-text-sec">{handoff.reason}</div>
+              {handoff.due_at && <div className="mt-1 text-text-ter">SLA: {new Date(handoff.due_at).toLocaleString("pt-BR")}</div>}
+              {handoff.status === "pending" && (
+                <button onClick={() => acceptMut.mutate(handoff.id)} disabled={acceptMut.isPending}
+                  className="mt-2 rounded-md bg-primary px-2.5 py-1.5 text-[11px] font-medium text-primary-foreground disabled:opacity-50">
+                  {acceptMut.isPending ? "Assumindo…" : "Aceitar atendimento"}
+                </button>
+              )}
+            </div>
+          )}
+
+          <div>
+            <div className="flex items-center justify-between gap-2">
+              <div className="font-semibold text-text-title">Reuniões</div>
+              <button onClick={() => setShowSchedule((value) => !value)} className="inline-flex items-center gap-1 text-primary">
+                <CalendarDays className="h-3 w-3" /> Agendar
+              </button>
+            </div>
+            {showSchedule && (
+              <div className="mt-2 space-y-2 rounded-md border border-border-card p-2">
+                <input value={title} onChange={(event) => setTitle(event.target.value)} maxLength={200}
+                  className="h-8 w-full rounded border border-border-card bg-bg-card px-2" />
+                <input type="datetime-local" value={startsAt} onChange={(event) => setStartsAt(event.target.value)}
+                  className="h-8 w-full rounded border border-border-card bg-bg-card px-2" />
+                <button onClick={() => startsAt && scheduleMut.mutate()} disabled={!startsAt || scheduleMut.isPending}
+                  className="rounded bg-primary px-2.5 py-1 text-primary-foreground disabled:opacity-50">
+                  {scheduleMut.isPending ? "Salvando…" : "Confirmar"}
+                </button>
+              </div>
+            )}
+            {appointments.length === 0 ? <div className="mt-1 text-text-ter">Nenhuma reunião agendada.</div> : (
+              <div className="mt-1 space-y-1">{appointments.slice(0, 3).map((appointment) => (
+                <div key={appointment.id} className="text-text-sec">{new Date(appointment.starts_at).toLocaleString("pt-BR")} · {appointment.title}</div>
+              ))}</div>
+            )}
+          </div>
+          {(acceptMut.error || scheduleMut.error) && <div className="text-error">{(acceptMut.error || scheduleMut.error)?.message}</div>}
+        </div>
+      )}
+    </Card>
   );
 }
 
@@ -604,7 +751,7 @@ function WarmingStrategyCard({
           <UserCheck className="h-3 w-3" /> Assumir
         </button>
         <button
-          disabled={busy || lead.opt_out}
+          disabled={busy || lead.opt_out || lead.ai_paused}
           onClick={onRestart}
           className="inline-flex h-7 items-center gap-1 rounded-md border border-border-card bg-bg-card px-2 text-[11px] hover:bg-bg-general disabled:opacity-50"
           title="Refazer primeiro contato"

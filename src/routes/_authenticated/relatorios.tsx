@@ -142,7 +142,7 @@ function Relatorios() {
         </Card>
 
         <Card>
-          <SectionTitle title="Funil atual" hint={`${kpis.escalated} lead(s) encaminhado(s) ao time`} />
+          <SectionTitle title="Funil do período" hint={`${kpis.escalated} lead(s) encaminhado(s) ao time`} />
           <div className="space-y-2">
             {funnel.map((row) => {
               const pct = kpis.leadsGerados > 0 ? Math.round((row.count / kpis.leadsGerados) * 100) : 0;
@@ -248,6 +248,20 @@ function OpsMetricsCard() {
   return (
     <Card>
       <SectionTitle title="Operação (últimos 30 dias)" hint="Cadência, opt-outs e handoffs para vendedores" />
+      <div className="mb-4 grid grid-cols-2 gap-2 md:grid-cols-5">
+        {[
+          { label: "Cadências ativas", value: data.sequences.active },
+          { label: "Cadências concluídas", value: data.sequences.completed },
+          { label: "Handoffs pendentes", value: data.handoffs.pending },
+          { label: "Handoffs fora do SLA", value: data.handoffs.overdue },
+          { label: "Tempo médio p/ assumir", value: data.handoffs.avgResponseMinutes == null ? "—" : `${data.handoffs.avgResponseMinutes} min` },
+        ].map((item) => (
+          <div key={item.label} className="rounded-md border border-border-card bg-bg-general p-2.5">
+            <div className="text-[10px] uppercase text-text-ter">{item.label}</div>
+            <div className="mt-1 text-[18px] font-semibold text-text-title">{item.value}</div>
+          </div>
+        ))}
+      </div>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <div>
           <div className="mb-2 text-[12px] font-semibold text-text-title">Cadência por canal</div>
@@ -296,6 +310,12 @@ function OpsMetricsCard() {
             <div className="text-[11px] uppercase text-text-ter">Opt-outs ativos</div>
             <div className="mt-1 text-[22px] font-semibold text-hot">{data.optOutCount}</div>
             <p className="mt-1 text-[11px] text-text-sec">Leads que solicitaram parar de receber mensagens.</p>
+          </div>
+          <div className="mt-2 rounded-md border border-border-card bg-bg-general p-3">
+            <div className="text-[11px] uppercase text-text-ter">Reuniões no período</div>
+            <div className="mt-1 text-[11px] text-text-sec">
+              {data.appointments.scheduled} agendada(s) · {data.appointments.completed} concluída(s) · {data.appointments.noShow} ausência(s)
+            </div>
           </div>
         </div>
       </div>

@@ -728,7 +728,7 @@ export const importExternalAsLead = createServerFn({ method: 'POST' })
       throw new Error('Este prospecto não possui canal de contato validado.')
     }
     const { isAnyContactSuppressed } = await import('./outreach.functions')
-    if (await isAnyContactSuppressed(context as never, {
+    if (await isAnyContactSuppressed(context as never, null, {
       whatsapp: company.whatsapp,
       phone: company.telefone,
       email: company.email,
@@ -789,6 +789,25 @@ export const importExternalAsLead = createServerFn({ method: 'POST' })
       size,
       annual_revenue: null,
       score: company.score ?? null,
+      score_snapshot: {
+        total: company.score ?? 0,
+        reason: company.score_reason ?? null,
+        criteria: {
+          segment: company.cnae_descricao ?? null,
+          region: [company.municipio, company.uf].filter(Boolean).join('/') || null,
+          distance_km: company.distance_km ?? null,
+          size: company.porte ?? null,
+          whatsapp: initialChannels.whatsapp.available,
+          email: initialChannels.email.available,
+          phone: initialChannels.phone.available,
+          website: Boolean(company.website),
+        },
+        source: company.source,
+        captured_at: new Date().toISOString(),
+      },
+      score_explanation: company.score_reason ?? 'Score calculado com os sinais disponíveis na prospecção.',
+      score_source: company.source,
+      score_verified_at: new Date().toISOString(),
       temp: (company.score ?? 0) >= 75 ? 'hot' : (company.score ?? 0) >= 50 ? 'warm' : 'cold',
       stage: 'Prospecção',
       origin: originTag,

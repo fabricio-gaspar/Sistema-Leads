@@ -78,3 +78,49 @@ PDF e DOC não devem ser considerados conhecimento apenas por estarem armazenado
 - Confirmar recebimento, resposta, handoff, opt-out e fallback de canal.
 - Revisar textos legais, política de privacidade, base legal e retenção de dados com responsável jurídico/LGPD.
 - Configurar monitoramento de erros e alertas de falha dos webhooks/agendador.
+
+# Operação comercial automatizada
+
+## Fluxo ponta a ponta
+
+1. A prospecção consulta uma fonte real, aplica filtros de ICP, município/UF e raio.
+2. O administrador analisa score, motivo, fonte e data de verificação antes de converter.
+3. Na conversão, o sistema grava um snapshot explicável do score e matricula o lead na cadência padrão.
+4. A cadência tenta WhatsApp, aguarda o prazo configurado, usa e-mail quando permitido e, por último, cria uma tarefa humana de telefone. O sistema nunca simula uma ligação automática.
+5. Resposta, opt-out, bloqueio, fechamento ou handoff pausam/cancelam a cadência imediatamente.
+6. A Ana responde apenas com base em documentos e respostas aprovadas. Cada interação pode atualizar a qualificação estruturada.
+7. Pedido de humano, proposta, preço, reunião, baixa confiança, risco ou prontidão acima do limite gera um handoff único, com resumo, responsável e SLA.
+8. O vendedor aceita o atendimento na Central, agenda reunião, conduz proposta e atualiza o estágio até Fechado ou Perdido.
+
+## Estruturas de dados
+
+- `outreach_sequences` e `outreach_sequence_steps`: definição administrativa da cadência.
+- `lead_sequence_enrollments`: posição, próxima execução, pausa, conclusão e falha por lead.
+- `lead_qualifications`: intenção, dor, urgência, decisor, objeções, sentimento, próxima ação, resumo, evidências e prontidão.
+- `lead_handoffs`: fila de transferência, contexto, responsável, SLA e aceite.
+- `appointments`: reuniões internas. Um calendário externo só é considerado integrado quando houver provider e credenciais válidas.
+- `leads.score_snapshot`: fotografia do score e sinais disponíveis na conversão.
+
+## Requisitos externos
+
+- Supabase com todas as migrations aplicadas.
+- `ANTHROPIC_API_KEY` para respostas e qualificação da Ana.
+- `ZAPI_INSTANCE_ID`, `ZAPI_TOKEN` e, quando exigido, `ZAPI_CLIENT_TOKEN`.
+- `ZAPI_WEBHOOK_SECRET` para validar eventos de WhatsApp.
+- `RESEND_API_KEY`, `OUTREACH_EMAIL_FROM` e `RESEND_WEBHOOK_SECRET` para e-mail.
+- `OUTREACH_CRON_SECRET` e agendador chamando `POST /api/public/outreach-tick` a cada cinco minutos.
+
+Ausência de credencial deve aparecer como **Pendente/Não configurado**. Nunca registrar o valor de um secret em tela, log ou auditoria.
+
+## Checklist de teste seguro
+
+1. Ativar `sandbox_mode`.
+2. Criar um lead exclusivo de teste e marcar ao menos um `contact_points.sandbox=true`.
+3. Confirmar que contato real sem a marca de sandbox é bloqueado.
+4. Iniciar a cadência e verificar matrícula, passo atual e `outreach_jobs` idempotente.
+5. Simular entrega, leitura, falha e resposta usando payloads assinados de teste.
+6. Confirmar que resposta e opt-out param próximos passos.
+7. Gerar handoff, validar que não duplica, conferir SLA e aceitar como vendedor.
+8. Agendar reunião e confirmar a criação da próxima tarefa.
+9. Conferir RLS com administrador, SDR, vendedor e CX.
+10. Rodar typecheck, build e a varredura de dados simulados antes de desativar o sandbox.
