@@ -859,6 +859,8 @@ async function handoffInbound(
     if (nextIdx > curIdx) leadPatch.stage = rule.nextStage
   }
   await ctx.supabase.from('leads').update(leadPatch as never).eq('id', lead.id)
+  await pauseEnrollmentInternal(ctx.supabase, lead.id, `handoff:${rule.category}`)
+
 
   if (!alreadyOpen) {
     const taskText = `[${rule.label}] ${lead.company} via ${channelLabel} — ${reason}. Mensagem: "${question.slice(0, 200)}"`
