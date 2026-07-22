@@ -1053,6 +1053,11 @@ export const pauseAi = createServerFn({ method: 'POST' })
       .from('leads')
       .update({ ai_paused: data.paused } as never)
       .eq('id', data.lead_id)
+    if (data.paused) {
+      await pauseEnrollmentInternal(context.supabase, data.lead_id, 'ai_paused_manual')
+    } else {
+      await resumeEnrollmentInternal(context.supabase, data.lead_id)
+    }
     await audit(
       context as Ctx,
       data.paused ? 'ai_paused' : 'ai_resumed',
@@ -1061,6 +1066,7 @@ export const pauseAi = createServerFn({ method: 'POST' })
     )
     return { ok: true }
   })
+
 
 export const assumeManually = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
