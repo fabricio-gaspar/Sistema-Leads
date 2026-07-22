@@ -559,14 +559,14 @@ function WarmingStrategyCard({
           <span className="text-text-ter">Cadência</span>
           <span className="font-medium">
             {enrollment
-              ? `${enrollment.status} · passo ${enrollment.current_step_index + 1}`
+              ? `${enrollment.status} · passo ${enrollment.enrollment.current_step_index + 1}`
               : "—"}
           </span>
         </div>
-        {enrollment?.pause_reason && (
+        {enrollment?.enrollment?.pause_reason && (
           <div className="flex justify-between">
             <span className="text-text-ter">Motivo pausa</span>
-            <span className="font-medium text-warm">{enrollment.pause_reason}</span>
+            <span className="font-medium text-warm">{enrollment.enrollment.pause_reason}</span>
           </div>
         )}
         {lastFailed?.error && (
