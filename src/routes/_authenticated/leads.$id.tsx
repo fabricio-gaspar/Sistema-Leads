@@ -61,7 +61,10 @@ import {
   acceptHandoff,
   getLeadAutomation,
   scheduleAppointment,
+  getAppointmentIcs,
 } from "@/lib/sales-automation.functions";
+import { approveLeadForOutreach } from "@/lib/commercial.functions";
+import { listCallActivities, logCallActivity } from "@/lib/commercial.functions";
 
 
 type Stage = Database["public"]["Enums"]["lead_stage"];
@@ -96,6 +99,9 @@ function LeadDetail() {
   const assumeFn = useServerFn(assumeManually);
   const optOutFn = useServerFn(setOptOut);
   const startOutreachFn = useServerFn(startOutreach);
+  const approveOutreachFn = useServerFn(approveLeadForOutreach);
+  const listCallsFn = useServerFn(listCallActivities);
+  const logCallFn = useServerFn(logCallActivity);
 
   const leadQ = useQuery({ queryKey: ["lead", id], queryFn: () => getLeadFn({ data: { id } }) });
   const msgsQ = useQuery({
@@ -111,6 +117,11 @@ function LeadDetail() {
   const outreachQ = useQuery({
     queryKey: ["lead-outreach", id],
     queryFn: () => listOutreachFn({ data: { lead_id: id } }),
+    enabled: !!leadQ.data,
+  });
+  const callsQ = useQuery({
+    queryKey: ["lead-calls", id],
+    queryFn: () => listCallsFn({ data: { lead_id: id } }),
     enabled: !!leadQ.data,
   });
 
@@ -206,6 +217,23 @@ function LeadDetail() {
       qc.invalidateQueries({ queryKey: ["lead-enrollment", id] });
       qc.invalidateQueries({ queryKey: ["lead-automation", id] });
     },
+  });
+  const approvalMut = useMutation({
+    mutationFn: (approved: boolean) => approveOutreachFn({ data: { lead_id: id, approved } }),
+    onSuccess: (result) => {
+      toast.success(result.approved_at ? "Contato aprovado para a cadência." : "Aprovação de contato removida.");
+      qc.invalidateQueries({ queryKey: ["lead", id] });
+      qc.invalidateQueries({ queryKey: ["lead-enrollment", id] });
+    },
+    onError: (error: Error) => toast.error("Aprovação restrita ao administrador", { description: error.message }),
+  });
+  const callMut = useMutation({
+    mutationFn: (value: { outcome: "planned" | "connected" | "voicemail" | "no_answer" | "wrong_number" | "follow_up" | "qualified" | "lost"; notes: string }) => logCallFn({ data: { lead_id: id, outcome: value.outcome, notes: value.notes || null } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["lead-calls", id] });
+      toast.success("Atividade de ligação registrada.");
+    },
+    onError: (error: Error) => toast.error("Não foi possível registrar a ligação", { description: error.message }),
   });
 
 
@@ -428,6 +456,7 @@ function LeadDetail() {
 
         <div className="space-y-4">
           <ContactChannelsCard lead={lead} />
+          <OutreachApprovalCard lead={lead} onChange={(approved) => approvalMut.mutate(approved)} busy={approvalMut.isPending} />
           <AutomationCard leadId={id} lead={lead} />
           <WarmingStrategyCard
             lead={lead}
@@ -444,6 +473,7 @@ function LeadDetail() {
             <InfoRow icon={UserIcon} text={`Owner: ${lead.owner}`} />
           </Card>
           <NotesCard leadId={id} />
+          <CallActivityCard lead={lead} activities={callsQ.data ?? []} onLog={(value) => callMut.mutate(value)} busy={callMut.isPending} />
           <ContactPointsCard leadId={id} lead={lead} />
           <ConsentEventsCard leadId={id} lead={lead} />
           <StageHistoryCard leadId={id} />
@@ -460,6 +490,7 @@ function AutomationCard({ leadId, lead }: { leadId: string; lead: any }) {
   const getFn = useServerFn(getLeadAutomation);
   const acceptFn = useServerFn(acceptHandoff);
   const scheduleFn = useServerFn(scheduleAppointment);
+  const icsFn = useServerFn(getAppointmentIcs);
   const [showSchedule, setShowSchedule] = useState(false);
   const [startsAt, setStartsAt] = useState("");
   const [title, setTitle] = useState("Reunião comercial");
@@ -489,6 +520,16 @@ function AutomationCard({ leadId, lead }: { leadId: string; lead: any }) {
       qc.invalidateQueries({ queryKey: ["lead-tasks", leadId] });
     },
   });
+  const downloadIcs = async (appointmentId: string) => {
+    try {
+      const file = await icsFn({ data: { appointment_id: appointmentId } });
+      const url = URL.createObjectURL(new Blob([file.content], { type: "text/calendar;charset=utf-8" }));
+      const link = document.createElement("a");
+      link.href = url; link.download = file.filename; link.click(); URL.revokeObjectURL(url);
+    } catch (error) {
+      toast.error("Não foi possível gerar o convite", { description: (error as Error).message });
+    }
+  };
 
   const enrollment = data?.enrollment as any;
   const qualification = data?.qualification as any;
@@ -569,7 +610,7 @@ function AutomationCard({ leadId, lead }: { leadId: string; lead: any }) {
             )}
             {appointments.length === 0 ? <div className="mt-1 text-text-ter">Nenhuma reunião agendada.</div> : (
               <div className="mt-1 space-y-1">{appointments.slice(0, 3).map((appointment) => (
-                <div key={appointment.id} className="text-text-sec">{new Date(appointment.starts_at).toLocaleString("pt-BR")} · {appointment.title}</div>
+                <div key={appointment.id} className="flex items-center justify-between gap-2 text-text-sec"><span>{new Date(appointment.starts_at).toLocaleString("pt-BR")} · {appointment.title}</span><button onClick={() => downloadIcs(appointment.id)} className="text-[10.5px] text-primary">.ics</button></div>
               ))}</div>
             )}
           </div>
@@ -661,6 +702,52 @@ function ContactChannelsCard({ lead }: { lead: any }) {
           <ShieldOff className="h-3 w-3" /> Lead pediu para não receber contato (LGPD)
         </div>
       )}
+    </Card>
+  );
+}
+
+function OutreachApprovalCard({ lead, onChange, busy }: { lead: any; onChange: (approved: boolean) => void; busy: boolean }) {
+  const approved = lead.contact_status === "approved";
+  return (
+    <Card title="Aprovação de contato">
+      <div className={`rounded-md p-2 text-[11.5px] ${approved ? "bg-success-bg text-success" : "bg-warm-bg text-warm"}`}>
+        {approved ? "Aprovado para abordagem automática." : "Aguardando aprovação administrativa para iniciar a abordagem."}
+      </div>
+      <div className="mt-2 text-[11px] text-text-sec">
+        Status do dado: {lead.contact_status ?? "unverified"}{lead.contact_approved_at ? ` · ${new Date(lead.contact_approved_at).toLocaleDateString("pt-BR")}` : ""}
+      </div>
+      <button disabled={busy} onClick={() => onChange(!approved)} className="mt-3 h-7 rounded-md border border-border-card bg-bg-card px-2 text-[11px] text-text-body hover:bg-bg-general disabled:opacity-50">
+        {busy ? "Salvando…" : approved ? "Revogar aprovação" : "Aprovar contato"}
+      </button>
+    </Card>
+  );
+}
+
+function CallActivityCard({
+  lead,
+  activities,
+  onLog,
+  busy,
+}: {
+  lead: any;
+  activities: any[];
+  onLog: (value: { outcome: "planned" | "connected" | "voicemail" | "no_answer" | "wrong_number" | "follow_up" | "qualified" | "lost"; notes: string }) => void;
+  busy: boolean;
+}) {
+  const [outcome, setOutcome] = useState<"planned" | "connected" | "voicemail" | "no_answer" | "wrong_number" | "follow_up" | "qualified" | "lost">("planned");
+  const [notes, setNotes] = useState("");
+  const labels: Record<string, string> = { planned: "Planejada", connected: "Atendeu", voicemail: "Caixa postal", no_answer: "Não atendeu", wrong_number: "Número inválido", follow_up: "Retornar", qualified: "Qualificado", lost: "Perdido" };
+  return (
+    <Card title="Ligaçōes e retornos">
+      {(lead.phone || lead.whatsapp) && <a href={`tel:${lead.phone || lead.whatsapp}`} className="mb-2 inline-flex text-[11px] text-primary hover:underline">Ligar para {lead.phone || lead.whatsapp}</a>}
+      <div className="space-y-2 rounded-md border border-border-card bg-bg-general p-2">
+        <select value={outcome} onChange={(e) => setOutcome(e.target.value as typeof outcome)} className="h-8 w-full rounded border border-border-card bg-bg-card px-2 text-[11px]">
+          {Object.entries(labels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+        </select>
+        <input value={notes} onChange={(e) => setNotes(e.target.value)} maxLength={4000} placeholder="Resumo da ligação" className="h-8 w-full rounded border border-border-card bg-bg-card px-2 text-[11px]" />
+        <button onClick={() => { onLog({ outcome, notes }); setNotes(""); }} disabled={busy} className="h-7 rounded bg-primary px-2 text-[11px] text-white disabled:opacity-50">{busy ? "Salvando…" : "Registrar ligação"}</button>
+      </div>
+      <ul className="mt-3 space-y-1.5">{activities.slice(0, 5).map((activity) => <li key={activity.id} className="rounded bg-bg-general px-2 py-1.5 text-[11px]"><div className="flex justify-between gap-2"><span className="font-medium">{labels[activity.outcome] ?? activity.outcome}</span><span className="text-text-ter">{new Date(activity.created_at).toLocaleDateString("pt-BR")}</span></div>{activity.notes && <div className="mt-0.5 text-text-sec">{activity.notes}</div>}</li>)}{activities.length === 0 && <li className="text-[11px] text-text-ter">Nenhuma ligação registrada.</li>}</ul>
     </Card>
   );
 }

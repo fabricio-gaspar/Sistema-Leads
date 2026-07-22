@@ -6,6 +6,7 @@ import { useState } from "react";
 import { Card, SectionTitle } from "@/components/ui-kit";
 import { formatBRL } from "@/lib/leads-data";
 import { getReportsData, getOpsMetrics } from "@/lib/crm.functions";
+import { getCommercialReport } from "@/lib/commercial.functions";
 
 export const Route = createFileRoute("/_authenticated/relatorios")({ component: Relatorios });
 
@@ -225,6 +226,45 @@ function Relatorios() {
       </div>
 
       <OpsMetricsCard />
+      <CommercialReadinessCard />
+    </div>
+  );
+}
+
+function CommercialReadinessCard() {
+  const fn = useServerFn(getCommercialReport);
+  const { data, error } = useQuery({ queryKey: ["commercial-readiness-report"], queryFn: () => fn({ data: { days: 90 } }) });
+  if (error) return null;
+  if (!data) return <Card><div className="text-[12px] text-text-ter">Carregando indicadores comerciais…</div></Card>;
+  const quality = data.contactQuality;
+  return (
+    <div className="space-y-4">
+      <Card>
+        <SectionTitle title="Qualidade comercial (90 dias)" hint="Sinaliza a confiabilidade dos dados antes de aumentar volume de prospecção." />
+        <div className="grid gap-3 md:grid-cols-4">
+          {[
+            { label: "Pontos de contato", value: quality.total },
+            { label: "Verificados", value: quality.verified },
+            { label: "Inválidos / bounces", value: quality.invalid },
+            { label: "Opt-outs", value: quality.optOut },
+          ].map((item) => <div key={item.label} className="rounded-md border border-border-card bg-bg-general p-3"><div className="text-[10px] uppercase text-text-ter">{item.label}</div><div className="mt-1 text-[20px] font-semibold text-text-title">{item.value}</div></div>)}
+        </div>
+      </Card>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <Card>
+          <SectionTitle title="Origem e conversão" hint="Leads e vendas atribuídos à origem/campanha." />
+          <div className="overflow-x-auto"><table className="w-full min-w-[480px] text-[12px]"><thead><tr className="text-left text-[10px] uppercase text-text-ter"><th className="pb-2">Origem</th><th className="pb-2">Leads</th><th className="pb-2">Vendas</th><th className="pb-2">Conversão</th><th className="pb-2">Receita</th></tr></thead><tbody className="divide-y divide-border-card">{data.sourcePerformance.slice(0, 8).map((row) => <tr key={row.source}><td className="py-2 font-medium text-text-title">{row.source}</td><td className="py-2">{row.leads}</td><td className="py-2">{row.closed}</td><td className="py-2 text-success">{row.conversion}%</td><td className="py-2">{formatBRL(row.revenue)}</td></tr>)}{data.sourcePerformance.length === 0 && <tr><td colSpan={5} className="py-4 text-center text-text-ter">Sem atribuição de origem no período.</td></tr>}</tbody></table></div>
+        </Card>
+        <Card>
+          <SectionTitle title="Conversão entre etapas" hint="Mostra o gargalo real do funil." />
+          <div className="space-y-3">{data.stageConversions.map((row) => <div key={`${row.from}-${row.to}`}><div className="mb-1 flex justify-between text-[12px]"><span>{row.from} → {row.to}</span><span className="font-semibold text-primary">{row.rate}%</span></div><div className="h-2 rounded-full bg-bg-general"><div className="h-full rounded-full bg-primary" style={{ width: `${row.rate}%` }} /></div><div className="mt-1 text-[10.5px] text-text-ter">{row.progressed} de {row.leads} leads avançaram</div></div>)}</div>
+          <div className="mt-5"><div className="mb-2 text-[12px] font-semibold text-text-title">Motivos de perda</div>{data.lossReasons.length ? <div className="space-y-1.5">{data.lossReasons.slice(0, 5).map((row) => <div key={row.reason} className="flex justify-between rounded bg-bg-general px-2 py-1.5 text-[11.5px]"><span>{row.reason}</span><span className="font-semibold">{row.count}</span></div>)}</div> : <div className="text-[12px] text-text-ter">Ainda não há perdas classificadas.</div>}</div>
+        </Card>
+      </div>
+      <Card>
+        <SectionTitle title="Retorno por campanha" hint="Rascunhos, volume selecionado, vendas e retorno registrado." />
+        <div className="overflow-x-auto"><table className="w-full min-w-[650px] text-[12px]"><thead><tr className="text-left text-[10px] uppercase text-text-ter"><th className="pb-2">Campanha</th><th className="pb-2">Status</th><th className="pb-2">Selecionados</th><th className="pb-2">Vendas</th><th className="pb-2">Receita</th><th className="pb-2">Orçamento</th></tr></thead><tbody className="divide-y divide-border-card">{data.campaigns.map((row: any) => <tr key={row.id}><td className="py-2 font-medium text-text-title">{row.name}</td><td className="py-2">{row.status}</td><td className="py-2">{row.selected}</td><td className="py-2">{row.closed}</td><td className="py-2">{formatBRL(row.revenue)}</td><td className="py-2">{formatBRL(row.budget)}</td></tr>)}{data.campaigns.length === 0 && <tr><td colSpan={6} className="py-4 text-center text-text-ter">Nenhuma campanha criada.</td></tr>}</tbody></table></div>
+      </Card>
     </div>
   );
 }

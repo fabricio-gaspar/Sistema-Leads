@@ -12,8 +12,10 @@ const leadInputSchema = z.object({
   contact: z.string().optional().nullable(),
   title: z.string().optional().nullable(),
   phone: z.string().optional().nullable(),
+  whatsapp: z.string().optional().nullable(),
   email: z.string().email().optional().nullable().or(z.literal('')),
   segment: z.string().optional().nullable(),
+  city: z.string().optional().nullable(),
   uf: z.string().optional().nullable(),
   distance: z.number().int().optional().nullable(),
   score: z.number().int().min(0).max(100).optional().nullable(),
@@ -52,6 +54,15 @@ export const createLead = createServerFn({ method: 'POST' })
     const payload = { ...data, email: data.email || null, owner_id: context.userId }
     const { data: row, error } = await context.supabase.from('leads').insert(payload as never).select().single()
     if (error) throw new Error(error.message)
+    const contactPoints = [
+      data.whatsapp ? { lead_id: row.id, kind: 'whatsapp', value: data.whatsapp, preferred: true, source: 'manual' } : null,
+      data.phone ? { lead_id: row.id, kind: 'phone', value: data.phone, preferred: true, source: 'manual' } : null,
+      data.email ? { lead_id: row.id, kind: 'email', value: data.email, preferred: true, source: 'manual' } : null,
+    ].filter(Boolean)
+    if (contactPoints.length) {
+      const { error: pointsError } = await context.supabase.from('contact_points').insert(contactPoints as never)
+      if (pointsError) throw new Error(pointsError.message)
+    }
     await context.supabase.from('audit_logs').insert({
       actor_id: context.userId,
       actor_name: context.claims?.email ?? 'user',
@@ -470,10 +481,12 @@ export const chatWithAna = createServerFn({ method: 'POST' })
     const apiKey = process.env.ANTHROPIC_API_KEY
     if (!apiKey) throw new Error('ANTHROPIC_API_KEY não configurada')
 
-    const [{ data: settings }, { data: history }, { data: lead }] = await Promise.all([
+    const { loadKnowledgeSnippetInternal } = await import('@/lib/knowledge.functions')
+    const [{ data: settings }, { data: history }, { data: lead }, knowledge] = await Promise.all([
       context.supabase.from('company_settings').select('ai_prompt, ai_model, ai_temperature, ai_max_tokens, name, description, differentiators, tone_of_voice').limit(1).maybeSingle(),
       context.supabase.from('lead_messages').select('sender, text').eq('lead_id', data.lead_id).order('sent_at', { ascending: true }).limit(20),
       context.supabase.from('leads').select('company, contact, segment, stage').eq('id', data.lead_id).maybeSingle(),
+      loadKnowledgeSnippetInternal(context.supabase, 6000, data.user_text),
     ])
 
     const senderLabel = data.as_client ? 'client' : 'human'
@@ -493,7 +506,10 @@ export const chatWithAna = createServerFn({ method: 'POST' })
     const companyCtx = settings
       ? `\n\nSua empresa: ${settings.name ?? 'WF Digital'}${settings.description ? `\nDescrição: ${settings.description}` : ''}${settings.differentiators ? `\nDiferenciais: ${settings.differentiators}` : ''}${settings.tone_of_voice ? `\nTom de voz: ${settings.tone_of_voice}` : ''}`
       : ''
-    const system = `${systemBase}${companyCtx}${leadCtx}`
+    const knowledgeCtx = knowledge.length
+      ? `\n\nBase oficial relevante (use apenas estes fatos; se faltar informação, encaminhe ao vendedor):\n${knowledge.map((item) => `- [${item.document}] ${item.content}`).join('\n')}`
+      : '\n\nNão há documento oficial suficiente para responder detalhes técnicos, comerciais ou contratuais; encaminhe a um vendedor nesses casos.'
+    const system = `${systemBase}${companyCtx}${leadCtx}${knowledgeCtx}`
 
     const messages = [
       ...(history ?? []).map((m) => ({
@@ -2153,6 +2169,7 @@ export const upsertContactPoint = createServerFn({ method: 'POST' })
         .from('contact_points')
         .update({ preferred: false } as never)
         .eq('lead_id', data.lead_id)
+        .eq('kind', data.kind)
     }
     const payload = {
       lead_id: data.lead_id,
@@ -2164,6 +2181,8 @@ export const upsertContactPoint = createServerFn({ method: 'POST' })
       sandbox: data.sandbox ?? false,
       status: data.status ?? 'active',
       source: 'manual',
+      source_detail: 'Central de Atendimento',
+      verification_method: data.verified ? 'manual' : null,
     }
     if (data.id) {
       const { data: row, error } = await supabase
@@ -2173,6 +2192,9 @@ export const upsertContactPoint = createServerFn({ method: 'POST' })
         .select()
         .single()
       if (error) throw new Error(error.message)
+      if (data.verified) {
+        await supabase.from('leads').update({ contact_status: 'verified' } as never).eq('id', data.lead_id)
+      }
       return row
     }
     const { data: row, error } = await supabase
@@ -2181,6 +2203,9 @@ export const upsertContactPoint = createServerFn({ method: 'POST' })
       .select()
       .single()
     if (error) throw new Error(error.message)
+    if (data.verified) {
+      await supabase.from('leads').update({ contact_status: 'verified' } as never).eq('id', data.lead_id)
+    }
     return row
   })
 

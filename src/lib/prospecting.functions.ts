@@ -817,6 +817,18 @@ export const importExternalAsLead = createServerFn({ method: 'POST' })
     const { data: row, error } = await context.supabase.from('leads').insert(payload as never).select().single()
     if (error) throw new Error(error.message)
 
+    // Mantém os canais normalizados, com origem da prospecção, para que a
+    // política de frequência/consentimento use exatamente o dado selecionado.
+    const contactPoints = [
+      payload.whatsapp ? { lead_id: row.id, kind: 'whatsapp', value: payload.whatsapp, preferred: true, source: company.source } : null,
+      payload.phone ? { lead_id: row.id, kind: 'phone', value: payload.phone, preferred: true, source: company.source } : null,
+      payload.email ? { lead_id: row.id, kind: 'email', value: payload.email, preferred: true, source: company.source } : null,
+    ].filter(Boolean)
+    if (contactPoints.length) {
+      const { error: contactsError } = await context.supabase.from('contact_points').insert(contactPoints as never)
+      if (contactsError) throw new Error(contactsError.message)
+    }
+
     await context.supabase.from('audit_logs').insert({
       actor_id: context.userId,
       actor_name: context.claims?.email ?? 'user',
@@ -825,12 +837,20 @@ export const importExternalAsLead = createServerFn({ method: 'POST' })
       detail: `Importado de ${company.source}: ${company.razao_social}`,
     } as never)
 
-    // Ana inicia a cadência automática (WhatsApp → E-mail → Ligação)
-    try {
-      const { triggerOutreachInternal } = await import('./outreach.functions')
-      await triggerOutreachInternal(context as never, row.id as string)
-    } catch (err) {
-      console.error('Ana outreach start failed:', err)
+    // A ativação automática é uma política da empresa. Mesmo quando ativa,
+    // as regras de aprovação, horário e consentimento continuam valendo.
+    const { data: policy } = await (context.supabase as any)
+      .from('company_settings')
+      .select('outreach_auto_start')
+      .limit(1)
+      .maybeSingle()
+    if ((policy as any)?.outreach_auto_start !== false) {
+      try {
+        const { triggerOutreachInternal } = await import('./outreach.functions')
+        await triggerOutreachInternal(context as never, row.id as string)
+      } catch (err) {
+        console.error('Ana outreach start failed:', err)
+      }
     }
 
     return row

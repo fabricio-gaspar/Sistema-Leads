@@ -43,6 +43,20 @@ export type ContactChannels = Partial<Record<Channel, ChannelStatus>>
 
 type Ctx = { supabase: any; userId: string; claims?: any }
 
+type ResolvedContacts = Partial<Record<Channel, {
+  value: string
+  id?: string
+  verified?: boolean
+  next_allowed_at?: string | null
+}>>
+
+type OutreachPolicy = {
+  allowed: boolean
+  reason?: string
+  retryAt?: string
+  snapshot: Record<string, unknown>
+}
+
 async function suppressionHash(channel: Channel, value: string): Promise<string | null> {
   const normalized = channel === 'email' ? value.trim().toLowerCase() : value.replace(/\D/g, '')
   if (!normalized) return null
@@ -130,6 +144,147 @@ function buildChannels(lead: {
     email: { available: /.+@.+\..+/.test(em), last_status: null, last_attempt_at: null },
     phone: { available: ph.length >= 10, last_status: null, last_attempt_at: null },
   }
+}
+
+/**
+ * Prefere os contatos ativos/preferenciais, mas mantém compatibilidade com os
+ * campos históricos do lead. A automação passa a usar a mesma origem exibida
+ * para o vendedor na ficha do lead.
+ */
+async function resolveLeadContacts(ctx: Ctx, lead: any): Promise<ResolvedContacts> {
+  const { data } = await ctx.supabase
+    .from('contact_points')
+    .select('id, kind, value, verified, next_allowed_at, preferred, created_at')
+    .eq('lead_id', lead.id)
+    .eq('status', 'active')
+    .in('kind', ['whatsapp', 'phone', 'email'])
+    .order('preferred', { ascending: false })
+    .order('verified', { ascending: false })
+    .order('created_at', { ascending: true })
+
+  const resolved: ResolvedContacts = {}
+  for (const row of data ?? []) {
+    const kind = row.kind as Channel
+    if (!resolved[kind] && row.value) {
+      resolved[kind] = {
+        value: row.value,
+        id: row.id,
+        verified: Boolean(row.verified),
+        next_allowed_at: row.next_allowed_at,
+      }
+    }
+  }
+  if (!resolved.whatsapp && lead.whatsapp) resolved.whatsapp = { value: lead.whatsapp, verified: false }
+  if (!resolved.phone && lead.phone) resolved.phone = { value: lead.phone, verified: false }
+  if (!resolved.email && lead.email) resolved.email = { value: lead.email, verified: false }
+  return resolved
+}
+
+function localBusinessParts(now: Date, timeZone: string) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone,
+    weekday: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).formatToParts(now)
+  const pick = (type: string) => parts.find((part) => part.type === type)?.value ?? ''
+  const weekdays: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }
+  return { weekday: weekdays[pick('weekday')] ?? 0, time: `${pick('hour')}:${pick('minute')}` }
+}
+
+async function schedulePolicyRetry(ctx: Ctx, leadId: string, channel: Channel, reason: string) {
+  // A fila reavalia a regra em 15 minutos. Assim, um lead importado à noite
+  // não é perdido nem recebe contato fora do horário comercial.
+  const runAt = new Date(Date.now() + 15 * 60_000).toISOString()
+  const slot = Math.floor(Date.now() / (15 * 60_000))
+  const { error } = await ctx.supabase.from('outreach_jobs').insert({
+    lead_id: leadId,
+    channel,
+    payload: { kind: 'start', reason },
+    status: 'queued',
+    attempt: 0,
+    idempotency_key: `policy-retry:${leadId}:${channel}:${slot}`,
+    run_at: runAt,
+  } as never)
+  if (error && (error as any).code !== '23505') console.error('[outreach] policy retry enqueue failed', error.message)
+  await ctx.supabase.from('leads').update({ next_action_at: runAt } as never).eq('id', leadId)
+  await patchEnrollmentInternal(ctx.supabase, leadId, { next_run_at: runAt, last_error: reason }).catch(() => undefined)
+}
+
+async function evaluateProactivePolicy(
+  ctx: Ctx,
+  lead: any,
+  channel: Channel,
+  contact: ResolvedContacts[Channel] | undefined,
+): Promise<OutreachPolicy> {
+  if (channel === 'phone') return { allowed: true, snapshot: { channel, mode: 'human_task' } }
+  const { data: settings } = await ctx.supabase
+    .from('company_settings')
+    .select('business_timezone, business_days, business_start_time, business_end_time, outreach_daily_limit_per_contact, outreach_min_interval_minutes, outreach_require_verified_contact, outreach_require_manual_approval')
+    .limit(1)
+    .maybeSingle()
+  const cfg = settings as any
+  const timeZone = cfg?.business_timezone || 'America/Sao_Paulo'
+  const days = Array.isArray(cfg?.business_days) ? cfg.business_days.map(Number) : [1, 2, 3, 4, 5]
+  const start = String(cfg?.business_start_time || '08:00').slice(0, 5)
+  const end = String(cfg?.business_end_time || '18:00').slice(0, 5)
+  const local = localBusinessParts(new Date(), timeZone)
+  const baseSnapshot = {
+    channel,
+    time_zone: timeZone,
+    business_days: days,
+    business_start: start,
+    business_end: end,
+    daily_limit: Number(cfg?.outreach_daily_limit_per_contact ?? 1),
+    min_interval_minutes: Number(cfg?.outreach_min_interval_minutes ?? 1440),
+    require_verified: Boolean(cfg?.outreach_require_verified_contact),
+    require_approval: Boolean(cfg?.outreach_require_manual_approval),
+  }
+  if (!contact?.value) return { allowed: false, reason: 'no_active_contact', snapshot: baseSnapshot }
+  if (!days.includes(local.weekday) || local.time < start || local.time >= end) {
+    return { allowed: false, reason: 'outside_business_hours', retryAt: new Date(Date.now() + 15 * 60_000).toISOString(), snapshot: baseSnapshot }
+  }
+  if (cfg?.outreach_require_verified_contact && !contact.verified) {
+    return { allowed: false, reason: 'contact_not_verified', snapshot: baseSnapshot }
+  }
+  if (cfg?.outreach_require_manual_approval && lead.contact_status !== 'approved') {
+    return { allowed: false, reason: 'lead_not_approved', snapshot: baseSnapshot }
+  }
+  if (contact.next_allowed_at && new Date(contact.next_allowed_at) > new Date()) {
+    return { allowed: false, reason: 'contact_cooldown', retryAt: contact.next_allowed_at, snapshot: baseSnapshot }
+  }
+  const since = new Date(Date.now() - 24 * 60 * 60_000).toISOString()
+  const { count } = await ctx.supabase
+    .from('lead_outreach')
+    .select('id', { count: 'exact', head: true })
+    .eq('lead_id', lead.id)
+    .eq('channel', channel)
+    .in('status', ['sent', 'delivered', 'read', 'replied'])
+    .gte('created_at', since)
+  if ((count ?? 0) >= Number(cfg?.outreach_daily_limit_per_contact ?? 1)) {
+    return { allowed: false, reason: 'daily_contact_limit', retryAt: new Date(Date.now() + 15 * 60_000).toISOString(), snapshot: baseSnapshot }
+  }
+  const minInterval = Number(cfg?.outreach_min_interval_minutes ?? 1440)
+  const { data: last } = await ctx.supabase
+    .from('lead_outreach')
+    .select('sent_at, created_at')
+    .eq('lead_id', lead.id)
+    .eq('channel', channel)
+    .in('status', ['sent', 'delivered', 'read', 'replied'])
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  const lastAt = last?.sent_at || last?.created_at
+  if (lastAt && Date.now() - new Date(lastAt).getTime() < minInterval * 60_000) {
+    return {
+      allowed: false,
+      reason: 'minimum_interval',
+      retryAt: new Date(new Date(lastAt).getTime() + minInterval * 60_000).toISOString(),
+      snapshot: baseSnapshot,
+    }
+  }
+  return { allowed: true, snapshot: baseSnapshot }
 }
 
 /**
@@ -478,6 +633,21 @@ async function sendEmail(
 async function tryStep(ctx: Ctx, lead: any, step: SequenceStep): Promise<void> {
   const cadence = await loadCadence(ctx)
   const channel = step.channel
+  const contacts = await resolveLeadContacts(ctx, lead)
+  const contact = contacts[channel]
+  const deliveryLead = {
+    ...lead,
+    whatsapp: contacts.whatsapp?.value ?? lead.whatsapp,
+    phone: contacts.phone?.value ?? lead.phone,
+    email: contacts.email?.value ?? lead.email,
+  }
+  const policy = await evaluateProactivePolicy(ctx, deliveryLead, channel, contact)
+  if (!policy.allowed) {
+    await audit(ctx, 'outreach_blocked_policy', `${lead.company}: ${policy.reason}`, 'system')
+    if (policy.retryAt) await schedulePolicyRetry(ctx, lead.id, channel, policy.reason || 'policy_block')
+    else await pauseEnrollmentInternal(ctx.supabase, lead.id, policy.reason || 'policy_block')
+    return
+  }
   const maxAttempts = step.max_attempts ?? cadence.maxAttempts
   const enrollment = await getEnrollmentInternal(ctx.supabase, lead.id)
   let attemptQuery = ctx.supabase
@@ -507,8 +677,8 @@ async function tryStep(ctx: Ctx, lead: any, step: SequenceStep): Promise<void> {
   }
 
   const content = step.template
-    ? renderTemplate(step.template, lead)
-    : await generateOutreachMessage(ctx, lead, channel)
+    ? renderTemplate(step.template, deliveryLead)
+    : await generateOutreachMessage(ctx, deliveryLead, channel)
 
   const { data: row, error: rowError } = await ctx.supabase
     .from('lead_outreach')
@@ -522,6 +692,7 @@ async function tryStep(ctx: Ctx, lead: any, step: SequenceStep): Promise<void> {
       provider: channel === 'whatsapp' ? 'zapi' : channel === 'email' ? 'resend' : 'manual',
       actor_type: 'ia',
       metadata: { sequence_step: step.id },
+      policy_snapshot: policy.snapshot,
     } as never)
     .select()
     .single()
@@ -535,7 +706,7 @@ async function tryStep(ctx: Ctx, lead: any, step: SequenceStep): Promise<void> {
   const waitMs = waitMinutes * 60 * 1000
 
   if (channel === 'whatsapp') {
-    const to = lead.whatsapp || lead.phone || ''
+    const to = deliveryLead.whatsapp || deliveryLead.phone || ''
     const result = await sendWhatsappText(ctx, to, content)
     if (result.ok) {
       const now = new Date().toISOString()
@@ -563,6 +734,10 @@ async function tryStep(ctx: Ctx, lead: any, step: SequenceStep): Promise<void> {
         next_action_at: runAt,
         last_contact: now,
       })
+      if (contact?.id) {
+        const nextAllowedAt = new Date(Date.now() + Number(policy.snapshot.min_interval_minutes ?? 1440) * 60_000).toISOString()
+        await ctx.supabase.from('contact_points').update({ last_contact_at: now, next_allowed_at: nextAllowedAt } as never).eq('id', contact.id)
+      }
       await enqueueOutreachTimeoutInternal(ctx, {
         lead_id: lead.id,
         outreach_id: row.id,
@@ -591,7 +766,7 @@ async function tryStep(ctx: Ctx, lead: any, step: SequenceStep): Promise<void> {
 
   if (channel === 'email') {
     const result = await sendEmail(
-      lead.email || '',
+      deliveryLead.email || '',
       content,
       `outreach-${lead.id}-email-${attempt}`,
     )
@@ -621,6 +796,10 @@ async function tryStep(ctx: Ctx, lead: any, step: SequenceStep): Promise<void> {
         next_action_at: runAt,
         last_contact: now,
       })
+      if (contact?.id) {
+        const nextAllowedAt = new Date(Date.now() + Number(policy.snapshot.min_interval_minutes ?? 1440) * 60_000).toISOString()
+        await ctx.supabase.from('contact_points').update({ last_contact_at: now, next_allowed_at: nextAllowedAt } as never).eq('id', contact.id)
+      }
       await enqueueOutreachTimeoutInternal(ctx, {
         lead_id: lead.id,
         outreach_id: row.id,
@@ -965,7 +1144,7 @@ export async function handleInboundWithAiInternal(
       .maybeSingle(),
     ctx.supabase.from('services').select('name, description, price, unit, term').eq('active', true).order('name'),
     ctx.supabase.from('objections').select('trigger, response').order('created_at', { ascending: false }).limit(30),
-    loadKnowledgeSnippetInternal(ctx.supabase, 8000),
+    loadKnowledgeSnippetInternal(ctx.supabase, 8000, userText),
     ctx.supabase
       .from('unanswered_questions')
       .select('text, answer')
@@ -1104,12 +1283,19 @@ export const startOutreach = createServerFn({ method: 'POST' })
   .handler(async ({ data, context }) => {
     const ctx = context as Ctx
     const lead = await loadLead(ctx, data.lead_id)
+    const contacts = await resolveLeadContacts(ctx, lead)
+    const contactLead = {
+      ...lead,
+      whatsapp: contacts.whatsapp?.value ?? lead.whatsapp,
+      phone: contacts.phone?.value ?? lead.phone,
+      email: contacts.email?.value ?? lead.email,
+    }
     if (lead.opt_out) return { ok: false, reason: 'opt_out' }
     if (lead.ai_paused) return { ok: false, reason: 'paused' }
     if (await isAnyContactSuppressed(ctx, lead.id, {
-      whatsapp: lead.whatsapp,
-      phone: lead.phone,
-      email: lead.email,
+      whatsapp: contactLead.whatsapp,
+      phone: contactLead.phone,
+      email: contactLead.email,
     })) {
       await audit(ctx, 'outreach_blocked_suppression', `Contato suprimido: ${lead.company}`, 'system')
       return { ok: false, reason: 'contact_suppressed' }
@@ -1125,7 +1311,7 @@ export const startOutreach = createServerFn({ method: 'POST' })
     // Garante contact_channels populado
     let channels = (lead.contact_channels ?? {}) as ContactChannels
     if (data.restart || (!channels.whatsapp && !channels.email && !channels.phone)) {
-      channels = buildChannels(lead)
+      channels = buildChannels(contactLead)
       await context.supabase
         .from('leads')
         .update({ contact_channels: channels } as never)
@@ -1238,11 +1424,18 @@ export const sendManualWhatsapp = createServerFn({ method: 'POST' })
   .handler(async ({ data, context }) => {
     const ctx = context as Ctx
     const lead = await loadLead(ctx, data.lead_id)
+    const contacts = await resolveLeadContacts(ctx, lead)
+    const contactLead = {
+      ...lead,
+      whatsapp: contacts.whatsapp?.value ?? lead.whatsapp,
+      phone: contacts.phone?.value ?? lead.phone,
+      email: contacts.email?.value ?? lead.email,
+    }
     if (lead.opt_out) return { ok: false, error: 'Este contato solicitou não receber mensagens.' }
     if (await isAnyContactSuppressed(ctx, lead.id, {
-      whatsapp: lead.whatsapp,
-      phone: lead.phone,
-      email: lead.email,
+      whatsapp: contactLead.whatsapp,
+      phone: contactLead.phone,
+      email: contactLead.email,
     })) {
       return { ok: false, error: 'Este contato está na lista de supressão.' }
     }
@@ -1252,7 +1445,12 @@ export const sendManualWhatsapp = createServerFn({ method: 'POST' })
       return { ok: false, error: 'Modo sandbox ativo: adicione um contato marcado como Teste no lead antes de enviar.' }
     }
 
-    const to = lead.whatsapp || lead.phone || ''
+    const manualPolicy = await evaluateProactivePolicy(ctx, contactLead, 'whatsapp', contacts.whatsapp ?? contacts.phone)
+    if (!manualPolicy.allowed) {
+      return { ok: false, error: `Envio bloqueado pela política comercial: ${manualPolicy.reason}` }
+    }
+
+    const to = contactLead.whatsapp || contactLead.phone || ''
     if (!to) return { ok: false, error: 'O lead não possui WhatsApp ou telefone cadastrado.' }
 
     const { count } = await ctx.supabase
@@ -1277,6 +1475,7 @@ export const sendManualWhatsapp = createServerFn({ method: 'POST' })
       sent_at: result.ok ? now : null,
       failed_at: result.ok ? null : now,
       actor_type: 'human',
+      policy_snapshot: manualPolicy.snapshot,
     } as never)
     if (outreachError) throw new Error(outreachError.message)
 
@@ -1300,6 +1499,11 @@ export const sendManualWhatsapp = createServerFn({ method: 'POST' })
       active_channel: 'whatsapp',
       last_contact: now,
     })
+    const manualContact = contacts.whatsapp ?? contacts.phone
+    if (manualContact?.id) {
+      const nextAllowedAt = new Date(Date.now() + Number(manualPolicy.snapshot.min_interval_minutes ?? 1440) * 60_000).toISOString()
+      await ctx.supabase.from('contact_points').update({ last_contact_at: now, next_allowed_at: nextAllowedAt } as never).eq('id', manualContact.id)
+    }
     await audit(ctx, 'manual_whatsapp_sent', `WhatsApp manual enviado para ${lead.company}`, 'human')
     return { ok: true, messageId: result.messageId ?? null }
   })
@@ -1311,6 +1515,8 @@ export const setOptOut = createServerFn({ method: 'POST' })
   )
   .handler(async ({ data, context }) => {
     const ctx = context as Ctx
+    const lead = await loadLead(ctx, data.lead_id)
+    const contacts = await resolveLeadContacts(ctx, lead)
     if (data.opt_out) await suppressLeadContactsInternal(ctx, data.lead_id)
     else await unsuppressLeadContactsInternal(ctx, data.lead_id)
     await context.supabase
@@ -1321,15 +1527,34 @@ export const setOptOut = createServerFn({ method: 'POST' })
       await cancelEnrollmentInternal(context.supabase, data.lead_id, 'opt_out')
     }
 
-    // Trilha auditável de consentimento
-    await context.supabase.from('consent_events').insert({
-      lead_id: data.lead_id,
-      event: data.opt_out ? 'opt_out' : 'resubscribe',
-      channel: 'all',
-      source: 'admin',
-      text: data.opt_out ? 'Opt-out registrado manualmente' : 'Reativação de contato',
-      actor_id: context.userId,
-    } as never)
+    // Trilha auditável por canal — o banco não aceita um canal genérico "all".
+    const consentRows = (Object.entries(contacts) as Array<[Channel, ResolvedContacts[Channel]]>)
+      .filter(([, contact]) => Boolean(contact?.value))
+      .map(([channel, contact]) => ({
+        lead_id: data.lead_id,
+        contact_point_id: contact?.id ?? null,
+        event: data.opt_out ? 'opt_out' : 'resubscribe',
+        channel,
+        source: 'admin',
+        text: data.opt_out ? 'Opt-out registrado manualmente' : 'Reativação de contato',
+        actor_id: context.userId,
+        legal_basis: data.opt_out ? 'objection' : null,
+        source_detail: 'Central de Atendimento',
+      }))
+    if (consentRows.length) await context.supabase.from('consent_events').insert(consentRows as never)
+    if (data.opt_out) {
+      await context.supabase
+        .from('contact_points')
+        .update({ status: 'opt_out', opt_out_at: new Date().toISOString() } as never)
+        .eq('lead_id', data.lead_id)
+        .in('kind', ['whatsapp', 'phone', 'email'])
+    } else {
+      await context.supabase
+        .from('contact_points')
+        .update({ status: 'active', opt_out_at: null } as never)
+        .eq('lead_id', data.lead_id)
+        .eq('status', 'opt_out')
+    }
     await audit(
       ctx,
       data.opt_out ? 'opt_out_set' : 'opt_out_cleared',
@@ -1395,18 +1620,25 @@ export async function initialContactChannels(lead: {
 
 export async function triggerOutreachInternal(ctx: Ctx, leadId: string) {
   const lead = await loadLead(ctx, leadId)
+  const contacts = await resolveLeadContacts(ctx, lead)
+  const contactLead = {
+    ...lead,
+    whatsapp: contacts.whatsapp?.value ?? lead.whatsapp,
+    phone: contacts.phone?.value ?? lead.phone,
+    email: contacts.email?.value ?? lead.email,
+  }
   if (lead.opt_out || lead.ai_paused) return
   if (await isAnyContactSuppressed(ctx, lead.id, {
-    whatsapp: lead.whatsapp,
-    phone: lead.phone,
-    email: lead.email,
+    whatsapp: contactLead.whatsapp,
+    phone: contactLead.phone,
+    email: contactLead.email,
   })) {
     await audit(ctx, 'outreach_blocked_suppression', `Contato suprimido: ${lead.company}`, 'system')
     return
   }
   let channels = (lead.contact_channels ?? {}) as ContactChannels
   if (!channels.whatsapp && !channels.email && !channels.phone) {
-    channels = buildChannels(lead)
+    channels = buildChannels(contactLead)
     await ctx.supabase
       .from('leads')
       .update({ contact_channels: channels } as never)

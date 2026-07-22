@@ -26,6 +26,7 @@ import { Route as AuthenticatedAtendimentoRouteImport } from './routes/_authenti
 import { Route as ApiPublicZapiWebhookRouteImport } from './routes/api/public/zapi-webhook'
 import { Route as ApiPublicResendWebhookRouteImport } from './routes/api/public/resend-webhook'
 import { Route as ApiPublicOutreachTickRouteImport } from './routes/api/public/outreach-tick'
+import { Route as ApiPublicLeadCaptureRouteImport } from './routes/api/public/lead-capture'
 import { Route as ApiPublicEvolutionWebhookRouteImport } from './routes/api/public/evolution-webhook'
 import { Route as AuthenticatedLeadsIdRouteImport } from './routes/_authenticated/leads.$id'
 
@@ -117,6 +118,11 @@ const ApiPublicOutreachTickRoute = ApiPublicOutreachTickRouteImport.update({
   path: '/api/public/outreach-tick',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicLeadCaptureRoute = ApiPublicLeadCaptureRouteImport.update({
+  id: '/api/public/lead-capture',
+  path: '/api/public/lead-capture',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicEvolutionWebhookRoute =
   ApiPublicEvolutionWebhookRouteImport.update({
     id: '/api/public/evolution-webhook',
@@ -145,6 +151,7 @@ export interface FileRoutesByFullPath {
   '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/leads/$id': typeof AuthenticatedLeadsIdRoute
   '/api/public/evolution-webhook': typeof ApiPublicEvolutionWebhookRoute
+  '/api/public/lead-capture': typeof ApiPublicLeadCaptureRoute
   '/api/public/outreach-tick': typeof ApiPublicOutreachTickRoute
   '/api/public/resend-webhook': typeof ApiPublicResendWebhookRoute
   '/api/public/zapi-webhook': typeof ApiPublicZapiWebhookRoute
@@ -165,6 +172,7 @@ export interface FileRoutesByTo {
   '/': typeof AuthenticatedIndexRoute
   '/leads/$id': typeof AuthenticatedLeadsIdRoute
   '/api/public/evolution-webhook': typeof ApiPublicEvolutionWebhookRoute
+  '/api/public/lead-capture': typeof ApiPublicLeadCaptureRoute
   '/api/public/outreach-tick': typeof ApiPublicOutreachTickRoute
   '/api/public/resend-webhook': typeof ApiPublicResendWebhookRoute
   '/api/public/zapi-webhook': typeof ApiPublicZapiWebhookRoute
@@ -187,6 +195,7 @@ export interface FileRoutesById {
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/leads/$id': typeof AuthenticatedLeadsIdRoute
   '/api/public/evolution-webhook': typeof ApiPublicEvolutionWebhookRoute
+  '/api/public/lead-capture': typeof ApiPublicLeadCaptureRoute
   '/api/public/outreach-tick': typeof ApiPublicOutreachTickRoute
   '/api/public/resend-webhook': typeof ApiPublicResendWebhookRoute
   '/api/public/zapi-webhook': typeof ApiPublicZapiWebhookRoute
@@ -209,6 +218,7 @@ export interface FileRouteTypes {
     | '/relatorios'
     | '/leads/$id'
     | '/api/public/evolution-webhook'
+    | '/api/public/lead-capture'
     | '/api/public/outreach-tick'
     | '/api/public/resend-webhook'
     | '/api/public/zapi-webhook'
@@ -229,6 +239,7 @@ export interface FileRouteTypes {
     | '/'
     | '/leads/$id'
     | '/api/public/evolution-webhook'
+    | '/api/public/lead-capture'
     | '/api/public/outreach-tick'
     | '/api/public/resend-webhook'
     | '/api/public/zapi-webhook'
@@ -250,6 +261,7 @@ export interface FileRouteTypes {
     | '/_authenticated/'
     | '/_authenticated/leads/$id'
     | '/api/public/evolution-webhook'
+    | '/api/public/lead-capture'
     | '/api/public/outreach-tick'
     | '/api/public/resend-webhook'
     | '/api/public/zapi-webhook'
@@ -260,6 +272,7 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   ApiPublicEvolutionWebhookRoute: typeof ApiPublicEvolutionWebhookRoute
+  ApiPublicLeadCaptureRoute: typeof ApiPublicLeadCaptureRoute
   ApiPublicOutreachTickRoute: typeof ApiPublicOutreachTickRoute
   ApiPublicResendWebhookRoute: typeof ApiPublicResendWebhookRoute
   ApiPublicZapiWebhookRoute: typeof ApiPublicZapiWebhookRoute
@@ -386,6 +399,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicOutreachTickRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/lead-capture': {
+      id: '/api/public/lead-capture'
+      path: '/api/public/lead-capture'
+      fullPath: '/api/public/lead-capture'
+      preLoaderRoute: typeof ApiPublicLeadCaptureRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/evolution-webhook': {
       id: '/api/public/evolution-webhook'
       path: '/api/public/evolution-webhook'
@@ -450,6 +470,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   ApiPublicEvolutionWebhookRoute: ApiPublicEvolutionWebhookRoute,
+  ApiPublicLeadCaptureRoute: ApiPublicLeadCaptureRoute,
   ApiPublicOutreachTickRoute: ApiPublicOutreachTickRoute,
   ApiPublicResendWebhookRoute: ApiPublicResendWebhookRoute,
   ApiPublicZapiWebhookRoute: ApiPublicZapiWebhookRoute,

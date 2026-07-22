@@ -336,8 +336,10 @@ function NewLeadModal({
     company: string;
     contact?: string;
     phone?: string;
+    whatsapp?: string;
     email?: string;
     segment?: string;
+    city?: string;
     value?: number;
     temp?: "hot" | "warm" | "cold";
     stage?: Stage;
@@ -347,8 +349,10 @@ function NewLeadModal({
     company: "",
     contact: "",
     phone: "",
+    whatsapp: "",
     email: "",
     segment: "",
+    city: "",
     value: "",
     temp: "warm" as "hot" | "warm" | "cold",
     stage: "Prospecção" as Stage,
@@ -365,8 +369,10 @@ function NewLeadModal({
         company: form.company.trim(),
         contact: form.contact || undefined,
         phone: form.phone || undefined,
+        whatsapp: form.whatsapp || undefined,
         email: form.email || undefined,
         segment: form.segment || undefined,
+        city: form.city || undefined,
         value: form.value ? Number(form.value) : undefined,
         temp: form.temp,
         stage: form.stage,
@@ -407,6 +413,22 @@ function NewLeadModal({
               <input
                 value={form.phone}
                 onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                className="h-9 w-full rounded-md border border-border-card bg-bg-card px-3 text-[13px] outline-none focus:border-primary"
+              />
+            </Field>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="WhatsApp">
+              <input
+                value={form.whatsapp}
+                onChange={(e) => setForm({ ...form, whatsapp: e.target.value })}
+                className="h-9 w-full rounded-md border border-border-card bg-bg-card px-3 text-[13px] outline-none focus:border-primary"
+              />
+            </Field>
+            <Field label="Cidade">
+              <input
+                value={form.city}
+                onChange={(e) => setForm({ ...form, city: e.target.value })}
                 className="h-9 w-full rounded-md border border-border-card bg-bg-card px-3 text-[13px] outline-none focus:border-primary"
               />
             </Field>
