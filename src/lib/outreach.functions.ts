@@ -1239,8 +1239,14 @@ export async function triggerOutreachInternal(ctx: Ctx, leadId: string) {
       .eq('id', leadId)
     lead.contact_channels = channels
   }
-  const cadence = await loadCadence(ctx)
-  const target = recommendChannel(channels, cadence.maxAttempts)
+  const bundle = await loadDefaultSequenceInternal(ctx.supabase)
+  if (!bundle) return
+  const enrollment = await getEnrollmentInternal(ctx.supabase, leadId)
+  if (enrollment && (enrollment.status === 'paused' || enrollment.status === 'cancelled' || enrollment.status === 'completed')) return
+  if (!enrollment) await ensureEnrollmentInternal(ctx.supabase, leadId)
+  const startIdx = enrollment ? enrollment.current_step_index + 1 : 0
+  const target = recommendStep(channels, bundle.steps, startIdx)
   if (!target) return
-  await tryChannel(ctx, lead, target)
+  await tryStep(ctx, lead, target)
 }
+
