@@ -537,6 +537,13 @@ function WarmingStrategyCard({
 }) {
   const active = (lead.active_channel as ChannelKey | null) ?? null;
   const next = lead.next_action_at ? new Date(lead.next_action_at) : null;
+  const enrollFn = useServerFn(getLeadEnrollment);
+  const { data: enrollment } = useQuery({
+    queryKey: ["lead-enrollment", lead.id],
+    queryFn: () => enrollFn({ data: { lead_id: lead.id } }),
+    refetchInterval: 30000,
+  });
+  const lastFailed = outreach.find((o) => o.status === "failed");
   return (
     <Card title="Estratégia de aquecimento">
       <div className="space-y-1.5 text-[12px] text-text-body">
@@ -549,12 +556,35 @@ function WarmingStrategyCard({
           <span className="font-medium">{next ? next.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "—"}</span>
         </div>
         <div className="flex justify-between">
+          <span className="text-text-ter">Cadência</span>
+          <span className="font-medium">
+            {enrollment
+              ? `${enrollment.status} · passo ${enrollment.current_step_index + 1}`
+              : "—"}
+          </span>
+        </div>
+        {enrollment?.pause_reason && (
+          <div className="flex justify-between">
+            <span className="text-text-ter">Motivo pausa</span>
+            <span className="font-medium text-warm">{enrollment.pause_reason}</span>
+          </div>
+        )}
+        {lastFailed?.error && (
+          <div className="flex justify-between">
+            <span className="text-text-ter">Último erro</span>
+            <span className="font-medium text-error truncate max-w-[60%]" title={lastFailed.error}>
+              {lastFailed.error}
+            </span>
+          </div>
+        )}
+        <div className="flex justify-between">
           <span className="text-text-ter">IA</span>
           <span className={`font-medium ${lead.ai_paused ? "text-warm" : "text-success"}`}>
             {lead.ai_paused ? "pausada" : "ativa"}
           </span>
         </div>
       </div>
+
 
       <div className="mt-3 flex flex-wrap gap-2">
         <button
