@@ -1081,9 +1081,11 @@ export const assumeManually = createServerFn({ method: 'POST' })
         next_action_at: null,
       } as never)
       .eq('id', data.lead_id)
+    await pauseEnrollmentInternal(context.supabase, data.lead_id, 'assumed_manually')
     await audit(context as Ctx, 'handoff_manual', `Atendimento assumido manualmente`, 'human')
     return { ok: true }
   })
+
 
 export const sendManualWhatsapp = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
