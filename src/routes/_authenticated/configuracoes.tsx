@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Sparkles, User, Bell, Shield, Zap, Loader2, Check, ClipboardList, AlertCircle, Package, MessageSquareWarning, Gauge, HelpCircle, Plus, Trash2, Plug, Search } from "lucide-react";
+import { Sparkles, User, Bell, Shield, Zap, Loader2, Check, ClipboardList, AlertCircle, Package, MessageSquareWarning, Gauge, HelpCircle, Plus, Trash2, Plug, Search, SlidersHorizontal } from "lucide-react";
 import { Card, SectionTitle } from "@/components/ui-kit";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -43,14 +43,24 @@ import {
   deleteSequenceStep,
   type SequenceChannel,
 } from "@/lib/outreach-sequences.functions";
+import {
+  getCommercialPolicy,
+  updateCommercialPolicy,
+  listOperationalAlerts,
+  updateOperationalAlert,
+  listDataSubjectRequests,
+  upsertDataSubjectRequest,
+  listCampaigns,
+  upsertCampaign,
+} from "@/lib/commercial.functions";
 
 
-type TabId = "ana" | "prospeccao" | "equipe" | "servicos" | "objecoes" | "score" | "governanca" | "auditoria" | "notificacoes" | "integracoes" | "seguranca";
+type TabId = "ana" | "prospeccao" | "equipe" | "servicos" | "objecoes" | "score" | "governanca" | "auditoria" | "notificacoes" | "integracoes" | "operacao" | "seguranca";
 export const Route = createFileRoute("/_authenticated/configuracoes")({
   component: Configuracoes,
   validateSearch: (s: Record<string, unknown>): { tab?: TabId } => {
     const t = s.tab;
-    const valid: TabId[] = ["ana","prospeccao","equipe","servicos","objecoes","score","governanca","auditoria","notificacoes","integracoes","seguranca"];
+    const valid: TabId[] = ["ana","prospeccao","equipe","servicos","objecoes","score","governanca","auditoria","notificacoes","integracoes","operacao","seguranca"];
     return typeof t === "string" && (valid as string[]).includes(t) ? { tab: t as TabId } : {};
   },
 });
@@ -66,6 +76,7 @@ const TABS = [
   { id: "auditoria", label: "Auditoria", icon: ClipboardList },
   { id: "notificacoes", label: "Notificações", icon: Bell },
   { id: "integracoes", label: "Integrações", icon: Zap },
+  { id: "operacao", label: "Operação comercial", icon: SlidersHorizontal },
   { id: "seguranca", label: "Segurança", icon: Shield },
 ] as const;
 
@@ -107,6 +118,7 @@ function Configuracoes() {
         {tab === "auditoria" && <AbaAuditoria />}
         {tab === "notificacoes" && <AbaNotif />}
         {tab === "integracoes" && <AbaInt />}
+        {tab === "operacao" && <AbaOperacao />}
         {tab === "seguranca" && <AbaSeg />}
       </div>
     </div>
@@ -843,6 +855,131 @@ function AbaInt() {
 
     </Card>
   );
+}
+
+function AbaOperacao() {
+  const qc = useQueryClient();
+  const policyFn = useServerFn(getCommercialPolicy);
+  const savePolicyFn = useServerFn(updateCommercialPolicy);
+  const alertsFn = useServerFn(listOperationalAlerts);
+  const updateAlertFn = useServerFn(updateOperationalAlert);
+  const dsrFn = useServerFn(listDataSubjectRequests);
+  const saveDsrFn = useServerFn(upsertDataSubjectRequest);
+  const campaignsFn = useServerFn(listCampaigns);
+  const saveCampaignFn = useServerFn(upsertCampaign);
+  const policyQ = useQuery({ queryKey: ["commercial-policy"], queryFn: () => policyFn() });
+  const alertsQ = useQuery({ queryKey: ["operational-alerts"], queryFn: () => alertsFn() });
+  const dsrQ = useQuery({ queryKey: ["privacy-requests"], queryFn: () => dsrFn() });
+  const campaignsQ = useQuery({ queryKey: ["commercial-campaigns"], queryFn: () => campaignsFn() });
+  const [policy, setPolicy] = useState({
+    business_timezone: "America/Sao_Paulo", business_days: [1, 2, 3, 4, 5] as number[],
+    business_start_time: "08:00", business_end_time: "18:00", outreach_daily_limit_per_contact: 1,
+    outreach_min_interval_minutes: 1440, outreach_require_verified_contact: false,
+    outreach_require_manual_approval: false, outreach_auto_start: true,
+    handoff_escalation_minutes: 60, privacy_contact_email: "", retention_days: 730,
+  });
+  const [campaignName, setCampaignName] = useState("");
+  const [campaignObjective, setCampaignObjective] = useState("");
+  const [campaignChannel, setCampaignChannel] = useState<"whatsapp" | "email" | "phone" | "mixed" | "inbound">("mixed");
+
+  useEffect(() => {
+    if (!policyQ.data) return;
+    const value: any = policyQ.data;
+    setPolicy({
+      business_timezone: value.business_timezone ?? "America/Sao_Paulo",
+      business_days: value.business_days ?? [1, 2, 3, 4, 5],
+      business_start_time: String(value.business_start_time ?? "08:00").slice(0, 5),
+      business_end_time: String(value.business_end_time ?? "18:00").slice(0, 5),
+      outreach_daily_limit_per_contact: Number(value.outreach_daily_limit_per_contact ?? 1),
+      outreach_min_interval_minutes: Number(value.outreach_min_interval_minutes ?? 1440),
+      outreach_require_verified_contact: Boolean(value.outreach_require_verified_contact),
+      outreach_require_manual_approval: Boolean(value.outreach_require_manual_approval),
+      outreach_auto_start: value.outreach_auto_start !== false,
+      handoff_escalation_minutes: Number(value.handoff_escalation_minutes ?? 60),
+      privacy_contact_email: value.privacy_contact_email ?? "",
+      retention_days: Number(value.retention_days ?? 730),
+    });
+  }, [policyQ.data]);
+
+  const savePolicyMut = useMutation({
+    mutationFn: () => savePolicyFn({ data: { ...policy, privacy_contact_email: policy.privacy_contact_email || null } }),
+    onSuccess: () => { toast.success("Política comercial atualizada."); qc.invalidateQueries({ queryKey: ["commercial-policy"] }); },
+    onError: (error: Error) => toast.error("Não foi possível salvar", { description: error.message }),
+  });
+  const alertMut = useMutation({
+    mutationFn: (value: { id: string; status: "acknowledged" | "resolved" }) => updateAlertFn({ data: value }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["operational-alerts"] }),
+  });
+  const dsrMut = useMutation({
+    mutationFn: (value: { request_type: "access" | "correction" | "deletion" | "anonymization" | "portability" | "objection"; requester_email: string }) => saveDsrFn({ data: value }),
+    onSuccess: () => { toast.success("Solicitação LGPD registrada."); qc.invalidateQueries({ queryKey: ["privacy-requests"] }); },
+    onError: (error: Error) => toast.error("Não foi possível registrar", { description: error.message }),
+  });
+  const campaignMut = useMutation({
+    mutationFn: () => saveCampaignFn({ data: { name: campaignName, objective: campaignObjective || null, channel: campaignChannel, status: "draft" } }),
+    onSuccess: () => { setCampaignName(""); setCampaignObjective(""); toast.success("Campanha criada como rascunho."); qc.invalidateQueries({ queryKey: ["commercial-campaigns"] }); },
+    onError: (error: Error) => toast.error("Não foi possível criar a campanha", { description: error.message }),
+  });
+  const days = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+  const openAlerts = (alertsQ.data ?? []).filter((alert: any) => alert.status !== "resolved");
+  const dsrs = dsrQ.data ?? [];
+  const campaigns = campaignsQ.data ?? [];
+
+  return (
+    <AdminGate error={policyQ.error || alertsQ.error || dsrQ.error || campaignsQ.error}>
+      <div className="space-y-4">
+        <Card>
+          <SectionTitle title="Regras de contato e proteção comercial" hint="A Ana só inicia ou retoma cadências dentro destas regras." />
+          <div className="grid gap-3 md:grid-cols-3">
+            <Field label="Fuso horário"><input value={policy.business_timezone} onChange={(e) => setPolicy({ ...policy, business_timezone: e.target.value })} className="h-9 w-full rounded-md border border-border-card bg-bg-card px-2 text-[13px]" /></Field>
+            <Field label="Início do expediente"><input type="time" value={policy.business_start_time} onChange={(e) => setPolicy({ ...policy, business_start_time: e.target.value })} className="h-9 w-full rounded-md border border-border-card bg-bg-card px-2 text-[13px]" /></Field>
+            <Field label="Fim do expediente"><input type="time" value={policy.business_end_time} onChange={(e) => setPolicy({ ...policy, business_end_time: e.target.value })} className="h-9 w-full rounded-md border border-border-card bg-bg-card px-2 text-[13px]" /></Field>
+            <Field label="Máximo por contato/dia"><input type="number" min={1} max={20} value={policy.outreach_daily_limit_per_contact} onChange={(e) => setPolicy({ ...policy, outreach_daily_limit_per_contact: Number(e.target.value) })} className="h-9 w-full rounded-md border border-border-card bg-bg-card px-2 text-[13px]" /></Field>
+            <Field label="Intervalo mínimo (minutos)"><input type="number" min={5} max={43200} value={policy.outreach_min_interval_minutes} onChange={(e) => setPolicy({ ...policy, outreach_min_interval_minutes: Number(e.target.value) })} className="h-9 w-full rounded-md border border-border-card bg-bg-card px-2 text-[13px]" /></Field>
+            <Field label="Escalar handoff após (minutos)"><input type="number" min={5} max={10080} value={policy.handoff_escalation_minutes} onChange={(e) => setPolicy({ ...policy, handoff_escalation_minutes: Number(e.target.value) })} className="h-9 w-full rounded-md border border-border-card bg-bg-card px-2 text-[13px]" /></Field>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-3">
+            {days.map((label, index) => <label key={label} className="inline-flex items-center gap-1.5 text-[12px] text-text-body"><input type="checkbox" checked={policy.business_days.includes(index)} onChange={(e) => setPolicy({ ...policy, business_days: e.target.checked ? [...policy.business_days, index].sort() : policy.business_days.filter((day) => day !== index) })} className="accent-primary" />{label}</label>)}
+          </div>
+          <div className="mt-3 grid gap-2 md:grid-cols-3">
+            <ToggleLabel label="Exigir contato verificado" checked={policy.outreach_require_verified_contact} onChange={(checked) => setPolicy({ ...policy, outreach_require_verified_contact: checked })} />
+            <ToggleLabel label="Exigir aprovação humana" checked={policy.outreach_require_manual_approval} onChange={(checked) => setPolicy({ ...policy, outreach_require_manual_approval: checked })} />
+            <ToggleLabel label="Iniciar automaticamente" checked={policy.outreach_auto_start} onChange={(checked) => setPolicy({ ...policy, outreach_auto_start: checked })} />
+          </div>
+          <div className="mt-3 grid gap-3 md:grid-cols-2">
+            <Field label="E-mail de privacidade"><input type="email" value={policy.privacy_contact_email} onChange={(e) => setPolicy({ ...policy, privacy_contact_email: e.target.value })} placeholder="lgpd@suaempresa.com.br" className="h-9 w-full rounded-md border border-border-card bg-bg-card px-2 text-[13px]" /></Field>
+            <Field label="Retenção (dias)"><input type="number" min={30} max={3650} value={policy.retention_days} onChange={(e) => setPolicy({ ...policy, retention_days: Number(e.target.value) })} className="h-9 w-full rounded-md border border-border-card bg-bg-card px-2 text-[13px]" /></Field>
+          </div>
+          <button onClick={() => savePolicyMut.mutate()} disabled={savePolicyMut.isPending || policy.business_days.length === 0} className="mt-4 inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-2 text-[12px] font-medium text-primary-foreground disabled:opacity-50">{savePolicyMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}Salvar regras</button>
+        </Card>
+
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Card>
+            <SectionTitle title="Campanhas" hint="Crie rascunhos, selecione os leads e aprove-os antes do disparo." />
+            <div className="space-y-2">
+              <input value={campaignName} onChange={(e) => setCampaignName(e.target.value)} maxLength={160} placeholder="Nome da campanha" className="h-9 w-full rounded-md border border-border-card bg-bg-card px-2 text-[13px]" />
+              <input value={campaignObjective} onChange={(e) => setCampaignObjective(e.target.value)} maxLength={600} placeholder="Objetivo (opcional)" className="h-9 w-full rounded-md border border-border-card bg-bg-card px-2 text-[13px]" />
+              <div className="flex items-center gap-2"><select value={campaignChannel} onChange={(e) => setCampaignChannel(e.target.value as typeof campaignChannel)} className="h-9 rounded-md border border-border-card bg-bg-card px-2 text-[13px]"><option value="mixed">Multicanal</option><option value="whatsapp">WhatsApp</option><option value="email">E-mail</option><option value="phone">Telefone</option><option value="inbound">Inbound</option></select><button onClick={() => campaignName.trim() && campaignMut.mutate()} disabled={!campaignName.trim() || campaignMut.isPending} className="rounded-md bg-primary px-3 py-2 text-[12px] font-medium text-white disabled:opacity-50">Criar rascunho</button></div>
+            </div>
+            <ul className="mt-4 space-y-2">{campaigns.slice(0, 6).map((campaign: any) => <li key={campaign.id} className="flex items-center justify-between rounded-md border border-border-card bg-bg-general px-3 py-2 text-[12px]"><span className="font-medium text-text-title">{campaign.name}</span><span className="text-text-sec">{campaign.channel} · {campaign.status} · {campaign.campaign_members?.[0]?.count ?? 0} leads</span></li>)}{campaigns.length === 0 && <li className="text-[12px] text-text-ter">Nenhuma campanha criada.</li>}</ul>
+          </Card>
+          <Card>
+            <SectionTitle title="Alertas da operação" hint={`${openAlerts.length} alerta(s) pendente(s)`} />
+            <ul className="space-y-2">{openAlerts.slice(0, 8).map((alert: any) => <li key={alert.id} className="rounded-md border border-border-card bg-bg-general p-2.5"><div className="flex items-start justify-between gap-2"><div><div className="text-[12px] font-semibold text-text-title">{alert.title}</div><div className="mt-0.5 text-[11px] text-text-sec">{alert.detail || alert.category}</div></div><span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${alert.severity === "critical" ? "bg-error-bg text-error" : "bg-warm-bg text-warm"}`}>{alert.severity}</span></div><div className="mt-2 flex gap-2"><button onClick={() => alertMut.mutate({ id: alert.id, status: "acknowledged" })} className="text-[11px] text-primary">Reconhecer</button><button onClick={() => alertMut.mutate({ id: alert.id, status: "resolved" })} className="text-[11px] text-success">Resolver</button></div></li>)}{openAlerts.length === 0 && <li className="py-4 text-center text-[12px] text-text-ter">Nenhum alerta aberto.</li>}</ul>
+          </Card>
+        </div>
+
+        <Card>
+          <SectionTitle title="Solicitações LGPD" hint="Registre, acompanhe e conclua pedidos de titulares de dados." action={<button onClick={() => { const email = prompt("E-mail do solicitante:"); if (email) dsrMut.mutate({ requester_email: email, request_type: "access" }); }} className="rounded-md border border-border-card px-3 py-1.5 text-[12px] hover:bg-bg-general">+ Registrar pedido</button>} />
+          <div className="overflow-x-auto"><table className="w-full min-w-[560px] text-[12px]"><thead><tr className="text-left text-[10px] uppercase text-text-ter"><th className="pb-2">Solicitante</th><th className="pb-2">Pedido</th><th className="pb-2">Prazo</th><th className="pb-2">Status</th></tr></thead><tbody className="divide-y divide-border-card">{dsrs.slice(0, 12).map((request: any) => <tr key={request.id}><td className="py-2">{request.requester_email || request.requester_phone || "—"}</td><td className="py-2">{request.request_type}</td><td className="py-2">{new Date(request.due_at).toLocaleDateString("pt-BR")}</td><td className="py-2"><span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] text-primary">{request.status}</span></td></tr>)}{dsrs.length === 0 && <tr><td colSpan={4} className="py-4 text-center text-text-ter">Nenhuma solicitação registrada.</td></tr>}</tbody></table></div>
+        </Card>
+      </div>
+    </AdminGate>
+  );
+}
+
+function ToggleLabel({ label, checked, onChange }: { label: string; checked: boolean; onChange: (checked: boolean) => void }) {
+  return <label className="flex items-center justify-between rounded-md border border-border-card bg-bg-general px-3 py-2 text-[12px] text-text-body"><span>{label}</span><input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="h-4 w-4 accent-primary" /></label>;
 }
 
 

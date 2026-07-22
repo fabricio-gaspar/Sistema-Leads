@@ -109,7 +109,29 @@ export async function reindexDocumentInternal(
 export async function loadKnowledgeSnippetInternal(
   supabase: any,
   charBudget = 8000,
+  query?: string,
 ): Promise<Array<{ document: string; content: string }>> {
+  // Busca por relevância antes do fallback cronológico. A operação funciona
+  // sem uma API adicional de embeddings e impede que documentos antigos ou
+  // irrelevantes ocupem todo o contexto da Ana.
+  if (query?.trim()) {
+    const { data: ranked, error } = await supabase.rpc('search_knowledge_chunks', {
+      _query: query.slice(0, 1000),
+      _limit: 16,
+    })
+    if (!error && ranked?.length) {
+      const out: Array<{ document: string; content: string }> = []
+      let used = 0
+      for (const row of ranked as Array<{ document_name?: string; content?: string }>) {
+        if (!row.content || used >= charBudget) break
+        const remaining = charBudget - used
+        const content = row.content.slice(0, remaining)
+        out.push({ document: row.document_name || 'documento', content })
+        used += content.length
+      }
+      if (out.length) return out
+    }
+  }
   const { data: docs } = await supabase
     .from('documents')
     .select('id, name')

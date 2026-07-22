@@ -256,6 +256,46 @@ export const scheduleAppointment = createServerFn({ method: 'POST' })
       owner_label: ctx.claims?.email ?? 'Vendedor',
       due_at: data.starts_at,
     } as never)
+    // Todo compromisso já nasce exportável para Google/Outlook/Apple Calendar,
+    // sem armazenar tokens de calendário no CRM.
+    await ctx.supabase.from('external_calendar_events').upsert({
+      appointment_id: appointment.id,
+      provider: 'ics',
+      external_id: `ics-${appointment.id}`,
+      sync_status: 'synced',
+    } as never, { onConflict: 'appointment_id,provider' })
     await audit(ctx, 'appointment_scheduled', `Reunião agendada para ${data.starts_at}`)
     return appointment
+  })
+
+function escapeIcs(value: string) {
+  return value.replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n')
+}
+
+function icsDate(value: string) {
+  return new Date(value).toISOString().replace(/[-:]/g, '').replace(/\.\d{3}Z$/, 'Z')
+}
+
+export const getAppointmentIcs = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((value: unknown) => z.object({ appointment_id: z.string().uuid() }).parse(value))
+  .handler(async ({ data, context }) => {
+    const ctx = context as Ctx
+    const { data: appointment, error } = await (ctx.supabase as any)
+      .from('appointments')
+      .select('id, title, starts_at, ends_at, notes, lead_id, leads(company, contact)')
+      .eq('id', data.appointment_id)
+      .maybeSingle()
+    if (error) throw new Error(error.message)
+    if (!appointment) throw new Error('Reunião não encontrada ou sem acesso')
+    const endsAt = appointment.ends_at || new Date(new Date(appointment.starts_at).getTime() + 30 * 60_000).toISOString()
+    const lead = Array.isArray(appointment.leads) ? appointment.leads[0] : appointment.leads
+    const description = [appointment.notes, lead?.company ? `Lead: ${lead.company}` : null, lead?.contact ? `Contato: ${lead.contact}` : null].filter(Boolean).join('\n')
+    const content = [
+      'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Sistema-Leads//WayFlex//PT-BR', 'CALSCALE:GREGORIAN', 'METHOD:PUBLISH',
+      'BEGIN:VEVENT', `UID:${appointment.id}@sistema-leads`, `DTSTAMP:${icsDate(new Date().toISOString())}`,
+      `DTSTART:${icsDate(appointment.starts_at)}`, `DTEND:${icsDate(endsAt)}`,
+      `SUMMARY:${escapeIcs(appointment.title)}`, `DESCRIPTION:${escapeIcs(description)}`, 'END:VEVENT', 'END:VCALENDAR', '',
+    ].join('\r\n')
+    return { filename: `reuniao-${appointment.id}.ics`, content }
   })
