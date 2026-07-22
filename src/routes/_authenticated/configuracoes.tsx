@@ -35,6 +35,15 @@ import {
 } from "@/lib/crm.functions";
 import { reindexAllDocuments, getKnowledgeStats } from "@/lib/knowledge.functions";
 import { getOutreachHealth, testZapi } from "@/lib/outreach.functions";
+import {
+  listSequences,
+  getSequenceWithSteps,
+  updateSequence,
+  upsertSequenceStep,
+  deleteSequenceStep,
+  type SequenceChannel,
+} from "@/lib/outreach-sequences.functions";
+
 
 type TabId = "ana" | "prospeccao" | "equipe" | "servicos" | "objecoes" | "score" | "governanca" | "auditoria" | "notificacoes" | "integracoes" | "seguranca";
 export const Route = createFileRoute("/_authenticated/configuracoes")({
