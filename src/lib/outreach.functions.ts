@@ -438,14 +438,30 @@ async function sendEmail(
 // Core cadence
 // ============================================================================
 
-async function tryChannel(ctx: Ctx, lead: any, channel: Channel): Promise<void> {
+/**
+ * Executes one step of the active outreach sequence.
+ * `step` comes from `outreach_sequence_steps` and drives:
+ *   - which channel to try,
+ *   - the wait time before a timeout job fires (`delay_minutes`),
+ *   - the optional pre-authored `template` (falls back to Ana copywriting),
+ *   - the `continue_on` list that authorizes auto-advance on failure/skip.
+ * The per-channel attempt cap remains `company_settings.outreach_max_attempts`.
+ */
+async function tryStep(ctx: Ctx, lead: any, step: SequenceStep): Promise<void> {
   const cadence = await loadCadence(ctx)
+  const channel = step.channel
   const { count } = await ctx.supabase
     .from('lead_outreach')
     .select('id', { count: 'exact', head: true })
     .eq('lead_id', lead.id)
     .eq('channel', channel)
   const attempt = (count ?? 0) + 1
+
+  // Register the step being executed on the enrollment.
+  await patchEnrollmentInternal(ctx.supabase, lead.id, {
+    current_step_index: step.order_index,
+    last_step_at: new Date().toISOString(),
+  })
 
   if (attempt > cadence.maxAttempts) {
     await ctx.supabase.from('lead_outreach').insert({
@@ -459,13 +475,14 @@ async function tryChannel(ctx: Ctx, lead: any, channel: Channel): Promise<void> 
       actor_type: 'system',
     } as never)
     await updateChannelStatus(ctx, lead.id, channel, 'skipped')
-    await advanceOrFinish(ctx, lead.id, channel)
+    await advanceOrFinish(ctx, lead.id, step, 'skipped')
     return
   }
 
-  const content = await generateOutreachMessage(ctx, lead, channel)
+  const content = step.template
+    ? renderTemplate(step.template, lead)
+    : await generateOutreachMessage(ctx, lead, channel)
 
-  // Insert a pending row first (we'll patch it after send)
   const { data: row, error: rowError } = await ctx.supabase
     .from('lead_outreach')
     .insert({
@@ -482,47 +499,50 @@ async function tryChannel(ctx: Ctx, lead: any, channel: Channel): Promise<void> 
     .single()
   if (rowError || !row) throw new Error(rowError?.message || 'Falha ao registrar tentativa de contato')
 
+  // Delay for the follow-up timeout. Step-level minutes take precedence;
+  // fall back to legacy company-wide `outreach_wait_hours` for zero-delay steps.
+  const waitMs =
+    (step.delay_minutes > 0 ? step.delay_minutes : cadence.waitHours * 60) * 60 * 1000
+
   if (channel === 'whatsapp') {
     const to = lead.whatsapp || lead.phone || ''
     const result = await sendWhatsappText(ctx, to, content)
     if (result.ok) {
+      const now = new Date().toISOString()
       await ctx.supabase
         .from('lead_outreach')
         .update({
           status: 'sent',
-          sent_at: new Date().toISOString(),
+          sent_at: now,
           provider: 'zapi',
           provider_message_id: result.messageId ?? null,
         } as never)
         .eq('id', row.id)
-      // Log a mirror message in the chat
       await ctx.supabase.from('lead_messages').insert({
         lead_id: lead.id,
         sender: 'ia',
         sender_name: 'Ana (IA)',
         type: 'ia',
         text: content,
-        sent_at: new Date().toISOString(),
+        sent_at: now,
         provider_message_id: result.messageId ?? null,
       } as never)
-      const waRunAt = new Date(Date.now() + cadence.waitHours * 3600 * 1000).toISOString()
+      const runAt = new Date(Date.now() + waitMs).toISOString()
       await updateChannelStatus(ctx, lead.id, 'whatsapp', 'sent', {
         active_channel: 'whatsapp',
-        // aguardar delivered/read/reply antes de trocar de canal
-        next_action_at: waRunAt,
-        last_contact: new Date().toISOString(),
+        next_action_at: runAt,
+        last_contact: now,
       })
       await enqueueOutreachTimeoutInternal(ctx, {
         lead_id: lead.id,
         outreach_id: row.id,
         channel: 'whatsapp',
         attempt,
-        run_at: waRunAt,
+        run_at: runAt,
       })
       await audit(ctx, 'outreach_whatsapp_sent', `Ana enviou WhatsApp para ${lead.company} (tent. ${attempt})`)
       return
     }
-    // failed
     await ctx.supabase
       .from('lead_outreach')
       .update({
@@ -533,7 +553,7 @@ async function tryChannel(ctx: Ctx, lead: any, channel: Channel): Promise<void> 
       .eq('id', row.id)
     await updateChannelStatus(ctx, lead.id, 'whatsapp', 'failed')
     await audit(ctx, 'outreach_whatsapp_failed', `Falha WhatsApp ${lead.company}: ${result.error}`)
-    await advanceOrFinish(ctx, lead.id, 'whatsapp')
+    await advanceOrFinish(ctx, lead.id, step, 'failed')
     return
   }
 
@@ -545,12 +565,15 @@ async function tryChannel(ctx: Ctx, lead: any, channel: Channel): Promise<void> 
     )
     if (result.ok) {
       const now = new Date().toISOString()
-      await ctx.supabase.from('lead_outreach').update({
-        status: 'sent',
-        sent_at: now,
-        provider: 'resend',
-        provider_message_id: result.messageId ?? null,
-      } as never).eq('id', row.id)
+      await ctx.supabase
+        .from('lead_outreach')
+        .update({
+          status: 'sent',
+          sent_at: now,
+          provider: 'resend',
+          provider_message_id: result.messageId ?? null,
+        } as never)
+        .eq('id', row.id)
       await ctx.supabase.from('lead_messages').insert({
         lead_id: lead.id,
         sender: 'ia',
@@ -560,10 +583,10 @@ async function tryChannel(ctx: Ctx, lead: any, channel: Channel): Promise<void> 
         sent_at: now,
         provider_message_id: result.messageId ?? null,
       } as never)
-      const emailRunAt = new Date(Date.now() + cadence.waitHours * 3600 * 1000).toISOString()
+      const runAt = new Date(Date.now() + waitMs).toISOString()
       await updateChannelStatus(ctx, lead.id, 'email', 'sent', {
         active_channel: 'email',
-        next_action_at: emailRunAt,
+        next_action_at: runAt,
         last_contact: now,
       })
       await enqueueOutreachTimeoutInternal(ctx, {
@@ -571,27 +594,30 @@ async function tryChannel(ctx: Ctx, lead: any, channel: Channel): Promise<void> 
         outreach_id: row.id,
         channel: 'email',
         attempt,
-        run_at: emailRunAt,
+        run_at: runAt,
       })
       await audit(ctx, 'outreach_email_sent', `Ana enviou e-mail para ${lead.company} (tent. ${attempt})`)
       return
     }
-    await ctx.supabase.from('lead_outreach').update({
-      status: 'failed',
-      failed_at: new Date().toISOString(),
-      error: result.error,
-      provider: 'resend',
-    } as never).eq('id', row.id)
+    await ctx.supabase
+      .from('lead_outreach')
+      .update({
+        status: 'failed',
+        failed_at: new Date().toISOString(),
+        error: result.error,
+        provider: 'resend',
+      } as never)
+      .eq('id', row.id)
     await updateChannelStatus(ctx, lead.id, 'email', 'failed')
     await audit(ctx, 'outreach_email_failed', `Falha no e-mail para ${lead.company}: ${result.error}`)
-    await advanceOrFinish(ctx, lead.id, 'email')
+    await advanceOrFinish(ctx, lead.id, step, 'failed')
     return
   }
 
-  // phone → cria tarefa de ligação e marca "pending"
+  // phone → nunca dispara automaticamente. Cria tarefa humana e para.
   await ctx.supabase
     .from('lead_outreach')
-    .update({ status: 'pending', metadata: { script: content } } as never)
+    .update({ status: 'pending', metadata: { script: content, sequence_step: step.id } } as never)
     .eq('id', row.id)
   await ctx.supabase.from('lead_tasks').insert({
     lead_id: lead.id,
@@ -603,29 +629,50 @@ async function tryChannel(ctx: Ctx, lead: any, channel: Channel): Promise<void> 
     active_channel: 'phone',
     next_action_at: null,
   })
+  await completeEnrollmentInternal(ctx.supabase, lead.id, 'phone_task_created')
   await audit(ctx, 'outreach_phone_task_created', `Tarefa de ligação criada para ${lead.company}`)
 }
 
-async function advanceOrFinish(ctx: Ctx, leadId: string, failedChannel: Channel) {
-  const lead = await loadLead(ctx, leadId)
-  const channels = (lead.contact_channels ?? {}) as ContactChannels
-  const order: Channel[] = ['whatsapp', 'email', 'phone']
-  const startIdx = order.indexOf(failedChannel) + 1
-  for (let i = startIdx; i < order.length; i++) {
-    const next = order[i]
-    const s = channels[next]
-    if (s?.available && s.last_status !== 'failed' && s.last_status !== 'skipped') {
-      await tryChannel(ctx, lead, next)
-      return
-    }
+async function advanceOrFinish(
+  ctx: Ctx,
+  leadId: string,
+  failedStep: SequenceStep,
+  outcome: 'failed' | 'skipped',
+) {
+  // Only advance if the step's continue_on rule authorizes it. Otherwise stop
+  // the cadence so the sequence author can control fallbacks explicitly.
+  if (!stepAllowsContinue(failedStep, outcome)) {
+    await ctx.supabase
+      .from('leads')
+      .update({ next_action_at: null } as never)
+      .eq('id', leadId)
+    await pauseEnrollmentInternal(ctx.supabase, leadId, `stop_on_${outcome}`)
+    return
   }
-  // Nada mais a fazer
+  const lead = await loadLead(ctx, leadId)
+  const bundle = await loadDefaultSequenceInternal(ctx.supabase)
+  if (!bundle) {
+    await finishNoMore(ctx, lead, 'no_active_sequence')
+    return
+  }
+  const channels = (lead.contact_channels ?? {}) as ContactChannels
+  const nextStep = recommendStep(channels, bundle.steps, failedStep.order_index + 1)
+  if (nextStep) {
+    await tryStep(ctx, lead, nextStep)
+    return
+  }
+  await finishNoMore(ctx, lead, 'no_more_steps')
+}
+
+async function finishNoMore(ctx: Ctx, lead: any, reason: string) {
   await ctx.supabase
     .from('leads')
     .update({ next_action_at: null, active_channel: null } as never)
-    .eq('id', leadId)
+    .eq('id', lead.id)
+  await completeEnrollmentInternal(ctx.supabase, lead.id, reason)
   await audit(ctx, 'outreach_exhausted', `Todos os canais esgotados para ${lead.company}`, 'system')
 }
+
 
 type InboundDelivery = {
   channel?: 'whatsapp' | 'email'
