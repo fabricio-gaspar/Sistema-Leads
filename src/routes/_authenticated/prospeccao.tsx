@@ -80,8 +80,24 @@ function Prospeccao() {
   const searchFn = useServerFn(searchExternalCompanies);
   const importFn = useServerFn(importExternalAsLead);
   const enabledFn = useServerFn(getEnabledSources);
+  const weightsFn = useServerFn(getScoreWeights);
 
   const { data: enabled } = useQuery({ queryKey: ["enabled-sources"], queryFn: () => enabledFn() });
+  const { data: weightsRow } = useQuery({
+    queryKey: ["score-weights"],
+    queryFn: () => weightsFn(),
+  });
+  const weights: Weights = useMemo(() => {
+    if (!weightsRow) return DEFAULT_WEIGHTS;
+    return {
+      segment: weightsRow.segment ?? DEFAULT_WEIGHTS.segment,
+      whatsapp: weightsRow.whatsapp ?? DEFAULT_WEIGHTS.whatsapp,
+      site: weightsRow.site ?? DEFAULT_WEIGHTS.site,
+      porte: weightsRow.porte ?? DEFAULT_WEIGHTS.porte,
+      google: weightsRow.google ?? DEFAULT_WEIGHTS.google,
+      regiao: weightsRow.regiao ?? DEFAULT_WEIGHTS.regiao,
+    };
+  }, [weightsRow]);
 
   const savedListFn = useServerFn(listSavedSearches);
   const savedGetFn = useServerFn(getSavedSearch);
