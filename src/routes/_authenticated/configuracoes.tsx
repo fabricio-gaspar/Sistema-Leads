@@ -2018,7 +2018,7 @@ function AbaAutonomia() {
     <Card>
       <SectionTitle
         title="Nível de autonomia por etapa"
-        subtitle="Escolha quais etapas o sistema executa sozinho, quais ele prepara para um humano confirmar e quais são 100% humanas."
+        hint="Escolha quais etapas o sistema executa sozinho, quais ele prepara para um humano confirmar e quais são 100% humanas."
       />
 
       {isLoading ? (
