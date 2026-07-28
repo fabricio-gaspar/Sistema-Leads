@@ -65,6 +65,7 @@ import {
 } from "@/lib/sales-automation.functions";
 import { autoDraftProposal, draftInitialContact } from "@/lib/sales-actions.functions";
 import { downloadIcs } from "@/lib/ics";
+import { syncAppointmentToGoogle } from "@/lib/google-calendar.functions";
 
 
 type Stage = Database["public"]["Enums"]["lead_stage"];
@@ -610,20 +611,35 @@ function AutomationCard({ leadId, lead }: { leadId: string; lead: any }) {
             {appointments.length === 0 ? <div className="mt-1 text-text-ter">Nenhuma reunião agendada.</div> : (
               <div className="mt-1 space-y-1">{appointments.slice(0, 5).map((appointment) => (
                 <div key={appointment.id} className="flex items-center justify-between gap-2 text-text-sec">
-                  <span className="truncate">{new Date(appointment.starts_at).toLocaleString("pt-BR")} · {appointment.title}</span>
-                  <button
-                    onClick={() => downloadIcs({
-                      uid: appointment.id,
-                      title: appointment.title,
-                      startsAt: appointment.starts_at,
-                      endsAt: appointment.ends_at,
-                      description: appointment.notes ?? `Reunião com ${lead.company}`,
-                    })}
-                    className="shrink-0 text-[10px] text-primary hover:underline"
-                    title="Baixar convite .ics para Google/Outlook/Apple"
-                  >
-                    .ics
-                  </button>
+                  <span className="truncate">
+                    {new Date(appointment.starts_at).toLocaleString("pt-BR")} · {appointment.title}
+                    {appointment.provider === "google_calendar" && appointment.external_id && (
+                      <span className="ml-1 rounded bg-success-bg px-1 text-[9px] text-success">GCal</span>
+                    )}
+                  </span>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <button
+                      onClick={() => syncGoogleMut.mutate(appointment.id)}
+                      disabled={syncGoogleMut.isPending}
+                      className="text-[10px] text-primary hover:underline disabled:opacity-50"
+                      title="Enviar / atualizar no Google Calendar"
+                    >
+                      {syncGoogleMut.isPending && syncGoogleMut.variables === appointment.id ? "Sync…" : "Google"}
+                    </button>
+                    <button
+                      onClick={() => downloadIcs({
+                        uid: appointment.id,
+                        title: appointment.title,
+                        startsAt: appointment.starts_at,
+                        endsAt: appointment.ends_at,
+                        description: appointment.notes ?? `Reunião com ${lead.company}`,
+                      })}
+                      className="text-[10px] text-primary hover:underline"
+                      title="Baixar convite .ics para Google/Outlook/Apple"
+                    >
+                      .ics
+                    </button>
+                  </div>
                 </div>
               ))}</div>
             )}
