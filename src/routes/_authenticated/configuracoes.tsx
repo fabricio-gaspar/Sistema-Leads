@@ -1981,14 +1981,18 @@ function AbaAutonomia() {
   const { data, isLoading } = useQuery({ queryKey: ["company-settings"], queryFn: () => getFn() });
 
   const [autonomy, setAutonomy] = useState<Record<AutonomyStage, AutonomyMode>>(DEFAULT_AUTONOMY);
+  const [nurtureDays, setNurtureDays] = useState<number>(14);
+  const [nurtureMaxCycles, setNurtureMaxCycles] = useState<number>(2);
 
   useEffect(() => {
     if (!data) return;
     setAutonomy(readAutonomy((data as any).autonomy));
+    if (typeof (data as any).nurture_days === "number") setNurtureDays((data as any).nurture_days);
+    if (typeof (data as any).nurture_max_cycles === "number") setNurtureMaxCycles((data as any).nurture_max_cycles);
   }, [data]);
 
   const saveMut = useMutation({
-    mutationFn: () => updateFn({ data: { autonomy } }),
+    mutationFn: () => updateFn({ data: { autonomy, nurture_days: nurtureDays, nurture_max_cycles: nurtureMaxCycles } }),
     onSuccess: () => {
       toast.success("Autonomia atualizada");
       qc.invalidateQueries({ queryKey: ["company-settings"] });
@@ -2071,6 +2075,23 @@ function AbaAutonomia() {
                 </div>
               );
             })}
+          </div>
+
+          <div className="mt-4 grid gap-3 rounded-md border border-border-card p-3 md:grid-cols-[1fr_auto_auto] md:items-end">
+            <div>
+              <div className="text-[13px] font-medium text-text-title">Nurture (reengajamento automático)</div>
+              <div className="text-[11.5px] text-text-sec">Reativa a cadência de leads em Prospecção/Qualificado sem resposta há N dias. Respeita o modo escolhido em "Nurture" acima.</div>
+            </div>
+            <label className="text-[11.5px] text-text-sec">Dias sem resposta
+              <input type="number" min={1} max={365} value={nurtureDays}
+                onChange={(e) => setNurtureDays(Math.max(1, Math.min(365, Number(e.target.value) || 14)))}
+                className="mt-1 h-8 w-24 rounded border border-border-card bg-bg-card px-2 text-[12px]" />
+            </label>
+            <label className="text-[11.5px] text-text-sec">Máx. ciclos
+              <input type="number" min={0} max={10} value={nurtureMaxCycles}
+                onChange={(e) => setNurtureMaxCycles(Math.max(0, Math.min(10, Number(e.target.value) || 0)))}
+                className="mt-1 h-8 w-20 rounded border border-border-card bg-bg-card px-2 text-[12px]" />
+            </label>
           </div>
 
           <div className="mt-4 flex items-center justify-between">

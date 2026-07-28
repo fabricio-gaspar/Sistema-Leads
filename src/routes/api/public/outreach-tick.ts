@@ -98,10 +98,31 @@ export const Route = createFileRoute('/api/public/outreach-tick')({
           }
         }
 
+        // ------------------------------------------------------------
+        // 3) Sweep de nurture: reengaja leads sem resposta há N dias.
+        // Roda no máx. 1x por tick e respeita autonomy=manual/assist.
+        // ------------------------------------------------------------
+        let nurture: { candidates: number; reactivated: number; skipped: number } | null = null
+        try {
+          const { runNurtureSweepInternal } = await import('@/lib/sales-actions.functions')
+          const ownerId = process.env.NURTURE_ACTOR_ID || null
+          if (ownerId) {
+            const res = await runNurtureSweepInternal(
+              { supabase: supabaseAdmin, userId: ownerId, claims: { email: 'Nurture' } },
+              10,
+            )
+            nurture = { candidates: res.candidates, reactivated: res.reactivated, skipped: res.skipped }
+          }
+        } catch (err) {
+          nurture = { candidates: 0, reactivated: 0, skipped: 0 }
+          console.error('nurture_sweep_failed', (err as Error).message)
+        }
+
         return Response.json({
           ok: queueFailed.length === 0 && sweepFailed.length === 0,
           queue: { processed: queueProcessed, failed: queueFailed },
           sweep: { processed: sweepProcessed, failed: sweepFailed },
+          nurture,
         })
       },
     },

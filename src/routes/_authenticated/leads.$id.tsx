@@ -63,6 +63,7 @@ import {
   saveLeadQualification,
   scheduleAppointment,
 } from "@/lib/sales-automation.functions";
+import { autoDraftProposal, draftInitialContact } from "@/lib/sales-actions.functions";
 import { downloadIcs } from "@/lib/ics";
 
 
@@ -463,10 +464,27 @@ function AutomationCard({ leadId, lead }: { leadId: string; lead: any }) {
   const acceptFn = useServerFn(acceptHandoff);
   const scheduleFn = useServerFn(scheduleAppointment);
   const saveQualFn = useServerFn(saveLeadQualification);
+  const draftPitchFn = useServerFn(draftInitialContact);
+  const autoProposalFn = useServerFn(autoDraftProposal);
   const [showSchedule, setShowSchedule] = useState(false);
   const [startsAt, setStartsAt] = useState("");
   const [title, setTitle] = useState("Reunião comercial");
   const [editQual, setEditQual] = useState(false);
+  const [pitchDraft, setPitchDraft] = useState<{ draft: string; channel: string } | null>(null);
+  const draftPitchMut = useMutation({
+    mutationFn: (channel: "whatsapp" | "email" | "phone") => draftPitchFn({ data: { lead_id: leadId, channel } }),
+    onSuccess: (result) => setPitchDraft(result),
+    onError: (err: Error) => toast.error(err.message),
+  });
+  const autoProposalMut = useMutation({
+    mutationFn: (force: boolean) => autoProposalFn({ data: { lead_id: leadId, force } }),
+    onSuccess: (result) => {
+      toast.success(`Rascunho de orçamento ${result.proposal?.number ?? ""} criado (R$ ${result.total.toFixed(2)}).`);
+      qc.invalidateQueries({ queryKey: ["lead-automation", leadId] });
+      qc.invalidateQueries({ queryKey: ["lead", leadId] });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
   const { data, isLoading, error } = useQuery({
     queryKey: ["lead-automation", leadId],
     queryFn: () => getFn({ data: { lead_id: leadId } }),
@@ -608,6 +626,39 @@ function AutomationCard({ leadId, lead }: { leadId: string; lead: any }) {
                   </button>
                 </div>
               ))}</div>
+            )}
+          </div>
+
+          <div className="rounded-md border border-border-card p-2.5">
+            <div className="font-semibold text-text-title">Ações da IA</div>
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              <button onClick={() => draftPitchMut.mutate("whatsapp")} disabled={draftPitchMut.isPending}
+                className="rounded bg-bg-general px-2 py-1 text-[10.5px] hover:bg-bg-card disabled:opacity-50">
+                Rascunho WhatsApp
+              </button>
+              <button onClick={() => draftPitchMut.mutate("email")} disabled={draftPitchMut.isPending}
+                className="rounded bg-bg-general px-2 py-1 text-[10.5px] hover:bg-bg-card disabled:opacity-50">
+                Rascunho e-mail
+              </button>
+              <button onClick={() => draftPitchMut.mutate("phone")} disabled={draftPitchMut.isPending}
+                className="rounded bg-bg-general px-2 py-1 text-[10.5px] hover:bg-bg-card disabled:opacity-50">
+                Roteiro ligação
+              </button>
+              <button onClick={() => autoProposalMut.mutate(false)} disabled={autoProposalMut.isPending}
+                className="rounded bg-primary/10 px-2 py-1 text-[10.5px] font-medium text-primary hover:bg-primary/20 disabled:opacity-50">
+                {autoProposalMut.isPending ? "Gerando…" : "Gerar orçamento automático"}
+              </button>
+            </div>
+            {pitchDraft && (
+              <div className="mt-2 rounded bg-bg-general p-2 text-text-sec">
+                <div className="mb-1 text-[10px] uppercase text-text-ter">Rascunho ({pitchDraft.channel})</div>
+                <pre className="whitespace-pre-wrap font-sans text-[11px]">{pitchDraft.draft}</pre>
+                <div className="mt-1 flex gap-1">
+                  <button onClick={() => { navigator.clipboard.writeText(pitchDraft.draft); toast.success("Copiado"); }}
+                    className="text-[10px] text-primary hover:underline">Copiar</button>
+                  <button onClick={() => setPitchDraft(null)} className="text-[10px] text-text-ter hover:underline">Fechar</button>
+                </div>
+              </div>
             )}
           </div>
           {(acceptMut.error || scheduleMut.error) && <div className="text-error">{(acceptMut.error || scheduleMut.error)?.message}</div>}

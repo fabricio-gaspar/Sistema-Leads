@@ -6,7 +6,7 @@ import { useState } from "react";
 import { Card, SectionTitle } from "@/components/ui-kit";
 import { formatBRL } from "@/lib/leads-data";
 import { getReportsData, getOpsMetrics } from "@/lib/crm.functions";
-import { getScoringInsights } from "@/lib/insights.functions";
+import { getScoringInsights, getAutomationHealth } from "@/lib/insights.functions";
 
 export const Route = createFileRoute("/_authenticated/relatorios")({ component: Relatorios });
 
@@ -226,8 +226,60 @@ function Relatorios() {
       </div>
 
       <OpsMetricsCard />
+      <AutomationHealthCard />
       <InsightsCard />
     </div>
+  );
+}
+
+function AutomationHealthCard() {
+  const fn = useServerFn(getAutomationHealth);
+  const { data } = useQuery({ queryKey: ["automation-health"], queryFn: () => fn() });
+  if (!data) return null;
+  const channels = Object.entries(data.byChannel);
+  return (
+    <Card>
+      <SectionTitle title={`Saúde da automação (últimos ${data.window_days} dias)`} />
+      <div className="grid grid-cols-1 gap-3 text-[12px] md:grid-cols-4">
+        <div className="rounded-md bg-bg-general p-3">
+          <div className="text-text-ter">Cadências ativas</div>
+          <div className="text-lg font-semibold text-text-title">{data.enrollmentStatus.active ?? 0}</div>
+          <div className="mt-1 text-[11px] text-text-ter">Pausadas: {data.enrollmentStatus.paused ?? 0} · Nurture: {data.nurtureActive}</div>
+        </div>
+        <div className="rounded-md bg-bg-general p-3">
+          <div className="text-text-ter">Jobs pendentes</div>
+          <div className="text-lg font-semibold text-text-title">{data.jobStatus.pending ?? 0}</div>
+          <div className="mt-1 text-[11px] text-text-ter">Falhas: {data.jobStatus.failed ?? 0}</div>
+        </div>
+        <div className="rounded-md bg-bg-general p-3">
+          <div className="text-text-ter">Handoffs</div>
+          <div className="text-lg font-semibold text-text-title">{data.handoffs.total}</div>
+          <div className="mt-1 text-[11px] text-text-ter">Aceitos: {data.handoffs.accepted} · SLA estourado: {data.handoffs.sla_breached}</div>
+        </div>
+        <div className="rounded-md bg-bg-general p-3">
+          <div className="text-text-ter">Propostas</div>
+          <div className="text-lg font-semibold text-text-title">{data.proposals.total}</div>
+          <div className="mt-1 text-[11px] text-text-ter">Da IA: {data.proposals.from_ai} · Enviadas/aprovadas: {data.proposals.sent_or_approved}</div>
+        </div>
+      </div>
+      {channels.length > 0 && (
+        <div className="mt-3">
+          <div className="mb-1 text-[11px] font-semibold text-text-ter">Entregas por canal</div>
+          <div className="space-y-1 text-[11.5px]">
+            {channels.map(([channel, stats]) => {
+              const reachRate = stats.sent ? Math.round((stats.delivered / stats.sent) * 100) : 0;
+              const replyRate = stats.sent ? Math.round((stats.replied / stats.sent) * 100) : 0;
+              return (
+                <div key={channel} className="flex items-center justify-between rounded bg-bg-general px-2 py-1">
+                  <span className="font-medium capitalize">{channel}</span>
+                  <span className="text-text-sec">Enviadas {stats.sent} · Entregues {reachRate}% · Respostas {replyRate}% · Falhas {stats.failed}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </Card>
   );
 }
 

@@ -135,6 +135,8 @@ export type Database = {
           id: string
           logo_url: string | null
           name: string
+          nurture_days: number
+          nurture_max_cycles: number
           outreach_max_attempts: number
           outreach_wait_hours: number
           phone: string | null
@@ -167,6 +169,8 @@ export type Database = {
           id?: string
           logo_url?: string | null
           name: string
+          nurture_days?: number
+          nurture_max_cycles?: number
           outreach_max_attempts?: number
           outreach_wait_hours?: number
           phone?: string | null
@@ -199,6 +203,8 @@ export type Database = {
           id?: string
           logo_url?: string | null
           name?: string
+          nurture_days?: number
+          nurture_max_cycles?: number
           outreach_max_attempts?: number
           outreach_wait_hours?: number
           phone?: string | null
@@ -807,6 +813,7 @@ export type Database = {
           last_step_at: string | null
           lead_id: string
           next_run_at: string | null
+          nurture_cycles: number
           pause_reason: string | null
           sequence_id: string
           started_at: string
@@ -822,6 +829,7 @@ export type Database = {
           last_step_at?: string | null
           lead_id: string
           next_run_at?: string | null
+          nurture_cycles?: number
           pause_reason?: string | null
           sequence_id: string
           started_at?: string
@@ -837,6 +845,7 @@ export type Database = {
           last_step_at?: string | null
           lead_id?: string
           next_run_at?: string | null
+          nurture_cycles?: number
           pause_reason?: string | null
           sequence_id?: string
           started_at?: string
