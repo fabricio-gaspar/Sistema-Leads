@@ -6,6 +6,7 @@ import { AlertTriangle, CheckCircle2, Loader2, Play, Download, ShieldAlert } fro
 import { Card, SectionTitle } from "@/components/ui-kit";
 import { runMockScan, type MockScanReport, type MockFinding } from "@/lib/mock-scan.functions";
 import { getOutreachHealth } from "@/lib/outreach.functions";
+import { getComplianceSnapshot } from "@/lib/insights.functions";
 
 export const Route = createFileRoute("/_authenticated/diagnostico")({
   component: DiagnosticoPage,
