@@ -337,7 +337,7 @@ function ComplianceCard() {
             <div className="text-[12px] text-text-ter">Nenhum lead com opt-out.</div>
           ) : (
             <ul className="max-h-40 space-y-1 overflow-y-auto text-[11.5px]">
-              {data.optOutLeads.slice(0, 20).map((l) => (
+              {data.optOutLeads.slice(0, 20).map((l: any) => (
                 <li key={l.id} className="flex justify-between gap-2 rounded-md border border-border-card bg-bg-general px-2 py-1">
                   <span className="truncate text-text-body">{l.company}{l.contact ? ` · ${l.contact}` : ""}</span>
                   <span className="shrink-0 text-text-ter">{new Date(l.updated_at).toLocaleDateString("pt-BR")}</span>
