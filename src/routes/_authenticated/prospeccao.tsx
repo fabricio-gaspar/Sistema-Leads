@@ -876,7 +876,7 @@ function Prospeccao() {
         </Card>
       )}
 
-      {!applied && !isSavedView && !noneEnabled && (
+      {tab === "manual" && !applied && !isSavedView && !noneEnabled && (
         <Card>
           <div className="text-center text-[13px] text-text-sec py-6">
             Escolha a fonte, preencha os filtros e clique em <b>Buscar</b>.
