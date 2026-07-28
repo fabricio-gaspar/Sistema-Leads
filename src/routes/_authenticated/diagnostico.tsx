@@ -272,14 +272,14 @@ function ComplianceCard() {
   function downloadAuditCsv() {
     if (!data) return;
     const header = ["ocorrido_em", "acao", "ator", "tipo", "detalhe"];
-    const rows = data.auditLogs.map((r) => [
+    const rows = data.auditLogs.map((r: any) => [
       r.occurred_at,
       r.action,
       r.actor_name,
       r.actor_type,
       (r.detail ?? "").replace(/"/g, '""'),
     ]);
-    const csv = [header, ...rows].map((r) => r.map((c) => `"${c}"`).join(",")).join("\n");
+    const csv = [header, ...rows].map((r: any[]) => r.map((c: any) => `"${c}"`).join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
