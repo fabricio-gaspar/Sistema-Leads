@@ -64,6 +64,8 @@ function DiagnosticoPage() {
 
   return (
     <div className="space-y-4">
+      <ComplianceCard />
+
       <Card>
         <SectionTitle
           title="Saúde das integrações"
