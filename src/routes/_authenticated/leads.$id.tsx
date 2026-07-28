@@ -464,10 +464,27 @@ function AutomationCard({ leadId, lead }: { leadId: string; lead: any }) {
   const acceptFn = useServerFn(acceptHandoff);
   const scheduleFn = useServerFn(scheduleAppointment);
   const saveQualFn = useServerFn(saveLeadQualification);
+  const draftPitchFn = useServerFn(draftInitialContact);
+  const autoProposalFn = useServerFn(autoDraftProposal);
   const [showSchedule, setShowSchedule] = useState(false);
   const [startsAt, setStartsAt] = useState("");
   const [title, setTitle] = useState("Reunião comercial");
   const [editQual, setEditQual] = useState(false);
+  const [pitchDraft, setPitchDraft] = useState<{ draft: string; channel: string } | null>(null);
+  const draftPitchMut = useMutation({
+    mutationFn: (channel: "whatsapp" | "email" | "phone") => draftPitchFn({ data: { lead_id: leadId, channel } }),
+    onSuccess: (result) => setPitchDraft(result),
+    onError: (err: Error) => toast.error(err.message),
+  });
+  const autoProposalMut = useMutation({
+    mutationFn: (force: boolean) => autoProposalFn({ data: { lead_id: leadId, force } }),
+    onSuccess: (result) => {
+      toast.success(`Rascunho de orçamento ${result.proposal?.number ?? ""} criado (R$ ${result.total.toFixed(2)}).`);
+      qc.invalidateQueries({ queryKey: ["lead-automation", leadId] });
+      qc.invalidateQueries({ queryKey: ["lead", leadId] });
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
   const { data, isLoading, error } = useQuery({
     queryKey: ["lead-automation", leadId],
     queryFn: () => getFn({ data: { lead_id: leadId } }),
