@@ -941,3 +941,35 @@ export const renameSavedSearch = createServerFn({ method: 'POST' })
     if (error) throw new Error(error.message)
     return { ok: true }
   })
+
+// ============= Preview de impacto do Score =============
+// Retorna amostras recentes do usuário para o painel de pesos calcular
+// a distribuição hot/warm/cold dos dois cenários (atual x rascunho) no cliente,
+// sem duplicar a lógica de scoring no servidor.
+export const listRecentProspectingSamples = createServerFn({ method: 'GET' })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data, error } = await context.supabase
+      .from('prospecting_cache')
+      .select('id, name, filters, results, total_found, created_at, saved')
+      .eq('user_id', context.userId)
+      .order('created_at', { ascending: false })
+      .limit(5)
+    if (error) throw new Error(error.message)
+    return (data ?? []).map((r) => {
+      const f = (r.filters as unknown) as Filters
+      return {
+        id: r.id as string,
+        name: (r.name as string | null) ?? null,
+        saved: (r.saved as boolean | null) ?? false,
+        source: f?.source ?? 'cnpj_ws',
+        porteFilter: (f?.porte as string | null) ?? null,
+        ufFilter: (f?.uf as string | null) ?? null,
+        radiusKm: (f?.radius_km as number | null) ?? null,
+        total_found: (r.total_found as number) ?? 0,
+        created_at: r.created_at as string,
+        results: ((r.results as unknown) as ExternalCompany[]) ?? [],
+      }
+    })
+  })
+
