@@ -6,6 +6,7 @@ import { useState } from "react";
 import { Card, SectionTitle } from "@/components/ui-kit";
 import { formatBRL } from "@/lib/leads-data";
 import { getReportsData, getOpsMetrics } from "@/lib/crm.functions";
+import { getScoringInsights } from "@/lib/insights.functions";
 
 export const Route = createFileRoute("/_authenticated/relatorios")({ component: Relatorios });
 
@@ -225,7 +226,77 @@ function Relatorios() {
       </div>
 
       <OpsMetricsCard />
+      <InsightsCard />
     </div>
+  );
+}
+
+function InsightsCard() {
+  const fn = useServerFn(getScoringInsights);
+  const { data } = useQuery({ queryKey: ["scoring-insights"], queryFn: () => fn() });
+  if (!data) return null;
+  const maxAvg = Math.max(1, ...data.scoreByOrigin.map((r) => r.avgScore));
+  return (
+    <Card>
+      <SectionTitle title="Score e qualificação" hint="Insights determinísticos por origem e prontidão da Ana" />
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div className="md:col-span-2">
+          <div className="mb-2 text-[12px] font-semibold text-text-title">Score médio por origem</div>
+          {data.scoreByOrigin.length === 0 ? (
+            <div className="text-[12px] text-text-ter">Sem leads suficientes.</div>
+          ) : (
+            <div className="space-y-2">
+              {data.scoreByOrigin.map((row) => (
+                <div key={row.origin}>
+                  <div className="mb-1 flex justify-between text-[12px]">
+                    <span className="text-text-body">{row.origin}</span>
+                    <span className="text-text-sec">{row.avgScore}/100 · {row.leads} lead(s) · {row.hotRate}% hot</span>
+                  </div>
+                  <div className="h-2 rounded-full bg-bg-general">
+                    <div className="h-full rounded-full bg-primary" style={{ width: `${(row.avgScore / maxAvg) * 100}%` }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="mt-4">
+            <div className="mb-1 text-[12px] font-semibold text-text-title">Fonte do score</div>
+            <div className="flex flex-wrap gap-2 text-[11px]">
+              {data.scoreSources.map((s) => (
+                <span key={s.source} className="rounded-full bg-bg-general px-2 py-0.5 text-text-body">
+                  {s.source}: <span className="font-semibold">{s.count}</span>
+                </span>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div>
+          <div className="mb-2 text-[12px] font-semibold text-text-title">Qualificação da Ana</div>
+          <div className="rounded-md border border-border-card bg-bg-general p-3">
+            <div className="text-[11px] uppercase text-text-ter">Prontidão média</div>
+            <div className="mt-1 text-[22px] font-semibold text-text-title">
+              {data.qualification.avgReadiness == null ? "—" : `${data.qualification.avgReadiness}/100`}
+            </div>
+            <div className="mt-1 text-[11px] text-text-sec">
+              {data.qualification.readyForHandoff} lead(s) prontos p/ handoff · {data.qualification.total} avaliado(s)
+            </div>
+          </div>
+          {data.qualification.sentiments.length > 0 && (
+            <div className="mt-2 rounded-md border border-border-card bg-bg-general p-3">
+              <div className="text-[11px] uppercase text-text-ter">Sentimento</div>
+              <ul className="mt-1 space-y-1 text-[12px]">
+                {data.qualification.sentiments.map((s) => (
+                  <li key={s.sentiment} className="flex justify-between">
+                    <span className="capitalize text-text-body">{s.sentiment}</span>
+                    <span className="font-semibold text-text-title">{s.count}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </div>
+      </div>
+    </Card>
   );
 }
 
