@@ -60,8 +60,10 @@ import type { Database } from "@/integrations/supabase/types";
 import {
   acceptHandoff,
   getLeadAutomation,
+  saveLeadQualification,
   scheduleAppointment,
 } from "@/lib/sales-automation.functions";
+import { downloadIcs } from "@/lib/ics";
 
 
 type Stage = Database["public"]["Enums"]["lead_stage"];
