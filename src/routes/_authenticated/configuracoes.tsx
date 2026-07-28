@@ -1981,14 +1981,18 @@ function AbaAutonomia() {
   const { data, isLoading } = useQuery({ queryKey: ["company-settings"], queryFn: () => getFn() });
 
   const [autonomy, setAutonomy] = useState<Record<AutonomyStage, AutonomyMode>>(DEFAULT_AUTONOMY);
+  const [nurtureDays, setNurtureDays] = useState<number>(14);
+  const [nurtureMaxCycles, setNurtureMaxCycles] = useState<number>(2);
 
   useEffect(() => {
     if (!data) return;
     setAutonomy(readAutonomy((data as any).autonomy));
+    if (typeof (data as any).nurture_days === "number") setNurtureDays((data as any).nurture_days);
+    if (typeof (data as any).nurture_max_cycles === "number") setNurtureMaxCycles((data as any).nurture_max_cycles);
   }, [data]);
 
   const saveMut = useMutation({
-    mutationFn: () => updateFn({ data: { autonomy } }),
+    mutationFn: () => updateFn({ data: { autonomy, nurture_days: nurtureDays, nurture_max_cycles: nurtureMaxCycles } }),
     onSuccess: () => {
       toast.success("Autonomia atualizada");
       qc.invalidateQueries({ queryKey: ["company-settings"] });
