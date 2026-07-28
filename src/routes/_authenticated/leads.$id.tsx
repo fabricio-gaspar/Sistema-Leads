@@ -512,6 +512,15 @@ function AutomationCard({ leadId, lead }: { leadId: string; lead: any }) {
       qc.invalidateQueries({ queryKey: ["lead-tasks", leadId] });
     },
   });
+  const syncGoogleFn = useServerFn(syncAppointmentToGoogle);
+  const syncGoogleMut = useMutation({
+    mutationFn: (appointment_id: string) => syncGoogleFn({ data: { appointment_id } }),
+    onSuccess: () => {
+      toast.success("Reunião sincronizada com Google Calendar");
+      qc.invalidateQueries({ queryKey: ["lead-automation", leadId] });
+    },
+    onError: (e: Error) => toast.error(e.message),
+  });
 
   const enrollment = data?.enrollment as any;
   const qualification = data?.qualification as any;
