@@ -6,7 +6,7 @@ import { useState } from "react";
 import { Card, SectionTitle } from "@/components/ui-kit";
 import { formatBRL } from "@/lib/leads-data";
 import { getReportsData, getOpsMetrics } from "@/lib/crm.functions";
-import { getScoringInsights } from "@/lib/insights.functions";
+import { getScoringInsights, getAutomationHealth } from "@/lib/insights.functions";
 
 export const Route = createFileRoute("/_authenticated/relatorios")({ component: Relatorios });
 
