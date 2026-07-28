@@ -1,87 +1,77 @@
-## Escopo aprovado × estado atual
 
-Antes de escrever código, alinho o plano em 4 blocos independentes. Cada bloco entrega valor isolado e pode ser revisado individualmente.
+# Multiempresa (organization_id) + RLS por tenant
+
+Refatoração ampla. Vou executar em **4 fases** para não quebrar o app em produção. Cada fase é aplicável isoladamente.
+
+## Fase 1 — Fundação (schema + membership)
+
+Migration nova:
+- `organizations(id, name, slug, created_by, created_at, updated_at)`
+- `organization_members(org_id, user_id, role app_role, created_at)` — PK composta, substitui o papel global de `user_roles` no contexto por-tenant. `user_roles` fica só para "super admin de plataforma".
+- `organization_invites(id, org_id, email, role, token, expires_at, accepted_at)`
+- Função `public.current_org_id()` (SECURITY DEFINER, lê de `auth.jwt() -> 'app_metadata' -> 'org_id'` **ou** de um GUC `app.current_org`) — usada em todas as políticas.
+- Função `public.is_org_member(_org uuid, _user uuid, _role app_role default null)` (SECURITY DEFINER) — evita recursão em RLS.
+- Trigger em `auth.users` (via `handle_new_user`): cria org pessoal automática no primeiro login e adiciona como `administrador`.
+
+## Fase 2 — Propagação de `organization_id`
+
+Adicionar coluna `organization_id uuid NOT NULL REFERENCES organizations(id)` em:
+`leads, appointments, proposals, orders, documents, knowledge_chunks, lead_messages, lead_notes, lead_tasks, lead_outreach, lead_qualifications, lead_handoffs, lead_sequence_enrollments, outreach_sequences, outreach_sequence_steps, outreach_jobs, tasks, notifications, audit_logs, contact_points, contact_suppressions, consent_events, prospecting_cache, vendor_sessions, unanswered_questions, objections, services, integrations, company_settings, score_weights, webhook_events, lead_stage_history, lead_assignments`.
+
+Backfill: cria uma organização "Legado" e associa todas as linhas existentes a ela. Todos os `profiles` atuais viram membros dessa org.
+
+Índices: `(organization_id)` em toda tabela filtrada por tenant; índices compostos onde já existem (`organization_id, created_at`, `organization_id, stage`, etc.).
+
+## Fase 3 — RLS por tenant
+
+Reescrever **todas** as políticas para incluir `organization_id = current_org_id()`. Padrão:
+
+```sql
+CREATE POLICY leads_tenant_read ON public.leads FOR SELECT TO authenticated
+  USING (organization_id = current_org_id()
+         AND (owner_id = auth.uid()
+              OR assigned_to = auth.uid()
+              OR is_org_member(organization_id, auth.uid(), 'administrador')));
+
+CREATE POLICY leads_tenant_write ON public.leads FOR INSERT TO authenticated
+  WITH CHECK (organization_id = current_org_id());
+```
+
+Trigger `BEFORE INSERT` em cada tabela: se `organization_id` vier NULL, preenche com `current_org_id()`.
+
+Storage: prefixar todos os paths dos buckets `docs/contracts/avatars` com `{org_id}/...` e escrever policies em `storage.objects` restringindo por prefixo.
+
+## Fase 4 — Server functions + UI
+
+**Server side:**
+- Middleware `withOrgContext` que lê `x-org-id` do request, valida via `is_org_member`, e faz `set_config('app.current_org', org, true)` no `context.supabase` antes de qualquer query. Aplicado em todos os `.functions.ts` protegidos.
+- Todos os `INSERT` explicitam `organization_id: context.orgId`.
+- `supabaseAdmin` (service role) recebe `organization_id` como parâmetro obrigatório onde é usado.
+
+**Client side:**
+- Hook `useCurrentOrg()` + `OrgSwitcher` no header (dropdown com orgs do usuário).
+- Header `x-org-id` injetado no `functionMiddleware` (`src/start.ts`) junto com o bearer.
+- Tela "Organizações" em `configuracoes.tsx`: criar org, listar membros, convidar por e-mail (aceite via link com token), promover/rebaixar/remover membros.
+- Tela de aceite de convite `/invite/$token` (rota pública que exige login e ativa a membership).
+
+**Cadeia crítica:**
+- Realtime: canais passam a filtrar por `organization_id`.
+- Webhooks públicos (`zapi-webhook`, `resend-webhook`): resolvem `organization_id` a partir do `lead_id` recebido, não do JWT.
+- pg_cron: jobs SQL passam a iterar por org.
+
+## Riscos e mitigação
+
+- **Downtime de RLS**: cada fase mantém compatibilidade — Fase 2 permite NULL temporariamente, Fase 3 torna NOT NULL após backfill.
+- **Perda de dados**: nenhuma DELETE; tudo é ALTER + backfill.
+- **Regressão em queries**: rodo `bunx tsgo --noEmit` + `bun run build` ao fim de cada fase.
+- **Convites e Google OAuth**: OAuth continua idêntico; org é resolvida após login.
+
+## Fora de escopo (proponho depois)
+
+- Billing por org.
+- Custom domain por org.
+- Migração automática de leads entre orgs.
 
 ---
 
-### Bloco 1 — Minha Empresa › Documentos: Visualizar e Editar
-
-Ajustes de UI em `src/routes/_authenticated/empresa.tsx` (card `DocumentosCard`) e nova server function em `src/lib/crm.functions.ts`.
-
-- Novo botão `Visualizar` (ícone `Eye`, tooltip) em cada linha → abre `Dialog` (shadcn) com nome, tipo, tamanho, status, `updated_at` e `content_text` em `<pre>` rolável. Botão "Baixar original" quando `storage_path` existir. Vazio → mensagem clara.
-- Novo botão `Editar` visível somente se o usuário for administrador (via `useQuery` de `has_role`). Abre `Dialog` com:
-  - Campo Nome (obrigatório, ≤ 200).
-  - Textarea "Conteúdo usado pela Ana" (≤ 500 000 chars, mesmo limite do upload).
-  - Select Status (`active` / `archived`), refletindo o enum atual.
-  - Nota explicando que o arquivo original no Storage não é substituído.
-- Nova server function admin-only `updateDocument({ id, name, content_text, status })` (zod + `assertAdmin`):
-  - Atualiza a linha em `documents`.
-  - Se `status = active`: chama `reindexDocumentInternal` para regenerar chunks.
-  - Se `status = archived` (ou conteúdo vazio): marca chunks ativos como `stale`.
-  - Grava evento em `audit_logs` (autor, doc_id, ação).
-- Confirmação nativa (`window.confirm`) já existe para exclusão — mantida, apenas adicionada mensagem clara.
-- `invalidateQueries(["documents"])` + `["knowledge-stats"]` no sucesso.
-
-### Bloco 2 — Prospecção: renomear + reposicionar histórico
-
-Somente `src/routes/_authenticated/prospeccao.tsx`:
-
-- Rótulo "Buscas salvas" → **"Histórico de prospecção"** (título do card + microcópia em torno).
-- Reordenar layout para: [filtros de busca] → [Histórico de prospecção] → [Resultados].
-- Card sempre visível; quando vazio: "Nenhuma prospecção salva ainda."
-- Cada item exibe data/hora, fonte, município/UF quando existir, raio quando aplicável e total de resultados. Ações `Abrir/Reabrir`, `Renomear`, `Excluir` são preservadas (já existem).
-- Nenhuma mudança em server function nem em `prospecting_cache`.
-
-### Bloco 3 — Configurações › Equipe: convite, senha, RBAC operacional
-
-**UI (`configuracoes.tsx › AbaEquipe`):**
-- Botão "Adicionar integrante" abre `Dialog` com Nome, E-mail, Telefone (opcional), Perfil (administrador/vendedor/sdr/cx), toggle "Pode usar IA", toggle Ativo.
-- Submit chama `inviteTeamMember` (server); toast "Convite enviado — o integrante recebeu um e-mail para definir a senha."
-- Nova coluna de ações: mudar perfil (com `confirm` para "administrador" ou desativação do último admin), ativar/desativar (bloqueia auto-desativação), "Redefinir senha/Reenviar acesso" (server fn separada).
-- Skeleton/erro/estado vazio; layout responsivo com overflow horizontal na tabela.
-
-**Server (`src/lib/crm.functions.ts`):**
-- `inviteTeamMember` (admin-only, zod): normaliza e-mail, verifica duplicidade em `profiles`, chama `supabaseAdmin.auth.admin.inviteUserByEmail(email, { redirectTo: <APP_ORIGIN>/reset-password })`. Em seguida: upsert em `profiles` (name, phone, active), insert exatamente um registro em `user_roles`. Rollback (`supabaseAdmin.auth.admin.deleteUser`) se etapas pós-criação falharem. Grava em `audit_logs`.
-- `resendTeamInvite` (admin-only): `supabaseAdmin.auth.admin.generateLink({ type: "recovery", email, redirectTo })`.
-- Atualiza `updateTeamMember` para banir/desbanir no Auth (`ban_duration: "876600h"` / `"none"`) quando `active` muda, e bloquear auto-desativação/rebaixamento do último admin. Grava em `audit_logs`.
-- `APP_ORIGIN` derivado de `getRequest()` + validação server-side (host precisa bater com `SITE_URL` ou domínio conhecido) para impedir open redirect.
-
-**Auth flow (`src/routes/auth.tsx` + nova rota `/reset-password`):**
-- Remover a alternância signin/signup — deixar apenas login e link "Esqueci minha senha" (usa `resetPasswordForEmail` com `redirectTo` para `/reset-password`). Mensagem neutra ("Se o e-mail existir, enviaremos instruções.").
-- Criar `src/routes/reset-password.tsx` (ssr:false, público): detecta `type=recovery`/`access_token`, chama `supabase.auth.updateUser({ password })` com validação de mínimo 8 chars.
-
-**Gate autenticada (`src/routes/_authenticated/route.tsx`):**
-- Depois de `getUser`, ler `profiles.active` — se `false`, executar `signOut()` e redirect para `/auth?blocked=1`.
-- RBAC de rota: mapa `path → roles permitidos`; se rota não permitida, redirect para a home do perfil (admin → `/`, vendedor/cx → `/atendimento`, sdr → `/prospeccao`).
-- Sidebar (`AppShell`) já esconde itens; agora a rota bloqueia acesso direto por URL.
-
-### Bloco 4 — Migration incremental + regeneração de tipos
-
-Uma única migration idempotente, apenas o que estiver realmente faltando após leitura das políticas atuais:
-
-- `profiles.can_use_ai boolean not null default true` (se ainda não existir).
-- Índices em `user_roles(user_id)` e `profiles(active)` se ausentes.
-- Revisar RLS de `documents` para que só administradores possam `UPDATE`. Adicionar policy apenas se não existir uma equivalente.
-- **Não** cria política nova em `audit_logs`, `leads`, `prospecting_cache` — as existentes já cobrem a matriz aprovada.
-
-Após aprovação da migration, regenerar `src/integrations/supabase/types.ts` e rodar typecheck/build. Corrijo erros até o build ficar limpo.
-
----
-
-### Fora do escopo (declarado)
-- Não altero cadência da Ana, `outreach_jobs`, webhooks, nem `atendimento.tsx`.
-- Não crio Portal do Vendedor separado — Central de Atendimento continua sendo o painel do vendedor.
-- Não abro `authenticated` global em nenhuma RLS.
-
-### Dependências externas para o usuário
-- No painel Supabase Auth → **URL Configuration**, garantir que `https://<preview>.lovable.app/reset-password` e o domínio publicado estejam na lista de **Redirect URLs** (senão o link de convite/recuperação não redireciona).
-- Sem novos secrets: usa `SUPABASE_SERVICE_ROLE_KEY` já configurado.
-
-### Ordem de execução
-1. Bloco 2 (baixo risco, só UI).
-2. Bloco 1 (UI + 1 server fn + reuso de `reindexDocumentInternal`).
-3. Migration do Bloco 4 (mínima).
-4. Bloco 3 (maior — auth admin, RBAC, reset-password).
-5. Lint + build + correções.
-
-Confirma que posso executar nessa ordem? Se preferir dividir em entregas separadas (ex.: aprovar Blocos 1+2 primeiro e depois Blocos 3+4), me avise.
+**Confirma esse plano e a ordem das 4 fases?** Assim que aprovar começo pela Fase 1 (schema + membership + org pessoal automática no cadastro). Cada fase termina com typecheck+build verdes antes de eu iniciar a próxima.
