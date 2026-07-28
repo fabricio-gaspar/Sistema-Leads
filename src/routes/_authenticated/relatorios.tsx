@@ -239,7 +239,7 @@ function AutomationHealthCard() {
   const channels = Object.entries(data.byChannel);
   return (
     <Card>
-      <SectionTitle icon={Sparkles} title={`Saúde da automação (últimos ${data.window_days} dias)`} />
+      <SectionTitle title={`Saúde da automação (últimos ${data.window_days} dias)`} />
       <div className="grid grid-cols-1 gap-3 text-[12px] md:grid-cols-4">
         <div className="rounded-md bg-bg-general p-3">
           <div className="text-text-ter">Cadências ativas</div>
