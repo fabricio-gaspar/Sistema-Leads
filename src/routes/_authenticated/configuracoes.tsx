@@ -845,6 +845,7 @@ function AbaInt() {
       <ZapiCadenceCard />
       <SequenceEditorCard />
       <HandoffAutomationCard />
+      <GoogleCalendarCard />
 
     </Card>
   );
