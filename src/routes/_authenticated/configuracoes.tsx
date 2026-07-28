@@ -1124,15 +1124,17 @@ function AbaObjecoes() {
 }
 
 // ============= SCORE WEIGHTS =============
-type Weights = { segment: number; whatsapp: number; site: number; porte: number; google: number; regiao: number };
-const DEFAULT_WEIGHTS: Weights = { segment: 25, whatsapp: 20, site: 15, porte: 15, google: 15, regiao: 10 };
+import { distributionFor, DEFAULT_WEIGHTS as SCORE_DEFAULTS, type Weights as ScoreWeights } from "@/lib/score-explain";
+import { listRecentProspectingSamples } from "@/lib/prospecting.functions";
 
 function AbaScore() {
   const qc = useQueryClient();
   const getFn = useServerFn(getScoreWeights);
   const updFn = useServerFn(updateScoreWeights);
+  const samplesFn = useServerFn(listRecentProspectingSamples);
   const { data, isLoading } = useQuery({ queryKey: ["score-weights"], queryFn: () => getFn() });
-  const [w, setW] = useState<Weights>(DEFAULT_WEIGHTS);
+  const samplesQ = useQuery({ queryKey: ["score-samples"], queryFn: () => samplesFn() });
+  const [w, setW] = useState<ScoreWeights>(SCORE_DEFAULTS);
   useEffect(() => {
     if (data) setW({ segment: data.segment ?? 25, whatsapp: data.whatsapp ?? 20, site: data.site ?? 15, porte: data.porte ?? 15, google: data.google ?? 15, regiao: data.regiao ?? 10 });
   }, [data]);
@@ -1142,7 +1144,7 @@ function AbaScore() {
   });
   const total = w.segment + w.whatsapp + w.site + w.porte + w.google + w.regiao;
 
-  const rows: { key: keyof Weights; label: string }[] = [
+  const rows: { key: keyof ScoreWeights; label: string }[] = [
     { key: "segment", label: "Segmento" },
     { key: "whatsapp", label: "WhatsApp ativo" },
     { key: "site", label: "Site institucional" },
@@ -1151,24 +1153,80 @@ function AbaScore() {
     { key: "regiao", label: "Região atendida" },
   ];
 
+  const currentWeights: ScoreWeights = data
+    ? { segment: data.segment ?? 25, whatsapp: data.whatsapp ?? 20, site: data.site ?? 15, porte: data.porte ?? 15, google: data.google ?? 15, regiao: data.regiao ?? 10 }
+    : SCORE_DEFAULTS;
+  const samples = samplesQ.data ?? [];
+  const preview = samples.reduce(
+    (acc, s) => {
+      const cur = distributionFor(s.results, currentWeights, { porteFilter: s.porteFilter, ufFilter: s.ufFilter, radiusKm: s.radiusKm });
+      const draft = distributionFor(s.results, w, { porteFilter: s.porteFilter, ufFilter: s.ufFilter, radiusKm: s.radiusKm });
+      return {
+        total: acc.total + cur.total,
+        cur: { hot: acc.cur.hot + cur.hot, warm: acc.cur.warm + cur.warm, cold: acc.cur.cold + cur.cold, avg: acc.cur.avg + cur.avg * cur.total },
+        draft: { hot: acc.draft.hot + draft.hot, warm: acc.draft.warm + draft.warm, cold: acc.draft.cold + draft.cold, avg: acc.draft.avg + draft.avg * draft.total },
+      };
+    },
+    { total: 0, cur: { hot: 0, warm: 0, cold: 0, avg: 0 }, draft: { hot: 0, warm: 0, cold: 0, avg: 0 } },
+  );
+  const curAvg = preview.total > 0 ? Math.round(preview.cur.avg / preview.total) : 0;
+  const draftAvg = preview.total > 0 ? Math.round(preview.draft.avg / preview.total) : 0;
+
   return (
     <Card>
       <SectionTitle title="Pesos do Score da Ana" hint="Como Ana pontua um novo prospect (soma sugerida: 100)" />
       {isLoading ? (
         <Loader2 className="mx-auto my-6 h-4 w-4 animate-spin text-text-sec" />
       ) : (
-        <div className="max-w-md space-y-3">
-          {rows.map((r) => (
-            <div key={r.key} className="flex items-center gap-3">
-              <div className="w-40 text-[13px] text-text-body">{r.label}</div>
-              <input type="range" min={0} max={50} value={w[r.key]} onChange={(e) => setW({ ...w, [r.key]: Number(e.target.value) })} className="flex-1 accent-primary" />
-              <div className="w-10 text-right text-[13px] font-semibold text-text-title">{w[r.key]}</div>
+        <div className="grid gap-6 md:grid-cols-2">
+          <div className="max-w-md space-y-3">
+            {rows.map((r) => (
+              <div key={r.key} className="flex items-center gap-3">
+                <div className="w-40 text-[13px] text-text-body">{r.label}</div>
+                <input type="range" min={0} max={50} value={w[r.key]} onChange={(e) => setW({ ...w, [r.key]: Number(e.target.value) })} className="flex-1 accent-primary" />
+                <div className="w-10 text-right text-[13px] font-semibold text-text-title">{w[r.key]}</div>
+              </div>
+            ))}
+            <div className={`text-[12px] ${total === 100 ? "text-success" : "text-warm"}`}>Soma atual: {total} {total !== 100 && "(recomendado: 100)"}</div>
+            <button disabled={save.isPending} onClick={() => save.mutate()} className="mt-2 rounded-md bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground disabled:opacity-50">
+              {save.isPending ? <Loader2 className="mr-1 inline h-3.5 w-3.5 animate-spin" /> : <Check className="mr-1 inline h-3.5 w-3.5" />} Salvar pesos
+            </button>
+          </div>
+          <div className="rounded-lg border border-border-card bg-bg-general p-4">
+            <div className="mb-2 text-[13px] font-semibold text-text-title">Impacto simulado</div>
+            <div className="mb-3 text-[11px] text-text-ter">
+              Baseado em {preview.total} empresa(s) das suas {samples.length} prospecção(ões) mais recentes.
             </div>
-          ))}
-          <div className={`text-[12px] ${total === 100 ? "text-success" : "text-warm"}`}>Soma atual: {total} {total !== 100 && "(recomendado: 100)"}</div>
-          <button disabled={save.isPending} onClick={() => save.mutate()} className="mt-2 rounded-md bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground disabled:opacity-50">
-            {save.isPending ? <Loader2 className="mr-1 inline h-3.5 w-3.5 animate-spin" /> : <Check className="mr-1 inline h-3.5 w-3.5" />} Salvar pesos
-          </button>
+            {preview.total === 0 ? (
+              <div className="text-[12px] text-text-sec">Rode uma prospecção para ver o impacto dos pesos.</div>
+            ) : (
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-2 text-[12px]">
+                  <div>
+                    <div className="mb-1 text-text-ter">Pesos salvos (média {curAvg})</div>
+                    <div className="flex gap-1">
+                      <span className="rounded bg-hot-bg px-2 py-0.5 text-hot">🔥 {preview.cur.hot}</span>
+                      <span className="rounded bg-warm-bg px-2 py-0.5 text-warm">🟡 {preview.cur.warm}</span>
+                      <span className="rounded bg-cold-bg px-2 py-0.5 text-cold">🔵 {preview.cur.cold}</span>
+                    </div>
+                  </div>
+                  <div>
+                    <div className="mb-1 text-text-ter">Rascunho (média {draftAvg})</div>
+                    <div className="flex gap-1">
+                      <span className="rounded bg-hot-bg px-2 py-0.5 text-hot">🔥 {preview.draft.hot}</span>
+                      <span className="rounded bg-warm-bg px-2 py-0.5 text-warm">🟡 {preview.draft.warm}</span>
+                      <span className="rounded bg-cold-bg px-2 py-0.5 text-cold">🔵 {preview.draft.cold}</span>
+                    </div>
+                  </div>
+                </div>
+                <div className="text-[11px] text-text-ter">
+                  Δ hot: {preview.draft.hot - preview.cur.hot >= 0 ? "+" : ""}{preview.draft.hot - preview.cur.hot} ·
+                  Δ warm: {preview.draft.warm - preview.cur.warm >= 0 ? "+" : ""}{preview.draft.warm - preview.cur.warm} ·
+                  Δ cold: {preview.draft.cold - preview.cur.cold >= 0 ? "+" : ""}{preview.draft.cold - preview.cur.cold}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       )}
     </Card>
