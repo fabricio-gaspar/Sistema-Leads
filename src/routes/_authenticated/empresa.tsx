@@ -308,6 +308,7 @@ function DocumentosCard() {
   const createFn = useServerFn(createDocumentRecord);
   const deleteFn = useServerFn(deleteDocument);
   const signFn = useServerFn(getDocumentSignedUrl);
+  const extractFn = useServerFn(extractAndIndexDocument);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
@@ -330,16 +331,26 @@ function DocumentosCard() {
     setError(null);
     setUploading(true);
     let uploadedPath: string | null = null;
+    let createdId: string | null = null;
     try {
-      const isTextKnowledge = file.type.startsWith("text/") || /\.(txt|md|csv|json)$/i.test(file.name);
-      if (!isTextKnowledge) {
-        throw new Error("Use TXT, Markdown, CSV ou JSON. PDF/DOC ainda exigem extração antes de poderem orientar a IA.");
+      const lower = file.name.toLowerCase();
+      const isText = file.type.startsWith("text/") || /\.(txt|md|csv|json)$/i.test(lower);
+      const isPdf = file.type === "application/pdf" || lower.endsWith(".pdf");
+      const isDocx =
+        file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+        lower.endsWith(".docx");
+      if (!isText && !isPdf && !isDocx) {
+        throw new Error("Formatos aceitos: PDF, DOCX, TXT, Markdown, CSV ou JSON.");
       }
-      if (file.size > 500_000) {
-        throw new Error("O documento deve ter no máximo 500 KB para entrar na base de conhecimento.");
+      const maxBytes = isText ? 500_000 : 15_000_000;
+      if (file.size > maxBytes) {
+        throw new Error(
+          isText
+            ? "Documento de texto deve ter no máximo 500 KB."
+            : "Arquivo deve ter no máximo 15 MB."
+        );
       }
-      const contentText = (await file.text()).trim();
-      if (!contentText) throw new Error("O documento está vazio.");
+
       const path = `${Date.now()}-${file.name.replace(/[^\w.\-]+/g, "_")}`;
       const { error: upErr } = await supabase.storage.from("docs").upload(path, file, {
         cacheControl: "3600",
@@ -347,7 +358,14 @@ function DocumentosCard() {
       });
       if (upErr) throw upErr;
       uploadedPath = path;
-      await createFn({
+
+      let contentText: string | null = null;
+      if (isText) {
+        contentText = (await file.text()).trim();
+        if (!contentText) throw new Error("O documento está vazio.");
+      }
+
+      const created = await createFn({
         data: {
           name: file.name,
           type: file.type || "application/octet-stream",
@@ -357,10 +375,20 @@ function DocumentosCard() {
           content_text: contentText,
         },
       });
+      createdId = (created as { id?: string } | null)?.id ?? null;
+
+      if (!isText && createdId) {
+        toast.info("Extraindo texto do arquivo…");
+        const res = await extractFn({ data: { document_id: createdId } });
+        toast.success("Documento indexado", {
+          description: `${res.chunks} trechos (${res.chars.toLocaleString("pt-BR")} caracteres) extraídos.`,
+        });
+      } else {
+        toast.success("Documento enviado", { description: "A base de conhecimento foi reindexada." });
+      }
       qc.invalidateQueries({ queryKey: ["documents"] });
-      toast.success("Documento enviado", { description: "A base de conhecimento foi reindexada." });
     } catch (e) {
-      if (uploadedPath) await supabase.storage.from("docs").remove([uploadedPath]);
+      if (uploadedPath && !createdId) await supabase.storage.from("docs").remove([uploadedPath]);
       setError(e instanceof Error ? e.message : "Falha no upload");
     } finally {
       setUploading(false);
