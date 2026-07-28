@@ -16,6 +16,8 @@ import {
   type ExternalCompany,
   type SourceId,
 } from "@/lib/prospecting.functions";
+import { getScoreWeights } from "@/lib/crm.functions";
+import { explainScore, DEFAULT_WEIGHTS, type Weights, type ScoreBreakdown } from "@/lib/score-explain";
 import { downloadCSV } from "@/lib/exports";
 import { Link } from "@tanstack/react-router";
 
