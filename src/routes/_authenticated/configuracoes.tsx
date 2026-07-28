@@ -34,6 +34,8 @@ import {
   disconnectIntegration,
 } from "@/lib/crm.functions";
 import { reindexAllDocuments, getKnowledgeStats } from "@/lib/knowledge.functions";
+import { listRecentProspectingSamples } from "@/lib/prospecting.functions";
+import { distributionFor, DEFAULT_WEIGHTS as SCORE_DEFAULTS, type Weights as ScoreWeights } from "@/lib/score-explain";
 import { getOutreachHealth, testZapi } from "@/lib/outreach.functions";
 import {
   listSequences,
