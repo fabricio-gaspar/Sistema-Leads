@@ -16,6 +16,8 @@ import {
   type ExternalCompany,
   type SourceId,
 } from "@/lib/prospecting.functions";
+import { getScoreWeights } from "@/lib/crm.functions";
+import { explainScore, DEFAULT_WEIGHTS, type Weights, type ScoreBreakdown } from "@/lib/score-explain";
 import { downloadCSV } from "@/lib/exports";
 import { Link } from "@tanstack/react-router";
 
@@ -78,8 +80,24 @@ function Prospeccao() {
   const searchFn = useServerFn(searchExternalCompanies);
   const importFn = useServerFn(importExternalAsLead);
   const enabledFn = useServerFn(getEnabledSources);
+  const weightsFn = useServerFn(getScoreWeights);
 
   const { data: enabled } = useQuery({ queryKey: ["enabled-sources"], queryFn: () => enabledFn() });
+  const { data: weightsRow } = useQuery({
+    queryKey: ["score-weights"],
+    queryFn: () => weightsFn(),
+  });
+  const weights: Weights = useMemo(() => {
+    if (!weightsRow) return DEFAULT_WEIGHTS;
+    return {
+      segment: weightsRow.segment ?? DEFAULT_WEIGHTS.segment,
+      whatsapp: weightsRow.whatsapp ?? DEFAULT_WEIGHTS.whatsapp,
+      site: weightsRow.site ?? DEFAULT_WEIGHTS.site,
+      porte: weightsRow.porte ?? DEFAULT_WEIGHTS.porte,
+      google: weightsRow.google ?? DEFAULT_WEIGHTS.google,
+      regiao: weightsRow.regiao ?? DEFAULT_WEIGHTS.regiao,
+    };
+  }, [weightsRow]);
 
   const savedListFn = useServerFn(listSavedSearches);
   const savedGetFn = useServerFn(getSavedSearch);
@@ -220,6 +238,19 @@ function Prospeccao() {
   }
 
   const results = currentResults;
+  const scoreCtx = useMemo(
+    () => ({
+      porteFilter: applied?.porte ?? loadedSaved ? (applied?.porte ?? null) : null,
+      ufFilter: applied?.uf ?? null,
+      radiusKm: applied?.radius_km ?? null,
+    }),
+    [applied, loadedSaved],
+  );
+  const breakdowns = useMemo(() => {
+    const map = new Map<string, ScoreBreakdown>();
+    for (const c of results) map.set(c.cnpj, explainScore(c, weights, scoreCtx));
+    return map;
+  }, [results, weights, scoreCtx]);
   const eligibleResults = useMemo(() => results.filter(isEligibleForLeads), [results]);
   const selectedEligible = eligibleResults.filter((company) => selected.has(company.cnpj));
   const activeSources = enabled ? (["cnpj_ws", "google_places", "apify", "ai_only"] as SourceId[]).filter((s) => enabled[s]) : [];
@@ -645,13 +676,20 @@ function Prospeccao() {
                   <th className="p-3">Porte / Capital</th>
                   <th className="p-3">Cidade / UF</th>
                   <th className="p-3">Contato</th>
-                  <th className="p-3">Score IA</th>
+                  <th className="p-3">Score</th>
                   <th className="p-3 text-right">Ação</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border-card">
                 {results.map((c) => {
                   const eligible = isEligibleForLeads(c);
+                  const bd = breakdowns.get(c.cnpj);
+                  const tempClass =
+                    bd?.temp === "hot"
+                      ? "bg-hot-bg text-hot"
+                      : bd?.temp === "warm"
+                        ? "bg-warm-bg text-warm"
+                        : "bg-bg-general text-text-body";
                   return (
                   <Fragment key={c.cnpj}>
                     <tr className="hover:bg-bg-general/40">
@@ -706,12 +744,17 @@ function Prospeccao() {
                       </td>
 
                       <td className="p-3 align-top">
-                        {c.score != null ? (
+                        {bd ? (
                           <button
                             onClick={() => setOpenReason(openReason === c.cnpj ? null : c.cnpj)}
-                            className="inline-flex items-center gap-1.5 rounded-md bg-ia-bg px-2 py-1 text-[12px] font-semibold text-ia hover:opacity-80"
+                            className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[12px] font-semibold hover:opacity-80 ${tempClass}`}
+                            title={
+                              bd.ai != null
+                                ? `Determinístico ${bd.deterministic} · IA ${bd.ai} · Combinado ${bd.combined}`
+                                : `Score determinístico ${bd.deterministic}`
+                            }
                           >
-                            <Sparkles className="h-3 w-3" /> {c.score}
+                            <Sparkles className="h-3 w-3" /> {bd.combined}
                           </button>
                         ) : (
                           <span className="text-[11px] text-text-ter">—</span>
@@ -756,14 +799,53 @@ function Prospeccao() {
                         </div>
                       </td>
                     </tr>
-                    {openReason === c.cnpj && c.score_reason && (
+                    {openReason === c.cnpj && bd && (
                       <tr key={c.cnpj + "-r"} className="bg-ia-bg/30">
                         <td colSpan={8} className="p-4">
-                          <div className="flex items-start gap-2">
-                            <Sparkles className="mt-0.5 h-4 w-4 text-ia" />
-                            <div className="text-[12.5px] text-text-body">
-                              <span className="font-semibold">Análise Ana:</span> {c.score_reason}
+                          <div className="grid gap-3 md:grid-cols-[1.2fr_1fr]">
+                            <div>
+                              <div className="mb-2 text-[11px] uppercase text-text-ter">Breakdown determinístico</div>
+                              <table className="w-full text-[12px]">
+                                <tbody className="divide-y divide-border-card/60">
+                                  {bd.lines.map((p) => (
+                                    <tr key={p.key}>
+                                      <td className="py-1 pr-2 text-text-body">{p.label}</td>
+                                      <td className="py-1 pr-2 text-text-ter">{p.signal}</td>
+                                      <td className="py-1 text-right font-mono text-text-title">
+                                        +{p.points}
+                                        <span className="text-text-ter"> / {p.weight}</span>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                  <tr className="border-t border-border-card">
+                                    <td className="py-1 pr-2 font-semibold text-text-title">Total determinístico</td>
+                                    <td></td>
+                                    <td className="py-1 text-right font-mono font-semibold text-text-title">{bd.deterministic}</td>
+                                  </tr>
+                                  {bd.ai != null && (
+                                    <tr>
+                                      <td className="py-1 pr-2 text-text-body">IA (40%)</td>
+                                      <td className="py-1 pr-2 text-text-ter">Ponderado com determinístico (60%)</td>
+                                      <td className="py-1 text-right font-mono text-text-title">{bd.ai}</td>
+                                    </tr>
+                                  )}
+                                  <tr className="border-t border-border-card">
+                                    <td className="py-1 pr-2 font-semibold text-text-title">Combinado</td>
+                                    <td className="py-1 pr-2 text-text-ter uppercase">{bd.temp}</td>
+                                    <td className="py-1 text-right font-mono font-semibold text-text-title">{bd.combined}</td>
+                                  </tr>
+                                </tbody>
+                              </table>
                             </div>
+                            {c.score_reason && (
+                              <div className="flex items-start gap-2">
+                                <Sparkles className="mt-0.5 h-4 w-4 text-ia" />
+                                <div className="text-[12.5px] text-text-body">
+                                  <div className="mb-1 text-[11px] uppercase text-text-ter">Análise Ana</div>
+                                  {c.score_reason}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </td>
                       </tr>
