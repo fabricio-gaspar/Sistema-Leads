@@ -23,6 +23,7 @@ import { Route as AuthenticatedEmpresaRouteImport } from './routes/_authenticate
 import { Route as AuthenticatedDiagnosticoRouteImport } from './routes/_authenticated/diagnostico'
 import { Route as AuthenticatedConfiguracoesRouteImport } from './routes/_authenticated/configuracoes'
 import { Route as AuthenticatedAtendimentoRouteImport } from './routes/_authenticated/atendimento'
+import { Route as OauthGoogleCalendarReturnRouteImport } from './routes/oauth/google-calendar/return'
 import { Route as ApiPublicZapiWebhookRouteImport } from './routes/api/public/zapi-webhook'
 import { Route as ApiPublicResendWebhookRouteImport } from './routes/api/public/resend-webhook'
 import { Route as ApiPublicOutreachTickRouteImport } from './routes/api/public/outreach-tick'
@@ -102,6 +103,12 @@ const AuthenticatedAtendimentoRoute =
     path: '/atendimento',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const OauthGoogleCalendarReturnRoute =
+  OauthGoogleCalendarReturnRouteImport.update({
+    id: '/oauth/google-calendar/return',
+    path: '/oauth/google-calendar/return',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicZapiWebhookRoute = ApiPublicZapiWebhookRouteImport.update({
   id: '/api/public/zapi-webhook',
   path: '/api/public/zapi-webhook',
@@ -148,6 +155,7 @@ export interface FileRoutesByFullPath {
   '/api/public/outreach-tick': typeof ApiPublicOutreachTickRoute
   '/api/public/resend-webhook': typeof ApiPublicResendWebhookRoute
   '/api/public/zapi-webhook': typeof ApiPublicZapiWebhookRoute
+  '/oauth/google-calendar/return': typeof OauthGoogleCalendarReturnRoute
 }
 export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
@@ -168,6 +176,7 @@ export interface FileRoutesByTo {
   '/api/public/outreach-tick': typeof ApiPublicOutreachTickRoute
   '/api/public/resend-webhook': typeof ApiPublicResendWebhookRoute
   '/api/public/zapi-webhook': typeof ApiPublicZapiWebhookRoute
+  '/oauth/google-calendar/return': typeof OauthGoogleCalendarReturnRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -190,6 +199,7 @@ export interface FileRoutesById {
   '/api/public/outreach-tick': typeof ApiPublicOutreachTickRoute
   '/api/public/resend-webhook': typeof ApiPublicResendWebhookRoute
   '/api/public/zapi-webhook': typeof ApiPublicZapiWebhookRoute
+  '/oauth/google-calendar/return': typeof OauthGoogleCalendarReturnRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -212,6 +222,7 @@ export interface FileRouteTypes {
     | '/api/public/outreach-tick'
     | '/api/public/resend-webhook'
     | '/api/public/zapi-webhook'
+    | '/oauth/google-calendar/return'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/auth'
@@ -232,6 +243,7 @@ export interface FileRouteTypes {
     | '/api/public/outreach-tick'
     | '/api/public/resend-webhook'
     | '/api/public/zapi-webhook'
+    | '/oauth/google-calendar/return'
   id:
     | '__root__'
     | '/_authenticated'
@@ -253,6 +265,7 @@ export interface FileRouteTypes {
     | '/api/public/outreach-tick'
     | '/api/public/resend-webhook'
     | '/api/public/zapi-webhook'
+    | '/oauth/google-calendar/return'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -263,6 +276,7 @@ export interface RootRouteChildren {
   ApiPublicOutreachTickRoute: typeof ApiPublicOutreachTickRoute
   ApiPublicResendWebhookRoute: typeof ApiPublicResendWebhookRoute
   ApiPublicZapiWebhookRoute: typeof ApiPublicZapiWebhookRoute
+  OauthGoogleCalendarReturnRoute: typeof OauthGoogleCalendarReturnRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -365,6 +379,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedAtendimentoRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/oauth/google-calendar/return': {
+      id: '/oauth/google-calendar/return'
+      path: '/oauth/google-calendar/return'
+      fullPath: '/oauth/google-calendar/return'
+      preLoaderRoute: typeof OauthGoogleCalendarReturnRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/zapi-webhook': {
       id: '/api/public/zapi-webhook'
       path: '/api/public/zapi-webhook'
@@ -453,17 +474,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiPublicOutreachTickRoute: ApiPublicOutreachTickRoute,
   ApiPublicResendWebhookRoute: ApiPublicResendWebhookRoute,
   ApiPublicZapiWebhookRoute: ApiPublicZapiWebhookRoute,
+  OauthGoogleCalendarReturnRoute: OauthGoogleCalendarReturnRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
-
-import type { getRouter } from './router.tsx'
-import type { startInstance } from './start.ts'
-declare module '@tanstack/react-start' {
-  interface Register {
-    ssr: true
-    router: Awaited<ReturnType<typeof getRouter>>
-    config: Awaited<ReturnType<typeof startInstance.getOptions>>
-  }
-}
