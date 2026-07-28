@@ -799,14 +799,53 @@ function Prospeccao() {
                         </div>
                       </td>
                     </tr>
-                    {openReason === c.cnpj && c.score_reason && (
+                    {openReason === c.cnpj && bd && (
                       <tr key={c.cnpj + "-r"} className="bg-ia-bg/30">
                         <td colSpan={8} className="p-4">
-                          <div className="flex items-start gap-2">
-                            <Sparkles className="mt-0.5 h-4 w-4 text-ia" />
-                            <div className="text-[12.5px] text-text-body">
-                              <span className="font-semibold">Análise Ana:</span> {c.score_reason}
+                          <div className="grid gap-3 md:grid-cols-[1.2fr_1fr]">
+                            <div>
+                              <div className="mb-2 text-[11px] uppercase text-text-ter">Breakdown determinístico</div>
+                              <table className="w-full text-[12px]">
+                                <tbody className="divide-y divide-border-card/60">
+                                  {bd.parts.map((p) => (
+                                    <tr key={p.key}>
+                                      <td className="py-1 pr-2 text-text-body">{p.label}</td>
+                                      <td className="py-1 pr-2 text-text-ter">{p.reason}</td>
+                                      <td className="py-1 text-right font-mono text-text-title">
+                                        +{p.points}
+                                        <span className="text-text-ter"> / {p.max}</span>
+                                      </td>
+                                    </tr>
+                                  ))}
+                                  <tr className="border-t border-border-card">
+                                    <td className="py-1 pr-2 font-semibold text-text-title">Total determinístico</td>
+                                    <td></td>
+                                    <td className="py-1 text-right font-mono font-semibold text-text-title">{bd.deterministic}</td>
+                                  </tr>
+                                  {bd.ai != null && (
+                                    <tr>
+                                      <td className="py-1 pr-2 text-text-body">IA (40%)</td>
+                                      <td className="py-1 pr-2 text-text-ter">Ponderado com determinístico (60%)</td>
+                                      <td className="py-1 text-right font-mono text-text-title">{bd.ai}</td>
+                                    </tr>
+                                  )}
+                                  <tr className="border-t border-border-card">
+                                    <td className="py-1 pr-2 font-semibold text-text-title">Combinado</td>
+                                    <td className="py-1 pr-2 text-text-ter uppercase">{bd.temp}</td>
+                                    <td className="py-1 text-right font-mono font-semibold text-text-title">{bd.combined}</td>
+                                  </tr>
+                                </tbody>
+                              </table>
                             </div>
+                            {c.score_reason && (
+                              <div className="flex items-start gap-2">
+                                <Sparkles className="mt-0.5 h-4 w-4 text-ia" />
+                                <div className="text-[12.5px] text-text-body">
+                                  <div className="mb-1 text-[11px] uppercase text-text-ter">Análise Ana</div>
+                                  {c.score_reason}
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </td>
                       </tr>
