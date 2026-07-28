@@ -1973,3 +1973,121 @@ function HandoffAutomationCard() {
     </div>
   );
 }
+
+function AbaAutonomia() {
+  const qc = useQueryClient();
+  const getFn = useServerFn(getCompanySettings);
+  const updateFn = useServerFn(updateCompanySettings);
+  const { data, isLoading } = useQuery({ queryKey: ["company-settings"], queryFn: () => getFn() });
+
+  const [autonomy, setAutonomy] = useState<Record<AutonomyStage, AutonomyMode>>(DEFAULT_AUTONOMY);
+
+  useEffect(() => {
+    if (!data) return;
+    setAutonomy(readAutonomy((data as any).autonomy));
+  }, [data]);
+
+  const saveMut = useMutation({
+    mutationFn: () => updateFn({ data: { autonomy } }),
+    onSuccess: () => {
+      toast.success("Autonomia atualizada");
+      qc.invalidateQueries({ queryKey: ["company-settings"] });
+    },
+    onError: (e: Error) => toast.error("Erro ao salvar", { description: e.message }),
+  });
+
+  const setStage = (stage: AutonomyStage, mode: AutonomyMode) =>
+    setAutonomy((prev) => ({ ...prev, [stage]: mode }));
+
+  const setAllTo = (mode: AutonomyMode) => {
+    const next: Record<AutonomyStage, AutonomyMode> = { ...autonomy };
+    for (const s of AUTONOMY_STAGES) {
+      if (mode === "auto" && !s.allowAuto) { next[s.key] = "assist"; continue; }
+      next[s.key] = mode;
+    }
+    setAutonomy(next);
+  };
+
+  const summary = (() => {
+    const counts = { auto: 0, assist: 0, manual: 0 } as Record<AutonomyMode, number>;
+    for (const s of AUTONOMY_STAGES) counts[autonomy[s.key]] += 1;
+    return counts;
+  })();
+
+  return (
+    <Card>
+      <SectionTitle
+        title="Nível de autonomia por etapa"
+        subtitle="Escolha quais etapas o sistema executa sozinho, quais ele prepara para um humano confirmar e quais são 100% humanas."
+      />
+
+      {isLoading ? (
+        <div className="flex items-center gap-2 text-[13px] text-text-sec"><Loader2 className="h-4 w-4 animate-spin" /> Carregando…</div>
+      ) : (
+        <>
+          <div className="mb-4 grid grid-cols-3 gap-2 rounded-md border border-border-card bg-bg-general p-3 text-[12px]">
+            <div><span className="text-text-ter">Automático</span><div className="text-[16px] font-semibold text-text-title">{summary.auto}</div></div>
+            <div><span className="text-text-ter">Assistido</span><div className="text-[16px] font-semibold text-text-title">{summary.assist}</div></div>
+            <div><span className="text-text-ter">Somente humano</span><div className="text-[16px] font-semibold text-text-title">{summary.manual}</div></div>
+          </div>
+
+          <div className="mb-3 flex flex-wrap gap-2">
+            <button onClick={() => setAllTo("auto")} className="inline-flex h-8 items-center rounded-md border border-border-card px-3 text-[12px] hover:bg-bg-general">Tudo automático</button>
+            <button onClick={() => setAllTo("assist")} className="inline-flex h-8 items-center rounded-md border border-border-card px-3 text-[12px] hover:bg-bg-general">Tudo assistido</button>
+            <button onClick={() => setAllTo("manual")} className="inline-flex h-8 items-center rounded-md border border-border-card px-3 text-[12px] hover:bg-bg-general">Tudo manual</button>
+          </div>
+
+          <div className="divide-y divide-border-card rounded-md border border-border-card">
+            {AUTONOMY_STAGES.map((s) => {
+              const mode = autonomy[s.key];
+              return (
+                <div key={s.key} className="grid gap-2 p-3 md:grid-cols-[1fr_auto] md:items-center">
+                  <div>
+                    <div className="text-[13px] font-medium text-text-title">{s.label}</div>
+                    <div className="text-[11.5px] text-text-sec">{s.description}</div>
+                    {!s.allowAuto && (
+                      <div className="mt-1 inline-flex items-center gap-1 rounded-full bg-warning/10 px-2 py-0.5 text-[10.5px] text-warning">
+                        <AlertCircle className="h-3 w-3" /> "Automático" desativado para esta etapa por compliance
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex gap-1 rounded-md border border-border-card p-1">
+                    {(["auto","assist","manual"] as AutonomyMode[]).map((m) => {
+                      const disabled = m === "auto" && !s.allowAuto;
+                      const active = mode === m;
+                      return (
+                        <button
+                          key={m}
+                          disabled={disabled}
+                          onClick={() => setStage(s.key, m)}
+                          title={AUTONOMY_LABEL[m]}
+                          className={`h-8 rounded px-3 text-[12px] ${active ? "bg-primary text-primary-foreground" : "text-text-body hover:bg-bg-general"} ${disabled ? "cursor-not-allowed opacity-40" : ""}`}
+                        >
+                          {AUTONOMY_LABEL[m]}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="mt-4 flex items-center justify-between">
+            <div className="text-[11.5px] text-text-ter">
+              Etapas em <b>Assistido</b> geram uma tarefa/notificação para o responsável antes de executar. <b>Automático</b> exige a integração relacionada configurada e ativa.
+            </div>
+            <button
+              onClick={() => saveMut.mutate()}
+              disabled={saveMut.isPending}
+              className="inline-flex h-9 items-center rounded-md bg-primary px-4 text-[13px] font-medium text-primary-foreground hover:bg-primary-hover disabled:opacity-50"
+            >
+              {saveMut.isPending ? "Salvando…" : "Salvar autonomia"}
+            </button>
+          </div>
+        </>
+      )}
+    </Card>
+  );
+}
+
