@@ -60,6 +60,7 @@ export const Route = createFileRoute("/_authenticated/configuracoes")({
 
 const TABS = [
   { id: "ana", label: "Ana (IA)", icon: Sparkles },
+  { id: "autonomia", label: "Autonomia", icon: SlidersHorizontal },
   { id: "prospeccao", label: "Prospecção", icon: Search },
   { id: "equipe", label: "Equipe", icon: User },
   { id: "servicos", label: "Serviços", icon: Package },
