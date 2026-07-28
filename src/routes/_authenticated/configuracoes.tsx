@@ -46,6 +46,7 @@ import {
   type SequenceChannel,
 } from "@/lib/outreach-sequences.functions";
 import { AUTONOMY_STAGES, AUTONOMY_LABEL, DEFAULT_AUTONOMY, readAutonomy, type AutonomyMode, type AutonomyStage } from "@/lib/autonomy";
+import { GoogleCalendarCard } from "@/components/GoogleCalendarCard";
 
 
 type TabId = "ana" | "autonomia" | "prospeccao" | "equipe" | "servicos" | "objecoes" | "score" | "governanca" | "auditoria" | "notificacoes" | "integracoes" | "seguranca";
