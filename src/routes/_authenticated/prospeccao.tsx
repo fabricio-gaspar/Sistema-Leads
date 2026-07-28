@@ -744,12 +744,17 @@ function Prospeccao() {
                       </td>
 
                       <td className="p-3 align-top">
-                        {c.score != null ? (
+                        {bd ? (
                           <button
                             onClick={() => setOpenReason(openReason === c.cnpj ? null : c.cnpj)}
-                            className="inline-flex items-center gap-1.5 rounded-md bg-ia-bg px-2 py-1 text-[12px] font-semibold text-ia hover:opacity-80"
+                            className={`inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-[12px] font-semibold hover:opacity-80 ${tempClass}`}
+                            title={
+                              bd.ai != null
+                                ? `Determinístico ${bd.deterministic} · IA ${bd.ai} · Combinado ${bd.combined}`
+                                : `Score determinístico ${bd.deterministic}`
+                            }
                           >
-                            <Sparkles className="h-3 w-3" /> {c.score}
+                            <Sparkles className="h-3 w-3" /> {bd.combined}
                           </button>
                         ) : (
                           <span className="text-[11px] text-text-ter">—</span>
