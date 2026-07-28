@@ -807,13 +807,13 @@ function Prospeccao() {
                               <div className="mb-2 text-[11px] uppercase text-text-ter">Breakdown determinístico</div>
                               <table className="w-full text-[12px]">
                                 <tbody className="divide-y divide-border-card/60">
-                                  {bd.parts.map((p) => (
+                                  {bd.lines.map((p) => (
                                     <tr key={p.key}>
                                       <td className="py-1 pr-2 text-text-body">{p.label}</td>
-                                      <td className="py-1 pr-2 text-text-ter">{p.reason}</td>
+                                      <td className="py-1 pr-2 text-text-ter">{p.signal}</td>
                                       <td className="py-1 text-right font-mono text-text-title">
                                         +{p.points}
-                                        <span className="text-text-ter"> / {p.max}</span>
+                                        <span className="text-text-ter"> / {p.weight}</span>
                                       </td>
                                     </tr>
                                   ))}
