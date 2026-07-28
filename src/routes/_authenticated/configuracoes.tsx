@@ -2077,6 +2077,23 @@ function AbaAutonomia() {
             })}
           </div>
 
+          <div className="mt-4 grid gap-3 rounded-md border border-border-card p-3 md:grid-cols-[1fr_auto_auto] md:items-end">
+            <div>
+              <div className="text-[13px] font-medium text-text-title">Nurture (reengajamento automático)</div>
+              <div className="text-[11.5px] text-text-sec">Reativa a cadência de leads em Prospecção/Qualificado sem resposta há N dias. Respeita o modo escolhido em "Nurture" acima.</div>
+            </div>
+            <label className="text-[11.5px] text-text-sec">Dias sem resposta
+              <input type="number" min={1} max={365} value={nurtureDays}
+                onChange={(e) => setNurtureDays(Math.max(1, Math.min(365, Number(e.target.value) || 14)))}
+                className="mt-1 h-8 w-24 rounded border border-border-card bg-bg-card px-2 text-[12px]" />
+            </label>
+            <label className="text-[11.5px] text-text-sec">Máx. ciclos
+              <input type="number" min={0} max={10} value={nurtureMaxCycles}
+                onChange={(e) => setNurtureMaxCycles(Math.max(0, Math.min(10, Number(e.target.value) || 0)))}
+                className="mt-1 h-8 w-20 rounded border border-border-card bg-bg-card px-2 text-[12px]" />
+            </label>
+          </div>
+
           <div className="mt-4 flex items-center justify-between">
             <div className="text-[11.5px] text-text-ter">
               Etapas em <b>Assistido</b> geram uma tarefa/notificação para o responsável antes de executar. <b>Automático</b> exige a integração relacionada configurada e ativa.
