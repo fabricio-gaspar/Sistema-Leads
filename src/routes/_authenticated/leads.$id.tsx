@@ -462,9 +462,11 @@ function AutomationCard({ leadId, lead }: { leadId: string; lead: any }) {
   const getFn = useServerFn(getLeadAutomation);
   const acceptFn = useServerFn(acceptHandoff);
   const scheduleFn = useServerFn(scheduleAppointment);
+  const saveQualFn = useServerFn(saveLeadQualification);
   const [showSchedule, setShowSchedule] = useState(false);
   const [startsAt, setStartsAt] = useState("");
   const [title, setTitle] = useState("Reunião comercial");
+  const [editQual, setEditQual] = useState(false);
   const { data, isLoading, error } = useQuery({
     queryKey: ["lead-automation", leadId],
     queryFn: () => getFn({ data: { lead_id: leadId } }),
@@ -525,15 +527,33 @@ function AutomationCard({ leadId, lead }: { leadId: string; lead: any }) {
           </div>
 
           <div>
-            <div className="font-semibold text-text-title">Qualificação da Ana</div>
-            {qualification ? (
+            <div className="flex items-center justify-between">
+              <div className="font-semibold text-text-title">Qualificação da Ana</div>
+              <button onClick={() => setEditQual((v) => !v)} className="text-[10.5px] text-primary hover:underline">
+                {editQual ? "Fechar" : qualification ? "Editar" : "Preencher"}
+              </button>
+            </div>
+            {!editQual && (qualification ? (
               <div className="mt-1 space-y-1 text-text-sec">
                 <div>Intenção: {qualification.intent || "não informada"}</div>
                 <div>Serviço: {qualification.service_interest || "não informado"}</div>
                 <div>Prontidão: {qualification.readiness_score ?? "—"}/100</div>
+                {qualification.urgency && <div>Urgência: {qualification.urgency}</div>}
                 {qualification.summary && <div className="line-clamp-4">{qualification.summary}</div>}
               </div>
-            ) : <div className="mt-1 text-text-ter">Aguardando interação suficiente para qualificar.</div>}
+            ) : <div className="mt-1 text-text-ter">Aguardando interação suficiente para qualificar.</div>)}
+            {editQual && (
+              <QualificationEditor
+                leadId={leadId}
+                current={qualification}
+                onSave={async (values) => {
+                  await saveQualFn({ data: { lead_id: leadId, ...values } });
+                  setEditQual(false);
+                  qc.invalidateQueries({ queryKey: ["lead-automation", leadId] });
+                }}
+                onCancel={() => setEditQual(false)}
+              />
+            )}
           </div>
 
           {handoff && (
@@ -570,8 +590,23 @@ function AutomationCard({ leadId, lead }: { leadId: string; lead: any }) {
               </div>
             )}
             {appointments.length === 0 ? <div className="mt-1 text-text-ter">Nenhuma reunião agendada.</div> : (
-              <div className="mt-1 space-y-1">{appointments.slice(0, 3).map((appointment) => (
-                <div key={appointment.id} className="text-text-sec">{new Date(appointment.starts_at).toLocaleString("pt-BR")} · {appointment.title}</div>
+              <div className="mt-1 space-y-1">{appointments.slice(0, 5).map((appointment) => (
+                <div key={appointment.id} className="flex items-center justify-between gap-2 text-text-sec">
+                  <span className="truncate">{new Date(appointment.starts_at).toLocaleString("pt-BR")} · {appointment.title}</span>
+                  <button
+                    onClick={() => downloadIcs({
+                      uid: appointment.id,
+                      title: appointment.title,
+                      startsAt: appointment.starts_at,
+                      endsAt: appointment.ends_at,
+                      description: appointment.notes ?? `Reunião com ${lead.company}`,
+                    })}
+                    className="shrink-0 text-[10px] text-primary hover:underline"
+                    title="Baixar convite .ics para Google/Outlook/Apple"
+                  >
+                    .ics
+                  </button>
+                </div>
               ))}</div>
             )}
           </div>
@@ -579,6 +614,100 @@ function AutomationCard({ leadId, lead }: { leadId: string; lead: any }) {
         </div>
       )}
     </Card>
+  );
+}
+
+function QualificationEditor({
+  leadId: _leadId,
+  current,
+  onSave,
+  onCancel,
+}: {
+  leadId: string;
+  current: any;
+  onSave: (values: {
+    intent: string | null;
+    service_interest: string | null;
+    pain: string | null;
+    urgency: string | null;
+    budget_range: string | null;
+    decision_maker: string | null;
+    summary: string | null;
+    readiness_score: number | null;
+    objections: string[];
+    evidence: string[];
+  }) => Promise<void>;
+  onCancel: () => void;
+}) {
+  const [intent, setIntent] = useState<string>(current?.intent ?? "");
+  const [service, setService] = useState<string>(current?.service_interest ?? "");
+  const [pain, setPain] = useState<string>(current?.pain ?? "");
+  const [urgency, setUrgency] = useState<string>(current?.urgency ?? "");
+  const [budget, setBudget] = useState<string>(current?.budget_range ?? "");
+  const [decision, setDecision] = useState<string>(current?.decision_maker ?? "");
+  const [summary, setSummary] = useState<string>(current?.summary ?? "");
+  const [readiness, setReadiness] = useState<number>(Number(current?.readiness_score ?? 50));
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  return (
+    <div className="mt-2 space-y-2 rounded-md border border-border-card bg-bg-general p-2">
+      <input value={intent} onChange={(e) => setIntent(e.target.value)} placeholder="Intenção (ex: comprar, cotar)"
+        className="h-8 w-full rounded border border-border-card bg-bg-card px-2 text-[11.5px]" maxLength={200} />
+      <input value={service} onChange={(e) => setService(e.target.value)} placeholder="Serviço/produto de interesse"
+        className="h-8 w-full rounded border border-border-card bg-bg-card px-2 text-[11.5px]" maxLength={500} />
+      <div className="grid grid-cols-2 gap-2">
+        <input value={urgency} onChange={(e) => setUrgency(e.target.value)} placeholder="Urgência"
+          className="h-8 w-full rounded border border-border-card bg-bg-card px-2 text-[11.5px]" maxLength={200} />
+        <input value={budget} onChange={(e) => setBudget(e.target.value)} placeholder="Orçamento"
+          className="h-8 w-full rounded border border-border-card bg-bg-card px-2 text-[11.5px]" maxLength={200} />
+      </div>
+      <input value={decision} onChange={(e) => setDecision(e.target.value)} placeholder="Decisor (nome/cargo)"
+        className="h-8 w-full rounded border border-border-card bg-bg-card px-2 text-[11.5px]" maxLength={300} />
+      <textarea value={pain} onChange={(e) => setPain(e.target.value)} placeholder="Dor / problema declarado"
+        className="min-h-[48px] w-full rounded border border-border-card bg-bg-card px-2 py-1 text-[11.5px]" maxLength={1000} />
+      <textarea value={summary} onChange={(e) => setSummary(e.target.value)} placeholder="Resumo para o vendedor"
+        className="min-h-[56px] w-full rounded border border-border-card bg-bg-card px-2 py-1 text-[11.5px]" maxLength={3000} />
+      <div>
+        <div className="flex items-center justify-between text-[10.5px] text-text-ter">
+          <span>Prontidão para handoff</span>
+          <span className="font-semibold text-text-body">{readiness}/100</span>
+        </div>
+        <input type="range" min={0} max={100} step={5} value={readiness}
+          onChange={(e) => setReadiness(Number(e.target.value))} className="w-full" />
+      </div>
+      {err && <div className="text-[10.5px] text-error">{err}</div>}
+      <div className="flex justify-end gap-2">
+        <button onClick={onCancel} disabled={saving}
+          className="rounded border border-border-card px-2 py-1 text-[10.5px] hover:bg-bg-card">Cancelar</button>
+        <button
+          disabled={saving}
+          onClick={async () => {
+            setSaving(true); setErr(null);
+            try {
+              await onSave({
+                intent: intent.trim() || null,
+                service_interest: service.trim() || null,
+                pain: pain.trim() || null,
+                urgency: urgency.trim() || null,
+                budget_range: budget.trim() || null,
+                decision_maker: decision.trim() || null,
+                summary: summary.trim() || null,
+                readiness_score: readiness,
+                objections: Array.isArray(current?.objections) ? current.objections : [],
+                evidence: Array.isArray(current?.evidence) ? current.evidence : [],
+              });
+            } catch (e) {
+              setErr(e instanceof Error ? e.message : "Falha ao salvar");
+            } finally {
+              setSaving(false);
+            }
+          }}
+          className="rounded bg-primary px-2.5 py-1 text-[10.5px] text-primary-foreground disabled:opacity-50"
+        >
+          {saving ? "Salvando…" : "Salvar qualificação"}
+        </button>
+      </div>
+    </div>
   );
 }
 
