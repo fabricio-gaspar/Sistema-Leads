@@ -1126,8 +1126,6 @@ function AbaObjecoes() {
 }
 
 // ============= SCORE WEIGHTS =============
-import { distributionFor, DEFAULT_WEIGHTS as SCORE_DEFAULTS, type Weights as ScoreWeights } from "@/lib/score-explain";
-import { listRecentProspectingSamples } from "@/lib/prospecting.functions";
 
 function AbaScore() {
   const qc = useQueryClient();
