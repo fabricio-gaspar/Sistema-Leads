@@ -197,3 +197,74 @@ export const getKnowledgeStats = createServerFn({ method: 'GET' })
       documentsWithText: docsWithText ?? 0,
     }
   })
+
+// ============================================================================
+// Binary extraction (PDF / DOCX) — runs on Cloudflare Worker via unpdf & mammoth
+// ============================================================================
+
+function detectKind(name: string, mime: string): 'pdf' | 'docx' | 'text' | 'unsupported' {
+  const lower = (name || '').toLowerCase()
+  if (mime === 'application/pdf' || lower.endsWith('.pdf')) return 'pdf'
+  if (
+    mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+    lower.endsWith('.docx')
+  )
+    return 'docx'
+  if (mime.startsWith('text/') || /\.(txt|md|csv|json)$/i.test(lower)) return 'text'
+  return 'unsupported'
+}
+
+async function extractText(bytes: Uint8Array, kind: 'pdf' | 'docx' | 'text'): Promise<string> {
+  if (kind === 'text') {
+    return new TextDecoder().decode(bytes).trim()
+  }
+  if (kind === 'pdf') {
+    const { extractText: unpdfExtract, getDocumentProxy } = await import('unpdf')
+    const pdf = await getDocumentProxy(bytes)
+    const { text } = await unpdfExtract(pdf, { mergePages: true })
+    return (Array.isArray(text) ? text.join('\n\n') : String(text)).trim()
+  }
+  // docx
+  const mammoth = await import('mammoth')
+  const buf = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer
+  const result = await mammoth.extractRawText({ arrayBuffer: buf })
+  return (result.value || '').trim()
+}
+
+export const extractAndIndexDocument = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((d: unknown) => z.object({ document_id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context)
+    const { data: doc, error } = await context.supabase
+      .from('documents')
+      .select('id, name, type, storage_path, content_text')
+      .eq('id', data.document_id)
+      .maybeSingle()
+    if (error) throw new Error(error.message)
+    if (!doc) throw new Error('Documento não encontrado')
+    if (!doc.storage_path) throw new Error('Documento sem arquivo em storage')
+
+    const kind = detectKind(doc.name || '', doc.type || '')
+    if (kind === 'unsupported') throw new Error('Formato não suportado (use PDF, DOCX, TXT, MD, CSV, JSON)')
+
+    const { data: blob, error: dlErr } = await context.supabase.storage
+      .from('docs')
+      .download(doc.storage_path as string)
+    if (dlErr) throw new Error(dlErr.message)
+
+    const bytes = new Uint8Array(await blob.arrayBuffer())
+    if (bytes.byteLength > 15_000_000) throw new Error('Arquivo muito grande (>15 MB)')
+
+    const text = await extractText(bytes, kind)
+    if (!text) throw new Error('Não foi possível extrair texto do arquivo')
+
+    const { error: upErr } = await context.supabase
+      .from('documents')
+      .update({ content_text: text } as never)
+      .eq('id', doc.id)
+    if (upErr) throw new Error(upErr.message)
+
+    const result = await reindexDocumentInternal(context, doc.id)
+    return { chars: text.length, chunks: result.chunks, kind }
+  })
