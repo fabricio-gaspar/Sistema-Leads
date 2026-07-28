@@ -26,6 +26,7 @@ import { Route as AuthenticatedAtendimentoRouteImport } from './routes/_authenti
 import { Route as OauthGoogleCalendarReturnRouteImport } from './routes/oauth/google-calendar/return'
 import { Route as ApiPublicZapiWebhookRouteImport } from './routes/api/public/zapi-webhook'
 import { Route as ApiPublicResendWebhookRouteImport } from './routes/api/public/resend-webhook'
+import { Route as ApiPublicProspectingTickRouteImport } from './routes/api/public/prospecting-tick'
 import { Route as ApiPublicOutreachTickRouteImport } from './routes/api/public/outreach-tick'
 import { Route as ApiPublicEvolutionWebhookRouteImport } from './routes/api/public/evolution-webhook'
 import { Route as AuthenticatedLeadsIdRouteImport } from './routes/_authenticated/leads.$id'
@@ -119,6 +120,12 @@ const ApiPublicResendWebhookRoute = ApiPublicResendWebhookRouteImport.update({
   path: '/api/public/resend-webhook',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicProspectingTickRoute =
+  ApiPublicProspectingTickRouteImport.update({
+    id: '/api/public/prospecting-tick',
+    path: '/api/public/prospecting-tick',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicOutreachTickRoute = ApiPublicOutreachTickRouteImport.update({
   id: '/api/public/outreach-tick',
   path: '/api/public/outreach-tick',
@@ -153,6 +160,7 @@ export interface FileRoutesByFullPath {
   '/leads/$id': typeof AuthenticatedLeadsIdRoute
   '/api/public/evolution-webhook': typeof ApiPublicEvolutionWebhookRoute
   '/api/public/outreach-tick': typeof ApiPublicOutreachTickRoute
+  '/api/public/prospecting-tick': typeof ApiPublicProspectingTickRoute
   '/api/public/resend-webhook': typeof ApiPublicResendWebhookRoute
   '/api/public/zapi-webhook': typeof ApiPublicZapiWebhookRoute
   '/oauth/google-calendar/return': typeof OauthGoogleCalendarReturnRoute
@@ -174,6 +182,7 @@ export interface FileRoutesByTo {
   '/leads/$id': typeof AuthenticatedLeadsIdRoute
   '/api/public/evolution-webhook': typeof ApiPublicEvolutionWebhookRoute
   '/api/public/outreach-tick': typeof ApiPublicOutreachTickRoute
+  '/api/public/prospecting-tick': typeof ApiPublicProspectingTickRoute
   '/api/public/resend-webhook': typeof ApiPublicResendWebhookRoute
   '/api/public/zapi-webhook': typeof ApiPublicZapiWebhookRoute
   '/oauth/google-calendar/return': typeof OauthGoogleCalendarReturnRoute
@@ -197,6 +206,7 @@ export interface FileRoutesById {
   '/_authenticated/leads/$id': typeof AuthenticatedLeadsIdRoute
   '/api/public/evolution-webhook': typeof ApiPublicEvolutionWebhookRoute
   '/api/public/outreach-tick': typeof ApiPublicOutreachTickRoute
+  '/api/public/prospecting-tick': typeof ApiPublicProspectingTickRoute
   '/api/public/resend-webhook': typeof ApiPublicResendWebhookRoute
   '/api/public/zapi-webhook': typeof ApiPublicZapiWebhookRoute
   '/oauth/google-calendar/return': typeof OauthGoogleCalendarReturnRoute
@@ -220,6 +230,7 @@ export interface FileRouteTypes {
     | '/leads/$id'
     | '/api/public/evolution-webhook'
     | '/api/public/outreach-tick'
+    | '/api/public/prospecting-tick'
     | '/api/public/resend-webhook'
     | '/api/public/zapi-webhook'
     | '/oauth/google-calendar/return'
@@ -241,6 +252,7 @@ export interface FileRouteTypes {
     | '/leads/$id'
     | '/api/public/evolution-webhook'
     | '/api/public/outreach-tick'
+    | '/api/public/prospecting-tick'
     | '/api/public/resend-webhook'
     | '/api/public/zapi-webhook'
     | '/oauth/google-calendar/return'
@@ -263,6 +275,7 @@ export interface FileRouteTypes {
     | '/_authenticated/leads/$id'
     | '/api/public/evolution-webhook'
     | '/api/public/outreach-tick'
+    | '/api/public/prospecting-tick'
     | '/api/public/resend-webhook'
     | '/api/public/zapi-webhook'
     | '/oauth/google-calendar/return'
@@ -274,6 +287,7 @@ export interface RootRouteChildren {
   ResetPasswordRoute: typeof ResetPasswordRoute
   ApiPublicEvolutionWebhookRoute: typeof ApiPublicEvolutionWebhookRoute
   ApiPublicOutreachTickRoute: typeof ApiPublicOutreachTickRoute
+  ApiPublicProspectingTickRoute: typeof ApiPublicProspectingTickRoute
   ApiPublicResendWebhookRoute: typeof ApiPublicResendWebhookRoute
   ApiPublicZapiWebhookRoute: typeof ApiPublicZapiWebhookRoute
   OauthGoogleCalendarReturnRoute: typeof OauthGoogleCalendarReturnRoute
@@ -400,6 +414,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicResendWebhookRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/prospecting-tick': {
+      id: '/api/public/prospecting-tick'
+      path: '/api/public/prospecting-tick'
+      fullPath: '/api/public/prospecting-tick'
+      preLoaderRoute: typeof ApiPublicProspectingTickRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/outreach-tick': {
       id: '/api/public/outreach-tick'
       path: '/api/public/outreach-tick'
@@ -472,6 +493,7 @@ const rootRouteChildren: RootRouteChildren = {
   ResetPasswordRoute: ResetPasswordRoute,
   ApiPublicEvolutionWebhookRoute: ApiPublicEvolutionWebhookRoute,
   ApiPublicOutreachTickRoute: ApiPublicOutreachTickRoute,
+  ApiPublicProspectingTickRoute: ApiPublicProspectingTickRoute,
   ApiPublicResendWebhookRoute: ApiPublicResendWebhookRoute,
   ApiPublicZapiWebhookRoute: ApiPublicZapiWebhookRoute,
   OauthGoogleCalendarReturnRoute: OauthGoogleCalendarReturnRoute,
