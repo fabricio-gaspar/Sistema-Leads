@@ -17,6 +17,7 @@ import {
   updateCompanySettings,
   listIntegrations,
 } from "@/lib/crm.functions";
+import { extractAndIndexDocument } from "@/lib/knowledge.functions";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/empresa")({ component: Empresa });
