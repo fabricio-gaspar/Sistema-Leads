@@ -123,6 +123,7 @@ export type Database = {
           ai_temperature: number | null
           annual_revenue: string | null
           assignment_strategy: string
+          autonomy: Json
           city: string | null
           cnpj: string | null
           created_at: string
@@ -154,6 +155,7 @@ export type Database = {
           ai_temperature?: number | null
           annual_revenue?: string | null
           assignment_strategy?: string
+          autonomy?: Json
           city?: string | null
           cnpj?: string | null
           created_at?: string
@@ -185,6 +187,7 @@ export type Database = {
           ai_temperature?: number | null
           annual_revenue?: string | null
           assignment_strategy?: string
+          autonomy?: Json
           city?: string | null
           cnpj?: string | null
           created_at?: string
