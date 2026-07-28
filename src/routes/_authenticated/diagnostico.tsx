@@ -264,3 +264,104 @@ function DiagnosticoPage() {
     </div>
   );
 }
+
+function ComplianceCard() {
+  const fn = useServerFn(getComplianceSnapshot);
+  const { data, isLoading } = useQuery({ queryKey: ["compliance-snapshot"], queryFn: () => fn() });
+
+  function downloadAuditCsv() {
+    if (!data) return;
+    const header = ["ocorrido_em", "acao", "ator", "tipo", "detalhe"];
+    const rows = data.auditLogs.map((r) => [
+      r.occurred_at,
+      r.action,
+      r.actor_name,
+      r.actor_type,
+      (r.detail ?? "").replace(/"/g, '""'),
+    ]);
+    const csv = [header, ...rows].map((r) => r.map((c) => `"${c}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `audit-logs-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  if (isLoading || !data) {
+    return (
+      <Card>
+        <div className="flex items-center gap-2 text-[12px] text-text-sec">
+          <Loader2 className="h-4 w-4 animate-spin" /> Carregando conformidade…
+        </div>
+      </Card>
+    );
+  }
+  return (
+    <Card>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <div className="text-[15px] font-semibold text-text-title">Conformidade (LGPD) — últimos 30 dias</div>
+          <p className="mt-1 text-[12.5px] text-text-sec">
+            Opt-outs, supressões de contato, consentimentos e trilha de auditoria. Exporte quando necessário.
+          </p>
+        </div>
+        <button onClick={downloadAuditCsv}
+          className="inline-flex items-center gap-2 rounded-md border border-border-card bg-bg-card px-3 py-1.5 text-[12px] text-text-body hover:bg-bg-general">
+          <Download className="h-3.5 w-3.5" /> Auditoria (CSV)
+        </button>
+      </div>
+      <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-4">
+        <div className="rounded-md border border-border-card bg-bg-general p-2.5">
+          <div className="text-[10px] uppercase text-text-ter">Opt-outs ativos</div>
+          <div className="text-[20px] font-semibold text-hot">{data.optOutLeads.length}</div>
+        </div>
+        <div className="rounded-md border border-border-card bg-bg-general p-2.5">
+          <div className="text-[10px] uppercase text-text-ter">Supressões</div>
+          <div className="text-[20px] font-semibold text-warm">{data.suppressions.length}</div>
+        </div>
+        <div className="rounded-md border border-border-card bg-bg-general p-2.5">
+          <div className="text-[10px] uppercase text-text-ter">Eventos de consentimento</div>
+          <div className="text-[20px] font-semibold text-primary">{data.recentConsent.length}</div>
+        </div>
+        <div className="rounded-md border border-border-card bg-bg-general p-2.5">
+          <div className="text-[10px] uppercase text-text-ter">Logs de auditoria</div>
+          <div className="text-[20px] font-semibold text-text-title">{data.auditLogs.length}</div>
+        </div>
+      </div>
+      <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
+        <div>
+          <div className="mb-1 text-[12px] font-semibold text-text-title">Opt-outs recentes</div>
+          {data.optOutLeads.length === 0 ? (
+            <div className="text-[12px] text-text-ter">Nenhum lead com opt-out.</div>
+          ) : (
+            <ul className="max-h-40 space-y-1 overflow-y-auto text-[11.5px]">
+              {data.optOutLeads.slice(0, 20).map((l) => (
+                <li key={l.id} className="flex justify-between gap-2 rounded-md border border-border-card bg-bg-general px-2 py-1">
+                  <span className="truncate text-text-body">{l.company}{l.contact ? ` · ${l.contact}` : ""}</span>
+                  <span className="shrink-0 text-text-ter">{new Date(l.updated_at).toLocaleDateString("pt-BR")}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <div>
+          <div className="mb-1 text-[12px] font-semibold text-text-title">Eventos de consentimento</div>
+          {data.consentSummary.length === 0 ? (
+            <div className="text-[12px] text-text-ter">Sem registros no período.</div>
+          ) : (
+            <ul className="space-y-1 text-[11.5px]">
+              {data.consentSummary.map((c) => (
+                <li key={c.event} className="flex justify-between rounded-md border border-border-card bg-bg-general px-2 py-1">
+                  <span className="capitalize text-text-body">{c.event.replace(/_/g, " ")}</span>
+                  <span className="font-semibold text-primary">{c.count}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    </Card>
+  );
+}
