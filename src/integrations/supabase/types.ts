@@ -1662,6 +1662,142 @@ export type Database = {
         }
         Relationships: []
       }
+      prospecting_schedule_runs: {
+        Row: {
+          approved_count: number
+          created_at: string
+          detail: Json
+          error: string | null
+          finished_at: string | null
+          found_count: number
+          id: string
+          imported_count: number
+          schedule_id: string
+          skipped_count: number
+          started_at: string
+          status: string
+        }
+        Insert: {
+          approved_count?: number
+          created_at?: string
+          detail?: Json
+          error?: string | null
+          finished_at?: string | null
+          found_count?: number
+          id?: string
+          imported_count?: number
+          schedule_id: string
+          skipped_count?: number
+          started_at?: string
+          status?: string
+        }
+        Update: {
+          approved_count?: number
+          created_at?: string
+          detail?: Json
+          error?: string | null
+          finished_at?: string | null
+          found_count?: number
+          id?: string
+          imported_count?: number
+          schedule_id?: string
+          skipped_count?: number
+          started_at?: string
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prospecting_schedule_runs_schedule_id_fkey"
+            columns: ["schedule_id"]
+            isOneToOne: false
+            referencedRelation: "prospecting_schedules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      prospecting_schedules: {
+        Row: {
+          active: boolean
+          assignment_strategy: string
+          auto_approve_min_score: number
+          consecutive_failures: number
+          created_at: string
+          daily_cap: number
+          days_of_week: number[]
+          description: string | null
+          filters: Json
+          id: string
+          last_run_at: string | null
+          monthly_cap: number
+          name: string
+          next_run_at: string | null
+          owner_id: string
+          quantity: number
+          quiet_hours_end: string
+          quiet_hours_start: string
+          sequence_id: string | null
+          time_of_day: string
+          timezone: string
+          updated_at: string
+        }
+        Insert: {
+          active?: boolean
+          assignment_strategy?: string
+          auto_approve_min_score?: number
+          consecutive_failures?: number
+          created_at?: string
+          daily_cap?: number
+          days_of_week?: number[]
+          description?: string | null
+          filters?: Json
+          id?: string
+          last_run_at?: string | null
+          monthly_cap?: number
+          name: string
+          next_run_at?: string | null
+          owner_id: string
+          quantity?: number
+          quiet_hours_end?: string
+          quiet_hours_start?: string
+          sequence_id?: string | null
+          time_of_day?: string
+          timezone?: string
+          updated_at?: string
+        }
+        Update: {
+          active?: boolean
+          assignment_strategy?: string
+          auto_approve_min_score?: number
+          consecutive_failures?: number
+          created_at?: string
+          daily_cap?: number
+          days_of_week?: number[]
+          description?: string | null
+          filters?: Json
+          id?: string
+          last_run_at?: string | null
+          monthly_cap?: number
+          name?: string
+          next_run_at?: string | null
+          owner_id?: string
+          quantity?: number
+          quiet_hours_end?: string
+          quiet_hours_start?: string
+          sequence_id?: string | null
+          time_of_day?: string
+          timezone?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prospecting_schedules_sequence_id_fkey"
+            columns: ["sequence_id"]
+            isOneToOne: false
+            referencedRelation: "outreach_sequences"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       score_weights: {
         Row: {
           google: number

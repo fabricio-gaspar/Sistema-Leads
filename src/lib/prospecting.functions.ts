@@ -973,3 +973,205 @@ export const listRecentProspectingSamples = createServerFn({ method: 'GET' })
     })
   })
 
+// ============= Internal: executar campanha agendada =============
+// Chamado pelo cron `/api/public/prospecting-tick`. Usa supabaseAdmin
+// mas grava tudo com owner_id = schedule.owner_id (mesma semântica de RLS).
+export type CampaignRunResult = {
+  found: number
+  approved: number
+  imported: number
+  skipped: number
+  reasons: Record<string, number>
+}
+
+export async function runProspectingCampaignInternal(
+  supabaseAdmin: any,
+  schedule: {
+    id: string
+    owner_id: string
+    filters: Record<string, any>
+    quantity: number
+    auto_approve_min_score: number
+    sequence_id: string | null
+    assignment_strategy: 'owner' | 'round_robin' | 'ia_only'
+    daily_cap: number
+    monthly_cap: number
+  },
+): Promise<CampaignRunResult> {
+  const reasons: Record<string, number> = {}
+  const bump = (k: string) => { reasons[k] = (reasons[k] ?? 0) + 1 }
+
+  // ---- Cap check ----
+  const startOfDay = new Date()
+  startOfDay.setUTCHours(0, 0, 0, 0)
+  const startOfMonth = new Date(startOfDay.getUTCFullYear(), startOfDay.getUTCMonth(), 1)
+  const { data: dayRuns } = await supabaseAdmin
+    .from('prospecting_schedule_runs')
+    .select('imported_count')
+    .eq('schedule_id', schedule.id)
+    .gte('started_at', startOfDay.toISOString())
+  const importedToday = (dayRuns ?? []).reduce((a: number, r: any) => a + (r.imported_count ?? 0), 0)
+  const { data: monthRuns } = await supabaseAdmin
+    .from('prospecting_schedule_runs')
+    .select('imported_count')
+    .eq('schedule_id', schedule.id)
+    .gte('started_at', startOfMonth.toISOString())
+  const importedMonth = (monthRuns ?? []).reduce((a: number, r: any) => a + (r.imported_count ?? 0), 0)
+  const capRemaining = Math.max(
+    0,
+    Math.min(schedule.daily_cap - importedToday, schedule.monthly_cap - importedMonth),
+  )
+  if (capRemaining <= 0) {
+    return { found: 0, approved: 0, imported: 0, skipped: 0, reasons: { cap_reached: 1 } }
+  }
+
+  // ---- Load settings for scoring ----
+  const { data: settingsRow } = await supabaseAdmin
+    .from('company_settings')
+    .select('name, description, differentiators, prospecting_sources')
+    .limit(1)
+    .maybeSingle()
+  const enabled = (settingsRow?.prospecting_sources as Record<string, boolean> | null) ?? {
+    cnpj_ws: true, google_places: false, ai_only: false, apify: false,
+  }
+
+  const rawFilters = {
+    source: (schedule.filters.source as SourceId) ?? 'google_places',
+    cnae: schedule.filters.cnae ?? null,
+    uf: schedule.filters.uf ?? null,
+    municipio: schedule.filters.municipio ?? null,
+    porte: schedule.filters.porte ?? null,
+    min_capital: schedule.filters.min_capital ?? null,
+    keyword: schedule.filters.keyword ?? null,
+    radius_km: schedule.filters.radius_km ?? null,
+    limit: Math.min(30, Math.max(1, Math.min(schedule.quantity, capRemaining))),
+  }
+  const filters = filtersSchema.parse(rawFilters)
+
+  if (!enabled[filters.source]) {
+    throw new Error(`Fonte ${filters.source} desativada`)
+  }
+
+  // ---- Search ----
+  let raw: ExternalCompany[] = []
+  if (filters.source === 'cnpj_ws') raw = await fetchFromCnpjWs(filters)
+  else if (filters.source === 'google_places') raw = await fetchFromGooglePlaces(filters)
+  else if (filters.source === 'apify') raw = await fetchFromApify(filters)
+  else raw = await fetchFromAI(filters, {
+    name: settingsRow?.name, description: settingsRow?.description, differentiators: settingsRow?.differentiators,
+  })
+
+  if (raw.length && filters.source !== 'ai_only') {
+    raw = await scoreWithClaude(raw, {
+      name: settingsRow?.name, description: settingsRow?.description, differentiators: settingsRow?.differentiators, icp: null,
+    })
+  }
+
+  const found = raw.length
+
+  // ---- Approval filter ----
+  const approved = raw.filter((c) => (c.score ?? 0) >= schedule.auto_approve_min_score)
+  raw.slice(approved.length).forEach(() => bump('below_min_score'))
+
+  // ---- Round-robin owner pool ----
+  let ownerPool: string[] = [schedule.owner_id]
+  if (schedule.assignment_strategy === 'round_robin') {
+    const { data: sellers } = await supabaseAdmin
+      .from('profiles')
+      .select('id')
+      .eq('active', true)
+    ownerPool = (sellers ?? []).map((s: any) => s.id as string)
+    if (ownerPool.length === 0) ownerPool = [schedule.owner_id]
+  }
+
+  // ---- Import loop ----
+  let imported = 0
+  let idx = 0
+  for (const company of approved) {
+    if (imported >= capRemaining) { bump('cap_reached'); break }
+    if (company.source === 'ai_only') { bump('ai_only_needs_validation'); continue }
+    if (!company.whatsapp && !company.telefone && !company.email) { bump('no_contact_channel'); continue }
+
+    const { isAnyContactSuppressed } = await import('./outreach.functions')
+    if (await isAnyContactSuppressed({ supabase: supabaseAdmin } as never, null, {
+      whatsapp: company.whatsapp, phone: company.telefone, email: company.email,
+    })) { bump('suppressed'); continue }
+
+    const assignedOwner = ownerPool[idx % ownerPool.length]
+    idx++
+
+    const originTag = `${company.source}:${company.cnpj || company.razao_social}`
+    const { data: dup } = await supabaseAdmin
+      .from('leads')
+      .select('id')
+      .eq('owner_id', assignedOwner)
+      .eq('origin', originTag)
+      .maybeSingle()
+    if (dup) { bump('duplicate'); continue }
+
+    const sizeMap: Record<string, 'pequena' | 'media' | 'grande'> = {
+      'micro empresa': 'pequena', 'me': 'pequena', 'empresa de pequeno porte': 'pequena', 'epp': 'pequena', 'demais': 'media',
+    }
+    const porteLower = (company.porte ?? '').toLowerCase()
+    const size = Object.entries(sizeMap).find(([k]) => porteLower.includes(k))?.[1] ?? 'media'
+
+    const initialChannels = {
+      whatsapp: { available: ((company.whatsapp ?? detectWhatsapp(company.telefone)) || '').replace(/\D/g, '').length >= 10, last_status: null, last_attempt_at: null },
+      email: { available: /.+@.+\..+/.test((company.email ?? '').trim()), last_status: null, last_attempt_at: null },
+      phone: { available: (company.telefone ?? '').replace(/\D/g, '').length >= 10, last_status: null, last_attempt_at: null },
+    }
+
+    const payload = {
+      owner_id: assignedOwner,
+      company: company.nome_fantasia || company.razao_social,
+      contact: null, title: null,
+      phone: company.telefone, whatsapp: company.whatsapp ?? detectWhatsapp(company.telefone), email: company.email,
+      segment: company.cnae_descricao, uf: company.uf, city: company.municipio,
+      distance: company.distance_km == null ? null : Math.round(company.distance_km),
+      size, annual_revenue: null,
+      score: company.score ?? null,
+      score_snapshot: {
+        total: company.score ?? 0, reason: company.score_reason ?? null,
+        criteria: {
+          segment: company.cnae_descricao ?? null,
+          region: [company.municipio, company.uf].filter(Boolean).join('/') || null,
+          distance_km: company.distance_km ?? null, size: company.porte ?? null,
+          whatsapp: initialChannels.whatsapp.available, email: initialChannels.email.available,
+          phone: initialChannels.phone.available, website: Boolean(company.website),
+        },
+        source: company.source, captured_at: new Date().toISOString(),
+      },
+      score_explanation: company.score_reason ?? 'Score da campanha agendada.',
+      score_source: company.source, score_verified_at: new Date().toISOString(),
+      temp: (company.score ?? 0) >= 75 ? 'hot' : (company.score ?? 0) >= 50 ? 'warm' : 'cold',
+      stage: 'Prospecção',
+      origin: `schedule:${schedule.id}|${originTag}`,
+      contact_channels: initialChannels,
+    }
+    const { data: row, error } = await supabaseAdmin.from('leads').insert(payload as never).select('id').single()
+    if (error) { bump(`insert_error:${error.code ?? 'unknown'}`); continue }
+
+    await supabaseAdmin.from('audit_logs').insert({
+      actor_id: assignedOwner, actor_name: 'Agendador de prospecção', actor_type: 'ia',
+      action: 'schedule_lead_created',
+      detail: `Campanha ${schedule.id} · ${company.razao_social}`,
+      rule: `min_score>=${schedule.auto_approve_min_score}`,
+    } as never)
+
+    try {
+      const { triggerOutreachInternal } = await import('./outreach.functions')
+      await triggerOutreachInternal(
+        { supabase: supabaseAdmin, userId: assignedOwner, claims: { email: 'Agendador' } } as never,
+        row.id as string,
+      )
+    } catch (err) {
+      bump(`outreach_start_failed`)
+      console.error('schedule outreach start failed', (err as Error).message)
+    }
+
+    imported++
+  }
+
+  return { found, approved: approved.length, imported, skipped: found - imported, reasons }
+}
+
