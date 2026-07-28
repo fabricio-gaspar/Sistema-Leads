@@ -405,6 +405,10 @@ const companySettingsInput = z.object({
   handoff_sla_minutes: z.number().int().min(5).max(1440).optional(),
   handoff_readiness_score: z.number().int().min(0).max(100).optional(),
   sandbox_mode: z.boolean().optional().nullable(),
+  autonomy: z
+    .record(z.string(), z.enum(['auto', 'assist', 'manual']))
+    .optional()
+    .nullable(),
 })
 
 
