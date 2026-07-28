@@ -16,6 +16,7 @@ import {
   type ExternalCompany,
   type SourceId,
 } from "@/lib/prospecting.functions";
+import { SchedulesPanel } from "@/components/prospecting/SchedulesPanel";
 import { getScoreWeights } from "@/lib/crm.functions";
 import { explainScore, DEFAULT_WEIGHTS, type Weights, type ScoreBreakdown } from "@/lib/score-explain";
 import { downloadCSV } from "@/lib/exports";
@@ -113,6 +114,7 @@ function Prospeccao() {
   const [saveName, setSaveName] = useState("");
   const [loadedSaved, setLoadedSaved] = useState<{ id: string; name: string; results: ExternalCompany[]; source: SourceId; created_at: string } | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [tab, setTab] = useState<"manual" | "schedules">("manual");
 
   // If current source becomes disabled, switch to first enabled
   useEffect(() => {
@@ -299,7 +301,22 @@ function Prospeccao() {
         </div>
       </Card>
 
-      {noneEnabled && (
+      <Card>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setTab("manual")}
+            className={`rounded-md px-3 py-1.5 text-[12px] font-medium ${tab === "manual" ? "bg-primary text-white" : "bg-bg-general text-text-sec"}`}
+          >Busca manual</button>
+          <button
+            onClick={() => setTab("schedules")}
+            className={`rounded-md px-3 py-1.5 text-[12px] font-medium ${tab === "schedules" ? "bg-primary text-white" : "bg-bg-general text-text-sec"}`}
+          >Campanhas agendadas</button>
+        </div>
+      </Card>
+
+      {tab === "schedules" && <SchedulesPanel />}
+
+      {tab === "manual" && noneEnabled && (
         <Card>
           <div className="text-[13px] text-warm">
             Nenhuma fonte de prospecção está ativa. Vá em <Link to="/configuracoes" search={{ tab: "prospeccao" }} className="underline">Configurações → Prospecção</Link> para ativar.
@@ -308,7 +325,7 @@ function Prospeccao() {
       )}
 
 
-      {!noneEnabled && (
+      {tab === "manual" && !noneEnabled && (
         <>
           {/* Source picker */}
           <Card>
