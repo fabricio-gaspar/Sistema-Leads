@@ -137,3 +137,64 @@ export const getComplianceSnapshot = createServerFn({ method: "GET" })
       auditLogs: auditRes.data ?? [],
     };
   });
+
+// ============ Stage 6 (Observabilidade): saúde da automação ============
+export const getAutomationHealth = createServerFn({ method: "GET" })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const ctx = context as Ctx;
+    const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    const [outreachRes, enrollRes, jobsRes, handoffRes, proposalsRes] = await Promise.all([
+      ctx.supabase.from("lead_outreach").select("channel, status, sent_at").gte("created_at", since),
+      ctx.supabase.from("lead_sequence_enrollments").select("status, last_error, nurture_cycles"),
+      ctx.supabase.from("outreach_jobs").select("status, attempt, run_at").gte("created_at", since),
+      ctx.supabase.from("lead_handoffs").select("status, requested_at, accepted_at, due_at").gte("requested_at", since),
+      ctx.supabase.from("proposals").select("status, creator, created_at").gte("created_at", since),
+    ]);
+
+    const outreach = (outreachRes.data ?? []) as Array<{ channel: string; status: string }>;
+    const byChannel: Record<string, { sent: number; delivered: number; replied: number; failed: number }> = {};
+    for (const o of outreach) {
+      const b = (byChannel[o.channel] ||= { sent: 0, delivered: 0, replied: 0, failed: 0 });
+      if (["sent", "delivered", "read", "replied"].includes(o.status)) b.sent += 1;
+      if (["delivered", "read", "replied"].includes(o.status)) b.delivered += 1;
+      if (o.status === "replied") b.replied += 1;
+      if (o.status === "failed") b.failed += 1;
+    }
+
+    const enrollments = (enrollRes.data ?? []) as Array<{ status: string; last_error: string | null; nurture_cycles: number }>;
+    const enrollmentStatus = enrollments.reduce<Record<string, number>>((acc, e) => {
+      acc[e.status] = (acc[e.status] ?? 0) + 1;
+      return acc;
+    }, {});
+    const nurtureActive = enrollments.filter((e) => (e.nurture_cycles ?? 0) > 0).length;
+
+    const jobs = (jobsRes.data ?? []) as Array<{ status: string; attempt: number }>;
+    const jobStatus = jobs.reduce<Record<string, number>>((acc, j) => {
+      acc[j.status] = (acc[j.status] ?? 0) + 1;
+      return acc;
+    }, {});
+
+    const handoffs = (handoffRes.data ?? []) as Array<{ status: string; requested_at: string; accepted_at: string | null; due_at: string | null }>;
+    const now = Date.now();
+    let slaBreached = 0;
+    let acceptedFast = 0;
+    for (const h of handoffs) {
+      if (h.due_at && !h.accepted_at && new Date(h.due_at).getTime() < now) slaBreached += 1;
+      if (h.accepted_at) acceptedFast += 1;
+    }
+
+    const proposals = (proposalsRes.data ?? []) as Array<{ status: string; creator: string }>;
+    const aiProposals = proposals.filter((p) => p.creator === "ia").length;
+    const sentProposals = proposals.filter((p) => p.status === "Enviado" || p.status === "Aprovada").length;
+
+    return {
+      window_days: 7,
+      byChannel,
+      enrollmentStatus,
+      nurtureActive,
+      jobStatus,
+      handoffs: { total: handoffs.length, accepted: acceptedFast, sla_breached: slaBreached },
+      proposals: { total: proposals.length, from_ai: aiProposals, sent_or_approved: sentProposals },
+    };
+  });
