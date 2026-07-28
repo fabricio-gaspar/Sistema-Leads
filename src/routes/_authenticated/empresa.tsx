@@ -410,13 +410,13 @@ function DocumentosCard() {
     <Card>
       <SectionTitle
         title="Documentos"
-        hint="Base aprovada usada pela Ana nas respostas (TXT, Markdown, CSV ou JSON)"
+        hint="Base aprovada usada pela Ana (PDF, DOCX, TXT, Markdown, CSV ou JSON — até 15 MB)"
         action={
           <>
             <input
               ref={inputRef}
               type="file"
-              accept=".txt,.md,.csv,.json,text/plain,text/markdown,text/csv,application/json"
+              accept=".pdf,.docx,.txt,.md,.csv,.json,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown,text/csv,application/json"
               className="hidden"
               onChange={(e) => e.target.files?.[0] && onPick(e.target.files[0])}
             />
