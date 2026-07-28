@@ -238,6 +238,19 @@ function Prospeccao() {
   }
 
   const results = currentResults;
+  const scoreCtx = useMemo(
+    () => ({
+      porteFilter: applied?.porte ?? loadedSaved ? (applied?.porte ?? null) : null,
+      ufFilter: applied?.uf ?? null,
+      radiusKm: applied?.radius_km ?? null,
+    }),
+    [applied, loadedSaved],
+  );
+  const breakdowns = useMemo(() => {
+    const map = new Map<string, ScoreBreakdown>();
+    for (const c of results) map.set(c.cnpj, explainScore(c, weights, scoreCtx));
+    return map;
+  }, [results, weights, scoreCtx]);
   const eligibleResults = useMemo(() => results.filter(isEligibleForLeads), [results]);
   const selectedEligible = eligibleResults.filter((company) => selected.has(company.cnpj));
   const activeSources = enabled ? (["cnpj_ws", "google_places", "apify", "ai_only"] as SourceId[]).filter((s) => enabled[s]) : [];
