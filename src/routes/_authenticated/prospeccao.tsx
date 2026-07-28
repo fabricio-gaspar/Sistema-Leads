@@ -676,7 +676,7 @@ function Prospeccao() {
                   <th className="p-3">Porte / Capital</th>
                   <th className="p-3">Cidade / UF</th>
                   <th className="p-3">Contato</th>
-                  <th className="p-3">Score IA</th>
+                  <th className="p-3">Score</th>
                   <th className="p-3 text-right">Ação</th>
                 </tr>
               </thead>
