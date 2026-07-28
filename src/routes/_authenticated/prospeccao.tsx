@@ -683,6 +683,13 @@ function Prospeccao() {
               <tbody className="divide-y divide-border-card">
                 {results.map((c) => {
                   const eligible = isEligibleForLeads(c);
+                  const bd = breakdowns.get(c.cnpj);
+                  const tempClass =
+                    bd?.temp === "hot"
+                      ? "bg-hot-bg text-hot"
+                      : bd?.temp === "warm"
+                        ? "bg-warm-bg text-warm"
+                        : "bg-bg-general text-text-body";
                   return (
                   <Fragment key={c.cnpj}>
                     <tr className="hover:bg-bg-general/40">
