@@ -48,12 +48,12 @@ import {
 import { AUTONOMY_STAGES, AUTONOMY_LABEL, DEFAULT_AUTONOMY, readAutonomy, type AutonomyMode, type AutonomyStage } from "@/lib/autonomy";
 
 
-type TabId = "ana" | "prospeccao" | "equipe" | "servicos" | "objecoes" | "score" | "governanca" | "auditoria" | "notificacoes" | "integracoes" | "seguranca";
+type TabId = "ana" | "autonomia" | "prospeccao" | "equipe" | "servicos" | "objecoes" | "score" | "governanca" | "auditoria" | "notificacoes" | "integracoes" | "seguranca";
 export const Route = createFileRoute("/_authenticated/configuracoes")({
   component: Configuracoes,
   validateSearch: (s: Record<string, unknown>): { tab?: TabId } => {
     const t = s.tab;
-    const valid: TabId[] = ["ana","prospeccao","equipe","servicos","objecoes","score","governanca","auditoria","notificacoes","integracoes","seguranca"];
+    const valid: TabId[] = ["ana","autonomia","prospeccao","equipe","servicos","objecoes","score","governanca","auditoria","notificacoes","integracoes","seguranca"];
     return typeof t === "string" && (valid as string[]).includes(t) ? { tab: t as TabId } : {};
   },
 });
