@@ -63,6 +63,7 @@ import {
   saveLeadQualification,
   scheduleAppointment,
 } from "@/lib/sales-automation.functions";
+import { autoDraftProposal, draftInitialContact } from "@/lib/sales-actions.functions";
 import { downloadIcs } from "@/lib/ics";
 
 
