@@ -45,6 +45,7 @@ import {
   deleteSequenceStep,
   type SequenceChannel,
 } from "@/lib/outreach-sequences.functions";
+import { AUTONOMY_STAGES, AUTONOMY_LABEL, DEFAULT_AUTONOMY, readAutonomy, type AutonomyMode, type AutonomyStage } from "@/lib/autonomy";
 
 
 type TabId = "ana" | "prospeccao" | "equipe" | "servicos" | "objecoes" | "score" | "governanca" | "auditoria" | "notificacoes" | "integracoes" | "seguranca";
