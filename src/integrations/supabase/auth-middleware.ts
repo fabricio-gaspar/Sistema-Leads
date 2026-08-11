@@ -113,11 +113,36 @@ export const requireSupabaseAuth = createMiddleware({ type: 'function' }).server
       throw new Error('Unauthorized: user is inactive');
     }
 
+    // Multi-tenant enforcement: find current organization for the user
+    const { data: roleRow, error: roleErr } = await (supabase as any)
+      .from('user_roles')
+      .select('organization_id')
+      .eq('user_id', data.claims.sub)
+      .limit(1)
+      .maybeSingle();
+
+    if (roleErr) {
+      console.error('[auth-middleware] role lookup failed:', roleErr.message);
+      throw new Error('Unauthorized: role lookup failed');
+    }
+
+    const orgId = roleRow?.organization_id;
+
+    // Inject organization isolation at the database session level (optional but safe)
+    if (orgId) {
+      await (supabase as any).rpc('set_config', {
+        name: 'app.current_organization_id',
+        value: orgId,
+        is_local: true
+      }).catch(() => {});
+    }
+
     return next({
       context: {
         supabase,
         userId: data.claims.sub,
         claims: data.claims,
+        organizationId: orgId,
       },
     });
   },
