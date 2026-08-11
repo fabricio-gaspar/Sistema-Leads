@@ -504,7 +504,7 @@ export const chatWithAna = createServerFn({ method: 'POST' })
     const system = `${systemBase}${companyCtx}${leadCtx}`
 
     const messages = [
-      ...(history ?? []).map((m) => ({
+      ...(history ?? []).map((m: any) => ({
         role: m.sender === 'client' ? ('user' as const) : ('assistant' as const),
         content: m.text,
       })),
@@ -941,7 +941,7 @@ export const listTeam = createServerFn({ method: 'GET' })
       can_use_ia: boolean | null
       discount_limit: string | null
     }
-    return ((profiles ?? []) as Profile[]).map((p) => ({ ...p, roles: byUser.get(p.id) ?? [] }))
+    return ((profiles ?? []) as Profile[]).map((p: any) => ({ ...p, roles: byUser.get(p.id) ?? [] }))
   })
 
 export const assignLeadToSeller = createServerFn({ method: 'POST' })

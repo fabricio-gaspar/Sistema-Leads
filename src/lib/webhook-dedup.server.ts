@@ -1,3 +1,4 @@
+type AnyAdmin = any;
 import type { Database } from '@/integrations/supabase/types'
 
 export type WebhookDedupResult = {
