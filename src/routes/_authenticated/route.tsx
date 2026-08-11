@@ -29,12 +29,12 @@ export const Route = createFileRoute("/_authenticated")({
     ]);
 
     // Bloqueia usuários desativados
-    if (profile && profile.active === false) {
+    if (profile && (profile as any).active === false) {
       await supabase.auth.signOut();
       throw redirect({ to: "/auth" });
     }
 
-    const roles = (rolesRows ?? []).map((r) => r.role as string);
+    const roles = (rolesRows ?? []).map((r: any) => r.role as string);
     const isAdmin = roles.includes("administrador");
     const isSellerOnly = !isAdmin && roles.includes("vendedor");
     const isSdrOnly = !isAdmin && !roles.includes("vendedor") && roles.includes("sdr");

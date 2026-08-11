@@ -141,7 +141,7 @@ function Orcamentos() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border-card">
-              {filtered.map((o) => {
+              {(filtered as any[]).map((o: any) => {
                 const st = (o.status ?? "rascunho").toLowerCase();
                 const canConvert = st === "aprovado";
                 return (

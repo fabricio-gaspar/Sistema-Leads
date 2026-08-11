@@ -327,7 +327,7 @@ function LeadDetail() {
             </div>
             <ul className="space-y-1.5">
               {tasksQ.data?.length === 0 && <li className="text-[12px] text-text-ter">Sem tarefas.</li>}
-              {tasksQ.data?.map((t) => (
+              {tasksQ.data?.map((t: any) => (
                 <li key={t.id} className="flex items-center gap-2 text-[12px]">
                   <input
                     type="checkbox"
@@ -374,7 +374,7 @@ function LeadDetail() {
                 Nenhuma conversa ainda — envie a primeira mensagem.
               </div>
             )}
-            {msgsQ.data?.map((m) => {
+            {msgsQ.data?.map((m: any) => {
               const mine = m.sender !== "client";
               return (
                 <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
@@ -480,7 +480,7 @@ function AutomationCard({ leadId, lead }: { leadId: string; lead: any }) {
   const autoProposalMut = useMutation({
     mutationFn: (force: boolean) => autoProposalFn({ data: { lead_id: leadId, force } }),
     onSuccess: (result) => {
-      toast.success(`Rascunho de orçamento ${result.proposal?.number ?? ""} criado (R$ ${result.total.toFixed(2)}).`);
+      toast.success(`Rascunho de orçamento ${result.proposal?.number ?? ""} criado (R$ ${((result as any).total ?? 0).toFixed(2)}).`);
       qc.invalidateQueries({ queryKey: ["lead-automation", leadId] });
       qc.invalidateQueries({ queryKey: ["lead", leadId] });
     },

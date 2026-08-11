@@ -29,10 +29,10 @@ function Pedidos() {
 
   const total = rows.reduce((a: any, p: any) => a + Number(p.value || 0), 0);
   const entregue = rows
-    .filter((p) => (p.status ?? "").toLowerCase() === "entregue")
+    .filter((p: any) => (p.status ?? "").toLowerCase() === "entregue")
     .reduce((a: any, p: any) => a + Number(p.value || 0), 0);
   const producao = rows
-    .filter((p) => ["producao", "produção", "em produção"].includes((p.status ?? "").toLowerCase()))
+    .filter((p: any) => ["producao", "produção", "em produção"].includes((p.status ?? "").toLowerCase()))
     .reduce((a: any, p: any) => a + Number(p.value || 0), 0);
 
   const delMut = useMutation({
