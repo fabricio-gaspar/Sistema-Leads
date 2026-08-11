@@ -1,77 +1,41 @@
+# Auditoria Técnica do Sistema de Leads (WF Digital CRM)
 
-# Multiempresa (organization_id) + RLS por tenant
+## 1. Resumo Executivo
+Auditoria realizada em 11/08/2026 como Arquiteto de Software Sênior. O sistema apresenta uma base sólida em TanStack Start e Supabase, mas possui falhas críticas de segurança RLS (isolamento por tenant) e inconsistências funcionais em fluxos de automação.
 
-Refatoração ampla. Vou executar em **4 fases** para não quebrar o app em produção. Cada fase é aplicável isoladamente.
+## 2. Relatório de Prioridades
 
-## Fase 1 — Fundação (schema + membership)
+### CRÍTICO (Ação Imediata)
+| ID | Módulo | Descrição | Impacto | Recomendação |
+|---|---|---|---|---|
+| C1 | Segurança (RLS) | Políticas RLS genéricas (`USING(true)`) em `profiles`, `user_roles`, `leads`, `orders`, etc. | Um usuário autenticado pode ver e editar dados de qualquer empresa (vazamento total). | Refatorar RLS para usar `organization_id` vinculado ao `auth.uid()` via `user_roles`. |
+| C2 | Segurança (RLS) | Tabelas com RLS ativo mas sem políticas explícitas (bloqueio total). | Funcionalidades como `appointments` e `documents` podem falhar para usuários autenticados. | Criar políticas RLS por `organization_id` para todas as 25 tabelas. |
+| C3 | Auth (Admin) | Risco de auto-promoção a admin via `user_roles`. | Usuários comuns podem ganhar acesso total ao sistema. | Restringir `INSERT/UPDATE` em `user_roles` apenas para a role `service_role` ou via função RPC protegida. |
 
-Migration nova:
-- `organizations(id, name, slug, created_by, created_at, updated_at)`
-- `organization_members(org_id, user_id, role app_role, created_at)` — PK composta, substitui o papel global de `user_roles` no contexto por-tenant. `user_roles` fica só para "super admin de plataforma".
-- `organization_invites(id, org_id, email, role, token, expires_at, accepted_at)`
-- Função `public.current_org_id()` (SECURITY DEFINER, lê de `auth.jwt() -> 'app_metadata' -> 'org_id'` **ou** de um GUC `app.current_org`) — usada em todas as políticas.
-- Função `public.is_org_member(_org uuid, _user uuid, _role app_role default null)` (SECURITY DEFINER) — evita recursão em RLS.
-- Trigger em `auth.users` (via `handle_new_user`): cria org pessoal automática no primeiro login e adiciona como `administrador`.
-
-## Fase 2 — Propagação de `organization_id`
-
-Adicionar coluna `organization_id uuid NOT NULL REFERENCES organizations(id)` em:
-`leads, appointments, proposals, orders, documents, knowledge_chunks, lead_messages, lead_notes, lead_tasks, lead_outreach, lead_qualifications, lead_handoffs, lead_sequence_enrollments, outreach_sequences, outreach_sequence_steps, outreach_jobs, tasks, notifications, audit_logs, contact_points, contact_suppressions, consent_events, prospecting_cache, vendor_sessions, unanswered_questions, objections, services, integrations, company_settings, score_weights, webhook_events, lead_stage_history, lead_assignments`.
-
-Backfill: cria uma organização "Legado" e associa todas as linhas existentes a ela. Todos os `profiles` atuais viram membros dessa org.
-
-Índices: `(organization_id)` em toda tabela filtrada por tenant; índices compostos onde já existem (`organization_id, created_at`, `organization_id, stage`, etc.).
-
-## Fase 3 — RLS por tenant
-
-Reescrever **todas** as políticas para incluir `organization_id = current_org_id()`. Padrão:
-
-```sql
-CREATE POLICY leads_tenant_read ON public.leads FOR SELECT TO authenticated
-  USING (organization_id = current_org_id()
-         AND (owner_id = auth.uid()
-              OR assigned_to = auth.uid()
-              OR is_org_member(organization_id, auth.uid(), 'administrador')));
-
-CREATE POLICY leads_tenant_write ON public.leads FOR INSERT TO authenticated
-  WITH CHECK (organization_id = current_org_id());
-```
-
-Trigger `BEFORE INSERT` em cada tabela: se `organization_id` vier NULL, preenche com `current_org_id()`.
-
-Storage: prefixar todos os paths dos buckets `docs/contracts/avatars` com `{org_id}/...` e escrever policies em `storage.objects` restringindo por prefixo.
-
-## Fase 4 — Server functions + UI
-
-**Server side:**
-- Middleware `withOrgContext` que lê `x-org-id` do request, valida via `is_org_member`, e faz `set_config('app.current_org', org, true)` no `context.supabase` antes de qualquer query. Aplicado em todos os `.functions.ts` protegidos.
-- Todos os `INSERT` explicitam `organization_id: context.orgId`.
-- `supabaseAdmin` (service role) recebe `organization_id` como parâmetro obrigatório onde é usado.
-
-**Client side:**
-- Hook `useCurrentOrg()` + `OrgSwitcher` no header (dropdown com orgs do usuário).
-- Header `x-org-id` injetado no `functionMiddleware` (`src/start.ts`) junto com o bearer.
-- Tela "Organizações" em `configuracoes.tsx`: criar org, listar membros, convidar por e-mail (aceite via link com token), promover/rebaixar/remover membros.
-- Tela de aceite de convite `/invite/$token` (rota pública que exige login e ativa a membership).
-
-**Cadeia crítica:**
-- Realtime: canais passam a filtrar por `organization_id`.
-- Webhooks públicos (`zapi-webhook`, `resend-webhook`): resolvem `organization_id` a partir do `lead_id` recebido, não do JWT.
-- pg_cron: jobs SQL passam a iterar por org.
-
-## Riscos e mitigação
-
-- **Downtime de RLS**: cada fase mantém compatibilidade — Fase 2 permite NULL temporariamente, Fase 3 torna NOT NULL após backfill.
-- **Perda de dados**: nenhuma DELETE; tudo é ALTER + backfill.
-- **Regressão em queries**: rodo `bunx tsgo --noEmit` + `bun run build` ao fim de cada fase.
-- **Convites e Google OAuth**: OAuth continua idêntico; org é resolvida após login.
-
-## Fora de escopo (proponho depois)
-
-- Billing por org.
-- Custom domain por org.
-- Migração automática de leads entre orgs.
+### ALTO (Prioridade Próxima)
+| ID | Módulo | Descrição | Impacto | Recomendação |
+|---|---|---|---|---|
+| A1 | Automação | Fluxo de cadência (`outreach-tick`) depende de polling e pode falhar sob carga. | Leads perdem contatos agendados. | Implementar retry logic robusto e logs de erro em `lead_sequence_enrollments`. |
+| A2 | CRM | Dashboard (`index.tsx`) usa contadores que podem ficar lentos com muitos dados. | Lentidão na página inicial. | Implementar tabelas de agregação ou caching para estatísticas do dashboard. |
 
 ---
 
-**Confirma esse plano e a ordem das 4 fases?** Assim que aprovar começo pela Fase 1 (schema + membership + org pessoal automática no cadastro). Cada fase termina com typecheck+build verdes antes de eu iniciar a próxima.
+## 3. Matriz de Rastreabilidade (Exemplo: Módulo Leads)
+
+| Tela | Campo Frontend | Tabela | Coluna | Tipo | Obrigatório | Validação | RLS (Select/Edit) | Status |
+|---|---|---|---|---|---|---|---|---|
+| Leads | Nome Empresa | `leads` | `company` | `text` | Sim | Min 1 char | Org ID | Correto |
+| Leads | Valor | `leads` | `value` | `numeric` | Não | Positivo | Org ID | Correto |
+| Leads | Etapa | `leads` | `stage` | `enum` | Sim | Enum válido | Org ID | Correto |
+| Leads | Canais de Contato | `leads` | `contact_channels` | `jsonb` | Não | Estrutura JSON | Org ID | Inconsistente (UI/DB) |
+
+---
+
+## 4. Diagnóstico de Banco de Dados vs Frontend
+- **Inconsistência Identificada**: O frontend em `leads.tsx` tenta renderizar `contact_channels`, mas a estrutura salva no banco via `crm.functions.ts` nem sempre inclui os metadados esperados pela UI (disponibilidade, status real).
+- **Campos Órfãos**: A coluna `origin` no banco é pouco usada no frontend (apenas filtros básicos), perdendo rastreabilidade de ROI.
+
+## 5. Próximos Passos (Após Aprovação)
+1. **Etapa 1**: Correção emergencial de RLS em `leads`, `profiles` e `user_roles`.
+2. **Etapa 2**: Implementação de políticas RLS para as 21 tabelas bloqueadas.
+3. **Etapa 3**: Refatoração do middleware de autenticação para garantir carregamento de `organization_id` em cada request.
