@@ -113,8 +113,6 @@ function AuthPage() {
         </div>
       </div>
 
-      </div>
-
       <style>{`
         .input {
           width: 100%;
