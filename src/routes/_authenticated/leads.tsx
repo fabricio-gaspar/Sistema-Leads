@@ -59,7 +59,7 @@ function Kanban() {
 
   const onDrop = (stage: Stage) => {
     if (dragId) {
-      const cur = leads.find((l) => l.id === dragId);
+      const cur = (leads as any[]).find((l: any) => l.id === dragId);
       if (cur && cur.stage !== stage) moveMut.mutate({ id: dragId, stage });
     }
     setDragId(null);
@@ -151,7 +151,7 @@ function Kanban() {
                     <span className="text-[11px] text-text-ter">{formatBRL(stageValor)}</span>
                   </div>
                   <div className="flex-1 overflow-y-auto px-2 pb-2">
-                    {items.map((lead) => (
+                    {(items as any[]).map((lead: any) => (
                       <LeadCard
                         key={lead.id}
                         lead={lead}
@@ -236,7 +236,7 @@ function LeadCard({
               {lead.title ? ` · ${lead.title}` : ""}
             </div>
           </div>
-          <TempBadge t={lead.temp} score={lead.score} />
+          <TempBadge t={lead.temp as any} score={lead.score} />
         </div>
 
         <div className="mt-2.5 flex items-center justify-between">
