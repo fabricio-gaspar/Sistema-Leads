@@ -142,15 +142,17 @@ export async function loadKnowledgeSnippetInternal(
 export const reindexDocument = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ document_id: z.string().uuid() }).parse(d))
+  .handler(async ({ data, context }) => {
     await assertAdmin(context)
     return reindexDocumentInternal(context, data.document_id)
   })
 
 export const reindexAllDocuments = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
-    await assertAdmin(context)
-    const { data: docs, error } = await ((ctx.supabase as any) as any)
-      (ctx.supabase as any).from('documents')
+  .handler(async ({ context: ctx }) => {
+    await assertAdmin(ctx)
+    const { data: docs, error } = await (ctx.supabase as any)
+      .from('documents')
       .select('id, name, content_text')
       .eq('status', 'active')
       .not('content_text', 'is', null)
@@ -159,7 +161,7 @@ export const reindexAllDocuments = createServerFn({ method: 'POST' })
     let processed = 0
     for (const doc of docs ?? []) {
       try {
-        const res = await reindexDocumentWithClient(((ctx.supabase as any) as any), doc as any)
+        const res = await reindexDocumentWithClient(ctx.supabase, doc as any)
         total += res.chunks
         processed += 1
       } catch (err) {
@@ -171,12 +173,12 @@ export const reindexAllDocuments = createServerFn({ method: 'POST' })
 
 export const getKnowledgeStats = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
-    await assertAdmin(context)
+  .handler(async ({ context: ctx }) => {
+    await assertAdmin(ctx)
     const [{ count: activeChunks }, { count: staleChunks }, { count: docsWithText }] = await Promise.all([
       (ctx.supabase as any).from('knowledge_chunks').select('id', { count: 'exact', head: true }).eq('status', 'active'),
       (ctx.supabase as any).from('knowledge_chunks').select('id', { count: 'exact', head: true }).eq('status', 'stale'),
-      ((ctx.supabase as any) as any)
-        (ctx.supabase as any).from('documents')
+      (ctx.supabase as any).from('documents')
         .select('id', { count: 'exact', head: true })
         .eq('status', 'active')
         .not('content_text', 'is', null),
@@ -224,9 +226,11 @@ async function extractText(bytes: Uint8Array, kind: 'pdf' | 'docx' | 'text'): Pr
 export const extractAndIndexDocument = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ document_id: z.string().uuid() }).parse(d))
-    await assertAdmin(context)
-    const { data: doc, error } = await ((ctx.supabase as any) as any)
-      (ctx.supabase as any).from('documents')
+  .handler(async ({ data, context }) => {
+    const ctx = context as { supabase: any; userId: string }
+    await assertAdmin(ctx)
+    const { data: doc, error } = await (ctx.supabase as any)
+      .from('documents')
       .select('id, name, type, storage_path, content_text')
       .eq('id', data.document_id)
       .maybeSingle()
@@ -237,8 +241,8 @@ export const extractAndIndexDocument = createServerFn({ method: 'POST' })
     const kind = detectKind(doc.name || '', doc.type || '')
     if (kind === 'unsupported') throw new Error('Formato não suportado (use PDF, DOCX, TXT, MD, CSV, JSON)')
 
-    const { data: blob, error: dlErr } = await ((ctx.supabase as any) as any).storage
-      (ctx.supabase as any).from('docs')
+    const { data: blob, error: dlErr } = await (ctx.supabase as any).storage
+      .from('docs')
       .download(doc.storage_path as string)
     if (dlErr) throw new Error(dlErr.message)
 
@@ -248,12 +252,12 @@ export const extractAndIndexDocument = createServerFn({ method: 'POST' })
     const text = await extractText(bytes, kind)
     if (!text) throw new Error('Não foi possível extrair texto do arquivo')
 
-    const { error: upErr } = await ((ctx.supabase as any) as any)
-      (ctx.supabase as any).from('documents')
+    const { error: upErr } = await (ctx.supabase as any)
+      .from('documents')
       .update({ content_text: text } as never)
       .eq('id', doc.id)
     if (upErr) throw new Error(upErr.message)
 
-    const result = await reindexDocumentInternal(context, doc.id)
+    const result = await reindexDocumentInternal(ctx, doc.id)
     return { chars: text.length, chunks: result.chunks, kind }
   })

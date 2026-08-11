@@ -1,45 +1,155 @@
-export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[]
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[]
 
-export interface Database {
+export type Database = {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.15"
+  }
   public: {
     Tables: {
-      organizations: { Row: { id: string; name: string; slug: string; created_at: string; updated_at: string }; Insert: { id?: string; name: string; slug: string; created_at?: string; updated_at?: string }; Update: { id?: string; name?: string; slug?: string; created_at?: string; updated_at?: string } }
-      organization_members: { Row: { organization_id: string; user_id: string; role: string; created_at: string }; Insert: { organization_id: string; user_id: string; role: string; created_at?: string }; Update: { organization_id?: string; user_id?: string; role?: string; created_at?: string } }
-      organization_invites: { Row: { id: string; organization_id: string; email: string; role: string; inviter_id: string; created_at: string; expires_at: string; accepted_at: string | null }; Insert: { id?: string; organization_id: string; email: string; role: string; inviter_id: string; created_at?: string; expires_at: string; accepted_at?: string | null }; Update: { id?: string; organization_id?: string; email?: string; role?: string; inviter_id?: string; created_at?: string; expires_at?: string; accepted_at?: string | null } }
-      leads: { Row: { id: string; organization_id: string; company: string; contact: string | null; title: string | null; phone: string | null; email: string | null; segment: string | null; uf: string | null; distance: number | null; score: number; temp: string; stage: string; value: number; owner: string; owner_id: string; assigned_to: string | null; stale_hours: number; escalated: boolean; escalation_reason: string | null; sla_info: string | null; last_contact: string | null; lost_reason: string | null; origin: string | null; created_at: string; updated_at: string; annual_revenue: string | null; score_snapshot: Json | null; score_explanation: string | null; score_source: string | null; score_verified_at: string | null; ai_paused: boolean }; Insert: { [k: string]: any }; Update: { [k: string]: any } }
-      profiles: { Row: { id: string; name: string; email: string; phone: string | null; avatar: string | null; active: boolean; can_use_ia: boolean; created_at: string; updated_at: string }; Insert: { [k: string]: any }; Update: { [k: string]: any } }
-      notifications: { Row: { id: string; organization_id: string; owner_id: string; kind: string; title: string; description: string | null; read: boolean; link: string | null; created_at: string }; Insert: { [k: string]: any }; Update: { [k: string]: any } }
-      audit_logs: { Row: { id: string; organization_id: string; actor_id: string | null; actor_name: string; actor_type: string; action: string; detail: string | null; rule: string | null; occurred_at: string; created_at: string }; Insert: { [k: string]: any }; Update: { [k: string]: any } }
-      lead_messages: { Row: { id: string; organization_id: string; lead_id: string; sender: string; sender_name: string; type: string; text: string; sent_at: string; created_at: string }; Insert: { [k: string]: any }; Update: { [k: string]: any } }
-      lead_tasks: { Row: { id: string; organization_id: string; lead_id: string; text: string; due_at: string | null; owner_id: string | null; owner_label: string | null; completed: boolean; created_at: string; updated_at: string }; Insert: { [k: string]: any }; Update: { [k: string]: any } }
-      proposals: { Row: { id: string; organization_id: string; number: string; lead_id: string | null; client: string; items: Json; value: number; discount: string | null; creator: string; creator_name: string | null; status: string; need_approval: boolean; created_at: string; updated_at: string; owner_id: string }; Insert: { [k: string]: any }; Update: { [k: string]: any } }
-      orders: { Row: { id: string; organization_id: string; number: string; lead_id: string | null; proposal_id: string | null; company: string; seller_name: string; seller_type: string; order_date: string; items: Json; value: number; payment: string | null; contract_status: string | null; status: string; created_at: string; updated_at: string; owner_id: string }; Insert: { [k: string]: any }; Update: { [k: string]: any } }
-      company_settings: { Row: { id: string; organization_id: string; name: string; ai_prompt: string | null; ai_model: string | null; ai_temperature: number | null; ai_max_tokens: number | null; description: string | null; tone_of_voice: string | null; differentiators: string | null; active: boolean; can_use_ia: boolean; assignment_strategy: string; handoff_sla_minutes: number; handoff_readiness_score: number; nurture_days: number; nurture_max_cycles: number; autonomy: Json; outreach_wait_hours: number | null; outreach_max_attempts: number | null; prospecting_sources: Json; cnpj: string | null; size: string | null; annual_revenue: string | null; updated_at: string }; Insert: { [k: string]: any }; Update: { [k: string]: any } }
-      outreach_sequences: { Row: { id: string; organization_id: string; name: string }; Insert: { [k: string]: any }; Update: { [k: string]: any } }
-      outreach_sequence_steps: { Row: { id: string; organization_id: string; type: string; content: string; wait_hours: number; order_index: number; max_attempts: number; continue_on: string }; Insert: { [k: string]: any }; Update: { [k: string]: any } }
-      lead_sequence_enrollments: { Row: { id: string; organization_id: string; lead_id: string; sequence_id: string; status: string; current_step_id: string | null; next_run_at: string | null; last_error: string | null }; Insert: { [k: string]: any }; Update: { [k: string]: any } }
-      prospecting_schedules: { Row: { id: string; organization_id: string; owner_id: string; name: string; description: string | null; filters: Json; quantity: number; auto_approve_min_score: number; sequence_id: string | null; assignment_strategy: string; daily_cap: number; monthly_cap: number; active: boolean }; Insert: { [k: string]: any }; Update: { [k: string]: any } }
-      prospecting_schedule_runs: { Row: { id: string; organization_id: string; started_at: string; finished_at: string | null; status: string; found_count: number; approved_count: number; imported_count: number; skipped_count: number; error: string | null }; Insert: { [k: string]: any }; Update: { [k: string]: any } }
-      user_roles: { Row: { id: string; organization_id: string; user_id: string; role: string }; Insert: { [k: string]: any }; Update: { [k: string]: any } }
-      documents: { Row: { id: string; organization_id: string; name: string; content_text: string | null; storage_path: string | null; uploaded_by: string | null; status: string }; Insert: { [k: string]: any }; Update: { [k: string]: any } }
-      lead_outreach: { Row: { id: string; organization_id: string; channel: string; actor_type: string; lead_id: string; status: string; replied_at: string | null }; Insert: { [k: string]: any }; Update: { [k: string]: any } }
-      score_weights: { Row: { id: string; organization_id: string; segment: number; whatsapp: number; site: number; porte: number; google: number; regiao: number; updated_at: string }; Insert: { [k: string]: any }; Update: { [k: string]: any } }
-      unanswered_questions: { Row: { id: string; organization_id: string; text: string; count: number; resolved: boolean }; Insert: { [k: string]: any }; Update: { [k: string]: any } }
-      integrations: { Row: { id: string; organization_id: string; key: string; label: string; connected: boolean; updated_at: string }; Insert: { [k: string]: any }; Update: { [k: string]: any } }
-      lead_qualifications: { Row: { id: string; organization_id: string; lead_id: string; question: string; answer: string | null; status: string }; Insert: { [k: string]: any }; Update: { [k: string]: any } }
-      lead_handoffs: { Row: { id: string; organization_id: string; lead_id: string; from_user_id: string; to_user_id: string | null; status: string; sla_expires_at: string | null }; Insert: { [k: string]: any }; Update: { [k: string]: any } }
-      appointments: { Row: { id: string; organization_id: string; lead_id: string; user_id: string; title: string; start_at: string; end_at: string; status: string; meeting_url: string | null }; Insert: { [k: string]: any }; Update: { [k: string]: any } }
+      [_ in never]: never
     }
-    Views: { [_ in never]: never }
+    Views: {
+      [_ in never]: never
+    }
     Functions: {
-      has_role: { Args: { _user_id: string; _role: string }; Returns: boolean }
-      current_org_id: { Args: Record<PropertyKey, never>; Returns: string }
-      is_org_member: { Args: { _org: string; _user: string; _role?: string }; Returns: boolean }
+      [_ in never]: never
     }
-    Enums: { [_ in never]: never }
-    CompositeTypes: { [_ in never]: never }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
   }
 }
 
-export type Tables<T extends keyof Database['public']['Tables']> = Database['public']['Tables'][T]['Row']
-export type Enums<T extends keyof Database['public']['Enums']> = Database['public']['Enums'][T]
+type DatabaseWithoutInternals = Omit<Database, "__InternalSupabase">
+
+type DefaultSchema = DatabaseWithoutInternals[Extract<keyof Database, "public">]
+
+export type Tables<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+        DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
+      DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])[TableName] extends {
+      Row: infer R
+    }
+    ? R
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])
+    ? (DefaultSchema["Tables"] &
+        DefaultSchema["Views"])[DefaultSchemaTableNameOrOptions] extends {
+        Row: infer R
+      }
+      ? R
+      : never
+    : never
+
+export type TablesInsert<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Insert: infer I
+    }
+    ? I
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Insert: infer I
+      }
+      ? I
+      : never
+    : never
+
+export type TablesUpdate<
+  DefaultSchemaTableNameOrOptions extends
+    | keyof DefaultSchema["Tables"]
+    | { schema: keyof DatabaseWithoutInternals },
+  TableName extends DefaultSchemaTableNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
+    : never = never,
+> = DefaultSchemaTableNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"][TableName] extends {
+      Update: infer U
+    }
+    ? U
+    : never
+  : DefaultSchemaTableNameOrOptions extends keyof DefaultSchema["Tables"]
+    ? DefaultSchema["Tables"][DefaultSchemaTableNameOrOptions] extends {
+        Update: infer U
+      }
+      ? U
+      : never
+    : never
+
+export type Enums<
+  DefaultSchemaEnumNameOrOptions extends
+    | keyof DefaultSchema["Enums"]
+    | { schema: keyof DatabaseWithoutInternals },
+  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
+    : never = never,
+> = DefaultSchemaEnumNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"][EnumName]
+  : DefaultSchemaEnumNameOrOptions extends keyof DefaultSchema["Enums"]
+    ? DefaultSchema["Enums"][DefaultSchemaEnumNameOrOptions]
+    : never
+
+export type CompositeTypes<
+  PublicCompositeTypeNameOrOptions extends
+    | keyof DefaultSchema["CompositeTypes"]
+    | { schema: keyof DatabaseWithoutInternals },
+  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+    schema: keyof DatabaseWithoutInternals
+  }
+    ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
+    : never = never,
+> = PublicCompositeTypeNameOrOptions extends {
+  schema: keyof DatabaseWithoutInternals
+}
+  ? DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"][CompositeTypeName]
+  : PublicCompositeTypeNameOrOptions extends keyof DefaultSchema["CompositeTypes"]
+    ? DefaultSchema["CompositeTypes"][PublicCompositeTypeNameOrOptions]
+    : never
+
+export const Constants = {
+  public: {
+    Enums: {},
+  },
+} as const

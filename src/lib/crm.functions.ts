@@ -76,7 +76,7 @@ export const updateLead = createServerFn({ method: 'POST' })
     const ctx = context;
     const { data: row, error } = await (((context as any).supabase) as any)
       .from('leads' as any)
-      .update(data.patch )
+      .update(data.patch as never)
       .eq('id', data.id)
       .select()
       .single()
@@ -301,7 +301,7 @@ export const updateProposal = createServerFn({ method: 'POST' })
     const ctx = context;
     const { data: row, error } = await (((context as any).supabase) as any)
       .from('proposals' )
-      .update(data.patch )
+      .update(data.patch as never)
       .eq('id', data.id)
       .select()
       .single()
@@ -371,7 +371,7 @@ export const updateOrder = createServerFn({ method: 'POST' })
     const ctx = context;
     const { data: row, error } = await (((context as any).supabase) as any)
       .from('orders' )
-      .update(data.patch )
+      .update(data.patch as never)
       .eq('id', data.id)
       .select()
       .single()
@@ -813,7 +813,7 @@ export const updateDocument = createServerFn({ method: 'POST' })
     await assertAdmin(context)
     const { data: row, error } = await (((context as any).supabase) as any)
       .from('documents' )
-      .update(data.patch )
+      .update(data.patch as never)
       .eq('id', data.id)
       .select()
       .single()
@@ -1035,13 +1035,13 @@ export const setUserRole = createServerFn({ method: 'POST' })
     if (delErr) throw new Error(delErr.message)
     const { error: insErr } = await supabaseAdmin
       .from('user_roles' as any)
-      .insert({ user_id: data.user_id, role: data.role} )
+      .insert({ user_id: data.user_id, role: data.role } as never)
     if (insErr) {
       // Rollback: restaura papéis anteriores para não deixar usuário órfão
       if (prevRoles.length) {
         const { error: rbErr } = await supabaseAdmin
           .from('user_roles' as any)
-          .insert(prevRoles.map((r: any) => ({ user_id: data.user_id, role: r })) )
+          .insert(prevRoles.map((r: any) => ({ user_id: data.user_id, role: r })) as never)
         if (rbErr) {
           console.error('[setUserRole] rollback failed:', rbErr.message, 'user:', data.user_id)
         }
@@ -1118,7 +1118,7 @@ export const updateTeamMember = createServerFn({ method: 'POST' })
 
     const { data: row, error } = await supabaseAdmin
       .from('profiles' as any)
-      .update(data.patch )
+      .update(data.patch as never)
       .eq('id', data.id)
       .select()
       .single()
@@ -1139,7 +1139,7 @@ export const updateTeamMember = createServerFn({ method: 'POST' })
         // rollback do profile
         const { error: rbErr } = await supabaseAdmin
           .from('profiles' as any)
-          .update({ active: before?.active ?? true} )
+          .update({ active: before?.active ?? true } as never)
           .eq('id', data.id)
         if (rbErr) {
           console.error('[updateTeamMember] rollback profile failed:', rbErr.message)
@@ -1622,7 +1622,7 @@ export const upsertService = createServerFn({ method: 'POST' })
     if (data.id) {
       const { data: row, error } = await (((context as any).supabase) as any)
         .from('services' )
-        .update(data.patch )
+        .update(data.patch as never)
         .eq('id', data.id)
         .select()
         .single()
