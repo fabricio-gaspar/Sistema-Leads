@@ -33,7 +33,7 @@ export function useNotifications(): Notification[] {
     queryFn: () => listFn(),
     refetchInterval: 60_000,
   });
-  return data.map((n) => ({
+  return (data as any[]).map((n: any) => ({
     id: n.id,
     kind: (["ana", "lead", "orcamento", "pedido", "sistema"].includes(n.kind)
       ? n.kind

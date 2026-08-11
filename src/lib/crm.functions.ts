@@ -51,7 +51,7 @@ export const createLead = createServerFn({ method: 'POST' })
   .inputValidator((d: unknown) => leadInputSchema.parse(d))
   .handler(async ({ data, context }) => {
     const payload = { ...data, email: data.email || null, owner_id: context.userId }
-    const { data: row, error } = await context.supabase.from('leads').insert(payload as never).select().single()
+    const { data: row, error } = await context.supabase.from('leads').insert(payload ).select().single()
     if (error) throw new Error(error.message)
     await context.supabase.from('audit_logs').insert({
       actor_id: context.userId,
@@ -59,7 +59,7 @@ export const createLead = createServerFn({ method: 'POST' })
       actor_type: 'human',
       action: 'lead_create',
       detail: `Lead criado: ${data.company}`,
-    } as never)
+    } )
     return row
   })
 
@@ -71,7 +71,7 @@ export const updateLead = createServerFn({ method: 'POST' })
   .handler(async ({ data, context }) => {
     const { data: row, error } = await context.supabase
       .from('leads')
-      .update(data.patch as never)
+      .update(data.patch )
       .eq('id', data.id)
       .select()
       .single()
@@ -112,7 +112,7 @@ export const deleteLead = createServerFn({ method: 'POST' })
       actor_type: 'human',
       action: 'lead_delete',
       detail: `Lead ${data.id} removido`,
-    } as never)
+    } )
     return { ok: true }
   })
 
@@ -150,7 +150,7 @@ export const createLeadMessage = createServerFn({ method: 'POST' })
   .handler(async ({ data, context }) => {
     const { data: row, error } = await context.supabase
       .from('lead_messages')
-      .insert({ ...data, sent_at: new Date().toISOString() } as never)
+      .insert({ ...data, sent_at: new Date().toISOString() } )
       .select()
       .single()
     if (error) throw new Error(error.message)
@@ -261,7 +261,7 @@ export const createProposal = createServerFn({ method: 'POST' })
     }
     const { data: row, error } = await context.supabase
       .from('proposals')
-      .insert(payload as never)
+      .insert(payload )
       .select()
       .single()
     if (error) throw new Error(error.message)
@@ -271,7 +271,7 @@ export const createProposal = createServerFn({ method: 'POST' })
       const order = ['Prospecção', 'Qualificado', 'Proposta', 'Negociação', 'Pedido', 'Fechado']
       const cur = order.indexOf(lead?.stage ?? '')
       if (cur >= 0 && cur < order.indexOf('Proposta')) {
-        await context.supabase.from('leads').update({ stage: 'Proposta' } as never).eq('id', data.lead_id)
+        await context.supabase.from('leads').update({ stage: 'Proposta' } ).eq('id', data.lead_id)
       }
     }
     return row
@@ -286,7 +286,7 @@ export const updateProposal = createServerFn({ method: 'POST' })
   .handler(async ({ data, context }) => {
     const { data: row, error } = await context.supabase
       .from('proposals')
-      .update(data.patch as never)
+      .update(data.patch )
       .eq('id', data.id)
       .select()
       .single()
@@ -334,13 +334,13 @@ export const createOrder = createServerFn({ method: 'POST' })
   .handler(async ({ data, context }) => {
     const { data: row, error } = await context.supabase
       .from('orders')
-      .insert({ ...data, owner_id: context.userId } as never)
+      .insert({ ...data, owner_id: context.userId } )
       .select()
       .single()
     if (error) throw new Error(error.message)
     // Auto-avançar Kanban do lead vinculado para "Fechado"
     if (data.lead_id) {
-      await context.supabase.from('leads').update({ stage: 'Fechado' } as never).eq('id', data.lead_id)
+      await context.supabase.from('leads').update({ stage: 'Fechado' } ).eq('id', data.lead_id)
     }
     return row
   })
@@ -352,7 +352,7 @@ export const updateOrder = createServerFn({ method: 'POST' })
   .handler(async ({ data, context }) => {
     const { data: row, error } = await context.supabase
       .from('orders')
-      .update(data.patch as never)
+      .update(data.patch )
       .eq('id', data.id)
       .select()
       .single()
@@ -440,7 +440,7 @@ export const updateCompanySettings = createServerFn({ method: 'POST' })
     if (existing?.id) {
       const { data: row, error } = await context.supabase
         .from('company_settings')
-        .update(data as never)
+        .update(data )
         .eq('id', existing.id)
         .select()
         .single()
@@ -449,7 +449,7 @@ export const updateCompanySettings = createServerFn({ method: 'POST' })
     }
     const { data: row, error } = await context.supabase
       .from('company_settings')
-      .insert(data as never)
+      .insert(data )
       .select()
       .single()
     if (error) throw new Error(error.message)
@@ -491,7 +491,7 @@ export const chatWithAna = createServerFn({ method: 'POST' })
       type: data.as_client ? 'client' : 'human',
       text: data.user_text,
       sent_at: new Date().toISOString(),
-    } as never)
+    } )
 
     const systemBase = (settings?.ai_prompt && settings.ai_prompt.trim()) || ANA_DEFAULT_SYSTEM
     const leadCtx = lead
@@ -552,7 +552,7 @@ export const chatWithAna = createServerFn({ method: 'POST' })
         type: 'ia',
         text,
         sent_at: new Date().toISOString(),
-      } as never)
+      } )
       .select()
       .single()
     if (anaErr) throw new Error(anaErr.message)
@@ -629,20 +629,20 @@ export const chatWithAna = createServerFn({ method: 'POST' })
                 type: 'ia-escalated',
                 text: escalateMsg,
                 sent_at: new Date().toISOString(),
-              } as never)
+              } )
               await context.supabase.from('notifications').insert({
                 user_id: context.userId,
                 kind: 'lead_escalated',
                 title: 'Lead pronto para vendedor',
                 description: `${lead?.company ?? 'Lead'} — ${intent} (${conf}%). Assuma o atendimento.`,
-              } as never)
+              } )
               await context.supabase.from('audit_logs').insert({
                 actor_id: context.userId,
                 actor_name: 'Ana (IA)',
                 actor_type: 'ia',
                 action: 'lead_escalated',
                 detail: `Lead ${data.lead_id} → ${leadUpdate.stage} (${intent}, ${conf}%)`,
-              } as never)
+              } )
             }
           }
         }
@@ -652,7 +652,7 @@ export const chatWithAna = createServerFn({ method: 'POST' })
       }
     }
 
-    await context.supabase.from('leads').update(leadUpdate as never).eq('id', data.lead_id)
+    await context.supabase.from('leads').update(leadUpdate ).eq('id', data.lead_id)
     return { reply: text, message: anaRow }
   })
 
@@ -671,7 +671,7 @@ async function auditDocument(
       actor_type: 'human',
       action,
       detail: `[${docId}] ${detail}`,
-    } as never)
+    } )
     if (error) console.error('[audit_logs] insert failed:', error.message)
   } catch (err) {
     console.error('[audit_logs] insert threw:', (err as Error).message)
@@ -708,7 +708,7 @@ export const createDocumentRecord = createServerFn({ method: 'POST' })
     await assertAdmin(context)
     const { data: row, error } = await context.supabase
       .from('documents')
-      .insert({ ...data, uploaded_by: context.userId, status: data.status ?? 'active' } as never)
+      .insert({ ...data, uploaded_by: context.userId, status: data.status ?? 'active' } )
       .select()
       .single()
     if (error) throw new Error(error.message)
@@ -785,7 +785,7 @@ export const updateDocument = createServerFn({ method: 'POST' })
     await assertAdmin(context)
     const { data: row, error } = await context.supabase
       .from('documents')
-      .update(data.patch as never)
+      .update(data.patch )
       .eq('id', data.id)
       .select()
       .single()
@@ -899,7 +899,7 @@ async function auditTeam(
       actor_type: 'human',
       action,
       detail,
-    } as never)
+    } )
     if (error) console.error('[audit_logs] insert failed:', error.message)
   } catch (err) {
     console.error('[audit_logs] insert threw:', (err as Error).message)
@@ -966,7 +966,7 @@ export const assignLeadToSeller = createServerFn({ method: 'POST' })
       .update({
         assigned_to: data.seller_id,
         ...(data.seller_id ? { owner: 'human', ai_paused: true } : {}),
-      } as never)
+      } )
       .eq('id', data.lead_id)
       .select('id, company, assigned_to')
       .single()
@@ -1002,13 +1002,13 @@ export const setUserRole = createServerFn({ method: 'POST' })
     if (delErr) throw new Error(delErr.message)
     const { error: insErr } = await supabaseAdmin
       .from('user_roles')
-      .insert({ user_id: data.user_id, role: data.role } as never)
+      .insert({ user_id: data.user_id, role: data.role } )
     if (insErr) {
       // Rollback: restaura papéis anteriores para não deixar usuário órfão
       if (prevRoles.length) {
         const { error: rbErr } = await supabaseAdmin
           .from('user_roles')
-          .insert(prevRoles.map((r) => ({ user_id: data.user_id, role: r })) as never)
+          .insert(prevRoles.map((r) => ({ user_id: data.user_id, role: r })) )
         if (rbErr) {
           console.error('[setUserRole] rollback failed:', rbErr.message, 'user:', data.user_id)
         }
@@ -1083,7 +1083,7 @@ export const updateTeamMember = createServerFn({ method: 'POST' })
 
     const { data: row, error } = await supabaseAdmin
       .from('profiles')
-      .update(data.patch as never)
+      .update(data.patch )
       .eq('id', data.id)
       .select()
       .single()
@@ -1095,7 +1095,7 @@ export const updateTeamMember = createServerFn({ method: 'POST' })
       try {
         const { error: authErr } = await supabaseAdmin.auth.admin.updateUserById(data.id, {
           ban_duration: data.patch.active ? 'none' : '87600h', // ~10 anos
-        } as never)
+        } )
         if (authErr) authError = new Error(authErr.message)
       } catch (err) {
         authError = err as Error
@@ -1104,7 +1104,7 @@ export const updateTeamMember = createServerFn({ method: 'POST' })
         // rollback do profile
         const { error: rbErr } = await supabaseAdmin
           .from('profiles')
-          .update({ active: before?.active ?? true } as never)
+          .update({ active: before?.active ?? true } )
           .eq('id', data.id)
         if (rbErr) {
           console.error('[updateTeamMember] rollback profile failed:', rbErr.message)
@@ -1174,8 +1174,8 @@ export const inviteTeamMember = createServerFn({ method: 'POST' })
           active: data.active,
           can_use_ia: data.can_use_ia,
           avatar: data.name.charAt(0).toUpperCase(),
-        } as never,
-        { onConflict: 'id' } as never,
+        } ,
+        { onConflict: 'id' } ,
       )
       if (upErr) throw new Error(`profiles: ${upErr.message}`)
 
@@ -1183,13 +1183,13 @@ export const inviteTeamMember = createServerFn({ method: 'POST' })
       if (delErr) throw new Error(`user_roles delete: ${delErr.message}`)
       const { error: insErr } = await supabaseAdmin
         .from('user_roles')
-        .insert({ user_id: userId, role: data.role } as never)
+        .insert({ user_id: userId, role: data.role } )
       if (insErr) throw new Error(`user_roles insert: ${insErr.message}`)
 
       if (!data.active) {
         const { error: banErr } = await supabaseAdmin.auth.admin.updateUserById(userId, {
           ban_duration: '87600h',
-        } as never)
+        } )
         if (banErr) throw new Error(`auth ban: ${banErr.message}`)
       }
     } catch (err) {
@@ -1535,7 +1535,7 @@ export const bulkAssignProspects = createServerFn({ method: 'POST' })
     }
     if (data.target === 'human' && data.assigned_to) patch.assigned_to = data.assigned_to
     if (data.target === 'ana') patch.assigned_to = null
-    const { error } = await context.supabase.from('leads').update(patch as never).in('id', data.ids)
+    const { error } = await context.supabase.from('leads').update(patch ).in('id', data.ids)
     if (error) throw new Error(error.message)
     await context.supabase.from('audit_logs').insert({
       actor_id: context.userId,
@@ -1543,7 +1543,7 @@ export const bulkAssignProspects = createServerFn({ method: 'POST' })
       actor_type: 'human',
       action: 'bulk_assign',
       detail: `${data.ids.length} prospect(s) → ${data.target === 'ana' ? 'Ana (IA)' : 'Vendedor humano'}`,
-    } as never)
+    } )
     return { ok: true, count: data.ids.length }
   })
 
@@ -1578,7 +1578,7 @@ export const upsertService = createServerFn({ method: 'POST' })
     if (data.id) {
       const { data: row, error } = await context.supabase
         .from('services')
-        .update(data.patch as never)
+        .update(data.patch )
         .eq('id', data.id)
         .select()
         .single()
@@ -1587,7 +1587,7 @@ export const upsertService = createServerFn({ method: 'POST' })
     }
     const { data: row, error } = await context.supabase
       .from('services')
-      .insert({ ...(data.patch as Record<string, unknown>), active: data.patch.active ?? true } as never)
+      .insert({ ...(data.patch as Record<string, unknown>), active: data.patch.active ?? true } )
       .select()
       .single()
     if (error) throw new Error(error.message)
@@ -1630,7 +1630,7 @@ export const upsertObjection = createServerFn({ method: 'POST' })
     if (data.id) {
       const { data: row, error } = await context.supabase
         .from('objections')
-        .update({ trigger: data.trigger, response: data.response } as never)
+        .update({ trigger: data.trigger, response: data.response } )
         .eq('id', data.id)
         .select()
         .single()
@@ -1639,7 +1639,7 @@ export const upsertObjection = createServerFn({ method: 'POST' })
     }
     const { data: row, error } = await context.supabase
       .from('objections')
-      .insert({ trigger: data.trigger, response: data.response } as never)
+      .insert({ trigger: data.trigger, response: data.response } )
       .select()
       .single()
     if (error) throw new Error(error.message)
@@ -1686,14 +1686,14 @@ export const updateScoreWeights = createServerFn({ method: 'POST' })
     if (existing?.id) {
       const { data: row, error } = await context.supabase
         .from('score_weights')
-        .update(data as never)
+        .update(data )
         .eq('id', existing.id)
         .select()
         .single()
       if (error) throw new Error(error.message)
       return row
     }
-    const { data: row, error } = await context.supabase.from('score_weights').insert(data as never).select().single()
+    const { data: row, error } = await context.supabase.from('score_weights').insert(data ).select().single()
     if (error) throw new Error(error.message)
     return row
   })
@@ -1724,14 +1724,14 @@ export const registerUnansweredQuestion = createServerFn({ method: 'POST' })
     if (existing?.id) {
       const { error } = await context.supabase
         .from('unanswered_questions')
-        .update({ count: (existing.count ?? 1) + 1, resolved: false } as never)
+        .update({ count: (existing.count ?? 1) + 1, resolved: false } )
         .eq('id', existing.id)
       if (error) throw new Error(error.message)
       return { ok: true }
     }
     const { error } = await context.supabase
       .from('unanswered_questions')
-      .insert({ text: data.text, count: 1, resolved: false } as never)
+      .insert({ text: data.text, count: 1, resolved: false } )
     if (error) throw new Error(error.message)
     return { ok: true }
   })
@@ -1748,7 +1748,7 @@ export const resolveUnansweredQuestion = createServerFn({ method: 'POST' })
     if (data.resolved && !data.answer) throw new Error('Informe a resposta aprovada antes de resolver.')
     const { error } = await context.supabase
       .from('unanswered_questions')
-      .update({ resolved: data.resolved, ...(data.answer ? { answer: data.answer } : {}) } as never)
+      .update({ resolved: data.resolved, ...(data.answer ? { answer: data.answer } : {}) } )
       .eq('id', data.id)
     if (error) throw new Error(error.message)
     return { ok: true }
@@ -1785,7 +1785,7 @@ export const markAllNotificationsRead = createServerFn({ method: 'POST' })
   .handler(async ({ context }) => {
     const { error } = await context.supabase
       .from('notifications')
-      .update({ read: true } as never)
+      .update({ read: true } )
       .eq('user_id', context.userId)
       .eq('read', false)
     if (error) throw new Error(error.message)
@@ -1809,7 +1809,7 @@ export const pushNotification = createServerFn({ method: 'POST' })
         kind: data.kind,
         title: data.title,
         description: data.description ?? null,
-      } as never)
+      } )
       .select()
       .single()
     if (error) throw new Error(error.message)
@@ -1864,13 +1864,13 @@ export const retrainAna = createServerFn({ method: 'POST' })
       actor_type: 'human',
       action: 'ana_retrain',
       detail: `Ana retreinada com ${objectionsCount ?? 0} objeções e ${questionsCount ?? 0} respostas aprendidas.`,
-    } as never)
+    } )
     await context.supabase.from('notifications').insert({
       user_id: context.userId,
       kind: 'ana',
       title: 'Ana foi retreinada',
       description: `Base atualizada: ${objectionsCount ?? 0} objeções · ${questionsCount ?? 0} respostas aprendidas.`,
-    } as never)
+    } )
     return { ok: true, objections: objectionsCount ?? 0, learned: questionsCount ?? 0 }
   })
 
@@ -1932,7 +1932,7 @@ export const setProposalStatus = createServerFn({ method: 'POST' })
   .handler(async ({ data, context }) => {
     const { data: row, error } = await context.supabase
       .from('proposals')
-      .update({ status: data.status } as never)
+      .update({ status: data.status } )
       .eq('id', data.id)
       .select()
       .single()
@@ -1955,7 +1955,7 @@ export const duplicateProposal = createServerFn({ method: 'POST' })
     clone.status = 'rascunho'
     clone.owner_id = context.userId
     const { data: row, error } = await context.supabase
-      .from('proposals').insert(clone as never).select().single()
+      .from('proposals').insert(clone ).select().single()
     if (error) throw new Error(error.message)
     return row
   })
@@ -1983,9 +1983,9 @@ export const convertProposalToOrder = createServerFn({ method: 'POST' })
       owner_id: context.userId,
     }
     const { data: order, error: e2 } = await context.supabase
-      .from('orders').insert(orderPayload as never).select().single()
+      .from('orders').insert(orderPayload ).select().single()
     if (e2) throw new Error(e2.message)
-    await context.supabase.from('proposals').update({ status: 'aprovado' } as never).eq('id', data.id)
+    await context.supabase.from('proposals').update({ status: 'aprovado' } ).eq('id', data.id)
     return order
   })
 
@@ -1997,7 +1997,7 @@ export const setOrderStatus = createServerFn({ method: 'POST' })
   .handler(async ({ data, context }) => {
     const { data: row, error } = await context.supabase
       .from('orders')
-      .update({ status: data.status } as never)
+      .update({ status: data.status } )
       .eq('id', data.id)
       .select()
       .single()
@@ -2013,7 +2013,7 @@ export const markNotificationRead = createServerFn({ method: 'POST' })
   .handler(async ({ data, context }) => {
     const { error } = await context.supabase
       .from('notifications')
-      .update({ read: data.read } as never)
+      .update({ read: data.read } )
       .eq('id', data.id)
       .eq('user_id', context.userId)
     if (error) throw new Error(error.message)
@@ -2041,7 +2041,7 @@ export const disconnectIntegration = createServerFn({ method: 'POST' })
   .handler(async ({ data, context }) => {
     const { error } = await context.supabase
       .from('integrations')
-      .update({ connected: false } as never)
+      .update({ connected: false } )
       .eq('key', data.key)
     if (error) throw new Error(error.message)
     return { ok: true }
@@ -2158,7 +2158,7 @@ export const upsertContactPoint = createServerFn({ method: 'POST' })
     if (data.preferred) {
       await supabase
         .from('contact_points')
-        .update({ preferred: false } as never)
+        .update({ preferred: false } )
         .eq('lead_id', data.lead_id)
     }
     const payload = {
@@ -2175,7 +2175,7 @@ export const upsertContactPoint = createServerFn({ method: 'POST' })
     if (data.id) {
       const { data: row, error } = await supabase
         .from('contact_points')
-        .update(payload as never)
+        .update(payload )
         .eq('id', data.id)
         .select()
         .single()
@@ -2184,7 +2184,7 @@ export const upsertContactPoint = createServerFn({ method: 'POST' })
     }
     const { data: row, error } = await supabase
       .from('contact_points')
-      .insert(payload as never)
+      .insert(payload )
       .select()
       .single()
     if (error) throw new Error(error.message)

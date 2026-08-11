@@ -109,7 +109,7 @@ export const requireSupabaseAuth = createMiddleware({ type: 'function' }).server
       console.error('[auth-middleware] profile lookup failed:', profileErr.message);
       throw new Error('Unauthorized: profile lookup failed');
     }
-    if (profile && profile.active === false) {
+    if (profile && (profile as any).active === false) {
       throw new Error('Unauthorized: user is inactive');
     }
 
