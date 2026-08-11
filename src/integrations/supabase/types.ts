@@ -14,6 +14,107 @@ export type Database = {
   }
   public: {
     Tables: {
+      appointments: {
+        Row: {
+          created_at: string | null
+          end_at: string
+          id: string
+          lead_id: string
+          meeting_url: string | null
+          organization_id: string
+          start_at: string
+          status: string | null
+          title: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          end_at: string
+          id?: string
+          lead_id: string
+          meeting_url?: string | null
+          organization_id: string
+          start_at: string
+          status?: string | null
+          title: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          end_at?: string
+          id?: string
+          lead_id?: string
+          meeting_url?: string | null
+          organization_id?: string
+          start_at?: string
+          status?: string | null
+          title?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "appointments_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "appointments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      audit_logs: {
+        Row: {
+          action: string
+          actor_id: string | null
+          actor_name: string
+          actor_type: string
+          created_at: string | null
+          detail: string | null
+          id: string
+          occurred_at: string | null
+          organization_id: string
+          rule: string | null
+        }
+        Insert: {
+          action: string
+          actor_id?: string | null
+          actor_name: string
+          actor_type: string
+          created_at?: string | null
+          detail?: string | null
+          id?: string
+          occurred_at?: string | null
+          organization_id: string
+          rule?: string | null
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          actor_name?: string
+          actor_type?: string
+          created_at?: string | null
+          detail?: string | null
+          id?: string
+          occurred_at?: string | null
+          organization_id?: string
+          rule?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "audit_logs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       company_settings: {
         Row: {
           active: boolean | null
@@ -96,6 +197,255 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: true
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contact_suppressions: {
+        Row: {
+          channel: string
+          contact: string
+          contact_hash: string
+          created_at: string | null
+          id: string
+          lead_id: string | null
+          organization_id: string
+          reason: string | null
+        }
+        Insert: {
+          channel: string
+          contact: string
+          contact_hash: string
+          created_at?: string | null
+          id?: string
+          lead_id?: string | null
+          organization_id: string
+          reason?: string | null
+        }
+        Update: {
+          channel?: string
+          contact?: string
+          contact_hash?: string
+          created_at?: string | null
+          id?: string
+          lead_id?: string | null
+          organization_id?: string
+          reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contact_suppressions_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contact_suppressions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      documents: {
+        Row: {
+          content_text: string | null
+          created_at: string | null
+          id: string
+          name: string
+          organization_id: string
+          size: string | null
+          status: string | null
+          storage_path: string | null
+          type: string | null
+        }
+        Insert: {
+          content_text?: string | null
+          created_at?: string | null
+          id?: string
+          name: string
+          organization_id: string
+          size?: string | null
+          status?: string | null
+          storage_path?: string | null
+          type?: string | null
+        }
+        Update: {
+          content_text?: string | null
+          created_at?: string | null
+          id?: string
+          name?: string
+          organization_id?: string
+          size?: string | null
+          status?: string | null
+          storage_path?: string | null
+          type?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "documents_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      knowledge_chunks: {
+        Row: {
+          chunk_index: number
+          content: string
+          created_at: string | null
+          document_id: string
+          id: string
+          status: string | null
+          tokens: number | null
+          version: number | null
+        }
+        Insert: {
+          chunk_index: number
+          content: string
+          created_at?: string | null
+          document_id: string
+          id?: string
+          status?: string | null
+          tokens?: number | null
+          version?: number | null
+        }
+        Update: {
+          chunk_index?: number
+          content?: string
+          created_at?: string | null
+          document_id?: string
+          id?: string
+          status?: string | null
+          tokens?: number | null
+          version?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "knowledge_chunks_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lead_handoffs: {
+        Row: {
+          created_at: string | null
+          from_user_id: string
+          id: string
+          lead_id: string
+          organization_id: string
+          sla_expires_at: string | null
+          status: string | null
+          to_user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          from_user_id: string
+          id?: string
+          lead_id: string
+          organization_id: string
+          sla_expires_at?: string | null
+          status?: string | null
+          to_user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          from_user_id?: string
+          id?: string
+          lead_id?: string
+          organization_id?: string
+          sla_expires_at?: string | null
+          status?: string | null
+          to_user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_handoffs_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_handoffs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      lead_sequence_enrollments: {
+        Row: {
+          created_at: string | null
+          current_step_id: string | null
+          id: string
+          last_error: string | null
+          lead_id: string
+          next_run_at: string | null
+          organization_id: string
+          sequence_id: string
+          status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          current_step_id?: string | null
+          id?: string
+          last_error?: string | null
+          lead_id: string
+          next_run_at?: string | null
+          organization_id: string
+          sequence_id: string
+          status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          current_step_id?: string | null
+          id?: string
+          last_error?: string | null
+          lead_id?: string
+          next_run_at?: string | null
+          organization_id?: string
+          sequence_id?: string
+          status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lead_sequence_enrollments_current_step_id_fkey"
+            columns: ["current_step_id"]
+            isOneToOne: false
+            referencedRelation: "outreach_sequence_steps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_sequence_enrollments_lead_id_fkey"
+            columns: ["lead_id"]
+            isOneToOne: false
+            referencedRelation: "leads"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_sequence_enrollments_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lead_sequence_enrollments_sequence_id_fkey"
+            columns: ["sequence_id"]
+            isOneToOne: false
+            referencedRelation: "outreach_sequences"
             referencedColumns: ["id"]
           },
         ]
@@ -246,6 +596,89 @@ export type Database = {
         }
         Relationships: []
       }
+      outreach_sequence_steps: {
+        Row: {
+          channel: string
+          content: string | null
+          continue_on: Json | null
+          id: string
+          max_attempts: number | null
+          order_index: number
+          organization_id: string
+          sequence_id: string
+          type: string
+          wait_hours: number | null
+        }
+        Insert: {
+          channel: string
+          content?: string | null
+          continue_on?: Json | null
+          id?: string
+          max_attempts?: number | null
+          order_index: number
+          organization_id: string
+          sequence_id: string
+          type: string
+          wait_hours?: number | null
+        }
+        Update: {
+          channel?: string
+          content?: string | null
+          continue_on?: Json | null
+          id?: string
+          max_attempts?: number | null
+          order_index?: number
+          organization_id?: string
+          sequence_id?: string
+          type?: string
+          wait_hours?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outreach_sequence_steps_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outreach_sequence_steps_sequence_id_fkey"
+            columns: ["sequence_id"]
+            isOneToOne: false
+            referencedRelation: "outreach_sequences"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      outreach_sequences: {
+        Row: {
+          created_at: string | null
+          id: string
+          name: string
+          organization_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          name: string
+          organization_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          name?: string
+          organization_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "outreach_sequences_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           active: boolean | null
@@ -281,6 +714,135 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      prospecting_cache: {
+        Row: {
+          created_at: string | null
+          data: Json
+          external_id: string
+          id: string
+          source: string
+        }
+        Insert: {
+          created_at?: string | null
+          data: Json
+          external_id: string
+          id?: string
+          source: string
+        }
+        Update: {
+          created_at?: string | null
+          data?: Json
+          external_id?: string
+          id?: string
+          source?: string
+        }
+        Relationships: []
+      }
+      prospecting_schedule_runs: {
+        Row: {
+          created_at: string | null
+          error_message: string | null
+          id: string
+          imported_count: number | null
+          organization_id: string
+          schedule_id: string
+          status: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          imported_count?: number | null
+          organization_id: string
+          schedule_id: string
+          status?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          imported_count?: number | null
+          organization_id?: string
+          schedule_id?: string
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prospecting_schedule_runs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prospecting_schedule_runs_schedule_id_fkey"
+            columns: ["schedule_id"]
+            isOneToOne: false
+            referencedRelation: "prospecting_schedules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      prospecting_schedules: {
+        Row: {
+          active: boolean | null
+          assignment_strategy: string | null
+          auto_approve_min_score: number | null
+          created_at: string | null
+          daily_cap: number | null
+          filters: Json
+          id: string
+          monthly_cap: number | null
+          organization_id: string
+          owner_id: string | null
+          quantity: number | null
+          sequence_id: string | null
+        }
+        Insert: {
+          active?: boolean | null
+          assignment_strategy?: string | null
+          auto_approve_min_score?: number | null
+          created_at?: string | null
+          daily_cap?: number | null
+          filters: Json
+          id?: string
+          monthly_cap?: number | null
+          organization_id: string
+          owner_id?: string | null
+          quantity?: number | null
+          sequence_id?: string | null
+        }
+        Update: {
+          active?: boolean | null
+          assignment_strategy?: string | null
+          auto_approve_min_score?: number | null
+          created_at?: string | null
+          daily_cap?: number | null
+          filters?: Json
+          id?: string
+          monthly_cap?: number | null
+          organization_id?: string
+          owner_id?: string | null
+          quantity?: number | null
+          sequence_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prospecting_schedules_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prospecting_schedules_sequence_id_fkey"
+            columns: ["sequence_id"]
+            isOneToOne: false
+            referencedRelation: "outreach_sequences"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
