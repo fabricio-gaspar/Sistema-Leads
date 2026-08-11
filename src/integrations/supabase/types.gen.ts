@@ -35,6 +35,7 @@ export type Database = {
           origin: string | null
           created_at: string
           updated_at: string
+          annual_revenue: string | null
         }
         Insert: any
         Update: any
@@ -197,7 +198,9 @@ export type Database = {
       prospecting_schedules: { Row: { id: string; owner_id: string; filters: Json; quantity: number; auto_approve_min_score: number; sequence_id: string | null; assignment_strategy: string; daily_cap: number; monthly_cap: number }; Insert: any; Update: any }
       prospecting_schedule_runs: { Row: { id: string; imported_count: number }; Insert: any; Update: any }
       user_roles: { Row: { id: string; user_id: string; role: string }; Insert: any; Update: any }
-      documents: { Row: { id: string; name: string; content_text?: string }; Insert: any; Update: any }
+      documents: { Row: { id: string; name: string; content_text?: string; storage_path?: string }; Insert: any; Update: any }
+      lead_outreach: { Row: { id: string; channel: string; actor_type: string }; Insert: any; Update: any }
+      score_weights: { Row: { id: string; segment: number; whatsapp: number; site: number; porte: number; google: number; regiao: number; updated_at: string }; Insert: any; Update: any }
     }
     Views: {
       [_ in never]: never
