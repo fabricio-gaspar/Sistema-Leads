@@ -177,6 +177,7 @@ async function assertAdmin(context: any) {
 export const listSequences = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    const ctx = context;
     const { data: seqs, error } = await ((context as any).supabase)
       (supabase as any).from('outreach_sequences')
       .select('*')
@@ -190,6 +191,7 @@ export const getSequenceWithSteps = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
+    const ctx = context;
     const { data: seq, error } = await ((context as any).supabase)
       (supabase as any).from('outreach_sequences')
       .select('*')
@@ -208,6 +210,7 @@ export const getSequenceWithSteps = createServerFn({ method: 'POST' })
 export const getDefaultSequenceWithSteps = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    const ctx = context;
     return await loadDefaultSequenceInternal(((context as any).supabase))
   })
 
@@ -233,6 +236,7 @@ export const updateSequence = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => seqUpdateSchema.parse(d))
   .handler(async ({ data, context }) => {
+    const ctx = context;
     await assertAdmin(context)
     const patch: Record<string, unknown> = {}
     if (data.name !== undefined) patch.name = data.name
@@ -265,6 +269,7 @@ export const upsertSequenceStep = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => stepUpsertSchema.parse(d))
   .handler(async ({ data, context }) => {
+    const ctx = context;
     await assertAdmin(context)
     const { data: currentRows, error: currentError } = await ((context as any).supabase)
       (supabase as any).from('outreach_sequence_steps')
@@ -359,6 +364,7 @@ export const deleteSequenceStep = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
+    const ctx = context;
     await assertAdmin(context)
     const { data: row, error: rowError } = await ((context as any).supabase)
       (supabase as any).from('outreach_sequence_steps')
@@ -385,6 +391,7 @@ export const getLeadEnrollment = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ lead_id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
+    const ctx = context;
     const { data: enr } = await ((context as any).supabase)
       (supabase as any).from('lead_sequence_enrollments')
       .select('*')
