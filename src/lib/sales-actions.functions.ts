@@ -275,7 +275,7 @@ export async function runNurtureSweepInternal(ctx: Ctx, limit = 20): Promise<{
   candidates: number; reactivated: number; skipped: number; details: Array<{ lead_id: string; result: string }>
 }> {
   const admin = (ctx.supabase as any)
-  const { data: settings } = await admin((supabase as any).from('company_settings').select('nurture_days, nurture_max_cycles, autonomy').limit(1).maybeSingle()
+  const { data: settings } = await admin(supabase as any).from('company_settings').select('nurture_days, nurture_max_cycles, autonomy').limit(1).maybeSingle()
   const autonomy = autonomyOf(settings?.autonomy, 'nurture')
   if (autonomy === 'manual') return { candidates: 0, reactivated: 0, skipped: 0, details: [] }
 
@@ -284,7 +284,7 @@ export async function runNurtureSweepInternal(ctx: Ctx, limit = 20): Promise<{
   const threshold = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString()
 
   const { data: candidates, error } = await admin
-    ((supabase as any).from('leads')
+    (supabase as any).from('leads')
     .select('id, company, stage, opt_out, ai_paused, assigned_to, owner_id, updated_at')
     .in('stage', ['Prospecção', 'Qualificado'])
     .eq('opt_out', false)
@@ -301,7 +301,7 @@ export async function runNurtureSweepInternal(ctx: Ctx, limit = 20): Promise<{
 
   for (const lead of candidates as any[]) {
     const { data: enrollment } = await admin
-      ((supabase as any).from('lead_sequence_enrollments').select('id, status, nurture_cycles')
+      (supabase as any).from('lead_sequence_enrollments').select('id, status, nurture_cycles')
       .eq('lead_id', lead.id).maybeSingle()
     if (enrollment?.status === 'active') { skipped += 1; details.push({ lead_id: lead.id, result: 'active_already' }); continue }
     if ((enrollment?.nurture_cycles ?? 0) >= maxCycles) { skipped += 1; details.push({ lead_id: lead.id, result: 'max_cycles' }); continue }
@@ -309,7 +309,7 @@ export async function runNurtureSweepInternal(ctx: Ctx, limit = 20): Promise<{
     if (autonomy === 'assist') {
       const assignee = lead.assigned_to ?? lead.owner_id ?? null
       if (assignee) {
-        await admin((supabase as any).from('notifications').insert({
+        await admin(supabase as any).from('notifications').insert({
           user_id: assignee, kind: 'nurture_ready',
           title: 'Lead pronto para nurture',
           description: `${lead.company} está sem resposta há ${days}+ dias. Reativar cadência?`,
@@ -322,7 +322,7 @@ export async function runNurtureSweepInternal(ctx: Ctx, limit = 20): Promise<{
     try {
       // Reativa a matrícula do zero para o próximo passo elegível
       if (enrollment?.id) {
-        await admin((supabase as any).from('lead_sequence_enrollments').update({
+        await admin(supabase as any).from('lead_sequence_enrollments').update({
           status: 'active',
           current_step_index: -1,
           next_run_at: new Date().toISOString(),
@@ -333,7 +333,7 @@ export async function runNurtureSweepInternal(ctx: Ctx, limit = 20): Promise<{
       await triggerOutreachInternal(ctx, lead.id)
       reactivated += 1
       details.push({ lead_id: lead.id, result: 'restarted' })
-      await admin((supabase as any).from('audit_logs').insert({
+      await admin(supabase as any).from('audit_logs').insert({
         actor_id: ctx.userId, actor_name: 'Nurture', actor_type: 'ia',
         action: 'nurture_restart', detail: `${lead.company}: reativado após ${days}+ dias`,
       } as never)
