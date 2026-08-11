@@ -95,7 +95,7 @@ function getTimezoneOffsetMinutes(timezone: string, when: Date): number {
 export const listSchedules = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { data, error } = await ((context as any).supabase as any)
+    const { data, error } = await (context.supabase as any)
       .from('prospecting_schedules' as any) as any
       .select('*')
       .order('created_at', { ascending: false })
@@ -107,7 +107,7 @@ export const getSchedule = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const { data: row, error } = await ((context as any).supabase as any)
+    const { data: row, error } = await (context.supabase as any)
       .from('prospecting_schedules' as any) as any
       .select('*')
       .eq('id', data.id)
@@ -123,7 +123,7 @@ export const upsertSchedule = createServerFn({ method: 'POST' })
   .handler(async ({ data, context }) => {
     const next = computeNextRun(new Date(), data.days_of_week, data.time_of_day, data.timezone)
     if (data.id) {
-      const { data: row, error } = await ((context as any).supabase as any)
+      const { data: row, error } = await (context.supabase as any)
         .from('prospecting_schedules' as any) as any
         .update({
           name: data.name,
@@ -149,7 +149,7 @@ export const upsertSchedule = createServerFn({ method: 'POST' })
       if (error) throw new Error(error.message)
       return row
     }
-    const { data: row, error } = await ((context as any).supabase as any)
+    const { data: row, error } = await (context.supabase as any)
       .from('prospecting_schedules' as any) as any
       .insert({
         owner_id: context.userId,
@@ -180,7 +180,7 @@ export const toggleSchedule = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid(), active: z.boolean() }).parse(d))
   .handler(async ({ data, context }) => {
-    const { data: cur } = await ((context as any).supabase as any)
+    const { data: cur } = await (context.supabase as any)
       .from('prospecting_schedules' as any) as any
       .select('days_of_week, time_of_day, timezone')
       .eq('id', data.id)
@@ -189,7 +189,7 @@ export const toggleSchedule = createServerFn({ method: 'POST' })
     const next = data.active
       ? computeNextRun(new Date(), cur.days_of_week as number[], cur.time_of_day as string, cur.timezone as string)
       : null
-    const { error } = await ((context as any).supabase as any)
+    const { error } = await (context.supabase as any)
       .from('prospecting_schedules' as any) as any
       .update({ active: data.active, next_run_at: next ? next.toISOString() : null, consecutive_failures: 0 } as never)
       .eq('id', data.id)
@@ -201,7 +201,7 @@ export const deleteSchedule = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const { error } = await ((context as any).supabase as any)
+    const { error } = await (context.supabase as any)
       .from('prospecting_schedules' as any) as any
       .delete()
       .eq('id', data.id)
@@ -213,7 +213,7 @@ export const listScheduleRuns = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ schedule_id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const { data: rows, error } = await ((context as any).supabase as any)
+    const { data: rows, error } = await (context.supabase as any)
       .from('prospecting_schedule_runs' as any) as any
       .select('*')
       .eq('schedule_id', data.schedule_id)
@@ -228,7 +228,7 @@ export const runScheduleNow = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const { data: schedule, error: sErr } = await ((context as any).supabase as any)
+    const { data: schedule, error: sErr } = await (context.supabase as any)
       .from('prospecting_schedules' as any) as any
       .select('*')
       .eq('id', data.id)

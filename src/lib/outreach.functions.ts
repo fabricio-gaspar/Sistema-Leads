@@ -1,10 +1,8 @@
-import { cancelEnrollmentInternal } from './outreach-sequences.functions'
-import { cancelEnrollmentInternal } from './outreach-sequences.functions'
 import { createServerFn } from '@tanstack/react-start'
 import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware'
 import { z } from 'zod'
+import { cancelEnrollmentInternal } from './outreach-sequences.functions'
 import {
-
   completeEnrollmentInternal,
   ensureEnrollmentInternal,
   getEnrollmentInternal,
@@ -16,8 +14,6 @@ import {
 } from '@/lib/outreach-sequences.functions'
 import { createHandoffInternal } from '@/lib/sales-automation.functions'
 
-
-// ============================================================================
 // Types
 // ============================================================================
 
@@ -1128,7 +1124,7 @@ export const startOutreach = createServerFn({ method: 'POST' })
     let channels = (lead.contact_channels ?? {}) as ContactChannels
     if (data.restart || (!channels.whatsapp && !channels.email && !channels.phone)) {
       channels = buildChannels(lead)
-      await ((context as any).supabase as any)
+      await (context.supabase as any)
         .from('leads' as any) as any
         .update({ contact_channels: channels } as never)
         .eq('id', lead.id)
@@ -1188,15 +1184,15 @@ export const pauseAi = createServerFn({ method: 'POST' })
       leadPatch.escalated = false
       leadPatch.escalation_reason = null
     }
-    await ((context as any).supabase as any)
+    await (context.supabase as any)
       .from('leads' as any) as any
       .update(leadPatch as never)
       .eq('id', data.lead_id)
     if (data.paused) {
-      await pauseEnrollmentInternal(((context as any).supabase as any), data.lead_id, 'ai_paused_manual')
+      await pauseEnrollmentInternal((context.supabase as any), data.lead_id, 'ai_paused_manual')
     } else {
-      await resumeEnrollmentInternal(((context as any).supabase as any), data.lead_id)
-      const { error: closeError } = await ((context as any).supabase as any)
+      await resumeEnrollmentInternal((context.supabase as any), data.lead_id)
+      const { error: closeError } = await (context.supabase as any)
         .from('lead_handoffs' as any) as any
         .update({ status: 'closed', closed_at: new Date().toISOString() } as never)
         .eq('lead_id', data.lead_id)
@@ -1217,7 +1213,7 @@ export const assumeManually = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ lead_id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    await ((context as any).supabase as any)
+    await (context.supabase as any)
       .from('leads' as any) as any
       .update({
         ai_paused: true,
@@ -1226,7 +1222,7 @@ export const assumeManually = createServerFn({ method: 'POST' })
         next_action_at: null,
       } as never)
       .eq('id', data.lead_id)
-    await pauseEnrollmentInternal(((context as any).supabase as any), data.lead_id, 'assumed_manually')
+    await pauseEnrollmentInternal((context.supabase as any), data.lead_id, 'assumed_manually')
     await audit(context as Ctx, 'handoff_manual', `Atendimento assumido manualmente`, 'human')
     return { ok: true }
   })
@@ -1315,12 +1311,12 @@ export const setOptOut = createServerFn({ method: 'POST' })
     const ctx = context as Ctx
     if (data.opt_out) await suppressLeadContactsInternal(ctx, data.lead_id)
     else await unsuppressLeadContactsInternal(ctx, data.lead_id)
-    await ((context as any).supabase as any)
+    await (context.supabase as any)
       .from('leads' as any) as any
       .update((data.opt_out ? { opt_out: true, next_action_at: null } : { opt_out: false }) as never)
       .eq('id', data.lead_id)
     if (data.opt_out) {
-      await cancelEnrollmentInternal(((context as any).supabase as any), data.lead_id, 'opt_out')
+      await cancelEnrollmentInternal((context.supabase as any), data.lead_id, 'opt_out')
     }
 
     // Trilha auditável de consentimento
@@ -1345,7 +1341,7 @@ export const listOutreach = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ lead_id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const { data: rows, error } = await ((context as any).supabase as any)
+    const { data: rows, error } = await (context.supabase as any)
       .from('lead_outreach' as any) as any
       .select('*')
       .eq('lead_id', data.lead_id)
