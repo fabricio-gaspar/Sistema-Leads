@@ -1,4 +1,6 @@
 import type { Database } from '@/integrations/supabase/types'
+import { z } from 'zod'
+
   uid: string;
   title: string;
   description?: string | null;
