@@ -199,8 +199,10 @@ export type Database = {
       prospecting_schedule_runs: { Row: { id: string; imported_count: number }; Insert: any; Update: any }
       user_roles: { Row: { id: string; user_id: string; role: string }; Insert: any; Update: any }
       documents: { Row: { id: string; name: string; content_text?: string; storage_path?: string }; Insert: any; Update: any }
-      lead_outreach: { Row: { id: string; channel: string; actor_type: string }; Insert: any; Update: any }
+      lead_outreach: { Row: { id: string; channel: string; actor_type: string; lead_id: string; status: string; replied_at?: string }; Insert: any; Update: any }
       score_weights: { Row: { id: string; segment: number; whatsapp: number; site: number; porte: number; google: number; regiao: number; updated_at: string }; Insert: any; Update: any }
+      unanswered_questions: { Row: { id: string; text: string; count: number; resolved: boolean }; Insert: any; Update: any }
+      integrations: { Row: { id: string; key: string; label: string; connected: boolean; updated_at: string }; Insert: any; Update: any }
     }
     Views: {
       [_ in never]: never
