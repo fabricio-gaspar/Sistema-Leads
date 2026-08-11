@@ -2,6 +2,10 @@ import { createServerFn } from '@tanstack/react-start'
 import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware'
 import { z } from 'zod'
 
+import { createServerFn } from '@tanstack/react-start'
+import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware'
+import { z } from 'zod'
+
 
 const filtersSchema = z.object({
   source: z.enum(['cnpj_ws', 'google_places', 'ai_only', 'apify']).default('google_places'),
