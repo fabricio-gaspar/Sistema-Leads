@@ -1394,7 +1394,7 @@ export const getReportsData = createServerFn({ method: 'POST' })
         .gte('created_at', start.toISOString()),
       ((context as any).supabase).from("profiles" as any).select('id, name'),
       ((context as any).supabase)
-        .from('lead_outreach' )
+        .from('lead_outreach' as any )
         .select('lead_id, channel, status, created_at, sent_at, replied_at, owner_id, actor_type')
         .gte('created_at', start.toISOString()),
     ])
@@ -2308,7 +2308,7 @@ export const getOpsMetrics = createServerFn({ method: 'GET' })
     const since = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString()
     const [outreachRes, optOutRes, legacyHandoffRes, anaTasksRes, handoffRes, enrollmentRes, appointmentRes] = await Promise.all([
       supabase
-        .from('lead_outreach' )
+        .from('lead_outreach' as any )
         .select('channel, status, actor_type')
         .gte('created_at', since),
       supabase
