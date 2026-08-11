@@ -111,7 +111,6 @@ function AuthPage() {
             </button>
           )}
         </div>
-
       </div>
 
       <style>{`
