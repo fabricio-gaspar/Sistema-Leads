@@ -52,10 +52,10 @@ function Kanban() {
   const [overStage, setOverStage] = useState<Stage | null>(null);
   const [showNew, setShowNew] = useState(false);
 
-  const byStage = (s: Stage) => leads.filter((l) => l.stage === s);
+  const byStage = (s: Stage) => leads.filter((l: any) => l.stage === s);
   const total = leads.length;
-  const valorTotal = leads.reduce((a, l) => a + Number(l.value || 0), 0);
-  const parados = leads.filter((l) => (l.stale_hours ?? 0) >= 48).length;
+  const valorTotal = leads.reduce((a: any, l: any) => a + Number(l.value || 0), 0);
+  const parados = leads.filter((l: any) => (l.stale_hours ?? 0) >= 48).length;
 
   const onDrop = (stage: Stage) => {
     if (dragId) {
@@ -128,7 +128,7 @@ function Kanban() {
           <div className="flex h-full min-w-max gap-3 pb-2">
             {STAGES.map((s) => {
               const items = byStage(s);
-              const stageValor = items.reduce((a, l) => a + Number(l.value || 0), 0);
+              const stageValor = items.reduce((a: any, l: any) => a + Number(l.value || 0), 0);
               const isOver = overStage === s;
               return (
                 <div
