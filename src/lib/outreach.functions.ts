@@ -1076,7 +1076,7 @@ export const startOutreach = createServerFn({ method: 'POST' })
     lead_id: z.string().uuid(),
     restart: z.boolean().optional().default(false),
   }).parse(d))
-  .handler(async ({ data, context: ctx }) => {
+  .handler(async ({ data, ctx }) => {
     
     const lead = await loadLead(ctx, data.lead_id)
     if (lead.opt_out) return { ok: false, reason: 'opt_out' }
@@ -1153,7 +1153,7 @@ export const pauseAi = createServerFn({ method: 'POST' })
   .inputValidator((d: unknown) =>
     z.object({ lead_id: z.string().uuid(), paused: z.boolean() }).parse(d),
   )
-  .handler(async ({ data, context: ctx }) => {
+  .handler(async ({ data, ctx }) => {
     const leadPatch: Record<string, unknown> = { ai_paused: data.paused }
     if (!data.paused) {
       leadPatch.owner = 'ia'
@@ -1185,7 +1185,7 @@ export const pauseAi = createServerFn({ method: 'POST' })
 export const assumeManually = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ lead_id: z.string().uuid() }).parse(d))
-  .handler(async ({ data, context: ctx }) => {
+  .handler(async ({ data, ctx }) => {
     await (ctx.supabase as any).from('leads')
       .update({
         ai_paused: true,
@@ -1205,7 +1205,7 @@ export const sendManualWhatsapp = createServerFn({ method: 'POST' })
   .inputValidator((d: unknown) =>
     z.object({ lead_id: z.string().uuid(), text: z.string().trim().min(1).max(4000) }).parse(d),
   )
-  .handler(async ({ data, context: ctx }) => {
+  .handler(async ({ data, ctx }) => {
     
     const lead = await loadLead(ctx, data.lead_id)
     if (lead.opt_out) return { ok: false, error: 'Este contato solicitou não receber mensagens.' }
@@ -1278,7 +1278,7 @@ export const setOptOut = createServerFn({ method: 'POST' })
   .inputValidator((d: unknown) =>
     z.object({ lead_id: z.string().uuid(), opt_out: z.boolean() }).parse(d),
   )
-  .handler(async ({ data, context: ctx }) => {
+  .handler(async ({ data, ctx }) => {
     
     if (data.opt_out) await suppressLeadContactsInternal(ctx, data.lead_id)
     else await unsuppressLeadContactsInternal(ctx, data.lead_id)
@@ -1310,7 +1310,7 @@ export const setOptOut = createServerFn({ method: 'POST' })
 export const listOutreach = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ lead_id: z.string().uuid() }).parse(d))
-  .handler(async ({ data, context: ctx }) => {
+  .handler(async ({ data, ctx }) => {
     const { data: rows, error } = await (ctx.supabase as any).from('lead_outreach')
       .select('*')
       .eq('lead_id', data.lead_id)
