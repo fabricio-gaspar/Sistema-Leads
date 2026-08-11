@@ -34,8 +34,7 @@ async function loadCompanyContext(ctx: Ctx) {
 }
 
 async function loadKnowledgeSnippets(ctx: Ctx, maxChunks = 6): Promise<string> {
-  const { data } = await (ctx.supabase as any)
-    ((supabase as any).from('knowledge_chunks')
+  const { data } = await (ctx.supabase as any).from('knowledge_chunks')
     .select('content, documents(name, status)')
     .eq('status', 'ready')
     .limit(maxChunks)
@@ -238,8 +237,7 @@ Resumo: ${qual?.summary ?? '—'}`
       need_approval: true,
       owner_id: lead.assigned_to || lead.owner_id || ctx.userId,
     }
-    const { data: proposal, error: insertError } = await (ctx.supabase as any)
-      ((supabase as any).from('proposals').insert(proposalPayload as never).select().single()
+    const { data: proposal, error: insertError } = await (ctx.supabase as any).from('proposals').insert(proposalPayload as never).select().single()
     if (insertError) throw new Error(insertError.message)
 
     // Avança o kanban do lead

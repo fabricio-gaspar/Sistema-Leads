@@ -39,22 +39,19 @@ async function audit(ctx: Ctx, action: string, detail: string, actorType: 'ia' |
 
 async function selectSeller(ctx: Ctx, currentSeller?: string | null) {
   if (currentSeller) return currentSeller
-  const { data: settings } = await (ctx.supabase as any)
-    ((supabase as any).from('company_settings')
+  const { data: settings } = await (ctx.supabase as any).from('company_settings')
     .select('assignment_strategy')
     .limit(1)
     .maybeSingle()
   if ((settings?.assignment_strategy ?? 'manual') === 'manual') return null
 
-  const { data: roleRows, error: rolesError } = await (ctx.supabase as any)
-    ((supabase as any).from('user_roles')
+  const { data: roleRows, error: rolesError } = await (ctx.supabase as any).from('user_roles')
     .select('user_id')
     .eq('role', 'vendedor')
   if (rolesError) throw new Error(rolesError.message)
   const ids = (roleRows ?? []).map((row: any) => row.user_id)
   if (!ids.length) return null
-  const { data: profiles, error: profileError } = await (ctx.supabase as any)
-    ((supabase as any).from('profiles')
+  const { data: profiles, error: profileError } = await (ctx.supabase as any).from('profiles')
     .select('id, name')
     .in('id', ids)
     .eq('active', true)
@@ -64,8 +61,7 @@ async function selectSeller(ctx: Ctx, currentSeller?: string | null) {
   if (!sellers.length) return null
 
   if (settings?.assignment_strategy === 'round_robin') {
-    const { data: last } = await (ctx.supabase as any)
-      ((supabase as any).from('lead_handoffs')
+    const { data: last } = await (ctx.supabase as any).from('lead_handoffs')
       .select('assigned_to')
       .not('assigned_to', 'is', null)
       .order('requested_at', { ascending: false })
@@ -75,8 +71,7 @@ async function selectSeller(ctx: Ctx, currentSeller?: string | null) {
     return sellers[(index + 1) % sellers.length]
   }
 
-  const { data: openLeads, error: leadsError } = await (ctx.supabase as any)
-    ((supabase as any).from('leads')
+  const { data: openLeads, error: leadsError } = await (ctx.supabase as any).from('leads')
     .select('assigned_to')
     .in('assigned_to', sellers)
     .not('stage', 'in', '(Fechado,Perdido)')
@@ -93,16 +88,14 @@ export async function createHandoffInternal(
   ctx: Ctx,
   input: { leadId: string; reason: string; category?: string; summary?: string; context?: Record<string, unknown> },
 ) {
-  const { data: lead, error: leadError } = await (ctx.supabase as any)
-    ((supabase as any).from('leads')
+  const { data: lead, error: leadError } = await (ctx.supabase as any).from('leads')
     .select('id, company, assigned_to, owner_id')
     .eq('id', input.leadId)
     .maybeSingle()
   if (leadError) throw new Error(leadError.message)
   if (!lead) throw new Error('Lead não encontrado')
 
-  const { data: open, error: openError } = await (ctx.supabase as any)
-    ((supabase as any).from('lead_handoffs')
+  const { data: open, error: openError } = await (ctx.supabase as any).from('lead_handoffs')
     .select('*')
     .eq('lead_id', input.leadId)
     .in('status', ['pending', 'accepted'])
@@ -110,15 +103,13 @@ export async function createHandoffInternal(
   if (openError) throw new Error(openError.message)
   if (open) return open
 
-  const { data: settings } = await (ctx.supabase as any)
-    ((supabase as any).from('company_settings')
+  const { data: settings } = await (ctx.supabase as any).from('company_settings')
     .select('handoff_sla_minutes')
     .limit(1)
     .maybeSingle()
   const assignedTo = await selectSeller(ctx, lead.assigned_to)
   const dueAt = new Date(Date.now() + Number(settings?.handoff_sla_minutes ?? 30) * 60_000).toISOString()
-  const { data: handoff, error } = await (ctx.supabase as any)
-    ((supabase as any).from('lead_handoffs')
+  const { data: handoff, error } = await (ctx.supabase as any).from('lead_handoffs')
     .insert({
       lead_id: input.leadId,
       reason: input.reason,
@@ -131,8 +122,7 @@ export async function createHandoffInternal(
     .select()
     .single()
   if (error?.code === '23505') {
-    const { data: raced } = await (ctx.supabase as any)
-      ((supabase as any).from('lead_handoffs')
+    const { data: raced } = await (ctx.supabase as any).from('lead_handoffs')
       .select('*')
       .eq('lead_id', input.leadId)
       .in('status', ['pending', 'accepted'])
@@ -149,8 +139,7 @@ export async function createHandoffInternal(
   } as never).eq('id', input.leadId)
   if (pauseError) throw new Error(pauseError.message)
   await pauseEnrollmentInternal((ctx.supabase as any), input.leadId, `handoff:${input.category ?? 'geral'}`)
-  await (ctx.supabase as any)
-    ((supabase as any).from('lead_sequence_enrollments')
+  await (ctx.supabase as any).from('lead_sequence_enrollments')
     .update({ next_run_at: null, last_error: 'handoff' } as never)
     .eq('lead_id', input.leadId)
 
@@ -172,8 +161,7 @@ export const getLeadAutomation = createServerFn({ method: 'GET' })
   .handler(async ({ data, context }) => {
     const ctx = context as Ctx
     const [enrollment, qualification, handoff, appointments] = await Promise.all([
-      (ctx.supabase as any)
-        ((supabase as any).from('lead_sequence_enrollments')
+      (ctx.supabase as any).from('lead_sequence_enrollments')
         .select('*, outreach_sequences(name, outreach_sequence_steps(*))')
         .eq('lead_id', data.lead_id)
         .maybeSingle(),
