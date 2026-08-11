@@ -1,6 +1,6 @@
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[]
 
-export interface Database {
+export type Database = {
   public: {
     Tables: {
       organizations: { Row: { id: string; name: string; slug: string; created_at: string; updated_at: string }; Insert: any; Update: any }
