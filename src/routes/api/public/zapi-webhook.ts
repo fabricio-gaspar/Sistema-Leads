@@ -80,13 +80,13 @@ export const Route = createFileRoute('/api/public/zapi-webhook')({
                 .eq('provider_message_id', mid)
                 .select('*')
                 .maybeSingle()
-              if (row?.lead_id) {
+              if ((row as any)?.lead_id) {
                 const { data: lead } = await supabaseAdmin
                   .from('leads')
                   .select('contact_channels')
-                  .eq('id', row.lead_id)
+                  .eq('id', (row as any).lead_id)
                   .maybeSingle()
-                const channels = ((lead?.contact_channels as any) ?? {}) as Record<string, any>
+                const channels = (((lead as any)?.contact_channels as any) ?? {}) as Record<string, any>
                 channels.whatsapp = {
                   ...(channels.whatsapp ?? { available: true }),
                   last_status: patch.status,
@@ -95,7 +95,7 @@ export const Route = createFileRoute('/api/public/zapi-webhook')({
                 await supabaseAdmin
                   .from('leads')
                   .update({ contact_channels: channels } as never)
-                  .eq('id', row.lead_id)
+                  .eq('id', (row as any).lead_id)
               }
             }
           }
@@ -133,29 +133,29 @@ export const Route = createFileRoute('/api/public/zapi-webhook')({
           const { data: lastOut } = await supabaseAdmin
             .from('lead_outreach')
             .select('*')
-            .eq('lead_id', lead.id)
+            .eq('lead_id', (lead as any).id)
             .eq('channel', 'whatsapp')
             .order('created_at', { ascending: false })
             .limit(1)
             .maybeSingle()
-          if (lastOut?.id) {
+          if ((lastOut as any)?.id) {
             await supabaseAdmin
               .from('lead_outreach')
               .update({ status: 'replied', replied_at: now } as never)
-              .eq('id', lastOut.id)
+              .eq('id', (lastOut as any).id)
           }
 
           // Pausa a cadência: cliente respondeu, próxima ação passa a ser conduzida
           // pela IA/humano no fluxo de resposta, não pela sequência automática.
           try {
             const { pauseEnrollmentInternal } = await import('@/lib/outreach-sequences.functions')
-            await pauseEnrollmentInternal(supabaseAdmin, lead.id, 'client_reply')
+            await pauseEnrollmentInternal(supabaseAdmin, (lead as any).id, 'client_reply')
           } catch { /* enrollment é best-effort */ }
 
 
           // Insert message in chat
           const { error: messageError } = await supabaseAdmin.from('lead_messages').insert({
-            lead_id: lead.id,
+            lead_id: (lead as any).id,
             sender: 'client',
             sender_name: 'Cliente',
             type: 'client',
@@ -169,7 +169,7 @@ export const Route = createFileRoute('/api/public/zapi-webhook')({
           }
 
           // Update channel snapshot & handoff hints
-          const channels = ((lead.contact_channels as any) ?? {}) as Record<string, any>
+          const channels = (((lead as any).contact_channels as any) ?? {}) as Record<string, any>
           channels.whatsapp = {
             ...(channels.whatsapp ?? { available: true }),
             last_status: 'replied',
@@ -206,31 +206,31 @@ export const Route = createFileRoute('/api/public/zapi-webhook')({
             patch.opt_out = true
             patch.ai_paused = true
           }
-          await supabaseAdmin.from('leads').update(patch as never).eq('id', lead.id)
+          await supabaseAdmin.from('leads').update(patch as any).eq('id', (lead as any).id)
 
           if (optOut) {
             const { suppressLeadContactsInternal } = await import('@/lib/outreach.functions')
-            const actorId = lead.assigned_to || lead.owner_id
+            const actorId = (lead as any).assigned_to || (lead as any).owner_id
             if (actorId) {
               await suppressLeadContactsInternal(
                 { supabase: supabaseAdmin, userId: actorId, claims: { email: 'Z-API' } },
-                lead.id,
+                (lead as any).id,
               )
             }
           }
 
           await supabaseAdmin.from('audit_logs').insert({
-            actor_id: lead.assigned_to || lead.owner_id,
+            actor_id: (lead as any).assigned_to || (lead as any).owner_id,
             actor_name: 'Z-API',
             actor_type: 'system',
             action: optOut ? 'lead_opt_out' : 'lead_reply',
-            detail: `Resposta recebida via WhatsApp de lead ${lead.id}`,
+            detail: `Resposta recebida via WhatsApp de lead ${(lead as any).id}`,
           } as never)
 
           let automation: unknown = null
           if (!optOut) {
             const outreach = await import('@/lib/outreach.functions')
-            const actorId = lead.assigned_to || lead.owner_id
+            const actorId = (lead as any).assigned_to || (lead as any).owner_id
             if (actorId) {
               const ctx = {
                 supabase: supabaseAdmin,
@@ -238,10 +238,10 @@ export const Route = createFileRoute('/api/public/zapi-webhook')({
                 claims: { email: 'Ana (IA)' },
               }
               automation = interest
-                ? await outreach.handoffLeadInternal(ctx, lead.id, text, 'Interesse comercial detectado')
-                : lead.ai_paused
+                ? await outreach.handoffLeadInternal(ctx, (lead as any).id, text, 'Interesse comercial detectado')
+                : (lead as any).ai_paused
                   ? { ok: false, action: 'ignored', reason: 'ai_paused' }
-                  : await outreach.handleInboundWithAiInternal(ctx, lead.id, text)
+                  : await outreach.handleInboundWithAiInternal(ctx, (lead as any).id, text)
             }
           }
 

@@ -59,7 +59,7 @@ export const Route = createFileRoute('/api/public/outreach-tick')({
               .from('outreach_jobs')
               .update({ status: 'done', processed_at: new Date().toISOString() } as any)
               .eq('id', (claimed as any).id)
-            queueProcessed.push(claimed.id)
+            queueProcessed.push((claimed as any).id)
           } catch (err) {
             const message = (err as Error).message
             await supabaseAdmin
@@ -70,7 +70,7 @@ export const Route = createFileRoute('/api/public/outreach-tick')({
                 error: message,
               } as never)
               .eq('id', (claimed as any).id)
-            queueFailed.push({ id: claimed.id, error: message })
+            queueFailed.push({ id: (claimed as any).id, error: message })
           }
         }
 
@@ -92,9 +92,9 @@ export const Route = createFileRoute('/api/public/outreach-tick')({
         for (const lead of due ?? []) {
           try {
             await runTimeoutForLead(supabaseAdmin, triggerOutreachInternal, lead, nowIso)
-            sweepProcessed.push(lead.id)
+            sweepProcessed.push((lead as any).id)
           } catch (err) {
-            sweepFailed.push({ id: lead.id, error: (err as Error).message })
+            sweepFailed.push({ id: (lead as any).id, error: (err as Error).message })
           }
         }
 
