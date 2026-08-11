@@ -42,7 +42,7 @@ function AuthPage() {
             .select("role")
             .eq("user_id", authData.user.id);
             
-          const roleNames = (roles ?? []).map(r => r.role);
+          const roleNames = (roles ?? []).map((r: any) => r.role);
           console.log("[Auth] Papéis identificados:", roleNames);
 
           if (roleNames.length === 0 && authData.user.email === 'fabricio@wfdigital.com.br') {
