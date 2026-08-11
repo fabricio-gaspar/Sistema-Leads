@@ -113,7 +113,7 @@ function AuthPage() {
         </div>
 
         <div className="mt-3 text-center text-[11px] text-text-ter italic bg-yellow-50 p-2 rounded border border-yellow-200">
-          Execute esta instrucao no projeto: Sincronize o projeto com o repositório GitHub fabricio-gaspar/Sistema-Leads, branch main. Importe todas as alterações sem sobrescrever os recursos existentes e valide frontend, backend, rotas e integrações.
+          Execute esta instrucao no projeto: Me informe qual o nome do banco de dados que esta utlizando e o local e tudo que puder para que eu localize onde esta este banco de dados do sistema de leads.
         </div>
       </div>
 
