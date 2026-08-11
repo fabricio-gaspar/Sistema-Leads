@@ -29,6 +29,9 @@ export type Database = {
       lead_qualifications: { Row: { id: string; organization_id: string; lead_id: string; question: string; answer: string | null; status: string }; Insert: any; Update: any }
       lead_handoffs: { Row: { id: string; organization_id: string; lead_id: string; from_user_id: string; to_user_id: string | null; status: string; sla_expires_at: string | null }; Insert: any; Update: any }
       appointments: { Row: { id: string; organization_id: string; lead_id: string; user_id: string; title: string; start_at: string; end_at: string; status: string; meeting_url: string | null }; Insert: any; Update: any }
+      outreach_jobs: { Row: { id: string; organization_id: string; lead_id: string; channel: string; attempt: number; run_at: string; status: string; locked_at: string | null; locked_by: string | null; processed_at: string | null; error: string | null }; Insert: any; Update: any }
+      prospecting_cache: { Row: { id: string; external_id: string; source: string; data: Json; created_at: string }; Insert: any; Update: any }
+      contact_suppressions: { Row: { id: string; organization_id: string; contact: string; channel: string; reason: string | null; created_at: string }; Insert: any; Update: any }
     }
     Views: { [_ in never]: never }
     Functions: {
