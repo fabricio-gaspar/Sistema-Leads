@@ -182,8 +182,8 @@ export const getKnowledgeStats = createServerFn({ method: 'GET' })
   .handler(async ({ context }) => {
     await assertAdmin(context)
     const [{ count: activeChunks }, { count: staleChunks }, { count: docsWithText }] = await Promise.all([
-      ((((context.supabase as any) as any) as any))((supabase as any).from('knowledge_chunks')).select('id', { count: 'exact', head: true }).eq('status', 'active'),
-      ((((context.supabase as any) as any) as any))((supabase as any).from('knowledge_chunks')).select('id', { count: 'exact', head: true }).eq('status', 'stale'),
+      (context.supabase as any).from('knowledge_chunks').select('id', { count: 'exact', head: true }).eq('status', 'active'),
+      (context.supabase as any).from('knowledge_chunks').select('id', { count: 'exact', head: true }).eq('status', 'stale'),
       ((context.supabase as any) as any)
         ((supabase as any).from('documents'))
         .select('id', { count: 'exact', head: true })

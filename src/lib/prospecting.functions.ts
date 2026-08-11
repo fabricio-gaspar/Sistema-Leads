@@ -814,10 +814,10 @@ export const importExternalAsLead = createServerFn({ method: 'POST' })
       contact_channels: initialChannels,
     }
 
-    const { data: row, error } = await ((((context.supabase as any) as any) as any))((supabase as any).from('leads')).insert(payload as never).select().single()
+    const { data: row, error } = await (context.supabase as any).from('leads').insert(payload as never).select().single()
     if (error) throw new Error(error.message)
 
-    await ((((context.supabase as any) as any) as any))((supabase as any).from('audit_logs')).insert({
+    await (context.supabase as any).from('audit_logs').insert({
       actor_id: context.userId,
       actor_name: context.claims?.email ?? 'user',
       actor_type: 'human',
