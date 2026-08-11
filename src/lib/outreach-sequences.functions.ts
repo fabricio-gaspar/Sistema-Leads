@@ -423,10 +423,13 @@ export const getLeadEnrollment = createServerFn({ method: 'POST' })
     }
   })
 
+
+export const cancelEnrollmentInternal = async (supabase: any, leadId: string, reason: string) => {
+  return (supabase as any).from('lead_sequence_enrollments').update({ status: 'cancelled', last_error: reason }).eq('lead_id', leadId);
+};
 export const pauseEnrollmentInternal = async (supabase: any, leadId: string, reason: string) => {
   return (supabase as any).from('lead_sequence_enrollments').update({ status: 'paused', last_error: reason }).eq('lead_id', leadId);
 };
-
 export const cancelEnrollmentInternal = async (supabase: any, leadId: string, reason: string) => {
   return (supabase as any).from('lead_sequence_enrollments').update({ status: 'cancelled', last_error: reason }).eq('lead_id', leadId);
 };
