@@ -51,3 +51,15 @@ export function generateIcs(event: IcsEvent): string {
 
   return lines.join("\r\n");
 }
+
+export function downloadIcs(event: IcsEvent) {
+  const content = generateIcs(event);
+  const blob = new Blob([content], { type: "text/calendar;charset=utf-8" });
+  const url = window.URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.setAttribute("download", `${event.title.replace(/\s+/g, "_")}.ics`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}

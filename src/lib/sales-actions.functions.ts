@@ -148,3 +148,39 @@ export const scheduleAppointment = createServerFn({ method: 'POST' })
     const { data: appointment } = await (ctx.supabase as any).from('appointments').insert({ ...data, owner_id: ctx.userId } as never).select().single()
     return appointment
   })
+
+export const acceptHandoff = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((v: any) => z.object({ handoff_id: z.string().uuid() }).parse(v))
+  .handler(async ({ data, context }) => {
+    const ctx = context as Ctx
+    const { data: handoff } = await (ctx.supabase as any).from('lead_handoffs').update({ 
+      status: 'Aprovado',
+      assigned_to: ctx.userId 
+    } as never).eq('id', data.handoff_id).select().single()
+    return handoff
+  })
+
+export const saveLeadQualification = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((v: any) => z.object({ 
+    lead_id: z.string().uuid(),
+    readiness_score: z.number().min(0).max(100),
+    summary: z.string().optional(),
+    pain_points: z.array(z.string()).optional(),
+    decision_maker: z.boolean().optional(),
+    budget_confirmed: z.boolean().optional()
+  }).parse(v))
+  .handler(async ({ data, context }) => {
+    const ctx = context as Ctx
+    const { data: qual } = await (ctx.supabase as any).from('lead_qualifications').upsert({
+      lead_id: data.lead_id,
+      readiness_score: data.readiness_score,
+      summary: data.summary,
+      pain_points: data.pain_points,
+      decision_maker: data.decision_maker,
+      budget_confirmed: data.budget_confirmed,
+      updated_at: new Date().toISOString()
+    } as never).select().single()
+    return qual
+  })
