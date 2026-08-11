@@ -29,8 +29,27 @@ function AuthPage() {
     setInfo(null);
     try {
       if (mode === "signin") {
-        const { error: err } = await supabase.auth.signInWithPassword({ email, password });
+        const { data: authData, error: err } = await supabase.auth.signInWithPassword({ email, password });
         if (err) throw err;
+
+        // Registro e Verificação de Role (Instrução solicitada)
+        if (authData.user) {
+          console.log("[Auth] Usuário autenticado:", authData.user.email);
+          
+          // Força sincronização rápida das roles antes de prosseguir
+          const { data: roles } = await supabase
+            .from("user_roles")
+            .select("role")
+            .eq("user_id", authData.user.id);
+            
+          const roleNames = (roles ?? []).map(r => r.role);
+          console.log("[Auth] Papéis identificados:", roleNames);
+
+          if (roleNames.length === 0 && authData.user.email === 'fabricio@wfdigital.com.br') {
+            console.warn("[Auth] Papel admin não encontrado para Fabricio no client-side. O bypass no Router garantirá o acesso.");
+          }
+        }
+
         navigate({ to: "/", replace: true });
       } else {
         const { error: err } = await supabase.auth.resetPasswordForEmail(email, {
