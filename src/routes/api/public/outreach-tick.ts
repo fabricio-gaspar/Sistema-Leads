@@ -111,7 +111,7 @@ export const Route = createFileRoute('/api/public/outreach-tick')({
               { supabase: supabaseAdmin, userId: ownerId, claims: { email: 'Nurture' } },
               10,
             )
-            nurture = { candidates: res.candidates, reactivated: res.reactivated, skipped: res.skipped }
+            nurture = { candidates: (res as any).candidates, reactivated: (res as any).reactivated, skipped: (res as any).skipped }
           }
         } catch (err) {
           nurture = { candidates: 0, reactivated: 0, skipped: 0 }
