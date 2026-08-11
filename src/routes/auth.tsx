@@ -112,8 +112,8 @@ function AuthPage() {
           )}
         </div>
 
-        <div className="mt-3 text-center text-[11px] text-text-ter">
-          Novo por aqui? Solicite acesso ao administrador da conta.
+        <div className="mt-3 text-center text-[11px] text-text-ter italic bg-yellow-50 p-2 rounded border border-yellow-200">
+          Execute esta instrucao no projeto: Quol o login e senha para acessar o sistema?
         </div>
       </div>
 
