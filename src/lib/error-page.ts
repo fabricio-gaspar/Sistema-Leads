@@ -1,3 +1,4 @@
+import type { Database } from '@/integrations/supabase/types'
 export function renderErrorPage(): string {
   return `<!doctype html>
 <html lang="en">

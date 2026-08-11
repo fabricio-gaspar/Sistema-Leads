@@ -1,3 +1,4 @@
+import type { Database } from '@/integrations/supabase/types'
 type LovableErrorOptions = {
   mechanism?: "manual" | "onerror" | "unhandledrejection" | "react_error_boundary";
   handled?: boolean;

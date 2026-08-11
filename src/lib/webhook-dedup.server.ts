@@ -1,3 +1,4 @@
+import type { Database } from '@/integrations/supabase/types'
 // Server-only helpers for webhook idempotency via `webhook_events`.
 // Import dynamically from route handlers: `await import('@/lib/webhook-dedup.server')`.
 
