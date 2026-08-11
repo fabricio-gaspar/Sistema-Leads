@@ -54,7 +54,7 @@ export const createLead = createServerFn({ method: 'POST' })
   .inputValidator((d: unknown) => leadInputSchema.parse(d))
   .handler(async ({ data, context }) => {
     const ctx = context;
-    const payload = { ...data, email: data.email || null, owner_id: context.userId }
+    const payload = { ...data, email: data.email || null, owner_id: context.userId, organization_id: (context as any).organizationId }
     const { data: row, error } = await (((context as any).supabase) as any).from('leads' as any).insert(payload ).select().single()
     if (error) throw new Error(error.message)
     await (((context as any).supabase) as any).from('audit_logs' ).insert({
