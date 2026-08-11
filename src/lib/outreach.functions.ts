@@ -404,7 +404,7 @@ async function sendZapiText(to: string, message: string): Promise<{
       },
       body: JSON.stringify({ phone, message }),
     })
-    const body = (await res.json().catch((: any) => ({}))) as any
+    const body = (await res.json() .catch((_: any) => ({}))) as any
     if (!res.ok || body?.error) {
       return { ok: false, error: body?.error || `http_${res.status}` }
     }
@@ -452,7 +452,7 @@ async function sendEmail(
       },
       body: JSON.stringify({ from, to: [to], subject: email.subject, text: email.text }),
     })
-    const body = (await res.json().catch((: any) => ({}))) as { id?: string; message?: string; error?: { message?: string } }
+    const body = (await res.json() .catch((_: any) => ({}))) as { id?: string; message?: string; error?: { message?: string } }
     if (!res.ok) return { ok: false, error: body.error?.message || body.message || `http_${res.status}` }
     return { ok: true, messageId: body.id }
   } catch (err) {
@@ -1362,7 +1362,7 @@ export const testZapi = createServerFn({ method: 'POST' })
         `https://api.z-api.io/instances/${instance}/token/${token}/status`,
         { headers: clientToken ? { 'Client-Token': clientToken } : {} },
       )
-      const body = (await res.json().catch((: any) => ({}))) as any
+      const body = (await res.json() .catch((_: any) => ({}))) as any
       if (!res.ok) return { ok: false, error: body?.error || `http_${res.status}` }
       return { ok: true, connected: !!body?.connected, session: body?.session ?? null }
     } catch (err) {
@@ -1372,7 +1372,7 @@ export const testZapi = createServerFn({ method: 'POST' })
 
 export const getOutreachHealth = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
-  .handler(async (: any) => ({
+  .handler(async () => ({
     ai: Boolean(process.env.ANTHROPIC_API_KEY),
     prospecting: Boolean(process.env.GOOGLE_PLACES_API_KEY),
     zapi: Boolean(process.env.ZAPI_INSTANCE_ID && process.env.ZAPI_TOKEN),
