@@ -65,8 +65,7 @@ export async function isAnyContactSuppressed(
     _hashes: hashes,
   })
   if (error) {
-    const { data: rows, error: fallbackError } = await (ctx.supabase as any)
-      (supabase as any).from('contact_suppressions')
+    const { data: rows, error: fallbackError } = await (ctx.supabase as any).from('contact_suppressions')
       .select('contact_hash')
       .in('contact_hash', hashes)
       .limit(1)
@@ -90,7 +89,7 @@ export async function suppressLeadContactsInternal(ctx: Ctx, leadId: string) {
     .filter((row): row is { channel: Channel; contact_hash: string } => Boolean(row.contact_hash))
     .map((row: any) => ({ ...row, lead_id: leadId, reason: 'opt_out' }))
   if (rows.length) {
-    await ((ctx.supabase as any) as any)(supabase as any).from('contact_suppressions').upsert(rows as never, {
+    await (ctx.supabase as any).from('contact_suppressions').upsert(rows as never, {
       onConflict: 'contact_hash',
       ignoreDuplicates: true,
     })
@@ -175,8 +174,7 @@ function renderTemplate(template: string, lead: any): string {
 
 
 async function loadCadence(ctx: Ctx): Promise<{ waitHours: number; maxAttempts: number }> {
-  const { data } = await (ctx.supabase as any)
-    (supabase as any).from('company_settings')
+  const { data } = await (ctx.supabase as any).from('company_settings')
     .select('outreach_wait_hours, outreach_max_attempts')
     .limit(1)
     .maybeSingle()
@@ -187,7 +185,7 @@ async function loadCadence(ctx: Ctx): Promise<{ waitHours: number; maxAttempts: 
 }
 
 async function loadLead(ctx: Ctx, leadId: string) {
-  const { data, error } = await ((ctx.supabase as any) as any)(supabase as any).from('leads').select('*').eq('id', leadId).maybeSingle()
+  const { data, error } = await (ctx.supabase as any).from('leads').select('*').eq('id', leadId).maybeSingle()
   if (error) throw new Error(error.message)
   if (!data) throw new Error('Lead não encontrado')
   return data
@@ -203,14 +201,12 @@ export async function assertSandboxAllowed(
   ctx: Ctx,
   leadId: string,
 ): Promise<{ allowed: boolean; reason?: string }> {
-  const { data: settings } = await (ctx.supabase as any)
-    (supabase as any).from('company_settings')
+  const { data: settings } = await (ctx.supabase as any).from('company_settings')
     .select('sandbox_mode')
     .limit(1)
     .maybeSingle()
   if (!settings?.sandbox_mode) return { allowed: true }
-  const { data: rows } = await (ctx.supabase as any)
-    (supabase as any).from('contact_points')
+  const { data: rows } = await (ctx.supabase as any).from('contact_points')
     .select('id')
     .eq('lead_id', leadId)
     .eq('sandbox', true)
@@ -234,7 +230,7 @@ async function updateChannelStatus(
     last_attempt_at: new Date().toISOString(),
   }
   const patch: Record<string, unknown> = { contact_channels: channels, ...extra }
-  await ((ctx.supabase as any) as any)(supabase as any).from('leads').update(patch as never).eq('id', leadId)
+  await (ctx.supabase as any).from('leads').update(patch as never).eq('id', leadId)
 }
 
 /**
@@ -253,7 +249,7 @@ export async function enqueueOutreachTimeoutInternal(
   },
 ): Promise<void> {
   const idempotencyKey = `${args.lead_id}:${args.channel}:${args.attempt}:timeout`
-  const { error } = await ((ctx.supabase as any) as any)(supabase as any).from('outreach_jobs').insert({
+  const { error } = await (ctx.supabase as any).from('outreach_jobs').insert({
     lead_id: args.lead_id,
     outreach_id: args.outreach_id ?? null,
     channel: args.channel,
@@ -275,7 +271,7 @@ async function audit(
   detail: string,
   actorType: 'ia' | 'human' | 'system' = 'ia',
 ) {
-  await ((ctx.supabase as any) as any)(supabase as any).from('audit_logs').insert({
+  await (ctx.supabase as any).from('audit_logs').insert({
     actor_id: ctx.userId,
     actor_name: ctx.claims?.email ?? (actorType === 'ia' ? 'Ana (IA)' : 'user'),
     actor_type: actorType,
@@ -295,13 +291,11 @@ async function generateOutreachMessage(
 ): Promise<string> {
   const apiKey = process.env.ANTHROPIC_API_KEY
   const [{ data: settings }, { data: services }] = await Promise.all([
-    (ctx.supabase as any)
-      (supabase as any).from('company_settings')
+    (ctx.supabase as any).from('company_settings')
       .select('name, description, differentiators, tone_of_voice, ai_prompt, ai_model, sandbox_mode')
       .limit(1)
       .maybeSingle(),
-    (ctx.supabase as any)
-      (supabase as any).from('services')
+    (ctx.supabase as any).from('services')
       .select('name, description')
       .eq('active', true)
       .order('name')
@@ -478,8 +472,7 @@ async function tryStep(ctx: Ctx, lead: any, step: SequenceStep): Promise<void> {
   const channel = step.channel
   const maxAttempts = step.max_attempts ?? cadence.maxAttempts
   const enrollment = await getEnrollmentInternal((ctx.supabase as any), lead.id)
-  let attemptQuery = (ctx.supabase as any)
-    (supabase as any).from('lead_outreach')
+  let attemptQuery = (ctx.supabase as any).from('lead_outreach')
     .select('id', { count: 'exact', head: true })
     .eq('lead_id', lead.id)
     .eq('channel', channel)
@@ -508,8 +501,7 @@ async function tryStep(ctx: Ctx, lead: any, step: SequenceStep): Promise<void> {
     ? renderTemplate(step.template, lead)
     : await generateOutreachMessage(ctx, lead, channel)
 
-  const { data: row, error: rowError } = await (ctx.supabase as any)
-    (supabase as any).from('lead_outreach')
+  const { data: row, error: rowError } = await (ctx.supabase as any).from('lead_outreach')
     .insert({
       lead_id: lead.id,
       owner_id: lead.assigned_to || lead.owner_id || ctx.userId,
@@ -537,8 +529,7 @@ async function tryStep(ctx: Ctx, lead: any, step: SequenceStep): Promise<void> {
     const result = await sendWhatsappText(ctx, to, content)
     if (result.ok) {
       const now = new Date().toISOString()
-      await (ctx.supabase as any)
-        (supabase as any).from('lead_outreach')
+      await (ctx.supabase as any).from('lead_outreach')
         .update({
           status: 'sent',
           sent_at: now,
@@ -546,7 +537,7 @@ async function tryStep(ctx: Ctx, lead: any, step: SequenceStep): Promise<void> {
           provider_message_id: result.messageId ?? null,
         } as never)
         .eq('id', row.id)
-      await ((ctx.supabase as any) as any)(supabase as any).from('lead_messages').insert({
+      await (ctx.supabase as any).from('lead_messages').insert({
         lead_id: lead.id,
         sender: 'ia',
         sender_name: 'Ana (IA)',
@@ -572,8 +563,7 @@ async function tryStep(ctx: Ctx, lead: any, step: SequenceStep): Promise<void> {
       await audit(ctx, 'outreach_whatsapp_sent', `Ana enviou WhatsApp para ${lead.company} (tent. ${attempt})`)
       return
     }
-    await (ctx.supabase as any)
-      (supabase as any).from('lead_outreach')
+    await (ctx.supabase as any).from('lead_outreach')
       .update({
         status: 'failed',
         failed_at: new Date().toISOString(),
@@ -595,8 +585,7 @@ async function tryStep(ctx: Ctx, lead: any, step: SequenceStep): Promise<void> {
     )
     if (result.ok) {
       const now = new Date().toISOString()
-      await (ctx.supabase as any)
-        (supabase as any).from('lead_outreach')
+      await (ctx.supabase as any).from('lead_outreach')
         .update({
           status: 'sent',
           sent_at: now,
@@ -604,7 +593,7 @@ async function tryStep(ctx: Ctx, lead: any, step: SequenceStep): Promise<void> {
           provider_message_id: result.messageId ?? null,
         } as never)
         .eq('id', row.id)
-      await ((ctx.supabase as any) as any)(supabase as any).from('lead_messages').insert({
+      await (ctx.supabase as any).from('lead_messages').insert({
         lead_id: lead.id,
         sender: 'ia',
         sender_name: 'Ana (IA)',
@@ -630,8 +619,7 @@ async function tryStep(ctx: Ctx, lead: any, step: SequenceStep): Promise<void> {
       await audit(ctx, 'outreach_email_sent', `Ana enviou e-mail para ${lead.company} (tent. ${attempt})`)
       return
     }
-    await (ctx.supabase as any)
-      (supabase as any).from('lead_outreach')
+    await (ctx.supabase as any).from('lead_outreach')
       .update({
         status: 'failed',
         failed_at: new Date().toISOString(),
@@ -647,11 +635,10 @@ async function tryStep(ctx: Ctx, lead: any, step: SequenceStep): Promise<void> {
   }
 
   // phone → nunca dispara automaticamente. Cria tarefa humana e para.
-  await (ctx.supabase as any)
-    (supabase as any).from('lead_outreach')
+  await (ctx.supabase as any).from('lead_outreach')
     .update({ status: 'pending', metadata: { script: content, sequence_step: step.id } } as never)
     .eq('id', row.id)
-  await ((ctx.supabase as any) as any)(supabase as any).from('lead_tasks').insert({
+  await (ctx.supabase as any).from('lead_tasks').insert({
     lead_id: lead.id,
     text: `Ligação pendente para ${lead.company} — roteiro sugerido pela Ana disponível no histórico do lead.`,
     owner_id: lead.assigned_to || lead.owner_id || ctx.userId,
@@ -674,8 +661,7 @@ async function advanceOrFinish(
   // Only advance if the step's continue_on rule authorizes it. Otherwise stop
   // the cadence so the sequence author can control fallbacks explicitly.
   if (!stepAllowsContinue(failedStep, outcome)) {
-    await (ctx.supabase as any)
-      (supabase as any).from('leads')
+    await (ctx.supabase as any).from('leads')
       .update({ next_action_at: null } as never)
       .eq('id', leadId)
     await patchEnrollmentInternal((ctx.supabase as any), leadId, { next_run_at: null, last_error: `stop_on_${outcome}` })
@@ -698,8 +684,7 @@ async function advanceOrFinish(
 }
 
 async function finishNoMore(ctx: Ctx, lead: any, reason: string) {
-  await (ctx.supabase as any)
-    (supabase as any).from('leads')
+  await (ctx.supabase as any).from('leads')
     .update({ next_action_at: null, active_channel: null } as never)
     .eq('id', lead.id)
   await completeEnrollmentInternal((ctx.supabase as any), lead.id, reason)
@@ -723,12 +708,11 @@ async function recordAiOutbound(
   messageType: 'ia' | 'ia-escalated' = 'ia',
 ) {
   const now = new Date().toISOString()
-  const { count } = await (ctx.supabase as any)
-    (supabase as any).from('lead_outreach')
+  const { count } = await (ctx.supabase as any).from('lead_outreach')
     .select('id', { count: 'exact', head: true })
     .eq('lead_id', lead.id)
     .eq('channel', channel)
-  await ((ctx.supabase as any) as any)(supabase as any).from('lead_outreach').insert({
+  await (ctx.supabase as any).from('lead_outreach').insert({
     lead_id: lead.id,
     owner_id: lead.assigned_to || lead.owner_id || ctx.userId,
     channel,
@@ -743,7 +727,7 @@ async function recordAiOutbound(
     actor_type: 'ia',
   } as never)
   if (result.ok) {
-    await ((ctx.supabase as any) as any)(supabase as any).from('lead_messages').insert({
+    await (ctx.supabase as any).from('lead_messages').insert({
       lead_id: lead.id,
       sender: 'ia',
       sender_name: 'Ana (IA)',
@@ -777,19 +761,17 @@ async function deliverAiMessage(
 async function registerUnanswered(ctx: Ctx, text: string) {
   const normalized = text.trim().slice(0, 500)
   if (!normalized) return
-  const { data: existing } = await (ctx.supabase as any)
-    (supabase as any).from('unanswered_questions')
+  const { data: existing } = await (ctx.supabase as any).from('unanswered_questions')
     .select('id, count')
     .eq('text', normalized)
     .maybeSingle()
   if (existing?.id) {
-    await (ctx.supabase as any)
-      (supabase as any).from('unanswered_questions')
+    await (ctx.supabase as any).from('unanswered_questions')
       .update({ count: (existing.count ?? 1) + 1, resolved: false } as never)
       .eq('id', existing.id)
     return
   }
-  await ((ctx.supabase as any) as any)(supabase as any).from('unanswered_questions').insert({
+  await (ctx.supabase as any).from('unanswered_questions').insert({
     text: normalized,
     count: 1,
     resolved: false,
@@ -868,8 +850,7 @@ async function handoffInbound(
   // Dedup: se já existe tarefa aberta da mesma categoria criada na última 1h,
   // não recria; apenas mantém pausa/etapa e envia mensagem-ponte.
   const dedupWindow = new Date(Date.now() - 60 * 60 * 1000).toISOString()
-  const { data: existingTasks } = await (ctx.supabase as any)
-    (supabase as any).from('lead_tasks')
+  const { data: existingTasks } = await (ctx.supabase as any).from('lead_tasks')
     .select('id')
     .eq('lead_id', lead.id)
     .eq('completed', false)
@@ -892,7 +873,7 @@ async function handoffInbound(
     // Nunca regride etapa; apenas avança
     if (nextIdx > curIdx) leadPatch.stage = rule.nextStage
   }
-  await ((ctx.supabase as any) as any)(supabase as any).from('leads').update(leadPatch as never).eq('id', lead.id)
+  await (ctx.supabase as any).from('leads').update(leadPatch as never).eq('id', lead.id)
   await pauseEnrollmentInternal((ctx.supabase as any), lead.id, `handoff:${rule.category}`)
 
   const structuredHandoff = await createHandoffInternal(ctx, {
@@ -909,14 +890,14 @@ async function handoffInbound(
   if (!alreadyOpen) {
     const handoffOwner = structuredHandoff?.assigned_to || responsible
     const taskText = `[${rule.label}] ${lead.company} via ${channelLabel} — ${reason}. Mensagem: "${question.slice(0, 200)}"`
-    await ((ctx.supabase as any) as any)(supabase as any).from('lead_tasks').insert({
+    await (ctx.supabase as any).from('lead_tasks').insert({
       lead_id: lead.id,
       owner_id: handoffOwner,
       owner_label: rule.priority === 'high' ? 'Vendedor (prioritário)' : 'Vendedor',
       text: taskText,
     } as never)
     if (!structuredHandoff && handoffOwner) {
-      await ((ctx.supabase as any) as any)(supabase as any).from('notifications').insert({
+      await (ctx.supabase as any).from('notifications').insert({
         user_id: handoffOwner,
         kind: rule.priority === 'high' ? 'lead_escalated_urgent' : 'lead_escalated',
         title: rule.priority === 'high' ? `⚠️ ${rule.label}` : rule.label,
@@ -956,22 +937,19 @@ export async function handleInboundWithAiInternal(
 
   const { loadKnowledgeSnippetInternal } = await import('@/lib/knowledge.functions')
   const [{ data: settings }, { data: services }, { data: objections }, knowledgeChunks, { data: learnedAnswers }, { data: history }] = await Promise.all([
-    (ctx.supabase as any)
-      (supabase as any).from('company_settings')
+    (ctx.supabase as any).from('company_settings')
       .select('name, description, differentiators, tone_of_voice, ai_prompt, ai_model, handoff_readiness_score')
       .limit(1)
       .maybeSingle(),
-    ((ctx.supabase as any) as any)(supabase as any).from('services').select('name, description, price, unit, term').eq('active', true).order('name'),
-    ((ctx.supabase as any) as any)(supabase as any).from('objections').select('trigger, response').order('created_at', { ascending: false }).limit(30),
+    (ctx.supabase as any).from('services').select('name, description, price, unit, term').eq('active', true).order('name'),
+    (ctx.supabase as any).from('objections').select('trigger, response').order('created_at', { ascending: false }).limit(30),
     loadKnowledgeSnippetInternal((ctx.supabase as any), 8000),
-    (ctx.supabase as any)
-      (supabase as any).from('unanswered_questions')
+    (ctx.supabase as any).from('unanswered_questions')
       .select('text, answer')
       .eq('resolved', true)
       .not('answer', 'is', null)
       .limit(50),
-    (ctx.supabase as any)
-      (supabase as any).from('lead_messages')
+    (ctx.supabase as any).from('lead_messages')
       .select('sender, text')
       .eq('lead_id', leadId)
       .order('sent_at', { ascending: false })
@@ -1044,14 +1022,13 @@ Base aprovada: ${knowledge}`
     }
     if (decision.qualification) {
       const q = decision.qualification
-      const { data: previousQualification } = await (ctx.supabase as any)
-        (supabase as any).from('lead_qualifications')
+      const { data: previousQualification } = await (ctx.supabase as any).from('lead_qualifications')
         .select('*')
         .eq('lead_id', lead.id)
         .maybeSingle()
       const keepText = (value: string | undefined, previous: string | null | undefined, limit: number) =>
         value?.trim() ? value.trim().slice(0, limit) : (previous ?? null)
-      const { error: qualificationError } = await ((ctx.supabase as any) as any)(supabase as any).from('lead_qualifications').upsert({
+      const { error: qualificationError } = await (ctx.supabase as any).from('lead_qualifications').upsert({
         lead_id: lead.id,
         intent: keepText(q.intent, previousQualification?.intent, 200),
         service_interest: keepText(q.service_interest, previousQualification?.service_interest, 500),
@@ -1081,7 +1058,7 @@ Base aprovada: ${knowledge}`
     const reply = decision.reply.trim().slice(0, 1500)
     const result = await deliverAiMessage(ctx, lead, reply, delivery)
     if (!result.ok) return handoffInbound(ctx, lead, userText, `Falha ao responder por ${delivery.channel || 'whatsapp'}: ${result.error}`, true, delivery)
-    await ((ctx.supabase as any) as any)(supabase as any).from('leads').update({ last_contact: new Date().toISOString() } as never).eq('id', lead.id)
+    await (ctx.supabase as any).from('leads').update({ last_contact: new Date().toISOString() } as never).eq('id', lead.id)
     await audit(ctx, 'ai_reply_sent', `Ana respondeu uma dúvida básica de ${lead.company}`)
     return { ok: true, action: 'reply' as const }
   } catch (error) {
@@ -1124,8 +1101,7 @@ export const startOutreach = createServerFn({ method: 'POST' })
     let channels = (lead.contact_channels ?? {}) as ContactChannels
     if (data.restart || (!channels.whatsapp && !channels.email && !channels.phone)) {
       channels = buildChannels(lead)
-      await ((context.supabase as any) as any)
-        (supabase as any).from('leads')
+      await (ctx.supabase as any).from('leads')
         .update({ contact_channels: channels } as never)
         .eq('id', lead.id)
       lead.contact_channels = channels
@@ -1184,16 +1160,14 @@ export const pauseAi = createServerFn({ method: 'POST' })
       leadPatch.escalated = false
       leadPatch.escalation_reason = null
     }
-    await ((context.supabase as any) as any)
-      (supabase as any).from('leads')
+    await (ctx.supabase as any).from('leads')
       .update(leadPatch as never)
       .eq('id', data.lead_id)
     if (data.paused) {
       await pauseEnrollmentInternal(((context.supabase as any) as any), data.lead_id, 'ai_paused_manual')
     } else {
       await resumeEnrollmentInternal(((context.supabase as any) as any), data.lead_id)
-      const { error: closeError } = await ((context.supabase as any) as any)
-        (supabase as any).from('lead_handoffs')
+      const { error: closeError } = await (ctx.supabase as any).from('lead_handoffs')
         .update({ status: 'closed', closed_at: new Date().toISOString() } as never)
         .eq('lead_id', data.lead_id)
         .in('status', ['pending', 'accepted'])
@@ -1213,8 +1187,7 @@ export const assumeManually = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ lead_id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    await ((context.supabase as any) as any)
-      (supabase as any).from('leads')
+    await (ctx.supabase as any).from('leads')
       .update({
         ai_paused: true,
         assigned_to: context.userId,
@@ -1253,8 +1226,7 @@ export const sendManualWhatsapp = createServerFn({ method: 'POST' })
     const to = lead.whatsapp || lead.phone || ''
     if (!to) return { ok: false, error: 'O lead não possui WhatsApp ou telefone cadastrado.' }
 
-    const { count } = await (ctx.supabase as any)
-      (supabase as any).from('lead_outreach')
+    const { count } = await (ctx.supabase as any).from('lead_outreach')
       .select('id', { count: 'exact', head: true })
       .eq('lead_id', lead.id)
       .eq('channel', 'whatsapp')
@@ -1262,7 +1234,7 @@ export const sendManualWhatsapp = createServerFn({ method: 'POST' })
     const result = await sendZapiText(to, data.text)
     const now = new Date().toISOString()
 
-    const { error: outreachError } = await ((ctx.supabase as any) as any)(supabase as any).from('lead_outreach').insert({
+    const { error: outreachError } = await (ctx.supabase as any).from('lead_outreach').insert({
       lead_id: lead.id,
       owner_id: ctx.userId,
       channel: 'whatsapp',
@@ -1284,7 +1256,7 @@ export const sendManualWhatsapp = createServerFn({ method: 'POST' })
       return { ok: false, error: result.error || 'Falha ao enviar pela Z-API.' }
     }
 
-    const { error: messageError } = await ((ctx.supabase as any) as any)(supabase as any).from('lead_messages').insert({
+    const { error: messageError } = await (ctx.supabase as any).from('lead_messages').insert({
       lead_id: lead.id,
       sender: 'human',
       sender_name: ctx.claims?.email ?? 'Vendedor',
@@ -1311,8 +1283,7 @@ export const setOptOut = createServerFn({ method: 'POST' })
     const ctx = context as Ctx
     if (data.opt_out) await suppressLeadContactsInternal(ctx, data.lead_id)
     else await unsuppressLeadContactsInternal(ctx, data.lead_id)
-    await ((context.supabase as any) as any)
-      (supabase as any).from('leads')
+    await (ctx.supabase as any).from('leads')
       .update((data.opt_out ? { opt_out: true, next_action_at: null } : { opt_out: false }) as never)
       .eq('id', data.lead_id)
     if (data.opt_out) {
@@ -1341,8 +1312,7 @@ export const listOutreach = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ lead_id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const { data: rows, error } = await ((context.supabase as any) as any)
-      (supabase as any).from('lead_outreach')
+    const { data: rows, error } = await (ctx.supabase as any).from('lead_outreach')
       .select('*')
       .eq('lead_id', data.lead_id)
       .order('created_at', { ascending: false })
@@ -1405,8 +1375,7 @@ export async function triggerOutreachInternal(ctx: Ctx, leadId: string) {
   let channels = (lead.contact_channels ?? {}) as ContactChannels
   if (!channels.whatsapp && !channels.email && !channels.phone) {
     channels = buildChannels(lead)
-    await (ctx.supabase as any)
-      (supabase as any).from('leads')
+    await (ctx.supabase as any).from('leads')
       .update({ contact_channels: channels } as never)
       .eq('id', leadId)
     lead.contact_channels = channels
