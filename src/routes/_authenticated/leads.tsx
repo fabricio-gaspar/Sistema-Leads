@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { formatBRL } from "@/lib/leads-data";
 import { downloadCSV } from "@/lib/exports";
 import { createLead, listLeads, moveLeadStage, deleteLead } from "@/lib/crm.functions";
-import type { Database } from "@/integrations/supabase/types";
+import type { Database } from "@/integrations/supabase/types.gen";
 
 type LeadRow = Database["public"]["Tables"]["leads"]["Row"];
 type Stage = Database["public"]["Enums"]["lead_stage"];
