@@ -1,5 +1,6 @@
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[]
-export type Database = {
+
+export interface Database {
   public: {
     Tables: {
       organizations: { Row: { id: string; name: string; slug: string; created_at: string; updated_at: string }; Insert: any; Update: any }
@@ -39,5 +40,6 @@ export type Database = {
     CompositeTypes: { [_ in never]: never }
   }
 }
+
 export type Tables<T extends keyof Database['public']['Tables']> = Database['public']['Tables'][T]['Row']
 export type Enums<T extends keyof Database['public']['Enums']> = Database['public']['Enums'][T]
