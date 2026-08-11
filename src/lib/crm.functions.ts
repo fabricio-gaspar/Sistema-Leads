@@ -1450,6 +1450,16 @@ export const getReportsData = createServerFn({ method: 'POST' })
     const origemMap = new Map<string, number>()
     for (const l of allLeads) {
       const o = (l as any).origin || 'Outros'
+      origemMap.set(o, (origemMap.get(o) || 0) + 1)
+    }
+    const origens = Array.from(origemMap.entries())
+      .map(([label, value]) => ({ label, value }))
+      .sort((a, b) => b.value - a.value)
+
+    return { ranking, origens }
+  })
+    for (const l of allLeads) {
+      const o = (l as any).origin || 'Outros'
       origemMap.set(o, (origemMap.get(o) ?? 0) + 1)
     }
     const totalOrigem = Array.from(origemMap.values()).reduce((a: any, b: any) => a + b, 0) || 1
