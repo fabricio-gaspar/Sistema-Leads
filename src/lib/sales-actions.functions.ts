@@ -67,7 +67,7 @@ export const draftInitialContact = createServerFn({ method: 'POST' })
   }).parse(d))
   .handler(async ({ data, context }) => {
     const ctx = context as Ctx
-    const { data: lead } = await (ctx.supabase as any).from('leads').select('*').eq('id', data.lead_id).maybeSingle()
+    const { data: lead } = await (ctx.supabase as any).from("leads" as any).select('*').eq('id', data.lead_id).maybeSingle()
     if (!lead) throw new Error('Lead não encontrado')
     const { settings, services, objections } = await loadCompanyContext(ctx)
     const knowledge = await loadKnowledgeSnippets(ctx)
@@ -93,7 +93,7 @@ export const autoDraftProposal = createServerFn({ method: 'POST' })
   .inputValidator((d: unknown) => z.object({ lead_id: z.string().uuid(), force: z.boolean().optional() }).parse(d))
   .handler(async ({ data, context }) => {
     const ctx = context as Ctx
-    const { data: lead } = await (ctx.supabase as any).from('leads').select('*').eq('id', data.lead_id).maybeSingle()
+    const { data: lead } = await (ctx.supabase as any).from("leads" as any).select('*').eq('id', data.lead_id).maybeSingle()
     if (!lead) throw new Error('Lead não encontrado')
     const { settings, services } = await loadCompanyContext(ctx)
     const totalValue = Number(services[0]?.price ?? 0)
