@@ -1,5 +1,5 @@
-import type { Database } from '@/integrations/supabase/types'
-import type { Database } from '@/integrations/supabase/types'
+import type { Database } from '@/types/database'
+import type { Database } from '@/types/database'
 import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod'
 import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware'
