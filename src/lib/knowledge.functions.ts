@@ -79,8 +79,7 @@ export async function reindexDocumentInternal(
   ctx: { supabase: any; userId: string },
   documentId: string,
 ): Promise<{ chunks: number }> {
-  const { data: doc, error } = await (ctx.supabase as any)
-    (context.supabase as any).from('documents')
+  const { data: doc, error } = await (ctx.supabase as any).from('documents')
     .select('id, name, content_text, status')
     .eq('id', documentId)
     .maybeSingle()
@@ -89,8 +88,7 @@ export async function reindexDocumentInternal(
   if (doc.status !== 'active' || !doc.content_text) {
     // Deactivate any active chunks for inactive/emptied docs
     await (ctx.supabase as any)
-      (context.supabase as any).from('knowledge_chunks')
-      .update({ status: 'stale' } as never)
+    await (ctx.supabase as any).from('knowledge_chunks')
       .eq('document_id', documentId)
       .eq('status', 'active')
     return { chunks: 0 }
