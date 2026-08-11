@@ -1034,13 +1034,13 @@ export const setUserRole = createServerFn({ method: 'POST' })
     const { error: delErr } = await (supabaseAdmin as any).from("user_roles").delete().eq('user_id', data.user_id)
     if (delErr) throw new Error(delErr.message)
     const { error: insErr } = await supabaseAdmin
-      .from("user_roles")
+      .from("user_roles" as any)
       .insert({ user_id: data.user_id, role: data.role } as never)
     if (insErr) {
       // Rollback: restaura papéis anteriores para não deixar usuário órfão
       if (prevRoles.length) {
         const { error: rbErr } = await supabaseAdmin
-          .from("user_roles")
+          .from("user_roles" as any)
           .insert(prevRoles.map((r: any) => ({ user_id: data.user_id, role: r })) as never)
         if (rbErr) {
           console.error('[setUserRole] rollback failed:', rbErr.message, 'user:', data.user_id)
@@ -1064,7 +1064,7 @@ export const removeUserRole = createServerFn({ method: 'POST' })
       if (total <= 1) throw new Error('Não é possível remover o último administrador do sistema.')
     }
     const { error } = await supabaseAdmin
-      .from("user_roles")
+      .from("user_roles" as any)
       .delete()
       .eq('user_id', data.user_id)
       .eq('role', data.role)
@@ -1110,14 +1110,14 @@ export const updateTeamMember = createServerFn({ method: 'POST' })
 
     // Snapshot para rollback
     const { data: before, error: readErr } = await supabaseAdmin
-      .from("profiles")
+      .from("profiles" as any)
       .select('active, can_use_ia, name, phone, discount_limit')
       .eq('id', data.id)
       .maybeSingle()
     if (readErr) throw new Error(readErr.message)
 
     const { data: row, error } = await supabaseAdmin
-      .from("profiles")
+      .from("profiles" as any)
       .update(data.patch as never)
       .eq('id', data.id)
       .select()
@@ -1179,7 +1179,7 @@ export const inviteTeamMember = createServerFn({ method: 'POST' })
 
     // Duplicidade case-insensitive
     const { data: existing, error: existErr } = await supabaseAdmin
-      .from("profiles")
+      .from("profiles" as any)
       .select('id, email')
       .ilike('email', data.email)
       .maybeSingle()
