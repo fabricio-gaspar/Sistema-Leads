@@ -33,7 +33,7 @@ export const Route = createFileRoute('/api/public/outreach-tick')({
         // ------------------------------------------------------------
         const { data: candidates, error: candErr } = await supabaseAdmin
           .from('outreach_jobs')
-          .select('id')
+          .select('*')
           .eq('status', 'queued')
           .lte('run_at', nowIso)
           .order('run_at', { ascending: true })

@@ -102,7 +102,7 @@ export const requireSupabaseAuth = createMiddleware({ type: 'function' }).server
     // Patch intencional além do gerador para atender à matriz de RBAC aprovada.
     const { data: profile, error: profileErr } = await (supabase as any)
       .from('profiles')
-      .select('active')
+      .select('*')
       .eq('id', data.claims.sub)
       .maybeSingle();
     if (profileErr) {

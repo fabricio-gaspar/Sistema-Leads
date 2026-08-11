@@ -122,7 +122,7 @@ export const Route = createFileRoute('/api/public/resend-webhook')({
               .from('lead_outreach')
               .update(patch as never)
               .eq('provider_message_id', emailId)
-              .select('lead_id, owner_id')
+              .select('*')
               .maybeSingle()
             if (outreachRow?.lead_id) {
               const { data: lead } = await supabaseAdmin
@@ -207,7 +207,7 @@ export const Route = createFileRoute('/api/public/resend-webhook')({
 
         const { data: lastOut } = await supabaseAdmin
           .from('lead_outreach')
-          .select('id')
+          .select('*')
           .eq('lead_id', lead.id)
           .eq('channel', 'email')
           .order('created_at', { ascending: false })

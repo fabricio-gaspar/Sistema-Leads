@@ -78,7 +78,7 @@ export const Route = createFileRoute('/api/public/zapi-webhook')({
                 .from('lead_outreach')
                 .update(patch as never)
                 .eq('provider_message_id', mid)
-                .select('lead_id')
+                .select('*')
                 .maybeSingle()
               if (row?.lead_id) {
                 const { data: lead } = await supabaseAdmin
@@ -132,7 +132,7 @@ export const Route = createFileRoute('/api/public/zapi-webhook')({
           // Register reply on the latest outbound outreach row for this lead+whatsapp
           const { data: lastOut } = await supabaseAdmin
             .from('lead_outreach')
-            .select('id')
+            .select('*')
             .eq('lead_id', lead.id)
             .eq('channel', 'whatsapp')
             .order('created_at', { ascending: false })
