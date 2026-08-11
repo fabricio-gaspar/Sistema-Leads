@@ -206,7 +206,7 @@ export const Route = createFileRoute('/api/public/zapi-webhook')({
             patch.opt_out = true
             patch.ai_paused = true
           }
-          await supabaseAdmin.from('leads').update(patch as any).eq('id', (lead as any).id)
+          await (supabaseAdmin as any).from('leads').update(patch as any).eq('id', (lead as any).id)
 
           if (optOut) {
             const { suppressLeadContactsInternal } = await import('@/lib/outreach.functions')

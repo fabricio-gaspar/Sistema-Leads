@@ -136,7 +136,7 @@ export const Route = createFileRoute('/api/public/resend-webhook')({
                 last_status: status,
                 last_attempt_at: now,
               }
-              await supabaseAdmin.from('leads').update({
+              await (supabaseAdmin as any).from('leads').update({
                 contact_channels: channels,
                 ...(status === 'failed' ? { next_action_at: null } : {}),
                 ...(event.type === 'email.complained' ? { opt_out: true, ai_paused: true } : {}),
@@ -214,14 +214,14 @@ export const Route = createFileRoute('/api/public/resend-webhook')({
           .limit(1)
           .maybeSingle()
         if ((lastOut as any)?.id) {
-          await supabaseAdmin.from('lead_outreach').update({ status: 'replied', replied_at: now } as any).eq('id', (lastOut as any).id)
+          await (supabaseAdmin as any).from('lead_outreach').update({ status: 'replied', replied_at: now } as any).eq('id', (lastOut as any).id)
         }
         const channels = (((lead as any).contact_channels as any) ?? {}) as Record<string, any>
         channels.email = { ...(channels.email ?? { available: true }), last_status: 'replied', last_attempt_at: now }
         const lower = text.toLowerCase()
         const optOut = ['parar', 'sair', 'não quero', 'nao quero', 'descadastrar', 'remover'].some((keyword) => lower.includes(keyword))
         const interest = ['humano', 'atendente', 'vendedor', 'orçamento', 'orcamento', 'proposta', 'reunião', 'reuniao', 'comprar', 'preço', 'preco', 'contrato'].some((keyword) => lower.includes(keyword))
-        await supabaseAdmin.from('leads').update({
+        await (supabaseAdmin as any).from('leads').update({
           contact_channels: channels,
           last_contact: now,
           next_action_at: null,
