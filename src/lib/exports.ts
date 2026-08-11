@@ -9,7 +9,7 @@ export const generateOrcamentoPDF = async (orcamento: any) => {
   console.log("Generating budget PDF:", orcamento);
 };
 
-export function downloadCSV(data: any[], filename: string) {
+export function downloadCSV(data: any[], filename: string = 'export.csv') {
   if (!data.length) return;
   const headers = Object.keys(data[0]);
   const csvContent = [

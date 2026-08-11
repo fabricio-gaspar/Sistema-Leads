@@ -42,7 +42,7 @@ export const Route = createFileRoute('/api/public/prospecting-tick')({
             await supabaseAdmin
               .from('prospecting_schedules')
               .update({ next_run_at: next.toISOString() } as never)
-              .eq('id', s.id)
+              .eq('id', (s as any).id)
             processed.push({ id: s.id, result: { skipped: 'quiet_hours' } })
             continue
           }

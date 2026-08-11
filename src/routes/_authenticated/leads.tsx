@@ -68,7 +68,6 @@ function Kanban() {
 
   const exportCsv = () =>
     downloadCSV(
-      `leads-${new Date().toISOString().slice(0, 10)}.csv`,
       (leads as any[]).map((l: any) => ({
         ID: l.id,
         Empresa: l.company,

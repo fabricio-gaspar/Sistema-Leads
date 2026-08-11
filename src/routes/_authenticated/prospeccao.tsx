@@ -262,7 +262,6 @@ function Prospeccao() {
   function exportCSV() {
     if (!results.length) return;
     downloadCSV(
-      `prospeccao-${form.source}-${new Date().toISOString().slice(0, 10)}.csv`,
       (results as any[]).map((c: any) => ({
         fonte: c.source,
         identificador: c.cnpj,
