@@ -335,6 +335,7 @@ export type Database = {
           created_at: string | null
           document_id: string
           id: string
+          organization_id: string | null
           status: string | null
           tokens: number | null
           version: number | null
@@ -345,6 +346,7 @@ export type Database = {
           created_at?: string | null
           document_id: string
           id?: string
+          organization_id?: string | null
           status?: string | null
           tokens?: number | null
           version?: number | null
@@ -355,6 +357,7 @@ export type Database = {
           created_at?: string | null
           document_id?: string
           id?: string
+          organization_id?: string | null
           status?: string | null
           tokens?: number | null
           version?: number | null
@@ -365,6 +368,13 @@ export type Database = {
             columns: ["document_id"]
             isOneToOne: false
             referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "knowledge_chunks_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -1075,6 +1085,7 @@ export type Database = {
           data: Json
           external_id: string
           id: string
+          organization_id: string | null
           source: string
         }
         Insert: {
@@ -1082,6 +1093,7 @@ export type Database = {
           data: Json
           external_id: string
           id?: string
+          organization_id?: string | null
           source: string
         }
         Update: {
@@ -1089,9 +1101,18 @@ export type Database = {
           data?: Json
           external_id?: string
           id?: string
+          organization_id?: string | null
           source?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "prospecting_cache_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       prospecting_schedule_runs: {
         Row: {
