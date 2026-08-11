@@ -732,7 +732,7 @@ export const importExternalAsLead = createServerFn({ method: 'POST' })
     }
 
     const originTag = `${company.source}:${company.cnpj}`
-    const { data: dup } = await (context.supabase as any).from('leads')
+    const { data: dup } = await (context.supabase as any).from('leads' as any)
       .select('*')
       .eq('owner_id', context.userId)
       .eq('origin', originTag)
@@ -808,7 +808,7 @@ export const importExternalAsLead = createServerFn({ method: 'POST' })
       contact_channels: initialChannels,
     }
 
-    const { data: row, error } = await (context.supabase as any).from('leads').insert(payload as never).select().single()
+    const { data: row, error } = await (context.supabase as any).from('leads' as any).insert(payload as never).select().single()
     if (error) throw new Error(error.message)
 
     await (context.supabase as any).from('audit_logs').insert({
@@ -993,14 +993,12 @@ export async function runProspectingCampaignInternal(
   const startOfDay = new Date()
   startOfDay.setUTCHours(0, 0, 0, 0)
   const startOfMonth = new Date(startOfDay.getUTCFullYear(), startOfDay.getUTCMonth(), 1)
-  const { data: dayRuns } = await supabaseAdmin
-    (supabase as any).from('prospecting_schedule_runs')
+  const { data: dayRuns } = await (supabaseAdmin as any).from('prospecting_schedule_runs')
     .select('imported_count')
     .eq('schedule_id', schedule.id)
     .gte('started_at', startOfDay.toISOString())
   const importedToday = (dayRuns ?? []).reduce((a: number, r: any) => a + (r.imported_count ?? 0), 0)
-  const { data: monthRuns } = await supabaseAdmin
-    (supabase as any).from('prospecting_schedule_runs')
+  const { data: monthRuns } = await (supabaseAdmin as any).from('prospecting_schedule_runs')
     .select('imported_count')
     .eq('schedule_id', schedule.id)
     .gte('started_at', startOfMonth.toISOString())
@@ -1014,8 +1012,7 @@ export async function runProspectingCampaignInternal(
   }
 
   // ---- Load settings for scoring ----
-  const { data: settingsRow } = await supabaseAdmin
-    (supabase as any).from('company_settings')
+  const { data: settingsRow } = await (supabaseAdmin as any).from('company_settings')
     .select('name, description, differentiators, prospecting_sources')
     .limit(1)
     .maybeSingle()
@@ -1064,8 +1061,7 @@ export async function runProspectingCampaignInternal(
   // ---- Round-robin owner pool ----
   let ownerPool: string[] = [schedule.owner_id]
   if (schedule.assignment_strategy === 'round_robin') {
-    const { data: sellers } = await supabaseAdmin
-      (supabase as any).from('profiles')
+    const { data: sellers } = await (supabaseAdmin as any).from('profiles')
       .select('id')
       .eq('active', true)
     ownerPool = (sellers ?? []).map((s: any) => s.id as string)
@@ -1089,8 +1085,7 @@ export async function runProspectingCampaignInternal(
     idx++
 
     const originTag = `${company.source}:${company.cnpj || company.razao_social}`
-    const { data: dup } = await supabaseAdmin
-      (supabase as any).from('leads')
+    const { data: dup } = await (supabaseAdmin as any).from('leads' as any)
       .select('id')
       .eq('owner_id', assignedOwner)
       .eq('origin', originTag)
@@ -1136,10 +1131,10 @@ export async function runProspectingCampaignInternal(
       origin: `schedule:${schedule.id}|${originTag}`,
       contact_channels: initialChannels,
     }
-    const { data: row, error } = await supabaseAdmin(supabase as any).from('leads').insert(payload as never).select('id').single()
+    const { data: row, error } = await (supabaseAdmin as any).from('leads' as any).insert(payload as never).select('id').single()
     if (error) { bump(`insert_error:${error.code ?? 'unknown'}`); continue }
 
-    await supabaseAdmin(supabase as any).from('audit_logs').insert({
+    await (supabaseAdmin as any).from('audit_logs').insert({
       actor_id: assignedOwner, actor_name: 'Agendador de prospecção', actor_type: 'ia',
       action: 'schedule_lead_created',
       detail: `Campanha ${schedule.id} · ${company.razao_social}`,

@@ -230,16 +230,14 @@ export const runScheduleNow = createServerFn({ method: 'POST' })
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server')
     const { runProspectingCampaignInternal } = await import('./prospecting.functions')
 
-    const { data: runRow } = await supabaseAdmin
-      (supabase as any).from('prospecting_schedule_runs')
+    const { data: runRow } = await (supabaseAdmin as any).from('prospecting_schedule_runs')
       .insert({ schedule_id: schedule.id, status: 'running' } as never)
       .select('id')
       .single()
 
     try {
       const result = await runProspectingCampaignInternal(supabaseAdmin, schedule as never)
-      await supabaseAdmin
-        (supabase as any).from('prospecting_schedule_runs')
+      await (supabaseAdmin as any).from('prospecting_schedule_runs')
         .update({
           status: result.imported === 0 && result.found > 0 ? 'partial' : 'success',
           finished_at: new Date().toISOString(),
@@ -250,15 +248,13 @@ export const runScheduleNow = createServerFn({ method: 'POST' })
           detail: result.reasons as never,
         } as never)
         .eq('id', runRow?.id ?? '')
-      await supabaseAdmin
-        (supabase as any).from('prospecting_schedules')
+      await (supabaseAdmin as any).from('prospecting_schedules')
         .update({ last_run_at: new Date().toISOString(), consecutive_failures: 0 } as never)
         .eq('id', schedule.id)
       return { ok: true, ...result }
     } catch (err) {
       const msg = (err as Error).message
-      await supabaseAdmin
-        (supabase as any).from('prospecting_schedule_runs')
+      await (supabaseAdmin as any).from('prospecting_schedule_runs')
         .update({ status: 'failed', finished_at: new Date().toISOString(), error: msg } as never)
         .eq('id', runRow?.id ?? '')
       throw new Error(msg)
