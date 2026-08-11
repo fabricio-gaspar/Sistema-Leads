@@ -72,7 +72,7 @@ async function reindexDocumentWithClient(
     status: 'active',
   }))
 
-  const { error } = await (supabase as any)((supabase as any).from('knowledge_chunks')).insert(rows as never)
+  const { error } = await (supabase as any).from('knowledge_chunks')).insert(rows as never)
   if (error) throw new Error(error.message)
   return { chunks: rows.length }
 }
