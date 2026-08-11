@@ -3,6 +3,33 @@ import { useEffect, useState, type FormEvent } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
 
+function formatRecoveryError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  const normalized = message.toLowerCase();
+
+  if (!message || message === "{}" || normalized.includes("failed to fetch")) {
+    return "Não foi possível validar o link com o serviço de autenticação. Tente novamente em instantes.";
+  }
+  if (normalized.includes("expired") || normalized.includes("otp_expired") || normalized.includes("session missing")) {
+    return "Este link expirou ou já foi utilizado. Solicite uma nova recuperação de senha.";
+  }
+  if (normalized.includes("redirect") || normalized.includes("not allowed")) {
+    return "O endereço de retorno não está autorizado no Supabase. Solicite ao administrador a configuração de Authentication → URL Configuration.";
+  }
+  return message;
+}
+
+function getRecoveryUrlError() {
+  const query = new URLSearchParams(window.location.search);
+  const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+  const description = query.get("error_description") ?? hash.get("error_description");
+  const code = query.get("error_code") ?? hash.get("error_code");
+
+  if (!description && !code) return null;
+  if (code === "otp_expired") return "Este link expirou ou já foi utilizado. Solicite uma nova recuperação de senha.";
+  return description || "Não foi possível validar este link de recuperação.";
+}
+
 export const Route = createFileRoute("/reset-password")({
   ssr: false,
   component: ResetPasswordPage,
@@ -20,33 +47,62 @@ function ResetPasswordPage() {
   useEffect(() => {
     let mounted = true;
     let timer: ReturnType<typeof setTimeout> | null = null;
+    let recoverySessionReady = false;
+    const recoveryError = getRecoveryUrlError();
 
-    // O SDK Supabase parseia o hash (#access_token=…&type=recovery) e cria a sessão de recovery.
-    supabase.auth.getSession().then(({ data }) => {
+    if (recoveryError) {
+      setError(recoveryError);
+      setState("invalid");
+      return () => {
+        mounted = false;
+      };
+    }
+
+    const markReady = () => {
       if (!mounted) return;
-      if (data.session) {
-        setState("ready");
+      recoverySessionReady = true;
+      if (timer) clearTimeout(timer);
+      setState("ready");
+    };
+
+    const markInvalid = (reason?: unknown) => {
+      if (!mounted) return;
+      if (timer) clearTimeout(timer);
+      if (reason) setError(formatRecoveryError(reason));
+      setState("invalid");
+    };
+
+    // A inscrição precisa começar antes da leitura da sessão: no retorno do
+    // e-mail o Supabase emite PASSWORD_RECOVERY enquanto processa a URL.
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "PASSWORD_RECOVERY" && session) markReady();
+    });
+
+    // O SDK processa automaticamente os fluxos implicit e PKCE. A sessão já
+    // existente cobre o caso em que a URL foi processada antes da inscrição.
+    supabase.auth.getSession().then(({ data, error: sessionError }) => {
+      if (!mounted) return;
+      if (sessionError) {
+        markInvalid(sessionError);
         return;
       }
-      // Aguarda o onAuthStateChange por até 5s.
-      const { data: sub } = supabase.auth.onAuthStateChange((_ev, sess) => {
-        if (!mounted) return;
-        if (sess) {
-          setState("ready");
-          if (timer) clearTimeout(timer);
-          sub.subscription.unsubscribe();
-        }
-      });
-      timer = setTimeout(() => {
-        if (!mounted) return;
-        sub.subscription.unsubscribe();
-        setState((s) => (s === "ready" ? s : "invalid"));
-      }, 5000);
+      if (data.session) {
+        markReady();
+        return;
+      }
+      // Aguarda o processamento do link sem classificar conexões lentas como
+      // inválidas logo nos primeiros segundos.
+      if (!recoverySessionReady) {
+        timer = setTimeout(() => {
+          if (!recoverySessionReady) markInvalid();
+        }, 12_000);
+      }
     });
 
     return () => {
       mounted = false;
       if (timer) clearTimeout(timer);
+      authListener.subscription.unsubscribe();
     };
   }, []);
 
@@ -65,7 +121,7 @@ function ResetPasswordPage() {
       await supabase.auth.signOut();
       setTimeout(() => navigate({ to: "/auth", replace: true }), 2000);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Falha ao redefinir a senha.");
+      setError(formatRecoveryError(err));
     } finally {
       setPending(false);
     }

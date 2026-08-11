@@ -1,8 +1,7 @@
-import type { Database } from '@/integrations/supabase/types'
 import { createServerFn } from '@tanstack/react-start'
 import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware'
 import { z } from 'zod'
-
+import { generateAiText, normalizeAiJson } from '@/lib/ai-provider.server'
 
 // ============= LEADS =============
 
@@ -30,9 +29,8 @@ const leadInputSchema = z.object({
 export const listLeads = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const ctx = context;
-    const { data, error } = await (((context as any).supabase) as any)
-      .from('leads' as any)
+    const { data, error } = await context.supabase
+      .from('leads')
       .select('*')
       .order('updated_at', { ascending: false })
     if (error) throw new Error(error.message)
@@ -43,8 +41,7 @@ export const getLead = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const ctx = context;
-    const { data: lead, error } = await (((context as any).supabase) as any).from('leads' as any).select('*').eq('id', data.id).maybeSingle()
+    const { data: lead, error } = await context.supabase.from('leads').select('*').eq('id', data.id).maybeSingle()
     if (error) throw new Error(error.message)
     return lead
   })
@@ -53,17 +50,16 @@ export const createLead = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => leadInputSchema.parse(d))
   .handler(async ({ data, context }) => {
-    const ctx = context;
     const payload = { ...data, email: data.email || null, owner_id: context.userId }
-    const { data: row, error } = await (((context as any).supabase) as any).from('leads' as any).insert(payload ).select().single()
+    const { data: row, error } = await context.supabase.from('leads').insert(payload as never).select().single()
     if (error) throw new Error(error.message)
-    await (((context as any).supabase) as any).from('audit_logs' ).insert({
+    await context.supabase.from('audit_logs').insert({
       actor_id: context.userId,
       actor_name: context.claims?.email ?? 'user',
       actor_type: 'human',
       action: 'lead_create',
       detail: `Lead criado: ${data.company}`,
-   } )
+    } as never)
     return row
   })
 
@@ -73,10 +69,9 @@ export const updateLead = createServerFn({ method: 'POST' })
     z.object({ id: z.string().uuid(), patch: leadInputSchema.partial() }).parse(d),
   )
   .handler(async ({ data, context }) => {
-    const ctx = context;
-    const { data: row, error } = await (((context as any).supabase) as any)
-      .from('leads' as any)
-      .update(data.patch )
+    const { data: row, error } = await context.supabase
+      .from('leads')
+      .update(data.patch as never)
       .eq('id', data.id)
       .select()
       .single()
@@ -88,15 +83,14 @@ export const moveLeadStage = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid(), stage: leadStage }).parse(d))
   .handler(async ({ data, context }) => {
-    const ctx = context;
-    const { data: row, error } = await (((context as any).supabase) as any)
-      .from('leads' as any)
+    const { data: row, error } = await context.supabase
+      .from('leads')
       .update({ stage: data.stage })
       .eq('id', data.id)
       .select()
       .single()
     if (error) throw new Error(error.message)
-    await (((context as any).supabase) as any).from('audit_logs' ).insert({
+    await context.supabase.from('audit_logs').insert({
       actor_id: context.userId,
       actor_name: context.claims?.email ?? 'user',
       actor_type: 'human',
@@ -110,16 +104,15 @@ export const deleteLead = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const ctx = context;
-    const { error } = await (((context as any).supabase) as any).from('leads' as any).delete().eq('id', data.id)
+    const { error } = await context.supabase.from('leads').delete().eq('id', data.id)
     if (error) throw new Error(error.message)
-    await (((context as any).supabase) as any).from('audit_logs' ).insert({
+    await context.supabase.from('audit_logs').insert({
       actor_id: context.userId,
       actor_name: context.claims?.email ?? 'user',
       actor_type: 'human',
       action: 'lead_delete',
       detail: `Lead ${data.id} removido`,
-   } )
+    } as never)
     return { ok: true }
   })
 
@@ -132,9 +125,8 @@ export const listLeadMessages = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ lead_id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const ctx = context;
-    const { data: rows, error } = await (((context as any).supabase) as any)
-      .from('lead_messages' )
+    const { data: rows, error } = await context.supabase
+      .from('lead_messages')
       .select('*')
       .eq('lead_id', data.lead_id)
       .order('sent_at', { ascending: true })
@@ -156,14 +148,13 @@ export const createLeadMessage = createServerFn({ method: 'POST' })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
-    const ctx = context;
-    const { data: row, error } = await (((context as any).supabase) as any)
-      .from('lead_messages' )
-      .insert({ ...data, sent_at: new Date().toISOString()} )
+    const { data: row, error } = await context.supabase
+      .from('lead_messages')
+      .insert({ ...data, sent_at: new Date().toISOString() } as never)
       .select()
       .single()
     if (error) throw new Error(error.message)
-    await (((context as any).supabase) as any).from('leads' as any).update({ last_contact: new Date().toISOString() }).eq('id', data.lead_id)
+    await context.supabase.from('leads').update({ last_contact: new Date().toISOString() }).eq('id', data.lead_id)
     return row
   })
 
@@ -173,9 +164,8 @@ export const listLeadTasks = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ lead_id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const ctx = context;
-    const { data: rows, error } = await (((context as any).supabase) as any)
-      .from('lead_tasks' )
+    const { data: rows, error } = await context.supabase
+      .from('lead_tasks')
       .select('*')
       .eq('lead_id', data.lead_id)
       .order('created_at', { ascending: false })
@@ -198,10 +188,9 @@ export const upsertLeadTask = createServerFn({ method: 'POST' })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
-    const ctx = context;
     if (data.id) {
-      const { data: row, error } = await (((context as any).supabase) as any)
-        .from('lead_tasks' )
+      const { data: row, error } = await context.supabase
+        .from('lead_tasks')
         .update({ text: data.text, due_at: data.due_at, owner_label: data.owner_label, completed: data.completed ?? false })
         .eq('id', data.id)
         .select()
@@ -209,8 +198,8 @@ export const upsertLeadTask = createServerFn({ method: 'POST' })
       if (error) throw new Error(error.message)
       return row
     }
-    const { data: row, error } = await (((context as any).supabase) as any)
-      .from('lead_tasks' )
+    const { data: row, error } = await context.supabase
+      .from('lead_tasks')
       .insert({
         lead_id: data.lead_id,
         text: data.text,
@@ -229,8 +218,7 @@ export const deleteLeadTask = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const ctx = context;
-    const { error } = await (((context as any).supabase) as any).from('lead_tasks' ).delete().eq('id', data.id)
+    const { error } = await context.supabase.from('lead_tasks').delete().eq('id', data.id)
     if (error) throw new Error(error.message)
     return { ok: true }
   })
@@ -254,8 +242,7 @@ const proposalInput = z.object({
 export const listProposals = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const ctx = context;
-    const { data, error } = await (((context as any).supabase) as any).from('proposals' ).select('*').order('created_at', { ascending: false })
+    const { data, error } = await context.supabase.from('proposals').select('*').order('created_at', { ascending: false })
     if (error) throw new Error(error.message)
     return data ?? []
   })
@@ -264,7 +251,6 @@ export const createProposal = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => proposalInput.parse(d))
   .handler(async ({ data, context }) => {
-    const ctx = context;
     const payload = {
       ...data,
       items: data.items ?? '[]',
@@ -273,19 +259,19 @@ export const createProposal = createServerFn({ method: 'POST' })
       creator: 'human' as const,
       creator_name: data.creator_name ?? (context.claims?.email as string | undefined) ?? null,
     }
-    const { data: row, error } = await (((context as any).supabase) as any)
-      .from('proposals' )
-      .insert(payload )
+    const { data: row, error } = await context.supabase
+      .from('proposals')
+      .insert(payload as never)
       .select()
       .single()
     if (error) throw new Error(error.message)
     // Auto-avançar Kanban do lead vinculado para "Proposta" (só se estiver antes)
     if (data.lead_id) {
-      const { data: lead } = await (((context as any).supabase) as any).from('leads' as any).select('stage').eq('id', data.lead_id).maybeSingle()
+      const { data: lead } = await context.supabase.from('leads').select('stage').eq('id', data.lead_id).maybeSingle()
       const order = ['Prospecção', 'Qualificado', 'Proposta', 'Negociação', 'Pedido', 'Fechado']
       const cur = order.indexOf(lead?.stage ?? '')
       if (cur >= 0 && cur < order.indexOf('Proposta')) {
-        await (((context as any).supabase) as any).from('leads' as any).update({ stage: 'Proposta'} ).eq('id', data.lead_id)
+        await context.supabase.from('leads').update({ stage: 'Proposta' } as never).eq('id', data.lead_id)
       }
     }
     return row
@@ -298,10 +284,9 @@ export const updateProposal = createServerFn({ method: 'POST' })
     z.object({ id: z.string().uuid(), patch: proposalInput.partial() }).parse(d),
   )
   .handler(async ({ data, context }) => {
-    const ctx = context;
-    const { data: row, error } = await (((context as any).supabase) as any)
-      .from('proposals' )
-      .update(data.patch )
+    const { data: row, error } = await context.supabase
+      .from('proposals')
+      .update(data.patch as never)
       .eq('id', data.id)
       .select()
       .single()
@@ -313,8 +298,7 @@ export const deleteProposal = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const ctx = context;
-    const { error } = await (((context as any).supabase) as any).from('proposals' ).delete().eq('id', data.id)
+    const { error } = await context.supabase.from('proposals').delete().eq('id', data.id)
     if (error) throw new Error(error.message)
     return { ok: true }
   })
@@ -339,8 +323,7 @@ const orderInput = z.object({
 export const listOrders = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const ctx = context;
-    const { data, error } = await (((context as any).supabase) as any).from('orders' ).select('*').order('created_at', { ascending: false })
+    const { data, error } = await context.supabase.from('orders').select('*').order('created_at', { ascending: false })
     if (error) throw new Error(error.message)
     return data ?? []
   })
@@ -349,16 +332,15 @@ export const createOrder = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => orderInput.parse(d))
   .handler(async ({ data, context }) => {
-    const ctx = context;
-    const { data: row, error } = await (((context as any).supabase) as any)
-      .from('orders' )
-      .insert({ ...data, owner_id: context.userId} )
+    const { data: row, error } = await context.supabase
+      .from('orders')
+      .insert({ ...data, owner_id: context.userId } as never)
       .select()
       .single()
     if (error) throw new Error(error.message)
     // Auto-avançar Kanban do lead vinculado para "Fechado"
     if (data.lead_id) {
-      await (((context as any).supabase) as any).from('leads' as any).update({ stage: 'Fechado'} ).eq('id', data.lead_id)
+      await context.supabase.from('leads').update({ stage: 'Fechado' } as never).eq('id', data.lead_id)
     }
     return row
   })
@@ -368,10 +350,9 @@ export const updateOrder = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid(), patch: orderInput.partial() }).parse(d))
   .handler(async ({ data, context }) => {
-    const ctx = context;
-    const { data: row, error } = await (((context as any).supabase) as any)
-      .from('orders' )
-      .update(data.patch )
+    const { data: row, error } = await context.supabase
+      .from('orders')
+      .update(data.patch as never)
       .eq('id', data.id)
       .select()
       .single()
@@ -383,8 +364,7 @@ export const deleteOrder = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const ctx = context;
-    const { error } = await (((context as any).supabase) as any).from('orders' ).delete().eq('id', data.id)
+    const { error } = await context.supabase.from('orders').delete().eq('id', data.id)
     if (error) throw new Error(error.message)
     return { ok: true }
   })
@@ -408,6 +388,10 @@ const companySettingsInput = z.object({
   differentiators: z.string().optional().nullable(),
   logo_url: z.string().optional().nullable(),
   ai_prompt: z.string().optional().nullable(),
+  ai_provider: z.enum(['openai', 'anthropic', 'gemini']).optional(),
+  ai_fallback_provider: z.enum(['openai', 'anthropic', 'gemini']).optional().nullable(),
+  ai_multimodal_enabled: z.boolean().optional(),
+  ai_actions_enabled: z.boolean().optional(),
   ai_model: z.string().optional().nullable(),
   ai_temperature: z.number().optional().nullable(),
   ai_max_tokens: z.number().int().optional().nullable(),
@@ -432,15 +416,24 @@ const companySettingsInput = z.object({
     .record(z.string(), z.enum(['auto', 'assist', 'manual']))
     .optional()
     .nullable(),
+  require_contact_approval: z.boolean().optional(),
+  contact_approval_mode: z.enum(['automatic', 'score', 'manual']).optional(),
+  contact_approval_min_score: z.number().int().min(0).max(100).optional(),
+  prospecting_ai_providers: z
+    .array(z.enum(['openai', 'anthropic', 'gemini']))
+    .min(1)
+    .max(3)
+    .refine((providers) => new Set(providers).size === providers.length, 'Provedores repetidos não são permitidos')
+    .optional(),
+  prospecting_ai_strategy: z.enum(['consensus', 'fallback']).optional(),
 })
 
 
 export const getCompanySettings = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const ctx = context;
-    const { data, error } = await (((context as any).supabase) as any)
-      .from('company_settings' as any)
+    const { data, error } = await context.supabase
+      .from('company_settings')
       .select('*')
       .limit(1)
       .maybeSingle()
@@ -452,33 +445,32 @@ export const updateCompanySettings = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => companySettingsInput.parse(d))
   .handler(async ({ data, context }) => {
-    const ctx = context;
     await assertAdmin(context)
-    const { data: existing } = await (((context as any).supabase) as any)
-      .from('company_settings' as any)
+    const { data: existing } = await context.supabase
+      .from('company_settings')
       .select('id')
       .limit(1)
       .maybeSingle()
     if (existing?.id) {
-      const { data: row, error } = await (((context as any).supabase) as any)
-        .from('company_settings' as any)
-        .update(data )
+      const { data: row, error } = await context.supabase
+        .from('company_settings')
+        .update(data as never)
         .eq('id', existing.id)
         .select()
         .single()
       if (error) throw new Error(error.message)
       return row
     }
-    const { data: row, error } = await (((context as any).supabase) as any)
-      .from('company_settings' as any)
-      .insert(data )
+    const { data: row, error } = await context.supabase
+      .from('company_settings')
+      .insert(data as never)
       .select()
       .single()
     if (error) throw new Error(error.message)
     return row
   })
 
-// ============= ANA (Anthropic) =============
+// ============= ANA (multi-provider) =============
 
 const ANA_DEFAULT_SYSTEM = `Você é Ana, vendedora virtual da WF Digital.
 Seja consultiva, cordial, objetiva e comercial. Reposicione objeções (preço, "vou pensar", concorrente) com valor.
@@ -496,25 +488,21 @@ export const chatWithAna = createServerFn({ method: 'POST' })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
-    const ctx = context;
-    const apiKey = process.env.ANTHROPIC_API_KEY
-    if (!apiKey) throw new Error('ANTHROPIC_API_KEY não configurada')
-
     const [{ data: settings }, { data: history }, { data: lead }] = await Promise.all([
-      ((context as any).supabase).from('company_settings' as any).select('ai_prompt, ai_model, ai_temperature, ai_max_tokens, name, description, differentiators, tone_of_voice').limit(1).maybeSingle(),
-      ((context as any).supabase).from('lead_messages' ).select('sender, text').eq('lead_id', data.lead_id).order('sent_at', { ascending: true }).limit(20),
-      ((context as any).supabase).from('leads' as any).select('company, contact, segment, stage').eq('id', data.lead_id).maybeSingle(),
+      context.supabase.from('company_settings').select('ai_prompt, ai_provider, ai_fallback_provider, ai_model, ai_temperature, ai_max_tokens, name, description, differentiators, tone_of_voice').limit(1).maybeSingle(),
+      context.supabase.from('lead_messages').select('sender, text').eq('lead_id', data.lead_id).order('sent_at', { ascending: true }).limit(20),
+      context.supabase.from('leads').select('company, contact, segment, stage').eq('id', data.lead_id).maybeSingle(),
     ])
 
     const senderLabel = data.as_client ? 'client' : 'human'
-    await (((context as any).supabase) as any).from('lead_messages' ).insert({
+    await context.supabase.from('lead_messages').insert({
       lead_id: data.lead_id,
       sender: senderLabel,
       sender_name: data.as_client ? (lead?.contact ?? 'Cliente') : (context.claims?.email ?? 'Vendedor'),
       type: data.as_client ? 'client' : 'human',
       text: data.user_text,
       sent_at: new Date().toISOString(),
-   } )
+    } as never)
 
     const systemBase = (settings?.ai_prompt && settings.ai_prompt.trim()) || ANA_DEFAULT_SYSTEM
     const leadCtx = lead
@@ -526,7 +514,7 @@ export const chatWithAna = createServerFn({ method: 'POST' })
     const system = `${systemBase}${companyCtx}${leadCtx}`
 
     const messages = [
-      ...(history ?? []).map((m: any) => ({
+      ...(history ?? []).map((m) => ({
         role: m.sender === 'client' ? ('user' as const) : ('assistant' as const),
         content: m.text,
       })),
@@ -537,37 +525,19 @@ export const chatWithAna = createServerFn({ method: 'POST' })
       messages.push({ role: 'user' as const, content: 'Como Ana, responda à conversa acima de forma comercial, curta e cordial.' })
     }
 
-    const model = settings?.ai_model || 'claude-sonnet-4-5-20250929'
-    const upstream = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model,
-        max_tokens: Number(settings?.ai_max_tokens ?? 512),
-        temperature: Number(settings?.ai_temperature ?? 0.7),
-        system,
-        messages,
-      }),
+    const generated = await generateAiText({
+      provider: settings?.ai_provider as 'openai' | 'anthropic' | 'gemini' | null,
+      fallbackProvider: settings?.ai_fallback_provider as 'openai' | 'anthropic' | 'gemini' | null,
+      model: settings?.ai_model,
+      maxTokens: Number(settings?.ai_max_tokens ?? 512),
+      temperature: Number(settings?.ai_temperature ?? 0.7),
+      system,
+      messages,
     })
+    const text = generated.text || '…'
 
-    const payload = (await upstream.json()) as {
-      content?: Array<{ type: string; text?: string }>
-      error?: { message?: string }
-    }
-    if (!upstream.ok) throw new Error(payload?.error?.message || `Anthropic ${upstream.status}`)
-    const text =
-      (payload.content || [])
-        .filter((c: any) => c.type === 'text')
-        .map((c: any) => c.text || '')
-        .join('\n')
-        .trim() || '…'
-
-    const { data: anaRow, error: anaErr } = await (((context as any).supabase) as any)
-      .from('lead_messages' )
+    const { data: anaRow, error: anaErr } = await context.supabase
+      .from('lead_messages')
       .insert({
         lead_id: data.lead_id,
         sender: 'ia',
@@ -575,7 +545,7 @@ export const chatWithAna = createServerFn({ method: 'POST' })
         type: 'ia',
         text,
         sent_at: new Date().toISOString(),
-     } )
+      } as never)
       .select()
       .single()
     if (anaErr) throw new Error(anaErr.message)
@@ -585,26 +555,22 @@ export const chatWithAna = createServerFn({ method: 'POST' })
     // Classificar interesse quando é mensagem do cliente e escalar para humano
     if (data.as_client) {
       try {
-        const clsRes = await fetch('https://api.anthropic.com/v1/messages', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
-          body: JSON.stringify({
-            model,
-            max_tokens: 200,
-            temperature: 0,
-            system:
-              'Classifique a última mensagem do cliente em um funil B2B. Responda APENAS JSON: {"intencao":"interesse|pedido_proposta|negociacao|fechamento|objecao|desinteresse|duvida|neutro","confianca":0-100}. Definições: "interesse"=quer avançar/agendar/saber preço; "pedido_proposta"=pediu orçamento/proposta; "negociacao"=negocia preço/prazo/condição; "fechamento"=aceita fechar/comprar; "objecao"=barreira contornável; "desinteresse"=recusa clara; "duvida"=quer informação; "neutro"=saudação/vazio.',
-            messages: [{ role: 'user', content: `Mensagem do cliente: "${data.user_text}"` }],
-          }),
+        const classification = await generateAiText({
+          provider: generated.provider,
+          model: generated.model,
+          maxTokens: 200,
+          temperature: 0,
+          json: true,
+          system:
+            'Classifique a última mensagem do cliente em um funil B2B. Responda APENAS JSON: {"intencao":"interesse|pedido_proposta|negociacao|fechamento|objecao|desinteresse|duvida|neutro","confianca":0-100}. Definições: "interesse"=quer avançar/agendar/saber preço; "pedido_proposta"=pediu orçamento/proposta; "negociacao"=negocia preço/prazo/condição; "fechamento"=aceita fechar/comprar; "objecao"=barreira contornável; "desinteresse"=recusa clara; "duvida"=quer informação; "neutro"=saudação/vazio.',
+          messages: [{ role: 'user', content: `Mensagem do cliente: "${data.user_text}"` }],
         })
-        if (clsRes.ok) {
-          const cls = (await clsRes.json()) as { content?: Array<{ type: string; text?: string }> }
-          const raw = (cls.content || []).filter((c: any) => c.type === 'text').map((c: any) => c.text || '').join('')
-          const m = raw.match(/\{[\s\S]*\}/)
-          if (m) {
-            const parsed = JSON.parse(m[0]) as { intencao?: string; confianca?: number }
-            const conf = parsed.confianca ?? 0
-            const intent = parsed.intencao ?? 'neutro'
+        const parsed = JSON.parse(normalizeAiJson(classification.text)) as {
+          intencao?: string
+          confianca?: number
+        }
+        const conf = parsed.confianca ?? 0
+        const intent = parsed.intencao ?? 'neutro'
 
             // Map intent → stage transition (respect current stage; never regride)
             const stageOrder = ['Prospecção', 'Qualificado', 'Proposta', 'Negociação', 'Pedido', 'Fechado', 'Perdido']
@@ -645,37 +611,34 @@ export const chatWithAna = createServerFn({ method: 'POST' })
             }
 
             if (escalate && leadUpdate.stage) {
-              await (((context as any).supabase) as any).from('lead_messages' ).insert({
+              await context.supabase.from('lead_messages').insert({
                 lead_id: data.lead_id,
                 sender: 'ia',
                 sender_name: 'Ana (IA)',
                 type: 'ia-escalated',
                 text: escalateMsg,
                 sent_at: new Date().toISOString(),
-             } )
-              await (((context as any).supabase) as any).from('notifications' ).insert({
+              } as never)
+              await context.supabase.from('notifications').insert({
                 user_id: context.userId,
                 kind: 'lead_escalated',
                 title: 'Lead pronto para vendedor',
                 description: `${lead?.company ?? 'Lead'} — ${intent} (${conf}%). Assuma o atendimento.`,
-             } )
-              await (((context as any).supabase) as any).from('audit_logs' ).insert({
+              } as never)
+              await context.supabase.from('audit_logs').insert({
                 actor_id: context.userId,
                 actor_name: 'Ana (IA)',
                 actor_type: 'ia',
                 action: 'lead_escalated',
                 detail: `Lead ${data.lead_id} → ${leadUpdate.stage} (${intent}, ${conf}%)`,
-             } )
+              } as never)
             }
-          }
-        }
-
       } catch (err) {
         console.error('intent classification failed', err)
       }
     }
 
-    await (((context as any).supabase) as any).from('leads' as any).update(leadUpdate ).eq('id', data.lead_id)
+    await context.supabase.from('leads').update(leadUpdate as never).eq('id', data.lead_id)
     return { reply: text, message: anaRow }
   })
 
@@ -688,13 +651,13 @@ async function auditDocument(
   detail: string,
 ) {
   try {
-    const { error } = await ((ctx.supabase as any) as any).from('audit_logs' ).insert({
+    const { error } = await ctx.supabase.from('audit_logs').insert({
       actor_id: ctx.userId,
       actor_name: ctx.claims?.email ?? 'admin',
       actor_type: 'human',
       action,
       detail: `[${docId}] ${detail}`,
-   } )
+    } as never)
     if (error) console.error('[audit_logs] insert failed:', error.message)
   } catch (err) {
     console.error('[audit_logs] insert threw:', (err as Error).message)
@@ -704,10 +667,9 @@ async function auditDocument(
 export const listDocuments = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const ctx = context;
     await assertAdmin(context)
-    const { data, error } = await (((context as any).supabase) as any)
-      .from('documents' )
+    const { data, error } = await context.supabase
+      .from('documents')
       .select('*')
       .order('created_at', { ascending: false })
     if (error) throw new Error(error.message)
@@ -729,11 +691,10 @@ export const createDocumentRecord = createServerFn({ method: 'POST' })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
-    const ctx = context;
     await assertAdmin(context)
-    const { data: row, error } = await (((context as any).supabase) as any)
-      .from('documents' )
-      .insert({ ...data, uploaded_by: context.userId, status: data.status ?? 'active'} )
+    const { data: row, error } = await context.supabase
+      .from('documents')
+      .insert({ ...data, uploaded_by: context.userId, status: data.status ?? 'active' } as never)
       .select()
       .single()
     if (error) throw new Error(error.message)
@@ -753,24 +714,23 @@ export const deleteDocument = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const ctx = context;
     await assertAdmin(context)
-    const { data: doc, error: readErr } = await (((context as any).supabase) as any)
-      .from('documents' )
+    const { data: doc, error: readErr } = await context.supabase
+      .from('documents')
       .select('name, storage_path')
       .eq('id', data.id)
       .maybeSingle()
     if (readErr) throw new Error(readErr.message)
     if (!doc) throw new Error('Documento não encontrado')
     if (doc.storage_path) {
-      const { error: storageErr } = await (((context as any).supabase) as any).storage
-        .from('docs' )
+      const { error: storageErr } = await context.supabase.storage
+        .from('docs')
         .remove([doc.storage_path])
       if (storageErr) {
         throw new Error(`Falha ao remover arquivo do Storage: ${storageErr.message}`)
       }
     }
-    const { error } = await (((context as any).supabase) as any).from('documents' ).delete().eq('id', data.id)
+    const { error } = await context.supabase.from('documents').delete().eq('id', data.id)
     if (error) throw new Error(error.message)
     await auditDocument(context, 'document_delete', data.id, doc.name ?? '(sem nome)')
     return { ok: true }
@@ -780,10 +740,9 @@ export const getDocument = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const ctx = context;
     await assertAdmin(context)
-    const { data: row, error } = await (((context as any).supabase) as any)
-      .from('documents' )
+    const { data: row, error } = await context.supabase
+      .from('documents')
       .select('*')
       .eq('id', data.id)
       .maybeSingle()
@@ -809,11 +768,10 @@ export const updateDocument = createServerFn({ method: 'POST' })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
-    const ctx = context;
     await assertAdmin(context)
-    const { data: row, error } = await (((context as any).supabase) as any)
-      .from('documents' )
-      .update(data.patch )
+    const { data: row, error } = await context.supabase
+      .from('documents')
+      .update(data.patch as never)
       .eq('id', data.id)
       .select()
       .single()
@@ -839,10 +797,9 @@ export const getDocumentSignedUrl = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ storage_path: z.string().min(1) }).parse(d))
   .handler(async ({ data, context }) => {
-    const ctx = context;
     await assertAdmin(context)
-    const { data: signed, error } = await (((context as any).supabase) as any).storage
-      .from('docs' )
+    const { data: signed, error } = await context.supabase.storage
+      .from('docs')
       .createSignedUrl(data.storage_path, 3600)
     if (error) throw new Error(error.message)
     return signed
@@ -853,7 +810,7 @@ export const getDocumentSignedUrl = createServerFn({ method: 'POST' })
 const appRole = z.enum(['administrador', 'vendedor', 'sdr', 'cx'])
 
 async function assertAdmin(ctx: { supabase: any; userId: string }) {
-  const { data, error } = await (ctx.supabase as any).rpc('has_role', { _user_id: ctx.userId, _role: 'administrador' })
+  const { data, error } = await ctx.supabase.rpc('has_role', { _user_id: ctx.userId, _role: 'administrador' })
   if (error) throw new Error(error.message)
   if (!data) throw new Error('Acesso restrito a administradores')
 }
@@ -862,14 +819,14 @@ async function countAdmins(admin: any): Promise<number> {
   // Conta apenas administradores ATIVOS. user_roles e profiles referenciam auth.users
   // sem FK direta entre si (Relationships: []), portanto não é possível usar join PostgREST.
   const { data: roleRows, error: roleErr } = await admin
-    .from('user_roles' as any)
+    .from('user_roles')
     .select('user_id')
     .eq('role', 'administrador')
   if (roleErr) throw new Error(roleErr.message)
   const ids = (roleRows ?? []).map((r: any) => r.user_id).filter(Boolean)
   if (ids.length === 0) return 0
   const { data: profRows, error: profErr } = await admin
-    .from('profiles' as any)
+    .from('profiles')
     .select('id')
     .in('id', ids)
     .eq('active', true)
@@ -879,7 +836,7 @@ async function countAdmins(admin: any): Promise<number> {
 
 async function isAdminUser(admin: any, userId: string): Promise<boolean> {
   const { data, error } = await admin
-    .from('user_roles' as any)
+    .from('user_roles')
     .select('user_id')
     .eq('user_id', userId)
     .eq('role', 'administrador')
@@ -916,19 +873,38 @@ async function deriveOriginFromRequest(): Promise<string | null> {
   return null
 }
 
+function formatPasswordRecoveryRequestError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error ?? '')
+  const normalized = message.toLowerCase()
+
+  if (!message || message === '{}' || normalized.includes('failed to fetch')) {
+    return 'Não foi possível comunicar com o Supabase para enviar o link. Verifique se o projeto está ativo e tente novamente.'
+  }
+  if (normalized.includes('redirect') || normalized.includes('not allowed')) {
+    return 'O endereço público do sistema não está autorizado no Supabase. Configure PUBLIC_SITE_URL e inclua /reset-password em Authentication → URL Configuration.'
+  }
+  if (normalized.includes('rate limit') || normalized.includes('too many requests')) {
+    return 'Muitas tentativas recentes. Aguarde alguns minutos antes de reenviar o link.'
+  }
+  if (normalized.includes('smtp') || normalized.includes('email')) {
+    return 'O Supabase não conseguiu enviar o e-mail. Verifique a configuração de SMTP em Authentication.'
+  }
+  return message
+}
+
 async function auditTeam(
   ctx: { supabase: any; userId: string; claims?: any },
   action: string,
   detail: string,
 ) {
   try {
-    const { error } = await ((ctx.supabase as any) as any).from('audit_logs' ).insert({
+    const { error } = await ctx.supabase.from('audit_logs').insert({
       actor_id: ctx.userId,
       actor_name: ctx.claims?.email ?? 'admin',
       actor_type: 'human',
       action,
       detail,
-   } )
+    } as never)
     if (error) console.error('[audit_logs] insert failed:', error.message)
   } catch (err) {
     console.error('[audit_logs] insert threw:', (err as Error).message)
@@ -938,8 +914,7 @@ async function auditTeam(
 export const getMyRoles = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const ctx = context;
-    const { data, error } = await (((context as any).supabase) as any).from('user_roles' as any).select('role').eq('user_id', context.userId)
+    const { data, error } = await context.supabase.from('user_roles').select('role').eq('user_id', context.userId)
     if (error) throw new Error(error.message)
     return (data ?? []).map((r: { role: string }) => r.role)
   })
@@ -947,11 +922,10 @@ export const getMyRoles = createServerFn({ method: 'GET' })
 export const listTeam = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const ctx = context;
     await assertAdmin(context)
     const [{ data: profiles, error: e1 }, { data: roles, error: e2 }] = await Promise.all([
-      ((context as any).supabase).from('profiles' as any).select('*').order('created_at', { ascending: true }),
-      ((context as any).supabase).from('user_roles' as any).select('user_id, role'),
+      context.supabase.from('profiles').select('*').order('created_at', { ascending: true }),
+      context.supabase.from('user_roles').select('user_id, role'),
     ])
     if (e1) throw new Error(e1.message)
     if (e2) throw new Error(e2.message)
@@ -971,7 +945,7 @@ export const listTeam = createServerFn({ method: 'GET' })
       can_use_ia: boolean | null
       discount_limit: string | null
     }
-    return ((profiles ?? []) as Profile[]).map((p: any) => ({ ...p, roles: byUser.get(p.id) ?? [] }))
+    return ((profiles ?? []) as Profile[]).map((p) => ({ ...p, roles: byUser.get(p.id) ?? [] }))
   })
 
 export const assignLeadToSeller = createServerFn({ method: 'POST' })
@@ -980,11 +954,10 @@ export const assignLeadToSeller = createServerFn({ method: 'POST' })
     z.object({ lead_id: z.string().uuid(), seller_id: z.string().uuid().nullable() }).parse(d),
   )
   .handler(async ({ data, context }) => {
-    const ctx = context;
     await assertAdmin(context)
     if (data.seller_id) {
-      const { data: role, error: roleError } = await (((context as any).supabase) as any)
-        .from('user_roles' as any)
+      const { data: role, error: roleError } = await context.supabase
+        .from('user_roles')
         .select('user_id')
         .eq('user_id', data.seller_id)
         .eq('role', 'vendedor')
@@ -993,12 +966,12 @@ export const assignLeadToSeller = createServerFn({ method: 'POST' })
       if (!role) throw new Error('O usuário selecionado não possui o perfil de vendedor')
     }
 
-    const { data: lead, error } = await (((context as any).supabase) as any)
-      .from('leads' as any)
+    const { data: lead, error } = await context.supabase
+      .from('leads')
       .update({
         assigned_to: data.seller_id,
         ...(data.seller_id ? { owner: 'human', ai_paused: true } : {}),
-     } )
+      } as never)
       .eq('id', data.lead_id)
       .select('id, company, assigned_to')
       .single()
@@ -1012,7 +985,6 @@ export const setUserRole = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ user_id: z.string().uuid(), role: appRole }).parse(d))
   .handler(async ({ data, context }) => {
-    const ctx = context;
     await assertAdmin(context)
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server')
 
@@ -1025,23 +997,23 @@ export const setUserRole = createServerFn({ method: 'POST' })
 
     // Snapshot para rollback
     const { data: prev, error: readErr } = await supabaseAdmin
-      .from('user_roles' as any)
+      .from('user_roles')
       .select('role')
       .eq('user_id', data.user_id)
     if (readErr) throw new Error(readErr.message)
     const prevRoles = (prev ?? []).map((r: { role: string }) => r.role)
 
-    const { error: delErr } = await supabaseAdmin.from('user_roles' as any).delete().eq('user_id', data.user_id)
+    const { error: delErr } = await supabaseAdmin.from('user_roles').delete().eq('user_id', data.user_id)
     if (delErr) throw new Error(delErr.message)
     const { error: insErr } = await supabaseAdmin
-      .from('user_roles' as any)
-      .insert({ user_id: data.user_id, role: data.role} )
+      .from('user_roles')
+      .insert({ user_id: data.user_id, role: data.role } as never)
     if (insErr) {
       // Rollback: restaura papéis anteriores para não deixar usuário órfão
       if (prevRoles.length) {
         const { error: rbErr } = await supabaseAdmin
-          .from('user_roles' as any)
-          .insert(prevRoles.map((r: any) => ({ user_id: data.user_id, role: r })) )
+          .from('user_roles')
+          .insert(prevRoles.map((r) => ({ user_id: data.user_id, role: r })) as never)
         if (rbErr) {
           console.error('[setUserRole] rollback failed:', rbErr.message, 'user:', data.user_id)
         }
@@ -1056,7 +1028,6 @@ export const removeUserRole = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ user_id: z.string().uuid(), role: appRole }).parse(d))
   .handler(async ({ data, context }) => {
-    const ctx = context;
     await assertAdmin(context)
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server')
     if (data.role === 'administrador') {
@@ -1064,7 +1035,7 @@ export const removeUserRole = createServerFn({ method: 'POST' })
       if (total <= 1) throw new Error('Não é possível remover o último administrador do sistema.')
     }
     const { error } = await supabaseAdmin
-      .from('user_roles' as any)
+      .from('user_roles')
       .delete()
       .eq('user_id', data.user_id)
       .eq('role', data.role)
@@ -1091,7 +1062,6 @@ export const updateTeamMember = createServerFn({ method: 'POST' })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
-    const ctx = context;
     await assertAdmin(context)
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server')
 
@@ -1110,15 +1080,15 @@ export const updateTeamMember = createServerFn({ method: 'POST' })
 
     // Snapshot para rollback
     const { data: before, error: readErr } = await supabaseAdmin
-      .from('profiles' as any)
+      .from('profiles')
       .select('active, can_use_ia, name, phone, discount_limit')
       .eq('id', data.id)
       .maybeSingle()
     if (readErr) throw new Error(readErr.message)
 
     const { data: row, error } = await supabaseAdmin
-      .from('profiles' as any)
-      .update(data.patch )
+      .from('profiles')
+      .update(data.patch as never)
       .eq('id', data.id)
       .select()
       .single()
@@ -1130,7 +1100,7 @@ export const updateTeamMember = createServerFn({ method: 'POST' })
       try {
         const { error: authErr } = await supabaseAdmin.auth.admin.updateUserById(data.id, {
           ban_duration: data.patch.active ? 'none' : '87600h', // ~10 anos
-       } )
+        } as never)
         if (authErr) authError = new Error(authErr.message)
       } catch (err) {
         authError = err as Error
@@ -1138,8 +1108,8 @@ export const updateTeamMember = createServerFn({ method: 'POST' })
       if (authError) {
         // rollback do profile
         const { error: rbErr } = await supabaseAdmin
-          .from('profiles' as any)
-          .update({ active: before?.active ?? true} )
+          .from('profiles')
+          .update({ active: before?.active ?? true } as never)
           .eq('id', data.id)
         if (rbErr) {
           console.error('[updateTeamMember] rollback profile failed:', rbErr.message)
@@ -1173,13 +1143,12 @@ export const inviteTeamMember = createServerFn({ method: 'POST' })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
-    const ctx = context;
     await assertAdmin(context)
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server')
 
     // Duplicidade case-insensitive
     const { data: existing, error: existErr } = await supabaseAdmin
-      .from('profiles' as any)
+      .from('profiles')
       .select('id, email')
       .ilike('email', data.email)
       .maybeSingle()
@@ -1201,7 +1170,7 @@ export const inviteTeamMember = createServerFn({ method: 'POST' })
 
     // Persiste perfil + papel com rollback em qualquer falha
     try {
-      const { error: upErr } = await supabaseAdmin.from('profiles' as any).upsert(
+      const { error: upErr } = await supabaseAdmin.from('profiles').upsert(
         {
           id: userId,
           name: data.name,
@@ -1210,22 +1179,22 @@ export const inviteTeamMember = createServerFn({ method: 'POST' })
           active: data.active,
           can_use_ia: data.can_use_ia,
           avatar: data.name.charAt(0).toUpperCase(),
-        } ,
-        { onConflict: 'id' } ,
+        } as never,
+        { onConflict: 'id' } as never,
       )
       if (upErr) throw new Error(`profiles: ${upErr.message}`)
 
-      const { error: delErr } = await supabaseAdmin.from('user_roles' as any).delete().eq('user_id', userId)
+      const { error: delErr } = await supabaseAdmin.from('user_roles').delete().eq('user_id', userId)
       if (delErr) throw new Error(`user_roles delete: ${delErr.message}`)
       const { error: insErr } = await supabaseAdmin
-        .from('user_roles' as any)
-        .insert({ user_id: userId, role: data.role} )
+        .from('user_roles')
+        .insert({ user_id: userId, role: data.role } as never)
       if (insErr) throw new Error(`user_roles insert: ${insErr.message}`)
 
       if (!data.active) {
         const { error: banErr } = await supabaseAdmin.auth.admin.updateUserById(userId, {
           ban_duration: '87600h',
-       } )
+        } as never)
         if (banErr) throw new Error(`auth ban: ${banErr.message}`)
       }
     } catch (err) {
@@ -1251,7 +1220,6 @@ export const resendMemberInvite = createServerFn({ method: 'POST' })
     z.object({ email: z.string().trim().toLowerCase().email('E-mail inválido') }).parse(d),
   )
   .handler(async ({ data, context }) => {
-    const ctx = context;
     await assertAdmin(context)
     // Envia e-mail de recovery (o método público resetPasswordForEmail dispara
     // efetivamente o e-mail via GoTrue). Constroi um client server-side com a
@@ -1282,7 +1250,7 @@ export const resendMemberInvite = createServerFn({ method: 'POST' })
       },
     })
     const { error } = await client.auth.resetPasswordForEmail(data.email, { redirectTo })
-    if (error) throw new Error(error.message)
+    if (error) throw new Error(formatPasswordRecoveryRequestError(error))
 
     await auditTeam(context, 'reset_password', data.email)
     return { ok: true }
@@ -1296,10 +1264,9 @@ export const resendMemberInvite = createServerFn({ method: 'POST' })
 export const listAuditLogs = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const ctx = context;
     await assertAdmin(context)
-    const { data, error } = await (((context as any).supabase) as any)
-      .from('audit_logs' )
+    const { data, error } = await context.supabase
+      .from('audit_logs')
       .select('*')
       .order('occurred_at', { ascending: false })
       .limit(200)
@@ -1312,7 +1279,6 @@ export const listAuditLogs = createServerFn({ method: 'GET' })
 export const getDashboardStats = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const ctx = context;
     const startOfDay = new Date()
     startOfDay.setHours(0, 0, 0, 0)
     const startOfMonth = new Date()
@@ -1320,32 +1286,32 @@ export const getDashboardStats = createServerFn({ method: 'GET' })
     startOfMonth.setHours(0, 0, 0, 0)
 
     const [leadsRes, msgsRes, propsRes, ordersRes] = await Promise.all([
-      ((context as any).supabase).from('leads' as any).select('id, stage, value, temp, stale_hours, owner'),
-      ((context as any).supabase)
-        .from('lead_messages' )
+      context.supabase.from('leads').select('id, stage, value, temp, stale_hours, owner'),
+      context.supabase
+        .from('lead_messages')
         .select('id, sender', { count: 'exact', head: false })
         .gte('sent_at', startOfDay.toISOString()),
-      ((context as any).supabase).from('proposals' ).select('id, status, value'),
-      ((context as any).supabase).from('orders' ).select('id, value, created_at').gte('created_at', startOfMonth.toISOString()),
+      context.supabase.from('proposals').select('id, status, value'),
+      context.supabase.from('orders').select('id, value, created_at').gte('created_at', startOfMonth.toISOString()),
     ])
 
     const leads = leadsRes.data ?? []
-    const active = leads.filter((l: any) => l.stage !== 'Fechado' && l.stage !== 'Perdido')
-    const hot = leads.filter((l: any) => l.temp === 'hot').length
+    const active = leads.filter((l) => l.stage !== 'Fechado' && l.stage !== 'Perdido')
+    const hot = leads.filter((l) => l.temp === 'hot').length
     const stale = leads.filter((l) => (l.stale_hours ?? 0) >= 48).length
-    const pipelineValue = active.reduce((a: any, l: any) => a + Number(l.value || 0), 0)
+    const pipelineValue = active.reduce((a, l) => a + Number(l.value || 0), 0)
 
     const msgs = msgsRes.data ?? []
-    const msgsAna = msgs.filter((m: any) => m.sender === 'ia').length
+    const msgsAna = msgs.filter((m) => m.sender === 'ia').length
 
     const proposals = propsRes.data ?? []
-    const proposalsOpen = proposals.filter((p: any) => p.status !== 'Fechada' && p.status !== 'Perdida').length
+    const proposalsOpen = proposals.filter((p) => p.status !== 'Fechada' && p.status !== 'Perdida').length
     const proposalsValue = proposals
-      .filter((p: any) => p.status !== 'Perdida')
-      .reduce((a: any, p: any) => a + Number(p.value || 0), 0)
+      .filter((p) => p.status !== 'Perdida')
+      .reduce((a, p) => a + Number(p.value || 0), 0)
 
     const orders = ordersRes.data ?? []
-    const ordersValue = orders.reduce((a: any, o: any) => a + Number(o.value || 0), 0)
+    const ordersValue = orders.reduce((a, o) => a + Number(o.value || 0), 0)
 
     return {
       leadsActive: active.length,
@@ -1368,7 +1334,6 @@ export const getReportsData = createServerFn({ method: 'POST' })
     z.object({ period: z.enum(['30d', '3m', '6m', '12m']).optional() }).partial().parse(d ?? {}),
   )
   .handler(async ({ data, context }) => {
-    const ctx = context;
     const period = data.period ?? '6m'
     const monthsBack = period === '30d' ? 1 : period === '3m' ? 3 : period === '6m' ? 6 : 12
     const now = new Date()
@@ -1383,18 +1348,18 @@ export const getReportsData = createServerFn({ method: 'POST' })
 
 
     const [closedRes, allLeadsRes, teamRes, outreachRes] = await Promise.all([
-      ((context as any).supabase)
-        .from('leads' as any)
+      context.supabase
+        .from('leads')
         .select('id, updated_at, owner, assigned_to, value, origin, stage')
         .eq('stage', 'Fechado')
         .gte('updated_at', start.toISOString()),
-      ((context as any).supabase)
-        .from('leads' as any)
+      context.supabase
+        .from('leads')
         .select('id, origin, value, stage, owner, assigned_to, created_at, escalated')
         .gte('created_at', start.toISOString()),
-      ((context as any).supabase).from('profiles' as any).select('id, name'),
-      ((context as any).supabase)
-        .from('lead_outreach' )
+      context.supabase.from('profiles').select('id, name'),
+      context.supabase
+        .from('lead_outreach')
         .select('lead_id, channel, status, created_at, sent_at, replied_at, owner_id, actor_type')
         .gte('created_at', start.toISOString()),
     ])
@@ -1413,8 +1378,8 @@ export const getReportsData = createServerFn({ method: 'POST' })
       })
       return {
         label: m.label,
-        ia: inMonth.filter((l: any) => l.owner === 'ia').length,
-        humano: inMonth.filter((l: any) => l.owner !== 'ia').length,
+        ia: inMonth.filter((l) => l.owner === 'ia').length,
+        humano: inMonth.filter((l) => l.owner !== 'ia').length,
       }
     })
 
@@ -1443,7 +1408,7 @@ export const getReportsData = createServerFn({ method: 'POST' })
       }
     }
     const ranking = Array.from(map.values())
-      .map((r: any) => ({ ...r, taxa: r.leads > 0 ? ((r.fechados / r.leads) * 100).toFixed(1) + '%' : '0%' }))
+      .map((r) => ({ ...r, taxa: r.leads > 0 ? ((r.fechados / r.leads) * 100).toFixed(1) + '%' : '0%' }))
       .sort((a, b) => b.receita - a.receita)
 
     // Canais / origem
@@ -1452,23 +1417,23 @@ export const getReportsData = createServerFn({ method: 'POST' })
       const o = l.origin || 'Outros'
       origemMap.set(o, (origemMap.get(o) ?? 0) + 1)
     }
-    const totalOrigem = Array.from(origemMap.values()).reduce((a: any, b: any) => a + b, 0) || 1
+    const totalOrigem = Array.from(origemMap.values()).reduce((a, b) => a + b, 0) || 1
     const canais = Array.from(origemMap.entries())
       .map(([canal, leads]) => ({ canal, leads, pct: Math.round((leads / totalOrigem) * 100) }))
       .sort((a, b) => b.leads - a.leads)
 
     // KPIs topo
-    const receita7m = closed.reduce((a: any, l: any) => a + Number(l.value || 0), 0)
+    const receita7m = closed.reduce((a, l) => a + Number(l.value || 0), 0)
     const totalFechados = closed.length
     const ticket = totalFechados > 0 ? Math.round(receita7m / totalFechados) : 0
 
     const sentStatuses = new Set(['sent', 'delivered', 'read', 'replied'])
     const channelPerformance = (['whatsapp', 'email', 'phone'] as const).map((channel) => {
-      const rows = outreach.filter((row: any) => row.channel === channel && row.actor_type !== 'system')
-      const attemptedLeads = new Set(rows.map((row: any) => row.lead_id)).size
-      const sent = rows.filter((row: any) => row.has(row.status)).length
-      const replied = rows.filter((row: any) => row.status === 'replied' || row.replied_at).length
-      const failed = rows.filter((row: any) => row.status === 'failed').length
+      const rows = outreach.filter((row) => row.channel === channel && row.actor_type !== 'system')
+      const attemptedLeads = new Set(rows.map((row) => row.lead_id)).size
+      const sent = rows.filter((row) => sentStatuses.has(row.status)).length
+      const replied = rows.filter((row) => row.status === 'replied' || row.replied_at).length
+      const failed = rows.filter((row) => row.status === 'failed').length
       return {
         channel,
         attempts: rows.length,
@@ -1493,15 +1458,15 @@ export const getReportsData = createServerFn({ method: 'POST' })
       })
       .filter((value): value is number => value != null && Number.isFinite(value))
     const avgFirstContactMinutes = firstContactMinutes.length
-      ? Math.round(firstContactMinutes.reduce((sum: any, value: any) => sum + value, 0) / firstContactMinutes.length)
+      ? Math.round(firstContactMinutes.reduce((sum, value) => sum + value, 0) / firstContactMinutes.length)
       : null
     const funnelOrder = ['Prospecção', 'Qualificado', 'Proposta', 'Negociação', 'Pedido', 'Fechado', 'Perdido']
-    const funnel = funnelOrder.map((stage: any) => ({
+    const funnel = funnelOrder.map((stage) => ({
       stage,
-      count: allLeads.filter((lead: any) => lead.stage === stage).length,
+      count: allLeads.filter((lead) => lead.stage === stage).length,
     }))
     const contactedLeads = firstSentByLead.size
-    const responseLeads = new Set(outreach.filter((row: any) => row.status === 'replied' || row.replied_at).map((row: any) => row.lead_id)).size
+    const responseLeads = new Set(outreach.filter((row) => row.status === 'replied' || row.replied_at).map((row) => row.lead_id)).size
 
     return {
       months: series,
@@ -1517,8 +1482,8 @@ export const getReportsData = createServerFn({ method: 'POST' })
         contactedLeads,
         responseLeads,
         responseRate: contactedLeads > 0 ? Number(((responseLeads / contactedLeads) * 100).toFixed(1)) : 0,
-        conversionRate: allLeads.length > 0 ? Number(((allLeads.filter((lead: any) => lead.stage === 'Fechado').length / allLeads.length) * 100).toFixed(1)) : 0,
-        escalated: allLeads.filter((lead: any) => lead.escalated).length,
+        conversionRate: allLeads.length > 0 ? Number(((allLeads.filter((lead) => lead.stage === 'Fechado').length / allLeads.length) * 100).toFixed(1)) : 0,
+        escalated: allLeads.filter((lead) => lead.escalated).length,
         avgFirstContactMinutes,
       },
     }
@@ -1543,8 +1508,7 @@ export const listProspects = createServerFn({ method: 'GET' })
       .parse(d ?? {}),
   )
   .handler(async ({ data, context }) => {
-    const ctx = context;
-    let q = ((context as any).supabase).from('leads' as any).select('*').eq('stage', 'Prospecção')
+    let q = context.supabase.from('leads').select('*').eq('stage', 'Prospecção')
     if (data.segment) q = q.eq('segment', data.segment)
     if (data.uf) q = q.eq('uf', data.uf)
     if (data.min_score) q = q.gte('score', data.min_score)
@@ -1570,23 +1534,72 @@ export const bulkAssignProspects = createServerFn({ method: 'POST' })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
-    const ctx = context;
+    await assertAdmin(context)
+    const { data: selected, error: selectedError } = await context.supabase
+      .from('leads')
+      .select('id, company, assigned_to')
+      .in('id', data.ids)
+    if (selectedError) throw new Error(selectedError.message)
+    if ((selected ?? []).length !== data.ids.length) {
+      throw new Error('Um ou mais prospectos não estão disponíveis para aprovação.')
+    }
+    const approvedAt = new Date().toISOString()
     const patch: Record<string, unknown> = {
       owner: data.target === 'ana' ? 'ia' : 'human',
       stage: data.next_stage ?? 'Qualificado',
+      contact_approval_status: 'approved',
+      contact_approved_at: approvedAt,
+      contact_approved_by: context.userId,
+      contact_approval_reason: 'Aprovado manualmente pelo administrador na fila de prospecção.',
+      ai_paused: data.target !== 'ana',
+      automation_status: data.target === 'ana' ? 'not_started' : 'human',
+      automation_error: null,
+      automation_updated_at: approvedAt,
     }
     if (data.target === 'human' && data.assigned_to) patch.assigned_to = data.assigned_to
     if (data.target === 'ana') patch.assigned_to = null
-    const { error } = await (((context as any).supabase) as any).from('leads' as any).update(patch ).in('id', data.ids)
+    const { error } = await context.supabase.from('leads').update(patch as never).in('id', data.ids)
     if (error) throw new Error(error.message)
-    await (((context as any).supabase) as any).from('audit_logs' ).insert({
+    const started: string[] = []
+    const failed: Array<{ id: string; error: string }> = []
+    for (const lead of selected ?? []) {
+      const { error: ticketError } = await (context.supabase as any).from('tickets').insert({
+        lead_id: lead.id,
+        assigned_to: data.target === 'human' ? (data.assigned_to ?? lead.assigned_to) : null,
+        status: data.target === 'ana' ? 'open' : 'waiting_agent',
+        source_channel: 'whatsapp',
+      } as never)
+      if (ticketError && ticketError.code !== '23505') {
+        console.error('[tickets] create after approval:', ticketError.message)
+      }
+      if (data.target === 'ana') {
+        try {
+          const { triggerOutreachInternal } = await import('@/lib/outreach.functions')
+          const result = await triggerOutreachInternal(context as never, lead.id)
+          if (result.ok) started.push(lead.id)
+          else failed.push({ id: lead.id, error: result.reason ?? 'Não foi possível iniciar a cadência.' })
+        } catch (startError) {
+          const message = (startError as Error).message
+          await context.supabase
+            .from('leads')
+            .update({
+              automation_status: 'failed',
+              automation_error: message,
+              automation_updated_at: new Date().toISOString(),
+            } as never)
+            .eq('id', lead.id)
+          failed.push({ id: lead.id, error: message })
+        }
+      }
+    }
+    await context.supabase.from('audit_logs').insert({
       actor_id: context.userId,
       actor_name: context.claims?.email ?? 'user',
       actor_type: 'human',
       action: 'bulk_assign',
-      detail: `${data.ids.length} prospect(s) → ${data.target === 'ana' ? 'Ana (IA)' : 'Vendedor humano'}`,
-   } )
-    return { ok: true, count: data.ids.length }
+      detail: `${data.ids.length} prospect(s) aprovados → ${data.target === 'ana' ? 'Ana (IA)' : 'Vendedor humano'}`,
+    } as never)
+    return { ok: failed.length === 0, count: data.ids.length, outreach_started: started.length, failed }
   })
 
 // ============= SERVICES (Catálogo) =============
@@ -1605,8 +1618,7 @@ const serviceInput = z.object({
 export const listServices = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const ctx = context;
-    const { data, error } = await (((context as any).supabase) as any).from('services' ).select('*').order('name')
+    const { data, error } = await context.supabase.from('services').select('*').order('name')
     if (error) throw new Error(error.message)
     return data ?? []
   })
@@ -1617,21 +1629,20 @@ export const upsertService = createServerFn({ method: 'POST' })
     z.object({ id: z.string().uuid().optional().nullable(), patch: serviceInput.partial() }).parse(d),
   )
   .handler(async ({ data, context }) => {
-    const ctx = context;
     await assertAdmin(context)
     if (data.id) {
-      const { data: row, error } = await (((context as any).supabase) as any)
-        .from('services' )
-        .update(data.patch )
+      const { data: row, error } = await context.supabase
+        .from('services')
+        .update(data.patch as never)
         .eq('id', data.id)
         .select()
         .single()
       if (error) throw new Error(error.message)
       return row
     }
-    const { data: row, error } = await (((context as any).supabase) as any)
-      .from('services' )
-      .insert({ ...(data.patch as Record<string, unknown>), active: data.patch.active ?? true} )
+    const { data: row, error } = await context.supabase
+      .from('services')
+      .insert({ ...(data.patch as Record<string, unknown>), active: data.patch.active ?? true } as never)
       .select()
       .single()
     if (error) throw new Error(error.message)
@@ -1642,9 +1653,8 @@ export const deleteService = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const ctx = context;
     await assertAdmin(context)
-    const { error } = await (((context as any).supabase) as any).from('services' ).delete().eq('id', data.id)
+    const { error } = await context.supabase.from('services').delete().eq('id', data.id)
     if (error) throw new Error(error.message)
     return { ok: true }
   })
@@ -1654,8 +1664,7 @@ export const deleteService = createServerFn({ method: 'POST' })
 export const listObjections = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const ctx = context;
-    const { data, error } = await (((context as any).supabase) as any).from('objections' ).select('*').order('created_at', { ascending: false })
+    const { data, error } = await context.supabase.from('objections').select('*').order('created_at', { ascending: false })
     if (error) throw new Error(error.message)
     return data ?? []
   })
@@ -1672,21 +1681,20 @@ export const upsertObjection = createServerFn({ method: 'POST' })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
-    const ctx = context;
     await assertAdmin(context)
     if (data.id) {
-      const { data: row, error } = await (((context as any).supabase) as any)
-        .from('objections' )
-        .update({ trigger: data.trigger, response: data.response} )
+      const { data: row, error } = await context.supabase
+        .from('objections')
+        .update({ trigger: data.trigger, response: data.response } as never)
         .eq('id', data.id)
         .select()
         .single()
       if (error) throw new Error(error.message)
       return row
     }
-    const { data: row, error } = await (((context as any).supabase) as any)
-      .from('objections' )
-      .insert({ trigger: data.trigger, response: data.response} )
+    const { data: row, error } = await context.supabase
+      .from('objections')
+      .insert({ trigger: data.trigger, response: data.response } as never)
       .select()
       .single()
     if (error) throw new Error(error.message)
@@ -1697,9 +1705,8 @@ export const deleteObjection = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const ctx = context;
     await assertAdmin(context)
-    const { error } = await (((context as any).supabase) as any).from('objections' ).delete().eq('id', data.id)
+    const { error } = await context.supabase.from('objections').delete().eq('id', data.id)
     if (error) throw new Error(error.message)
     return { ok: true }
   })
@@ -1709,8 +1716,7 @@ export const deleteObjection = createServerFn({ method: 'POST' })
 export const getScoreWeights = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const ctx = context;
-    const { data, error } = await (((context as any).supabase) as any).from('score_weights' ).select('*').limit(1).maybeSingle()
+    const { data, error } = await context.supabase.from('score_weights').select('*').limit(1).maybeSingle()
     if (error) throw new Error(error.message)
     return data
   })
@@ -1730,20 +1736,19 @@ export const updateScoreWeights = createServerFn({ method: 'POST' })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
-    const ctx = context;
     await assertAdmin(context)
-    const { data: existing } = await (((context as any).supabase) as any).from('score_weights' ).select('id').limit(1).maybeSingle()
+    const { data: existing } = await context.supabase.from('score_weights').select('id').limit(1).maybeSingle()
     if (existing?.id) {
-      const { data: row, error } = await (((context as any).supabase) as any)
-        .from('score_weights' )
-        .update(data )
+      const { data: row, error } = await context.supabase
+        .from('score_weights')
+        .update(data as never)
         .eq('id', existing.id)
         .select()
         .single()
       if (error) throw new Error(error.message)
       return row
     }
-    const { data: row, error } = await (((context as any).supabase) as any).from('score_weights' ).insert(data ).select().single()
+    const { data: row, error } = await context.supabase.from('score_weights').insert(data as never).select().single()
     if (error) throw new Error(error.message)
     return row
   })
@@ -1753,9 +1758,8 @@ export const updateScoreWeights = createServerFn({ method: 'POST' })
 export const listUnansweredQuestions = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const ctx = context;
-    const { data, error } = await (((context as any).supabase) as any)
-      .from('unanswered_questions' )
+    const { data, error } = await context.supabase
+      .from('unanswered_questions')
       .select('*')
       .order('count', { ascending: false })
       .limit(200)
@@ -1767,23 +1771,22 @@ export const registerUnansweredQuestion = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ text: z.string().min(2) }).parse(d))
   .handler(async ({ data, context }) => {
-    const ctx = context;
-    const { data: existing } = await (((context as any).supabase) as any)
-      .from('unanswered_questions' )
+    const { data: existing } = await context.supabase
+      .from('unanswered_questions')
       .select('id, count')
       .eq('text', data.text)
       .maybeSingle()
     if (existing?.id) {
-      const { error } = await (((context as any).supabase) as any)
-        .from('unanswered_questions' )
-        .update({ count: (existing.count ?? 1) + 1, resolved: false} )
+      const { error } = await context.supabase
+        .from('unanswered_questions')
+        .update({ count: (existing.count ?? 1) + 1, resolved: false } as never)
         .eq('id', existing.id)
       if (error) throw new Error(error.message)
       return { ok: true }
     }
-    const { error } = await (((context as any).supabase) as any)
-      .from('unanswered_questions' )
-      .insert({ text: data.text, count: 1, resolved: false} )
+    const { error } = await context.supabase
+      .from('unanswered_questions')
+      .insert({ text: data.text, count: 1, resolved: false } as never)
     if (error) throw new Error(error.message)
     return { ok: true }
   })
@@ -1796,12 +1799,11 @@ export const resolveUnansweredQuestion = createServerFn({ method: 'POST' })
     answer: z.string().trim().min(2).max(4000).optional().nullable(),
   }).parse(d))
   .handler(async ({ data, context }) => {
-    const ctx = context;
     await assertAdmin(context)
     if (data.resolved && !data.answer) throw new Error('Informe a resposta aprovada antes de resolver.')
-    const { error } = await (((context as any).supabase) as any)
-      .from('unanswered_questions' )
-      .update({ resolved: data.resolved, ...(data.answer ? { answer: data.answer } : {})} )
+    const { error } = await context.supabase
+      .from('unanswered_questions')
+      .update({ resolved: data.resolved, ...(data.answer ? { answer: data.answer } : {}) } as never)
       .eq('id', data.id)
     if (error) throw new Error(error.message)
     return { ok: true }
@@ -1811,9 +1813,8 @@ export const deleteUnansweredQuestion = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const ctx = context;
     await assertAdmin(context)
-    const { error } = await (((context as any).supabase) as any).from('unanswered_questions' ).delete().eq('id', data.id)
+    const { error } = await context.supabase.from('unanswered_questions').delete().eq('id', data.id)
     if (error) throw new Error(error.message)
     return { ok: true }
   })
@@ -1824,9 +1825,8 @@ export const deleteUnansweredQuestion = createServerFn({ method: 'POST' })
 export const listNotifications = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const ctx = context;
-    const { data, error } = await (((context as any).supabase) as any)
-      .from('notifications' )
+    const { data, error } = await context.supabase
+      .from('notifications')
       .select('*')
       .eq('user_id', context.userId)
       .order('created_at', { ascending: false })
@@ -1838,10 +1838,9 @@ export const listNotifications = createServerFn({ method: 'GET' })
 export const markAllNotificationsRead = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const ctx = context;
-    const { error } = await (((context as any).supabase) as any)
-      .from('notifications' )
-      .update({ read: true} )
+    const { error } = await context.supabase
+      .from('notifications')
+      .update({ read: true } as never)
       .eq('user_id', context.userId)
       .eq('read', false)
     if (error) throw new Error(error.message)
@@ -1858,15 +1857,14 @@ export const pushNotification = createServerFn({ method: 'POST' })
     }).parse(d),
   )
   .handler(async ({ data, context }) => {
-    const ctx = context;
-    const { data: row, error } = await (((context as any).supabase) as any)
-      .from('notifications' )
+    const { data: row, error } = await context.supabase
+      .from('notifications')
       .insert({
         user_id: context.userId,
         kind: data.kind,
         title: data.title,
         description: data.description ?? null,
-     } )
+      } as never)
       .select()
       .single()
     if (error) throw new Error(error.message)
@@ -1879,22 +1877,21 @@ export const globalSearch = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ q: z.string().min(1) }).parse(d))
   .handler(async ({ data, context }) => {
-    const ctx = context;
     const q = data.q.trim()
     const pattern = `%${q}%`
     const [leads, proposals, orders] = await Promise.all([
-      ((context as any).supabase)
-        .from('leads' as any)
+      context.supabase
+        .from('leads')
         .select('id, company, contact, email')
         .or(`company.ilike.${pattern},contact.ilike.${pattern},email.ilike.${pattern}`)
         .limit(8),
-      ((context as any).supabase)
-        .from('proposals' )
+      context.supabase
+        .from('proposals')
         .select('id, number, client')
         .or(`number.ilike.${pattern},client.ilike.${pattern}`)
         .limit(8),
-      ((context as any).supabase)
-        .from('orders' )
+      context.supabase
+        .from('orders')
         .select('id, number, company')
         .or(`number.ilike.${pattern},company.ilike.${pattern}`)
         .limit(8),
@@ -1911,25 +1908,24 @@ export const globalSearch = createServerFn({ method: 'GET' })
 export const retrainAna = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const ctx = context;
     // Records a retrain event; the actual model context is rebuilt from company_settings + objections at chat time.
     const [{ count: objectionsCount }, { count: questionsCount }] = await Promise.all([
-      ((context as any).supabase).from('objections' ).select('id', { count: 'exact', head: true }),
-      ((context as any).supabase).from('unanswered_questions' ).select('id', { count: 'exact', head: true }).eq('resolved', true),
+      context.supabase.from('objections').select('id', { count: 'exact', head: true }),
+      context.supabase.from('unanswered_questions').select('id', { count: 'exact', head: true }).eq('resolved', true),
     ])
-    await (((context as any).supabase) as any).from('audit_logs' ).insert({
+    await context.supabase.from('audit_logs').insert({
       actor_id: context.userId,
       actor_name: (context.claims?.email as string | undefined) ?? 'user',
       actor_type: 'human',
       action: 'ana_retrain',
       detail: `Ana retreinada com ${objectionsCount ?? 0} objeções e ${questionsCount ?? 0} respostas aprendidas.`,
-   } )
-    await (((context as any).supabase) as any).from('notifications' ).insert({
+    } as never)
+    await context.supabase.from('notifications').insert({
       user_id: context.userId,
       kind: 'ana',
       title: 'Ana foi retreinada',
       description: `Base atualizada: ${objectionsCount ?? 0} objeções · ${questionsCount ?? 0} respostas aprendidas.`,
-   } )
+    } as never)
     return { ok: true, objections: objectionsCount ?? 0, learned: questionsCount ?? 0 }
   })
 
@@ -1938,11 +1934,10 @@ export const retrainAna = createServerFn({ method: 'POST' })
 export const getSidebarCounts = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const ctx = context;
     const [leads, proposalsPending, unreadNotif] = await Promise.all([
-      ((context as any).supabase).from('leads' as any).select('id', { count: 'exact', head: true }).in('stage', ['Prospecção', 'Qualificado']),
-      ((context as any).supabase).from('proposals' ).select('id', { count: 'exact', head: true }).in('status', ['Rascunho', 'Enviado', 'Visualizado']),
-      ((context as any).supabase).from('notifications' ).select('id', { count: 'exact', head: true }).eq('user_id', context.userId).eq('read', false),
+      context.supabase.from('leads').select('id', { count: 'exact', head: true }).in('stage', ['Prospecção', 'Qualificado']),
+      context.supabase.from('proposals').select('id', { count: 'exact', head: true }).in('status', ['Rascunho', 'Enviado', 'Visualizado']),
+      context.supabase.from('notifications').select('id', { count: 'exact', head: true }).eq('user_id', context.userId).eq('read', false),
     ])
     return {
       leads: leads.count ?? 0,
@@ -1956,13 +1951,12 @@ export const getSidebarCounts = createServerFn({ method: 'GET' })
 export const listIntegrations = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const ctx = context;
-    const { data, error } = await (((context as any).supabase) as any)
-      .from('integrations' )
+    const { data, error } = await context.supabase
+      .from('integrations')
       .select('id, key, label, connected, updated_at')
       .order('label', { ascending: true })
     if (error) throw new Error(error.message)
-    return (data ?? []).map((integration) => {
+    const persisted = (data ?? []).map((integration) => {
       if (integration.key === 'whatsapp') {
         return {
           ...integration,
@@ -1981,6 +1975,32 @@ export const listIntegrations = createServerFn({ method: 'GET' })
       }
       return { ...integration, managed: false }
     })
+    const managed = [
+      {
+        id: 'managed-openai', key: 'openai', label: 'IA — OpenAI',
+        connected: Boolean(process.env.OPENAI_API_KEY), managed: true, updated_at: new Date().toISOString(),
+      },
+      {
+        id: 'managed-anthropic', key: 'anthropic', label: 'IA — Anthropic Claude',
+        connected: Boolean(process.env.ANTHROPIC_API_KEY), managed: true, updated_at: new Date().toISOString(),
+      },
+      {
+        id: 'managed-gemini', key: 'gemini', label: 'IA — Google Gemini',
+        connected: Boolean(process.env.GEMINI_API_KEY), managed: true, updated_at: new Date().toISOString(),
+      },
+      {
+        id: 'managed-instagram', key: 'instagram', label: 'Instagram (Meta Graph API)',
+        connected: Boolean(process.env.META_PAGE_ACCESS_TOKEN && process.env.META_WEBHOOK_VERIFY_TOKEN),
+        managed: true, updated_at: new Date().toISOString(),
+      },
+      {
+        id: 'managed-voip', key: 'voip', label: 'Telefonia / VoIP',
+        connected: Boolean(process.env.VOIP_API_URL && process.env.VOIP_API_TOKEN),
+        managed: true, updated_at: new Date().toISOString(),
+      },
+    ]
+    const persistedKeys = new Set(persisted.map((item) => item.key))
+    return [...persisted, ...managed.filter((item) => !persistedKeys.has(item.key))]
   })
 
 // ============= EXTRA ACTIONS (edit/status/duplicate/disconnect) =============
@@ -1991,10 +2011,9 @@ export const setProposalStatus = createServerFn({ method: 'POST' })
     z.object({ id: z.string().uuid(), status: z.string().min(1) }).parse(d),
   )
   .handler(async ({ data, context }) => {
-    const ctx = context;
-    const { data: row, error } = await (((context as any).supabase) as any)
-      .from('proposals' )
-      .update({ status: data.status} )
+    const { data: row, error } = await context.supabase
+      .from('proposals')
+      .update({ status: data.status } as never)
       .eq('id', data.id)
       .select()
       .single()
@@ -2006,19 +2025,18 @@ export const duplicateProposal = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const ctx = context;
-    const { data: src, error: e1 } = await (((context as any).supabase) as any)
-      .from('proposals' ).select('*').eq('id', data.id).single()
+    const { data: src, error: e1 } = await context.supabase
+      .from('proposals').select('*').eq('id', data.id).single()
     if (e1 || !src) throw new Error(e1?.message ?? 'Proposta não encontrada')
-    const { count } = await (((context as any).supabase) as any).from('proposals' ).select('id', { count: 'exact', head: true })
+    const { count } = await context.supabase.from('proposals').select('id', { count: 'exact', head: true })
     const number = `ORC-${String((count ?? 0) + 1).padStart(4, '0')}`
     const clone: Record<string, unknown> = { ...src }
     delete clone.id; delete clone.created_at; delete clone.updated_at
     clone.number = number
     clone.status = 'rascunho'
     clone.owner_id = context.userId
-    const { data: row, error } = await (((context as any).supabase) as any)
-      .from('proposals' ).insert(clone ).select().single()
+    const { data: row, error } = await context.supabase
+      .from('proposals').insert(clone as never).select().single()
     if (error) throw new Error(error.message)
     return row
   })
@@ -2027,29 +2045,28 @@ export const convertProposalToOrder = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const ctx = context;
-    const { data: p, error: e1 } = await (((context as any).supabase) as any)
-      .from('proposals' ).select('*').eq('id', data.id).single()
+    const { data: p, error: e1 } = await context.supabase
+      .from('proposals').select('*').eq('id', data.id).single()
     if (e1 || !p) throw new Error(e1?.message ?? 'Proposta não encontrada')
-    const { count } = await (((context as any).supabase) as any).from('orders' ).select('id', { count: 'exact', head: true })
+    const { count } = await context.supabase.from('orders').select('id', { count: 'exact', head: true })
     const number = `PED-${String((count ?? 0) + 1).padStart(4, '0')}`
     const orderPayload: Record<string, unknown> = {
       number,
-      lead_id: (p ).lead_id ?? null,
-      proposal_id: (p ).id,
-      company: (p ).client,
-      seller_name: (p ).creator_name ?? null,
+      lead_id: (p as any).lead_id ?? null,
+      proposal_id: (p as any).id,
+      company: (p as any).client,
+      seller_name: (p as any).creator_name ?? null,
       seller_type: 'human',
       order_date: new Date().toISOString().slice(0, 10),
-      items: (p ).items ?? '[]',
-      value: (p ).value,
+      items: (p as any).items ?? '[]',
+      value: (p as any).value,
       status: 'producao',
       owner_id: context.userId,
     }
-    const { data: order, error: e2 } = await (((context as any).supabase) as any)
-      .from('orders' ).insert(orderPayload ).select().single()
+    const { data: order, error: e2 } = await context.supabase
+      .from('orders').insert(orderPayload as never).select().single()
     if (e2) throw new Error(e2.message)
-    await (((context as any).supabase) as any).from('proposals' ).update({ status: 'aprovado'} ).eq('id', data.id)
+    await context.supabase.from('proposals').update({ status: 'aprovado' } as never).eq('id', data.id)
     return order
   })
 
@@ -2059,10 +2076,9 @@ export const setOrderStatus = createServerFn({ method: 'POST' })
     z.object({ id: z.string().uuid(), status: z.string().min(1) }).parse(d),
   )
   .handler(async ({ data, context }) => {
-    const ctx = context;
-    const { data: row, error } = await (((context as any).supabase) as any)
-      .from('orders' )
-      .update({ status: data.status} )
+    const { data: row, error } = await context.supabase
+      .from('orders')
+      .update({ status: data.status } as never)
       .eq('id', data.id)
       .select()
       .single()
@@ -2076,10 +2092,9 @@ export const markNotificationRead = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid(), read: z.boolean().default(true) }).parse(d))
   .handler(async ({ data, context }) => {
-    const ctx = context;
-    const { error } = await (((context as any).supabase) as any)
-      .from('notifications' )
-      .update({ read: data.read} )
+    const { error } = await context.supabase
+      .from('notifications')
+      .update({ read: data.read } as never)
       .eq('id', data.id)
       .eq('user_id', context.userId)
     if (error) throw new Error(error.message)
@@ -2090,9 +2105,8 @@ export const deleteNotification = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const ctx = context;
-    const { error } = await (((context as any).supabase) as any)
-      .from('notifications' )
+    const { error } = await context.supabase
+      .from('notifications')
       .delete()
       .eq('id', data.id)
       .eq('user_id', context.userId)
@@ -2106,10 +2120,9 @@ export const disconnectIntegration = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ key: z.string().min(1) }).parse(d))
   .handler(async ({ data, context }) => {
-    const ctx = context;
-    const { error } = await (((context as any).supabase) as any)
-      .from('integrations' )
-      .update({ connected: false} )
+    const { error } = await context.supabase
+      .from('integrations')
+      .update({ connected: false } as never)
       .eq('key', data.key)
     if (error) throw new Error(error.message)
     return { ok: true }
@@ -2121,9 +2134,8 @@ export const listLeadNotes = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: { lead_id: string }) => z.object({ lead_id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const ctx = context;
-    const { data: rows, error } = await (((context as any).supabase) )
-      .from('lead_notes' )
+    const { data: rows, error } = await (context.supabase as any)
+      .from('lead_notes')
       .select('id, lead_id, author_id, body, created_at, updated_at')
       .eq('lead_id', data.lead_id)
       .order('created_at', { ascending: false })
@@ -2136,9 +2148,8 @@ export const createLeadNote = createServerFn({ method: 'POST' })
   .inputValidator((d: { lead_id: string; body: string }) =>
     z.object({ lead_id: z.string().uuid(), body: z.string().min(1).max(4000) }).parse(d))
   .handler(async ({ data, context }) => {
-    const ctx = context;
-    const { data: row, error } = await (((context as any).supabase) )
-      .from('lead_notes' )
+    const { data: row, error } = await (context.supabase as any)
+      .from('lead_notes')
       .insert({ lead_id: data.lead_id, body: data.body, author_id: context.userId })
       .select()
       .single()
@@ -2150,8 +2161,7 @@ export const deleteLeadNote = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: { id: string }) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const ctx = context;
-    const { error } = await (((context as any).supabase) ).from('lead_notes' ).delete().eq('id', data.id)
+    const { error } = await (context.supabase as any).from('lead_notes').delete().eq('id', data.id)
     if (error) throw new Error(error.message)
     return { ok: true }
   })
@@ -2160,9 +2170,8 @@ export const listStageHistory = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: { lead_id: string }) => z.object({ lead_id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const ctx = context;
-    const { data: rows, error } = await (((context as any).supabase) )
-      .from('lead_stage_history' )
+    const { data: rows, error } = await (context.supabase as any)
+      .from('lead_stage_history')
       .select('id, from_stage, to_stage, source, reason, changed_by, created_at')
       .eq('lead_id', data.lead_id)
       .order('created_at', { ascending: false })
@@ -2175,9 +2184,8 @@ export const listAssignmentHistory = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: { lead_id: string }) => z.object({ lead_id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const ctx = context;
-    const { data: rows, error } = await (((context as any).supabase) )
-      .from('lead_assignments' )
+    const { data: rows, error } = await (context.supabase as any)
+      .from('lead_assignments')
       .select('id, from_user, to_user, source, reason, changed_by, created_at')
       .eq('lead_id', data.lead_id)
       .order('created_at', { ascending: false })
@@ -2190,9 +2198,8 @@ export const listContactPoints = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: { lead_id: string }) => z.object({ lead_id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const ctx = context;
-    const { data: rows, error } = await (((context as any).supabase) )
-      .from('contact_points' )
+    const { data: rows, error } = await (context.supabase as any)
+      .from('contact_points')
       .select('id, kind, value, verified, preferred, status, source, created_at')
       .eq('lead_id', data.lead_id)
       .order('preferred', { ascending: false })
@@ -2226,14 +2233,13 @@ export const upsertContactPoint = createServerFn({ method: 'POST' })
     }).parse(d),
   )
   .handler(async ({ data, context }) => {
-    const ctx = context;
-    const supabase = ((context as any).supabase) 
+    const supabase = context.supabase as any
     const normalized = normalizeContactValue(data.kind, data.value)
     // Se marcar preferred, desmarca os demais desse lead
     if (data.preferred) {
       await supabase
-        .from('contact_points' )
-        .update({ preferred: false} )
+        .from('contact_points')
+        .update({ preferred: false } as never)
         .eq('lead_id', data.lead_id)
     }
     const payload = {
@@ -2249,8 +2255,8 @@ export const upsertContactPoint = createServerFn({ method: 'POST' })
     }
     if (data.id) {
       const { data: row, error } = await supabase
-        .from('contact_points' )
-        .update(payload )
+        .from('contact_points')
+        .update(payload as never)
         .eq('id', data.id)
         .select()
         .single()
@@ -2258,8 +2264,8 @@ export const upsertContactPoint = createServerFn({ method: 'POST' })
       return row
     }
     const { data: row, error } = await supabase
-      .from('contact_points' )
-      .insert(payload )
+      .from('contact_points')
+      .insert(payload as never)
       .select()
       .single()
     if (error) throw new Error(error.message)
@@ -2270,8 +2276,7 @@ export const deleteContactPoint = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const ctx = context;
-    const { error } = await (((context as any).supabase) ).from('contact_points' ).delete().eq('id', data.id)
+    const { error } = await (context.supabase as any).from('contact_points').delete().eq('id', data.id)
     if (error) throw new Error(error.message)
     return { ok: true }
   })
@@ -2282,9 +2287,8 @@ export const listConsentEvents = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ lead_id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const ctx = context;
-    const { data: rows, error } = await (((context as any).supabase) )
-      .from('consent_events' )
+    const { data: rows, error } = await (context.supabase as any)
+      .from('consent_events')
       .select('id, event, channel, source, text, actor_id, created_at, contact_point_id')
       .eq('lead_id', data.lead_id)
       .order('created_at', { ascending: false })
@@ -2298,41 +2302,40 @@ export const listConsentEvents = createServerFn({ method: 'GET' })
 export const getOpsMetrics = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const ctx = context;
-    const supabase = ((context as any).supabase) 
+    const supabase = context.supabase as any
     const since = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString()
     const [outreachRes, optOutRes, legacyHandoffRes, anaTasksRes, handoffRes, enrollmentRes, appointmentRes] = await Promise.all([
       supabase
-        .from('lead_outreach' )
+        .from('lead_outreach')
         .select('channel, status, actor_type')
         .gte('created_at', since),
       supabase
-        .from('leads' as any)
+        .from('leads')
         .select('id', { count: 'exact', head: true })
         .eq('opt_out', true),
       supabase
-        .from('audit_logs' )
+        .from('audit_logs')
         .select('detail')
         .eq('action', 'handoff_automatic')
         .gte('created_at', since)
         .limit(500),
       supabase
-        .from('lead_tasks' )
+        .from('lead_tasks')
         .select('id', { count: 'exact', head: true })
         .in('owner_label', ['Vendedor', 'Vendedor (prioritário)'])
         .gte('created_at', since),
       supabase
-        .from('lead_handoffs' )
+        .from('lead_handoffs')
         .select('status, category, requested_at, due_at, accepted_at')
         .gte('requested_at', since)
         .limit(1000),
       supabase
-        .from('lead_sequence_enrollments' )
+        .from('lead_sequence_enrollments')
         .select('status, pause_reason')
         .gte('started_at', since)
         .limit(2000),
       supabase
-        .from('appointments' )
+        .from('appointments')
         .select('status')
         .gte('created_at', since)
         .limit(1000),
@@ -2375,9 +2378,9 @@ export const getOpsMetrics = createServerFn({ method: 'GET' })
       }
     }
     const responseMinutes = structuredHandoffs
-      .filter((row: any) => row.accepted_at)
+      .filter((row) => row.accepted_at)
       .map((row) => (new Date(row.accepted_at as string).getTime() - new Date(row.requested_at).getTime()) / 60_000)
-      .filter((value: any) => value.isFinite(value) && value >= 0)
+      .filter((value) => Number.isFinite(value) && value >= 0)
     const now = Date.now()
     const enrollments = (enrollmentRes.data ?? []) as Array<{ status: string; pause_reason: string | null }>
     const appointments = (appointmentRes.data ?? []) as Array<{ status: string }>
@@ -2388,24 +2391,24 @@ export const getOpsMetrics = createServerFn({ method: 'GET' })
       anaTaskCount: anaTasksRes.count ?? 0,
       handoffs: {
         total: structuredHandoffs.length || legacyHandoffs.length,
-        pending: structuredHandoffs.filter((row: any) => row.status === 'pending').length,
-        accepted: structuredHandoffs.filter((row: any) => row.status === 'accepted' || row.status === 'closed').length,
+        pending: structuredHandoffs.filter((row) => row.status === 'pending').length,
+        accepted: structuredHandoffs.filter((row) => row.status === 'accepted' || row.status === 'closed').length,
         overdue: structuredHandoffs.filter((row) =>
           row.status === 'pending' && row.due_at && new Date(row.due_at).getTime() < now,
         ).length,
         avgResponseMinutes: responseMinutes.length
-          ? Math.round(responseMinutes.reduce((sum: any, value: any) => sum + value, 0) / responseMinutes.length)
+          ? Math.round(responseMinutes.reduce((sum, value) => sum + value, 0) / responseMinutes.length)
           : null,
       },
       sequences: {
-        active: enrollments.filter((row: any) => row.status === 'active' || row.status === 'paused').length,
-        completed: enrollments.filter((row: any) => row.status === 'completed').length,
-        handedOff: enrollments.filter((row: any) => row.pause_reason?.startsWith('handoff:')).length,
+        active: enrollments.filter((row) => row.status === 'active' || row.status === 'paused').length,
+        completed: enrollments.filter((row) => row.status === 'completed').length,
+        handedOff: enrollments.filter((row) => row.pause_reason?.startsWith('handoff:')).length,
       },
       appointments: {
-        scheduled: appointments.filter((row: any) => row.status === 'scheduled').length,
-        completed: appointments.filter((row: any) => row.status === 'completed').length,
-        noShow: appointments.filter((row: any) => row.status === 'no_show').length,
+        scheduled: appointments.filter((row) => row.status === 'scheduled').length,
+        completed: appointments.filter((row) => row.status === 'completed').length,
+        noShow: appointments.filter((row) => row.status === 'no_show').length,
       },
       windowDays: 30,
     }

@@ -1,7 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { computeNextRun } from '@/lib/prospecting-schedules.functions'
 
-// Chamado por pg_cron a cada 15 min. Executa toda campanha com next_run_at
+// Chamado pelo agendador recorrente. Executa toda campanha com next_run_at
 // vencido, respeitando quiet_hours e pausando após 3 falhas consecutivas.
 export const Route = createFileRoute('/api/public/prospecting-tick')({
   server: {
@@ -20,6 +20,12 @@ export const Route = createFileRoute('/api/public/prospecting-tick')({
         const { supabaseAdmin } = await import('@/integrations/supabase/client.server')
         const { runProspectingCampaignInternal } = await import('@/lib/prospecting.functions')
         const nowIso = new Date().toISOString()
+        await updateHeartbeat(supabaseAdmin, {
+          last_started_at: nowIso,
+          status: 'running',
+          last_error: null,
+          detail: {},
+        })
 
         const { data: due, error } = await supabaseAdmin
           .from('prospecting_schedules')
@@ -27,7 +33,14 @@ export const Route = createFileRoute('/api/public/prospecting-tick')({
           .eq('active', true)
           .lte('next_run_at', nowIso)
           .limit(20)
-        if (error) return Response.json({ ok: false, error: error.message }, { status: 500 })
+        if (error) {
+          await updateHeartbeat(supabaseAdmin, {
+            last_finished_at: new Date().toISOString(),
+            status: 'failed',
+            last_error: error.message,
+          })
+          return Response.json({ ok: false, error: error.message }, { status: 500 })
+        }
 
         const processed: Array<{ id: string; result: unknown }> = []
         const failed: Array<{ id: string; error: string }> = []
@@ -118,11 +131,30 @@ export const Route = createFileRoute('/api/public/prospecting-tick')({
           }
         }
 
-        return Response.json({ ok: failed.length === 0, processed, failed })
+        const ok = failed.length === 0
+        await updateHeartbeat(supabaseAdmin, {
+          last_finished_at: new Date().toISOString(),
+          status: ok ? 'success' : 'partial',
+          last_error: ok ? null : failed[0]?.error,
+          detail: { processed: processed.length, failed },
+        })
+        return Response.json({ ok, processed, failed })
       },
     },
   },
 })
+
+async function updateHeartbeat(supabase: any, patch: Record<string, unknown>) {
+  try {
+    const { error } = await supabase
+      .from('automation_heartbeats')
+      .update({ ...patch, updated_at: new Date().toISOString() } as never)
+      .eq('job_name', 'prospecting')
+    if (error) console.error('prospecting_heartbeat_failed', error.message)
+  } catch (error) {
+    console.error('prospecting_heartbeat_failed', (error as Error).message)
+  }
+}
 
 function isWithinQuietHours(now: Date, startHm: string, endHm: string, timezone: string): boolean {
   const hm = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: timezone }).format(now)

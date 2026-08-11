@@ -15,21 +15,44 @@ import {
   CheckCircle2,
   Users,
   Filter,
+  Tags,
+  StickyNote,
+  Timer,
+  PhoneCall,
+  Copy,
+  Paperclip,
+  AlertTriangle,
 } from "lucide-react";
 import { Card } from "@/components/ui-kit";
+import { toast } from "sonner";
 import {
   assignLeadToSeller,
   listLeadMessages,
   listLeads,
   listTeam,
 } from "@/lib/crm.functions";
-import { listOutreach, sendManualWhatsapp } from "@/lib/outreach.functions";
+import { listOutreach, sendManualInstagram, sendManualWhatsapp } from "@/lib/outreach.functions";
 import { acceptHandoff, getLeadAutomation } from "@/lib/sales-automation.functions";
-import type { Database } from "@/types/database";
+import {
+  addInternalNote,
+  getCentralOperations,
+  listLeadAttachments,
+  startVoipCall,
+  toggleCentralTag,
+  updateCentralTicket,
+} from "@/lib/central-operations.functions";
+import type { Database } from "@/integrations/supabase/types";
 
 type LeadRow = Database["public"]["Tables"]["leads"]["Row"];
 type MsgRow = Database["public"]["Tables"]["lead_messages"]["Row"];
 type OutreachRow = Database["public"]["Tables"]["lead_outreach"]["Row"];
+type AttachmentRow = {
+  id: string;
+  message_id: string | null;
+  media_type: "image" | "audio" | "document" | "video";
+  file_name: string | null;
+  signed_url: string | null;
+};
 type TeamMember = {
   id: string;
   name: string | null;
@@ -232,6 +255,11 @@ function LeadQueueItem({
               {channel.label}
             </span>
           ))}
+          {lead.automation_status === "failed" && (
+            <span className="rounded bg-error/10 px-1.5 py-0.5 text-[9px] font-semibold text-error">
+              Automacao falhou
+            </span>
+          )}
         </div>
       </button>
     </li>
@@ -251,10 +279,12 @@ function ConversationPane({
 }) {
   const qc = useQueryClient();
   const messagesFn = useServerFn(listLeadMessages);
+  const attachmentsFn = useServerFn(listLeadAttachments);
   const outreachFn = useServerFn(listOutreach);
   const automationFn = useServerFn(getLeadAutomation);
   const acceptFn = useServerFn(acceptHandoff);
   const sendFn = useServerFn(sendManualWhatsapp);
+  const sendInstagramFn = useServerFn(sendManualInstagram);
   const assignFn = useServerFn(assignLeadToSeller);
   const [text, setText] = useState("");
 
@@ -263,6 +293,19 @@ function ConversationPane({
     queryFn: () => messagesFn({ data: { lead_id: lead.id } }),
     refetchInterval: 15_000,
   });
+  const { data: attachments = [] } = useQuery<AttachmentRow[]>({
+    queryKey: ["lead-attachments", lead.id],
+    queryFn: () => attachmentsFn({ data: { lead_id: lead.id } }),
+    refetchInterval: 30_000,
+  });
+  const attachmentsByMessage = useMemo(() => {
+    const map = new Map<string, AttachmentRow[]>();
+    for (const attachment of attachments) {
+      if (!attachment.message_id) continue;
+      map.set(attachment.message_id, [...(map.get(attachment.message_id) ?? []), attachment]);
+    }
+    return map;
+  }, [attachments]);
   const { data: attempts = [] } = useQuery<OutreachRow[]>({
     queryKey: ["lead-outreach", lead.id],
     queryFn: () => outreachFn({ data: { lead_id: lead.id } }),
@@ -276,7 +319,9 @@ function ConversationPane({
 
   const sendMutation = useMutation({
     mutationFn: async () => {
-      const result = await sendFn({ data: { lead_id: lead.id, text: text.trim() } });
+      const result = lead.instagram_user_id && !(lead.whatsapp || lead.phone)
+        ? await sendInstagramFn({ data: { lead_id: lead.id, text: text.trim() } })
+        : await sendFn({ data: { lead_id: lead.id, text: text.trim() } });
       if (!result.ok) throw new Error(result.error || "Não foi possível enviar a mensagem.");
       return result;
     },
@@ -299,7 +344,8 @@ function ConversationPane({
     },
   });
 
-  const canSend = !!(lead.whatsapp || lead.phone) && !lead.opt_out;
+  const canSend = !!(lead.whatsapp || lead.phone || lead.instagram_user_id) && !lead.opt_out;
+  const composerChannel = lead.instagram_user_id && !(lead.whatsapp || lead.phone) ? "Instagram" : "WhatsApp";
   const inferredSeller = sellers.some((seller) => seller.id === lead.owner_id) ? lead.owner_id : null;
   const selectedSeller = lead.assigned_to || (lead.owner === "human" ? inferredSeller : null) || "";
 
@@ -333,6 +379,16 @@ function ConversationPane({
         </div>
       </div>
 
+      {lead.automation_status === "failed" && (
+        <div className="flex items-start gap-2 border-b border-error/30 bg-error/5 px-4 py-2.5 text-[11.5px] text-error">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <div>
+            <span className="font-semibold">Falha na automacao da Ana:</span>{" "}
+            {lead.automation_error || "A integracao nao concluiu o contato. Consulte o historico de tentativas."}
+          </div>
+        </div>
+      )}
+
       {automation?.handoff?.status === "pending" && (
         <div className="flex flex-wrap items-center justify-between gap-2 border-b border-warm bg-warm-bg px-4 py-2.5 text-[11.5px]">
           <div>
@@ -351,7 +407,13 @@ function ConversationPane({
         <div className="flex min-h-[420px] flex-col border-r border-border-card">
           <div className="flex-1 space-y-3 overflow-y-auto bg-bg-general p-5">
             {messages.length === 0 && <EmptyHistory />}
-            {messages.map((message) => <MessageBubble key={message.id} message={message} />)}
+            {messages.map((message) => (
+              <MessageBubble
+                key={message.id}
+                message={message}
+                attachments={attachmentsByMessage.get(message.id) ?? []}
+              />
+            ))}
           </div>
           <div className="border-t border-border-card p-3">
             {lead.opt_out && <div className="mb-2 text-[11px] text-error">Contato bloqueado por opt-out/LGPD.</div>}
@@ -367,7 +429,7 @@ function ConversationPane({
               <input
                 value={text}
                 onChange={(event) => setText(event.target.value)}
-                placeholder="Mensagem via WhatsApp (Z-API)..."
+                placeholder={`Mensagem via ${composerChannel}...`}
                 className="h-10 flex-1 rounded-md border border-border-card bg-bg-card px-3 text-[13px] outline-none"
               />
               <button
@@ -383,6 +445,8 @@ function ConversationPane({
         </div>
 
         <aside className="overflow-y-auto bg-bg-card p-4">
+          <CentralOperationsPanel lead={lead} isAdmin={isAdmin} onUseReply={setText} />
+          <div className="my-4 border-t border-border-card" />
           <div className="mb-3 flex items-center gap-2 text-[12px] font-semibold text-text-title">
             <Clock3 className="h-4 w-4" /> Histórico de tentativas
           </div>
@@ -406,6 +470,161 @@ function ConversationPane({
   );
 }
 
+function CentralOperationsPanel({
+  lead,
+  isAdmin,
+  onUseReply,
+}: {
+  lead: LeadRow;
+  isAdmin: boolean;
+  onUseReply: (text: string) => void;
+}) {
+  const qc = useQueryClient();
+  const getFn = useServerFn(getCentralOperations);
+  const updateFn = useServerFn(updateCentralTicket);
+  const noteFn = useServerFn(addInternalNote);
+  const tagFn = useServerFn(toggleCentralTag);
+  const callFn = useServerFn(startVoipCall);
+  const [note, setNote] = useState("");
+  const [recordCall, setRecordCall] = useState(false);
+  const [recordingConsent, setRecordingConsent] = useState(false);
+  const queryKey = ["central-operations", lead.id];
+  const { data, isLoading } = useQuery({
+    queryKey,
+    queryFn: () => getFn({ data: { lead_id: lead.id } }),
+    refetchInterval: 30_000,
+  });
+  const operations = data as any;
+  const ticket = operations?.ticket as any;
+  const invalidate = () => qc.invalidateQueries({ queryKey });
+  const updateMut = useMutation({
+    mutationFn: (patch: Record<string, unknown>) => updateFn({ data: { ticket_id: ticket.id, ...patch } as any }),
+    onSuccess: invalidate,
+    onError: (error: Error) => toast.error("Falha ao atualizar atendimento", { description: error.message }),
+  });
+  const noteMut = useMutation({
+    mutationFn: () => noteFn({ data: { ticket_id: ticket.id, body: note.trim() } }),
+    onSuccess: () => { setNote(""); invalidate(); },
+    onError: (error: Error) => toast.error("Falha ao salvar nota", { description: error.message }),
+  });
+  const tagMut = useMutation({
+    mutationFn: ({ tagId, active }: { tagId: string; active: boolean }) =>
+      tagFn({ data: { ticket_id: ticket.id, tag_id: tagId, active } }),
+    onSuccess: invalidate,
+  });
+  const callMut = useMutation({
+    mutationFn: () => callFn({ data: {
+      lead_id: lead.id,
+      ticket_id: ticket?.id ?? null,
+      record: recordCall,
+      recording_consent: recordingConsent,
+    } }),
+    onSuccess: () => { toast.success("Ligação iniciada"); invalidate(); },
+    onError: (error: Error) => { toast.error("Ligação não iniciada", { description: error.message }); invalidate(); },
+  });
+
+  if (isLoading) return <div className="text-[11px] text-text-ter">Carregando operação…</div>;
+  if (!ticket) {
+    return (
+      <div className="rounded-md border border-dashed border-border-card p-3 text-[11px] text-text-ter">
+        O protocolo será criado quando o lead for aprovado ou iniciar uma conversa.
+      </div>
+    );
+  }
+
+  const selectedTags = new Set<string>(operations.selectedTagIds ?? []);
+  const slaLate = ticket.first_response_due_at && !ticket.first_response_at && new Date(ticket.first_response_due_at).getTime() < Date.now();
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <div className="flex items-center justify-between gap-2">
+          <div className="text-[12px] font-semibold text-text-title">Protocolo {ticket.protocol}</div>
+          <button
+            type="button"
+            onClick={() => navigator.clipboard.writeText(ticket.protocol).then(() => toast.success("Protocolo copiado"))}
+            className="rounded p-1 text-text-ter hover:text-primary"
+            title="Copiar protocolo"
+          ><Copy className="h-3.5 w-3.5" /></button>
+        </div>
+        <div className={`mt-1 flex items-center gap-1 text-[10.5px] ${slaLate ? "text-error" : "text-text-ter"}`}>
+          <Timer className="h-3.5 w-3.5" />
+          {ticket.first_response_at
+            ? `Respondido ${formatDate(ticket.first_response_at)}`
+            : ticket.first_response_due_at
+              ? `${slaLate ? "SLA vencido" : "Responder até"} ${formatDate(ticket.first_response_due_at)}`
+              : "SLA não definido"}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <select value={ticket.status} onChange={(event) => updateMut.mutate({ status: event.target.value })}
+          className="h-8 rounded-md border border-border-card bg-bg-card px-1 text-[10.5px]">
+          <option value="open">Aberto</option><option value="waiting_agent">Aguardando agente</option>
+          <option value="waiting_customer">Aguardando cliente</option><option value="resolved">Resolvido</option><option value="closed">Fechado</option>
+        </select>
+        <select value={ticket.priority} onChange={(event) => updateMut.mutate({ priority: event.target.value })}
+          className="h-8 rounded-md border border-border-card bg-bg-card px-1 text-[10.5px]">
+          <option value="low">Prioridade baixa</option><option value="normal">Normal</option>
+          <option value="high">Alta</option><option value="urgent">Urgente</option>
+        </select>
+      </div>
+
+      {isAdmin && <div className="grid gap-2">
+        <select value={ticket.department_id ?? ""} onChange={(event) => updateMut.mutate({ department_id: event.target.value || null })}
+          className="h-8 rounded-md border border-border-card bg-bg-card px-2 text-[10.5px]">
+          <option value="">Sem departamento</option>{(operations.departments ?? []).map((item: any) => <option key={item.id} value={item.id}>{item.name}</option>)}
+        </select>
+        <select value={ticket.queue_id ?? ""} onChange={(event) => updateMut.mutate({ queue_id: event.target.value || null })}
+          className="h-8 rounded-md border border-border-card bg-bg-card px-2 text-[10.5px]">
+          <option value="">Sem fila</option>{(operations.queues ?? []).map((item: any) => <option key={item.id} value={item.id}>{item.name}</option>)}
+        </select>
+      </div>}
+
+      <div>
+        <div className="mb-1.5 flex items-center gap-1 text-[11px] font-semibold text-text-title"><Tags className="h-3.5 w-3.5" /> Tags</div>
+        <div className="flex flex-wrap gap-1">
+          {(operations.tags ?? []).map((tag: any) => {
+            const active = selectedTags.has(tag.id);
+            return <button key={tag.id} type="button" onClick={() => tagMut.mutate({ tagId: tag.id, active: !active })}
+              className="rounded-full border px-2 py-0.5 text-[9.5px]" style={{ borderColor: tag.color, color: active ? "white" : tag.color, background: active ? tag.color : "transparent" }}>{tag.name}</button>;
+          })}
+        </div>
+      </div>
+
+      <div>
+        <div className="mb-1.5 text-[11px] font-semibold text-text-title">Respostas rápidas</div>
+        <div className="flex flex-wrap gap-1">
+          {(operations.quickReplies ?? []).map((reply: any) => <button key={reply.id} type="button" onClick={() => onUseReply(reply.body)}
+            className="rounded-md border border-border-card px-2 py-1 text-[9.5px] text-text-sec hover:border-primary hover:text-primary">{reply.shortcut}</button>)}
+        </div>
+      </div>
+
+      <div>
+        <div className="mb-1.5 flex items-center gap-1 text-[11px] font-semibold text-text-title"><StickyNote className="h-3.5 w-3.5" /> Notas internas</div>
+        <form className="flex gap-1" onSubmit={(event) => { event.preventDefault(); if (note.trim()) noteMut.mutate(); }}>
+          <input value={note} onChange={(event) => setNote(event.target.value)} placeholder="Nota não visível ao cliente"
+            className="h-8 min-w-0 flex-1 rounded-md border border-border-card px-2 text-[10.5px]" />
+          <button disabled={!note.trim() || noteMut.isPending} className="rounded-md bg-primary px-2 text-[10px] text-primary-foreground disabled:opacity-50">Salvar</button>
+        </form>
+        <div className="mt-2 space-y-1.5">
+          {(operations.notes ?? []).slice(0, 3).map((item: any) => <div key={item.id} className="rounded bg-bg-general p-2 text-[10px] text-text-sec">
+            {item.body}<div className="mt-1 text-[9px] text-text-ter">{item.profiles?.name || item.profiles?.email || "Equipe"} · {formatDate(item.created_at)}</div>
+          </div>)}
+        </div>
+      </div>
+
+      {lead.phone && <div className="rounded-md border border-border-card p-2">
+        <div className="mb-2 flex items-center gap-1 text-[11px] font-semibold text-text-title"><PhoneCall className="h-3.5 w-3.5" /> Telefonia</div>
+        <label className="flex items-center gap-1.5 text-[9.5px] text-text-sec"><input type="checkbox" checked={recordCall} onChange={(event) => setRecordCall(event.target.checked)} /> Gravar chamada</label>
+        {recordCall && <label className="mt-1 flex items-start gap-1.5 text-[9.5px] text-text-sec"><input type="checkbox" checked={recordingConsent} onChange={(event) => setRecordingConsent(event.target.checked)} /> Consentimento de gravação confirmado</label>}
+        <button type="button" onClick={() => callMut.mutate()} disabled={callMut.isPending || (recordCall && !recordingConsent)}
+          className="mt-2 w-full rounded-md border border-border-card py-1.5 text-[10.5px] font-medium hover:bg-primary hover:text-primary-foreground disabled:opacity-50">{callMut.isPending ? "Ligando…" : "Iniciar ligação VoIP"}</button>
+      </div>}
+    </div>
+  );
+}
+
 function Metric({ label, value, icon }: { label: string; value: number; icon: ReactNode }) {
   return (
     <Card className="flex items-center justify-between">
@@ -415,7 +634,7 @@ function Metric({ label, value, icon }: { label: string; value: number; icon: Re
   );
 }
 
-function MessageBubble({ message }: { message: MsgRow }) {
+function MessageBubble({ message, attachments }: { message: MsgRow; attachments: AttachmentRow[] }) {
   const mine = message.sender !== "client";
   const isAI = message.sender === "ia";
   return (
@@ -423,6 +642,25 @@ function MessageBubble({ message }: { message: MsgRow }) {
       <div className={`max-w-[75%] rounded-2xl px-3.5 py-2 text-[13px] shadow-sm ${mine ? isAI ? "rounded-br-sm bg-ia text-white" : "rounded-br-sm bg-primary text-primary-foreground" : "rounded-bl-sm border border-border-card bg-bg-card text-text-title"}`}>
         {mine && <div className="mb-0.5 flex items-center gap-1 text-[10px] opacity-80">{isAI ? <Sparkles className="h-3 w-3" /> : <User className="h-3 w-3" />}{message.sender_name}</div>}
         <div className="whitespace-pre-wrap break-words">{message.text}</div>
+        {attachments.length > 0 && (
+          <div className="mt-2 space-y-1 border-t border-current/20 pt-2">
+            {attachments.map((attachment) => attachment.signed_url ? (
+              <a
+                key={attachment.id}
+                href={attachment.signed_url}
+                target="_blank"
+                rel="noreferrer"
+                className="flex items-center gap-1.5 text-[10.5px] underline underline-offset-2"
+              >
+                <Paperclip className="h-3 w-3" /> {attachment.file_name || attachment.media_type}
+              </a>
+            ) : (
+              <span key={attachment.id} className="flex items-center gap-1.5 text-[10.5px] opacity-75">
+                <Paperclip className="h-3 w-3" /> {attachment.file_name || attachment.media_type}
+              </span>
+            ))}
+          </div>
+        )}
         <div className={`mt-1 text-right text-[10px] ${mine ? "opacity-70" : "text-text-ter"}`}>{formatDate(message.sent_at)}</div>
       </div>
     </div>
@@ -460,7 +698,7 @@ function isPending(lead: LeadRow) {
   return !!lead.next_action_at && new Date(lead.next_action_at).getTime() <= Date.now();
 }
 
-function channelState(lead: LeadRow, key: "whatsapp" | "email" | "phone") {
+function channelState(lead: LeadRow, key: "whatsapp" | "email" | "phone" | "instagram") {
   const channels = lead.contact_channels;
   if (!channels || Array.isArray(channels) || typeof channels !== "object") return null;
   const value = (channels as Record<string, unknown>)[key];
@@ -468,11 +706,11 @@ function channelState(lead: LeadRow, key: "whatsapp" | "email" | "phone") {
 }
 
 function hasContactAttempt(lead: LeadRow) {
-  return !!lead.last_contact || ["whatsapp", "email", "phone"].some((channel) => !!channelState(lead, channel as "whatsapp" | "email" | "phone")?.last_attempt_at);
+  return !!lead.last_contact || ["whatsapp", "email", "phone", "instagram"].some((channel) => !!channelState(lead, channel as "whatsapp" | "email" | "phone" | "instagram")?.last_attempt_at);
 }
 
 function hasReply(lead: LeadRow) {
-  return ["whatsapp", "email", "phone"].some((channel) => channelState(lead, channel as "whatsapp" | "email" | "phone")?.last_status === "replied");
+  return ["whatsapp", "email", "phone", "instagram"].some((channel) => channelState(lead, channel as "whatsapp" | "email" | "phone" | "instagram")?.last_status === "replied");
 }
 
 function channelBadges(lead: LeadRow) {
@@ -480,10 +718,11 @@ function channelBadges(lead: LeadRow) {
     ["whatsapp", "WhatsApp"],
     ["email", "E-mail"],
     ["phone", "Telefone"],
+    ["instagram", "Instagram"],
   ] as const;
   return definitions.flatMap(([key, label]) => {
     const state = channelState(lead, key);
-    const available = state?.available === true || (key === "whatsapp" ? !!(lead.whatsapp || lead.phone) : key === "email" ? !!lead.email : !!lead.phone);
+    const available = state?.available === true || (key === "whatsapp" ? !!(lead.whatsapp || lead.phone) : key === "email" ? !!lead.email : key === "instagram" ? !!lead.instagram_user_id : !!lead.phone);
     if (!available) return [];
     const status = typeof state?.last_status === "string" ? state.last_status : null;
     return [{ label, className: status === "replied" ? "bg-success-bg text-success" : status === "failed" ? "bg-error-bg text-error" : "bg-bg-general text-text-sec" }];
@@ -497,7 +736,7 @@ function waitMin(value: string | null | undefined) {
 }
 
 function channelName(channel: OutreachRow["channel"]) {
-  return channel === "whatsapp" ? "WhatsApp" : channel === "email" ? "E-mail" : "Telefone";
+  return channel === "whatsapp" ? "WhatsApp" : channel === "email" ? "E-mail" : channel === "instagram" ? "Instagram" : "Telefone";
 }
 
 function statusLabel(status: OutreachRow["status"]) {

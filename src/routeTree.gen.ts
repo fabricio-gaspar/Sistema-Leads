@@ -28,6 +28,7 @@ import { Route as ApiPublicZapiWebhookRouteImport } from './routes/api/public/za
 import { Route as ApiPublicResendWebhookRouteImport } from './routes/api/public/resend-webhook'
 import { Route as ApiPublicProspectingTickRouteImport } from './routes/api/public/prospecting-tick'
 import { Route as ApiPublicOutreachTickRouteImport } from './routes/api/public/outreach-tick'
+import { Route as ApiPublicMetaWebhookRouteImport } from './routes/api/public/meta-webhook'
 import { Route as ApiPublicEvolutionWebhookRouteImport } from './routes/api/public/evolution-webhook'
 import { Route as AuthenticatedLeadsIdRouteImport } from './routes/_authenticated/leads.$id'
 
@@ -131,6 +132,11 @@ const ApiPublicOutreachTickRoute = ApiPublicOutreachTickRouteImport.update({
   path: '/api/public/outreach-tick',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicMetaWebhookRoute = ApiPublicMetaWebhookRouteImport.update({
+  id: '/api/public/meta-webhook',
+  path: '/api/public/meta-webhook',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPublicEvolutionWebhookRoute =
   ApiPublicEvolutionWebhookRouteImport.update({
     id: '/api/public/evolution-webhook',
@@ -159,6 +165,7 @@ export interface FileRoutesByFullPath {
   '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/leads/$id': typeof AuthenticatedLeadsIdRoute
   '/api/public/evolution-webhook': typeof ApiPublicEvolutionWebhookRoute
+  '/api/public/meta-webhook': typeof ApiPublicMetaWebhookRoute
   '/api/public/outreach-tick': typeof ApiPublicOutreachTickRoute
   '/api/public/prospecting-tick': typeof ApiPublicProspectingTickRoute
   '/api/public/resend-webhook': typeof ApiPublicResendWebhookRoute
@@ -181,6 +188,7 @@ export interface FileRoutesByTo {
   '/': typeof AuthenticatedIndexRoute
   '/leads/$id': typeof AuthenticatedLeadsIdRoute
   '/api/public/evolution-webhook': typeof ApiPublicEvolutionWebhookRoute
+  '/api/public/meta-webhook': typeof ApiPublicMetaWebhookRoute
   '/api/public/outreach-tick': typeof ApiPublicOutreachTickRoute
   '/api/public/prospecting-tick': typeof ApiPublicProspectingTickRoute
   '/api/public/resend-webhook': typeof ApiPublicResendWebhookRoute
@@ -205,6 +213,7 @@ export interface FileRoutesById {
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/leads/$id': typeof AuthenticatedLeadsIdRoute
   '/api/public/evolution-webhook': typeof ApiPublicEvolutionWebhookRoute
+  '/api/public/meta-webhook': typeof ApiPublicMetaWebhookRoute
   '/api/public/outreach-tick': typeof ApiPublicOutreachTickRoute
   '/api/public/prospecting-tick': typeof ApiPublicProspectingTickRoute
   '/api/public/resend-webhook': typeof ApiPublicResendWebhookRoute
@@ -229,6 +238,7 @@ export interface FileRouteTypes {
     | '/relatorios'
     | '/leads/$id'
     | '/api/public/evolution-webhook'
+    | '/api/public/meta-webhook'
     | '/api/public/outreach-tick'
     | '/api/public/prospecting-tick'
     | '/api/public/resend-webhook'
@@ -251,6 +261,7 @@ export interface FileRouteTypes {
     | '/'
     | '/leads/$id'
     | '/api/public/evolution-webhook'
+    | '/api/public/meta-webhook'
     | '/api/public/outreach-tick'
     | '/api/public/prospecting-tick'
     | '/api/public/resend-webhook'
@@ -274,6 +285,7 @@ export interface FileRouteTypes {
     | '/_authenticated/'
     | '/_authenticated/leads/$id'
     | '/api/public/evolution-webhook'
+    | '/api/public/meta-webhook'
     | '/api/public/outreach-tick'
     | '/api/public/prospecting-tick'
     | '/api/public/resend-webhook'
@@ -286,6 +298,7 @@ export interface RootRouteChildren {
   AuthRoute: typeof AuthRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   ApiPublicEvolutionWebhookRoute: typeof ApiPublicEvolutionWebhookRoute
+  ApiPublicMetaWebhookRoute: typeof ApiPublicMetaWebhookRoute
   ApiPublicOutreachTickRoute: typeof ApiPublicOutreachTickRoute
   ApiPublicProspectingTickRoute: typeof ApiPublicProspectingTickRoute
   ApiPublicResendWebhookRoute: typeof ApiPublicResendWebhookRoute
@@ -428,6 +441,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPublicOutreachTickRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/meta-webhook': {
+      id: '/api/public/meta-webhook'
+      path: '/api/public/meta-webhook'
+      fullPath: '/api/public/meta-webhook'
+      preLoaderRoute: typeof ApiPublicMetaWebhookRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/public/evolution-webhook': {
       id: '/api/public/evolution-webhook'
       path: '/api/public/evolution-webhook'
@@ -492,6 +512,7 @@ const rootRouteChildren: RootRouteChildren = {
   AuthRoute: AuthRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   ApiPublicEvolutionWebhookRoute: ApiPublicEvolutionWebhookRoute,
+  ApiPublicMetaWebhookRoute: ApiPublicMetaWebhookRoute,
   ApiPublicOutreachTickRoute: ApiPublicOutreachTickRoute,
   ApiPublicProspectingTickRoute: ApiPublicProspectingTickRoute,
   ApiPublicResendWebhookRoute: ApiPublicResendWebhookRoute,

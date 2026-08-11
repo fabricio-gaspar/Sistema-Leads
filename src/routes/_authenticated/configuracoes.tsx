@@ -153,33 +153,45 @@ function AbaAna() {
   const updateFn = useServerFn(updateCompanySettings);
   const { data, isLoading } = useQuery({ queryKey: ["company-settings"], queryFn: () => getFn() });
 
+  const [provider, setProvider] = useState<"openai" | "anthropic" | "gemini">("anthropic");
+  const [fallbackProvider, setFallbackProvider] = useState<"" | "openai" | "anthropic" | "gemini">("");
   const [model, setModel] = useState("claude-sonnet-4-5-20250929");
   const [temperature, setTemperature] = useState(0.7);
   const [maxTokens, setMaxTokens] = useState(512);
   const [prompt, setPrompt] = useState(DEFAULT_PROMPT);
   const [tone, setTone] = useState("Profissional cordial");
   const [sandboxMode, setSandboxMode] = useState(false);
+  const [multimodalEnabled, setMultimodalEnabled] = useState(true);
+  const [actionsEnabled, setActionsEnabled] = useState(true);
 
   useEffect(() => {
     if (!data) return;
+    if ((data as any).ai_provider) setProvider((data as any).ai_provider);
+    if ((data as any).ai_fallback_provider) setFallbackProvider((data as any).ai_fallback_provider);
     if (data.ai_model) setModel(data.ai_model);
     if (data.ai_temperature != null) setTemperature(Number(data.ai_temperature));
     if (data.ai_max_tokens != null) setMaxTokens(Number(data.ai_max_tokens));
     if (data.ai_prompt) setPrompt(data.ai_prompt);
     if (data.tone_of_voice) setTone(data.tone_of_voice);
     if (typeof (data as any).sandbox_mode === "boolean") setSandboxMode((data as any).sandbox_mode);
+    if (typeof (data as any).ai_multimodal_enabled === "boolean") setMultimodalEnabled((data as any).ai_multimodal_enabled);
+    if (typeof (data as any).ai_actions_enabled === "boolean") setActionsEnabled((data as any).ai_actions_enabled);
   }, [data]);
 
   const saveMut = useMutation({
     mutationFn: () =>
       updateFn({
         data: {
+          ai_provider: provider,
+          ai_fallback_provider: fallbackProvider || null,
           ai_model: model,
           ai_temperature: temperature,
           ai_max_tokens: maxTokens,
           ai_prompt: prompt,
           tone_of_voice: tone,
           sandbox_mode: sandboxMode,
+          ai_multimodal_enabled: multimodalEnabled,
+          ai_actions_enabled: actionsEnabled,
         },
       }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["company-settings"] }),
@@ -223,19 +235,64 @@ function AbaAna() {
             </select>
           </Field>
 
-          <Field label="Modelo de Linguagem" hint="Cérebro conversacional para prospecção autônoma">
+          <div className="grid max-w-3xl gap-4 md:grid-cols-2">
+          <Field label="Provedor principal" hint="A Ana usa este provedor por padrão">
+            <select
+              value={provider}
+              onChange={(e) => {
+                const next = e.target.value as "openai" | "anthropic" | "gemini";
+                setProvider(next);
+                setModel(next === "openai" ? "gpt-4.1-mini" : next === "gemini" ? "gemini-2.5-flash" : "claude-sonnet-4-5-20250929");
+              }}
+              className="h-9 w-full rounded-md border border-border-card bg-bg-card px-3 text-[13px] outline-none"
+            >
+              <option value="openai">OpenAI</option>
+              <option value="anthropic">Anthropic Claude</option>
+              <option value="gemini">Google Gemini</option>
+            </select>
+          </Field>
+          <Field label="Provedor de contingência" hint="Usado apenas se o principal falhar">
+            <select
+              value={fallbackProvider}
+              onChange={(e) => setFallbackProvider(e.target.value as typeof fallbackProvider)}
+              className="h-9 w-full rounded-md border border-border-card bg-bg-card px-3 text-[13px] outline-none"
+            >
+              <option value="">Sem contingência</option>
+              {(["openai", "anthropic", "gemini"] as const).filter((item) => item !== provider).map((item) => (
+                <option key={item} value={item}>{item === "openai" ? "OpenAI" : item === "anthropic" ? "Anthropic Claude" : "Google Gemini"}</option>
+              ))}
+            </select>
+          </Field>
+          </div>
+
+          <Field label="Modelo de linguagem" hint="Modelo utilizado pelo provedor principal">
             <select
               value={model}
               onChange={(e) => setModel(e.target.value)}
               className="h-9 w-full max-w-md rounded-md border border-border-card bg-bg-card px-3 text-[13px] outline-none"
             >
-              <optgroup label="Anthropic Claude">
+              {provider === "openai" && <optgroup label="OpenAI">
+                <option value="gpt-4.1">GPT-4.1 — máxima qualidade</option>
+                <option value="gpt-4.1-mini">GPT-4.1 mini — equilíbrio recomendado</option>
+                <option value="gpt-4.1-nano">GPT-4.1 nano — alto volume</option>
+              </optgroup>}
+              {provider === "anthropic" && <optgroup label="Anthropic Claude">
                 <option value="claude-opus-4-1-20250805">Claude Opus 4.1 — máxima qualidade</option>
                 <option value="claude-sonnet-4-5-20250929">Claude Sonnet 4.5 — equilíbrio (padrão)</option>
                 <option value="claude-haiku-4-5-20250901">Claude Haiku 4.5 — rápido e econômico</option>
-              </optgroup>
+              </optgroup>}
+              {provider === "gemini" && <optgroup label="Google Gemini">
+                <option value="gemini-2.5-pro">Gemini 2.5 Pro — máxima qualidade</option>
+                <option value="gemini-2.5-flash">Gemini 2.5 Flash — equilíbrio</option>
+                <option value="gemini-2.5-flash-lite">Gemini 2.5 Flash Lite — alto volume</option>
+              </optgroup>}
             </select>
           </Field>
+
+          <div className="grid max-w-3xl gap-3 md:grid-cols-2">
+            <ToggleSetting label="Multimodal" description="Imagens, áudio e anexos" checked={multimodalEnabled} onChange={setMultimodalEnabled} />
+            <ToggleSetting label="Ações da Ana" description="Tarefas, tags e handoff" checked={actionsEnabled} onChange={setActionsEnabled} />
+          </div>
 
           <div className="grid max-w-md grid-cols-2 gap-4">
             <Field label={`Temperatura — ${temperature.toFixed(2)}`} hint="0 = objetivo, 1 = criativo">
@@ -926,6 +983,28 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
   );
 }
 
+function ToggleSetting({
+  label,
+  description,
+  checked,
+  onChange,
+}: {
+  label: string;
+  description: string;
+  checked: boolean;
+  onChange: (value: boolean) => void;
+}) {
+  return (
+    <label className="flex cursor-pointer items-center justify-between gap-3 rounded-md border border-border-card p-3">
+      <span>
+        <span className="block text-[12px] font-medium text-text-title">{label}</span>
+        <span className="block text-[10.5px] text-text-sec">{description}</span>
+      </span>
+      <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} />
+    </label>
+  );
+}
+
 // ============= SERVIÇOS =============
 type ServiceRow = {
   id: string;
@@ -1391,6 +1470,10 @@ function AbaProspeccao() {
   });
 
   const [state, setState] = useState({ cnpj_ws: true, google_places: false, ai_only: false, apify: false });
+  const [approvalMode, setApprovalMode] = useState<"automatic" | "score" | "manual">("automatic");
+  const [approvalMinScore, setApprovalMinScore] = useState(70);
+  const [aiProviders, setAiProviders] = useState<Array<"openai" | "anthropic" | "gemini">>(["anthropic"]);
+  const [aiStrategy, setAiStrategy] = useState<"consensus" | "fallback">("consensus");
 
   useEffect(() => {
     if (enabled) {
@@ -1400,16 +1483,25 @@ function AbaProspeccao() {
         ai_only: enabled.ai_only,
         apify: (enabled as { apify?: boolean }).apify ?? false,
       });
+      setApprovalMode((enabled.approval_mode as typeof approvalMode) ?? "automatic");
+      setApprovalMinScore(Number(enabled.approval_min_score ?? 70));
+      setAiProviders((enabled.ai_providers as typeof aiProviders | undefined) ?? ["anthropic"]);
+      setAiStrategy((enabled.ai_strategy as typeof aiStrategy) ?? "consensus");
     }
   }, [enabled]);
 
   const save = useMutation({
     mutationFn: () =>
-      updateSettings({
-        data: { prospecting_sources: state },
-      }),
+      updateSettings({ data: {
+        prospecting_sources: state,
+        contact_approval_mode: approvalMode,
+        contact_approval_min_score: approvalMinScore,
+        prospecting_ai_providers: aiProviders,
+        prospecting_ai_strategy: aiStrategy,
+        require_contact_approval: true,
+      } }),
     onSuccess: () => {
-      toast.success("Fontes de prospecção atualizadas.");
+      toast.success("Prospecção, classificação e aprovação atualizadas.");
       qc.invalidateQueries({ queryKey: ["enabled-sources"] });
       qc.invalidateQueries({ queryKey: ["company-settings"] });
     },
@@ -1462,13 +1554,13 @@ function AbaProspeccao() {
     },
     {
       id: "ai_only",
-      title: "Só IA (Claude gera sugestões)",
+      title: "Só IA (provedor configurado gera sugestões)",
       desc: "Ana usa o perfil da sua empresa para sugerir potenciais clientes plausíveis do mercado brasileiro. Não retorna CNPJ/telefone reais.",
-      cost: "Usa créditos do Anthropic (ANTHROPIC_API_KEY já configurada).",
+      cost: "Usa a primeira IA configurada acima; sugestões continuam bloqueadas para contato até validação em fonte real.",
       keyStatus: enabled
-        ? enabled.has_anthropic_key
-          ? { ok: true, msg: "ANTHROPIC_API_KEY configurada" }
-          : { ok: false, msg: "ANTHROPIC_API_KEY ausente" }
+        ? (enabled.has_openai_key || enabled.has_anthropic_key || enabled.has_gemini_key)
+          ? { ok: true, msg: "Ao menos um provedor de IA está configurado" }
+          : { ok: false, msg: "Configure OPENAI_API_KEY, ANTHROPIC_API_KEY ou GEMINI_API_KEY" }
         : null,
     },
   ];
@@ -1489,6 +1581,75 @@ function AbaProspeccao() {
           </button>
         }
       />
+      <div className="mb-5 rounded-lg border border-border-card bg-bg-general/40 p-4">
+        <div className="text-[13.5px] font-semibold text-text-title">Classificação e aprovação do primeiro contato</div>
+        <div className="mt-1 text-[12px] text-text-sec">
+          Todo contato exige uma decisão formal registrada. No modo automático, a regra aprova e a Ana inicia a cadência assim que o lead é enviado para Leads.
+        </div>
+        <div className="mt-4 grid gap-4 lg:grid-cols-2">
+          <Field label="Modo de aprovação">
+            <select
+              value={approvalMode}
+              onChange={(event) => setApprovalMode(event.target.value as typeof approvalMode)}
+              className="h-9 w-full rounded-md border border-border-card bg-bg-card px-3 text-[13px] outline-none"
+            >
+              <option value="automatic">Automática — aprova ao enviar para Leads</option>
+              <option value="score">Por score — aprova acima da nota mínima</option>
+              <option value="manual">Manual — aguarda a fila do administrador</option>
+            </select>
+          </Field>
+          <Field label="Score mínimo para aprovação automática">
+            <input
+              type="number"
+              min={0}
+              max={100}
+              value={approvalMinScore}
+              disabled={approvalMode !== "score"}
+              onChange={(event) => setApprovalMinScore(Math.max(0, Math.min(100, Number(event.target.value) || 0)))}
+              className="h-9 w-full rounded-md border border-border-card bg-bg-card px-3 text-[13px] outline-none disabled:opacity-50"
+            />
+          </Field>
+        </div>
+        <div className="mt-4 grid gap-4 lg:grid-cols-2">
+          <Field label="IAs para classificar os prospectos" hint="Marque uma ou mais. No consenso, as disponíveis rodam juntas.">
+            <div className="flex flex-wrap gap-2">
+              {(["openai", "anthropic", "gemini"] as const).map((item) => {
+                const checked = aiProviders.includes(item);
+                const label = item === "openai" ? "OpenAI" : item === "anthropic" ? "Claude" : "Gemini";
+                const configured = item === "openai"
+                  ? enabled?.has_openai_key
+                  : item === "anthropic"
+                    ? enabled?.has_anthropic_key
+                    : enabled?.has_gemini_key;
+                return (
+                  <label key={item} className={`flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-[12px] ${checked ? "border-primary bg-primary/5" : "border-border-card bg-bg-card"}`}>
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={(event) => {
+                        if (event.target.checked) setAiProviders((current) => [...current, item]);
+                        else if (aiProviders.length > 1) setAiProviders((current) => current.filter((provider) => provider !== item));
+                      }}
+                    />
+                    {label}
+                    <span className={configured ? "text-success" : "text-warm"}>{configured ? "configurada" : "sem chave"}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </Field>
+          <Field label="Estratégia das IAs">
+            <select
+              value={aiStrategy}
+              onChange={(event) => setAiStrategy(event.target.value as typeof aiStrategy)}
+              className="h-9 w-full rounded-md border border-border-card bg-bg-card px-3 text-[13px] outline-none"
+            >
+              <option value="consensus">Consenso — média das IAs disponíveis</option>
+              <option value="fallback">Contingência — usa a primeira que responder</option>
+            </select>
+          </Field>
+        </div>
+      </div>
       <div className="space-y-3">
         {sources.map((s) => {
           const on = state[s.id];
@@ -2113,4 +2274,3 @@ function AbaAutonomia() {
     </Card>
   );
 }
-

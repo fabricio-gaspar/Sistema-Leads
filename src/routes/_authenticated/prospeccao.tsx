@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Sparkles, Search, Loader2, Download, Plus, ExternalLink, RotateCcw, Info, Building2, MapPin, Bot, Save, Bookmark, Trash2, FolderOpen, Zap, Pencil } from "lucide-react";
+import { Sparkles, Search, Loader2, Download, Plus, ExternalLink, RotateCcw, Info, Building2, MapPin, Bot, Save, Bookmark, Trash2, FolderOpen, Zap, Pencil, ShieldCheck, XCircle } from "lucide-react";
 import { Card } from "@/components/ui-kit";
 import {
   searchExternalCompanies,
@@ -13,11 +13,13 @@ import {
   getSavedSearch,
   deleteSavedSearch,
   renameSavedSearch,
+  getPendingApprovalQueue,
+  rejectProspects,
   type ExternalCompany,
   type SourceId,
 } from "@/lib/prospecting.functions";
 import { SchedulesPanel } from "@/components/prospecting/SchedulesPanel";
-import { getScoreWeights } from "@/lib/crm.functions";
+import { bulkAssignProspects, getScoreWeights } from "@/lib/crm.functions";
 import { explainScore, DEFAULT_WEIGHTS, type Weights, type ScoreBreakdown } from "@/lib/score-explain";
 import { downloadCSV } from "@/lib/exports";
 import { Link } from "@tanstack/react-router";
@@ -72,16 +74,20 @@ const INITIAL: FormState = {
 const SOURCE_META: Record<SourceId, { label: string; icon: typeof Building2; color: string }> = {
   cnpj_ws: { label: "Receita Federal", icon: Building2, color: "text-primary" },
   google_places: { label: "Google Places", icon: MapPin, color: "text-blue-600" },
-  ai_only: { label: "IA (Claude)", icon: Bot, color: "text-ia" },
+  ai_only: { label: "IA configurada", icon: Bot, color: "text-ia" },
   apify: { label: "Apify (Google Maps)", icon: Zap, color: "text-orange-600" },
 };
 
 function Prospeccao() {
+  const { isAdmin } = Route.useRouteContext();
   const qc = useQueryClient();
   const searchFn = useServerFn(searchExternalCompanies);
   const importFn = useServerFn(importExternalAsLead);
   const enabledFn = useServerFn(getEnabledSources);
   const weightsFn = useServerFn(getScoreWeights);
+  const pendingApprovalFn = useServerFn(getPendingApprovalQueue);
+  const approveProspectsFn = useServerFn(bulkAssignProspects);
+  const rejectProspectsFn = useServerFn(rejectProspects);
 
   const { data: enabled } = useQuery({ queryKey: ["enabled-sources"], queryFn: () => enabledFn() });
   const { data: weightsRow } = useQuery({
@@ -114,7 +120,13 @@ function Prospeccao() {
   const [saveName, setSaveName] = useState("");
   const [loadedSaved, setLoadedSaved] = useState<{ id: string; name: string; results: ExternalCompany[]; source: SourceId; created_at: string } | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [approvalSelected, setApprovalSelected] = useState<Set<string>>(new Set());
   const [tab, setTab] = useState<"manual" | "schedules">("manual");
+
+  const approvalQuery = useQuery({
+    queryKey: ["pending-contact-approvals"],
+    queryFn: () => pendingApprovalFn(),
+  });
 
   // If current source becomes disabled, switch to first enabled
   useEffect(() => {
@@ -152,24 +164,46 @@ function Prospeccao() {
   const importMut = useMutation({
     mutationFn: async (ids: string[]) => {
       let imported = 0;
+      let pending = 0;
       let skipped = 0;
       const errors: string[] = [];
+      const integrationErrors: string[] = [];
       for (const cnpj of ids) {
         try {
           const res = await importFn({ data: { cache_id: currentCacheId!, cnpj } });
           if ((res as { _already_imported?: boolean })?._already_imported) skipped += 1;
-          else imported += 1;
+          else {
+            imported += 1;
+            const result = res as {
+              _approval_status?: "approved" | "pending";
+              _outreach?: {
+                ok?: boolean;
+                reason?: string;
+                fallback_used?: boolean;
+                integration_errors?: Array<{ channel: string; error: string }>;
+              } | null;
+            };
+            if (result._approval_status === "pending") pending += 1;
+            if (result._outreach && !result._outreach.ok) {
+              integrationErrors.push(result._outreach.reason || "Cadência não iniciada");
+            }
+            for (const item of result._outreach?.integration_errors ?? []) {
+              integrationErrors.push(`${item.channel}: ${item.error}`);
+            }
+          }
         } catch (error) {
           errors.push((error as Error).message);
         }
       }
-      return { imported, skipped, errors };
+      return { imported, pending, skipped, errors, integrationErrors };
     },
-    onSuccess: ({ imported, skipped, errors }, ids) => {
+    onSuccess: ({ imported, pending, skipped, errors, integrationErrors }, ids) => {
       const parts: string[] = [];
       if (imported) parts.push(`✔ ${imported} enviado(s) para Leads`);
+      if (pending) parts.push(`⏳ ${pending} aguardando aprovação manual/score`);
       if (skipped) parts.push(`⤼ ${skipped} já importado(s)`);
       if (errors.length) parts.push(`✖ ${errors.length} falharam: ${errors[0]}`);
+      if (integrationErrors.length) parts.push(`⚠ Integração/cadência: ${integrationErrors[0]}`);
       setFlash(parts.join(' · ') || 'Nada a importar');
       setSelected((current) => {
         const next = new Set(current);
@@ -177,12 +211,40 @@ function Prospeccao() {
         return next;
       });
       qc.invalidateQueries({ queryKey: ["leads"] });
-      setTimeout(() => setFlash(null), 3500);
+      qc.invalidateQueries({ queryKey: ["pending-contact-approvals"] });
+      setTimeout(() => setFlash(null), integrationErrors.length || errors.length ? 10000 : 5000);
     },
     onError: (e: Error) => {
       setFlash(`Erro: ${e.message}`);
       setTimeout(() => setFlash(null), 4000);
     },
+  });
+
+  const approveMut = useMutation({
+    mutationFn: (ids: string[]) => approveProspectsFn({
+      data: { ids, target: "ana", next_stage: "Qualificado" },
+    }),
+    onSuccess: (result) => {
+      const failure = result.failed?.[0]?.error;
+      setFlash(failure
+        ? `⚠ Aprovação registrada, mas a Ana não iniciou todos os contatos: ${failure}`
+        : `✔ ${result.count} lead(s) aprovado(s); Ana iniciou ${result.outreach_started} contato(s).`);
+      setApprovalSelected(new Set());
+      qc.invalidateQueries({ queryKey: ["pending-contact-approvals"] });
+      qc.invalidateQueries({ queryKey: ["leads"] });
+    },
+    onError: (error: Error) => setFlash(`Erro ao aprovar: ${error.message}`),
+  });
+
+  const rejectMut = useMutation({
+    mutationFn: (ids: string[]) => rejectProspectsFn({ data: { ids } }),
+    onSuccess: (result) => {
+      setFlash(`✖ ${result.count} prospecto(s) rejeitado(s) para contato.`);
+      setApprovalSelected(new Set());
+      qc.invalidateQueries({ queryKey: ["pending-contact-approvals"] });
+      qc.invalidateQueries({ queryKey: ["leads"] });
+    },
+    onError: (error: Error) => setFlash(`Erro ao rejeitar: ${error.message}`),
   });
 
   const saveMut = useMutation({
@@ -297,6 +359,12 @@ function Prospeccao() {
             <div className="text-[12px] text-text-sec">
               Escolha a fonte de dados abaixo. Ative/desative fontes em <Link to="/configuracoes" search={{ tab: "prospeccao" }} className="underline text-primary">Configurações → Prospecção</Link>.
             </div>
+            {enabled && (
+              <div className="mt-1 text-[11px] text-text-ter">
+                Aprovação: <b>{enabled.approval_mode === "manual" ? "manual" : enabled.approval_mode === "score" ? `automática por score ≥ ${enabled.approval_min_score}` : "automática ao enviar"}</b>
+                {" · "}Classificação: <b>{enabled.ai_providers.map((provider) => provider === "anthropic" ? "Claude" : provider === "openai" ? "OpenAI" : "Gemini").join(" + ")}</b>
+              </div>
+            )}
           </div>
         </div>
       </Card>
@@ -313,6 +381,98 @@ function Prospeccao() {
           >Campanhas agendadas</button>
         </div>
       </Card>
+
+      {approvalQuery.data?.is_admin && (
+        <Card padded={false}>
+          <div className="flex flex-col gap-3 border-b border-border-card px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="flex items-center gap-2 text-[13.5px] font-semibold text-text-title">
+                <ShieldCheck className="h-4 w-4 text-primary" /> Fila de aprovação para contato
+                <span className="rounded-full bg-bg-general px-2 py-0.5 text-[11px] text-text-sec">
+                  {approvalQuery.data.leads.length}
+                </span>
+              </div>
+              <div className="mt-0.5 text-[11.5px] text-text-sec">
+                Usada quando o modo é manual ou quando o lead não atingiu o score mínimo configurado.
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => rejectMut.mutate([...approvalSelected])}
+                disabled={!approvalSelected.size || rejectMut.isPending || approveMut.isPending}
+                className="inline-flex items-center gap-1.5 rounded-md border border-red-200 px-3 py-1.5 text-[12px] font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+              >
+                <XCircle className="h-3.5 w-3.5" /> Rejeitar ({approvalSelected.size})
+              </button>
+              <button
+                type="button"
+                onClick={() => approveMut.mutate([...approvalSelected])}
+                disabled={!approvalSelected.size || approveMut.isPending || rejectMut.isPending}
+                className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-[12px] font-medium text-primary-foreground hover:bg-primary-hover disabled:opacity-50"
+              >
+                {approveMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ShieldCheck className="h-3.5 w-3.5" />}
+                Aprovar e iniciar Ana ({approvalSelected.size})
+              </button>
+            </div>
+          </div>
+          {approvalQuery.data.leads.length === 0 ? (
+            <div className="px-4 py-5 text-center text-[12px] text-text-sec">Nenhum lead aguardando aprovação.</div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-[12px]">
+                <thead className="bg-bg-general/60 text-left text-[10.5px] uppercase text-text-ter">
+                  <tr>
+                    <th className="p-3">
+                      <input
+                        type="checkbox"
+                        aria-label="Selecionar toda a fila de aprovação"
+                        checked={approvalSelected.size > 0 && approvalSelected.size === approvalQuery.data.leads.length}
+                        onChange={(event) => setApprovalSelected(event.target.checked
+                          ? new Set(approvalQuery.data.leads.map((lead) => lead.id))
+                          : new Set())}
+                      />
+                    </th>
+                    <th className="p-3">Empresa</th>
+                    <th className="p-3">Local / segmento</th>
+                    <th className="p-3">Canais</th>
+                    <th className="p-3">Score</th>
+                    <th className="p-3">Motivo</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border-card">
+                  {approvalQuery.data.leads.map((lead) => (
+                    <tr key={lead.id}>
+                      <td className="p-3 align-top">
+                        <input
+                          type="checkbox"
+                          checked={approvalSelected.has(lead.id)}
+                          onChange={(event) => setApprovalSelected((current) => {
+                            const next = new Set(current);
+                            if (event.target.checked) next.add(lead.id);
+                            else next.delete(lead.id);
+                            return next;
+                          })}
+                        />
+                      </td>
+                      <td className="p-3 align-top font-medium text-text-title">{lead.company}</td>
+                      <td className="p-3 align-top text-text-body">
+                        <div>{[lead.city, lead.uf].filter(Boolean).join("/") || "—"}</div>
+                        <div className="text-[11px] text-text-ter">{lead.segment || "Sem segmento"}</div>
+                      </td>
+                      <td className="p-3 align-top text-text-body">
+                        {[lead.whatsapp ? "WhatsApp" : null, lead.email ? "E-mail" : null, lead.phone ? "Telefone" : null].filter(Boolean).join(" · ") || "—"}
+                      </td>
+                      <td className="p-3 align-top font-semibold text-text-title">{lead.score ?? 0}</td>
+                      <td className="max-w-sm p-3 align-top text-[11.5px] text-text-sec">{lead.contact_approval_reason || "Aguardando decisão"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+      )}
 
       {tab === "schedules" && <SchedulesPanel />}
 
@@ -610,23 +770,24 @@ function Prospeccao() {
                 <>
                   <b>{results.length}</b> empresas encontradas via <b>{SOURCE_META[currentSource]?.label ?? String(currentSource)}</b>
                   {search.data?.cached && <span className="ml-2 text-[11px] text-text-ter">(cache)</span>}
-                  
                 </>
               )}
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <button
-                onClick={() => importMut.mutate(selectedEligible.map((company) => company.cnpj))}
-                disabled={!selectedEligible.length || importMut.isPending}
-                className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-[12px] font-medium text-primary-foreground hover:bg-primary-hover disabled:opacity-50"
-              >
-                {importMut.isPending ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                ) : (
-                  <Plus className="h-3.5 w-3.5" />
-                )}
-                Enviar selecionados para Leads ({selectedEligible.length})
-              </button>
+              {isAdmin && (
+                <button
+                  onClick={() => importMut.mutate(selectedEligible.map((company) => company.cnpj))}
+                  disabled={!selectedEligible.length || importMut.isPending}
+                  className="flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-[12px] font-medium text-primary-foreground hover:bg-primary-hover disabled:opacity-50"
+                >
+                  {importMut.isPending ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Plus className="h-3.5 w-3.5" />
+                  )}
+                  Enviar selecionados para Leads ({selectedEligible.length})
+                </button>
+              )}
               {isSavedView && (
                 <button
                   onClick={() => setLoadedSaved(null)}
@@ -799,20 +960,26 @@ function Prospeccao() {
                               <ExternalLink className="h-3 w-3" />
                             </a>
                           )}
-                          <button
-                            onClick={() => importMut.mutate([c.cnpj])}
-                            disabled={!eligible || importMut.isPending}
-                            title={
-                              !eligible
-                                ? c.source === "ai_only"
-                                  ? "Valide esta sugestão em uma fonte real"
-                                  : "Prospecto sem canal de contato"
-                                : "Enviar para Leads e iniciar contato da IA"
-                            }
-                            className="inline-flex items-center gap-1 rounded-md bg-primary px-2.5 py-1 text-[11px] font-medium text-primary-foreground hover:bg-primary-hover disabled:opacity-50"
-                          >
-                            <Plus className="h-3 w-3" /> Enviar para Leads
-                          </button>
+                          {isAdmin ? (
+                            <button
+                              onClick={() => importMut.mutate([c.cnpj])}
+                              disabled={!eligible || importMut.isPending}
+                              title={
+                                !eligible
+                                  ? c.source === "ai_only"
+                                    ? "Valide esta sugestão em uma fonte real"
+                                    : "Prospecto sem canal de contato"
+                                  : "Enviar para Leads e aplicar a regra de aprovação configurada"
+                              }
+                              className="inline-flex items-center gap-1 rounded-md bg-primary px-2.5 py-1 text-[11px] font-medium text-primary-foreground hover:bg-primary-hover disabled:opacity-50"
+                            >
+                              <Plus className="h-3 w-3" /> Enviar para Leads
+                            </button>
+                          ) : (
+                            <span className="rounded-md bg-bg-general px-2 py-1 text-[10.5px] text-text-ter">
+                              Aprovação do administrador
+                            </span>
+                          )}
                         </div>
                       </td>
                     </tr>

@@ -22,6 +22,12 @@ export const Route = createFileRoute('/api/public/outreach-tick')({
         const { triggerOutreachInternal } = await import('@/lib/outreach.functions')
         const nowIso = new Date().toISOString()
         const workerId = `tick-${crypto.randomUUID().slice(0, 8)}`
+        await updateHeartbeat(supabaseAdmin, {
+          last_started_at: nowIso,
+          status: 'running',
+          last_error: null,
+          detail: { worker_id: workerId },
+        })
 
         const queueProcessed: string[] = []
         const queueFailed: Array<{ id: string; error: string }> = []
@@ -39,6 +45,11 @@ export const Route = createFileRoute('/api/public/outreach-tick')({
           .order('run_at', { ascending: true })
           .limit(50)
         if (candErr) {
+          await updateHeartbeat(supabaseAdmin, {
+            last_finished_at: new Date().toISOString(),
+            status: 'failed',
+            last_error: candErr.message,
+          })
           return Response.json({ ok: false, error: candErr.message }, { status: 500 })
         }
 
@@ -86,6 +97,11 @@ export const Route = createFileRoute('/api/public/outreach-tick')({
           .eq('opt_out', false)
           .limit(50)
         if (dueError) {
+          await updateHeartbeat(supabaseAdmin, {
+            last_finished_at: new Date().toISOString(),
+            status: 'failed',
+            last_error: dueError.message,
+          })
           return Response.json({ ok: false, error: dueError.message }, { status: 500 })
         }
 
@@ -118,23 +134,42 @@ export const Route = createFileRoute('/api/public/outreach-tick')({
           console.error('nurture_sweep_failed', (err as Error).message)
         }
 
-        return Response.json({
-          ok: queueFailed.length === 0 && sweepFailed.length === 0,
+        const ok = queueFailed.length === 0 && sweepFailed.length === 0
+        const detail = {
           queue: { processed: queueProcessed, failed: queueFailed },
           sweep: { processed: sweepProcessed, failed: sweepFailed },
           nurture,
+        }
+        await updateHeartbeat(supabaseAdmin, {
+          last_finished_at: new Date().toISOString(),
+          status: ok ? 'success' : 'partial',
+          last_error: ok ? null : (queueFailed[0]?.error || sweepFailed[0]?.error || 'partial_failure'),
+          detail,
         })
+        return Response.json({ ok, ...detail })
       },
     },
   },
 })
+
+async function updateHeartbeat(supabase: any, patch: Record<string, unknown>) {
+  try {
+    const { error } = await supabase
+      .from('automation_heartbeats')
+      .update({ ...patch, updated_at: new Date().toISOString() } as never)
+      .eq('job_name', 'outreach')
+    if (error) console.error('outreach_heartbeat_failed', error.message)
+  } catch (error) {
+    console.error('outreach_heartbeat_failed', (error as Error).message)
+  }
+}
 
 // ---- helpers ----------------------------------------------------------------
 
 type TriggerFn = (
   ctx: { supabase: any; userId: string; claims?: any },
   leadId: string,
-) => Promise<void>
+) => Promise<unknown>
 
 async function processTimeout(
   supabaseAdmin: any,
