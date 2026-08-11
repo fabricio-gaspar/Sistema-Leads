@@ -58,15 +58,13 @@ export type Enrollment = {
 export async function loadDefaultSequenceInternal(
   supabase: any,
 ): Promise<{ sequence: Sequence; steps: SequenceStep[] } | null> {
-  const { data: seq } = await supabase
-    (supabase as any).from('outreach_sequences')
+  const { data: seq } = await (supabase as any).from('outreach_sequences')
     .select('*')
     .eq('is_default', true)
     .eq('active', true)
     .maybeSingle()
   if (!seq) return null
-  const { data: steps } = await supabase
-    (supabase as any).from('outreach_sequence_steps')
+  const { data: steps } = await (supabase as any).from('outreach_sequence_steps')
     .select('*')
     .eq('sequence_id', seq.id)
     .eq('active', true)
@@ -78,23 +76,20 @@ export async function ensureEnrollmentInternal(
   supabase: any,
   leadId: string,
 ): Promise<Enrollment | null> {
-  const { data: existing } = await supabase
-    (supabase as any).from('lead_sequence_enrollments')
+  const { data: existing } = await (supabase as any).from('lead_sequence_enrollments')
     .select('*')
     .eq('lead_id', leadId)
     .maybeSingle()
   if (existing) return existing as Enrollment
   const bundle = await loadDefaultSequenceInternal(supabase)
   if (!bundle) return null
-  const { data: created, error } = await supabase
-    (supabase as any).from('lead_sequence_enrollments')
+  const { data: created, error } = await (supabase as any).from('lead_sequence_enrollments')
     .insert({ lead_id: leadId, sequence_id: bundle.sequence.id, status: 'active' } as never)
     .select('*')
     .maybeSingle()
   if (error) {
     // Race — another writer inserted; fetch it
-    const { data: retry } = await supabase
-      (supabase as any).from('lead_sequence_enrollments')
+    const { data: retry } = await (supabase as any).from('lead_sequence_enrollments')
       .select('*')
       .eq('lead_id', leadId)
       .maybeSingle()
@@ -107,8 +102,7 @@ export async function getEnrollmentInternal(
   supabase: any,
   leadId: string,
 ): Promise<Enrollment | null> {
-  const { data } = await supabase
-    (supabase as any).from('lead_sequence_enrollments')
+  const { data } = await (supabase as any).from('lead_sequence_enrollments')
     .select('*')
     .eq('lead_id', leadId)
     .maybeSingle()
@@ -125,35 +119,30 @@ export async function patchEnrollmentInternal(
 }
 
 export async function pauseEnrollmentInternal(supabase: any, leadId: string, reason: string) {
-  const { data: enr } = await supabase
-    (supabase as any).from('lead_sequence_enrollments')
+  const { data: enr } = await (supabase as any).from('lead_sequence_enrollments')
     .select('id, status')
     .eq('lead_id', leadId)
     .maybeSingle()
   if (!enr) return
   if ((enr as any).status === 'completed' || (enr as any).status === 'cancelled') return
-  await supabase
-    (supabase as any).from('lead_sequence_enrollments')
+  await (supabase as any).from('lead_sequence_enrollments')
     .update({ status: 'paused', pause_reason: reason } as never)
     .eq('lead_id', leadId)
 }
 
 export async function resumeEnrollmentInternal(supabase: any, leadId: string) {
-  const { data: enr } = await supabase
-    (supabase as any).from('lead_sequence_enrollments')
+  const { data: enr } = await (supabase as any).from('lead_sequence_enrollments')
     .select('id, status')
     .eq('lead_id', leadId)
     .maybeSingle()
   if (!enr || (enr as any).status !== 'paused') return
-  await supabase
-    (supabase as any).from('lead_sequence_enrollments')
+  await (supabase as any).from('lead_sequence_enrollments')
     .update({ status: 'active', pause_reason: null } as never)
     .eq('lead_id', leadId)
 }
 
 export async function cancelEnrollmentInternal(supabase: any, leadId: string, reason: string) {
-  await supabase
-    (supabase as any).from('lead_sequence_enrollments')
+  await (supabase as any).from('lead_sequence_enrollments')
     .update({
       status: 'cancelled',
       pause_reason: reason,
@@ -163,8 +152,7 @@ export async function cancelEnrollmentInternal(supabase: any, leadId: string, re
 }
 
 export async function completeEnrollmentInternal(supabase: any, leadId: string, reason: string) {
-  await supabase
-    (supabase as any).from('lead_sequence_enrollments')
+  await (supabase as any).from('lead_sequence_enrollments')
     .update({
       status: 'completed',
       pause_reason: reason,

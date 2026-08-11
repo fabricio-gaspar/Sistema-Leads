@@ -46,16 +46,14 @@ async function reindexDocumentWithClient(
   const chunks = splitIntoChunks(text)
 
   // Bump version: mark all existing chunks stale, then insert new active ones
-  await supabase
-    (context.supabase as any).from('knowledge_chunks')
+  await (supabase as any).from('knowledge_chunks')
     .update({ status: 'stale' } as never)
     .eq('document_id', document.id)
     .eq('status', 'active')
 
   if (!chunks.length) return { chunks: 0 }
 
-  const { data: prev } = await supabase
-    (context.supabase as any).from('knowledge_chunks')
+  const { data: prev } = await (supabase as any).from('knowledge_chunks')
     .select('version')
     .eq('document_id', document.id)
     .order('version', { ascending: false })
@@ -109,16 +107,14 @@ export async function loadKnowledgeSnippetInternal(
   supabase: any,
   charBudget = 8000,
 ): Promise<Array<{ document: string; content: string }>> {
-  const { data: docs } = await supabase
-    (context.supabase as any).from('documents')
+  const { data: docs } = await (supabase as any).from('documents')
     .select('id, name')
     .eq('status', 'active')
     .limit(20)
   if (!docs?.length) return []
 
   const ids = docs.map((d: { id: string }) => d.id)
-  const { data: chunks } = await supabase
-    (context.supabase as any).from('knowledge_chunks')
+  const { data: chunks } = await (supabase as any).from('knowledge_chunks')
     .select('document_id, content, chunk_index, version')
     .in('document_id', ids)
     .eq('status', 'active')
