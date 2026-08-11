@@ -149,11 +149,11 @@ export const getAutomationHealth = createServerFn({ method: "GET" })
     const ctx = context as Ctx;
     const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
     const [outreachRes, enrollRes, jobsRes, handoffRes, proposalsRes] = await Promise.all([
-      ctx.((supabase as any) as any).from("lead_outreach").select("channel, status, sent_at").gte("created_at", since),
-      ctx.((supabase as any) as any).from("lead_sequence_enrollments").select("status, last_error, nurture_cycles"),
-      ctx.((supabase as any) as any).from("outreach_jobs").select("status, attempt, run_at").gte("created_at", since),
-      ctx.((supabase as any) as any).from("lead_handoffs").select("status, requested_at, accepted_at, due_at").gte("requested_at", since),
-      ctx.((supabase as any) as any).from("proposals").select("status, creator, created_at").gte("created_at", since),
+      (ctx.supabase as any).from("lead_outreach").select("channel, status, sent_at").gte("created_at", since),
+      (ctx.supabase as any).from("lead_sequence_enrollments").select("status, last_error, nurture_cycles"),
+      (ctx.supabase as any).from("outreach_jobs").select("status, attempt, run_at").gte("created_at", since),
+      (ctx.supabase as any).from("lead_handoffs").select("status, requested_at, accepted_at, due_at").gte("requested_at", since),
+      (ctx.supabase as any).from("proposals").select("status, creator, created_at").gte("created_at", since),
     ]);
 
     const outreach = (outreachRes.data ?? []) as Array<{ channel: string; status: string }>;

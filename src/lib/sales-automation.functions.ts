@@ -25,7 +25,7 @@ const qualificationSchema = z.object({
 })
 
 async function audit(ctx: Ctx, action: string, detail: string, actorType: 'ia' | 'human' | 'system' = 'human') {
-  const { error } = await ctx.((supabase as any) as any).from('audit_logs').insert({
+  const { error } = await (ctx.supabase as any).from('audit_logs').insert({
     actor_id: ctx.userId,
     actor_name: ctx.claims?.email ?? (actorType === 'ia' ? 'Ana (IA)' : 'Usuário'),
     actor_type: actorType,
@@ -139,7 +139,7 @@ export async function createHandoffInternal(
   }
   if (error) throw new Error(error.message)
 
-  const { error: pauseError } = await ctx.((supabase as any) as any).from('leads').update({
+  const { error: pauseError } = await (ctx.supabase as any).from('leads').update({
     ai_paused: true,
     owner: 'human',
     assigned_to: assignedTo ?? lead.assigned_to,
@@ -153,7 +153,7 @@ export async function createHandoffInternal(
     .eq('lead_id', input.leadId)
 
   if (assignedTo) {
-    await ctx.((supabase as any) as any).from('notifications').insert({
+    await (ctx.supabase as any).from('notifications').insert({
       user_id: assignedTo,
       kind: 'lead_handoff',
       title: 'Novo atendimento para assumir',
@@ -175,10 +175,10 @@ export const getLeadAutomation = createServerFn({ method: 'GET' })
         .select('*, outreach_sequences(name, outreach_sequence_steps(*))')
         .eq('lead_id', data.lead_id)
         .maybeSingle(),
-      ctx.((supabase as any) as any).from('lead_qualifications').select('*').eq('lead_id', data.lead_id).maybeSingle(),
-      ctx.((supabase as any) as any).from('lead_handoffs').select('*').eq('lead_id', data.lead_id)
+      (ctx.supabase as any).from('lead_qualifications').select('*').eq('lead_id', data.lead_id).maybeSingle(),
+      (ctx.supabase as any).from('lead_handoffs').select('*').eq('lead_id', data.lead_id)
         .order('requested_at', { ascending: false }).limit(1).maybeSingle(),
-      ctx.((supabase as any) as any).from('appointments').select('*').eq('lead_id', data.lead_id)
+      (ctx.supabase as any).from('appointments').select('*').eq('lead_id', data.lead_id)
         .order('starts_at', { ascending: false }).limit(20),
     ])
     for (const result of [enrollment, qualification, handoff, appointments]) {
@@ -198,7 +198,7 @@ export const saveLeadQualification = createServerFn({ method: 'POST' })
   .handler(async ({ data, context }) => {
     const ctx = context as Ctx
     const { lead_id, ...values } = data
-    const { data: row, error } = await ctx.((supabase as any) as any).from('lead_qualifications').upsert({
+    const { data: row, error } = await (ctx.supabase as any).from('lead_qualifications').upsert({
       lead_id,
       ...values,
       updated_by: 'human',
@@ -214,14 +214,14 @@ export const acceptHandoff = createServerFn({ method: 'POST' })
   .handler(async ({ data, context }) => {
     const ctx = context as Ctx
     const now = new Date().toISOString()
-    const { data: handoff, error } = await ctx.((supabase as any) as any).from('lead_handoffs').update({
+    const { data: handoff, error } = await (ctx.supabase as any).from('lead_handoffs').update({
       status: 'accepted',
       assigned_to: ctx.userId,
       accepted_at: now,
     } as never).eq('id', data.handoff_id).eq('status', 'pending').select().maybeSingle()
     if (error) throw new Error(error.message)
     if (!handoff) throw new Error('Este atendimento já foi assumido ou encerrado')
-    const { error: leadError } = await ctx.((supabase as any) as any).from('leads').update({
+    const { error: leadError } = await (ctx.supabase as any).from('leads').update({
       assigned_to: ctx.userId,
       owner: 'human',
       ai_paused: true,
@@ -246,13 +246,13 @@ export const scheduleAppointment = createServerFn({ method: 'POST' })
     if (data.ends_at && new Date(data.ends_at) <= new Date(data.starts_at)) {
       throw new Error('O término deve ser posterior ao início')
     }
-    const { data: appointment, error } = await ctx.((supabase as any) as any).from('appointments').insert({
+    const { data: appointment, error } = await (ctx.supabase as any).from('appointments').insert({
       ...data,
       owner_id: ctx.userId,
       origin: 'manual',
     } as never).select().single()
     if (error) throw new Error(error.message)
-    await ctx.((supabase as any) as any).from('lead_tasks').insert({
+    await (ctx.supabase as any).from('lead_tasks').insert({
       lead_id: data.lead_id,
       text: `Reunião: ${data.title}`,
       owner_id: ctx.userId,

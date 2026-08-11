@@ -666,7 +666,7 @@ async function auditDocument(
   detail: string,
 ) {
   try {
-    const { error } = await ctx.((supabase as any) as any).from('audit_logs' ).insert({
+    const { error } = await (ctx.supabase as any).from('audit_logs' ).insert({
       actor_id: ctx.userId,
       actor_name: ctx.claims?.email ?? 'admin',
       actor_type: 'human',
@@ -894,7 +894,7 @@ async function auditTeam(
   detail: string,
 ) {
   try {
-    const { error } = await ctx.((supabase as any) as any).from('audit_logs' ).insert({
+    const { error } = await (ctx.supabase as any).from('audit_logs' ).insert({
       actor_id: ctx.userId,
       actor_name: ctx.claims?.email ?? 'admin',
       actor_type: 'human',
