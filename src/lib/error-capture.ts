@@ -1,24 +1,9 @@
-import type { Database } from '@/integrations/supabase/types'
-const TTL_MS = 5_000;
+let lastCapturedError: any = null;
 
-function record(error: unknown) {
-  lastCapturedError = { error, at: Date.now() };
-}
+export const captureError = (error: any) => {
+  lastCapturedError = error;
+  console.error("Captured Error:", error);
+};
 
-if (typeof globalThis.addEventListener === "function") {
-  globalThis.addEventListener("error", (event) => record((event as ErrorEvent).error ?? event));
-  globalThis.addEventListener("unhandledrejection", (event) =>
-    record((event as PromiseRejectionEvent).reason),
-  );
-}
-
-export function consumeLastCapturedError(): unknown {
-  if (!lastCapturedError) return undefined;
-  if (Date.now() - lastCapturedError.at > TTL_MS) {
-    lastCapturedError = undefined;
-    return undefined;
-  }
-  const { error } = lastCapturedError;
-  lastCapturedError = undefined;
-  return error;
-}
+export const getLastCapturedError = () => lastCapturedError;
+export const clearLastCapturedError = () => { lastCapturedError = null; };
