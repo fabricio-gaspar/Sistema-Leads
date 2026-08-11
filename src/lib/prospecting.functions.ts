@@ -341,7 +341,7 @@ Para telefone/whatsapp/email: SOMENTE inclua se forem informações públicas pl
     throw new Error(`Claude ${res.status}: ${text.slice(0, 200)}`)
   }
   const payload = (await res.json()) as { content?: Array<{ type: string; text?: string }> }
-  const text = (payload.content || []).filter((c) => c.type === 'text').map((c) => c.text || '').join('')
+  const text = (payload.content || []).filter((c: any) => c.type === 'text').map((c: any) => c.text || '').join('')
   const match = text.match(/\{[\s\S]*\}/)
   if (!match) return []
   const parsed = JSON.parse(match[0]) as {
@@ -519,7 +519,7 @@ Score alto = alto potencial de fechamento.`
     })
     if (!res.ok) return companies
     const payload = (await res.json()) as { content?: Array<{ type: string; text?: string }> }
-    const text = (payload.content || []).filter((c) => c.type === 'text').map((c) => c.text || '').join('')
+    const text = (payload.content || []).filter((c: any) => c.type === 'text').map((c: any) => c.text || '').join('')
     const match = text.match(/\{[\s\S]*\}/)
     if (!match) return companies
     const parsed = JSON.parse(match[0]) as { scores?: Array<{ idx: number; score: number; reason: string }> }
@@ -543,7 +543,7 @@ export const getEnabledSources = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { data } = await ((context as any).supabase as any)
-      .from('company_settings' as any)
+      .from('company_settings' as any) as any
       .select('prospecting_sources')
       .limit(1)
       .maybeSingle()
@@ -610,7 +610,7 @@ export const searchExternalCompanies = createServerFn({ method: 'POST' })
   .handler(async ({ data, context }) => {
     // Validate source is enabled
     const { data: settingsRow } = await ((context as any).supabase as any)
-      .from('company_settings' as any)
+      .from('company_settings' as any) as any
       .select('name, description, differentiators, prospecting_sources')
       .limit(1)
       .maybeSingle()
@@ -625,7 +625,7 @@ export const searchExternalCompanies = createServerFn({ method: 'POST' })
     const hash = hashFilters(data)
 
     const { data: cached } = await ((context as any).supabase as any)
-      .from('prospecting_cache' as any)
+      .from('prospecting_cache' as any) as any
       .select('*')
       .eq('user_id', context.userId)
       .eq('filters_hash', hash)
@@ -679,14 +679,14 @@ export const searchExternalCompanies = createServerFn({ method: 'POST' })
     const autoName = buildAutoName(data, raw.length)
     const farFuture = new Date(Date.now() + 1000 * 60 * 60 * 24 * 365 * 10).toISOString()
     const { data: row, error: insErr } = await ((context as any).supabase as any)
-      .from('prospecting_cache' as any)
+      .from('prospecting_cache' as any) as any
       .insert({
         user_id: context.userId,
         filters: data as never,
         filters_hash: hash,
         results: raw as never,
         total_found: raw.length,
-        scored: raw.some((s) => s.score != null),
+        scored: raw.some((s: any) => s.score != null),
         name: autoName,
         saved: true,
         expires_at: farFuture,
@@ -712,14 +712,14 @@ export const importExternalAsLead = createServerFn({ method: 'POST' })
   )
   .handler(async ({ data, context }) => {
     const { data: cache } = await ((context as any).supabase as any)
-      .from('prospecting_cache' as any)
+      .from('prospecting_cache' as any) as any
       .select('results')
       .eq('id', data.cache_id)
       .eq('user_id', context.userId)
       .maybeSingle()
     if (!cache) throw new Error('Cache de prospecção não encontrado ou expirado')
 
-    const company = ((cache.results as unknown as ExternalCompany[]) || []).find((c) => c.cnpj === data.cnpj)
+    const company = ((cache.results as unknown as ExternalCompany[]) || []).find((c: any) => c.cnpj === data.cnpj)
     if (!company) throw new Error('Empresa não encontrada no resultado')
     if (company.source === 'ai_only') {
       throw new Error('Sugestões geradas somente por IA precisam ser validadas em uma fonte real antes do contato.')
@@ -738,7 +738,7 @@ export const importExternalAsLead = createServerFn({ method: 'POST' })
 
     const originTag = `${company.source}:${company.cnpj}`
     const { data: dup } = await ((context as any).supabase as any)
-      .from('leads' as any)
+      .from('leads' as any) as any
       .select('*')
       .eq('owner_id', context.userId)
       .eq('origin', originTag)
@@ -814,10 +814,10 @@ export const importExternalAsLead = createServerFn({ method: 'POST' })
       contact_channels: initialChannels,
     }
 
-    const { data: row, error } = await ((((context as any).supabase as any) as any)).from('leads' as any).insert(payload as never).select().single()
+    const { data: row, error } = await ((((context as any).supabase as any) as any)).from('leads' as any) as any.insert(payload as never).select().single()
     if (error) throw new Error(error.message)
 
-    await ((((context as any).supabase as any) as any)).from('audit_logs' as any).insert({
+    await ((((context as any).supabase as any) as any)).from('audit_logs' as any) as any.insert({
       actor_id: context.userId,
       actor_name: context.claims?.email ?? 'user',
       actor_type: 'human',
@@ -859,7 +859,7 @@ export const saveProspectingSearch = createServerFn({ method: 'POST' })
     const patch: Record<string, unknown> = { saved: true, expires_at: farFuture }
     if (data.name && data.name.length > 0) patch.name = data.name
     const { error } = await ((context as any).supabase as any)
-      .from('prospecting_cache' as any)
+      .from('prospecting_cache' as any) as any
       .update(patch as never)
       .eq('id', data.cache_id)
       .eq('user_id', context.userId)
@@ -871,7 +871,7 @@ export const listSavedSearches = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { data, error } = await ((context as any).supabase as any)
-      .from('prospecting_cache' as any)
+      .from('prospecting_cache' as any) as any
       .select('id, name, filters, total_found, created_at')
       .eq('user_id', context.userId)
       .eq('saved', true)
@@ -895,7 +895,7 @@ export const getSavedSearch = createServerFn({ method: 'POST' })
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const { data: row, error } = await ((context as any).supabase as any)
-      .from('prospecting_cache' as any)
+      .from('prospecting_cache' as any) as any
       .select('id, name, filters, results, created_at')
       .eq('id', data.id)
       .eq('user_id', context.userId)
@@ -918,7 +918,7 @@ export const deleteSavedSearch = createServerFn({ method: 'POST' })
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const { error } = await ((context as any).supabase as any)
-      .from('prospecting_cache' as any)
+      .from('prospecting_cache' as any) as any
       .delete()
       .eq('id', data.id)
       .eq('user_id', context.userId)
@@ -934,7 +934,7 @@ export const renameSavedSearch = createServerFn({ method: 'POST' })
   )
   .handler(async ({ data, context }) => {
     const { error } = await ((context as any).supabase as any)
-      .from('prospecting_cache' as any)
+      .from('prospecting_cache' as any) as any
       .update({ name: data.name } as never)
       .eq('id', data.id)
       .eq('user_id', context.userId)
@@ -950,7 +950,7 @@ export const listRecentProspectingSamples = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const { data, error } = await ((context as any).supabase as any)
-      .from('prospecting_cache' as any)
+      .from('prospecting_cache' as any) as any
       .select('id, name, filters, results, total_found, created_at, saved')
       .eq('user_id', context.userId)
       .order('created_at', { ascending: false })
@@ -1006,13 +1006,13 @@ export async function runProspectingCampaignInternal(
   startOfDay.setUTCHours(0, 0, 0, 0)
   const startOfMonth = new Date(startOfDay.getUTCFullYear(), startOfDay.getUTCMonth(), 1)
   const { data: dayRuns } = await supabaseAdmin
-    .from('prospecting_schedule_runs' as any)
+    .from('prospecting_schedule_runs' as any) as any
     .select('imported_count')
     .eq('schedule_id', schedule.id)
     .gte('started_at', startOfDay.toISOString())
   const importedToday = (dayRuns ?? []).reduce((a: number, r: any) => a + (r.imported_count ?? 0), 0)
   const { data: monthRuns } = await supabaseAdmin
-    .from('prospecting_schedule_runs' as any)
+    .from('prospecting_schedule_runs' as any) as any
     .select('imported_count')
     .eq('schedule_id', schedule.id)
     .gte('started_at', startOfMonth.toISOString())
@@ -1027,7 +1027,7 @@ export async function runProspectingCampaignInternal(
 
   // ---- Load settings for scoring ----
   const { data: settingsRow } = await supabaseAdmin
-    .from('company_settings' as any)
+    .from('company_settings' as any) as any
     .select('name, description, differentiators, prospecting_sources')
     .limit(1)
     .maybeSingle()
@@ -1077,7 +1077,7 @@ export async function runProspectingCampaignInternal(
   let ownerPool: string[] = [schedule.owner_id]
   if (schedule.assignment_strategy === 'round_robin') {
     const { data: sellers } = await supabaseAdmin
-      .from('profiles' as any)
+      .from('profiles' as any) as any
       .select('id')
       .eq('active', true)
     ownerPool = (sellers ?? []).map((s: any) => s.id as string)
@@ -1102,7 +1102,7 @@ export async function runProspectingCampaignInternal(
 
     const originTag = `${company.source}:${company.cnpj || company.razao_social}`
     const { data: dup } = await supabaseAdmin
-      .from('leads' as any)
+      .from('leads' as any) as any
       .select('id')
       .eq('owner_id', assignedOwner)
       .eq('origin', originTag)
@@ -1148,10 +1148,10 @@ export async function runProspectingCampaignInternal(
       origin: `schedule:${schedule.id}|${originTag}`,
       contact_channels: initialChannels,
     }
-    const { data: row, error } = await supabaseAdmin.from('leads' as any).insert(payload as never).select('id').single()
+    const { data: row, error } = await supabaseAdmin.from('leads' as any) as any.insert(payload as never).select('id').single()
     if (error) { bump(`insert_error:${error.code ?? 'unknown'}`); continue }
 
-    await supabaseAdmin.from('audit_logs' as any).insert({
+    await supabaseAdmin.from('audit_logs' as any) as any.insert({
       actor_id: assignedOwner, actor_name: 'Agendador de prospecção', actor_type: 'ia',
       action: 'schedule_lead_created',
       detail: `Campanha ${schedule.id} · ${company.razao_social}`,

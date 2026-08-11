@@ -144,7 +144,7 @@ export const runMockScan = createServerFn({ method: 'POST' })
     // ===== LEADS =====
     {
       const { data: rows } = await supabase
-        .from('leads' as any)
+        .from('leads' as any) as any
         .select('id, company, contact, email, phone, segment, city')
         .limit(2000)
       const list = (rows ?? []) as Array<Record<string, unknown>>
@@ -165,7 +165,7 @@ export const runMockScan = createServerFn({ method: 'POST' })
     // ===== PROFILES =====
     {
       const { data: rows } = await supabase
-        .from('profiles' as any)
+        .from('profiles' as any) as any
         .select('id, name, email')
         .limit(2000)
       const list = (rows ?? []) as Array<Record<string, unknown>>
@@ -182,7 +182,7 @@ export const runMockScan = createServerFn({ method: 'POST' })
     // ===== COMPANY_SETTINGS =====
     {
       const { data: rows } = await supabase
-        .from('company_settings' as any)
+        .from('company_settings' as any) as any
         .select('id, name, cnpj, city, segment, email, phone')
         .limit(500)
       const list = (rows ?? []) as Array<Record<string, unknown>>
@@ -205,7 +205,7 @@ export const runMockScan = createServerFn({ method: 'POST' })
     // ===== PROPOSALS =====
     {
       const { data: rows } = await supabase
-        .from('proposals' as any)
+        .from('proposals' as any) as any
         .select('id, client, number')
         .limit(2000)
       const list = (rows ?? []) as Array<Record<string, unknown>>
@@ -220,7 +220,7 @@ export const runMockScan = createServerFn({ method: 'POST' })
     // ===== ORDERS =====
     {
       const { data: rows } = await supabase
-        .from('orders' as any)
+        .from('orders' as any) as any
         .select('id, company, number, seller_name')
         .limit(2000)
       const list = (rows ?? []) as Array<Record<string, unknown>>
@@ -237,7 +237,7 @@ export const runMockScan = createServerFn({ method: 'POST' })
     // ===== SERVICES =====
     {
       const { data: rows } = await supabase
-        .from('services' as any)
+        .from('services' as any) as any
         .select('id, name, description')
         .limit(1000)
       const list = (rows ?? []) as Array<Record<string, unknown>>
@@ -254,7 +254,7 @@ export const runMockScan = createServerFn({ method: 'POST' })
     // ===== INTEGRATIONS (detectar "conectado" sem config real) =====
     {
       const { data: rows } = await supabase
-        .from('integrations' as any)
+        .from('integrations' as any) as any
         .select('id, key, label, connected, config')
         .limit(200)
       const list = (rows ?? []) as Array<Record<string, unknown>>

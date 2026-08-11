@@ -1,4 +1,5 @@
 import { autonomyOf } from './autonomy'
+import { autonomyOf } from './autonomy'
 import { createServerFn } from '@tanstack/react-start'
 import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware'
 import { z } from 'zod'
@@ -14,7 +15,7 @@ type Ctx = { supabase: any; userId: string; claims?: any }
 // ============================================================================
 
 async function audit(ctx: Ctx, action: string, detail: string, actorType: 'ia' | 'human' | 'system' = 'ia') {
-  await (ctx.supabase as any).from('audit_logs' as any).insert({
+  await (ctx.supabase as any).from('audit_logs' as any) as any.insert({
     actor_id: ctx.userId,
     actor_name: ctx.claims?.email ?? (actorType === 'ia' ? 'Ana (IA)' : 'Sistema'),
     actor_type: actorType,
@@ -25,22 +26,22 @@ async function audit(ctx: Ctx, action: string, detail: string, actorType: 'ia' |
 
 async function loadCompanyContext(ctx: Ctx) {
   const [{ data: settings }, { data: services }, { data: objections }] = await Promise.all([
-    (ctx.supabase as any).from('company_settings' as any).select('*').limit(1).maybeSingle(),
-    (ctx.supabase as any).from('services' as any).select('id, name, description, price, unit, term, max_discount').eq('active', true),
-    (ctx.supabase as any).from('objections' as any).select('trigger, response').limit(10),
+    (ctx.supabase as any).from('company_settings' as any) as any.select('*').limit(1).maybeSingle(),
+    (ctx.supabase as any).from('services' as any) as any.select('id, name, description, price, unit, term, max_discount').eq('active', true),
+    (ctx.supabase as any).from('objections' as any) as any.select('trigger, response').limit(10),
   ])
   return { settings: settings ?? null, services: services ?? [], objections: objections ?? [] }
 }
 
 async function loadKnowledgeSnippets(ctx: Ctx, maxChunks = 6): Promise<string> {
   const { data } = await ctx.supabase
-    .from('knowledge_chunks' as any)
+    .from('knowledge_chunks' as any) as any
     .select('content, documents(name, status)')
     .eq('status', 'ready')
     .limit(maxChunks)
   if (!data?.length) return ''
   return (data as any[])
-    .filter((r) => r.documents?.status === 'active' || r.documents?.status === 'ready')
+    .filter((r: any) => r.documents?.status === 'active' || r.documents?.status === 'ready')
     .map((r) => `— ${r.content.slice(0, 400)}`)
     .join('\n')
 }
@@ -65,7 +66,7 @@ async function callClaude(system: string, user: string, model?: string, maxToken
   })
   if (!res.ok) return null
   const payload = (await res.json()) as { content?: Array<{ type: string; text?: string }> }
-  return (payload.content || []).filter((c) => c.type === 'text').map((c) => c.text || '').join('').trim() || null
+  return (payload.content || []).filter((c: any) => c.type === 'text').map((c: any) => c.text || '').join('').trim() || null
 }
 
 // ============================================================================
@@ -80,7 +81,7 @@ export const draftInitialContact = createServerFn({ method: 'POST' })
   }).parse(d))
   .handler(async ({ data, context }) => {
     const ctx = context as Ctx
-    const { data: lead, error } = await (ctx.supabase as any).from('leads' as any).select('*').eq('id', data.lead_id).maybeSingle()
+    const { data: lead, error } = await (ctx.supabase as any).from('leads' as any) as any.select('*').eq('id', data.lead_id).maybeSingle()
     if (error) throw new Error(error.message)
     if (!lead) throw new Error('Lead não encontrado')
 
@@ -131,7 +132,7 @@ type ProposedItem = { service_id?: string; name: string; qty: number; unit_price
 
 async function nextProposalNumber(ctx: Ctx): Promise<string> {
   const year = new Date().getFullYear()
-  const { count } = await (ctx.supabase as any).from('proposals' as any).select('id', { count: 'exact', head: true })
+  const { count } = await (ctx.supabase as any).from('proposals' as any) as any.select('id', { count: 'exact', head: true })
   const n = String((count ?? 0) + 1).padStart(4, '0')
   return `P-${year}-${n}`
 }
@@ -145,8 +146,8 @@ export const autoDraftProposal = createServerFn({ method: 'POST' })
   .handler(async ({ data, context }) => {
     const ctx = context as Ctx
     const [{ data: lead }, { data: qual }] = await Promise.all([
-      (ctx.supabase as any).from('leads' as any).select('*').eq('id', data.lead_id).maybeSingle(),
-      (ctx.supabase as any).from('lead_qualifications' as any).select('*').eq('lead_id', data.lead_id).maybeSingle(),
+      (ctx.supabase as any).from('leads' as any) as any.select('*').eq('id', data.lead_id).maybeSingle(),
+      (ctx.supabase as any).from('lead_qualifications' as any) as any.select('*').eq('lead_id', data.lead_id).maybeSingle(),
     ])
     if (!lead) throw new Error('Lead não encontrado')
 
@@ -220,7 +221,7 @@ Resumo: ${qual?.summary ?? '—'}`
     }
     if (!cleanItems.length) throw new Error('Não foi possível casar sugestões da IA com o catálogo ativo.')
 
-    const totalValue = cleanItems.reduce((sum, item) => sum + item.total, 0)
+    const totalValue = cleanItems.reduce((sum: any, item: any) => sum + item.total, 0)
     const number = await nextProposalNumber(ctx)
     const status = autonomy === 'auto' ? 'Enviado' : 'Rascunho'
 
@@ -238,20 +239,20 @@ Resumo: ${qual?.summary ?? '—'}`
       owner_id: lead.assigned_to || lead.owner_id || ctx.userId,
     }
     const { data: proposal, error: insertError } = await ctx.supabase
-      .from('proposals' as any).insert(proposalPayload as never).select().single()
+      .from('proposals' as any) as any.insert(proposalPayload as never).select().single()
     if (insertError) throw new Error(insertError.message)
 
     // Avança o kanban do lead
     const order = ['Prospecção', 'Qualificado', 'Proposta', 'Negociação', 'Pedido', 'Fechado']
     const cur = order.indexOf(lead.stage ?? '')
     if (cur >= 0 && cur < order.indexOf('Proposta')) {
-      await (ctx.supabase as any).from('leads' as any).update({ stage: 'Proposta' } as never).eq('id', data.lead_id)
+      await (ctx.supabase as any).from('leads' as any) as any.update({ stage: 'Proposta' } as never).eq('id', data.lead_id)
     }
 
     if (autonomy !== 'auto') {
       const assignee = lead.assigned_to || lead.owner_id
       if (assignee) {
-        await (ctx.supabase as any).from('notifications' as any).insert({
+        await (ctx.supabase as any).from('notifications' as any) as any.insert({
           user_id: assignee,
           kind: 'proposal_draft',
           title: 'Rascunho de orçamento pronto',
@@ -276,7 +277,7 @@ export async function runNurtureSweepInternal(ctx: Ctx, limit = 20): Promise<{
   candidates: number; reactivated: number; skipped: number; details: Array<{ lead_id: string; result: string }>
 }> {
   const admin = ctx.supabase
-  const { data: settings } = await admin.from('company_settings' as any).select('nurture_days, nurture_max_cycles, autonomy').limit(1).maybeSingle()
+  const { data: settings } = await admin.from('company_settings' as any) as any.select('nurture_days, nurture_max_cycles, autonomy').limit(1).maybeSingle()
   const autonomy = autonomyOf(settings?.autonomy, 'nurture')
   if (autonomy === 'manual') return { candidates: 0, reactivated: 0, skipped: 0, details: [] }
 
@@ -285,7 +286,7 @@ export async function runNurtureSweepInternal(ctx: Ctx, limit = 20): Promise<{
   const threshold = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString()
 
   const { data: candidates, error } = await admin
-    .from('leads' as any)
+    .from('leads' as any) as any
     .select('id, company, stage, opt_out, ai_paused, assigned_to, owner_id, updated_at')
     .in('stage', ['Prospecção', 'Qualificado'])
     .eq('opt_out', false)
@@ -302,7 +303,7 @@ export async function runNurtureSweepInternal(ctx: Ctx, limit = 20): Promise<{
 
   for (const lead of candidates as any[]) {
     const { data: enrollment } = await admin
-      .from('lead_sequence_enrollments' as any).select('id, status, nurture_cycles')
+      .from('lead_sequence_enrollments' as any) as any.select('id, status, nurture_cycles')
       .eq('lead_id', lead.id).maybeSingle()
     if (enrollment?.status === 'active') { skipped += 1; details.push({ lead_id: lead.id, result: 'active_already' }); continue }
     if ((enrollment?.nurture_cycles ?? 0) >= maxCycles) { skipped += 1; details.push({ lead_id: lead.id, result: 'max_cycles' }); continue }
@@ -310,7 +311,7 @@ export async function runNurtureSweepInternal(ctx: Ctx, limit = 20): Promise<{
     if (autonomy === 'assist') {
       const assignee = lead.assigned_to ?? lead.owner_id ?? null
       if (assignee) {
-        await admin.from('notifications' as any).insert({
+        await admin.from('notifications' as any) as any.insert({
           user_id: assignee, kind: 'nurture_ready',
           title: 'Lead pronto para nurture',
           description: `${lead.company} está sem resposta há ${days}+ dias. Reativar cadência?`,
@@ -323,7 +324,7 @@ export async function runNurtureSweepInternal(ctx: Ctx, limit = 20): Promise<{
     try {
       // Reativa a matrícula do zero para o próximo passo elegível
       if (enrollment?.id) {
-        await admin.from('lead_sequence_enrollments' as any).update({
+        await admin.from('lead_sequence_enrollments' as any) as any.update({
           status: 'active',
           current_step_index: -1,
           next_run_at: new Date().toISOString(),
@@ -334,7 +335,7 @@ export async function runNurtureSweepInternal(ctx: Ctx, limit = 20): Promise<{
       await triggerOutreachInternal(ctx, lead.id)
       reactivated += 1
       details.push({ lead_id: lead.id, result: 'restarted' })
-      await admin.from('audit_logs' as any).insert({
+      await admin.from('audit_logs' as any) as any.insert({
         actor_id: ctx.userId, actor_name: 'Nurture', actor_type: 'ia',
         action: 'nurture_restart', detail: `${lead.company}: reativado após ${days}+ dias`,
       } as never)

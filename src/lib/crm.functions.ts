@@ -539,8 +539,8 @@ export const chatWithAna = createServerFn({ method: 'POST' })
     if (!upstream.ok) throw new Error(payload?.error?.message || `Anthropic ${upstream.status}`)
     const text =
       (payload.content || [])
-        .filter((c) => c.type === 'text')
-        .map((c) => c.text || '')
+        .filter((c: any) => c.type === 'text')
+        .map((c: any) => c.text || '')
         .join('\n')
         .trim() || '…'
 
@@ -577,7 +577,7 @@ export const chatWithAna = createServerFn({ method: 'POST' })
         })
         if (clsRes.ok) {
           const cls = (await clsRes.json()) as { content?: Array<{ type: string; text?: string }> }
-          const raw = (cls.content || []).filter((c) => c.type === 'text').map((c) => c.text || '').join('')
+          const raw = (cls.content || []).filter((c: any) => c.type === 'text').map((c: any) => c.text || '').join('')
           const m = raw.match(/\{[\s\S]*\}/)
           if (m) {
             const parsed = JSON.parse(m[0]) as { intencao?: string; confianca?: number }
@@ -1009,7 +1009,7 @@ export const setUserRole = createServerFn({ method: 'POST' })
       if (prevRoles.length) {
         const { error: rbErr } = await supabaseAdmin
           .from('user_roles' )
-          .insert(prevRoles.map((r) => ({ user_id: data.user_id, role: r })) )
+          .insert(prevRoles.map((r: any) => ({ user_id: data.user_id, role: r })) )
         if (rbErr) {
           console.error('[setUserRole] rollback failed:', rbErr.message, 'user:', data.user_id)
         }
@@ -1292,22 +1292,22 @@ export const getDashboardStats = createServerFn({ method: 'GET' })
     ])
 
     const leads = leadsRes.data ?? []
-    const active = leads.filter((l) => l.stage !== 'Fechado' && l.stage !== 'Perdido')
-    const hot = leads.filter((l) => l.temp === 'hot').length
+    const active = leads.filter((l: any) => l.stage !== 'Fechado' && l.stage !== 'Perdido')
+    const hot = leads.filter((l: any) => l.temp === 'hot').length
     const stale = leads.filter((l) => (l.stale_hours ?? 0) >= 48).length
-    const pipelineValue = active.reduce((a, l) => a + Number(l.value || 0), 0)
+    const pipelineValue = active.reduce((a: any, l: any) => a + Number(l.value || 0), 0)
 
     const msgs = msgsRes.data ?? []
-    const msgsAna = msgs.filter((m) => m.sender === 'ia').length
+    const msgsAna = msgs.filter((m: any) => m.sender === 'ia').length
 
     const proposals = propsRes.data ?? []
-    const proposalsOpen = proposals.filter((p) => p.status !== 'Fechada' && p.status !== 'Perdida').length
+    const proposalsOpen = proposals.filter((p: any) => p.status !== 'Fechada' && p.status !== 'Perdida').length
     const proposalsValue = proposals
-      .filter((p) => p.status !== 'Perdida')
-      .reduce((a, p) => a + Number(p.value || 0), 0)
+      .filter((p: any) => p.status !== 'Perdida')
+      .reduce((a: any, p: any) => a + Number(p.value || 0), 0)
 
     const orders = ordersRes.data ?? []
-    const ordersValue = orders.reduce((a, o) => a + Number(o.value || 0), 0)
+    const ordersValue = orders.reduce((a: any, o: any) => a + Number(o.value || 0), 0)
 
     return {
       leadsActive: active.length,
@@ -1374,8 +1374,8 @@ export const getReportsData = createServerFn({ method: 'POST' })
       })
       return {
         label: m.label,
-        ia: inMonth.filter((l) => l.owner === 'ia').length,
-        humano: inMonth.filter((l) => l.owner !== 'ia').length,
+        ia: inMonth.filter((l: any) => l.owner === 'ia').length,
+        humano: inMonth.filter((l: any) => l.owner !== 'ia').length,
       }
     })
 
@@ -1404,7 +1404,7 @@ export const getReportsData = createServerFn({ method: 'POST' })
       }
     }
     const ranking = Array.from(map.values())
-      .map((r) => ({ ...r, taxa: r.leads > 0 ? ((r.fechados / r.leads) * 100).toFixed(1) + '%' : '0%' }))
+      .map((r: any) => ({ ...r, taxa: r.leads > 0 ? ((r.fechados / r.leads) * 100).toFixed(1) + '%' : '0%' }))
       .sort((a, b) => b.receita - a.receita)
 
     // Canais / origem
@@ -1413,23 +1413,23 @@ export const getReportsData = createServerFn({ method: 'POST' })
       const o = l.origin || 'Outros'
       origemMap.set(o, (origemMap.get(o) ?? 0) + 1)
     }
-    const totalOrigem = Array.from(origemMap.values()).reduce((a, b) => a + b, 0) || 1
+    const totalOrigem = Array.from(origemMap.values()).reduce((a: any, b: any) => a + b, 0) || 1
     const canais = Array.from(origemMap.entries())
       .map(([canal, leads]) => ({ canal, leads, pct: Math.round((leads / totalOrigem) * 100) }))
       .sort((a, b) => b.leads - a.leads)
 
     // KPIs topo
-    const receita7m = closed.reduce((a, l) => a + Number(l.value || 0), 0)
+    const receita7m = closed.reduce((a: any, l: any) => a + Number(l.value || 0), 0)
     const totalFechados = closed.length
     const ticket = totalFechados > 0 ? Math.round(receita7m / totalFechados) : 0
 
     const sentStatuses = new Set(['sent', 'delivered', 'read', 'replied'])
     const channelPerformance = (['whatsapp', 'email', 'phone'] as const).map((channel) => {
-      const rows = outreach.filter((row) => row.channel === channel && row.actor_type !== 'system')
-      const attemptedLeads = new Set(rows.map((row) => row.lead_id)).size
-      const sent = rows.filter((row) => sentStatuses.has(row.status)).length
-      const replied = rows.filter((row) => row.status === 'replied' || row.replied_at).length
-      const failed = rows.filter((row) => row.status === 'failed').length
+      const rows = outreach.filter((row: any) => row.channel === channel && row.actor_type !== 'system')
+      const attemptedLeads = new Set(rows.map((row: any) => row.lead_id)).size
+      const sent = rows.filter((row: any) => row.has(row.status)).length
+      const replied = rows.filter((row: any) => row.status === 'replied' || row.replied_at).length
+      const failed = rows.filter((row: any) => row.status === 'failed').length
       return {
         channel,
         attempts: rows.length,
@@ -1454,15 +1454,15 @@ export const getReportsData = createServerFn({ method: 'POST' })
       })
       .filter((value): value is number => value != null && Number.isFinite(value))
     const avgFirstContactMinutes = firstContactMinutes.length
-      ? Math.round(firstContactMinutes.reduce((sum, value) => sum + value, 0) / firstContactMinutes.length)
+      ? Math.round(firstContactMinutes.reduce((sum: any, value: any) => sum + value, 0) / firstContactMinutes.length)
       : null
     const funnelOrder = ['Prospecção', 'Qualificado', 'Proposta', 'Negociação', 'Pedido', 'Fechado', 'Perdido']
-    const funnel = funnelOrder.map((stage) => ({
+    const funnel = funnelOrder.map((stage: any) => ({
       stage,
-      count: allLeads.filter((lead) => lead.stage === stage).length,
+      count: allLeads.filter((lead: any) => lead.stage === stage).length,
     }))
     const contactedLeads = firstSentByLead.size
-    const responseLeads = new Set(outreach.filter((row) => row.status === 'replied' || row.replied_at).map((row) => row.lead_id)).size
+    const responseLeads = new Set(outreach.filter((row: any) => row.status === 'replied' || row.replied_at).map((row: any) => row.lead_id)).size
 
     return {
       months: series,
@@ -1478,8 +1478,8 @@ export const getReportsData = createServerFn({ method: 'POST' })
         contactedLeads,
         responseLeads,
         responseRate: contactedLeads > 0 ? Number(((responseLeads / contactedLeads) * 100).toFixed(1)) : 0,
-        conversionRate: allLeads.length > 0 ? Number(((allLeads.filter((lead) => lead.stage === 'Fechado').length / allLeads.length) * 100).toFixed(1)) : 0,
-        escalated: allLeads.filter((lead) => lead.escalated).length,
+        conversionRate: allLeads.length > 0 ? Number(((allLeads.filter((lead: any) => lead.stage === 'Fechado').length / allLeads.length) * 100).toFixed(1)) : 0,
+        escalated: allLeads.filter((lead: any) => lead.escalated).length,
         avgFirstContactMinutes,
       },
     }
@@ -2298,9 +2298,9 @@ export const getOpsMetrics = createServerFn({ method: 'GET' })
       }
     }
     const responseMinutes = structuredHandoffs
-      .filter((row) => row.accepted_at)
+      .filter((row: any) => row.accepted_at)
       .map((row) => (new Date(row.accepted_at as string).getTime() - new Date(row.requested_at).getTime()) / 60_000)
-      .filter((value) => Number.isFinite(value) && value >= 0)
+      .filter((value: any) => value.isFinite(value) && value >= 0)
     const now = Date.now()
     const enrollments = (enrollmentRes.data ?? []) as Array<{ status: string; pause_reason: string | null }>
     const appointments = (appointmentRes.data ?? []) as Array<{ status: string }>
@@ -2311,24 +2311,24 @@ export const getOpsMetrics = createServerFn({ method: 'GET' })
       anaTaskCount: anaTasksRes.count ?? 0,
       handoffs: {
         total: structuredHandoffs.length || legacyHandoffs.length,
-        pending: structuredHandoffs.filter((row) => row.status === 'pending').length,
-        accepted: structuredHandoffs.filter((row) => row.status === 'accepted' || row.status === 'closed').length,
+        pending: structuredHandoffs.filter((row: any) => row.status === 'pending').length,
+        accepted: structuredHandoffs.filter((row: any) => row.status === 'accepted' || row.status === 'closed').length,
         overdue: structuredHandoffs.filter((row) =>
           row.status === 'pending' && row.due_at && new Date(row.due_at).getTime() < now,
         ).length,
         avgResponseMinutes: responseMinutes.length
-          ? Math.round(responseMinutes.reduce((sum, value) => sum + value, 0) / responseMinutes.length)
+          ? Math.round(responseMinutes.reduce((sum: any, value: any) => sum + value, 0) / responseMinutes.length)
           : null,
       },
       sequences: {
-        active: enrollments.filter((row) => row.status === 'active' || row.status === 'paused').length,
-        completed: enrollments.filter((row) => row.status === 'completed').length,
-        handedOff: enrollments.filter((row) => row.pause_reason?.startsWith('handoff:')).length,
+        active: enrollments.filter((row: any) => row.status === 'active' || row.status === 'paused').length,
+        completed: enrollments.filter((row: any) => row.status === 'completed').length,
+        handedOff: enrollments.filter((row: any) => row.pause_reason?.startsWith('handoff:')).length,
       },
       appointments: {
-        scheduled: appointments.filter((row) => row.status === 'scheduled').length,
-        completed: appointments.filter((row) => row.status === 'completed').length,
-        noShow: appointments.filter((row) => row.status === 'no_show').length,
+        scheduled: appointments.filter((row: any) => row.status === 'scheduled').length,
+        completed: appointments.filter((row: any) => row.status === 'completed').length,
+        noShow: appointments.filter((row: any) => row.status === 'no_show').length,
       },
       windowDays: 30,
     }

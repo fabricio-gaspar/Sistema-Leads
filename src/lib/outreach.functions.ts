@@ -1,4 +1,5 @@
 import { cancelEnrollmentInternal } from './outreach-sequences.functions'
+import { cancelEnrollmentInternal } from './outreach-sequences.functions'
 import { createServerFn } from '@tanstack/react-start'
 import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware'
 import { z } from 'zod'
@@ -49,7 +50,7 @@ async function suppressionHash(channel: Channel, value: string): Promise<string 
   if (!normalized) return null
   const namespace = channel === 'email' ? 'email' : 'number'
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`${namespace}:${normalized}`))
-  return Array.from(new Uint8Array(digest)).map((byte) => byte.toString(16).padStart(2, '0')).join('')
+  return Array.from(new Uint8Array(digest)).map((byte: any) => byte.toString(16).padStart(2, '0')).join('')
 }
 
 export async function isAnyContactSuppressed(
@@ -69,7 +70,7 @@ export async function isAnyContactSuppressed(
   })
   if (error) {
     const { data: rows, error: fallbackError } = await ctx.supabase
-      .from('contact_suppressions' as any)
+      .from('contact_suppressions' as any) as any
       .select('contact_hash')
       .in('contact_hash', hashes)
       .limit(1)
@@ -91,9 +92,9 @@ export async function suppressLeadContactsInternal(ctx: Ctx, leadId: string) {
     contact_hash: value ? await suppressionHash(channel, value) : null,
   }))))
     .filter((row): row is { channel: Channel; contact_hash: string } => Boolean(row.contact_hash))
-    .map((row) => ({ ...row, lead_id: leadId, reason: 'opt_out' }))
+    .map((row: any) => ({ ...row, lead_id: leadId, reason: 'opt_out' }))
   if (rows.length) {
-    await (ctx.supabase as any).from('contact_suppressions' as any).upsert(rows as never, {
+    await (ctx.supabase as any).from('contact_suppressions' as any) as any.upsert(rows as never, {
       onConflict: 'contact_hash',
       ignoreDuplicates: true,
     })
@@ -179,7 +180,7 @@ function renderTemplate(template: string, lead: any): string {
 
 async function loadCadence(ctx: Ctx): Promise<{ waitHours: number; maxAttempts: number }> {
   const { data } = await ctx.supabase
-    .from('company_settings' as any)
+    .from('company_settings' as any) as any
     .select('outreach_wait_hours, outreach_max_attempts')
     .limit(1)
     .maybeSingle()
@@ -190,7 +191,7 @@ async function loadCadence(ctx: Ctx): Promise<{ waitHours: number; maxAttempts: 
 }
 
 async function loadLead(ctx: Ctx, leadId: string) {
-  const { data, error } = await (ctx.supabase as any).from('leads' as any).select('*').eq('id', leadId).maybeSingle()
+  const { data, error } = await (ctx.supabase as any).from('leads' as any) as any.select('*').eq('id', leadId).maybeSingle()
   if (error) throw new Error(error.message)
   if (!data) throw new Error('Lead não encontrado')
   return data
@@ -207,13 +208,13 @@ export async function assertSandboxAllowed(
   leadId: string,
 ): Promise<{ allowed: boolean; reason?: string }> {
   const { data: settings } = await ctx.supabase
-    .from('company_settings' as any)
+    .from('company_settings' as any) as any
     .select('sandbox_mode')
     .limit(1)
     .maybeSingle()
   if (!settings?.sandbox_mode) return { allowed: true }
   const { data: rows } = await ctx.supabase
-    .from('contact_points' as any)
+    .from('contact_points' as any) as any
     .select('id')
     .eq('lead_id', leadId)
     .eq('sandbox', true)
@@ -237,7 +238,7 @@ async function updateChannelStatus(
     last_attempt_at: new Date().toISOString(),
   }
   const patch: Record<string, unknown> = { contact_channels: channels, ...extra }
-  await (ctx.supabase as any).from('leads' as any).update(patch as never).eq('id', leadId)
+  await (ctx.supabase as any).from('leads' as any) as any.update(patch as never).eq('id', leadId)
 }
 
 /**
@@ -256,7 +257,7 @@ export async function enqueueOutreachTimeoutInternal(
   },
 ): Promise<void> {
   const idempotencyKey = `${args.lead_id}:${args.channel}:${args.attempt}:timeout`
-  const { error } = await (ctx.supabase as any).from('outreach_jobs' as any).insert({
+  const { error } = await (ctx.supabase as any).from('outreach_jobs' as any) as any.insert({
     lead_id: args.lead_id,
     outreach_id: args.outreach_id ?? null,
     channel: args.channel,
@@ -278,7 +279,7 @@ async function audit(
   detail: string,
   actorType: 'ia' | 'human' | 'system' = 'ia',
 ) {
-  await (ctx.supabase as any).from('audit_logs' as any).insert({
+  await (ctx.supabase as any).from('audit_logs' as any) as any.insert({
     actor_id: ctx.userId,
     actor_name: ctx.claims?.email ?? (actorType === 'ia' ? 'Ana (IA)' : 'user'),
     actor_type: actorType,
@@ -299,12 +300,12 @@ async function generateOutreachMessage(
   const apiKey = process.env.ANTHROPIC_API_KEY
   const [{ data: settings }, { data: services }] = await Promise.all([
     ctx.supabase
-      .from('company_settings' as any)
+      .from('company_settings' as any) as any
       .select('name, description, differentiators, tone_of_voice, ai_prompt, ai_model, sandbox_mode')
       .limit(1)
       .maybeSingle(),
     ctx.supabase
-      .from('services' as any)
+      .from('services' as any) as any
       .select('name, description')
       .eq('active', true)
       .order('name')
@@ -375,7 +376,7 @@ Gere ${kind}. Não use "prezado/a". Apresente a empresa, mencione de forma natur
   if (!res.ok) return `Olá! Sou da ${settings?.name ?? 'nossa empresa'} e gostaria de conversar rapidamente com você.`
   const payload = (await res.json()) as { content?: Array<{ type: string; text?: string }> }
   return (
-    (payload.content || []).filter((c) => c.type === 'text').map((c) => c.text || '').join('').trim() ||
+    (payload.content || []).filter((c: any) => c.type === 'text').map((c: any) => c.text || '').join('').trim() ||
     'Olá! Podemos conversar rapidamente?'
   )
 }
@@ -407,7 +408,7 @@ async function sendZapiText(to: string, message: string): Promise<{
       },
       body: JSON.stringify({ phone, message }),
     })
-    const body = (await res.json().catch(() => ({}))) as any
+    const body = (await res.json().catch((: any) => ({}))) as any
     if (!res.ok || body?.error) {
       return { ok: false, error: body?.error || `http_${res.status}` }
     }
@@ -455,7 +456,7 @@ async function sendEmail(
       },
       body: JSON.stringify({ from, to: [to], subject: email.subject, text: email.text }),
     })
-    const body = (await res.json().catch(() => ({}))) as { id?: string; message?: string; error?: { message?: string } }
+    const body = (await res.json().catch((: any) => ({}))) as { id?: string; message?: string; error?: { message?: string } }
     if (!res.ok) return { ok: false, error: body.error?.message || body.message || `http_${res.status}` }
     return { ok: true, messageId: body.id }
   } catch (err) {
@@ -482,7 +483,7 @@ async function tryStep(ctx: Ctx, lead: any, step: SequenceStep): Promise<void> {
   const maxAttempts = step.max_attempts ?? cadence.maxAttempts
   const enrollment = await getEnrollmentInternal(ctx.supabase, lead.id)
   let attemptQuery = ctx.supabase
-    .from('lead_outreach' as any)
+    .from('lead_outreach' as any) as any
     .select('id', { count: 'exact', head: true })
     .eq('lead_id', lead.id)
     .eq('channel', channel)
@@ -512,7 +513,7 @@ async function tryStep(ctx: Ctx, lead: any, step: SequenceStep): Promise<void> {
     : await generateOutreachMessage(ctx, lead, channel)
 
   const { data: row, error: rowError } = await ctx.supabase
-    .from('lead_outreach' as any)
+    .from('lead_outreach' as any) as any
     .insert({
       lead_id: lead.id,
       owner_id: lead.assigned_to || lead.owner_id || ctx.userId,
@@ -541,7 +542,7 @@ async function tryStep(ctx: Ctx, lead: any, step: SequenceStep): Promise<void> {
     if (result.ok) {
       const now = new Date().toISOString()
       await ctx.supabase
-        .from('lead_outreach' as any)
+        .from('lead_outreach' as any) as any
         .update({
           status: 'sent',
           sent_at: now,
@@ -549,7 +550,7 @@ async function tryStep(ctx: Ctx, lead: any, step: SequenceStep): Promise<void> {
           provider_message_id: result.messageId ?? null,
         } as never)
         .eq('id', row.id)
-      await (ctx.supabase as any).from('lead_messages' as any).insert({
+      await (ctx.supabase as any).from('lead_messages' as any) as any.insert({
         lead_id: lead.id,
         sender: 'ia',
         sender_name: 'Ana (IA)',
@@ -576,7 +577,7 @@ async function tryStep(ctx: Ctx, lead: any, step: SequenceStep): Promise<void> {
       return
     }
     await ctx.supabase
-      .from('lead_outreach' as any)
+      .from('lead_outreach' as any) as any
       .update({
         status: 'failed',
         failed_at: new Date().toISOString(),
@@ -599,7 +600,7 @@ async function tryStep(ctx: Ctx, lead: any, step: SequenceStep): Promise<void> {
     if (result.ok) {
       const now = new Date().toISOString()
       await ctx.supabase
-        .from('lead_outreach' as any)
+        .from('lead_outreach' as any) as any
         .update({
           status: 'sent',
           sent_at: now,
@@ -607,7 +608,7 @@ async function tryStep(ctx: Ctx, lead: any, step: SequenceStep): Promise<void> {
           provider_message_id: result.messageId ?? null,
         } as never)
         .eq('id', row.id)
-      await (ctx.supabase as any).from('lead_messages' as any).insert({
+      await (ctx.supabase as any).from('lead_messages' as any) as any.insert({
         lead_id: lead.id,
         sender: 'ia',
         sender_name: 'Ana (IA)',
@@ -634,7 +635,7 @@ async function tryStep(ctx: Ctx, lead: any, step: SequenceStep): Promise<void> {
       return
     }
     await ctx.supabase
-      .from('lead_outreach' as any)
+      .from('lead_outreach' as any) as any
       .update({
         status: 'failed',
         failed_at: new Date().toISOString(),
@@ -651,10 +652,10 @@ async function tryStep(ctx: Ctx, lead: any, step: SequenceStep): Promise<void> {
 
   // phone → nunca dispara automaticamente. Cria tarefa humana e para.
   await ctx.supabase
-    .from('lead_outreach' as any)
+    .from('lead_outreach' as any) as any
     .update({ status: 'pending', metadata: { script: content, sequence_step: step.id } } as never)
     .eq('id', row.id)
-  await (ctx.supabase as any).from('lead_tasks' as any).insert({
+  await (ctx.supabase as any).from('lead_tasks' as any) as any.insert({
     lead_id: lead.id,
     text: `Ligação pendente para ${lead.company} — roteiro sugerido pela Ana disponível no histórico do lead.`,
     owner_id: lead.assigned_to || lead.owner_id || ctx.userId,
@@ -678,7 +679,7 @@ async function advanceOrFinish(
   // the cadence so the sequence author can control fallbacks explicitly.
   if (!stepAllowsContinue(failedStep, outcome)) {
     await ctx.supabase
-      .from('leads' as any)
+      .from('leads' as any) as any
       .update({ next_action_at: null } as never)
       .eq('id', leadId)
     await patchEnrollmentInternal(ctx.supabase, leadId, { next_run_at: null, last_error: `stop_on_${outcome}` })
@@ -702,7 +703,7 @@ async function advanceOrFinish(
 
 async function finishNoMore(ctx: Ctx, lead: any, reason: string) {
   await ctx.supabase
-    .from('leads' as any)
+    .from('leads' as any) as any
     .update({ next_action_at: null, active_channel: null } as never)
     .eq('id', lead.id)
   await completeEnrollmentInternal(ctx.supabase, lead.id, reason)
@@ -727,11 +728,11 @@ async function recordAiOutbound(
 ) {
   const now = new Date().toISOString()
   const { count } = await ctx.supabase
-    .from('lead_outreach' as any)
+    .from('lead_outreach' as any) as any
     .select('id', { count: 'exact', head: true })
     .eq('lead_id', lead.id)
     .eq('channel', channel)
-  await (ctx.supabase as any).from('lead_outreach' as any).insert({
+  await (ctx.supabase as any).from('lead_outreach' as any) as any.insert({
     lead_id: lead.id,
     owner_id: lead.assigned_to || lead.owner_id || ctx.userId,
     channel,
@@ -746,7 +747,7 @@ async function recordAiOutbound(
     actor_type: 'ia',
   } as never)
   if (result.ok) {
-    await (ctx.supabase as any).from('lead_messages' as any).insert({
+    await (ctx.supabase as any).from('lead_messages' as any) as any.insert({
       lead_id: lead.id,
       sender: 'ia',
       sender_name: 'Ana (IA)',
@@ -781,18 +782,18 @@ async function registerUnanswered(ctx: Ctx, text: string) {
   const normalized = text.trim().slice(0, 500)
   if (!normalized) return
   const { data: existing } = await ctx.supabase
-    .from('unanswered_questions' as any)
+    .from('unanswered_questions' as any) as any
     .select('id, count')
     .eq('text', normalized)
     .maybeSingle()
   if (existing?.id) {
     await ctx.supabase
-      .from('unanswered_questions' as any)
+      .from('unanswered_questions' as any) as any
       .update({ count: (existing.count ?? 1) + 1, resolved: false } as never)
       .eq('id', existing.id)
     return
   }
-  await (ctx.supabase as any).from('unanswered_questions' as any).insert({
+  await (ctx.supabase as any).from('unanswered_questions' as any) as any.insert({
     text: normalized,
     count: 1,
     resolved: false,
@@ -846,7 +847,7 @@ const HANDOFF_RULES: Array<{ category: HandoffCategory; label: string; nextStage
 export function categorizeHandoff(text: string): { category: HandoffCategory; label: string; nextStage: string | null; priority: 'normal' | 'high' } {
   const clean = (text || '').slice(0, 2000)
   for (const rule of HANDOFF_RULES) {
-    if (rule.patterns.some((p) => p.test(clean))) {
+    if (rule.patterns.some((p: any) => p.test(clean))) {
       return { category: rule.category, label: rule.label, nextStage: rule.nextStage, priority: rule.priority }
     }
   }
@@ -872,7 +873,7 @@ async function handoffInbound(
   // não recria; apenas mantém pausa/etapa e envia mensagem-ponte.
   const dedupWindow = new Date(Date.now() - 60 * 60 * 1000).toISOString()
   const { data: existingTasks } = await ctx.supabase
-    .from('lead_tasks' as any)
+    .from('lead_tasks' as any) as any
     .select('id')
     .eq('lead_id', lead.id)
     .eq('completed', false)
@@ -895,7 +896,7 @@ async function handoffInbound(
     // Nunca regride etapa; apenas avança
     if (nextIdx > curIdx) leadPatch.stage = rule.nextStage
   }
-  await (ctx.supabase as any).from('leads' as any).update(leadPatch as never).eq('id', lead.id)
+  await (ctx.supabase as any).from('leads' as any) as any.update(leadPatch as never).eq('id', lead.id)
   await pauseEnrollmentInternal(ctx.supabase, lead.id, `handoff:${rule.category}`)
 
   const structuredHandoff = await createHandoffInternal(ctx, {
@@ -912,14 +913,14 @@ async function handoffInbound(
   if (!alreadyOpen) {
     const handoffOwner = structuredHandoff?.assigned_to || responsible
     const taskText = `[${rule.label}] ${lead.company} via ${channelLabel} — ${reason}. Mensagem: "${question.slice(0, 200)}"`
-    await (ctx.supabase as any).from('lead_tasks' as any).insert({
+    await (ctx.supabase as any).from('lead_tasks' as any) as any.insert({
       lead_id: lead.id,
       owner_id: handoffOwner,
       owner_label: rule.priority === 'high' ? 'Vendedor (prioritário)' : 'Vendedor',
       text: taskText,
     } as never)
     if (!structuredHandoff && handoffOwner) {
-      await (ctx.supabase as any).from('notifications' as any).insert({
+      await (ctx.supabase as any).from('notifications' as any) as any.insert({
         user_id: handoffOwner,
         kind: rule.priority === 'high' ? 'lead_escalated_urgent' : 'lead_escalated',
         title: rule.priority === 'high' ? `⚠️ ${rule.label}` : rule.label,
@@ -960,21 +961,21 @@ export async function handleInboundWithAiInternal(
   const { loadKnowledgeSnippetInternal } = await import('@/lib/knowledge.functions')
   const [{ data: settings }, { data: services }, { data: objections }, knowledgeChunks, { data: learnedAnswers }, { data: history }] = await Promise.all([
     ctx.supabase
-      .from('company_settings' as any)
+      .from('company_settings' as any) as any
       .select('name, description, differentiators, tone_of_voice, ai_prompt, ai_model, handoff_readiness_score')
       .limit(1)
       .maybeSingle(),
-    (ctx.supabase as any).from('services' as any).select('name, description, price, unit, term').eq('active', true).order('name'),
-    (ctx.supabase as any).from('objections' as any).select('trigger, response').order('created_at', { ascending: false }).limit(30),
+    (ctx.supabase as any).from('services' as any) as any.select('name, description, price, unit, term').eq('active', true).order('name'),
+    (ctx.supabase as any).from('objections' as any) as any.select('trigger, response').order('created_at', { ascending: false }).limit(30),
     loadKnowledgeSnippetInternal(ctx.supabase, 8000),
     ctx.supabase
-      .from('unanswered_questions' as any)
+      .from('unanswered_questions' as any) as any
       .select('text, answer')
       .eq('resolved', true)
       .not('answer', 'is', null)
       .limit(50),
     ctx.supabase
-      .from('lead_messages' as any)
+      .from('lead_messages' as any) as any
       .select('sender, text')
       .eq('lead_id', leadId)
       .order('sent_at', { ascending: false })
@@ -992,7 +993,7 @@ export async function handleInboundWithAiInternal(
     approved_answers: learnedAnswers ?? [],
     approved_documents: knowledgeChunks,
   })
-  const conversation = [...(history ?? [])].reverse().map((message) => ({
+  const conversation = [...(history ?? [])].reverse().map((message: any) => ({
     role: message.sender === 'client' ? ('user' as const) : ('assistant' as const),
     content: message.text,
   }))
@@ -1022,7 +1023,7 @@ Base aprovada: ${knowledge}`
     })
     if (!response.ok) return handoffInbound(ctx, lead, userText, `Falha da IA (HTTP ${response.status})`, true, delivery)
     const payload = (await response.json()) as { content?: Array<{ type: string; text?: string }> }
-    const raw = (payload.content ?? []).filter((item) => item.type === 'text').map((item) => item.text || '').join('')
+    const raw = (payload.content ?? []).filter((item: any) => item.type === 'text').map((item: any) => item.text || '').join('')
     const match = raw.match(/\{[\s\S]*\}/)
     if (!match) return handoffInbound(ctx, lead, userText, 'Resposta da IA sem formato seguro', true, delivery)
     const decision = JSON.parse(match[0]) as {
@@ -1048,13 +1049,13 @@ Base aprovada: ${knowledge}`
     if (decision.qualification) {
       const q = decision.qualification
       const { data: previousQualification } = await ctx.supabase
-        .from('lead_qualifications' as any)
+        .from('lead_qualifications' as any) as any
         .select('*')
         .eq('lead_id', lead.id)
         .maybeSingle()
       const keepText = (value: string | undefined, previous: string | null | undefined, limit: number) =>
         value?.trim() ? value.trim().slice(0, limit) : (previous ?? null)
-      const { error: qualificationError } = await (ctx.supabase as any).from('lead_qualifications' as any).upsert({
+      const { error: qualificationError } = await (ctx.supabase as any).from('lead_qualifications' as any) as any.upsert({
         lead_id: lead.id,
         intent: keepText(q.intent, previousQualification?.intent, 200),
         service_interest: keepText(q.service_interest, previousQualification?.service_interest, 500),
@@ -1084,7 +1085,7 @@ Base aprovada: ${knowledge}`
     const reply = decision.reply.trim().slice(0, 1500)
     const result = await deliverAiMessage(ctx, lead, reply, delivery)
     if (!result.ok) return handoffInbound(ctx, lead, userText, `Falha ao responder por ${delivery.channel || 'whatsapp'}: ${result.error}`, true, delivery)
-    await (ctx.supabase as any).from('leads' as any).update({ last_contact: new Date().toISOString() } as never).eq('id', lead.id)
+    await (ctx.supabase as any).from('leads' as any) as any.update({ last_contact: new Date().toISOString() } as never).eq('id', lead.id)
     await audit(ctx, 'ai_reply_sent', `Ana respondeu uma dúvida básica de ${lead.company}`)
     return { ok: true, action: 'reply' as const }
   } catch (error) {
@@ -1128,7 +1129,7 @@ export const startOutreach = createServerFn({ method: 'POST' })
     if (data.restart || (!channels.whatsapp && !channels.email && !channels.phone)) {
       channels = buildChannels(lead)
       await ((context as any).supabase as any)
-        .from('leads' as any)
+        .from('leads' as any) as any
         .update({ contact_channels: channels } as never)
         .eq('id', lead.id)
       lead.contact_channels = channels
@@ -1188,7 +1189,7 @@ export const pauseAi = createServerFn({ method: 'POST' })
       leadPatch.escalation_reason = null
     }
     await ((context as any).supabase as any)
-      .from('leads' as any)
+      .from('leads' as any) as any
       .update(leadPatch as never)
       .eq('id', data.lead_id)
     if (data.paused) {
@@ -1196,7 +1197,7 @@ export const pauseAi = createServerFn({ method: 'POST' })
     } else {
       await resumeEnrollmentInternal(((context as any).supabase as any), data.lead_id)
       const { error: closeError } = await ((context as any).supabase as any)
-        .from('lead_handoffs' as any)
+        .from('lead_handoffs' as any) as any
         .update({ status: 'closed', closed_at: new Date().toISOString() } as never)
         .eq('lead_id', data.lead_id)
         .in('status', ['pending', 'accepted'])
@@ -1217,7 +1218,7 @@ export const assumeManually = createServerFn({ method: 'POST' })
   .inputValidator((d: unknown) => z.object({ lead_id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     await ((context as any).supabase as any)
-      .from('leads' as any)
+      .from('leads' as any) as any
       .update({
         ai_paused: true,
         assigned_to: context.userId,
@@ -1257,7 +1258,7 @@ export const sendManualWhatsapp = createServerFn({ method: 'POST' })
     if (!to) return { ok: false, error: 'O lead não possui WhatsApp ou telefone cadastrado.' }
 
     const { count } = await ctx.supabase
-      .from('lead_outreach' as any)
+      .from('lead_outreach' as any) as any
       .select('id', { count: 'exact', head: true })
       .eq('lead_id', lead.id)
       .eq('channel', 'whatsapp')
@@ -1265,7 +1266,7 @@ export const sendManualWhatsapp = createServerFn({ method: 'POST' })
     const result = await sendZapiText(to, data.text)
     const now = new Date().toISOString()
 
-    const { error: outreachError } = await (ctx.supabase as any).from('lead_outreach' as any).insert({
+    const { error: outreachError } = await (ctx.supabase as any).from('lead_outreach' as any) as any.insert({
       lead_id: lead.id,
       owner_id: ctx.userId,
       channel: 'whatsapp',
@@ -1287,7 +1288,7 @@ export const sendManualWhatsapp = createServerFn({ method: 'POST' })
       return { ok: false, error: result.error || 'Falha ao enviar pela Z-API.' }
     }
 
-    const { error: messageError } = await (ctx.supabase as any).from('lead_messages' as any).insert({
+    const { error: messageError } = await (ctx.supabase as any).from('lead_messages' as any) as any.insert({
       lead_id: lead.id,
       sender: 'human',
       sender_name: ctx.claims?.email ?? 'Vendedor',
@@ -1315,7 +1316,7 @@ export const setOptOut = createServerFn({ method: 'POST' })
     if (data.opt_out) await suppressLeadContactsInternal(ctx, data.lead_id)
     else await unsuppressLeadContactsInternal(ctx, data.lead_id)
     await ((context as any).supabase as any)
-      .from('leads' as any)
+      .from('leads' as any) as any
       .update((data.opt_out ? { opt_out: true, next_action_at: null } : { opt_out: false }) as never)
       .eq('id', data.lead_id)
     if (data.opt_out) {
@@ -1323,7 +1324,7 @@ export const setOptOut = createServerFn({ method: 'POST' })
     }
 
     // Trilha auditável de consentimento
-    await ((context.supabase as any) as any).from('consent_events' as any).insert({
+    await ((context.supabase as any) as any).from('consent_events' as any) as any.insert({
       lead_id: data.lead_id,
       event: data.opt_out ? 'opt_out' : 'resubscribe',
       channel: 'all',
@@ -1345,7 +1346,7 @@ export const listOutreach = createServerFn({ method: 'POST' })
   .inputValidator((d: unknown) => z.object({ lead_id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
     const { data: rows, error } = await ((context as any).supabase as any)
-      .from('lead_outreach' as any)
+      .from('lead_outreach' as any) as any
       .select('*')
       .eq('lead_id', data.lead_id)
       .order('created_at', { ascending: false })
@@ -1365,7 +1366,7 @@ export const testZapi = createServerFn({ method: 'POST' })
         `https://api.z-api.io/instances/${instance}/token/${token}/status`,
         { headers: clientToken ? { 'Client-Token': clientToken } : {} },
       )
-      const body = (await res.json().catch(() => ({}))) as any
+      const body = (await res.json().catch((: any) => ({}))) as any
       if (!res.ok) return { ok: false, error: body?.error || `http_${res.status}` }
       return { ok: true, connected: !!body?.connected, session: body?.session ?? null }
     } catch (err) {
@@ -1375,7 +1376,7 @@ export const testZapi = createServerFn({ method: 'POST' })
 
 export const getOutreachHealth = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
-  .handler(async () => ({
+  .handler(async (: any) => ({
     ai: Boolean(process.env.ANTHROPIC_API_KEY),
     prospecting: Boolean(process.env.GOOGLE_PLACES_API_KEY),
     zapi: Boolean(process.env.ZAPI_INSTANCE_ID && process.env.ZAPI_TOKEN),
@@ -1409,7 +1410,7 @@ export async function triggerOutreachInternal(ctx: Ctx, leadId: string) {
   if (!channels.whatsapp && !channels.email && !channels.phone) {
     channels = buildChannels(lead)
     await ctx.supabase
-      .from('leads' as any)
+      .from('leads' as any) as any
       .update({ contact_channels: channels } as never)
       .eq('id', leadId)
     lead.contact_channels = channels

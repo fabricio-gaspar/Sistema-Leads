@@ -66,10 +66,10 @@ export const getScoringInsights = createServerFn({ method: "GET" })
 
     // Prontidão média
     const readinessValues = quals
-      .map((q) => q.readiness_score)
+      .map((q: any) => q.readiness_score)
       .filter((v): v is number => typeof v === "number");
     const avgReadiness = readinessValues.length
-      ? Math.round(readinessValues.reduce((a, b) => a + b, 0) / readinessValues.length)
+      ? Math.round(readinessValues.reduce((a: any, b: any) => a + b, 0) / readinessValues.length)
       : null;
     const readyForHandoff = readinessValues.filter((v) => v >= 70).length;
 
@@ -189,8 +189,8 @@ export const getAutomationHealth = createServerFn({ method: "GET" })
     }
 
     const proposals = (proposalsRes.data ?? []) as Array<{ status: string; creator: string }>;
-    const aiProposals = proposals.filter((p) => p.creator === "ia").length;
-    const sentProposals = proposals.filter((p) => p.status === "Enviado" || p.status === "Aprovada").length;
+    const aiProposals = proposals.filter((p: any) => p.creator === "ia").length;
+    const sentProposals = proposals.filter((p: any) => p.status === "Enviado" || p.status === "Aprovada").length;
 
     return {
       window_days: 7,
