@@ -2,6 +2,7 @@ import { createServerFn } from '@tanstack/react-start'
 import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware'
 import { z } from 'zod'
 
+
 export type SourceId = 'cnpj_ws' | 'google_places' | 'ai_only' | 'apify'
 
 export type ExternalCompany = {
@@ -541,7 +542,7 @@ Score alto = alto potencial de fechamento.`
 export const getEnabledSources = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { data } = await context.supabase
+    const { data } = await ((context as any).supabase as any)
       .from('company_settings')
       .select('prospecting_sources')
       .limit(1)
@@ -608,7 +609,7 @@ export const searchExternalCompanies = createServerFn({ method: 'POST' })
   .inputValidator((d: unknown) => filtersSchema.parse(d))
   .handler(async ({ data, context }) => {
     // Validate source is enabled
-    const { data: settingsRow } = await context.supabase
+    const { data: settingsRow } = await ((context as any).supabase as any)
       .from('company_settings')
       .select('name, description, differentiators, prospecting_sources')
       .limit(1)
@@ -623,7 +624,7 @@ export const searchExternalCompanies = createServerFn({ method: 'POST' })
 
     const hash = hashFilters(data)
 
-    const { data: cached } = await context.supabase
+    const { data: cached } = await ((context as any).supabase as any)
       .from('prospecting_cache')
       .select('*')
       .eq('user_id', context.userId)
@@ -677,7 +678,7 @@ export const searchExternalCompanies = createServerFn({ method: 'POST' })
 
     const autoName = buildAutoName(data, raw.length)
     const farFuture = new Date(Date.now() + 1000 * 60 * 60 * 24 * 365 * 10).toISOString()
-    const { data: row, error: insErr } = await context.supabase
+    const { data: row, error: insErr } = await ((context as any).supabase as any)
       .from('prospecting_cache')
       .insert({
         user_id: context.userId,
@@ -710,7 +711,7 @@ export const importExternalAsLead = createServerFn({ method: 'POST' })
     z.object({ cache_id: z.string().uuid(), cnpj: z.string().min(3) }).parse(d),
   )
   .handler(async ({ data, context }) => {
-    const { data: cache } = await context.supabase
+    const { data: cache } = await ((context as any).supabase as any)
       .from('prospecting_cache')
       .select('results')
       .eq('id', data.cache_id)
@@ -736,7 +737,7 @@ export const importExternalAsLead = createServerFn({ method: 'POST' })
     }
 
     const originTag = `${company.source}:${company.cnpj}`
-    const { data: dup } = await context.supabase
+    const { data: dup } = await ((context as any).supabase as any)
       .from('leads')
       .select('*')
       .eq('owner_id', context.userId)
@@ -813,10 +814,10 @@ export const importExternalAsLead = createServerFn({ method: 'POST' })
       contact_channels: initialChannels,
     }
 
-    const { data: row, error } = await ((context.supabase as any)).from('leads').insert(payload as never).select().single()
+    const { data: row, error } = await ((((context as any).supabase as any) as any)).from('leads').insert(payload as never).select().single()
     if (error) throw new Error(error.message)
 
-    await ((context.supabase as any)).from('audit_logs').insert({
+    await ((((context as any).supabase as any) as any)).from('audit_logs').insert({
       actor_id: context.userId,
       actor_name: context.claims?.email ?? 'user',
       actor_type: 'human',
@@ -857,7 +858,7 @@ export const saveProspectingSearch = createServerFn({ method: 'POST' })
     const farFuture = new Date(Date.now() + 1000 * 60 * 60 * 24 * 365 * 10).toISOString()
     const patch: Record<string, unknown> = { saved: true, expires_at: farFuture }
     if (data.name && data.name.length > 0) patch.name = data.name
-    const { error } = await context.supabase
+    const { error } = await ((context as any).supabase as any)
       .from('prospecting_cache')
       .update(patch as never)
       .eq('id', data.cache_id)
@@ -869,7 +870,7 @@ export const saveProspectingSearch = createServerFn({ method: 'POST' })
 export const listSavedSearches = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { data, error } = await context.supabase
+    const { data, error } = await ((context as any).supabase as any)
       .from('prospecting_cache')
       .select('id, name, filters, total_found, created_at')
       .eq('user_id', context.userId)
@@ -893,7 +894,7 @@ export const getSavedSearch = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const { data: row, error } = await context.supabase
+    const { data: row, error } = await ((context as any).supabase as any)
       .from('prospecting_cache')
       .select('id, name, filters, results, created_at')
       .eq('id', data.id)
@@ -916,7 +917,7 @@ export const deleteSavedSearch = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const { error } = await context.supabase
+    const { error } = await ((context as any).supabase as any)
       .from('prospecting_cache')
       .delete()
       .eq('id', data.id)
@@ -932,7 +933,7 @@ export const renameSavedSearch = createServerFn({ method: 'POST' })
     z.object({ id: z.string().uuid(), name: z.string().trim().min(1).max(120) }).parse(d),
   )
   .handler(async ({ data, context }) => {
-    const { error } = await context.supabase
+    const { error } = await ((context as any).supabase as any)
       .from('prospecting_cache')
       .update({ name: data.name } as never)
       .eq('id', data.id)
@@ -948,7 +949,7 @@ export const renameSavedSearch = createServerFn({ method: 'POST' })
 export const listRecentProspectingSamples = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { data, error } = await context.supabase
+    const { data, error } = await ((context as any).supabase as any)
       .from('prospecting_cache')
       .select('id, name, filters, results, total_found, created_at, saved')
       .eq('user_id', context.userId)

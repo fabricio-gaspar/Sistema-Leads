@@ -2,10 +2,8 @@ import { createServerFn } from '@tanstack/react-start'
 import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware'
 import { z } from 'zod'
 
+
 import type { Database } from '@/integrations/supabase/types'
-import { createServerFn } from '@tanstack/react-start'
-import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware'
-import { z } from 'zod'
 
 
 type Ctx = { supabase: any; userId: string; claims?: any }
@@ -15,7 +13,7 @@ type Ctx = { supabase: any; userId: string; claims?: any }
 // ============================================================================
 
 async function audit(ctx: Ctx, action: string, detail: string, actorType: 'ia' | 'human' | 'system' = 'ia') {
-  await ctx.supabase.from('audit_logs').insert({
+  await ctx.((supabase as any) as any).from('audit_logs').insert({
     actor_id: ctx.userId,
     actor_name: ctx.claims?.email ?? (actorType === 'ia' ? 'Ana (IA)' : 'Sistema'),
     actor_type: actorType,
@@ -26,9 +24,9 @@ async function audit(ctx: Ctx, action: string, detail: string, actorType: 'ia' |
 
 async function loadCompanyContext(ctx: Ctx) {
   const [{ data: settings }, { data: services }, { data: objections }] = await Promise.all([
-    ctx.supabase.from('company_settings').select('*').limit(1).maybeSingle(),
-    ctx.supabase.from('services').select('id, name, description, price, unit, term, max_discount').eq('active', true),
-    ctx.supabase.from('objections').select('trigger, response').limit(10),
+    ctx.((supabase as any) as any).from('company_settings').select('*').limit(1).maybeSingle(),
+    ctx.((supabase as any) as any).from('services').select('id, name, description, price, unit, term, max_discount').eq('active', true),
+    ctx.((supabase as any) as any).from('objections').select('trigger, response').limit(10),
   ])
   return { settings: settings ?? null, services: services ?? [], objections: objections ?? [] }
 }
@@ -81,7 +79,7 @@ export const draftInitialContact = createServerFn({ method: 'POST' })
   }).parse(d))
   .handler(async ({ data, context }) => {
     const ctx = context as Ctx
-    const { data: lead, error } = await ctx.supabase.from('leads').select('*').eq('id', data.lead_id).maybeSingle()
+    const { data: lead, error } = await ctx.((supabase as any) as any).from('leads').select('*').eq('id', data.lead_id).maybeSingle()
     if (error) throw new Error(error.message)
     if (!lead) throw new Error('Lead não encontrado')
 
@@ -132,7 +130,7 @@ type ProposedItem = { service_id?: string; name: string; qty: number; unit_price
 
 async function nextProposalNumber(ctx: Ctx): Promise<string> {
   const year = new Date().getFullYear()
-  const { count } = await ctx.supabase.from('proposals').select('id', { count: 'exact', head: true })
+  const { count } = await ctx.((supabase as any) as any).from('proposals').select('id', { count: 'exact', head: true })
   const n = String((count ?? 0) + 1).padStart(4, '0')
   return `P-${year}-${n}`
 }
@@ -146,8 +144,8 @@ export const autoDraftProposal = createServerFn({ method: 'POST' })
   .handler(async ({ data, context }) => {
     const ctx = context as Ctx
     const [{ data: lead }, { data: qual }] = await Promise.all([
-      ctx.supabase.from('leads').select('*').eq('id', data.lead_id).maybeSingle(),
-      ctx.supabase.from('lead_qualifications').select('*').eq('lead_id', data.lead_id).maybeSingle(),
+      ctx.((supabase as any) as any).from('leads').select('*').eq('id', data.lead_id).maybeSingle(),
+      ctx.((supabase as any) as any).from('lead_qualifications').select('*').eq('lead_id', data.lead_id).maybeSingle(),
     ])
     if (!lead) throw new Error('Lead não encontrado')
 
@@ -246,13 +244,13 @@ Resumo: ${qual?.summary ?? '—'}`
     const order = ['Prospecção', 'Qualificado', 'Proposta', 'Negociação', 'Pedido', 'Fechado']
     const cur = order.indexOf(lead.stage ?? '')
     if (cur >= 0 && cur < order.indexOf('Proposta')) {
-      await ctx.supabase.from('leads').update({ stage: 'Proposta' } as never).eq('id', data.lead_id)
+      await ctx.((supabase as any) as any).from('leads').update({ stage: 'Proposta' } as never).eq('id', data.lead_id)
     }
 
     if (autonomy !== 'auto') {
       const assignee = lead.assigned_to || lead.owner_id
       if (assignee) {
-        await ctx.supabase.from('notifications').insert({
+        await ctx.((supabase as any) as any).from('notifications').insert({
           user_id: assignee,
           kind: 'proposal_draft',
           title: 'Rascunho de orçamento pronto',

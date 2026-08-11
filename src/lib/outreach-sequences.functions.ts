@@ -2,9 +2,7 @@ import { createServerFn } from '@tanstack/react-start'
 import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware'
 import { z } from 'zod'
 
-import { createServerFn } from '@tanstack/react-start'
-import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware'
-import { z } from 'zod'
+
 
 // Types
 // ============================================================================
@@ -122,7 +120,7 @@ export async function patchEnrollmentInternal(
   leadId: string,
   patch: Partial<Enrollment>,
 ) {
-  const { error } = await supabase.from('lead_sequence_enrollments').update(patch as never).eq('lead_id', leadId)
+  const { error } = await ((supabase as any) as any).from('lead_sequence_enrollments').update(patch as never).eq('lead_id', leadId)
   if (error) throw new Error(error.message)
 }
 
