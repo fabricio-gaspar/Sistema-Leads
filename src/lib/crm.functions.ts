@@ -1450,16 +1450,6 @@ export const getReportsData = createServerFn({ method: 'POST' })
     const origemMap = new Map<string, number>()
     for (const l of allLeads) {
       const o = (l as any).origin || 'Outros'
-      origemMap.set(o, (origemMap.get(o) || 0) + 1)
-    }
-    const origens = Array.from(origemMap.entries())
-      .map(([label, value]) => ({ label, value }))
-      .sort((a, b) => b.value - a.value)
-
-    return { ranking, origens }
-  })
-    for (const l of allLeads) {
-      const o = l.origin || 'Outros'
       origemMap.set(o, (origemMap.get(o) ?? 0) + 1)
     }
     const totalOrigem = Array.from(origemMap.values()).reduce((a: any, b: any) => a + b, 0) || 1
@@ -1468,15 +1458,14 @@ export const getReportsData = createServerFn({ method: 'POST' })
       .sort((a, b) => b.leads - a.leads)
 
     // KPIs topo
-    const receita7m = closed.reduce((a: any, l: any) => a + Number(l.value || 0), 0)
+    const receita7m = (closed as any[]).reduce((a: any, l: any) => a + Number(l.value || 0), 0)
     const totalFechados = closed.length
     const ticket = totalFechados > 0 ? Math.round(receita7m / totalFechados) : 0
 
-    const sentStatuses = new Set(['sent', 'delivered', 'read', 'replied'])
     const channelPerformance = (['whatsapp', 'email', 'phone'] as const).map((channel) => {
-      const rows = outreach.filter((row: any) => row.channel === channel && row.actor_type !== 'system')
+      const rows = (outreach as any[]).filter((row: any) => row.channel === channel && row.actor_type !== 'system')
       const attemptedLeads = new Set(rows.map((row: any) => row.lead_id)).size
-      const sent = rows.filter((row: any) => row.has(row.status)).length
+      const sent = rows.filter((row: any) => ['sent', 'delivered', 'read', 'replied'].includes(row.status)).length
       const replied = rows.filter((row: any) => row.status === 'replied' || row.replied_at).length
       const failed = rows.filter((row: any) => row.status === 'failed').length
       return {
@@ -1489,29 +1478,34 @@ export const getReportsData = createServerFn({ method: 'POST' })
         responseRate: sent > 0 ? Number(((replied / sent) * 100).toFixed(1)) : 0,
       }
     })
+
     const firstSentByLead = new Map<string, number>()
-    for (const row of outreach) {
+    for (const row of (outreach as any[])) {
       if (!row.sent_at) continue
       const time = new Date(row.sent_at).getTime()
       const current = firstSentByLead.get(row.lead_id)
       if (current == null || time < current) firstSentByLead.set(row.lead_id, time)
     }
-    const firstContactMinutes = allLeads
+
+    const firstContactMinutes = (allLeads as any[])
       .map((lead: any) => {
         const first = firstSentByLead.get(lead.id)
         return first == null ? null : Math.max(0, (first - new Date(lead.created_at).getTime()) / 60_000)
       })
       .filter((value: any): value is number => value != null && Number.isFinite(value))
+
     const avgFirstContactMinutes = firstContactMinutes.length
       ? Math.round(firstContactMinutes.reduce((sum: any, value: any) => sum + value, 0) / firstContactMinutes.length)
       : null
+
     const funnelOrder = ['Prospecção', 'Qualificado', 'Proposta', 'Negociação', 'Pedido', 'Fechado', 'Perdido']
     const funnel = funnelOrder.map((stage: any) => ({
       stage,
-      count: allLeads.filter((lead: any) => lead.stage === stage).length,
+      count: (allLeads as any[]).filter((lead: any) => lead.stage === stage).length,
     }))
+
     const contactedLeads = firstSentByLead.size
-    const responseLeads = new Set(outreach.filter((row: any) => row.status === 'replied' || row.replied_at).map((row: any) => row.lead_id)).size
+    const responseLeads = new Set((outreach as any[]).filter((row: any) => row.status === 'replied' || row.replied_at).map((row: any) => row.lead_id)).size
 
     return {
       months: series,
@@ -1527,8 +1521,8 @@ export const getReportsData = createServerFn({ method: 'POST' })
         contactedLeads,
         responseLeads,
         responseRate: contactedLeads > 0 ? Number(((responseLeads / contactedLeads) * 100).toFixed(1)) : 0,
-        conversionRate: allLeads.length > 0 ? Number(((allLeads.filter((lead: any) => lead.stage === 'Fechado').length / allLeads.length) * 100).toFixed(1)) : 0,
-        escalated: allLeads.filter((lead: any) => lead.escalated).length,
+        conversionRate: allLeads.length > 0 ? Number(((allLeads as any[]).filter((lead: any) => lead.stage === 'Fechado').length / allLeads.length) * 100).toFixed(1) : 0,
+        escalated: (allLeads as any[]).filter((lead: any) => lead.escalated).length,
         avgFirstContactMinutes,
       },
     }
