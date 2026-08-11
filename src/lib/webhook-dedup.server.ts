@@ -1,7 +1,5 @@
-// Server-only helpers for webhook idempotency via `webhook_events`.
-// Import dynamically from route handlers: `await import('@/lib/webhook-dedup.server')`.
-
-type AnyAdmin = any
+type AnyAdmin = any;
+import type { Database } from '@/integrations/supabase/types'
 
 export type WebhookDedupResult = {
   isDuplicate: boolean

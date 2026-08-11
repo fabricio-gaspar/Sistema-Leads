@@ -1,7 +1,4 @@
-// Autonomy modes per funnel stage.
-// - auto:   sistema executa sozinho
-// - assist: sistema prepara/rascunha e humano confirma
-// - manual: apenas humano executa
+import type { Database } from '@/integrations/supabase/types'
 export type AutonomyMode = "auto" | "assist" | "manual";
 
 export type AutonomyStage =

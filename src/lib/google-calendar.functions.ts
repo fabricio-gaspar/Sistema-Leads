@@ -1,7 +1,11 @@
-import { createServerFn } from "@tanstack/react-start";
-import { getRequest } from "@tanstack/react-start/server";
-import { z } from "zod";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { createServerFn } from '@tanstack/react-start'
+import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware'
+import { z } from 'zod'
+
+
+import type { Database } from '@/integrations/supabase/types'
+import { getRequest } from '@tanstack/react-start/server'
+
 
 const GATEWAY_BASE_URL = "https://connector-gateway.lovable.dev";
 const CONNECTOR_ID = "google_calendar";
@@ -24,6 +28,7 @@ function clientKey(): string {
 export const startGoogleCalendarConnect = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    const ctx = context;
     const { authorizeAppUserOAuth } = await import("@/integrations/lovable/appUserConnector");
     const { getConnectionKeyForUser } = await import("@/server/appUserConnections.server");
     const request = getRequest();
@@ -46,6 +51,7 @@ export const completeGoogleCalendarConnect = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: { code: string }) => z.object({ code: z.string().min(1) }).parse(input))
   .handler(async ({ data, context }) => {
+    const ctx = context;
     const { exchangeAppUserOAuthCode } = await import("@/integrations/lovable/appUserConnector");
     const { saveConnectionKeyForUser } = await import("@/server/appUserConnections.server");
     const { connectionAPIKey, connectorId } = await exchangeAppUserOAuthCode(GATEWAY_BASE_URL, data.code);
@@ -57,6 +63,7 @@ export const completeGoogleCalendarConnect = createServerFn({ method: "POST" })
 export const getGoogleCalendarStatus = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    const ctx = context;
     const configured = Boolean(process.env.GOOGLE_CALENDAR_APP_USER_CONNECTOR_CLIENT_API_KEY);
     if (!configured) return { configured: false, connected: false, email: null as string | null };
     const { getConnectionKeyForUser } = await import("@/server/appUserConnections.server");
@@ -84,6 +91,7 @@ export const getGoogleCalendarStatus = createServerFn({ method: "GET" })
 export const disconnectGoogleCalendar = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    const ctx = context;
     const { getConnectionKeyForUser, deleteConnectionKeyForUser } = await import("@/server/appUserConnections.server");
     const { disconnectAppUser } = await import("@/integrations/lovable/appUserConnector");
     const key = await getConnectionKeyForUser(context.userId, CONNECTOR_ID);
@@ -104,6 +112,7 @@ export const syncAppointmentToGoogle = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: unknown) => syncInput.parse(input))
   .handler(async ({ data, context }) => {
+    const ctx = context;
     const { getConnectionKeyForUser } = await import("@/server/appUserConnections.server");
     const key = await getConnectionKeyForUser(context.userId, CONNECTOR_ID);
     if (!key) throw new Error("Conecte seu Google Calendar antes de sincronizar.");

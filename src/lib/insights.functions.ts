@@ -1,5 +1,9 @@
-import { createServerFn } from "@tanstack/react-start";
-import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
+import { createServerFn } from '@tanstack/react-start'
+import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware'
+import { z } from 'zod'
+
+
+import type { Database } from '@/integrations/supabase/types'
 
 type Ctx = { supabase: any; userId: string; claims?: any };
 
@@ -9,11 +13,11 @@ export const getScoringInsights = createServerFn({ method: "GET" })
   .handler(async ({ context }) => {
     const ctx = context as Ctx;
     const [leadsRes, qualRes] = await Promise.all([
-      ctx.supabase
+      (ctx.supabase as any)
         .from("leads")
         .select("id, origin, temp, score, score_source, stage")
         .not("stage", "eq", "Perdido"),
-      ctx.supabase
+      (ctx.supabase as any)
         .from("lead_qualifications")
         .select("lead_id, readiness_score, sentiment, urgency"),
     ]);
@@ -62,10 +66,10 @@ export const getScoringInsights = createServerFn({ method: "GET" })
 
     // Prontidão média
     const readinessValues = quals
-      .map((q) => q.readiness_score)
+      .map((q: any) => q.readiness_score)
       .filter((v): v is number => typeof v === "number");
     const avgReadiness = readinessValues.length
-      ? Math.round(readinessValues.reduce((a, b) => a + b, 0) / readinessValues.length)
+      ? Math.round(readinessValues.reduce((a: any, b: any) => a + b, 0) / readinessValues.length)
       : null;
     const readyForHandoff = readinessValues.filter((v) => v >= 70).length;
 
@@ -94,24 +98,24 @@ export const getComplianceSnapshot = createServerFn({ method: "GET" })
     const ctx = context as Ctx;
     const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
     const [optOutRes, suppressionsRes, consentRes, auditRes] = await Promise.all([
-      ctx.supabase
+      (ctx.supabase as any)
         .from("leads")
         .select("id, company, contact, updated_at")
         .eq("opt_out", true)
         .order("updated_at", { ascending: false })
         .limit(200),
-      ctx.supabase
+      (ctx.supabase as any)
         .from("contact_suppressions")
         .select("contact_hash, channel, reason, created_at, lead_id")
         .order("created_at", { ascending: false })
         .limit(200),
-      ctx.supabase
+      (ctx.supabase as any)
         .from("consent_events")
         .select("id, event, channel, source, created_at, lead_id")
         .gte("created_at", since)
         .order("created_at", { ascending: false })
         .limit(200),
-      ctx.supabase
+      (ctx.supabase as any)
         .from("audit_logs")
         .select("id, action, detail, actor_name, actor_type, occurred_at")
         .gte("occurred_at", since)
@@ -145,11 +149,11 @@ export const getAutomationHealth = createServerFn({ method: "GET" })
     const ctx = context as Ctx;
     const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
     const [outreachRes, enrollRes, jobsRes, handoffRes, proposalsRes] = await Promise.all([
-      ctx.supabase.from("lead_outreach").select("channel, status, sent_at").gte("created_at", since),
-      ctx.supabase.from("lead_sequence_enrollments").select("status, last_error, nurture_cycles"),
-      ctx.supabase.from("outreach_jobs").select("status, attempt, run_at").gte("created_at", since),
-      ctx.supabase.from("lead_handoffs").select("status, requested_at, accepted_at, due_at").gte("requested_at", since),
-      ctx.supabase.from("proposals").select("status, creator, created_at").gte("created_at", since),
+      ((ctx.supabase as any) as any).from("lead_outreach").select("channel, status, sent_at").gte("created_at", since),
+      ((ctx.supabase as any) as any).from("lead_sequence_enrollments").select("status, last_error, nurture_cycles"),
+      ((ctx.supabase as any) as any).from("outreach_jobs").select("status, attempt, run_at").gte("created_at", since),
+      ((ctx.supabase as any) as any).from("lead_handoffs").select("status, requested_at, accepted_at, due_at").gte("requested_at", since),
+      ((ctx.supabase as any) as any).from("proposals").select("status, creator, created_at").gte("created_at", since),
     ]);
 
     const outreach = (outreachRes.data ?? []) as Array<{ channel: string; status: string }>;
@@ -185,8 +189,8 @@ export const getAutomationHealth = createServerFn({ method: "GET" })
     }
 
     const proposals = (proposalsRes.data ?? []) as Array<{ status: string; creator: string }>;
-    const aiProposals = proposals.filter((p) => p.creator === "ia").length;
-    const sentProposals = proposals.filter((p) => p.status === "Enviado" || p.status === "Aprovada").length;
+    const aiProposals = proposals.filter((p: any) => p.creator === "ia").length;
+    const sentProposals = proposals.filter((p: any) => p.status === "Enviado" || p.status === "Aprovada").length;
 
     return {
       window_days: 7,

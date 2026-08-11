@@ -2,7 +2,8 @@ import { createServerFn } from '@tanstack/react-start'
 import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware'
 import { z } from 'zod'
 
-// ============= Types & schema =============
+
+
 
 const filtersSchema = z.object({
   source: z.enum(['cnpj_ws', 'google_places', 'ai_only', 'apify']).default('google_places'),
@@ -51,7 +52,7 @@ export function computeNextRun(
     const dow = parseInt(
       new Intl.DateTimeFormat('en-US', { weekday: 'short', timeZone: timezone })
         .formatToParts(candidate)
-        .find((p) => p.type === 'weekday')?.value
+        .find((p: any) => p.type === 'weekday')?.value
         ? ({ Sun: '0', Mon: '1', Tue: '2', Wed: '3', Thu: '4', Fri: '5', Sat: '6' } as Record<string, string>)[
             new Intl.DateTimeFormat('en-US', { weekday: 'short', timeZone: timezone }).format(candidate)
           ]
@@ -94,8 +95,7 @@ function getTimezoneOffsetMinutes(timezone: string, when: Date): number {
 export const listSchedules = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { data, error } = await context.supabase
-      .from('prospecting_schedules')
+    const { data, error } = await (context.supabase as any).from('prospecting_schedules')
       .select('*')
       .order('created_at', { ascending: false })
     if (error) throw new Error(error.message)
@@ -106,8 +106,7 @@ export const getSchedule = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const { data: row, error } = await context.supabase
-      .from('prospecting_schedules')
+    const { data: row, error } = await (context.supabase as any).from('prospecting_schedules')
       .select('*')
       .eq('id', data.id)
       .maybeSingle()
@@ -122,8 +121,7 @@ export const upsertSchedule = createServerFn({ method: 'POST' })
   .handler(async ({ data, context }) => {
     const next = computeNextRun(new Date(), data.days_of_week, data.time_of_day, data.timezone)
     if (data.id) {
-      const { data: row, error } = await context.supabase
-        .from('prospecting_schedules')
+      const { data: row, error } = await (context.supabase as any).from('prospecting_schedules')
         .update({
           name: data.name,
           description: data.description ?? null,
@@ -148,8 +146,7 @@ export const upsertSchedule = createServerFn({ method: 'POST' })
       if (error) throw new Error(error.message)
       return row
     }
-    const { data: row, error } = await context.supabase
-      .from('prospecting_schedules')
+    const { data: row, error } = await (context.supabase as any).from('prospecting_schedules')
       .insert({
         owner_id: context.userId,
         name: data.name,
@@ -179,8 +176,7 @@ export const toggleSchedule = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid(), active: z.boolean() }).parse(d))
   .handler(async ({ data, context }) => {
-    const { data: cur } = await context.supabase
-      .from('prospecting_schedules')
+    const { data: cur } = await (context.supabase as any).from('prospecting_schedules')
       .select('days_of_week, time_of_day, timezone')
       .eq('id', data.id)
       .maybeSingle()
@@ -188,8 +184,7 @@ export const toggleSchedule = createServerFn({ method: 'POST' })
     const next = data.active
       ? computeNextRun(new Date(), cur.days_of_week as number[], cur.time_of_day as string, cur.timezone as string)
       : null
-    const { error } = await context.supabase
-      .from('prospecting_schedules')
+    const { error } = await (context.supabase as any).from('prospecting_schedules')
       .update({ active: data.active, next_run_at: next ? next.toISOString() : null, consecutive_failures: 0 } as never)
       .eq('id', data.id)
     if (error) throw new Error(error.message)
@@ -200,8 +195,7 @@ export const deleteSchedule = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const { error } = await context.supabase
-      .from('prospecting_schedules')
+    const { error } = await (context.supabase as any).from('prospecting_schedules')
       .delete()
       .eq('id', data.id)
     if (error) throw new Error(error.message)
@@ -212,8 +206,7 @@ export const listScheduleRuns = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ schedule_id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const { data: rows, error } = await context.supabase
-      .from('prospecting_schedule_runs')
+    const { data: rows, error } = await (context.supabase as any).from('prospecting_schedule_runs')
       .select('*')
       .eq('schedule_id', data.schedule_id)
       .order('started_at', { ascending: false })
@@ -227,8 +220,7 @@ export const runScheduleNow = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const { data: schedule, error: sErr } = await context.supabase
-      .from('prospecting_schedules')
+    const { data: schedule, error: sErr } = await (context.supabase as any).from('prospecting_schedules')
       .select('*')
       .eq('id', data.id)
       .maybeSingle()
@@ -238,16 +230,14 @@ export const runScheduleNow = createServerFn({ method: 'POST' })
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server')
     const { runProspectingCampaignInternal } = await import('./prospecting.functions')
 
-    const { data: runRow } = await supabaseAdmin
-      .from('prospecting_schedule_runs')
+    const { data: runRow } = await (supabaseAdmin as any).from('prospecting_schedule_runs')
       .insert({ schedule_id: schedule.id, status: 'running' } as never)
       .select('id')
       .single()
 
     try {
       const result = await runProspectingCampaignInternal(supabaseAdmin, schedule as never)
-      await supabaseAdmin
-        .from('prospecting_schedule_runs')
+      await (supabaseAdmin as any).from('prospecting_schedule_runs')
         .update({
           status: result.imported === 0 && result.found > 0 ? 'partial' : 'success',
           finished_at: new Date().toISOString(),
@@ -258,15 +248,13 @@ export const runScheduleNow = createServerFn({ method: 'POST' })
           detail: result.reasons as never,
         } as never)
         .eq('id', runRow?.id ?? '')
-      await supabaseAdmin
-        .from('prospecting_schedules')
+      await (supabaseAdmin as any).from('prospecting_schedules')
         .update({ last_run_at: new Date().toISOString(), consecutive_failures: 0 } as never)
         .eq('id', schedule.id)
       return { ok: true, ...result }
     } catch (err) {
       const msg = (err as Error).message
-      await supabaseAdmin
-        .from('prospecting_schedule_runs')
+      await (supabaseAdmin as any).from('prospecting_schedule_runs')
         .update({ status: 'failed', finished_at: new Date().toISOString(), error: msg } as never)
         .eq('id', runRow?.id ?? '')
       throw new Error(msg)

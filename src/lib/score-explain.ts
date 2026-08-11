@@ -1,7 +1,4 @@
-// Determinístico e explicável: converte sinais reais do prospect em
-// pontos por critério usando os pesos configurados em `score_weights`.
-// Puro (sem imports do Supabase), pode rodar no browser e no server.
-
+import type { Database } from '@/integrations/supabase/types'
 import type { ExternalCompany } from './prospecting.functions'
 
 export type Weights = {

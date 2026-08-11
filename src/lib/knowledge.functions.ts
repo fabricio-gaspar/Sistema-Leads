@@ -1,9 +1,8 @@
+import type { Database } from '@/integrations/supabase/types'
 import { createServerFn } from '@tanstack/react-start'
-import { z } from 'zod'
 import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware'
+import { z } from 'zod'
 
-// ============================================================================
-// Knowledge chunking for documents.content_text
 // ============================================================================
 
 const CHUNK_SIZE = 1200 // characters per chunk (~300 tokens)
@@ -31,7 +30,7 @@ function splitIntoChunks(text: string): string[] {
 }
 
 async function assertAdmin(ctx: { supabase: any; userId: string }) {
-  const { data, error } = await ctx.supabase.rpc('has_role', {
+  const { data, error } = await (ctx.supabase as any).rpc('has_role', {
     _user_id: ctx.userId,
     _role: 'administrador',
   })
@@ -47,16 +46,14 @@ async function reindexDocumentWithClient(
   const chunks = splitIntoChunks(text)
 
   // Bump version: mark all existing chunks stale, then insert new active ones
-  await supabase
-    .from('knowledge_chunks')
+  await (supabase as any).from('knowledge_chunks')
     .update({ status: 'stale' } as never)
     .eq('document_id', document.id)
     .eq('status', 'active')
 
   if (!chunks.length) return { chunks: 0 }
 
-  const { data: prev } = await supabase
-    .from('knowledge_chunks')
+  const { data: prev } = await (supabase as any).from('knowledge_chunks')
     .select('version')
     .eq('document_id', document.id)
     .order('version', { ascending: false })
@@ -73,7 +70,7 @@ async function reindexDocumentWithClient(
     status: 'active',
   }))
 
-  const { error } = await supabase.from('knowledge_chunks').insert(rows as never)
+  const { error } = await (supabase as any).from('knowledge_chunks').insert(rows as never)
   if (error) throw new Error(error.message)
   return { chunks: rows.length }
 }
@@ -82,8 +79,7 @@ export async function reindexDocumentInternal(
   ctx: { supabase: any; userId: string },
   documentId: string,
 ): Promise<{ chunks: number }> {
-  const { data: doc, error } = await ctx.supabase
-    .from('documents')
+  const { data: doc, error } = await (ctx.supabase as any).from('documents')
     .select('id, name, content_text, status')
     .eq('id', documentId)
     .maybeSingle()
@@ -91,14 +87,13 @@ export async function reindexDocumentInternal(
   if (!doc) throw new Error('Documento não encontrado')
   if (doc.status !== 'active' || !doc.content_text) {
     // Deactivate any active chunks for inactive/emptied docs
-    await ctx.supabase
-      .from('knowledge_chunks')
-      .update({ status: 'stale' } as never)
+    await (ctx.supabase as any)
+    await (ctx.supabase as any).from('knowledge_chunks')
       .eq('document_id', documentId)
       .eq('status', 'active')
     return { chunks: 0 }
   }
-  return reindexDocumentWithClient(ctx.supabase, doc)
+  return reindexDocumentWithClient((ctx.supabase as any), doc)
 }
 
 /**
@@ -110,16 +105,14 @@ export async function loadKnowledgeSnippetInternal(
   supabase: any,
   charBudget = 8000,
 ): Promise<Array<{ document: string; content: string }>> {
-  const { data: docs } = await supabase
-    .from('documents')
+  const { data: docs } = await (supabase as any).from('documents')
     .select('id, name')
     .eq('status', 'active')
     .limit(20)
   if (!docs?.length) return []
 
   const ids = docs.map((d: { id: string }) => d.id)
-  const { data: chunks } = await supabase
-    .from('knowledge_chunks')
+  const { data: chunks } = await (supabase as any).from('knowledge_chunks')
     .select('document_id, content, chunk_index, version')
     .in('document_id', ids)
     .eq('status', 'active')
@@ -149,17 +142,15 @@ export async function loadKnowledgeSnippetInternal(
 export const reindexDocument = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ document_id: z.string().uuid() }).parse(d))
-  .handler(async ({ data, context }) => {
     await assertAdmin(context)
     return reindexDocumentInternal(context, data.document_id)
   })
 
 export const reindexAllDocuments = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
     await assertAdmin(context)
-    const { data: docs, error } = await context.supabase
-      .from('documents')
+    const { data: docs, error } = await ((ctx.supabase as any) as any)
+      (ctx.supabase as any).from('documents')
       .select('id, name, content_text')
       .eq('status', 'active')
       .not('content_text', 'is', null)
@@ -168,7 +159,7 @@ export const reindexAllDocuments = createServerFn({ method: 'POST' })
     let processed = 0
     for (const doc of docs ?? []) {
       try {
-        const res = await reindexDocumentWithClient(context.supabase, doc as any)
+        const res = await reindexDocumentWithClient(((ctx.supabase as any) as any), doc as any)
         total += res.chunks
         processed += 1
       } catch (err) {
@@ -180,13 +171,12 @@ export const reindexAllDocuments = createServerFn({ method: 'POST' })
 
 export const getKnowledgeStats = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => {
     await assertAdmin(context)
     const [{ count: activeChunks }, { count: staleChunks }, { count: docsWithText }] = await Promise.all([
-      context.supabase.from('knowledge_chunks').select('id', { count: 'exact', head: true }).eq('status', 'active'),
-      context.supabase.from('knowledge_chunks').select('id', { count: 'exact', head: true }).eq('status', 'stale'),
-      context.supabase
-        .from('documents')
+      (ctx.supabase as any).from('knowledge_chunks').select('id', { count: 'exact', head: true }).eq('status', 'active'),
+      (ctx.supabase as any).from('knowledge_chunks').select('id', { count: 'exact', head: true }).eq('status', 'stale'),
+      ((ctx.supabase as any) as any)
+        (ctx.supabase as any).from('documents')
         .select('id', { count: 'exact', head: true })
         .eq('status', 'active')
         .not('content_text', 'is', null),
@@ -234,10 +224,9 @@ async function extractText(bytes: Uint8Array, kind: 'pdf' | 'docx' | 'text'): Pr
 export const extractAndIndexDocument = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ document_id: z.string().uuid() }).parse(d))
-  .handler(async ({ data, context }) => {
     await assertAdmin(context)
-    const { data: doc, error } = await context.supabase
-      .from('documents')
+    const { data: doc, error } = await ((ctx.supabase as any) as any)
+      (ctx.supabase as any).from('documents')
       .select('id, name, type, storage_path, content_text')
       .eq('id', data.document_id)
       .maybeSingle()
@@ -248,8 +237,8 @@ export const extractAndIndexDocument = createServerFn({ method: 'POST' })
     const kind = detectKind(doc.name || '', doc.type || '')
     if (kind === 'unsupported') throw new Error('Formato não suportado (use PDF, DOCX, TXT, MD, CSV, JSON)')
 
-    const { data: blob, error: dlErr } = await context.supabase.storage
-      .from('docs')
+    const { data: blob, error: dlErr } = await ((ctx.supabase as any) as any).storage
+      (ctx.supabase as any).from('docs')
       .download(doc.storage_path as string)
     if (dlErr) throw new Error(dlErr.message)
 
@@ -259,8 +248,8 @@ export const extractAndIndexDocument = createServerFn({ method: 'POST' })
     const text = await extractText(bytes, kind)
     if (!text) throw new Error('Não foi possível extrair texto do arquivo')
 
-    const { error: upErr } = await context.supabase
-      .from('documents')
+    const { error: upErr } = await ((ctx.supabase as any) as any)
+      (ctx.supabase as any).from('documents')
       .update({ content_text: text } as never)
       .eq('id', doc.id)
     if (upErr) throw new Error(upErr.message)

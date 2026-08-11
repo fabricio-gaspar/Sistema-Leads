@@ -101,7 +101,7 @@ export const requireSupabaseAuth = createMiddleware({ type: 'function' }).server
     // Bloqueia usuários com profile.active=false em qualquer server function.
     // Patch intencional além do gerador para atender à matriz de RBAC aprovada.
     const { data: profile, error: profileErr } = await supabase
-      .from('profiles')
+      .from('profiles' as any)
       .select('active')
       .eq('id', data.claims.sub)
       .maybeSingle();
@@ -109,7 +109,7 @@ export const requireSupabaseAuth = createMiddleware({ type: 'function' }).server
       console.error('[auth-middleware] profile lookup failed:', profileErr.message);
       throw new Error('Unauthorized: profile lookup failed');
     }
-    if (profile && profile.active === false) {
+    if (profile && (profile as any).active === false) {
       throw new Error('Unauthorized: user is inactive');
     }
 
