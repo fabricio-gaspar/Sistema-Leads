@@ -1439,7 +1439,7 @@ export const getReportsData = createServerFn({ method: 'POST' })
       } else {
         const assigned = (l as { assigned_to?: string | null }).assigned_to as string
         const nome = nameById.get(assigned) ?? 'Vendedor'
-        add(assigned, nome, false, fechado, valor)
+        add(assigned, (nome as any), false, fechado, valor)
       }
     }
     const ranking = Array.from(map.values())
