@@ -114,7 +114,7 @@ export async function patchEnrollmentInternal(
   leadId: string,
   patch: Partial<Enrollment>,
 ) {
-  const { error } = await (supabase as any)(supabase as any).from('lead_sequence_enrollments').update(patch as never).eq('lead_id', leadId)
+  const { error } = await (supabase as any).from('lead_sequence_enrollments').update(patch as never).eq('lead_id', leadId)
   if (error) throw new Error(error.message)
 }
 
