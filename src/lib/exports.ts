@@ -1,8 +1,4 @@
 import type { Database } from '@/integrations/supabase/types'
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
-import { formatBRL } from "./leads-data";
-
 export function downloadCSV(filename: string, rows: Record<string, string | number>[]) {
   if (rows.length === 0) return;
   const headers = Object.keys(rows[0]);

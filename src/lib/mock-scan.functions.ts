@@ -1,8 +1,4 @@
 import type { Database } from '@/integrations/supabase/types'
-import { createServerFn } from '@tanstack/react-start'
-import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware'
-
-export type MockFinding = {
   table: string
   id: string | null
   column: string

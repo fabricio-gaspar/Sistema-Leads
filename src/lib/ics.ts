@@ -1,8 +1,4 @@
 import type { Database } from '@/integrations/supabase/types'
-// Client-safe iCalendar (.ics) generator for appointments.
-// Compatible with Google Calendar, Outlook, Apple Calendar.
-
-export type IcsInput = {
   uid: string;
   title: string;
   description?: string | null;
