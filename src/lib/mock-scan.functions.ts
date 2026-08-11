@@ -1,4 +1,5 @@
 import type { Database } from '@/integrations/supabase/types'
+export type MockFinding = {
   table: string
   id: string | null
   column: string
