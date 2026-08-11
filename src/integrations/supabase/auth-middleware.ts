@@ -100,8 +100,8 @@ export const requireSupabaseAuth = createMiddleware({ type: 'function' }).server
 
     // Bloqueia usuários com profile.active=false em qualquer server function.
     // Patch intencional além do gerador para atender à matriz de RBAC aprovada.
-    const { data: profile, error: profileErr } = await supabase
-      .from('profiles' as any)
+    const { data: profile, error: profileErr } = await (supabase as any)
+      .from('profiles')
       .select('active')
       .eq('id', data.claims.sub)
       .maybeSingle();
