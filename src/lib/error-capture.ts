@@ -1,9 +1,12 @@
-let lastCapturedError: any = null;
+let lastError: any = null;
 
-export const captureError = (error: any) => {
-  lastCapturedError = error;
-  console.error("Captured Error:", error);
-};
+export function captureError(error: any) {
+  lastError = error;
+  console.error("Captured error:", error);
+}
 
-export const getLastCapturedError = () => lastCapturedError;
-export const clearLastCapturedError = () => { lastCapturedError = null; };
+export function consumeLastCapturedError() {
+  const error = lastError;
+  lastError = null;
+  return error;
+}

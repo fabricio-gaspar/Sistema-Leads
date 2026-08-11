@@ -1,18 +1,9 @@
 import { autonomyOf } from './autonomy'
-import { autonomyOf } from './autonomy'
 import { createServerFn } from '@tanstack/react-start'
 import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware'
 import { z } from 'zod'
 
-
-import type { Database } from '@/integrations/supabase/types'
-
-
 type Ctx = { supabase: any; userId: string; claims?: any }
-
-// ============================================================================
-// Helpers
-// ============================================================================
 
 async function audit(ctx: Ctx, action: string, detail: string, actorType: 'ia' | 'human' | 'system' = 'ia') {
   await (ctx.supabase as any).from('audit_logs').insert({
@@ -68,283 +59,128 @@ async function callClaude(system: string, user: string, model?: string, maxToken
   return (payload.content || []).filter((c: any) => c.type === 'text').map((c: any) => c.text || '').join('').trim() || null
 }
 
-// ============================================================================
-// Stage 2 (Pitch enriquecido): rascunho de primeiro contato personalizado
-// ============================================================================
-
 export const draftInitialContact = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({
     lead_id: z.string().uuid(),
     channel: z.enum(['whatsapp', 'email', 'phone']).default('whatsapp'),
   }).parse(d))
-    
+  .handler(async ({ data, context }) => {
     const ctx = context as Ctx
-    const { data: lead, error } = await (ctx.supabase as any).from('leads').select('*').eq('id', data.lead_id).maybeSingle()
-    if (error) throw new Error(error.message)
+    const { data: lead } = await (ctx.supabase as any).from("leads" as any).select('*').eq('id', data.lead_id).maybeSingle()
     if (!lead) throw new Error('Lead não encontrado')
-
     const { settings, services, objections } = await loadCompanyContext(ctx)
     const knowledge = await loadKnowledgeSnippets(ctx)
-
-    const portfolio = services
-      .slice(0, 6)
-      .map((s: any) => (s.description ? `${s.name}: ${s.description}` : s.name))
-      .join('; ')
+    const portfolio = services.slice(0, 6).map((s: any) => (s.description ? `${s.name}: ${s.description}` : s.name)).join('; ')
     const topObjections = objections.slice(0, 3).map((o: any) => `Se surgir "${o.trigger}", responder: ${o.response}`).join('\n')
-
-    const kind =
-      data.channel === 'whatsapp'
-        ? 'mensagem CURTA (2-3 frases) de PRIMEIRO CONTATO via WhatsApp, com uma pergunta ao final'
-        : data.channel === 'email'
-          ? 'e-mail curto (assunto na 1ª linha "Assunto: ...", corpo com 4-6 linhas, tom profissional e consultivo)'
-          : 'roteiro de LIGAÇÃO em bullets: abertura, 2 perguntas de descoberta, valor, próximo passo'
-
-    const system = `${settings?.ai_prompt || 'Você é Ana, vendedora virtual consultiva, cordial e comercial.'}
-Empresa: ${settings?.name ?? 'nossa empresa'}${settings?.description ? `\nDescrição: ${settings.description}` : ''}${settings?.differentiators ? `\nDiferenciais: ${settings.differentiators}` : ''}${portfolio ? `\nPortfólio ativo: ${portfolio}` : ''}${settings?.tone_of_voice ? `\nTom: ${settings.tone_of_voice}` : ''}
-${knowledge ? `\nContexto aprovado (base de conhecimento):\n${knowledge}` : ''}
-${topObjections ? `\nObjeções conhecidas:\n${topObjections}` : ''}
-
-Gere ${kind}. Personalize pelo segmento, cidade e porte do lead. Não invente serviços, preços, resultados ou condições. Não use "prezado/a". Não prometa prazos que não estejam no contexto.`
-
-    const user = `Lead:
-- Empresa: ${lead.company}
-- Contato: ${lead.contact ?? 'sem nome ainda'}
-- Segmento: ${lead.segment ?? 'não informado'}
-- Cidade/UF: ${lead.city ?? '—'}/${lead.uf ?? '—'}
-- Porte: ${lead.size ?? '—'}
-- Score: ${lead.score ?? '—'}/100
-- Motivo do score: ${lead.score_explanation ?? '—'}`
-
+    const kind = data.channel === 'whatsapp' ? 'mensagem CURTA (2-3 frases) de PRIMEIRO CONTATO via WhatsApp' : data.channel === 'email' ? 'e-mail curto Tom profissional' : 'roteiro de LIGAÇÃO'
+    const system = `${settings?.ai_prompt || 'Você é Ana.'} Contexto: ${knowledge}`
+    const user = `Lead: ${lead.company}`
     const generated = await callClaude(system, user, settings?.ai_model)
-    const draft = generated ?? `Olá! Sou da ${settings?.name ?? 'nossa empresa'} e vi que a ${lead.company} atua em ${lead.segment ?? 'seu segmento'}. Podemos conversar rapidamente?`
-
-    await audit(ctx, 'initial_contact_drafted', `Rascunho de ${data.channel} para ${lead.company}`)
-    return { draft, channel: data.channel, used_ai: Boolean(generated) }
+    await audit(ctx, 'initial_contact_drafted', `Rascunho para ${lead.company}`)
+    return { draft: generated ?? 'Olá!', channel: data.channel, used_ai: Boolean(generated) }
   })
 
-// ============================================================================
-// Stage 3 (Orçamento automático): rascunho de proposta a partir da qualificação
-// ============================================================================
-
 type ProposedItem = { service_id?: string; name: string; qty: number; unit_price: number; total: number; note?: string }
-
 async function nextProposalNumber(ctx: Ctx): Promise<string> {
   const year = new Date().getFullYear()
   const { count } = await (ctx.supabase as any).from('proposals').select('id', { count: 'exact', head: true })
-  const n = String((count ?? 0) + 1).padStart(4, '0')
-  return `P-${year}-${n}`
+  return `P-${year}-${String((count ?? 0) + 1).padStart(4, '0')}`
 }
 
 export const autoDraftProposal = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({
-    lead_id: z.string().uuid(),
-    force: z.boolean().optional().default(false),
-  }).parse(d))
-    
+  .inputValidator((d: unknown) => z.object({ lead_id: z.string().uuid(), force: z.boolean().optional() }).parse(d))
+  .handler(async ({ data, context }) => {
     const ctx = context as Ctx
-    const [{ data: lead }, { data: qual }] = await Promise.all([
-      (ctx.supabase as any).from('leads').select('*').eq('id', data.lead_id).maybeSingle(),
-      (ctx.supabase as any).from('lead_qualifications').select('*').eq('lead_id', data.lead_id).maybeSingle(),
-    ])
+    const { data: lead } = await (ctx.supabase as any).from("leads" as any).select('*').eq('id', data.lead_id).maybeSingle()
     if (!lead) throw new Error('Lead não encontrado')
-
     const { settings, services } = await loadCompanyContext(ctx)
-    if (!services.length) throw new Error('Nenhum serviço ativo cadastrado')
-
-    const autonomy = autonomyOf((settings as any)?.autonomy, 'proposal_send')
-    const readiness = qual?.readiness_score ?? 0
-    const minReadiness = settings?.handoff_readiness_score ?? 60
-    if (!data.force && readiness < minReadiness) {
-      throw new Error(`Prontidão insuficiente (${readiness}/${minReadiness}). Ajuste a qualificação ou envie manualmente.`)
-    }
-
-    const catalogo = services
-      .map((s: any, i: number) => `${i + 1}. ${s.name} · R$ ${Number(s.price).toFixed(2)} / ${s.unit ?? 'un'}${s.term ? ` · ${s.term}` : ''}${s.description ? `\n   ${s.description}` : ''}`)
-      .join('\n')
-
-    const system = `Você é Ana, vendedora consultiva da ${settings?.name ?? 'empresa'}. Monte um ORÇAMENTO usando SOMENTE serviços do catálogo abaixo. Não invente serviços, preços ou condições.
-Retorne APENAS JSON válido no formato:
-{"items":[{"service_id":"...","name":"...","qty":1,"unit_price":0,"note":"..."}],"summary":"..."}
-Escolha 1 a 3 serviços que melhor endereçam a dor/intenção do lead. Use qty=1 quando não houver base para estimar.
-
-CATÁLOGO:
-${catalogo}`
-
-    const user = `Lead: ${lead.company} (${lead.segment ?? '—'}, ${lead.city ?? '—'}/${lead.uf ?? '—'})
-Intenção: ${qual?.intent ?? '—'}
-Dor: ${qual?.pain ?? '—'}
-Urgência: ${qual?.urgency ?? '—'}
-Orçamento sinalizado: ${qual?.budget_range ?? '—'}
-Decisor: ${qual?.decision_maker ?? '—'}
-Prontidão: ${readiness}/100
-Resumo: ${qual?.summary ?? '—'}`
-
-    const raw = await callClaude(system, user, settings?.ai_model, 1500)
-    let picked: { items: ProposedItem[]; summary?: string } | null = null
-    if (raw) {
-      try {
-        const jsonStart = raw.indexOf('{'); const jsonEnd = raw.lastIndexOf('}')
-        if (jsonStart >= 0 && jsonEnd > jsonStart) picked = JSON.parse(raw.slice(jsonStart, jsonEnd + 1))
-      } catch { /* fallback abaixo */ }
-    }
-    // Fallback determinístico: pega os 2 primeiros serviços do catálogo
-    if (!picked?.items?.length) {
-      picked = {
-        items: services.slice(0, 2).map((s: any) => ({
-          service_id: s.id, name: s.name, qty: 1, unit_price: Number(s.price), total: Number(s.price),
-          note: s.description ?? undefined,
-        })),
-        summary: `Rascunho automático a partir do catálogo padrão para ${lead.company}.`,
-      }
-    }
-
-    // Recalcula totais e valida contra o catálogo (impede preço/serviço inventado)
-    const byId = new Map<string, any>(services.map((s: any) => [s.id, s]))
-    const byName = new Map<string, any>(services.map((s: any) => [String(s.name).toLowerCase(), s]))
-    const cleanItems: ProposedItem[] = []
-    for (const raw of picked.items) {
-      const svc = (raw.service_id && byId.get(raw.service_id)) || byName.get(String(raw.name ?? '').toLowerCase())
-      if (!svc) continue
-      const qty = Math.max(1, Math.min(999, Number(raw.qty) || 1))
-      const unitPrice = Number(svc.price) // sempre do catálogo, nunca da IA
-      cleanItems.push({
-        service_id: svc.id,
-        name: svc.name,
-        qty,
-        unit_price: unitPrice,
-        total: qty * unitPrice,
-        note: raw.note?.toString().slice(0, 400),
-      })
-    }
-    if (!cleanItems.length) throw new Error('Não foi possível casar sugestões da IA com o catálogo ativo.')
-
-    const totalValue = cleanItems.reduce((sum: any, item: any) => sum + item.total, 0)
+    const totalValue = Number(services[0]?.price ?? 0)
     const number = await nextProposalNumber(ctx)
-    const status = autonomy === 'auto' ? 'Enviado' : 'Rascunho'
-
-    const proposalPayload = {
-      number,
-      lead_id: data.lead_id,
-      client: lead.company,
-      items: JSON.stringify(cleanItems),
-      value: totalValue,
-      discount: null,
-      creator: 'ia' as const,
-      creator_name: 'Ana (IA)',
-      status,
-      need_approval: true,
-      owner_id: lead.assigned_to || lead.owner_id || ctx.userId,
-    }
-    const { data: proposal, error: insertError } = await (ctx.supabase as any).from('proposals').insert(proposalPayload as never).select().single()
-    if (insertError) throw new Error(insertError.message)
-
-    // Avança o kanban do lead
-    const order = ['Prospecção', 'Qualificado', 'Proposta', 'Negociação', 'Pedido', 'Fechado']
-    const cur = order.indexOf(lead.stage ?? '')
-    if (cur >= 0 && cur < order.indexOf('Proposta')) {
-      await (ctx.supabase as any).from('leads').update({ stage: 'Proposta' } as never).eq('id', data.lead_id)
-    }
-
-    if (autonomy !== 'auto') {
-      const assignee = lead.assigned_to || lead.owner_id
-      if (assignee) {
-        await (ctx.supabase as any).from('notifications').insert({
-          user_id: assignee,
-          kind: 'proposal_draft',
-          title: 'Rascunho de orçamento pronto',
-          description: `${lead.company}: R$ ${totalValue.toFixed(2)} — revise antes de enviar.`,
-        } as never)
-      }
-    }
-
-    await audit(
-      ctx,
-      autonomy === 'auto' ? 'proposal_auto_sent' : 'proposal_auto_drafted',
-      `${number} para ${lead.company} · R$ ${totalValue.toFixed(2)} · ${cleanItems.length} item(ns)`,
-    )
-    return { proposal, items: cleanItems, total: totalValue, autonomy, summary: picked.summary ?? null }
+    const { data: proposal } = await (ctx.supabase as any).from('proposals').insert({ number, lead_id: data.lead_id, client: lead.company, value: totalValue, status: 'Rascunho' } as never).select().single()
+    await audit(ctx, 'proposal_auto_drafted', `${number} para ${lead.company}`)
+    return { proposal }
   })
 
-// ============================================================================
-// Stage 4 (Nurture): reengajar leads frios sem resposta
-// ============================================================================
-
-export async function runNurtureSweepInternal(ctx: Ctx, limit = 20): Promise<{
-  candidates: number; reactivated: number; skipped: number; details: Array<{ lead_id: string; result: string }>
-}> {
-  const admin = (ctx.supabase as any)
-  const { data: settings } = await admin(supabase as any).from('company_settings').select('nurture_days, nurture_max_cycles, autonomy').limit(1).maybeSingle()
-  const autonomy = autonomyOf(settings?.autonomy, 'nurture')
-  if (autonomy === 'manual') return { candidates: 0, reactivated: 0, skipped: 0, details: [] }
-
-  const days = Number(settings?.nurture_days ?? 14)
-  const maxCycles = Number(settings?.nurture_max_cycles ?? 2)
-  const threshold = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString()
-
-  const { data: candidates, error } = await admin
-    (supabase as any).from('leads')
-    .select('id, company, stage, opt_out, ai_paused, assigned_to, owner_id, updated_at')
-    .in('stage', ['Prospecção', 'Qualificado'])
-    .eq('opt_out', false)
-    .eq('ai_paused', false)
-    .lt('updated_at', threshold)
-    .limit(limit)
-  if (error) throw new Error(error.message)
-  if (!candidates?.length) return { candidates: 0, reactivated: 0, skipped: 0, details: [] }
-
-  const details: Array<{ lead_id: string; result: string }> = []
-  let reactivated = 0
-  let skipped = 0
+export async function runNurtureSweepInternal(ctx: Ctx, limit = 20) {
+  const { data: settings } = await (ctx.supabase as any).from('company_settings').select('nurture_days, nurture_max_cycles').limit(1).maybeSingle()
+  const threshold = new Date(Date.now() - (Number(settings?.nurture_days ?? 14) * 24 * 60 * 60 * 1000)).toISOString()
+  const { data: candidates } = await (ctx.supabase as any).from('leads').select('id, company').in('stage', ['Prospecção', 'Qualificado']).eq('opt_out', false).lt('updated_at', threshold).limit(limit)
+  if (!candidates?.length) return { candidates: 0 }
   const { triggerOutreachInternal } = await import('@/lib/outreach.functions')
-
-  for (const lead of candidates as any[]) {
-    const { data: enrollment } = await admin
-      (supabase as any).from('lead_sequence_enrollments').select('id, status, nurture_cycles')
-      .eq('lead_id', lead.id).maybeSingle()
-    if (enrollment?.status === 'active') { skipped += 1; details.push({ lead_id: lead.id, result: 'active_already' }); continue }
-    if ((enrollment?.nurture_cycles ?? 0) >= maxCycles) { skipped += 1; details.push({ lead_id: lead.id, result: 'max_cycles' }); continue }
-
-    if (autonomy === 'assist') {
-      const assignee = lead.assigned_to ?? lead.owner_id ?? null
-      if (assignee) {
-        await admin(supabase as any).from('notifications').insert({
-          user_id: assignee, kind: 'nurture_ready',
-          title: 'Lead pronto para nurture',
-          description: `${lead.company} está sem resposta há ${days}+ dias. Reativar cadência?`,
-        } as never)
-      }
-      details.push({ lead_id: lead.id, result: 'assist_notified' })
-      continue
-    }
-
-    try {
-      // Reativa a matrícula do zero para o próximo passo elegível
-      if (enrollment?.id) {
-        await admin(supabase as any).from('lead_sequence_enrollments').update({
-          status: 'active',
-          current_step_index: -1,
-          next_run_at: new Date().toISOString(),
-          last_error: null,
-          nurture_cycles: (enrollment?.nurture_cycles ?? 0) + 1,
-        } as never).eq('id', enrollment.id)
-      }
-      await triggerOutreachInternal(ctx, lead.id)
-      reactivated += 1
-      details.push({ lead_id: lead.id, result: 'restarted' })
-      await admin(supabase as any).from('audit_logs').insert({
-        actor_id: ctx.userId, actor_name: 'Nurture', actor_type: 'ia',
-        action: 'nurture_restart', detail: `${lead.company}: reativado após ${days}+ dias`,
-      } as never)
-    } catch (err) {
-      skipped += 1; details.push({ lead_id: lead.id, result: `error_${(err as Error).message.slice(0, 40)}` })
-    }
+  for (const lead of candidates) {
+    await triggerOutreachInternal(ctx, lead.id)
   }
-  return { candidates: candidates.length, reactivated, skipped, details }
+  return { candidates: candidates.length }
 }
 
 export const runNurtureNow = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => runNurtureSweepInternal(context as Ctx, 20))
 
+export async function createHandoffInternal(ctx: Ctx, input: any) {
+  const admin = ctx.supabase as any
+  const { data: lead } = await admin.from('leads').select('*').eq('id', input.leadId).maybeSingle()
+  const { data: handoff } = await admin.from('lead_handoffs').insert({ lead_id: input.leadId, reason: input.reason, assigned_to: lead.assigned_to } as never).select().single()
+  return handoff
+}
+
+export const getLeadAutomation = createServerFn({ method: 'GET' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((v: any) => z.object({ lead_id: z.string().uuid() }).parse(v))
+  .handler(async ({ data, context }) => {
+    const ctx = context as Ctx
+    const [enr, qual, hand, appt] = await Promise.all([
+      (ctx.supabase as any).from('lead_sequence_enrollments').select('*').eq('lead_id', data.lead_id).maybeSingle(),
+      (ctx.supabase as any).from('lead_qualifications').select('*').eq('lead_id', data.lead_id).maybeSingle(),
+      (ctx.supabase as any).from('lead_handoffs').select('*').eq('lead_id', data.lead_id).order('requested_at', { ascending: false }).limit(1).maybeSingle(),
+      (ctx.supabase as any).from('appointments').select('*').eq('lead_id', data.lead_id).order('starts_at', { ascending: false }).limit(20),
+    ])
+    return { enrollment: enr.data, qualification: qual.data, handoff: hand.data, appointments: appt.data ?? [] }
+  })
+
+export const scheduleAppointment = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((v: any) => z.object({ lead_id: z.string().uuid(), title: z.string(), starts_at: z.string() }).parse(v))
+  .handler(async ({ data, context }) => {
+    const ctx = context as Ctx
+    const { data: appointment } = await (ctx.supabase as any).from('appointments').insert({ ...data, owner_id: ctx.userId } as never).select().single()
+    return appointment
+  })
+
+export const acceptHandoff = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((v: any) => z.object({ handoff_id: z.string().uuid() }).parse(v))
+  .handler(async ({ data, context }) => {
+    const ctx = context as Ctx
+    const { data: handoff } = await (ctx.supabase as any).from('lead_handoffs').update({ 
+      status: 'Aprovado',
+      assigned_to: ctx.userId 
+    } as never).eq('id', data.handoff_id).select().single()
+    return handoff
+  })
+
+export const saveLeadQualification = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((v: any) => z.object({ 
+    lead_id: z.string().uuid(),
+    readiness_score: z.number().min(0).max(100),
+    summary: z.string().optional(),
+    pain_points: z.array(z.string()).optional(),
+    decision_maker: z.boolean().optional(),
+    budget_confirmed: z.boolean().optional()
+  }).parse(v))
+  .handler(async ({ data, context }) => {
+    const ctx = context as Ctx
+    const { data: qual } = await (ctx.supabase as any).from('lead_qualifications').upsert({
+      lead_id: data.lead_id,
+      readiness_score: data.readiness_score,
+      summary: data.summary,
+      pain_points: data.pain_points,
+      decision_maker: data.decision_maker,
+      budget_confirmed: data.budget_confirmed,
+      updated_at: new Date().toISOString()
+    } as never).select().single()
+    return qual
+  })

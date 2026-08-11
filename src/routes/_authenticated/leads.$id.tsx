@@ -62,7 +62,7 @@ import {
   getLeadAutomation,
   saveLeadQualification,
   scheduleAppointment,
-} from "@/lib/sales-automation.functions";
+} from "@/lib/sales-actions.functions";
 import { autoDraftProposal, draftInitialContact } from "@/lib/sales-actions.functions";
 import { downloadIcs } from "@/lib/ics";
 import { syncAppointmentToGoogle } from "@/lib/google-calendar.functions";

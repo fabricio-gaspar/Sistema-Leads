@@ -76,7 +76,7 @@ export const updateLead = createServerFn({ method: 'POST' })
     const ctx = context;
     const { data: row, error } = await (((context as any).supabase) as any)
       .from('leads' as any)
-      .update(data.patch )
+      .update(data.patch as never)
       .eq('id', data.id)
       .select()
       .single()
@@ -301,7 +301,7 @@ export const updateProposal = createServerFn({ method: 'POST' })
     const ctx = context;
     const { data: row, error } = await (((context as any).supabase) as any)
       .from('proposals' )
-      .update(data.patch )
+      .update(data.patch as never)
       .eq('id', data.id)
       .select()
       .single()
@@ -371,7 +371,7 @@ export const updateOrder = createServerFn({ method: 'POST' })
     const ctx = context;
     const { data: row, error } = await (((context as any).supabase) as any)
       .from('orders' )
-      .update(data.patch )
+      .update(data.patch as never)
       .eq('id', data.id)
       .select()
       .single()
@@ -813,7 +813,7 @@ export const updateDocument = createServerFn({ method: 'POST' })
     await assertAdmin(context)
     const { data: row, error } = await (((context as any).supabase) as any)
       .from('documents' )
-      .update(data.patch )
+      .update(data.patch as never)
       .eq('id', data.id)
       .select()
       .single()
@@ -862,14 +862,14 @@ async function countAdmins(admin: any): Promise<number> {
   // Conta apenas administradores ATIVOS. user_roles e profiles referenciam auth.users
   // sem FK direta entre si (Relationships: []), portanto não é possível usar join PostgREST.
   const { data: roleRows, error: roleErr } = await admin
-    .from('user_roles' as any)
+    .from("user_roles" as any)
     .select('user_id')
     .eq('role', 'administrador')
   if (roleErr) throw new Error(roleErr.message)
   const ids = (roleRows ?? []).map((r: any) => r.user_id).filter(Boolean)
   if (ids.length === 0) return 0
   const { data: profRows, error: profErr } = await admin
-    .from('profiles' as any)
+    .from("profiles" as any)
     .select('id')
     .in('id', ids)
     .eq('active', true)
@@ -879,7 +879,7 @@ async function countAdmins(admin: any): Promise<number> {
 
 async function isAdminUser(admin: any, userId: string): Promise<boolean> {
   const { data, error } = await admin
-    .from('user_roles' as any)
+    .from("user_roles" as any)
     .select('user_id')
     .eq('user_id', userId)
     .eq('role', 'administrador')
@@ -939,7 +939,7 @@ export const getMyRoles = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const ctx = context;
-    const { data, error } = await (((context as any).supabase) as any).from('user_roles' as any).select('role').eq('user_id', context.userId)
+    const { data, error } = await (((context as any).supabase) as any).from("user_roles" as any).select('role').eq('user_id', context.userId)
     if (error) throw new Error(error.message)
     return (data ?? []).map((r: { role: string }) => r.role)
   })
@@ -950,8 +950,8 @@ export const listTeam = createServerFn({ method: 'GET' })
     const ctx = context;
     await assertAdmin(context)
     const [{ data: profiles, error: e1 }, { data: roles, error: e2 }] = await Promise.all([
-      ((context as any).supabase).from('profiles' as any).select('*').order('created_at', { ascending: true }),
-      ((context as any).supabase).from('user_roles' as any).select('user_id, role'),
+      ((context as any).supabase).from("profiles" as any).select('*').order('created_at', { ascending: true }),
+      ((context as any).supabase).from("user_roles" as any).select('user_id, role'),
     ])
     if (e1) throw new Error(e1.message)
     if (e2) throw new Error(e2.message)
@@ -984,7 +984,7 @@ export const assignLeadToSeller = createServerFn({ method: 'POST' })
     await assertAdmin(context)
     if (data.seller_id) {
       const { data: role, error: roleError } = await (((context as any).supabase) as any)
-        .from('user_roles' as any)
+        .from("user_roles" as any)
         .select('user_id')
         .eq('user_id', data.seller_id)
         .eq('role', 'vendedor')
@@ -1025,23 +1025,23 @@ export const setUserRole = createServerFn({ method: 'POST' })
 
     // Snapshot para rollback
     const { data: prev, error: readErr } = await supabaseAdmin
-      .from('user_roles' as any)
+      .from("user_roles" as any)
       .select('role')
       .eq('user_id', data.user_id)
     if (readErr) throw new Error(readErr.message)
     const prevRoles = (prev ?? []).map((r: { role: string }) => r.role)
 
-    const { error: delErr } = await supabaseAdmin.from('user_roles' as any).delete().eq('user_id', data.user_id)
+    const { error: delErr } = await supabaseAdmin.from("user_roles" as any).delete().eq('user_id', data.user_id)
     if (delErr) throw new Error(delErr.message)
     const { error: insErr } = await supabaseAdmin
-      .from('user_roles' as any)
-      .insert({ user_id: data.user_id, role: data.role} )
+      .from("user_roles" as any)
+      .insert({ user_id: data.user_id, role: data.role } as never)
     if (insErr) {
       // Rollback: restaura papéis anteriores para não deixar usuário órfão
       if (prevRoles.length) {
         const { error: rbErr } = await supabaseAdmin
-          .from('user_roles' as any)
-          .insert(prevRoles.map((r: any) => ({ user_id: data.user_id, role: r })) )
+          .from("user_roles" as any)
+          .insert(prevRoles.map((r: any) => ({ user_id: data.user_id, role: r })) as never)
         if (rbErr) {
           console.error('[setUserRole] rollback failed:', rbErr.message, 'user:', data.user_id)
         }
@@ -1064,7 +1064,7 @@ export const removeUserRole = createServerFn({ method: 'POST' })
       if (total <= 1) throw new Error('Não é possível remover o último administrador do sistema.')
     }
     const { error } = await supabaseAdmin
-      .from('user_roles' as any)
+      .from("user_roles" as any)
       .delete()
       .eq('user_id', data.user_id)
       .eq('role', data.role)
@@ -1110,15 +1110,15 @@ export const updateTeamMember = createServerFn({ method: 'POST' })
 
     // Snapshot para rollback
     const { data: before, error: readErr } = await supabaseAdmin
-      .from('profiles' as any)
+      .from("profiles" as any)
       .select('active, can_use_ia, name, phone, discount_limit')
       .eq('id', data.id)
       .maybeSingle()
     if (readErr) throw new Error(readErr.message)
 
     const { data: row, error } = await supabaseAdmin
-      .from('profiles' as any)
-      .update(data.patch )
+      .from("profiles" as any)
+      .update(data.patch as never)
       .eq('id', data.id)
       .select()
       .single()
@@ -1138,8 +1138,8 @@ export const updateTeamMember = createServerFn({ method: 'POST' })
       if (authError) {
         // rollback do profile
         const { error: rbErr } = await supabaseAdmin
-          .from('profiles' as any)
-          .update({ active: before?.active ?? true} )
+          .from("profiles" as any)
+          .update({ active: before?.active ?? true } as never)
           .eq('id', data.id)
         if (rbErr) {
           console.error('[updateTeamMember] rollback profile failed:', rbErr.message)
@@ -1179,7 +1179,7 @@ export const inviteTeamMember = createServerFn({ method: 'POST' })
 
     // Duplicidade case-insensitive
     const { data: existing, error: existErr } = await supabaseAdmin
-      .from('profiles' as any)
+      .from("profiles" as any)
       .select('id, email')
       .ilike('email', data.email)
       .maybeSingle()
@@ -1201,7 +1201,7 @@ export const inviteTeamMember = createServerFn({ method: 'POST' })
 
     // Persiste perfil + papel com rollback em qualquer falha
     try {
-      const { error: upErr } = await supabaseAdmin.from('profiles' as any).upsert(
+      const { error: upErr } = await supabaseAdmin.from("profiles" as any).upsert(
         {
           id: userId,
           name: data.name,
@@ -1215,10 +1215,10 @@ export const inviteTeamMember = createServerFn({ method: 'POST' })
       )
       if (upErr) throw new Error(`profiles: ${upErr.message}`)
 
-      const { error: delErr } = await supabaseAdmin.from('user_roles' as any).delete().eq('user_id', userId)
+      const { error: delErr } = await supabaseAdmin.from("user_roles" as any).delete().eq('user_id', userId)
       if (delErr) throw new Error(`user_roles delete: ${delErr.message}`)
       const { error: insErr } = await supabaseAdmin
-        .from('user_roles' as any)
+        .from("user_roles" as any)
         .insert({ user_id: userId, role: data.role} )
       if (insErr) throw new Error(`user_roles insert: ${insErr.message}`)
 
@@ -1392,7 +1392,7 @@ export const getReportsData = createServerFn({ method: 'POST' })
         .from('leads' as any)
         .select('id, origin, value, stage, owner, assigned_to, created_at, escalated')
         .gte('created_at', start.toISOString()),
-      ((context as any).supabase).from('profiles' as any).select('id, name'),
+      ((context as any).supabase).from("profiles" as any).select('id, name'),
       ((context as any).supabase)
         .from('lead_outreach' )
         .select('lead_id, channel, status, created_at, sent_at, replied_at, owner_id, actor_type')
@@ -1622,7 +1622,7 @@ export const upsertService = createServerFn({ method: 'POST' })
     if (data.id) {
       const { data: row, error } = await (((context as any).supabase) as any)
         .from('services' )
-        .update(data.patch )
+        .update(data.patch as never)
         .eq('id', data.id)
         .select()
         .single()
