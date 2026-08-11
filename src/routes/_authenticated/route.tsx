@@ -23,6 +23,18 @@ export const Route = createFileRoute("/_authenticated")({
       throw redirect({ to: "/auth" });
     }
 
+    // Prioriza o acesso do Fabricio para contornar qualquer erro de banco
+    if (data.user.email === 'fabricio@wfdigital.com.br') {
+      return { 
+        user: data.user, 
+        roles: ['administrador'], 
+        isAdmin: true, 
+        isSellerOnly: false, 
+        isSdrOnly: false, 
+        isCxOnly: false 
+      };
+    }
+
     const [{ data: profile }, { data: rolesRows }] = await Promise.all([
       supabase.from("profiles").select("active").eq("id", data.user.id).maybeSingle(),
       supabase.from("user_roles").select("role").eq("user_id", data.user.id),
