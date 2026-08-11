@@ -27,13 +27,13 @@ function Pedidos() {
 
   const [creating, setCreating] = useState(false);
 
-  const total = rows.reduce((a, p) => a + Number(p.value || 0), 0);
+  const total = rows.reduce((a: any, p: any) => a + Number(p.value || 0), 0);
   const entregue = rows
     .filter((p) => (p.status ?? "").toLowerCase() === "entregue")
-    .reduce((a, p) => a + Number(p.value || 0), 0);
+    .reduce((a: any, p: any) => a + Number(p.value || 0), 0);
   const producao = rows
     .filter((p) => ["producao", "produção", "em produção"].includes((p.status ?? "").toLowerCase()))
-    .reduce((a, p) => a + Number(p.value || 0), 0);
+    .reduce((a: any, p: any) => a + Number(p.value || 0), 0);
 
   const delMut = useMutation({
     mutationFn: (id: string) => delFn({ data: { id } }),
@@ -91,7 +91,7 @@ function Pedidos() {
         </Card>
       ) : (
         <div className="grid gap-3">
-          {rows.map((p) => (
+          {rows.map((p: any) => (
             <Card key={p.id}>
               <div className="flex items-center gap-4">
                 <div className="flex h-11 w-11 items-center justify-center rounded-lg bg-primary/10 text-primary">

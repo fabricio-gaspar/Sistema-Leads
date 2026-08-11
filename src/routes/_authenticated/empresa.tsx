@@ -272,7 +272,7 @@ function IntegracoesCard() {
         <div className="text-[12px] text-text-ter">Carregando…</div>
       ) : (
         <ul className="space-y-2">
-          {q.data?.map((i) => (
+          {q.data?.map((i: any) => (
             <li key={i.id} className="flex items-center justify-between text-[12.5px]">
               <span className="text-text-body">{i.label}</span>
               {i.connected ? (

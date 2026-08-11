@@ -6,7 +6,7 @@ export type Database = {
       organizations: { Row: { id: string; name: string; slug: string; created_at: string; updated_at: string }; Insert: any; Update: any }
       organization_members: { Row: { organization_id: string; user_id: string; role: string; created_at: string }; Insert: any; Update: any }
       organization_invites: { Row: { id: string; organization_id: string; email: string; role: string; inviter_id: string; created_at: string; expires_at: string; accepted_at: string | null }; Insert: any; Update: any }
-      leads: { Row: { id: string; organization_id: string; company: string; contact: string | null; title: string | null; phone: string | null; email: string | null; segment: string | null; uf: string | null; distance: number | null; score: number; temp: string; stage: string; value: number; owner: string; assigned_to: string | null; stale_hours: number; escalated: boolean; escalation_reason: string | null; sla_info: string | null; last_contact: string | null; lost_reason: string | null; origin: string | null; created_at: string; updated_at: string; annual_revenue: string | null; score_snapshot: Json | null; score_explanation: string | null; score_source: string | null; score_verified_at: string | null }; Insert: any; Update: any }
+      leads: { Row: { id: string; organization_id: string; company: string; contact: string | null; title: string | null; phone: string | null; email: string | null; segment: string | null; uf: string | null; distance: number | null; score: number; temp: string; stage: string; value: number; owner: string; assigned_to: string | null; stale_hours: number; escalated: boolean; escalation_reason: string | null; sla_info: string | null; last_contact: string | null; lost_reason: string | null; origin: string | null; created_at: string; updated_at: string; annual_revenue: string | null; score_snapshot: Json | null; score_explanation: string | null; score_source: string | null; score_verified_at: string | null; whatsapp: string | null; opt_out: boolean; owner_id: string | null; next_action_at: string | null; contact_channels: Json | null; ai_paused: boolean }; Insert: any; Update: any }
       profiles: { Row: { id: string; name: string; email: string; phone: string | null; avatar: string | null; active: boolean; can_use_ia: boolean; created_at: string; updated_at: string }; Insert: any; Update: any }
       notifications: { Row: { id: string; organization_id: string; owner_id: string; kind: string; title: string; description: string | null; read: boolean; link: string | null; created_at: string }; Insert: any; Update: any }
       audit_logs: { Row: { id: string; organization_id: string; actor_id: string | null; actor_name: string; actor_type: string; action: string; detail: string | null; rule: string | null; occurred_at: string; created_at: string }; Insert: any; Update: any }
@@ -21,8 +21,8 @@ export type Database = {
       prospecting_schedules: { Row: { id: string; organization_id: string; owner_id: string; filters: Json; quantity: number; auto_approve_min_score: number; sequence_id: string | null; assignment_strategy: string; daily_cap: number; monthly_cap: number }; Insert: any; Update: any }
       prospecting_schedule_runs: { Row: { id: string; organization_id: string; imported_count: number }; Insert: any; Update: any }
       user_roles: { Row: { id: string; organization_id: string; user_id: string; role: string }; Insert: any; Update: any }
-      documents: { Row: { id: string; organization_id: string; name: string; content_text: string | null; storage_path: string | null }; Insert: any; Update: any }
-      lead_outreach: { Row: { id: string; organization_id: string; channel: string; actor_type: string; lead_id: string; status: string; replied_at: string | null }; Insert: any; Update: any }
+      documents: { Row: { id: string; organization_id: string; name: string; content_text: string | null; storage_path: string | null; type: string | null; size: string | null; status: string | null }; Insert: any; Update: any }
+      lead_outreach: { Row: { id: string; organization_id: string; channel: string; actor_type: string; lead_id: string; status: string; replied_at: string | null; attempt: number; created_at: string; content: string | null; error: string | null }; Insert: any; Update: any }
       score_weights: { Row: { id: string; organization_id: string; segment: number; whatsapp: number; site: number; porte: number; google: number; regiao: number; updated_at: string }; Insert: any; Update: any }
       unanswered_questions: { Row: { id: string; organization_id: string; text: string; count: number; resolved: boolean }; Insert: any; Update: any }
       integrations: { Row: { id: string; organization_id: string; key: string; label: string; connected: boolean; updated_at: string }; Insert: any; Update: any }
@@ -36,7 +36,9 @@ export type Database = {
       current_org_id: { Args: Record<PropertyKey, never>; Returns: string }
       is_org_member: { Args: { _org: string; _user: string; _role?: string }; Returns: boolean }
     }
-    Enums: { [_ in never]: never }
+    Enums: { 
+      lead_stage: "Prospecção" | "Qualificado" | "Proposta" | "Negociação" | "Pedido" | "Fechado" | "Perdido"
+    }
     CompositeTypes: { [_ in never]: never }
   }
 }

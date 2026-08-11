@@ -41,12 +41,12 @@ function Orcamentos() {
   const [creating, setCreating] = useState(false);
   const [tab, setTab] = useState<string>("todos");
 
-  const filtered = tab === "todos" ? rows : rows.filter((r) => (r.status ?? "").toLowerCase() === tab);
+  const filtered = tab === "todos" ? rows : rows.filter((r: any) => (r.status ?? "").toLowerCase() === tab);
 
-  const totalEmitido = rows.reduce((a, r) => a + Number(r.value || 0), 0);
+  const totalEmitido = rows.reduce((a: any, r: any) => a + Number(r.value || 0), 0);
   const aprovado = rows
-    .filter((r) => (r.status ?? "").toLowerCase() === "aprovado")
-    .reduce((a, r) => a + Number(r.value || 0), 0);
+    .filter((r: any) => (r.status ?? "").toLowerCase() === "aprovado")
+    .reduce((a: any, r: any) => a + Number(r.value || 0), 0);
 
   const invalidate = () => {
     qc.invalidateQueries({ queryKey: ["proposals"] });
@@ -89,7 +89,7 @@ function Orcamentos() {
         <Card>
           <div className="text-[11px] uppercase text-text-ter">Rascunho</div>
           <div className="text-[22px] font-semibold text-text-title">
-            {rows.filter((r) => (r.status ?? "").toLowerCase() === "rascunho").length}
+            {rows.filter((r: any) => (r.status ?? "").toLowerCase() === "rascunho").length}
           </div>
         </Card>
       </div>
