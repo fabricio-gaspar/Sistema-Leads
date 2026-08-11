@@ -25,7 +25,7 @@ import {
 } from "@/lib/crm.functions";
 import { listOutreach, sendManualWhatsapp } from "@/lib/outreach.functions";
 import { acceptHandoff, getLeadAutomation } from "@/lib/sales-automation.functions";
-import type { Database } from "@/integrations/supabase/types.gen";
+import type { Database } from "@/integrations/supabase/types";
 
 type LeadRow = Database["public"]["Tables"]["leads"]["Row"];
 type MsgRow = Database["public"]["Tables"]["lead_messages"]["Row"];

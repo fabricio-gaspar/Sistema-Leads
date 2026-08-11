@@ -56,7 +56,7 @@ import {
 import { getLeadEnrollment } from "@/lib/outreach-sequences.functions";
 
 import { TempBadge } from "./leads";
-import type { Database } from "@/integrations/supabase/types.gen";
+import type { Database } from "@/integrations/supabase/types";
 import {
   acceptHandoff,
   getLeadAutomation,
