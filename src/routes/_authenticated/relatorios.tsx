@@ -262,6 +262,22 @@ function AutomationHealthCard() {
           <div className="mt-1 text-[11px] text-text-ter">Da IA: {data.proposals.from_ai} · Enviadas/aprovadas: {data.proposals.sent_or_approved}</div>
         </div>
       </div>
+      <div className="mt-3 grid gap-2 text-[11.5px] md:grid-cols-2">
+        {data.scheduler.map((heartbeat) => (
+          <div
+            key={heartbeat.job_name}
+            className={`rounded-md border px-3 py-2 ${heartbeat.stale || heartbeat.status === "failed" ? "border-red-200 bg-red-50 text-red-800" : "border-green-200 bg-green-50 text-green-800"}`}
+          >
+            <div className="font-semibold">
+              Agendador {heartbeat.job_name === "outreach" ? "de follow-up" : "de prospecção"}: {heartbeat.stale ? "sem execução recente" : heartbeat.status}
+            </div>
+            <div className="mt-0.5 opacity-80">
+              Último ciclo: {heartbeat.last_finished_at ? new Date(heartbeat.last_finished_at).toLocaleString("pt-BR") : "nunca"}
+              {heartbeat.last_error ? ` · ${heartbeat.last_error}` : ""}
+            </div>
+          </div>
+        ))}
+      </div>
       {channels.length > 0 && (
         <div className="mt-3">
           <div className="mb-1 text-[11px] font-semibold text-text-ter">Entregas por canal</div>

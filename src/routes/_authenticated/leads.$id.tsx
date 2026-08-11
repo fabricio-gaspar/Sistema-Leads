@@ -56,7 +56,7 @@ import {
 import { getLeadEnrollment } from "@/lib/outreach-sequences.functions";
 
 import { TempBadge } from "./leads";
-import type { Database } from "@/types/database";
+import type { Database } from "@/integrations/supabase/types";
 import {
   acceptHandoff,
   getLeadAutomation,
@@ -65,7 +65,7 @@ import {
 } from "@/lib/sales-automation.functions";
 import { autoDraftProposal, draftInitialContact } from "@/lib/sales-actions.functions";
 import { downloadIcs } from "@/lib/ics";
-import { syncAppointmentToGoogle } from "@/lib/google-calendar.functions";
+import { checkGoogleAvailability, syncAppointmentToGoogle } from "@/lib/google-calendar.functions";
 
 
 type Stage = Database["public"]["Enums"]["lead_stage"];
@@ -464,6 +464,8 @@ function AutomationCard({ leadId, lead }: { leadId: string; lead: any }) {
   const getFn = useServerFn(getLeadAutomation);
   const acceptFn = useServerFn(acceptHandoff);
   const scheduleFn = useServerFn(scheduleAppointment);
+  const availabilityFn = useServerFn(checkGoogleAvailability);
+  const syncGoogleFn = useServerFn(syncAppointmentToGoogle);
   const saveQualFn = useServerFn(saveLeadQualification);
   const draftPitchFn = useServerFn(draftInitialContact);
   const autoProposalFn = useServerFn(autoDraftProposal);
@@ -498,21 +500,38 @@ function AutomationCard({ leadId, lead }: { leadId: string; lead: any }) {
     },
   });
   const scheduleMut = useMutation({
-    mutationFn: () => scheduleFn({ data: {
-      lead_id: leadId,
-      title,
-      starts_at: new Date(startsAt).toISOString(),
-      ends_at: null,
-      notes: null,
-    } }),
-    onSuccess: () => {
+    mutationFn: async () => {
+      const start = new Date(startsAt);
+      const end = new Date(start.getTime() + 30 * 60_000);
+      const availability = await availabilityFn({ data: {
+        starts_at: start.toISOString(),
+        ends_at: end.toISOString(),
+        timezone: "America/Sao_Paulo",
+      } });
+      if (availability.connected && availability.available === false) {
+        throw new Error("Este horário está ocupado no Google Calendar do vendedor.");
+      }
+      const appointment = await scheduleFn({ data: {
+        lead_id: leadId,
+        title,
+        starts_at: start.toISOString(),
+        ends_at: end.toISOString(),
+        notes: null,
+      } });
+      if (availability.connected) {
+        await syncGoogleFn({ data: { appointment_id: appointment.id } });
+      }
+      return { appointment, synced: availability.connected };
+    },
+    onSuccess: (result) => {
       setShowSchedule(false);
       setStartsAt("");
       qc.invalidateQueries({ queryKey: ["lead-automation", leadId] });
       qc.invalidateQueries({ queryKey: ["lead-tasks", leadId] });
+      toast.success(result.synced ? "Reunião criada e sincronizada com o Google Calendar" : "Reunião criada; conecte o Google Calendar para sincronizar");
     },
+    onError: (e: Error) => toast.error("Não foi possível agendar", { description: e.message }),
   });
-  const syncGoogleFn = useServerFn(syncAppointmentToGoogle);
   const syncGoogleMut = useMutation({
     mutationFn: (appointment_id: string) => syncGoogleFn({ data: { appointment_id } }),
     onSuccess: () => {

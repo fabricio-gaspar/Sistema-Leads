@@ -235,7 +235,7 @@ export function SchedulesPanel() {
             <Field label="Horário">
               <input type="time" value={form.time_of_day} onChange={(e) => setForm({ ...form, time_of_day: e.target.value })} className="w-full rounded-md border border-border-card bg-bg-general px-3 py-2 text-[13px]" />
             </Field>
-            <Field label="Score mínimo para aprovar automaticamente">
+            <Field label="Score mínimo para entrar em Leads">
               <input type="number" min={0} max={100} value={form.auto_approve_min_score} onChange={(e) => setForm({ ...form, auto_approve_min_score: Number(e.target.value) })} className="w-full rounded-md border border-border-card bg-bg-general px-3 py-2 text-[13px]" />
             </Field>
             <Field label="Cadência">
@@ -352,7 +352,7 @@ function ScheduleRowCard({
           </div>
           <div className="text-[12px] text-text-sec">{summary}</div>
           <div className="mt-1 text-[11px] text-text-ter">
-            {daysLabel} às {schedule.time_of_day} · {schedule.quantity} por execução · score ≥ {schedule.auto_approve_min_score} · cap {schedule.daily_cap}/dia
+            {daysLabel} às {schedule.time_of_day} · {schedule.quantity} por execução · entrada com score ≥ {schedule.auto_approve_min_score} · cap {schedule.daily_cap}/dia
           </div>
           <div className="text-[11px] text-text-ter">
             Próxima: {schedule.next_run_at ? new Date(schedule.next_run_at).toLocaleString("pt-BR") : "—"} · Última: {schedule.last_run_at ? new Date(schedule.last_run_at).toLocaleString("pt-BR") : "—"}

@@ -1,4 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
+import type { InboundMediaInput } from '@/lib/inbound-media.server'
 
 // Z-API webhook receiver. Configure in Z-API panel to POST here.
 // URL: https://<projeto>.lovable.app/api/public/zapi-webhook
@@ -14,6 +15,17 @@ type ZapiEvent = {
   text?: { message?: string } | string
   fromMe?: boolean
   instanceId?: string
+  image?: { imageUrl?: string; url?: string; caption?: string; mimeType?: string; base64?: string }
+  audio?: { audioUrl?: string; url?: string; mimeType?: string; base64?: string }
+  video?: { videoUrl?: string; url?: string; caption?: string; mimeType?: string }
+  document?: { documentUrl?: string; url?: string; fileName?: string; title?: string; mimeType?: string }
+  imageUrl?: string
+  audioUrl?: string
+  videoUrl?: string
+  documentUrl?: string
+  fileUrl?: string
+  mimeType?: string
+  caption?: string
 }
 
 export const Route = createFileRoute('/api/public/zapi-webhook')({
@@ -46,9 +58,11 @@ export const Route = createFileRoute('/api/public/zapi-webhook')({
         const phone = (event.phone || '').replace(/\D/g, '')
         const status = (event.status || event.type || '').toString().toLowerCase()
         const hasText = typeof event.text === 'string' || Boolean(event.text?.message)
+        const inboundMedia = extractZapiMedia(event)
+        const hasMedia = inboundMedia.length > 0
         const isStatusCallback =
           status.includes('status') || status.includes('delivery') || status.includes('sent') || status.includes('read')
-        const isIncoming = event.fromMe === false || (event.fromMe == null && hasText && !isStatusCallback)
+        const isIncoming = event.fromMe === false || (event.fromMe == null && (hasText || hasMedia) && !isStatusCallback)
 
         // Dedup a nível de evento (não só mensagem): mesmo id + tipo já processado?
         const primaryId = event.messageId || event.zaapId || ids[0] || null
@@ -108,14 +122,16 @@ export const Route = createFileRoute('/api/public/zapi-webhook')({
           const tail = phone.slice(-10)
           const { data: leads } = await supabaseAdmin
             .from('leads')
-            .select('id, owner_id, assigned_to, whatsapp, phone, contact_channels, ai_paused')
+            .select('id, organization_id, owner_id, assigned_to, whatsapp, phone, contact_channels, ai_paused')
             .or(`whatsapp.ilike.%${tail},phone.ilike.%${tail}`)
             .limit(5)
           const lead = leads?.[0]
           if (!lead) return Response.json({ ok: true, matched: false })
 
-          const text =
-            typeof event.text === 'string' ? event.text : event.text?.message ?? '[mensagem]'
+          const originalText =
+            typeof event.text === 'string'
+              ? event.text
+              : event.text?.message ?? event.image?.caption ?? event.video?.caption ?? event.caption ?? ''
           const now = new Date().toISOString()
           const inboundId = event.messageId || event.zaapId
 
@@ -153,8 +169,30 @@ export const Route = createFileRoute('/api/public/zapi-webhook')({
           } catch { /* enrollment é best-effort */ }
 
 
-          // Insert message in chat
-          const { error: messageError } = await supabaseAdmin.from('lead_messages').insert({
+          const mediaResults = [] as Array<{
+            attachmentId: string | null
+            contextText: string
+            requiresHandoff: boolean
+            error?: string
+          }>
+          if (inboundMedia.length && lead.organization_id) {
+            const { processInboundMedia } = await import('@/lib/inbound-media.server')
+            for (const media of inboundMedia.slice(0, 3)) {
+              mediaResults.push(await processInboundMedia({
+                supabase: supabaseAdmin,
+                organizationId: lead.organization_id,
+                leadId: lead.id,
+                provider: 'zapi',
+                externalId: inboundId,
+              }, media))
+            }
+          }
+          const text = [originalText.trim(), ...mediaResults.map((result) => result.contextText)]
+            .filter(Boolean)
+            .join('\n') || '[mensagem recebida]'
+
+          // Insert message in chat and link its private attachments.
+          const { data: messageRow, error: messageError } = await supabaseAdmin.from('lead_messages').insert({
             lead_id: lead.id,
             sender: 'client',
             sender_name: 'Cliente',
@@ -162,10 +200,17 @@ export const Route = createFileRoute('/api/public/zapi-webhook')({
             text,
             sent_at: now,
             provider_message_id: inboundId ?? null,
-          } as never)
+          } as never).select('id').single()
           if (messageError?.code === '23505') return Response.json({ ok: true, dedup: true })
           if (messageError) {
             return Response.json({ ok: false, error: messageError.message }, { status: 500 })
+          }
+          const attachmentIds = mediaResults
+            .map((result) => result.attachmentId)
+            .filter((id): id is string => Boolean(id))
+          if (attachmentIds.length && messageRow?.id) {
+            const { linkAttachmentsToMessage } = await import('@/lib/inbound-media.server')
+            await linkAttachmentsToMessage(supabaseAdmin, attachmentIds, messageRow.id)
           }
 
           // Update channel snapshot & handoff hints
@@ -237,7 +282,16 @@ export const Route = createFileRoute('/api/public/zapi-webhook')({
                 userId: actorId,
                 claims: { email: 'Ana (IA)' },
               }
-              automation = interest
+              const unsafeMedia = mediaResults.find((result) => result.requiresHandoff)
+              automation = unsafeMedia
+                ? await outreach.handoffLeadInternal(
+                    ctx,
+                    lead.id,
+                    text,
+                    `Mídia recebida requer análise humana${unsafeMedia.error ? `: ${unsafeMedia.error}` : ''}`,
+                    true,
+                  )
+                : interest
                 ? await outreach.handoffLeadInternal(ctx, lead.id, text, 'Interesse comercial detectado')
                 : lead.ai_paused
                   ? { ok: false, action: 'ignored', reason: 'ai_paused' }
@@ -253,3 +307,42 @@ export const Route = createFileRoute('/api/public/zapi-webhook')({
     },
   },
 })
+
+function extractZapiMedia(event: ZapiEvent): InboundMediaInput[] {
+  const media: InboundMediaInput[] = []
+  const imageUrl = event.image?.imageUrl || event.image?.url || event.imageUrl
+  const imageBase64 = event.image?.base64
+  if (imageUrl || imageBase64) media.push({
+    mediaType: 'image',
+    url: imageUrl,
+    base64: imageBase64,
+    mimeType: event.image?.mimeType || event.mimeType,
+    caption: event.image?.caption || event.caption,
+    fileName: 'imagem-recebida.jpg',
+  })
+  const audioUrl = event.audio?.audioUrl || event.audio?.url || event.audioUrl
+  const audioBase64 = event.audio?.base64
+  if (audioUrl || audioBase64) media.push({
+    mediaType: 'audio',
+    url: audioUrl,
+    base64: audioBase64,
+    mimeType: event.audio?.mimeType || event.mimeType,
+    fileName: 'audio-recebido.ogg',
+  })
+  const videoUrl = event.video?.videoUrl || event.video?.url || event.videoUrl
+  if (videoUrl) media.push({
+    mediaType: 'video',
+    url: videoUrl,
+    mimeType: event.video?.mimeType || event.mimeType,
+    caption: event.video?.caption || event.caption,
+    fileName: 'video-recebido.mp4',
+  })
+  const documentUrl = event.document?.documentUrl || event.document?.url || event.documentUrl || event.fileUrl
+  if (documentUrl) media.push({
+    mediaType: 'document',
+    url: documentUrl,
+    mimeType: event.document?.mimeType || event.mimeType,
+    fileName: event.document?.fileName || event.document?.title || 'documento-recebido.bin',
+  })
+  return media
+}

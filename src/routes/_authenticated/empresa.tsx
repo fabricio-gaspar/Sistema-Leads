@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Building2, Upload, Sparkles, FileText, Trash2, Loader2, Download, Pencil, Save, X, Plug, Eye } from "lucide-react";
+import { Building2, Upload, Sparkles, FileText, Trash2, Loader2, Download, Pencil, Save, X, Plug, Eye, Globe2 } from "lucide-react";
 import { Card, SectionTitle } from "@/components/ui-kit";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -17,7 +17,7 @@ import {
   updateCompanySettings,
   listIntegrations,
 } from "@/lib/crm.functions";
-import { extractAndIndexDocument } from "@/lib/knowledge.functions";
+import { extractAndIndexDocument, importKnowledgeUrl } from "@/lib/knowledge.functions";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/empresa")({ component: Empresa });
@@ -309,12 +309,14 @@ function DocumentosCard() {
   const deleteFn = useServerFn(deleteDocument);
   const signFn = useServerFn(getDocumentSignedUrl);
   const extractFn = useServerFn(extractAndIndexDocument);
+  const importUrlFn = useServerFn(importKnowledgeUrl);
 
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [viewingId, setViewingId] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [urlSource, setUrlSource] = useState("");
 
   const docsQ = useQuery({ queryKey: ["documents"], queryFn: () => listFn() });
 
@@ -325,6 +327,18 @@ function DocumentosCard() {
       toast.success("Documento removido");
     },
     onError: (e) => toast.error("Falha ao remover", { description: (e as Error).message }),
+  });
+  const urlMut = useMutation({
+    mutationFn: () => importUrlFn({ data: { url: urlSource.trim() } }),
+    onSuccess: (result) => {
+      setUrlSource("");
+      qc.invalidateQueries({ queryKey: ["documents"] });
+      qc.invalidateQueries({ queryKey: ["knowledge-stats"] });
+      toast.success(result.updated ? "URL atualizada e reindexada" : "URL adicionada à base da Ana", {
+        description: `${result.chunks} trechos indexados.`,
+      });
+    },
+    onError: (e: Error) => toast.error("Falha ao importar URL", { description: e.message }),
   });
 
   const onPick = async (file: File) => {
@@ -339,8 +353,11 @@ function DocumentosCard() {
       const isDocx =
         file.type === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
         lower.endsWith(".docx");
-      if (!isText && !isPdf && !isDocx) {
-        throw new Error("Formatos aceitos: PDF, DOCX, TXT, Markdown, CSV ou JSON.");
+      const isXlsx =
+        file.type === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+        lower.endsWith(".xlsx");
+      if (!isText && !isPdf && !isDocx && !isXlsx) {
+        throw new Error("Formatos aceitos: PDF, DOCX, XLSX, TXT, Markdown, CSV ou JSON.");
       }
       const maxBytes = isText ? 500_000 : 15_000_000;
       if (file.size > maxBytes) {
@@ -410,13 +427,13 @@ function DocumentosCard() {
     <Card>
       <SectionTitle
         title="Documentos"
-        hint="Base aprovada usada pela Ana (PDF, DOCX, TXT, Markdown, CSV ou JSON — até 15 MB)"
+        hint="Base aprovada usada pela Ana (PDF, Word, Excel, texto, catálogo e URLs)"
         action={
           <>
             <input
               ref={inputRef}
               type="file"
-              accept=".pdf,.docx,.txt,.md,.csv,.json,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,text/markdown,text/csv,application/json"
+              accept=".pdf,.docx,.xlsx,.txt,.md,.csv,.json,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/plain,text/markdown,text/csv,application/json"
               className="hidden"
               onChange={(e) => e.target.files?.[0] && onPick(e.target.files[0])}
             />
@@ -431,6 +448,30 @@ function DocumentosCard() {
           </>
         }
       />
+      <form
+        className="mb-3 flex gap-2 rounded-md border border-border-card bg-bg-general p-2"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (urlSource.trim() && !urlMut.isPending) urlMut.mutate();
+        }}
+      >
+        <Globe2 className="mt-2 h-4 w-4 shrink-0 text-text-ter" />
+        <input
+          type="url"
+          value={urlSource}
+          onChange={(event) => setUrlSource(event.target.value)}
+          placeholder="https://empresa.com.br/produtos"
+          className="h-9 flex-1 rounded-md border border-border-card bg-bg-card px-3 text-[12.5px] outline-none focus:border-primary"
+        />
+        <button
+          type="submit"
+          disabled={!urlSource.trim() || urlMut.isPending}
+          className="inline-flex items-center gap-1 rounded-md border border-border-card bg-bg-card px-3 text-[12px] font-medium hover:bg-primary hover:text-primary-foreground disabled:opacity-50"
+        >
+          {urlMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Globe2 className="h-3.5 w-3.5" />}
+          Importar URL
+        </button>
+      </form>
       {error && <div className="mb-2 rounded-md bg-error-bg p-2 text-[12px] text-error">{error}</div>}
       {docsQ.isLoading && <div className="text-[12px] text-text-ter">Carregando…</div>}
       {docsQ.data && docsQ.data.length === 0 && (

@@ -13,6 +13,7 @@ const SCOPES = [
   "https://www.googleapis.com/auth/userinfo.email",
   "https://www.googleapis.com/auth/userinfo.profile",
   "https://www.googleapis.com/auth/calendar.events",
+  "https://www.googleapis.com/auth/calendar.events.freebusy",
 ];
 
 function clientKey(): string {
@@ -107,6 +108,43 @@ export const disconnectGoogleCalendar = createServerFn({ method: "POST" })
   });
 
 const syncInput = z.object({ appointment_id: z.string().uuid() });
+
+export const checkGoogleAvailability = createServerFn({ method: "POST" })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((input: unknown) => z.object({
+    starts_at: z.string().datetime(),
+    ends_at: z.string().datetime(),
+    timezone: z.string().min(1).max(100).default("America/Sao_Paulo"),
+  }).parse(input))
+  .handler(async ({ data, context }) => {
+    const { getConnectionKeyForUser } = await import("@/server/appUserConnections.server");
+    const key = await getConnectionKeyForUser(context.userId, CONNECTOR_ID);
+    if (!key) return { connected: false, available: null as boolean | null, busy: [] as Array<{ start: string; end: string }> };
+    const { callAsAppUser } = await import("@/integrations/lovable/appUserConnector");
+    const res = await callAsAppUser({
+      gatewayBaseUrl: GATEWAY_BASE_URL,
+      connectionAPIKey: key,
+      connectorId: CONNECTOR_ID,
+      path: "/calendar/v3/freeBusy",
+      init: {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({
+          timeMin: data.starts_at,
+          timeMax: data.ends_at,
+          timeZone: data.timezone,
+          items: [{ id: "primary" }],
+        }),
+      },
+    });
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error(`Google Calendar indisponível (${res.status}): ${body.slice(0, 200)}`);
+    }
+    const payload = await res.json() as { calendars?: { primary?: { busy?: Array<{ start: string; end: string }> } } };
+    const busy = payload.calendars?.primary?.busy ?? [];
+    return { connected: true, available: busy.length === 0, busy };
+  });
 
 export const syncAppointmentToGoogle = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])

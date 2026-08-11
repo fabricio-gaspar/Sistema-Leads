@@ -3,6 +3,22 @@ import { useState, type FormEvent } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
 
+function formatAuthError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  const normalized = message.toLowerCase();
+
+  if (!message || message === "{}" || normalized.includes("failed to fetch")) {
+    return "Não foi possível comunicar com o serviço de autenticação. Tente novamente em instantes.";
+  }
+  if (normalized.includes("redirect") || normalized.includes("not allowed")) {
+    return "O endereço de retorno da recuperação não está autorizado no Supabase. Adicione este domínio e a rota /reset-password em Authentication → URL Configuration.";
+  }
+  if (normalized.includes("rate limit") || normalized.includes("too many requests")) {
+    return "Muitas tentativas recentes. Aguarde alguns minutos antes de solicitar outro link.";
+  }
+  return message;
+}
+
 export const Route = createFileRoute("/auth")({
   ssr: false,
   beforeLoad: async () => {
@@ -29,18 +45,21 @@ function AuthPage() {
     setInfo(null);
     try {
       if (mode === "signin") {
-        const { error: err } = await supabase.auth.signInWithPassword({ email, password });
+        const loginEmail = email.trim().toLowerCase();
+        const { error: err } = await supabase.auth.signInWithPassword({ email: loginEmail, password });
         if (err) throw err;
         navigate({ to: "/", replace: true });
       } else {
-        const { error: err } = await supabase.auth.resetPasswordForEmail(email, {
-          redirectTo: `${window.location.origin}/reset-password`,
+        const recoveryEmail = email.trim().toLowerCase();
+        const redirectTo = new URL("/reset-password", window.location.origin).toString();
+        const { error: err } = await supabase.auth.resetPasswordForEmail(recoveryEmail, {
+          redirectTo,
         });
         if (err) throw err;
         setInfo("Se este e-mail existir na equipe, enviamos um link de redefinição.");
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Falha na autenticação.");
+      setError(formatAuthError(err));
     } finally {
       setPending(false);
     }

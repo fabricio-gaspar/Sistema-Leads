@@ -1,8 +1,15 @@
 import { createServerFn } from '@tanstack/react-start'
 import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware'
 import { z } from 'zod'
+import {
+  generateAiText,
+  normalizeAiJson,
+  providerAvailable,
+  type AiProvider,
+} from '@/lib/ai-provider.server'
+import { DEFAULT_WEIGHTS, explainScore, type Weights } from '@/lib/score-explain'
 
-
+// ============= Types =============
 export type SourceId = 'cnpj_ws' | 'google_places' | 'ai_only' | 'apify'
 
 export type ExternalCompany = {
@@ -28,9 +35,135 @@ export type ExternalCompany = {
   latitude?: number | null
   longitude?: number | null
   distance_km?: number | null
+  ai_score?: number
+  deterministic_score?: number
+  score_provider_results?: Array<{ provider: AiProvider; score: number; reason: string }>
   score?: number
   score_reason?: string
   source: SourceId
+}
+
+type ApprovalMode = 'automatic' | 'score' | 'manual'
+type AiScoringStrategy = 'consensus' | 'fallback'
+
+type ProspectingAiConfig = {
+  providers: AiProvider[]
+  strategy: AiScoringStrategy
+  primaryProvider: AiProvider
+  primaryModel?: string | null
+}
+
+type ApprovalDecision = {
+  approved: boolean
+  mode: ApprovalMode
+  minScore: number
+  reason: string
+}
+
+const AI_PROVIDER_LABEL: Record<AiProvider, string> = {
+  openai: 'OpenAI',
+  anthropic: 'Claude',
+  gemini: 'Gemini',
+}
+
+function cleanProviders(value: unknown, fallback: unknown): AiProvider[] {
+  const source = Array.isArray(value) ? value : [fallback]
+  const providers = source.filter(
+    (item, index, all): item is AiProvider =>
+      (item === 'openai' || item === 'anthropic' || item === 'gemini') && all.indexOf(item) === index,
+  )
+  return providers.length ? providers : ['anthropic']
+}
+
+function buildAiConfig(settings: Record<string, unknown> | null | undefined): ProspectingAiConfig {
+  const providers = cleanProviders(settings?.prospecting_ai_providers, settings?.ai_provider)
+  return {
+    providers,
+    strategy: settings?.prospecting_ai_strategy === 'fallback' ? 'fallback' : 'consensus',
+    primaryProvider: providers[0],
+    primaryModel: typeof settings?.ai_model === 'string' ? settings.ai_model : null,
+  }
+}
+
+function buildWeights(row: Record<string, unknown> | null | undefined): Weights {
+  const numberOr = (value: unknown, fallback: number) =>
+    Number.isFinite(Number(value)) ? Number(value) : fallback
+  return {
+    segment: numberOr(row?.segment, DEFAULT_WEIGHTS.segment),
+    whatsapp: numberOr(row?.whatsapp, DEFAULT_WEIGHTS.whatsapp),
+    site: numberOr(row?.site, DEFAULT_WEIGHTS.site),
+    porte: numberOr(row?.porte, DEFAULT_WEIGHTS.porte),
+    google: numberOr(row?.google, DEFAULT_WEIGHTS.google),
+    regiao: numberOr(row?.regiao, DEFAULT_WEIGHTS.regiao),
+  }
+}
+
+function normalizeIdentityPart(value: string | null | undefined): string {
+  return (value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 180)
+}
+
+export function prospectIdentity(company: ExternalCompany): string {
+  const digits = company.cnpj.replace(/\D/g, '')
+  if (digits.length === 14) return `cnpj:${digits}`
+  const websiteHost = (() => {
+    try {
+      return company.website ? new URL(company.website).hostname.replace(/^www\./, '').toLowerCase() : ''
+    } catch {
+      return ''
+    }
+  })()
+  if (websiteHost) return `domain:${websiteHost}`
+  const email = (company.email || '').trim().toLocaleLowerCase('pt-BR')
+  if (/.+@.+\..+/.test(email)) return `email:${email.slice(0, 220)}`
+  const contactDigits = (company.whatsapp || company.telefone || '').replace(/\D/g, '')
+  if (contactDigits.length >= 10) return `phone:${contactDigits.slice(-13)}`
+  const name = normalizeIdentityPart(company.razao_social || company.nome_fantasia)
+  if (name) {
+    return `company:${name}:${normalizeIdentityPart(company.municipio)}:${normalizeIdentityPart(company.uf)}`
+  }
+  return `${company.source}:${normalizeIdentityPart(company.cnpj)}`
+}
+
+function approvalDecision(
+  settings: Record<string, unknown> | null | undefined,
+  score: number | null | undefined,
+): ApprovalDecision {
+  const mode: ApprovalMode = settings?.contact_approval_mode === 'manual'
+    ? 'manual'
+    : settings?.contact_approval_mode === 'score'
+      ? 'score'
+      : 'automatic'
+  const minScore = Math.max(0, Math.min(100, Number(settings?.contact_approval_min_score ?? 70)))
+  if (mode === 'manual') {
+    return { approved: false, mode, minScore, reason: 'Aguardando aprovacao manual do administrador.' }
+  }
+  if (mode === 'score') {
+    const approved = Number(score ?? 0) >= minScore
+    return {
+      approved,
+      mode,
+      minScore,
+      reason: approved
+        ? `Aprovado automaticamente: score ${Math.round(Number(score ?? 0))} >= ${minScore}.`
+        : `Aguardando aprovacao: score ${Math.round(Number(score ?? 0))} abaixo de ${minScore}.`,
+    }
+  }
+  return { approved: true, mode, minScore, reason: 'Aprovado automaticamente pela regra configurada.' }
+}
+
+async function assertAdmin(ctx: { supabase: any; userId: string }) {
+  const { data, error } = await ctx.supabase.rpc('has_role', {
+    _user_id: ctx.userId,
+    _role: 'administrador',
+  })
+  if (error) throw new Error(error.message)
+  if (!data) throw new Error('Apenas administradores podem aprovar e enviar prospectos para Leads.')
 }
 
 // Detecta se um telefone brasileiro é celular (11 dígitos, começa com 9 após DDD)
@@ -294,13 +427,16 @@ async function fetchFromGooglePlaces(filters: Filters): Promise<ExternalCompany[
     .slice(0, filters.limit)
 }
 
-// ============= AI-only (Claude gera sugestões) =============
+// ============= AI-only (provedor configurado gera sugestões) =============
 async function fetchFromAI(
   filters: Filters,
   ctx: { name?: string | null; description?: string | null; differentiators?: string | null },
+  ai: ProspectingAiConfig,
 ): Promise<ExternalCompany[]> {
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) throw new Error('ANTHROPIC_API_KEY não configurada.')
+  const candidates = ai.providers.filter(providerAvailable)
+  if (!candidates.length) {
+    throw new Error(`Nenhuma credencial configurada para: ${ai.providers.map((p) => AI_PROVIDER_LABEL[p]).join(', ')}.`)
+  }
 
   const prompt = `Você é analista de inteligência comercial B2B no Brasil. Gere ${filters.limit} sugestões REALISTAS de empresas brasileiras que provavelmente existem e se encaixariam como potenciais clientes.
 
@@ -320,31 +456,17 @@ Retorne APENAS JSON válido no formato:
 {"empresas":[{"razao_social":"","nome_fantasia":"","cnae_descricao":"","porte":"","municipio":"","uf":"","website":"","email":"","telefone":"","whatsapp":"","motivo":"por que é um bom fit em 1 frase","score":0-100}]}
 
 Para telefone/whatsapp/email: SOMENTE inclua se forem informações públicas plausíveis (ex.: SAC divulgado no site). Se não tiver certeza, use "" (string vazia). Nunca invente CNPJ nem dados pessoais. Priorize empresas plausíveis do mercado real.`
-
-
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-5-20250929',
-      max_tokens: 3000,
-      temperature: 0.6,
-      messages: [{ role: 'user', content: prompt }],
-    }),
+  const generated = await generateAiText({
+    provider: candidates[0],
+    fallbackProvider: candidates[1] ?? null,
+    model: candidates[0] === ai.primaryProvider ? ai.primaryModel : null,
+    maxTokens: 3000,
+    temperature: 0.6,
+    json: true,
+    system: 'Você gera inteligência comercial B2B sem inventar dados de contato. Responda somente JSON válido.',
+    messages: [{ role: 'user', content: prompt }],
   })
-  if (!res.ok) {
-    const text = await res.text().catch(() => '')
-    throw new Error(`Claude ${res.status}: ${text.slice(0, 200)}`)
-  }
-  const payload = (await res.json()) as { content?: Array<{ type: string; text?: string }> }
-  const text = (payload.content || []).filter((c: any) => c.type === 'text').map((c: any) => c.text || '').join('')
-  const match = text.match(/\{[\s\S]*\}/)
-  if (!match) return []
-  const parsed = JSON.parse(match[0]) as {
+  const parsed = JSON.parse(normalizeAiJson(generated.text)) as {
     empresas?: Array<{
       razao_social: string
       nome_fantasia?: string
@@ -383,8 +505,16 @@ Para telefone/whatsapp/email: SOMENTE inclua se forem informações públicas pl
       uf: e.uf || null,
       cep: null,
       website: e.website || null,
+      ai_score: typeof e.score === 'number' ? Math.max(0, Math.min(100, Math.round(e.score))) : undefined,
       score: typeof e.score === 'number' ? Math.max(0, Math.min(100, Math.round(e.score))) : undefined,
-      score_reason: e.motivo || undefined,
+      score_reason: `${e.motivo || 'Sugestão gerada por IA.'} (${AI_PROVIDER_LABEL[generated.provider]})`,
+      score_provider_results: typeof e.score === 'number'
+        ? [{
+            provider: generated.provider,
+            score: Math.max(0, Math.min(100, Math.round(e.score))),
+            reason: e.motivo || '',
+          }]
+        : undefined,
       source: 'ai_only' as SourceId,
     }
   })
@@ -466,13 +596,32 @@ async function fetchFromApify(filters: Filters): Promise<ExternalCompany[]> {
 }
 
 
-// ============= Claude scoring for real sources =============
-async function scoreWithClaude(
+// ============= Classificacao combinada: sinais reais + uma ou mais IAs =============
+async function scoreWithAiProviders(
   companies: ExternalCompany[],
   ctx: { name?: string | null; description?: string | null; differentiators?: string | null; icp?: string | null },
+  ai: ProspectingAiConfig,
+  weights: Weights,
+  scoreContext: { porteFilter?: string | null; ufFilter?: string | null; radiusKm?: number | null },
 ): Promise<ExternalCompany[]> {
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey || companies.length === 0) return companies
+  if (companies.length === 0) return companies
+
+  const deterministic = companies.map((company) => {
+    const breakdown = explainScore(
+      { ...company, score: undefined, ai_score: undefined },
+      weights,
+      scoreContext,
+    )
+    return {
+      ...company,
+      deterministic_score: breakdown.deterministic,
+      score: breakdown.deterministic,
+      score_reason: 'Classificação determinística baseada nos sinais verificados do prospecto.',
+    }
+  })
+
+  const available = ai.providers.filter(providerAvailable)
+  if (!available.length) return deterministic.sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
 
   const icp = `Empresa: ${ctx.name ?? 'WF Digital'}
 Descrição: ${ctx.description ?? '—'}
@@ -502,39 +651,73 @@ Retorne APENAS um JSON no formato:
 
 Score alto = alto potencial de fechamento.`
 
-  try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-5-20250929',
-        max_tokens: 2000,
-        temperature: 0.2,
-        messages: [{ role: 'user', content: prompt }],
-      }),
+  const runProvider = async (provider: AiProvider) => {
+    const generated = await generateAiText({
+      provider,
+      fallbackProvider: null,
+      model: provider === ai.primaryProvider ? ai.primaryModel : null,
+      maxTokens: 2200,
+      temperature: 0.1,
+      json: true,
+      system: 'Você é um classificador B2B rigoroso. Use apenas os dados informados e retorne somente JSON válido.',
+      messages: [{ role: 'user', content: prompt }],
     })
-    if (!res.ok) return companies
-    const payload = (await res.json()) as { content?: Array<{ type: string; text?: string }> }
-    const text = (payload.content || []).filter((c: any) => c.type === 'text').map((c: any) => c.text || '').join('')
-    const match = text.match(/\{[\s\S]*\}/)
-    if (!match) return companies
-    const parsed = JSON.parse(match[0]) as { scores?: Array<{ idx: number; score: number; reason: string }> }
-    const scored = [...companies]
-    for (const s of parsed.scores ?? []) {
-      if (scored[s.idx]) {
-        scored[s.idx].score = Math.max(0, Math.min(100, Math.round(s.score)))
-        scored[s.idx].score_reason = s.reason
+    const parsed = JSON.parse(normalizeAiJson(generated.text)) as {
+      scores?: Array<{ idx: number; score: number; reason: string }>
+    }
+    const byIndex = new Map<number, { score: number; reason: string }>()
+    for (const item of parsed.scores ?? []) {
+      if (!Number.isInteger(item.idx) || !Number.isFinite(Number(item.score))) continue
+      byIndex.set(item.idx, {
+        score: Math.max(0, Math.min(100, Math.round(Number(item.score)))),
+        reason: String(item.reason || '').slice(0, 500),
+      })
+    }
+    return { provider: generated.provider, byIndex }
+  }
+
+  const successful: Array<Awaited<ReturnType<typeof runProvider>>> = []
+  if (ai.strategy === 'fallback') {
+    for (const provider of available) {
+      try {
+        successful.push(await runProvider(provider))
+        break
+      } catch (error) {
+        console.error(`[prospecting_score:${provider}]`, (error as Error).message)
       }
     }
-    scored.sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
-    return scored
-  } catch {
-    return companies
+  } else {
+    const settled = await Promise.allSettled(available.map(runProvider))
+    settled.forEach((result, index) => {
+      if (result.status === 'fulfilled') successful.push(result.value)
+      else console.error(`[prospecting_score:${available[index]}]`, result.reason)
+    })
   }
+
+  const scored = deterministic.map((company, index) => {
+    const providerResults = successful
+      .map((result) => {
+        const value = result.byIndex.get(index)
+        return value ? { provider: result.provider, ...value } : null
+      })
+      .filter((value): value is { provider: AiProvider; score: number; reason: string } => Boolean(value))
+    if (!providerResults.length) return company
+    const aiScore = Math.round(
+      providerResults.reduce((sum, result) => sum + result.score, 0) / providerResults.length,
+    )
+    const finalScore = Math.round(Number(company.deterministic_score ?? 0) * 0.6 + aiScore * 0.4)
+    const providerSummary = providerResults
+      .map((result) => `${AI_PROVIDER_LABEL[result.provider]} ${result.score}: ${result.reason}`)
+      .join(' | ')
+    return {
+      ...company,
+      ai_score: aiScore,
+      score: finalScore,
+      score_provider_results: providerResults,
+      score_reason: `Sinais reais ${company.deterministic_score}/100 + parecer de IA ${aiScore}/100. ${providerSummary}`,
+    }
+  })
+  return scored.sort((a, b) => (b.score ?? 0) - (a.score ?? 0))
 }
 
 // ============= Server functions =============
@@ -542,20 +725,27 @@ Score alto = alto potencial de fechamento.`
 export const getEnabledSources = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const ctx = context;
-    const { data } = await (context.supabase as any).from('company_settings')
-      .select('prospecting_sources')
+    const { data } = await context.supabase
+      .from('company_settings')
+      .select('prospecting_sources, prospecting_ai_providers, prospecting_ai_strategy, contact_approval_mode, contact_approval_min_score')
       .limit(1)
       .maybeSingle()
     const src = (data?.prospecting_sources as Record<string, boolean> | null) ?? null
+    const ai = buildAiConfig((data ?? null) as Record<string, unknown> | null)
     return {
       cnpj_ws: src?.cnpj_ws ?? true,
       google_places: src?.google_places ?? false,
       ai_only: src?.ai_only ?? false,
       apify: src?.apify ?? false,
       has_google_key: !!process.env.GOOGLE_PLACES_API_KEY,
+      has_openai_key: providerAvailable('openai'),
       has_anthropic_key: !!process.env.ANTHROPIC_API_KEY,
+      has_gemini_key: providerAvailable('gemini'),
       has_apify_token: !!process.env.APIFY_TOKEN,
+      ai_providers: ai.providers,
+      ai_strategy: ai.strategy,
+      approval_mode: (data?.contact_approval_mode as ApprovalMode | null) ?? 'automatic',
+      approval_min_score: Number(data?.contact_approval_min_score ?? 70),
     }
   })
 
@@ -608,12 +798,15 @@ export const searchExternalCompanies = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => filtersSchema.parse(d))
   .handler(async ({ data, context }) => {
-    const ctx = context;
     // Validate source is enabled
-    const { data: settingsRow } = await (context.supabase as any).from('company_settings')
-      .select('name, description, differentiators, prospecting_sources')
-      .limit(1)
-      .maybeSingle()
+    const [{ data: settingsRow }, { data: weightsRow }] = await Promise.all([
+      context.supabase
+        .from('company_settings')
+        .select('name, description, differentiators, prospecting_sources, ai_provider, ai_model, prospecting_ai_providers, prospecting_ai_strategy')
+        .limit(1)
+        .maybeSingle(),
+      context.supabase.from('score_weights').select('*').limit(1).maybeSingle(),
+    ])
 
     const enabled = (settingsRow?.prospecting_sources as Record<string, boolean> | null) ?? {
       cnpj_ws: true, google_places: false, ai_only: false, apify: false,
@@ -622,9 +815,17 @@ export const searchExternalCompanies = createServerFn({ method: 'POST' })
       throw new Error(`A fonte "${data.source}" está desativada. Ative-a em Configurações → Prospecção.`)
     }
 
-    const hash = hashFilters(data)
+    const aiConfig = buildAiConfig((settingsRow ?? null) as Record<string, unknown> | null)
+    const weights = buildWeights((weightsRow ?? null) as Record<string, unknown> | null)
+    const hash = `${hashFilters(data)}|${JSON.stringify({
+      providers: aiConfig.providers,
+      strategy: aiConfig.strategy,
+      weights,
+      scoring_version: 2,
+    })}`
 
-    const { data: cached } = await (context.supabase as any).from('prospecting_cache')
+    const { data: cached } = await context.supabase
+      .from('prospecting_cache')
       .select('*')
       .eq('user_id', context.userId)
       .eq('filters_hash', hash)
@@ -645,46 +846,47 @@ export const searchExternalCompanies = createServerFn({ method: 'POST' })
     let raw: ExternalCompany[] = []
     if (data.source === 'cnpj_ws') {
       raw = await fetchFromCnpjWs(data)
-      raw = await scoreWithClaude(raw, {
+      raw = await scoreWithAiProviders(raw, {
         name: settingsRow?.name,
         description: settingsRow?.description,
         differentiators: settingsRow?.differentiators,
         icp: null,
-      })
+      }, aiConfig, weights, { porteFilter: data.porte, ufFilter: data.uf, radiusKm: data.radius_km })
     } else if (data.source === 'google_places') {
       raw = await fetchFromGooglePlaces(data)
-      raw = await scoreWithClaude(raw, {
+      raw = await scoreWithAiProviders(raw, {
         name: settingsRow?.name,
         description: settingsRow?.description,
         differentiators: settingsRow?.differentiators,
         icp: null,
-      })
+      }, aiConfig, weights, { porteFilter: data.porte, ufFilter: data.uf, radiusKm: data.radius_km })
     } else if (data.source === 'apify') {
       raw = await fetchFromApify(data)
-      raw = await scoreWithClaude(raw, {
+      raw = await scoreWithAiProviders(raw, {
         name: settingsRow?.name,
         description: settingsRow?.description,
         differentiators: settingsRow?.differentiators,
         icp: null,
-      })
+      }, aiConfig, weights, { porteFilter: data.porte, ufFilter: data.uf, radiusKm: data.radius_km })
     } else {
       raw = await fetchFromAI(data, {
         name: settingsRow?.name,
         description: settingsRow?.description,
         differentiators: settingsRow?.differentiators,
-      })
+      }, aiConfig)
     }
 
     const autoName = buildAutoName(data, raw.length)
     const farFuture = new Date(Date.now() + 1000 * 60 * 60 * 24 * 365 * 10).toISOString()
-    const { data: row, error: insErr } = await (context.supabase as any).from('prospecting_cache')
+    const { data: row, error: insErr } = await context.supabase
+      .from('prospecting_cache')
       .insert({
         user_id: context.userId,
         filters: data as never,
         filters_hash: hash,
         results: raw as never,
         total_found: raw.length,
-        scored: raw.some((s: any) => s.score != null),
+        scored: raw.some((s) => s.score != null),
         name: autoName,
         saved: true,
         expires_at: farFuture,
@@ -709,15 +911,16 @@ export const importExternalAsLead = createServerFn({ method: 'POST' })
     z.object({ cache_id: z.string().uuid(), cnpj: z.string().min(3) }).parse(d),
   )
   .handler(async ({ data, context }) => {
-    const ctx = context;
-    const { data: cache } = await (context.supabase as any).from('prospecting_cache')
+    await assertAdmin(context)
+    const { data: cache } = await context.supabase
+      .from('prospecting_cache')
       .select('results')
       .eq('id', data.cache_id)
       .eq('user_id', context.userId)
       .maybeSingle()
     if (!cache) throw new Error('Cache de prospecção não encontrado ou expirado')
 
-    const company = ((cache.results as unknown as ExternalCompany[]) || []).find((c: any) => c.cnpj === data.cnpj)
+    const company = ((cache.results as unknown as ExternalCompany[]) || []).find((c) => c.cnpj === data.cnpj)
     if (!company) throw new Error('Empresa não encontrada no resultado')
     if (company.source === 'ai_only') {
       throw new Error('Sugestões geradas somente por IA precisam ser validadas em uma fonte real antes do contato.')
@@ -734,13 +937,28 @@ export const importExternalAsLead = createServerFn({ method: 'POST' })
       throw new Error('Este contato está na lista de supressão (opt-out/LGPD) e não pode ser reativado.')
     }
 
+    const [{ data: settingsRow }, identityResult] = await Promise.all([
+      context.supabase
+        .from('company_settings')
+        .select('organization_id, contact_approval_mode, contact_approval_min_score')
+        .limit(1)
+        .maybeSingle(),
+      Promise.resolve(prospectIdentity(company)),
+    ])
+    const identity = identityResult
     const originTag = `${company.source}:${company.cnpj}`
-    const { data: dup } = await (context.supabase as any).from('leads' as any)
+    const { data: identityDup } = await context.supabase
+      .from('leads')
       .select('*')
-      .eq('owner_id', context.userId)
+      .eq('prospect_identity', identity)
+      .maybeSingle()
+    if (identityDup) return { ...identityDup, _already_imported: true }
+    const { data: legacyDup } = await context.supabase
+      .from('leads')
+      .select('*')
       .eq('origin', originTag)
       .maybeSingle()
-    if (dup) return { ...dup, _already_imported: true }
+    if (legacyDup) return { ...legacyDup, _already_imported: true }
 
     const sizeMap: Record<string, 'pequena' | 'media' | 'grande'> = {
       'micro empresa': 'pequena',
@@ -770,7 +988,13 @@ export const importExternalAsLead = createServerFn({ method: 'POST' })
       },
     }
 
+    const approval = approvalDecision(
+      (settingsRow ?? null) as Record<string, unknown> | null,
+      company.score,
+    )
+    const approvedAt = approval.approved ? new Date().toISOString() : null
     const payload = {
+      organization_id: settingsRow?.organization_id ?? undefined,
       owner_id: context.userId,
       company: company.nome_fantasia || company.razao_social,
       contact: null,
@@ -788,6 +1012,9 @@ export const importExternalAsLead = createServerFn({ method: 'POST' })
       score: company.score ?? null,
       score_snapshot: {
         total: company.score ?? 0,
+        deterministic: company.deterministic_score ?? null,
+        ai: company.ai_score ?? null,
+        providers: company.score_provider_results ?? [],
         reason: company.score_reason ?? null,
         criteria: {
           segment: company.cnae_descricao ?? null,
@@ -808,29 +1035,135 @@ export const importExternalAsLead = createServerFn({ method: 'POST' })
       temp: (company.score ?? 0) >= 75 ? 'hot' : (company.score ?? 0) >= 50 ? 'warm' : 'cold',
       stage: 'Prospecção',
       origin: originTag,
+      prospect_identity: identity,
       contact_channels: initialChannels,
+      contact_approval_status: approval.approved ? 'approved' : 'pending',
+      contact_approved_at: approvedAt,
+      contact_approved_by: approval.approved ? context.userId : null,
+      contact_approval_reason: approval.reason,
+      automation_status: approval.approved ? 'not_started' : 'pending_approval',
+      automation_error: null,
+      automation_updated_at: new Date().toISOString(),
     }
 
-    const { data: row, error } = await (context.supabase as any).from('leads' as any).insert(payload as never).select().single()
+    const { data: row, error } = await context.supabase.from('leads').insert(payload as never).select().single()
+    if (error?.code === '23505') {
+      const { data: duplicate } = await context.supabase
+        .from('leads')
+        .select('*')
+        .eq('prospect_identity', identity)
+        .maybeSingle()
+      if (duplicate) return { ...duplicate, _already_imported: true }
+    }
     if (error) throw new Error(error.message)
 
-    await (context.supabase as any).from('audit_logs').insert({
+    await context.supabase.from('audit_logs').insert({
       actor_id: context.userId,
       actor_name: context.claims?.email ?? 'user',
       actor_type: 'human',
-      action: 'lead_import_external',
-      detail: `Importado de ${company.source}: ${company.razao_social}`,
+      action: approval.approved ? 'lead_import_approved' : 'lead_import_pending_approval',
+      detail: `Importado de ${company.source}: ${company.razao_social}. ${approval.reason}`,
+      rule: `${approval.mode}${approval.mode === 'score' ? `>=${approval.minScore}` : ''}`,
     } as never)
 
-    // Ana inicia a cadência automática (WhatsApp → E-mail → Ligação)
-    try {
-      const { triggerOutreachInternal } = await import('./outreach.functions')
-      await triggerOutreachInternal(context as never, row.id as string)
-    } catch (err) {
-      console.error('Ana outreach start failed:', err)
+    if (!approval.approved) {
+      return {
+        ...row,
+        _approval_status: 'pending' as const,
+        _approval_reason: approval.reason,
+        _outreach: null,
+      }
     }
 
-    return row
+    // A aprovação formal cria o ticket via trigger; em seguida a Ana entra na
+    // cadência e tenta imediatamente o primeiro passo (sempre WhatsApp).
+    try {
+      const { triggerOutreachInternal } = await import('./outreach.functions')
+      const outreach = await triggerOutreachInternal(context as never, row.id as string)
+      const failed = !outreach?.ok
+      const humanTaskCreated = outreach?.channel === 'phone' && outreach?.status === 'pending'
+      await context.supabase
+        .from('leads')
+        .update({
+          automation_status: humanTaskCreated ? 'human' : failed ? 'failed' : 'running',
+          automation_error: failed ? (outreach?.reason ?? 'outreach_start_failed') : null,
+          automation_updated_at: new Date().toISOString(),
+        } as never)
+        .eq('id', row.id)
+      return {
+        ...row,
+        _approval_status: 'approved' as const,
+        _approval_reason: approval.reason,
+        _outreach: outreach,
+      }
+    } catch (err) {
+      const message = (err as Error).message
+      await context.supabase
+        .from('leads')
+        .update({
+          automation_status: 'failed',
+          automation_error: message,
+          automation_updated_at: new Date().toISOString(),
+        } as never)
+        .eq('id', row.id)
+      return {
+        ...row,
+        _approval_status: 'approved' as const,
+        _approval_reason: approval.reason,
+        _outreach: { ok: false as const, reason: message },
+      }
+    }
+  })
+
+export const getPendingApprovalQueue = createServerFn({ method: 'GET' })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const { data: isAdmin, error: roleError } = await context.supabase.rpc('has_role', {
+      _user_id: context.userId,
+      _role: 'administrador',
+    })
+    if (roleError) throw new Error(roleError.message)
+    if (!isAdmin) return { is_admin: false as const, leads: [] }
+    const { data: leads, error } = await context.supabase
+      .from('leads')
+      .select('id, company, segment, city, uf, score, origin, contact_approval_reason, created_at, whatsapp, email, phone')
+      .eq('contact_approval_status', 'pending')
+      .order('score', { ascending: false })
+      .order('created_at', { ascending: true })
+      .limit(100)
+    if (error) throw new Error(error.message)
+    return { is_admin: true as const, leads: leads ?? [] }
+  })
+
+export const rejectProspects = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .inputValidator((value: unknown) => z.object({ ids: z.array(z.string().uuid()).min(1).max(100) }).parse(value))
+  .handler(async ({ data, context }) => {
+    await assertAdmin(context)
+    const decidedAt = new Date().toISOString()
+    const { error } = await context.supabase
+      .from('leads')
+      .update({
+        contact_approval_status: 'rejected',
+        contact_approval_reason: 'Contato rejeitado manualmente pelo administrador.',
+        contact_approved_at: decidedAt,
+        contact_approved_by: context.userId,
+        automation_status: 'paused',
+        automation_error: 'contact_rejected',
+        automation_updated_at: decidedAt,
+        ai_paused: true,
+      } as never)
+      .in('id', data.ids)
+      .eq('contact_approval_status', 'pending')
+    if (error) throw new Error(error.message)
+    await context.supabase.from('audit_logs').insert({
+      actor_id: context.userId,
+      actor_name: context.claims?.email ?? 'Administrador',
+      actor_type: 'human',
+      action: 'prospect_contact_rejected',
+      detail: `${data.ids.length} prospecto(s) rejeitado(s) na fila de aprovação.`,
+    } as never)
+    return { ok: true, count: data.ids.length }
   })
 
 
@@ -852,11 +1185,11 @@ export const saveProspectingSearch = createServerFn({ method: 'POST' })
     z.object({ cache_id: z.string().uuid(), name: z.string().trim().max(120).optional() }).parse(d),
   )
   .handler(async ({ data, context }) => {
-    const ctx = context;
     const farFuture = new Date(Date.now() + 1000 * 60 * 60 * 24 * 365 * 10).toISOString()
     const patch: Record<string, unknown> = { saved: true, expires_at: farFuture }
     if (data.name && data.name.length > 0) patch.name = data.name
-    const { error } = await (context.supabase as any).from('prospecting_cache')
+    const { error } = await context.supabase
+      .from('prospecting_cache')
       .update(patch as never)
       .eq('id', data.cache_id)
       .eq('user_id', context.userId)
@@ -867,8 +1200,8 @@ export const saveProspectingSearch = createServerFn({ method: 'POST' })
 export const listSavedSearches = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const ctx = context;
-    const { data, error } = await (context.supabase as any).from('prospecting_cache')
+    const { data, error } = await context.supabase
+      .from('prospecting_cache')
       .select('id, name, filters, total_found, created_at')
       .eq('user_id', context.userId)
       .eq('saved', true)
@@ -891,8 +1224,8 @@ export const getSavedSearch = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const ctx = context;
-    const { data: row, error } = await (context.supabase as any).from('prospecting_cache')
+    const { data: row, error } = await context.supabase
+      .from('prospecting_cache')
       .select('id, name, filters, results, created_at')
       .eq('id', data.id)
       .eq('user_id', context.userId)
@@ -914,8 +1247,8 @@ export const deleteSavedSearch = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
-    const ctx = context;
-    const { error } = await (context.supabase as any).from('prospecting_cache')
+    const { error } = await context.supabase
+      .from('prospecting_cache')
       .delete()
       .eq('id', data.id)
       .eq('user_id', context.userId)
@@ -930,8 +1263,8 @@ export const renameSavedSearch = createServerFn({ method: 'POST' })
     z.object({ id: z.string().uuid(), name: z.string().trim().min(1).max(120) }).parse(d),
   )
   .handler(async ({ data, context }) => {
-    const ctx = context;
-    const { error } = await (context.supabase as any).from('prospecting_cache')
+    const { error } = await context.supabase
+      .from('prospecting_cache')
       .update({ name: data.name } as never)
       .eq('id', data.id)
       .eq('user_id', context.userId)
@@ -946,8 +1279,8 @@ export const renameSavedSearch = createServerFn({ method: 'POST' })
 export const listRecentProspectingSamples = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const ctx = context;
-    const { data, error } = await (context.supabase as any).from('prospecting_cache')
+    const { data, error } = await context.supabase
+      .from('prospecting_cache')
       .select('id, name, filters, results, total_found, created_at, saved')
       .eq('user_id', context.userId)
       .order('created_at', { ascending: false })
@@ -985,6 +1318,7 @@ export async function runProspectingCampaignInternal(
   supabaseAdmin: any,
   schedule: {
     id: string
+    organization_id: string
     owner_id: string
     filters: Record<string, any>
     quantity: number
@@ -1002,12 +1336,14 @@ export async function runProspectingCampaignInternal(
   const startOfDay = new Date()
   startOfDay.setUTCHours(0, 0, 0, 0)
   const startOfMonth = new Date(startOfDay.getUTCFullYear(), startOfDay.getUTCMonth(), 1)
-  const { data: dayRuns } = await (supabaseAdmin as any).from('prospecting_schedule_runs' as any)
+  const { data: dayRuns } = await supabaseAdmin
+    .from('prospecting_schedule_runs')
     .select('imported_count')
     .eq('schedule_id', schedule.id)
     .gte('started_at', startOfDay.toISOString())
   const importedToday = (dayRuns ?? []).reduce((a: number, r: any) => a + (r.imported_count ?? 0), 0)
-  const { data: monthRuns } = await (supabaseAdmin as any).from('prospecting_schedule_runs' as any)
+  const { data: monthRuns } = await supabaseAdmin
+    .from('prospecting_schedule_runs')
     .select('imported_count')
     .eq('schedule_id', schedule.id)
     .gte('started_at', startOfMonth.toISOString())
@@ -1021,13 +1357,25 @@ export async function runProspectingCampaignInternal(
   }
 
   // ---- Load settings for scoring ----
-  const { data: settingsRow } = await (supabaseAdmin as any).from('company_settings')
-    .select('name, description, differentiators, prospecting_sources')
-    .limit(1)
-    .maybeSingle()
+  const [{ data: settingsRow }, { data: weightsRow }] = await Promise.all([
+    supabaseAdmin
+      .from('company_settings')
+      .select('name, description, differentiators, prospecting_sources, ai_provider, ai_model, prospecting_ai_providers, prospecting_ai_strategy, contact_approval_mode, contact_approval_min_score')
+      .eq('organization_id', schedule.organization_id)
+      .limit(1)
+      .maybeSingle(),
+    supabaseAdmin
+      .from('score_weights')
+      .select('*')
+      .eq('organization_id', schedule.organization_id)
+      .limit(1)
+      .maybeSingle(),
+  ])
   const enabled = (settingsRow?.prospecting_sources as Record<string, boolean> | null) ?? {
     cnpj_ws: true, google_places: false, ai_only: false, apify: false,
   }
+  const aiConfig = buildAiConfig((settingsRow ?? null) as Record<string, unknown> | null)
+  const weights = buildWeights((weightsRow ?? null) as Record<string, unknown> | null)
 
   const rawFilters = {
     source: (schedule.filters.source as SourceId) ?? 'google_places',
@@ -1053,34 +1401,47 @@ export async function runProspectingCampaignInternal(
   else if (filters.source === 'apify') raw = await fetchFromApify(filters)
   else raw = await fetchFromAI(filters, {
     name: settingsRow?.name, description: settingsRow?.description, differentiators: settingsRow?.differentiators,
-  })
+  }, aiConfig)
 
   if (raw.length && filters.source !== 'ai_only') {
-    raw = await scoreWithClaude(raw, {
+    raw = await scoreWithAiProviders(raw, {
       name: settingsRow?.name, description: settingsRow?.description, differentiators: settingsRow?.differentiators, icp: null,
+    }, aiConfig, weights, {
+      porteFilter: filters.porte,
+      ufFilter: filters.uf,
+      radiusKm: filters.radius_km,
     })
   }
 
   const found = raw.length
 
-  // ---- Approval filter ----
-  const approved = raw.filter((c) => (c.score ?? 0) >= schedule.auto_approve_min_score)
-  raw.slice(approved.length).forEach(() => bump('below_min_score'))
+  // ---- Selection filter ----
+  // O score da campanha decide quais prospectos entram; o modo global decide
+  // se entram aprovados automaticamente ou aguardando o administrador.
+  const candidates = raw.filter((c) => (c.score ?? 0) >= schedule.auto_approve_min_score)
+  raw.filter((c) => (c.score ?? 0) < schedule.auto_approve_min_score).forEach(() => bump('below_campaign_min_score'))
 
   // ---- Round-robin owner pool ----
   let ownerPool: string[] = [schedule.owner_id]
   if (schedule.assignment_strategy === 'round_robin') {
-    const { data: sellers } = await (supabaseAdmin as any).from('profiles')
-      .select('id')
-      .eq('active', true)
-    ownerPool = (sellers ?? []).map((s: any) => s.id as string)
+    const { data: memberships } = await supabaseAdmin
+      .from('organization_members')
+      .select('user_id')
+      .eq('organization_id', schedule.organization_id)
+      .eq('role', 'vendedor')
+    const sellerIds = (memberships ?? []).map((member: any) => member.user_id as string)
+    const { data: sellers } = sellerIds.length
+      ? await supabaseAdmin.from('profiles').select('id').in('id', sellerIds).eq('active', true)
+      : { data: [] }
+    ownerPool = (sellers ?? []).map((seller: any) => seller.id as string)
     if (ownerPool.length === 0) ownerPool = [schedule.owner_id]
   }
 
   // ---- Import loop ----
   let imported = 0
+  let formallyApproved = 0
   let idx = 0
-  for (const company of approved) {
+  for (const company of candidates) {
     if (imported >= capRemaining) { bump('cap_reached'); break }
     if (company.source === 'ai_only') { bump('ai_only_needs_validation'); continue }
     if (!company.whatsapp && !company.telefone && !company.email) { bump('no_contact_channel'); continue }
@@ -1094,12 +1455,22 @@ export async function runProspectingCampaignInternal(
     idx++
 
     const originTag = `${company.source}:${company.cnpj || company.razao_social}`
-    const { data: dup } = await (supabaseAdmin as any).from('leads' as any)
+    const identity = prospectIdentity(company)
+    const { data: dup } = await supabaseAdmin
+      .from('leads')
       .select('id')
-      .eq('owner_id', assignedOwner)
-      .eq('origin', originTag)
+      .eq('organization_id', schedule.organization_id)
+      .eq('prospect_identity', identity)
       .maybeSingle()
-    if (dup) { bump('duplicate'); continue }
+    if (dup) { bump('duplicate_organization'); continue }
+    const { data: legacyDup } = await supabaseAdmin
+      .from('leads')
+      .select('id')
+      .eq('organization_id', schedule.organization_id)
+      .ilike('origin', `%${originTag}`)
+      .limit(1)
+      .maybeSingle()
+    if (legacyDup) { bump('duplicate_legacy'); continue }
 
     const sizeMap: Record<string, 'pequena' | 'media' | 'grande'> = {
       'micro empresa': 'pequena', 'me': 'pequena', 'empresa de pequeno porte': 'pequena', 'epp': 'pequena', 'demais': 'media',
@@ -1113,7 +1484,13 @@ export async function runProspectingCampaignInternal(
       phone: { available: (company.telefone ?? '').replace(/\D/g, '').length >= 10, last_status: null, last_attempt_at: null },
     }
 
+    const approval = approvalDecision(
+      (settingsRow ?? null) as Record<string, unknown> | null,
+      company.score,
+    )
+    const approvedAt = approval.approved ? new Date().toISOString() : null
     const payload = {
+      organization_id: schedule.organization_id,
       owner_id: assignedOwner,
       company: company.nome_fantasia || company.razao_social,
       contact: null, title: null,
@@ -1123,7 +1500,11 @@ export async function runProspectingCampaignInternal(
       size, annual_revenue: null,
       score: company.score ?? null,
       score_snapshot: {
-        total: company.score ?? 0, reason: company.score_reason ?? null,
+        total: company.score ?? 0,
+        deterministic: company.deterministic_score ?? null,
+        ai: company.ai_score ?? null,
+        providers: company.score_provider_results ?? [],
+        reason: company.score_reason ?? null,
         criteria: {
           segment: company.cnae_descricao ?? null,
           region: [company.municipio, company.uf].filter(Boolean).join('/') || null,
@@ -1138,32 +1519,62 @@ export async function runProspectingCampaignInternal(
       temp: (company.score ?? 0) >= 75 ? 'hot' : (company.score ?? 0) >= 50 ? 'warm' : 'cold',
       stage: 'Prospecção',
       origin: `schedule:${schedule.id}|${originTag}`,
+      prospect_identity: identity,
       contact_channels: initialChannels,
+      contact_approval_status: approval.approved ? 'approved' : 'pending',
+      contact_approved_at: approvedAt,
+      contact_approved_by: approval.approved ? schedule.owner_id : null,
+      contact_approval_reason: approval.reason,
+      automation_status: approval.approved ? 'not_started' : 'pending_approval',
+      automation_error: null,
+      automation_updated_at: new Date().toISOString(),
     }
-    const { data: row, error } = await (supabaseAdmin as any).from('leads' as any).insert(payload as never).select('id').single()
+    const { data: row, error } = await supabaseAdmin.from('leads').insert(payload as never).select('id').single()
+    if (error?.code === '23505') { bump('duplicate_race'); continue }
     if (error) { bump(`insert_error:${error.code ?? 'unknown'}`); continue }
 
-    await (supabaseAdmin as any).from('audit_logs').insert({
+    await supabaseAdmin.from('audit_logs').insert({
+      organization_id: schedule.organization_id,
       actor_id: assignedOwner, actor_name: 'Agendador de prospecção', actor_type: 'ia',
-      action: 'schedule_lead_created',
-      detail: `Campanha ${schedule.id} · ${company.razao_social}`,
-      rule: `min_score>=${schedule.auto_approve_min_score}`,
+      action: approval.approved ? 'schedule_lead_approved' : 'schedule_lead_pending_approval',
+      detail: `Campanha ${schedule.id} · ${company.razao_social}. ${approval.reason}`,
+      rule: `campaign_score>=${schedule.auto_approve_min_score};approval=${approval.mode}`,
     } as never)
 
-    try {
-      const { triggerOutreachInternal } = await import('./outreach.functions')
-      await triggerOutreachInternal(
-        { supabase: supabaseAdmin, userId: assignedOwner, claims: { email: 'Agendador' } } as never,
-        row.id as string,
-      )
-    } catch (err) {
-      bump(`outreach_start_failed`)
-      console.error('schedule outreach start failed', (err as Error).message)
+    if (approval.approved) {
+      formallyApproved++
+      try {
+        if (schedule.sequence_id) {
+          const { ensureEnrollmentInternal } = await import('./outreach-sequences.functions')
+          await ensureEnrollmentInternal(supabaseAdmin, row.id as string, schedule.sequence_id)
+        }
+        const { triggerOutreachInternal } = await import('./outreach.functions')
+        const outreach = await triggerOutreachInternal(
+          { supabase: supabaseAdmin, userId: assignedOwner, claims: { email: 'Agendador' } } as never,
+          row.id as string,
+        )
+        if (!outreach.ok) bump(`outreach:${outreach.reason ?? 'not_started'}`)
+        for (const integrationError of outreach.integration_errors ?? []) {
+          bump(`integration:${integrationError.channel}:${integrationError.error}`)
+        }
+      } catch (err) {
+        bump('outreach_start_failed')
+        await supabaseAdmin
+          .from('leads')
+          .update({
+            automation_status: 'failed',
+            automation_error: (err as Error).message,
+            automation_updated_at: new Date().toISOString(),
+          } as never)
+          .eq('id', row.id)
+        console.error('schedule outreach start failed', (err as Error).message)
+      }
+    } else {
+      bump('awaiting_admin_approval')
     }
 
     imported++
   }
 
-  return { found, approved: approved.length, imported, skipped: found - imported, reasons }
+  return { found, approved: formallyApproved, imported, skipped: found - imported, reasons }
 }
-

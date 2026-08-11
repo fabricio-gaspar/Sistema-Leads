@@ -140,7 +140,11 @@ export function explainScore(
   const raw = lines.reduce((s, l) => s + l.weight * l.ratio, 0)
   // normaliza para 0..100 se a soma dos pesos não for 100
   const deterministic = weightsSum > 0 ? Math.round((raw / weightsSum) * 100) : 0
-  const ai = typeof company.score === 'number' ? Math.round(company.score) : null
+  // Novas buscas persistem `score` como classificacao final e preservam o
+  // parecer bruto das IAs em `ai_score`. O fallback mantem compatibilidade
+  // com caches antigos, nos quais `score` era o valor retornado pela Claude.
+  const aiValue = company.ai_score ?? (company.deterministic_score == null ? company.score : undefined)
+  const ai = typeof aiValue === 'number' ? Math.round(aiValue) : null
   // combina 60% determinístico + 40% IA quando IA existir
   const combined = ai != null ? Math.round(deterministic * 0.6 + ai * 0.4) : deterministic
   const temp: ScoreBreakdown['temp'] = combined >= 75 ? 'hot' : combined >= 50 ? 'warm' : 'cold'
