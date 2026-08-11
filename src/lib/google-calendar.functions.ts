@@ -118,7 +118,7 @@ export const syncAppointmentToGoogle = createServerFn({ method: "POST" })
     if (!key) throw new Error("Conecte seu Google Calendar antes de sincronizar.");
 
     const { supabase } = context;
-    const { data: appt, error } = await supabase
+    const { data: appt, error } = await (supabase as any)
       .from("appointments")
       .select("id, title, starts_at, ends_at, notes, provider, external_id, lead_id")
       .eq("id", data.appointment_id)
@@ -126,7 +126,7 @@ export const syncAppointmentToGoogle = createServerFn({ method: "POST" })
     if (error) throw error;
     if (!appt) throw new Error("Reunião não encontrada");
 
-    const { data: lead } = await supabase
+    const { data: lead } = await (supabase as any)
       .from("leads")
       .select("company, email, contact")
       .eq("id", appt.lead_id)
@@ -169,7 +169,7 @@ export const syncAppointmentToGoogle = createServerFn({ method: "POST" })
     }
     const created = (await res.json()) as { id?: string; htmlLink?: string };
 
-    await supabase
+    await (supabase as any)
       .from("appointments")
       .update({
         provider: "google_calendar",

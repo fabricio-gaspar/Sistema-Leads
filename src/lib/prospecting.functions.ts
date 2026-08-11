@@ -874,7 +874,7 @@ export const listSavedSearches = createServerFn({ method: 'GET' })
       .eq('saved', true)
       .order('created_at', { ascending: false })
     if (error) throw new Error(error.message)
-    return (data ?? []).map((r) => {
+    return (data ?? []).map((r: any) => {
       const f = r.filters as unknown as Filters
       return {
         id: r.id as string,
@@ -953,7 +953,7 @@ export const listRecentProspectingSamples = createServerFn({ method: 'GET' })
       .order('created_at', { ascending: false })
       .limit(5)
     if (error) throw new Error(error.message)
-    return (data ?? []).map((r) => {
+    return (data ?? []).map((r: any) => {
       const f = (r.filters as unknown) as Filters
       return {
         id: r.id as string,

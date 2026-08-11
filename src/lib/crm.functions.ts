@@ -1137,9 +1137,9 @@ export const updateTeamMember = createServerFn({ method: 'POST' })
       }
       if (authError) {
         // rollback do profile
-        const { error: rbErr } = await supabaseAdmin
-          .from("profiles" as any)
-          .update({ active: before?.active ?? true } as never)
+        const { error: rbErr } = await (supabaseAdmin as any)
+          .from("profiles")
+          .update({ active: (before as any)?.active ?? true })
           .eq('id', data.id)
         if (rbErr) {
           console.error('[updateTeamMember] rollback profile failed:', rbErr.message)
@@ -1201,7 +1201,7 @@ export const inviteTeamMember = createServerFn({ method: 'POST' })
 
     // Persiste perfil + papel com rollback em qualquer falha
     try {
-      const { error: upErr } = await supabaseAdmin.from("profiles" as any).upsert(
+      const { error: upErr } = await (supabaseAdmin as any).from("profiles").upsert(
         {
           id: userId,
           name: data.name,
@@ -1215,11 +1215,11 @@ export const inviteTeamMember = createServerFn({ method: 'POST' })
       )
       if (upErr) throw new Error(`profiles: ${upErr.message}`)
 
-      const { error: delErr } = await supabaseAdmin.from("user_roles" as any).delete().eq('user_id', userId)
+      const { error: delErr } = await (supabaseAdmin as any).from("user_roles").delete().eq('user_id', userId)
       if (delErr) throw new Error(`user_roles delete: ${delErr.message}`)
-      const { error: insErr } = await supabaseAdmin
-        .from("user_roles" as any)
-        .insert({ user_id: userId, role: data.role} )
+      const { error: insErr } = await (supabaseAdmin as any)
+        .from("user_roles")
+        .insert({ user_id: userId, role: data.role})
       if (insErr) throw new Error(`user_roles insert: ${insErr.message}`)
 
       if (!data.active) {
@@ -1332,7 +1332,7 @@ export const getDashboardStats = createServerFn({ method: 'GET' })
     const leads = leadsRes.data ?? []
     const active = leads.filter((l: any) => l.stage !== 'Fechado' && l.stage !== 'Perdido')
     const hot = leads.filter((l: any) => l.temp === 'hot').length
-    const stale = leads.filter((l) => (l.stale_hours ?? 0) >= 48).length
+    const stale = leads.filter((l: any) => (l.stale_hours ?? 0) >= 48).length
     const pipelineValue = active.reduce((a: any, l: any) => a + Number(l.value || 0), 0)
 
     const msgs = msgsRes.data ?? []
@@ -1403,11 +1403,11 @@ export const getReportsData = createServerFn({ method: 'POST' })
     const allLeads = allLeadsRes.data ?? []
     const team = teamRes.data ?? []
     const outreach = outreachRes.data ?? []
-    const nameById = new Map(team.map((p) => [p.id, p.name] as const))
+    const nameById = new Map(team.map((p: any) => [p.id, p.name] as const))
 
     // Série mensal IA vs Humano (por owner do lead fechado)
     const series = months.map((m) => {
-      const inMonth = closed.filter((l) => {
+      const inMonth = closed.filter((l: any) => {
         const d = new Date(l.updated_at)
         return d.getFullYear() === m.year && d.getMonth() === m.month
       })
