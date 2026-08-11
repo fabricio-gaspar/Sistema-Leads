@@ -1,11 +1,7 @@
-import type { Database } from '@/integrations/supabase/types'
 import { createServerFn } from '@tanstack/react-start'
 import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware'
 import { z } from 'zod'
 
-import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware'
-import {
-  cancelEnrollmentInternal,
   completeEnrollmentInternal,
   ensureEnrollmentInternal,
   getEnrollmentInternal,

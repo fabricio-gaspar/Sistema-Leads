@@ -1,11 +1,7 @@
-import type { Database } from '@/integrations/supabase/types'
 import { createServerFn } from '@tanstack/react-start'
 import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware'
 import { z } from 'zod'
 
-import { z } from 'zod'
-
-// ============= Types =============
 export type SourceId = 'cnpj_ws' | 'google_places' | 'ai_only' | 'apify'
 
 export type ExternalCompany = {
@@ -817,10 +813,10 @@ export const importExternalAsLead = createServerFn({ method: 'POST' })
       contact_channels: initialChannels,
     }
 
-    const { data: row, error } = await context.supabase.from('leads').insert(payload as never).select().single()
+    const { data: row, error } = await context.(supabase as any).from('leads').insert(payload as never).select().single()
     if (error) throw new Error(error.message)
 
-    await context.supabase.from('audit_logs').insert({
+    await context.(supabase as any).from('audit_logs').insert({
       actor_id: context.userId,
       actor_name: context.claims?.email ?? 'user',
       actor_type: 'human',

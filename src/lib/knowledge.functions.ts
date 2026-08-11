@@ -3,13 +3,6 @@ import { createServerFn } from '@tanstack/react-start'
 import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware'
 import { z } from 'zod'
 
-import type { Database } from '@/integrations/supabase/types'
-import { createServerFn } from '@tanstack/react-start'
-import { z } from 'zod'
-
-
-// ============================================================================
-// Knowledge chunking for documents.content_text
 // ============================================================================
 
 const CHUNK_SIZE = 1200 // characters per chunk (~300 tokens)
@@ -79,7 +72,7 @@ async function reindexDocumentWithClient(
     status: 'active',
   }))
 
-  const { error } = await supabase.from('knowledge_chunks').insert(rows as never)
+  const { error } = await (supabase as any).from('knowledge_chunks').insert(rows as never)
   if (error) throw new Error(error.message)
   return { chunks: rows.length }
 }
@@ -189,8 +182,8 @@ export const getKnowledgeStats = createServerFn({ method: 'GET' })
   .handler(async ({ context }) => {
     await assertAdmin(context)
     const [{ count: activeChunks }, { count: staleChunks }, { count: docsWithText }] = await Promise.all([
-      context.supabase.from('knowledge_chunks').select('id', { count: 'exact', head: true }).eq('status', 'active'),
-      context.supabase.from('knowledge_chunks').select('id', { count: 'exact', head: true }).eq('status', 'stale'),
+      context.(supabase as any).from('knowledge_chunks').select('id', { count: 'exact', head: true }).eq('status', 'active'),
+      context.(supabase as any).from('knowledge_chunks').select('id', { count: 'exact', head: true }).eq('status', 'stale'),
       context.supabase
         .from('documents')
         .select('id', { count: 'exact', head: true })
