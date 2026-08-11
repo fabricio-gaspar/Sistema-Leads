@@ -654,7 +654,7 @@ function AbaAuditoria() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border-card">
-              {(data ?? []).map((l) => (
+              {(data as any[] ?? []).map((l: any) => (
                 <tr key={l.id}>
                   <td className="py-2 text-text-sec whitespace-nowrap">
                     {new Date(l.occurred_at ?? l.created_at).toLocaleString("pt-BR")}
@@ -714,7 +714,7 @@ function AbaNotif() {
     onSuccess: () => { toast.success("Notificação removida"); invalidate(); },
   });
 
-  const unread = data.filter((n) => !n.read).length;
+  const unread = (data as any[]).filter((n: any) => !n.read).length;
 
   return (
     <Card>
@@ -739,7 +739,7 @@ function AbaNotif() {
         <div className="p-4 text-[12.5px] text-text-ter">Nenhuma notificação registrada.</div>
       ) : (
         <ul className="divide-y divide-border-card">
-          {data.map((n) => (
+          {(data as any[]).map((n: any) => (
             <li key={n.id} className="flex items-start justify-between gap-3 py-2.5">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2">
@@ -798,7 +798,7 @@ function AbaInt() {
         </div>
       ) : (
         <div className="grid grid-cols-2 gap-3">
-          {data.map((i) => (
+          {(data as any[]).map((i: any) => (
             <div key={i.id} className="flex items-center justify-between rounded-md border border-border-card p-3">
               <div className="min-w-0">
                 <div className="text-[13px] font-semibold text-text-title">{i.label}</div>
@@ -1163,7 +1163,7 @@ function AbaScore() {
     : SCORE_DEFAULTS;
   const samples = samplesQ.data ?? [];
   const preview = samples.reduce(
-    (acc, s) => {
+    (acc: any, s: any) => {
       const cur = distributionFor(s.results, currentWeights, { porteFilter: s.porteFilter, ufFilter: s.ufFilter, radiusKm: s.radiusKm });
       const draft = distributionFor(s.results, w, { porteFilter: s.porteFilter, ufFilter: s.ufFilter, radiusKm: s.radiusKm });
       return {

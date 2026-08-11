@@ -122,41 +122,41 @@ export const Route = createFileRoute('/api/public/resend-webhook')({
               .from('lead_outreach')
               .update(patch as never)
               .eq('provider_message_id', emailId)
-              .select('lead_id, owner_id')
+              .select('*')
               .maybeSingle()
-            if (outreachRow?.lead_id) {
+            if ((outreachRow as any)?.lead_id) {
               const { data: lead } = await supabaseAdmin
                 .from('leads')
                 .select('owner_id, assigned_to, contact_channels')
-                .eq('id', outreachRow.lead_id)
+                .eq('id', (outreachRow as any).lead_id)
                 .maybeSingle()
-              const channels = ((lead?.contact_channels as any) ?? {}) as Record<string, any>
+              const channels = (((lead as any)?.contact_channels as any) ?? {}) as Record<string, any>
               channels.email = {
                 ...(channels.email ?? { available: true }),
                 last_status: status,
                 last_attempt_at: now,
               }
-              await supabaseAdmin.from('leads').update({
+              await (supabaseAdmin as any).from('leads').update({
                 contact_channels: channels,
                 ...(status === 'failed' ? { next_action_at: null } : {}),
                 ...(event.type === 'email.complained' ? { opt_out: true, ai_paused: true } : {}),
-              } as never).eq('id', outreachRow.lead_id)
+              } as any).eq('id', (outreachRow as any).lead_id)
               if (event.type === 'email.complained') {
-                const actorId = lead?.assigned_to || lead?.owner_id || outreachRow.owner_id
+                const actorId = (lead as any)?.assigned_to || (lead as any)?.owner_id || (outreachRow as any).owner_id
                 if (actorId) {
                   const { suppressLeadContactsInternal } = await import('@/lib/outreach.functions')
                   await suppressLeadContactsInternal(
                     { supabase: supabaseAdmin, userId: actorId, claims: { email: 'Resend' } },
-                    outreachRow.lead_id,
+                    (outreachRow as any).lead_id,
                   )
                 }
               } else if (status === 'failed') {
-                const actorId = lead?.assigned_to || lead?.owner_id || outreachRow.owner_id
+                const actorId = (lead as any)?.assigned_to || (lead as any)?.owner_id || (outreachRow as any).owner_id
                 if (actorId) {
                   const { triggerOutreachInternal } = await import('@/lib/outreach.functions')
                   await triggerOutreachInternal(
                     { supabase: supabaseAdmin, userId: actorId, claims: { email: 'Resend' } },
-                    outreachRow.lead_id,
+                    (outreachRow as any).lead_id,
                   )
                 }
               }
@@ -194,7 +194,7 @@ export const Route = createFileRoute('/api/public/resend-webhook')({
         const text = (received.text || (received.html ? plainText(received.html) : '') || '[e-mail sem texto]').slice(0, 10_000)
         const now = new Date().toISOString()
         const { error: messageError } = await supabaseAdmin.from('lead_messages').insert({
-          lead_id: lead.id,
+          lead_id: (lead as any).id,
           sender: 'client',
           sender_name: 'Cliente',
           type: 'client',
@@ -207,49 +207,49 @@ export const Route = createFileRoute('/api/public/resend-webhook')({
 
         const { data: lastOut } = await supabaseAdmin
           .from('lead_outreach')
-          .select('id')
-          .eq('lead_id', lead.id)
+          .select('*')
+          .eq('lead_id', (lead as any).id)
           .eq('channel', 'email')
           .order('created_at', { ascending: false })
           .limit(1)
           .maybeSingle()
-        if (lastOut?.id) {
-          await supabaseAdmin.from('lead_outreach').update({ status: 'replied', replied_at: now } as never).eq('id', lastOut.id)
+        if ((lastOut as any)?.id) {
+          await (supabaseAdmin as any).from('lead_outreach').update({ status: 'replied', replied_at: now } as any).eq('id', (lastOut as any).id)
         }
-        const channels = ((lead.contact_channels as any) ?? {}) as Record<string, any>
+        const channels = (((lead as any).contact_channels as any) ?? {}) as Record<string, any>
         channels.email = { ...(channels.email ?? { available: true }), last_status: 'replied', last_attempt_at: now }
         const lower = text.toLowerCase()
         const optOut = ['parar', 'sair', 'não quero', 'nao quero', 'descadastrar', 'remover'].some((keyword) => lower.includes(keyword))
         const interest = ['humano', 'atendente', 'vendedor', 'orçamento', 'orcamento', 'proposta', 'reunião', 'reuniao', 'comprar', 'preço', 'preco', 'contrato'].some((keyword) => lower.includes(keyword))
-        await supabaseAdmin.from('leads').update({
+        await (supabaseAdmin as any).from('leads').update({
           contact_channels: channels,
           last_contact: now,
           next_action_at: null,
           ...(optOut ? { opt_out: true, ai_paused: true } : {}),
-        } as never).eq('id', lead.id)
+        } as any).eq('id', (lead as any).id)
 
         // Cliente respondeu -> pausa cadência automática.
         try {
           const seq = await import('@/lib/outreach-sequences.functions')
-          if (optOut) await seq.cancelEnrollmentInternal(supabaseAdmin, lead.id, 'opt_out')
-          else await seq.pauseEnrollmentInternal(supabaseAdmin, lead.id, 'client_reply')
+          if (optOut) await seq.cancelEnrollmentInternal(supabaseAdmin, (lead as any).id, 'opt_out')
+          else await seq.pauseEnrollmentInternal(supabaseAdmin, (lead as any).id, 'client_reply')
         } catch { /* best-effort */ }
 
 
-        const actorId = lead.assigned_to || lead.owner_id
+        const actorId = (lead as any).assigned_to || (lead as any).owner_id
         if (!actorId) return Response.json({ ok: true, matched: true, automation: 'no_owner' })
         const outreach = await import('@/lib/outreach.functions')
         const ctx = { supabase: supabaseAdmin, userId: actorId, claims: { email: 'Ana (IA)' } }
         if (optOut) {
-          await outreach.suppressLeadContactsInternal(ctx, lead.id)
+          await outreach.suppressLeadContactsInternal(ctx, (lead as any).id)
           return Response.json({ ok: true, matched: true, opt_out: true })
         }
         const delivery = { channel: 'email' as const, subject: received.subject || event.data?.subject, eventId: emailId }
         const automation = interest
-          ? await outreach.handoffLeadInternal(ctx, lead.id, text, 'Interesse comercial detectado', false, delivery)
-          : lead.ai_paused
+          ? await outreach.handoffLeadInternal(ctx, (lead as any).id, text, 'Interesse comercial detectado', false, delivery)
+          : (lead as any).ai_paused
             ? { ok: false, action: 'ignored', reason: 'ai_paused' }
-            : await outreach.handleInboundWithAiInternal(ctx, lead.id, text, delivery)
+            : await outreach.handleInboundWithAiInternal(ctx, (lead as any).id, text, delivery)
         return Response.json({ ok: true, matched: true, automation })
       },
     },

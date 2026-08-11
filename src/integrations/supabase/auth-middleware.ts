@@ -2,7 +2,7 @@
 import { createMiddleware } from '@tanstack/react-start'
 import { getRequest } from '@tanstack/react-start/server'
 import { createClient } from '@supabase/supabase-js'
-import type { Database } from './types'
+import type { Database } from '@/types/database'
 
 
 
@@ -102,7 +102,7 @@ export const requireSupabaseAuth = createMiddleware({ type: 'function' }).server
     // Patch intencional além do gerador para atender à matriz de RBAC aprovada.
     const { data: profile, error: profileErr } = await (supabase as any)
       .from('profiles')
-      .select('active')
+      .select('*')
       .eq('id', data.claims.sub)
       .maybeSingle();
     if (profileErr) {

@@ -42,7 +42,7 @@ export const Route = createFileRoute('/api/public/prospecting-tick')({
             await supabaseAdmin
               .from('prospecting_schedules')
               .update({ next_run_at: next.toISOString() } as never)
-              .eq('id', s.id)
+              .eq('id', (s as any).id)
             processed.push({ id: s.id, result: { skipped: 'quiet_hours' } })
             continue
           }
@@ -67,7 +67,7 @@ export const Route = createFileRoute('/api/public/prospecting-tick')({
                 skipped_count: result.skipped,
                 detail: result.reasons as never,
               } as never)
-              .eq('id', runRow?.id ?? '')
+              .eq('id', (runRow as any)?.id ?? '')
             await supabaseAdmin
               .from('prospecting_schedules')
               .update({
@@ -79,7 +79,7 @@ export const Route = createFileRoute('/api/public/prospecting-tick')({
 
             if (result.imported > 0) {
               await supabaseAdmin.from('notifications').insert({
-                user_id: s.owner_id,
+                user_id: (s as any).owner_id,
                 kind: 'schedule_run',
                 title: `Campanha "${s.name}"`,
                 description: `${result.imported} leads criados · ${result.approved} aprovados de ${result.found} encontrados`,
@@ -87,27 +87,27 @@ export const Route = createFileRoute('/api/public/prospecting-tick')({
               } as never)
             }
 
-            processed.push({ id: s.id, result })
+            processed.push({ id: (s as any).id, result })
           } catch (err) {
             const msg = (err as Error).message
-            const nextFailures = (s.consecutive_failures ?? 0) + 1
+            const nextFailures = ((s as any).consecutive_failures ?? 0) + 1
             const shouldPause = nextFailures >= 3
             const next = computeNextRun(new Date(), s.days_of_week, s.time_of_day, s.timezone)
             await supabaseAdmin
               .from('prospecting_schedule_runs')
               .update({ status: 'failed', finished_at: new Date().toISOString(), error: msg } as never)
-              .eq('id', runRow?.id ?? '')
+              .eq('id', (runRow as any)?.id ?? '')
             await supabaseAdmin
               .from('prospecting_schedules')
               .update({
                 consecutive_failures: nextFailures,
-                active: shouldPause ? false : s.active,
+                active: shouldPause ? false : (s as any).active,
                 next_run_at: shouldPause ? null : next.toISOString(),
               } as never)
-              .eq('id', s.id)
+              .eq('id', (s as any).id)
             if (shouldPause) {
               await supabaseAdmin.from('notifications').insert({
-                user_id: s.owner_id,
+                user_id: (s as any).owner_id,
                 kind: 'schedule_paused',
                 title: `Campanha "${s.name}" pausada`,
                 description: `3 falhas consecutivas. Último erro: ${msg}`,

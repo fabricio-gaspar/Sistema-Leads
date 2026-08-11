@@ -437,7 +437,7 @@ function DocumentosCard() {
         <div className="text-[12px] text-text-ter">Nenhum documento enviado.</div>
       )}
       <ul className="space-y-1.5">
-        {docsQ.data?.map((d) => (
+        {docsQ.data?.map((d: any) => (
           <li key={d.id} className="flex items-center gap-2 rounded-md border border-border-card p-2 text-[12.5px]">
             <FileText className="h-4 w-4 text-text-ter shrink-0" />
             <div className="min-w-0 flex-1">
