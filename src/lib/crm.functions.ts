@@ -1152,7 +1152,7 @@ export const updateTeamMember = createServerFn({ method: 'POST' })
         `Usuário ${data.id}`,
       )
     }
-    if (data.patch.can_use_ia !== undefined && before?.can_use_ia !== data.patch.can_use_ia) {
+    if (data.patch.can_use_ia !== undefined && (before as any)?.can_use_ia !== data.patch.can_use_ia) {
       await auditTeam(context, 'can_use_ia_change', `Usuário ${data.id} → ${data.patch.can_use_ia}`)
     }
     return row
@@ -1487,11 +1487,11 @@ export const getReportsData = createServerFn({ method: 'POST' })
       if (current == null || time < current) firstSentByLead.set(row.lead_id, time)
     }
     const firstContactMinutes = allLeads
-      .map((lead) => {
+      .map((lead: any) => {
         const first = firstSentByLead.get(lead.id)
         return first == null ? null : Math.max(0, (first - new Date(lead.created_at).getTime()) / 60_000)
       })
-      .filter((value): value is number => value != null && Number.isFinite(value))
+      .filter((value: any): value is number => value != null && Number.isFinite(value))
     const avgFirstContactMinutes = firstContactMinutes.length
       ? Math.round(firstContactMinutes.reduce((sum: any, value: any) => sum + value, 0) / firstContactMinutes.length)
       : null
@@ -1962,7 +1962,7 @@ export const listIntegrations = createServerFn({ method: 'GET' })
       .select('id, key, label, connected, updated_at')
       .order('label', { ascending: true })
     if (error) throw new Error(error.message)
-    return (data ?? []).map((integration) => {
+    return (data ?? []).map((integration: any) => {
       if (integration.key === 'whatsapp') {
         return {
           ...integration,
