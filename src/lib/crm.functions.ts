@@ -666,7 +666,7 @@ async function auditDocument(
   detail: string,
 ) {
   try {
-    const { error } = await (ctx.supabase as any).from('audit_logs' ).insert({
+    const { error } = await ((ctx.supabase as any) as any).from('audit_logs' ).insert({
       actor_id: ctx.userId,
       actor_name: ctx.claims?.email ?? 'admin',
       actor_type: 'human',
@@ -825,7 +825,7 @@ export const getDocumentSignedUrl = createServerFn({ method: 'POST' })
 const appRole = z.enum(['administrador', 'vendedor', 'sdr', 'cx'])
 
 async function assertAdmin(ctx: { supabase: any; userId: string }) {
-  const { data, error } = await ctx.supabase.rpc('has_role', { _user_id: ctx.userId, _role: 'administrador' })
+  const { data, error } = await (ctx.supabase as any).rpc('has_role', { _user_id: ctx.userId, _role: 'administrador' })
   if (error) throw new Error(error.message)
   if (!data) throw new Error('Acesso restrito a administradores')
 }
@@ -894,7 +894,7 @@ async function auditTeam(
   detail: string,
 ) {
   try {
-    const { error } = await (ctx.supabase as any).from('audit_logs' ).insert({
+    const { error } = await ((ctx.supabase as any) as any).from('audit_logs' ).insert({
       actor_id: ctx.userId,
       actor_name: ctx.claims?.email ?? 'admin',
       actor_type: 'human',
