@@ -1077,7 +1077,7 @@ export const startOutreach = createServerFn({ method: 'POST' })
     restart: z.boolean().optional().default(false),
   }).parse(d))
   .handler(async ({ data, context: ctx }) => {
-    const ctx = context as Ctx
+    const ctx = ctx as Ctx
     const lead = await loadLead(ctx, data.lead_id)
     if (lead.opt_out) return { ok: false, reason: 'opt_out' }
     if (lead.ai_paused) return { ok: false, reason: 'paused' }
@@ -1206,7 +1206,7 @@ export const sendManualWhatsapp = createServerFn({ method: 'POST' })
     z.object({ lead_id: z.string().uuid(), text: z.string().trim().min(1).max(4000) }).parse(d),
   )
   .handler(async ({ data, context: ctx }) => {
-    const ctx = context as Ctx
+    const ctx = ctx as Ctx
     const lead = await loadLead(ctx, data.lead_id)
     if (lead.opt_out) return { ok: false, error: 'Este contato solicitou não receber mensagens.' }
     if (await isAnyContactSuppressed(ctx, lead.id, {
@@ -1279,7 +1279,7 @@ export const setOptOut = createServerFn({ method: 'POST' })
     z.object({ lead_id: z.string().uuid(), opt_out: z.boolean() }).parse(d),
   )
   .handler(async ({ data, context: ctx }) => {
-    const ctx = context as Ctx
+    const ctx = ctx as Ctx
     if (data.opt_out) await suppressLeadContactsInternal(ctx, data.lead_id)
     else await unsuppressLeadContactsInternal(ctx, data.lead_id)
     await (ctx.supabase as any).from('leads')
