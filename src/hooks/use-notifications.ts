@@ -1,3 +1,4 @@
+import type { Database } from '@/integrations/supabase/types'
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { listNotifications, markAllNotificationsRead } from "@/lib/crm.functions";
