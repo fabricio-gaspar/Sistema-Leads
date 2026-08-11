@@ -542,6 +542,7 @@ Score alto = alto potencial de fechamento.`
 export const getEnabledSources = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    const ctx = context;
     const { data } = await (context.supabase as any).from('company_settings')
       .select('prospecting_sources')
       .limit(1)
@@ -607,6 +608,7 @@ export const searchExternalCompanies = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => filtersSchema.parse(d))
   .handler(async ({ data, context }) => {
+    const ctx = context;
     // Validate source is enabled
     const { data: settingsRow } = await (context.supabase as any).from('company_settings')
       .select('name, description, differentiators, prospecting_sources')
@@ -707,6 +709,7 @@ export const importExternalAsLead = createServerFn({ method: 'POST' })
     z.object({ cache_id: z.string().uuid(), cnpj: z.string().min(3) }).parse(d),
   )
   .handler(async ({ data, context }) => {
+    const ctx = context;
     const { data: cache } = await (context.supabase as any).from('prospecting_cache')
       .select('results')
       .eq('id', data.cache_id)
@@ -849,6 +852,7 @@ export const saveProspectingSearch = createServerFn({ method: 'POST' })
     z.object({ cache_id: z.string().uuid(), name: z.string().trim().max(120).optional() }).parse(d),
   )
   .handler(async ({ data, context }) => {
+    const ctx = context;
     const farFuture = new Date(Date.now() + 1000 * 60 * 60 * 24 * 365 * 10).toISOString()
     const patch: Record<string, unknown> = { saved: true, expires_at: farFuture }
     if (data.name && data.name.length > 0) patch.name = data.name
@@ -863,6 +867,7 @@ export const saveProspectingSearch = createServerFn({ method: 'POST' })
 export const listSavedSearches = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    const ctx = context;
     const { data, error } = await (context.supabase as any).from('prospecting_cache')
       .select('id, name, filters, total_found, created_at')
       .eq('user_id', context.userId)
@@ -886,6 +891,7 @@ export const getSavedSearch = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
+    const ctx = context;
     const { data: row, error } = await (context.supabase as any).from('prospecting_cache')
       .select('id, name, filters, results, created_at')
       .eq('id', data.id)
@@ -908,6 +914,7 @@ export const deleteSavedSearch = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ id: z.string().uuid() }).parse(d))
   .handler(async ({ data, context }) => {
+    const ctx = context;
     const { error } = await (context.supabase as any).from('prospecting_cache')
       .delete()
       .eq('id', data.id)
@@ -923,6 +930,7 @@ export const renameSavedSearch = createServerFn({ method: 'POST' })
     z.object({ id: z.string().uuid(), name: z.string().trim().min(1).max(120) }).parse(d),
   )
   .handler(async ({ data, context }) => {
+    const ctx = context;
     const { error } = await (context.supabase as any).from('prospecting_cache')
       .update({ name: data.name } as never)
       .eq('id', data.id)
@@ -938,6 +946,7 @@ export const renameSavedSearch = createServerFn({ method: 'POST' })
 export const listRecentProspectingSamples = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    const ctx = context;
     const { data, error } = await (context.supabase as any).from('prospecting_cache')
       .select('id, name, filters, results, total_found, created_at, saved')
       .eq('user_id', context.userId)

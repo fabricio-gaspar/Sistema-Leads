@@ -142,14 +142,12 @@ export async function loadKnowledgeSnippetInternal(
 export const reindexDocument = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ document_id: z.string().uuid() }).parse(d))
-  .handler(async ({ data, context }) => { const ctx = context;
     await assertAdmin(context)
     return reindexDocumentInternal(context, data.document_id)
   })
 
 export const reindexAllDocuments = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => { const ctx = context;
     await assertAdmin(context)
     const { data: docs, error } = await ((ctx.supabase as any) as any)
       (ctx.supabase as any).from('documents')
@@ -173,7 +171,6 @@ export const reindexAllDocuments = createServerFn({ method: 'POST' })
 
 export const getKnowledgeStats = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
-  .handler(async ({ context }) => { const ctx = context;
     await assertAdmin(context)
     const [{ count: activeChunks }, { count: staleChunks }, { count: docsWithText }] = await Promise.all([
       (ctx.supabase as any).from('knowledge_chunks').select('id', { count: 'exact', head: true }).eq('status', 'active'),
@@ -227,7 +224,6 @@ async function extractText(bytes: Uint8Array, kind: 'pdf' | 'docx' | 'text'): Pr
 export const extractAndIndexDocument = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ document_id: z.string().uuid() }).parse(d))
-  .handler(async ({ data, context }) => { const ctx = context;
     await assertAdmin(context)
     const { data: doc, error } = await ((ctx.supabase as any) as any)
       (ctx.supabase as any).from('documents')

@@ -78,7 +78,6 @@ export const draftInitialContact = createServerFn({ method: 'POST' })
     lead_id: z.string().uuid(),
     channel: z.enum(['whatsapp', 'email', 'phone']).default('whatsapp'),
   }).parse(d))
-  .handler(async ({ data, context }) => { const ctx = context;
     
     const ctx = context as Ctx
     const { data: lead, error } = await (ctx.supabase as any).from('leads').select('*').eq('id', data.lead_id).maybeSingle()
@@ -143,7 +142,6 @@ export const autoDraftProposal = createServerFn({ method: 'POST' })
     lead_id: z.string().uuid(),
     force: z.boolean().optional().default(false),
   }).parse(d))
-  .handler(async ({ data, context }) => { const ctx = context;
     
     const ctx = context as Ctx
     const [{ data: lead }, { data: qual }] = await Promise.all([
