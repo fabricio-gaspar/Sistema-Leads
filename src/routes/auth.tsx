@@ -114,8 +114,12 @@ function AuthPage() {
 
         <div className="mt-6 border-t pt-4">
           <div className="text-[10px] text-text-ter leading-relaxed bg-bg-general p-3 rounded-lg border border-border-card whitespace-pre-wrap">
-            Execute esta instrucao no projeto: Analise e veja o porque o sistema esta mostrando este texto na parte de login, corrija e faca como deve ser desenvolvido e aplidado em uma area de login. 
-Veja a imagem o que estou querendo dizer .
+            Execute esta instrucao no projeto: Analise pois ainda esta aparecendo um texto que nao é para aparecer.
+
+Execute esta instrucao no projeto: Analise e veja o porque o sistema esta mostrando este texto na parte de login, corrija e faca como deve ser desenvolvido e aplidado em uma area de login. Veja a imagem o que estou querendo dizer .
+
+
+O porque voce esta fazendo isso ?
           </div>
         </div>
       </div>
