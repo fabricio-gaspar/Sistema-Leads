@@ -1,4 +1,3 @@
-import type { Database } from '@/types/database'
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { listNotifications, markAllNotificationsRead } from "@/lib/crm.functions";
@@ -15,6 +14,7 @@ export type Notification = {
 };
 
 function timeAgo(iso: string): string {
+  if (!iso) return "---";
   const diff = Date.now() - new Date(iso).getTime();
   const m = Math.floor(diff / 60000);
   if (m < 1) return "agora";
@@ -33,7 +33,8 @@ export function useNotifications(): Notification[] {
     queryFn: () => listFn(),
     refetchInterval: 60_000,
   });
-  return (data []).map((n: any) => ({
+  
+  return (data as any[]).map((n) => ({
     id: n.id,
     kind: (["ana", "lead", "orcamento", "pedido", "sistema"].includes(n.kind)
       ? n.kind
