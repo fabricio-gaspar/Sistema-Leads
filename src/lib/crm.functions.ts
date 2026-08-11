@@ -2,7 +2,6 @@ import type { Database } from '@/integrations/supabase/types'
 import { createServerFn } from '@tanstack/react-start'
 import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware'
 import { z } from 'zod'
-import type { Database } from '@/integrations/supabase/types'
 
 // ============= LEADS =============
 
