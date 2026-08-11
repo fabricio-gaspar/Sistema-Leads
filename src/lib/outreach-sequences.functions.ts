@@ -58,13 +58,13 @@ export type Enrollment = {
 export async function loadDefaultSequenceInternal(
   supabase: any,
 ): Promise<{ sequence: Sequence; steps: SequenceStep[] } | null> {
-  const { data: seq } = await (supabase as any).from('outreach_sequences')
+  const { data: seq } = await (context.supabase as any).from('outreach_sequences')
     .select('*')
     .eq('is_default', true)
     .eq('active', true)
     .maybeSingle()
   if (!seq) return null
-  const { data: steps } = await (supabase as any).from('outreach_sequence_steps')
+  const { data: steps } = await (context.supabase as any).from('outreach_sequence_steps')
     .select('*')
     .eq('sequence_id', seq.id)
     .eq('active', true)
@@ -76,20 +76,20 @@ export async function ensureEnrollmentInternal(
   supabase: any,
   leadId: string,
 ): Promise<Enrollment | null> {
-  const { data: existing } = await (supabase as any).from('lead_sequence_enrollments')
+  const { data: existing } = await (context.supabase as any).from('lead_sequence_enrollments')
     .select('*')
     .eq('lead_id', leadId)
     .maybeSingle()
   if (existing) return existing as Enrollment
   const bundle = await loadDefaultSequenceInternal(supabase)
   if (!bundle) return null
-  const { data: created, error } = await (supabase as any).from('lead_sequence_enrollments')
+  const { data: created, error } = await (context.supabase as any).from('lead_sequence_enrollments')
     .insert({ lead_id: leadId, sequence_id: bundle.sequence.id, status: 'active' } as never)
     .select('*')
     .maybeSingle()
   if (error) {
     // Race — another writer inserted; fetch it
-    const { data: retry } = await (supabase as any).from('lead_sequence_enrollments')
+    const { data: retry } = await (context.supabase as any).from('lead_sequence_enrollments')
       .select('*')
       .eq('lead_id', leadId)
       .maybeSingle()
@@ -102,7 +102,7 @@ export async function getEnrollmentInternal(
   supabase: any,
   leadId: string,
 ): Promise<Enrollment | null> {
-  const { data } = await (supabase as any).from('lead_sequence_enrollments')
+  const { data } = await (context.supabase as any).from('lead_sequence_enrollments')
     .select('*')
     .eq('lead_id', leadId)
     .maybeSingle()
@@ -114,35 +114,35 @@ export async function patchEnrollmentInternal(
   leadId: string,
   patch: Partial<Enrollment>,
 ) {
-  const { error } = await (supabase as any).from('lead_sequence_enrollments').update(patch as never).eq('lead_id', leadId)
+  const { error } = await (context.supabase as any).from('lead_sequence_enrollments').update(patch as never).eq('lead_id', leadId)
   if (error) throw new Error(error.message)
 }
 
 export async function pauseEnrollmentInternal(supabase: any, leadId: string, reason: string) {
-  const { data: enr } = await (supabase as any).from('lead_sequence_enrollments')
+  const { data: enr } = await (context.supabase as any).from('lead_sequence_enrollments')
     .select('id, status')
     .eq('lead_id', leadId)
     .maybeSingle()
   if (!enr) return
   if ((enr as any).status === 'completed' || (enr as any).status === 'cancelled') return
-  await (supabase as any).from('lead_sequence_enrollments')
+  await (context.supabase as any).from('lead_sequence_enrollments')
     .update({ status: 'paused', pause_reason: reason } as never)
     .eq('lead_id', leadId)
 }
 
 export async function resumeEnrollmentInternal(supabase: any, leadId: string) {
-  const { data: enr } = await (supabase as any).from('lead_sequence_enrollments')
+  const { data: enr } = await (context.supabase as any).from('lead_sequence_enrollments')
     .select('id, status')
     .eq('lead_id', leadId)
     .maybeSingle()
   if (!enr || (enr as any).status !== 'paused') return
-  await (supabase as any).from('lead_sequence_enrollments')
+  await (context.supabase as any).from('lead_sequence_enrollments')
     .update({ status: 'active', pause_reason: null } as never)
     .eq('lead_id', leadId)
 }
 
 export async function cancelEnrollmentInternal(supabase: any, leadId: string, reason: string) {
-  await (supabase as any).from('lead_sequence_enrollments')
+  await (context.supabase as any).from('lead_sequence_enrollments')
     .update({
       status: 'cancelled',
       pause_reason: reason,
@@ -152,7 +152,7 @@ export async function cancelEnrollmentInternal(supabase: any, leadId: string, re
 }
 
 export async function completeEnrollmentInternal(supabase: any, leadId: string, reason: string) {
-  await (supabase as any).from('lead_sequence_enrollments')
+  await (context.supabase as any).from('lead_sequence_enrollments')
     .update({
       status: 'completed',
       pause_reason: reason,
@@ -179,7 +179,7 @@ export const listSequences = createServerFn({ method: 'GET' })
   .handler(async ({ context }) => {
     const ctx = context;
     const { data: seqs, error } = await ((context as any).supabase)
-      (supabase as any).from('outreach_sequences')
+      (context.supabase as any).from('outreach_sequences')
       .select('*')
       .order('is_default', { ascending: false })
       .order('created_at', { ascending: true })
@@ -193,14 +193,14 @@ export const getSequenceWithSteps = createServerFn({ method: 'POST' })
   .handler(async ({ data, context }) => {
     const ctx = context;
     const { data: seq, error } = await ((context as any).supabase)
-      (supabase as any).from('outreach_sequences')
+      (context.supabase as any).from('outreach_sequences')
       .select('*')
       .eq('id', data.id)
       .maybeSingle()
     if (error) throw new Error(error.message)
     if (!seq) throw new Error('Cadência não encontrada.')
     const { data: steps } = await ((context as any).supabase)
-      (supabase as any).from('outreach_sequence_steps')
+      (context.supabase as any).from('outreach_sequence_steps')
       .select('*')
       .eq('sequence_id', data.id)
       .order('order_index', { ascending: true })
@@ -244,7 +244,7 @@ export const updateSequence = createServerFn({ method: 'POST' })
     if (data.active !== undefined) patch.active = data.active
     if (!Object.keys(patch).length) return { ok: true }
     const { error } = await ((context as any).supabase)
-      (supabase as any).from('outreach_sequences')
+      (context.supabase as any).from('outreach_sequences')
       .update(patch as never)
       .eq('id', data.id)
     if (error) throw new Error(error.message)
@@ -272,7 +272,7 @@ export const upsertSequenceStep = createServerFn({ method: 'POST' })
     const ctx = context;
     await assertAdmin(context)
     const { data: currentRows, error: currentError } = await ((context as any).supabase)
-      (supabase as any).from('outreach_sequence_steps')
+      (context.supabase as any).from('outreach_sequence_steps')
       .select('*')
       .eq('sequence_id', data.sequence_id)
       .order('order_index', { ascending: true })
@@ -293,7 +293,7 @@ export const upsertSequenceStep = createServerFn({ method: 'POST' })
       }
       validateSequenceSteps(current.map((step: any) => step.id === data.id ? next : step))
       const { error } = await ((context as any).supabase)
-        (supabase as any).from('outreach_sequence_steps')
+        (context.supabase as any).from('outreach_sequence_steps')
         .update({
           order_index: next.order_index,
           channel: next.channel,
@@ -329,13 +329,13 @@ export const upsertSequenceStep = createServerFn({ method: 'POST' })
       .sort((a, b) => b.order_index - a.order_index)
     for (const step of shiftedRows) {
       const { error: shiftError } = await ((context as any).supabase)
-        (supabase as any).from('outreach_sequence_steps')
+        (context.supabase as any).from('outreach_sequence_steps')
         .update({ order_index: step.order_index + 1 } as never)
         .eq('id', step.id)
       if (shiftError) throw new Error(`Não foi possível abrir espaço para o novo passo: ${shiftError.message}`)
     }
     const { data: inserted, error } = await ((context as any).supabase)
-      (supabase as any).from('outreach_sequence_steps')
+      (context.supabase as any).from('outreach_sequence_steps')
       .insert({
         sequence_id: data.sequence_id,
         order_index: data.order_index,
@@ -351,7 +351,7 @@ export const upsertSequenceStep = createServerFn({ method: 'POST' })
     if (error) {
       for (const step of [...shiftedRows].reverse()) {
         await ((context as any).supabase)
-          (supabase as any).from('outreach_sequence_steps')
+          (context.supabase as any).from('outreach_sequence_steps')
           .update({ order_index: step.order_index } as never)
           .eq('id', step.id)
       }
@@ -367,20 +367,20 @@ export const deleteSequenceStep = createServerFn({ method: 'POST' })
     const ctx = context;
     await assertAdmin(context)
     const { data: row, error: rowError } = await ((context as any).supabase)
-      (supabase as any).from('outreach_sequence_steps')
+      (context.supabase as any).from('outreach_sequence_steps')
       .select('*')
       .eq('id', data.id)
       .maybeSingle()
     if (rowError) throw new Error(rowError.message)
     if (!row) throw new Error('Passo da cadência não encontrado.')
     const { data: siblings, error: siblingsError } = await ((context as any).supabase)
-      (supabase as any).from('outreach_sequence_steps')
+      (context.supabase as any).from('outreach_sequence_steps')
       .select('*')
       .eq('sequence_id', row.sequence_id)
     if (siblingsError) throw new Error(siblingsError.message)
     validateSequenceSteps(((siblings ?? []) as SequenceStep[]).filter((step: any) => step.id !== data.id))
     const { error } = await ((context as any).supabase)
-      (supabase as any).from('outreach_sequence_steps')
+      (context.supabase as any).from('outreach_sequence_steps')
       .delete()
       .eq('id', data.id)
     if (error) throw new Error(error.message)
@@ -393,7 +393,7 @@ export const getLeadEnrollment = createServerFn({ method: 'POST' })
   .handler(async ({ data, context }) => {
     const ctx = context;
     const { data: enr } = await ((context as any).supabase)
-      (supabase as any).from('lead_sequence_enrollments')
+      (context.supabase as any).from('lead_sequence_enrollments')
       .select('*')
       .eq('lead_id', data.lead_id)
       .maybeSingle()
@@ -401,12 +401,12 @@ export const getLeadEnrollment = createServerFn({ method: 'POST' })
     const seqId = (enr as { sequence_id: string }).sequence_id
     const [{ data: seq }, { data: steps }] = await Promise.all([
       ((context as any).supabase)
-        (supabase as any).from('outreach_sequences')
+        (context.supabase as any).from('outreach_sequences')
         .select('id, name, description, is_default, active')
         .eq('id', seqId)
         .maybeSingle(),
       ((context as any).supabase)
-        (supabase as any).from('outreach_sequence_steps')
+        (context.supabase as any).from('outreach_sequence_steps')
         .select('*')
         .eq('sequence_id', seqId)
         .order('order_index', { ascending: true }),
