@@ -781,7 +781,13 @@ function AbaInt() {
   const qc = useQueryClient();
   const listFn = useServerFn(listIntegrations);
   const disconnectFn = useServerFn(disconnectIntegration);
+  const settingsFn = useServerFn(getCompanySettings);
   const { data = [], isLoading } = useQuery({ queryKey: ["integrations"], queryFn: () => listFn() });
+  const { data: settings } = useQuery({ queryKey: ["company-settings"], queryFn: () => settingsFn() });
+
+  // Sandbox é o padrão: enquanto não estiver explicitamente desligado, nenhum canal
+  // externo (WhatsApp, e-mail, Google Calendar, IA, telefonia) faz envio real.
+  const sandbox = (settings as any)?.sandbox_mode !== false;
 
   const disconnectMut = useMutation({
     mutationFn: (key: string) => disconnectFn({ data: { key } }),
@@ -791,7 +797,16 @@ function AbaInt() {
 
   return (
     <Card>
-      <SectionTitle title="Integrações" hint="Status real dos canais e do cofre de secrets" />
+      <SectionTitle title="Integrações" hint="Status dos canais e do cofre de secrets" />
+
+      {sandbox && (
+        <div className="mb-3 rounded-md border border-warning bg-warning-bg px-3 py-2 text-[11.5px] text-warning">
+          <b>Modo sandbox ativo.</b> WhatsApp, e-mail, Google Calendar, IA e telefonia operam em
+          simulação: nada é enviado, agendado ou discado de verdade. Desative o sandbox em
+          <b> Ana → Modo sandbox / teste</b> para habilitar conexões reais.
+        </div>
+      )}
+
       {isLoading ? (
         <div className="flex items-center gap-2 p-4 text-text-sec">
           <Loader2 className="h-4 w-4 animate-spin" /> Carregando…
@@ -803,10 +818,18 @@ function AbaInt() {
               <div className="min-w-0">
                 <div className="text-[13px] font-semibold text-text-title">{i.label}</div>
                 <div className="text-[11.5px] text-text-sec truncate">
-                  {i.connected ? "Configurado e ativo" : "Aguardando credenciais"}
+                  {sandbox
+                    ? "Simulação — sem envio real"
+                    : i.connected
+                      ? "Configurado e ativo"
+                      : "Aguardando credenciais"}
                 </div>
               </div>
-              {i.connected ? (
+              {sandbox ? (
+                <span className="rounded-full border border-warning px-2 py-0.5 text-[10.5px] font-semibold text-warning">
+                  Sandbox
+                </span>
+              ) : i.connected ? (
                 <div className="flex items-center gap-2">
                   <span className="rounded-full bg-success-bg px-2 py-0.5 text-[10.5px] font-semibold text-success">
                     Conectado
@@ -846,11 +869,12 @@ function AbaInt() {
       <ZapiCadenceCard />
       <SequenceEditorCard />
       <HandoffAutomationCard />
-      <GoogleCalendarCard />
+      <GoogleCalendarCard sandbox={sandbox} />
 
     </Card>
   );
 }
+
 
 
 function AbaSeg() {

@@ -41,7 +41,7 @@ function waitForCompletion(popup: Window): Promise<void> {
   });
 }
 
-export function GoogleCalendarCard() {
+export function GoogleCalendarCard({ sandbox = false }: { sandbox?: boolean }) {
   const qc = useQueryClient();
   const startFn = useServerFn(startGoogleCalendarConnect);
   const statusFn = useServerFn(getGoogleCalendarStatus);
@@ -50,6 +50,7 @@ export function GoogleCalendarCard() {
     queryKey: ["google-calendar-status"],
     queryFn: () => statusFn(),
   });
+
 
   const onConnect = useCallback(async () => {
     const popup = window.open("", "google-calendar-oauth", "width=600,height=720");
