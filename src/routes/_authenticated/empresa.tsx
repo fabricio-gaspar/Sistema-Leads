@@ -351,12 +351,18 @@ function DocumentosCard() {
         );
       }
 
-      const path = `${Date.now()}-${file.name.replace(/[^\w.\-]+/g, "_")}`;
+      // O bucket `docs` é privado e as policies exigem o prefixo <organizationId>/.
+      const { data: orgId, error: orgErr } = await supabase.rpc("current_org_id");
+      if (orgErr) throw orgErr;
+      if (!orgId) throw new Error("Organização ativa não encontrada para este usuário.");
+
+      const path = `${orgId}/${Date.now()}-${file.name.replace(/[^\w.\-]+/g, "_")}`;
       const { error: upErr } = await supabase.storage.from("docs").upload(path, file, {
         cacheControl: "3600",
         upsert: false,
       });
       if (upErr) throw upErr;
+
       uploadedPath = path;
 
       let contentText: string | null = null;

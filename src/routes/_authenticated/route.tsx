@@ -15,6 +15,11 @@ const VENDEDOR_ALLOWED = ["/atendimento"];
 const allows = (allowed: string[], path: string) =>
   allowed.some((p) => path === p || path.startsWith(p + "/"));
 
+async function denyAccess(): Promise<never> {
+  await supabase.auth.signOut();
+  throw redirect({ to: "/auth" });
+}
+
 export const Route = createFileRoute("/_authenticated")({
   ssr: false,
   beforeLoad: async ({ location }) => {
@@ -23,30 +28,37 @@ export const Route = createFileRoute("/_authenticated")({
       throw redirect({ to: "/auth" });
     }
 
-    // Prioriza o acesso do Fabricio para contornar qualquer erro de banco
-    if (data.user.email === 'fabricio@wfdigital.com.br') {
-      return { 
-        user: data.user, 
-        roles: ['administrador'], 
-        isAdmin: true, 
-        isSellerOnly: false, 
-        isSdrOnly: false, 
-        isCxOnly: false 
-      };
-    }
-
-    const [{ data: profile }, { data: rolesRows }] = await Promise.all([
+    // Autorização 100% baseada em dados reais protegidos por RLS:
+    // profile ativo + membership válida na organização. Sem exceções por e-mail.
+    const [{ data: profile }, { data: memberships }, { data: rolesRows }] = await Promise.all([
       supabase.from("profiles").select("active").eq("id", data.user.id).maybeSingle(),
+      supabase
+        .from("organization_members")
+        .select("organization_id, role, status")
+        .eq("user_id", data.user.id),
       supabase.from("user_roles").select("role").eq("user_id", data.user.id),
     ]);
 
-    // Bloqueia usuários desativados
     if (profile && (profile as any).active === false) {
-      await supabase.auth.signOut();
-      throw redirect({ to: "/auth" });
+      await denyAccess();
     }
 
-    const roles = (rolesRows ?? []).map((r: any) => r.role as string);
+    const activeMemberships = (memberships ?? []).filter(
+      (m: any) => !m.status || m.status === "active",
+    );
+
+    // Sem membership válida o usuário não entra no app.
+    if (activeMemberships.length === 0) {
+      await denyAccess();
+    }
+
+    const roles = Array.from(
+      new Set([
+        ...activeMemberships.map((m: any) => String(m.role)),
+        ...(rolesRows ?? []).map((r: any) => String(r.role)),
+      ]),
+    ).filter(Boolean);
+
     const isAdmin = roles.includes("administrador");
     const isSellerOnly = !isAdmin && roles.includes("vendedor");
     const isSdrOnly = !isAdmin && !roles.includes("vendedor") && roles.includes("sdr");
@@ -56,8 +68,7 @@ export const Route = createFileRoute("/_authenticated")({
 
     // Bloqueia usuário autenticado sem papel válido
     if (!hasValidRole) {
-      await supabase.auth.signOut();
-      throw redirect({ to: "/auth" });
+      await denyAccess();
     }
 
     const path = location.pathname;
