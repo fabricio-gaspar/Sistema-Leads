@@ -1,3 +1,4 @@
+/* Execute esta instrucao no projeto: Crie um prompt completo de todo Sistema de Leads para que eu crie em outro chat onde nao tenha conectividade com banco de dados. Quero 100% de todo o projeto que esta aqui. Seja minuciojo ao criar o prompt. */
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
