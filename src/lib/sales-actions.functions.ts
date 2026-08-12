@@ -2,6 +2,7 @@ import { autonomyOf } from './autonomy'
 import { createServerFn } from '@tanstack/react-start'
 import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware'
 import { z } from 'zod'
+import { generateAiText } from '@/lib/ai-provider.server'
 
 
 import type { Database } from '@/integrations/supabase/types'
@@ -45,26 +46,19 @@ async function loadKnowledgeSnippets(ctx: Ctx, maxChunks = 6): Promise<string> {
 }
 
 async function callClaude(system: string, user: string, model?: string, maxTokens = 900) {
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) return null
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-    },
-    body: JSON.stringify({
+  try {
+    const generated = await generateAiText({
+      provider: 'anthropic',
       model: model || 'claude-sonnet-4-5-20250929',
-      max_tokens: maxTokens,
+      maxTokens,
       temperature: 0.4,
       system,
       messages: [{ role: 'user', content: user }],
-    }),
-  })
-  if (!res.ok) return null
-  const payload = (await res.json()) as { content?: Array<{ type: string; text?: string }> }
-  return (payload.content || []).filter((c: any) => c.type === 'text').map((c: any) => c.text || '').join('').trim() || null
+    })
+    return generated.text.trim() || null
+  } catch {
+    return null
+  }
 }
 
 // ============================================================================

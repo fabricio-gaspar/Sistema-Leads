@@ -368,7 +368,9 @@ function DocumentosCard() {
         );
       }
 
-      const path = `${Date.now()}-${file.name.replace(/[^\w.\-]+/g, "_")}`;
+      const { data: organizationId, error: orgErr } = await supabase.rpc("current_org_id");
+      if (orgErr || !organizationId) throw new Error("Não foi possível identificar a organização ativa.");
+      const path = `${organizationId}/${Date.now()}-${file.name.replace(/[^\w.-]+/g, "_")}`;
       const { error: upErr } = await supabase.storage.from("docs").upload(path, file, {
         cacheControl: "3600",
         upsert: false,

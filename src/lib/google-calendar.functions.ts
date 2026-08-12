@@ -1,6 +1,7 @@
 import { createServerFn } from '@tanstack/react-start'
 import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware'
 import { z } from 'zod'
+import type { SupabaseClient } from '@supabase/supabase-js'
 
 
 import type { Database } from '@/integrations/supabase/types'
@@ -26,9 +27,21 @@ function clientKey(): string {
   return key;
 }
 
+async function isCalendarSandbox(supabase: SupabaseClient<Database>): Promise<boolean> {
+  const { data } = await supabase
+    .from("company_settings")
+    .select("sandbox_mode")
+    .limit(1)
+    .maybeSingle();
+  return data?.sandbox_mode === true;
+}
+
 export const startGoogleCalendarConnect = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    if (await isCalendarSandbox(context.supabase)) {
+      throw new Error("A agenda está em modo sandbox: nenhuma conta Google será conectada nesta fase.");
+    }
     const ctx = context;
     const { authorizeAppUserOAuth } = await import("@/integrations/lovable/appUserConnector");
     const { getConnectionKeyForUser } = await import("@/server/appUserConnections.server");
@@ -52,6 +65,9 @@ export const completeGoogleCalendarConnect = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((input: { code: string }) => z.object({ code: z.string().min(1) }).parse(input))
   .handler(async ({ data, context }) => {
+    if (await isCalendarSandbox(context.supabase)) {
+      throw new Error("A agenda está em modo sandbox: nenhuma conta Google será conectada nesta fase.");
+    }
     const ctx = context;
     const { exchangeAppUserOAuthCode } = await import("@/integrations/lovable/appUserConnector");
     const { saveConnectionKeyForUser } = await import("@/server/appUserConnections.server");
@@ -65,11 +81,14 @@ export const getGoogleCalendarStatus = createServerFn({ method: "GET" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const ctx = context;
+    if (await isCalendarSandbox(context.supabase)) {
+      return { configured: true, connected: false, email: null as string | null, sandbox: true };
+    }
     const configured = Boolean(process.env.GOOGLE_CALENDAR_APP_USER_CONNECTOR_CLIENT_API_KEY);
-    if (!configured) return { configured: false, connected: false, email: null as string | null };
+    if (!configured) return { configured: false, connected: false, email: null as string | null, sandbox: false };
     const { getConnectionKeyForUser } = await import("@/server/appUserConnections.server");
     const key = await getConnectionKeyForUser(context.userId, CONNECTOR_ID);
-    if (!key) return { configured: true, connected: false, email: null as string | null };
+    if (!key) return { configured: true, connected: false, email: null as string | null, sandbox: false };
     // Fetch profile for display
     try {
       const { callAsAppUser } = await import("@/integrations/lovable/appUserConnector");
@@ -81,18 +100,19 @@ export const getGoogleCalendarStatus = createServerFn({ method: "GET" })
       });
       if (res.ok) {
         const info = (await res.json()) as { email?: string };
-        return { configured: true, connected: true, email: info.email ?? null };
+        return { configured: true, connected: true, email: info.email ?? null, sandbox: false };
       }
     } catch (err) {
       console.error("[google_calendar] userinfo failed", err);
     }
-    return { configured: true, connected: true, email: null as string | null };
+    return { configured: true, connected: true, email: null as string | null, sandbox: false };
   });
 
 export const disconnectGoogleCalendar = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
     const ctx = context;
+    if (await isCalendarSandbox(context.supabase)) return { ok: true };
     const { getConnectionKeyForUser, deleteConnectionKeyForUser } = await import("@/server/appUserConnections.server");
     const { disconnectAppUser } = await import("@/integrations/lovable/appUserConnector");
     const key = await getConnectionKeyForUser(context.userId, CONNECTOR_ID);
@@ -117,9 +137,12 @@ export const checkGoogleAvailability = createServerFn({ method: "POST" })
     timezone: z.string().min(1).max(100).default("America/Sao_Paulo"),
   }).parse(input))
   .handler(async ({ data, context }) => {
+    if (await isCalendarSandbox(context.supabase)) {
+      return { connected: false, available: true, busy: [] as Array<{ start: string; end: string }>, sandbox: true };
+    }
     const { getConnectionKeyForUser } = await import("@/server/appUserConnections.server");
     const key = await getConnectionKeyForUser(context.userId, CONNECTOR_ID);
-    if (!key) return { connected: false, available: null as boolean | null, busy: [] as Array<{ start: string; end: string }> };
+    if (!key) return { connected: false, available: null as boolean | null, busy: [] as Array<{ start: string; end: string }>, sandbox: false };
     const { callAsAppUser } = await import("@/integrations/lovable/appUserConnector");
     const res = await callAsAppUser({
       gatewayBaseUrl: GATEWAY_BASE_URL,
@@ -143,7 +166,7 @@ export const checkGoogleAvailability = createServerFn({ method: "POST" })
     }
     const payload = await res.json() as { calendars?: { primary?: { busy?: Array<{ start: string; end: string }> } } };
     const busy = payload.calendars?.primary?.busy ?? [];
-    return { connected: true, available: busy.length === 0, busy };
+    return { connected: true, available: busy.length === 0, busy, sandbox: false };
   });
 
 export const syncAppointmentToGoogle = createServerFn({ method: "POST" })
@@ -151,11 +174,26 @@ export const syncAppointmentToGoogle = createServerFn({ method: "POST" })
   .inputValidator((input: unknown) => syncInput.parse(input))
   .handler(async ({ data, context }) => {
     const ctx = context;
+    const { supabase } = context;
+    if (await isCalendarSandbox(supabase)) {
+      const { data: appt, error } = await supabase
+        .from("appointments")
+        .select("id")
+        .eq("id", data.appointment_id)
+        .maybeSingle();
+      if (error) throw error;
+      if (!appt) throw new Error("Reunião não encontrada");
+      const eventId = `sandbox-calendar-${appt.id}`;
+      await supabase
+        .from("appointments")
+        .update({ provider: "sandbox", external_id: eventId, updated_at: new Date().toISOString() })
+        .eq("id", appt.id);
+      return { ok: true, event_id: eventId, html_link: null, sandbox: true };
+    }
     const { getConnectionKeyForUser } = await import("@/server/appUserConnections.server");
     const key = await getConnectionKeyForUser(context.userId, CONNECTOR_ID);
     if (!key) throw new Error("Conecte seu Google Calendar antes de sincronizar.");
 
-    const { supabase } = context;
     const { data: appt, error } = await supabase
       .from("appointments")
       .select("id, title, starts_at, ends_at, notes, provider, external_id, lead_id")
@@ -216,5 +254,5 @@ export const syncAppointmentToGoogle = createServerFn({ method: "POST" })
       })
       .eq("id", appt.id);
 
-    return { ok: true, event_id: created.id, html_link: created.htmlLink ?? null };
+    return { ok: true, event_id: created.id, html_link: created.htmlLink ?? null, sandbox: false };
   });

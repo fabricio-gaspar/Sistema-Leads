@@ -11,10 +11,9 @@ import {
 
 function waitForCompletion(popup: Window): Promise<void> {
   return new Promise((resolve, reject) => {
-    let poll: number | undefined;
     const cleanup = () => {
       window.removeEventListener("message", onMessage);
-      if (poll !== undefined) window.clearInterval(poll);
+      window.clearInterval(poll);
     };
     const onMessage = (event: MessageEvent) => {
       const type = event.data?.type;
@@ -33,7 +32,7 @@ function waitForCompletion(popup: Window): Promise<void> {
       }
     };
     window.addEventListener("message", onMessage);
-    poll = window.setInterval(() => {
+    const poll = window.setInterval(() => {
       if (!popup.closed) return;
       cleanup();
       reject(new Error("Janela fechada antes de concluir."));
@@ -91,6 +90,10 @@ export function GoogleCalendarCard() {
         </div>
         {isLoading ? (
           <Loader2 className="h-4 w-4 animate-spin text-text-ter" />
+        ) : status?.sandbox ? (
+          <span className="rounded-full bg-warning-bg px-2 py-0.5 text-[10.5px] font-semibold text-warning">
+            Sandbox ativo
+          </span>
         ) : !status?.configured ? (
           <span className="rounded-full border border-border-card px-2 py-0.5 text-[10.5px] text-text-ter">
             Não configurado no workspace
@@ -120,6 +123,11 @@ export function GoogleCalendarCard() {
       {!status?.configured && !isLoading && (
         <div className="mt-2 rounded-md bg-warning-bg px-2 py-1 text-[11px] text-warning">
           Um admin do workspace precisa configurar o cliente OAuth do Google Calendar em <b>Workspace Settings → App User Connectors</b> antes de os vendedores conseguirem conectar.
+        </div>
+      )}
+      {status?.sandbox && !isLoading && (
+        <div className="mt-2 rounded-md bg-warning-bg px-2 py-1 text-[11px] text-warning">
+          Reuniões são registradas localmente para teste. A conexão com o Google Calendar será liberada quando o sandbox for desativado por um administrador.
         </div>
       )}
     </div>

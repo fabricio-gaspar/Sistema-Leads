@@ -430,12 +430,30 @@ async function sendZapiText(to: string, message: string): Promise<{
 }
 
 async function sendWhatsappText(
-  _ctx: Ctx,
+  ctx: Ctx,
   to: string,
   message: string,
-): Promise<{ ok: boolean; messageId?: string; error?: string; provider: 'zapi' | 'none' }> {
+): Promise<{ ok: boolean; messageId?: string; error?: string; provider: 'zapi' | 'none' | 'sandbox' }> {
+  if (await isSandboxMode(ctx)) return sandboxDelivery('whatsapp')
   const r = await sendZapiText(to, message)
   return { ...r, provider: r.ok || r.error !== 'zapi_not_configured' ? 'zapi' : 'none' }
+}
+
+async function isSandboxMode(ctx: Ctx): Promise<boolean> {
+  const { data } = await ctx.supabase
+    .from('company_settings')
+    .select('sandbox_mode')
+    .limit(1)
+    .maybeSingle()
+  return data?.sandbox_mode === true
+}
+
+function sandboxDelivery(channel: 'whatsapp' | 'email' | 'instagram') {
+  return {
+    ok: true,
+    messageId: `sandbox-${channel}-${crypto.randomUUID()}`,
+    provider: 'sandbox' as const,
+  }
 }
 
 function splitEmailContent(content: string): { subject: string; text: string } {
@@ -448,14 +466,16 @@ function splitEmailContent(content: string): { subject: string; text: string } {
 }
 
 async function sendEmail(
+  ctx: Ctx,
   to: string,
   content: string,
   idempotencyKey: string,
-): Promise<{ ok: boolean; messageId?: string; error?: string }> {
+): Promise<{ ok: boolean; messageId?: string; error?: string; provider: 'resend' | 'sandbox' }> {
+  if (await isSandboxMode(ctx)) return sandboxDelivery('email')
   const apiKey = process.env.RESEND_API_KEY
   const from = process.env.OUTREACH_EMAIL_FROM
-  if (!apiKey || !from) return { ok: false, error: 'resend_not_configured' }
-  if (!/.+@.+\..+/.test(to)) return { ok: false, error: 'invalid_email' }
+  if (!apiKey || !from) return { ok: false, error: 'resend_not_configured', provider: 'resend' }
+  if (!/.+@.+\..+/.test(to)) return { ok: false, error: 'invalid_email', provider: 'resend' }
   const email = splitEmailContent(content)
   try {
     const res = await fetch('https://api.resend.com/emails', {
@@ -468,11 +488,17 @@ async function sendEmail(
       body: JSON.stringify({ from, to: [to], subject: email.subject, text: email.text }),
     })
     const body = (await res.json().catch(() => ({}))) as { id?: string; message?: string; error?: { message?: string } }
-    if (!res.ok) return { ok: false, error: body.error?.message || body.message || `http_${res.status}` }
-    return { ok: true, messageId: body.id }
+    if (!res.ok) return { ok: false, error: body.error?.message || body.message || `http_${res.status}`, provider: 'resend' }
+    return { ok: true, messageId: body.id, provider: 'resend' }
   } catch (err) {
-    return { ok: false, error: (err as Error).message }
+    return { ok: false, error: (err as Error).message, provider: 'resend' }
   }
+}
+
+async function sendInstagramTextSandboxed(ctx: Ctx, instagramUserId: string, text: string) {
+  if (await isSandboxMode(ctx)) return sandboxDelivery('instagram')
+  const result = await sendInstagramText(instagramUserId, text)
+  return { ...result, provider: 'meta_instagram' as const }
 }
 
 // ============================================================================
@@ -557,7 +583,7 @@ async function tryStep(ctx: Ctx, lead: any, step: SequenceStep): Promise<void> {
         .update({
           status: 'sent',
           sent_at: now,
-          provider: 'zapi',
+          provider: result.provider,
           provider_message_id: result.messageId ?? null,
         } as never)
         .eq('id', row.id)
@@ -604,6 +630,7 @@ async function tryStep(ctx: Ctx, lead: any, step: SequenceStep): Promise<void> {
 
   if (channel === 'email') {
     const result = await sendEmail(
+      ctx,
       lead.email || '',
       content,
       `outreach-${lead.id}-email-${attempt}`,
@@ -615,7 +642,7 @@ async function tryStep(ctx: Ctx, lead: any, step: SequenceStep): Promise<void> {
         .update({
           status: 'sent',
           sent_at: now,
-          provider: 'resend',
+          provider: result.provider,
           provider_message_id: result.messageId ?? null,
         } as never)
         .eq('id', row.id)
@@ -734,7 +761,7 @@ async function recordAiOutbound(
   ctx: Ctx,
   lead: any,
   text: string,
-  result: { ok: boolean; messageId?: string; error?: string },
+  result: { ok: boolean; messageId?: string; error?: string; provider?: string },
   channel: 'whatsapp' | 'email' | 'instagram',
   messageType: 'ia' | 'ia-escalated' = 'ia',
 ) {
@@ -749,7 +776,7 @@ async function recordAiOutbound(
     owner_id: lead.assigned_to || lead.owner_id || ctx.userId,
     channel,
     status: result.ok ? 'sent' : 'failed',
-    provider: channel === 'whatsapp' ? 'zapi' : channel === 'email' ? 'resend' : 'meta_instagram',
+    provider: result.provider ?? (channel === 'whatsapp' ? 'zapi' : channel === 'email' ? 'resend' : 'meta_instagram'),
     provider_message_id: result.messageId ?? null,
     content: text,
     error: result.error ?? null,
@@ -781,13 +808,14 @@ async function deliverAiMessage(
   const channel = delivery.channel ?? 'whatsapp'
   const result = channel === 'email'
     ? await sendEmail(
+        ctx,
         lead.email || '',
         `Assunto: Re: ${delivery.subject || 'seu contato'}\n\n${text}`,
         `outreach-${lead.id}-reply-${delivery.eventId || Date.now()}`,
       )
     : channel === 'instagram'
-      ? await sendInstagramText(lead.instagram_user_id || '', text)
-      : await sendZapiText(lead.whatsapp || lead.phone || '', text)
+      ? await sendInstagramTextSandboxed(ctx, lead.instagram_user_id || '', text)
+      : await sendWhatsappText(ctx, lead.whatsapp || lead.phone || '', text)
   await recordAiOutbound(ctx, lead, text, result, channel, messageType)
   return result
 }
@@ -1274,7 +1302,7 @@ export const sendManualWhatsapp = createServerFn({ method: 'POST' })
       .eq('lead_id', lead.id)
       .eq('channel', 'whatsapp')
     const attempt = (count ?? 0) + 1
-    const result = await sendZapiText(to, data.text)
+    const result = await sendWhatsappText(ctx, to, data.text)
     const now = new Date().toISOString()
 
     const { error: outreachError } = await ctx.supabase.from('lead_outreach').insert({
@@ -1282,7 +1310,7 @@ export const sendManualWhatsapp = createServerFn({ method: 'POST' })
       owner_id: ctx.userId,
       channel: 'whatsapp',
       status: result.ok ? 'sent' : 'failed',
-      provider: 'zapi',
+      provider: result.provider,
       provider_message_id: result.messageId ?? null,
       content: data.text,
       error: result.error ?? null,
@@ -1332,7 +1360,7 @@ export const sendManualInstagram = createServerFn({ method: 'POST' })
     const lead = await loadLead(ctx, data.lead_id)
     if (lead.opt_out) return { ok: false, error: 'Este contato solicitou não receber mensagens.' }
     if (!lead.instagram_user_id) return { ok: false, error: 'Lead sem identificador do Instagram.' }
-    const result = await sendInstagramText(lead.instagram_user_id, data.text)
+    const result = await sendInstagramTextSandboxed(ctx, lead.instagram_user_id, data.text)
     const now = new Date().toISOString()
     const { count } = await ctx.supabase.from('lead_outreach').select('id', { count: 'exact', head: true })
       .eq('lead_id', lead.id).eq('channel', 'instagram')
@@ -1341,7 +1369,7 @@ export const sendManualInstagram = createServerFn({ method: 'POST' })
       owner_id: ctx.userId,
       channel: 'instagram',
       status: result.ok ? 'sent' : 'failed',
-      provider: 'meta_instagram',
+      provider: result.provider,
       provider_message_id: result.messageId ?? null,
       content: data.text,
       error: result.error ?? null,
@@ -1421,7 +1449,10 @@ export const listOutreach = createServerFn({ method: 'POST' })
 
 export const testZapi = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
-  .handler(async () => {
+  .handler(async ({ context }) => {
+    if (await isSandboxMode(context as Ctx)) {
+      return { ok: true, connected: false, session: null, sandbox: true }
+    }
     const instance = process.env.ZAPI_INSTANCE_ID
     const token = process.env.ZAPI_TOKEN
     const clientToken = process.env.ZAPI_CLIENT_TOKEN
