@@ -90,7 +90,11 @@ export function GoogleCalendarCard({ sandbox = false }: { sandbox?: boolean }) {
             Cada usuário conecta a própria agenda. Ao agendar reunião, o evento é criado no Google Calendar do responsável.
           </div>
         </div>
-        {isLoading ? (
+        {sandbox ? (
+          <span className="rounded-full border border-warning px-2 py-0.5 text-[10.5px] font-semibold text-warning">
+            Sandbox — sem agendamento real
+          </span>
+        ) : isLoading ? (
           <Loader2 className="h-4 w-4 animate-spin text-text-ter" />
         ) : !status?.configured ? (
           <span className="rounded-full border border-border-card px-2 py-0.5 text-[10.5px] text-text-ter">
@@ -118,11 +122,17 @@ export function GoogleCalendarCard({ sandbox = false }: { sandbox?: boolean }) {
           </button>
         )}
       </div>
-      {!status?.configured && !isLoading && (
+      {sandbox ? (
+        <div className="mt-2 rounded-md bg-warning-bg px-2 py-1 text-[11px] text-warning">
+          Enquanto o modo sandbox estiver ativo, os eventos são apenas simulados e a conexão real com o
+          Google Calendar fica desabilitada.
+        </div>
+      ) : !status?.configured && !isLoading ? (
         <div className="mt-2 rounded-md bg-warning-bg px-2 py-1 text-[11px] text-warning">
           Um admin do workspace precisa configurar o cliente OAuth do Google Calendar em <b>Workspace Settings → App User Connectors</b> antes de os vendedores conseguirem conectar.
         </div>
-      )}
+      ) : null}
+
     </div>
   );
 }
