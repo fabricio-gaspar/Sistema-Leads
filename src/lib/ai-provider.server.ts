@@ -68,6 +68,15 @@ export function aiProviderHealth() {
 
 export async function generateAiText(input: AiGenerateInput): Promise<AiGenerateResult> {
   const primary = inferAiProvider(input.model, input.provider);
+  // External model calls are opt-in. This keeps the first delivery in a
+  // deterministic sandbox even if a provider credential is present.
+  if (process.env.AI_LIVE_ENABLED !== "true") {
+    return {
+      text: input.json ? "{}" : "[Ana em modo sandbox] Resposta simulada. Nenhum provedor externo foi acionado.",
+      provider: primary,
+      model: "sandbox",
+    };
+  }
   const candidates = [primary, input.fallbackProvider].filter(
     (provider, index, all): provider is AiProvider =>
       Boolean(provider) && all.indexOf(provider) === index,

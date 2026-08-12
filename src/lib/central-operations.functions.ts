@@ -197,6 +197,12 @@ export const startVoipCall = createServerFn({ method: "POST" })
       throw new Error("Confirme o consentimento antes de gravar a chamada.");
     }
     const db = database(context);
+    const { data: settings } = await db
+      .from("company_settings")
+      .select("sandbox_mode")
+      .limit(1)
+      .maybeSingle();
+    const sandbox = settings?.sandbox_mode === true;
     const { data: lead, error: leadError } = await db
       .from("leads")
       .select("id, company, phone")
@@ -210,15 +216,25 @@ export const startVoipCall = createServerFn({ method: "POST" })
       .insert({
         lead_id: lead.id,
         ticket_id: data.ticket_id ?? null,
-        provider: process.env.VOIP_PROVIDER || "generic",
+        provider: sandbox ? "sandbox" : process.env.VOIP_PROVIDER || "generic",
         direction: "outbound",
-        status: process.env.VOIP_API_URL && process.env.VOIP_API_TOKEN ? "queued" : "failed",
+        status: sandbox ? "completed" : process.env.VOIP_API_URL && process.env.VOIP_API_TOKEN ? "queued" : "failed",
         recording_consent: data.recording_consent,
         created_by: context.userId,
       } as never)
       .select()
       .single();
     if (error) throw new Error(error.message);
+
+    if (sandbox) {
+      const externalId = `sandbox-call-${call.id}`;
+      await db
+        .from("call_records")
+        .update({ external_id: externalId, status: "completed", ended_at: new Date().toISOString() })
+        .eq("id", call.id);
+      await audit(context, "voip_call_simulated", `${lead.company} · chamada de teste`);
+      return { ok: true, call_id: call.id, external_id: externalId, sandbox: true };
+    }
 
     if (!process.env.VOIP_API_URL || !process.env.VOIP_API_TOKEN) {
       throw new Error(

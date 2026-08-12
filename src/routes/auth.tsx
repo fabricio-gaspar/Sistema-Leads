@@ -30,7 +30,7 @@ export const Route = createFileRoute("/auth")({
 
 function AuthPage() {
   const navigate = useNavigate();
-  const [mode, setMode] = useState<"signin" | "forgot">("signin");
+  const [mode, setMode] = useState<"signin" | "signup" | "forgot">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [pending, setPending] = useState(false);
@@ -49,6 +49,16 @@ function AuthPage() {
         const { error: err } = await supabase.auth.signInWithPassword({ email: loginEmail, password });
         if (err) throw err;
         navigate({ to: "/", replace: true });
+      } else if (mode === "signup") {
+        const activationEmail = email.trim().toLowerCase();
+        const emailRedirectTo = new URL("/auth", window.location.origin).toString();
+        const { error: err } = await supabase.auth.signUp({
+          email: activationEmail,
+          password,
+          options: { emailRedirectTo },
+        });
+        if (err) throw err;
+        setInfo("Se houver um convite ativo para este e-mail, enviamos a confirmação de acesso. Depois de confirmar, entre com sua senha.");
       } else {
         const recoveryEmail = email.trim().toLowerCase();
         const redirectTo = new URL("/reset-password", window.location.origin).toString();
@@ -75,7 +85,7 @@ function AuthPage() {
           <div>
             <div className="text-base font-semibold text-text-title">WF Digital CRM</div>
             <div className="text-[12px] text-text-sec">
-              {mode === "signin" ? "Entre na sua conta" : "Recuperar senha"}
+              {mode === "signin" ? "Entre na sua conta" : mode === "signup" ? "Ative seu acesso por convite" : "Recuperar senha"}
             </div>
           </div>
         </div>
@@ -92,12 +102,12 @@ function AuthPage() {
               placeholder="voce@empresa.com"
             />
           </Field>
-          {mode === "signin" && (
+          {mode !== "forgot" && (
             <Field label="Senha">
               <input
                 required
                 type="password"
-                autoComplete="current-password"
+                autoComplete={mode === "signup" ? "new-password" : "current-password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 className="input"
@@ -115,24 +125,26 @@ function AuthPage() {
             className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-md bg-primary text-[13px] font-medium text-primary-foreground hover:bg-primary-hover disabled:opacity-60"
           >
             {pending && <Loader2 className="h-4 w-4 animate-spin" />}
-            {mode === "signin" ? "Entrar" : "Enviar link de redefinição"}
+            {mode === "signin" ? "Entrar" : mode === "signup" ? "Ativar acesso" : "Enviar link de redefinição"}
           </button>
         </form>
 
         <div className="mt-4 text-center text-[12px] text-text-sec">
           {mode === "signin" ? (
-            <button onClick={() => { setMode("forgot"); setError(null); setInfo(null); }} className="text-primary hover:underline">
-              Esqueci minha senha
-            </button>
+            <div className="flex items-center justify-center gap-3">
+              <button onClick={() => { setMode("forgot"); setError(null); setInfo(null); }} className="text-primary hover:underline">
+                Esqueci minha senha
+              </button>
+              <span className="text-text-ter">·</span>
+              <button onClick={() => { setMode("signup"); setError(null); setInfo(null); }} className="text-primary hover:underline">
+                Ativar convite
+              </button>
+            </div>
           ) : (
             <button onClick={() => { setMode("signin"); setError(null); setInfo(null); }} className="text-primary hover:underline">
               Voltar para login
             </button>
           )}
-        </div>
-
-        <div className="mt-3 text-center text-[11px] text-text-ter italic bg-yellow-50 p-2 rounded border border-yellow-200">
-          Execute esta instrucao no projeto: Quol o login e senha para acessar o sistema?
         </div>
       </div>
 
