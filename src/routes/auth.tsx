@@ -14,7 +14,7 @@ export const Route = createFileRoute("/auth")({
 
 function AuthPage() {
   const navigate = useNavigate();
-  const [mode, setMode] = useState<"signin" | "forgot">("signin");
+  const [mode, setMode] = useState<"signin" | "forgot" | "invite">("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [pending, setPending] = useState(false);
@@ -29,28 +29,23 @@ function AuthPage() {
     setInfo(null);
     try {
       if (mode === "signin") {
-        const { data: authData, error: err } = await supabase.auth.signInWithPassword({ email, password });
+        const { error: err } = await supabase.auth.signInWithPassword({ email, password });
         if (err) throw err;
-
-        // Registro e Verificação de Role (Instrução solicitada)
-        if (authData.user) {
-          console.log("[Auth] Usuário autenticado:", authData.user.email);
-          
-          // Força sincronização rápida das roles antes de prosseguir
-          const { data: roles } = await supabase
-            .from("user_roles")
-            .select("role")
-            .eq("user_id", authData.user.id);
-            
-          const roleNames = (roles ?? []).map((r: any) => r.role);
-          console.log("[Auth] Papéis identificados:", roleNames);
-
-          if (roleNames.length === 0 && authData.user.email === 'fabricio@wfdigital.com.br') {
-            console.warn("[Auth] Papel admin não encontrado para Fabricio no client-side. O bypass no Router garantirá o acesso.");
-          }
-        }
-
         navigate({ to: "/", replace: true });
+      } else if (mode === "invite") {
+        if (password.length < 8) {
+          throw new Error("A senha deve ter ao menos 8 caracteres.");
+        }
+        const { error: err } = await supabase.auth.signUp({
+          email,
+          password,
+          options: { emailRedirectTo: `${window.location.origin}/auth` },
+        });
+        if (err) throw err;
+        setInfo(
+          "Se houver um convite válido para este e-mail, enviamos as instruções de confirmação. Verifique sua caixa de entrada.",
+        );
+        setPassword("");
       } else {
         const { error: err } = await supabase.auth.resetPasswordForEmail(email, {
           redirectTo: `${window.location.origin}/reset-password`,
@@ -59,11 +54,12 @@ function AuthPage() {
         setInfo("Se este e-mail existir na equipe, enviamos um link de redefinição.");
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Falha na autenticação.");
+      setError(err instanceof Error ? err.message : "Não foi possível concluir a solicitação.");
     } finally {
       setPending(false);
     }
   }
+
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-bg-general px-4">
