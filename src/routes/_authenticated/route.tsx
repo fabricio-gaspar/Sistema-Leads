@@ -7,7 +7,7 @@ import { AppShell } from "@/components/AppShell";
 // - vendedor: somente /atendimento
 // - SDR:      /prospeccao, /leads (+detalhe) e /atendimento
 // - CX:       somente /atendimento
-const ADMIN_ONLY = ["/", "/empresa", "/configuracoes", "/diagnostico", "/relatorios", "/orcamentos", "/pedidos"];
+const ADMIN_ONLY = ["/", "/empresa", "/configuracoes", "/relatorios", "/kanban", "/funil", "/drive", "/agenda"];
 const SDR_ALLOWED = ["/prospeccao", "/leads", "/atendimento"];
 const CX_ALLOWED = ["/atendimento"];
 const VENDEDOR_ALLOWED = ["/atendimento"];
