@@ -11,7 +11,9 @@ import {
   Phone,
   Mail,
   MessageCircle,
+  MessageSquareText,
   Building2,
+
   Sparkles,
   UserCheck,
   Clock,
