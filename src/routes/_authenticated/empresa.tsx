@@ -10,11 +10,11 @@ type Tab = "dados" | "abordagem" | "apresentacao" | "documentos";
 function Empresa() {
   const [activeTab, setActiveTab] = useState<Tab>("dados");
 
-  const tabs: { id: Tab; label: string }[] = [
-    { id: "dados", label: "Dados" },
-    { id: "abordagem", label: "Abordagem" },
-    { id: "apresentacao", label: "Apresentação" },
-    { id: "documentos", label: "Documentos" },
+  const tabs: { id: Tab; label: string; icon: any }[] = [
+    { id: "dados", label: "Dados", icon: Settings },
+    { id: "abordagem", label: "Abordagem", icon: Target },
+    { id: "apresentacao", label: "Apresentação", icon: MessageSquareText },
+    { id: "documentos", label: "Documentos", icon: FileText },
   ];
 
   return (
@@ -27,19 +27,23 @@ function Empresa() {
       </div>
 
       <div className="flex gap-2 p-1 bg-bg-elev rounded-lg w-fit border border-border-card">
-        {tabs.map((tab) => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
-            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
-              activeTab === tab.id
-                ? "bg-[#00bfa5] text-white shadow-sm"
-                : "text-text-sec hover:text-text-title"
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+        {tabs.map((tab) => {
+          const Icon = tab.icon;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                activeTab === tab.id
+                  ? "bg-[#00bfa5] text-white shadow-sm"
+                  : "text-text-sec hover:text-text-title"
+              }`}
+            >
+              <Icon className="h-4 w-4" />
+              {tab.label}
+            </button>
+          );
+        })}
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
