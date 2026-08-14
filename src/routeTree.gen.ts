@@ -22,6 +22,7 @@ import { Route as AuthenticatedLeadsRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedEmpresaRouteImport } from './routes/_authenticated/empresa'
 import { Route as AuthenticatedDiagnosticoRouteImport } from './routes/_authenticated/diagnostico'
 import { Route as AuthenticatedConfiguracoesRouteImport } from './routes/_authenticated/configuracoes'
+import { Route as AuthenticatedBuscaLeadsRouteImport } from './routes/_authenticated/busca-leads'
 import { Route as AuthenticatedAtendimentoRouteImport } from './routes/_authenticated/atendimento'
 import { Route as OauthGoogleCalendarReturnRouteImport } from './routes/oauth/google-calendar/return'
 import { Route as ApiPublicZapiWebhookRouteImport } from './routes/api/public/zapi-webhook'
@@ -98,6 +99,11 @@ const AuthenticatedConfiguracoesRoute =
     path: '/configuracoes',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedBuscaLeadsRoute = AuthenticatedBuscaLeadsRouteImport.update({
+  id: '/busca-leads',
+  path: '/busca-leads',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedAtendimentoRoute =
   AuthenticatedAtendimentoRouteImport.update({
     id: '/atendimento',
@@ -148,6 +154,7 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/reset-password': typeof ResetPasswordRoute
   '/atendimento': typeof AuthenticatedAtendimentoRoute
+  '/busca-leads': typeof AuthenticatedBuscaLeadsRoute
   '/configuracoes': typeof AuthenticatedConfiguracoesRoute
   '/diagnostico': typeof AuthenticatedDiagnosticoRoute
   '/empresa': typeof AuthenticatedEmpresaRoute
@@ -169,6 +176,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/reset-password': typeof ResetPasswordRoute
   '/atendimento': typeof AuthenticatedAtendimentoRoute
+  '/busca-leads': typeof AuthenticatedBuscaLeadsRoute
   '/configuracoes': typeof AuthenticatedConfiguracoesRoute
   '/diagnostico': typeof AuthenticatedDiagnosticoRoute
   '/empresa': typeof AuthenticatedEmpresaRoute
@@ -193,6 +201,7 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/reset-password': typeof ResetPasswordRoute
   '/_authenticated/atendimento': typeof AuthenticatedAtendimentoRoute
+  '/_authenticated/busca-leads': typeof AuthenticatedBuscaLeadsRoute
   '/_authenticated/configuracoes': typeof AuthenticatedConfiguracoesRoute
   '/_authenticated/diagnostico': typeof AuthenticatedDiagnosticoRoute
   '/_authenticated/empresa': typeof AuthenticatedEmpresaRoute
@@ -218,6 +227,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/reset-password'
     | '/atendimento'
+    | '/busca-leads'
     | '/configuracoes'
     | '/diagnostico'
     | '/empresa'
@@ -239,6 +249,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/reset-password'
     | '/atendimento'
+    | '/busca-leads'
     | '/configuracoes'
     | '/diagnostico'
     | '/empresa'
@@ -262,6 +273,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/reset-password'
     | '/_authenticated/atendimento'
+    | '/_authenticated/busca-leads'
     | '/_authenticated/configuracoes'
     | '/_authenticated/diagnostico'
     | '/_authenticated/empresa'
@@ -386,6 +398,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedConfiguracoesRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
+    '/_authenticated/busca-leads': {
+      id: '/_authenticated/busca-leads'
+      path: '/busca-leads'
+      fullPath: '/busca-leads'
+      preLoaderRoute: typeof AuthenticatedBuscaLeadsRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
     '/_authenticated/atendimento': {
       id: '/_authenticated/atendimento'
       path: '/atendimento'
@@ -458,6 +477,7 @@ const AuthenticatedLeadsRouteWithChildren =
 
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedAtendimentoRoute: typeof AuthenticatedAtendimentoRoute
+  AuthenticatedBuscaLeadsRoute: typeof AuthenticatedBuscaLeadsRoute
   AuthenticatedConfiguracoesRoute: typeof AuthenticatedConfiguracoesRoute
   AuthenticatedDiagnosticoRoute: typeof AuthenticatedDiagnosticoRoute
   AuthenticatedEmpresaRoute: typeof AuthenticatedEmpresaRoute
@@ -472,6 +492,7 @@ interface AuthenticatedRouteRouteChildren {
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAtendimentoRoute: AuthenticatedAtendimentoRoute,
+  AuthenticatedBuscaLeadsRoute: AuthenticatedBuscaLeadsRoute,
   AuthenticatedConfiguracoesRoute: AuthenticatedConfiguracoesRoute,
   AuthenticatedDiagnosticoRoute: AuthenticatedDiagnosticoRoute,
   AuthenticatedEmpresaRoute: AuthenticatedEmpresaRoute,
