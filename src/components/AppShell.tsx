@@ -7,7 +7,6 @@ import {
   Users,
   MessagesSquare,
   FileText,
-  ShoppingCart,
   BarChart3,
   Settings,
   Bell,
@@ -15,12 +14,10 @@ import {
   Moon,
   Sun,
   Bot,
-  Sparkles,
-  CheckCheck,
   LogOut,
 } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { useNotifications, useNotificationsActions } from "@/hooks/use-notifications";
+import { useNotifications } from "@/hooks/use-notifications";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
 import { getSidebarCounts, globalSearch } from "@/lib/crm.functions";
@@ -41,24 +38,6 @@ const NAV = [
   { to: "/configuracoes", label: "Configurações", icon: Settings },
 ] as const;
 
-const TITLES: Record<string, string> = {
-  "/": "Dashboard",
-  "/empresa": "Empresa",
-  "/prospeccao": "Busca de Leads",
-  "/leads": "Leads",
-  "/atendimento": "Central de Atendimento",
-  "/relatorios": "Relatórios",
-  "/configuracoes": "Configurações",
-};
-
-const NOTIF_ICONS = {
-  ana: Bot,
-  lead: Users,
-  orcamento: FileText,
-  pedido: ShoppingCart,
-  sistema: Sparkles,
-} as const;
-
 export function AppShell({
   children,
   isAdmin = false,
@@ -74,28 +53,24 @@ export function AppShell({
   roles?: string[];
 }) {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const title = TITLES[pathname] ?? (pathname.startsWith("/leads/") ? "Detalhe do Lead" : "WF Digital CRM");
-
   const visibleNav = NAV.filter((item) => {
     if (isAdmin) return true;
     if (isSellerOnly || isCxOnly) return item.to === "/atendimento";
-    if (isSdrOnly) return ["/prospeccao", "/leads", "/atendimento"].includes(item.to);
+    if (isSdrOnly) return ["/prospeccao", "/leads", "/atendimento"].includes(item.to as string);
     return false;
   });
 
-  const showChrome = isAdmin;
-  const notifications = useNotifications();
-  const notifActions = useNotificationsActions();
-  const unread = notifications.filter((n) => !n.read).length;
   const theme = useTheme();
   const [notifOpen, setNotifOpen] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
+  const notifications = useNotifications();
+  const unread = notifications.filter((n) => !n.read).length;
 
   const countsFn = useServerFn(getSidebarCounts);
   const { data: counts } = useQuery({
     queryKey: ["sidebar-counts"],
     queryFn: () => countsFn(),
-    enabled: showChrome,
+    enabled: isAdmin,
     refetchInterval: 60_000,
   });
 
@@ -106,7 +81,7 @@ export function AppShell({
   const { data: searchRes } = useQuery({
     queryKey: ["global-search", searchQ],
     queryFn: () => searchFn({ data: { q: searchQ } }),
-    enabled: showChrome && searchQ.trim().length >= 2,
+    enabled: isAdmin && searchQ.trim().length >= 2,
   });
 
   useEffect(() => {
@@ -124,47 +99,34 @@ export function AppShell({
 
   return (
     <div className="flex min-h-screen w-full bg-bg-general">
-      <aside
-        className="fixed inset-y-0 left-0 flex flex-col bg-sidebar text-sidebar-foreground"
-        style={{ width: 230 }}
-      >
+      <aside className="fixed inset-y-0 left-0 flex flex-col bg-sidebar text-sidebar-foreground" style={{ width: 230 }}>
         <div className="flex h-14 items-center gap-2 px-5 border-b border-sidebar-border">
-          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-primary-foreground text-xs font-bold">
-            WF
-          </div>
+          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-primary-foreground text-xs font-bold">WF</div>
           <div className="leading-tight">
             <div className="text-sm font-semibold text-white">LeadAI</div>
             <div className="text-[11px] text-sidebar-foreground/60">CRM</div>
           </div>
         </div>
-
         <nav className="flex-1 overflow-y-auto py-3">
           {visibleNav.map((item) => {
-            const active = item.to === "/" ? pathname === "/" : pathname === item.to || pathname.startsWith(item.to + "/");
+            const active = item.to === "/" ? pathname === "/" : pathname.startsWith(item.to);
             const Icon = item.icon;
-            const badge = item.to === "/leads" ? counts?.leads : item.to === "/orcamentos" ? counts?.proposals : undefined;
+            const badge = item.to === "/leads" ? counts?.leads : undefined;
             return (
               <Link
                 key={item.to}
-                to={item.to}
+                to={item.to as any}
                 className={`mx-2 mb-0.5 flex items-center gap-2.5 rounded-md px-3 py-2 text-[13px] transition-colors ${
-                  active
-                    ? "bg-primary text-primary-foreground"
-                    : "text-sidebar-foreground/80 hover:bg-sidebar-border/60 hover:text-white"
+                  active ? "bg-primary text-primary-foreground" : "text-sidebar-foreground/80 hover:bg-sidebar-border/60 hover:text-white"
                 }`}
               >
                 <Icon className="h-4 w-4 shrink-0" />
                 <span className="flex-1">{item.label}</span>
-                {badge ? (
-                  <span className={`inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] font-semibold ${item.to === "/orcamentos" ? "bg-error text-white" : "bg-hot text-white"}`}>
-                    {badge}
-                  </span>
-                ) : null}
+                {badge && <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[10px] font-semibold bg-hot text-white">{badge}</span>}
               </Link>
             );
           })}
         </nav>
-
         <UserPanel />
       </aside>
 
@@ -175,10 +137,7 @@ export function AppShell({
               <SearchIcon className="h-4 w-4 text-text-ter" />
               <input
                 value={searchQ}
-                onChange={(e) => {
-                  setSearchQ(e.target.value);
-                  setSearchOpen(true);
-                }}
+                onChange={(e) => { setSearchQ(e.target.value); setSearchOpen(true); }}
                 onFocus={() => setSearchOpen(true)}
                 placeholder="Buscar leads, orçamentos..."
                 className="flex-1 bg-transparent text-[13px] outline-none placeholder:text-text-ter"
@@ -190,68 +149,18 @@ export function AppShell({
               </div>
             )}
           </div>
-
           <div className="flex-1" />
-
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2 rounded-full bg-ia-bg px-3 py-1 text-[11px] font-medium text-ia">
               <span className="h-1.5 w-1.5 rounded-full bg-ia animate-pulse" />
               Ana está online
             </div>
-
-            <button
-              onClick={() => themeStore.toggle()}
-              className="flex h-9 w-9 items-center justify-center rounded-md text-text-sec hover:bg-bg-general"
-            >
+            <button onClick={() => themeStore.toggle()} className="flex h-9 w-9 items-center justify-center rounded-md text-text-sec hover:bg-bg-general">
               {theme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
             </button>
-
-            {showChrome && (
-              <div className="relative" ref={notifRef}>
-                <button
-                  onClick={() => setNotifOpen((v) => !v)}
-                  className="relative flex h-9 w-9 items-center justify-center rounded-md text-text-sec hover:bg-bg-general"
-                >
-                  <Bell className="h-4 w-4" />
-                  {unread > 0 && (
-                    <span className="absolute right-1 top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-hot px-1 text-[9px] font-bold text-white">
-                      {unread}
-                    </span>
-                  )}
-                </button>
-                {notifOpen && (
-                  <div className="absolute right-0 top-11 z-40 w-[360px] overflow-hidden rounded-lg border border-border-card bg-bg-card shadow-xl">
-                    <div className="flex items-center justify-between border-b border-border-card px-3 py-2.5 text-[13px]">
-                      <span className="font-semibold">Notificações</span>
-                      <button onClick={() => notifActions.markAllRead()} className="text-primary text-[11px]">Marcar tudo como lido</button>
-                    </div>
-                    <div className="max-h-[400px] overflow-y-auto">
-                      {notifications.map((n) => {
-                        const Icon = NOTIF_ICONS[n.kind];
-                        return (
-                          <div key={n.id} className="p-3 border-b border-border-card last:border-0 flex gap-3">
-                            <div className="h-8 w-8 rounded-full bg-bg-general flex items-center justify-center shrink-0">
-                              <Icon className="h-4 w-4" />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <div className="text-[12px] font-semibold">{n.title}</div>
-                              <div className="text-[11px] text-text-sec truncate">{n.desc}</div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-semibold">
-              F
-            </div>
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-semibold">F</div>
           </div>
         </header>
-
         <main className="p-6">{children}</main>
       </div>
     </div>
@@ -263,8 +172,6 @@ function UserPanel() {
   const queryClient = useQueryClient();
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
-  const [pending, setPending] = useState(false);
-
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       if (data.user) {
@@ -273,20 +180,12 @@ function UserPanel() {
       }
     });
   }, []);
-
   async function handleSignOut() {
-    if (pending) return;
-    setPending(true);
-    try {
-      await queryClient.cancelQueries();
-      queryClient.clear();
-      await supabase.auth.signOut();
-      navigate({ to: "/auth", replace: true });
-    } finally {
-      setPending(false);
-    }
+    await queryClient.cancelQueries();
+    queryClient.clear();
+    await supabase.auth.signOut();
+    navigate({ to: "/auth", replace: true });
   }
-
   return (
     <div className="border-t border-sidebar-border p-3">
       <div className="flex items-center gap-2">
@@ -297,9 +196,7 @@ function UserPanel() {
           <div className="truncate text-[13px] text-white">{name}</div>
           <div className="truncate text-[11px] text-sidebar-foreground/60">{email}</div>
         </div>
-        <button onClick={handleSignOut} className="text-sidebar-foreground/60 hover:text-white">
-          <LogOut className="h-4 w-4" />
-        </button>
+        <button onClick={handleSignOut} className="text-sidebar-foreground/60 hover:text-white"><LogOut className="h-4 w-4" /></button>
       </div>
     </div>
   );
