@@ -1,4 +1,4 @@
-/* Execute esta instrucao no projeto: Aplique este estilo de layout em todo o sistema. */
+/* Execute esta instrucao no projeto: Analise os anexos enviados. */
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
