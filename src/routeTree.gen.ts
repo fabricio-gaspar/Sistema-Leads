@@ -14,7 +14,6 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
 import { Route as AuthenticatedRelatoriosRouteImport } from './routes/_authenticated/relatorios'
-import { Route as AuthenticatedProspeccaoRouteImport } from './routes/_authenticated/prospeccao'
 import { Route as AuthenticatedPortalVendedorRouteImport } from './routes/_authenticated/portal-vendedor'
 import { Route as AuthenticatedPedidosRouteImport } from './routes/_authenticated/pedidos'
 import { Route as AuthenticatedOrcamentosRouteImport } from './routes/_authenticated/orcamentos'
@@ -22,6 +21,7 @@ import { Route as AuthenticatedLeadsRouteImport } from './routes/_authenticated/
 import { Route as AuthenticatedEmpresaRouteImport } from './routes/_authenticated/empresa'
 import { Route as AuthenticatedDiagnosticoRouteImport } from './routes/_authenticated/diagnostico'
 import { Route as AuthenticatedConfiguracoesRouteImport } from './routes/_authenticated/configuracoes'
+import { Route as AuthenticatedBuscaLeadsRouteImport } from './routes/_authenticated/busca-leads'
 import { Route as AuthenticatedAtendimentoRouteImport } from './routes/_authenticated/atendimento'
 import { Route as OauthGoogleCalendarReturnRouteImport } from './routes/oauth/google-calendar/return'
 import { Route as ApiPublicZapiWebhookRouteImport } from './routes/api/public/zapi-webhook'
@@ -53,11 +53,6 @@ const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
 const AuthenticatedRelatoriosRoute = AuthenticatedRelatoriosRouteImport.update({
   id: '/relatorios',
   path: '/relatorios',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
-const AuthenticatedProspeccaoRoute = AuthenticatedProspeccaoRouteImport.update({
-  id: '/prospeccao',
-  path: '/prospeccao',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedPortalVendedorRoute =
@@ -98,6 +93,11 @@ const AuthenticatedConfiguracoesRoute =
     path: '/configuracoes',
     getParentRoute: () => AuthenticatedRouteRoute,
   } as any)
+const AuthenticatedBuscaLeadsRoute = AuthenticatedBuscaLeadsRouteImport.update({
+  id: '/busca-leads',
+  path: '/busca-leads',
+  getParentRoute: () => AuthenticatedRouteRoute,
+} as any)
 const AuthenticatedAtendimentoRoute =
   AuthenticatedAtendimentoRouteImport.update({
     id: '/atendimento',
@@ -148,6 +148,7 @@ export interface FileRoutesByFullPath {
   '/auth': typeof AuthRoute
   '/reset-password': typeof ResetPasswordRoute
   '/atendimento': typeof AuthenticatedAtendimentoRoute
+  '/busca-leads': typeof AuthenticatedBuscaLeadsRoute
   '/configuracoes': typeof AuthenticatedConfiguracoesRoute
   '/diagnostico': typeof AuthenticatedDiagnosticoRoute
   '/empresa': typeof AuthenticatedEmpresaRoute
@@ -155,7 +156,6 @@ export interface FileRoutesByFullPath {
   '/orcamentos': typeof AuthenticatedOrcamentosRoute
   '/pedidos': typeof AuthenticatedPedidosRoute
   '/portal-vendedor': typeof AuthenticatedPortalVendedorRoute
-  '/prospeccao': typeof AuthenticatedProspeccaoRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/leads/$id': typeof AuthenticatedLeadsIdRoute
   '/api/public/evolution-webhook': typeof ApiPublicEvolutionWebhookRoute
@@ -169,6 +169,7 @@ export interface FileRoutesByTo {
   '/auth': typeof AuthRoute
   '/reset-password': typeof ResetPasswordRoute
   '/atendimento': typeof AuthenticatedAtendimentoRoute
+  '/busca-leads': typeof AuthenticatedBuscaLeadsRoute
   '/configuracoes': typeof AuthenticatedConfiguracoesRoute
   '/diagnostico': typeof AuthenticatedDiagnosticoRoute
   '/empresa': typeof AuthenticatedEmpresaRoute
@@ -176,7 +177,6 @@ export interface FileRoutesByTo {
   '/orcamentos': typeof AuthenticatedOrcamentosRoute
   '/pedidos': typeof AuthenticatedPedidosRoute
   '/portal-vendedor': typeof AuthenticatedPortalVendedorRoute
-  '/prospeccao': typeof AuthenticatedProspeccaoRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/': typeof AuthenticatedIndexRoute
   '/leads/$id': typeof AuthenticatedLeadsIdRoute
@@ -193,6 +193,7 @@ export interface FileRoutesById {
   '/auth': typeof AuthRoute
   '/reset-password': typeof ResetPasswordRoute
   '/_authenticated/atendimento': typeof AuthenticatedAtendimentoRoute
+  '/_authenticated/busca-leads': typeof AuthenticatedBuscaLeadsRoute
   '/_authenticated/configuracoes': typeof AuthenticatedConfiguracoesRoute
   '/_authenticated/diagnostico': typeof AuthenticatedDiagnosticoRoute
   '/_authenticated/empresa': typeof AuthenticatedEmpresaRoute
@@ -200,7 +201,6 @@ export interface FileRoutesById {
   '/_authenticated/orcamentos': typeof AuthenticatedOrcamentosRoute
   '/_authenticated/pedidos': typeof AuthenticatedPedidosRoute
   '/_authenticated/portal-vendedor': typeof AuthenticatedPortalVendedorRoute
-  '/_authenticated/prospeccao': typeof AuthenticatedProspeccaoRoute
   '/_authenticated/relatorios': typeof AuthenticatedRelatoriosRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/leads/$id': typeof AuthenticatedLeadsIdRoute
@@ -218,6 +218,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/reset-password'
     | '/atendimento'
+    | '/busca-leads'
     | '/configuracoes'
     | '/diagnostico'
     | '/empresa'
@@ -225,7 +226,6 @@ export interface FileRouteTypes {
     | '/orcamentos'
     | '/pedidos'
     | '/portal-vendedor'
-    | '/prospeccao'
     | '/relatorios'
     | '/leads/$id'
     | '/api/public/evolution-webhook'
@@ -239,6 +239,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/reset-password'
     | '/atendimento'
+    | '/busca-leads'
     | '/configuracoes'
     | '/diagnostico'
     | '/empresa'
@@ -246,7 +247,6 @@ export interface FileRouteTypes {
     | '/orcamentos'
     | '/pedidos'
     | '/portal-vendedor'
-    | '/prospeccao'
     | '/relatorios'
     | '/'
     | '/leads/$id'
@@ -262,6 +262,7 @@ export interface FileRouteTypes {
     | '/auth'
     | '/reset-password'
     | '/_authenticated/atendimento'
+    | '/_authenticated/busca-leads'
     | '/_authenticated/configuracoes'
     | '/_authenticated/diagnostico'
     | '/_authenticated/empresa'
@@ -269,7 +270,6 @@ export interface FileRouteTypes {
     | '/_authenticated/orcamentos'
     | '/_authenticated/pedidos'
     | '/_authenticated/portal-vendedor'
-    | '/_authenticated/prospeccao'
     | '/_authenticated/relatorios'
     | '/_authenticated/'
     | '/_authenticated/leads/$id'
@@ -330,13 +330,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedRelatoriosRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
-    '/_authenticated/prospeccao': {
-      id: '/_authenticated/prospeccao'
-      path: '/prospeccao'
-      fullPath: '/prospeccao'
-      preLoaderRoute: typeof AuthenticatedProspeccaoRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
     '/_authenticated/portal-vendedor': {
       id: '/_authenticated/portal-vendedor'
       path: '/portal-vendedor'
@@ -384,6 +377,13 @@ declare module '@tanstack/react-router' {
       path: '/configuracoes'
       fullPath: '/configuracoes'
       preLoaderRoute: typeof AuthenticatedConfiguracoesRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/busca-leads': {
+      id: '/_authenticated/busca-leads'
+      path: '/busca-leads'
+      fullPath: '/busca-leads'
+      preLoaderRoute: typeof AuthenticatedBuscaLeadsRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/atendimento': {
@@ -458,6 +458,7 @@ const AuthenticatedLeadsRouteWithChildren =
 
 interface AuthenticatedRouteRouteChildren {
   AuthenticatedAtendimentoRoute: typeof AuthenticatedAtendimentoRoute
+  AuthenticatedBuscaLeadsRoute: typeof AuthenticatedBuscaLeadsRoute
   AuthenticatedConfiguracoesRoute: typeof AuthenticatedConfiguracoesRoute
   AuthenticatedDiagnosticoRoute: typeof AuthenticatedDiagnosticoRoute
   AuthenticatedEmpresaRoute: typeof AuthenticatedEmpresaRoute
@@ -465,13 +466,13 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedOrcamentosRoute: typeof AuthenticatedOrcamentosRoute
   AuthenticatedPedidosRoute: typeof AuthenticatedPedidosRoute
   AuthenticatedPortalVendedorRoute: typeof AuthenticatedPortalVendedorRoute
-  AuthenticatedProspeccaoRoute: typeof AuthenticatedProspeccaoRoute
   AuthenticatedRelatoriosRoute: typeof AuthenticatedRelatoriosRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
 }
 
 const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedAtendimentoRoute: AuthenticatedAtendimentoRoute,
+  AuthenticatedBuscaLeadsRoute: AuthenticatedBuscaLeadsRoute,
   AuthenticatedConfiguracoesRoute: AuthenticatedConfiguracoesRoute,
   AuthenticatedDiagnosticoRoute: AuthenticatedDiagnosticoRoute,
   AuthenticatedEmpresaRoute: AuthenticatedEmpresaRoute,
@@ -479,7 +480,6 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedOrcamentosRoute: AuthenticatedOrcamentosRoute,
   AuthenticatedPedidosRoute: AuthenticatedPedidosRoute,
   AuthenticatedPortalVendedorRoute: AuthenticatedPortalVendedorRoute,
-  AuthenticatedProspeccaoRoute: AuthenticatedProspeccaoRoute,
   AuthenticatedRelatoriosRoute: AuthenticatedRelatoriosRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
 }

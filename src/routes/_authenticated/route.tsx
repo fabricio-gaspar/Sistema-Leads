@@ -5,10 +5,10 @@ import { AppShell } from "@/components/AppShell";
 // Matriz de navegação aprovada:
 // - administrador: tudo
 // - vendedor: somente /atendimento
-// - SDR:      /prospeccao, /leads (+detalhe) e /atendimento
+// - SDR:      /busca-leads, /leads (+detalhe) e /atendimento
 // - CX:       somente /atendimento
 const ADMIN_ONLY = ["/", "/empresa", "/configuracoes", "/relatorios", "/kanban", "/funil", "/drive", "/agenda"];
-const SDR_ALLOWED = ["/prospeccao", "/leads", "/atendimento"];
+const SDR_ALLOWED = ["/busca-leads", "/leads", "/atendimento"];
 const CX_ALLOWED = ["/atendimento"];
 const VENDEDOR_ALLOWED = ["/atendimento"];
 
@@ -77,14 +77,14 @@ export const Route = createFileRoute("/_authenticated")({
       throw redirect({ to: "/atendimento" });
     }
     if (isSdrOnly && !allows(SDR_ALLOWED, path)) {
-      throw redirect({ to: "/prospeccao" });
+      throw redirect({ to: "/busca-leads" });
     }
     if (isCxOnly && !allows(CX_ALLOWED, path)) {
       throw redirect({ to: "/atendimento" });
     }
     if (!isAdmin && ADMIN_ONLY.some((p) => path === p || path.startsWith(p + "/"))) {
       // Admin-only route reached por não-admin
-      if (isSdrOnly) throw redirect({ to: "/prospeccao" });
+      if (isSdrOnly) throw redirect({ to: "/busca-leads" });
       throw redirect({ to: "/atendimento" });
     }
 

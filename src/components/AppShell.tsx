@@ -27,7 +27,7 @@ import { supabase } from "@/integrations/supabase/client";
 const NAV = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
   { to: "/empresa", label: "Empresa", icon: Building2 },
-  { to: "/prospeccao", label: "Busca de Leads", icon: Search },
+  { to: "/busca-leads", label: "Busca de Leads", icon: Search },
   { to: "/leads", label: "Leads", icon: Users },
   { to: "/atendimento", label: "Central de Atendimento", icon: MessagesSquare },
   { to: "/kanban", label: "Kanban", icon: FileText },
@@ -56,7 +56,7 @@ export function AppShell({
   const visibleNav = NAV.filter((item) => {
     if (isAdmin) return true;
     if (isSellerOnly || isCxOnly) return item.to === "/atendimento";
-    if (isSdrOnly) return ["/prospeccao", "/leads", "/atendimento"].includes(item.to as string);
+    if (isSdrOnly) return ["/busca-leads", "/leads", "/atendimento"].includes(item.to as string);
     return false;
   });
 
