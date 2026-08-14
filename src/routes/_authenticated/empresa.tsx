@@ -33,7 +33,7 @@ function Empresa() {
             onClick={() => setActiveTab(tab.id)}
             className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
               activeTab === tab.id
-                ? "bg-[#00bfa5] text-white shadow-sm" // LeadAI Teal
+                ? "bg-[#00bfa5] text-white shadow-sm"
                 : "text-text-sec hover:text-text-title"
             }`}
           >
@@ -44,10 +44,30 @@ function Empresa() {
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <div className="md:col-span-3">
-          {activeTab === "dados" && <div className="space-y-6">Dados Content</div>}
-          {activeTab === "abordagem" && <div className="space-y-6">Abordagem Content</div>}
-          {activeTab === "apresentacao" && <div className="space-y-6">Apresentação Content</div>}
-          {activeTab === "documentos" && <div className="space-y-6">Documentos Content</div>}
+          {activeTab === "dados" && (
+            <Card>
+                <SectionTitle title="Dados da Empresa" hint="Informações fundamentais sobre o negócio." />
+                <div className="text-sm text-text-sec">Campos do perfil (CNPJ, porte, etc.) aqui.</div>
+            </Card>
+          )}
+          {activeTab === "abordagem" && (
+            <Card>
+                <SectionTitle title="Abordagem e Canais" hint="Configure as sequências multicanal." />
+                <div className="text-sm text-text-sec">Canais e sequências aqui.</div>
+            </Card>
+          )}
+          {activeTab === "apresentacao" && (
+            <Card>
+                <SectionTitle title="Apresentação e Vendas" hint="Argumentos da Ana e diferenciais." />
+                <div className="text-sm text-text-sec">Apresentação institucional e argumentos aqui.</div>
+            </Card>
+          )}
+          {activeTab === "documentos" && (
+            <Card>
+                <SectionTitle title="Documentos e Base" hint="Documentos da base de conhecimento (RAG)." />
+                <div className="text-sm text-text-sec">Tabela de documentos aqui.</div>
+            </Card>
+          )}
         </div>
         <div className="md:col-span-1 space-y-6">
             <Card>
