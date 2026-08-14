@@ -240,8 +240,12 @@ function LeadDetail() {
         >
           <ArrowLeft className="h-4 w-4" />
         </Link>
-        <div>
+        <div className="flex flex-col">
           <div className="flex items-center gap-2">
+            <Link to="/leads" className="text-text-sec hover:text-text-title transition-colors">
+              Gestão de Leads
+            </Link>
+            <span className="text-text-ter">/</span>
             <h2 className="text-[16px] font-semibold text-text-title">{lead.company}</h2>
             <TempBadge t={lead.temp} score={lead.score} />
           </div>
@@ -250,6 +254,7 @@ function LeadDetail() {
             {lead.title ? ` · ${lead.title}` : ""}
           </div>
         </div>
+
 
         <div className="ml-auto flex items-center rounded-md border border-border-card bg-bg-card p-0.5">
           <button
