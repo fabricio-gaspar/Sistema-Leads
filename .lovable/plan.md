@@ -1,49 +1,35 @@
-# Plano de Implementação — Módulo Empresa (LeadAI)
+# Plano de Reconstrução da Tela Empresa — LeadAI
 
-Reconstrução da tela de Empresa baseada nas referências `empresa1-4.png` com fidelidade visual ao design LeadAI e integração com as funcionalidades reais de multi-tenant e IA.
+Este plano detalha a reconstrução da tela "Empresa" para alinhar-se visualmente à referência LeadAI (sidebar escura, primary teal) e funcionalmente aos módulos de Dados, Abordagem, Apresentação e Documentos.
 
-## Auditoria e Mapeamento
-
-| Elemento da Referência | Existe no Sistema | Ação | Arquivo |
-| :--- | :--- | :--- | :--- |
-| Sidebar & Layout | Sim | Reestilizar para LeadAI | `src/components/AppShell.tsx` |
-| Tabs (Dados, Abordagem, Apresentação, Documentos) | Não | Implementar navegação interna | `src/routes/_authenticated/empresa.tsx` |
-| Aba "Dados" (empresa1.png) | Parcial | Reestilizar cards e campos | `src/routes/_authenticated/empresa.tsx` |
-| Aba "Abordagem" (Sequências) | Parcial | Integrar com `outreach_sequences` e Z-API | `src/routes/_authenticated/empresa.tsx` |
-| Aba "Apresentação" (IA) | Parcial | Integrar com `company_settings` e `retrainAna` | `src/routes/_authenticated/empresa.tsx` |
-| Aba "Documentos" (RAG) | Sim | Reestilizar lista e upload scritp | `src/routes/_authenticated/empresa.tsx` |
-
-## Etapas de Implementação
-
-### 1. Reestruturação do Componente `Empresa`
-- Adicionar estado de `activeTab` (Dados, Abordagem, Apresentação, Documentos).
-- Implementar cabeçalho com título "Empresa" e descrição.
-- Criar navegação por abas com estilo pílula (bg-light, active: white shadow).
-
-### 2. Aba "Dados" (empresa1.png)
-- **Ramo de atividade:** Campo select para segmento.
-- **Produtos e serviços:** Tags interativas (badges) com input de adição.
-- **Diferenciais competitivos:** Tags coloridas (teal light) com input.
-- **Região e público-alvo:** Select para região e textarea para público.
-- Integrar campos com as colunas reais de `company_settings`.
-
-### 3. Aba "Abordagem" (empresa2.png)
-- **Canais de abordagem:** Lista de canais (WhatsApp, E-mail, Telefone) com status de ativação.
-- **Abordagem multicanal:** Toggle para ativar sequência automática.
-- **Pré-visualização:** Card escuro simulando mensagem no celular com variáveis dinâmicas.
-- **Mensagens personalizadas:** Editor de texto para cada canal com badges de variáveis.
-
-### 4. Aba "Apresentação" (empresa3.png)
-- **Material Institucional:** Card de status (IA treinada) com toggle de ativação.
-- **Cards de Contexto:** Resumo de serviços, Benefícios (lista com checks), Cases de sucesso (cards com métricas).
-- Integrar com o prompt da Ana e `company_settings.description`.
-
-### 5. Aba "Documentos" (empresa4.png)
-- **Tabela de Documentos:** Nome, Formato (PDF, XLSX, etc), Versão, Status (Badge: ativo, pronto, processando).
-- **Ações:** Botão flutuante "Enviar documento".
-- Manter lógica de upload para bucket `docs` com RLS por `organization_id`.
+## Objetivos
+1.  **Reestruturação Visual**: Migrar para um layout de abas (Dados, Abordagem, Apresentação, Documentos) com navegação em pílulas Teal.
+2.  **Módulo Dados**: Reutilizar `getCompanySettings` e `updateCompanySettings` para gerenciar informações básicas (CNPJ, Porte, Segmento).
+3.  **Módulo Abordagem**: Integrar configurações de canais (WhatsApp, E-mail, Telefone) e orquestração de sequências multicanal.
+4.  **Módulo Apresentação**: Centralizar argumentos de vendas, diferenciais e casos de sucesso que alimentam a base da Ana.
+5.  **Módulo Documentos**: Melhorar o gerenciamento de documentos RAG (PDF, DOCX, TXT) com status de processamento e isolamento por tenant.
+6.  **UX LeadAI**: Aplicar o tema escuro na sidebar e o tom teal (`oklch(70% 0.15 170)`) em botões de ação e estados ativos.
 
 ## Detalhes Técnicos
-- Utilizar `useMutation` para salvamento em tempo real ou botão global de "Salvar".
-- Aplicar tokens de cor teal (`oklch(70% 0.15 170)`) e backgrounds LeadAI.
-- Garantir que as chamadas RPC (`current_org_id`) tratem erros corretamente conforme correção P0 anterior.
+
+### 1. Interface de Abas
+- Utilizar `framer-motion` para transições suaves entre abas.
+- Barra de navegação customizada com indicadores de estado "Ativo" em Teal.
+
+### 2. Integração de Dados
+- **Dados**: Persistência na tabela `company_settings`.
+- **Abordagem**: Utilizar `outreach_sequences` e `integrations` para exibir o status real dos canais.
+- **Documentos**: Refinar o componente `DocumentosCard` para suportar o fluxo de upload para `<organizationId>/<arquivo>` no bucket `docs`.
+
+### 3. Segurança e RLS
+- Garantir que todas as chamadas `rpc("current_org_id")` sejam tratadas corretamente.
+- Manter o uso de `assertAdmin` para proteger ações de escrita.
+
+## Cronograma de Implementação
+- **Fase 1**: Refatoração da estrutura base (Abas e Navegação).
+- **Fase 2**: Reimplementação das sub-telas (Dados e Apresentação).
+- **Fase 3**: Integração do novo fluxo de Abordagem (Sequências).
+- **Fase 4**: Polimento visual e validação de permissões (has_role).
+
+---
+*Nota: Todas as funcionalidades mockadas serão mantidas em modo Sandbox até a conexão real ser explicitamente ativada.*
