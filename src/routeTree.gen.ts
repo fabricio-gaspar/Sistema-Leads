@@ -14,7 +14,6 @@ import { Route as AuthRouteImport } from './routes/auth'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
 import { Route as AuthenticatedRelatoriosRouteImport } from './routes/_authenticated/relatorios'
-import { Route as AuthenticatedProspeccaoRouteImport } from './routes/_authenticated/prospeccao'
 import { Route as AuthenticatedPortalVendedorRouteImport } from './routes/_authenticated/portal-vendedor'
 import { Route as AuthenticatedPedidosRouteImport } from './routes/_authenticated/pedidos'
 import { Route as AuthenticatedOrcamentosRouteImport } from './routes/_authenticated/orcamentos'
@@ -54,11 +53,6 @@ const AuthenticatedIndexRoute = AuthenticatedIndexRouteImport.update({
 const AuthenticatedRelatoriosRoute = AuthenticatedRelatoriosRouteImport.update({
   id: '/relatorios',
   path: '/relatorios',
-  getParentRoute: () => AuthenticatedRouteRoute,
-} as any)
-const AuthenticatedProspeccaoRoute = AuthenticatedProspeccaoRouteImport.update({
-  id: '/prospeccao',
-  path: '/prospeccao',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
 const AuthenticatedPortalVendedorRoute =
@@ -162,7 +156,6 @@ export interface FileRoutesByFullPath {
   '/orcamentos': typeof AuthenticatedOrcamentosRoute
   '/pedidos': typeof AuthenticatedPedidosRoute
   '/portal-vendedor': typeof AuthenticatedPortalVendedorRoute
-  '/prospeccao': typeof AuthenticatedProspeccaoRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/leads/$id': typeof AuthenticatedLeadsIdRoute
   '/api/public/evolution-webhook': typeof ApiPublicEvolutionWebhookRoute
@@ -184,7 +177,6 @@ export interface FileRoutesByTo {
   '/orcamentos': typeof AuthenticatedOrcamentosRoute
   '/pedidos': typeof AuthenticatedPedidosRoute
   '/portal-vendedor': typeof AuthenticatedPortalVendedorRoute
-  '/prospeccao': typeof AuthenticatedProspeccaoRoute
   '/relatorios': typeof AuthenticatedRelatoriosRoute
   '/': typeof AuthenticatedIndexRoute
   '/leads/$id': typeof AuthenticatedLeadsIdRoute
@@ -209,7 +201,6 @@ export interface FileRoutesById {
   '/_authenticated/orcamentos': typeof AuthenticatedOrcamentosRoute
   '/_authenticated/pedidos': typeof AuthenticatedPedidosRoute
   '/_authenticated/portal-vendedor': typeof AuthenticatedPortalVendedorRoute
-  '/_authenticated/prospeccao': typeof AuthenticatedProspeccaoRoute
   '/_authenticated/relatorios': typeof AuthenticatedRelatoriosRoute
   '/_authenticated/': typeof AuthenticatedIndexRoute
   '/_authenticated/leads/$id': typeof AuthenticatedLeadsIdRoute
@@ -235,7 +226,6 @@ export interface FileRouteTypes {
     | '/orcamentos'
     | '/pedidos'
     | '/portal-vendedor'
-    | '/prospeccao'
     | '/relatorios'
     | '/leads/$id'
     | '/api/public/evolution-webhook'
@@ -257,7 +247,6 @@ export interface FileRouteTypes {
     | '/orcamentos'
     | '/pedidos'
     | '/portal-vendedor'
-    | '/prospeccao'
     | '/relatorios'
     | '/'
     | '/leads/$id'
@@ -281,7 +270,6 @@ export interface FileRouteTypes {
     | '/_authenticated/orcamentos'
     | '/_authenticated/pedidos'
     | '/_authenticated/portal-vendedor'
-    | '/_authenticated/prospeccao'
     | '/_authenticated/relatorios'
     | '/_authenticated/'
     | '/_authenticated/leads/$id'
@@ -340,13 +328,6 @@ declare module '@tanstack/react-router' {
       path: '/relatorios'
       fullPath: '/relatorios'
       preLoaderRoute: typeof AuthenticatedRelatoriosRouteImport
-      parentRoute: typeof AuthenticatedRouteRoute
-    }
-    '/_authenticated/prospeccao': {
-      id: '/_authenticated/prospeccao'
-      path: '/prospeccao'
-      fullPath: '/prospeccao'
-      preLoaderRoute: typeof AuthenticatedProspeccaoRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/portal-vendedor': {
@@ -485,7 +466,6 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedOrcamentosRoute: typeof AuthenticatedOrcamentosRoute
   AuthenticatedPedidosRoute: typeof AuthenticatedPedidosRoute
   AuthenticatedPortalVendedorRoute: typeof AuthenticatedPortalVendedorRoute
-  AuthenticatedProspeccaoRoute: typeof AuthenticatedProspeccaoRoute
   AuthenticatedRelatoriosRoute: typeof AuthenticatedRelatoriosRoute
   AuthenticatedIndexRoute: typeof AuthenticatedIndexRoute
 }
@@ -500,7 +480,6 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedOrcamentosRoute: AuthenticatedOrcamentosRoute,
   AuthenticatedPedidosRoute: AuthenticatedPedidosRoute,
   AuthenticatedPortalVendedorRoute: AuthenticatedPortalVendedorRoute,
-  AuthenticatedProspeccaoRoute: AuthenticatedProspeccaoRoute,
   AuthenticatedRelatoriosRoute: AuthenticatedRelatoriosRoute,
   AuthenticatedIndexRoute: AuthenticatedIndexRoute,
 }
