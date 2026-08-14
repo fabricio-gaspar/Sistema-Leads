@@ -30,14 +30,15 @@ import { supabase } from "@/integrations/supabase/client";
 
 const NAV = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/empresa", label: "Minha Empresa", icon: Building2 },
-  { to: "/prospeccao", label: "Prospecção", icon: Search },
+  { to: "/empresa", label: "Empresa", icon: Building2 },
+  { to: "/prospeccao", label: "Busca de Leads", icon: Search },
   { to: "/leads", label: "Leads", icon: Users },
   { to: "/atendimento", label: "Central de Atendimento", icon: MessagesSquare },
-  { to: "/orcamentos", label: "Orçamentos", icon: FileText },
-  { to: "/pedidos", label: "Pedidos", icon: ShoppingCart },
+  { to: "/kanban", label: "Kanban", icon: FileText },
+  { to: "/funil", label: "Funil", icon: BarChart3 },
+  { to: "/drive", label: "Midia Drive", icon: FileText },
   { to: "/relatorios", label: "Relatórios", icon: BarChart3 },
-  { to: "/diagnostico", label: "Diagnóstico", icon: ShieldAlert },
+  { to: "/agenda", label: "Agenda", icon: Settings },
   { to: "/configuracoes", label: "Configurações", icon: Settings },
 ] as const;
 
@@ -195,9 +196,31 @@ export function AppShell({
 
       <div className="flex-1" style={{ marginLeft: 230 }}>
         <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b border-border-card bg-bg-card px-6">
-          <h1 className="text-[15px] font-semibold text-text-title">{title}</h1>
+          <div className="flex-1 max-w-md relative" ref={searchRef}>
+            <div className="flex h-9 items-center gap-2 rounded-md border border-border-card bg-bg-general px-3">
+              <SearchIcon className="h-4 w-4 text-text-ter" />
+              <input
+                value={searchQ}
+                onChange={(e) => {
+                  setSearchQ(e.target.value);
+                  setSearchOpen(true);
+                }}
+                onFocus={() => setSearchOpen(true)}
+                placeholder="Buscar leads, orçamentos..."
+                className="flex-1 bg-transparent text-[13px] outline-none placeholder:text-text-ter"
+              />
+            </div>
+          </div>
 
-          {showChrome && <div className="ml-6 flex-1 max-w-md relative" ref={searchRef}>
+          <div className="flex-1" />
+
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 rounded-full bg-ia-bg px-3 py-1 text-[11px] font-medium text-ia">
+              <span className="h-1.5 w-1.5 rounded-full bg-ia animate-pulse" />
+              Ana está online
+            </div>
+          </div>
+
             <div className="flex h-9 items-center gap-2 rounded-md border border-border-card bg-bg-general px-3">
               <SearchIcon className="h-4 w-4 text-text-ter" />
               <input
