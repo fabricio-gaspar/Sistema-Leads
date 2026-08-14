@@ -1,4 +1,4 @@
-/* Execute esta instrucao no projeto: Consegui analisar este link e ver tudo o que ele tem?\n\nhttps://readdy.cc/preview/b65aaadd-0872-4918-8dfb-8a9a3f1ce0b9/13018043/dashboard */
+/* Execute esta instrucao no projeto: Aplique este estilo de layout em todo o sistema. */
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
