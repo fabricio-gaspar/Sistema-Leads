@@ -11,7 +11,9 @@ import {
   Phone,
   Mail,
   MessageCircle,
+  MessageSquareText,
   Building2,
+
   Sparkles,
   UserCheck,
   Clock,
@@ -240,8 +242,12 @@ function LeadDetail() {
         >
           <ArrowLeft className="h-4 w-4" />
         </Link>
-        <div>
+        <div className="flex flex-col">
           <div className="flex items-center gap-2">
+            <Link to="/leads" className="text-text-sec hover:text-text-title transition-colors">
+              Gestão de Leads
+            </Link>
+            <span className="text-text-ter">/</span>
             <h2 className="text-[16px] font-semibold text-text-title">{lead.company}</h2>
             <TempBadge t={lead.temp} score={lead.score} />
           </div>
@@ -250,6 +256,7 @@ function LeadDetail() {
             {lead.title ? ` · ${lead.title}` : ""}
           </div>
         </div>
+
 
         <div className="ml-auto flex items-center rounded-md border border-border-card bg-bg-card p-0.5">
           <button
@@ -352,26 +359,40 @@ function LeadDetail() {
           </Card>
         </div>
 
-        <div className="flex h-[70vh] flex-col overflow-hidden rounded-lg border border-border-card bg-bg-card">
-          <div className="flex items-center justify-between border-b border-border-card px-4 py-2.5">
-            <div className="text-[13px] font-semibold text-text-title">WhatsApp · {lead.whatsapp ?? lead.phone ?? "—"}</div>
+        <div className="flex h-[75vh] flex-col overflow-hidden rounded-lg border border-border-card bg-bg-card shadow-sm">
+          <div className="flex items-center justify-between border-b border-border-card px-4 py-3 bg-bg-elev/30">
+            <div className="flex items-center gap-3">
+              <div className="h-8 w-8 rounded-full bg-green-500/10 flex items-center justify-center">
+                <MessageCircle className="h-4 w-4 text-green-500" />
+              </div>
+              <div className="flex flex-col">
+                <span className="text-[13px] font-semibold text-text-title">WhatsApp Business</span>
+                <span className="text-[11px] text-text-sec">{lead.whatsapp || lead.phone || "Sem número"}</span>
+              </div>
+            </div>
             <div
-              className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${
-                mode === "ia" ? "bg-ia-bg text-ia" : "bg-primary-light text-primary"
+              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-semibold ${
+                mode === "ia" ? "bg-ia-bg text-ia border border-ia/20" : "bg-primary/10 text-primary border border-primary/20"
               }`}
             >
-              {mode === "ia" ? <Bot className="h-3 w-3" /> : <UserIcon className="h-3 w-3" />}
-              {mode === "ia" ? "Ana respondendo" : "Vendedor no controle"}
+              {mode === "ia" ? <Bot className="h-3.5 w-3.5" /> : <UserIcon className="h-3.5 w-3.5" />}
+              {mode === "ia" ? "Ana está online" : "Humano no controle"}
             </div>
           </div>
 
-          <div ref={scrollRef} className="flex-1 space-y-3 overflow-y-auto bg-bg-general p-4">
+          <div ref={scrollRef} className="flex-1 space-y-4 overflow-y-auto bg-bg-general/50 p-6">
             {msgsQ.isLoading && (
-              <div className="mt-10 text-center text-[12px] text-text-ter">Carregando conversa…</div>
+              <div className="flex flex-col items-center justify-center h-full gap-2 text-text-ter">
+                <Loader2 className="h-6 w-6 animate-spin" />
+                <span className="text-[13px]">Carregando histórico...</span>
+              </div>
             )}
-            {msgsQ.data?.length === 0 && (
-              <div className="mt-10 text-center text-[12px] text-text-ter">
-                Nenhuma conversa ainda — envie a primeira mensagem.
+            {msgsQ.data?.length === 0 && !msgsQ.isLoading && (
+              <div className="flex flex-col items-center justify-center h-full gap-3 text-text-ter px-8 text-center">
+                <div className="h-12 w-12 rounded-full bg-bg-elev flex items-center justify-center">
+                  <MessageSquareText className="h-6 w-6" />
+                </div>
+                <p className="text-[13px]">Inicie a prospecção enviando uma mensagem ou ativando a Ana.</p>
               </div>
             )}
             {msgsQ.data?.map((m: any) => {
@@ -379,23 +400,24 @@ function LeadDetail() {
               return (
                 <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
                   <div
-                    className={`max-w-[75%] rounded-lg px-3 py-2 text-[13px] shadow-sm ${
+                    className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-[13px] shadow-sm relative ${
                       m.sender === "client"
-                        ? "bg-bg-card text-text-body"
+                        ? "bg-bg-card text-text-body border border-border-card rounded-tl-none"
                         : m.sender === "ia"
-                          ? "bg-ia text-white"
-                          : "bg-primary text-primary-foreground"
+                          ? "bg-teal-600 text-white rounded-tr-none"
+                          : "bg-primary text-primary-foreground rounded-tr-none"
                     }`}
                   >
                     {mine && (
-                      <div className="mb-0.5 flex items-center gap-1 text-[10px] opacity-80">
+                      <div className="mb-1 flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider opacity-80">
                         {m.sender === "ia" ? <Bot className="h-3 w-3" /> : <UserIcon className="h-3 w-3" />}
                         {m.sender_name}
                       </div>
                     )}
-                    <div className="whitespace-pre-wrap">{m.text}</div>
-                    <div className={`mt-1 text-right text-[10px] ${mine ? "opacity-70" : "text-text-ter"}`}>
+                    <div className="whitespace-pre-wrap leading-relaxed">{m.text}</div>
+                    <div className={`mt-1.5 flex items-center justify-end gap-1 text-[9px] ${mine ? "opacity-70" : "text-text-ter"}`}>
                       {new Date(m.sent_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                      {mine && <CheckCheck className="h-3 w-3" />}
                     </div>
                   </div>
                 </div>
@@ -403,8 +425,8 @@ function LeadDetail() {
             })}
           </div>
 
-          <div className="border-t border-border-card p-3">
-            <div className="flex items-end gap-2">
+          <div className="border-t border-border-card p-4 bg-bg-card">
+            <div className="flex items-end gap-3 bg-bg-general rounded-xl border border-border-card p-2 focus-within:border-primary/50 transition-colors">
               <textarea
                 value={text}
                 onChange={(e) => setText(e.target.value)}
@@ -414,21 +436,21 @@ function LeadDetail() {
                     send();
                   }
                 }}
-                rows={2}
-                placeholder={mode === "ia" ? "Instrua a Ana (ex.: responder objeção de preço)…" : "Digite sua mensagem…"}
-                className="flex-1 resize-none rounded-md border border-border-card bg-bg-card px-3 py-2 text-[13px] outline-none focus:border-primary"
+                rows={1}
+                placeholder={mode === "ia" ? "Dê um comando para a Ana..." : "Escreva sua mensagem aqui..."}
+                className="flex-1 min-h-[40px] max-h-[120px] resize-none bg-transparent px-2 py-2 text-[13px] outline-none placeholder:text-text-ter"
               />
               <button
                 onClick={send}
-                disabled={sendMut.isPending}
-                className="inline-flex h-10 items-center gap-1.5 rounded-md bg-primary px-4 text-[13px] font-medium text-primary-foreground hover:bg-primary-hover disabled:opacity-50"
+                disabled={sendMut.isPending || !text.trim()}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-[#00bfa5] text-white hover:bg-[#00a690] disabled:opacity-50 disabled:grayscale transition-all shadow-sm"
               >
                 {sendMut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                Enviar
               </button>
             </div>
           </div>
         </div>
+
 
         <div className="space-y-4">
           <ContactChannelsCard lead={lead} />
