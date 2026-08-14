@@ -2329,6 +2329,7 @@ export type Database = {
           id: string
           kind: string
           link: string | null
+          organization_id: string
           read: boolean
           title: string
           user_id: string
@@ -2339,6 +2340,7 @@ export type Database = {
           id?: string
           kind?: string
           link?: string | null
+          organization_id?: string
           read?: boolean
           title: string
           user_id: string
@@ -2349,6 +2351,7 @@ export type Database = {
           id?: string
           kind?: string
           link?: string | null
+          organization_id?: string
           read?: boolean
           title?: string
           user_id?: string
