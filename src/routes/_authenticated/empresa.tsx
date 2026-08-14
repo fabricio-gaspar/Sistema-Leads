@@ -352,7 +352,7 @@ function DocumentosCard() {
       }
 
       // O bucket `docs` é privado e as policies exigem o prefixo <organizationId>/.
-      const { data: orgId, error: orgErr } = await supabase.rpc("current_org_id");
+      const { data: orgId, error: orgErr } = await supabase.rpc("current_org_id").then(res => res as any);
       if (orgErr) throw orgErr;
       if (!orgId) throw new Error("Organização ativa não encontrada para este usuário.");
 

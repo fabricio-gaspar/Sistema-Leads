@@ -130,11 +130,14 @@ export const requireSupabaseAuth = createMiddleware({ type: 'function' }).server
 
     // Inject organization isolation at the database session level (optional but safe)
     if (orgId) {
-      await (supabase as any).rpc('set_config', {
+      const rpc = (supabase as any).rpc('set_config', {
         name: 'app.current_organization_id',
         value: orgId,
         is_local: true
-      }).catch(() => {});
+      });
+      if (rpc && typeof rpc.catch === 'function') {
+        await rpc.catch(() => {});
+      }
     }
 
     return next({
