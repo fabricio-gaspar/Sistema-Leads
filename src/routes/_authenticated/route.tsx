@@ -5,10 +5,10 @@ import { AppShell } from "@/components/AppShell";
 // Matriz de navegação aprovada:
 // - administrador: tudo
 // - vendedor: somente /atendimento
-// - SDR:      /prospeccao, /leads (+detalhe) e /atendimento
+// - SDR:      /busca-leads, /leads (+detalhe) e /atendimento
 // - CX:       somente /atendimento
 const ADMIN_ONLY = ["/", "/empresa", "/configuracoes", "/relatorios", "/kanban", "/funil", "/drive", "/agenda"];
-const SDR_ALLOWED = ["/prospeccao", "/leads", "/atendimento"];
+const SDR_ALLOWED = ["/busca-leads", "/leads", "/atendimento"];
 const CX_ALLOWED = ["/atendimento"];
 const VENDEDOR_ALLOWED = ["/atendimento"];
 
