@@ -1,22 +1,13 @@
 /* Execute esta instrucao no projeto: Analise os anexos enviados. */
-import { createFileRoute, Link } from "@tanstack/react-router";
-import { useQuery } from "@tanstack/react-query";
-import { useServerFn } from "@tanstack/react-start";
-import { Users, MessagesSquare, FileText, ShoppingCart, TrendingUp, Bot, Flame, Loader2 } from "lucide-react";
-import { Card, SectionTitle } from "@/components/ui-kit";
-import { formatBRL } from "@/lib/leads-data";
-import { getDashboardStats } from "@/lib/crm.functions";
+import { createFileRoute } from "@tanstack/react-router";
+import { Users, Bot, ShoppingCart } from "lucide-react";
+import { Card, StatCard } from "@/components/ui-kit";
 
 export const Route = createFileRoute("/_authenticated/")({
   component: Dashboard,
 });
 
 function Dashboard() {
-  const fn = useServerFn(getDashboardStats);
-  const { data, isLoading } = useQuery({ queryKey: ["dashboard-stats"], queryFn: () => fn() });
-
-  const val = (v?: number) => (v == null ? "—" : String(v));
-
   return (
     <div className="space-y-6">
       <div>
@@ -133,7 +124,9 @@ function Dashboard() {
                 <td className="px-4 py-3">João Silva</td>
                 <td className="px-4 py-3">Empresa A</td>
                 <td className="px-4 py-3">São Paulo</td>
-                <td className="px-4 py-3"><span className="px-2 py-0.5 rounded-full bg-success-bg text-success text-[10px] font-medium">Novo</span></td>
+                <td className="px-4 py-3">
+                  <span className="px-2 py-0.5 rounded-full bg-success-bg text-success text-[10px] font-medium">Novo</span>
+                </td>
               </tr>
             </tbody>
           </table>
@@ -154,52 +147,5 @@ function Indicator({ label, value, color }: { label: string; value: string; colo
         <div className={`h-full ${color}`} style={{ width: value }} />
       </div>
     </div>
-  );
-}
-
-import { StatCard } from "@/components/ui-kit";
-
-  );
-}
-
-function StatCard({
-  icon: Icon,
-  label,
-  value,
-  hint,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  value: string;
-  hint?: string;
-}) {
-  return (
-    <Card>
-      <div className="flex items-center justify-between">
-        <div className="text-[11px] uppercase text-text-ter">{label}</div>
-        <Icon className="h-4 w-4 text-text-sec" />
-      </div>
-      <div className="mt-1 text-[24px] font-semibold text-text-title">{value}</div>
-      {hint && <div className="text-[11px] text-text-sec">{hint}</div>}
-    </Card>
-  );
-}
-
-function QuickLink({
-  to,
-  icon: Icon,
-  label,
-}: {
-  to: string;
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-}) {
-  return (
-    <Link
-      to={to}
-      className="flex items-center gap-2 rounded-md border border-border-card px-3 py-2 text-[13px] text-text-body hover:bg-bg-general"
-    >
-      <Icon className="h-4 w-4 text-primary" /> {label}
-    </Link>
   );
 }
