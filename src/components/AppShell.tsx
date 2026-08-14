@@ -56,7 +56,7 @@ export function AppShell({
   const visibleNav = NAV.filter((item) => {
     if (isAdmin) return true;
     if (isSellerOnly || isCxOnly) return item.to === "/atendimento";
-    if (isSdrOnly) return ["/prospeccao", "/leads", "/atendimento"].includes(item.to as string);
+    if (isSdrOnly) return ["/busca-leads", "/leads", "/atendimento"].includes(item.to as string);
     return false;
   });
 
