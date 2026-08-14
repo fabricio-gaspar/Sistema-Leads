@@ -77,14 +77,14 @@ export const Route = createFileRoute("/_authenticated")({
       throw redirect({ to: "/atendimento" });
     }
     if (isSdrOnly && !allows(SDR_ALLOWED, path)) {
-      throw redirect({ to: "/prospeccao" });
+      throw redirect({ to: "/busca-leads" });
     }
     if (isCxOnly && !allows(CX_ALLOWED, path)) {
       throw redirect({ to: "/atendimento" });
     }
     if (!isAdmin && ADMIN_ONLY.some((p) => path === p || path.startsWith(p + "/"))) {
       // Admin-only route reached por não-admin
-      if (isSdrOnly) throw redirect({ to: "/prospeccao" });
+      if (isSdrOnly) throw redirect({ to: "/busca-leads" });
       throw redirect({ to: "/atendimento" });
     }
 
