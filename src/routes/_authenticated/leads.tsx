@@ -27,7 +27,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { TempBadge } from "./leads";
+
+export function TempBadge({ t, score }: { t: "hot" | "warm" | "cold"; score?: number }) {
+  const map = {
+    hot: { Icon: Flame, cls: "bg-hot-bg text-hot", label: "Hot" },
+    warm: { Icon: Thermometer, cls: "bg-warm-bg text-warm", label: "Warm" },
+    cold: { Icon: Snowflake, cls: "bg-cold-bg text-cold", label: "Cold" },
+  } as const;
+  const { Icon, cls, label } = map[t];
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${cls}`}>
+      <Icon className="h-3 w-3" />
+      {score ?? label}
+    </span>
+  );
+}
+
 
 type Stage = Database["public"]["Enums"]["lead_stage"];
 const STAGES: Stage[] = ["Prospecção", "Qualificado", "Proposta", "Negociação", "Pedido", "Fechado", "Perdido"];
