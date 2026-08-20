@@ -706,9 +706,19 @@ function buildAutoName(f: Filters, count: number): string {
 export const importExternalAsLead = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) =>
-    z.object({ cache_id: z.string().uuid(), cnpj: z.string().min(3) }).parse(d),
+    z.object({ cache_id: z.string().uuid(), cnpj: z.string().min(3), auto_start: z.boolean().optional() }).parse(d),
   )
-  .handler(async ({ data, context }) => {
+  .handler(async ({ data, context }) => importExternalAsLeadInternal(context as never, data))
+
+/**
+ * Importa um prospecto do cache como lead. Não inicia contato por padrão:
+ * a abordagem (Ana ou equipe) é decidida no modal de Busca de Leads.
+ */
+export async function importExternalAsLeadInternal(
+  context: any,
+  data: { cache_id: string; cnpj: string; auto_start?: boolean },
+) {
+  {
     const ctx = context;
     const { data: cache } = await (context.supabase as any).from('prospecting_cache')
       .select('results')
@@ -822,16 +832,20 @@ export const importExternalAsLead = createServerFn({ method: 'POST' })
       detail: `Importado de ${company.source}: ${company.razao_social}`,
     } as never)
 
-    // Ana inicia a cadência automática (WhatsApp → E-mail → Ligação)
-    try {
-      const { triggerOutreachInternal } = await import('./outreach.functions')
-      await triggerOutreachInternal(context as never, row.id as string)
-    } catch (err) {
-      console.error('Ana outreach start failed:', err)
+    if (data.auto_start) {
+      try {
+        const { triggerOutreachInternal } = await import('./outreach.functions')
+        await triggerOutreachInternal(context as never, row.id as string)
+        const { markFirstOutreach } = await import('./lead-flow-db')
+        await markFirstOutreach((context as any).supabase, row.id as string)
+      } catch (err) {
+        console.error('Ana outreach start failed:', err)
+      }
     }
 
     return row
-  })
+  }
+}
 
 
 

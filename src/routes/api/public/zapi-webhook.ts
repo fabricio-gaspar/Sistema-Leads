@@ -208,6 +208,12 @@ export const Route = createFileRoute('/api/public/zapi-webhook')({
           }
           await (supabaseAdmin as any).from('leads').update(patch as any).eq('id', (lead as any).id)
 
+          // Fluxo de Leads: primeira resposta abre a conversa e cancela o timeout.
+          {
+            const { markInboundReceived } = await import('@/lib/lead-flow-db')
+            await markInboundReceived(supabaseAdmin as any, (lead as any).id)
+          }
+
           if (optOut) {
             const { suppressLeadContactsInternal } = await import('@/lib/outreach.functions')
             const actorId = (lead as any).assigned_to || (lead as any).owner_id

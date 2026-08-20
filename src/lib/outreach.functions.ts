@@ -1,4 +1,5 @@
 import { createServerFn } from '@tanstack/react-start'
+import { markFirstOutreach, markInboundReceived } from './lead-flow-db'
 import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware'
 import { z } from 'zod'
 import { cancelEnrollmentInternal } from './outreach-sequences.functions'
@@ -163,7 +164,7 @@ function stepAllowsContinue(step: SequenceStep, status: 'failed' | 'skipped') {
   return Array.isArray(step.continue_on) && step.continue_on.includes(status)
 }
 
-function renderTemplate(template: string, lead: any): string {
+export function renderTemplate(template: string, lead: any): string {
   return template
     .replaceAll('{{company}}', String(lead.company ?? ''))
     .replaceAll('{{contact}}', String(lead.contact ?? ''))
@@ -284,7 +285,7 @@ async function audit(
 // Ana copywriting (Claude)
 // ============================================================================
 
-async function generateOutreachMessage(
+export async function generateOutreachMessage(
   ctx: Ctx,
   lead: any,
   channel: Channel,
@@ -560,6 +561,7 @@ async function tryStep(ctx: Ctx, lead: any, step: SequenceStep): Promise<void> {
         run_at: runAt,
       })
       await patchEnrollmentInternal((ctx.supabase as any), lead.id, { next_run_at: runAt, last_error: null })
+      await markFirstOutreach((ctx.supabase as any), lead.id)
       await audit(ctx, 'outreach_whatsapp_sent', `Ana enviou WhatsApp para ${lead.company} (tent. ${attempt})`)
       return
     }
@@ -616,6 +618,7 @@ async function tryStep(ctx: Ctx, lead: any, step: SequenceStep): Promise<void> {
         run_at: runAt,
       })
       await patchEnrollmentInternal((ctx.supabase as any), lead.id, { next_run_at: runAt, last_error: null })
+      await markFirstOutreach((ctx.supabase as any), lead.id)
       await audit(ctx, 'outreach_email_sent', `Ana enviou e-mail para ${lead.company} (tent. ${attempt})`)
       return
     }
@@ -930,6 +933,8 @@ export async function handleInboundWithAiInternal(
   userText: string,
   delivery: InboundDelivery = {},
 ) {
+  // Resposta recebida: abre a conversa na Central e encerra o prazo de "sem resposta".
+  await markInboundReceived((ctx.supabase as any), leadId)
   const lead = await loadLead(ctx, leadId)
   if (lead.opt_out || lead.ai_paused) return { ok: false, action: 'ignored' as const }
   const apiKey = process.env.ANTHROPIC_API_KEY

@@ -624,13 +624,18 @@ export type Database = {
           id: string
           lead_id: string
           organization_id: string
+          outcome: string | null
           provider: string | null
           recording_consent: boolean
           recording_url: string | null
+          sentiment: string | null
           started_at: string | null
           status: string
+          summary: string | null
           ticket_id: string | null
           transcript: string | null
+          transferred_to_human: boolean
+          webhook_received_at: string | null
         }
         Insert: {
           created_at?: string
@@ -642,13 +647,18 @@ export type Database = {
           id?: string
           lead_id: string
           organization_id?: string
+          outcome?: string | null
           provider?: string | null
           recording_consent?: boolean
           recording_url?: string | null
+          sentiment?: string | null
           started_at?: string | null
           status?: string
+          summary?: string | null
           ticket_id?: string | null
           transcript?: string | null
+          transferred_to_human?: boolean
+          webhook_received_at?: string | null
         }
         Update: {
           created_at?: string
@@ -660,13 +670,18 @@ export type Database = {
           id?: string
           lead_id?: string
           organization_id?: string
+          outcome?: string | null
           provider?: string | null
           recording_consent?: boolean
           recording_url?: string | null
+          sentiment?: string | null
           started_at?: string | null
           status?: string
+          summary?: string | null
           ticket_id?: string | null
           transcript?: string | null
+          transferred_to_human?: boolean
+          webhook_received_at?: string | null
         }
         Relationships: [
           {
@@ -775,6 +790,7 @@ export type Database = {
           handoff_readiness_score: number | null
           handoff_sla_minutes: number | null
           id: string
+          lead_flow: Json
           logo_url: string | null
           name: string | null
           nurture_days: number | null
@@ -820,6 +836,7 @@ export type Database = {
           handoff_readiness_score?: number | null
           handoff_sla_minutes?: number | null
           id?: string
+          lead_flow?: Json
           logo_url?: string | null
           name?: string | null
           nurture_days?: number | null
@@ -865,6 +882,7 @@ export type Database = {
           handoff_readiness_score?: number | null
           handoff_sla_minutes?: number | null
           id?: string
+          lead_flow?: Json
           logo_url?: string | null
           name?: string | null
           nurture_days?: number | null
@@ -1066,6 +1084,254 @@ export type Database = {
             columns: ["organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      crm_accounts: {
+        Row: {
+          annual_revenue: string | null
+          assigned_to: string | null
+          city: string | null
+          cnae: string | null
+          cnpj: string | null
+          country: string
+          created_at: string
+          created_by: string | null
+          domain: string | null
+          email: string | null
+          enriched_at: string | null
+          enrichment_confidence: number | null
+          id: string
+          identity_key: string
+          legal_name: string
+          organization_id: string
+          owner_id: string | null
+          phone: string | null
+          segment: string | null
+          size: string | null
+          source: string | null
+          source_metadata: Json
+          source_url: string | null
+          state: string | null
+          status: string
+          trade_name: string | null
+          updated_at: string
+          website: string | null
+        }
+        Insert: {
+          annual_revenue?: string | null
+          assigned_to?: string | null
+          city?: string | null
+          cnae?: string | null
+          cnpj?: string | null
+          country?: string
+          created_at?: string
+          created_by?: string | null
+          domain?: string | null
+          email?: string | null
+          enriched_at?: string | null
+          enrichment_confidence?: number | null
+          id?: string
+          identity_key: string
+          legal_name: string
+          organization_id?: string
+          owner_id?: string | null
+          phone?: string | null
+          segment?: string | null
+          size?: string | null
+          source?: string | null
+          source_metadata?: Json
+          source_url?: string | null
+          state?: string | null
+          status?: string
+          trade_name?: string | null
+          updated_at?: string
+          website?: string | null
+        }
+        Update: {
+          annual_revenue?: string | null
+          assigned_to?: string | null
+          city?: string | null
+          cnae?: string | null
+          cnpj?: string | null
+          country?: string
+          created_at?: string
+          created_by?: string | null
+          domain?: string | null
+          email?: string | null
+          enriched_at?: string | null
+          enrichment_confidence?: number | null
+          id?: string
+          identity_key?: string
+          legal_name?: string
+          organization_id?: string
+          owner_id?: string | null
+          phone?: string | null
+          segment?: string | null
+          size?: string | null
+          source?: string | null
+          source_metadata?: Json
+          source_url?: string | null
+          state?: string | null
+          status?: string
+          trade_name?: string | null
+          updated_at?: string
+          website?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_accounts_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_accounts_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_accounts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_accounts_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      crm_contacts: {
+        Row: {
+          account_id: string | null
+          assigned_to: string | null
+          consent_status: string
+          created_at: string
+          created_by: string | null
+          department: string | null
+          email: string | null
+          enriched_at: string | null
+          enrichment_confidence: number | null
+          full_name: string
+          id: string
+          identity_key: string
+          instagram_url: string | null
+          is_decision_maker: boolean
+          job_title: string | null
+          lawful_basis: string | null
+          linkedin_url: string | null
+          organization_id: string
+          owner_id: string | null
+          phone: string | null
+          preferred_channel: string | null
+          source: string | null
+          source_metadata: Json
+          source_url: string | null
+          status: string
+          updated_at: string
+          whatsapp: string | null
+        }
+        Insert: {
+          account_id?: string | null
+          assigned_to?: string | null
+          consent_status?: string
+          created_at?: string
+          created_by?: string | null
+          department?: string | null
+          email?: string | null
+          enriched_at?: string | null
+          enrichment_confidence?: number | null
+          full_name: string
+          id?: string
+          identity_key: string
+          instagram_url?: string | null
+          is_decision_maker?: boolean
+          job_title?: string | null
+          lawful_basis?: string | null
+          linkedin_url?: string | null
+          organization_id?: string
+          owner_id?: string | null
+          phone?: string | null
+          preferred_channel?: string | null
+          source?: string | null
+          source_metadata?: Json
+          source_url?: string | null
+          status?: string
+          updated_at?: string
+          whatsapp?: string | null
+        }
+        Update: {
+          account_id?: string | null
+          assigned_to?: string | null
+          consent_status?: string
+          created_at?: string
+          created_by?: string | null
+          department?: string | null
+          email?: string | null
+          enriched_at?: string | null
+          enrichment_confidence?: number | null
+          full_name?: string
+          id?: string
+          identity_key?: string
+          instagram_url?: string | null
+          is_decision_maker?: boolean
+          job_title?: string | null
+          lawful_basis?: string | null
+          linkedin_url?: string | null
+          organization_id?: string
+          owner_id?: string | null
+          phone?: string | null
+          preferred_channel?: string | null
+          source?: string | null
+          source_metadata?: Json
+          source_url?: string | null
+          status?: string
+          updated_at?: string
+          whatsapp?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "crm_contacts_account_org_fkey"
+            columns: ["account_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "crm_accounts"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "crm_contacts_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_contacts_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_contacts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "crm_contacts_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -2061,9 +2327,12 @@ export type Database = {
       }
       leads: {
         Row: {
+          account_id: string | null
           active_channel: string | null
           ai_paused: boolean
           annual_revenue: string | null
+          approach_set_at: string | null
+          approach_type: string | null
           assigned_to: string | null
           automation_error: string | null
           automation_status: string
@@ -2076,17 +2345,23 @@ export type Database = {
           contact_approved_at: string | null
           contact_approved_by: string | null
           contact_channels: Json | null
+          contact_id: string | null
+          conversation_opened_at: string | null
           created_at: string
           deduplication_key: string | null
           distance: number | null
           email: string | null
           escalated: boolean
           escalation_reason: string | null
+          first_inbound_at: string | null
+          first_outreach_at: string | null
           id: string
           instagram_user_id: string | null
           last_contact: string | null
           lost_reason: string | null
           next_action_at: string | null
+          no_reply_deadline_at: string | null
+          no_reply_processed_at: string | null
           opt_out: boolean | null
           organization_id: string
           origin: string | null
@@ -2117,9 +2392,12 @@ export type Database = {
           whatsapp: string | null
         }
         Insert: {
+          account_id?: string | null
           active_channel?: string | null
           ai_paused?: boolean
           annual_revenue?: string | null
+          approach_set_at?: string | null
+          approach_type?: string | null
           assigned_to?: string | null
           automation_error?: string | null
           automation_status?: string
@@ -2132,17 +2410,23 @@ export type Database = {
           contact_approved_at?: string | null
           contact_approved_by?: string | null
           contact_channels?: Json | null
+          contact_id?: string | null
+          conversation_opened_at?: string | null
           created_at?: string
           deduplication_key?: string | null
           distance?: number | null
           email?: string | null
           escalated?: boolean
           escalation_reason?: string | null
+          first_inbound_at?: string | null
+          first_outreach_at?: string | null
           id?: string
           instagram_user_id?: string | null
           last_contact?: string | null
           lost_reason?: string | null
           next_action_at?: string | null
+          no_reply_deadline_at?: string | null
+          no_reply_processed_at?: string | null
           opt_out?: boolean | null
           organization_id?: string
           origin?: string | null
@@ -2173,9 +2457,12 @@ export type Database = {
           whatsapp?: string | null
         }
         Update: {
+          account_id?: string | null
           active_channel?: string | null
           ai_paused?: boolean
           annual_revenue?: string | null
+          approach_set_at?: string | null
+          approach_type?: string | null
           assigned_to?: string | null
           automation_error?: string | null
           automation_status?: string
@@ -2188,17 +2475,23 @@ export type Database = {
           contact_approved_at?: string | null
           contact_approved_by?: string | null
           contact_channels?: Json | null
+          contact_id?: string | null
+          conversation_opened_at?: string | null
           created_at?: string
           deduplication_key?: string | null
           distance?: number | null
           email?: string | null
           escalated?: boolean
           escalation_reason?: string | null
+          first_inbound_at?: string | null
+          first_outreach_at?: string | null
           id?: string
           instagram_user_id?: string | null
           last_contact?: string | null
           lost_reason?: string | null
           next_action_at?: string | null
+          no_reply_deadline_at?: string | null
+          no_reply_processed_at?: string | null
           opt_out?: boolean | null
           organization_id?: string
           origin?: string | null
@@ -2229,6 +2522,20 @@ export type Database = {
           whatsapp?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "leads_account_org_fkey"
+            columns: ["account_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "crm_accounts"
+            referencedColumns: ["id", "organization_id"]
+          },
+          {
+            foreignKeyName: "leads_contact_org_fkey"
+            columns: ["contact_id", "organization_id"]
+            isOneToOne: false
+            referencedRelation: "crm_contacts"
+            referencedColumns: ["id", "organization_id"]
+          },
           {
             foreignKeyName: "leads_organization_id_fkey"
             columns: ["organization_id"]
@@ -3093,6 +3400,130 @@ export type Database = {
           },
         ]
       }
+      prospecting_runs: {
+        Row: {
+          blocking_reason: string | null
+          completed_at: string | null
+          confirmation_statement: string | null
+          confirmed_at: string | null
+          confirmed_by: string | null
+          cost_known: boolean
+          created_at: string
+          currency: string
+          estimate_basis: string
+          estimated_cost: number
+          estimated_credits: number
+          estimated_records: number
+          filters: Json
+          filters_hash: string
+          id: string
+          last_error: string | null
+          maximum_cost: number
+          mode: string
+          organization_id: string
+          provider_run_id: string | null
+          quote_expires_at: string
+          requested_by: string
+          requested_quantity: number
+          requires_confirmation: boolean
+          result_cache_id: string | null
+          result_count: number
+          source_config_id: string
+          source_key: string
+          started_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          blocking_reason?: string | null
+          completed_at?: string | null
+          confirmation_statement?: string | null
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          cost_known?: boolean
+          created_at?: string
+          currency?: string
+          estimate_basis: string
+          estimated_cost?: number
+          estimated_credits?: number
+          estimated_records: number
+          filters?: Json
+          filters_hash: string
+          id?: string
+          last_error?: string | null
+          maximum_cost?: number
+          mode: string
+          organization_id: string
+          provider_run_id?: string | null
+          quote_expires_at: string
+          requested_by: string
+          requested_quantity: number
+          requires_confirmation?: boolean
+          result_cache_id?: string | null
+          result_count?: number
+          source_config_id: string
+          source_key: string
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          blocking_reason?: string | null
+          completed_at?: string | null
+          confirmation_statement?: string | null
+          confirmed_at?: string | null
+          confirmed_by?: string | null
+          cost_known?: boolean
+          created_at?: string
+          currency?: string
+          estimate_basis?: string
+          estimated_cost?: number
+          estimated_credits?: number
+          estimated_records?: number
+          filters?: Json
+          filters_hash?: string
+          id?: string
+          last_error?: string | null
+          maximum_cost?: number
+          mode?: string
+          organization_id?: string
+          provider_run_id?: string | null
+          quote_expires_at?: string
+          requested_by?: string
+          requested_quantity?: number
+          requires_confirmation?: boolean
+          result_cache_id?: string | null
+          result_count?: number
+          source_config_id?: string
+          source_key?: string
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prospecting_runs_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prospecting_runs_result_cache_id_fkey"
+            columns: ["result_cache_id"]
+            isOneToOne: false
+            referencedRelation: "prospecting_cache"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prospecting_runs_source_config_id_fkey"
+            columns: ["source_config_id"]
+            isOneToOne: false
+            referencedRelation: "lead_source_configs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       prospecting_schedule_runs: {
         Row: {
           created_at: string | null
@@ -3857,7 +4288,7 @@ export type Database = {
           external_id: string | null
           id: string
           lead_id: string | null
-          organization_id: string | null
+          organization_id: string
           outreach_id: string | null
           payload: Json | null
           payload_sha: string | null
@@ -3872,7 +4303,7 @@ export type Database = {
           external_id?: string | null
           id?: string
           lead_id?: string | null
-          organization_id?: string | null
+          organization_id?: string
           outreach_id?: string | null
           payload?: Json | null
           payload_sha?: string | null
@@ -3887,7 +4318,7 @@ export type Database = {
           external_id?: string | null
           id?: string
           lead_id?: string | null
-          organization_id?: string | null
+          organization_id?: string
           outreach_id?: string | null
           payload?: Json | null
           payload_sha?: string | null
@@ -3970,6 +4401,7 @@ export type Database = {
         | "Pedido"
         | "Fechado"
         | "Perdido"
+        | "Contatos Perdidos"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -4106,6 +4538,7 @@ export const Constants = {
         "Pedido",
         "Fechado",
         "Perdido",
+        "Contatos Perdidos",
       ],
     },
   },

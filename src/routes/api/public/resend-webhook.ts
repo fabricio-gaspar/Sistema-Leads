@@ -228,6 +228,12 @@ export const Route = createFileRoute('/api/public/resend-webhook')({
           ...(optOut ? { opt_out: true, ai_paused: true } : {}),
         } as any).eq('id', (lead as any).id)
 
+        // Fluxo de Leads: primeira resposta abre a conversa e cancela o timeout.
+        {
+          const { markInboundReceived } = await import('@/lib/lead-flow-db')
+          await markInboundReceived(supabaseAdmin as any, (lead as any).id)
+        }
+
         // Cliente respondeu -> pausa cadência automática.
         try {
           const seq = await import('@/lib/outreach-sequences.functions')
