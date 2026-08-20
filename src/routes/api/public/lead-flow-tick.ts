@@ -13,11 +13,10 @@ export const Route = createFileRoute('/api/public/lead-flow-tick')({
           ? authorization.slice('Bearer '.length)
           : request.headers.get('x-cron-secret') ?? request.headers.get('apikey')
 
-        if (expected) {
-          if (provided !== expected) return new Response('unauthorized', { status: 401 })
-        } else {
-          const anon = process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_ANON_KEY
-          if (!anon || provided !== anon) return new Response('unauthorized', { status: 401 })
+        const anon = process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_ANON_KEY
+        const accepted = [expected, anon].filter(Boolean) as string[]
+        if (!accepted.length || !provided || !accepted.includes(provided)) {
+          return new Response('unauthorized', { status: 401 })
         }
 
         const { supabaseAdmin } = await import('@/integrations/supabase/client.server')
