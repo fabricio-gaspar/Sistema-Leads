@@ -25,6 +25,10 @@ import {
 } from "@/lib/crm.functions";
 import { listOutreach, sendManualWhatsapp } from "@/lib/outreach.functions";
 import { acceptHandoff, getLeadAutomation } from "@/lib/sales-actions.functions";
+import { getLeadFlowSettings, openLeadConversation } from "@/lib/lead-flow.functions";
+import { shouldShowConversation } from "@/lib/lead-flow";
+import { DEFAULT_LEAD_FLOW } from "@/lib/lead-flow";
+import { toast } from "sonner";
 import type { Database } from "@/types/database";
 
 type LeadRow = Database["public"]["Tables"]["leads"]["Row"];
@@ -69,6 +73,20 @@ function Atendimento() {
   const [sellerFilter, setSellerFilter] = useState("todos");
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [onlyOpen, setOnlyOpen] = useState(true);
+  const qc = useQueryClient();
+  const flowFn = useServerFn(getLeadFlowSettings);
+  const openFn = useServerFn(openLeadConversation);
+  const { data: flow } = useQuery({ queryKey: ["lead-flow-settings"], queryFn: () => flowFn() });
+  const flowSettings = flow?.settings ?? DEFAULT_LEAD_FLOW;
+  const openMut = useMutation({
+    mutationFn: (leadId: string) => openFn({ data: { lead_id: leadId } }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["leads"] });
+      toast.success("Conversa aberta manualmente.");
+    },
+    onError: (e: any) => toast.error(e.message ?? "Falha ao abrir conversa"),
+  });
 
   const sellerScoped = useMemo(() => {
     if (!isAdmin || sellerFilter === "todos") return leads;
@@ -81,6 +99,7 @@ function Atendimento() {
     return sellerScoped.filter((lead) => {
       if (term && ![lead.company, lead.contact, lead.email, lead.phone]
         .some((value) => value?.toLocaleLowerCase("pt-BR").includes(term))) return false;
+      if (onlyOpen && !shouldShowConversation(lead as any, flowSettings)) return false;
       if (queueFilter === "ia" && lead.owner !== "ia") return false;
       if (queueFilter === "humano" && lead.owner !== "human") return false;
       if (queueFilter === "pendente" && !isPending(lead)) return false;
@@ -88,7 +107,7 @@ function Atendimento() {
       if (queueFilter !== "encerrados" && queueFilter !== "todos" && isClosed(lead)) return false;
       return true;
     });
-  }, [queueFilter, search, sellerScoped]);
+  }, [queueFilter, search, sellerScoped, onlyOpen, flowSettings]);
 
   const current = filtered.find((lead) => lead.id === selectedId) ?? filtered[0] ?? null;
   const contacted = sellerScoped.filter(hasContactAttempt).length;
@@ -138,6 +157,13 @@ function Atendimento() {
               </div>
             )}
 
+            <div className="flex items-center justify-between text-[11px] text-text-sec">
+              <label className="flex cursor-pointer items-center gap-2">
+                <input type="checkbox" checked={onlyOpen} onChange={(e) => setOnlyOpen(e.target.checked)} />
+                Somente conversas abertas (com resposta ou handoff)
+              </label>
+            </div>
+
             <div className="flex flex-wrap gap-1">
               {([
                 ["todos", "Todos"],
@@ -178,7 +204,17 @@ function Atendimento() {
           </ul>
         </Card>
 
-        {current ? (
+        {current && !shouldShowConversation(current as any, flowSettings) ? (
+          <Card className="flex min-h-[420px] flex-col items-center justify-center gap-3 text-[13px] text-text-sec">
+            <span>Este lead ainda não respondeu. A conversa não foi aberta automaticamente.</span>
+            <button
+              onClick={() => openMut.mutate(current.id)}
+              className="rounded-md bg-primary px-3 py-1.5 text-[12px] font-medium text-primary-foreground"
+            >
+              Abrir conversa manualmente
+            </button>
+          </Card>
+        ) : current ? (
           <ConversationPane
             lead={current}
             isAdmin={isAdmin}

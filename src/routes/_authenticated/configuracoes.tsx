@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Sparkles, User, Bell, Shield, Zap, Loader2, Check, ClipboardList, AlertCircle, Package, MessageSquareWarning, Gauge, HelpCircle, Plus, Trash2, Plug, Search, SlidersHorizontal } from "lucide-react";
+import { Workflow, Sparkles, User, Bell, Shield, Zap, Loader2, Check, ClipboardList, AlertCircle, Package, MessageSquareWarning, Gauge, HelpCircle, Plus, Trash2, Plug, Search, SlidersHorizontal } from "lucide-react";
 import { Card, SectionTitle } from "@/components/ui-kit";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -47,20 +47,23 @@ import {
 } from "@/lib/outreach-sequences.functions";
 import { AUTONOMY_STAGES, AUTONOMY_LABEL, DEFAULT_AUTONOMY, readAutonomy, type AutonomyMode, type AutonomyStage } from "@/lib/autonomy";
 import { GoogleCalendarCard } from "@/components/GoogleCalendarCard";
+import { getLeadFlowSettings, updateLeadFlowSettings, runNoReplySweep } from "@/lib/lead-flow.functions";
+import { DEFAULT_LEAD_FLOW, type LeadFlowSettings } from "@/lib/lead-flow";
 
 
-type TabId = "ana" | "autonomia" | "prospeccao" | "equipe" | "servicos" | "objecoes" | "score" | "governanca" | "auditoria" | "notificacoes" | "integracoes" | "seguranca";
+type TabId = "ana" | "fluxo" | "autonomia" | "prospeccao" | "equipe" | "servicos" | "objecoes" | "score" | "governanca" | "auditoria" | "notificacoes" | "integracoes" | "seguranca";
 export const Route = createFileRoute("/_authenticated/configuracoes")({
   component: Configuracoes,
   validateSearch: (s: Record<string, unknown>): { tab?: TabId } => {
     const t = s.tab;
-    const valid: TabId[] = ["ana","autonomia","prospeccao","equipe","servicos","objecoes","score","governanca","auditoria","notificacoes","integracoes","seguranca"];
+    const valid: TabId[] = ["ana","fluxo","autonomia","prospeccao","equipe","servicos","objecoes","score","governanca","auditoria","notificacoes","integracoes","seguranca"];
     return typeof t === "string" && (valid as string[]).includes(t) ? { tab: t as TabId } : {};
   },
 });
 
 const TABS = [
   { id: "ana", label: "Ana (IA)", icon: Sparkles },
+  { id: "fluxo", label: "Fluxo de Leads", icon: Workflow },
   { id: "autonomia", label: "Autonomia", icon: SlidersHorizontal },
   { id: "prospeccao", label: "Prospecção", icon: Search },
   { id: "equipe", label: "Equipe", icon: User },
@@ -103,6 +106,7 @@ function Configuracoes() {
 
       <div>
         {tab === "ana" && <AbaAna />}
+        {tab === "fluxo" && <AbaFluxoLeads />}
         {tab === "autonomia" && <AbaAutonomia />}
         {tab === "prospeccao" && <AbaProspeccao />}
         {tab === "equipe" && <AbaEquipe />}
@@ -2138,3 +2142,120 @@ function AbaAutonomia() {
   );
 }
 
+
+
+// ============================ Fluxo de Leads ============================
+
+function AbaFluxoLeads() {
+  const qc = useQueryClient();
+  const getFn = useServerFn(getLeadFlowSettings);
+  const saveFn = useServerFn(updateLeadFlowSettings);
+  const sweepFn = useServerFn(runNoReplySweep);
+
+  const { data, isLoading } = useQuery({ queryKey: ["lead-flow-settings"], queryFn: () => getFn() });
+  const [form, setForm] = useState<LeadFlowSettings>(DEFAULT_LEAD_FLOW);
+  useEffect(() => { if (data?.settings) setForm(data.settings as LeadFlowSettings); }, [data]);
+
+  const save = useMutation({
+    mutationFn: () => saveFn({ data: form }),
+    onSuccess: () => {
+      toast.success("Fluxo de Leads salvo.");
+      qc.invalidateQueries({ queryKey: ["lead-flow-settings"] });
+    },
+    onError: (e: any) => toast.error(e.message ?? "Falha ao salvar"),
+  });
+  const sweep = useMutation({
+    mutationFn: () => sweepFn(),
+    onSuccess: (r: any) => toast.success(`${r.processed} lead(s) movido(s) por falta de resposta.`),
+    onError: (e: any) => toast.error(e.message ?? "Falha na varredura"),
+  });
+
+  const set = <K extends keyof LeadFlowSettings>(k: K, v: LeadFlowSettings[K]) =>
+    setForm((f) => ({ ...f, [k]: v }));
+
+  const Toggle = ({ label, hint, k }: { label: string; hint?: string; k: keyof LeadFlowSettings }) => (
+    <label className="flex items-start justify-between gap-4 rounded-md border border-border-card p-3">
+      <span>
+        <span className="block text-[13px] font-medium text-text-title">{label}</span>
+        {hint && <span className="block text-[11px] text-text-sec">{hint}</span>}
+      </span>
+      <input
+        type="checkbox"
+        checked={Boolean(form[k])}
+        onChange={(e) => set(k, e.target.checked as never)}
+      />
+    </label>
+  );
+
+  if (isLoading) return <Card><Loader2 className="h-4 w-4 animate-spin" /></Card>;
+
+  return (
+    <Card>
+      <SectionTitle
+        title="Fluxo de Leads"
+        hint="Regras de abordagem, timeout sem resposta e abertura de conversa. Somente administradores podem alterar."
+      />
+      <div className="mt-4 grid gap-3 md:grid-cols-2">
+        <Toggle k="ai_auto_start" label="Início automático da Ana" hint="Dispara o primeiro contato ao confirmar abordagem por IA." />
+        <Toggle k="open_conversation_on_reply_only" label="Abrir conversa somente após resposta" hint="Tickets e tarefas internas não abrem conversa." />
+        <Toggle k="human_create_task" label="Criar tarefa na abordagem humana" />
+        <Toggle k="human_notify" label="Notificar responsável humano" />
+        <Toggle k="pause_automation_on_reply" label="Pausar automação após resposta" />
+        <div className="rounded-md border border-border-card p-3">
+          <label className="block text-[13px] font-medium text-text-title">Timeout sem resposta (horas)</label>
+          <p className="mb-2 text-[11px] text-text-sec">
+            A contagem começa somente após o primeiro envio bem-sucedido. Entre 1 e 720 horas.
+          </p>
+          <input
+            type="number" min={1} max={720}
+            value={form.no_reply_timeout_hours}
+            onChange={(e) => set("no_reply_timeout_hours", Number(e.target.value))}
+            className="h-9 w-32 rounded-md border border-border-card bg-bg-card px-2 text-[13px]"
+          />
+        </div>
+        <div className="rounded-md border border-border-card p-3">
+          <label className="block text-[13px] font-medium text-text-title">Etapa de destino do timeout</label>
+          <select
+            value={form.no_reply_stage}
+            onChange={(e) => set("no_reply_stage", e.target.value)}
+            className="mt-2 h-9 w-full rounded-md border border-border-card bg-bg-card px-2 text-[13px]"
+          >
+            {(data?.stages ?? [{ value: "Contatos Perdidos", label: "Contatos Perdidos" }]).map((s: any) => (
+              <option key={s.value} value={s.value}>{s.label}</option>
+            ))}
+          </select>
+        </div>
+        <div className="rounded-md border border-border-card p-3">
+          <label className="block text-[13px] font-medium text-text-title">SLA da tarefa humana (horas)</label>
+          <input
+            type="number" min={1} max={168}
+            value={form.human_sla_hours}
+            onChange={(e) => set("human_sla_hours", Number(e.target.value))}
+            className="mt-2 h-9 w-32 rounded-md border border-border-card bg-bg-card px-2 text-[13px]"
+          />
+        </div>
+      </div>
+
+      <div className="mt-4 flex items-center gap-2">
+        <button
+          onClick={() => save.mutate()}
+          disabled={save.isPending}
+          className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-[13px] font-medium text-primary-foreground disabled:opacity-60"
+        >
+          {save.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+          Salvar fluxo
+        </button>
+        <button
+          onClick={() => sweep.mutate()}
+          disabled={sweep.isPending}
+          className="rounded-md border border-border-card px-3 py-2 text-[13px] text-text-body"
+        >
+          Rodar varredura de timeout agora
+        </button>
+      </div>
+      <p className="mt-2 text-[11px] text-text-sec">
+        "Contatos Perdidos" indica ausência de resposta; "Perdido" continua sendo decisão comercial.
+      </p>
+    </Card>
+  );
+}

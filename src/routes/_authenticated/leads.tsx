@@ -16,6 +16,8 @@ import {
 import { toast } from "sonner";
 import { formatBRL } from "@/lib/leads-data";
 import { createLead, listLeads, moveLeadStage, deleteLead } from "@/lib/crm.functions";
+import { approachLeads } from "@/lib/lead-flow.functions";
+import { ApproachModal, type ApproachChoice } from "@/components/ApproachModal";
 import type { Database } from "@/types/database";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
@@ -45,7 +47,7 @@ export function TempBadge({ t, score }: { t: "hot" | "warm" | "cold"; score?: nu
 
 
 type Stage = Database["public"]["Enums"]["lead_stage"];
-const STAGES: Stage[] = ["Prospecção", "Qualificado", "Proposta", "Negociação", "Pedido", "Fechado", "Perdido"];
+const STAGES: Stage[] = ["Prospecção", "Qualificado", "Proposta", "Negociação", "Pedido", "Fechado", "Perdido", "Contatos Perdidos"];
 
 export const Route = createFileRoute("/_authenticated/leads")({ component: LeadsPage });
 
@@ -67,6 +69,37 @@ function LeadsPage() {
   const [search, setSearch] = useState("");
   const [stageFilter, setStageFilter] = useState<string>("all");
   const [segmentFilter, setSegmentFilter] = useState<string>("all");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [approachOpen, setApproachOpen] = useState(false);
+  const approachFn = useServerFn(approachLeads);
+
+  const approachMut = useMutation({
+    mutationFn: (choice: ApproachChoice) =>
+      approachFn({
+        data: {
+          lead_ids: Array.from(selected),
+          approach: choice.approach,
+          assignee_id: choice.assignee_id ?? null,
+          sla_hours: choice.sla_hours,
+          start_now: true,
+        },
+      }),
+    onSuccess: (r: any) => {
+      setApproachOpen(false);
+      setSelected(new Set());
+      qc.invalidateQueries({ queryKey: ["leads"] });
+      toast.success(`${r.started} abordagem(ns) iniciada(s), ${r.blocked.length} bloqueado(s).`);
+    },
+    onError: (e: any) => toast.error(e.message ?? "Falha ao abordar leads"),
+  });
+
+  const toggleOne = (id: string) =>
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
 
   const segments = Array.from(new Set(leads.map((l: any) => l.segment).filter(Boolean)));
 
@@ -96,10 +129,17 @@ function LeadsPage() {
             {leads.length} leads no funil · CRM completo com score, tags e responsáveis.
           </p>
         </div>
-        <Button className="bg-[#00bfa5] hover:bg-[#00a690] text-white gap-2">
-          <Plus className="h-4 w-4" />
-          Novo Lead
-        </Button>
+        <div className="flex items-center gap-2">
+          {selected.size > 0 && (
+            <Button variant="outline" className="gap-2" onClick={() => setApproachOpen(true)}>
+              Abordar {selected.size} selecionado(s)
+            </Button>
+          )}
+          <Button className="bg-[#00bfa5] hover:bg-[#00a690] text-white gap-2">
+            <Plus className="h-4 w-4" />
+            Novo Lead
+          </Button>
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
@@ -140,7 +180,16 @@ function LeadsPage() {
         <Table>
           <TableHeader className="bg-bg-elev/50">
             <TableRow className="hover:bg-transparent border-border-card">
-              <TableHead className="w-12"><input type="checkbox" className="rounded border-border-card" /></TableHead>
+              <TableHead className="w-12">
+                <input
+                  type="checkbox"
+                  className="rounded border-border-card"
+                  checked={filteredLeads.length > 0 && selected.size === filteredLeads.length}
+                  onChange={(e) =>
+                    setSelected(e.target.checked ? new Set(filteredLeads.map((l: any) => l.id)) : new Set())
+                  }
+                />
+              </TableHead>
               <TableHead className="text-[12px] font-semibold text-text-ter uppercase tracking-wider">Lead / Empresa</TableHead>
               <TableHead className="text-[12px] font-semibold text-text-ter uppercase tracking-wider">Segmento</TableHead>
               <TableHead className="text-[12px] font-semibold text-text-ter uppercase tracking-wider">Score</TableHead>
@@ -161,7 +210,14 @@ function LeadsPage() {
             ) : (
               filteredLeads.map((lead: any) => (
                 <TableRow key={lead.id} className="border-border-card hover:bg-bg-elev/30 group transition-colors">
-                  <TableCell><input type="checkbox" className="rounded border-border-card" /></TableCell>
+                  <TableCell>
+                    <input
+                      type="checkbox"
+                      className="rounded border-border-card"
+                      checked={selected.has(lead.id)}
+                      onChange={() => toggleOne(lead.id)}
+                    />
+                  </TableCell>
                   <TableCell>
                     <div className="flex flex-col">
                       <span className="font-semibold text-text-title text-[14px]">{lead.contact || "Sem Contato"}</span>
@@ -211,6 +267,15 @@ function LeadsPage() {
           </TableBody>
         </Table>
       </div>
+
+      <ApproachModal
+        open={approachOpen}
+        onOpenChange={setApproachOpen}
+        count={selected.size}
+        previewLeadId={Array.from(selected)[0] ?? null}
+        submitting={approachMut.isPending}
+        onConfirm={(choice) => approachMut.mutate(choice)}
+      />
     </div>
   );
 }
@@ -224,6 +289,7 @@ function getStageCls(stage: string) {
     case "Pedido": return "bg-teal-100 text-teal-700";
     case "Fechado": return "bg-[#00bfa5]/10 text-[#00bfa5]";
     case "Perdido": return "bg-red-50 text-red-600";
+    case "Contatos Perdidos": return "bg-slate-100 text-slate-500";
     default: return "bg-bg-elev text-text-sec";
   }
 }
