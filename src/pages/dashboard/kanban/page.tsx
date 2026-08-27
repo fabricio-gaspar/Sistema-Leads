@@ -7,9 +7,9 @@ import { useSavedViews } from '@/hooks/useSavedViews';
 import FilterChips from '@/components/feature/FilterChips';
 import type { FilterChip } from '@/components/feature/FilterChips';
 import SavedViewsControl from '@/components/feature/SavedViewsControl';
-import { leads as leadsSeed, etapasCRM } from '@/mocks/leadsData';
+import { leads as leadsSeed } from '@/mocks/leadsData';
 import type { Lead } from '@/mocks/leadsData';
-import { podeTransicionar } from '@/lib/automacao';
+import { ACTIVE_PIPELINE_STAGES, PIPELINE_STAGE_LABEL, legacyStageForPipeline, stageFromLegacy } from '@/domain/pipeline';
 import LeadDrawer from './components/LeadDrawer';
 
 const formatarData = (d: Date): string => {
@@ -20,17 +20,7 @@ const formatarData = (d: Date): string => {
 };
 
 const etapaCores: Record<string, string> = {
-  'Novo': 'bg-background-200/60 border-background-300',
-  'Em Contato': 'bg-primary-100/50 border-primary-200',
-  'Aguardando Resposta': 'bg-accent-100/50 border-accent-200',
-  'Em Qualificação': 'bg-primary-100/70 border-primary-300',
-  'Reunião Agendada': 'bg-secondary-100/50 border-secondary-200',
-  'Proposta em Preparação': 'bg-secondary-100/70 border-secondary-200',
-  'Orçamento Enviado': 'bg-accent-100/70 border-accent-300',
-  'Negociação': 'bg-secondary-100/70 border-secondary-300',
-  'Fechado — Ganho': 'bg-primary-100/80 border-primary-400',
-  'Fechado — Perdido': 'bg-background-200/40 border-background-300',
-  'Pausado': 'bg-background-100/60 border-background-200',
+  entered: 'bg-background-200/60 border-background-300', engaging: 'bg-primary-100/50 border-primary-200', qualified: 'bg-primary-100/70 border-primary-300', quote_sent: 'bg-accent-100/70 border-accent-300', decision: 'bg-secondary-100/70 border-secondary-300',
 };
 
 const tempCores: Record<string, string> = {
@@ -158,14 +148,14 @@ export default function KanbanCRM() {
     if (termo && !l.nome.toLowerCase().includes(termo) && !l.empresa.toLowerCase().includes(termo)) return false;
     if (filtroResponsavel && l.responsavel !== filtroResponsavel) return false;
     if (filtroSegmento && l.segmento !== filtroSegmento) return false;
-    if (filtroEtapa && l.etapa !== filtroEtapa) return false;
+    if (filtroEtapa && stageFromLegacy(l.etapa) !== filtroEtapa) return false;
     if (filtroTemperatura && l.temperatura !== filtroTemperatura) return false;
     if (dataInicio && l.criadoEm < dataInicio) return false;
     if (dataFim && l.criadoEm > dataFim) return false;
     return true;
   });
 
-  const leadsPorEtapa = (etapa: string) => leadsFiltrados.filter((l) => l.etapa === etapa);
+  const leadsPorEtapa = (etapa: string) => leadsFiltrados.filter((l) => stageFromLegacy(l.etapa) === etapa && !['Fechado — Ganho', 'Fechado — Perdido'].includes(l.etapa));
 
   const detalhe = detalheId ? leads.find((l) => l.id === detalheId) || null : null;
 
@@ -177,7 +167,7 @@ export default function KanbanCRM() {
     if (!dragId) return;
     const alvo = dragId;
     setDragId(null);
-    executarMudanca(alvo, etapa);
+    executarMudanca(alvo, legacyStageForPipeline(etapa as (typeof ACTIVE_PIPELINE_STAGES)[number]));
   };
 
   const mudarEtapa = (id: string, etapa: string) => {
@@ -219,11 +209,6 @@ export default function KanbanCRM() {
   const executarMudanca = (id: string, etapa: string) => {
     const lead = leads.find((l) => l.id === id);
     if (!lead || lead.etapa === etapa) return;
-    const check = podeTransicionar(lead.etapa, etapa);
-    if (!check.ok) {
-      mostrarToast(check.motivo || 'Transição não permitida.');
-      return;
-    }
     if (etapa === 'Fechado — Perdido') {
       setMotivoModal({ id, etapa, nome: lead.nome, tipo: 'perda' });
       return;
@@ -349,8 +334,8 @@ export default function KanbanCRM() {
               className="w-full px-3 py-2.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-900 cursor-pointer"
             >
               <option value="">Todas</option>
-              {etapasCRM.map((et) => (
-                <option key={et} value={et}>{et}</option>
+              {ACTIVE_PIPELINE_STAGES.map((et) => (
+                <option key={et} value={et}>{PIPELINE_STAGE_LABEL[et]}</option>
               ))}
             </select>
           </div>
@@ -427,7 +412,7 @@ export default function KanbanCRM() {
       )}
 
       <div className="flex gap-4 overflow-x-auto pb-4 min-h-[calc(100vh-240px)]">
-        {etapasCRM.map((etapa) => {
+        {ACTIVE_PIPELINE_STAGES.map((etapa) => {
           const lista = leadsPorEtapa(etapa);
           return (
             <div
@@ -438,7 +423,7 @@ export default function KanbanCRM() {
             >
               <div className="px-4 py-3 border-b border-background-200/40">
                 <div className="flex items-center justify-between mb-1">
-                  <h3 className="font-heading font-bold text-foreground-900 text-sm">{etapa}</h3>
+                  <h3 className="font-heading font-bold text-foreground-900 text-sm">{PIPELINE_STAGE_LABEL[etapa]}</h3>
                   <span className="text-xs font-medium text-foreground-500 bg-background-50 px-2 py-0.5 rounded-md">
                     {lista.length}
                   </span>

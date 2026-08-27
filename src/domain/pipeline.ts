@@ -36,6 +36,16 @@ export function stageFromLegacy(stage: string): PipelineStageCode {
   return legacyStageMap[stage] ?? 'entered';
 }
 
+export function legacyStageForPipeline(stage: PipelineStageCode): string {
+  return {
+    entered: 'Novo',
+    engaging: 'Em Contato',
+    qualified: 'Em Qualificação',
+    quote_sent: 'Orçamento Enviado',
+    decision: 'Negociação',
+  }[stage];
+}
+
 export function outcomeFromLegacy(stage: string): OpportunityOutcome {
   if (stage === 'Fechado — Ganho') return 'won';
   if (stage === 'Fechado — Perdido') return 'lost';

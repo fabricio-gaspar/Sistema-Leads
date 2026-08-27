@@ -27,6 +27,7 @@ const navItems: NavItem[] = [
   { label: 'Equipe', path: '/dashboard/equipe', icon: 'ri-team-line' },
   { label: 'Midia Drive', path: '/dashboard/midia-drive', icon: 'ri-folder-3-line' },
   { label: 'Empresa', path: '/dashboard/empresa', icon: 'ri-store-2-line' },
+  { label: 'Personalização da Ana', path: '/dashboard/personalizacao-ana', icon: 'ri-robot-2-line' },
   { label: 'Configurações', path: '/dashboard/configuracoes', icon: 'ri-settings-4-line' },
 ];
 

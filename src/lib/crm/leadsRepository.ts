@@ -6,10 +6,9 @@ import type { Lead } from '@/mocks/leadsData';
 export async function loadOperationalLeads(): Promise<Lead[]> {
   const session = await resolveOrganizationSession();
   const { data, error } = await supabase
-    .from('crm_leads')
+    .from('leads')
     .select('*')
     .eq('organization_id', session.organizationId)
-    .eq('is_archived', false)
     .order('updated_at', { ascending: false });
   if (error) throw error;
   return ((data ?? []) as CrmLeadRow[]).map(crmRowToLead);
@@ -22,26 +21,17 @@ export async function persistOperationalLeads(previous: Lead[], next: Lead[]): P
   const nextIds = new Set(nextWithPersistentIds.map((lead) => lead.id));
 
   for (const lead of nextWithPersistentIds) {
-    const row = leadToCrmRow(lead, session.organizationId, session.userId);
+    const row = leadToCrmRow(lead, session.organizationId);
     const wasPersisted = previousById.has(lead.id);
     const request = wasPersisted
-      ? supabase.from('crm_leads').update(row).eq('id', lead.id).eq('organization_id', session.organizationId)
-      : supabase.from('crm_leads').insert(row);
+      ? supabase.from('leads').update(row).eq('id', lead.id).eq('organization_id', session.organizationId)
+      : supabase.from('leads').insert(row);
     const { error } = await request;
     if (error) throw error;
   }
 
-  const archivedIds = previous
-    .filter((lead) => !nextIds.has(lead.id) && lead.id.length === 36)
-    .map((lead) => lead.id);
-  if (archivedIds.length > 0) {
-    const { error } = await supabase
-      .from('crm_leads')
-      .update({ is_archived: true })
-      .eq('organization_id', session.organizationId)
-      .in('id', archivedIds);
-    if (error) throw error;
-  }
+  // A remoção da tela não apaga o lead do banco. O arquivamento comercial
+  // será controlado pela oportunidade, preservando histórico e consentimento.
 
   return nextWithPersistentIds;
 }

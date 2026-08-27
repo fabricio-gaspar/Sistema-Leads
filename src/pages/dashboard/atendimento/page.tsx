@@ -15,6 +15,7 @@ import { useEmpresaSettingsStore } from '@/hooks/useEmpresaSettingsStore';
 import { usePropostasStore } from '@/hooks/usePropostasStore';
 import type { Proposta } from '@/mocks/propostasData';
 import { montarValoresVariaveis, resolverVariaveis } from '@/lib/variaveis';
+import { requestHumanHandoff, returnConversationToAna } from '@/lib/crm/handoffsRepository';
 import ConversaDrawer from './components/ConversaDrawer';
 
 const statusCores: Record<string, string> = {
@@ -251,18 +252,34 @@ export default function Atendimento() {
     anaResponder(msg);
   };
 
-  const handoff = () => {
+  const handoff = async () => {
     const lead = leadSelecionado;
-    if (lead) fluxo.transferirParaHumano(lead.id, 'Transferência manual solicitada pelo operador', 'MEDIA');
+    if (!lead) return;
+    try {
+      await requestHumanHandoff(lead.id, 'Transferência manual solicitada pelo operador');
+    } catch (error) {
+      console.error('[handoff] falha ao persistir transferência', error);
+      setErroIA('Não foi possível registrar a transferência agora. Tente novamente.');
+      return;
+    }
+    fluxo.transferirParaHumano(lead.id, 'Transferência manual solicitada pelo operador', 'MEDIA');
     atualizarStatus(selectedId, 'transferido');
     setAssumido(false);
   };
 
   // O humano assume a conversa a qualquer momento: pausa a Ana (se estiver ativa)
   // e passa a interagir livremente com o lead, sem perder o histórico.
-  const assumir = () => {
+  const assumir = async () => {
     const lead = leadSelecionado;
-    if (lead) fluxo.assumirAtendimento(lead.id);
+    if (!lead) return;
+    try {
+      await requestHumanHandoff(lead.id, 'Atendimento assumido manualmente pelo operador', 'takeover');
+    } catch (error) {
+      console.error('[handoff] falha ao assumir atendimento', error);
+      setErroIA('Não foi possível assumir o atendimento agora. Tente novamente.');
+      return;
+    }
+    fluxo.assumirAtendimento(lead.id);
     setAssumido(true);
     adicionarMensagem(selectedId, {
       id: `msg-sys-${Date.now()}`,
@@ -275,9 +292,17 @@ export default function Atendimento() {
   };
 
   // Devolve o atendimento para a Ana (reverte o "assumir").
-  const devolver = () => {
+  const devolver = async () => {
     const lead = leadSelecionado;
-    if (lead) fluxo.devolverParaAna(lead.id);
+    if (!lead) return;
+    try {
+      await returnConversationToAna(lead.id);
+    } catch (error) {
+      console.error('[handoff] falha ao devolver para Ana', error);
+      setErroIA('Não foi possível devolver o atendimento para a Ana agora.');
+      return;
+    }
+    fluxo.devolverParaAna(lead.id);
     setAssumido(false);
     adicionarMensagem(selectedId, {
       id: `msg-sys-${Date.now()}`,
