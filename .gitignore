@@ -1,0 +1,19 @@
+# Dependencies and build output
+node_modules/
+dist/
+out/
+coverage/
+.vite/
+
+# Local environment configuration — never commit credentials
+.env
+.env.production
+.env.local
+.env.*.local
+!/.env.example
+supabase/functions/.env
+
+# Local tooling
+.DS_Store
+*.log
+.eslintcache

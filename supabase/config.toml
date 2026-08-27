@@ -1,0 +1,7 @@
+project_id = "leadai"
+
+# User-facing functions keep Supabase JWT verification enabled (the default).
+# External webhooks cannot send a user JWT, so this endpoint authenticates the
+# provider signature/secret inside the handler before reading or writing data.
+[functions.webhook-whatsapp]
+verify_jwt = false
