@@ -1,10 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { Link, useLocation, Outlet, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useNotificacoesStore } from '@/hooks/useNotificacoesStore';
 import { useTarefasStore } from '@/hooks/useTarefasStore';
 import { useConfiguracaoStore } from '@/hooks/useConfiguracaoStore';
-import { useFluxoComercial } from '@/hooks/useFluxoComercial';
 import { useSaudeWhatsapp } from '@/hooks/useSaudeWhatsapp';
 import SaudeWhatsappIndicator from '@/components/feature/SaudeWhatsappIndicator';
 import ModoExecucaoToggle from '@/components/feature/ModoExecucaoToggle';
@@ -75,21 +74,6 @@ export default function DashboardLayout() {
   const tarefas = useTarefasStore();
   const { config } = useConfiguracaoStore();
   const saude = useSaudeWhatsapp();
-  const fluxo = useFluxoComercial();
-  const fluxoRef = useRef(fluxo);
-  fluxoRef.current = fluxo;
-
-  // Motor de automação em segundo plano: dispara follow-ups, timeouts, no-shows,
-  // lembretes e fluxos prontos automaticamente (a cada 60s), sem depender do clique
-  // manual em "Executar automações". Idempotente — não repete mensagens já enviadas.
-  useEffect(() => {
-    if (!user) return;
-    const id = setInterval(() => {
-      void fluxoRef.current.processarAutomacoesPendentes();
-    }, 60000);
-    return () => clearInterval(id);
-  }, [user]);
-
   if (loading) {
     return (
       <div className="flex h-screen items-center justify-center bg-background-50">
