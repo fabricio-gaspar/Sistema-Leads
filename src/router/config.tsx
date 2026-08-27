@@ -1,11 +1,11 @@
-import type { RouteObject } from "react-router-dom";
+import { Navigate, type RouteObject } from "react-router-dom";
 import { lazy } from 'react';
+import Landing from '../pages/landing/page';
+import Login from '../pages/login/page';
+import Register from '../pages/register/page';
+import ResetPassword from '../pages/reset-password/page';
 
 const NotFound = lazy(() => import('../pages/NotFound'));
-const Landing = lazy(() => import('../pages/landing/page'));
-const Login = lazy(() => import('../pages/login/page'));
-const Register = lazy(() => import('../pages/register/page'));
-const ResetPassword = lazy(() => import('../pages/reset-password/page'));
 const Dashboard = lazy(() => import('../pages/dashboard/page'));
 const Empresa = lazy(() => import('../pages/dashboard/empresa/page'));
 const BuscaLeads = lazy(() => import('../pages/dashboard/busca-leads/page'));
@@ -27,6 +27,10 @@ const ContasConectadas = lazy(() => import('../pages/dashboard/campanhas/contas/
 const routes: RouteObject[] = [
   {
     path: "/",
+    element: <Navigate to="/login" replace />,
+  },
+  {
+    path: "/apresentacao",
     element: <Landing />,
   },
   {

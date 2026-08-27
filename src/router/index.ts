@@ -24,7 +24,13 @@ export function AppRoutes() {
   });
   return createElement(
     Suspense,
-    { fallback: createElement('div', { className: 'min-h-screen bg-background-50', 'aria-busy': true }) },
+    {
+      fallback: createElement(
+        'main',
+        { className: 'flex min-h-screen items-center justify-center bg-background-50 px-6', 'aria-busy': true },
+        createElement('p', { className: 'text-sm font-medium text-foreground-600' }, 'Carregando LeadAI CRM...'),
+      ),
+    },
     element,
   );
 }
