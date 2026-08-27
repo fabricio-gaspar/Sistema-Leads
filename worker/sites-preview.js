@@ -15,7 +15,9 @@ export default {
     const asset = await env.ASSETS.fetch(request);
     if (asset.status !== 404 || !isNavigationRequest(request)) return asset;
 
-    const indexRequest = new Request(new URL('/', request.url), request);
+    // O binding de arquivos estáticos expõe o documento inicial pelo caminho
+    // explícito. Usar /index.html evita um 404 na raiz em produção.
+    const indexRequest = new Request(new URL('/index.html', request.url), request);
     return env.ASSETS.fetch(indexRequest);
   },
 };
