@@ -18,8 +18,8 @@ export default function PersonalizacaoAna({ embedded = false }: { embedded?: boo
   const [valueProposition, setValueProposition] = useState(joinPlaybookLines(settings.diferenciais));
   const [qualificationQuestions, setQualificationQuestions] = useState(joinPlaybookLines(DEFAULT_QUALIFICATION_QUESTIONS));
   const [handoffTriggers, setHandoffTriggers] = useState(joinPlaybookLines(settings.handoff.filter((rule) => rule.status !== 'inativo').map((rule) => rule.gatilho)) || joinPlaybookLines(DEFAULT_HANDOFF_TRIGGERS));
-  const [tone, setTone] = useState<'consultivo' | 'direto' | 'acolhedor' | 'tecnico'>('consultivo');
-  const [approvedKnowledge, setApprovedKnowledge] = useState('Catálogo e serviços aprovados\nDocumentos institucionais\nPolítica comercial publicada');
+  const [tone, setTone] = useState<'consultivo' | 'direto' | 'acolhedor' | 'tecnico'>('tecnico');
+  const [approvedKnowledge, setApprovedKnowledge] = useState('Site institucional da Wayflex\nCatálogo de soluções em borracha, silicone e poliuretano\nInformações de peças técnicas sob medida, vedação, reposição e projetos especiais\nCertificação ISO 9001:2015\nPolítica comercial publicada');
   const [discountLimit, setDiscountLimit] = useState(0);
   const [firstFollowUpHours, setFirstFollowUpHours] = useState(24);
   const [secondFollowUpHours, setSecondFollowUpHours] = useState(72);
