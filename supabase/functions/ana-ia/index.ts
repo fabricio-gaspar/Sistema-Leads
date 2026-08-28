@@ -4,6 +4,12 @@ import { allowedCorsHeaders, hasAllowedOrigin, json, preflight, safeError } from
 const actions = new Set(['responder', 'analisar', 'redigir', 'autocompletar', 'salvar_configuracao']);
 const text = (value: unknown, max = 8_000) => typeof value === 'string' ? value.trim().slice(0, max) : '';
 const object = (value: unknown): Record<string, unknown> => value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
+const lines = (value: unknown, fallback: string[] = []) => {
+  const result = Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string').map((item) => item.trim()).filter(Boolean).slice(0, 12)
+    : [];
+  return result.length ? result : fallback;
+};
 
 Deno.serve(async (request) => {
   const options = preflight(request); if (options) return options;
@@ -52,12 +58,33 @@ Deno.serve(async (request) => {
     if (action === 'analisar') {
       const normalized = message.toLowerCase();
       const optOut = /não quero|nao quero|pare|remova|descadastrar|opt.?out/.test(normalized);
-      const urgent = /urgente|reclamação|reclamacao|desconto|negoci/.test(normalized);
-      return json({ ok: true, analise: { intencao: optOut ? 'OPT_OUT' : urgent ? 'HANDOFF' : 'DESCONHECIDA', sentimento: 'NEUTRO', interesse: 0, confianca: 0.55, proximaAcao: optOut ? 'BLOQUEAR_CONTATO' : urgent ? 'TRANSFERIR_HUMANO' : 'QUALIFICAR' } }, 200, headers);
+      const urgency = /urgente|pra ontem|imediatamente|hoje/.test(normalized);
+      const negotiation = /desconto|negoci|caro|melhor preço|melhor preco/.test(normalized);
+      const complaint = /reclamação|reclamacao|insatisfeit|problema|péssimo|pessimo/.test(normalized);
+      const humanRequest = /falar com (uma )?pessoa|atendente|humano|vendedor/.test(normalized);
+      const meeting = /reunião|reuniao|agendar|agenda|call|ligar/.test(normalized);
+      const quote = /orçamento|orcamento|cotação|cotacao|proposta|quanto custa|preço|preco/.test(normalized);
+      const interest = /quero|interesse|preciso|gostaria|me explica/.test(normalized);
+      const handoff = urgency || negotiation || complaint || humanRequest;
+      const configuredTriggers = lines(configuration.handoffTriggers);
+      const motivo = complaint ? 'Reclamação ou insatisfação' : urgency ? 'Urgência operacional' : negotiation ? 'Pedido de desconto ou negociação' : humanRequest ? 'Solicitação de atendimento humano' : undefined;
+      return json({ ok: true, analise: {
+        intencao: optOut ? 'OPT_OUT' : handoff ? 'OBJECAO' : meeting ? 'AGENDAMENTO' : quote ? 'ORCAMENTO' : interest ? 'INTERESSE' : 'NEUTRO',
+        sentimento: complaint || optOut ? 'NEGATIVO' : interest ? 'POSITIVO' : 'NEUTRO',
+        scoreInteresse: optOut ? 0 : meeting || quote ? 75 : interest ? 65 : 50,
+        confianca: optOut || handoff || meeting || quote ? 0.95 : 0.6,
+        proximaAcao: optOut ? 'ENCERRAR' : handoff ? 'TRANSFERIR_HUMANO' : meeting ? 'AGENDAR' : quote ? 'CRIAR_ORCAMENTO' : interest ? 'QUALIFICAR' : 'RESPONDER',
+        etapaSugerida: optOut ? 'Fechado — Perdido' : handoff && negotiation ? 'Negociação' : meeting ? 'Reunião Agendada' : quote ? 'Proposta em Preparação' : interest ? 'Em Qualificação' : 'Em Contato',
+        motivoTransferencia: motivo,
+        regrasAtivas: configuredTriggers,
+      } }, 200, headers);
     }
     if (action === 'autocompletar') return json({ ok: true, texto: `${message}${message.endsWith('.') ? '' : '.'} Posso complementar com os detalhes técnicos e preparar um orçamento?` }, 200, headers);
     const greeting = text(configuration.greeting, 500) || 'Olá! Sou a Ana, assistente comercial da empresa.';
     const name = text(context.nome, 120);
-    return json({ ok: true, texto: `${greeting}${name ? ` ${name},` : ''} para preparar um orçamento adequado, pode me contar a necessidade, prazo e quantidade ou escopo desejado?` }, 200, headers);
+    const offer = lines(configuration.valueProposition);
+    const questions = lines(configuration.qualificationQuestions, ['Qual necessidade você quer resolver?', 'Qual o prazo ou urgência?', 'Qual escopo ou quantidade?']);
+    const offerContext = offer.length ? ` Trabalhamos com ${offer.slice(0, 2).join(' e ')}.` : '';
+    return json({ ok: true, texto: `${greeting}${name ? ` ${name},` : ''}${offerContext} Para preparar um orçamento adequado, ${questions[0].charAt(0).toLowerCase()}${questions[0].slice(1)}` }, 200, headers);
   } catch (error) { return json({ ok: false, erro: safeError(error) }, 400, headers); }
 });

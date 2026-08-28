@@ -1,5 +1,4 @@
 import { supabase } from '@/lib/supabase';
-import { getConhecimentoSnapshot } from '@/hooks/useConhecimentoStore';
 import type { AnaliseMensagem } from '@/lib/tipos';
 
 // Cliente da IA real (Claude/Anthropic) usada pela Ana. Todas as funções são
@@ -44,12 +43,8 @@ async function invocar(body: Record<string, unknown>): Promise<RespostaIA | null
 // Gera a resposta de conversa da Ana para a mensagem do lead.
 export async function gerarResposta(mensagem: string, contexto: ContextoLead = {}): Promise<string | null> {
   if (!mensagem.trim()) return null;
-  const conhecimento = getConhecimentoSnapshot()
-    .filter((e) => e.status === 'ativo')
-    .map((e) => ({ titulo: e.titulo, conteudo: e.conteudo }));
-
   const resposta = await comTimeout(
-    invocar({ acao: 'responder', mensagem, contexto: { ...contexto, conhecimento } })
+    invocar({ acao: 'responder', mensagem, contexto })
   );
   if (!resposta || !resposta.ok || !resposta.texto) return null;
   return resposta.texto;
