@@ -304,7 +304,7 @@ export default function BuscaLeads() {
   const etapaLabel = ['Fonte', 'Filtros', 'Revisão', 'Operação'];
 
   return (
-    <div className="p-6 md:p-8 max-w-6xl">
+    <div className="wf-page !max-w-7xl">
       <div className="mb-6 flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-heading font-extrabold text-foreground-950 mb-2">

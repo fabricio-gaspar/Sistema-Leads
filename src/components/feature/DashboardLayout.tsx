@@ -55,11 +55,10 @@ const formatarDataNotif = (iso: string) => {
 };
 
 export default function DashboardLayout() {
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth >= 1024);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [painelAba, setPainelAba] = useState<'notificacoes' | 'tarefas'>('notificacoes');
-  const [alertasVisiveis, setAlertasVisiveis] = useState(true);
   const location = useLocation();
   const navigate = useNavigate();
   const { user, loading, logout } = useAuth();
@@ -67,13 +66,6 @@ export default function DashboardLayout() {
   const tarefas = useTarefasStore();
   const { config } = useConfiguracaoStore();
   const saude = useSaudeWhatsapp();
-  const alertasSistema = [{
-    id: 'modo-execucao',
-    tipo: 'aviso',
-    mensagem: config.modoExecucao === 'PRODUCAO' ? 'Modo real' : 'Modo demo',
-    icone: config.modoExecucao === 'PRODUCAO' ? 'ri-rocket-line' : 'ri-flask-line',
-    cor: config.modoExecucao === 'PRODUCAO' ? 'bg-primary-500' : 'bg-secondary-500',
-  }];
   if (loading) {
     return (
       <div className="flex h-screen items-center justify-center bg-background-50">
@@ -96,21 +88,22 @@ export default function DashboardLayout() {
   const badgeAtencao = naoLidas + tarefasPendentes;
 
   return (
-    <div className="flex h-screen bg-background-50">
+    <div className="flex h-screen bg-background-100">
+      {sidebarOpen && <button aria-label="Fechar menu" onClick={() => setSidebarOpen(false)} className="fixed inset-0 z-20 bg-foreground-950/20 backdrop-blur-[1px] lg:hidden" />}
       {/* Sidebar */}
       <aside
         className={`${
-          sidebarOpen ? 'w-64' : 'w-20'
-        } bg-background-950 transition-all duration-300 flex flex-col fixed lg:relative z-30 h-full`}
+          sidebarOpen ? 'w-64 translate-x-0' : '-translate-x-full w-64 lg:translate-x-0 lg:w-20'
+        } wf-sidebar transition-all duration-300 flex flex-col fixed lg:relative z-30 h-full`}
       >
         {/* Logo */}
-        <div className="flex items-center justify-between px-4 py-5 border-b border-background-800/50">
+        <div className="flex items-center justify-between px-4 py-4 border-b border-background-200/80">
           {sidebarOpen ? (
             <Link to="/dashboard" className="flex items-center gap-3">
               <div className="w-8 h-8 bg-primary-500 rounded-lg flex items-center justify-center">
                 <i className="ri-flashlight-line text-background-50 text-sm"></i>
               </div>
-              <span className="text-background-50 font-heading font-bold text-lg whitespace-nowrap">LeadAI</span>
+              <span className="wf-brand-copy whitespace-nowrap"><strong>Wayflex Leads</strong><small>Commercial workspace</small></span>
             </Link>
           ) : (
             <Link to="/dashboard" className="w-8 h-8 bg-primary-500 rounded-lg flex items-center justify-center mx-auto">
@@ -119,7 +112,7 @@ export default function DashboardLayout() {
           )}
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
-            className="w-7 h-7 flex items-center justify-center rounded-md bg-background-800/50 hover:bg-background-700/50 text-background-300 cursor-pointer transition-colors"
+            className="wf-icon-button !w-7 !h-7 cursor-pointer"
           >
             <i className={`${sidebarOpen ? 'ri-arrow-left-s-line' : 'ri-arrow-right-s-line'} text-sm`}></i>
           </button>
@@ -134,11 +127,8 @@ export default function DashboardLayout() {
                 <li key={item.path}>
                   <Link
                     to={item.path}
-                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group cursor-pointer whitespace-nowrap ${
-                      isActive
-                        ? 'bg-primary-500/20 text-primary-400'
-                        : 'text-background-300 hover:bg-background-800/50 hover:text-background-100'
-                    }`}
+                    onClick={() => { if (window.innerWidth < 1024) setSidebarOpen(false); }}
+                    className={`wf-nav-item ${isActive ? 'is-active' : ''} flex items-center gap-3 px-3 py-2.5 rounded-lg group cursor-pointer whitespace-nowrap`}
                   >
                     <div className="w-5 h-5 flex items-center justify-center">
                       <i className={`${item.icon} text-lg`}></i>
@@ -151,7 +141,7 @@ export default function DashboardLayout() {
           </ul>
 
           {sidebarOpen ? (
-            <p className="text-[10px] uppercase tracking-wider text-background-500 font-semibold px-3 mt-5 mb-2">Campanhas</p>
+            <p className="text-[10px] uppercase tracking-[0.12em] text-foreground-400 font-semibold px-3 mt-5 mb-2">Campanhas</p>
           ) : (
             <div className="border-t border-background-800/50 mt-4 mb-2"></div>
           )}
@@ -163,11 +153,8 @@ export default function DashboardLayout() {
                 <li key={item.path}>
                   <Link
                     to={item.path}
-                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200 group cursor-pointer whitespace-nowrap ${
-                      isActive
-                        ? 'bg-primary-500/20 text-primary-400'
-                        : 'text-background-300 hover:bg-background-800/50 hover:text-background-100'
-                    }`}
+                    onClick={() => { if (window.innerWidth < 1024) setSidebarOpen(false); }}
+                    className={`wf-nav-item ${isActive ? 'is-active' : ''} flex items-center gap-3 px-3 py-2.5 rounded-lg group cursor-pointer whitespace-nowrap`}
                   >
                     <div className="w-5 h-5 flex items-center justify-center">
                       <i className={`${item.icon} text-lg`}></i>
@@ -181,7 +168,7 @@ export default function DashboardLayout() {
         </nav>
 
         {/* User */}
-        <div className="border-t border-background-800/50 p-4 relative">
+        <div className="border-t border-background-200/80 p-3 relative">
           <button
             onClick={() => setUserMenuOpen(!userMenuOpen)}
             className="w-full flex items-center gap-3 cursor-pointer rounded-lg p-1 hover:bg-background-800/30 transition-colors"
@@ -191,24 +178,24 @@ export default function DashboardLayout() {
             </div>
             {sidebarOpen && (
               <div className="flex-1 min-w-0 text-left">
-                <p className="text-background-100 text-sm font-medium truncate">{user.name}</p>
-                <p className="text-background-400 text-xs truncate">{user.role}</p>
+                <p className="text-foreground-900 text-sm font-medium truncate">{user.name}</p>
+                <p className="text-foreground-400 text-xs truncate">{user.role}</p>
               </div>
             )}
             {sidebarOpen && (
-              <i className="ri-arrow-up-s-line text-background-400 text-sm"></i>
+              <i className="ri-arrow-up-s-line text-foreground-400 text-sm"></i>
             )}
           </button>
 
           {userMenuOpen && (
-            <div className="absolute bottom-full left-3 right-3 mb-2 bg-background-900 border border-background-800 rounded-lg overflow-hidden shadow-lg">
+            <div className="absolute bottom-full left-3 right-3 mb-2 bg-white border border-background-200 rounded-xl overflow-hidden shadow-xl">
               <div className="px-3 py-2.5 border-b border-background-800">
-                <p className="text-background-100 text-sm font-medium truncate">{user.email}</p>
-                <p className="text-background-500 text-xs">{user.company}</p>
+                <p className="text-foreground-900 text-sm font-medium truncate">{user.email}</p>
+                <p className="text-foreground-500 text-xs">{user.company}</p>
               </div>
               <button
                 onClick={handleLogout}
-                className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-background-300 hover:bg-background-800/50 hover:text-background-100 cursor-pointer transition-colors"
+                className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-foreground-600 hover:bg-background-100 hover:text-foreground-900 cursor-pointer transition-colors"
               >
                 <div className="w-4 h-4 flex items-center justify-center">
                   <i className="ri-logout-box-r-line"></i>
@@ -223,7 +210,7 @@ export default function DashboardLayout() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top Header */}
-        <header className="bg-background-50 border-b border-background-200/70 px-6 py-3 flex items-center justify-between flex-shrink-0">
+        <header className="wf-topbar bg-background-50 border-b border-background-200/70 px-6 py-3 flex items-center justify-between flex-shrink-0">
           <div className="flex items-center gap-4">
             <button
               className="lg:hidden w-9 h-9 flex items-center justify-center rounded-lg bg-background-100 hover:bg-background-200 cursor-pointer transition-colors"
@@ -231,7 +218,7 @@ export default function DashboardLayout() {
             >
               <i className="ri-menu-line text-foreground-700 text-lg"></i>
             </button>
-            <div className="relative">
+            <div className="relative hidden sm:block">
               <i className="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-foreground-400 text-sm"></i>
               <input
                 type="text"
@@ -414,29 +401,8 @@ export default function DashboardLayout() {
           </div>
         )}
 
-        {/* System Alert Bar */}
-        {alertasVisiveis && (
-          <div className="bg-background-100 border-b border-background-200/70 px-6 py-2 flex items-center gap-4 overflow-x-auto">
-            {alertasSistema.map((a) => (
-              <div key={a.id} className="flex items-center gap-2 flex-shrink-0">
-                <span className={`w-2 h-2 rounded-full ${a.cor}`}></span>
-                <span className="text-xs text-foreground-600 whitespace-nowrap">
-                  <i className={`${a.icone} mr-1`}></i>
-                  {a.mensagem}
-                </span>
-              </div>
-            ))}
-            <button
-              onClick={() => setAlertasVisiveis(false)}
-              className="ml-auto text-xs text-foreground-400 hover:text-foreground-600 cursor-pointer flex-shrink-0"
-            >
-              <i className="ri-close-line"></i>
-            </button>
-          </div>
-        )}
-
         {/* Page Content */}
-        <main className="flex-1 overflow-y-auto bg-background-50">
+        <main className="wf-main flex-1 overflow-y-auto bg-background-50">
           <Outlet />
         </main>
       </div>

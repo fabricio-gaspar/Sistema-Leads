@@ -150,13 +150,14 @@ export default function Relatorios() {
   }).filter((r) => r.quantidade > 0);
 
   return (
-    <div className="p-6 md:p-8">
-      <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div className="wf-page">
+      <div className="wf-page-header">
         <div>
-          <h1 className="text-2xl md:text-3xl font-heading font-extrabold text-foreground-950 mb-2">
-            Relatório
+          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-primary-700">Inteligência comercial</p>
+          <h1 className="wf-page-title mt-1">
+            Relatórios
           </h1>
-          <p className="text-foreground-600 text-sm">
+          <p className="wf-page-description">
             Análise detalhada de performance, leads e equipe por período.
           </p>
         </div>

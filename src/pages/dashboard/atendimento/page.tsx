@@ -400,20 +400,21 @@ export default function Atendimento() {
   );
 
   return (
-    <div className="p-6 md:p-8">
-      <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div className="wf-page">
+      <div className="wf-page-header">
         <div>
-          <h1 className="text-2xl md:text-3xl font-heading font-extrabold text-foreground-950 mb-2">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-primary-700">Inbox multicanal</p>
+          <h1 className="wf-page-title mt-1">
             Central de Atendimento
           </h1>
-          <p className="text-foreground-600 text-sm">
+          <p className="wf-page-description">
             Inbox multicanal com a Ana, filas, SLA e histórico pesquisável.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <button
             onClick={() => setDrawerOpen(true)}
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-background-100 hover:bg-background-200 text-foreground-700 rounded-lg text-sm font-semibold cursor-pointer whitespace-nowrap"
+            className="wf-btn-secondary cursor-pointer whitespace-nowrap"
           >
             <i className="ri-side-bar-line"></i>
             Painel do lead
@@ -439,7 +440,7 @@ export default function Atendimento() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 min-h-[520px] lg:h-[calc(100vh-220px)]">
         {/* Lista de conversas */}
-        <div className="lg:col-span-1 bg-background-50 border border-background-200/70 rounded-xl flex flex-col overflow-hidden min-h-[280px] max-h-[360px] lg:max-h-none">
+        <div className="lg:col-span-1 wf-surface flex flex-col overflow-hidden min-h-[280px] max-h-[360px] lg:max-h-none">
           <div className="p-4 border-b border-background-200/70">
             <div className="relative">
               <i className="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-foreground-400 text-sm"></i>
@@ -488,7 +489,7 @@ export default function Atendimento() {
         </div>
 
         {/* Chat */}
-        <div className="lg:col-span-2 bg-background-50 border border-background-200/70 rounded-xl flex flex-col overflow-hidden">
+        <div className="lg:col-span-2 wf-surface flex flex-col overflow-hidden">
           <div className="px-5 py-4 border-b border-background-200/70 flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center">

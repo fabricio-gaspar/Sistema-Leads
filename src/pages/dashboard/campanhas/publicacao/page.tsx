@@ -260,7 +260,7 @@ export default function CriarPublicacao() {
   );
 
   return (
-    <div className="p-6 md:p-8">
+    <div className="wf-page">
       <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-heading font-extrabold text-foreground-950 mb-2">Criar Publicação</h1>

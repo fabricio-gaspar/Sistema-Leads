@@ -170,14 +170,16 @@ export default function DashboardConfiguracoes() {
   };
 
   return (
-    <div className="p-6 md:p-8">
-      <div className="mb-6">
-        <h1 className="text-2xl md:text-3xl font-heading font-extrabold text-foreground-950 mb-2">
+    <div className="wf-page">
+      <div className="wf-page-header">
+        <div>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-primary-700">Administração</p>
+        <h1 className="wf-page-title mt-1">
           Configurações
         </h1>
-        <p className="text-foreground-600 text-sm">
+        <p className="wf-page-description">
           Organização, equipe, operação, canais e uma única área para definir como a Ana atua em cada empresa.
-        </p>
+        </p></div>
       </div>
 
       {toast && (

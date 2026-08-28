@@ -60,7 +60,7 @@ export default function FunilConversao() {
   const taxaConversao = totalLeads > 0 ? ((fechados / totalLeads) * 100).toFixed(1) : '0.0';
 
   return (
-    <div className="p-6 md:p-8 max-w-5xl">
+    <div className="wf-page !max-w-6xl">
       <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-2xl md:text-3xl font-heading font-extrabold text-foreground-950 mb-2">

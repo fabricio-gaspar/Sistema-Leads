@@ -20,7 +20,11 @@ const formatarData = (d: Date): string => {
 };
 
 const etapaCores: Record<string, string> = {
-  entered: 'bg-background-200/60 border-background-300', engaging: 'bg-primary-100/50 border-primary-200', qualified: 'bg-primary-100/70 border-primary-300', quote_preparation: 'bg-secondary-100/70 border-secondary-300', quote_sent: 'bg-accent-100/70 border-accent-300', decision: 'bg-secondary-100/70 border-secondary-300',
+  entered: 'bg-background-100/80 border-background-200', engaging: 'bg-background-100/80 border-background-200', qualified: 'bg-background-100/80 border-background-200', quote_preparation: 'bg-background-100/80 border-background-200', quote_sent: 'bg-background-100/80 border-background-200', decision: 'bg-background-100/80 border-background-200',
+};
+
+const etapaIndicador: Record<string, string> = {
+  entered: 'bg-foreground-300', engaging: 'bg-primary-400', qualified: 'bg-primary-600', quote_preparation: 'bg-secondary-500', quote_sent: 'bg-accent-500', decision: 'bg-foreground-700',
 };
 
 const tempCores: Record<string, string> = {
@@ -55,6 +59,7 @@ export default function KanbanCRM() {
   const [dataInicio, setDataInicio] = useLocalStorageState('kanban-data-inicio', '');
   const [dataFim, setDataFim] = useLocalStorageState('kanban-data-fim', '');
   const [busca, setBusca] = useLocalStorageState('kanban-busca', '');
+  const [filtrosAbertos, setFiltrosAbertos] = useState(false);
   const navigate = useNavigate();
 
   const mostrarToast = (msg: string) => {
@@ -248,13 +253,14 @@ export default function KanbanCRM() {
   };
 
   return (
-    <div className="p-6 md:p-8">
-      <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div className="wf-page">
+      <div className="wf-page-header">
         <div>
-          <h1 className="text-2xl md:text-3xl font-heading font-extrabold text-foreground-950 mb-2">
-            Kanban do CRM
+          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-primary-700">Pipeline comercial</p>
+          <h1 className="wf-page-title mt-1">
+            Kanban
           </h1>
-          <p className="text-foreground-600 text-sm">
+          <p className="wf-page-description">
             Arraste os leads entre as colunas para atualizar a etapa do funil. Alterações são salvas automaticamente.
           </p>
         </div>
@@ -270,7 +276,7 @@ export default function KanbanCRM() {
           </span>
           <button
             onClick={executarAutomatizacoes}
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-secondary-500 hover:bg-secondary-600 text-background-50 rounded-lg text-sm font-semibold cursor-pointer whitespace-nowrap"
+            className="wf-btn-secondary cursor-pointer whitespace-nowrap"
           >
             <i className="ri-play-circle-line"></i>
             Executar automações
@@ -298,8 +304,13 @@ export default function KanbanCRM() {
             onRename={renomear}
             onDelete={excluir}
           />
+          <button onClick={() => setFiltrosAbertos((aberto) => !aberto)} className="wf-btn-secondary !min-h-[42px] whitespace-nowrap">
+            <i className="ri-filter-3-line"></i>
+            Filtros
+            {chips.length > 0 && <span className="min-w-5 h-5 px-1 rounded-full bg-primary-100 text-primary-700 text-[10px] inline-flex items-center justify-center">{chips.length}</span>}
+          </button>
         </div>
-        <div className="flex flex-col lg:flex-row lg:items-end gap-3 flex-wrap">
+        {filtrosAbertos && <div className="flex flex-col lg:flex-row lg:items-end gap-3 flex-wrap border-t border-background-200 pt-3">
           <div className="flex-1 min-w-[180px]">
             <label className="block text-xs font-medium text-foreground-600 mb-1.5">Responsável</label>
             <select
@@ -399,7 +410,7 @@ export default function KanbanCRM() {
               Limpar filtros
             </button>
           )}
-        </div>
+        </div>}
 
         <FilterChips chips={chips} />
       </div>
@@ -421,10 +432,10 @@ export default function KanbanCRM() {
               onDragOver={handleDragOver}
               onDrop={() => handleDrop(etapa)}
             >
-              <div className="px-4 py-3 border-b border-background-200/40">
+              <div className="px-4 py-3 border-b border-background-200/70">
                 <div className="flex items-center justify-between mb-1">
-                  <h3 className="font-heading font-bold text-foreground-900 text-sm">{PIPELINE_STAGE_LABEL[etapa]}</h3>
-                  <span className="text-xs font-medium text-foreground-500 bg-background-50 px-2 py-0.5 rounded-md">
+                  <h3 className="font-heading font-semibold text-foreground-900 text-sm flex items-center gap-2"><span className={`w-2 h-2 rounded-full ${etapaIndicador[etapa]}`}></span>{PIPELINE_STAGE_LABEL[etapa]}</h3>
+                  <span className="text-xs font-medium text-foreground-500 bg-white border border-background-200 px-2 py-0.5 rounded-md">
                     {lista.length}
                   </span>
                 </div>
@@ -437,7 +448,7 @@ export default function KanbanCRM() {
                     draggable
                     onDragStart={() => setDragId(lead.id)}
                     onClick={() => setDetalheId(lead.id)}
-                    className={`group bg-background-50 rounded-lg p-3.5 border border-background-200/70 cursor-grab active:cursor-grabbing hover:shadow-sm transition-all ${
+                    className={`group bg-white rounded-lg p-3.5 border border-background-200 cursor-grab active:cursor-grabbing hover:border-background-300 hover:shadow-[0_4px_12px_rgba(15,23,42,0.06)] transition-all ${
                       dragId === lead.id ? 'opacity-50' : ''
                     }`}
                   >
@@ -466,7 +477,7 @@ export default function KanbanCRM() {
                       <span className="text-[9px] text-foreground-400 truncate">{lead.responsavel}</span>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="inline-block px-2 py-0.5 rounded text-[10px] font-medium bg-primary-100 text-primary-700">
+                      <span className="inline-block px-2 py-0.5 rounded-md text-[10px] font-medium bg-background-100 text-foreground-600 border border-background-200">
                         Score {lead.score}
                       </span>
                       <span className="text-[10px] text-foreground-400">{lead.ultimaInteracao}</span>

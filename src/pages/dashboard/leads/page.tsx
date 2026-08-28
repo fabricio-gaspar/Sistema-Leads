@@ -251,19 +251,20 @@ export default function Leads() {
   };
 
   return (
-    <div className="p-6 md:p-8">
-      <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div className="wf-page">
+      <div className="wf-page-header">
         <div>
-          <h1 className="text-2xl md:text-3xl font-heading font-extrabold text-foreground-950 mb-2">
-            Gestão de Leads
+          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-primary-700">CRM</p>
+          <h1 className="wf-page-title mt-1">
+            Leads
           </h1>
-          <p className="text-foreground-600 text-sm">
+          <p className="wf-page-description">
             {leads.length} leads no funil · CRM completo com score, tags e responsáveis.
           </p>
         </div>
         <button
           onClick={() => setNovoModal(true)}
-          className="inline-flex items-center gap-2 bg-primary-500 hover:bg-primary-600 text-background-50 px-5 py-2.5 rounded-lg text-sm font-bold cursor-pointer whitespace-nowrap"
+          className="wf-btn-primary cursor-pointer whitespace-nowrap"
         >
           <i className="ri-add-line"></i>
           Novo Lead
@@ -314,7 +315,7 @@ export default function Leads() {
       )}
 
       {/* Filtros */}
-      <div className="mb-5 flex flex-col md:flex-row gap-3">
+      <div className="wf-toolbar mb-5">
         <div className="relative flex-1">
           <i className="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-foreground-400 text-sm"></i>
           <input
@@ -392,7 +393,7 @@ export default function Leads() {
       )}
 
       {/* Tabela */}
-      <div className="bg-background-50 border border-background-200/70 rounded-xl overflow-hidden">
+      <div className="wf-surface overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>

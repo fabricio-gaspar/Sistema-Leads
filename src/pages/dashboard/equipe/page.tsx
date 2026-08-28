@@ -82,7 +82,7 @@ export default function EquipePage() {
   const totalInteracoes = conversas.reduce((s, c) => s + c.mensagens.length, 0);
 
   return (
-    <div className="p-6 md:p-8 space-y-6 max-w-[1400px] mx-auto">
+    <div className="wf-page">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div>

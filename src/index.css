@@ -2,6 +2,80 @@
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Wayflex Product System
+ * Base visual única para o CRM: superfícies, controles, densidade e estados.
+ */
+@layer components {
+  .wf-page {
+    @apply mx-auto w-full max-w-[1600px] space-y-6 px-4 py-5 md:px-8 md:py-7;
+  }
+
+  .wf-page-header {
+    @apply flex flex-col gap-4 border-b border-background-200/80 pb-5 lg:flex-row lg:items-end lg:justify-between;
+  }
+
+  .wf-page-title {
+    @apply font-heading text-2xl font-bold tracking-[-0.03em] text-foreground-950 md:text-[1.75rem];
+  }
+
+  .wf-page-description {
+    @apply mt-1.5 max-w-3xl text-sm leading-6 text-foreground-500;
+  }
+
+  .wf-surface {
+    @apply rounded-xl border border-background-200/80 bg-white shadow-[0_1px_2px_rgba(15,23,42,0.025)];
+  }
+
+  .wf-toolbar {
+    @apply flex flex-col gap-3 rounded-xl border border-background-200/80 bg-white p-3 shadow-[0_1px_2px_rgba(15,23,42,0.02)] lg:flex-row lg:items-center;
+  }
+
+  .wf-btn-primary {
+    @apply inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-primary-600 px-4 text-sm font-semibold text-white transition hover:bg-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/30 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .wf-btn-secondary {
+    @apply inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-background-300 bg-white px-4 text-sm font-semibold text-foreground-700 transition hover:border-background-400 hover:bg-background-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/20 disabled:cursor-not-allowed disabled:opacity-50;
+  }
+
+  .wf-icon-button {
+    @apply inline-flex h-9 w-9 items-center justify-center rounded-lg border border-transparent text-foreground-500 transition hover:border-background-200 hover:bg-background-100 hover:text-foreground-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500/20;
+  }
+
+  .wf-kpi {
+    @apply min-w-0 px-5 py-4;
+  }
+
+  .wf-kpi + .wf-kpi {
+    @apply border-t border-background-200/80 sm:border-l sm:border-t-0;
+  }
+
+  .wf-metric-strip {
+    @apply wf-surface grid grid-cols-1 overflow-hidden sm:grid-cols-2 xl:grid-cols-4;
+  }
+
+  .wf-badge {
+    @apply inline-flex min-h-6 items-center gap-1.5 rounded-md border border-background-200 bg-background-100 px-2 text-[11px] font-semibold text-foreground-600;
+  }
+
+  .wf-tabs {
+    @apply inline-flex max-w-full gap-1 overflow-x-auto rounded-lg border border-background-200 bg-background-100 p-1;
+  }
+
+  .wf-empty-state {
+    @apply flex min-h-44 flex-col items-center justify-center px-6 py-10 text-center text-sm text-foreground-500;
+  }
+
+  .wf-skeleton {
+    @apply animate-pulse rounded-md bg-background-200;
+  }
+
+  .wf-table-shell {
+    @apply wf-surface overflow-hidden;
+  }
+}
+
 /* Assistente de personalização: fluxo curto e legível para configuração comercial. */
 .eyebrow { font-size: 0.72rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #197166; }
 .steps { display: flex; gap: .5rem; overflow-x: auto; margin: 1.5rem 0; padding-bottom: .25rem; }
@@ -16,18 +90,18 @@
   --font-body: 'Inter', sans-serif;
   --font-label: 'Inter', sans-serif;
 
-  /* Background – warm white scale */
-  --background-50: 0.99 0.002 95;
-  --background-100: 0.97 0.005 95;
-  --background-200: 0.94 0.008 90;
-  --background-300: 0.90 0.010 88;
-  --background-400: 0.85 0.012 85;
-  --background-500: 0.78 0.015 82;
-  --background-600: 0.65 0.018 78;
-  --background-700: 0.50 0.020 75;
-  --background-800: 0.38 0.018 72;
-  --background-900: 0.28 0.015 68;
-  --background-950: 0.18 0.012 65;
+  /* Background – neutral frio, próximo de ferramentas de trabalho premium */
+  --background-50: 0.995 0.001 255;
+  --background-100: 0.975 0.003 255;
+  --background-200: 0.935 0.006 255;
+  --background-300: 0.885 0.008 255;
+  --background-400: 0.82 0.010 255;
+  --background-500: 0.72 0.012 255;
+  --background-600: 0.60 0.014 255;
+  --background-700: 0.46 0.014 255;
+  --background-800: 0.34 0.013 255;
+  --background-900: 0.24 0.012 255;
+  --background-950: 0.16 0.010 255;
 
   /* Primary – deep teal green */
   --primary-50: 0.97 0.03 185;
@@ -84,10 +158,184 @@
 
 body {
   font-family: var(--font-body);
-  background-color: oklch(var(--background-50));
+  background-color: oklch(var(--background-100));
   color: oklch(var(--foreground-900));
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  border-color: oklch(var(--background-200));
+}
+
+::selection {
+  background: oklch(var(--primary-200));
+  color: oklch(var(--primary-950));
+}
+
+button,
+a,
+input,
+select,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+a {
+  transition-property: color, background-color, border-color, box-shadow, opacity, transform;
+  transition-duration: 150ms;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid oklch(var(--primary-500) / 0.42);
+  outline-offset: 2px;
+}
+
+input:not([type='checkbox']):not([type='radio']),
+select,
+textarea {
+  border-color: oklch(var(--background-300));
+  background: white;
+  color: oklch(var(--foreground-900));
+  box-shadow: 0 1px 1px rgb(15 23 42 / 0.02);
+}
+
+input:not([type='checkbox']):not([type='radio']):hover,
+select:hover,
+textarea:hover {
+  border-color: oklch(var(--background-400));
+}
+
+input:not([type='checkbox']):not([type='radio']):focus,
+select:focus,
+textarea:focus {
+  border-color: oklch(var(--primary-500));
+  box-shadow: 0 0 0 3px oklch(var(--primary-500) / 0.10);
+  outline: none;
+}
+
+table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+thead th {
+  color: oklch(var(--foreground-500));
+  font-size: .72rem;
+  font-weight: 650;
+  letter-spacing: .015em;
+  text-transform: none;
+}
+
+tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+tbody tr:hover {
+  background: oklch(var(--background-100) / .8);
+}
+
+.wf-sidebar {
+  background: #fbfcfd !important;
+  border-right: 1px solid oklch(var(--background-200));
+  box-shadow: 1px 0 0 rgb(15 23 42 / 0.015);
+}
+
+.wf-sidebar .wf-brand-copy strong {
+  display: block;
+  color: oklch(var(--foreground-950));
+  font-size: .88rem;
+  letter-spacing: -.015em;
+}
+
+.wf-sidebar .wf-brand-copy small {
+  display: block;
+  margin-top: .05rem;
+  color: oklch(var(--foreground-400));
+  font-size: .62rem;
+  font-weight: 600;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+
+.wf-sidebar button:hover {
+  color: oklch(var(--foreground-800));
+}
+
+.wf-nav-item {
+  color: oklch(var(--foreground-600)) !important;
+}
+
+.wf-nav-item:hover {
+  background: oklch(var(--background-200) / .55) !important;
+  color: oklch(var(--foreground-950)) !important;
+}
+
+.wf-nav-item.is-active {
+  background: oklch(var(--primary-100) / .8) !important;
+  color: oklch(var(--primary-800)) !important;
+  box-shadow: inset 2px 0 0 oklch(var(--primary-600));
+}
+
+.wf-topbar {
+  min-height: 3.75rem;
+  background: rgb(255 255 255 / .92) !important;
+  backdrop-filter: blur(14px);
+}
+
+.wf-main {
+  background:
+    linear-gradient(to bottom, rgb(255 255 255 / .46), transparent 14rem),
+    oklch(var(--background-100));
+}
+
+main > div[class*='p-6'],
+main > div[class*='p-4'] {
+  width: 100%;
+  max-width: 1600px;
+  margin-inline: auto;
+}
+
+main [class*='rounded-xl'][class*='border'][class*='bg-background-50'] {
+  background-color: white;
+  border-color: oklch(var(--background-200) / .9);
+  box-shadow: 0 1px 2px rgb(15 23 42 / .022);
+}
+
+main h1 {
+  letter-spacing: -.035em;
+}
+
+main h2,
+main h3 {
+  letter-spacing: -.018em;
+}
+
+@media (max-width: 1023px) {
+  .wf-sidebar {
+    box-shadow: 12px 0 40px rgb(15 23 42 / .13);
+  }
+
+  .wf-topbar {
+    padding-inline: 1rem !important;
+  }
+}
+
+@media (max-width: 640px) {
+  main > div[class*='p-6'],
+  main > div[class*='p-4'] {
+    padding: 1rem;
+  }
+
+  table th,
+  table td {
+    white-space: nowrap;
+  }
 }
 
 h1, h2, h3, h4, h5, h6 {

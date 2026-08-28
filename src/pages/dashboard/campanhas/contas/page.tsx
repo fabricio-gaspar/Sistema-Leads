@@ -63,7 +63,7 @@ export default function ContasConectadas() {
   };
 
   return (
-    <div className="p-6 md:p-8">
+    <div className="wf-page">
       <div className="mb-6">
         <h1 className="text-2xl md:text-3xl font-heading font-extrabold text-foreground-950 mb-2">
           Contas Conectadas
