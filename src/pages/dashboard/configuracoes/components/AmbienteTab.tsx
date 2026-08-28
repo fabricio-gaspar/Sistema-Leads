@@ -117,17 +117,12 @@ export default function AmbienteTab() {
     mostrarToast('Contatos de teste salvos.');
   };
 
-  // Dispara um envio real de teste pelo provedor escolhido, validando as credenciais.
+  // Valida o estado da integração no servidor; não transmite uma mensagem de teste.
   const testarWhatsapp = async () => {
-    const numero = testeWhatsapp.numero.trim();
-    if (!numero) {
-      setTesteWhatsapp((s) => ({ ...s, status: 'erro', msg: 'Informe o número de destino (com DDI).' }));
-      return;
-    }
     setTesteWhatsapp((s) => ({ ...s, status: 'enviando', msg: '' }));
 
-    const { data, error } = await supabase.functions.invoke('enviar-whatsapp', {
-      body: { para: numero, texto: 'Teste de conexão da Ana — Wayflex', modo: 'PRODUCAO', provedor: cfg.provedorWhatsapp },
+    const { data, error } = await supabase.functions.invoke('testar-integracao', {
+      body: { canal: 'whatsapp' },
     });
 
     if (error) {
@@ -136,10 +131,10 @@ export default function AmbienteTab() {
       return;
     }
 
-    if (data?.enviado) {
-      setTesteWhatsapp((s) => ({ ...s, status: 'ok', msg: `Mensagem enviada via ${data.provedor === 'zapi' ? 'Z-API' : 'Meta'}. ID: ${data.id}` }));
+    if (data?.pronto) {
+      setTesteWhatsapp((s) => ({ ...s, status: 'ok', msg: `Conexão válida com ${data.provedor === 'zapi' ? 'Z-API' : 'Meta'}. Nenhuma mensagem foi transmitida.` }));
     } else {
-      setTesteWhatsapp((s) => ({ ...s, status: 'erro', msg: data?.detalhe || data?.erro || 'Falha no envio.' }));
+      setTesteWhatsapp((s) => ({ ...s, status: 'erro', msg: data?.detalhe || data?.erro || 'Integração não está pronta.' }));
     }
   };
 

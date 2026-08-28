@@ -198,15 +198,10 @@ export default function IntegracoesTab() {
   };
 
   const testarZapi = async () => {
-    const numero = testeZapi.numero.trim();
-    if (!numero) {
-      setTesteZapi((s) => ({ ...s, status: 'erro', msg: 'Informe o número de destino (com DDI, ex.: 5511999999999).' }));
-      return;
-    }
     setTesteZapi((s) => ({ ...s, status: 'enviando', msg: '' }));
 
-    const { data, error } = await supabase.functions.invoke('enviar-whatsapp', {
-      body: { para: numero, texto: 'Teste de conexão da Ana — Wayflex', modo: 'PRODUCAO', provedor: 'zapi' },
+    const { data, error } = await supabase.functions.invoke('testar-integracao', {
+      body: { canal: 'whatsapp' },
     });
 
     if (error) {
@@ -215,10 +210,10 @@ export default function IntegracoesTab() {
       return;
     }
 
-    if (data?.enviado) {
-      setTesteZapi((s) => ({ ...s, status: 'ok', msg: `Mensagem enviada via Z-API. ID: ${data.id}` }));
+    if (data?.pronto) {
+      setTesteZapi((s) => ({ ...s, status: 'ok', msg: `Conexão válida com ${data.provedor ?? 'o provedor'}. Nenhuma mensagem foi transmitida.` }));
     } else {
-      setTesteZapi((s) => ({ ...s, status: 'erro', msg: data?.detalhe || data?.erro || 'Falha no envio.' }));
+      setTesteZapi((s) => ({ ...s, status: 'erro', msg: data?.detalhe || data?.erro || 'Integração não está pronta.' }));
     }
   };
 
