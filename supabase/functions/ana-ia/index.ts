@@ -65,9 +65,14 @@ Deno.serve(async (request) => {
       const meeting = /reunião|reuniao|agendar|agenda|call|ligar/.test(normalized);
       const quote = /orçamento|orcamento|cotação|cotacao|proposta|quanto custa|preço|preco/.test(normalized);
       const interest = /quero|interesse|preciso|gostaria|me explica/.test(normalized);
-      const handoff = urgency || negotiation || complaint || humanRequest;
       const configuredTriggers = lines(configuration.handoffTriggers);
-      const motivo = complaint ? 'Reclamação ou insatisfação' : urgency ? 'Urgência operacional' : negotiation ? 'Pedido de desconto ou negociação' : humanRequest ? 'Solicitação de atendimento humano' : undefined;
+      const normalizedForMatch = normalized.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      const configuredTrigger = configuredTriggers.find((trigger) => trigger
+        .toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .split(/[^a-z0-9]+/).filter((word) => word.length >= 4)
+        .some((word) => normalizedForMatch.includes(word)));
+      const handoff = urgency || negotiation || complaint || humanRequest || Boolean(configuredTrigger);
+      const motivo = complaint ? 'Reclamação ou insatisfação' : urgency ? 'Urgência operacional' : negotiation ? 'Pedido de desconto ou negociação' : humanRequest ? 'Solicitação de atendimento humano' : configuredTrigger ? `Regra da empresa: ${configuredTrigger}` : undefined;
       return json({ ok: true, analise: {
         intencao: optOut ? 'OPT_OUT' : handoff ? 'OBJECAO' : meeting ? 'AGENDAMENTO' : quote ? 'ORCAMENTO' : interest ? 'INTERESSE' : 'NEUTRO',
         sentimento: complaint || optOut ? 'NEGATIVO' : interest ? 'POSITIVO' : 'NEUTRO',
