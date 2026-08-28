@@ -53,9 +53,9 @@ const groups: MenuGroup[] = [
     ],
   },
   {
-    title: 'INTEGRAÇÕES E OPERAÇÃO',
+    title: 'INTEGRAÇÕES',
     items: [
-      { id: 'integracoes-operacao', label: 'Canais e operação', icone: 'ri-plug-line' },
+      { id: 'integracoes-operacao', label: 'Integrações', icone: 'ri-plug-line' },
     ],
   },
   {
