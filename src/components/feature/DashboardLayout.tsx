@@ -40,7 +40,7 @@ const campanhasItems: NavItem[] = [
 const tipoIcone: Record<string, string> = {
   lead: 'ri-user-search-line text-primary-600',
   proposta: 'ri-file-list-3-line text-accent-600',
-  venda: 'ri-money-dollar-circle-line text-secondary-600',
+  venda: 'ri-file-list-3-line text-secondary-600',
   sistema: 'ri-settings-4-line text-foreground-500',
   alerta: 'ri-error-warning-line text-accent-600',
   TAREFA: 'ri-task-line text-primary-600',

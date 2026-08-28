@@ -1,8 +1,7 @@
 import { useMemo, useState } from 'react';
-import type { Proposta, ItemProposta, Venda } from '@/mocks/propostasData';
+import type { Proposta, ItemProposta } from '@/mocks/propostasData';
 import { useLeadsStore } from '@/hooks/useLeadsStore';
 import { usePropostasStore } from '@/hooks/usePropostasStore';
-import { useVendasStore } from '@/hooks/useVendasStore';
 import { useConfiguracaoStore } from '@/hooks/useConfiguracaoStore';
 import { useTarefasStore } from '@/hooks/useTarefasStore';
 import { useNotificacoesStore } from '@/hooks/useNotificacoesStore';
@@ -36,14 +35,6 @@ const statusCor: Record<string, string> = {
   aguardando_aprovacao: 'bg-accent-100 text-accent-800',
 };
 
-const vendaStatus: Record<string, string> = {
-  pago: 'bg-primary-100 text-primary-700',
-  pendente: 'bg-secondary-100 text-secondary-700',
-  processando: 'bg-accent-100 text-accent-700',
-  estornado: 'bg-accent-500/20 text-accent-600',
-  cancelado: 'bg-background-200 text-foreground-600',
-};
-
 const motivosPerda = [
   'Preço acima do esperado',
   'Prazo incompatível',
@@ -59,9 +50,7 @@ const valorComDesconto = (p: Proposta) => p.valor * (1 - (p.descontoPct || 0) / 
 const escapar = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 export default function Orcamentos() {
-  const [aba, setAba] = useState<'propostas' | 'vendas'>('propostas');
   const { propostas, atualizar, confirmarAceiteLocal, criar, excluir } = usePropostasStore();
-  const { vendas, registrarDaProposta, alternarRecebimento, atualizar: atualizarVenda, excluir: excluirVenda } = useVendasStore();
   const [selecionada, setSelecionada] = useState<Proposta | null>(null);
   const [toast, setToast] = useState('');
   const [novoModal, setNovoModal] = useState(false);
@@ -77,8 +66,6 @@ export default function Orcamentos() {
   const [editarProposta, setEditarProposta] = useState<Proposta | null>(null);
   const [editItens, setEditItens] = useState<Record<string, number>>({});
   const [editDesconto, setEditDesconto] = useState(0);
-  const [editarVenda, setEditarVenda] = useState<Venda | null>(null);
-  const [editVendaForm, setEditVendaForm] = useState({ metodo: '', status: 'pendente' as Venda['status'], comprovante: '' });
 
   const [leads, setLeads] = useLeadsStore();
   const { config } = useConfiguracaoStore();
@@ -141,13 +128,12 @@ export default function Orcamentos() {
       return;
     }
     try {
-      await registrarDaProposta(p);
       confirmarAceiteLocal(id);
       moverLead(p, 'Fechado — Ganho');
       fluxo.registrarAuditoria({ evento: 'PROPOSAL_ACCEPTED', ator: 'Usuário', alvo: p.empresa, detalhes: `Proposta ${p.numero} aceita` });
-      mostrarToast(`${p.numero} aceita! Venda e recebimento gerados.`);
+      mostrarToast(`${p.numero} aceita. O orçamento foi concluído e o funil atualizado.`);
     } catch (error) {
-      console.error('[crm-sales] falha ao aceitar proposta', error);
+      console.error('[crm-proposals] falha ao aceitar proposta', error);
       mostrarToast('Não foi possível aceitar a proposta. Verifique as permissões e tente novamente.');
     }
   };
@@ -376,16 +362,6 @@ export default function Orcamentos() {
     mostrarToast(precisaAprovacao ? `Proposta ${numero} criada aguardando aprovação de desconto.` : `Proposta ${numero} criada (rascunho).`);
   };
 
-  const alternarVendaPago = async (v: Venda) => {
-    try {
-      await alternarRecebimento(v.id);
-      mostrarToast(v.status === 'pendente' ? 'Venda marcada como paga.' : 'Venda marcada como pendente.');
-    } catch (error) {
-      console.error('[crm-sales] falha ao atualizar recebimento', error);
-      mostrarToast('Não foi possível atualizar o recebimento. Essa operação exige permissão financeira.');
-    }
-  };
-
   const abrirEdicaoProposta = (p: Proposta) => {
     setEditarProposta(p);
     const map: Record<string, number> = {};
@@ -421,33 +397,6 @@ export default function Orcamentos() {
     mostrarToast('Proposta excluída.');
   };
 
-  const abrirEdicaoVenda = (v: Venda) => {
-    setEditarVenda(v);
-    setEditVendaForm({ metodo: v.metodo, status: v.status, comprovante: v.comprovante });
-  };
-
-  const salvarEdicaoVenda = async () => {
-    if (!editarVenda) return;
-    try {
-      await atualizarVenda(editarVenda.id, editVendaForm);
-      setEditarVenda(null);
-      mostrarToast('Venda atualizada.');
-    } catch (error) {
-      console.error('[crm-sales] falha ao editar venda', error);
-      mostrarToast('Não foi possível atualizar a venda. Verifique sua permissão financeira.');
-    }
-  };
-
-  const excluirVendaOperacional = async (id: string) => {
-    try {
-      await excluirVenda(id);
-      mostrarToast('Venda arquivada.');
-    } catch (error) {
-      console.error('[crm-sales] falha ao arquivar venda', error);
-      mostrarToast('Não foi possível arquivar a venda. Vendas pagas permanecem preservadas.');
-    }
-  };
-
   const subtotalEdit = Object.entries(editItens).reduce((acc, [catId, qtd]) => {
     const c = catalogo.find((x) => x.id === catId);
     return c ? acc + c.preco * qtd : acc;
@@ -462,7 +411,7 @@ export default function Orcamentos() {
             Orçamentos
           </h1>
           <p className="text-foreground-600 text-sm">
-            Propostas, aprovações e vendas. Aceitar uma proposta gera venda e atualiza o funil e a receita automaticamente.
+            Crie, revise, envie e acompanhe orçamentos. O aceite conclui a oportunidade, sem cobrança ou checkout no sistema.
           </p>
         </div>
         <button
@@ -487,7 +436,7 @@ export default function Orcamentos() {
           { label: 'Propostas em aberto', value: String(propostas.filter((p) => p.status === 'enviada' || p.status === 'visualizada').length), icon: 'ri-file-list-3-line', color: 'bg-primary-100 text-primary-600' },
           { label: 'Propostas aceitas', value: String(propostas.filter((p) => p.status === 'aceita').length), icon: 'ri-check-double-line', color: 'bg-secondary-100 text-secondary-600' },
           { label: 'Taxa de aceite', value: `${propostas.length ? Math.round((propostas.filter((p) => p.status === 'aceita').length / propostas.length) * 100) : 0}%`, icon: 'ri-percent-line', color: 'bg-accent-100 text-accent-600' },
-          { label: 'Receita paga', value: fmt(vendas.filter((v) => v.status === 'pago').reduce((a, v) => a + v.valor, 0)), icon: 'ri-money-dollar-circle-line', color: 'bg-primary-500/20 text-primary-600' },
+          { label: 'Aguardando aprovação', value: String(propostas.filter((p) => p.status === 'aguardando_aprovacao').length), icon: 'ri-time-line', color: 'bg-primary-500/20 text-primary-600' },
         ].map((kpi, i) => (
           <div key={i} className="bg-background-50 border border-background-200/70 rounded-xl p-5">
             <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-4 ${kpi.color}`}>
@@ -499,29 +448,7 @@ export default function Orcamentos() {
         ))}
       </div>
 
-      {/* Abas */}
-      <div className="mb-6 flex gap-1 bg-background-100 rounded-full p-1 w-fit">
-        {(
-          [
-            { id: 'propostas', label: 'Propostas', icon: 'ri-file-list-3-line' },
-            { id: 'vendas', label: 'Vendas', icon: 'ri-shopping-cart-2-line' },
-          ] as const
-        ).map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setAba(t.id)}
-            className={`inline-flex items-center gap-2 px-5 py-2 rounded-full text-sm font-medium transition-all cursor-pointer whitespace-nowrap ${
-              aba === t.id ? 'bg-background-50 text-foreground-900 shadow-sm' : 'text-foreground-500 hover:text-foreground-700'
-            }`}
-          >
-            <i className={t.icon}></i>
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      {aba === 'propostas' && (
-        <div className="bg-background-50 border border-background-200/70 rounded-xl overflow-hidden">
+      <div className="bg-background-50 border border-background-200/70 rounded-xl overflow-hidden">
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
@@ -662,79 +589,7 @@ export default function Orcamentos() {
               </tbody>
             </table>
           </div>
-        </div>
-      )}
-
-      {aba === 'vendas' && (
-        <div className="bg-background-50 border border-background-200/70 rounded-xl overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-background-200/70 bg-background-100/50">
-                  <th className="text-left px-6 py-3 text-foreground-500 font-medium text-xs">Lead</th>
-                  <th className="text-left px-6 py-3 text-foreground-500 font-medium text-xs">Valor</th>
-                  <th className="text-left px-6 py-3 text-foreground-500 font-medium text-xs">Método</th>
-                  <th className="text-left px-6 py-3 text-foreground-500 font-medium text-xs">Status</th>
-                  <th className="text-left px-6 py-3 text-foreground-500 font-medium text-xs hidden md:table-cell">Proposta</th>
-                  <th className="text-left px-6 py-3 text-foreground-500 font-medium text-xs">Ação</th>
-                </tr>
-              </thead>
-              <tbody>
-                {vendas.map((v: Venda) => (
-                  <tr key={v.id} className="border-b border-background-100 hover:bg-background-50/50 transition-colors">
-                    <td className="px-6 py-3.5">
-                      <p className="font-medium text-foreground-900">{v.lead}</p>
-                      <p className="text-xs text-foreground-500">{v.data}</p>
-                    </td>
-                    <td className="px-6 py-3.5 font-bold text-foreground-900">{fmt(v.valor)}</td>
-                    <td className="px-6 py-3.5 text-foreground-700">{v.metodo}</td>
-                    <td className="px-6 py-3.5">
-                      <span className={`inline-block px-2.5 py-1 rounded-md text-xs font-medium ${vendaStatus[v.status]}`}>
-                        {v.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-3.5 text-foreground-600 hidden md:table-cell">{v.proposta}</td>
-                    <td className="px-6 py-3.5">
-                      <div className="flex items-center gap-1.5">
-                        {v.status === 'pendente' ? (
-                          <button
-                            onClick={() => alternarVendaPago(v)}
-                            className="px-2.5 py-1.5 bg-primary-500 hover:bg-primary-600 text-background-50 rounded-md text-xs font-semibold cursor-pointer whitespace-nowrap"
-                          >
-                            <i className="ri-check-line"></i> Receber
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => alternarVendaPago(v)}
-                            className="px-2.5 py-1.5 bg-background-100 hover:bg-background-200 text-foreground-600 rounded-md text-xs cursor-pointer whitespace-nowrap"
-                            title="Reverter"
-                          >
-                            <i className="ri-arrow-go-back-line"></i>
-                          </button>
-                        )}
-                        <button
-                          onClick={() => abrirEdicaoVenda(v)}
-                          className="px-2.5 py-1.5 bg-background-100 hover:bg-background-200 text-foreground-600 rounded-md text-xs cursor-pointer whitespace-nowrap"
-                          title="Editar venda"
-                        >
-                          <i className="ri-edit-line"></i>
-                        </button>
-                        <button
-                          onClick={() => { void excluirVendaOperacional(v.id); }}
-                          className="px-2.5 py-1.5 bg-background-100 hover:bg-accent-50 text-accent-600 rounded-md text-xs cursor-pointer whitespace-nowrap"
-                          title="Excluir venda"
-                        >
-                          <i className="ri-delete-bin-6-line"></i>
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+      </div>
 
       {/* Drawer de detalhe */}
       {selecionada && (
@@ -1034,45 +889,6 @@ export default function Orcamentos() {
             <div className="px-6 py-4 border-t border-background-200/70 flex justify-end gap-2">
               <button onClick={() => setEditarProposta(null)} className="px-4 py-2.5 border border-background-300 text-foreground-700 rounded-lg text-sm font-semibold hover:bg-background-100 cursor-pointer whitespace-nowrap">Cancelar</button>
               <button onClick={salvarEdicaoProposta} className="px-5 py-2.5 bg-primary-500 hover:bg-primary-600 text-background-50 rounded-lg text-sm font-bold cursor-pointer whitespace-nowrap">Salvar alterações</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal Editar venda */}
-      {editarVenda && (
-        <div className="fixed inset-0 z-50 bg-foreground-950/50 flex items-center justify-center p-4" onClick={() => setEditarVenda(null)}>
-          <div className="bg-background-50 rounded-xl max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
-            <div className="px-6 py-4 border-b border-background-200/70 flex items-center justify-between">
-              <div>
-                <h3 className="font-heading font-bold text-foreground-950">Editar venda</h3>
-                <p className="text-sm text-foreground-500">{editarVenda.lead} · {editarVenda.empresa}</p>
-              </div>
-              <button onClick={() => setEditarVenda(null)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-background-100 cursor-pointer">
-                <i className="ri-close-line text-lg"></i>
-              </button>
-            </div>
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-foreground-800 mb-1.5">Método de pagamento</label>
-                <select value={editVendaForm.metodo} onChange={(e) => setEditVendaForm({ ...editVendaForm, metodo: e.target.value })} className="w-full px-4 py-2.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-900 cursor-pointer">
-                  {['PIX', 'Boleto', 'Cartão', 'Mercado Pago'].map((m) => <option key={m} value={m}>{m}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground-800 mb-1.5">Status</label>
-                <select value={editVendaForm.status} onChange={(e) => setEditVendaForm({ ...editVendaForm, status: e.target.value as Venda['status'] })} className="w-full px-4 py-2.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-900 cursor-pointer">
-                  {(['pago', 'pendente', 'processando', 'estornado'] as Venda['status'][]).map((s) => <option key={s} value={s}>{s}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground-800 mb-1.5">Comprovante</label>
-                <input type="text" value={editVendaForm.comprovante} onChange={(e) => setEditVendaForm({ ...editVendaForm, comprovante: e.target.value })} placeholder="REC-2026-0000" className="w-full px-4 py-2.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-900" />
-              </div>
-            </div>
-            <div className="px-6 py-4 border-t border-background-200/70 flex justify-end gap-2">
-              <button onClick={() => setEditarVenda(null)} className="px-4 py-2.5 border border-background-300 text-foreground-700 rounded-lg text-sm font-semibold hover:bg-background-100 cursor-pointer whitespace-nowrap">Cancelar</button>
-              <button onClick={salvarEdicaoVenda} className="px-5 py-2.5 bg-primary-500 hover:bg-primary-600 text-background-50 rounded-lg text-sm font-bold cursor-pointer whitespace-nowrap">Salvar</button>
             </div>
           </div>
         </div>

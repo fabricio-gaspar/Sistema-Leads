@@ -12,6 +12,10 @@ const nivelVisual: Record<
     icon: 'ri-whatsapp-line',
     card: 'bg-background-50 border-background-200/70',
   },
+  sem_dados: {
+    bar: 'bg-background-300', text: 'text-foreground-600', dot: 'bg-slate-400', label: 'Sem telemetria',
+    icon: 'ri-information-line', card: 'bg-background-50 border-background-200/70',
+  },
   atencao: {
     bar: 'bg-accent-500',
     text: 'text-accent-700',
@@ -19,6 +23,10 @@ const nivelVisual: Record<
     label: 'Atenção',
     icon: 'ri-alert-line',
     card: 'bg-background-50 border-background-200/70',
+  },
+  alto: {
+    bar: 'bg-accent-500', text: 'text-accent-700', dot: 'bg-orange-500', label: 'Risco alto',
+    icon: 'ri-alarm-warning-line', card: 'bg-background-50 border-background-200/70',
   },
   critico: {
     bar: 'bg-accent-500',
@@ -30,9 +38,7 @@ const nivelVisual: Record<
   },
 };
 
-// Card de saúde do WhatsApp exibido no Dashboard. Mostra o risco de bloqueio em
-// tempo real (estimado a partir de opt-outs e falta de engajamento) e dispara um
-// alerta visual forte quando o risco ultrapassa o limite configurado.
+// Card de saúde baseado em amostras recebidas do provedor e em políticas do servidor.
 export default function SaudeWhatsappCard() {
   const saude = useSaudeWhatsapp();
   const v = nivelVisual[saude.nivel];
@@ -53,7 +59,9 @@ export default function SaudeWhatsappCard() {
         </span>
       </div>
 
-      {saude.nivel === 'critico' && (
+      {saude.nivel === 'sem_dados' ? (
+        <div className="mb-4 text-xs text-foreground-600 bg-background-100 rounded-lg px-3 py-2.5">Conecte o provedor e execute o monitor para iniciar a telemetria.</div>
+      ) : saude.nivel === 'critico' && (
         <div className="mb-4 flex items-start gap-2 text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2.5">
           <i className="ri-alarm-warning-line mt-0.5"></i>
           <span>
@@ -65,7 +73,7 @@ export default function SaudeWhatsappCard() {
 
       <div className="flex items-end justify-between mb-2">
         <span className="text-3xl font-heading font-extrabold text-foreground-950">{saude.risco}%</span>
-        <span className="text-xs text-foreground-500">risco de bloqueio</span>
+        <span className="text-xs text-foreground-500">sinal operacional</span>
       </div>
       <div className="h-2.5 rounded-full bg-background-200 overflow-hidden mb-1">
         <div className={`h-full ${v.bar} transition-all`} style={{ width: `${saude.risco}%` }}></div>

@@ -51,11 +51,9 @@ export function usePropostasStore(): PropostasStore {
     updateState((prev) => prev.map((p) => (p.id === id ? { ...p, ...mudanca } : p)));
   };
 
-  // The financial RPC already persists the acceptance together with the sale
-  // and receivable. Reflect it here without issuing a second proposal write.
+  // Aceite encerra o orçamento e o funil; não cria venda, cobrança ou pedido.
   const confirmarAceiteLocal = (id: string) => {
-    state = state.map((proposal) => (proposal.id === id ? { ...proposal, status: 'aceita' } : proposal));
-    notify();
+    updateState((previous) => previous.map((proposal) => (proposal.id === id ? { ...proposal, status: 'aceita' } : proposal)));
   };
 
   const criar = (proposta: Proposta) => {

@@ -3,7 +3,7 @@ import autoTable from 'jspdf-autotable';
 import { mockUsers } from '@/mocks/users';
 import type { Conversa } from '@/mocks/atendimentoData';
 import type { Lead } from '@/mocks/leadsData';
-import type { Proposta, Venda } from '@/mocks/propostasData';
+import type { Proposta } from '@/mocks/propostasData';
 
 export interface UsuarioMetricas {
   id: string;
@@ -19,9 +19,9 @@ export interface UsuarioMetricas {
   leadsComConversa: number;
   leadsSemConversa: number;
   propostas: number;
-  vendas: number;
-  receita: number;
-  ticketMedio: number;
+  orcamentosAceitos: number;
+  valorOrcado: number;
+  valorMedioOrcado: number;
   tempoResposta: number;
   canalWhatsapp: number;
   canalInstagram: number;
@@ -32,9 +32,9 @@ export interface MetricasEquipe {
   usuarios: UsuarioMetricas[];
   totalConversas: number;
   totalLeads: number;
-  totalVendasPagas: number;
-  totalReceita: number;
-  ticketMedio: number;
+  totalOrcamentosAceitos: number;
+  totalValorOrcado: number;
+  valorMedioOrcado: number;
   whatsAppConversas: number;
   instagramConversas: number;
   emailConversas: number;
@@ -51,12 +51,11 @@ export function fmtDecimal(v: number) {
 export function calcularMetricas(
   conversas: Conversa[],
   leads: Lead[],
-  propostas: Proposta[],
-  vendas: Venda[]
+  propostas: Proposta[]
 ): MetricasEquipe {
-  const vendasPagas = vendas.filter((v) => v.status === 'pago');
-  const totalReceita = vendasPagas.reduce((s, v) => s + v.valor, 0);
-  const ticketMedio = totalReceita / (vendasPagas.length || 1);
+  const orcamentosAceitos = propostas.filter((proposal) => proposal.status === 'aceita');
+  const totalValorOrcado = orcamentosAceitos.reduce((s, proposal) => s + proposal.valor, 0);
+  const valorMedioOrcado = totalValorOrcado / (orcamentosAceitos.length || 1);
 
   const usuarios = mockUsers.map((u) => {
     const nome = u.name;
@@ -77,12 +76,8 @@ export function calcularMetricas(
       (p) => p.responsavel === nome || (isAna && p.responsavel === anaAlias)
     );
 
-    const vendasDoUsuario = vendasPagas.filter((v) => {
-      const prop = propostas.find((p) => p.numero === v.proposta);
-      return prop && (prop.responsavel === nome || (isAna && prop.responsavel === anaAlias));
-    });
-
-    const receitaUsuario = vendasDoUsuario.reduce((s, v) => s + v.valor, 0);
+    const orcamentosAceitosDoUsuario = orcamentosAceitos.filter((proposal) => proposal.responsavel === nome || (isAna && proposal.responsavel === anaAlias));
+    const valorOrcadoUsuario = orcamentosAceitosDoUsuario.reduce((s, proposal) => s + proposal.valor, 0);
 
     return {
       id: u.id,
@@ -98,9 +93,9 @@ export function calcularMetricas(
       leadsComConversa: leadsDoUsuario.filter((l) => conversas.some((c) => c.leadId === l.id)).length,
       leadsSemConversa: leadsDoUsuario.filter((l) => !conversas.some((c) => c.leadId === l.id)).length,
       propostas: propostasDoUsuario.length,
-      vendas: vendasDoUsuario.length,
-      receita: receitaUsuario,
-      ticketMedio: receitaUsuario / (vendasDoUsuario.length || 1),
+      orcamentosAceitos: orcamentosAceitosDoUsuario.length,
+      valorOrcado: valorOrcadoUsuario,
+      valorMedioOrcado: valorOrcadoUsuario / (orcamentosAceitosDoUsuario.length || 1),
       tempoResposta: isAna ? 2.3 : nome === 'Marina Sales' ? 5.9 : 8.2,
       canalWhatsapp: convDoUsuario.filter((c) => c.canal === 'whatsapp').length,
       canalInstagram: convDoUsuario.filter((c) => c.canal === 'instagram').length,
@@ -116,95 +111,15 @@ export function calcularMetricas(
     usuarios,
     totalConversas: conversas.length,
     totalLeads: leads.length,
-    totalVendasPagas: vendasPagas.length,
-    totalReceita,
-    ticketMedio,
+    totalOrcamentosAceitos: orcamentosAceitos.length,
+    totalValorOrcado,
+    valorMedioOrcado,
     whatsAppConversas,
     instagramConversas,
     emailConversas,
   };
 }
 
-export interface TendenciaPonto {
-  label: string;
-  receita: number;
-  vendas: number;
-}
-
-function mulberry32(seed: number) {
-  let a = seed >>> 0;
-  return function () {
-    a = (a + 0x6d2b79f5) >>> 0;
-    let t = a;
-    t = Math.imul(t ^ (t >>> 15), t | 1);
-    t = (t + Math.imul(t ^ (t >>> 7), t | 61)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-function formatarDia(dia: number, mes: number) {
-  return `${String(dia).padStart(2, '0')}/${String(mes).padStart(2, '0')}`;
-}
-
-export function gerarTendencia(periodo: string): TendenciaPonto[] {
-  if (periodo === 'TUDO') {
-    const rand = mulberry32(99);
-    const meses = ['Mar', 'Abr', 'Mai', 'Jun', 'Jul', 'Ago'];
-    return meses.map((m, i) => {
-      const receita = Math.max(
-        8000,
-        Math.round((25000 + i * 18000 + (rand() - 0.5) * 22000) / 100) * 100
-      );
-      return { label: m, receita, vendas: Math.max(2, Math.round(receita / 5200)) };
-    });
-  }
-
-  let dias: number;
-  let seed: number;
-  let inicio: Date;
-
-  switch (periodo) {
-    case '7 DIAS':
-      dias = 7;
-      seed = 7;
-      inicio = new Date(2026, 7, 14);
-      break;
-    case '15 DIAS':
-      dias = 15;
-      seed = 15;
-      inicio = new Date(2026, 7, 6);
-      break;
-    case 'MÊS PASSADO':
-      dias = 31;
-      seed = 31;
-      inicio = new Date(2026, 6, 1);
-      break;
-    case 'ESTE MÊS':
-    default:
-      dias = 20;
-      seed = 20;
-      inicio = new Date(2026, 7, 1);
-      break;
-  }
-
-  const rand = mulberry32(seed);
-  const pontos: TendenciaPonto[] = [];
-  for (let i = 0; i < dias; i += 1) {
-    const d = new Date(inicio);
-    d.setDate(inicio.getDate() + i);
-    const onda = Math.sin(i / 2.5) * 3200;
-    const receita = Math.max(
-      1500,
-      Math.round((9000 + i * 480 + onda + (rand() - 0.5) * 7000) / 100) * 100
-    );
-    pontos.push({
-      label: formatarDia(d.getDate(), d.getMonth() + 1),
-      receita,
-      vendas: Math.max(1, Math.round(receita / 4800)),
-    });
-  }
-  return pontos;
-}
 
 function csvCampo(v: string | number) {
   const s = String(v);
@@ -235,9 +150,9 @@ export function exportarCSV(metricas: MetricasEquipe) {
     'Com Conversa',
     'Sem Conversa',
     'Propostas',
-    'Vendas',
-    'Receita (R$)',
-    'Ticket Médio (R$)',
+    'Orçamentos aceitos',
+    'Valor orçado (R$)',
+    'Valor médio orçado (R$)',
     'Tempo Resposta (min)',
     'WhatsApp',
     'Instagram',
@@ -253,9 +168,9 @@ export function exportarCSV(metricas: MetricasEquipe) {
     u.leadsComConversa,
     u.leadsSemConversa,
     u.propostas,
-    u.vendas,
-    u.receita,
-    Math.round(u.ticketMedio),
+    u.orcamentosAceitos,
+    u.valorOrcado,
+    Math.round(u.valorMedioOrcado),
     fmtDecimal(u.tempoResposta),
     u.canalWhatsapp,
     u.canalInstagram,
@@ -280,14 +195,14 @@ export function exportarPDF(metricas: MetricasEquipe, periodo: string) {
   doc.setFontSize(11);
   doc.text(`Total de Conversas: ${metricas.totalConversas}`, 14, 35);
   doc.text(`Total de Leads: ${metricas.totalLeads}`, 14, 41);
-  doc.text(`Vendas Pagas: ${metricas.totalVendasPagas}`, 14, 47);
-  doc.text(`Receita Total: ${fmtMoney(metricas.totalReceita)}`, 14, 53);
-  doc.text(`Ticket Médio: ${fmtMoney(metricas.ticketMedio)}`, 14, 59);
+  doc.text(`Orçamentos aceitos: ${metricas.totalOrcamentosAceitos}`, 14, 47);
+  doc.text(`Valor em orçamentos: ${fmtMoney(metricas.totalValorOrcado)}`, 14, 53);
+  doc.text(`Valor médio orçado: ${fmtMoney(metricas.valorMedioOrcado)}`, 14, 59);
 
   autoTable(doc, {
     startY: 66,
     head: [
-      ['Membro', 'Cargo', 'Conversas', 'Leads', 'Propostas', 'Vendas', 'Receita', 'Ticket Médio', 'Tempo Resp.'],
+      ['Membro', 'Cargo', 'Conversas', 'Leads', 'Propostas', 'Orç. aceitos', 'Valor orçado', 'Valor médio', 'Tempo Resp.'],
     ],
     body: metricas.usuarios.map((u) => [
       u.nome,
@@ -295,9 +210,9 @@ export function exportarPDF(metricas: MetricasEquipe, periodo: string) {
       String(u.conversas),
       String(u.leads),
       String(u.propostas),
-      String(u.vendas),
-      fmtMoney(u.receita),
-      fmtMoney(u.ticketMedio),
+      String(u.orcamentosAceitos),
+      fmtMoney(u.valorOrcado),
+      fmtMoney(u.valorMedioOrcado),
       `${fmtDecimal(u.tempoResposta)} min`,
     ]),
     styles: { fontSize: 9 },

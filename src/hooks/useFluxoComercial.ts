@@ -253,6 +253,7 @@ export function useFluxoComercial() {
       enviarViaApi(canal, {
         para: destino,
         texto,
+        leadId: lead.id,
         assunto: tipo === 'LEMBRETE_REUNIAO' ? `Lembrete de reunião — ${lead.nome}` : undefined,
       }).then((res) => {
         if (res.enviado) {

@@ -59,17 +59,8 @@ const inicial: TemplateDocumento[] = [
     nome: 'Checklist de onboarding',
     tipo: 'checklist',
     conteudo:
-      'CHECKLIST DE ONBOARDING — {empresa}\n\n[ ] Reunião de kickoff agendada\n[ ] Acessos coletados (site, redes, anúncios)\n[ ] Briefing e materiais de marca recebidos\n[ ] Contrato assinado\n[ ] Primeira parcela paga\n[ ] Cronograma validado com o cliente\n\nResponsável: {assinatura}',
+      'CHECKLIST DE ONBOARDING — {empresa}\n\n[ ] Reunião de kickoff agendada\n[ ] Acessos coletados (site, redes, anúncios)\n[ ] Briefing e materiais de marca recebidos\n[ ] Contrato assinado\n[ ] Escopo e cronograma confirmados\n[ ] Cronograma validado com o cliente\n\nResponsável: {assinatura}',
     variaveis: ['empresa', 'assinatura'],
-    ativo: true,
-  },
-  {
-    id: 'td-5',
-    nome: 'Recibo de pagamento',
-    tipo: 'recibo',
-    conteudo:
-      'RECIBO DE PAGAMENTO\n\nRecebemos de {empresa} a importância referente aos serviços contratados, conforme proposta em anexo.\n\nValor: {valor_total}\nData: {data_hoje}\n\n{assinatura}',
-    variaveis: ['empresa', 'valor_total', 'data_hoje', 'assinatura'],
     ativo: true,
   },
 ];

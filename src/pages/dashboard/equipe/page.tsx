@@ -3,12 +3,9 @@ import { Link } from 'react-router-dom';
 import { useConversasStore } from '@/hooks/useConversasStore';
 import { useLeadsStore } from '@/hooks/useLeadsStore';
 import { usePropostasStore } from '@/hooks/usePropostasStore';
-import { useVendasStore } from '@/hooks/useVendasStore';
-import TendenciaVendasChart from '@/pages/dashboard/equipe/components/TendenciaVendasChart';
 import UsuarioDetalhesModal from '@/pages/dashboard/equipe/components/UsuarioDetalhesModal';
 import {
   calcularMetricas,
-  gerarTendencia,
   exportarCSV,
   exportarPDF,
   fmtMoney,
@@ -72,14 +69,11 @@ export default function EquipePage() {
   const { conversas } = useConversasStore();
   const [leads] = useLeadsStore();
   const { propostas } = usePropostasStore();
-  const { vendas } = useVendasStore();
 
   const metricas = useMemo(
-    () => calcularMetricas(conversas, leads, propostas, vendas),
-    [conversas, leads, propostas, vendas]
+    () => calcularMetricas(conversas, leads, propostas),
+    [conversas, leads, propostas]
   );
-
-  const tendencia = useMemo(() => gerarTendencia(periodoAtivo), [periodoAtivo]);
 
   const leadsComConversa = leads.filter((l) => conversas.some((c) => c.leadId === l.id)).length;
   const leadsSemConversa = leads.filter((l) => !conversas.some((c) => c.leadId === l.id)).length;
@@ -149,9 +143,6 @@ export default function EquipePage() {
           Métricas detalhadas de performance por usuário e instância
         </p>
       </div>
-
-      {/* Tendência de Vendas */}
-      <TendenciaVendasChart dados={tendencia} />
 
       {/* Grid principal */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -429,10 +420,10 @@ export default function EquipePage() {
           </div>
         </div>
 
-        {/* Performance de Vendas */}
+        {/* Performance de Orçamentos */}
         <div className="bg-background-50 border border-background-200/70 rounded-xl p-5">
           <div className="mb-4">
-            <h3 className="text-sm font-bold text-foreground-800">Performance de Vendas</h3>
+            <h3 className="text-sm font-bold text-foreground-800">Performance de Orçamentos</h3>
             <p className="text-[10px] text-foreground-400 uppercase tracking-wider mt-0.5">
               Valor por Usuário
             </p>
@@ -440,27 +431,27 @@ export default function EquipePage() {
 
           <div className="grid grid-cols-3 gap-2 mb-5">
             <div className="bg-emerald-50/60 rounded-lg p-3 text-center">
-              <p className="text-[9px] text-emerald-700 uppercase tracking-wider font-medium">Total Vendido</p>
-              <p className="text-base font-bold text-emerald-600 mt-1">{fmtMoney(metricas.totalReceita)}</p>
+              <p className="text-[9px] text-emerald-700 uppercase tracking-wider font-medium">Valor orçado</p>
+              <p className="text-base font-bold text-emerald-600 mt-1">{fmtMoney(metricas.totalValorOrcado)}</p>
             </div>
             <div className="bg-background-100/60 rounded-lg p-3 text-center">
-              <p className="text-[9px] text-foreground-500 uppercase tracking-wider font-medium">Vendas</p>
-              <p className="text-base font-bold text-foreground-800 mt-1">{metricas.totalVendasPagas}</p>
+              <p className="text-[9px] text-foreground-500 uppercase tracking-wider font-medium">Orçamentos aceitos</p>
+              <p className="text-base font-bold text-foreground-800 mt-1">{metricas.totalOrcamentosAceitos}</p>
             </div>
             <div className="bg-background-100/60 rounded-lg p-3 text-center">
-              <p className="text-[9px] text-foreground-500 uppercase tracking-wider font-medium">Ticket Médio</p>
-              <p className="text-base font-bold text-foreground-800 mt-1">{fmtMoney(metricas.ticketMedio)}</p>
+              <p className="text-[9px] text-foreground-500 uppercase tracking-wider font-medium">Valor médio orçado</p>
+              <p className="text-base font-bold text-foreground-800 mt-1">{fmtMoney(metricas.valorMedioOrcado)}</p>
             </div>
           </div>
 
           <div>
             <p className="text-[10px] text-foreground-400 uppercase tracking-wider mb-2">
-              Ranking de Vendedores
+              Distribuição por responsável
             </p>
             <div className="space-y-3">
               {metricas.usuarios
-                .filter((u) => u.receita > 0 || u.vendas > 0)
-                .sort((a, b) => b.receita - a.receita)
+                .filter((u) => u.valorOrcado > 0 || u.orcamentosAceitos > 0)
+                .sort((a, b) => b.valorOrcado - a.valorOrcado)
                 .map((u, idx) => (
                   <button
                     key={u.id}
@@ -476,16 +467,16 @@ export default function EquipePage() {
                     <div className="flex-1 min-w-0">
                       <p className="text-xs font-medium text-foreground-800 truncate">{u.nome}</p>
                       <p className="text-[10px] text-foreground-400">
-                        {u.vendas} vendas ·{' '}
-                        {((u.vendas / Math.max(metricas.totalVendasPagas, 1)) * 100).toFixed(0)}% conv.
+                        {u.orcamentosAceitos} orçamentos aceitos ·{' '}
+                        {((u.orcamentosAceitos / Math.max(metricas.totalOrcamentosAceitos, 1)) * 100).toFixed(0)}% do total
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm font-bold text-foreground-900">{fmtMoney(u.receita)}</p>
+                      <p className="text-sm font-bold text-foreground-900">{fmtMoney(u.valorOrcado)}</p>
                       <p className="text-[9px] text-foreground-400">
                         ≈ R${' '}
-                        {(u.receita / Math.max(u.vendas, 1)).toLocaleString('pt-BR', { maximumFractionDigits: 0 })}{' '}
-                        Qvenda
+                        {(u.valorOrcado / Math.max(u.orcamentosAceitos, 1)).toLocaleString('pt-BR', { maximumFractionDigits: 0 })}{' '}
+                        por orçamento
                       </p>
                     </div>
                   </button>

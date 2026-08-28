@@ -38,18 +38,6 @@ export interface Proposta {
   termos?: string;
 }
 
-export interface Venda {
-  id: string;
-  lead: string;
-  empresa: string;
-  valor: number;
-  metodo: string;
-  status: 'pago' | 'pendente' | 'estornado' | 'processando' | 'cancelado';
-  data: string;
-  comprovante: string;
-  proposta: string;
-}
-
 export const catalogo: ItemCatalogo[] = [
   { id: 'cat-1', nome: 'Site institucional', preco: 3500, unidade: 'projeto' },
   { id: 'cat-2', nome: 'Landing page de alta conversão', preco: 1800, unidade: 'projeto' },
@@ -168,14 +156,4 @@ export const propostas: Proposta[] = [
       { id: 'it-12', nome: 'Gestão de tráfego pago (mensal)', quantidade: 6, preco: 17500 },
     ],
   },
-];
-
-export const vendas: Venda[] = [
-  { id: 'vd-1', lead: 'Juliana Costa', empresa: 'Agência Criativa', valor: 6800, metodo: 'PIX', status: 'pago', data: '2026-08-10', comprovante: 'REC-2026-0101', proposta: 'PRP-0138' },
-  { id: 'vd-2', lead: 'Ricardo Nunes', empresa: 'AgroPlanta', valor: 22000, metodo: 'Boleto', status: 'pago', data: '2026-08-08', comprovante: 'REC-2026-0098', proposta: 'PRP-0136' },
-  { id: 'vd-3', lead: 'Larissa Melo', empresa: 'Energia Solar Brasil', valor: 8800, metodo: 'Cartão', status: 'processando', data: '2026-08-11', comprovante: '—', proposta: 'PRP-0135' },
-  { id: 'vd-4', lead: 'Patrícia Lima', empresa: 'Clínica Vida Saudável', valor: 3200, metodo: 'PIX', status: 'pendente', data: '2026-08-11', comprovante: '—', proposta: 'PRP-0139' },
-  { id: 'vd-5', lead: 'Eduardo Santos', empresa: 'LogiTrans Express', valor: 15000, metodo: 'Boleto', status: 'pendente', data: '2026-08-09', comprovante: '—', proposta: 'PRP-0134' },
-  { id: 'vd-6', lead: 'Camila Duarte', empresa: 'Varejo Top', valor: 5100, metodo: 'Mercado Pago', status: 'pago', data: '2026-08-07', comprovante: 'REC-2026-0092', proposta: 'PRP-0133' },
-  { id: 'vd-7', lead: 'Fernando Gomes', empresa: 'Alpha Automação', valor: 5400, metodo: 'Cartão', status: 'estornado', data: '2026-08-05', comprovante: 'REC-2026-0088', proposta: 'PRP-0137' },
 ];

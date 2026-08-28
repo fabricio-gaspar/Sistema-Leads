@@ -6,7 +6,6 @@ import type { FilterChip } from '@/components/feature/FilterChips';
 import SavedViewsControl from '@/components/feature/SavedViewsControl';
 import { useLeadsStore } from '@/hooks/useLeadsStore';
 import { usePropostasStore } from '@/hooks/usePropostasStore';
-import { useVendasStore } from '@/hooks/useVendasStore';
 import { periodoDesde, maxDataString, dentroDoPeriodo } from '@/lib/periodo';
 
 const periodos = [
@@ -25,7 +24,6 @@ interface RelatoriosFiltros {
 export default function Relatorios() {
   const [leads] = useLeadsStore();
   const { propostas } = usePropostasStore();
-  const { vendas } = useVendasStore();
   const [periodo, setPeriodo] = useLocalStorageState('relatorios-periodo', '30d');
   const [aba, setAba] = useState<'geral' | 'leads' | 'equipe'>('geral');
   const [exportando, setExportando] = useState(false);
@@ -99,7 +97,6 @@ export default function Relatorios() {
   const refDate = maxDataString([
     ...leads.map((lead) => lead.criadoEm),
     ...propostas.map((proposal) => proposal.data),
-    ...vendas.map((sale) => sale.data),
   ]);
   const desde = periodoDesde(periodo, refDate);
 
@@ -111,10 +108,7 @@ export default function Relatorios() {
   });
 
   const propostasFiltradas = propostas.filter((proposal) => dentroDoPeriodo(proposal.data, desde));
-  const vendasFiltradas = vendas.filter((sale) => dentroDoPeriodo(sale.data, desde));
-  const receitaRecebida = vendasFiltradas
-    .filter((sale) => sale.status === 'pago')
-    .reduce((total, sale) => total + sale.valor, 0);
+  const orcamentosAceitos = propostasFiltradas.filter((proposal) => proposal.status === 'aceita');
   const pipelineAberto = propostasFiltradas
     .filter((proposal) => ['rascunho', 'aguardando_aprovacao', 'enviada', 'visualizada'].includes(proposal.status))
     .reduce((total, proposal) => total + proposal.valor * (1 - proposal.descontoPct / 100), 0);
@@ -151,7 +145,7 @@ export default function Relatorios() {
       nome,
       quantidade: responsavelLeads.length,
       convertidos: responsavelLeads.filter((lead) => lead.etapa === 'Fechado — Ganho').length,
-      receita: vendasFiltradas.filter((sale) => sale.status === 'pago' && nomesLeads.has(sale.lead)).reduce((total, sale) => total + sale.valor, 0),
+      valorOrcado: propostasFiltradas.filter((proposal) => proposal.status === 'aceita' && nomesLeads.has(proposal.lead)).reduce((total, proposal) => total + proposal.valor, 0),
     };
   }).filter((r) => r.quantidade > 0);
 
@@ -291,7 +285,7 @@ export default function Relatorios() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {[
               { label: 'Leads no funil', value: leadsFiltrados.length.toLocaleString(), icon: 'ri-user-search-line', color: 'bg-primary-100 text-primary-600' },
-              { label: 'Receita recebida', value: receitaRecebida.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }), icon: 'ri-money-dollar-circle-line', color: 'bg-accent-100 text-accent-600' },
+              { label: 'Valor em orçamentos aceitos', value: orcamentosAceitos.reduce((total, proposal) => total + proposal.valor, 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }), icon: 'ri-file-check-line', color: 'bg-accent-100 text-accent-600' },
               { label: 'Pipeline aberto', value: pipelineAberto.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }), icon: 'ri-line-chart-line', color: 'bg-primary-500/20 text-primary-600' },
               { label: 'Taxa de fechamento', value: `${leadsFiltrados.length ? Math.round((leadsFiltrados.filter((l) => l.etapa === 'Fechado — Ganho').length / leadsFiltrados.length) * 100) : 0}%`, icon: 'ri-trophy-line', color: 'bg-secondary-100 text-secondary-600' },
             ].map((kpi, i) => (
@@ -430,7 +424,7 @@ export default function Relatorios() {
                   <th className="text-left px-6 py-3 text-foreground-500 font-medium text-xs">Responsável</th>
                   <th className="text-left px-6 py-3 text-foreground-500 font-medium text-xs">Leads atribuídos</th>
                   <th className="text-left px-6 py-3 text-foreground-500 font-medium text-xs">Convertidos</th>
-                  <th className="text-left px-6 py-3 text-foreground-500 font-medium text-xs">Receita recebida</th>
+                  <th className="text-left px-6 py-3 text-foreground-500 font-medium text-xs">Orçamentos aceitos</th>
                   <th className="text-left px-6 py-3 text-foreground-500 font-medium text-xs">Taxa de conversão</th>
                 </tr>
               </thead>
@@ -442,7 +436,7 @@ export default function Relatorios() {
                       <td className="px-6 py-3.5 font-medium text-foreground-900">{r.nome}</td>
                       <td className="px-6 py-3.5 text-foreground-700">{r.quantidade}</td>
                       <td className="px-6 py-3.5 text-foreground-700">{r.convertidos}</td>
-                      <td className="px-6 py-3.5 text-foreground-700">{r.receita.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
+                      <td className="px-6 py-3.5 text-foreground-700">{r.valorOrcado.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
                       <td className="px-6 py-3.5">
                         <div className="flex items-center gap-2">
                           <div className="w-16 h-2 bg-background-100 rounded-full overflow-hidden">

@@ -12,6 +12,7 @@ const nivelVisual: Record<
     label: 'Saudável',
     icon: 'ri-shield-check-line',
   },
+  sem_dados: { bar: 'bg-background-300', text: 'text-foreground-600', chip: 'bg-background-100', label: 'Sem telemetria', icon: 'ri-information-line' },
   atencao: {
     bar: 'bg-accent-500',
     text: 'text-accent-700',
@@ -19,6 +20,7 @@ const nivelVisual: Record<
     label: 'Atenção',
     icon: 'ri-alert-line',
   },
+  alto: { bar: 'bg-accent-500', text: 'text-accent-700', chip: 'bg-accent-100', label: 'Risco alto', icon: 'ri-alarm-warning-line' },
   critico: {
     bar: 'bg-accent-500',
     text: 'text-accent-700',
@@ -60,7 +62,7 @@ export default function SaudeWhatsappIndicator() {
             <div className="p-4">
               <div className="flex items-end justify-between mb-2">
                 <span className="text-2xl font-heading font-extrabold text-foreground-950">{saude.risco}%</span>
-                <span className="text-xs text-foreground-500">risco de bloqueio</span>
+                <span className="text-xs text-foreground-500">sinal operacional</span>
               </div>
               <div className="h-2 rounded-full bg-background-200 overflow-hidden mb-1">
                 <div className={`h-full ${v.bar} transition-all`} style={{ width: `${saude.risco}%` }}></div>
@@ -96,8 +98,7 @@ export default function SaudeWhatsappIndicator() {
                 </div>
               </div>
               <p className="text-[10px] text-foreground-400 mt-3 leading-relaxed">
-                Estimativa baseada em opt-outs e falta de engajamento. A Meta usa o &ldquo;quality rating&rdquo; oficial
-                no painel Business — monitore lá também.
+                Telemetria registrada pelo provedor e decisões do servidor. A Meta continua sendo a fonte oficial de qualidade do número.
               </p>
             </div>
           </div>

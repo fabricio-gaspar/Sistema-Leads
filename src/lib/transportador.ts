@@ -81,7 +81,7 @@ export async function detalheDoErroDeFuncao(error: unknown): Promise<string> {
 // produção.
 export async function enviarViaApi(
   canal: string,
-  dados: { para: string; texto: string; assunto?: string }
+  dados: { para: string; texto: string; assunto?: string; leadId?: string }
 ): Promise<ResultadoEnvioApi> {
   const fn = chaveModulo(canal) === 'email' ? 'enviar-email' : 'enviar-whatsapp';
   const snapshot = getConfigSnapshot();

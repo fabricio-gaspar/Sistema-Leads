@@ -6,7 +6,10 @@ export function json(body: unknown, status = 200, headers: HeadersInit = {}): Re
 }
 
 export function allowedCorsHeaders(request: Request): HeadersInit {
-  const configuredOrigin = Deno.env.get('ALLOWED_ORIGIN');
+  // The published panel is the only browser origin allowed when an explicit
+  // environment override has not been configured yet. This keeps Functions
+  // callable from the panel without falling back to a wildcard CORS policy.
+  const configuredOrigin = Deno.env.get('ALLOWED_ORIGIN') ?? 'https://leadai-crm-preview.fabricio926564.chatgpt.site';
   const requestOrigin = request.headers.get('origin');
 
   if (!configuredOrigin || !requestOrigin || requestOrigin !== configuredOrigin) {
@@ -23,7 +26,8 @@ export function allowedCorsHeaders(request: Request): HeadersInit {
 
 export function hasAllowedOrigin(request: Request): boolean {
   const requestOrigin = request.headers.get('origin');
-  return !requestOrigin || requestOrigin === Deno.env.get('ALLOWED_ORIGIN');
+  const configuredOrigin = Deno.env.get('ALLOWED_ORIGIN') ?? 'https://leadai-crm-preview.fabricio926564.chatgpt.site';
+  return !requestOrigin || requestOrigin === configuredOrigin;
 }
 
 export function preflight(request: Request): Response | null {

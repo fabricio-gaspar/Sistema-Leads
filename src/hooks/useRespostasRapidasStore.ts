@@ -10,7 +10,7 @@ export interface RespostaRapida {
 
 const inicial: RespostaRapida[] = [
   { id: 'rr-1', atalho: 'saudacao', texto: 'Olá {nome}! Sou a Ana, assistente virtual. Como posso ajudar?', categoria: 'Abertura' },
-  { id: 'rr-2', atalho: 'orcamento', texto: 'Posso te passar um orçamento personalizado. Qual o melhor horário para falarmos?', categoria: 'Venda' },
+  { id: 'rr-2', atalho: 'orcamento', texto: 'Posso te passar um orçamento personalizado. Qual o melhor horário para falarmos?', categoria: 'Orçamentos' },
   { id: 'rr-3', atalho: 'transferir', texto: 'Vou transferir você para um atendente humano, um momento.', categoria: 'Suporte' },
   { id: 'rr-4', atalho: 'registrado', texto: 'Perfeito! Já vou registrar sua solicitação.', categoria: 'Confirmação' },
 ];

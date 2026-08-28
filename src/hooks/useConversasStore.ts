@@ -95,7 +95,7 @@ export function useConversasStore(): {
 
   const criarConversa = (lead: Lead): Conversa => {
     const nova: Conversa = {
-      id: crypto.randomUUID(),
+      id: lead.id,
       protocolo: `#TCK-${Date.now().toString().slice(-6)}`,
       contato: lead.nome,
       empresa: lead.empresa,

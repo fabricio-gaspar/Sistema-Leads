@@ -38,8 +38,8 @@ export default function UsuarioDetalhesModal({
   }, [onClose]);
 
   const taxaLeadProposta = usuario.leads > 0 ? (usuario.propostas / usuario.leads) * 100 : 0;
-  const taxaFechamento = usuario.propostas > 0 ? (usuario.vendas / usuario.propostas) * 100 : 0;
-  const taxaConversao = usuario.leads > 0 ? (usuario.vendas / usuario.leads) * 100 : 0;
+  const taxaAceite = usuario.propostas > 0 ? (usuario.orcamentosAceitos / usuario.propostas) * 100 : 0;
+  const taxaConversao = usuario.leads > 0 ? (usuario.orcamentosAceitos / usuario.leads) * 100 : 0;
 
   const canais = [
     { nome: 'WhatsApp', valor: usuario.canalWhatsapp, cor: 'bg-emerald-500' },
@@ -51,7 +51,7 @@ export default function UsuarioDetalhesModal({
   const funil = [
     { nome: 'Leads', valor: usuario.leads, taxa: null as number | null },
     { nome: 'Propostas', valor: usuario.propostas, taxa: taxaLeadProposta },
-    { nome: 'Vendas', valor: usuario.vendas, taxa: taxaFechamento },
+    { nome: 'Orçamentos aceitos', valor: usuario.orcamentosAceitos, taxa: taxaAceite },
   ];
 
   return (
@@ -101,9 +101,9 @@ export default function UsuarioDetalhesModal({
               sub={`${usuario.leadsComConversa} com conversa`}
             />
             <KpiCard label="Propostas" valor={String(usuario.propostas)} />
-            <KpiCard label="Vendas" valor={String(usuario.vendas)} />
-            <KpiCard label="Receita" valor={fmtMoney(usuario.receita)} />
-            <KpiCard label="Ticket Médio" valor={fmtMoney(usuario.ticketMedio)} />
+            <KpiCard label="Orçamentos aceitos" valor={String(usuario.orcamentosAceitos)} />
+            <KpiCard label="Valor orçado" valor={fmtMoney(usuario.valorOrcado)} />
+            <KpiCard label="Valor médio orçado" valor={fmtMoney(usuario.valorMedioOrcado)} />
             <KpiCard
               label="Tempo Resposta"
               valor={`${fmtDecimal(usuario.tempoResposta)} min`}

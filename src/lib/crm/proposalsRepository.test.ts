@@ -9,25 +9,26 @@ beforeAll(async () => {
 });
 
 describe('proposalMappers', () => {
-  it('restores a tenant proposal with its relational lead and immutable line prices', () => {
+  it('restores a tenant proposal from the published operational schema', () => {
     const proposal = mappers.proposalRowToProposal({
       id: '11111111-1111-4111-8111-111111111111',
-      opportunity_id: '22222222-2222-4222-8222-222222222222',
       number: 'PRP-20260826-ABC123',
+      lead_id: '33333333-3333-4333-8333-333333333333',
+      client: 'Empresa Exemplo',
       status: 'pending_approval',
-      valid_until: '2026-09-10',
-      subtotal_amount: '2500.00',
-      discount_pct: '12.5',
-      version: 1,
-      parent_proposal_id: null,
-      metadata: { responsavel: 'Ana', canal: 'WhatsApp', bloqueadaEnvio: true },
+      value: '2500.00',
+      discount: '12.5',
+      creator: 'user',
+      creator_name: 'Ana',
+      owner_id: null,
+      need_approval: true,
       created_at: '2026-08-26T12:00:00.000Z',
-      crm_opportunities: {
-        lead_id: '33333333-3333-4333-8333-333333333333',
-        crm_leads: { primary_contact_name: 'Carla', company_name: 'Empresa Exemplo' },
+      updated_at: null,
+      items: {
+        lines: [{ id: '44444444-4444-4444-8444-444444444444', nome: 'Consultoria', quantidade: 2, preco: 1250 }],
+        metadata: { responsavel: 'Ana', canal: 'WhatsApp', bloqueadaEnvio: true, validade: '2026-09-10' },
       },
-      crm_proposal_lines: [{ id: '44444444-4444-4444-8444-444444444444', description: 'Consultoria', quantity: '2', unit_price: '1250.00' }],
-    });
+    }, { id: '33333333-3333-4333-8333-333333333333', contact: 'Carla', company: 'Empresa Exemplo' });
 
     expect(proposal.status).toBe('aguardando_aprovacao');
     expect(proposal.leadId).toBe('33333333-3333-4333-8333-333333333333');

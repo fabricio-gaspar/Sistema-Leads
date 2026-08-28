@@ -134,7 +134,7 @@ export default function Landing() {
 
           <p className="text-lg md:text-xl text-background-100/70 max-w-2xl mx-auto mb-10 leading-relaxed">
             Encontre, qualifique e converta os melhores leads para o seu negócio usando
-            Inteligência Artificial. Automatize todo o funil de vendas e escale seus resultados.
+            Inteligência Artificial. Automatize seu processo comercial e escale a geração de orçamentos.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -209,7 +209,7 @@ export default function Landing() {
               <span className="text-primary-600">dominar a prospecção</span>
             </h2>
             <p className="text-foreground-600 text-lg max-w-2xl mx-auto">
-              Um ecossistema completo que automatiza cada etapa do seu funil de vendas,
+              Um ecossistema completo que organiza cada etapa do seu processo comercial,
               da descoberta de leads até o fechamento.
             </p>
           </div>
@@ -271,7 +271,7 @@ export default function Landing() {
               Como Funciona
             </div>
             <h2 className="text-3xl md:text-5xl font-heading font-extrabold text-foreground-950 mb-4">
-              Do cadastro à venda em
+              Do cadastro ao orçamento aprovado em
               <br />
               <span className="text-primary-600">4 passos simples</span>
             </h2>
@@ -282,7 +282,7 @@ export default function Landing() {
               { step: '01', icon: 'ri-building-line', title: 'Cadastre sua Empresa', desc: 'Configure seu negócio, produtos e diferenciais em minutos.' },
               { step: '02', icon: 'ri-radar-line', title: 'Defina seus Leads', desc: 'Escolha segmentos, regiões e o perfil de cliente ideal.' },
               { step: '03', icon: 'ri-send-plane-line', title: 'Automatize a Abordagem', desc: 'A IA encontra e aborda leads nos canais certos automaticamente.' },
-              { step: '04', icon: 'ri-trophy-line', title: 'Converta e Venda', desc: 'Receba orçamentos, feche negócios e acompanhe tudo no dashboard.' },
+              { step: '04', icon: 'ri-file-list-3-line', title: 'Aprove Orçamentos', desc: 'Envie orçamentos, registre o aceite e acompanhe a oportunidade no painel.' },
             ].map((step, i) => (
               <div key={i} className="relative text-center group">
                 <div className="w-16 h-16 bg-background-50 border-2 border-primary-200 rounded-2xl flex items-center justify-center mx-auto mb-5 group-hover:border-primary-400 group-hover:bg-primary-50 transition-all">
@@ -426,7 +426,7 @@ export default function Landing() {
               href="#contato"
               className="border border-background-100/30 text-background-50 hover:bg-background-50/10 px-8 py-3.5 rounded-lg text-base font-semibold font-heading transition-all cursor-pointer whitespace-nowrap w-full sm:w-auto"
             >
-              Falar com Vendas
+              Falar com Especialista
             </a>
           </div>
         </div>
@@ -500,7 +500,7 @@ export default function Landing() {
                 <span className="font-heading font-bold text-xl text-background-50">LeadAI</span>
               </div>
               <p className="text-background-400 text-sm leading-relaxed max-w-xs">
-                Plataforma SaaS de prospecção inteligente que automatiza seu funil de vendas com Inteligência Artificial.
+                Plataforma de prospecção inteligente que automatiza o processo comercial com Inteligência Artificial.
               </p>
             </div>
             <div>
