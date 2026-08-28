@@ -24,10 +24,7 @@ const navItems: NavItem[] = [
   { label: 'Agenda', path: '/dashboard/agenda', icon: 'ri-calendar-event-line' },
   { label: 'Funil', path: '/dashboard/funil', icon: 'ri-arrow-down-line' },
   { label: 'Relatórios', path: '/dashboard/relatorios', icon: 'ri-bar-chart-line' },
-  { label: 'Equipe', path: '/dashboard/equipe', icon: 'ri-team-line' },
   { label: 'Midia Drive', path: '/dashboard/midia-drive', icon: 'ri-folder-3-line' },
-  { label: 'Empresa', path: '/dashboard/empresa', icon: 'ri-store-2-line' },
-  { label: 'Personalização da Ana', path: '/dashboard/personalizacao-ana', icon: 'ri-robot-2-line' },
   { label: 'Configurações', path: '/dashboard/configuracoes', icon: 'ri-settings-4-line' },
 ];
 
@@ -57,11 +54,6 @@ const formatarDataNotif = (iso: string) => {
     : d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
 };
 
-const alertasSistema = [
-  { id: 'a-1', tipo: 'aviso', mensagem: 'Modo demonstração — integrações e IA simuladas até conectar o backend', icone: 'ri-flask-line', cor: 'bg-secondary-500' },
-  { id: 'a-2', tipo: 'aviso', mensagem: 'Leads em SLA vencido (primeiro contato) precisam de atenção', icone: 'ri-time-line', cor: 'bg-accent-500' },
-];
-
 export default function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -75,6 +67,13 @@ export default function DashboardLayout() {
   const tarefas = useTarefasStore();
   const { config } = useConfiguracaoStore();
   const saude = useSaudeWhatsapp();
+  const alertasSistema = [{
+    id: 'modo-execucao',
+    tipo: 'aviso',
+    mensagem: config.modoExecucao === 'PRODUCAO' ? 'Modo real' : 'Modo demo',
+    icone: config.modoExecucao === 'PRODUCAO' ? 'ri-rocket-line' : 'ri-flask-line',
+    cor: config.modoExecucao === 'PRODUCAO' ? 'bg-primary-500' : 'bg-secondary-500',
+  }];
   if (loading) {
     return (
       <div className="flex h-screen items-center justify-center bg-background-50">

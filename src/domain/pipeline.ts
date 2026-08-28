@@ -2,6 +2,7 @@ export const ACTIVE_PIPELINE_STAGES = [
   'entered',
   'engaging',
   'qualified',
+  'quote_preparation',
   'quote_sent',
   'decision',
 ] as const;
@@ -14,6 +15,7 @@ export const PIPELINE_STAGE_LABEL: Record<PipelineStageCode, string> = {
   entered: 'Entrou',
   engaging: 'Em conversa',
   qualified: 'Qualificado',
+  quote_preparation: 'Preparar orçamento',
   quote_sent: 'Orçamento enviado',
   decision: 'Em decisão',
 };
@@ -24,7 +26,7 @@ const legacyStageMap: Record<string, PipelineStageCode> = {
   'Aguardando Resposta': 'engaging',
   'Em Qualificação': 'qualified',
   'Reunião Agendada': 'qualified',
-  'Proposta em Preparação': 'qualified',
+  'Proposta em Preparação': 'quote_preparation',
   'Orçamento Enviado': 'quote_sent',
   'Negociação': 'decision',
   'Pausado': 'engaging',
@@ -41,6 +43,7 @@ export function legacyStageForPipeline(stage: PipelineStageCode): string {
     entered: 'Novo',
     engaging: 'Em Contato',
     qualified: 'Em Qualificação',
+    quote_preparation: 'Proposta em Preparação',
     quote_sent: 'Orçamento Enviado',
     decision: 'Negociação',
   }[stage];
@@ -87,6 +90,9 @@ export function canTransitionOpportunity(input: {
   }
   if (to === 'qualified' && !evidence.isQualified) {
     return { ok: false, reason: 'A qualificação ainda não foi concluída.' };
+  }
+  if (to === 'quote_preparation' && !evidence.isQualified) {
+    return { ok: false, reason: 'A qualificação precisa estar concluída antes de preparar o orçamento.' };
   }
   if (to === 'quote_sent' && !evidence.hasSentQuote) {
     return { ok: false, reason: 'O orçamento precisa estar registrado como enviado.' };

@@ -23,7 +23,6 @@ const DashboardLayout = lazy(() => import('../components/feature/DashboardLayout
 const CalendarioEditorial = lazy(() => import('../pages/dashboard/campanhas/calendario/page'));
 const CriarPublicacao = lazy(() => import('../pages/dashboard/campanhas/publicacao/page'));
 const ContasConectadas = lazy(() => import('../pages/dashboard/campanhas/contas/page'));
-const PersonalizacaoAna = lazy(() => import('../pages/dashboard/personalizacao-ana/page'));
 
 const routes: RouteObject[] = [
   {
@@ -114,7 +113,7 @@ const routes: RouteObject[] = [
         path: "configuracoes",
         element: <DashboardConfiguracoes />,
       },
-      { path: "personalizacao-ana", element: <PersonalizacaoAna /> },
+      { path: "personalizacao-ana", element: <Navigate to="/dashboard/configuracoes?tab=ana" replace /> },
     ],
   },
   {

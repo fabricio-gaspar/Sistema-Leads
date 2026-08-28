@@ -21,9 +21,9 @@ import HorariosTab from './components/HorariosTab';
 import AutomacoesTab from './components/AutomacoesTab';
 import ComercialTab from './components/ComercialTab';
 import LogsTab from './components/LogsTab';
-import AnaComercialTab from './components/AnaComercialTab';
 import IntegracoesTab from './components/IntegracoesTab';
 import EmpresaTabs from '@/pages/dashboard/empresa/components/EmpresaTabs';
+import PersonalizacaoAna from '@/pages/dashboard/personalizacao-ana/page';
 
 interface MenuItem {
   id: string;
@@ -45,7 +45,7 @@ const groups: MenuGroup[] = [
     ],
   },
   {
-    title: 'ORGANIZAÇÃO',
+    title: 'OPERAÇÃO',
     items: [
       { id: 'pipeline', label: 'Pipeline', icone: 'ri-layout-masonry-line' },
       { id: 'fontes', label: 'Fontes e APIs', icone: 'ri-cloud-line' },
@@ -57,7 +57,7 @@ const groups: MenuGroup[] = [
     ],
   },
   {
-    title: 'INTEGRAÇÕES',
+    title: 'CANAIS E SEGURANÇA',
     items: [
       { id: 'integracoes', label: 'Integrações', icone: 'ri-plug-line' },
     ],
@@ -65,8 +65,8 @@ const groups: MenuGroup[] = [
   {
     title: 'PERSONALIZAÇÃO',
     items: [
-      { id: 'abordagem', label: 'Abordagem da Ana', icone: 'ri-robot-line' },
-      { id: 'ana', label: 'Comercial da Ana', icone: 'ri-robot-2-line' },
+      { id: 'ana', label: 'Personalização da Ana', icone: 'ri-robot-2-line' },
+      { id: 'abordagem', label: 'Materiais institucionais', icone: 'ri-file-user-line' },
       { id: 'templates', label: 'Templates', icone: 'ri-mail-send-line' },
       { id: 'respostas', label: 'Respostas rápidas', icone: 'ri-chat-smile-2-line' },
       { id: 'variaveis', label: 'Variáveis globais', icone: 'ri-braces-line' },
@@ -183,7 +183,7 @@ export default function DashboardConfiguracoes() {
           Configurações
         </h1>
         <p className="text-foreground-600 text-sm">
-          Gerencie perfil, pipeline, fontes, canais, produtos, abordagem da Ana, templates, horários, integrações, equipe, supressão e logs.
+          Organização, equipe, operação, canais e uma única área para definir como a Ana atua em cada empresa.
         </p>
       </div>
 
@@ -269,8 +269,8 @@ export default function DashboardConfiguracoes() {
           {/* Abordagem da Ana */}
           {tab === 'abordagem' && <AbordagemAnaTab />}
 
-          {/* Comercial da Ana (estrutura comercial) */}
-          {tab === 'ana' && <AnaComercialTab />}
+          {/* Personalização completa da Ana */}
+          {tab === 'ana' && <PersonalizacaoAna embedded />}
 
           {/* Empresa */}
           {tab === 'empresa' && <EmpresaTabs />}

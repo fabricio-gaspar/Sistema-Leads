@@ -84,7 +84,7 @@ export default function SaudeWhatsappCard() {
         <span>100%</span>
       </div>
 
-      <div className="grid grid-cols-3 gap-3 text-center mt-auto">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-center mt-auto">
         <div className="bg-background-100/50 rounded-lg p-3">
           <p className="text-xl font-bold text-foreground-900">{saude.totalEnvios}</p>
           <p className="text-[10px] text-foreground-500">Mensagens enviadas</p>

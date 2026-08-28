@@ -20,7 +20,7 @@ const formatarData = (d: Date): string => {
 };
 
 const etapaCores: Record<string, string> = {
-  entered: 'bg-background-200/60 border-background-300', engaging: 'bg-primary-100/50 border-primary-200', qualified: 'bg-primary-100/70 border-primary-300', quote_sent: 'bg-accent-100/70 border-accent-300', decision: 'bg-secondary-100/70 border-secondary-300',
+  entered: 'bg-background-200/60 border-background-300', engaging: 'bg-primary-100/50 border-primary-200', qualified: 'bg-primary-100/70 border-primary-300', quote_preparation: 'bg-secondary-100/70 border-secondary-300', quote_sent: 'bg-accent-100/70 border-accent-300', decision: 'bg-secondary-100/70 border-secondary-300',
 };
 
 const tempCores: Record<string, string> = {
@@ -258,7 +258,7 @@ export default function KanbanCRM() {
             Arraste os leads entre as colunas para atualizar a etapa do funil. Alterações são salvas automaticamente.
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           {hasFiltros && (
             <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-accent-100 text-accent-800 rounded-full text-xs font-semibold whitespace-nowrap">
               <i className="ri-filter-3-line"></i>
@@ -411,13 +411,13 @@ export default function KanbanCRM() {
         </div>
       )}
 
-      <div className="flex gap-4 overflow-x-auto pb-4 min-h-[calc(100vh-240px)]">
+      <div className="flex gap-4 overflow-x-auto pb-4 min-h-[calc(100vh-240px)] snap-x snap-mandatory">
         {ACTIVE_PIPELINE_STAGES.map((etapa) => {
           const lista = leadsPorEtapa(etapa);
           return (
             <div
               key={etapa}
-              className={`flex-shrink-0 w-72 rounded-xl border ${etapaCores[etapa]} flex flex-col max-h-[calc(100vh-240px)]`}
+              className={`flex-shrink-0 w-[17.5rem] max-w-[calc(100vw-2rem)] rounded-xl border ${etapaCores[etapa]} flex flex-col max-h-[calc(100vh-240px)] snap-start`}
               onDragOver={handleDragOver}
               onDrop={() => handleDrop(etapa)}
             >

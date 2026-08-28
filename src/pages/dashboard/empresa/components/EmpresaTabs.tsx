@@ -2,14 +2,12 @@ import { useState } from 'react';
 import DadosTab from './DadosTab';
 import DocumentosTab from './DocumentosTab';
 import BaseConhecimentoTab from './BaseConhecimentoTab';
-import VozAnaTab from './VozAnaTab';
 import OperacaoTab from './OperacaoTab';
 import TimeTab from './TimeTab';
 import IntegracoesTab from './IntegracoesTab';
 
 const tabs = [
   { id: 'dados', nome: 'Dados', icone: 'ri-store-2-line' },
-  { id: 'voz', nome: 'Voz da Ana', icone: 'ri-user-voice-line' },
   { id: 'operacao', nome: 'Operação', icone: 'ri-settings-3-line' },
   { id: 'time', nome: 'Time', icone: 'ri-team-line' },
   { id: 'integracoes', nome: 'Integrações', icone: 'ri-plug-line' },
@@ -39,7 +37,6 @@ export default function EmpresaTabs() {
       </div>
 
       {tab === 'dados' && <DadosTab />}
-      {tab === 'voz' && <VozAnaTab />}
       {tab === 'operacao' && <OperacaoTab />}
       {tab === 'time' && <TimeTab />}
       {tab === 'integracoes' && <IntegracoesTab />}

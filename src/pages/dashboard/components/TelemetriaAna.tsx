@@ -44,7 +44,7 @@ export default function TelemetriaAna() {
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 flex-1">
+      <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-2 flex-1">
         {itens.map((item) => (
           <div
             key={item.label}

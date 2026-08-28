@@ -71,6 +71,12 @@ export default function Atendimento() {
 
   const selected = conversas.find((c) => c.id === selectedId) || conversas[0];
 
+  // A store é hidratada de forma assíncrona. Sem uma conversa selecionada, a
+  // tela não tenta acessar dados inexistentes durante a primeira renderização.
+  useEffect(() => {
+    if (!selectedId && conversas[0]) setSelectedId(conversas[0].id);
+  }, [conversas, selectedId]);
+
   const leadDaConversa = (conv: Conversa | undefined): Lead | null => {
     if (!conv) return null;
     if (conv.leadId) return leads.find((l) => l.id === conv.leadId) || null;
@@ -106,6 +112,22 @@ export default function Atendimento() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [leadIdParam]);
 
+  if (!selected) {
+    return (
+      <div className="p-4 md:p-8 max-w-5xl mx-auto">
+        <div className="mb-6">
+          <h1 className="text-2xl md:text-3xl font-heading font-extrabold text-foreground-950 mb-2">Central de Atendimento</h1>
+          <p className="text-foreground-600 text-sm">Inbox multicanal com a Ana, filas, SLA e histórico pesquisável.</p>
+        </div>
+        <section className="bg-background-50 border border-background-200/70 rounded-xl p-8 md:p-12 text-center">
+          <div className="w-12 h-12 mx-auto mb-4 rounded-xl bg-primary-100 text-primary-700 flex items-center justify-center"><i className="ri-customer-service-2-line text-xl"></i></div>
+          <h2 className="font-heading font-bold text-foreground-950">Nenhuma conversa para exibir</h2>
+          <p className="mt-2 text-sm text-foreground-500 max-w-md mx-auto">Assim que um lead iniciar ou receber um atendimento, a conversa aparecerá aqui. A tela permanece disponível também enquanto os dados carregam.</p>
+        </section>
+      </div>
+    );
+  }
+
   const agora = () =>
     new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
@@ -116,15 +138,13 @@ export default function Atendimento() {
       empresa: selected?.empresa,
     });
     setAnaDigitando(false);
-    if (selectedId) {
-      adicionarMensagem(selectedId, {
-        id: `msg-ana-${Date.now()}`,
-        autor: 'ana',
-        nome: 'Ana',
-        texto: resposta.texto,
-        hora: agora(),
-      });
-    }
+    adicionarMensagem(selected.id, {
+      id: `msg-ana-${Date.now()}`,
+      autor: 'ana',
+      nome: 'Ana',
+      texto: resposta.texto,
+      hora: agora(),
+    });
   };
 
   const enviar = () => {
@@ -137,7 +157,7 @@ export default function Atendimento() {
       hora: agora(),
       notaInterna,
     };
-    adicionarMensagem(selectedId, nova);
+    adicionarMensagem(selected.id, nova);
     setTexto('');
     setNotaInterna(false);
   };
@@ -171,7 +191,7 @@ export default function Atendimento() {
       msg = simulacoesCliente[indiceSimulacao.current % simulacoesCliente.length];
     }
     indiceSimulacao.current += 1;
-    adicionarMensagem(selectedId, {
+    adicionarMensagem(selected.id, {
       id: `msg-cli-${Date.now()}`,
       autor: 'cliente',
       nome: selected.contato,
@@ -190,7 +210,7 @@ export default function Atendimento() {
           : lead && lead.bloqueado
             ? 'lead bloqueado (opt-out)'
             : 'Ana pausada pelo operador';
-      adicionarMensagem(selectedId, {
+      adicionarMensagem(selected.id, {
         id: `msg-sys-${Date.now()}`,
         autor: 'sistema',
         nome: 'Sistema',
@@ -201,7 +221,7 @@ export default function Atendimento() {
       return;
     }
     if (lead && (lead.modoAtendimento ?? 'IA') === 'HUMANO') {
-      adicionarMensagem(selectedId, {
+      adicionarMensagem(selected.id, {
         id: `msg-sys-${Date.now()}`,
         autor: 'sistema',
         nome: 'Sistema',
@@ -225,7 +245,7 @@ export default function Atendimento() {
 
     // Opt-out: a Ana NÃO responde a um lead que pediu descadastro.
     if (optOut) {
-      adicionarMensagem(selectedId, {
+      adicionarMensagem(selected.id, {
         id: `msg-sys-${Date.now()}`,
         autor: 'sistema',
         nome: 'Sistema',
@@ -237,7 +257,7 @@ export default function Atendimento() {
     }
 
     if (transferiu) {
-      adicionarMensagem(selectedId, {
+      adicionarMensagem(selected.id, {
         id: `msg-sys-${Date.now()}`,
         autor: 'sistema',
         nome: 'Sistema',
@@ -263,7 +283,7 @@ export default function Atendimento() {
       return;
     }
     fluxo.transferirParaHumano(lead.id, 'Transferência manual solicitada pelo operador', 'MEDIA');
-    atualizarStatus(selectedId, 'transferido');
+    atualizarStatus(selected.id, 'transferido');
     setAssumido(false);
   };
 
@@ -281,7 +301,7 @@ export default function Atendimento() {
     }
     fluxo.assumirAtendimento(lead.id);
     setAssumido(true);
-    adicionarMensagem(selectedId, {
+    adicionarMensagem(selected.id, {
       id: `msg-sys-${Date.now()}`,
       autor: 'sistema',
       nome: 'Sistema',
@@ -304,7 +324,7 @@ export default function Atendimento() {
     }
     fluxo.devolverParaAna(lead.id);
     setAssumido(false);
-    adicionarMensagem(selectedId, {
+    adicionarMensagem(selected.id, {
       id: `msg-sys-${Date.now()}`,
       autor: 'sistema',
       nome: 'Sistema',
@@ -328,7 +348,7 @@ export default function Atendimento() {
       `Total: ${total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`,
       `Validade: ${new Date(p.validade + 'T00:00:00').toLocaleDateString('pt-BR')}`,
     ].filter(Boolean).join('\n');
-    adicionarMensagem(selectedId, {
+    adicionarMensagem(selected.id, {
       id: `msg-${Date.now()}`,
       autor: 'vendedor',
       nome: 'Você',
@@ -364,7 +384,7 @@ export default function Atendimento() {
       );
       fluxo.registrarAuditoria({ evento: 'OPT_OUT', ator: 'Você', alvo: lead.nome, detalhes: 'Opt-out registrado manualmente' });
     }
-    adicionarMensagem(selectedId, {
+    adicionarMensagem(selected.id, {
       id: `msg-${Date.now()}`,
       autor: 'sistema',
       nome: 'Sistema',
@@ -372,7 +392,7 @@ export default function Atendimento() {
       hora: agora(),
       notaInterna: true,
     });
-    atualizarStatus(selectedId, 'resolvido');
+    atualizarStatus(selected.id, 'resolvido');
   };
 
   const filtradas = conversas.filter((c) =>
@@ -390,7 +410,7 @@ export default function Atendimento() {
             Inbox multicanal com a Ana, filas, SLA e histórico pesquisável.
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <button
             onClick={() => setDrawerOpen(true)}
             className="inline-flex items-center gap-2 px-4 py-2.5 bg-background-100 hover:bg-background-200 text-foreground-700 rounded-lg text-sm font-semibold cursor-pointer whitespace-nowrap"
@@ -417,9 +437,9 @@ export default function Atendimento() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 h-[calc(100vh-220px)] min-h-[520px]">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 min-h-[520px] lg:h-[calc(100vh-220px)]">
         {/* Lista de conversas */}
-        <div className="lg:col-span-1 bg-background-50 border border-background-200/70 rounded-xl flex flex-col overflow-hidden">
+        <div className="lg:col-span-1 bg-background-50 border border-background-200/70 rounded-xl flex flex-col overflow-hidden min-h-[280px] max-h-[360px] lg:max-h-none">
           <div className="p-4 border-b border-background-200/70">
             <div className="relative">
               <i className="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-foreground-400 text-sm"></i>

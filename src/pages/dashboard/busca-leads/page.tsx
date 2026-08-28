@@ -375,8 +375,6 @@ export default function BuscaLeads() {
             { id: 'agente', label: 'Agente de Prompt (IA)' },
             { id: 'busca', label: 'Busca manual' },
             { id: 'importar', label: 'Importar lista' },
-            { id: 'campanhas', label: 'Campanhas agendadas' },
-            { id: 'operacao', label: 'Operação comercial' },
           ] as const
         ).map((t) => (
           <button
@@ -943,30 +941,6 @@ export default function BuscaLeads() {
             <i className="ri-file-upload-line mr-2"></i>
             Selecionar arquivo CSV
           </button>
-        </div>
-      )}
-
-      {aba === 'campanhas' && (
-        <div className="bg-background-50 border border-background-200/70 rounded-xl overflow-hidden">
-          <div className="px-6 py-4 border-b border-background-200/70">
-            <h3 className="font-heading font-bold text-foreground-900 text-sm">Campanhas agendadas</h3>
-          </div>
-          <div className="p-8 text-center text-foreground-400 text-sm">
-            <i className="ri-calendar-event-line text-xl mb-2 block"></i>
-            Nenhuma campanha agendada no momento.
-          </div>
-        </div>
-      )}
-
-      {aba === 'operacao' && (
-        <div className="bg-background-50 border border-background-200/70 rounded-xl overflow-hidden">
-          <div className="px-6 py-4 border-b border-background-200/70">
-            <h3 className="font-heading font-bold text-foreground-900 text-sm">Operações comerciais em andamento</h3>
-          </div>
-          <div className="p-8 text-center text-foreground-400 text-sm">
-            <i className="ri-briefcase-line text-xl mb-2 block"></i>
-            Nenhuma operação comercial ativa no momento.
-          </div>
         </div>
       )}
 

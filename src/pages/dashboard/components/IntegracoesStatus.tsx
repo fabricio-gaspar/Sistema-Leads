@@ -40,7 +40,7 @@ export default function IntegracoesStatus() {
         )}
       </div>
 
-      <div className="grid grid-cols-3 lg:grid-cols-6 gap-2 flex-1">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 flex-1">
         {integracoes.map((i) => {
           const s = STATUS[i.status];
           const conectado = i.status === 'conectado' || i.status === 'sandbox';
