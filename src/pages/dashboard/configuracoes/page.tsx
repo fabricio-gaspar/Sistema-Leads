@@ -6,8 +6,6 @@ import { useEquipeStore } from '@/hooks/useEquipeStore';
 import AbordagemAnaTab from './components/AbordagemAnaTab';
 import PipelineTab from './components/PipelineTab';
 import FontesTab from './components/FontesTab';
-import CanaisTab from './components/CanaisTab';
-import AmbienteTab from './components/AmbienteTab';
 import ProdutosTab from './components/ProdutosTab';
 import TemplatesTab from './components/TemplatesTab';
 import RespostasRapidasTab from './components/RespostasRapidasTab';
@@ -21,7 +19,7 @@ import HorariosTab from './components/HorariosTab';
 import AutomacoesTab from './components/AutomacoesTab';
 import ComercialTab from './components/ComercialTab';
 import LogsTab from './components/LogsTab';
-import IntegracoesTab from './components/IntegracoesTab';
+import IntegracoesOperacaoTab from './components/IntegracoesOperacaoTab';
 import EmpresaTabs from '@/pages/dashboard/empresa/components/EmpresaTabs';
 import PersonalizacaoAna from '@/pages/dashboard/personalizacao-ana/page';
 
@@ -49,17 +47,15 @@ const groups: MenuGroup[] = [
     items: [
       { id: 'pipeline', label: 'Pipeline', icone: 'ri-layout-masonry-line' },
       { id: 'fontes', label: 'Fontes e APIs', icone: 'ri-cloud-line' },
-      { id: 'canais', label: 'Canais', icone: 'ri-whatsapp-line' },
-      { id: 'ambiente', label: 'Ambiente', icone: 'ri-earth-line' },
       { id: 'produtos', label: 'Produtos', icone: 'ri-shopping-bag-line' },
       { id: 'supressao', label: 'Supressão (LGPD)', icone: 'ri-shield-line' },
       { id: 'logs', label: 'Logs', icone: 'ri-file-list-line' },
     ],
   },
   {
-    title: 'CANAIS E SEGURANÇA',
+    title: 'INTEGRAÇÕES E OPERAÇÃO',
     items: [
-      { id: 'integracoes', label: 'Integrações', icone: 'ri-plug-line' },
+      { id: 'integracoes-operacao', label: 'Canais e operação', icone: 'ri-plug-line' },
     ],
   },
   {
@@ -250,8 +246,6 @@ export default function DashboardConfiguracoes() {
         <div className="flex-1 min-w-0">
           {tab === 'pipeline' && <PipelineTab />}
           {tab === 'fontes' && <FontesTab />}
-          {tab === 'canais' && <CanaisTab />}
-          {tab === 'ambiente' && <AmbienteTab />}
           {tab === 'produtos' && <ProdutosTab />}
           {tab === 'templates' && <TemplatesTab />}
           {tab === 'respostas' && <RespostasRapidasTab />}
@@ -275,8 +269,8 @@ export default function DashboardConfiguracoes() {
           {/* Empresa */}
           {tab === 'empresa' && <EmpresaTabs />}
 
-          {/* Integrações */}
-          {tab === 'integracoes' && <IntegracoesTab />}
+          {/* Canais, conexões e modo operacional */}
+          {tab === 'integracoes-operacao' && <IntegracoesOperacaoTab />}
 
           {/* Equipe */}
           {tab === 'equipe' && (
