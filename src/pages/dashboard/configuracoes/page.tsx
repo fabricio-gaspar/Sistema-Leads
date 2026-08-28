@@ -46,16 +46,16 @@ const groups: MenuGroup[] = [
     title: 'OPERAÇÃO',
     items: [
       { id: 'pipeline', label: 'Pipeline', icone: 'ri-layout-masonry-line' },
-      { id: 'fontes', label: 'Fontes e APIs', icone: 'ri-cloud-line' },
+      { id: 'fontes', label: 'Fontes de leads', icone: 'ri-cloud-line' },
       { id: 'produtos', label: 'Produtos', icone: 'ri-shopping-bag-line' },
       { id: 'supressao', label: 'Supressão (LGPD)', icone: 'ri-shield-line' },
       { id: 'logs', label: 'Logs', icone: 'ri-file-list-line' },
     ],
   },
   {
-    title: 'INTEGRAÇÕES',
+    title: 'CANAIS E INTEGRAÇÕES',
     items: [
-      { id: 'integracoes-operacao', label: 'Integrações', icone: 'ri-plug-line' },
+      { id: 'integracoes-operacao', label: 'Canais e integrações', icone: 'ri-plug-line' },
     ],
   },
   {

@@ -23,7 +23,7 @@ export default function IntegracoesOperacaoTab() {
     <div className="space-y-6">
       <header className="bg-background-50 border border-background-200/70 rounded-xl p-5 md:p-6">
         <p className="text-xs font-semibold uppercase tracking-wider text-primary-600">Configuração centralizada</p>
-        <h2 className="mt-1 font-heading font-bold text-foreground-950 text-lg">Integrações</h2>
+        <h2 className="mt-1 font-heading font-bold text-foreground-950 text-lg">Canais e integrações</h2>
         <p className="mt-1 text-sm text-foreground-500 max-w-3xl">
           Configure os canais da Ana, teste cada conexão e determine, no mesmo lugar, se ela opera em modo Demo, Sandbox ou Real.
         </p>
