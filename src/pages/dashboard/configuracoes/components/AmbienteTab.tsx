@@ -73,10 +73,9 @@ export default function AmbienteTab() {
   const [contatos, setContatos] = useState(cfg.contatosTeste.join('\n'));
   const [testeWhatsapp, setTesteWhatsapp] = useState<{
     aberto: boolean;
-    numero: string;
     status: 'idle' | 'enviando' | 'ok' | 'erro';
     msg: string;
-  }>({ aberto: false, numero: '', status: 'idle', msg: '' });
+  }>({ aberto: false, status: 'idle', msg: '' });
 
   const mostrarToast = (msg: string) => {
     setToast(msg);
@@ -329,22 +328,13 @@ export default function AmbienteTab() {
 
                           {testeWhatsapp.aberto && (
                             <div className="mt-3 space-y-2">
-                              <div className="flex flex-col sm:flex-row gap-2">
-                                <input
-                                  type="text"
-                                  value={testeWhatsapp.numero}
-                                  onChange={(e) => setTesteWhatsapp((s) => ({ ...s, numero: e.target.value }))}
-                                  placeholder="Número com DDI (ex.: 5511999999999)"
-                                  className="flex-1 px-3 py-2 bg-background-100 border border-background-200 rounded-md text-sm text-foreground-800 focus:outline-none focus:ring-2 focus:ring-primary-400"
-                                />
-                                <button
-                                  onClick={testarWhatsapp}
-                                  disabled={testeWhatsapp.status === 'enviando'}
-                                  className="px-4 py-2 bg-primary-500 hover:bg-primary-600 disabled:opacity-50 text-background-50 rounded-md text-sm font-semibold cursor-pointer whitespace-nowrap"
-                                >
-                                  {testeWhatsapp.status === 'enviando' ? 'Enviando...' : 'Enviar teste'}
-                                </button>
-                              </div>
+                              <button
+                                onClick={testarWhatsapp}
+                                disabled={testeWhatsapp.status === 'enviando'}
+                                className="px-4 py-2 bg-primary-500 hover:bg-primary-600 disabled:opacity-50 text-background-50 rounded-md text-sm font-semibold cursor-pointer whitespace-nowrap"
+                              >
+                                {testeWhatsapp.status === 'enviando' ? 'Validando...' : 'Validar conexão'}
+                              </button>
                               {testeWhatsapp.status === 'ok' && (
                                 <p className="text-xs text-primary-700 flex items-center gap-1.5">
                                   <i className="ri-checkbox-circle-fill"></i>
