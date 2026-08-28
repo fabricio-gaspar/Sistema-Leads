@@ -228,7 +228,7 @@ export default function DashboardLayout() {
             </div>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             <ModoExecucaoToggle />
 
             <div className="hidden md:flex items-center gap-2 bg-primary-100 px-3 py-1.5 rounded-full">
@@ -255,7 +255,7 @@ export default function DashboardLayout() {
               {notifOpen && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setNotifOpen(false)}></div>
-                  <div className="absolute right-0 top-full mt-2 w-96 bg-background-50 border border-background-200/70 rounded-xl shadow-xl z-50 overflow-hidden">
+                  <div className="fixed left-4 right-4 top-16 sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-96 bg-background-50 border border-background-200/70 rounded-xl shadow-xl z-50 overflow-hidden">
                     <div className="px-4 py-3 border-b border-background-200/70 flex items-center justify-between">
                       <div className="flex items-center gap-1 p-1 bg-background-100 rounded-lg">
                         <button
@@ -367,7 +367,7 @@ export default function DashboardLayout() {
               )}
             </div>
 
-            <button className="w-9 h-9 flex items-center justify-center rounded-lg bg-background-100 hover:bg-background-200 cursor-pointer transition-colors">
+            <button className="hidden sm:flex w-9 h-9 items-center justify-center rounded-lg bg-background-100 hover:bg-background-200 cursor-pointer transition-colors">
               <i className="ri-question-line text-foreground-600 text-lg"></i>
             </button>
           </div>
@@ -375,9 +375,9 @@ export default function DashboardLayout() {
 
         {/* Banner de modo (Demo/Sandbox) */}
         {config.modoExecucao !== 'PRODUCAO' && (
-          <div className={`px-6 py-2 flex items-center gap-2 text-xs font-medium flex-shrink-0 ${config.modoExecucao === 'DEMO' ? 'bg-secondary-500 text-background-50' : 'bg-accent-500 text-background-50'}`}>
+          <div className={`px-4 sm:px-6 py-2 flex flex-wrap items-center gap-2 text-xs font-medium flex-shrink-0 ${config.modoExecucao === 'DEMO' ? 'bg-secondary-500 text-background-50' : 'bg-accent-500 text-background-50'}`}>
             <i className={config.modoExecucao === 'DEMO' ? 'ri-flask-line' : 'ri-test-tube-line'}></i>
-            <span className="whitespace-nowrap">
+            <span className="leading-5">
               {config.modoExecucao === 'DEMO'
                 ? 'MODO DEMO — nada sai do navegador. Envios simulados.'
                 : 'MODO SANDBOX — mensagens enviadas apenas para contas/números de teste.'}
@@ -393,9 +393,9 @@ export default function DashboardLayout() {
 
         {/* Alerta de risco de bloqueio do WhatsApp */}
         {saude.nivel === 'critico' && (
-          <div className="px-6 py-2 flex items-center gap-2 text-xs font-medium bg-accent-500 text-background-50 flex-shrink-0">
+          <div className="px-4 sm:px-6 py-2 flex flex-wrap items-center gap-2 text-xs font-medium bg-accent-500 text-background-50 flex-shrink-0">
             <i className="ri-alarm-warning-line"></i>
-            <span className="whitespace-nowrap">
+            <span className="leading-5">
               Risco de bloqueio do WhatsApp em {saude.risco}% — acima do limite de {saude.limite}%. Considere pausar envios proativos.
             </span>
           </div>

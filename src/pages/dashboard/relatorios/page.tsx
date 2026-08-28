@@ -257,7 +257,7 @@ export default function Relatorios() {
       )}
 
       {/* Abas */}
-      <div className="mb-6 flex gap-1 bg-background-100 rounded-full p-1 overflow-x-auto">
+      <div className="mb-6 flex flex-wrap gap-1 bg-background-100 rounded-xl p-1">
         {(
           [
             { id: 'geral', label: 'Visão Geral' },
@@ -268,7 +268,7 @@ export default function Relatorios() {
           <button
             key={t.id}
             onClick={() => setAba(t.id)}
-            className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium transition-all cursor-pointer whitespace-nowrap flex-shrink-0 ${
+            className={`inline-flex flex-1 sm:flex-none items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer whitespace-nowrap ${
               aba === t.id
                 ? 'bg-background-50 text-foreground-900 shadow-sm'
                 : 'text-foreground-500 hover:text-foreground-700'

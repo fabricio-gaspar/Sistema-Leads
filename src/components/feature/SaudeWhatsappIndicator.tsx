@@ -51,7 +51,7 @@ export default function SaudeWhatsappIndicator() {
       {aberto && (
         <>
           <div className="fixed inset-0 z-40" onClick={() => setAberto(false)}></div>
-          <div className="absolute right-0 top-full mt-2 w-80 bg-background-50 border border-background-200/70 rounded-xl shadow-xl z-50 overflow-hidden">
+          <div className="fixed left-4 right-4 top-16 sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-80 bg-background-50 border border-background-200/70 rounded-xl shadow-xl z-50 overflow-hidden">
             <div className="px-4 py-3 border-b border-background-200/70 flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <i className={`${v.icon} ${v.text}`}></i>

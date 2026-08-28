@@ -189,7 +189,7 @@ export default function DashboardConfiguracoes() {
         </div>
       )}
 
-      <div className="flex gap-6 items-start">
+      <div className="flex flex-col lg:flex-row gap-4 lg:gap-6 items-stretch lg:items-start">
         {/* Sidebar */}
         <aside className="hidden lg:block w-[240px] flex-shrink-0 bg-background-50 border border-background-200/70 rounded-xl p-4 sticky top-6">
           {groups.map((group) => (
@@ -223,7 +223,7 @@ export default function DashboardConfiguracoes() {
         </aside>
 
         {/* Mobile select */}
-        <div className="lg:hidden w-full mb-4">
+        <div className="lg:hidden w-full">
           <select
             value={tab}
             onChange={(e) => setTab(e.target.value)}

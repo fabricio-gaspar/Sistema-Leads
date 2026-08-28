@@ -98,7 +98,7 @@ export default function BaseConhecimentoTab() {
       </div>
 
       {/* Cards de categorias */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3">
         <button
           onClick={() => setCategoria('todas')}
           className={`text-left bg-background-50 border rounded-xl p-4 transition-all cursor-pointer ${

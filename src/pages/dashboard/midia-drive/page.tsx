@@ -187,7 +187,7 @@ export default function MidiaDrive() {
       {/* Pastas */}
       <div className="mb-8">
         <h3 className="font-heading font-bold text-foreground-900 text-sm mb-4">Pastas</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
           <button
             onClick={() => setPastaSelecionada('Todas')}
             className={`text-left p-4 rounded-xl border transition-all cursor-pointer ${

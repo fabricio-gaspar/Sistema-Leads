@@ -87,7 +87,7 @@ export default function ModoExecucaoToggle() {
   };
 
   return (
-    <div className="relative">
+    <div className="wf-mode-toggle relative">
       {/* Toggle Demo / Real */}
       <div className="flex items-center gap-1 p-1 bg-background-100 rounded-full border border-background-200/70">
         <button
@@ -98,7 +98,7 @@ export default function ModoExecucaoToggle() {
           }`}
         >
           <i className="ri-flask-line"></i>
-          Demo
+          <span className="wf-mode-label">Demo</span>
         </button>
         <button
           type="button"
@@ -108,13 +108,13 @@ export default function ModoExecucaoToggle() {
           }`}
         >
           <i className="ri-rocket-line"></i>
-          Real
+          <span className="wf-mode-label">Real</span>
         </button>
       </div>
 
       {/* Toast */}
       {toast && (
-        <div className="absolute right-0 top-full mt-2 px-4 py-2.5 bg-background-50 border border-background-200/70 rounded-lg text-xs text-foreground-700 whitespace-nowrap z-50">
+        <div className="fixed left-4 right-4 top-16 sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-max max-w-[calc(100vw-2rem)] px-4 py-2.5 bg-background-50 border border-background-200/70 rounded-lg text-xs text-foreground-700 z-50">
           <i className="ri-checkbox-circle-fill text-primary-600 mr-1.5"></i>
           {toast}
         </div>

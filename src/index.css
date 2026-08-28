@@ -76,14 +76,62 @@
   }
 }
 
-/* Assistente de personalização: fluxo curto e legível para configuração comercial. */
-.eyebrow { font-size: 0.72rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #197166; }
-.steps { display: flex; gap: .5rem; overflow-x: auto; margin: 1.5rem 0; padding-bottom: .25rem; }
-.steps button { white-space: nowrap; border: 1px solid #e4e8e7; border-radius: .65rem; padding: .5rem .7rem; font-size: .75rem; color: #66706e; background: #fff; }
-.steps button span { display: inline-flex; align-items: center; justify-content: center; width: 1.2rem; height: 1.2rem; border-radius: 999px; background: #edf1f0; margin-right: .35rem; font-weight: 700; }
-.steps button.active { border-color: #1d9b8b; color: #12695f; background: #effbf9; }.steps button.active span,.steps button.done span { background: #1d9b8b; color: white; }
-.card { background: #fff; border: 1px solid #e4e8e7; border-radius: .9rem; padding: 1.25rem; }.card-head, .card footer { display:flex; align-items:center; justify-content:space-between; gap:1rem; }.card h2 { margin: .2rem 0 0; font-size: 1.25rem; }.form { margin: 1.5rem 0; max-width: 42rem; }.form label { display:block; font-size:.9rem; font-weight:600; color:#27312f; margin-bottom:.45rem; }.form label.mt { margin-top:1rem; }.form input,.form textarea { width:100%; border:1px solid #d8dfdd; border-radius:.55rem; padding:.7rem .8rem; font:inherit; }.form textarea { min-height:7rem; resize:vertical; }.hint { color:#66706e; font-size:.88rem; line-height:1.5; }.review { display:grid; gap:.5rem; background:#f5f8f7; padding:1rem; border-radius:.65rem; color:#46514f; }.saved { color:#197166; font-size:.8rem; font-weight:600; }.primary,.secondary { border-radius:.55rem; padding:.65rem .85rem; font-size:.86rem; font-weight:600; cursor:pointer; }.primary { background:#1d9b8b; color:white; margin-left:.5rem; }.secondary { background:#f2f5f4; color:#3d4946; }.secondary:disabled { opacity:.45; cursor:not-allowed; }
-@media (max-width: 640px) { .card { padding: 1rem; } .card-head, .card footer { align-items: flex-start; flex-direction: column; } .card footer { width: 100%; } .form-actions { display: flex; width: 100%; } .form-actions button { flex: 1; } .primary { margin-left: .5rem; } }
+/* Personalização da Ana: fluxo responsivo, sem rolagem horizontal. */
+.ana-config { min-width: 0; }
+.ana-config > header { max-width: 56rem; }
+.ana-config > header h1 { margin-top: .25rem; font-size: clamp(1.4rem, 2vw, 1.75rem); font-weight: 700; letter-spacing: -.035em; color: #17201f; }
+.ana-config > header > p:last-child { margin-top: .35rem; color: #66706e; font-size: .9rem; line-height: 1.55; }
+.ana-config .eyebrow { font-size: 0.68rem; font-weight: 750; letter-spacing: .1em; text-transform: uppercase; color: #197166; }
+.ana-config .steps { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .5rem; margin: 1.25rem 0; }
+.ana-config .steps button { min-width: 0; display: flex; align-items: center; gap: .45rem; border: 1px solid #e1e7e5; border-radius: .65rem; padding: .55rem .65rem; color: #65706e; background: #fff; text-align: left; }
+.ana-config .steps button b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .72rem; font-weight: 600; }
+.ana-config .steps button span { display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; width: 1.35rem; height: 1.35rem; border-radius: 999px; background: #edf1f0; font-size: .7rem; font-weight: 750; }
+.ana-config .steps button:hover { border-color: #cdd7d4; background: #fafcfb; color: #35413f; }
+.ana-config .steps button.active { border-color: #1d9b8b; color: #12695f; background: #effbf9; box-shadow: 0 0 0 2px rgb(29 155 139 / .08); }
+.ana-config .steps button.active span,
+.ana-config .steps button.done span { background: #1d9b8b; color: white; }
+.ana-config .card { display: flex; min-height: 28rem; flex-direction: column; background: #fff; border: 1px solid #e1e7e5; border-radius: .9rem; padding: 1.35rem; box-shadow: 0 1px 2px rgb(15 23 42 / .025); }
+.ana-config .card-head,
+.ana-config .card footer { display:flex; align-items:center; justify-content:space-between; gap:1rem; }
+.ana-config .card h2 { margin: .2rem 0 0; font-size: 1.2rem; font-weight: 650; letter-spacing: -.025em; }
+.ana-config .form { width: 100%; max-width: none; margin: 1.35rem 0; }
+.ana-config .form label { display:block; font-size:.86rem; font-weight:600; color:#27312f; margin-bottom:.45rem; }
+.ana-config .form label.mt { margin-top:1rem; }
+.ana-config .form input:not([type='checkbox']),
+.ana-config .form select,
+.ana-config .form textarea { width:100%; border:1px solid #d8dfdd; border-radius:.55rem; padding:.7rem .8rem; font:inherit; }
+.ana-config .form textarea { min-height:6rem; resize:vertical; }
+.ana-config .hint { max-width: 60rem; margin-top: .5rem; color:#66706e; font-size:.84rem; line-height:1.5; }
+.ana-config .review { display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap:.55rem; background:#f5f8f7; padding:1rem; border-radius:.65rem; color:#46514f; }
+.ana-config .review > * { min-width: 0; padding: .55rem .7rem; border: 1px solid #e7ecea; border-radius: .5rem; background: rgb(255 255 255 / .72); overflow-wrap: anywhere; }
+.ana-config .review strong { grid-column: 1 / -1; color: #26312f; }
+.ana-config .saved { color:#197166; font-size:.8rem; font-weight:600; }
+.ana-config .primary,
+.ana-config .secondary { min-height: 2.5rem; border-radius:.55rem; padding:.65rem .9rem; font-size:.84rem; font-weight:600; cursor:pointer; }
+.ana-config .primary { background:#1d9b8b; color:white; margin-left:.5rem; }
+.ana-config .secondary { background:#f2f5f4; color:#3d4946; }
+.ana-config .secondary:disabled { opacity:.45; cursor:not-allowed; }
+.ana-config .card footer { position: sticky; bottom: 0; z-index: 2; margin: auto -1.35rem -1.35rem; padding: .9rem 1.35rem; border-top: 1px solid #e7ecea; border-radius: 0 0 .9rem .9rem; background: rgb(255 255 255 / .96); backdrop-filter: blur(10px); }
+
+@media (max-width: 900px) {
+  .ana-config .steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 640px) {
+  .wf-mode-toggle button { padding-inline: .6rem; }
+  .wf-mode-toggle .wf-mode-label { display: none; }
+  .ana-config .steps { grid-template-columns: 1fr 1fr; gap: .4rem; }
+  .ana-config .steps button { padding: .5rem; }
+  .ana-config .card { min-height: 0; padding: 1rem; }
+  .ana-config .card-head { align-items: flex-start; flex-direction: column; }
+  .ana-config .review { grid-template-columns: 1fr; }
+  .ana-config .review strong { grid-column: auto; }
+  .ana-config .card footer { position: static; align-items: stretch; flex-direction: column-reverse; width: auto; margin: 1rem -1rem -1rem; padding: .9rem 1rem; }
+  .ana-config .form-actions { display: grid; grid-template-columns: 1fr; gap: .5rem; width: 100%; }
+  .ana-config .primary { margin-left: 0; }
+  .ana-config .card footer > button,
+  .ana-config .form-actions button { width: 100%; }
+}
 
 :root {
   --font-heading: 'Plus Jakarta Sans', sans-serif;

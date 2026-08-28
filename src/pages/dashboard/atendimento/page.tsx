@@ -652,13 +652,13 @@ export default function Atendimento() {
             )}
           </div>
 
-          <div className="px-5 py-3 border-t border-background-200/70 flex gap-2 overflow-x-auto items-center">
+          <div className="px-5 py-3 border-t border-background-200/70 flex gap-2 flex-wrap items-center">
             <span className="text-xs text-foreground-400 whitespace-nowrap flex-shrink-0">Respostas rápidas:</span>
             {respostas.map((r) => (
               <button
                 key={r.id}
                 onClick={() => inserirResposta(r.texto)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-background-100 hover:bg-background-200 text-foreground-600 rounded-full text-xs cursor-pointer whitespace-nowrap flex-shrink-0"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-background-100 hover:bg-background-200 text-foreground-600 rounded-full text-xs cursor-pointer whitespace-nowrap"
               >
                 <span className="text-[10px] font-bold text-accent-600">/{r.atalho}</span>
                 <span className="max-w-[160px] truncate">{r.texto}</span>
