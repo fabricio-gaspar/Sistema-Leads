@@ -10,6 +10,8 @@ const lines = (value: unknown, fallback: string[] = []) => {
     : [];
   return result.length ? result : fallback;
 };
+const bool = (value: unknown, fallback = false) => typeof value === 'boolean' ? value : fallback;
+const number = (value: unknown, fallback: number) => typeof value === 'number' && Number.isFinite(value) ? value : fallback;
 
 Deno.serve(async (request) => {
   const options = preflight(request); if (options) return options;
@@ -71,13 +73,18 @@ Deno.serve(async (request) => {
         .toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
         .split(/[^a-z0-9]+/).filter((word) => word.length >= 4)
         .some((word) => normalizedForMatch.includes(word)));
-      const handoff = urgency || negotiation || complaint || humanRequest || Boolean(configuredTrigger);
-      const motivo = complaint ? 'Reclamação ou insatisfação' : urgency ? 'Urgência operacional' : negotiation ? 'Pedido de desconto ou negociação' : humanRequest ? 'Solicitação de atendimento humano' : configuredTrigger ? `Regra da empresa: ${configuredTrigger}` : undefined;
+      const handoffPolicy = object(configuration.handoffPolicy);
+      const minimumConfidence = Math.min(100, Math.max(1, number(handoffPolicy.lowConfidenceThreshold, 70))) / 100;
+      const explicitSignal = optOut || urgency || negotiation || complaint || humanRequest || Boolean(configuredTrigger) || meeting || quote;
+      const baseConfidence = explicitSignal ? 0.95 : interest ? 0.78 : 0.6;
+      const requiresHumanOnLowConfidence = baseConfidence < minimumConfidence;
+      const handoff = urgency || negotiation || complaint || humanRequest || Boolean(configuredTrigger) || requiresHumanOnLowConfidence;
+      const motivo = complaint ? 'Reclamação ou insatisfação' : urgency ? 'Urgência operacional' : negotiation ? 'Pedido de desconto ou negociação' : humanRequest ? 'Solicitação de atendimento humano' : configuredTrigger ? `Regra da empresa: ${configuredTrigger}` : requiresHumanOnLowConfidence ? 'Confiança abaixo do mínimo configurado' : undefined;
       return json({ ok: true, analise: {
         intencao: optOut ? 'OPT_OUT' : handoff ? 'OBJECAO' : meeting ? 'AGENDAMENTO' : quote ? 'ORCAMENTO' : interest ? 'INTERESSE' : 'NEUTRO',
         sentimento: complaint || optOut ? 'NEGATIVO' : interest ? 'POSITIVO' : 'NEUTRO',
         scoreInteresse: optOut ? 0 : meeting || quote ? 75 : interest ? 65 : 50,
-        confianca: optOut || handoff || meeting || quote ? 0.95 : 0.6,
+        confianca: baseConfidence,
         proximaAcao: optOut ? 'ENCERRAR' : handoff ? 'TRANSFERIR_HUMANO' : meeting ? 'AGENDAR' : quote ? 'CRIAR_ORCAMENTO' : interest ? 'QUALIFICAR' : 'RESPONDER',
         etapaSugerida: optOut ? 'Fechado — Perdido' : handoff && negotiation ? 'Negociação' : meeting ? 'Reunião Agendada' : quote ? 'Proposta em Preparação' : interest ? 'Em Qualificação' : 'Em Contato',
         motivoTransferencia: motivo,
@@ -85,11 +92,22 @@ Deno.serve(async (request) => {
       } }, 200, headers);
     }
     if (action === 'autocompletar') return json({ ok: true, texto: `${message}${message.endsWith('.') ? '' : '.'} Posso complementar com os detalhes técnicos e preparar um orçamento?` }, 200, headers);
+    const approvedKnowledge = lines(configuration.approvedKnowledge);
+    const quotePolicy = object(configuration.quotePolicy);
+    const normalized = message.toLowerCase();
+    const asksForPrice = /orçamento|orcamento|cotação|cotacao|quanto custa|preço|preco|desconto/.test(normalized);
+    if (asksForPrice && bool(quotePolicy.neverInventPrices, true)) {
+      return json({ ok: true, texto: 'Para garantir um orçamento correto, preciso confirmar o escopo e os itens desejados. Vou preparar um rascunho somente com o catálogo aprovado para revisão humana.' }, 200, headers);
+    }
+    if (!approvedKnowledge.length) {
+      return json({ ok: true, texto: 'Para responder com precisão e apenas com informações aprovadas, vou encaminhar seu atendimento para um especialista da equipe.' }, 200, headers);
+    }
     const greeting = text(configuration.greeting, 500) || 'Olá! Sou a Ana, assistente comercial da empresa.';
     const name = text(context.nome, 120);
     const offer = lines(configuration.valueProposition);
     const questions = lines(configuration.qualificationQuestions, ['Qual necessidade você quer resolver?', 'Qual o prazo ou urgência?', 'Qual escopo ou quantidade?']);
     const offerContext = offer.length ? ` Trabalhamos com ${offer.slice(0, 2).join(' e ')}.` : '';
-    return json({ ok: true, texto: `${greeting}${name ? ` ${name},` : ''}${offerContext} Para preparar um orçamento adequado, ${questions[0].charAt(0).toLowerCase()}${questions[0].slice(1)}` }, 200, headers);
+    const signature = text(configuration.signature, 240);
+    return json({ ok: true, texto: `${greeting}${name ? ` ${name},` : ''}${offerContext} Para preparar um orçamento adequado, ${questions[0].charAt(0).toLowerCase()}${questions[0].slice(1)}${signature ? `\n\n${signature}` : ''}` }, 200, headers);
   } catch (error) { return json({ ok: false, erro: safeError(error) }, 400, headers); }
 });

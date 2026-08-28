@@ -71,9 +71,6 @@ const groups: MenuGroup[] = [
       { id: 'templates-documento', label: 'Templates de documento', icone: 'ri-file-copy-2-line' },
       { id: 'temas', label: 'Temas', icone: 'ri-palette-line' },
       { id: 'fluxos', label: 'Fluxos prontos', icone: 'ri-flow-chart' },
-      { id: 'automacoes', label: 'Automações', icone: 'ri-timer-flash-line' },
-      { id: 'comercial', label: 'Regras Comerciais', icone: 'ri-price-tag-3-line' },
-      { id: 'horarios', label: 'Horários', icone: 'ri-time-line' },
     ],
   },
 ];

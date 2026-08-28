@@ -28,6 +28,11 @@ Deno.serve(async (request) => {
     const { data: integration } = await admin.from('integrations').select('id,key,provider,connected,enabled,paused')
       .eq('organization_id', organizationId).ilike('key', '%whatsapp%').order('updated_at', { ascending: false }).limit(1).maybeSingle();
     if (!integration?.connected || !integration.enabled || integration.paused) throw new Error('whatsapp_integration_not_ready');
+    const { data: blockingPolicy } = await admin.from('channel_policy_events')
+      .select('id,risk_level,action').eq('organization_id', organizationId).eq('channel', 'whatsapp')
+      .is('resolved_at', null).in('action', ['pause', 'throttle']).order('created_at', { ascending: false }).limit(1).maybeSingle();
+    if (blockingPolicy?.action === 'pause') throw new Error('whatsapp_paused_by_risk_policy');
+    if (blockingPolicy?.action === 'throttle') throw new Error('whatsapp_throttled_by_risk_policy');
     const idempotencyKey = crypto.randomUUID();
     const { data: job, error: jobError } = await admin.from('outreach_jobs').insert({
       organization_id: organizationId, lead_id: lead.id, channel: 'whatsapp', attempt: 0, run_at: new Date().toISOString(), status: 'queued',

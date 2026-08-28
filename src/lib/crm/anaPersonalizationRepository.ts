@@ -9,6 +9,30 @@ export interface AnaPersonalization {
   valueProposition: string[];
   qualificationQuestions: string[];
   handoffTriggers: string[];
+  tone?: 'consultivo' | 'direto' | 'acolhedor' | 'tecnico';
+  approvedKnowledge?: string[];
+  quotePolicy?: {
+    requireHumanApproval: boolean;
+    neverInventPrices: boolean;
+    discountLimit: number;
+  };
+  cadencePolicy?: {
+    firstFollowUpHours: number;
+    secondFollowUpHours: number;
+    timeoutHours: number;
+    businessHoursOnly: boolean;
+  };
+  handoffPolicy?: {
+    requireSummary: boolean;
+    pauseAnaUntilReturn: boolean;
+    lowConfidenceThreshold: number;
+  };
+  allowedChannels?: string[];
+  riskPolicy?: {
+    requireConsent: boolean;
+    stopOnOptOut: boolean;
+    pauseOnHighRisk: boolean;
+  };
 }
 
 export async function saveAnaPersonalization(configuration: AnaPersonalization): Promise<void> {
