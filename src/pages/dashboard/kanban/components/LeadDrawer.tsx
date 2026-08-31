@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { etapasCRM } from '@/mocks/leadsData';
 import type { Lead } from '@/mocks/leadsData';
 import { useFluxoComercial } from '@/hooks/useFluxoComercial';
 import { useTarefasStore } from '@/hooks/useTarefasStore';
+import { loadAgentRuns, type AgentRunTimelineItem } from '@/lib/crm/anaRunRepository';
 
 interface LeadDrawerProps {
   lead: Lead;
@@ -10,12 +11,19 @@ interface LeadDrawerProps {
   onMudarEtapa: (id: string, etapa: string) => void;
   onAbrirConversa: (lead: Lead) => void;
   onExcluir: (lead: Lead) => void;
+  onRodarAna: (lead: Lead) => Promise<void>;
 }
 
-type Aba = 'resumo' | 'conversa' | 'historico' | 'tarefas';
+type Aba = 'resumo' | 'conversa' | 'ana' | 'historico' | 'tarefas';
 
 const etapaBadge: Record<string, string> = {
   'Novo': 'bg-background-200 text-foreground-600',
+  'Apresentado': 'bg-primary-100 text-primary-700',
+  'Qualificando': 'bg-primary-100 text-primary-700',
+  'Reunião': 'bg-accent-100 text-accent-700',
+  'Orçamento': 'bg-secondary-100 text-secondary-700',
+  'Ganho': 'bg-primary-500 text-background-50',
+  'Perdido': 'bg-background-300 text-foreground-500',
   'Em Contato': 'bg-primary-100 text-primary-700',
   'Aguardando Resposta': 'bg-accent-100 text-accent-700',
   'Em Qualificação': 'bg-primary-100 text-primary-700',
@@ -40,13 +48,10 @@ const tempLabel: Record<string, string> = { Frio: 'Frio', Morno: 'Morno', Quente
 // limite de atendimento da Ana dentro do card do Kanban.
 const etapasHandoff = [
   'Novo',
-  'Em Contato',
-  'Aguardando Resposta',
-  'Em Qualificação',
-  'Reunião Agendada',
-  'Proposta em Preparação',
-  'Orçamento Enviado',
-  'Negociação',
+  'Apresentado',
+  'Qualificando',
+  'Reunião',
+  'Orçamento',
 ];
 
 const automacaoLabel: Record<string, string> = {
@@ -68,6 +73,7 @@ const automacaoCor: Record<string, string> = {
 const abas: { id: Aba; label: string; icone: string }[] = [
   { id: 'resumo', label: 'Resumo', icone: 'ri-file-user-line' },
   { id: 'conversa', label: 'Conversa', icone: 'ri-chat-3-line' },
+  { id: 'ana', label: 'Ana', icone: 'ri-sparkling-2-line' },
   { id: 'historico', label: 'Histórico', icone: 'ri-history-line' },
   { id: 'tarefas', label: 'Tarefas', icone: 'ri-task-line' },
 ];
@@ -84,11 +90,23 @@ const intencaoLabel: Record<string, string> = {
   NEUTRO: 'Neutro',
 };
 
-export default function LeadDrawer({ lead, onClose, onMudarEtapa, onAbrirConversa, onExcluir }: LeadDrawerProps) {
+export default function LeadDrawer({ lead, onClose, onMudarEtapa, onAbrirConversa, onExcluir, onRodarAna }: LeadDrawerProps) {
   const [aba, setAba] = useState<Aba>('resumo');
   const [confirmandoExclusao, setConfirmandoExclusao] = useState(false);
   const fluxo = useFluxoComercial();
   const { tarefas, alternar } = useTarefasStore();
+  const [runs, setRuns] = useState<AgentRunTimelineItem[]>([]);
+  const [loadingRuns, setLoadingRuns] = useState(true);
+  const [runningAna, setRunningAna] = useState(false);
+  const [anaError, setAnaError] = useState('');
+
+  const refreshRuns = useCallback(async () => {
+    setLoadingRuns(true);
+    try { setRuns(await loadAgentRuns(lead.id)); } catch { setRuns([]); }
+    finally { setLoadingRuns(false); }
+  }, [lead.id]);
+
+  useEffect(() => { void refreshRuns(); }, [refreshRuns]);
 
   const tarefasDoLead = tarefas.filter((t) => t.leadId === lead.id);
   const modo = lead.modoAtendimento ?? 'IA';
@@ -172,6 +190,17 @@ export default function LeadDrawer({ lead, onClose, onMudarEtapa, onAbrirConvers
             <>
               {/* Ações da Ana / humano */}
               <div className="grid grid-cols-2 gap-2">
+                <button
+                  disabled={runningAna || modo !== 'IA'}
+                  onClick={() => {
+                    setRunningAna(true); setAnaError('');
+                    void onRodarAna(lead).then(refreshRuns).catch((error) => setAnaError(error instanceof Error ? error.message : 'Não foi possível rodar a Ana.')).finally(() => setRunningAna(false));
+                  }}
+                  className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-primary-500 hover:bg-primary-600 disabled:opacity-50 text-background-50 rounded-lg text-xs font-semibold cursor-pointer whitespace-nowrap"
+                  title={modo === 'IA' ? 'Executar a Ana com o contexto atual do lead' : 'Em modo humano a Ana não responde automaticamente'}
+                >
+                  <i className="ri-sparkling-2-line"></i> {runningAna ? 'Rodando...' : 'Rodar Ana'}
+                </button>
                 {statusAutomacao === 'ATIVA' && (
                   <button
                     onClick={() => fluxo.pausarAna(lead.id)}
@@ -205,6 +234,7 @@ export default function LeadDrawer({ lead, onClose, onMudarEtapa, onAbrirConvers
                   </button>
                 )}
               </div>
+              {anaError && <p className="text-xs text-accent-700 bg-accent-50 border border-accent-200 rounded-lg px-3 py-2">{anaError}</p>}
 
               {/* Análise da Ana */}
               {(lead.intencao || lead.proximaAcao) && (
@@ -374,6 +404,23 @@ export default function LeadDrawer({ lead, onClose, onMudarEtapa, onAbrirConvers
                 <i className="ri-chat-3-line"></i>
                 Ir para o chat
               </button>
+            </div>
+          )}
+
+          {aba === 'ana' && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-xs text-foreground-500">Decisões registradas pela Ana para este lead.</p>
+                <button onClick={() => void refreshRuns()} className="text-xs font-semibold text-primary-700">Atualizar</button>
+              </div>
+              {loadingRuns ? <div className="wf-skeleton h-20" /> : runs.length ? runs.map((run) => (
+                <div key={run.id} className="rounded-lg border border-background-200 bg-background-100/50 p-3">
+                  <div className="flex items-center justify-between gap-2"><strong className="text-xs text-foreground-800">{run.event}</strong><span className="wf-badge">{run.status}</span></div>
+                  <p className="mt-1 text-xs text-foreground-500">{run.result.motivo || run.error_message || 'Sem observação.'}</p>
+                  {run.result.mensagem_sugerida && <p className="mt-2 rounded-md bg-white p-2 text-xs text-foreground-700">Rascunho: {run.result.mensagem_sugerida}</p>}
+                  <p className="mt-2 text-[10px] text-foreground-400">{new Date(run.created_at).toLocaleString('pt-BR')}</p>
+                </div>
+              )) : <p className="wf-empty-state">A Ana ainda não executou nenhuma decisão neste lead.</p>}
             </div>
           )}
 

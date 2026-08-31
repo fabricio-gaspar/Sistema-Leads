@@ -58,7 +58,7 @@ export default function IntegracoesStatus() {
                 ></span>
               </div>
               <p className="text-[10px] font-medium text-foreground-700 leading-tight text-center whitespace-nowrap overflow-hidden text-ellipsis w-full">
-                {i.nome.replace(' (Z-API)', '').replace(' (Resend)', '').replace(' (Claude + fallback)', '').replace(' (Click-to-Call)', '')}
+                {i.nome.replace(' (Z-API)', '').replace(' (Resend)', '').replace(' (OpenAI)', '').replace(' (Click-to-Call)', '')}
               </p>
             </Link>
           );

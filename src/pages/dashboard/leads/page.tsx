@@ -1,14 +1,22 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useLeadsStore } from '@/hooks/useLeadsStore';
+import { useLeadsStore, waitForLeadsPersistence } from '@/hooks/useLeadsStore';
 import { etapasCRM, segmentos } from '@/mocks/leadsData';
 import type { Lead } from '@/mocks/leadsData';
 import { podeTransicionar } from '@/lib/automacao';
 import { useListasStore } from '@/hooks/useListasStore';
 import { useFluxoComercial } from '@/hooks/useFluxoComercial';
+import { useAuth } from '@/hooks/useAuth';
+import { runAna } from '@/lib/crm/anaRunRepository';
 
 const etapaCores: Record<string, string> = {
   'Novo': 'bg-background-200 text-foreground-600',
+  'Apresentado': 'bg-primary-100 text-primary-700',
+  'Qualificando': 'bg-primary-100 text-primary-700',
+  'Reunião': 'bg-accent-100 text-accent-700',
+  'Orçamento': 'bg-secondary-100 text-secondary-700',
+  'Ganho': 'bg-primary-500 text-background-50',
+  'Perdido': 'bg-background-300 text-foreground-500',
   'Em Contato': 'bg-primary-100 text-primary-700',
   'Aguardando Resposta': 'bg-accent-100 text-accent-700',
   'Em Qualificação': 'bg-primary-100 text-primary-700',
@@ -37,7 +45,7 @@ export default function Leads() {
   const [detalhe, setDetalhe] = useState<Lead | null>(null);
   const [toast, setToast] = useState('');
   const [novoModal, setNovoModal] = useState(false);
-  const [novoLead, setNovoLead] = useState({ nome: '', empresa: '', email: '', telefone: '', segmento: 'Tecnologia', cidade: '', estado: '' });
+  const [novoLead, setNovoLead] = useState({ nome: '', empresa: '', email: '', telefone: '', segmento: 'Tecnologia', cidade: '', estado: '', modo: 'IA' as 'IA' | 'HUMANO' });
   const [mostrarArquivados, setMostrarArquivados] = useState(false);
   const [editarModal, setEditarModal] = useState<Lead | null>(null);
   const [editForm, setEditForm] = useState({ nome: '', email: '', telefone: '', responsavel: '', tags: '' });
@@ -46,6 +54,7 @@ export default function Leads() {
   const navigate = useNavigate();
   const listas = useListasStore();
   const fluxo = useFluxoComercial();
+  const { user } = useAuth();
 
   const mostrarToast = (msg: string) => {
     setToast(msg);
@@ -111,32 +120,35 @@ export default function Leads() {
     mostrarToast('Lead restaurado para o funil ativo.');
   };
 
-  // Aprova os leads selecionados: tira do estado "aguardando" e dispara a Ana
-  // (ou cria tarefa para humano), marcando listas totalmente ativadas.
-  const enviarParaKanban = (ids: string[], modo: 'IA' | 'HUMANO', etapaHandoff?: string) => {
+  // Aprova os leads selecionados e persiste modo + responsável antes de
+  // acionar a Ana no backend.
+  const enviarParaKanban = async (ids: string[], modo: 'IA' | 'HUMANO', etapaHandoff?: string) => {
     if (ids.length === 0) return;
-    const r = fluxo.ativarParaKanban(ids, modo, etapaHandoff);
+    if (!user?.id) {
+      mostrarToast('Sua sessão não possui um responsável válido. Entre novamente antes de enviar ao Kanban.');
+      return;
+    }
     const idsSet = new Set(ids);
+    setLeads((current) => current.map((lead) => idsSet.has(lead.id) ? {
+      ...lead, aguardandoAtivacao: false, modoAtendimento: modo, responsavelId: lead.responsavelId || user.id,
+      responsavel: lead.responsavel === 'Ana (IA)' || !lead.responsavel ? 'Você' : lead.responsavel,
+      etapa: 'Novo', etapaHandoff, automacaoStatus: modo === 'HUMANO' ? 'AGUARDANDO_HUMANO' : 'ATIVA',
+    } : lead));
+    await waitForLeadsPersistence();
+    const result = await Promise.allSettled(ids.map((leadId) => runAna({ event: 'lead.created', leadId, modo })));
+    const processados = result.filter((item) => item.status === 'fulfilled' && item.value.ok).length;
     listas.listas.forEach((lista) => {
       if (lista.status === 'pendente' && lista.leadIds.length > 0 && lista.leadIds.every((lid) => idsSet.has(lid))) {
         listas.atualizar(lista.id, { status: 'ativada' });
       }
     });
-    const resumo =
-      r.disparados > 0
-        ? `${r.disparados} lead(s) assumido(s) pela Ana`
-        : '';
-    const tarefas = r.tarefas > 0 ? `${r.tarefas} tarefa(s) criada(s) para humano` : '';
-    const partes = [resumo, tarefas].filter(Boolean);
-    mostrarToast(
-      `${ids.length} lead(s) enviados ao Kanban${partes.length ? ' · ' + partes.join(' · ') : ''}.`
-    );
+    mostrarToast(`${ids.length} lead(s) enviados ao Kanban${processados ? ` · ${processados} processado(s) pela Ana` : ' · aguardando configuração da Ana'}.`);
     setSelecionados([]);
     setEnvioAlvo(null);
     setModoSelecionado(null);
   };
 
-  const criarLead = () => {
+  const criarLead = async () => {
     if (!novoLead.nome.trim() || !novoLead.empresa.trim()) {
       mostrarToast('Preencha ao menos nome e empresa.');
       return;
@@ -159,6 +171,10 @@ export default function Leads() {
       mostrarToast('Já existe um lead com este e-mail, telefone ou empresa.');
       return;
     }
+    if (!user?.id) {
+      mostrarToast('Sua sessão não possui um responsável válido. Entre novamente antes de criar o lead.');
+      return;
+    }
     const novo: Lead = {
       id: crypto.randomUUID(),
       nome: novoLead.nome.trim(),
@@ -176,9 +192,10 @@ export default function Leads() {
       etapa: 'Novo',
       origem: 'Manual',
       responsavel: 'Você',
+      responsavelId: user.id,
       tags: [],
-      modoAtendimento: 'IA',
-      automacaoStatus: 'ATIVA',
+      modoAtendimento: novoLead.modo,
+      automacaoStatus: novoLead.modo === 'HUMANO' ? 'AGUARDANDO_HUMANO' : 'ATIVA',
       canalPreferencial: 'WhatsApp',
       templateId: 'tm-1',
       contatoPermitido: true,
@@ -188,12 +205,11 @@ export default function Leads() {
       criadoEm: new Date().toISOString().slice(0, 10),
     };
     setLeads((prev) => [novo, ...prev]);
-    // Lead criado manualmente entra direto no funil: ativa a Ana (primeiro contato
-    // + cadência) para não ficar parado na etapa "Novo".
-    fluxo.ativarParaKanban([novo.id], 'IA');
+    await waitForLeadsPersistence();
+    const result = await runAna({ event: 'lead.created', leadId: novo.id, modo: novoLead.modo }).catch(() => null);
     setNovoModal(false);
-    setNovoLead({ nome: '', empresa: '', email: '', telefone: '', segmento: 'Tecnologia', cidade: '', estado: '' });
-    mostrarToast('Lead criado e enviado ao Kanban — a Ana iniciou o primeiro contato.');
+    setNovoLead({ nome: '', empresa: '', email: '', telefone: '', segmento: 'Tecnologia', cidade: '', estado: '', modo: 'IA' });
+    mostrarToast(result?.ok ? 'Lead criado e processado pela Ana.' : 'Lead criado. A Ana fica disponível quando o backend estiver configurado.');
   };
 
   const base = mostrarArquivados ? leads.filter((l) => l.arquivado) : leads.filter((l) => !l.arquivado);
@@ -226,8 +242,8 @@ export default function Leads() {
           ? {
               ...l,
               etapa,
-              motivoPerda: etapa === 'Fechado — Perdido' ? (l.motivoPerda || 'Sem resposta') : l.motivoPerda,
-              automacaoStatus: ['Fechado — Ganho', 'Fechado — Perdido', 'Pausado'].includes(etapa) ? 'CONCLUIDA' : l.automacaoStatus,
+              motivoPerda: etapa === 'Perdido' ? (l.motivoPerda || 'Sem resposta') : l.motivoPerda,
+              automacaoStatus: ['Ganho', 'Perdido'].includes(etapa) ? 'CONCLUIDA' : l.automacaoStatus,
             }
           : l
       )
@@ -241,7 +257,7 @@ export default function Leads() {
           ? {
               ...l,
               etapa,
-              automacaoStatus: ['Fechado — Ganho', 'Fechado — Perdido', 'Pausado'].includes(etapa) ? 'CONCLUIDA' : l.automacaoStatus,
+              automacaoStatus: ['Ganho', 'Perdido'].includes(etapa) ? 'CONCLUIDA' : l.automacaoStatus,
             }
           : l
       )
@@ -548,7 +564,7 @@ export default function Leads() {
                     className="w-full px-4 py-2.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-900 cursor-pointer"
                   >
                     <option value="">Até o fim do funil (Ana conduz tudo)</option>
-                    {['Novo', 'Em Contato', 'Aguardando Resposta', 'Em Qualificação', 'Reunião Agendada', 'Proposta em Preparação', 'Orçamento Enviado', 'Negociação'].map((e) => (
+                    {['Novo', 'Apresentado', 'Qualificando', 'Reunião', 'Orçamento'].map((e) => (
                       <option key={e} value={e}>{e}</option>
                     ))}
                   </select>
@@ -719,6 +735,14 @@ export default function Leads() {
                   <label className="block text-sm font-medium text-foreground-800 mb-1.5">UF</label>
                   <input type="text" value={novoLead.estado} onChange={(e) => setNovoLead({ ...novoLead, estado: e.target.value })} placeholder="UF" className="w-full px-4 py-2.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-900" />
                 </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground-800 mb-1.5">Modo de atendimento <span className="text-accent-600">*</span></label>
+                <select value={novoLead.modo} onChange={(e) => setNovoLead({ ...novoLead, modo: e.target.value as 'IA' | 'HUMANO' })} className="w-full px-4 py-2.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-900 cursor-pointer">
+                  <option value="IA">Ana (IA) — gera rascunhos para revisão</option>
+                  <option value="HUMANO">Humano — sem disparo automático</option>
+                </select>
+                <p className="mt-1.5 text-xs text-foreground-500">Você será definido como responsável por este lead.</p>
               </div>
             </div>
             <div className="px-6 py-4 border-t border-background-200/70 flex justify-end gap-2">

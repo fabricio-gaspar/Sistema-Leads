@@ -5,7 +5,7 @@ import type { Lead } from '@/mocks/leadsData';
 const lead: Lead = {
   id: '11111111-1111-4111-8111-111111111111', nome: 'Ana Souza', empresa: 'Empresa Exemplo', cnpj: '12.345.678/0001-90',
   email: 'ANA@EXEMPLO.COM', telefone: '11999990000', whatsapp: '11999990000', segmento: 'Tecnologia', cidade: 'São Paulo', estado: 'SP',
-  porte: 'Médio', score: 91, temperatura: 'Quente', etapa: 'Em Qualificação', origem: 'Importação CSV', responsavel: 'Ana (IA)',
+  porte: 'Médio', score: 91, temperatura: 'Quente', etapa: 'Qualificando', origem: 'Importação CSV', responsavel: 'Ana (IA)',
   tags: ['prioridade'], ultimaInteracao: 'agora', criadoEm: '2026-08-26',
 };
 
@@ -30,5 +30,12 @@ describe('leadMapper', () => {
     });
     expect(mapped.bloqueado).toBe(true);
     expect(mapped.modoAtendimento).toBe('HUMANO');
+  });
+
+  it('persiste o modo, o responsável e a etapa rígida da Ana', () => {
+    const row = leadToCrmRow({ ...lead, etapa: 'Reunião', modoAtendimento: 'IA', responsavelId: '33333333-3333-4333-8333-333333333333' }, '22222222-2222-4222-8222-222222222222');
+    expect(row.ana_stage).toBe('reuniao');
+    expect(row.modo_atendimento).toBe('ia');
+    expect(row.owner_id).toBe('33333333-3333-4333-8333-333333333333');
   });
 });

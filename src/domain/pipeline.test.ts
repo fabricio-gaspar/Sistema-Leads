@@ -5,7 +5,7 @@ describe('pipeline comercial simplificado', () => {
   it('normaliza etapas legadas e separa o resultado', () => {
     expect(stageFromLegacy('Negociação')).toBe('decision');
     expect(stageFromLegacy('Proposta em Preparação')).toBe('quote_preparation');
-    expect(legacyStageForPipeline('quote_preparation')).toBe('Proposta em Preparação');
+    expect(legacyStageForPipeline('quote_preparation')).toBe('Reunião');
     expect(outcomeFromLegacy('Fechado — Ganho')).toBe('won');
   });
 

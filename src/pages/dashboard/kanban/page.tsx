@@ -11,6 +11,8 @@ import { leads as leadsSeed } from '@/mocks/leadsData';
 import type { Lead } from '@/mocks/leadsData';
 import { ACTIVE_PIPELINE_STAGES, PIPELINE_STAGE_LABEL, legacyStageForPipeline, stageFromLegacy } from '@/domain/pipeline';
 import LeadDrawer from './components/LeadDrawer';
+import { runAna } from '@/lib/crm/anaRunRepository';
+import { runOperationalAutomations } from '@/lib/crm/automationRepository';
 
 const formatarData = (d: Date): string => {
   const y = d.getFullYear();
@@ -149,7 +151,9 @@ export default function KanbanCRM() {
 
   const termo = busca.trim().toLowerCase();
   const leadsFiltrados = leads.filter((l) => {
-    if (l.aguardandoAtivacao) return false; // aguardando aprovação no menu Leads
+    // Um lead só entra no board depois de ter modo de atendimento e uma
+    // pessoa responsável persistida. Isso impede disparos sem carteira.
+    if (l.aguardandoAtivacao || !l.modoAtendimento || !l.responsavelId) return false;
     if (termo && !l.nome.toLowerCase().includes(termo) && !l.empresa.toLowerCase().includes(termo)) return false;
     if (filtroResponsavel && l.responsavel !== filtroResponsavel) return false;
     if (filtroSegmento && l.segmento !== filtroSegmento) return false;
@@ -160,7 +164,7 @@ export default function KanbanCRM() {
     return true;
   });
 
-  const leadsPorEtapa = (etapa: string) => leadsFiltrados.filter((l) => stageFromLegacy(l.etapa) === etapa && !['Fechado — Ganho', 'Fechado — Perdido'].includes(l.etapa));
+  const leadsPorEtapa = (etapa: string) => leadsFiltrados.filter((l) => stageFromLegacy(l.etapa) === etapa);
 
   const detalhe = detalheId ? leads.find((l) => l.id === detalheId) || null : null;
 
@@ -182,16 +186,16 @@ export default function KanbanCRM() {
   const aplicarMudanca = (id: string, etapa: string, motivo?: string) => {
     const lead = leads.find((l) => l.id === id);
     if (!lead) return;
-    const ehFinal = ['Fechado — Ganho', 'Fechado — Perdido'].includes(etapa);
-    const reativando = lead.etapa === 'Fechado — Perdido' && etapa !== lead.etapa;
+    const ehFinal = ['Ganho', 'Perdido'].includes(etapa);
+    const reativando = lead.etapa === 'Perdido' && etapa !== lead.etapa;
     setLeads((prev) =>
       prev.map((l) =>
         l.id === id
           ? {
               ...l,
               etapa,
-              motivoPerda: etapa === 'Fechado — Perdido' ? (motivo || l.motivoPerda || '') : reativando ? '' : l.motivoPerda,
-              automacaoStatus: ehFinal || etapa === 'Pausado' ? 'CONCLUIDA' : l.automacaoStatus,
+              motivoPerda: etapa === 'Perdido' ? (motivo || l.motivoPerda || '') : reativando ? '' : l.motivoPerda,
+              automacaoStatus: ehFinal ? 'CONCLUIDA' : l.automacaoStatus,
               nextFollowUpAt: ehFinal ? null : l.nextFollowUpAt,
               timeoutAt: ehFinal ? null : l.timeoutAt,
               historico: [
@@ -214,11 +218,11 @@ export default function KanbanCRM() {
   const executarMudanca = (id: string, etapa: string) => {
     const lead = leads.find((l) => l.id === id);
     if (!lead || lead.etapa === etapa) return;
-    if (etapa === 'Fechado — Perdido') {
+    if (etapa === 'Perdido') {
       setMotivoModal({ id, etapa, nome: lead.nome, tipo: 'perda' });
       return;
     }
-    if (lead.etapa === 'Fechado — Perdido') {
+    if (lead.etapa === 'Perdido') {
       setMotivoModal({ id, etapa, nome: lead.nome, tipo: 'reativacao' });
       return;
     }
@@ -237,19 +241,27 @@ export default function KanbanCRM() {
   };
 
   const executarAutomatizacoes = async () => {
-    const r = await fluxo.processarAutomacoesPendentes();
-    const partes = [
-      r.followUps ? `${r.followUps} follow-up(s)` : '',
-      r.timeouts ? `${r.timeouts} timeout(s)` : '',
-      r.lembretes ? `${r.lembretes} lembrete(s) de reunião` : '',
-      r.noShows ? `${r.noShows} no-show(s) remarcado(s)` : '',
-      r.fluxos ? `${r.fluxos} mensagem(ns) de fluxo` : '',
-    ].filter(Boolean);
-    mostrarToast(
-      partes.length
-        ? `Automações processadas: ${partes.join(', ')}.`
-        : 'Nenhuma automação pendente no momento.'
-    );
+    try {
+      const result = await runOperationalAutomations();
+      mostrarToast(result.timeout_runs ? `${result.timeout_runs} lead(s) de 48h foram encaminhados para revisão humana.` : 'Nenhum timeout pendente no momento.');
+    } catch {
+      mostrarToast('Não foi possível executar as automações agora. Verifique sua sessão e tente novamente.');
+    }
+  };
+
+  const rodarAna = async (lead: Lead) => {
+    const result = await runAna({ event: 'manual.run', leadId: lead.id, modo: lead.modoAtendimento ?? 'IA' });
+    if (!result.ok) throw new Error(result.erro || 'A Ana não conseguiu processar este lead.');
+    const etapa = result.proximo_estagio === 'Ganho / Perdido'
+      ? result.outcome === 'perdido' ? 'Perdido' : 'Ganho'
+      : result.proximo_estagio;
+    setLeads((current) => current.map((item) => item.id === lead.id ? {
+      ...item, etapa: etapa || item.etapa, score: result.score ?? item.score,
+      automacaoStatus: result.precisa_humano ? 'AGUARDANDO_HUMANO' : item.automacaoStatus,
+      motivoTransferencia: result.motivo || item.motivoTransferencia,
+      anaOutcome: result.outcome ?? null,
+    } : item));
+    mostrarToast(result.status_canal === 'pendente_canal' ? 'Ana gerou um rascunho. O canal ainda não está conectado.' : 'Ana gerou um rascunho para revisão.');
   };
 
   return (
@@ -509,6 +521,7 @@ export default function KanbanCRM() {
             navigate(`/dashboard/atendimento?leadId=${lead.id}`);
           }}
           onExcluir={excluirLead}
+          onRodarAna={rodarAna}
         />
       )}
 
@@ -531,7 +544,7 @@ export default function KanbanCRM() {
                 </div>
               )}
               <p className="text-sm text-foreground-600 mb-4">
-                <b>{motivoModal.nome}</b> será {motivoModal.tipo === 'perda' ? 'movido para Fechado — Perdido' : 'reativado'}. Informe o motivo (obrigatório).
+                <b>{motivoModal.nome}</b> será {motivoModal.tipo === 'perda' ? 'movido para Perdido' : 'reativado'}. Informe o motivo (obrigatório).
               </p>
               <textarea
                 value={motivoTexto}

@@ -1,12 +1,11 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/lib/supabase';
+import { resolveOrganizationSession } from '@/lib/organizationSession';
 import { camposDisponiveis, montarPrompt } from '@/lib/promptBusca';
 import { useBibliotecaPromptsStore, type BibliotecaPrompt } from '@/hooks/useBibliotecaPromptsStore';
 import { useEmpresaSettingsStore } from '@/hooks/useEmpresaSettingsStore';
 import { useLocalStorageState } from '@/hooks/useLocalStorageState';
-
-type Provedor = 'openai' | 'anthropic';
 
 type FiltroBiblioteca = 'todos' | 'favoritos' | 'recentes';
 
@@ -34,7 +33,6 @@ export default function PromptAgent() {
   const { prompts } = useBibliotecaPromptsStore();
   const { settings } = useEmpresaSettingsStore();
 
-  const [provedor, setProvedor] = useState<Provedor>('openai');
   const [campos, setCampos] = useState<string[]>(['nome', 'empresa', 'email', 'telefone', 'segmento']);
   const [criterios, setCriterios] = useState('');
   const [modeloAtivo, setModeloAtivo] = useState<string | null>(null);
@@ -116,8 +114,9 @@ export default function PromptAgent() {
     const base = montarPrompt(campos, criterios, montarContexto());
 
     try {
+      const session = await resolveOrganizationSession();
       const { data, error } = await supabase.functions.invoke('gerar-prompt-busca', {
-        body: { provider: provedor, campos, criterios, contexto: montarContexto() },
+        body: { organizationId: session.organizationId, fields: campos, criteria: criterios },
       });
 
       if (error || !data?.prompt) {
@@ -147,7 +146,6 @@ export default function PromptAgent() {
 
   return (
     <div className="space-y-6">
-      {/* Seletor de provedor */}
       <div className="bg-background-50 border border-background-200/70 rounded-xl p-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div>
@@ -158,27 +156,7 @@ export default function PromptAgent() {
               Descreva o que quer prospectar, escolha os campos e gere um prompt pronto para usar em qualquer ferramenta de busca.
             </p>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <span className="text-xs text-foreground-500 font-medium whitespace-nowrap">Provedor de IA:</span>
-            <div className="flex gap-1 bg-background-100 rounded-full p-1">
-              <button
-                onClick={() => setProvedor('openai')}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all cursor-pointer whitespace-nowrap ${
-                  provedor === 'openai' ? 'bg-background-50 text-foreground-900 shadow-sm' : 'text-foreground-500 hover:text-foreground-700'
-                }`}
-              >
-                ChatGPT
-              </button>
-              <button
-                onClick={() => setProvedor('anthropic')}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all cursor-pointer whitespace-nowrap ${
-                  provedor === 'anthropic' ? 'bg-background-50 text-foreground-900 shadow-sm' : 'text-foreground-500 hover:text-foreground-700'
-                }`}
-              >
-                Claude
-              </button>
-            </div>
-          </div>
+          <span className="inline-flex items-center gap-1.5 shrink-0 rounded-full bg-primary-50 px-3 py-1.5 text-xs font-semibold text-primary-700"><i className="ri-brain-line"></i> OpenAI no backend</span>
         </div>
       </div>
 
@@ -345,7 +323,7 @@ export default function PromptAgent() {
 
           <div className="bg-accent-50 border border-accent-200 rounded-xl p-4 text-xs text-accent-800 leading-relaxed">
             <i className="ri-lightbulb-line mr-1"></i>
-            <strong>Dica:</strong> conecte sua chave do ChatGPT ou Claude para o agente otimizar e refinar o prompt automaticamente. Sem a chave, usamos um modelo local igualmente válido.
+            <strong>Dica:</strong> configure a chave OpenAI no backend para otimizar e refinar o prompt. Sem a chave, o sistema mantém o modelo local.
           </div>
         </div>
       </div>

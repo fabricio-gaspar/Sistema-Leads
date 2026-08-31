@@ -37,6 +37,8 @@ export interface Lead {
   criadoEm: string;
   // — Campos de fluxo comercial (backfill via normalizarLead) —
   modoAtendimento?: 'IA' | 'HUMANO';
+  anaStage?: 'novo' | 'apresentado' | 'qualificando' | 'reuniao' | 'orcamento' | 'fechado';
+  anaOutcome?: 'ganho' | 'perdido' | null;
   automacaoStatus?: 'ATIVA' | 'PAUSADA' | 'AGUARDANDO_HUMANO' | 'CONCLUIDA' | 'ERRO';
   responsavelId?: string;
   canalPreferencial?: string;
@@ -77,16 +79,12 @@ export interface Lead {
 
 export const etapasCRM = [
   'Novo',
-  'Em Contato',
-  'Aguardando Resposta',
-  'Em Qualificação',
-  'Reunião Agendada',
-  'Proposta em Preparação',
-  'Orçamento Enviado',
-  'Negociação',
-  'Fechado — Ganho',
-  'Fechado — Perdido',
-  'Pausado',
+  'Apresentado',
+  'Qualificando',
+  'Reunião',
+  'Orçamento',
+  'Ganho',
+  'Perdido',
 ];
 
 export const segmentos = [

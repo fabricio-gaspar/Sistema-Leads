@@ -12,8 +12,12 @@ export interface CrmLeadRow {
   score: number | null;
   temp: string | null;
   stage: string;
+  ana_stage?: string | null;
+  ana_outcome?: string | null;
+  modo_atendimento?: string | null;
   origin: string | null;
   owner: string | null;
+  owner_id?: string | null;
   assigned_to: string | null;
   opt_out: boolean | null;
   ai_paused: boolean | null;
@@ -45,6 +49,35 @@ const stageToLegacy: Record<string, string> = {
   'Contatos Perdidos': 'Pausado',
 };
 
+const anaStageToLegacy: Record<string, string> = {
+  novo: 'Novo',
+  apresentado: 'Apresentado',
+  qualificando: 'Qualificando',
+  reuniao: 'Reunião',
+  orcamento: 'Orçamento',
+  fechado: 'Ganho',
+};
+
+const legacyToAnaStage: Record<string, { stage: string; outcome?: 'ganho' | 'perdido' }> = {
+  Novo: { stage: 'novo' },
+  Apresentado: { stage: 'apresentado' },
+  Qualificando: { stage: 'qualificando' },
+  Reunião: { stage: 'reuniao' },
+  Orçamento: { stage: 'orcamento' },
+  Ganho: { stage: 'fechado', outcome: 'ganho' },
+  Perdido: { stage: 'fechado', outcome: 'perdido' },
+  'Em Contato': { stage: 'apresentado' },
+  'Aguardando Resposta': { stage: 'apresentado' },
+  'Em Qualificação': { stage: 'qualificando' },
+  'Reunião Agendada': { stage: 'reuniao' },
+  'Proposta em Preparação': { stage: 'orcamento' },
+  'Orçamento Enviado': { stage: 'orcamento' },
+  Negociação: { stage: 'orcamento' },
+  'Fechado — Ganho': { stage: 'fechado', outcome: 'ganho' },
+  'Fechado — Perdido': { stage: 'fechado', outcome: 'perdido' },
+  Pausado: { stage: 'apresentado' },
+};
+
 const legacyToStage: Record<string, string> = {
   Novo: 'Prospecção',
   'Em Contato': 'Prospecção',
@@ -70,6 +103,7 @@ function databaseTemperature(value: Lead['temperatura']): string {
 }
 
 export function leadToCrmRow(lead: Lead, organizationId: string): Partial<CrmLeadRow> & { organization_id: string; company: string } {
+  const ana = legacyToAnaStage[lead.etapa] ?? { stage: lead.anaStage ?? 'novo', outcome: lead.anaOutcome ?? undefined };
   return {
     id: persistentLeadId(lead.id),
     organization_id: organizationId,
@@ -81,9 +115,13 @@ export function leadToCrmRow(lead: Lead, organizationId: string): Partial<CrmLea
     segment: lead.segmento.trim() || null,
     score: Math.max(0, Math.min(100, Math.round(lead.score))),
     temp: databaseTemperature(lead.temperatura),
-    stage: legacyToStage[lead.etapa] ?? 'Prospecção',
+    stage: legacyToStage[lead.etapa] ?? databaseStageForAna(ana.stage),
+    ana_stage: ana.stage,
+    ana_outcome: ana.outcome ?? null,
+    modo_atendimento: lead.modoAtendimento ? lead.modoAtendimento.toLowerCase() : null,
     origin: lead.origem.trim() || null,
     owner: lead.responsavel || 'ia',
+    owner_id: lead.responsavelId && isUuid(lead.responsavelId) ? lead.responsavelId : null,
     assigned_to: lead.responsavelId && isUuid(lead.responsavelId) ? lead.responsavelId : null,
     opt_out: Boolean(lead.bloqueado || lead.contatoPermitido === false),
     ai_paused: (lead.modoAtendimento ?? 'IA') === 'HUMANO',
@@ -95,21 +133,27 @@ export function leadToCrmRow(lead: Lead, organizationId: string): Partial<CrmLea
   };
 }
 
+function databaseStageForAna(stage: string): string {
+  return ({ novo: 'Prospecção', apresentado: 'Prospecção', qualificando: 'Qualificado', reuniao: 'Qualificado', orcamento: 'Proposta', fechado: 'Fechado' } as Record<string, string>)[stage] ?? 'Prospecção';
+}
+
 export function crmRowToLead(row: CrmLeadRow): Lead {
   const meta = row.source_metadata ?? {};
   const score = row.score ?? 0;
-  const isHuman = row.ai_paused || row.automation_status === 'human';
+  const isHuman = row.modo_atendimento === 'humano' || row.ai_paused || row.automation_status === 'human';
+  const etapaAna = row.ana_stage ? (row.ana_stage === 'fechado' && row.ana_outcome === 'perdido' ? 'Perdido' : anaStageToLegacy[row.ana_stage] ?? 'Novo') : (stageToLegacy[row.stage] ?? 'Novo');
   return {
     id: row.id, nome: row.contact ?? '', empresa: row.company,
     cnpj: typeof meta.cnpj === 'string' ? meta.cnpj : '—', email: row.email ?? '', telefone: row.phone ?? '', whatsapp: row.whatsapp ?? row.phone ?? '',
     segmento: row.segment ?? '', cidade: row.city ?? '', estado: typeof meta.estado === 'string' ? meta.estado : '', porte: row.size ?? '',
-    score, temperatura: temperature(row.temp, score), etapa: stageToLegacy[row.stage] ?? 'Novo', origem: row.origin ?? '',
+    score, temperatura: temperature(row.temp, score), etapa: etapaAna, origem: row.origin ?? '',
     responsavel: row.owner === 'ia' || !row.owner ? 'Ana (IA)' : row.owner,
     tags: Array.isArray(meta.tags) ? meta.tags.filter((tag): tag is string => typeof tag === 'string') : [],
     ultimaInteracao: row.updated_at ? new Date(row.updated_at).toLocaleDateString('pt-BR') : '—', criadoEm: row.created_at.slice(0, 10),
     cargo: typeof meta.cargo === 'string' ? meta.cargo : undefined, campanha: typeof meta.campanha === 'string' ? meta.campanha : undefined,
     modoAtendimento: isHuman ? 'HUMANO' : 'IA', automacaoStatus: isHuman ? 'AGUARDANDO_HUMANO' : row.automation_status === 'paused' ? 'PAUSADA' : 'ATIVA',
-    responsavelId: row.assigned_to ?? undefined, canalPreferencial: row.active_channel ?? undefined,
+    responsavelId: row.owner_id ?? row.assigned_to ?? undefined, canalPreferencial: row.active_channel ?? undefined,
+    anaStage: row.ana_stage as Lead['anaStage'], anaOutcome: row.ana_outcome === 'ganho' || row.ana_outcome === 'perdido' ? row.ana_outcome : null,
     intencao: null, sentimento: 'NEUTRO', confianca: 0, proximaAcao: null, motivoTransferencia: '', nextFollowUpAt: null, timeoutAt: null,
     followUpCount: 0, maxFollowUps: 2, automationEvents: [], historico: [], bloqueado: Boolean(row.opt_out), contatoPermitido: !row.opt_out,
     consentimentoWhatsApp: false, consentimentoEmail: false, primeiroContatoEnviadoEm: null, aguardandoAtivacao: false, noShows: 0, fluxosProgramados: [], arquivado: false,

@@ -16,9 +16,13 @@ function messageFromRow(row: MessageRow): Mensagem {
     id: row.id,
     autor: sender === 'lead' || sender === 'contact' || sender === 'cliente' ? 'cliente' : sender === 'ana' || sender === 'assistant' ? 'ana' : sender === 'system' || sender === 'sistema' ? 'sistema' : 'vendedor',
     nome: row.sender_name || 'Sistema',
-    texto: row.text,
+    texto: row.type === 'draft'
+      ? `Rascunho da Ana — aprovação necessária: ${row.text}`
+      : row.type === 'pending_channel'
+        ? `Rascunho da Ana — canal pendente: ${row.text}`
+        : row.text,
     hora: new Date(row.sent_at ?? row.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-    notaInterna: row.type === 'internal',
+    notaInterna: ['internal', 'draft', 'pending_channel'].includes(row.type),
   };
 }
 

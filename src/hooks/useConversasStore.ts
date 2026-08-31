@@ -119,3 +119,8 @@ export function useConversasStore(): {
 export function getConversasSnapshot(): Conversa[] {
   return state;
 }
+
+export async function refreshConversasStore(): Promise<void> {
+  hydrated = false;
+  await hydrate();
+}

@@ -1,4 +1,4 @@
-import { createAdminClient, requireUser } from '../_shared/auth.ts';
+import { createAdminClient, requireOrganizationRole, requireUser } from '../_shared/auth.ts';
 import { allowedCorsHeaders, hasAllowedOrigin, json, preflight, safeError } from '../_shared/http.ts';
 
 const actions = new Set(['responder', 'analisar', 'redigir', 'autocompletar', 'salvar_configuracao']);
@@ -27,10 +27,9 @@ Deno.serve(async (request) => {
     const { data: profile, error: profileError } = await admin.from('profiles').select('active_organization_id,name').eq('id', user.id).maybeSingle();
     if (profileError || !profile?.active_organization_id) throw new Error('organization_context_required');
     const organizationId = profile.active_organization_id as string;
-    const { data: member } = await admin.from('organization_members').select('status,role').eq('organization_id', organizationId).eq('user_id', user.id).maybeSingle();
-    if (!member || member.status !== 'active') throw new Error('organization_access_denied');
+    await requireOrganizationRole(admin, user.id, organizationId, ['owner', 'admin', 'manager', 'seller', 'sdr', 'ia']);
     if (action === 'salvar_configuracao') {
-      if (!['owner', 'admin', 'manager'].includes(member.role)) throw new Error('organization_role_denied');
+      await requireOrganizationRole(admin, user.id, organizationId, ['owner', 'admin', 'manager']);
       const configuration = object(body.configuracao);
       if (!Object.keys(configuration).length) throw new Error('configuration_required');
       const { data: agent, error: agentError } = await admin.from('ai_agents')
@@ -48,6 +47,21 @@ Deno.serve(async (request) => {
       const { error: activeError } = await admin.from('ai_agents').update({ active_version_id: version.id, updated_at: new Date().toISOString() })
         .eq('id', agent.id).eq('organization_id', organizationId);
       if (activeError) throw activeError;
+      const prompt = [
+        'Você é a Ana deste CRM. Responda em pt-BR, direta e exclusivamente em JSON válido.',
+        'Funil rígido: Novo → Apresentado → Qualificando → Reunião → Orçamento → Ganho/Perdido.',
+        'Faça uma pergunta e um CTA por vez. Nunca invente preço, prazo ou desconto fora do catálogo aprovado.',
+        'Orçamento sempre é rascunho e exige aprovação humana.',
+        `Personalização publicada: ${JSON.stringify(configuration)}`,
+      ].join('\n');
+      const { error: settingsError } = await admin.from('company_settings').update({
+        ai_prompt: prompt,
+        ai_provider: 'openai',
+        ai_actions_enabled: true,
+        autonomy: { allow_auto_quote: false, ana_orchestrator: true, configuration_version_id: version.id },
+        updated_at: new Date().toISOString(),
+      }).eq('organization_id', organizationId);
+      if (settingsError) throw settingsError;
       await admin.from('audit_logs').insert({ organization_id: organizationId, actor_id: user.id, actor_name: profile.name, actor_type: 'user', action: 'ana.configuration_published', detail: 'Personalização da Ana publicada.', entity_table: 'ai_agents', entity_id: agent.id, event_data: { version_id: version.id } });
       return json({ ok: true, versionId: version.id }, 200, headers);
     }

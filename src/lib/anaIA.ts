@@ -1,9 +1,8 @@
 import { supabase } from '@/lib/supabase';
 import type { AnaliseMensagem } from '@/lib/tipos';
 
-// Cliente da IA real (Claude/Anthropic) usada pela Ana. Todas as funções são
-// assíncronas e retornam null em caso de falha/timeout, para que o chamador
-// possa cair de volta no fluxo determinístico sem quebrar o atendimento.
+// Cliente das sugestões auxiliares da Ana. A execução comercial é centralizada
+// em `ana-run`, no backend; estas chamadas nunca expõem chave de IA no browser.
 
 const TIMEOUT_MS = 9000;
 

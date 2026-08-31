@@ -23,8 +23,8 @@ Deno.serve(async (request) => {
     const { client, user } = await requireUser(request);
     await requireOrganizationRole(client, user.id, organizationId, CONTRIBUTOR_ROLES);
     const apiKey = Deno.env.get('OPENAI_API_KEY');
-    const model = Deno.env.get('OPENAI_PROMPT_MODEL');
-    if (!apiKey || !model) throw new Error('ai_not_configured');
+    const model = Deno.env.get('OPENAI_PROMPT_MODEL') || 'gpt-4.1-mini';
+    if (!apiKey) throw new Error('ai_not_configured');
 
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',

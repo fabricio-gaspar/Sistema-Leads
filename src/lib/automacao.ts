@@ -7,17 +7,13 @@ export const NOMES_DIA = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-fe
 
 // Regras de transição do Kanban (usando os nomes reais de etapasCRM).
 export const transicoesPermitidas: Record<string, string[]> = {
-  'Novo': ['Em Contato', 'Pausado', 'Fechado — Perdido'],
-  'Em Contato': ['Aguardando Resposta', 'Em Qualificação', 'Pausado', 'Fechado — Perdido'],
-  'Aguardando Resposta': ['Em Qualificação', 'Em Contato', 'Fechado — Perdido', 'Pausado'],
-  'Em Qualificação': ['Reunião Agendada', 'Proposta em Preparação', 'Negociação', 'Pausado', 'Fechado — Perdido'],
-  'Reunião Agendada': ['Proposta em Preparação', 'Em Qualificação', 'Fechado — Perdido', 'Pausado'],
-  'Proposta em Preparação': ['Orçamento Enviado', 'Em Qualificação', 'Pausado'],
-  'Orçamento Enviado': ['Negociação', 'Fechado — Ganho', 'Fechado — Perdido', 'Pausado'],
-  'Negociação': ['Proposta em Preparação', 'Orçamento Enviado', 'Fechado — Ganho', 'Fechado — Perdido', 'Pausado'],
-  'Fechado — Ganho': [],
-  'Fechado — Perdido': ['Novo', 'Em Contato'],
-  'Pausado': ['Novo', 'Em Contato', 'Em Qualificação'],
+  Novo: ['Apresentado'],
+  Apresentado: ['Qualificando'],
+  Qualificando: ['Reunião'],
+  'Reunião': ['Orçamento'],
+  'Orçamento': ['Ganho', 'Perdido'],
+  Ganho: [],
+  Perdido: ['Novo'],
 };
 
 export function podeTransicionar(de: string, para: string): { ok: boolean; motivo?: string } {

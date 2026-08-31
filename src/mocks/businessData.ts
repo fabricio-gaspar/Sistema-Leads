@@ -196,17 +196,15 @@ export const integracoes: Integracao[] = [
   },
   {
     id: 'int-6',
-    nome: 'IA (Claude + fallback)',
+    nome: 'IA (OpenAI)',
     icone: 'ri-brain-line',
     categoria: 'Inteligência',
     status: 'conectado',
     ultimoTeste: 'há 2 min',
-    descricao: 'Provedor principal Claude (Anthropic), com fallback para OpenAI/Gemini. A chave fica guardada com segurança no Backend.',
+    descricao: 'Motor comercial da Ana com OpenAI. A chave fica guardada com segurança no Backend.',
     campos: [
-      { id: 'anthropic_key', rotulo: 'API Key (Anthropic)', tipo: 'senha', placeholder: 'sk-ant-...', obrigatorio: true, ajuda: 'Chave principal usada pela IA da Ana. Fica armazenada com segurança nos segredos do Backend.' },
-      { id: 'modelo', rotulo: 'Modelo', tipo: 'selecao', opcoes: ['claude-haiku-4-5-20251001', 'claude-sonnet-4-6', 'claude-opus-4-7'], obrigatorio: true, ajuda: 'Modelo padrão para as respostas.' },
-      { id: 'fallback_openai', rotulo: 'Chave fallback (OpenAI)', tipo: 'senha', placeholder: 'Chave da OpenAI (opcional)', ajuda: 'Usada se a Anthropic ficar indisponível.' },
-      { id: 'fallback_gemini', rotulo: 'Chave fallback (Gemini)', tipo: 'senha', placeholder: 'Chave do Google (opcional)', ajuda: 'Segunda alternativa de fallback.' },
+      { id: 'openai_key', rotulo: 'API Key (OpenAI)', tipo: 'senha', placeholder: 'sk-...', obrigatorio: true, ajuda: 'Chave usada pela Ana. Fica armazenada com segurança nos segredos do Backend.' },
+      { id: 'modelo', rotulo: 'Modelo', tipo: 'selecao', opcoes: ['gpt-4.1-mini'], obrigatorio: true, ajuda: 'Modelo padrão para as respostas e análises.' },
     ],
   },
   {

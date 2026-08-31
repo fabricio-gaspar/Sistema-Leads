@@ -12,16 +12,22 @@ export type OpportunityOutcome = 'open' | 'won' | 'lost';
 export type StageSource = 'human' | 'rule' | 'ai_suggestion';
 
 export const PIPELINE_STAGE_LABEL: Record<PipelineStageCode, string> = {
-  entered: 'Entrou',
-  engaging: 'Em conversa',
-  qualified: 'Qualificado',
-  quote_preparation: 'Preparar orçamento',
-  quote_sent: 'Orçamento enviado',
-  decision: 'Em decisão',
+  entered: 'Novo',
+  engaging: 'Apresentado',
+  qualified: 'Qualificando',
+  quote_preparation: 'Reunião',
+  quote_sent: 'Orçamento',
+  decision: 'Ganho / Perdido',
 };
 
 const legacyStageMap: Record<string, PipelineStageCode> = {
   'Novo': 'entered',
+  'Apresentado': 'engaging',
+  'Qualificando': 'qualified',
+  'Reunião': 'quote_preparation',
+  'Orçamento': 'quote_sent',
+  Ganho: 'decision',
+  Perdido: 'decision',
   'Em Contato': 'engaging',
   'Aguardando Resposta': 'engaging',
   'Em Qualificação': 'qualified',
@@ -41,17 +47,17 @@ export function stageFromLegacy(stage: string): PipelineStageCode {
 export function legacyStageForPipeline(stage: PipelineStageCode): string {
   return {
     entered: 'Novo',
-    engaging: 'Em Contato',
-    qualified: 'Em Qualificação',
-    quote_preparation: 'Proposta em Preparação',
-    quote_sent: 'Orçamento Enviado',
-    decision: 'Negociação',
+    engaging: 'Apresentado',
+    qualified: 'Qualificando',
+    quote_preparation: 'Reunião',
+    quote_sent: 'Orçamento',
+    decision: 'Ganho',
   }[stage];
 }
 
 export function outcomeFromLegacy(stage: string): OpportunityOutcome {
-  if (stage === 'Fechado — Ganho') return 'won';
-  if (stage === 'Fechado — Perdido') return 'lost';
+  if (stage === 'Ganho' || stage === 'Fechado — Ganho') return 'won';
+  if (stage === 'Perdido' || stage === 'Fechado — Perdido') return 'lost';
   return 'open';
 }
 

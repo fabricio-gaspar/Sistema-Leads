@@ -2,10 +2,9 @@ import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import type { Conversa, Mensagem } from '@/mocks/atendimentoData';
 import type { Lead } from '@/mocks/leadsData';
-import { responderMensagem } from '@/hooks/useAnaResposta';
 import { autocompletarTexto } from '@/lib/anaIA';
 import { useSupressaoStore } from '@/hooks/useSupressaoStore';
-import { useConversasStore } from '@/hooks/useConversasStore';
+import { refreshConversasStore, useConversasStore } from '@/hooks/useConversasStore';
 import { useLeadsStore } from '@/hooks/useLeadsStore';
 import { useFluxoComercial } from '@/hooks/useFluxoComercial';
 import { useConfiguracaoStore } from '@/hooks/useConfiguracaoStore';
@@ -16,6 +15,7 @@ import { usePropostasStore } from '@/hooks/usePropostasStore';
 import type { Proposta } from '@/mocks/propostasData';
 import { montarValoresVariaveis, resolverVariaveis } from '@/lib/variaveis';
 import { requestHumanHandoff, returnConversationToAna } from '@/lib/crm/handoffsRepository';
+import { runAna } from '@/lib/crm/anaRunRepository';
 import ConversaDrawer from './components/ConversaDrawer';
 
 const statusCores: Record<string, string> = {
@@ -131,22 +131,6 @@ export default function Atendimento() {
   const agora = () =>
     new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
-  const anaResponder = async (mensagemDoCliente: string) => {
-    setAnaDigitando(true);
-    const resposta = await responderMensagem(mensagemDoCliente, {
-      nome: selected?.contato,
-      empresa: selected?.empresa,
-    });
-    setAnaDigitando(false);
-    adicionarMensagem(selected.id, {
-      id: `msg-ana-${Date.now()}`,
-      autor: 'ana',
-      nome: 'Ana',
-      texto: resposta.texto,
-      hora: agora(),
-    });
-  };
-
   const enviar = () => {
     if (!texto.trim()) return;
     const nova: Mensagem = {
@@ -232,44 +216,28 @@ export default function Atendimento() {
       return;
     }
 
-    // Analisa a mensagem (pode bloquear por opt-out ou transferir para humano).
-    let transferiu = false;
-    let optOut = false;
-    let respondeu = false;
-    if (lead) {
-      const r = await fluxo.analisarEResponder(lead.id, msg);
-      transferiu = r.transferiu;
-      optOut = r.analise.intencao === 'OPT_OUT';
-      respondeu = r.respondeu ?? false;
-    }
-
-    // Opt-out: a Ana NÃO responde a um lead que pediu descadastro.
-    if (optOut) {
+    if (!lead || !lead.responsavelId || !lead.modoAtendimento) {
       adicionarMensagem(selected.id, {
-        id: `msg-sys-${Date.now()}`,
-        autor: 'sistema',
-        nome: 'Sistema',
-        texto: 'Lead solicitou opt-out. Contato bloqueado e cadências encerradas. A Ana não responderá.',
-        hora: agora(),
-        notaInterna: true,
+        id: `msg-sys-${Date.now()}`, autor: 'sistema', nome: 'Sistema', hora: agora(), notaInterna: true,
+        texto: 'Defina o modo de atendimento e o responsável antes de rodar a Ana.',
       });
       return;
     }
 
-    if (transferiu) {
-      adicionarMensagem(selected.id, {
-        id: `msg-sys-${Date.now()}`,
-        autor: 'sistema',
-        nome: 'Sistema',
-        texto: 'Ana transferiu o atendimento para um humano.',
-        hora: agora(),
-        notaInterna: true,
-      });
-      return;
+    // A mensagem é persistida antes da execução. A Ana recebe apenas o evento
+    // e monta o contexto no backend, onde gera um rascunho auditável.
+    await refreshConversasStore();
+    setAnaDigitando(true);
+    try {
+      const result = await runAna({ event: 'message.received', leadId: lead.id, modo: lead.modoAtendimento });
+      if (!result.ok) throw new Error(result.erro || 'ana_run_failed');
+      await refreshConversasStore();
+      if (result.precisa_humano) atualizarStatus(selected.id, 'transferido');
+    } catch {
+      setErroIA('A Ana não conseguiu gerar o rascunho. O lead e a mensagem foram preservados.');
+    } finally {
+      setAnaDigitando(false);
     }
-    // A Ana já respondeu dentro do fluxo (orçamento, agendamento, horário).
-    if (respondeu) return;
-    anaResponder(msg);
   };
 
   const handoff = async () => {
