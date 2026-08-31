@@ -134,9 +134,11 @@
 }
 
 :root {
-  --font-heading: 'Plus Jakarta Sans', sans-serif;
-  --font-body: 'Inter', sans-serif;
-  --font-label: 'Inter', sans-serif;
+  /* Sistema visual Wayflex: tipografia de interface, superfície clara e
+     controles precisos. Inspirado em clareza e não em identidade de terceiros. */
+  --font-heading: ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-body: ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-label: ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 
   /* Background – neutral frio, próximo de ferramentas de trabalho premium */
   --background-50: 0.995 0.001 255;
@@ -212,6 +214,15 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Controles base: a mesma linguagem em cada módulo, inclusive telas antigas. */
+button {
+  font-weight: 600;
+}
+
+button:not([role='switch']):not([data-radix-collection-item]) {
+  border-radius: .625rem;
+}
+
 * {
   border-color: oklch(var(--background-200));
 }
@@ -247,10 +258,13 @@ textarea:focus-visible {
 input:not([type='checkbox']):not([type='radio']),
 select,
 textarea {
+  min-height: 2.625rem;
   border-color: oklch(var(--background-300));
-  background: white;
+  background: oklch(var(--background-50));
   color: oklch(var(--foreground-900));
-  box-shadow: 0 1px 1px rgb(15 23 42 / 0.02);
+  border-radius: .625rem;
+  box-shadow: inset 0 1px 1px rgb(15 23 42 / 0.018);
+  transition: border-color 150ms ease, background-color 150ms ease, box-shadow 150ms ease;
 }
 
 input:not([type='checkbox']):not([type='radio']):hover,
@@ -355,6 +369,83 @@ main [class*='rounded-xl'][class*='border'][class*='bg-background-50'] {
   box-shadow: 0 1px 2px rgb(15 23 42 / .022);
 }
 
+/* Primitivos aplicáveis gradualmente pelas telas. Não alteram regras de negócio. */
+.wf-control {
+  min-height: 2.625rem;
+  width: 100%;
+  border: 1px solid oklch(var(--background-300));
+  border-radius: .625rem;
+  background: oklch(var(--background-50));
+  padding: .625rem .75rem;
+  color: oklch(var(--foreground-900));
+  font-size: .875rem;
+  line-height: 1.25rem;
+  box-shadow: inset 0 1px 1px rgb(15 23 42 / .018);
+}
+
+.wf-control::placeholder { color: oklch(var(--foreground-400)); }
+
+.wf-control:focus {
+  border-color: oklch(var(--primary-500));
+  background: white;
+  box-shadow: 0 0 0 3px oklch(var(--primary-500) / .10);
+  outline: none;
+}
+
+.wf-card {
+  border: 1px solid oklch(var(--background-200));
+  border-radius: .875rem;
+  background: white;
+  box-shadow: 0 1px 2px rgb(15 23 42 / .025);
+}
+
+.wf-card-interactive {
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.wf-card-interactive:hover {
+  border-color: oklch(var(--background-300));
+  box-shadow: 0 8px 20px rgb(15 23 42 / .055);
+  transform: translateY(-1px);
+}
+
+.wf-section-title {
+  color: oklch(var(--foreground-950));
+  font-size: .95rem;
+  font-weight: 650;
+  letter-spacing: -.012em;
+}
+
+.wf-section-description {
+  margin-top: .2rem;
+  color: oklch(var(--foreground-500));
+  font-size: .8125rem;
+  line-height: 1.35rem;
+}
+
+.wf-button-danger {
+  display: inline-flex;
+  min-height: 2.5rem;
+  align-items: center;
+  justify-content: center;
+  gap: .5rem;
+  border: 1px solid oklch(0.62 .17 25 / .2);
+  border-radius: .625rem;
+  background: oklch(0.97 .02 25);
+  padding: .5rem .875rem;
+  color: oklch(0.48 .17 25);
+  font-size: .8125rem;
+  font-weight: 650;
+}
+
+.wf-button-danger:hover { background: oklch(0.94 .04 25); }
+
+/* Diálogos e painéis laterais preservam contexto e deixam a ação decisiva clara. */
+[role='dialog'] {
+  border-color: oklch(var(--background-200));
+  box-shadow: 0 20px 60px rgb(15 23 42 / .16);
+}
+
 main h1 {
   letter-spacing: -.035em;
 }
@@ -384,6 +475,12 @@ main h3 {
   table td {
     white-space: nowrap;
   }
+
+  .wf-page { gap: 1rem; }
+  .wf-page-header { gap: .75rem; padding-bottom: 1rem; }
+  .wf-page-title { font-size: 1.4rem; }
+  .wf-btn-primary,
+  .wf-btn-secondary { min-height: 2.5rem; padding-inline: .875rem; }
 }
 
 h1, h2, h3, h4, h5, h6 {
