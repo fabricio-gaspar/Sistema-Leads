@@ -209,6 +209,33 @@ export const integracoes: Integracao[] = [
       { id: 'fallback_gemini', rotulo: 'Chave fallback (Gemini)', tipo: 'senha', placeholder: 'Chave do Google (opcional)', ajuda: 'Segunda alternativa de fallback.' },
     ],
   },
+  {
+    id: 'int-7',
+    nome: 'Apify — Google Maps',
+    icone: 'ri-map-pin-search-line',
+    categoria: 'Busca de Leads',
+    status: 'pendente',
+    ultimoTeste: 'nunca',
+    descricao: 'Busca empresas no Google Maps usando um Actor ou Task autorizado no Apify.',
+    campos: [
+      { id: 'api_token', rotulo: 'API Token', tipo: 'senha', placeholder: 'apify_api_...', obrigatorio: true, ajuda: 'Token criado no painel do Apify. Fica armazenado somente no cofre do Backend.' },
+      { id: 'actor_id', rotulo: 'Actor ID (ou Task ID)', tipo: 'texto', placeholder: 'ex.: compass~crawler-google-places', ajuda: 'Informe o Actor ID. Para usar uma Task, deixe este campo vazio e use Task ID.' },
+      { id: 'task_id', rotulo: 'Task ID (opcional)', tipo: 'texto', placeholder: 'ex.: sua-conta~minha-task', ajuda: 'Use Task ID quando sua busca já estiver configurada como uma Task no Apify.' },
+      { id: 'input_json', rotulo: 'Entrada adicional (JSON opcional)', tipo: 'texto', placeholder: '{"language":"pt-BR"}', ajuda: 'Parâmetros extras específicos do seu Actor. Os filtros da tela sempre têm prioridade.' },
+    ],
+  },
+  {
+    id: 'int-8',
+    nome: 'Google Places',
+    icone: 'ri-google-line',
+    categoria: 'Busca de Leads',
+    status: 'pendente',
+    ultimoTeste: 'nunca',
+    descricao: 'Busca textual de empresas por atividade e localização usando a API do Google Places.',
+    campos: [
+      { id: 'api_key', rotulo: 'API Key', tipo: 'senha', placeholder: 'AIza...', obrigatorio: true, ajuda: 'Chave do Google Cloud com a Places API habilitada. Fica armazenada no Backend.' },
+    ],
+  },
 ];
 
 export const equipe: Membro[] = [

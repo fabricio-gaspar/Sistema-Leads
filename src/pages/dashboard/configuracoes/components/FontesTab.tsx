@@ -1,11 +1,13 @@
 import { useState } from 'react';
 import { useFontesStore } from '@/hooks/useFontesStore';
 import type { FonteLead } from '@/hooks/useFontesStore';
+import { supabase } from '@/lib/supabase';
 
 const statusCores: Record<string, string> = {
   ativo: 'bg-primary-100 text-primary-700',
   pendente: 'bg-accent-100 text-accent-700',
   inativo: 'bg-background-200 text-foreground-500',
+  erro: 'bg-accent-100 text-accent-700',
 };
 
 const tipoIcones: Record<string, string> = {
@@ -31,12 +33,21 @@ export default function FontesTab() {
     setTimeout(() => setToast(''), 3000);
   };
 
-  const testarFonte = (id: string) => {
+  const testarFonte = async (id: string) => {
+    const fonte = fontes.find((item) => item.id === id);
     setTestando(id);
-    setTimeout(() => {
+    if (fonte?.sourceKey === 'apify' || fonte?.sourceKey === 'google_places') {
+      const { data, error } = await supabase.functions.invoke('testar-integracao', { body: { canal: fonte.sourceKey } });
       setTestando(null);
-      mostrarToast('Teste simulado OK — sem conexão real (aguardando backend).');
-    }, 1200);
+      if (error || !data?.pronto) {
+        mostrarToast(`Não foi possível validar ${fonte.nome}: ${data?.erro || 'configure as credenciais em Canais e integrações.'}`);
+      } else {
+        atualizar(id, { status: 'ativo', connectionStatus: 'connected', mode: 'production', ultimaSincronizacao: 'agora' });
+        mostrarToast(`${fonte.nome} validada e disponível no Modo Real.`);
+      }
+      return;
+    }
+    setTimeout(() => { setTestando(null); mostrarToast('Esta fonte ainda não possui teste de provedor conectado.'); }, 700);
   };
 
   const toggleStatus = (id: string) => {
@@ -125,7 +136,7 @@ export default function FontesTab() {
                 <i className={`${tipoIcones[f.tipo]} text-primary-600`}></i>
               </div>
               <span className={`inline-block px-2.5 py-1 rounded-md text-xs font-medium ${statusCores[f.status]}`}>
-                {f.status === 'ativo' ? 'Ativo' : f.status === 'pendente' ? 'Pendente' : 'Inativo'}
+                {f.status === 'ativo' ? 'Ativo' : f.status === 'erro' ? 'Erro' : f.status === 'pendente' ? 'Pendente' : 'Inativo'}
               </span>
             </div>
             <h4 className="font-heading font-bold text-foreground-900 text-sm mb-1 truncate" title={f.nome}>{f.nome}</h4>

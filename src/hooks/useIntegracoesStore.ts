@@ -1,10 +1,62 @@
-import { createBackendStore } from '@/lib/backendStore';
 import { integracoes as integracoesMock } from '@/mocks/businessData';
 import type { Integracao } from '@/mocks/businessData';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useSyncExternalStore } from 'react';
+import { supabase } from '@/lib/supabase';
 
 const STORAGE_KEY = 'leadai_integracoes_v1';
-const store = createBackendStore<Integracao[]>('integracoes', STORAGE_KEY, integracoesMock);
+type StoredIntegration = Integracao & { remoteKey?: string };
+let state: StoredIntegration[] = carregarLocal();
+let hydratedUser: string | null = null;
+const listeners = new Set<() => void>();
+
+function carregarLocal(): StoredIntegration[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return JSON.parse(raw) as StoredIntegration[];
+  } catch { /* fallback para presets */ }
+  return integracoesMock.map((integration) => ({ ...integration }));
+}
+
+function persistir(): void {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch { /* sem cache local */ }
+}
+
+function notify(): void { listeners.forEach((listener) => listener()); }
+
+const keyById: Record<string, string> = {
+  'int-1': 'whatsapp', 'int-2': 'email', 'int-3': 'instagram', 'int-4': 'voip', 'int-5': 'google_calendar', 'int-6': 'ai', 'int-7': 'apify', 'int-8': 'google_places',
+};
+
+async function hidratarDoBackend(): Promise<void> {
+  const { data: auth } = await supabase.auth.getUser();
+  const userId = auth.user?.id;
+  if (!userId || hydratedUser === userId) return;
+  const { data: profile } = await supabase.from('profiles').select('active_organization_id').eq('id', userId).maybeSingle();
+  const organizationId = profile?.active_organization_id as string | null | undefined;
+  if (!organizationId) return;
+  const { data, error } = await supabase.from('integrations')
+    .select('key,provider,connected,enabled,paused,status_detail,last_tested_at')
+    .eq('organization_id', organizationId);
+  if (error) {
+    console.error('[integracoes] falha ao carregar conexões reais', error);
+    return;
+  }
+  const byKey = new Map((data ?? []).map((row) => [row.key, row]));
+  state = integracoesMock.map((mock) => {
+    const remote = byKey.get(keyById[mock.id]);
+    if (!remote) return mock;
+    return {
+      ...mock,
+      status: remote.connected && remote.enabled ? 'conectado' : remote.paused ? 'erro' : 'pendente',
+      ultimoTeste: remote.last_tested_at ? new Date(remote.last_tested_at).toLocaleString('pt-BR') : mock.ultimoTeste,
+      descricao: remote.status_detail || mock.descricao,
+      remoteKey: remote.key,
+    };
+  });
+  persistir();
+  hydratedUser = userId;
+  notify();
+}
 
 export interface IntegracoesStore {
   integracoes: Integracao[];
@@ -14,63 +66,42 @@ export interface IntegracoesStore {
   salvarCredenciais: (id: string, credenciais: Record<string, string>) => void;
 }
 
-function mergeWithMock(raw: Integracao[]): Integracao[] {
-  const byId = new Map(raw.map((i) => [i.id, i]));
-  return integracoesMock.map((mock) => {
-    const saved = byId.get(mock.id);
-    if (!saved) return mock;
-    // Nunca reidrata segredos que possam ter sido salvos pela versão mock.
-    // A conexão real é criada pelo backend e expõe ao navegador apenas status
-    // e metadados não sensíveis.
-    const { credenciais: _ignoredCredentials, ...safeSaved } = saved;
-    return {
-      ...mock,
-      ...safeSaved,
-      campos: mock.campos,       // sempre usar campos atualizados do código
-      nome: mock.nome,           // sempre usar nome atualizado do código
-      descricao: mock.descricao, // sempre usar descrição atualizada do código
-      icone: mock.icone,         // sempre usar ícone atualizado do código
-      categoria: mock.categoria, // sempre usar categoria atualizada do código
-    };
-  });
-}
-
 export function useIntegracoesStore(): IntegracoesStore {
-  const raw = store.useStore();
+  const raw = useSyncExternalStore(
+    (listener) => { listeners.add(listener); return () => listeners.delete(listener); },
+    () => state,
+    () => state,
+  );
+
+  useEffect(() => {
+    void hidratarDoBackend();
+    const { data: subscription } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user?.id !== hydratedUser) void hidratarDoBackend();
+    });
+    return () => subscription.subscription.unsubscribe();
+  }, []);
 
   const integracoes = useMemo(() => {
-    if (!Array.isArray(raw)) return integracoesMock;
-    return mergeWithMock(raw);
+    const byId = new Map(raw.map((integration) => [integration.id, integration]));
+    return integracoesMock.map((mock) => ({ ...mock, ...byId.get(mock.id), campos: mock.campos, nome: mock.nome, icone: mock.icone, categoria: mock.categoria }));
   }, [raw]);
 
   const atualizar = (id: string, mudanca: Partial<Integracao>) => {
-    store.set((prev) => prev.map((i) => (i.id === id ? { ...i, ...mudanca } : i)));
+    state = state.map((integration) => integration.id === id ? { ...integration, ...mudanca } : integration);
+    persistir();
+    notify();
   };
 
-  const conectar = (id: string) => {
-    store.set((prev) =>
-      prev.map((i) => (i.id === id ? { ...i, status: 'conectado', ultimoTeste: 'agora' } : i))
-    );
-  };
+  const conectar = (id: string) => atualizar(id, { status: 'conectado', ultimoTeste: 'agora' });
 
-  const desconectar = (id: string) => {
-    store.set((prev) =>
-      prev.map((i) => (i.id === id ? { ...i, status: 'pendente' } : i))
-    );
-  };
+  const desconectar = (id: string) => atualizar(id, { status: 'pendente' });
 
   const salvarCredenciais = (id: string, credenciais: Record<string, string>) => {
     // Não persistir tokens/chaves no browser, localStorage ou JSON compartilhado.
     // A próxima fase grava segredos somente no cofre de secrets do backend, por
     // OAuth ou um endpoint administrativo autenticado.
     void credenciais;
-    store.set((prev) =>
-      prev.map((i) =>
-        i.id === id
-          ? { ...i, credenciais: undefined, status: 'pendente', ultimoTeste: 'Aguardando conexão segura' }
-          : i
-      )
-    );
+    atualizar(id, { credenciais: undefined, status: 'pendente', ultimoTeste: 'Aguardando validação segura' });
   };
 
   return { integracoes, atualizar, conectar, desconectar, salvarCredenciais };

@@ -14,12 +14,73 @@ import LeadPreviewDrawer from '@/pages/dashboard/busca-leads/components/LeadPrev
 import CsvImportModal from '@/components/feature/CsvImportModal';
 import type { CampoImportacao, ResultadoImportacao } from '@/components/feature/CsvImportModal';
 import { limitarBuscaManual } from '@/lib/buscaManual';
+import { useConfiguracaoStore } from '@/hooks/useConfiguracaoStore';
+import { supabase } from '@/lib/supabase';
 
 const estados = ['SP', 'RJ', 'MG', 'PR', 'SC', 'RS', 'BA', 'PE', 'GO', 'DF'];
 const atividades = ['Tecnologia', 'Saúde', 'Educação', 'Varejo', 'Indústria', 'Logística', 'Marketing', 'Consultoria', 'Financeiro', 'Imobiliário'];
 const cargos = ['CEO', 'Diretor', 'Gerente', 'Coordenador', 'Analista', 'Proprietário'];
 
 const fasesBusca = ['Buscando nas fontes', 'Enriquecendo contatos', 'Qualificando com a Ana', 'Removendo duplicados'];
+
+interface ProspectingLeadResponse {
+  id?: string;
+  externalId?: string;
+  nome?: string;
+  name?: string;
+  empresa?: string;
+  company?: string;
+  telefone?: string;
+  phone?: string;
+  whatsapp?: string;
+  email?: string;
+  site?: string;
+  website?: string;
+  cidade?: string;
+  city?: string;
+  estado?: string;
+  state?: string;
+  cargo?: string;
+  segmento?: string;
+  porte?: string;
+  cnpj?: string;
+  score?: number;
+  sourceUrl?: string;
+}
+
+function prospectingLeadToPreview(lead: ProspectingLeadResponse, fonte: string, index: number): PreviewLead {
+  const nome = lead.nome || lead.name || 'Contato sem nome';
+  const empresa = lead.empresa || lead.company || nome;
+  const telefone = lead.telefone || lead.phone || lead.whatsapp || '';
+  const email = lead.email || '';
+  const site = lead.site || lead.website || '';
+  const score = typeof lead.score === 'number' ? Math.max(0, Math.min(100, Math.round(lead.score))) : 60;
+  const cidadeReal = lead.cidade || lead.city || '';
+  const estadoReal = lead.estado || lead.state || '';
+  return {
+    id: lead.id || lead.externalId || `real-${index}-${Date.now()}`,
+    nome,
+    empresa,
+    cnpj: lead.cnpj || '—',
+    cargo: lead.cargo || '',
+    telefone,
+    email,
+    localidade: [cidadeReal, estadoReal].filter(Boolean).join(' - ') || '—',
+    fonte,
+    validacao: email && !validarEmailReal(email) ? 'revisar' : 'ok',
+    duplicado: false,
+    score,
+    temperatura: temperaturaDe(score),
+    completude: Math.round(([nome, empresa, telefone, email, site].filter(Boolean).length / 5) * 100),
+    motivos: [lead.segmento || 'Fonte real', lead.sourceUrl ? 'Origem verificada' : 'Contato retornado pelo provedor'].filter(Boolean),
+    canais: { whatsapp: Boolean(telefone), email: Boolean(email && validarEmailReal(email)), site: Boolean(site), instagram: false },
+    selecionado: true,
+  };
+}
+
+function validarEmailReal(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
+}
 
 const camposLeadImport: CampoImportacao[] = [
   { chave: 'nome', rotulo: 'Nome', obrigatorio: true, aliases: ['contato', 'cliente'] },
@@ -66,6 +127,7 @@ export default function BuscaLeads() {
   const fluxo = useFluxoComercial();
   const listas = useListasStore();
   const { fontes } = useFontesStore();
+  const { config } = useConfiguracaoStore();
   const [csvModal, setCsvModal] = useState(false);
   const fontesDisponiveis = fontesAtivas(fontes);
 
@@ -156,18 +218,61 @@ export default function BuscaLeads() {
     setTimeout(() => setFaseBusca(fasesBusca[2]), 950);
     setTimeout(() => setFaseBusca(fasesBusca[3]), 1400);
     setTimeout(() => {
-      setBuscando(false);
-      setFaseBusca('');
-      const encontrados = limitarBuscaManual(leadsPreviewInicial, {
-        fonte: fontes.find((fonte) => fonte.id === fonteSelecionada)?.nome || '',
-        estado,
-        cidade,
-        cargo: cargoDecisor,
-        exigeSite: temSite,
-        exigeWhatsApp: temWhatsApp,
-        exigeEmail: temEmail,
-        volumeMaximo: leadsDia,
-      });
+      void executarBusca();
+    }, 1900);
+  };
+
+  const executarBusca = async () => {
+    const fonte = fontes.find((item) => item.id === fonteSelecionada);
+    const fonteNome = fonte?.nome || '';
+    const sourceKey = fonte?.sourceKey || ({
+      'Receita Federal': 'cnpj',
+      'Google Places': 'google_places',
+      'Apify — Google Maps': 'apify',
+      'Importação CSV': 'csv',
+      'Pesquisa assistida por IA': 'ai',
+    } as Record<string, string>)[fonteNome] || '';
+
+    try {
+      let encontrados: PreviewLead[];
+      if (config.modoExecucao === 'PRODUCAO') {
+        if (!sourceKey) throw new Error('source_not_configured');
+        const { data, error } = await supabase.functions.invoke('prospectar-leads', {
+          body: {
+            sourceKey,
+            mode: 'production',
+            filters: {
+              pais,
+              estado,
+              cidade,
+              raio,
+              atividades: atividadesSel,
+              segmentos: segs,
+              portes: portesSel,
+              cargo: cargoDecisor,
+              exigeSite: temSite === true,
+              exigeWhatsApp: temWhatsApp === true,
+              exigeEmail: temEmail === true,
+              volumeMaximo: leadsDia,
+            },
+          },
+        });
+        if (error) throw new Error(await detalheDoErroBusca(error));
+        if (!data?.leads || !Array.isArray(data.leads)) throw new Error(data?.error || 'prospecting_empty_response');
+        encontrados = data.leads.map((lead: ProspectingLeadResponse, index: number) => prospectingLeadToPreview(lead, fonteNome, index));
+      } else {
+        encontrados = limitarBuscaManual(leadsPreviewInicial, {
+          fonte: fonteNome,
+          estado,
+          cidade,
+          cargo: cargoDecisor,
+          exigeSite: temSite,
+          exigeWhatsApp: temWhatsApp,
+          exigeEmail: temEmail,
+          volumeMaximo: leadsDia,
+        });
+      }
+
       const cruzados = cruzarPreview(encontrados);
       setPreview(cruzados);
       setSelecionados(cruzados.filter((l) => !l.duplicado).map((l) => l.id));
@@ -175,10 +280,43 @@ export default function BuscaLeads() {
       setResultado(
         dups > 0
           ? `${cruzados.length} leads encontrados (limite: ${leadsDia}). ${dups} duplicado(s) já no funil e bloqueado(s).`
-          : `${cruzados.length} leads encontrados (limite: ${leadsDia}), sem duplicados no funil.`
+          : `${cruzados.length} leads encontrados (limite: ${leadsDia}), ${config.modoExecucao === 'PRODUCAO' ? 'resultado real' : 'prévia local'}.`,
       );
       setEtapa(3);
-    }, 1900);
+    } catch (error) {
+      setPreview([]);
+      setSelecionados([]);
+      const message = error instanceof Error ? error.message : 'prospecting_failed';
+      setResultado(mensagemBuscaReal(message, fonteNome));
+      setEtapa(3);
+    } finally {
+      setBuscando(false);
+      setFaseBusca('');
+      setFaseBusca('');
+    }
+  };
+
+  const detalheDoErroBusca = async (error: unknown): Promise<string> => {
+    if (error && typeof error === 'object' && 'context' in error) {
+      try {
+        const response = (error as { context?: Response }).context;
+        const body = await response?.clone().json() as { error?: string } | undefined;
+        if (body?.error) return body.error;
+      } catch { /* usa mensagem genérica */ }
+    }
+    return error instanceof Error ? error.message : 'prospecting_failed';
+  };
+
+  const mensagemBuscaReal = (code: string, fonte: string): string => {
+    const mensagens: Record<string, string> = {
+      source_not_configured: `${fonte} ainda não está configurada no Backend. Abra Configurações → Integrações, salve as credenciais e teste a conexão.`,
+      source_disabled: `${fonte} está desativada. Ative a fonte e valide a conexão antes de buscar.`,
+      source_credentials_missing: `As credenciais de ${fonte} não foram encontradas no cofre seguro. Configure a fonte novamente.`,
+      source_not_supported: `${fonte} ainda não possui um adaptador de busca real habilitado.`,
+      provider_error: `O provedor de ${fonte} recusou a busca. Confira as credenciais, limites e a configuração do Actor/Task.`,
+      prospecting_empty_response: `A busca em ${fonte} terminou sem uma resposta válida.`,
+    };
+    return mensagens[code] || `Não foi possível buscar leads em ${fonte || 'a fonte selecionada'} no Modo Real. Tente novamente após validar a conexão.`;
   };
 
   const toggleSelecionado = (id: string) => {

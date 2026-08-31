@@ -95,6 +95,11 @@ function ConfigurarModal({ integracao, onFechar, onSalvar }: ConfigurarModalProp
       .filter((c) => c.obrigatorio && !(valores[c.id] ?? '').trim())
       .map((c) => c.rotulo);
 
+    if (integracao.id === 'int-7' && !(valores.actor_id ?? '').trim() && !(valores.task_id ?? '').trim()) {
+      setErro('Informe o Actor ID ou o Task ID do Apify.');
+      return;
+    }
+
     if (faltando.length > 0) {
       setErro(`Preencha os campos obrigatórios: ${faltando.join(', ')}.`);
       return;
@@ -195,11 +200,13 @@ export default function IntegracoesTab() {
     setTimeout(() => setToast(''), 3000);
   };
 
-  const testarZapi = async () => {
+  const [canalEmTeste, setCanalEmTeste] = useState('whatsapp');
+
+  const testarIntegracaoReal = async (canal = canalEmTeste) => {
     setTesteZapi((s) => ({ ...s, status: 'enviando', msg: '' }));
 
     const { data, error } = await supabase.functions.invoke('testar-integracao', {
-      body: { canal: 'whatsapp' },
+      body: { canal },
     });
 
     if (error) {
@@ -209,7 +216,9 @@ export default function IntegracoesTab() {
     }
 
     if (data?.pronto) {
-      setTesteZapi((s) => ({ ...s, status: 'ok', msg: `Conexão válida com ${data.provedor ?? 'o provedor'}. Nenhuma mensagem foi transmitida.` }));
+      const id = canal === 'whatsapp' ? 'int-1' : canal === 'apify' ? 'int-7' : 'int-8';
+      conectar(id);
+      setTesteZapi((s) => ({ ...s, status: 'ok', msg: `Conexão válida com ${data.provedor ?? 'o provedor'}. ${canal === 'whatsapp' ? 'Nenhuma mensagem foi transmitida.' : 'A fonte está pronta para a Busca Manual no Modo Real.'}` }));
     } else {
       setTesteZapi((s) => ({ ...s, status: 'erro', msg: data?.detalhe || data?.erro || 'Integração não está pronta.' }));
     }
@@ -223,9 +232,11 @@ export default function IntegracoesTab() {
   };
 
   const testar = (it: Integracao) => {
-    if (it.id === 'int-1') {
+    if (it.id === 'int-1' || it.id === 'int-7' || it.id === 'int-8') {
+      const canal = it.id === 'int-1' ? 'whatsapp' : it.id === 'int-7' ? 'apify' : 'google_places';
+      setCanalEmTeste(canal);
       setTesteZapi((s) => ({ ...s, aberto: true }));
-      void testarZapi();
+      void testarIntegracaoReal(canal);
       return;
     }
     if (!temCredenciais(it)) {
@@ -311,7 +322,7 @@ export default function IntegracoesTab() {
                   )}
                 </div>
 
-                {it.id === 'int-1' && (
+                {(it.id === 'int-1' || it.id === 'int-7' || it.id === 'int-8') && (
                   <div className="border-t border-background-200/70 pt-3">
                     <button
                       onClick={() => setTesteZapi((s) => ({ ...s, aberto: !s.aberto, status: 'idle', msg: '' }))}
@@ -324,7 +335,7 @@ export default function IntegracoesTab() {
                     {testeZapi.aberto && (
                       <div className="mt-3 space-y-2">
                         <button
-                          onClick={testarZapi}
+                          onClick={() => void testarIntegracaoReal()}
                           disabled={testeZapi.status === 'enviando'}
                           className="px-4 py-2 bg-primary-500 hover:bg-primary-600 disabled:opacity-50 text-background-50 rounded-md text-sm font-semibold cursor-pointer whitespace-nowrap"
                         >
@@ -357,8 +368,9 @@ export default function IntegracoesTab() {
           integracao={configurando}
           onFechar={() => setConfigurando(null)}
           onSalvar={async (id, credenciais) => {
-            if (id !== 'int-1') throw new Error('A conexão segura deste provedor ainda não está disponível.');
-            const { data, error } = await supabase.functions.invoke('configurar-integracao', { body: { canal: 'whatsapp', credenciais } });
+            const canal = id === 'int-1' ? 'whatsapp' : id === 'int-7' ? 'apify' : id === 'int-8' ? 'google_places' : '';
+            if (!canal) throw new Error('A conexão segura deste provedor ainda não está disponível.');
+            const { data, error } = await supabase.functions.invoke('configurar-integracao', { body: { canal, credenciais } });
             if (error || !data?.ok) throw new Error(data?.erro ?? await detalheDoErroDeFuncao(error));
             salvarCredenciais(id, credenciais);
             mostrarToast(
