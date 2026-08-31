@@ -129,7 +129,10 @@ export default function BuscaLeads() {
   const { fontes } = useFontesStore();
   const { config } = useConfiguracaoStore();
   const [csvModal, setCsvModal] = useState(false);
-  const fontesDisponiveis = fontesAtivas(fontes);
+  const fontesDisponiveis = fontesAtivas(fontes).filter((fonte) => {
+    if (config.modoExecucao !== 'PRODUCAO') return true;
+    return ['apify', 'google_places'].includes(fonte.sourceKey || '');
+  });
 
   const responsavelNome =
     modoAtendimento === 'IA' ? 'Ana (IA)' : mockUsers.find((u) => u.id === responsavel)?.name || 'Selecionar responsável';
