@@ -4,7 +4,7 @@ import type { Lead } from '@/mocks/leadsData';
 import { useLeadsStore, waitForLeadsPersistence } from '@/hooks/useLeadsStore';
 import { useFluxoComercial } from '@/hooks/useFluxoComercial';
 import { useListasStore } from '@/hooks/useListasStore';
-import { fontesLeads } from '@/mocks/fontesData';
+import { fontesAtivas, useFontesStore } from '@/hooks/useFontesStore';
 import { templatesMensagem } from '@/mocks/templatesData';
 import { mockUsers } from '@/mocks/users';
 import { leadsPreviewInicial, temperaturaDe, tempBadge, tempLabel, eficienciaFonte, alertasLeads } from '@/mocks/enriquecimentoData';
@@ -13,12 +13,11 @@ import PromptAgent from '@/pages/dashboard/busca-leads/components/PromptAgent';
 import LeadPreviewDrawer from '@/pages/dashboard/busca-leads/components/LeadPreviewDrawer';
 import CsvImportModal from '@/components/feature/CsvImportModal';
 import type { CampoImportacao, ResultadoImportacao } from '@/components/feature/CsvImportModal';
+import { limitarBuscaManual } from '@/lib/buscaManual';
 
 const estados = ['SP', 'RJ', 'MG', 'PR', 'SC', 'RS', 'BA', 'PE', 'GO', 'DF'];
 const atividades = ['Tecnologia', 'Saúde', 'Educação', 'Varejo', 'Indústria', 'Logística', 'Marketing', 'Consultoria', 'Financeiro', 'Imobiliário'];
 const cargos = ['CEO', 'Diretor', 'Gerente', 'Coordenador', 'Analista', 'Proprietário'];
-
-const campanhas = ['Prospecção Q3', 'Construção Civil SP', 'Scraper Industrial', 'IA Search', 'Evento Borracha Técnica', 'Integração ERP', 'Catálogo Wayflex'];
 
 const fasesBusca = ['Buscando nas fontes', 'Enriquecendo contatos', 'Qualificando com a Ana', 'Removendo duplicados'];
 
@@ -33,7 +32,7 @@ const camposLeadImport: CampoImportacao[] = [
 ];
 
 export default function BuscaLeads() {
-  const [aba, setAba] = useState<'agente' | 'busca' | 'importar' | 'campanhas' | 'operacao'>('agente');
+  const [aba, setAba] = useState<'agente' | 'busca' | 'importar'>('agente');
   const [etapa, setEtapa] = useState(1);
   const [fonteSelecionada, setFonteSelecionada] = useState('');
   const [cidade, setCidade] = useState('São Paulo');
@@ -61,13 +60,14 @@ export default function BuscaLeads() {
   const [responsavel, setResponsavel] = useState('u-2');
   const [canal, setCanal] = useState('WhatsApp');
   const [template, setTemplate] = useState('tm-1');
-  const [campanha, setCampanha] = useState('Prospecção Q3');
   const [tags, setTags] = useState('');
 
   const [leads, setLeads] = useLeadsStore();
   const fluxo = useFluxoComercial();
   const listas = useListasStore();
+  const { fontes } = useFontesStore();
   const [csvModal, setCsvModal] = useState(false);
+  const fontesDisponiveis = fontesAtivas(fontes);
 
   const responsavelNome =
     modoAtendimento === 'IA' ? 'Ana (IA)' : mockUsers.find((u) => u.id === responsavel)?.name || 'Selecionar responsável';
@@ -120,7 +120,6 @@ export default function BuscaLeads() {
     automacaoStatus: 'ATIVA',
     canalPreferencial: canal,
     templateId: template,
-    campanha: dados.campanha || campanha,
     tags: dados.tags || (tags ? tags.split(',').map((t) => t.trim()).filter(Boolean) : []),
     bloqueado: false,
     contatoPermitido: true,
@@ -159,14 +158,24 @@ export default function BuscaLeads() {
     setTimeout(() => {
       setBuscando(false);
       setFaseBusca('');
-      const cruzados = cruzarPreview(leadsPreviewInicial);
+      const encontrados = limitarBuscaManual(leadsPreviewInicial, {
+        fonte: fontes.find((fonte) => fonte.id === fonteSelecionada)?.nome || '',
+        estado,
+        cidade,
+        cargo: cargoDecisor,
+        exigeSite: temSite,
+        exigeWhatsApp: temWhatsApp,
+        exigeEmail: temEmail,
+        volumeMaximo: leadsDia,
+      });
+      const cruzados = cruzarPreview(encontrados);
       setPreview(cruzados);
       setSelecionados(cruzados.filter((l) => !l.duplicado).map((l) => l.id));
       const dups = cruzados.filter((l) => l.duplicado).length;
       setResultado(
         dups > 0
-          ? `${cruzados.length} leads encontrados. ${dups} duplicado(s) já no funil e bloqueado(s).`
-          : `${cruzados.length} leads encontrados, sem duplicados no funil.`
+          ? `${cruzados.length} leads encontrados (limite: ${leadsDia}). ${dups} duplicado(s) já no funil e bloqueado(s).`
+          : `${cruzados.length} leads encontrados (limite: ${leadsDia}), sem duplicados no funil.`
       );
       setEtapa(3);
     }, 1900);
@@ -216,7 +225,7 @@ export default function BuscaLeads() {
       setResultado('Selecione um responsável para o modo de atendimento humano.');
       return;
     }
-    const fonte = fontesLeads.find((f) => f.id === fonteSelecionada);
+    const fonte = fontes.find((f) => f.id === fonteSelecionada);
     const nomeFinal = nomeLista.trim() || `Prospecção ${cidade} · ${new Date().toLocaleDateString('pt-BR')}`;
     const selecionadosLeads = preview
       .filter((l) => !l.duplicado && selecionados.includes(l.id))
@@ -231,7 +240,6 @@ export default function BuscaLeads() {
           estado: l.localidade.split(' - ')[1] || estado,
           score: l.score,
           origem: l.fonte,
-          campanha: fonte?.campanhaPadrao || campanha,
           tags: fonte?.tagsPadrao,
         })
       );
@@ -301,7 +309,7 @@ export default function BuscaLeads() {
     return { importados: exclusivos.length, duplicados };
   };
 
-  const etapaLabel = ['Fonte', 'Filtros', 'Revisão', 'Operação'];
+  const etapaLabel = ['Fonte', 'Filtros', 'Revisão', 'Importação'];
 
   return (
     <div className="wf-page !max-w-7xl">
@@ -465,7 +473,7 @@ export default function BuscaLeads() {
               <div className="bg-background-50 border border-background-200/70 rounded-xl p-6">
                 <h3 className="font-heading font-bold text-foreground-900 text-sm mb-4">Selecione a fonte de prospecção</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-                  {fontesLeads.map((f) => (
+                  {fontesDisponiveis.map((f) => (
                     <button
                       key={f.id}
                       onClick={() => setFonteSelecionada(f.id)}
@@ -479,12 +487,12 @@ export default function BuscaLeads() {
                         <i className={`${f.tipo === 'API' ? 'ri-cloud-line' : f.tipo === 'CSV' ? 'ri-file-upload-line' : f.tipo === 'webhook' ? 'ri-webhook-line' : 'ri-survey-line'} text-primary-600`}></i>
                         <span className="text-sm font-medium text-foreground-900">{f.nome}</span>
                       </div>
-                      <p className="text-xs text-foreground-500">{f.leadsImportados.toLocaleString()} leads importados</p>
-                      <p className="text-xs text-foreground-400 mt-0.5">{f.ultimaSincronizacao}</p>
+                      <p className="text-xs text-foreground-500">Disponível para busca manual</p>
                     </button>
                   ))}
                 </div>
               </div>
+              {fontesDisponiveis.length === 0 && <p className="text-sm text-foreground-500">Nenhuma fonte está ativa. Ative uma em Configurações → Fontes de leads.</p>}
               <div className="flex justify-end">
                 <button
                   onClick={avancar}
@@ -608,12 +616,12 @@ export default function BuscaLeads() {
                   <div className="bg-background-950 rounded-xl p-6 text-background-50">
                     <h3 className="font-heading font-bold mb-4">Resumo da busca</h3>
                     <div className="space-y-3 text-sm">
-                      <div className="flex justify-between"><span className="text-background-400">Fonte</span><span className="font-medium">{fontesLeads.find((f) => f.id === fonteSelecionada)?.nome || '—'}</span></div>
+                      <div className="flex justify-between"><span className="text-background-400">Fonte</span><span className="font-medium">{fontes.find((f) => f.id === fonteSelecionada)?.nome || '—'}</span></div>
                       <div className="flex justify-between"><span className="text-background-400">Local</span><span className="font-medium">{cidade} - {estado}</span></div>
                       <div className="flex justify-between"><span className="text-background-400">Raio</span><span className="font-medium">{raio} km</span></div>
                       <div className="flex justify-between"><span className="text-background-400">Segmentos</span><span className="font-medium text-right">{segs.length} selecionados</span></div>
                       <div className="flex justify-between"><span className="text-background-400">Portes</span><span className="font-medium">{portesSel.length} selecionados</span></div>
-                      <div className="flex justify-between border-t border-background-800 pt-3"><span className="text-background-400">Volume</span><span className="font-bold">{leadsDia} leads/dia</span></div>
+                      <div className="flex justify-between border-t border-background-800 pt-3"><span className="text-background-400">Volume máximo</span><span className="font-bold">{leadsDia} leads</span></div>
                     </div>
                   </div>
 
@@ -834,10 +842,10 @@ export default function BuscaLeads() {
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 <div className="lg:col-span-2 space-y-6">
                   <section className="bg-background-50 border border-background-200/70 rounded-xl p-6">
-                    <h3 className="font-heading font-bold text-foreground-900 text-sm mb-4">Configuração da operação</h3>
+                    <h3 className="font-heading font-bold text-foreground-900 text-sm mb-4">Preparar importação</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="md:col-span-2">
-                        <label className="block text-sm font-medium text-foreground-800 mb-1.5">Nome da lista / campanha</label>
+                        <label className="block text-sm font-medium text-foreground-800 mb-1.5">Nome da lista</label>
                         <input type="text" value={nomeLista} onChange={(e) => setNomeLista(e.target.value)} placeholder="Ex: Prospecção São Paulo Agosto" className="w-full px-4 py-2.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-900" />
                       </div>
                       <div>
@@ -875,12 +883,6 @@ export default function BuscaLeads() {
                           ))}
                         </select>
                       </div>
-                      <div>
-                        <label className="block text-sm font-medium text-foreground-800 mb-1.5">Campanha</label>
-                        <select value={campanha} onChange={(e) => setCampanha(e.target.value)} className="w-full px-4 py-2.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-900 cursor-pointer">
-                          {campanhas.map((c) => <option key={c} value={c}>{c}</option>)}
-                        </select>
-                      </div>
                       <div className="md:col-span-2">
                         <label className="block text-sm font-medium text-foreground-800 mb-1.5">Tags (separadas por vírgula)</label>
                         <input type="text" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="prospecção, agosto, saopaulo" className="w-full px-4 py-2.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-900" />
@@ -891,13 +893,12 @@ export default function BuscaLeads() {
 
                 <div className="space-y-6">
                   <div className="bg-background-950 rounded-xl p-6 text-background-50">
-                    <h3 className="font-heading font-bold mb-4">Resumo da operação</h3>
+                    <h3 className="font-heading font-bold mb-4">Resumo da lista</h3>
                     <div className="space-y-3 text-sm">
                       <div className="flex justify-between"><span className="text-background-400">Leads selecionados</span><span className="font-bold">{selecionados.length}</span></div>
                       <div className="flex justify-between"><span className="text-background-400">Modo</span><span className="font-medium">{modoAtendimento}</span></div>
                       <div className="flex justify-between"><span className="text-background-400">Responsável</span><span className="font-medium">{responsavelNome}</span></div>
                       <div className="flex justify-between"><span className="text-background-400">Canal</span><span className="font-medium">{canal}</span></div>
-                      <div className="flex justify-between"><span className="text-background-400">Campanha</span><span className="font-medium">{campanha}</span></div>
                     </div>
                   </div>
                 </div>

@@ -11,14 +11,14 @@ type Provedor = 'openai' | 'anthropic';
 type FiltroBiblioteca = 'todos' | 'favoritos' | 'recentes';
 
 // Detecta a intenção a partir dos critérios digitados e sugere o prompt mais
-// alinhado (buscar lead, qualificar, campanha, resumir, follow-up).
+// alinhado (buscar lead, qualificar, resumir e fazer follow-up).
 function detectarSugestao(criterios: string, prompts: BibliotecaPrompt[]): BibliotecaPrompt | null {
   const t = criterios.toLowerCase();
   if (!t.trim()) return null;
 
   const mapa: [RegExp, string][] = [
     [/qualif|desafio|necessidade|orcamento|decide/, 'Qualificação'],
-    [/campanha|sequencia|abordagem|apresentar/, 'Campanha'],
+    [/sequencia|abordagem|apresentar/, 'Follow-up'],
     [/resumir|resumo|conversa/, 'Atendimento'],
     [/follow|retomar|retorno|pos.*proposta/, 'Follow-up'],
     [/buscar|lead|prospec|empresa|contato|lista/, 'Prospecção'],

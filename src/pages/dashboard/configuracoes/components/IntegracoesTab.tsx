@@ -18,7 +18,7 @@ function getStatusMeta(status?: string) {
 interface ConfigurarModalProps {
   integracao: Integracao;
   onFechar: () => void;
-  onSalvar: (id: string, credenciais: Record<string, string>) => void;
+  onSalvar: (id: string, credenciais: Record<string, string>) => Promise<void>;
 }
 
 function CampoCredencial({ campo, valor, aoMudar }: {
@@ -90,7 +90,7 @@ function ConfigurarModal({ integracao, onFechar, onSalvar }: ConfigurarModalProp
     setValores((prev) => ({ ...prev, [campoId]: valor }));
   };
 
-  const salvar = () => {
+  const salvar = async () => {
     const faltando = campos
       .filter((c) => c.obrigatorio && !(valores[c.id] ?? '').trim())
       .map((c) => c.rotulo);
@@ -100,8 +100,7 @@ function ConfigurarModal({ integracao, onFechar, onSalvar }: ConfigurarModalProp
       return;
     }
 
-    onSalvar(integracao.id, valores);
-    onFechar();
+    try { await onSalvar(integracao.id, valores); onFechar(); } catch (error) { setErro(error instanceof Error ? error.message : 'Não foi possível salvar as credenciais.'); }
   };
 
   return (
@@ -169,7 +168,7 @@ function ConfigurarModal({ integracao, onFechar, onSalvar }: ConfigurarModalProp
             Cancelar
           </button>
           <button
-            onClick={salvar}
+            onClick={() => void salvar()}
             className="px-5 py-2.5 bg-primary-500 hover:bg-primary-600 text-background-50 rounded-lg text-sm font-bold cursor-pointer whitespace-nowrap"
           >
             <i className="ri-save-line mr-1.5"></i>
@@ -352,10 +351,13 @@ export default function IntegracoesTab() {
         <ConfigurarModal
           integracao={configurando}
           onFechar={() => setConfigurando(null)}
-          onSalvar={(id, credenciais) => {
+          onSalvar={async (id, credenciais) => {
+            if (id !== 'int-1') throw new Error('A conexão segura deste provedor ainda não está disponível.');
+            const { data, error } = await supabase.functions.invoke('configurar-integracao', { body: { canal: 'whatsapp', credenciais } });
+            if (error || !data?.ok) throw new Error(data?.erro ?? await detalheDoErroDeFuncao(error));
             salvarCredenciais(id, credenciais);
             mostrarToast(
-              'Conexão marcada como pendente. Credenciais não são armazenadas no navegador; conclua a conexão segura pelo servidor.',
+              'Credenciais guardadas no cofre seguro. Agora use “Testar conexão”.',
             );
           }}
         />

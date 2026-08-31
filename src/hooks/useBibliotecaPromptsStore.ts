@@ -15,7 +15,6 @@ export interface BibliotecaPrompt {
 export const PRESETS_PROMPT = [
   'Prospecção',
   'Qualificação',
-  'Campanha',
   'Atendimento',
   'Follow-up',
 ] as const;
@@ -59,16 +58,6 @@ const inicial: BibliotecaPrompt[] = [
       'Perguntas de qualificação B2B: qual o principal desafio, quem decide, qual o orçamento previsto e o prazo ideal para implementação.',
     campos: ['nome', 'cargo', 'empresa', 'email', 'telefone', 'segmento'],
     preset: 'Qualificação',
-    ativo: true,
-  },
-  {
-    id: 'campanha',
-    titulo: 'Campanha de abordagem',
-    objetivo: 'Mensagem de primeiro contato e follow-up para uma campanha.',
-    criterios:
-      'Criar uma sequência de abordagem (primeiro contato + follow-up) para apresentar a solução a leads de um segmento, com tom consultivo.',
-    campos: ['nome', 'empresa', 'email', 'whatsapp', 'segmento'],
-    preset: 'Campanha',
     ativo: true,
   },
   {

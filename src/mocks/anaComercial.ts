@@ -73,7 +73,6 @@ export const variaveisDinamicas: VariavelDinamica[] = [
   { variavel: '{cidade}', descricao: 'Município do lead', existeNoBanco: true, podeSerNula: true, fallback: 'sua região', canais: ['E-mail'], protegida: false, status: 'ativo' },
   { variavel: '{segmento}', descricao: 'Segmento da empresa', existeNoBanco: true, podeSerNula: true, fallback: 'seu segmento', canais: ['WhatsApp', 'E-mail'], protegida: false, status: 'ativo' },
   { variavel: '{origem}', descricao: 'Fonte do lead', existeNoBanco: true, podeSerNula: false, fallback: 'nosso contato', canais: ['E-mail'], protegida: false, status: 'rascunho' },
-  { variavel: '{campanha}', descricao: 'Campanha de origem', existeNoBanco: true, podeSerNula: true, fallback: '', canais: ['E-mail'], protegida: false, status: 'rascunho' },
   { variavel: '{produto}', descricao: 'Produto/serviço relacionado', existeNoBanco: true, podeSerNula: false, fallback: 'nossas soluções', canais: ['WhatsApp', 'E-mail'], protegida: false, status: 'rascunho' },
   { variavel: '{responsavel}', descricao: 'Nome do humano responsável', existeNoBanco: true, podeSerNula: false, fallback: 'nossa equipe', canais: ['E-mail'], protegida: false, status: 'rascunho' },
   { variavel: '{nome_empresa}', descricao: 'Nome da Wayflex', existeNoBanco: true, podeSerNula: false, fallback: 'Wayflex', canais: ['WhatsApp', 'E-mail'], protegida: false, status: 'ativo' },

@@ -81,9 +81,6 @@ export default function FontesTab() {
         erros: 0,
         mapeamento: form.mapeamento.trim(),
         tagsPadrao: [],
-        campanhaPadrao: '',
-        modoPadrao: 'IA',
-        responsavelPadrao: 'Ana',
       });
       mostrarToast('Fonte criada.');
     }
@@ -107,8 +104,8 @@ export default function FontesTab() {
       <div className="bg-secondary-50 border border-secondary-200 text-secondary-800 px-4 py-3 rounded-lg text-sm flex items-start gap-2">
         <i className="ri-flask-line mt-0.5"></i>
         <span>
-          <strong>Modo demonstração.</strong> As buscas usam dados simulados. A integração real (Receita Federal, Google Places,
-          Apify) será ativada após conectar o backend.
+          <strong>Fontes de leads.</strong> Ative apenas as fontes que podem participar da busca. Fontes inativas não aparecem em
+          Busca de Leads. As métricas abaixo pertencem exclusivamente à fonte indicada em cada card.
         </span>
       </div>
 
@@ -164,7 +161,7 @@ export default function FontesTab() {
                   f.status === 'ativo' ? 'bg-accent-100 hover:bg-accent-200 text-accent-800' : 'bg-primary-500 hover:bg-primary-600 text-background-50'
                 }`}
               >
-                {f.status === 'ativo' ? 'Pausar' : 'Ativar'}
+                {f.status === 'ativo' ? 'Desativar' : 'Ativar'}
               </button>
             </div>
             <div className="flex gap-2 mt-2">

@@ -20,9 +20,6 @@ const Agenda = lazy(() => import('../pages/dashboard/agenda/page'));
 const Orcamentos = lazy(() => import('../pages/dashboard/orcamentos/page'));
 const Equipe = lazy(() => import('../pages/dashboard/equipe/page'));
 const DashboardLayout = lazy(() => import('../components/feature/DashboardLayout'));
-const CalendarioEditorial = lazy(() => import('../pages/dashboard/campanhas/calendario/page'));
-const CriarPublicacao = lazy(() => import('../pages/dashboard/campanhas/publicacao/page'));
-const ContasConectadas = lazy(() => import('../pages/dashboard/campanhas/contas/page'));
 
 const routes: RouteObject[] = [
   {
@@ -92,18 +89,6 @@ const routes: RouteObject[] = [
       {
         path: "agenda",
         element: <Agenda />,
-      },
-      {
-        path: "campanhas/calendario",
-        element: <CalendarioEditorial />,
-      },
-      {
-        path: "campanhas/publicacao",
-        element: <CriarPublicacao />,
-      },
-      {
-        path: "campanhas/contas",
-        element: <ContasConectadas />,
       },
       {
         path: "orcamentos",

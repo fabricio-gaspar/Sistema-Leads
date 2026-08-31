@@ -28,12 +28,6 @@ const navItems: NavItem[] = [
   { label: 'Configurações', path: '/dashboard/configuracoes', icon: 'ri-settings-4-line' },
 ];
 
-const campanhasItems: NavItem[] = [
-  { label: 'Calendário Editorial', path: '/dashboard/campanhas/calendario', icon: 'ri-calendar-2-line' },
-  { label: 'Criar Publicação', path: '/dashboard/campanhas/publicacao', icon: 'ri-quill-pen-line' },
-  { label: 'Contas Conectadas', path: '/dashboard/campanhas/contas', icon: 'ri-link' },
-];
-
 const tipoIcone: Record<string, string> = {
   lead: 'ri-user-search-line text-primary-600',
   proposta: 'ri-file-list-3-line text-accent-600',
@@ -140,31 +134,6 @@ export default function DashboardLayout() {
             })}
           </ul>
 
-          {sidebarOpen ? (
-            <p className="text-[10px] uppercase tracking-[0.12em] text-foreground-400 font-semibold px-3 mt-5 mb-2">Campanhas</p>
-          ) : (
-            <div className="border-t border-background-800/50 mt-4 mb-2"></div>
-          )}
-
-          <ul className="space-y-1">
-            {campanhasItems.map((item) => {
-              const isActive = location.pathname === item.path;
-              return (
-                <li key={item.path}>
-                  <Link
-                    to={item.path}
-                    onClick={() => { if (window.innerWidth < 1024) setSidebarOpen(false); }}
-                    className={`wf-nav-item ${isActive ? 'is-active' : ''} flex items-center gap-3 px-3 py-2.5 rounded-lg group cursor-pointer whitespace-nowrap`}
-                  >
-                    <div className="w-5 h-5 flex items-center justify-center">
-                      <i className={`${item.icon} text-lg`}></i>
-                    </div>
-                    {sidebarOpen && <span className="text-sm font-medium">{item.label}</span>}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
         </nav>
 
         {/* User */}

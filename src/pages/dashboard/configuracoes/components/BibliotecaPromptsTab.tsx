@@ -111,7 +111,7 @@ export default function BibliotecaPromptsTab() {
         <div className="px-6 py-4 border-b border-background-200/70 flex items-center justify-between">
           <div>
             <h3 className="font-heading font-bold text-foreground-900 text-sm">Prompts</h3>
-            <p className="text-xs text-foreground-500">Modelos editáveis de busca, qualificação, campanha e follow-up.</p>
+            <p className="text-xs text-foreground-500">Modelos editáveis de busca, qualificação, atendimento e follow-up.</p>
           </div>
           <button
             onClick={abrirNovo}
