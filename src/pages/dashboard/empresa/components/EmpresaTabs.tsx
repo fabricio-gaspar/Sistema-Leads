@@ -1,18 +1,10 @@
 import { useState } from 'react';
 import DadosTab from './DadosTab';
-import DocumentosTab from './DocumentosTab';
 import BaseConhecimentoTab from './BaseConhecimentoTab';
-import OperacaoTab from './OperacaoTab';
-import TimeTab from './TimeTab';
-import IntegracoesTab from './IntegracoesTab';
 
 const tabs = [
-  { id: 'dados', nome: 'Dados', icone: 'ri-store-2-line' },
-  { id: 'operacao', nome: 'Operação', icone: 'ri-settings-3-line' },
-  { id: 'time', nome: 'Time', icone: 'ri-team-line' },
-  { id: 'integracoes', nome: 'Integrações', icone: 'ri-plug-line' },
-  { id: 'conhecimento', nome: 'Base de Conhecimento', icone: 'ri-book-open-line' },
-  { id: 'documentos', nome: 'Documentos', icone: 'ri-folder-line' },
+  { id: 'dados', nome: 'Dados da empresa', icone: 'ri-store-2-line' },
+  { id: 'conhecimento', nome: 'Base aprovada para a Ana', icone: 'ri-book-open-line' },
 ];
 
 export default function EmpresaTabs() {
@@ -37,10 +29,6 @@ export default function EmpresaTabs() {
       </div>
 
       {tab === 'dados' && <DadosTab />}
-      {tab === 'operacao' && <OperacaoTab />}
-      {tab === 'time' && <TimeTab />}
-      {tab === 'integracoes' && <IntegracoesTab />}
-      {tab === 'documentos' && <DocumentosTab />}
       {tab === 'conhecimento' && <BaseConhecimentoTab />}
     </>
   );

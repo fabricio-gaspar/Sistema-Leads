@@ -3,21 +3,8 @@ import type { Membro, Supressao } from '@/mocks/businessData';
 import { useAuth } from '@/hooks/useAuth';
 import { useSupressaoStore } from '@/hooks/useSupressaoStore';
 import { useEquipeStore } from '@/hooks/useEquipeStore';
-import AbordagemAnaTab from './components/AbordagemAnaTab';
-import PipelineTab from './components/PipelineTab';
 import FontesTab from './components/FontesTab';
 import ProdutosTab from './components/ProdutosTab';
-import TemplatesTab from './components/TemplatesTab';
-import RespostasRapidasTab from './components/RespostasRapidasTab';
-import VariaveisGlobaisTab from './components/VariaveisGlobaisTab';
-import BibliotecaPromptsTab from './components/BibliotecaPromptsTab';
-import TemplatesPropostaTab from './components/TemplatesPropostaTab';
-import TemplatesDocumentoTab from './components/TemplatesDocumentoTab';
-import TemasTab from './components/TemasTab';
-import FluxosProntosTab from './components/FluxosProntosTab';
-import HorariosTab from './components/HorariosTab';
-import AutomacoesTab from './components/AutomacoesTab';
-import ComercialTab from './components/ComercialTab';
 import LogsTab from './components/LogsTab';
 import IntegracoesOperacaoTab from './components/IntegracoesOperacaoTab';
 import EmpresaTabs from '@/pages/dashboard/empresa/components/EmpresaTabs';
@@ -36,50 +23,51 @@ interface MenuGroup {
 
 const groups: MenuGroup[] = [
   {
-    title: 'CONTA',
+    title: 'COMECE AQUI',
     items: [
-      { id: 'empresa', label: 'Empresa', icone: 'ri-store-2-line' },
-      { id: 'equipe', label: 'Equipe', icone: 'ri-team-line' },
+      { id: 'ana', label: 'Configurar a Ana', icone: 'ri-robot-2-line' },
     ],
   },
   {
-    title: 'OPERAÇÃO',
+    title: 'BASE COMERCIAL',
     items: [
-      { id: 'pipeline', label: 'Pipeline', icone: 'ri-layout-masonry-line' },
-      { id: 'fontes', label: 'Fontes de leads', icone: 'ri-cloud-line' },
-      { id: 'produtos', label: 'Produtos', icone: 'ri-shopping-bag-line' },
-      { id: 'supressao', label: 'Supressão (LGPD)', icone: 'ri-shield-line' },
-      { id: 'logs', label: 'Logs', icone: 'ri-file-list-line' },
+      { id: 'empresa', label: 'Empresa e conhecimento', icone: 'ri-store-2-line' },
+      { id: 'equipe', label: 'Equipe e responsáveis', icone: 'ri-team-line' },
+      { id: 'produtos', label: 'Catálogo para orçamento', icone: 'ri-shopping-bag-line' },
     ],
   },
   {
-    title: 'CANAIS E INTEGRAÇÕES',
+    title: 'CAPTAÇÃO E CANAIS',
     items: [
-      { id: 'integracoes-operacao', label: 'Canais e integrações', icone: 'ri-plug-line' },
+      { id: 'fontes', label: 'Fontes de leads', icone: 'ri-search-line' },
+      { id: 'integracoes-operacao', label: 'Canais e conexões', icone: 'ri-plug-line' },
     ],
   },
   {
-    title: 'PERSONALIZAÇÃO',
+    title: 'SEGURANÇA E CONTROLE',
     items: [
-      { id: 'ana', label: 'Personalização da Ana', icone: 'ri-robot-2-line' },
-      { id: 'abordagem', label: 'Materiais institucionais', icone: 'ri-file-user-line' },
-      { id: 'templates', label: 'Templates', icone: 'ri-mail-send-line' },
-      { id: 'respostas', label: 'Respostas rápidas', icone: 'ri-chat-smile-2-line' },
-      { id: 'variaveis', label: 'Variáveis globais', icone: 'ri-braces-line' },
-      { id: 'biblioteca', label: 'Biblioteca de prompts', icone: 'ri-sparkling-2-line' },
-      { id: 'templates-proposta', label: 'Templates de proposta', icone: 'ri-file-text-line' },
-      { id: 'templates-documento', label: 'Templates de documento', icone: 'ri-file-copy-2-line' },
-      { id: 'temas', label: 'Temas', icone: 'ri-palette-line' },
-      { id: 'fluxos', label: 'Fluxos prontos', icone: 'ri-flow-chart' },
+      { id: 'supressao', label: 'Proteção de contatos', icone: 'ri-shield-check-line' },
+      { id: 'logs', label: 'Diagnóstico e auditoria', icone: 'ri-file-list-3-line' },
     ],
   },
 ];
 
+const compactedTabs: Record<string, string> = {
+  abordagem: 'ana', templates: 'ana', respostas: 'ana', variaveis: 'ana', biblioteca: 'ana',
+  'templates-proposta': 'ana', 'templates-documento': 'ana', temas: 'empresa', fluxos: 'ana',
+  horarios: 'ana', automacoes: 'ana', comercial: 'ana', pipeline: 'ana',
+};
+
+const availableTabIds = new Set(groups.flatMap((group) => group.items.map((item) => item.id)));
+
+function initialTabFromUrl(): string {
+  const requested = new URLSearchParams(window.location.search).get('tab') || 'ana';
+  const normalized = compactedTabs[requested] || requested;
+  return availableTabIds.has(normalized) ? normalized : 'ana';
+}
+
 export default function DashboardConfiguracoes() {
-  const [tab, setTab] = useState(() => {
-    const params = new URLSearchParams(window.location.search);
-    return params.get('tab') || 'empresa';
-  });
+  const [tab, setTab] = useState(initialTabFromUrl);
   const [toast, setToast] = useState('');
   const { supressoes, adicionar: adicionarSupressaoStore, reativar, excluir: excluirSupressao } = useSupressaoStore();
   const { membros, adicionar: adicionarMembro, atualizar: atualizarMembro, excluir: excluirMembro } = useEquipeStore();
@@ -90,6 +78,13 @@ export default function DashboardConfiguracoes() {
   const [supModal, setSupModal] = useState(false);
   const [supForm, setSupForm] = useState({ contato: '', canal: 'WhatsApp', motivo: '' });
   const { user } = useAuth();
+
+  const chooseTab = (nextTab: string) => {
+    setTab(nextTab);
+    const url = new URL(window.location.href);
+    url.searchParams.set('tab', nextTab);
+    window.history.replaceState(null, '', url.toString());
+  };
 
   const mostrarToast = (msg: string) => {
     setToast(msg);
@@ -178,7 +173,7 @@ export default function DashboardConfiguracoes() {
           Configurações
         </h1>
         <p className="wf-page-description">
-          Organização, equipe, operação, canais e uma única área para definir como a Ana atua em cada empresa.
+          Configure apenas o que move o funil: empresa, Ana, responsáveis, catálogo, captação, canais e proteção.
         </p></div>
       </div>
 
@@ -201,7 +196,7 @@ export default function DashboardConfiguracoes() {
                 {group.items.map((item) => (
                   <button
                     key={item.id}
-                    onClick={() => setTab(item.id)}
+                    onClick={() => chooseTab(item.id)}
                     className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer ${
                       tab === item.id
                         ? 'bg-primary-500/10 text-primary-700'
@@ -215,7 +210,7 @@ export default function DashboardConfiguracoes() {
                   </button>
                 ))}
               </div>
-              {group.title !== 'PERSONALIZAÇÃO' && (
+              {group.title !== 'SEGURANÇA E CONTROLE' && (
                 <div className="mt-4 border-b border-background-200/50" />
               )}
             </div>
@@ -226,7 +221,7 @@ export default function DashboardConfiguracoes() {
         <div className="lg:hidden w-full">
           <select
             value={tab}
-            onChange={(e) => setTab(e.target.value)}
+            onChange={(e) => chooseTab(e.target.value)}
             className="w-full px-4 py-2.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-900 cursor-pointer"
           >
             {groups.map((group) => (
@@ -243,24 +238,9 @@ export default function DashboardConfiguracoes() {
 
         {/* Content */}
         <div className="flex-1 min-w-0">
-          {tab === 'pipeline' && <PipelineTab />}
           {tab === 'fontes' && <FontesTab />}
           {tab === 'produtos' && <ProdutosTab />}
-          {tab === 'templates' && <TemplatesTab />}
-          {tab === 'respostas' && <RespostasRapidasTab />}
-          {tab === 'variaveis' && <VariaveisGlobaisTab />}
-          {tab === 'biblioteca' && <BibliotecaPromptsTab />}
-          {tab === 'templates-proposta' && <TemplatesPropostaTab />}
-          {tab === 'templates-documento' && <TemplatesDocumentoTab />}
-          {tab === 'temas' && <TemasTab />}
-          {tab === 'fluxos' && <FluxosProntosTab />}
-          {tab === 'horarios' && <HorariosTab />}
-          {tab === 'automacoes' && <AutomacoesTab />}
-          {tab === 'comercial' && <ComercialTab />}
           {tab === 'logs' && <LogsTab />}
-
-          {/* Abordagem da Ana */}
-          {tab === 'abordagem' && <AbordagemAnaTab />}
 
           {/* Personalização completa da Ana */}
           {tab === 'ana' && <PersonalizacaoAna embedded />}

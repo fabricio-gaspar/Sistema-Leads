@@ -82,9 +82,10 @@
 .ana-config > header h1 { margin-top: .25rem; font-size: clamp(1.4rem, 2vw, 1.75rem); font-weight: 700; letter-spacing: -.035em; color: #17201f; }
 .ana-config > header > p:last-child { margin-top: .35rem; color: #66706e; font-size: .9rem; line-height: 1.55; }
 .ana-config .eyebrow { font-size: 0.68rem; font-weight: 750; letter-spacing: .1em; text-transform: uppercase; color: #197166; }
-.ana-config .steps { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: .5rem; margin: 1.25rem 0; }
-.ana-config .steps button { min-width: 0; display: flex; align-items: center; gap: .45rem; border: 1px solid #e1e7e5; border-radius: .65rem; padding: .55rem .65rem; color: #65706e; background: #fff; text-align: left; }
-.ana-config .steps button b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .72rem; font-weight: 600; }
+.ana-config .steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .5rem; margin: 1.25rem 0; }
+.ana-config .steps button { min-width: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; column-gap: .45rem; border: 1px solid #e1e7e5; border-radius: .65rem; padding: .7rem; color: #65706e; background: #fff; text-align: left; }
+.ana-config .steps button b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .78rem; font-weight: 650; }
+.ana-config .step-description { grid-column: 2; min-width: 0; margin-top: .15rem; color: #7c8785; font-size: .68rem; line-height: 1.35; }
 .ana-config .steps button span { display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; width: 1.35rem; height: 1.35rem; border-radius: 999px; background: #edf1f0; font-size: .7rem; font-weight: 750; }
 .ana-config .steps button:hover { border-color: #cdd7d4; background: #fafcfb; color: #35413f; }
 .ana-config .steps button.active { border-color: #1d9b8b; color: #12695f; background: #effbf9; box-shadow: 0 0 0 2px rgb(29 155 139 / .08); }
@@ -102,6 +103,9 @@
 .ana-config .form textarea { width:100%; border:1px solid #d8dfdd; border-radius:.55rem; padding:.7rem .8rem; font:inherit; }
 .ana-config .form textarea { min-height:6rem; resize:vertical; }
 .ana-config .hint { max-width: 60rem; margin-top: .5rem; color:#66706e; font-size:.84rem; line-height:1.5; }
+.ana-config .setup-note { margin-bottom: 1rem; padding: .75rem .85rem; border: 1px solid #d9ebe7; border-radius: .6rem; background: #f2fbf9; color: #3d5651; font-size: .84rem; line-height: 1.5; }
+.ana-config .rule-summary { display: grid; gap: .45rem; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.ana-config .rule-summary span { padding: .65rem .7rem; border: 1px solid #e2e9e7; border-radius: .55rem; background: #f7f9f8; color: #46514f; font-size: .8rem; line-height: 1.35; }
 .ana-config .review { display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap:.55rem; background:#f5f8f7; padding:1rem; border-radius:.65rem; color:#46514f; }
 .ana-config .review > * { min-width: 0; padding: .55rem .7rem; border: 1px solid #e7ecea; border-radius: .5rem; background: rgb(255 255 255 / .72); overflow-wrap: anywhere; }
 .ana-config .review strong { grid-column: 1 / -1; color: #26312f; }
@@ -115,13 +119,15 @@
 
 @media (max-width: 900px) {
   .ana-config .steps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ana-config .rule-summary { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 640px) {
   .wf-mode-toggle button { padding-inline: .6rem; }
   .wf-mode-toggle .wf-mode-label { display: none; }
   .ana-config .steps { grid-template-columns: 1fr 1fr; gap: .4rem; }
-  .ana-config .steps button { padding: .5rem; }
+  .ana-config .steps button { padding: .55rem; }
+  .ana-config .step-description { display: none; }
   .ana-config .card { min-height: 0; padding: 1rem; }
   .ana-config .card-head { align-items: flex-start; flex-direction: column; }
   .ana-config .review { grid-template-columns: 1fr; }

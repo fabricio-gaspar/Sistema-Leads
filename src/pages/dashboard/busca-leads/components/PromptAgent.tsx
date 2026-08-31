@@ -313,7 +313,7 @@ export default function PromptAgent() {
             </div>
 
             <button
-              onClick={() => navigate('/dashboard/configuracoes?tab=biblioteca')}
+              onClick={() => navigate('/dashboard/configuracoes?tab=ana')}
               className="mt-4 w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 border border-background-300 text-foreground-700 rounded-lg text-xs font-semibold hover:bg-background-100 transition-all cursor-pointer whitespace-nowrap"
             >
               <i className="ri-settings-3-line"></i>
