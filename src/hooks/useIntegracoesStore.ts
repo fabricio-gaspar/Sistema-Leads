@@ -27,10 +27,10 @@ const keyById: Record<string, string> = {
   'int-1': 'whatsapp', 'int-2': 'email', 'int-3': 'instagram', 'int-4': 'voip', 'int-5': 'google_calendar', 'int-6': 'ai', 'int-7': 'apify', 'int-8': 'google_places',
 };
 
-async function hidratarDoBackend(): Promise<void> {
+async function hidratarDoBackend(force = false): Promise<void> {
   const { data: auth } = await supabase.auth.getUser();
   const userId = auth.user?.id;
-  if (!userId || hydratedUser === userId) return;
+  if (!userId || (!force && hydratedUser === userId)) return;
   const { data: profile } = await supabase.from('profiles').select('active_organization_id').eq('id', userId).maybeSingle();
   const organizationId = profile?.active_organization_id as string | null | undefined;
   if (!organizationId) return;
@@ -64,6 +64,7 @@ export interface IntegracoesStore {
   conectar: (id: string) => void;
   desconectar: (id: string) => void;
   salvarCredenciais: (id: string, credenciais: Record<string, string>) => void;
+  recarregar: () => Promise<void>;
 }
 
 export function useIntegracoesStore(): IntegracoesStore {
@@ -76,7 +77,10 @@ export function useIntegracoesStore(): IntegracoesStore {
   useEffect(() => {
     void hidratarDoBackend();
     const { data: subscription } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user?.id !== hydratedUser) void hidratarDoBackend();
+      if (session?.user?.id !== hydratedUser) {
+        hydratedUser = null;
+        void hidratarDoBackend(true);
+      }
     });
     return () => subscription.subscription.unsubscribe();
   }, []);
@@ -104,5 +108,7 @@ export function useIntegracoesStore(): IntegracoesStore {
     atualizar(id, { credenciais: undefined, status: 'pendente', ultimoTeste: 'Aguardando validação segura' });
   };
 
-  return { integracoes, atualizar, conectar, desconectar, salvarCredenciais };
+  const recarregar = async () => { await hidratarDoBackend(true); };
+
+  return { integracoes, atualizar, conectar, desconectar, salvarCredenciais, recarregar };
 }

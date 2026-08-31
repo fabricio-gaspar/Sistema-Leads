@@ -233,7 +233,7 @@ export const integracoes: Integracao[] = [
     ultimoTeste: 'nunca',
     descricao: 'Busca textual de empresas por atividade e localização usando a API do Google Places.',
     campos: [
-      { id: 'api_key', rotulo: 'API Key', tipo: 'senha', placeholder: 'AIza...', obrigatorio: true, ajuda: 'Chave do Google Cloud com a Places API habilitada. Fica armazenada no Backend.' },
+      { id: 'api_key', rotulo: 'API Key', tipo: 'senha', placeholder: 'AIza...', obrigatorio: true, ajuda: 'Chave do Google Cloud com a Places API (New) habilitada. Fica armazenada no Backend.' },
     ],
   },
 ];

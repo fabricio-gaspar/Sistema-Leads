@@ -23,4 +23,11 @@ describe('limitarBuscaManual', () => {
     expect(fontes.find((fonte) => fonte.id === 'f-1')).toMatchObject({ leadsImportados: 1240, erros: 12 });
     expect(fontes.find((fonte) => fonte.id === 'f-3')).toMatchObject({ leadsImportados: 432, erros: 8 });
   });
+
+  it('só disponibiliza uma API depois de ela estar validada e ativa no backend', () => {
+    const fontes = fontesLeads.map((fonte) => ({ ...fonte, status: 'pendente', connectionStatus: 'configured' }));
+    fontes[2] = { ...fontes[2], status: 'ativo', connectionStatus: 'connected' };
+
+    expect(fontesAtivas(fontes).map((fonte) => fonte.sourceKey)).toEqual(['apify']);
+  });
 });

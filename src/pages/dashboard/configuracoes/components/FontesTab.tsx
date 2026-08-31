@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useFontesStore } from '@/hooks/useFontesStore';
 import type { FonteLead } from '@/hooks/useFontesStore';
 import { supabase } from '@/lib/supabase';
+import { detalheDoErroDeFuncao } from '@/lib/transportador';
 
 const statusCores: Record<string, string> = {
   ativo: 'bg-primary-100 text-primary-700',
@@ -21,9 +22,10 @@ const tipoIcones: Record<string, string> = {
 const tipos = ['API', 'CSV', 'webhook', 'formulario', 'manual'];
 
 export default function FontesTab() {
-  const { fontes, atualizar, adicionar, excluir } = useFontesStore();
+  const { fontes, atualizar, definirAtivacao, recarregar, adicionar, excluir } = useFontesStore();
   const [toast, setToast] = useState('');
   const [testando, setTestando] = useState<string | null>(null);
+  const [alterando, setAlterando] = useState<string | null>(null);
   const [modalAberto, setModalAberto] = useState(false);
   const [editando, setEditando] = useState<FonteLead | null>(null);
   const [form, setForm] = useState({ nome: '', tipo: 'API', endpoint: '', mapeamento: '' });
@@ -40,9 +42,15 @@ export default function FontesTab() {
       const { data, error } = await supabase.functions.invoke('testar-integracao', { body: { canal: fonte.sourceKey } });
       setTestando(null);
       if (error || !data?.pronto) {
-        mostrarToast(`Não foi possível validar ${fonte.nome}: ${data?.erro || 'configure as credenciais em Canais e integrações.'}`);
+        const detalhe = error ? await detalheDoErroDeFuncao(error) : data?.erro;
+        const mensagem = detalhe === 'integration_credentials_missing'
+          ? 'configure e salve as credenciais em Canais e integrações.'
+          : detalhe === 'provider_error'
+            ? 'o provedor recusou o teste. Confira a chave e as permissões.'
+            : detalhe || 'configure as credenciais em Canais e integrações.';
+        mostrarToast(`Não foi possível validar ${fonte.nome}: ${mensagem}`);
       } else {
-        atualizar(id, { status: 'ativo', connectionStatus: 'connected', mode: 'production', ultimaSincronizacao: 'agora' });
+        await recarregar();
         mostrarToast(`${fonte.nome} validada e disponível no Modo Real.`);
       }
       return;
@@ -50,9 +58,22 @@ export default function FontesTab() {
     setTimeout(() => { setTestando(null); mostrarToast('Esta fonte ainda não possui teste de provedor conectado.'); }, 700);
   };
 
-  const toggleStatus = (id: string) => {
+  const toggleStatus = async (id: string) => {
     const f = fontes.find((x) => x.id === id);
-    if (f) atualizar(id, { status: f.status === 'ativo' ? 'inativo' : 'ativo' });
+    if (!f) return;
+    const ativar = f.status !== 'ativo';
+    setAlterando(id);
+    try {
+      await definirAtivacao(id, ativar);
+      mostrarToast(ativar ? `${f.nome} ativada para a Busca de Leads.` : `${f.nome} desativada. Ela não aparecerá na Busca de Leads.`);
+    } catch (error) {
+      const code = error instanceof Error ? error.message : '';
+      mostrarToast(code === 'source_not_validated'
+        ? `${f.nome} precisa ser configurada e passar no teste antes de ser ativada.`
+        : 'Não foi possível alterar o status da fonte. Tente novamente.');
+    } finally {
+      setAlterando(null);
+    }
   };
 
   const abrirNovo = () => {
@@ -114,7 +135,7 @@ export default function FontesTab() {
 
       <div className="bg-secondary-50 border border-secondary-200 text-secondary-800 px-3 py-2 rounded-lg text-xs flex items-center gap-2">
         <i className="ri-information-line"></i>
-        <span>Fontes ativas ficam disponíveis na Busca de Leads.</span>
+        <span>Configure e teste em Canais e integrações. Somente fontes validadas e ativas aparecem na Busca de Leads.</span>
       </div>
 
       <div className="flex items-center justify-between">
@@ -164,12 +185,13 @@ export default function FontesTab() {
                 )}
               </button>
               <button
-                onClick={() => toggleStatus(f.id)}
+                onClick={() => void toggleStatus(f.id)}
+                disabled={alterando === f.id}
                 className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer whitespace-nowrap ${
                   f.status === 'ativo' ? 'bg-accent-100 hover:bg-accent-200 text-accent-800' : 'bg-primary-500 hover:bg-primary-600 text-background-50'
                 }`}
               >
-                {f.status === 'ativo' ? 'Desativar' : 'Ativar'}
+                {alterando === f.id ? 'Salvando...' : f.status === 'ativo' ? 'Desativar' : 'Ativar'}
               </button>
             </div>
             <div className="flex gap-2 mt-2">

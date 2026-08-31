@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { Integracao, CampoIntegracao } from '@/mocks/businessData';
 import { useIntegracoesStore } from '@/hooks/useIntegracoesStore';
+import { useFontesStore } from '@/hooks/useFontesStore';
 import { supabase } from '@/lib/supabase';
 import { detalheDoErroDeFuncao } from '@/lib/transportador';
 
@@ -13,6 +14,25 @@ const statusMeta: Record<string, { cor: string; label: string }> = {
 
 function getStatusMeta(status?: string) {
   return statusMeta[status ?? 'pendente'] ?? statusMeta['pendente'];
+}
+
+function canalDaIntegracao(id: string): 'whatsapp' | 'apify' | 'google_places' | null {
+  if (id === 'int-1') return 'whatsapp';
+  if (id === 'int-7') return 'apify';
+  if (id === 'int-8') return 'google_places';
+  return null;
+}
+
+function mensagemDaFalhaDeConexao(codigo: string, nome: string): string {
+  const mensagens: Record<string, string> = {
+    integration_credentials_missing: `As credenciais de ${nome} ainda não foram salvas. Use Configurar antes de testar.`,
+    source_credentials_missing: `As credenciais de ${nome} estão incompletas. Revise os campos obrigatórios e salve novamente.`,
+    source_not_configured: `${nome} ainda não está configurada para esta empresa. Salve as credenciais e teste de novo.`,
+    source_not_validated: `${nome} precisa passar no teste de conexão antes de ser ativada.`,
+    provider_error: `${nome} recusou a validação. Confira a chave, o Actor/Task ou as permissões da API.`,
+    organization_access_denied: 'Seu usuário não tem permissão administrativa na empresa ativa para configurar esta conexão.',
+  };
+  return mensagens[codigo] ?? codigo;
 }
 
 interface ConfigurarModalProps {
@@ -186,7 +206,8 @@ function ConfigurarModal({ integracao, onFechar, onSalvar }: ConfigurarModalProp
 }
 
 export default function IntegracoesTab() {
-  const { integracoes, conectar, desconectar, salvarCredenciais } = useIntegracoesStore();
+  const { integracoes, conectar, desconectar, salvarCredenciais, recarregar } = useIntegracoesStore();
+  const { recarregar: recarregarFontes } = useFontesStore();
   const [configurando, setConfigurando] = useState<Integracao | null>(null);
   const [toast, setToast] = useState('');
   const [testeZapi, setTesteZapi] = useState<{
@@ -211,16 +232,16 @@ export default function IntegracoesTab() {
 
     if (error) {
       const detalhe = await detalheDoErroDeFuncao(error);
-      setTesteZapi((s) => ({ ...s, status: 'erro', msg: detalhe }));
+      setTesteZapi((s) => ({ ...s, status: 'erro', msg: mensagemDaFalhaDeConexao(detalhe, canal === 'apify' ? 'Apify' : canal === 'google_places' ? 'Google Places' : 'WhatsApp') }));
       return;
     }
 
     if (data?.pronto) {
-      const id = canal === 'whatsapp' ? 'int-1' : canal === 'apify' ? 'int-7' : 'int-8';
-      conectar(id);
+      await Promise.all([recarregar(), recarregarFontes()]);
       setTesteZapi((s) => ({ ...s, status: 'ok', msg: `Conexão válida com ${data.provedor ?? 'o provedor'}. ${canal === 'whatsapp' ? 'Nenhuma mensagem foi transmitida.' : 'A fonte está pronta para a Busca Manual no Modo Real.'}` }));
     } else {
-      setTesteZapi((s) => ({ ...s, status: 'erro', msg: data?.detalhe || data?.erro || 'Integração não está pronta.' }));
+      const detalhe = data?.detalhe || data?.erro || 'Integração não está pronta.';
+      setTesteZapi((s) => ({ ...s, status: 'erro', msg: mensagemDaFalhaDeConexao(detalhe, canal === 'apify' ? 'Apify' : canal === 'google_places' ? 'Google Places' : 'WhatsApp') }));
     }
   };
 
@@ -232,8 +253,8 @@ export default function IntegracoesTab() {
   };
 
   const testar = (it: Integracao) => {
-    if (it.id === 'int-1' || it.id === 'int-7' || it.id === 'int-8') {
-      const canal = it.id === 'int-1' ? 'whatsapp' : it.id === 'int-7' ? 'apify' : 'google_places';
+    const canal = canalDaIntegracao(it.id);
+    if (canal) {
       setCanalEmTeste(canal);
       setTesteZapi((s) => ({ ...s, aberto: true }));
       void testarIntegracaoReal(canal);
@@ -266,6 +287,9 @@ export default function IntegracoesTab() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {integracoes.map((it) => {
           const meta = getStatusMeta(it.status);
+          const canal = canalDaIntegracao(it.id);
+          const usaConexaoSegura = Boolean(canal);
+          const exibeResultadoTeste = testeZapi.aberto && canal === canalEmTeste;
           return (
             <div key={it.id} className="bg-background-50 border border-background-200/70 rounded-xl p-5 flex flex-col">
               <div className="flex items-start justify-between mb-4">
@@ -280,12 +304,12 @@ export default function IntegracoesTab() {
               <h4 className="font-heading font-bold text-foreground-900 mb-1">{it.nome}</h4>
               <p className="text-xs text-foreground-500 mb-3">{it.descricao}</p>
 
-              <div className="flex items-center gap-2 mb-4 text-xs">
-                <span className="text-foreground-400">Último teste: {it.ultimoTeste}</span>
-                {temCredenciais(it) && (
+                <div className="flex items-center gap-2 mb-4 text-xs">
+                  <span className="text-foreground-400">Último teste: {it.ultimoTeste}</span>
+                {it.status === 'conectado' && (
                   <span className="inline-flex items-center gap-1 text-primary-700 font-medium">
                     <i className="ri-checkbox-circle-fill"></i>
-                    credenciais salvas
+                    pronto para uso
                   </span>
                 )}
               </div>
@@ -301,11 +325,11 @@ export default function IntegracoesTab() {
                 <div className="flex gap-2">
                   <button
                     onClick={() => testar(it)}
-                    className="flex-1 px-3 py-2 bg-background-100 hover:bg-background-200 text-foreground-700 rounded-lg text-xs font-semibold cursor-pointer whitespace-nowrap"
+                    className={`px-3 py-2 bg-background-100 hover:bg-background-200 text-foreground-700 rounded-lg text-xs font-semibold cursor-pointer whitespace-nowrap ${usaConexaoSegura ? 'w-full' : 'flex-1'}`}
                   >
-                    Testar
+                    {usaConexaoSegura ? 'Testar conexão' : 'Testar'}
                   </button>
-                  {it.status === 'conectado' ? (
+                  {!usaConexaoSegura && (it.status === 'conectado' ? (
                     <button
                       onClick={() => { desconectar(it.id); mostrarToast(`${it.nome} desconectada.`); }}
                       className="flex-1 px-3 py-2 bg-accent-100 hover:bg-accent-200 text-accent-800 rounded-lg text-xs font-semibold cursor-pointer whitespace-nowrap"
@@ -319,41 +343,23 @@ export default function IntegracoesTab() {
                     >
                       Conectar
                     </button>
-                  )}
+                  ))}
                 </div>
 
-                {(it.id === 'int-1' || it.id === 'int-7' || it.id === 'int-8') && (
-                  <div className="border-t border-background-200/70 pt-3">
-                    <button
-                      onClick={() => setTesteZapi((s) => ({ ...s, aberto: !s.aberto, status: 'idle', msg: '' }))}
-                      className="w-full px-3 py-2 bg-primary-100 hover:bg-primary-200 text-primary-700 rounded-lg text-xs font-semibold cursor-pointer whitespace-nowrap"
-                    >
-                      <i className="ri-send-plane-line mr-1.5"></i>
-                      Testar conexão
-                    </button>
-
-                    {testeZapi.aberto && (
-                      <div className="mt-3 space-y-2">
-                        <button
-                          onClick={() => void testarIntegracaoReal()}
-                          disabled={testeZapi.status === 'enviando'}
-                          className="px-4 py-2 bg-primary-500 hover:bg-primary-600 disabled:opacity-50 text-background-50 rounded-md text-sm font-semibold cursor-pointer whitespace-nowrap"
-                        >
-                          {testeZapi.status === 'enviando' ? 'Validando...' : 'Validar conexão'}
-                        </button>
-                        {testeZapi.status === 'ok' && (
-                          <p className="text-xs text-primary-700 flex items-center gap-1.5">
-                            <i className="ri-checkbox-circle-fill"></i>
-                            {testeZapi.msg}
-                          </p>
-                        )}
-                        {testeZapi.status === 'erro' && (
-                          <p className="text-xs text-accent-700 flex items-start gap-1.5">
-                            <i className="ri-error-warning-line mt-0.5"></i>
-                            {testeZapi.msg}
-                          </p>
-                        )}
-                      </div>
+                {exibeResultadoTeste && (
+                  <div className="pt-1">
+                    {testeZapi.status === 'enviando' && <p className="text-xs text-foreground-500">Validando conexão segura…</p>}
+                    {testeZapi.status === 'ok' && (
+                      <p className="text-xs text-primary-700 flex items-start gap-1.5">
+                        <i className="ri-checkbox-circle-fill mt-0.5"></i>
+                        {testeZapi.msg}
+                      </p>
+                    )}
+                    {testeZapi.status === 'erro' && (
+                      <p className="text-xs text-accent-700 flex items-start gap-1.5">
+                        <i className="ri-error-warning-line mt-0.5"></i>
+                        {testeZapi.msg}
+                      </p>
                     )}
                   </div>
                 )}
@@ -373,6 +379,7 @@ export default function IntegracoesTab() {
             const { data, error } = await supabase.functions.invoke('configurar-integracao', { body: { canal, credenciais } });
             if (error || !data?.ok) throw new Error(data?.erro ?? await detalheDoErroDeFuncao(error));
             salvarCredenciais(id, credenciais);
+            await Promise.all([recarregar(), recarregarFontes()]);
             mostrarToast(
               'Credenciais guardadas no cofre seguro. Agora use “Testar conexão”.',
             );

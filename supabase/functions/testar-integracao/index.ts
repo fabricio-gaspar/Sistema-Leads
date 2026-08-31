@@ -6,23 +6,30 @@ Deno.serve(async (request) => {
   if (!hasAllowedOrigin(request)) return json({ ok: false, erro: 'origin_not_allowed' }, 403);
   const headers = allowedCorsHeaders(request);
   if (request.method !== 'POST') return json({ ok: false, erro: 'method_not_allowed' }, 405, headers);
+  let admin: ReturnType<typeof createAdminClient> | null = null;
+  let organizationId: string | null = null;
+  let integrationId: string | null = null;
+  let sourceKey: string | null = null;
+  let authorized = false;
   try {
     const body = await request.json() as { canal?: string };
     const canal = String(body.canal ?? '').trim();
     if (!['whatsapp', 'email', 'apify', 'google_places'].includes(canal)) throw new Error('unsupported_channel');
     const { user } = await requireUser(request);
-    const admin = createAdminClient();
+    admin = createAdminClient();
     const { data: profile } = await admin.from('profiles').select('active_organization_id,name').eq('id', user.id).maybeSingle();
     if (!profile?.active_organization_id) throw new Error('organization_context_required');
-    const organizationId = profile.active_organization_id as string;
+    organizationId = profile.active_organization_id as string;
     await requireOrganizationRole(admin, user.id, organizationId, ['owner', 'admin', 'manager']);
+    authorized = true;
     const { data: integration, error } = await admin.from('integrations').select('id,provider,connected,enabled,paused,status_detail,last_tested_at')
       .eq('organization_id', organizationId).eq('key', canal).order('updated_at', { ascending: false }).limit(1).maybeSingle();
     if (error) throw error;
     if (!integration) throw new Error('integration_not_found');
+    integrationId = integration.id as string;
     const { data: credentials, error: credentialsError } = await admin.rpc('read_integration_secret', { p_integration: integration.id });
     if (credentialsError || !credentials) throw credentialsError ?? new Error('integration_credentials_missing');
-    const sourceKey = ['apify', 'google_places'].includes(canal) ? canal : null;
+    sourceKey = ['apify', 'google_places'].includes(canal) ? canal : null;
     let response: Response;
     if (canal === 'whatsapp') {
       const zapi = credentials as { instancia_id?: string; token?: string; client_token?: string; url_base?: string };
@@ -39,11 +46,17 @@ Deno.serve(async (request) => {
     } else if (canal === 'google_places') {
       const google = credentials as { api_key?: string };
       if (!google.api_key) throw new Error('source_credentials_missing');
-      response = await fetch(`https://maps.googleapis.com/maps/api/place/textsearch/json?query=Wayflex&language=pt-BR&region=br&key=${encodeURIComponent(google.api_key)}`);
-      if (response.ok) {
-        const result = await response.clone().json() as { status?: string };
-        if (result.status && !['OK', 'ZERO_RESULTS'].includes(result.status)) throw new Error('provider_error');
-      }
+      // Places API (New) exige POST, chave no header e FieldMask explícito.
+      // Isso evita o endpoint legado, que pode não estar habilitado no projeto.
+      response = await fetch('https://places.googleapis.com/v1/places:searchText', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'X-Goog-Api-Key': google.api_key,
+          'X-Goog-FieldMask': 'places.id',
+        },
+        body: JSON.stringify({ textQuery: 'Wayflex Brasil', languageCode: 'pt-BR', regionCode: 'BR', pageSize: 1 }),
+      });
     } else {
       throw new Error('provider_test_not_implemented');
     }
@@ -56,5 +69,30 @@ Deno.serve(async (request) => {
     }
     await admin.from('audit_logs').insert({ organization_id: organizationId, actor_id: user.id, actor_name: profile.name, actor_type: 'user', action: `integration.${body.canal}_checked`, detail: ready ? 'Integração pronta para a fila.' : 'Integração não está pronta para a fila.', entity_table: 'integrations', entity_id: integration?.id, event_data: { ready } });
     return json({ ok: true, pronto: ready, provedor: integration?.provider, detalhe: ready ? (sourceKey ? 'Conexão válida. A fonte pode ser usada no Modo Real.' : 'Conexão válida. Envios continuam passando pela fila segura.') : integration?.status_detail ?? 'Conexão ausente, pausada ou desabilitada.' }, 200, headers);
-  } catch (error) { return json({ ok: false, erro: safeError(error) }, 400, headers); }
+  } catch (error) {
+    const erro = safeError(error);
+    // O cartão e a Busca de Leads recebem o diagnóstico real após uma falha.
+    // Só registramos isso depois de validar a permissão do usuário; tentativas
+    // não autorizadas não podem alterar o estado da empresa.
+    if (admin && authorized && organizationId && integrationId) {
+      await admin.from('integrations').update({
+        connected: false,
+        enabled: false,
+        status_detail: 'Falha no último teste. Revise a configuração e teste novamente.',
+        last_error: erro,
+        last_error_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }).eq('id', integrationId);
+    }
+    if (admin && authorized && organizationId && sourceKey) {
+      await admin.from('lead_source_configs').update({
+        enabled: false,
+        connection_status: 'error',
+        last_error: erro,
+        last_error_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }).eq('organization_id', organizationId).eq('source_key', sourceKey);
+    }
+    return json({ ok: false, erro }, 400, headers);
+  }
 });

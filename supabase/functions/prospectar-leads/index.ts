@@ -94,6 +94,32 @@ function normalizeApifyItem(item: unknown, index: number, filters: Filters): Rec
   };
 }
 
+function normalizeGooglePlace(item: unknown, index: number, filters: Filters): Record<string, unknown> {
+  const record = object(item);
+  const displayName = object(record.displayName);
+  const types = Array.isArray(record.types)
+    ? record.types.filter((type): type is string => typeof type === 'string').join(', ')
+    : '';
+  const name = text(displayName.text, 1_000) || `Empresa ${index + 1}`;
+  const phone = text(record.internationalPhoneNumber || record.nationalPhoneNumber, 100);
+  return {
+    externalId: text(record.id, 300) || `google-${index}-${crypto.randomUUID()}`,
+    nome: '',
+    empresa: name,
+    telefone: phone,
+    whatsapp: phone,
+    email: '',
+    site: text(record.websiteUri, 1_000),
+    cidade: filters.cidade || '',
+    estado: filters.estado || '',
+    cargo: filters.cargo || '',
+    segmento: types || searchTerms(filters)[0],
+    porte: '',
+    sourceUrl: text(record.googleMapsUri || record.websiteUri, 1_000),
+    sourceMetadata: { provider: 'google_places', address: text(record.formattedAddress, 1_000), rating: record.rating ?? null },
+  };
+}
+
 async function callApify(credentials: Record<string, unknown>, filters: Filters): Promise<{ leads: Record<string, unknown>[]; providerRunId: string }> {
   const token = text(credentials.api_token || credentials.token, 300);
   const actorId = text(credentials.actor_id, 300);
@@ -134,14 +160,37 @@ async function callGooglePlaces(credentials: Record<string, unknown>, filters: F
   const apiKey = text(credentials.api_key, 300);
   if (!apiKey) throw new Error('source_credentials_missing');
   const query = `${searchTerms(filters).join(' ')} em ${locationQuery(filters)}`;
-  const url = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query)}&language=pt-BR&region=br&key=${encodeURIComponent(apiKey)}`;
-  const response = await fetch(url);
-  if (!response.ok) throw new Error('provider_error');
-  const body = object(await response.json());
-  const status = text(body.status, 80);
-  if (status === 'REQUEST_DENIED' || status === 'INVALID_REQUEST' || status === 'OVER_QUERY_LIMIT') throw new Error('provider_error');
-  const results = Array.isArray(body.results) ? body.results : [];
-  const leads = results.slice(0, filters.volumeMaximo).map((item, index) => normalizeApifyItem(item, index, filters));
+  const limite = Math.min(filters.volumeMaximo, 60);
+  const fieldMask = 'places.id,places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.internationalPhoneNumber,places.websiteUri,places.types,places.googleMapsUri,places.rating,nextPageToken';
+  const results: unknown[] = [];
+  let pageToken = '';
+
+  // A Places API (New) retorna até 60 resultados paginados. O limite pedido
+  // pelo usuário é sempre respeitado antes de devolvermos qualquer lead.
+  while (results.length < limite) {
+    const response = await fetch('https://places.googleapis.com/v1/places:searchText', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'X-Goog-Api-Key': apiKey,
+        'X-Goog-FieldMask': fieldMask,
+      },
+      body: JSON.stringify({
+        textQuery: query,
+        languageCode: 'pt-BR',
+        regionCode: 'BR',
+        pageSize: Math.min(20, limite - results.length),
+        ...(pageToken ? { pageToken } : {}),
+      }),
+    });
+    if (!response.ok) throw new Error('provider_error');
+    const body = object(await response.json());
+    const page = Array.isArray(body.places) ? body.places : [];
+    results.push(...page.slice(0, limite - results.length));
+    pageToken = text(body.nextPageToken, 1_000);
+    if (!pageToken || page.length === 0) break;
+  }
+  const leads = results.slice(0, limite).map((item, index) => normalizeGooglePlace(item, index, filters));
   return { providerRunId: `google-${crypto.randomUUID()}`, leads };
 }
 
@@ -159,6 +208,9 @@ Deno.serve(async (request) => {
 
   let runId: string | null = null;
   let admin: ReturnType<typeof createAdminClient> | null = null;
+  let organizationId: string | null = null;
+  let sourceId: string | null = null;
+  let integrationId: string | null = null;
   try {
     const body = await readJson(request);
     const sourceKey = requiredString(body.sourceKey, 'source_key', 80);
@@ -169,17 +221,19 @@ Deno.serve(async (request) => {
     admin = createAdminClient();
     const { data: profile, error: profileError } = await admin.from('profiles').select('active_organization_id,name').eq('id', user.id).maybeSingle();
     if (profileError || !profile?.active_organization_id) throw new Error('organization_context_required');
-    const organizationId = profile.active_organization_id as string;
+    organizationId = profile.active_organization_id as string;
     await requireOrganizationRole(admin, user.id, organizationId, ['owner', 'admin', 'manager', 'seller', 'sdr']);
 
     const { data: source, error: sourceError } = await admin.from('lead_source_configs')
       .select('id,enabled,mode,connection_status').eq('organization_id', organizationId).eq('source_key', sourceKey).maybeSingle() as { data: SourceRow | null; error: unknown };
     if (sourceError || !source) throw new Error('source_not_configured');
+    sourceId = source.id;
     if (!source.enabled || source.connection_status !== 'connected') throw new Error('source_disabled');
 
     const { data: integration, error: integrationError } = await admin.from('integrations')
       .select('id,provider,enabled,connected,paused').eq('organization_id', organizationId).eq('key', sourceKey).maybeSingle() as { data: IntegrationRow | null; error: unknown };
     if (integrationError || !integration) throw new Error('source_not_configured');
+    integrationId = integration.id;
     if (!integration.enabled || !integration.connected || integration.paused) throw new Error('source_disabled');
     const { data: credentials, error: credentialsError } = await admin.rpc('read_integration_secret', { p_integration: integration.id });
     if (credentialsError || !credentials) throw new Error('source_credentials_missing');
@@ -211,6 +265,28 @@ Deno.serve(async (request) => {
   } catch (error) {
     const message = safeError(error);
     if (admin && runId) await admin.from('prospecting_runs').update({ status: 'failed', last_error: message, completed_at: new Date().toISOString(), updated_at: new Date().toISOString() }).eq('id', runId);
+    // Mantém a falha visível no mesmo lugar em que a fonte é configurada, sem
+    // perder o histórico da tentativa de busca. A fonte volta a ser liberada
+    // somente após uma nova validação explícita.
+    if (admin && runId && organizationId && sourceId) {
+      await admin.from('lead_source_configs').update({
+        enabled: false,
+        connection_status: 'error',
+        last_error: message,
+        last_error_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }).eq('id', sourceId);
+    }
+    if (admin && runId && integrationId) {
+      await admin.from('integrations').update({
+        connected: false,
+        enabled: false,
+        status_detail: 'Falha na última busca real. Teste a conexão antes de tentar novamente.',
+        last_error: message,
+        last_error_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }).eq('id', integrationId);
+    }
     const status = ['authentication_required', 'invalid_session', 'organization_access_denied', 'organization_role_denied'].includes(message) ? 403 : 400;
     return json({ ok: false, error: message, runId }, status, headers);
   }

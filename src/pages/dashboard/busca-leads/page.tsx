@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { segmentos, portes } from '@/mocks/leadsData';
 import type { Lead } from '@/mocks/leadsData';
 import { useLeadsStore, waitForLeadsPersistence } from '@/hooks/useLeadsStore';
@@ -134,6 +134,13 @@ export default function BuscaLeads() {
     return ['apify', 'google_places'].includes(fonte.sourceKey || '');
   });
 
+  useEffect(() => {
+    if (fonteSelecionada && !fontesDisponiveis.some((fonte) => fonte.id === fonteSelecionada)) {
+      setFonteSelecionada('');
+      setEtapa(1);
+    }
+  }, [fonteSelecionada, fontesDisponiveis]);
+
   const responsavelNome =
     modoAtendimento === 'IA' ? 'Ana (IA)' : mockUsers.find((u) => u.id === responsavel)?.name || 'Selecionar responsável';
 
@@ -239,6 +246,7 @@ export default function BuscaLeads() {
     try {
       let encontrados: PreviewLead[];
       if (config.modoExecucao === 'PRODUCAO') {
+        if (!fontesDisponiveis.some((item) => item.id === fonteSelecionada)) throw new Error('source_disabled');
         if (!sourceKey) throw new Error('source_not_configured');
         const { data, error } = await supabase.functions.invoke('prospectar-leads', {
           body: {
@@ -316,6 +324,9 @@ export default function BuscaLeads() {
       source_credentials_missing: `As credenciais de ${fonte} não foram encontradas no cofre seguro. Configure a fonte novamente.`,
       source_not_supported: `${fonte} ainda não possui um adaptador de busca real habilitado.`,
       provider_error: `O provedor de ${fonte} recusou a busca. Confira as credenciais, limites e a configuração do Actor/Task.`,
+      source_input_invalid: `A entrada adicional de ${fonte} não é um JSON válido. Corrija o campo em Configurações → Integrações.`,
+      provider_invalid_response: `${fonte} respondeu em um formato incompatível. Use uma Task/Actor compatível ou ajuste a entrada adicional.`,
+      organization_access_denied: 'Seu usuário não tem a permissão necessária na empresa ativa para executar buscas reais.',
       prospecting_empty_response: `A busca em ${fonte} terminou sem uma resposta válida.`,
     };
     return mensagens[code] || `Não foi possível buscar leads em ${fonte || 'a fonte selecionada'} no Modo Real. Tente novamente após validar a conexão.`;

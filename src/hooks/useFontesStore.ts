@@ -35,15 +35,16 @@ function nomeDaFonte(sourceKey: string, fallback: string): string {
 }
 
 function statusDaFonte(enabled: boolean, connectionStatus: string | null): string {
-  if (enabled && connectionStatus === 'connected') return 'ativo';
   if (connectionStatus === 'error') return 'erro';
+  if (enabled && connectionStatus === 'connected') return 'ativo';
+  if (!enabled && connectionStatus === 'connected') return 'inativo';
   return 'pendente';
 }
 
-async function hidratarDoBackend(): Promise<void> {
+async function hidratarDoBackend(force = false): Promise<void> {
   const { data: auth } = await supabase.auth.getUser();
   const userId = auth.user?.id;
-  if (!userId || hydratedUser === userId) return;
+  if (!userId || (!force && hydratedUser === userId)) return;
 
   const { data: profile } = await supabase
     .from('profiles')
@@ -92,8 +93,23 @@ async function hidratarDoBackend(): Promise<void> {
     });
   }
 
+  // As fontes conhecidas vêm sempre do backend. Nunca mantemos um estado
+  // "ativo" só no navegador, pois isso faria a Busca de Leads exibir uma
+  // API que não está realmente pronta para executar.
+  const fontesConhecidas = fontesLeads.map((base) => {
+    const remota = porChave.get(base.sourceKey);
+    return remota ?? {
+      ...base,
+      status: 'pendente',
+      connectionStatus: 'not_configured',
+      mode: 'sandbox',
+      ultimaSincronizacao: '—',
+      leadsImportados: 0,
+      erros: 0,
+    };
+  });
   const personalizadas = state.filter((fonte) => !fonte.sourceKey && !fontesLeads.some((base) => base.id === fonte.id));
-  state = [...Array.from(porChave.values()), ...personalizadas];
+  state = [...fontesConhecidas, ...personalizadas];
   persistirLocal();
   hydratedUser = userId;
   notify();
@@ -102,12 +118,14 @@ async function hidratarDoBackend(): Promise<void> {
 export interface FontesStore {
   fontes: FonteLead[];
   atualizar: (id: string, mudanca: Partial<FonteLead>) => void;
+  definirAtivacao: (id: string, enabled: boolean) => Promise<void>;
+  recarregar: () => Promise<void>;
   adicionar: (fonte: FonteLead) => void;
   excluir: (id: string) => void;
 }
 
 export function fontesAtivas(fontes: FonteLead[]): FonteLead[] {
-  return fontes.filter((fonte) => fonte.status === 'ativo');
+  return fontes.filter((fonte) => fonte.status === 'ativo' && fonte.connectionStatus === 'connected');
 }
 
 export function normalizarMetricasPorFonte(fontes: FonteLead[]): FonteLead[] {
@@ -136,7 +154,10 @@ export function useFontesStore(): FontesStore {
   useEffect(() => {
     void hidratarDoBackend();
     const { data: subscription } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user?.id !== hydratedUser) void hidratarDoBackend();
+      if (session?.user?.id !== hydratedUser) {
+        hydratedUser = null;
+        void hidratarDoBackend(true);
+      }
     });
     return () => subscription.subscription.unsubscribe();
   }, []);
@@ -152,9 +173,27 @@ export function useFontesStore(): FontesStore {
     if (typeof mudanca.mode === 'string') payload.mode = mudanca.mode;
     if (Object.keys(payload).length > 0) {
       void supabase.from('lead_source_configs').update(payload).eq('id', atual.remoteId)
-        .then(({ error }) => { if (error) console.error('[fontes] falha ao salvar configuração', error); });
+        .then(({ error }) => {
+          if (error) console.error('[fontes] falha ao salvar configuração', error);
+          else void hidratarDoBackend(true);
+        });
     }
   };
+
+  const definirAtivacao = async (id: string, enabled: boolean) => {
+    const fonte = state.find((item) => item.id === id);
+    if (!fonte?.remoteId) throw new Error('source_not_configured');
+    if (enabled && fonte.connectionStatus !== 'connected') throw new Error('source_not_validated');
+
+    const { error } = await supabase
+      .from('lead_source_configs')
+      .update({ enabled })
+      .eq('id', fonte.remoteId);
+    if (error) throw error;
+    await hidratarDoBackend(true);
+  };
+
+  const recarregar = async () => { await hidratarDoBackend(true); };
 
   const adicionar = (fonte: FonteLead) => {
     state = [...state, fonte];
@@ -170,5 +209,5 @@ export function useFontesStore(): FontesStore {
     if (atual?.remoteId) void supabase.from('lead_source_configs').delete().eq('id', atual.remoteId);
   };
 
-  return { fontes, atualizar, adicionar, excluir };
+  return { fontes, atualizar, definirAtivacao, recarregar, adicionar, excluir };
 }
