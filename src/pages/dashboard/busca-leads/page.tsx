@@ -295,7 +295,6 @@ export default function BuscaLeads() {
     } finally {
       setBuscando(false);
       setFaseBusca('');
-      setFaseBusca('');
     }
   };
 
