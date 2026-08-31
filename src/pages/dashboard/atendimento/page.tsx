@@ -327,7 +327,7 @@ export default function Atendimento() {
     const lead = leadSelecionado;
     if (lead) {
       setLeads((prev) =>
-        prev.map((l) => (l.id === lead.id ? { ...l, etapa: 'Orçamento Enviado' } : l))
+        prev.map((l) => (l.id === lead.id ? { ...l, etapa: 'Orçamento' } : l))
       );
     }
     fluxo.registrarAuditoria({ evento: 'PROPOSAL_SENT', ator: 'Você', alvo: leadSelecionado?.nome || p.lead, detalhes: `Proposta ${p.numero} enviada pela Central de Atendimento` });
