@@ -1,5 +1,6 @@
--- Normaliza papéis históricos para a enumeração interna de autorização.
-update public.organization_members set role = 'admin' where role = 'administrador';
+-- O enum de papéis mantém os nomes históricos em português. A camada de
+-- autorização normaliza "administrador" para o papel interno de administrador
+-- sem alterar dados existentes.
 
 create or replace function public.store_integration_secret(p_integration uuid, p_secret jsonb)
 returns void language plpgsql security definer set search_path = public, vault as $$

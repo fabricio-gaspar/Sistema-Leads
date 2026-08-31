@@ -101,12 +101,9 @@ export default function FontesTab() {
         </div>
       )}
 
-      <div className="bg-secondary-50 border border-secondary-200 text-secondary-800 px-4 py-3 rounded-lg text-sm flex items-start gap-2">
-        <i className="ri-flask-line mt-0.5"></i>
-        <span>
-          <strong>Fontes de leads.</strong> Ative apenas as fontes que podem participar da busca. Fontes inativas não aparecem em
-          Busca de Leads. As métricas abaixo pertencem exclusivamente à fonte indicada em cada card.
-        </span>
+      <div className="bg-secondary-50 border border-secondary-200 text-secondary-800 px-3 py-2 rounded-lg text-xs flex items-center gap-2">
+        <i className="ri-information-line"></i>
+        <span>Fontes ativas ficam disponíveis na Busca de Leads.</span>
       </div>
 
       <div className="flex items-center justify-between">
@@ -120,29 +117,29 @@ export default function FontesTab() {
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
         {fontes.map((f) => (
-          <div key={f.id} className="bg-background-50 border border-background-200/70 rounded-xl p-5">
-            <div className="flex items-start justify-between mb-4">
-              <div className="w-10 h-10 bg-primary-100 rounded-lg flex items-center justify-center">
-                <i className={`${tipoIcones[f.tipo]} text-primary-600 text-lg`}></i>
+          <div key={f.id} className="bg-background-50 border border-background-200/70 rounded-xl p-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="w-9 h-9 bg-primary-100 rounded-lg flex items-center justify-center">
+                <i className={`${tipoIcones[f.tipo]} text-primary-600`}></i>
               </div>
               <span className={`inline-block px-2.5 py-1 rounded-md text-xs font-medium ${statusCores[f.status]}`}>
                 {f.status === 'ativo' ? 'Ativo' : f.status === 'pendente' ? 'Pendente' : 'Inativo'}
               </span>
             </div>
-            <h4 className="font-heading font-bold text-foreground-900 mb-1">{f.nome}</h4>
-            <p className="text-xs text-foreground-500 mb-3">{f.tipo} · {f.mapeamento}</p>
-            <div className="space-y-1 text-xs text-foreground-400 mb-4">
-              <p>Última sincronização: {f.ultimaSincronizacao}</p>
-              <p>Leads importados: <span className="font-medium text-foreground-700">{f.leadsImportados}</span></p>
-              {f.erros > 0 && <p className="text-accent-600">Erros: {f.erros}</p>}
+            <h4 className="font-heading font-bold text-foreground-900 text-sm mb-1 truncate" title={f.nome}>{f.nome}</h4>
+            <p className="text-xs text-foreground-500 truncate" title={f.mapeamento}>{f.tipo} · {f.mapeamento}</p>
+            <div className="flex items-center gap-3 text-xs text-foreground-500 my-3">
+              <span><strong className="text-foreground-800">{f.leadsImportados.toLocaleString()}</strong> leads</span>
+              {f.erros > 0 && <span className="text-accent-600"><strong>{f.erros}</strong> erros</span>}
+              <span className="ml-auto text-[11px] text-foreground-400">{f.ultimaSincronizacao === '—' ? 'Sem teste' : f.ultimaSincronizacao}</span>
             </div>
             <div className="flex gap-2">
               <button
                 onClick={() => testarFonte(f.id)}
                 disabled={testando === f.id}
-                className="flex-1 px-3 py-2 bg-background-100 hover:bg-background-200 text-foreground-700 rounded-lg text-xs font-semibold cursor-pointer whitespace-nowrap"
+                className="flex-1 px-3 py-1.5 bg-background-100 hover:bg-background-200 text-foreground-700 rounded-lg text-xs font-semibold cursor-pointer whitespace-nowrap"
               >
                 {testando === f.id ? (
                   <span className="inline-flex items-center gap-1">
@@ -157,7 +154,7 @@ export default function FontesTab() {
               </button>
               <button
                 onClick={() => toggleStatus(f.id)}
-                className={`flex-1 px-3 py-2 rounded-lg text-xs font-semibold cursor-pointer whitespace-nowrap ${
+                className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer whitespace-nowrap ${
                   f.status === 'ativo' ? 'bg-accent-100 hover:bg-accent-200 text-accent-800' : 'bg-primary-500 hover:bg-primary-600 text-background-50'
                 }`}
               >
@@ -167,13 +164,13 @@ export default function FontesTab() {
             <div className="flex gap-2 mt-2">
               <button
                 onClick={() => abrirEdicao(f)}
-                className="flex-1 px-3 py-2 bg-background-100 hover:bg-background-200 text-foreground-700 rounded-lg text-xs font-semibold cursor-pointer whitespace-nowrap"
+                className="flex-1 px-3 py-1.5 bg-background-100 hover:bg-background-200 text-foreground-700 rounded-lg text-xs font-semibold cursor-pointer whitespace-nowrap"
               >
                 <i className="ri-edit-line mr-1"></i> Editar
               </button>
               <button
                 onClick={() => excluirFonte(f)}
-                className="flex-1 px-3 py-2 bg-background-100 hover:bg-accent-50 text-accent-600 rounded-lg text-xs font-semibold cursor-pointer whitespace-nowrap"
+                className="flex-1 px-3 py-1.5 bg-background-100 hover:bg-accent-50 text-accent-600 rounded-lg text-xs font-semibold cursor-pointer whitespace-nowrap"
               >
                 <i className="ri-delete-bin-6-line mr-1"></i> Excluir
               </button>

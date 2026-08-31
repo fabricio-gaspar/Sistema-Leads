@@ -223,6 +223,11 @@ export default function IntegracoesTab() {
   };
 
   const testar = (it: Integracao) => {
+    if (it.id === 'int-1') {
+      setTesteZapi((s) => ({ ...s, aberto: true }));
+      void testarZapi();
+      return;
+    }
     if (!temCredenciais(it)) {
       setConfigurando(it);
       return;

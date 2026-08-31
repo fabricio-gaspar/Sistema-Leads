@@ -5,6 +5,15 @@ export interface AuthContext {
   user: User;
 }
 
+function canonicalRole(role: string): string {
+  const aliases: Record<string, string> = {
+    administrador: 'admin',
+    vendedor: 'seller',
+    gerente: 'manager',
+  };
+  return aliases[role] ?? role;
+}
+
 function requiredEnv(name: string): string {
   const value = Deno.env.get(name);
   if (!value) throw new Error(`missing_${name.toLowerCase()}`);
@@ -44,7 +53,7 @@ export async function requireOrganizationRole(
     .eq('user_id', userId)
     .maybeSingle();
 
-  if (error || !data || data.status !== 'active' || !allowedRoles.includes(data.role)) {
+  if (error || !data || data.status !== 'active' || !allowedRoles.includes(canonicalRole(data.role))) {
     throw new Error('organization_access_denied');
   }
 }

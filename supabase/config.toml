@@ -1,4 +1,4 @@
-project_id = "leadai"
+project_id = "thgzrkppouoevapjquyu"
 
 # User-facing functions keep Supabase JWT verification enabled (the default).
 # External webhooks cannot send a user JWT, so this endpoint authenticates the

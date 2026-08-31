@@ -1,4 +1,4 @@
-import { createAdminClient, requireUser } from '../_shared/auth.ts';
+import { createAdminClient, requireOrganizationRole, requireUser } from '../_shared/auth.ts';
 import { allowedCorsHeaders, hasAllowedOrigin, json, preflight, safeError } from '../_shared/http.ts';
 
 Deno.serve(async (request) => {
@@ -14,8 +14,7 @@ Deno.serve(async (request) => {
     const { data: profile } = await admin.from('profiles').select('active_organization_id,name').eq('id', user.id).maybeSingle();
     if (!profile?.active_organization_id) throw new Error('organization_context_required');
     const organizationId = profile.active_organization_id as string;
-    const { data: member } = await admin.from('organization_members').select('status,role').eq('organization_id', organizationId).eq('user_id', user.id).maybeSingle();
-    if (!member || member.status !== 'active' || !['owner', 'admin', 'manager'].includes(member.role)) throw new Error('organization_access_denied');
+    await requireOrganizationRole(admin, user.id, organizationId, ['owner', 'admin', 'manager']);
     const { data: integration, error } = await admin.from('integrations').select('id,provider,connected,enabled,paused,status_detail,last_tested_at')
       .eq('organization_id', organizationId).ilike('key', `%${body.canal}%`).order('updated_at', { ascending: false }).limit(1).maybeSingle();
     if (error) throw error;
