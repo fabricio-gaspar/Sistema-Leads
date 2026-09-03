@@ -15,20 +15,34 @@ Deno.serve(async (request) => {
     await requireOrganizationRole(admin, user.id, orgId, ['owner', 'admin', 'manager']);
     const body = await request.json().catch(() => ({})) as { run?: string };
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-    const [{ count: sent }, { count: optOuts }, { data: integration }, { data: activePolicy }] = await Promise.all([
-      admin.from('lead_messages').select('*', { count: 'exact', head: true }).eq('organization_id', orgId).in('sender', ['ana', 'human']).gte('sent_at', since),
-      admin.from('leads').select('*', { count: 'exact', head: true }).eq('organization_id', orgId).eq('opt_out', true),
+    const [{ count: sent }, { count: failed }, { count: optOuts }, { data: integration }, { data: activePolicy }] = await Promise.all([
+      admin.from('outreach_jobs').select('*', { count: 'exact', head: true }).eq('organization_id', orgId).eq('channel', 'whatsapp').eq('status', 'processed').gte('processed_at', since),
+      admin.from('outreach_jobs').select('*', { count: 'exact', head: true }).eq('organization_id', orgId).eq('channel', 'whatsapp').eq('status', 'failed').gte('run_at', since),
+      admin.from('contact_suppressions').select('*', { count: 'exact', head: true }).eq('organization_id', orgId).ilike('channel', 'whatsapp').gte('created_at', since),
       admin.from('integrations').select('id').eq('organization_id', orgId).ilike('key', '%whatsapp%').limit(1).maybeSingle(),
       admin.from('channel_policy_events').select('risk_level,action').eq('organization_id', orgId).eq('channel', 'whatsapp').is('resolved_at', null).order('created_at', { ascending: false }).limit(1).maybeSingle(),
     ]);
-    const sentCount = sent ?? 0; const optOutCount = optOuts ?? 0;
-    await admin.from('channel_health_samples').insert({ organization_id: orgId, integration_id: integration?.id ?? null, channel: 'whatsapp', source: 'derived', sent_count: sentCount, delivered_count: 0, failed_count: 0, opt_out_count: optOutCount, complaint_count: 0, raw_metrics: { window_hours: 24, worker: 'manual_or_scheduler' } });
-    const shouldPause = sentCount >= 20 && optOutCount / sentCount >= 0.08;
-    if (shouldPause && !activePolicy) await admin.from('channel_policy_events').insert({ organization_id: orgId, integration_id: integration?.id ?? null, channel: 'whatsapp', risk_level: 'high', action: 'pause', reason: 'Taxa de opt-out acima do limite operacional configurado.', evidence: { sent_count: sentCount, opt_out_count: optOutCount } });
+    const sentCount = sent ?? 0; const failedCount = failed ?? 0; const optOutCount = optOuts ?? 0;
+    await admin.from('channel_health_samples').insert({ organization_id: orgId, integration_id: integration?.id ?? null, channel: 'whatsapp', source: 'provider_queue', sent_count: sentCount, delivered_count: 0, failed_count: failedCount, opt_out_count: optOutCount, complaint_count: 0, raw_metrics: { window_hours: 24, worker: 'automation-worker' } });
+    const optOutRate = sentCount > 0 ? optOutCount / sentCount : 0;
+    const failureRate = sentCount + failedCount > 0 ? failedCount / (sentCount + failedCount) : 0;
+    const shouldPause = sentCount + failedCount >= 20 && (optOutRate >= 0.08 || failureRate >= 0.15);
+    if (shouldPause) {
+      if (!activePolicy) await admin.from('channel_policy_events').insert({
+        organization_id: orgId,
+        integration_id: integration?.id ?? null,
+        channel: 'whatsapp',
+        risk_level: 'high',
+        action: 'pause',
+        reason: optOutRate >= 0.08 ? 'Taxa de opt-out acima do limite operacional configurado.' : 'Taxa de falhas acima do limite operacional configurado.',
+        evidence: { sent_count: sentCount, failed_count: failedCount, opt_out_count: optOutCount, failure_rate: failureRate, opt_out_rate: optOutRate },
+      });
+      if (integration?.id) await admin.from('integrations').update({ paused: true, status_detail: 'Envios pausados automaticamente pelo monitor de risco.' }).eq('id', integration.id).eq('organization_id', orgId);
+    }
     let timeoutRuns = 0;
     let sentJobs = 0;
     let failedJobs = 0;
-    if (body.run === 'timeouts') {
+    if (body.run === 'timeouts' || body.run === 'all') {
       const { data: dueLeads, error: dueError } = await admin.from('leads')
         .select('id,modo_atendimento,owner_id')
         .eq('organization_id', orgId)
@@ -70,6 +84,11 @@ Deno.serve(async (request) => {
           const response = await fetch(`${baseUrl}/instances/${encodeURIComponent(zapi.instancia_id ?? '')}/token/${encodeURIComponent(zapi.token ?? '')}/send-text`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(zapi.client_token ? { 'Client-Token': zapi.client_token } : {}) }, body: JSON.stringify({ phone: recipient, message }) });
           if (!response.ok) throw new Error(`provider_http_${response.status}`);
           await admin.from('outreach_jobs').update({ status: 'processed', processed_at: new Date().toISOString(), error: null }).eq('id', job.id).eq('organization_id', orgId);
+          await admin.from('leads').update({
+            last_contact: new Date().toISOString(),
+            no_reply_deadline_at: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(),
+            no_reply_processed_at: null,
+          }).eq('id', job.lead_id).eq('organization_id', orgId);
           sentJobs += 1;
         } catch (error) {
           const attempt = Number(job.attempt ?? 0) + 1;
@@ -79,6 +98,6 @@ Deno.serve(async (request) => {
       }
     }
     await admin.from('audit_logs').insert({ organization_id: orgId, actor_id: user.id, actor_name: profile.name, actor_type: 'user', action: 'automation.worker_ran', detail: 'Telemetria, políticas de canal e timeouts avaliados.', entity_table: 'channel_health_samples', event_data: { sent_count: sentCount, opt_out_count: optOutCount, pause_recommended: shouldPause, timeout_runs: timeoutRuns } });
-    return json({ ok: true, sent_count: sentCount, opt_out_count: optOutCount, pause_recommended: shouldPause, timeout_runs: timeoutRuns, sent_jobs: sentJobs, failed_jobs: failedJobs }, 200, headers);
+    return json({ ok: true, sent_count: sentCount, failed_count: failedCount, opt_out_count: optOutCount, pause_recommended: shouldPause, timeout_runs: timeoutRuns, sent_jobs: sentJobs, failed_jobs: failedJobs }, 200, headers);
   } catch (error) { return json({ error: safeError(error) }, 400, headers); }
 });

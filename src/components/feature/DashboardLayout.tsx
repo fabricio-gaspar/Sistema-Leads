@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Link, useLocation, Outlet, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useNotificacoesStore } from '@/hooks/useNotificacoesStore';
@@ -7,6 +7,7 @@ import { useConfiguracaoStore } from '@/hooks/useConfiguracaoStore';
 import { useSaudeWhatsapp } from '@/hooks/useSaudeWhatsapp';
 import SaudeWhatsappIndicator from '@/components/feature/SaudeWhatsappIndicator';
 import ModoExecucaoToggle from '@/components/feature/ModoExecucaoToggle';
+import { runOperationalAutomations } from '@/lib/crm/automationRepository';
 
 interface NavItem {
   label: string;
@@ -60,6 +61,19 @@ export default function DashboardLayout() {
   const tarefas = useTarefasStore();
   const { config } = useConfiguracaoStore();
   const saude = useSaudeWhatsapp();
+
+  useEffect(() => {
+    if (!user || config.modoExecucao !== 'PRODUCAO') return;
+
+    const processar = () => {
+      void runOperationalAutomations().catch(() => undefined);
+    };
+
+    processar();
+    const intervalId = window.setInterval(processar, 60_000);
+    return () => window.clearInterval(intervalId);
+  }, [user, config.modoExecucao]);
+
   if (loading) {
     return (
       <div className="flex h-screen items-center justify-center bg-background-50">

@@ -47,7 +47,7 @@ Deno.serve(async (request) => {
       await admin.from('webhook_events').update({ status: 'ignored' }).eq('organization_id', integration.organization_id).eq('provider', integration.provider).eq('external_id', externalId);
       return json({ accepted: true, ignored: true }, 202);
     }
-    const { data: candidates } = await admin.from('leads').select('id,modo_atendimento,owner_id,phone,whatsapp')
+    const { data: candidates } = await admin.from('leads').select('id,modo_atendimento,owner_id,phone,whatsapp,first_inbound_at')
       .eq('organization_id', integration.organization_id).or(`phone.ilike.%${phone.slice(-11)}%,whatsapp.ilike.%${phone.slice(-11)}%`).limit(2);
     const lead = candidates?.find((item) => [digits(item.phone), digits(item.whatsapp)].some((candidate) => candidate.endsWith(phone.slice(-11)))) ?? null;
     if (!lead) {
@@ -56,7 +56,14 @@ Deno.serve(async (request) => {
       return json({ accepted: true, matched: false }, 202);
     }
     await admin.from('channel_inbound_events').upsert({ organization_id: integration.organization_id, provider: integration.provider, event_type: eventType, external_id: externalId, lead_id: lead.id, payload, status: 'processing' }, { onConflict: 'organization_id,provider,external_id', ignoreDuplicates: true });
-    await admin.from('lead_messages').insert({ organization_id: integration.organization_id, lead_id: lead.id, sender: 'lead', sender_name: 'Lead', type: 'received', text: message, sent_at: new Date().toISOString() });
+    const receivedAt = new Date().toISOString();
+    await admin.from('lead_messages').insert({ organization_id: integration.organization_id, lead_id: lead.id, sender: 'lead', sender_name: 'Lead', type: 'received', text: message, sent_at: receivedAt });
+    await admin.from('leads').update({
+      first_inbound_at: lead.first_inbound_at ?? receivedAt,
+      last_contact: receivedAt,
+      no_reply_deadline_at: null,
+      no_reply_processed_at: null,
+    }).eq('organization_id', integration.organization_id).eq('id', lead.id);
     const anaResponse = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/ana-run`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'x-internal-worker-secret': Deno.env.get('WHATSAPP_WEBHOOK_SHARED_SECRET') ?? '' }, body: JSON.stringify({ event: 'message.received', lead_id: lead.id, modo: lead.modo_atendimento, organization_id: integration.organization_id, contexto: { channel: 'whatsapp', inbound_event_id: externalId } }) });
     await admin.from('channel_inbound_events').update({ status: anaResponse.ok ? 'processed' : 'failed', error: anaResponse.ok ? null : `ana_http_${anaResponse.status}`, processed_at: new Date().toISOString() }).eq('organization_id', integration.organization_id).eq('provider', integration.provider).eq('external_id', externalId);
     await admin.from('webhook_events').update({ status: anaResponse.ok ? 'processed' : 'failed' }).eq('organization_id', integration.organization_id).eq('provider', integration.provider).eq('external_id', externalId);
