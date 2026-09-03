@@ -182,10 +182,10 @@ export default function Login() {
 
           <div className="mt-10 grid grid-cols-2 gap-4 text-left">
             {[
-              { value: '1.247', label: 'Leads este mês' },
-              { value: 'R$ 284K', label: 'Faturamento' },
+              { value: '1.247', label: 'Leads capturados' },
               { value: '68,6%', label: 'Taxa de resposta' },
-              { value: '187', label: 'Convertidos' },
+              { value: '187', label: 'Qualificados' },
+              { value: '42', label: 'Reuniões agendadas' },
             ].map((stat, i) => (
               <div key={i} className="bg-background-50/5 border border-background-50/10 rounded-lg p-4">
                 <p className="text-xl font-heading font-bold text-background-50">{stat.value}</p>

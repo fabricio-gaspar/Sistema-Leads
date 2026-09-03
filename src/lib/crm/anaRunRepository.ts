@@ -13,7 +13,7 @@ export interface AnaRunResult {
   mensagem_sugerida?: string;
   motivo?: string;
   precisa_humano?: boolean;
-  status_canal?: 'rascunho_para_aprovacao' | 'pendente_canal';
+  status_canal?: 'enfileirado' | 'rascunho_para_aprovacao' | 'pendente_canal';
   erro?: string;
 }
 

@@ -25,6 +25,12 @@ const asObject = (value: unknown): Record<string, unknown> => value && typeof va
 const asText = (value: unknown, max = 4_000) => typeof value === 'string' ? value.trim().slice(0, max) : '';
 const asScore = (value: unknown) => typeof value === 'number' && Number.isFinite(value) ? Math.max(0, Math.min(100, Math.round(value))) : 0;
 const isUuid = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+function secureEqual(actual: string | null, expected: string | undefined): boolean {
+  if (!actual || !expected || actual.length !== expected.length) return false;
+  let difference = 0;
+  for (let index = 0; index < actual.length; index += 1) difference |= actual.charCodeAt(index) ^ expected.charCodeAt(index);
+  return difference === 0;
+}
 
 function errorCode(error: unknown): string {
   const message = safeError(error);
@@ -68,7 +74,23 @@ async function callOpenAI(system: string, context: Record<string, unknown>) {
     body: JSON.stringify({
       model: 'gpt-4.1-mini',
       temperature: 0.2,
-      response_format: { type: 'json_object' },
+      response_format: {
+        type: 'json_schema',
+        json_schema: {
+          name: 'ana_decision', strict: true,
+          schema: {
+            type: 'object', additionalProperties: false,
+            required: ['proximo_estagio', 'outcome', 'acoes', 'mensagem_sugerida', 'score', 'motivo', 'precisa_humano'],
+            properties: {
+              proximo_estagio: { type: 'string', enum: [...STAGES] },
+              outcome: { anyOf: [{ type: 'string', enum: ['ganho', 'perdido'] }, { type: 'null' }] },
+              acoes: { type: 'array', maxItems: 5, items: { type: 'object', additionalProperties: false, required: ['tipo', 'payload'], properties: { tipo: { type: 'string', enum: ['atualizar_lead', 'enviar_mensagem', 'criar_tarefa', 'agendar', 'gerar_orcamento', 'handoff'] }, payload: { type: 'object', additionalProperties: true } } } },
+              mensagem_sugerida: { type: 'string' }, score: { type: 'integer', minimum: 0, maximum: 100 },
+              motivo: { type: 'string' }, precisa_humano: { type: 'boolean' },
+            },
+          },
+        },
+      },
       messages: [
         { role: 'system', content: system },
         { role: 'user', content: `Analise este contexto e retorne somente JSON com: proximo_estagio, outcome (ganho|perdido|null), acoes [{tipo,payload}], mensagem_sugerida, score (0-100), motivo, precisa_humano.\n${JSON.stringify(context)}` },
@@ -97,12 +119,22 @@ Deno.serve(async (request) => {
     const leadId = asText(body.lead_id, 80);
     if (!EVENTS.has(event) || !isUuid(leadId)) throw new Error('ana_invalid_input');
 
-    const { user } = await requireUser(request);
     admin = createAdminClient();
-    const { data: profile, error: profileError } = await admin.from('profiles').select('active_organization_id,name').eq('id', user.id).maybeSingle();
-    if (profileError || !profile?.active_organization_id) throw new Error('organization_context_required');
-    organizationId = profile.active_organization_id as string;
-    await requireOrganizationRole(admin, user.id, organizationId, ['owner', 'admin', 'manager', 'seller', 'sdr']);
+    const internal = secureEqual(request.headers.get('x-internal-worker-secret'), Deno.env.get('WHATSAPP_WEBHOOK_SHARED_SECRET'));
+    let actorId: string | null = null;
+    let actorName = 'Ana';
+    if (internal) {
+      organizationId = asText(body.organization_id, 80);
+      if (!isUuid(organizationId)) throw new Error('organization_context_required');
+    } else {
+      const { user } = await requireUser(request);
+      actorId = user.id;
+      const { data: profile, error: profileError } = await admin.from('profiles').select('active_organization_id,name').eq('id', user.id).maybeSingle();
+      if (profileError || !profile?.active_organization_id) throw new Error('organization_context_required');
+      organizationId = profile.active_organization_id as string;
+      actorName = profile.name || 'Usuário';
+      await requireOrganizationRole(admin, user.id, organizationId, ['owner', 'admin', 'manager', 'seller', 'sdr']);
+    }
 
     const { data: lead, error: leadError } = await admin.from('leads')
       .select('id,organization_id,company,contact,segment,email,phone,whatsapp,score,stage,ana_stage,ana_outcome,modo_atendimento,owner_id,assigned_to,active_channel,ai_paused,last_contact,no_reply_deadline_at')
@@ -119,17 +151,21 @@ Deno.serve(async (request) => {
     if (previousRun) return json({ ok: previousRun.status === 'completed', duplicate: true, run: previousRun }, 200, headers);
 
     const { data: run, error: runError } = await admin.from('agent_runs').insert({
-      organization_id: organizationId, lead_id: leadId, actor_id: user.id, event, modo, status: 'running',
+      organization_id: organizationId, lead_id: leadId, actor_id: actorId, event, modo, status: 'running',
       input_context: asObject(body.contexto), idempotency_key: idempotencyKey,
     }).select('id').single();
     if (runError || !run) throw runError ?? new Error('agent_run_not_created');
     runId = run.id as string;
 
-    const [{ data: company }, { data: messages }, { data: channel }, { data: agent }] = await Promise.all([
+    const [{ data: company }, { data: messages }, { data: channel }, { data: agent }, { data: catalog }, { data: knowledge }, { data: appointments }, { data: suppressions }] = await Promise.all([
       admin.from('company_settings').select('name,description,segment,website,phone,email,differentiators,ai_prompt,autonomy,lead_flow').eq('organization_id', organizationId).maybeSingle(),
       admin.from('lead_messages').select('sender,sender_name,type,text,sent_at').eq('organization_id', organizationId).eq('lead_id', leadId).order('sent_at', { ascending: false }).limit(20),
       lead.active_channel ? admin.from('integrations').select('connected,enabled,paused').eq('organization_id', organizationId).eq('key', lead.active_channel).maybeSingle() : Promise.resolve({ data: null }),
       admin.from('ai_agents').select('active_version_id').eq('organization_id', organizationId).eq('key', 'ana').maybeSingle(),
+      admin.from('services').select('id,name,category,description,price,unit,term,max_discount').eq('organization_id', organizationId).eq('active', true).limit(50),
+      admin.from('knowledge_chunks').select('content,metadata').eq('organization_id', organizationId).eq('status', 'active').limit(20),
+      admin.from('appointments').select('starts_at,ends_at,status,meeting_url').eq('organization_id', organizationId).eq('lead_id', leadId).order('starts_at', { ascending: false }).limit(10),
+      admin.from('contact_suppressions').select('channel,reason,created_at').eq('organization_id', organizationId).eq('lead_id', leadId).limit(10),
     ]);
     const { data: version } = agent?.active_version_id
       ? await admin.from('ai_agent_versions').select('configuration').eq('id', agent.active_version_id).maybeSingle()
@@ -137,8 +173,9 @@ Deno.serve(async (request) => {
     const timeout = event === 'timeout.48h' || Boolean(lead.no_reply_deadline_at && new Date(lead.no_reply_deadline_at).getTime() <= Date.now());
     const baseContext = {
       event, lead: { company: lead.company, contact: lead.contact, segment: lead.segment, active_channel: lead.active_channel, current_stage: stageLabel[currentStage] },
-      company: company ?? {}, agent_configuration: asObject(version?.configuration), catalog: [], messages: messages ?? [], contexto: asObject(body.contexto),
-      policies: { allow_auto_quote: false, channel_connected: Boolean(channel?.connected && channel?.enabled && !channel?.paused), timeout_48h: timeout },
+      company: company ?? {}, agent_configuration: asObject(version?.configuration), catalog: catalog ?? [], knowledge: knowledge ?? [],
+      messages: messages ?? [], appointments: appointments ?? [], suppressions: suppressions ?? [], contexto: asObject(body.contexto),
+      policies: { allow_auto_quote: false, channel_connected: Boolean(channel?.connected && channel?.enabled && !channel?.paused), timeout_48h: timeout, suppressed: Boolean(suppressions?.length) },
     };
 
     let decision;
@@ -176,10 +213,18 @@ Deno.serve(async (request) => {
         organization_id: organizationId, lead_id: leadId, sender: 'ana', sender_name: 'Ana',
         type: channelConnected ? 'draft' : 'pending_channel', text: decision.mensagem_sugerida, sent_at: new Date().toISOString(),
       });
-      appliedActions.push({ tipo: 'enviar_mensagem', status: channelConnected ? 'rascunho_para_aprovacao' : 'pendente_canal' });
+      if (channelConnected && !suppressions?.length) {
+        await admin.from('outreach_jobs').upsert({
+          organization_id: organizationId, lead_id: leadId, channel: lead.active_channel,
+          run_at: new Date().toISOString(), status: 'queued', attempt: 0,
+          idempotency_key: `${runId}:message`, payload: { text: decision.mensagem_sugerida, agent_run_id: runId },
+        }, { onConflict: 'idempotency_key', ignoreDuplicates: true });
+      }
+      appliedActions.push({ tipo: 'enviar_mensagem', status: channelConnected && !suppressions?.length ? 'enfileirado' : 'pendente_canal' });
     }
     if (needsHuman) {
-      await admin.from('lead_tasks').insert({ organization_id: organizationId, lead_id: leadId, owner_id: lead.owner_id, owner_label: profile.name || 'Responsável', text: decision.motivo || 'Revisar atendimento da Ana.', due_at: new Date().toISOString(), completed: false });
+      await admin.from('lead_handoffs').insert({ organization_id: organizationId, lead_id: leadId, to_user_id: lead.owner_id, assigned_to: lead.owner_id, status: 'pending', reason: decision.motivo || 'Revisar atendimento da Ana.', summary: decision.motivo || 'Revisar atendimento da Ana.', due_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(), context: { run_id: runId, event, score: decision.score } });
+      await admin.from('lead_tasks').insert({ organization_id: organizationId, lead_id: leadId, owner_id: lead.owner_id, owner_label: actorName || 'Responsável', text: decision.motivo || 'Revisar atendimento da Ana.', due_at: new Date().toISOString(), completed: false });
       appliedActions.push({ tipo: 'handoff', status: 'criado' });
     }
     if (decision.acoes.some((action) => action.tipo === 'gerar_orcamento')) {
@@ -195,10 +240,10 @@ Deno.serve(async (request) => {
       acoes: [...decision.acoes, ...appliedActions], mensagem_sugerida: decision.mensagem_sugerida,
       score: update.score, motivo: decision.motivo, precisa_humano: needsHuman,
       outcome: decision.outcome,
-      status_canal: channelConnected ? 'rascunho_para_aprovacao' : 'pendente_canal',
+      status_canal: channelConnected && !suppressions?.length ? 'enfileirado' : 'pendente_canal',
     };
     await admin.from('agent_runs').update({ status: 'completed', result, completed_at: new Date().toISOString() }).eq('id', runId);
-    await admin.from('audit_logs').insert({ organization_id: organizationId, actor_id: user.id, actor_name: profile.name, actor_type: 'user', action: 'ana.run.completed', detail: `Ana processou ${event}.`, entity_table: 'leads', entity_id: leadId, event_data: { run_id: runId, modo, needs_human: needsHuman } });
+    await admin.from('audit_logs').insert({ organization_id: organizationId, actor_id: actorId, actor_name: actorName, actor_type: internal ? 'system' : 'user', action: 'ana.run.completed', detail: `Ana processou ${event}.`, entity_table: 'leads', entity_id: leadId, event_data: { run_id: runId, modo, needs_human: needsHuman } });
     return json({ ok: true, run_id: runId, ...result }, 200, headers);
   } catch (error) {
     const code = errorCode(error);

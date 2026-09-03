@@ -239,7 +239,7 @@ export default function Landing() {
               {
                 icon: 'ri-bar-chart-box-line',
                 title: 'Dashboard Completo',
-                desc: 'Acompanhe métricas, conversões, faturamento e performance do seu time em tempo real.',
+                desc: 'Acompanhe captação, qualificação, reuniões, orçamentos e a performance do seu time em tempo real.',
               },
               {
                 icon: 'ri-shield-check-line',
