@@ -22,15 +22,21 @@ describe('operationalEntityMappers', () => {
     expect(list.leadIds).toHaveLength(1);
   });
 
-  it('maps a controlled campaign without any provider configuration', () => {
+  it('maps a controlled outreach sequence without any provider configuration', () => {
     const flow = mappers.rowToFlow({
       id: '33333333-3333-4333-8333-333333333333',
       name: 'Boas-vindas',
-      status: 'active',
-      channel: 'mixed',
-      cadence: [{ id: 'step-1', diasApos: 0, canal: 'WhatsApp', mensagem: 'Olá, {nome}.' }],
-      metadata: { gatilho: 'novo_lead', descricao: 'Contato inicial.' },
-    });
+      active: true,
+      trigger_key: 'novo_lead',
+      description: 'Contato inicial.',
+    }, [{
+      id: '44444444-4444-4444-8444-444444444444',
+      sequence_id: '33333333-3333-4333-8333-333333333333',
+      channel: 'whatsapp',
+      content: 'Olá, {nome}.',
+      delay_minutes: 0,
+      order_index: 0,
+    }]);
     expect(flow.ativo).toBe(true);
     expect(flow.passos[0].mensagem).toContain('{nome}');
   });

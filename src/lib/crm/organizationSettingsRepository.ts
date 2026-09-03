@@ -4,20 +4,16 @@ import type { EmpresaSettings, Organizacao } from '@/hooks/useEmpresaSettingsSto
 
 interface OrganizationSettingsRow {
   organization_id: string;
-  business_profile: Record<string, unknown>;
-  commercial_rules: Record<string, unknown>;
-  ai_configuration: Record<string, unknown>;
+  ui_settings: Partial<EmpresaSettings>;
 }
 
 export function organizationSettingsToEmpresaSettings(row: OrganizationSettingsRow, fallback: EmpresaSettings): EmpresaSettings {
   return {
     ...fallback,
-    ...row.business_profile,
-    ...row.commercial_rules,
-    ...row.ai_configuration,
+    ...row.ui_settings,
     organizacao: {
       ...fallback.organizacao,
-      ...(row.business_profile.organizacao as Partial<Organizacao> | undefined),
+      ...(row.ui_settings.organizacao as Partial<Organizacao> | undefined),
     },
   };
 }
@@ -25,8 +21,8 @@ export function organizationSettingsToEmpresaSettings(row: OrganizationSettingsR
 export async function loadOperationalCompanySettings(fallback: EmpresaSettings): Promise<EmpresaSettings> {
   const session = await resolveOrganizationSession();
   const { data, error } = await supabase
-    .from('organization_settings')
-    .select('organization_id, business_profile, commercial_rules, ai_configuration')
+    .from('company_settings')
+    .select('organization_id, ui_settings')
     .eq('organization_id', session.organizationId)
     .maybeSingle();
   if (error) throw error;
@@ -36,29 +32,22 @@ export async function loadOperationalCompanySettings(fallback: EmpresaSettings):
 export async function persistOperationalCompanySettings(settings: EmpresaSettings): Promise<void> {
   const session = await resolveOrganizationSession();
   const { error } = await supabase
-    .from('organization_settings')
-    .update({
-      business_profile: {
-        organizacao: settings.organizacao,
-        ramo: settings.ramo,
-        regiao: settings.regiao,
-        publico: settings.publico,
-        diferenciais: settings.diferenciais,
-      },
-      commercial_rules: {
-        regras: settings.regras,
-        horario: settings.horario,
-        limiteMensagens: settings.limiteMensagens,
-        consentimento: settings.consentimento,
-      },
-      ai_configuration: {
-        saudacao: settings.saudacao,
-        corBalao: settings.corBalao,
-        assinatura: settings.assinatura,
-        handoff: settings.handoff,
-      },
-      updated_by: session.userId,
-    })
-    .eq('organization_id', session.organizationId);
+    .from('company_settings')
+    .upsert({
+      organization_id: session.organizationId,
+      ui_settings: settings,
+      name: settings.organizacao.nomeComercial || settings.organizacao.nome,
+      description: settings.ramo,
+      tone_of_voice: settings.saudacao,
+      differentiators: settings.diferenciais.join('\n'),
+      cnpj: settings.organizacao.cnpj || null,
+      segment: settings.ramo,
+      city: settings.organizacao.endereco,
+      website: settings.organizacao.site,
+      address: settings.organizacao.endereco,
+      phone: settings.organizacao.telefone,
+      email: settings.organizacao.email,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: 'organization_id' });
   if (error) throw error;
 }

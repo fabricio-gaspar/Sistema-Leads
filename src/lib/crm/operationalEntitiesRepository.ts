@@ -3,7 +3,7 @@ import { resolveOrganizationSession } from '@/lib/organizationSession';
 import { isUuid } from '@/lib/crm/leadMapper';
 import type { ListaDeLeads, StatusLista } from '@/hooks/useListasStore';
 import type { ProdutoCatalogo } from '@/hooks/useCatalogoStore';
-import type { FluxoAutomatizacao, PassoFluxo } from '@/hooks/useFluxosAutomatizacaoStore';
+import type { FluxoAutomatizacao } from '@/hooks/useFluxosAutomatizacaoStore';
 
 type JsonRecord = Record<string, unknown>;
 
@@ -15,13 +15,21 @@ interface ListRow {
   created_at: string;
 }
 
-interface CampaignRow {
+interface SequenceRow {
   id: string;
   name: string;
-  status: 'draft' | 'pilot' | 'active' | 'paused' | 'archived';
-  channel: 'whatsapp' | 'email' | 'mixed';
-  cadence: unknown;
-  metadata: JsonRecord;
+  description: string | null;
+  active: boolean;
+  trigger_key: string;
+}
+
+interface SequenceStepRow {
+  id: string;
+  sequence_id: string;
+  channel: string;
+  content: string | null;
+  delay_minutes: number;
+  order_index: number;
 }
 
 interface CatalogRow {
@@ -31,12 +39,12 @@ interface CatalogRow {
   category: string;
   unit: string;
   short_description: string;
-  full_description: string;
-  is_active: boolean;
+  description: string | null;
+  active: boolean;
   quote_enabled: boolean;
-  maximum_discount: number;
+  max_discount: number | null;
   default_lead_time_days: number;
-  base_unit_price: number;
+  price: number | null;
 }
 
 const listStatusToDb: Record<StatusLista, ListRow['status']> = {
@@ -91,56 +99,36 @@ function rowToList(row: ListRow, leadIds: string[]): ListaDeLeads {
   };
 }
 
-function validSteps(value: unknown): PassoFluxo[] {
-  if (!Array.isArray(value)) return [];
-  return value.flatMap((step): PassoFluxo[] => {
-    if (!step || typeof step !== 'object') return [];
-    const candidate = step as JsonRecord;
-    const diasApos = numberValue(candidate.diasApos, 0);
-    const canal = stringValue(candidate.canal);
-    const mensagem = stringValue(candidate.mensagem);
-    if (!canal || !mensagem) return [];
-    return [{
-      id: stringValue(candidate.id, crypto.randomUUID()),
-      diasApos: Math.max(0, Math.floor(diasApos)),
-      canal,
-      mensagem,
-    }];
-  });
-}
-
-function campaignChannel(passos: PassoFluxo[]): CampaignRow['channel'] {
-  const channels = new Set(passos.map((passo) => passo.canal.toLowerCase()));
-  if (channels.size === 1 && channels.has('whatsapp')) return 'whatsapp';
-  if (channels.size === 1 && channels.has('e-mail')) return 'email';
-  return 'mixed';
-}
-
-function flowToRow(flow: FluxoAutomatizacao, organizationId: string, userId: string) {
+function flowToRow(flow: FluxoAutomatizacao, organizationId: string) {
   return {
     id: flow.id,
     organization_id: organizationId,
     name: flow.nome.trim(),
-    status: flow.ativo ? 'active' : 'draft',
-    channel: campaignChannel(flow.passos),
-    cadence: flow.passos,
-    metadata: { gatilho: flow.gatilho, descricao: flow.descricao },
-    created_by: userId,
+    description: flow.descricao,
+    active: flow.ativo,
+    trigger_key: flow.gatilho,
   };
 }
 
-function rowToFlow(row: CampaignRow): FluxoAutomatizacao {
+function rowToFlow(row: SequenceRow, steps: SequenceStepRow[]): FluxoAutomatizacao {
   return {
     id: row.id,
     nome: row.name,
-    gatilho: stringValue(row.metadata.gatilho, 'novo_lead'),
-    descricao: stringValue(row.metadata.descricao),
-    passos: validSteps(row.cadence),
-    ativo: row.status === 'active',
+    gatilho: row.trigger_key || 'novo_lead',
+    descricao: row.description ?? '',
+    passos: steps
+      .sort((a, b) => a.order_index - b.order_index)
+      .map((step) => ({
+        id: step.id,
+        diasApos: Math.max(0, Math.floor(step.delay_minutes / 1440)),
+        canal: step.channel === 'email' ? 'E-mail' : 'WhatsApp',
+        mensagem: step.content ?? '',
+      })),
+    ativo: row.active,
   };
 }
 
-function catalogToRow(item: ProdutoCatalogo, organizationId: string, userId: string) {
+function catalogToRow(item: ProdutoCatalogo, organizationId: string) {
   return {
     id: item.id,
     organization_id: organizationId,
@@ -149,13 +137,12 @@ function catalogToRow(item: ProdutoCatalogo, organizationId: string, userId: str
     category: item.categoria.trim(),
     unit: item.unidade.trim(),
     short_description: item.descricaoCurta.trim(),
-    full_description: item.descricaoCompleta.trim(),
-    is_active: item.ativo,
+    description: item.descricaoCompleta.trim(),
+    active: item.ativo,
     quote_enabled: item.podeOrcamento,
-    maximum_discount: Math.min(100, Math.max(0, item.descontoMaximo)),
+    max_discount: Math.min(100, Math.max(0, item.descontoMaximo)),
     default_lead_time_days: Math.max(0, Math.round(item.prazoPadrao)),
-    base_unit_price: Math.max(0, item.precoBase),
-    created_by: userId,
+    price: Math.max(0, item.precoBase),
   };
 }
 
@@ -166,20 +153,20 @@ function rowToCatalog(row: CatalogRow): ProdutoCatalogo {
     codigo: row.code,
     categoria: row.category,
     descricaoCurta: row.short_description,
-    descricaoCompleta: row.full_description,
+    descricaoCompleta: row.description ?? '',
     unidade: row.unit,
-    ativo: row.is_active,
+    ativo: row.active,
     podeOrcamento: row.quote_enabled,
-    descontoMaximo: Number(row.maximum_discount),
+    descontoMaximo: Number(row.max_discount ?? 0),
     prazoPadrao: row.default_lead_time_days,
-    precoBase: Number(row.base_unit_price),
+    precoBase: Number(row.price ?? 0),
   };
 }
 
 export async function loadOperationalLists(): Promise<ListaDeLeads[]> {
   const session = await resolveOrganizationSession();
   const { data: lists, error: listsError } = await supabase
-    .from('crm_lead_lists')
+    .from('lead_lists')
     .select('id, name, status, criteria, created_at')
     .eq('organization_id', session.organizationId)
     .order('created_at', { ascending: false });
@@ -187,7 +174,7 @@ export async function loadOperationalLists(): Promise<ListaDeLeads[]> {
   const listIds = (lists ?? []).map((list) => list.id);
   if (listIds.length === 0) return [];
   const { data: members, error: membersError } = await supabase
-    .from('crm_lead_list_members')
+    .from('lead_list_members')
     .select('list_id, lead_id')
     .eq('organization_id', session.organizationId)
     .in('list_id', listIds);
@@ -208,8 +195,8 @@ export async function persistOperationalLists(previous: ListaDeLeads[], next: Li
     const row = listToRow(list, session.organizationId, session.userId);
     const { created_by: _createdBy, ...updateRow } = row;
     const { error } = previousById.has(list.id)
-      ? await supabase.from('crm_lead_lists').update(updateRow).eq('id', list.id).eq('organization_id', session.organizationId)
-      : await supabase.from('crm_lead_lists').insert(row);
+      ? await supabase.from('lead_lists').update(updateRow).eq('id', list.id).eq('organization_id', session.organizationId)
+      : await supabase.from('lead_lists').insert(row);
     if (error) throw error;
 
     const before = new Set((previousById.get(list.id)?.leadIds ?? []).filter(isUuid));
@@ -217,7 +204,7 @@ export async function persistOperationalLists(previous: ListaDeLeads[], next: Li
     const toAdd = [...after].filter((leadId) => !before.has(leadId));
     const toRemove = [...before].filter((leadId) => !after.has(leadId));
     if (toAdd.length) {
-      const { error: membersError } = await supabase.from('crm_lead_list_members').upsert(
+      const { error: membersError } = await supabase.from('lead_list_members').upsert(
         toAdd.map((lead_id) => ({ organization_id: session.organizationId, list_id: list.id, lead_id })),
         { onConflict: 'list_id,lead_id' },
       );
@@ -225,7 +212,7 @@ export async function persistOperationalLists(previous: ListaDeLeads[], next: Li
     }
     if (toRemove.length) {
       const { error: removeError } = await supabase
-        .from('crm_lead_list_members')
+        .from('lead_list_members')
         .delete()
         .eq('organization_id', session.organizationId)
         .eq('list_id', list.id)
@@ -238,32 +225,64 @@ export async function persistOperationalLists(previous: ListaDeLeads[], next: Li
 
 export async function loadOperationalFlows(): Promise<FluxoAutomatizacao[]> {
   const session = await resolveOrganizationSession();
-  const { data, error } = await supabase
-    .from('crm_campaigns')
-    .select('id, name, status, channel, cadence, metadata')
+  const { data: sequences, error } = await supabase
+    .from('outreach_sequences')
+    .select('id, name, description, active, trigger_key')
     .eq('organization_id', session.organizationId)
-    .neq('status', 'archived')
     .order('updated_at', { ascending: false });
   if (error) throw error;
-  return ((data ?? []) as CampaignRow[]).map(rowToFlow);
+  const sequenceIds = (sequences ?? []).map((sequence) => sequence.id);
+  if (!sequenceIds.length) return [];
+  const { data: steps, error: stepsError } = await supabase
+    .from('outreach_sequence_steps')
+    .select('id, sequence_id, channel, content, delay_minutes, order_index')
+    .eq('organization_id', session.organizationId)
+    .in('sequence_id', sequenceIds);
+  if (stepsError) throw stepsError;
+  return ((sequences ?? []) as SequenceRow[]).map((sequence) => rowToFlow(
+    sequence,
+    ((steps ?? []) as SequenceStepRow[]).filter((step) => step.sequence_id === sequence.id),
+  ));
 }
 
 export async function persistOperationalFlows(previous: FluxoAutomatizacao[], next: FluxoAutomatizacao[]): Promise<FluxoAutomatizacao[]> {
   const session = await resolveOrganizationSession();
   const previousIds = new Set(previous.map((flow) => flow.id));
   for (const flow of next) {
-    const row = flowToRow(flow, session.organizationId, session.userId);
-    const { created_by: _createdBy, ...updateRow } = row;
+    const row = flowToRow(flow, session.organizationId);
     const { error } = previousIds.has(flow.id)
-      ? await supabase.from('crm_campaigns').update(updateRow).eq('id', flow.id).eq('organization_id', session.organizationId)
-      : await supabase.from('crm_campaigns').insert(row);
+      ? await supabase.from('outreach_sequences').update(row).eq('id', flow.id).eq('organization_id', session.organizationId)
+      : await supabase.from('outreach_sequences').insert(row);
     if (error) throw error;
+
+    const { error: deleteStepsError } = await supabase
+      .from('outreach_sequence_steps')
+      .delete()
+      .eq('organization_id', session.organizationId)
+      .eq('sequence_id', flow.id);
+    if (deleteStepsError) throw deleteStepsError;
+    if (flow.passos.length) {
+      const { error: stepsError } = await supabase.from('outreach_sequence_steps').insert(
+        flow.passos.map((step, index) => ({
+          id: isUuid(step.id) ? step.id : crypto.randomUUID(),
+          organization_id: session.organizationId,
+          sequence_id: flow.id,
+          type: 'message',
+          channel: step.canal.toLowerCase() === 'e-mail' ? 'email' : 'whatsapp',
+          content: step.mensagem,
+          wait_hours: Math.max(0, Math.round(step.diasApos * 24)),
+          delay_minutes: Math.max(0, Math.round(step.diasApos * 1440)),
+          order_index: index,
+        })),
+      );
+      if (stepsError) throw stepsError;
+    }
   }
   const archivedIds = previous.filter((flow) => !next.some((candidate) => candidate.id === flow.id)).map((flow) => flow.id);
   if (archivedIds.length) {
     const { error } = await supabase
-      .from('crm_campaigns')
-      .update({ status: 'archived' })
+      .from('outreach_sequences')
+      .update({ active: false })
       .eq('organization_id', session.organizationId)
       .in('id', archivedIds);
     if (error) throw error;
@@ -274,10 +293,10 @@ export async function persistOperationalFlows(previous: FluxoAutomatizacao[], ne
 export async function loadOperationalCatalog(): Promise<ProdutoCatalogo[]> {
   const session = await resolveOrganizationSession();
   const { data, error } = await supabase
-    .from('crm_catalog_items')
-    .select('id, code, name, category, unit, short_description, full_description, is_active, quote_enabled, maximum_discount, default_lead_time_days, base_unit_price')
+    .from('services')
+    .select('id, code, name, category, unit, short_description, description, active, quote_enabled, max_discount, default_lead_time_days, price')
     .eq('organization_id', session.organizationId)
-    .eq('is_archived', false)
+    .eq('active', true)
     .order('updated_at', { ascending: false });
   if (error) throw error;
   return ((data ?? []) as CatalogRow[]).map(rowToCatalog);
@@ -287,18 +306,17 @@ export async function persistOperationalCatalog(previous: ProdutoCatalogo[], nex
   const session = await resolveOrganizationSession();
   const previousIds = new Set(previous.map((item) => item.id));
   for (const item of next) {
-    const row = catalogToRow(item, session.organizationId, session.userId);
-    const { created_by: _createdBy, ...updateRow } = row;
+    const row = catalogToRow(item, session.organizationId);
     const { error } = previousIds.has(item.id)
-      ? await supabase.from('crm_catalog_items').update(updateRow).eq('id', item.id).eq('organization_id', session.organizationId)
-      : await supabase.from('crm_catalog_items').insert(row);
+      ? await supabase.from('services').update(row).eq('id', item.id).eq('organization_id', session.organizationId)
+      : await supabase.from('services').insert(row);
     if (error) throw error;
   }
   const archivedIds = previous.filter((item) => !next.some((candidate) => candidate.id === item.id)).map((item) => item.id);
   if (archivedIds.length) {
     const { error } = await supabase
-      .from('crm_catalog_items')
-      .update({ is_archived: true, is_active: false })
+      .from('services')
+      .update({ active: false })
       .eq('organization_id', session.organizationId)
       .in('id', archivedIds);
     if (error) throw error;

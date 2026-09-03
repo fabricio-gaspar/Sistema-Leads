@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import { supabase } from '@/lib/supabase';
+import { resolveOrganizationSession } from '@/lib/organizationSession';
 
 // Store externo persistente no Backend, mantendo o MESMO contrato síncrono
 // (get/set/useStore) usado pelo resto da aplicação. Isso permite migrar as
@@ -33,16 +34,7 @@ export interface BackendStore<T> {
   useStore: () => T;
 }
 
-async function getUserId(): Promise<string | null> {
-  try {
-    const { data } = await supabase.auth.getSession();
-    return data.session?.user?.id ?? null;
-  } catch {
-    return null;
-  }
-}
-
-export function createBackendStore<T>(table: string, key: string, inicial: T): BackendStore<T> {
+export function createBackendStore<T>(moduleKey: string, key: string, inicial: T): BackendStore<T> {
   let state: T = carregar(key, inicial);
   const listeners = new Set<() => void>();
   let sincronizado = false;
@@ -50,31 +42,46 @@ export function createBackendStore<T>(table: string, key: string, inicial: T): B
   const notify = () => listeners.forEach((l) => l());
 
   async function persistir(valor: T): Promise<void> {
-    const uid = await getUserId();
-    if (!uid) return;
+    let session;
+    try {
+      session = await resolveOrganizationSession();
+    } catch {
+      return;
+    }
     const { error } = await supabase
-      .from(table)
-      .upsert({ user_id: uid, dados: valor, updated_at: new Date().toISOString() }, { onConflict: 'user_id' });
+      .from('organization_module_data')
+      .upsert({
+        organization_id: session.organizationId,
+        module_key: moduleKey,
+        data: valor,
+        updated_by: session.userId,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'organization_id,module_key' });
     if (error) {
-      console.error(`[backendStore:${table}] falha ao salvar`, error);
+      console.error(`[backendStore:${moduleKey}] falha ao salvar`, error);
     }
   }
 
   async function sincronizar(): Promise<void> {
-    const uid = await getUserId();
-    if (!uid) return;
-    const { data, error } = await supabase
-      .from(table)
-      .select('dados')
-      .eq('user_id', uid)
-      .maybeSingle();
-    if (error) {
-      console.error(`[backendStore:${table}] falha ao carregar`, error);
+    let session;
+    try {
+      session = await resolveOrganizationSession();
+    } catch {
       return;
     }
-    if (data && data.dados != null) {
+    const { data, error } = await supabase
+      .from('organization_module_data')
+      .select('data')
+      .eq('organization_id', session.organizationId)
+      .eq('module_key', moduleKey)
+      .maybeSingle();
+    if (error) {
+      console.error(`[backendStore:${moduleKey}] falha ao carregar`, error);
+      return;
+    }
+    if (data && data.data != null) {
       // Backend é a fonte da verdade: substitui o cache local.
-      state = data.dados as T;
+      state = data.data as T;
       salvar(key, state);
       notify();
     } else if (!sincronizado) {
