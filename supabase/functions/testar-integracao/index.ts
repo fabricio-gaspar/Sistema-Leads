@@ -4,6 +4,10 @@ import { allowedCorsHeaders, hasAllowedOrigin, json, preflight, safeError } from
 function zapiErrorDetail(code: string): string {
   const details: Record<string, string> = {
     zapi_credentials_incomplete: 'Informe o ID da instância, o token da instância e o Client Token da Z-API.',
+    zapi_client_token_rejected: 'A Z-API recusou o Client Token. No painel Z-API, abra Segurança → Token de Segurança da Conta e salve o token ativo nesse campo.',
+    zapi_instance_token_rejected: 'A Z-API recusou o Token da Instância. Copie novamente o token da instância — não o Client Token — no painel Z-API.',
+    zapi_instance_id_rejected: 'A Z-API não reconheceu o ID da instância. Confira o identificador exibido em Instâncias no painel Z-API.',
+    zapi_invalid_request: 'A Z-API recusou o formato da validação. Revise o ID, o Token da Instância e o Client Token salvos.',
     zapi_http_401: 'A Z-API recusou as credenciais. Confira o ID da instância, o token e o Client Token.',
     zapi_http_403: 'A Z-API bloqueou esta chamada. Confira o Client Token e as permissões da conta.',
     zapi_http_404: 'A instância não foi encontrada. Confira o ID da instância e a URL base.',
@@ -12,6 +16,45 @@ function zapiErrorDetail(code: string): string {
     zapi_phone_offline: 'A instância está autenticada, mas o celular vinculado está sem conexão.',
   };
   return details[code] ?? 'A Z-API recusou a validação. Revise os dados da instância e tente novamente.';
+}
+
+function mensagemDoProvedor(payload: unknown): string {
+  if (typeof payload === 'string') return payload;
+  if (!payload || typeof payload !== 'object') return '';
+
+  // A resposta do provedor nunca é exibida ou persistida: ela pode carregar
+  // detalhes operacionais. Somente usamos campos usuais para classificá-la em
+  // um código seguro, que a interface consegue explicar sem vazar segredos.
+  const record = payload as Record<string, unknown>;
+  return ['error', 'message', 'detail', 'details', 'cause']
+    .map((key) => record[key])
+    .filter((value): value is string => typeof value === 'string')
+    .join(' ');
+}
+
+function codigoDoErroZapi(status: number, payload: unknown): string {
+  if (status !== 400) return `zapi_http_${status}`;
+
+  const message = mensagemDoProvedor(payload)
+    .toLocaleLowerCase('pt-BR')
+    .replace(/[\s_-]+/g, ' ');
+
+  if (/client\s*token|token\s*client|security\s*token|token\s*de\s*seguran/.test(message)) {
+    return 'zapi_client_token_rejected';
+  }
+  if (/instance\s*(id|identifier)|id\s*(da\s*)?inst[aâ]ncia|inst[aâ]ncia.*(not found|invalid|inval)/.test(message)) {
+    return 'zapi_instance_id_rejected';
+  }
+  if (/instance\s*token|token\s*(da\s*)?inst[aâ]ncia|token.*(invalid|inval|incorrect|incorrecto)/.test(message)) {
+    return 'zapi_instance_token_rejected';
+  }
+  return message ? 'zapi_invalid_request' : 'zapi_http_400';
+}
+
+async function corpoJsonOuTexto(response: Response): Promise<unknown> {
+  const raw = await response.text();
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch { return raw; }
 }
 
 Deno.serve(async (request) => {
@@ -52,10 +95,20 @@ Deno.serve(async (request) => {
       const baseUrl = (zapi.url_base || 'https://api.z-api.io').replace(/\/$/, '');
       response = await fetch(
         `${baseUrl}/instances/${encodeURIComponent(zapi.instancia_id)}/token/${encodeURIComponent(zapi.token)}/status`,
-        { headers: { 'Client-Token': zapi.client_token, Accept: 'application/json' } },
+        {
+          headers: {
+            // A própria Z-API exige Content-Type em todas as chamadas. O
+            // endpoint de status não possui corpo, mas sem esse header alguns
+            // ambientes do provedor devolvem HTTP 400 em vez do diagnóstico.
+            'Content-Type': 'application/json',
+            'Client-Token': zapi.client_token,
+            Accept: 'application/json',
+          },
+        },
       );
-      if (!response.ok) throw new Error(`zapi_http_${response.status}`);
-      const status = await response.json() as { connected?: boolean; smartphoneConnected?: boolean };
+      const status = await corpoJsonOuTexto(response) as { connected?: boolean; smartphoneConnected?: boolean } | string | null;
+      if (!response.ok) throw new Error(codigoDoErroZapi(response.status, status));
+      if (!status || typeof status !== 'object') throw new Error('zapi_invalid_request');
       if (!status.connected) throw new Error('zapi_instance_not_connected');
       if (!status.smartphoneConnected) throw new Error('zapi_phone_offline');
     } else if (canal === 'apify') {
@@ -116,6 +169,12 @@ Deno.serve(async (request) => {
         updated_at: new Date().toISOString(),
       }).eq('organization_id', organizationId).eq('source_key', sourceKey);
     }
-    return json({ ok: false, erro }, 400, headers);
+    return json({
+      ok: false,
+      erro,
+      detalhe: erro.startsWith('zapi_')
+        ? zapiErrorDetail(erro)
+        : 'Falha no último teste. Revise a configuração e tente novamente.',
+    }, 400, headers);
   }
 });

@@ -27,6 +27,10 @@ function mensagemDaFalhaDeConexao(codigo: string, nome: string): string {
   const mensagens: Record<string, string> = {
     zapi_credentials_required: 'Informe o ID da instância, o token da instância e o Client Token da Z-API antes de salvar.',
     zapi_credentials_incomplete: 'Falta o ID da instância, o token ou o Client Token da Z-API. Abra Configurar e complete os três campos.',
+    zapi_client_token_rejected: 'A Z-API recusou o Client Token. No painel Z-API, abra Segurança → Token de Segurança da Conta e salve o token ativo nesse campo.',
+    zapi_instance_token_rejected: 'A Z-API recusou o Token da Instância. Copie novamente o token da instância — não o Client Token — no painel Z-API.',
+    zapi_instance_id_rejected: 'A Z-API não reconheceu o ID da instância. Confira o identificador exibido em Instâncias no painel Z-API.',
+    zapi_invalid_request: 'A Z-API recusou o formato da validação. Revise o ID, o Token da Instância e o Client Token salvos.',
     zapi_http_401: 'A Z-API recusou as credenciais. Confira o ID da instância, o token e o Client Token no painel Z-API.',
     zapi_http_403: 'A Z-API bloqueou esta chamada. Confira o Client Token e as permissões da conta.',
     zapi_http_404: 'A instância não foi encontrada. Confira o ID da instância e deixe a URL base como https://api.z-api.io.',
