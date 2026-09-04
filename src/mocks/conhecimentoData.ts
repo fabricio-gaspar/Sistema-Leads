@@ -1,4 +1,13 @@
-export type CategoriaConhecimento = 'faq' | 'objecoes' | 'cases' | 'politicas' | 'produtos';
+export type CategoriaConhecimento =
+  | 'institucional'
+  | 'materiais'
+  | 'solucoes_e_produtos'
+  | 'qualificacao'
+  | 'regras_comerciais'
+  | 'respostas_aprovadas'
+  | 'handoff_humano'
+  // Valores legados mantidos somente para leitura de registros históricos.
+  | 'faq' | 'objecoes' | 'cases' | 'politicas' | 'produtos';
 
 export interface EntradaConhecimento {
   id: string;
@@ -16,39 +25,53 @@ export interface EntradaConhecimento {
 
 export const categoriasConhecimento: { id: CategoriaConhecimento; nome: string; icone: string; descricao: string; cor: string }[] = [
   {
-    id: 'faq',
-    nome: 'FAQ',
-    icone: 'ri-question-answer-line',
-    descricao: 'Perguntas frequentes respondidas pela Ana automaticamente.',
+    id: 'institucional',
+    nome: 'Institucional',
+    icone: 'ri-building-2-line',
+    descricao: 'Identidade, atendimento e atuação da WayFlex.',
     cor: 'bg-primary-100 text-primary-700',
   },
   {
-    id: 'objecoes',
-    nome: 'Objeções',
-    icone: 'ri-discuss-line',
-    descricao: 'Respostas prontas para superar objeções comuns de venda.',
+    id: 'materiais',
+    nome: 'Materiais',
+    icone: 'ri-flask-line',
+    descricao: 'Critérios técnicos para borracha, silicone e PU.',
     cor: 'bg-accent-100 text-accent-700',
   },
   {
-    id: 'cases',
-    nome: 'Cases',
-    icone: 'ri-medal-line',
-    descricao: 'Resultados e provas sociais para reforçar argumentos.',
+    id: 'solucoes_e_produtos',
+    nome: 'Soluções',
+    icone: 'ri-tools-line',
+    descricao: 'Famílias de peças e aplicações industriais.',
     cor: 'bg-secondary-100 text-secondary-700',
   },
   {
-    id: 'politicas',
-    nome: 'Políticas',
-    icone: 'ri-file-shield-2-line',
-    descricao: 'Regras, LGPD, condições e prazos institucionais.',
+    id: 'qualificacao',
+    nome: 'Qualificação',
+    icone: 'ri-list-check-3',
+    descricao: 'Perguntas técnicas e dados para orçamento.',
     cor: 'bg-background-200 text-foreground-700',
   },
   {
-    id: 'produtos',
-    nome: 'Produtos e Serviços',
-    icone: 'ri-box-3-line',
-    descricao: 'Detalhamento das ofertas para responder com precisão.',
+    id: 'regras_comerciais',
+    nome: 'Limites comerciais',
+    icone: 'ri-shield-check-line',
+    descricao: 'O que a Ana pode dizer ou precisa confirmar.',
     cor: 'bg-primary-100 text-primary-700',
+  },
+  {
+    id: 'respostas_aprovadas',
+    nome: 'Respostas aprovadas',
+    icone: 'ri-chat-check-line',
+    descricao: 'Mensagens institucionais autorizadas.',
+    cor: 'bg-secondary-100 text-secondary-700',
+  },
+  {
+    id: 'handoff_humano',
+    nome: 'Handoff humano',
+    icone: 'ri-user-shared-line',
+    descricao: 'Casos em que a Ana deve transferir.',
+    cor: 'bg-accent-100 text-accent-700',
   },
 ];
 

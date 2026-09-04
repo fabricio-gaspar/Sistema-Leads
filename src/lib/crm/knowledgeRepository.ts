@@ -19,7 +19,18 @@ type ChunkRow = {
   metadata: Record<string, unknown> | null;
 };
 
-const validCategories = new Set<CategoriaConhecimento>(['faq', 'objecoes', 'cases', 'politicas', 'produtos']);
+const validCategories = new Set<CategoriaConhecimento>([
+  'institucional', 'materiais', 'solucoes_e_produtos', 'qualificacao',
+  'regras_comerciais', 'respostas_aprovadas', 'handoff_humano',
+]);
+
+const legacyCategoryAliases: Record<string, CategoriaConhecimento> = {
+  faq: 'respostas_aprovadas',
+  objecoes: 'regras_comerciais',
+  cases: 'solucoes_e_produtos',
+  politicas: 'regras_comerciais',
+  produtos: 'solucoes_e_produtos',
+};
 
 function asText(value: unknown): string {
   return typeof value === 'string' ? value : '';
@@ -34,7 +45,8 @@ function toDate(value: string | null): string {
 }
 
 function categoryOf(value: unknown): CategoriaConhecimento {
-  return validCategories.has(value as CategoriaConhecimento) ? value as CategoriaConhecimento : 'faq';
+  if (validCategories.has(value as CategoriaConhecimento)) return value as CategoriaConhecimento;
+  return legacyCategoryAliases[asText(value)] ?? 'institucional';
 }
 
 function metadataFor(entry: EntradaConhecimento): Record<string, unknown> {
