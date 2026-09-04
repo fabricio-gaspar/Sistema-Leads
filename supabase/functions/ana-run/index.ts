@@ -8,12 +8,13 @@ type AnaStage = (typeof STAGES)[number];
 type AnaMode = 'ia' | 'humano';
 type AiProvider = 'openai' | 'claude';
 
-const DEFAULT_PROMPT = `Você é a Ana deste CRM. Responda em pt-BR, direta e exclusivamente em JSON válido.
+const DEFAULT_PROMPT = `Você é a Ana, assistente virtual comercial da empresa deste CRM. Responda em pt-BR, direta e exclusivamente em JSON válido.
 Funil rígido: Novo → Apresentado → Qualificando → Reunião → Orçamento → Ganho/Perdido.
-Faça uma pergunta e um CTA por vez. Nunca invente preço, prazo ou desconto fora do catálogo aprovado.
-Faça handoff se o contato pedir humano, fizer reclamação, mencionar jurídico ou solicitar valor fora da faixa.
-No primeiro contato, apresente a empresa e um serviço compatível com o ICP. Qualifique dor, prazo, orçamento e decisor.
-Reunião: ofereça opções; só agende após confirmação. Orçamento sempre é rascunho e allow_auto_quote é falso.`;
+Leia primeiro latest_inbound_message e depois conversation em ordem cronológica. Responda à pergunta, necessidade ou objeção mais recente do lead; nunca repita a apresentação institucional se ela já foi enviada.
+Use knowledge, company e catalog somente como fontes aprovadas. Se a base não responder a uma dúvida técnica, não invente: peça um dado técnico objetivo ou faça handoff.
+Quando o lead demonstrar interesse em borracha/peça técnica, confirme a aplicação e obtenha progressivamente: peça ou aplicação, medida/desenho/amostra, material ou condição de uso, quantidade e prazo. Faça somente uma pergunta e um CTA por mensagem.
+Nunca invente preço, prazo, desconto, certificação ou especificação fora do catálogo e da knowledge. Orçamento é sempre rascunho e exige aprovação humana.
+Faça handoff se o contato pedir humano, fizer reclamação, mencionar jurídico, negociação/desconto, urgência fora da regra ou solicitar valor fora da faixa. Não marque Ganho sozinho.`;
 
 const stageLabel: Record<AnaStage, string> = {
   novo: 'Novo', apresentado: 'Apresentado', qualificando: 'Qualificando', reuniao: 'Reunião', orcamento: 'Orçamento', fechado: 'Ganho / Perdido',
@@ -263,10 +264,12 @@ Deno.serve(async (request) => {
       ? await admin.from('ai_agent_versions').select('configuration').eq('id', agent.active_version_id).maybeSingle()
       : { data: null };
     const timeout = event === 'timeout.48h' || Boolean(lead.no_reply_deadline_at && new Date(lead.no_reply_deadline_at).getTime() <= Date.now());
+    const chronologicalMessages = (messages ?? []).slice().reverse();
+    const latestInboundMessage = chronologicalMessages.slice().reverse().find((message) => message.sender === 'lead') ?? null;
     const baseContext = {
       event, lead: { company: lead.company, contact: lead.contact, segment: lead.segment, active_channel: activeChannel, current_stage: stageLabel[currentStage] },
       company: company ?? {}, agent_configuration: asObject(version?.configuration), catalog: catalog ?? [], knowledge: knowledge ?? [],
-      messages: messages ?? [], appointments: appointments ?? [], suppressions: suppressions ?? [], contexto: asObject(body.contexto),
+      latest_inbound_message: latestInboundMessage, conversation: chronologicalMessages, appointments: appointments ?? [], suppressions: suppressions ?? [], contexto: asObject(body.contexto),
       policies: { allow_auto_quote: false, channel_connected: Boolean(channel?.connected && channel?.enabled && !channel?.paused), timeout_48h: timeout, suppressed: Boolean(suppressions?.length) },
     };
 
@@ -280,7 +283,12 @@ Deno.serve(async (request) => {
         acoes: [{ tipo: 'handoff', payload: { reason: timeout ? 'timeout_48h' : 'modo_humano' } }],
       };
     } else {
-      const ai = await callAi(asText(company?.ai_prompt, 8_000) || DEFAULT_PROMPT, baseContext, asObject(aiCredentials));
+      const companyInstructions = asText(company?.ai_prompt, 8_000);
+      const ai = await callAi(
+        companyInstructions ? `${DEFAULT_PROMPT}\n\nCONFIGURAÇÃO APROVADA DA EMPRESA:\n${companyInstructions}` : DEFAULT_PROMPT,
+        baseContext,
+        asObject(aiCredentials),
+      );
       aiProvider = ai.provider;
       decision = parseDecision(ai.decision, currentStage);
     }

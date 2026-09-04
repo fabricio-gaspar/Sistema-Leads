@@ -44,7 +44,7 @@ Deno.serve(async (request) => {
     const integration = existing ?? inserted?.data;
     if (!integration) throw new Error('integration_not_found');
     const credentials = canal === 'whatsapp'
-      ? { instancia_id: instanceId, token, client_token: clientToken, numero_origem: String(credenciais.numero_origem ?? '').trim(), url_base: String(credenciais.url_base ?? 'https://api.z-api.io').trim() }
+      ? { instancia_id: instanceId, token, client_token: clientToken, numero_origem: String(credenciais.numero_origem ?? '').trim(), url_base: String(credenciais.url_base ?? 'https://api.z-api.io').trim(), webhook_token: crypto.randomUUID().replace(/-/g, '') }
       : canal === 'apify'
         ? { api_token: apifyToken, actor_id: actorId, task_id: taskId, input_json: String(credenciais.input_json ?? '').trim() }
         : canal === 'google_places'
@@ -52,6 +52,17 @@ Deno.serve(async (request) => {
           : { openai_key: openaiKey, claude_key: claudeKey, provedor_principal: String(credenciais.provedor_principal ?? 'OpenAI').trim().toLowerCase(), openai_model: String(credenciais.openai_model ?? 'gpt-4.1-mini').trim(), claude_model: String(credenciais.claude_model ?? 'claude-sonnet-5').trim() };
     const { error: secretError } = await admin.rpc('store_integration_secret', { p_integration: integration.id, p_secret: credentials });
     if (secretError) throw new Error('integration_secret_save_failed');
+    if (canal === 'whatsapp') {
+      const zapi = credentials as { instancia_id: string; token: string; client_token: string; url_base: string; webhook_token: string };
+      const baseUrl = zapi.url_base.replace(/\/$/, '');
+      const webhookUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/webhook-whatsapp?integration_id=${integration.id}&token=${zapi.webhook_token}`;
+      const webhookResponse = await fetch(`${baseUrl}/instances/${encodeURIComponent(zapi.instancia_id)}/token/${encodeURIComponent(zapi.token)}/update-every-webhooks`, {
+        method: 'PUT',
+        headers: { 'Client-Token': zapi.client_token, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ value: webhookUrl, notifySentByMe: false }),
+      });
+      if (!webhookResponse.ok) throw new Error(`zapi_webhook_setup_${webhookResponse.status}`);
+    }
     const publicConfiguration = canal === 'apify' ? { actor_id: actorId || null, task_id: taskId || null } : canal === 'ai' ? { provedor_principal: String(credenciais.provedor_principal ?? 'OpenAI').trim().toLowerCase(), openai_model: String(credenciais.openai_model ?? 'gpt-4.1-mini').trim(), claude_model: String(credenciais.claude_model ?? 'claude-sonnet-5').trim(), openai_configurado: Boolean(openaiKey), claude_configurado: Boolean(claudeKey) } : {};
     // store_integration_secret já atualiza a integração e preserva a referência
     // do cofre. Uma segunda atualização era redundante e podia falhar depois de

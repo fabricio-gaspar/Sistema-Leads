@@ -88,7 +88,7 @@ Deno.serve(async (request) => {
     sourceKey = ['apify', 'google_places'].includes(canal) ? canal : null;
     let response: Response;
     if (canal === 'whatsapp') {
-      const zapi = credentials as { instancia_id?: string; token?: string; client_token?: string; url_base?: string };
+      const zapi = credentials as { instancia_id?: string; token?: string; client_token?: string; url_base?: string; webhook_token?: string };
       if (!zapi.instancia_id?.trim() || !zapi.token?.trim() || !zapi.client_token?.trim()) {
         throw new Error('zapi_credentials_incomplete');
       }
@@ -111,6 +111,17 @@ Deno.serve(async (request) => {
       if (!status || typeof status !== 'object') throw new Error('zapi_invalid_request');
       if (!status.connected) throw new Error('zapi_instance_not_connected');
       if (!status.smartphoneConnected) throw new Error('zapi_phone_offline');
+      if (!zapi.webhook_token) {
+        zapi.webhook_token = crypto.randomUUID().replace(/-/g, '');
+        const { error: secretUpdateError } = await admin.rpc('store_integration_secret', { p_integration: integration.id, p_secret: zapi });
+        if (secretUpdateError) throw new Error('zapi_webhook_secret_save_failed');
+      }
+      const webhookUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/webhook-whatsapp?integration_id=${integration.id}&token=${zapi.webhook_token}`;
+      const webhookResponse = await fetch(
+        `${baseUrl}/instances/${encodeURIComponent(zapi.instancia_id)}/token/${encodeURIComponent(zapi.token)}/update-every-webhooks`,
+        { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Client-Token': zapi.client_token }, body: JSON.stringify({ value: webhookUrl, notifySentByMe: false }) },
+      );
+      if (!webhookResponse.ok) throw new Error(`zapi_webhook_setup_${webhookResponse.status}`);
     } else if (canal === 'apify') {
       const apify = credentials as { api_token?: string; actor_id?: string; task_id?: string };
       if (!apify.api_token || (!apify.actor_id && !apify.task_id)) throw new Error('source_credentials_missing');

@@ -20,15 +20,29 @@ const textValue = (payload: Record<string, unknown>): string => {
 
 Deno.serve(async (request) => {
   if (request.method !== 'POST') return json({ error: 'method_not_allowed' }, 405);
-  if (!secureEqual(request.headers.get('x-leadai-webhook-secret'), Deno.env.get('WHATSAPP_WEBHOOK_SHARED_SECRET'))) return json({ error: 'invalid_webhook_signature' }, 401);
+  const requestUrl = new URL(request.url);
+  const integrationFromUrl = requestUrl.searchParams.get('integration_id') ?? '';
+  const tokenFromUrl = requestUrl.searchParams.get('token') ?? '';
+  const internalSignature = secureEqual(request.headers.get('x-leadai-webhook-secret'), Deno.env.get('WHATSAPP_WEBHOOK_SHARED_SECRET'));
+  let authenticatedIntegrationId = '';
+  let authenticatedAdmin: ReturnType<typeof createAdminClient> | null = null;
+  if (!internalSignature) {
+    if (!/^[0-9a-f-]{36}$/i.test(integrationFromUrl) || !tokenFromUrl) return json({ error: 'invalid_webhook_signature' }, 401);
+    authenticatedAdmin = createAdminClient();
+    const { data: storedSecret } = await authenticatedAdmin.rpc('read_integration_secret', { p_integration: integrationFromUrl });
+    const configuredToken = typeof storedSecret === 'object' && storedSecret !== null && 'webhook_token' in storedSecret
+      ? String((storedSecret as Record<string, unknown>).webhook_token ?? '') : '';
+    if (!secureEqual(tokenFromUrl, configuredToken)) return json({ error: 'invalid_webhook_signature' }, 401);
+    authenticatedIntegrationId = integrationFromUrl;
+  }
   try {
-    const integrationId = new URL(request.url).searchParams.get('integration_id') ?? '';
+    const integrationId = authenticatedIntegrationId || integrationFromUrl;
     if (!/^[0-9a-f-]{36}$/i.test(integrationId)) throw new Error('invalid_integration_id');
     const raw = await request.text();
     if (!raw || raw.length > 32_768) throw new Error('invalid_payload');
     const payload = JSON.parse(raw) as Record<string, unknown>;
     if (!payload || Array.isArray(payload)) throw new Error('invalid_payload');
-    const admin = createAdminClient();
+    const admin = authenticatedAdmin ?? createAdminClient();
     const { data: integration, error: integrationError } = await admin.from('integrations')
       .select('id,organization_id,provider,connected,enabled,paused').eq('id', integrationId).maybeSingle();
     if (integrationError || !integration || !integration.connected || !integration.enabled || integration.paused) return json({ error: 'integration_not_ready' }, 409);
@@ -47,8 +61,12 @@ Deno.serve(async (request) => {
       await admin.from('webhook_events').update({ status: 'ignored' }).eq('organization_id', integration.organization_id).eq('provider', integration.provider).eq('external_id', externalId);
       return json({ accepted: true, ignored: true }, 202);
     }
+    // O CRM pode guardar telefone com espaços, hífen ou parênteses, enquanto a
+    // Z-API sempre envia somente dígitos. Buscamos por um sufixo curto para
+    // obter candidatos e fazemos a comparação final já normalizada abaixo.
+    const phoneSuffix = phone.slice(-5);
     const { data: candidates } = await admin.from('leads').select('id,modo_atendimento,owner_id,phone,whatsapp,first_inbound_at')
-      .eq('organization_id', integration.organization_id).or(`phone.ilike.%${phone.slice(-11)}%,whatsapp.ilike.%${phone.slice(-11)}%`).limit(2);
+      .eq('organization_id', integration.organization_id).or(`phone.ilike.%${phoneSuffix}%,whatsapp.ilike.%${phoneSuffix}%`).limit(20);
     const lead = candidates?.find((item) => [digits(item.phone), digits(item.whatsapp)].some((candidate) => candidate.endsWith(phone.slice(-11)))) ?? null;
     if (!lead) {
       await admin.from('webhook_events').update({ status: 'unmatched' }).eq('organization_id', integration.organization_id).eq('provider', integration.provider).eq('external_id', externalId);

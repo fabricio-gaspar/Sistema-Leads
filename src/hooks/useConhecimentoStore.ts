@@ -1,47 +1,58 @@
-import { createBackendStore } from '@/lib/backendStore';
-import { conhecimentoInicial } from '@/mocks/conhecimentoData';
 import type { EntradaConhecimento } from '@/mocks/conhecimentoData';
-
-const STORAGE_KEY = 'leadai_conhecimento_v1';
-
-// Singleton persistente no Backend (com cache local síncrono), mantendo o
-// mesmo padrão das demais stores para que a Base de Conhecimento sobreviva
-// ao refresh e alimente a Ana de forma consistente.
-const store = createBackendStore<EntradaConhecimento[]>('conhecimento', STORAGE_KEY, conhecimentoInicial);
+import { useCallback, useEffect, useState } from 'react';
+import { createKnowledgeEntry, deleteKnowledgeEntry, loadKnowledgeEntries, updateKnowledgeEntry } from '@/lib/crm/knowledgeRepository';
 
 export interface ConhecimentoStore {
   entradas: EntradaConhecimento[];
-  adicionar: (entrada: EntradaConhecimento) => void;
-  atualizar: (id: string, mudanca: Partial<EntradaConhecimento>) => void;
-  excluir: (id: string) => void;
-  alternarStatus: (id: string) => void;
+  carregando: boolean;
+  erro: string | null;
+  adicionar: (entrada: EntradaConhecimento) => Promise<void>;
+  atualizar: (id: string, mudanca: Partial<EntradaConhecimento>) => Promise<void>;
+  excluir: (id: string) => Promise<void>;
+  alternarStatus: (id: string) => Promise<void>;
+  recarregar: () => Promise<void>;
 }
 
 export function useConhecimentoStore(): ConhecimentoStore {
-  const entradas = store.useStore();
+  const [entradas, setEntradas] = useState<EntradaConhecimento[]>([]);
+  const [carregando, setCarregando] = useState(true);
+  const [erro, setErro] = useState<string | null>(null);
 
-  const adicionar = (entrada: EntradaConhecimento) => {
-    store.set((prev) => [entrada, ...prev]);
+  const recarregar = useCallback(async () => {
+    setCarregando(true);
+    try {
+      setEntradas(await loadKnowledgeEntries());
+      setErro(null);
+    } catch (error) {
+      console.error('[ana-knowledge] falha ao carregar base aprovada', error);
+      setErro('Não foi possível carregar a base aprovada da Ana.');
+    } finally {
+      setCarregando(false);
+    }
+  }, []);
+
+  useEffect(() => { void recarregar(); }, [recarregar]);
+
+  const adicionar = async (entrada: EntradaConhecimento) => {
+    const saved = await createKnowledgeEntry(entrada);
+    setEntradas((previous) => [saved, ...previous]);
   };
 
-  const atualizar = (id: string, mudanca: Partial<EntradaConhecimento>) => {
-    store.set((prev) => prev.map((e) => (e.id === id ? { ...e, ...mudanca } : e)));
+  const atualizar = async (id: string, mudanca: Partial<EntradaConhecimento>) => {
+    const saved = await updateKnowledgeEntry(id, mudanca);
+    setEntradas((previous) => previous.map((entry) => entry.id === id ? saved : entry));
   };
 
-  const excluir = (id: string) => {
-    store.set((prev) => prev.filter((e) => e.id !== id));
+  const excluir = async (id: string) => {
+    await deleteKnowledgeEntry(id);
+    setEntradas((previous) => previous.filter((entry) => entry.id !== id));
   };
 
-  const alternarStatus = (id: string) => {
-    store.set((prev) =>
-      prev.map((e) => (e.id === id ? { ...e, status: e.status === 'ativo' ? 'rascunho' : 'ativo' } : e))
-    );
+  const alternarStatus = async (id: string) => {
+    const entry = entradas.find((item) => item.id === id);
+    if (!entry) return;
+    await atualizar(id, { status: entry.status === 'ativo' ? 'rascunho' : 'ativo' });
   };
 
-  return { entradas, adicionar, atualizar, excluir, alternarStatus };
-}
-
-// Acesso imperativo (para a Ana/IA ler a base fora de um hook).
-export function getConhecimentoSnapshot(): EntradaConhecimento[] {
-  return store.get();
+  return { entradas, carregando, erro, adicionar, atualizar, excluir, alternarStatus, recarregar };
 }

@@ -13,7 +13,7 @@ const statusCor: Record<string, string> = {
 };
 
 export default function BaseConhecimentoTab() {
-  const { entradas, adicionar, atualizar, excluir, alternarStatus } = useConhecimentoStore();
+  const { entradas, carregando, erro: erroCarregamento, adicionar, atualizar, excluir, alternarStatus, recarregar } = useConhecimentoStore();
   const [busca, setBusca] = useState('');
   const [categoria, setCategoria] = useState<CategoriaConhecimento | 'todas'>('todas');
   const [apenasAtivas, setApenasAtivas] = useState(false);
@@ -50,28 +50,44 @@ export default function BaseConhecimentoTab() {
   const iconeCategoria = (id: CategoriaConhecimento) =>
     categoriasConhecimento.find((c) => c.id === id)?.icone || 'ri-bookmark-line';
 
-  const novaEntrada = (entrada: EntradaConhecimento) => {
-    adicionar(entrada);
-    setModal(false);
-    mostrarToast('Entrada adicionada à base de conhecimento!');
+  const novaEntrada = async (entrada: EntradaConhecimento) => {
+    try {
+      await adicionar(entrada);
+      setModal(false);
+      mostrarToast('Entrada salva. A Ana já pode consultar este conteúdo.');
+    } catch {
+      mostrarToast('Não foi possível salvar a entrada. Tente novamente.');
+    }
   };
 
-  const salvarEdicao = (entrada: EntradaConhecimento) => {
-    atualizar(entrada.id, entrada);
-    setEditando(null);
-    mostrarToast('Entrada atualizada!');
+  const salvarEdicao = async (entrada: EntradaConhecimento) => {
+    try {
+      await atualizar(entrada.id, entrada);
+      setEditando(null);
+      mostrarToast('Entrada atualizada. A Ana usará a versão nova.');
+    } catch {
+      mostrarToast('Não foi possível atualizar a entrada.');
+    }
   };
 
-  const excluirEntrada = (id: string) => {
-    excluir(id);
-    setSelecionada(null);
-    mostrarToast('Entrada excluída da base.');
+  const excluirEntrada = async (id: string) => {
+    try {
+      await excluir(id);
+      setSelecionada(null);
+      mostrarToast('Entrada excluída da base.');
+    } catch {
+      mostrarToast('Não foi possível excluir a entrada.');
+    }
   };
 
-  const alternarStatusEntrada = (entrada: EntradaConhecimento) => {
-    alternarStatus(entrada.id);
-    setSelecionada(null);
-    mostrarToast(entrada.status === 'ativo' ? 'Entrada pausada — Ana não usará mais.' : 'Entrada ativada — Ana passará a usar.');
+  const alternarStatusEntrada = async (entrada: EntradaConhecimento) => {
+    try {
+      await alternarStatus(entrada.id);
+      setSelecionada(null);
+      mostrarToast(entrada.status === 'ativo' ? 'Entrada pausada — Ana não usará mais.' : 'Entrada ativada — Ana passará a usar.');
+    } catch {
+      mostrarToast('Não foi possível alterar o status da entrada.');
+    }
   };
 
   return (
@@ -83,10 +99,17 @@ export default function BaseConhecimentoTab() {
         </div>
       )}
 
+      {erroCarregamento && (
+        <div className="bg-accent-100 border border-accent-300 text-accent-800 px-4 py-3 rounded-lg text-sm flex items-center justify-between gap-3">
+          <span>Não foi possível carregar a base aprovada da Ana.</span>
+          <button onClick={() => void recarregar()} className="font-semibold underline cursor-pointer">Tentar novamente</button>
+        </div>
+      )}
+
       {/* Cabeçalho */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
         <p className="text-sm text-foreground-600">
-          {ativas} de {entradas.length} entradas ativas alimentando a Ana.
+          {carregando ? 'Carregando a memória aprovada da Ana…' : `${ativas} de ${entradas.length} entradas ativas alimentando a Ana.`}
         </p>
         <button
           onClick={() => setModal(true)}
