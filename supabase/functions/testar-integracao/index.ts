@@ -1,6 +1,19 @@
 import { createAdminClient, requireOrganizationRole, requireUser } from '../_shared/auth.ts';
 import { allowedCorsHeaders, hasAllowedOrigin, json, preflight, safeError } from '../_shared/http.ts';
 
+function zapiErrorDetail(code: string): string {
+  const details: Record<string, string> = {
+    zapi_credentials_incomplete: 'Informe o ID da instância, o token da instância e o Client Token da Z-API.',
+    zapi_http_401: 'A Z-API recusou as credenciais. Confira o ID da instância, o token e o Client Token.',
+    zapi_http_403: 'A Z-API bloqueou esta chamada. Confira o Client Token e as permissões da conta.',
+    zapi_http_404: 'A instância não foi encontrada. Confira o ID da instância e a URL base.',
+    zapi_http_429: 'A Z-API limitou temporariamente os testes. Aguarde alguns minutos e tente de novo.',
+    zapi_instance_not_connected: 'A instância foi validada, mas o número ainda não está conectado ao WhatsApp.',
+    zapi_phone_offline: 'A instância está autenticada, mas o celular vinculado está sem conexão.',
+  };
+  return details[code] ?? 'A Z-API recusou a validação. Revise os dados da instância e tente novamente.';
+}
+
 Deno.serve(async (request) => {
   const options = preflight(request); if (options) return options;
   if (!hasAllowedOrigin(request)) return json({ ok: false, erro: 'origin_not_allowed' }, 403);
@@ -33,8 +46,18 @@ Deno.serve(async (request) => {
     let response: Response;
     if (canal === 'whatsapp') {
       const zapi = credentials as { instancia_id?: string; token?: string; client_token?: string; url_base?: string };
+      if (!zapi.instancia_id?.trim() || !zapi.token?.trim() || !zapi.client_token?.trim()) {
+        throw new Error('zapi_credentials_incomplete');
+      }
       const baseUrl = (zapi.url_base || 'https://api.z-api.io').replace(/\/$/, '');
-      response = await fetch(`${baseUrl}/instances/${encodeURIComponent(zapi.instancia_id ?? '')}/token/${encodeURIComponent(zapi.token ?? '')}/status`, { headers: zapi.client_token ? { 'Client-Token': zapi.client_token } : {} });
+      response = await fetch(
+        `${baseUrl}/instances/${encodeURIComponent(zapi.instancia_id)}/token/${encodeURIComponent(zapi.token)}/status`,
+        { headers: { 'Client-Token': zapi.client_token, Accept: 'application/json' } },
+      );
+      if (!response.ok) throw new Error(`zapi_http_${response.status}`);
+      const status = await response.json() as { connected?: boolean; smartphoneConnected?: boolean };
+      if (!status.connected) throw new Error('zapi_instance_not_connected');
+      if (!status.smartphoneConnected) throw new Error('zapi_phone_offline');
     } else if (canal === 'apify') {
       const apify = credentials as { api_token?: string; actor_id?: string; task_id?: string };
       if (!apify.api_token || (!apify.actor_id && !apify.task_id)) throw new Error('source_credentials_missing');
@@ -60,7 +83,7 @@ Deno.serve(async (request) => {
     } else {
       throw new Error('provider_test_not_implemented');
     }
-    if (!response.ok) throw new Error(canal === 'whatsapp' ? 'zapi_connection_failed' : 'provider_error');
+    if (!response.ok) throw new Error('provider_error');
     const ready = true;
     const statusDetail = canal === 'whatsapp' ? 'Conexão Z-API validada com segurança.' : `Conexão ${integration.provider} validada para a Busca de Leads.`;
     await admin.from('integrations').update({ connected: true, enabled: true, paused: false, status_detail: statusDetail, last_tested_at: new Date().toISOString(), last_success_at: new Date().toISOString(), last_error: null, last_error_at: null }).eq('id', integration.id);
@@ -78,7 +101,7 @@ Deno.serve(async (request) => {
       await admin.from('integrations').update({
         connected: false,
         enabled: false,
-        status_detail: 'Falha no último teste. Revise a configuração e teste novamente.',
+        status_detail: erro.startsWith('zapi_') ? zapiErrorDetail(erro) : 'Falha no último teste. Revise a configuração e teste novamente.',
         last_error: erro,
         last_error_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),

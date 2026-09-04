@@ -35,7 +35,7 @@ async function hidratarDoBackend(force = false): Promise<void> {
   const organizationId = profile?.active_organization_id as string | null | undefined;
   if (!organizationId) return;
   const { data, error } = await supabase.from('integrations')
-    .select('key,provider,connected,enabled,paused,status_detail,last_tested_at')
+    .select('key,provider,connected,enabled,paused,status_detail,last_error,last_tested_at')
     .eq('organization_id', organizationId);
   if (error) {
     console.error('[integracoes] falha ao carregar conexões reais', error);
@@ -47,7 +47,7 @@ async function hidratarDoBackend(force = false): Promise<void> {
     if (!remote) return mock;
     return {
       ...mock,
-      status: remote.connected && remote.enabled ? 'conectado' : remote.paused ? 'erro' : 'pendente',
+      status: remote.connected && remote.enabled ? 'conectado' : (remote.paused || remote.last_error) ? 'erro' : 'pendente',
       ultimoTeste: remote.last_tested_at ? new Date(remote.last_tested_at).toLocaleString('pt-BR') : mock.ultimoTeste,
       descricao: remote.status_detail || mock.descricao,
       remoteKey: remote.key,

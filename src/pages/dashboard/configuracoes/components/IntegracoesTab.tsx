@@ -25,6 +25,14 @@ function canalDaIntegracao(id: string): 'whatsapp' | 'apify' | 'google_places' |
 
 function mensagemDaFalhaDeConexao(codigo: string, nome: string): string {
   const mensagens: Record<string, string> = {
+    zapi_credentials_required: 'Informe o ID da instância, o token da instância e o Client Token da Z-API antes de salvar.',
+    zapi_credentials_incomplete: 'Falta o ID da instância, o token ou o Client Token da Z-API. Abra Configurar e complete os três campos.',
+    zapi_http_401: 'A Z-API recusou as credenciais. Confira o ID da instância, o token e o Client Token no painel Z-API.',
+    zapi_http_403: 'A Z-API bloqueou esta chamada. Confira o Client Token e as permissões da conta.',
+    zapi_http_404: 'A instância não foi encontrada. Confira o ID da instância e deixe a URL base como https://api.z-api.io.',
+    zapi_http_429: 'A Z-API limitou temporariamente os testes. Aguarde alguns minutos e tente de novo.',
+    zapi_instance_not_connected: 'As credenciais são válidas, mas o número ainda não está conectado à instância Z-API. Conecte pelo QR Code no painel Z-API e teste de novo.',
+    zapi_phone_offline: 'A instância está autenticada, mas o celular vinculado está sem internet. Reconecte o aparelho e teste novamente.',
     integration_credentials_missing: `As credenciais de ${nome} ainda não foram salvas. Use Configurar antes de testar.`,
     source_credentials_missing: `As credenciais de ${nome} estão incompletas. Revise os campos obrigatórios e salve novamente.`,
     source_not_configured: `${nome} ainda não está configurada para esta empresa. Salve as credenciais e teste de novo.`,
@@ -32,7 +40,9 @@ function mensagemDaFalhaDeConexao(codigo: string, nome: string): string {
     provider_error: `${nome} recusou a validação. Confira a chave, o Actor/Task ou as permissões da API.`,
     organization_access_denied: 'Seu usuário não tem permissão administrativa na empresa ativa para configurar esta conexão.',
   };
-  return mensagens[codigo] ?? codigo;
+  return mensagens[codigo] ?? (codigo.startsWith('zapi_http_')
+    ? `${nome} recusou o teste (${codigo.replace('zapi_http_', 'HTTP ')}). Confira as credenciais e tente de novo.`
+    : codigo);
 }
 
 interface ConfigurarModalProps {

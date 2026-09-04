@@ -130,7 +130,7 @@ export const integracoes: Integracao[] = [
     campos: [
       { id: 'instancia_id', rotulo: 'ID da Instância', tipo: 'texto', placeholder: 'ex.: 3C8D2F1A...', obrigatorio: true, ajuda: 'Identificador da sua instância no painel Z-API.' },
       { id: 'token', rotulo: 'Token da Instância', tipo: 'senha', placeholder: 'Cole o token secreto', obrigatorio: true, ajuda: 'Token da instância, que entra na URL de integração da Z-API.' },
-      { id: 'client_token', rotulo: 'Client Token', tipo: 'senha', placeholder: 'Cole o client token', obrigatorio: false, ajuda: 'Chave de segurança enviada no header Client-Token (configurada em Segurança no painel da Z-API).' },
+      { id: 'client_token', rotulo: 'Client Token', tipo: 'senha', placeholder: 'Cole o client token', obrigatorio: true, ajuda: 'Chave obrigatória enviada no header Client-Token, disponível em Segurança no painel da Z-API.' },
       { id: 'numero_origem', rotulo: 'Número de origem', tipo: 'texto', placeholder: 'ex.: 5511999999999', ajuda: 'Número do WhatsApp conectado, com DDI + DDD.' },
       { id: 'url_base', rotulo: 'URL base (opcional)', tipo: 'texto', placeholder: 'https://api.z-api.io', ajuda: 'Deixe em branco para usar o padrão da Z-API.' },
     ],

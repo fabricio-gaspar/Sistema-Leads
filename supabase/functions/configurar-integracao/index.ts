@@ -13,11 +13,12 @@ Deno.serve(async (request) => {
     const credenciais = body.credenciais ?? {};
     const instanceId = String(credenciais.instancia_id ?? '').trim();
     const token = String(credenciais.token ?? '').trim();
+    const clientToken = String(credenciais.client_token ?? '').trim();
     const apifyToken = String(credenciais.api_token ?? '').trim();
     const actorId = String(credenciais.actor_id ?? '').trim();
     const taskId = String(credenciais.task_id ?? '').trim();
     const googleApiKey = String(credenciais.api_key ?? '').trim();
-    if (canal === 'whatsapp' && (!instanceId || !token)) throw new Error('zapi_credentials_required');
+    if (canal === 'whatsapp' && (!instanceId || !token || !clientToken)) throw new Error('zapi_credentials_required');
     if (canal === 'apify' && (!apifyToken || (!actorId && !taskId))) throw new Error('apify_credentials_required');
     if (canal === 'google_places' && !googleApiKey) throw new Error('google_places_credentials_required');
     const { user } = await requireUser(request);
@@ -32,19 +33,33 @@ Deno.serve(async (request) => {
       google_places: { label: 'Google Places', provider: 'Google Places', detail: 'Busca real de empresas por texto e localização.' },
     };
     const definition = labels[canal];
-    const { data: existing, error } = await admin.from('integrations').select('id').eq('organization_id', organizationId).eq('key', canal).maybeSingle();
+    const { data: existing, error } = await admin.from('integrations').select('id,configuration').eq('organization_id', organizationId).eq('key', canal).maybeSingle();
     if (error) throw error;
-    const integration = existing ?? (await admin.from('integrations').insert({ organization_id: organizationId, key: canal, label: definition.label, provider: definition.provider, connected: false, enabled: false, paused: false, mode: 'production', status_detail: definition.detail, configuration: {} }).select('id').single()).data;
+    const integration = existing ?? (await admin.from('integrations').insert({ organization_id: organizationId, key: canal, label: definition.label, provider: definition.provider, connected: false, enabled: false, paused: false, mode: 'production', status_detail: definition.detail, configuration: {} }).select('id,configuration').single()).data;
     if (!integration) throw new Error('integration_not_found');
     const credentials = canal === 'whatsapp'
-      ? { instancia_id: instanceId, token, client_token: String(credenciais.client_token ?? '').trim(), numero_origem: String(credenciais.numero_origem ?? '').trim(), url_base: String(credenciais.url_base ?? 'https://api.z-api.io').trim() }
+      ? { instancia_id: instanceId, token, client_token: clientToken, numero_origem: String(credenciais.numero_origem ?? '').trim(), url_base: String(credenciais.url_base ?? 'https://api.z-api.io').trim() }
       : canal === 'apify'
         ? { api_token: apifyToken, actor_id: actorId, task_id: taskId, input_json: String(credenciais.input_json ?? '').trim() }
         : { api_key: googleApiKey };
     const { error: secretError } = await admin.rpc('store_integration_secret', { p_integration: integration.id, p_secret: credentials });
     if (secretError) throw secretError;
     const publicConfiguration = canal === 'apify' ? { actor_id: actorId || null, task_id: taskId || null } : {};
-    await admin.from('integrations').update({ label: definition.label, provider: definition.provider, configuration: publicConfiguration, connected: false, enabled: false, paused: false, mode: 'production', status_detail: 'Credenciais guardadas. Valide a conexão para ativar.', last_error: null, last_error_at: null, updated_at: new Date().toISOString() }).eq('id', integration.id);
+    await admin.from('integrations').update({
+      label: definition.label,
+      provider: definition.provider,
+      // O cofre grava secret_ref nesta mesma coluna. Mesclar evita apagar a
+      // referência quando o usuário salva novamente as credenciais.
+      configuration: { ...(integration.configuration ?? {}), ...publicConfiguration },
+      connected: false,
+      enabled: false,
+      paused: false,
+      mode: 'production',
+      status_detail: 'Credenciais guardadas. Valide a conexão para ativar.',
+      last_error: null,
+      last_error_at: null,
+      updated_at: new Date().toISOString(),
+    }).eq('id', integration.id);
     const sourceConfig = await admin.from('lead_source_configs').select('id').eq('organization_id', organizationId).eq('source_key', canal).maybeSingle();
     if (sourceConfig.data?.id) {
       await admin.from('lead_source_configs').update({ label: definition.label, enabled: false, mode: 'production', connection_status: 'configured', configuration: publicConfiguration, last_error: null, last_error_at: null, updated_at: new Date().toISOString() }).eq('id', sourceConfig.data.id);
