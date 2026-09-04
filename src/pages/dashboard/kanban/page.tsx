@@ -251,7 +251,7 @@ export default function KanbanCRM() {
 
   const rodarAna = async (lead: Lead) => {
     const result = await runAna({ event: 'manual.run', leadId: lead.id, modo: lead.modoAtendimento ?? 'IA' });
-    if (!result.ok) throw new Error(result.erro || 'A Ana não conseguiu processar este lead.');
+    if (!result.ok) throw new Error(result.erro || 'ana_run_failed');
     const etapa = result.proximo_estagio === 'Ganho / Perdido'
       ? result.outcome === 'perdido' ? 'Perdido' : 'Ganho'
       : result.proximo_estagio;

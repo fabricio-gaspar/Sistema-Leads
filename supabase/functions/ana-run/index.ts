@@ -146,7 +146,13 @@ async function callClaude(apiKey: string, system: string, context: Record<string
       }),
     });
   } catch { throw new Error('claude_network_error'); }
-  if (!response.ok) throw new Error(`claude_${response.status}`);
+  if (!response.ok) {
+    const failure = await response.json().catch(() => ({})) as { error?: { message?: string } };
+    const message = asText(failure.error?.message, 300).toLowerCase();
+    if (response.status === 400 && /credit|balance|billing|payment/.test(message)) throw new Error('claude_credit_required');
+    if (response.status === 400 && /model|not found|unsupported/.test(message)) throw new Error('claude_model_unavailable');
+    throw new Error(`claude_${response.status}`);
+  }
   const body = await response.json() as { content?: Array<{ type?: string; name?: string; input?: unknown }> };
   const toolUse = body.content?.find((block) => block.type === 'tool_use' && block.name === 'ana_decision');
   if (!toolUse?.input) throw new Error('claude_empty_response');
@@ -165,14 +171,16 @@ async function callAi(system: string, context: Record<string, unknown>, storedCr
   const claudeModel = asText(storedCredentials.claude_model, 100);
   if (!openAiKey && !claudeKey) throw new Error('ai_provider_not_configured');
   if (preferred === 'claude' && claudeKey) {
-    try { return { provider: 'claude', decision: await callClaude(claudeKey, system, context, claudeModel) }; }
-    catch (error) {
-      // Algumas contas Anthropic não têm acesso a todos os modelos. Quando o
-      // modelo escolhido é recusado, tenta o modelo comercial padrão sem
-      // alterar a configuração do administrador.
-      if (safeError(error) !== 'claude_400' || claudeModel === 'claude-sonnet-5') throw error;
-      return { provider: 'claude', decision: await callClaude(claudeKey, system, context, 'claude-sonnet-5') };
+    const candidates = [...new Set([claudeModel, 'claude-sonnet-5', 'claude-haiku-4-5-20251001'].filter(Boolean))];
+    let lastError: unknown;
+    for (const model of candidates) {
+      try { return { provider: 'claude', decision: await callClaude(claudeKey, system, context, model) }; }
+      catch (error) {
+        lastError = error;
+        if (!['claude_400', 'claude_model_unavailable'].includes(safeError(error))) throw error;
+      }
     }
+    throw lastError ?? new Error('claude_unavailable');
   }
   if (openAiKey) {
     try { return { provider: 'openai', decision: await callOpenAI(openAiKey, system, context, openAiModel) }; }
