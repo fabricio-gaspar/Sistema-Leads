@@ -157,9 +157,9 @@ function canUseClaudeFallback(error: unknown): boolean {
   return /^(openai_network_error|openai_408|openai_409|openai_429|openai_5\d\d)$/.test(safeError(error));
 }
 
-async function callAi(system: string, context: Record<string, unknown>): Promise<{ provider: AiProvider; decision: unknown }> {
-  const openAiKey = Deno.env.get('OPENAI_API_KEY');
-  const claudeKey = Deno.env.get('CLAUDE_API_KEY') || Deno.env.get('ANTHROPIC_API_KEY');
+async function callAi(system: string, context: Record<string, unknown>, storedCredentials: Record<string, unknown> = {}): Promise<{ provider: AiProvider; decision: unknown }> {
+  const openAiKey = Deno.env.get('OPENAI_API_KEY') || asText(storedCredentials.openai_key, 1_000);
+  const claudeKey = Deno.env.get('CLAUDE_API_KEY') || Deno.env.get('ANTHROPIC_API_KEY') || asText(storedCredentials.claude_key, 1_000);
   if (!openAiKey && !claudeKey) throw new Error('ai_provider_not_configured');
   if (openAiKey) {
     try { return { provider: 'openai', decision: await callOpenAI(openAiKey, system, context) }; }
@@ -224,7 +224,7 @@ Deno.serve(async (request) => {
     runId = run.id as string;
 
     const activeChannel = canonicalChannel(lead.active_channel);
-    const [{ data: company }, { data: messages }, { data: channel }, { data: agent }, { data: catalog }, { data: knowledge }, { data: appointments }, { data: suppressions }] = await Promise.all([
+    const [{ data: company }, { data: messages }, { data: channel }, { data: agent }, { data: catalog }, { data: knowledge }, { data: appointments }, { data: suppressions }, { data: aiIntegration }] = await Promise.all([
       admin.from('company_settings').select('name,description,segment,website,phone,email,differentiators,ai_prompt,autonomy,lead_flow').eq('organization_id', organizationId).maybeSingle(),
       admin.from('lead_messages').select('sender,sender_name,type,text,sent_at').eq('organization_id', organizationId).eq('lead_id', leadId).order('sent_at', { ascending: false }).limit(20),
       activeChannel ? admin.from('integrations').select('connected,enabled,paused').eq('organization_id', organizationId).eq('key', activeChannel).maybeSingle() : Promise.resolve({ data: null }),
@@ -233,7 +233,11 @@ Deno.serve(async (request) => {
       admin.from('knowledge_chunks').select('content,metadata').eq('organization_id', organizationId).eq('status', 'active').limit(20),
       admin.from('appointments').select('starts_at,ends_at,status,meeting_url').eq('organization_id', organizationId).eq('lead_id', leadId).order('starts_at', { ascending: false }).limit(10),
       admin.from('contact_suppressions').select('channel,reason,created_at').eq('organization_id', organizationId).eq('lead_id', leadId).limit(10),
+      admin.from('integrations').select('id').eq('organization_id', organizationId).eq('key', 'ai').maybeSingle(),
     ]);
+    const { data: aiCredentials } = aiIntegration?.id
+      ? await admin.rpc('read_integration_secret', { p_integration: aiIntegration.id })
+      : { data: null };
     const { data: version } = agent?.active_version_id
       ? await admin.from('ai_agent_versions').select('configuration').eq('id', agent.active_version_id).maybeSingle()
       : { data: null };
@@ -255,7 +259,7 @@ Deno.serve(async (request) => {
         acoes: [{ tipo: 'handoff', payload: { reason: timeout ? 'timeout_48h' : 'modo_humano' } }],
       };
     } else {
-      const ai = await callAi(asText(company?.ai_prompt, 8_000) || DEFAULT_PROMPT, baseContext);
+      const ai = await callAi(asText(company?.ai_prompt, 8_000) || DEFAULT_PROMPT, baseContext, asObject(aiCredentials));
       aiProvider = ai.provider;
       decision = parseDecision(ai.decision, currentStage);
     }

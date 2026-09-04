@@ -9,7 +9,7 @@ Deno.serve(async (request) => {
   try {
     const body = await request.json() as { canal?: string; credenciais?: Record<string, unknown> };
     const canal = String(body.canal ?? '').trim();
-    if (!['whatsapp', 'apify', 'google_places'].includes(canal)) throw new Error('unsupported_channel');
+    if (!['whatsapp', 'apify', 'google_places', 'ai'].includes(canal)) throw new Error('unsupported_channel');
     const credenciais = body.credenciais ?? {};
     const instanceId = String(credenciais.instancia_id ?? '').trim();
     const token = String(credenciais.token ?? '').trim();
@@ -18,9 +18,12 @@ Deno.serve(async (request) => {
     const actorId = String(credenciais.actor_id ?? '').trim();
     const taskId = String(credenciais.task_id ?? '').trim();
     const googleApiKey = String(credenciais.api_key ?? '').trim();
+    const openaiKey = String(credenciais.openai_key ?? '').trim();
+    const claudeKey = String(credenciais.claude_key ?? '').trim();
     if (canal === 'whatsapp' && (!instanceId || !token || !clientToken)) throw new Error('zapi_credentials_required');
     if (canal === 'apify' && (!apifyToken || (!actorId && !taskId))) throw new Error('apify_credentials_required');
     if (canal === 'google_places' && !googleApiKey) throw new Error('google_places_credentials_required');
+    if (canal === 'ai' && !openaiKey && !claudeKey) throw new Error('ai_provider_key_required');
     const { user } = await requireUser(request);
     const admin = createAdminClient();
     const { data: profile } = await admin.from('profiles').select('active_organization_id,name').eq('id', user.id).maybeSingle();
@@ -31,6 +34,7 @@ Deno.serve(async (request) => {
       whatsapp: { label: 'WhatsApp (Z-API)', provider: 'Z-API', detail: 'Mensageria WhatsApp.' },
       apify: { label: 'Apify — Google Maps', provider: 'Apify', detail: 'Busca real por Actor ou Task autorizado.' },
       google_places: { label: 'Google Places', provider: 'Google Places', detail: 'Busca real de empresas por texto e localização.' },
+      ai: { label: 'IA da Ana', provider: 'OpenAI / Claude', detail: 'Provedor comercial da Ana, configurado no cofre.' },
     };
     const definition = labels[canal];
     const { data: existing, error } = await admin.from('integrations').select('id,configuration').eq('organization_id', organizationId).eq('key', canal).maybeSingle();
@@ -43,10 +47,12 @@ Deno.serve(async (request) => {
       ? { instancia_id: instanceId, token, client_token: clientToken, numero_origem: String(credenciais.numero_origem ?? '').trim(), url_base: String(credenciais.url_base ?? 'https://api.z-api.io').trim() }
       : canal === 'apify'
         ? { api_token: apifyToken, actor_id: actorId, task_id: taskId, input_json: String(credenciais.input_json ?? '').trim() }
-        : { api_key: googleApiKey };
+        : canal === 'google_places'
+          ? { api_key: googleApiKey }
+          : { openai_key: openaiKey, claude_key: claudeKey, modelo: String(credenciais.modelo ?? '').trim() };
     const { error: secretError } = await admin.rpc('store_integration_secret', { p_integration: integration.id, p_secret: credentials });
     if (secretError) throw new Error('integration_secret_save_failed');
-    const publicConfiguration = canal === 'apify' ? { actor_id: actorId || null, task_id: taskId || null } : {};
+    const publicConfiguration = canal === 'apify' ? { actor_id: actorId || null, task_id: taskId || null } : canal === 'ai' ? { modelo: String(credenciais.modelo ?? '').trim(), openai_configurado: Boolean(openaiKey), claude_configurado: Boolean(claudeKey) } : {};
     // store_integration_secret já atualiza a integração e preserva a referência
     // do cofre. Uma segunda atualização era redundante e podia falhar depois de
     // as credenciais terem sido salvas, prendendo o usuário no modal.

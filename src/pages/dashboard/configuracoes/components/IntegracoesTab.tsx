@@ -395,7 +395,7 @@ export default function IntegracoesTab() {
           integracao={configurando}
           onFechar={() => setConfigurando(null)}
           onSalvar={async (id, credenciais) => {
-            const canal = id === 'int-1' ? 'whatsapp' : id === 'int-7' ? 'apify' : id === 'int-8' ? 'google_places' : '';
+            const canal = id === 'int-1' ? 'whatsapp' : id === 'int-6' ? 'ai' : id === 'int-7' ? 'apify' : id === 'int-8' ? 'google_places' : '';
             if (!canal) throw new Error('A conexão segura deste provedor ainda não está disponível.');
             const { data, error } = await supabase.functions.invoke('configurar-integracao', { body: { canal, credenciais } });
             if (error || !data?.ok) throw new Error(data?.erro ?? await detalheDoErroDeFuncao(error));

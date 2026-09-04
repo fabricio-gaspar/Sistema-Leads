@@ -196,15 +196,16 @@ export const integracoes: Integracao[] = [
   },
   {
     id: 'int-6',
-    nome: 'IA (OpenAI)',
+    nome: 'IA da Ana (OpenAI e Claude)',
     icone: 'ri-brain-line',
     categoria: 'Inteligência',
     status: 'conectado',
     ultimoTeste: 'há 2 min',
-    descricao: 'Motor comercial da Ana com OpenAI. A chave fica guardada com segurança no Backend.',
+    descricao: 'Motor comercial da Ana. Configure OpenAI e/ou Claude; as chaves ficam somente no cofre do Backend.',
     campos: [
-      { id: 'openai_key', rotulo: 'API Key (OpenAI)', tipo: 'senha', placeholder: 'sk-...', obrigatorio: true, ajuda: 'Chave usada pela Ana. Fica armazenada com segurança nos segredos do Backend.' },
-      { id: 'modelo', rotulo: 'Modelo', tipo: 'selecao', opcoes: ['gpt-4.1-mini'], obrigatorio: true, ajuda: 'Modelo padrão para as respostas e análises.' },
+      { id: 'openai_key', rotulo: 'API Key OpenAI (opcional)', tipo: 'senha', placeholder: 'sk-...', ajuda: 'OpenAI é o provedor principal quando configurado.' },
+      { id: 'claude_key', rotulo: 'API Key Claude (opcional)', tipo: 'senha', placeholder: 'sk-ant-...', ajuda: 'Claude é usado quando a OpenAI não estiver configurada ou estiver indisponível.' },
+      { id: 'modelo', rotulo: 'Modelo OpenAI', tipo: 'selecao', opcoes: ['gpt-4.1-mini'], ajuda: 'Informe ao menos uma chave. O Claude usa o modelo seguro padrão.' },
     ],
   },
   {
