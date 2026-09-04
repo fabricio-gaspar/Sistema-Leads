@@ -31,7 +31,17 @@ export async function runAna(input: { event: AnaRunEvent; leadId: string; modo: 
   const { data, error } = await supabase.functions.invoke('ana-run', {
     body: { event: input.event, lead_id: input.leadId, modo: input.modo.toLowerCase(), contexto: input.contexto ?? {} },
   });
-  if (error) throw new Error('ana_run_unavailable');
+  if (error) {
+    const response = (error as { context?: Response }).context;
+    let detail = 'ana_run_unavailable';
+    if (response) {
+      try {
+        const body = await response.clone().json() as { erro?: string; error?: string };
+        detail = body.erro ?? body.error ?? detail;
+      } catch { /* mantém o código de indisponibilidade somente se não houver resposta legível */ }
+    }
+    throw new Error(detail);
+  }
   return data as AnaRunResult;
 }
 

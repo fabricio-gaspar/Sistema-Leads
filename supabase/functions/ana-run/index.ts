@@ -164,7 +164,16 @@ async function callAi(system: string, context: Record<string, unknown>, storedCr
   const openAiModel = asText(storedCredentials.openai_model, 100);
   const claudeModel = asText(storedCredentials.claude_model, 100);
   if (!openAiKey && !claudeKey) throw new Error('ai_provider_not_configured');
-  if (preferred === 'claude' && claudeKey) return { provider: 'claude', decision: await callClaude(claudeKey, system, context, claudeModel) };
+  if (preferred === 'claude' && claudeKey) {
+    try { return { provider: 'claude', decision: await callClaude(claudeKey, system, context, claudeModel) }; }
+    catch (error) {
+      // Algumas contas Anthropic não têm acesso a todos os modelos. Quando o
+      // modelo escolhido é recusado, tenta o modelo comercial padrão sem
+      // alterar a configuração do administrador.
+      if (safeError(error) !== 'claude_400' || claudeModel === 'claude-sonnet-5') throw error;
+      return { provider: 'claude', decision: await callClaude(claudeKey, system, context, 'claude-sonnet-5') };
+    }
+  }
   if (openAiKey) {
     try { return { provider: 'openai', decision: await callOpenAI(openAiKey, system, context, openAiModel) }; }
     catch (error) {
