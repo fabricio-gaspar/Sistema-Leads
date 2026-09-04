@@ -39,6 +39,13 @@ function mensagemDaFalhaDeConexao(codigo: string, nome: string): string {
     source_not_validated: `${nome} precisa passar no teste de conexão antes de ser ativada.`,
     provider_error: `${nome} recusou a validação. Confira a chave, o Actor/Task ou as permissões da API.`,
     organization_access_denied: 'Seu usuário não tem permissão administrativa na empresa ativa para configurar esta conexão.',
+    integration_lookup_failed: 'Não foi possível localizar a configuração desta integração. Atualize a página e tente novamente.',
+    integration_create_failed: 'Não foi possível preparar a integração para esta empresa. Tente novamente.',
+    integration_secret_save_failed: 'Não foi possível guardar as credenciais no cofre seguro. Tente salvar novamente.',
+    integration_update_failed: 'As credenciais foram recebidas, mas o estado da integração não pôde ser atualizado. Tente novamente.',
+    integration_source_config_lookup_failed: 'Não foi possível localizar a fonte de prospecção vinculada a esta integração. Tente novamente.',
+    integration_source_config_save_failed: 'Não foi possível preparar a fonte de prospecção vinculada. Tente salvar novamente.',
+    integration_audit_log_failed: 'As credenciais foram salvas, mas o registro de auditoria não pôde ser concluído. Atualize a página antes de continuar.',
   };
   return mensagens[codigo] ?? (codigo.startsWith('zapi_http_')
     ? `${nome} recusou o teste (${codigo.replace('zapi_http_', 'HTTP ')}). Confira as credenciais e tente de novo.`

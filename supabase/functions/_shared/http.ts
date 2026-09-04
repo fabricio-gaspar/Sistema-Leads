@@ -37,5 +37,14 @@ export function preflight(request: Request): Response | null {
 }
 
 export function safeError(error: unknown): string {
-  return error instanceof Error ? error.message : 'internal_error';
+  if (error instanceof Error && error.message) return error.message;
+  // PostgREST e algumas APIs do Supabase retornam erros estruturados que não
+  // herdam de Error. Preservar somente a mensagem permite à função converter o
+  // erro em um código seguro e evita reduzir uma falha tratável a
+  // "internal_error".
+  if (typeof error === 'object' && error !== null && 'message' in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === 'string' && message) return message;
+  }
+  return 'internal_error';
 }
