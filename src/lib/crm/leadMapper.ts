@@ -102,6 +102,19 @@ function databaseTemperature(value: Lead['temperatura']): string {
   return value === 'Quente' ? 'hot' : value === 'Frio' ? 'cold' : 'warm';
 }
 
+export function canonicalLeadChannel(value: string | null | undefined): string | null {
+  const normalized = (value ?? '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (normalized === 'whatsapp') return 'whatsapp';
+  if (normalized === 'email') return 'email';
+  if (normalized === 'instagram' || normalized === 'meta') return 'instagram';
+  if (normalized === 'voice' || normalized === 'voip' || normalized === 'telefone') return 'voice';
+  return normalized || null;
+}
+
+function leadChannelLabel(value: string | null): string | undefined {
+  return ({ whatsapp: 'WhatsApp', email: 'E-mail', instagram: 'Instagram', voice: 'VoIP' } as Record<string, string>)[canonicalLeadChannel(value) ?? ''] ?? value ?? undefined;
+}
+
 export function leadToCrmRow(lead: Lead, organizationId: string): Partial<CrmLeadRow> & { organization_id: string; company: string } {
   const ana = legacyToAnaStage[lead.etapa] ?? { stage: lead.anaStage ?? 'novo', outcome: lead.anaOutcome ?? undefined };
   return {
@@ -126,7 +139,7 @@ export function leadToCrmRow(lead: Lead, organizationId: string): Partial<CrmLea
     opt_out: Boolean(lead.bloqueado || lead.contatoPermitido === false),
     ai_paused: (lead.modoAtendimento ?? 'IA') === 'HUMANO',
     automation_status: lead.automacaoStatus === 'AGUARDANDO_HUMANO' ? 'human' : lead.automacaoStatus === 'PAUSADA' ? 'paused' : 'running',
-    active_channel: lead.canalPreferencial || null,
+    active_channel: canonicalLeadChannel(lead.canalPreferencial),
     city: lead.cidade || null,
     size: lead.porte || null,
     source_metadata: { cnpj: lead.cnpj, estado: lead.estado, tags: lead.tags, cargo: lead.cargo, campanha: lead.campanha },
@@ -152,7 +165,7 @@ export function crmRowToLead(row: CrmLeadRow): Lead {
     ultimaInteracao: row.updated_at ? new Date(row.updated_at).toLocaleDateString('pt-BR') : '—', criadoEm: row.created_at.slice(0, 10),
     cargo: typeof meta.cargo === 'string' ? meta.cargo : undefined, campanha: typeof meta.campanha === 'string' ? meta.campanha : undefined,
     modoAtendimento: isHuman ? 'HUMANO' : 'IA', automacaoStatus: isHuman ? 'AGUARDANDO_HUMANO' : row.automation_status === 'paused' ? 'PAUSADA' : 'ATIVA',
-    responsavelId: row.owner_id ?? row.assigned_to ?? undefined, canalPreferencial: row.active_channel ?? undefined,
+    responsavelId: row.owner_id ?? row.assigned_to ?? undefined, canalPreferencial: leadChannelLabel(row.active_channel),
     anaStage: row.ana_stage as Lead['anaStage'], anaOutcome: row.ana_outcome === 'ganho' || row.ana_outcome === 'perdido' ? row.ana_outcome : null,
     intencao: null, sentimento: 'NEUTRO', confianca: 0, proximaAcao: null, motivoTransferencia: '', nextFollowUpAt: null, timeoutAt: null,
     followUpCount: 0, maxFollowUps: 2, automationEvents: [], historico: [], bloqueado: Boolean(row.opt_out), contatoPermitido: !row.opt_out,

@@ -1,6 +1,11 @@
 import { createAdminClient, requireOrganizationRole, requireUser } from '../_shared/auth.ts';
 import { allowedCorsHeaders, hasAllowedOrigin, json, preflight, safeError } from '../_shared/http.ts';
 
+function canonicalChannel(value: unknown): string {
+  const normalized = String(value ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  return normalized === 'whatsapp' ? 'whatsapp' : normalized;
+}
+
 Deno.serve(async (request) => {
   const options = preflight(request); if (options) return options;
   if (!hasAllowedOrigin(request)) return json({ error: 'origin_not_allowed' }, 403);
@@ -77,7 +82,7 @@ Deno.serve(async (request) => {
         const recipient = String(payload.recipient ?? lead?.whatsapp ?? lead?.phone ?? '').replace(/\D/g, '');
         const message = String(payload.message ?? payload.text ?? '').trim().slice(0, 4_096);
         try {
-          if (job.channel !== 'whatsapp' || !integration?.connected || !integration.enabled || integration.paused || !credentials) throw new Error('channel_not_ready');
+          if (canonicalChannel(job.channel) !== 'whatsapp' || !integration?.connected || !integration.enabled || integration.paused || !credentials) throw new Error('channel_not_ready');
           if (!lead || lead.opt_out || lead.ai_paused || !recipient || !message) throw new Error('lead_or_payload_blocked');
           const zapi = credentials as { instancia_id?: string; token?: string; client_token?: string; url_base?: string };
           const baseUrl = (zapi.url_base || 'https://api.z-api.io').replace(/\/$/, '');

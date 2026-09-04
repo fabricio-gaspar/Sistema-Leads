@@ -6,6 +6,7 @@ const MODES = new Set(['ia', 'humano']);
 const STAGES = ['novo', 'apresentado', 'qualificando', 'reuniao', 'orcamento', 'fechado'] as const;
 type AnaStage = (typeof STAGES)[number];
 type AnaMode = 'ia' | 'humano';
+type AiProvider = 'openai' | 'claude';
 
 const DEFAULT_PROMPT = `Você é a Ana deste CRM. Responda em pt-BR, direta e exclusivamente em JSON válido.
 Funil rígido: Novo → Apresentado → Qualificando → Reunião → Orçamento → Ganho/Perdido.
@@ -19,6 +20,27 @@ const stageLabel: Record<AnaStage, string> = {
 };
 const databaseStage: Record<AnaStage, string> = {
   novo: 'Prospecção', apresentado: 'Prospecção', qualificando: 'Qualificado', reuniao: 'Qualificado', orcamento: 'Proposta', fechado: 'Fechado',
+};
+
+const ANA_DECISION_SCHEMA = {
+  type: 'object', additionalProperties: false,
+  required: ['proximo_estagio', 'outcome', 'acoes', 'mensagem_sugerida', 'score', 'motivo', 'precisa_humano'],
+  properties: {
+    proximo_estagio: { type: 'string', enum: [...STAGES] },
+    outcome: { anyOf: [{ type: 'string', enum: ['ganho', 'perdido'] }, { type: 'null' }] },
+    acoes: {
+      type: 'array', maxItems: 5,
+      items: {
+        type: 'object', additionalProperties: false, required: ['tipo', 'payload'],
+        properties: {
+          tipo: { type: 'string', enum: ['atualizar_lead', 'enviar_mensagem', 'criar_tarefa', 'agendar', 'gerar_orcamento', 'handoff'] },
+          payload: { type: 'object', additionalProperties: true },
+        },
+      },
+    },
+    mensagem_sugerida: { type: 'string' }, score: { type: 'integer', minimum: 0, maximum: 100 },
+    motivo: { type: 'string' }, precisa_humano: { type: 'boolean' },
+  },
 };
 
 const asObject = (value: unknown): Record<string, unknown> => value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
@@ -35,6 +57,15 @@ function secureEqual(actual: string | null, expected: string | undefined): boole
 function errorCode(error: unknown): string {
   const message = safeError(error);
   return message.replace(/[^a-z0-9_]/gi, '_').toLowerCase().slice(0, 80) || 'ana_run_failed';
+}
+
+function canonicalChannel(value: unknown): string | null {
+  const normalized = asText(value, 40).toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (normalized === 'whatsapp') return 'whatsapp';
+  if (normalized === 'email') return 'email';
+  if (normalized === 'instagram' || normalized === 'meta') return 'instagram';
+  if (normalized === 'voice' || normalized === 'voip' || normalized === 'telefone') return 'voice';
+  return normalized || null;
 }
 
 function transitionAllowed(current: AnaStage, next: AnaStage, outcome?: string): boolean {
@@ -65,43 +96,78 @@ function parseDecision(raw: unknown, current: AnaStage) {
   };
 }
 
-async function callOpenAI(system: string, context: Record<string, unknown>) {
-  const apiKey = Deno.env.get('OPENAI_API_KEY');
-  if (!apiKey) throw new Error('openai_not_configured');
-  const response = await fetch('https://api.openai.com/v1/chat/completions', {
+const ANA_REQUEST = (context: Record<string, unknown>) =>
+  `Analise este contexto e retorne somente JSON com: proximo_estagio, outcome (ganho|perdido|null), acoes [{tipo,payload}], mensagem_sugerida, score (0-100), motivo, precisa_humano.\n${JSON.stringify(context)}`;
+
+async function callOpenAI(apiKey: string, system: string, context: Record<string, unknown>) {
+  let response: Response;
+  try {
+    response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: 'gpt-4.1-mini',
+      model: Deno.env.get('OPENAI_MODEL') || Deno.env.get('OPENAI_PROMPT_MODEL') || 'gpt-4.1-mini',
       temperature: 0.2,
       response_format: {
         type: 'json_schema',
         json_schema: {
           name: 'ana_decision', strict: true,
-          schema: {
-            type: 'object', additionalProperties: false,
-            required: ['proximo_estagio', 'outcome', 'acoes', 'mensagem_sugerida', 'score', 'motivo', 'precisa_humano'],
-            properties: {
-              proximo_estagio: { type: 'string', enum: [...STAGES] },
-              outcome: { anyOf: [{ type: 'string', enum: ['ganho', 'perdido'] }, { type: 'null' }] },
-              acoes: { type: 'array', maxItems: 5, items: { type: 'object', additionalProperties: false, required: ['tipo', 'payload'], properties: { tipo: { type: 'string', enum: ['atualizar_lead', 'enviar_mensagem', 'criar_tarefa', 'agendar', 'gerar_orcamento', 'handoff'] }, payload: { type: 'object', additionalProperties: true } } } },
-              mensagem_sugerida: { type: 'string' }, score: { type: 'integer', minimum: 0, maximum: 100 },
-              motivo: { type: 'string' }, precisa_humano: { type: 'boolean' },
-            },
-          },
+          schema: ANA_DECISION_SCHEMA,
         },
       },
       messages: [
         { role: 'system', content: system },
-        { role: 'user', content: `Analise este contexto e retorne somente JSON com: proximo_estagio, outcome (ganho|perdido|null), acoes [{tipo,payload}], mensagem_sugerida, score (0-100), motivo, precisa_humano.\n${JSON.stringify(context)}` },
+        { role: 'user', content: ANA_REQUEST(context) },
       ],
     }),
-  });
+    });
+  } catch { throw new Error('openai_network_error'); }
   if (!response.ok) throw new Error(`openai_${response.status}`);
   const body = await response.json() as { choices?: Array<{ message?: { content?: string } }> };
   const content = body.choices?.[0]?.message?.content;
   if (!content) throw new Error('openai_empty_response');
   try { return JSON.parse(content); } catch { throw new Error('openai_invalid_json'); }
+}
+
+async function callClaude(apiKey: string, system: string, context: Record<string, unknown>) {
+  let response: Response;
+  try {
+    response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
+      body: JSON.stringify({
+        model: Deno.env.get('CLAUDE_MODEL') || 'claude-sonnet-5',
+        max_tokens: 1_600,
+        temperature: 0.2,
+        system,
+        messages: [{ role: 'user', content: ANA_REQUEST(context) }],
+        tools: [{ name: 'ana_decision', description: 'Retorna exclusivamente a decisão estruturada que a Ana deve tomar.', input_schema: ANA_DECISION_SCHEMA }],
+        tool_choice: { type: 'tool', name: 'ana_decision' },
+      }),
+    });
+  } catch { throw new Error('claude_network_error'); }
+  if (!response.ok) throw new Error(`claude_${response.status}`);
+  const body = await response.json() as { content?: Array<{ type?: string; name?: string; input?: unknown }> };
+  const toolUse = body.content?.find((block) => block.type === 'tool_use' && block.name === 'ana_decision');
+  if (!toolUse?.input) throw new Error('claude_empty_response');
+  return toolUse.input;
+}
+
+function canUseClaudeFallback(error: unknown): boolean {
+  return /^(openai_network_error|openai_408|openai_409|openai_429|openai_5\d\d)$/.test(safeError(error));
+}
+
+async function callAi(system: string, context: Record<string, unknown>): Promise<{ provider: AiProvider; decision: unknown }> {
+  const openAiKey = Deno.env.get('OPENAI_API_KEY');
+  const claudeKey = Deno.env.get('CLAUDE_API_KEY') || Deno.env.get('ANTHROPIC_API_KEY');
+  if (!openAiKey && !claudeKey) throw new Error('ai_provider_not_configured');
+  if (openAiKey) {
+    try { return { provider: 'openai', decision: await callOpenAI(openAiKey, system, context) }; }
+    catch (error) {
+      if (!claudeKey || !canUseClaudeFallback(error)) throw error;
+    }
+  }
+  return { provider: 'claude', decision: await callClaude(claudeKey!, system, context) };
 }
 
 Deno.serve(async (request) => {
@@ -157,10 +223,11 @@ Deno.serve(async (request) => {
     if (runError || !run) throw runError ?? new Error('agent_run_not_created');
     runId = run.id as string;
 
+    const activeChannel = canonicalChannel(lead.active_channel);
     const [{ data: company }, { data: messages }, { data: channel }, { data: agent }, { data: catalog }, { data: knowledge }, { data: appointments }, { data: suppressions }] = await Promise.all([
       admin.from('company_settings').select('name,description,segment,website,phone,email,differentiators,ai_prompt,autonomy,lead_flow').eq('organization_id', organizationId).maybeSingle(),
       admin.from('lead_messages').select('sender,sender_name,type,text,sent_at').eq('organization_id', organizationId).eq('lead_id', leadId).order('sent_at', { ascending: false }).limit(20),
-      lead.active_channel ? admin.from('integrations').select('connected,enabled,paused').eq('organization_id', organizationId).eq('key', lead.active_channel).maybeSingle() : Promise.resolve({ data: null }),
+      activeChannel ? admin.from('integrations').select('connected,enabled,paused').eq('organization_id', organizationId).eq('key', activeChannel).maybeSingle() : Promise.resolve({ data: null }),
       admin.from('ai_agents').select('active_version_id').eq('organization_id', organizationId).eq('key', 'ana').maybeSingle(),
       admin.from('services').select('id,name,category,description,price,unit,term,max_discount').eq('organization_id', organizationId).eq('active', true).limit(50),
       admin.from('knowledge_chunks').select('content,metadata').eq('organization_id', organizationId).eq('status', 'active').limit(20),
@@ -172,13 +239,14 @@ Deno.serve(async (request) => {
       : { data: null };
     const timeout = event === 'timeout.48h' || Boolean(lead.no_reply_deadline_at && new Date(lead.no_reply_deadline_at).getTime() <= Date.now());
     const baseContext = {
-      event, lead: { company: lead.company, contact: lead.contact, segment: lead.segment, active_channel: lead.active_channel, current_stage: stageLabel[currentStage] },
+      event, lead: { company: lead.company, contact: lead.contact, segment: lead.segment, active_channel: activeChannel, current_stage: stageLabel[currentStage] },
       company: company ?? {}, agent_configuration: asObject(version?.configuration), catalog: catalog ?? [], knowledge: knowledge ?? [],
       messages: messages ?? [], appointments: appointments ?? [], suppressions: suppressions ?? [], contexto: asObject(body.contexto),
       policies: { allow_auto_quote: false, channel_connected: Boolean(channel?.connected && channel?.enabled && !channel?.paused), timeout_48h: timeout, suppressed: Boolean(suppressions?.length) },
     };
 
     let decision;
+    let aiProvider: AiProvider | 'policy' = 'policy';
     if (modo === 'humano' || timeout) {
       decision = {
         proximo_estagio: currentStage, outcome: null, mensagem_sugerida: '', score: Number(lead.score ?? 0),
@@ -187,7 +255,9 @@ Deno.serve(async (request) => {
         acoes: [{ tipo: 'handoff', payload: { reason: timeout ? 'timeout_48h' : 'modo_humano' } }],
       };
     } else {
-      decision = parseDecision(await callOpenAI(asText(company?.ai_prompt, 8_000) || DEFAULT_PROMPT, baseContext), currentStage);
+      const ai = await callAi(asText(company?.ai_prompt, 8_000) || DEFAULT_PROMPT, baseContext);
+      aiProvider = ai.provider;
+      decision = parseDecision(ai.decision, currentStage);
     }
 
     const needsHuman = decision.precisa_humano || decision.acoes.some((action) => action.tipo === 'handoff') || modo === 'humano' || timeout;
@@ -215,7 +285,7 @@ Deno.serve(async (request) => {
       });
       if (channelConnected && !suppressions?.length) {
         await admin.from('outreach_jobs').upsert({
-          organization_id: organizationId, lead_id: leadId, channel: lead.active_channel,
+          organization_id: organizationId, lead_id: leadId, channel: activeChannel,
           run_at: new Date().toISOString(), status: 'queued', attempt: 0,
           idempotency_key: `${runId}:message`, payload: { text: decision.mensagem_sugerida, agent_run_id: runId },
         }, { onConflict: 'idempotency_key', ignoreDuplicates: true });
@@ -240,6 +310,7 @@ Deno.serve(async (request) => {
       acoes: [...decision.acoes, ...appliedActions], mensagem_sugerida: decision.mensagem_sugerida,
       score: update.score, motivo: decision.motivo, precisa_humano: needsHuman,
       outcome: decision.outcome,
+      provedor_ia: aiProvider,
       status_canal: channelConnected && !suppressions?.length ? 'enfileirado' : 'pendente_canal',
     };
     await admin.from('agent_runs').update({ status: 'completed', result, completed_at: new Date().toISOString() }).eq('id', runId);
