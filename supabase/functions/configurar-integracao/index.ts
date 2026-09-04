@@ -47,22 +47,9 @@ Deno.serve(async (request) => {
     const { error: secretError } = await admin.rpc('store_integration_secret', { p_integration: integration.id, p_secret: credentials });
     if (secretError) throw new Error('integration_secret_save_failed');
     const publicConfiguration = canal === 'apify' ? { actor_id: actorId || null, task_id: taskId || null } : {};
-    const { error: integrationUpdateError } = await admin.from('integrations').update({
-      label: definition.label,
-      provider: definition.provider,
-      // O cofre grava secret_ref nesta mesma coluna. Mesclar evita apagar a
-      // referência quando o usuário salva novamente as credenciais.
-      configuration: { ...(integration.configuration ?? {}), ...publicConfiguration },
-      connected: false,
-      enabled: false,
-      paused: false,
-      mode: 'production',
-      status_detail: 'Credenciais guardadas. Valide a conexão para ativar.',
-      last_error: null,
-      last_error_at: null,
-      updated_at: new Date().toISOString(),
-    }).eq('id', integration.id);
-    if (integrationUpdateError) throw new Error('integration_update_failed');
+    // store_integration_secret já atualiza a integração e preserva a referência
+    // do cofre. Uma segunda atualização era redundante e podia falhar depois de
+    // as credenciais terem sido salvas, prendendo o usuário no modal.
     // Somente provedores de busca aparecem em Fontes de Prospecção. WhatsApp
     // é um canal de atendimento e não pode ser gravado nessa tabela.
     if (canal === 'apify' || canal === 'google_places') {
@@ -77,7 +64,7 @@ Deno.serve(async (request) => {
       }
     }
     const { error: auditError } = await admin.from('audit_logs').insert({ organization_id: organizationId, actor_id: user.id, actor_name: profile.name, actor_type: 'user', action: `integration.${canal}_configured`, detail: `Credenciais de ${definition.provider} guardadas no cofre seguro.`, entity_table: 'integrations', entity_id: integration.id, event_data: { provider: definition.provider, configured_fields: Object.keys(credentials).filter((key) => key !== 'token' && key !== 'api_token' && key !== 'api_key' && Boolean(credentials[key as keyof typeof credentials])) } });
-    if (auditError) throw new Error('integration_audit_log_failed');
+    if (auditError) console.error('integration_audit_log_failed', { canal, integrationId: integration.id });
     return json({ ok: true, mensagem: 'Credenciais guardadas com segurança. Valide a conexão para ativar a fonte.' }, 200, headers);
   } catch (error) { return json({ ok: false, erro: safeError(error) }, 400, headers); }
 });
