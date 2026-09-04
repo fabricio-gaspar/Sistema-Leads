@@ -99,14 +99,14 @@ function parseDecision(raw: unknown, current: AnaStage) {
 const ANA_REQUEST = (context: Record<string, unknown>) =>
   `Analise este contexto e retorne somente JSON com: proximo_estagio, outcome (ganho|perdido|null), acoes [{tipo,payload}], mensagem_sugerida, score (0-100), motivo, precisa_humano.\n${JSON.stringify(context)}`;
 
-async function callOpenAI(apiKey: string, system: string, context: Record<string, unknown>) {
+async function callOpenAI(apiKey: string, system: string, context: Record<string, unknown>, model?: string) {
   let response: Response;
   try {
     response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      model: Deno.env.get('OPENAI_MODEL') || Deno.env.get('OPENAI_PROMPT_MODEL') || 'gpt-4.1-mini',
+      model: model || Deno.env.get('OPENAI_MODEL') || Deno.env.get('OPENAI_PROMPT_MODEL') || 'gpt-4.1-mini',
       temperature: 0.2,
       response_format: {
         type: 'json_schema',
@@ -129,14 +129,14 @@ async function callOpenAI(apiKey: string, system: string, context: Record<string
   try { return JSON.parse(content); } catch { throw new Error('openai_invalid_json'); }
 }
 
-async function callClaude(apiKey: string, system: string, context: Record<string, unknown>) {
+async function callClaude(apiKey: string, system: string, context: Record<string, unknown>, model?: string) {
   let response: Response;
   try {
     response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: { 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
       body: JSON.stringify({
-        model: Deno.env.get('CLAUDE_MODEL') || 'claude-sonnet-5',
+        model: model || Deno.env.get('CLAUDE_MODEL') || 'claude-sonnet-5',
         max_tokens: 1_600,
         temperature: 0.2,
         system,
@@ -160,14 +160,18 @@ function canUseClaudeFallback(error: unknown): boolean {
 async function callAi(system: string, context: Record<string, unknown>, storedCredentials: Record<string, unknown> = {}): Promise<{ provider: AiProvider; decision: unknown }> {
   const openAiKey = Deno.env.get('OPENAI_API_KEY') || asText(storedCredentials.openai_key, 1_000);
   const claudeKey = Deno.env.get('CLAUDE_API_KEY') || Deno.env.get('ANTHROPIC_API_KEY') || asText(storedCredentials.claude_key, 1_000);
+  const preferred = asText(storedCredentials.provedor_principal, 20).toLowerCase();
+  const openAiModel = asText(storedCredentials.openai_model, 100);
+  const claudeModel = asText(storedCredentials.claude_model, 100);
   if (!openAiKey && !claudeKey) throw new Error('ai_provider_not_configured');
+  if (preferred === 'claude' && claudeKey) return { provider: 'claude', decision: await callClaude(claudeKey, system, context, claudeModel) };
   if (openAiKey) {
-    try { return { provider: 'openai', decision: await callOpenAI(openAiKey, system, context) }; }
+    try { return { provider: 'openai', decision: await callOpenAI(openAiKey, system, context, openAiModel) }; }
     catch (error) {
       if (!claudeKey || !canUseClaudeFallback(error)) throw error;
     }
   }
-  return { provider: 'claude', decision: await callClaude(claudeKey!, system, context) };
+  return { provider: 'claude', decision: await callClaude(claudeKey!, system, context, claudeModel) };
 }
 
 Deno.serve(async (request) => {

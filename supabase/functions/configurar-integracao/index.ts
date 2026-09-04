@@ -49,10 +49,10 @@ Deno.serve(async (request) => {
         ? { api_token: apifyToken, actor_id: actorId, task_id: taskId, input_json: String(credenciais.input_json ?? '').trim() }
         : canal === 'google_places'
           ? { api_key: googleApiKey }
-          : { openai_key: openaiKey, claude_key: claudeKey, modelo: String(credenciais.modelo ?? '').trim() };
+          : { openai_key: openaiKey, claude_key: claudeKey, provedor_principal: String(credenciais.provedor_principal ?? 'OpenAI').trim().toLowerCase(), openai_model: String(credenciais.openai_model ?? 'gpt-4.1-mini').trim(), claude_model: String(credenciais.claude_model ?? 'claude-sonnet-5').trim() };
     const { error: secretError } = await admin.rpc('store_integration_secret', { p_integration: integration.id, p_secret: credentials });
     if (secretError) throw new Error('integration_secret_save_failed');
-    const publicConfiguration = canal === 'apify' ? { actor_id: actorId || null, task_id: taskId || null } : canal === 'ai' ? { modelo: String(credenciais.modelo ?? '').trim(), openai_configurado: Boolean(openaiKey), claude_configurado: Boolean(claudeKey) } : {};
+    const publicConfiguration = canal === 'apify' ? { actor_id: actorId || null, task_id: taskId || null } : canal === 'ai' ? { provedor_principal: String(credenciais.provedor_principal ?? 'OpenAI').trim().toLowerCase(), openai_model: String(credenciais.openai_model ?? 'gpt-4.1-mini').trim(), claude_model: String(credenciais.claude_model ?? 'claude-sonnet-5').trim(), openai_configurado: Boolean(openaiKey), claude_configurado: Boolean(claudeKey) } : {};
     // store_integration_secret já atualiza a integração e preserva a referência
     // do cofre. Uma segunda atualização era redundante e podia falhar depois de
     // as credenciais terem sido salvas, prendendo o usuário no modal.

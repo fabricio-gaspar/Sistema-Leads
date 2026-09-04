@@ -203,9 +203,11 @@ export const integracoes: Integracao[] = [
     ultimoTeste: 'há 2 min',
     descricao: 'Motor comercial da Ana. Configure OpenAI e/ou Claude; as chaves ficam somente no cofre do Backend.',
     campos: [
+      { id: 'provedor_principal', rotulo: 'Provedor principal', tipo: 'selecao', opcoes: ['OpenAI', 'Claude'], obrigatorio: true, ajuda: 'Escolha qual IA a Ana usa primeiro.' },
       { id: 'openai_key', rotulo: 'API Key OpenAI (opcional)', tipo: 'senha', placeholder: 'sk-...', ajuda: 'OpenAI é o provedor principal quando configurado.' },
+      { id: 'openai_model', rotulo: 'Modelo OpenAI', tipo: 'selecao', opcoes: ['gpt-4.1-mini', 'gpt-4.1', 'gpt-4o-mini'], ajuda: 'Modelo usado quando OpenAI for escolhida.' },
       { id: 'claude_key', rotulo: 'API Key Claude (opcional)', tipo: 'senha', placeholder: 'sk-ant-...', ajuda: 'Claude é usado quando a OpenAI não estiver configurada ou estiver indisponível.' },
-      { id: 'modelo', rotulo: 'Modelo OpenAI', tipo: 'selecao', opcoes: ['gpt-4.1-mini'], ajuda: 'Informe ao menos uma chave. O Claude usa o modelo seguro padrão.' },
+      { id: 'claude_model', rotulo: 'Modelo Claude', tipo: 'selecao', opcoes: ['claude-sonnet-5', 'claude-haiku-4-5', 'claude-opus-5'], ajuda: 'Modelo usado quando Claude for escolhida.' },
     ],
   },
   {
