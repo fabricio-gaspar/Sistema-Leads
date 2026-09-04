@@ -63,14 +63,18 @@ Deno.serve(async (request) => {
       updated_at: new Date().toISOString(),
     }).eq('id', integration.id);
     if (integrationUpdateError) throw new Error('integration_update_failed');
-    const { data: sourceConfig, error: sourceLookupError } = await admin.from('lead_source_configs').select('id').eq('organization_id', organizationId).eq('source_key', canal).maybeSingle();
-    if (sourceLookupError) throw new Error('integration_source_config_lookup_failed');
-    if (sourceConfig?.id) {
-      const { error: sourceUpdateError } = await admin.from('lead_source_configs').update({ label: definition.label, enabled: false, mode: 'production', connection_status: 'configured', configuration: publicConfiguration, last_error: null, last_error_at: null, updated_at: new Date().toISOString() }).eq('id', sourceConfig.id);
-      if (sourceUpdateError) throw new Error('integration_source_config_save_failed');
-    } else {
-      const { error: sourceInsertError } = await admin.from('lead_source_configs').insert({ organization_id: organizationId, source_key: canal, label: definition.label, enabled: false, mode: 'production', connection_status: 'configured', configuration: publicConfiguration, created_by: user.id });
-      if (sourceInsertError) throw new Error('integration_source_config_save_failed');
+    // Somente provedores de busca aparecem em Fontes de Prospecção. WhatsApp
+    // é um canal de atendimento e não pode ser gravado nessa tabela.
+    if (canal === 'apify' || canal === 'google_places') {
+      const { data: sourceConfig, error: sourceLookupError } = await admin.from('lead_source_configs').select('id').eq('organization_id', organizationId).eq('source_key', canal).maybeSingle();
+      if (sourceLookupError) throw new Error('integration_source_config_lookup_failed');
+      if (sourceConfig?.id) {
+        const { error: sourceUpdateError } = await admin.from('lead_source_configs').update({ label: definition.label, enabled: false, mode: 'production', connection_status: 'configured', configuration: publicConfiguration, last_error: null, last_error_at: null, updated_at: new Date().toISOString() }).eq('id', sourceConfig.id);
+        if (sourceUpdateError) throw new Error('integration_source_config_save_failed');
+      } else {
+        const { error: sourceInsertError } = await admin.from('lead_source_configs').insert({ organization_id: organizationId, source_key: canal, label: definition.label, enabled: false, mode: 'production', connection_status: 'configured', configuration: publicConfiguration, created_by: user.id });
+        if (sourceInsertError) throw new Error('integration_source_config_save_failed');
+      }
     }
     const { error: auditError } = await admin.from('audit_logs').insert({ organization_id: organizationId, actor_id: user.id, actor_name: profile.name, actor_type: 'user', action: `integration.${canal}_configured`, detail: `Credenciais de ${definition.provider} guardadas no cofre seguro.`, entity_table: 'integrations', entity_id: integration.id, event_data: { provider: definition.provider, configured_fields: Object.keys(credentials).filter((key) => key !== 'token' && key !== 'api_token' && key !== 'api_key' && Boolean(credentials[key as keyof typeof credentials])) } });
     if (auditError) throw new Error('integration_audit_log_failed');
