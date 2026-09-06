@@ -48,6 +48,12 @@ const asObject = (value: unknown): Record<string, unknown> => value && typeof va
 const asText = (value: unknown, max = 4_000) => typeof value === 'string' ? value.trim().slice(0, max) : '';
 const asScore = (value: unknown) => typeof value === 'number' && Number.isFinite(value) ? Math.max(0, Math.min(100, Math.round(value))) : 0;
 const isUuid = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+const normalizeEvent = (value: unknown): string => {
+  const event = asText(value, 40);
+  return ({ inbound_message: 'message.received', manual_run: 'manual.run', followup_due: 'timeout.48h' } as Record<string, string>)[event] ?? event;
+};
+const requiresHumanReview = (value: unknown): boolean =>
+  /\b(pre[çc]o|valor|desconto|or[çc]amento|prazo|urgente|negocia[çc][ãa]o|reclama[çc][ãa]o|garantia|jur[ií]dic|advogad|falar com (uma )?(pessoa|humano|atendente))\b/i.test(asText(value, 4_000));
 function secureEqual(actual: string | null, expected: string | undefined): boolean {
   if (!actual || !expected || actual.length !== expected.length) return false;
   let difference = 0;
@@ -86,6 +92,7 @@ function parseDecision(raw: unknown, current: AnaStage) {
   if (!STAGES.includes(next)) throw new Error('ana_invalid_stage');
   if (!transitionAllowed(current, next, outcome)) throw new Error('ana_stage_jump_rejected');
   if (next === 'fechado' && !['ganho', 'perdido'].includes(outcome)) throw new Error('ana_invalid_outcome');
+  if (outcome === 'ganho') throw new Error('ana_gain_requires_human');
   return {
     proximo_estagio: next,
     outcome: next === 'fechado' ? outcome : null,
@@ -139,7 +146,6 @@ async function callClaude(apiKey: string, system: string, context: Record<string
       body: JSON.stringify({
         model: model || Deno.env.get('CLAUDE_MODEL') || 'claude-sonnet-5',
         max_tokens: 1_600,
-        temperature: 0.2,
         system,
         messages: [{ role: 'user', content: ANA_REQUEST(context) }],
         tools: [{ name: 'ana_decision', description: 'Retorna exclusivamente a decisão estruturada que a Ana deve tomar.', input_schema: ANA_DECISION_SCHEMA }],
@@ -172,16 +178,7 @@ async function callAi(system: string, context: Record<string, unknown>, storedCr
   const claudeModel = asText(storedCredentials.claude_model, 100);
   if (!openAiKey && !claudeKey) throw new Error('ai_provider_not_configured');
   if (preferred === 'claude' && claudeKey) {
-    const candidates = [...new Set([claudeModel, 'claude-sonnet-5', 'claude-haiku-4-5-20251001'].filter(Boolean))];
-    let lastError: unknown;
-    for (const model of candidates) {
-      try { return { provider: 'claude', decision: await callClaude(claudeKey, system, context, model) }; }
-      catch (error) {
-        lastError = error;
-        if (!['claude_400', 'claude_model_unavailable'].includes(safeError(error))) throw error;
-      }
-    }
-    throw lastError ?? new Error('claude_unavailable');
+    return { provider: 'claude', decision: await callClaude(claudeKey, system, context, claudeModel || 'claude-sonnet-5') };
   }
   if (openAiKey) {
     try { return { provider: 'openai', decision: await callOpenAI(openAiKey, system, context, openAiModel) }; }
@@ -203,7 +200,7 @@ Deno.serve(async (request) => {
   let organizationId: string | null = null;
   try {
     const body = asObject(await request.json());
-    const event = asText(body.event, 40);
+    const event = normalizeEvent(body.event);
     const leadId = asText(body.lead_id, 80);
     if (!EVENTS.has(event) || !isUuid(leadId)) throw new Error('ana_invalid_input');
 
@@ -232,7 +229,11 @@ Deno.serve(async (request) => {
     if (!MODES.has(mode) || mode !== lead.modo_atendimento || !lead.owner_id) throw new Error('lead_mode_or_owner_required');
     const modo = mode as AnaMode;
     const currentStage = (lead.ana_stage || 'novo') as AnaStage;
-    const idempotencyKey = `${event}:${leadId}:${Math.floor(Date.now() / 120_000)}`;
+    const executionContext = asObject(body.contexto);
+    const messageId = asText(body.message_id, 160) || asText(executionContext.inbound_event_id, 160);
+    const idempotencyKey = messageId
+      ? `${event}:${leadId}:message:${messageId}`
+      : `${event}:${leadId}:${Math.floor(Date.now() / 120_000)}`;
 
     const { data: previousRun } = await admin.from('agent_runs').select('id,status,result,error_code,error_message')
       .eq('organization_id', organizationId).eq('idempotency_key', idempotencyKey).maybeSingle();
@@ -240,7 +241,7 @@ Deno.serve(async (request) => {
 
     const { data: run, error: runError } = await admin.from('agent_runs').insert({
       organization_id: organizationId, lead_id: leadId, actor_id: actorId, event, modo, status: 'running',
-      input_context: asObject(body.contexto), idempotency_key: idempotencyKey,
+      input_context: executionContext, idempotency_key: idempotencyKey,
     }).select('id').single();
     if (runError || !run) throw runError ?? new Error('agent_run_not_created');
     runId = run.id as string;
@@ -264,23 +265,31 @@ Deno.serve(async (request) => {
       ? await admin.from('ai_agent_versions').select('configuration').eq('id', agent.active_version_id).maybeSingle()
       : { data: null };
     const timeout = event === 'timeout.48h' || Boolean(lead.no_reply_deadline_at && new Date(lead.no_reply_deadline_at).getTime() <= Date.now());
+    const dryRun = executionContext.dry_run === true || canonicalChannel(body.channel) === 'demo';
     const chronologicalMessages = (messages ?? []).slice().reverse();
     const latestInboundMessage = chronologicalMessages.slice().reverse().find((message) => message.sender === 'lead') ?? null;
+    const sensitiveInbound = requiresHumanReview(latestInboundMessage?.text);
     const baseContext = {
       event, lead: { company: lead.company, contact: lead.contact, segment: lead.segment, active_channel: activeChannel, current_stage: stageLabel[currentStage] },
       company: company ?? {}, agent_configuration: asObject(version?.configuration), catalog: catalog ?? [], knowledge: knowledge ?? [],
-      latest_inbound_message: latestInboundMessage, conversation: chronologicalMessages, appointments: appointments ?? [], suppressions: suppressions ?? [], contexto: asObject(body.contexto),
-      policies: { allow_auto_quote: false, channel_connected: Boolean(channel?.connected && channel?.enabled && !channel?.paused), timeout_48h: timeout, suppressed: Boolean(suppressions?.length) },
+      latest_inbound_message: latestInboundMessage, conversation: chronologicalMessages, appointments: appointments ?? [], suppressions: suppressions ?? [], contexto: executionContext,
+      policies: { allow_auto_quote: false, channel_connected: !dryRun && Boolean(channel?.connected && channel?.enabled && !channel?.paused), timeout_48h: timeout, suppressed: Boolean(suppressions?.length), dry_run: dryRun },
     };
 
     let decision;
     let aiProvider: AiProvider | 'policy' = 'policy';
-    if (modo === 'humano' || timeout) {
+    if (modo === 'humano' || timeout || Boolean(suppressions?.length) || sensitiveInbound) {
       decision = {
         proximo_estagio: currentStage, outcome: null, mensagem_sugerida: '', score: Number(lead.score ?? 0),
-        motivo: timeout ? '48h sem resposta: revisar como perdido.' : 'Lead em modo humano: Ana não envia mensagens.',
+        motivo: timeout
+          ? '48h sem resposta: revisar como perdido.'
+          : suppressions?.length
+            ? 'Lead com opt-out/supressão: novos contatos automáticos estão bloqueados.'
+            : sensitiveInbound
+              ? 'Demanda comercial ou sensível requer revisão humana antes de responder.'
+              : 'Lead em modo humano: Ana não envia mensagens.',
         precisa_humano: true,
-        acoes: [{ tipo: 'handoff', payload: { reason: timeout ? 'timeout_48h' : 'modo_humano' } }],
+        acoes: [{ tipo: 'handoff', payload: { reason: timeout ? 'timeout_48h' : suppressions?.length ? 'opt_out' : sensitiveInbound ? 'human_review_required' : 'modo_humano' } }],
       };
     } else {
       const companyInstructions = asText(company?.ai_prompt, 8_000);
@@ -293,8 +302,8 @@ Deno.serve(async (request) => {
       decision = parseDecision(ai.decision, currentStage);
     }
 
-    const needsHuman = decision.precisa_humano || decision.acoes.some((action) => action.tipo === 'handoff') || modo === 'humano' || timeout;
-    const channelConnected = Boolean(channel?.connected && channel?.enabled && !channel?.paused);
+    const needsHuman = decision.precisa_humano || decision.acoes.some((action) => action.tipo === 'handoff') || modo === 'humano' || timeout || Boolean(suppressions?.length) || sensitiveInbound;
+    const channelConnected = !dryRun && Boolean(channel?.connected && channel?.enabled && !channel?.paused);
     const update = {
       ana_stage: decision.proximo_estagio,
       ana_outcome: decision.outcome,
@@ -344,7 +353,7 @@ Deno.serve(async (request) => {
       score: update.score, motivo: decision.motivo, precisa_humano: needsHuman,
       outcome: decision.outcome,
       provedor_ia: aiProvider,
-      status_canal: channelConnected && !suppressions?.length ? 'enfileirado' : 'pendente_canal',
+      status_canal: dryRun ? 'rascunho_demo' : channelConnected && !suppressions?.length ? 'enfileirado' : 'pendente_canal',
     };
     await admin.from('agent_runs').update({ status: 'completed', result, completed_at: new Date().toISOString() }).eq('id', runId);
     await admin.from('audit_logs').insert({ organization_id: organizationId, actor_id: actorId, actor_name: actorName, actor_type: internal ? 'system' : 'user', action: 'ana.run.completed', detail: `Ana processou ${event}.`, entity_table: 'leads', entity_id: leadId, event_data: { run_id: runId, modo, needs_human: needsHuman } });
