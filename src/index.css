@@ -159,39 +159,38 @@
 }
 
 :root {
-  /* Sistema visual Wayflex: tipografia de interface, superfície clara e
-     controles precisos. Inspirado em clareza e não em identidade de terceiros. */
-  --font-heading: ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --font-body: ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  --font-label: ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  /* Apple Mac Light: a visual layer only — domain logic remains untouched. */
+  --font-heading: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Plus Jakarta Sans', sans-serif;
+  --font-body: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Plus Jakarta Sans', sans-serif;
+  --font-label: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Plus Jakarta Sans', sans-serif;
 
   /* Background – neutral frio, próximo de ferramentas de trabalho premium */
-  --background-50: 0.995 0.001 255;
-  --background-100: 0.975 0.003 255;
-  --background-200: 0.935 0.006 255;
-  --background-300: 0.885 0.008 255;
-  --background-400: 0.82 0.010 255;
-  --background-500: 0.72 0.012 255;
-  --background-600: 0.60 0.014 255;
-  --background-700: 0.46 0.014 255;
-  --background-800: 0.34 0.013 255;
-  --background-900: 0.24 0.012 255;
-  --background-950: 0.16 0.010 255;
+  --background-50: 1 0 0;
+  --background-100: 0.967 0.002 270;
+  --background-200: 0.93 0.004 270;
+  --background-300: 0.885 0.006 270;
+  --background-400: 0.72 0.008 270;
+  --background-500: 0.61 0.009 270;
+  --background-600: 0.51 0.010 270;
+  --background-700: 0.42 0.010 270;
+  --background-800: 0.31 0.009 270;
+  --background-900: 0.22 0.008 270;
+  --background-950: 0.14 0.007 270;
 
-  /* Primary – deep teal green */
-  --primary-50: 0.97 0.03 185;
-  --primary-100: 0.93 0.06 185;
-  --primary-200: 0.87 0.10 185;
-  --primary-300: 0.79 0.13 185;
-  --primary-400: 0.70 0.15 185;
-  --primary-500: 0.62 0.16 185;
-  --primary-600: 0.54 0.15 185;
-  --primary-700: 0.46 0.13 185;
-  --primary-800: 0.38 0.10 185;
-  --primary-900: 0.30 0.08 185;
-  --primary-950: 0.22 0.06 185;
+  /* Primary — macOS blue */
+  --primary-50: 0.97 0.015 255;
+  --primary-100: 0.93 0.035 255;
+  --primary-200: 0.87 0.07 255;
+  --primary-300: 0.79 0.11 255;
+  --primary-400: 0.70 0.15 255;
+  --primary-500: 0.62 0.18 255;
+  --primary-600: 0.54 0.18 255;
+  --primary-700: 0.47 0.16 255;
+  --primary-800: 0.39 0.13 255;
+  --primary-900: 0.31 0.10 255;
+  --primary-950: 0.22 0.07 255;
 
-  /* Accent – warm amber */
+  /* Accent — macOS orange */
   --accent-50: 0.98 0.02 80;
   --accent-100: 0.95 0.05 78;
   --accent-200: 0.90 0.09 75;
@@ -233,8 +232,8 @@
 
 body {
   font-family: var(--font-body);
-  background-color: oklch(var(--background-100));
-  color: oklch(var(--foreground-900));
+  background-color: #f5f5f7;
+  color: #1d1d1f;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -284,11 +283,11 @@ input:not([type='checkbox']):not([type='radio']),
 select,
 textarea {
   min-height: 2.625rem;
-  border-color: oklch(var(--background-300));
-  background: oklch(var(--background-50));
-  color: oklch(var(--foreground-900));
-  border-radius: .625rem;
-  box-shadow: inset 0 1px 1px rgb(15 23 42 / 0.018);
+  border-color: #e5e5ea;
+  background: #f2f2f7;
+  color: #1d1d1f;
+  border-radius: .75rem;
+  box-shadow: none;
   transition: border-color 150ms ease, background-color 150ms ease, box-shadow 150ms ease;
 }
 
@@ -301,8 +300,9 @@ textarea:hover {
 input:not([type='checkbox']):not([type='radio']):focus,
 select:focus,
 textarea:focus {
-  border-color: oklch(var(--primary-500));
-  box-shadow: 0 0 0 3px oklch(var(--primary-500) / 0.10);
+  border-color: #0071e3;
+  background: white;
+  box-shadow: 0 0 0 3px rgb(0 113 227 / .16);
   outline: none;
 }
 
@@ -312,11 +312,12 @@ table {
 }
 
 thead th {
-  color: oklch(var(--foreground-500));
-  font-size: .72rem;
+  color: #86868b;
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: .6875rem;
   font-weight: 650;
-  letter-spacing: .015em;
-  text-transform: none;
+  letter-spacing: .055em;
+  text-transform: uppercase;
 }
 
 tbody tr:last-child td {
@@ -324,13 +325,50 @@ tbody tr:last-child td {
 }
 
 tbody tr:hover {
-  background: oklch(var(--background-100) / .8);
+  background: rgb(242 242 247 / .70);
 }
 
+/* Apple Mac Light primitives applied to existing markup and states. */
+.wf-page { max-width: 1680px; padding: 1.5rem; }
+.wf-page-header { border-color: #e5e5ea; padding-bottom: 1.25rem; }
+.wf-page-title, main h1, main h2, main h3 { color: #1d1d1f; font-weight: 650; }
+.wf-page-description, .wf-section-description { color: #6e6e73; }
+.wf-surface, .wf-card, .wf-table-shell { border-color: #e5e5ea; border-radius: 1rem; box-shadow: 0 1px 2px rgb(29 29 31 / .05); }
+.wf-toolbar { border-color: #e5e5ea; border-radius: 1rem; background: white; box-shadow: 0 1px 2px rgb(29 29 31 / .04); }
+.wf-btn-primary { border-radius: .75rem; background: #0071e3; box-shadow: 0 1px 2px rgb(0 113 227 / .20); }
+.wf-btn-primary:hover { background: #0077ed; }
+.wf-btn-primary:active { transform: scale(.98); }
+.wf-btn-secondary { border-color: #e5e5ea; border-radius: .75rem; background: #f2f2f7; color: #1d1d1f; }
+.wf-btn-secondary:hover { border-color: #e5e5ea; background: #e5e5ea; }
+.wf-icon-button { border-radius: .75rem; }
+.wf-metric-strip { border-color: #e5e5ea; border-radius: 1rem; }
+.wf-kpi + .wf-kpi { border-color: #e5e5ea; }
+.wf-badge { border-color: #e5e5ea; border-radius: 999px; background: #f2f2f7; color: #6e6e73; font-family: 'JetBrains Mono', ui-monospace, monospace; }
+.wf-tabs { border-color: #e5e5ea; border-radius: 1rem; background: #f2f2f7; padding: .375rem; }
+.wf-tabs > button[aria-selected='true'], .wf-tabs > button.active { border-radius: .75rem; background: #0071e3; color: white; box-shadow: 0 1px 2px rgb(0 113 227 / .18); }
+.wf-control { border-color: #e5e5ea; border-radius: .75rem; background: #f2f2f7; color: #1d1d1f; box-shadow: none; }
+.wf-control:focus { border-color: #0071e3; background: white; box-shadow: 0 0 0 3px rgb(0 113 227 / .16); }
+.wf-card-interactive:hover { border-color: #d1d1d6; box-shadow: 0 8px 20px rgb(29 29 31 / .08); }
+.wf-button-danger { border-color: rgb(255 59 48 / .25); border-radius: .75rem; background: rgb(255 59 48 / .10); color: #ff3b30; }
+.wf-button-danger:hover { background: rgb(255 59 48 / .16); }
+.mac-traffic-lights { display: inline-flex; align-items: center; gap: .45rem; }
+.mac-traffic-lights > span { display: block; width: .75rem; height: .75rem; border-radius: 999px; box-shadow: 0 1px 1px rgb(29 29 31 / .12); }
+.mac-traffic-lights > span:nth-child(1) { background: #ff5f56; border: 1px solid rgb(224 68 62 / .60); }
+.mac-traffic-lights > span:nth-child(2) { background: #ffbd2e; border: 1px solid rgb(222 161 35 / .60); }
+.mac-traffic-lights > span:nth-child(3) { background: #27c93f; border: 1px solid rgb(26 171 41 / .60); }
+.wf-login-story { background: #ebecef; color: #1d1d1f; }
+.wf-login-story::before { border-color: rgb(0 113 227 / .10); box-shadow: 0 0 0 5rem rgb(0 113 227 / .04), 0 0 0 10rem rgb(0 113 227 / .025); }
+.wf-login-story .text-white, .wf-login-story .text-white\/90 { color: #1d1d1f !important; }
+.wf-login-story .text-white\/65, .wf-login-story .text-white\/55, .wf-login-story .text-white\/50, .wf-login-story .text-white\/40 { color: #6e6e73 !important; }
+.wf-login-story .border-white\/15 { border-color: #d1d1d6 !important; }
+.wf-login-story .text-emerald-200 { color: #0071e3 !important; }
+.wf-login .bg-primary-700 { background: #0071e3 !important; }
+.wf-login .hover\:bg-primary-800:hover { background: #0077ed !important; }
+
 .wf-sidebar {
-  background: #fbfcfd !important;
-  border-right: 1px solid oklch(var(--background-200));
-  box-shadow: 1px 0 0 rgb(15 23 42 / 0.015);
+  background: #ebecef !important;
+  border-right: 1px solid #e5e5ea;
+  box-shadow: 1px 0 0 rgb(29 29 31 / .025);
 }
 
 .wf-sidebar .wf-brand-copy strong {
@@ -364,21 +402,20 @@ tbody tr:hover {
 }
 
 .wf-nav-item.is-active {
-  background: oklch(var(--primary-100) / .8) !important;
-  color: oklch(var(--primary-800)) !important;
-  box-shadow: inset 2px 0 0 oklch(var(--primary-600));
+  background: #0071e3 !important;
+  color: white !important;
+  box-shadow: 0 1px 2px rgb(0 113 227 / .22);
 }
 
 .wf-topbar {
   min-height: 3.75rem;
-  background: rgb(255 255 255 / .92) !important;
-  backdrop-filter: blur(14px);
+  background: rgb(255 255 255 / .80) !important;
+  border-color: #e5e5ea !important;
+  backdrop-filter: blur(22px) saturate(1.15);
 }
 
 .wf-main {
-  background:
-    linear-gradient(to bottom, rgb(255 255 255 / .46), transparent 14rem),
-    oklch(var(--background-100));
+  background: #f5f5f7;
 }
 
 main > div[class*='p-6'],
@@ -390,8 +427,9 @@ main > div[class*='p-4'] {
 
 main [class*='rounded-xl'][class*='border'][class*='bg-background-50'] {
   background-color: white;
-  border-color: oklch(var(--background-200) / .9);
-  box-shadow: 0 1px 2px rgb(15 23 42 / .022);
+  border-color: #e5e5ea;
+  border-radius: 1rem;
+  box-shadow: 0 1px 2px rgb(29 29 31 / .045);
 }
 
 /* Primitivos aplicáveis gradualmente pelas telas. Não alteram regras de negócio. */

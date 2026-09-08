@@ -112,6 +112,17 @@ Nenhuma mensagem real enviada; nenhuma configuração de produção ativada.
   rótulos associados e interface renderizada. Não houve login, redefinição de senha nem envio de e-mail.
 - A revisão completa das telas autenticadas e a homologação mobile continuam pendentes.
 
+## Apple Mac Light — ponto de retorno e avaliação
+
+- Baseline de retorno criada antes do redesign: tag Git
+  `baseline-pre-apple-mac-light-20260908` no commit `d89f89b063c82399f8fd1d46fd75870736d06d26`.
+- A versão publicada 46 também permanece como referência visual anterior.
+- O redesign Apple Mac Light altera somente tokens, CSS global e elementos decorativos/layout
+  do shell. Não altera hooks, stores, rotas, dados, integrações, funções ou regras de negócio.
+- Ao entregar a versão para avaliação, perguntar explicitamente se Fabricio está satisfeito ou
+  quer restaurar este baseline. Restauração deve publicar novamente a versão 46 ou o commit/tag
+  acima, conforme o estado a ser revertido, sem recriar dados.
+
 Bloqueio de ferramenta: instalação via `npm exec --package=supabase` retornou
 `network approval was cancelled before a decision was returned`. Não contornar nem repetir
 instalação sem resolver autorização. A skill Supabase pede CLI para nomear migrações.

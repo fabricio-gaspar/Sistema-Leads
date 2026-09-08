@@ -106,14 +106,15 @@ export default function DashboardLayout() {
         {/* Logo */}
         <div className="flex items-center justify-between px-4 py-4 border-b border-background-200/80">
           {sidebarOpen ? (
-            <Link to="/dashboard" className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-primary-500 rounded-lg flex items-center justify-center">
+            <Link to="/dashboard" className="flex min-w-0 items-center gap-3">
+              <div className="mac-traffic-lights" aria-hidden="true"><span></span><span></span><span></span></div>
+              <div className="w-8 h-8 bg-primary-500 rounded-xl flex items-center justify-center">
                 <i className="ri-flashlight-line text-background-50 text-sm"></i>
               </div>
               <span className="wf-brand-copy whitespace-nowrap"><strong>Wayflex Leads</strong><small>Commercial workspace</small></span>
             </Link>
           ) : (
-            <Link to="/dashboard" className="w-8 h-8 bg-primary-500 rounded-lg flex items-center justify-center mx-auto">
+            <Link to="/dashboard" className="w-8 h-8 bg-primary-500 rounded-xl flex items-center justify-center mx-auto">
               <i className="ri-flashlight-line text-background-50 text-sm"></i>
             </Link>
           )}
@@ -200,12 +201,13 @@ export default function DashboardLayout() {
             >
               <i className="ri-menu-line text-foreground-700 text-lg"></i>
             </button>
+            <div className="hidden xl:flex mac-traffic-lights" aria-hidden="true"><span></span><span></span><span></span></div>
             <div className="relative hidden sm:block">
               <i className="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-foreground-400 text-sm"></i>
               <input
                 type="text"
                 placeholder="Buscar leads, conversas, tarefas..."
-                className="pl-9 pr-4 py-2 bg-background-100 border border-background-200/70 rounded-lg text-sm text-foreground-800 placeholder-foreground-400 focus:outline-none focus:border-primary-400 focus:ring-1 focus:ring-primary-400/20 w-72 transition-all"
+                className="pl-9 pr-4 py-2 bg-background-100 border border-background-200/70 rounded-xl text-sm text-foreground-800 placeholder-foreground-400 focus:outline-none focus:border-primary-400 focus:ring-1 focus:ring-primary-400/20 w-72 transition-all"
               />
             </div>
           </div>
