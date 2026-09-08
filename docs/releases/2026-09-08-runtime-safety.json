@@ -22,6 +22,10 @@
     "whatsapp_claude_e2e": "pending — no real messages sent"
   },
   "production_messaging_enabled_by_release": false,
-  "frontend_source": "exact source SHA recorded by Sites saved version",
+  "frontend_source": "95f6d14ce0568192347121406c42021ca9421437",
+  "sites_version": 46,
+  "sites_version_id": "appgprj_6a905559159c8191a61fb776b9a4c531~appgver_21c6af3f374481919e6c72cb2221f8d7",
+  "sites_deployment_id": "appgdep_6aa05c150e308191abad420f197f868c",
+  "sites_deployment_status": "succeeded",
   "continuation": "docs/CONTINUIDADE_WAYFLEX.md"
 }

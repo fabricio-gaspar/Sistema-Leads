@@ -59,7 +59,12 @@ com checkpoints retomáveis e revisão final de layout/login. **Ainda não concl
 Estado: **APLICADO no Supabase; commit 72b3fd7 salvo no Git remoto.**
 Funções confirmadas ACTIVE: `ana-run` v13 (verify_jwt=true), `automation-worker` v7
 (verify_jwt=true), `webhook-whatsapp` v7 (verify_jwt=false, autenticação própria preservada).
-O Site ainda está na versão 45 até a publicação do lote visual abaixo.
+Site publicado: versão **46**, source `95f6d14ce0568192347121406c42021ca9421437`.
+Saved version: `appgprj_6a905559159c8191a61fb776b9a4c531~appgver_21c6af3f374481919e6c72cb2221f8d7`.
+Deployment: `appgdep_6aa05c150e308191abad420f197f868c`, status **succeeded**.
+URL: https://leadai-crm-preview.fabricio926564.chatgpt.site
+Audiência privada existente preservada. Este checkpoint é atualizado depois da publicação;
+os commits posteriores que só alteram documentação não indicam divergência do runtime publicado.
 
 - `ana-run`: respeita sandbox, empresa ativa, ações IA, integração AI, kill switch remoto,
   modo humano, opt-out e pausa; vendedor limitado à carteira. Credenciais pertencem à organização.
@@ -94,7 +99,7 @@ Nenhuma mensagem real enviada; nenhuma configuração de produção ativada.
 
 ## Login e indicação do modo — lote visual
 
-LOCAL TESTADO, pronto para publicação no mesmo Site e audiência privada existente.
+**PUBLICADO na versão 46**, no mesmo Site e audiência privada existente.
 
 - Login WayFlex CRM com composição sóbria, campos acessíveis, autocomplete, mensagens de erro
   identificadas e sem métricas fictícias. Funções de autenticação existentes preservadas.
@@ -114,8 +119,10 @@ Testes usam ferramentas Node já instaladas, sem instalar dependências.
 
 ## Próxima ação exata
 
-1. Salvar o lote visual no Git, empacotar build, salvar versão Sites e publicar na audiência privada já existente.
-2. Registrar versão/commit da publicação e salvar este checkpoint no remoto.
-3. Resolver bloqueio de ferramenta para novas migrações; implementar ingestão/filas transacionais,
+1. Resolver bloqueio de ferramenta para novas migrações; implementar ingestão/filas transacionais,
    worker server-side com heartbeat e modo único com pré-flight.
-4. Prosseguir consolidação dos caminhos legados, módulos/base/homologação e revisão visual completa.
+2. Prosseguir consolidação dos caminhos legados, módulos/base/homologação e revisão visual completa.
+3. Antes de alegar prontidão, executar RLS/concorrência/E2E e piloto controlado autorizado.
+
+Não repetir deploys deste lote. Para retomar, começar pelo item 1. Não considerar o sistema
+pronto para comercialização; não ativar produção para testar os bloqueios com leads reais.
