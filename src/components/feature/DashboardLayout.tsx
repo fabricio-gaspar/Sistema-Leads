@@ -25,7 +25,6 @@ const navItems: NavItem[] = [
   { label: 'Agenda', path: '/dashboard/agenda', icon: 'ri-calendar-event-line' },
   { label: 'Funil', path: '/dashboard/funil', icon: 'ri-arrow-down-line' },
   { label: 'Relatórios', path: '/dashboard/relatorios', icon: 'ri-bar-chart-line' },
-  { label: 'Midia Drive', path: '/dashboard/midia-drive', icon: 'ri-folder-3-line' },
   { label: 'Configurações', path: '/dashboard/configuracoes', icon: 'ri-settings-4-line' },
 ];
 

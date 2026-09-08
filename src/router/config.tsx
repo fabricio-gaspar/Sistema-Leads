@@ -11,7 +11,6 @@ const Empresa = lazy(() => import('../pages/dashboard/empresa/page'));
 const BuscaLeads = lazy(() => import('../pages/dashboard/busca-leads/page'));
 const Atendimento = lazy(() => import('../pages/dashboard/atendimento/page'));
 const Leads = lazy(() => import('../pages/dashboard/leads/page'));
-const MidiaDrive = lazy(() => import('../pages/dashboard/midia-drive/page'));
 const DashboardConfiguracoes = lazy(() => import('../pages/dashboard/configuracoes/page'));
 const KanbanCRM = lazy(() => import('../pages/dashboard/kanban/page'));
 const FunilConversao = lazy(() => import('../pages/dashboard/funil/page'));
@@ -80,7 +79,7 @@ const routes: RouteObject[] = [
       },
       {
         path: "midia-drive",
-        element: <MidiaDrive />,
+        element: <Navigate to="/dashboard/configuracoes?tab=empresa&subtab=fontes" replace />,
       },
       {
         path: "relatorios",

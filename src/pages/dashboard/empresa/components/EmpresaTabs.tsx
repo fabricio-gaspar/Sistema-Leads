@@ -1,14 +1,17 @@
 import { useState } from 'react';
 import DadosTab from './DadosTab';
 import BaseConhecimentoTab from './BaseConhecimentoTab';
+import AnaKnowledgeLibraryTab from './AnaKnowledgeLibraryTab';
 
 const tabs = [
   { id: 'dados', nome: 'Dados da empresa', icone: 'ri-store-2-line' },
-  { id: 'conhecimento', nome: 'Base aprovada para a Ana', icone: 'ri-book-open-line' },
+  { id: 'conhecimento', nome: 'Respostas aprovadas', icone: 'ri-chat-check-line' },
+  { id: 'fontes', nome: 'Documentos e mídia', icone: 'ri-folder-shared-line' },
 ];
 
 export default function EmpresaTabs() {
-  const [tab, setTab] = useState('dados');
+  const requested = new URLSearchParams(window.location.search).get('subtab');
+  const [tab, setTab] = useState(['dados', 'conhecimento', 'fontes'].includes(requested || '') ? requested! : 'dados');
 
   return (
     <>
@@ -30,6 +33,7 @@ export default function EmpresaTabs() {
 
       {tab === 'dados' && <DadosTab />}
       {tab === 'conhecimento' && <BaseConhecimentoTab />}
+      {tab === 'fontes' && <AnaKnowledgeLibraryTab />}
     </>
   );
 }

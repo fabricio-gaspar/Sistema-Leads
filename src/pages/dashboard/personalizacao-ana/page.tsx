@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useEmpresaSettingsStore } from '@/hooks/useEmpresaSettingsStore';
 import { saveAnaPersonalization } from '@/lib/crm/anaPersonalizationRepository';
 import {
@@ -98,10 +99,14 @@ export default function PersonalizacaoAna({ embedded = false }: { embedded?: boo
       <textarea value={audience} onChange={(event) => setAudience(event.target.value)} placeholder="Segmentos, decisores, região e necessidade principal" />
     </>,
     <>
-      <div className="setup-note">A Ana só pode informar o que estiver aprovado aqui ou no catálogo. Quando não tiver base, ela chama um humano.</div>
+      <div className="setup-note">A Ana só pode informar o que estiver no catálogo ou na <strong>Base aprovada da Ana</strong>. Quando não houver evidência suficiente, ela chama um humano.</div>
       <label>Quais diferenciais e ofertas a Ana pode apresentar?</label>
       <textarea value={valueProposition} onChange={(event) => setValueProposition(event.target.value)} placeholder="Um item por linha: diferencial, produto ou prova técnica" />
-      <label className="mt">Quais fontes de conhecimento estão aprovadas?</label>
+      <div className="mt rounded-lg border border-primary-200 bg-primary-50 p-4 text-sm text-primary-900">
+        <strong>Documentos, fotos, apresentações, portfólio e vídeos:</strong> envie, revise e aprove o conteúdo que a Ana poderá consultar.
+        <Link to="/dashboard/configuracoes?tab=empresa&subtab=fontes" className="mt-2 inline-flex items-center gap-1 font-semibold text-primary-700 hover:underline">Abrir Base aprovada da Ana <i className="ri-arrow-right-line" /></Link>
+      </div>
+      <label className="mt">Resumo das fontes aprovadas</label>
       <textarea value={approvedKnowledge} onChange={(event) => setApprovedKnowledge(event.target.value)} placeholder="Um item por linha" />
     </>,
     <>

@@ -56,7 +56,7 @@ Deno.serve(async (request) => {
       ].join('\n');
       const { error: settingsError } = await admin.from('company_settings').update({
         ai_prompt: prompt,
-        ai_provider: 'openai',
+        ai_provider: 'claude',
         ai_actions_enabled: true,
         autonomy: { allow_auto_quote: false, ana_orchestrator: true, configuration_version_id: version.id },
         updated_at: new Date().toISOString(),
