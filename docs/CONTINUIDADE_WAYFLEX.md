@@ -37,8 +37,8 @@ com checkpoints retomáveis e revisão final de layout/login. **Ainda não concl
 | Etapa | Estado | Entrega/aceite |
 |---|---|---|
 | 0. Continuidade e baseline | CONCLUÍDO | Baseline herdado + plano salvos no remoto em 901d128 |
-| 1A. Segurança e contratos de entrada | PARCIAL — LOCAL TESTADO | Parser/contratos/autenticação corrigidos; fila transacional/retry ainda pendentes |
-| 1B. Timeout e saída | PARCIAL — LOCAL TESTADO | Bloqueios, claim de saída e rastreio; homologação concorrente real ainda pendente |
+| 1A. Segurança e contratos de entrada | PARCIAL — APLICADO | Parser/contratos/autenticação corrigidos; fila transacional/retry ainda pendentes |
+| 1B. Timeout e saída | PARCIAL — APLICADO | Bloqueios, claim de saída e rastreio; homologação concorrente real ainda pendente |
 | 1C. Worker independente | PENDENTE | Cron, lock, retry, dead-letter, heartbeat e teste com painel fechado |
 | 1D. Modo/integrações | PENDENTE | Única configuração remota, pré-flight e saúde real no painel |
 | 2. Stores e módulos | PENDENTE | Sem seed operacional fictício; salvar/erro/concorrência/permissões por módulo |
@@ -56,7 +56,10 @@ com checkpoints retomáveis e revisão final de layout/login. **Ainda não concl
 
 ## Checkpoint do lote de proteção do runtime
 
-Estado: **LOCAL TESTADO; ainda não aplicado no Supabase nem publicado no Site**.
+Estado: **APLICADO no Supabase; commit 72b3fd7 salvo no Git remoto.**
+Funções confirmadas ACTIVE: `ana-run` v13 (verify_jwt=true), `automation-worker` v7
+(verify_jwt=true), `webhook-whatsapp` v7 (verify_jwt=false, autenticação própria preservada).
+O Site ainda está na versão 45 até a publicação do lote visual abaixo.
 
 - `ana-run`: respeita sandbox, empresa ativa, ações IA, integração AI, kill switch remoto,
   modo humano, opt-out e pausa; vendedor limitado à carteira. Credenciais pertencem à organização.
@@ -89,6 +92,21 @@ simulados, além dos 27 testes anteriores. Type-check dos três handlers com tip
 e declaração mínima de Deno. Não é execução de Deno, teste Postgres/RLS nem WhatsApp/Claude real.
 Nenhuma mensagem real enviada; nenhuma configuração de produção ativada.
 
+## Login e indicação do modo — lote visual
+
+LOCAL TESTADO, pronto para publicação no mesmo Site e audiência privada existente.
+
+- Login WayFlex CRM com composição sóbria, campos acessíveis, autocomplete, mensagens de erro
+  identificadas e sem métricas fictícias. Funções de autenticação existentes preservadas.
+- Indicador do topo consulta `company_settings.sandbox_mode` com sessão/organização ativa,
+  atualiza ao focar a janela e mostra falha de leitura. Não ativa integrações nem grava localStorage.
+- A antiga alternância local Demo/Real foi retirada porque anunciava uma ativação inexistente.
+  A transição real auditada/pré-flight é parte ainda pendente da etapa 1D.
+- Type-check frontend/Edge e lint aprovados. Build Vite/artefato Sites aprovado.
+- Inspeção do login por DOM e captura desktop 1363×936: sem rolagem horizontal, campos com
+  rótulos associados e interface renderizada. Não houve login, redefinição de senha nem envio de e-mail.
+- A revisão completa das telas autenticadas e a homologação mobile continuam pendentes.
+
 Bloqueio de ferramenta: instalação via `npm exec --package=supabase` retornou
 `network approval was cancelled before a decision was returned`. Não contornar nem repetir
 instalação sem resolver autorização. A skill Supabase pede CLI para nomear migrações.
@@ -96,8 +114,8 @@ Testes usam ferramentas Node já instaladas, sem instalar dependências.
 
 ## Próxima ação exata
 
-1. Salvar este lote no Git remoto.
-2. Aplicar `ana-run`, depois `automation-worker`, depois `webhook-whatsapp` pelos recursos Supabase
-   já autorizados. Preservar verify_jwt true/true/false. Confirmar versões remotas e atualizar checkpoint.
-3. Resolver migrações para ingestão/filas transacionais, worker server-side e modo único.
-4. Prosseguir módulos/base/homologação; ao final layout/login sem métricas inventadas.
+1. Salvar o lote visual no Git, empacotar build, salvar versão Sites e publicar na audiência privada já existente.
+2. Registrar versão/commit da publicação e salvar este checkpoint no remoto.
+3. Resolver bloqueio de ferramenta para novas migrações; implementar ingestão/filas transacionais,
+   worker server-side com heartbeat e modo único com pré-flight.
+4. Prosseguir consolidação dos caminhos legados, módulos/base/homologação e revisão visual completa.

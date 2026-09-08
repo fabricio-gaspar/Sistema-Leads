@@ -1,168 +1,56 @@
-import { useState } from 'react';
-import { useConfiguracaoStore } from '@/hooks/useConfiguracaoStore';
-import { useIntegracoesStore } from '@/hooks/useIntegracoesStore';
-import type { ModoExecucao } from '@/lib/tipos';
-import type { Integracao } from '@/mocks/businessData';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useAuth } from '@/hooks/useAuth';
+import { supabase } from '@/lib/supabase';
+import { resolveOrganizationSession } from '@/lib/organizationSession';
 
-const integracaoParaModulo: Record<string, string> = {
-  'int-1': 'whatsapp',
-  'int-2': 'email',
-  'int-5': 'agendamento',
-  'int-6': 'ia',
-};
+type RemoteMode = 'loading' | 'demo' | 'real' | 'unavailable';
 
-function integracaoTemCredenciais(it: Integracao): boolean {
-  const obrigatorios = (it.campos || []).filter((c) => c?.obrigatorio);
-  if (obrigatorios.length === 0) return false;
-  return obrigatorios.every((c) => (it.credenciais?.[c.id] ?? '').trim() !== '');
-}
-
+// Display only: changing localStorage must never claim that production was enabled.
+// An audited server-side mode transition is a separate pending release gate.
 export default function ModoExecucaoToggle() {
-  const { config, atualizar } = useConfiguracaoStore();
-  const { integracoes } = useIntegracoesStore();
-  const [confirmarReal, setConfirmarReal] = useState(false);
-  const [toast, setToast] = useState('');
+  const { user } = useAuth();
+  const [mode, setMode] = useState<RemoteMode>('loading');
+  const generation = useRef(0);
 
-  const modoAtual = config.modoExecucao;
-  const ehReal = modoAtual !== 'DEMO';
-
-  const mostrarToast = (msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(''), 4000);
-  };
-
-  const modulosComCredencial = (): Set<string> => {
-    const comCredencial = new Set<string>();
-    if (config.estadosModulos) {
-      Object.entries(config.estadosModulos).forEach(([chave, mod]) => {
-        if (mod?.temCredenciais) comCredencial.add(chave);
-      });
-    }
-    integracoes.forEach((it) => {
-      const chave = integracaoParaModulo[it.id];
-      if (chave && integracaoTemCredenciais(it)) comCredencial.add(chave);
-    });
-    return comCredencial;
-  };
-
-  const aplicar = (modo: ModoExecucao) => {
+  const refresh = useCallback(async () => {
+    const current = ++generation.current;
+    setMode('loading');
+    if (!user) return;
     try {
-      if (modo === 'PRODUCAO') {
-        const comCredencial = modulosComCredencial();
-        const estadosAtualizados = { ...(config.estadosModulos || {}) };
-        let ativados = 0;
-        Object.keys(estadosAtualizados).forEach((chave) => {
-          const mod = estadosAtualizados[chave];
-          if (comCredencial.has(chave) && mod && mod.estado === 'DESLIGADO') {
-            estadosAtualizados[chave] = { ...mod, estado: 'ATIVO', temCredenciais: true };
-            ativados += 1;
-          }
-        });
-        atualizar({ modoExecucao: modo, estadosModulos: estadosAtualizados });
-        setConfirmarReal(false);
-        mostrarToast(
-          ativados > 0
-            ? `Modo Real ativado — ${ativados} módulo(s) com credencial ligados automaticamente.`
-            : 'Modo Real ativado — nenhum módulo com credencial para ligar ainda.',
-        );
-        return;
-      }
-      atualizar({ modoExecucao: modo });
-      setConfirmarReal(false);
-      mostrarToast('Modo Demo ativado — nada sai do navegador.');
-    } catch (err) {
-      console.error('[ModoExecucaoToggle] erro ao aplicar modo', err);
-      setConfirmarReal(false);
-      mostrarToast('Erro ao mudar modo — verifique o console.');
+      const session = await resolveOrganizationSession();
+      const { data, error } = await supabase.from('company_settings').select('sandbox_mode')
+        .eq('organization_id', session.organizationId).maybeSingle();
+      if (error || typeof data?.sandbox_mode !== 'boolean') throw new Error('mode_unavailable');
+      if (generation.current === current) setMode(data.sandbox_mode ? 'demo' : 'real');
+    } catch {
+      if (generation.current === current) setMode('unavailable');
     }
-  };
+  }, [user]);
 
-  const selecionar = (modo: ModoExecucao) => {
-    if (modo === modoAtual) return;
-    if (modo === 'PRODUCAO' && !ehReal) {
-      setConfirmarReal(true);
-      return;
-    }
-    aplicar(modo);
-  };
+  useEffect(() => {
+    void refresh();
+    const onFocus = () => { void refresh(); };
+    window.addEventListener('focus', onFocus);
+    const timer = window.setInterval(onFocus, 60_000);
+    const channel = user ? supabase.channel(`operational-mode-${user.id}`)
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${user.id}` }, onFocus)
+      .subscribe() : null;
+    return () => {
+      generation.current += 1;
+      window.removeEventListener('focus', onFocus);
+      window.clearInterval(timer);
+      if (channel) void supabase.removeChannel(channel);
+    };
+  }, [refresh, user]);
 
+  const labels: Record<RemoteMode, string> = { loading: 'Verificando modo', demo: 'Modo demo', real: 'Modo real', unavailable: 'Modo indisponível' };
   return (
-    <div className="wf-mode-toggle relative">
-      {/* Toggle Demo / Real */}
-      <div className="flex items-center gap-1 p-1 bg-background-100 rounded-full border border-background-200/70">
-        <button
-          type="button"
-          onClick={() => selecionar('DEMO')}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold cursor-pointer whitespace-nowrap transition-colors ${
-            !ehReal ? 'bg-secondary-500 text-background-50' : 'text-foreground-500 hover:text-foreground-700'
-          }`}
-        >
-          <i className="ri-flask-line"></i>
-          <span className="wf-mode-label">Demo</span>
-        </button>
-        <button
-          type="button"
-          onClick={() => selecionar('PRODUCAO')}
-          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold cursor-pointer whitespace-nowrap transition-colors ${
-            ehReal ? 'bg-primary-500 text-background-50' : 'text-foreground-500 hover:text-foreground-700'
-          }`}
-        >
-          <i className="ri-rocket-line"></i>
-          <span className="wf-mode-label">Real</span>
-        </button>
-      </div>
-
-      {/* Toast */}
-      {toast && (
-        <div className="fixed left-4 right-4 top-16 sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-max max-w-[calc(100vw-2rem)] px-4 py-2.5 bg-background-50 border border-background-200/70 rounded-lg text-xs text-foreground-700 z-50">
-          <i className="ri-checkbox-circle-fill text-primary-600 mr-1.5"></i>
-          {toast}
-        </div>
-      )}
-
-      {/* Modal de confirmação */}
-      {confirmarReal && (
-        <div className="fixed inset-0 z-50">
-          <div
-            className="absolute inset-0 bg-foreground-950/40"
-            onClick={() => setConfirmarReal(false)}
-            role="button"
-            aria-label="Fechar modal"
-          />
-          <div className="absolute inset-0 flex items-center justify-center p-4 pointer-events-none">
-            <div className="bg-background-50 border border-background-200/70 rounded-xl p-6 w-full max-w-md pointer-events-auto shadow-xl">
-              <div className="flex items-start gap-3">
-                <div className="w-10 h-10 rounded-lg bg-accent-100 flex items-center justify-center flex-shrink-0">
-                  <i className="ri-alert-line text-accent-700 text-lg"></i>
-                </div>
-                <div>
-                  <h3 className="font-heading font-bold text-foreground-900 text-sm">Ativar modo real?</h3>
-                  <p className="text-xs text-foreground-500 mt-1 leading-relaxed">
-                    Você está saindo do <strong>Modo Demo</strong>. A partir daqui, com os módulos ativos e
-                    credenciais configuradas, as mensagens e e-mails podem ter <strong>efeito real</strong>.
-                  </p>
-                </div>
-              </div>
-              <div className="flex gap-2 mt-5 justify-end">
-                <button
-                  type="button"
-                  onClick={() => setConfirmarReal(false)}
-                  className="px-4 py-2 border border-background-300 text-foreground-700 rounded-lg text-sm font-semibold hover:bg-background-100 cursor-pointer whitespace-nowrap"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="button"
-                  onClick={() => aplicar('PRODUCAO')}
-                  className="px-4 py-2 bg-primary-500 hover:bg-primary-600 text-background-50 rounded-lg text-sm font-semibold cursor-pointer whitespace-nowrap"
-                >
-                  Sim, ativar real
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
+    <button type="button" onClick={() => { void refresh(); }} disabled={mode === 'loading'}
+      className="wf-mode-toggle inline-flex min-h-9 items-center gap-2 rounded-full border border-background-200 bg-background-50 px-3 text-xs font-semibold text-foreground-600 disabled:cursor-wait"
+      title={mode === 'unavailable' ? 'Não foi possível consultar o modo da empresa. Clique para tentar novamente.' : 'Modo salvo na empresa. Clique para atualizar; o estado das integrações é verificado separadamente.'}
+      aria-label={`${labels[mode]}. Atualizar consulta`}>
+      <span aria-hidden="true" className={`h-1.5 w-1.5 rounded-full ${mode === 'real' ? 'bg-primary-500' : mode === 'unavailable' ? 'bg-accent-500' : 'bg-foreground-400'}`} />
+      <span aria-live="polite">{labels[mode]}</span>
+    </button>
   );
 }

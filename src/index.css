@@ -2,6 +2,25 @@
 @tailwind components;
 @tailwind utilities;
 
+.wf-login-story { background: #142f2b; }
+.wf-login-story::before {
+  content: '';
+  position: absolute;
+  width: 42rem;
+  height: 42rem;
+  top: -27rem;
+  right: -13rem;
+  border: 1px solid rgb(255 255 255 / .07);
+  border-radius: 50%;
+  box-shadow: 0 0 0 5rem rgb(255 255 255 / .025), 0 0 0 10rem rgb(255 255 255 / .018);
+  pointer-events: none;
+}
+.wf-login input { min-height: 3rem; }
+.wf-login input:focus-visible { outline-offset: 3px; }
+@media (prefers-reduced-motion: reduce) {
+  .wf-login *, .wf-mode-toggle { transition: none !important; }
+}
+
 /*
  * Wayflex Product System
  * Base visual única para o CRM: superfícies, controles, densidade e estados.
