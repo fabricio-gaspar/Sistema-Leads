@@ -122,6 +122,9 @@ Nenhuma mensagem real enviada; nenhuma configuração de produção ativada.
 - Ao entregar a versão para avaliação, perguntar explicitamente se Fabricio está satisfeito ou
   quer restaurar este baseline. Restauração deve publicar novamente a versão 46 ou o commit/tag
   acima, conforme o estado a ser revertido, sem recriar dados.
+- Versão Apple Mac Light publicada: versão **47**, source
+  `13c02333f5aee1b7d5a188b6a62d186cd7e517c0`, deployment concluído em
+  `https://leadai-crm-preview.fabricio926564.chatgpt.site`.
 
 Bloqueio de ferramenta: instalação via `npm exec --package=supabase` retornou
 `network approval was cancelled before a decision was returned`. Não contornar nem repetir
