@@ -1,5 +1,6 @@
 import { createAdminClient, requireOrganizationRole, requireUser } from '../_shared/auth.ts';
 import { allowedCorsHeaders, hasAllowedOrigin, json, preflight, safeError } from '../_shared/http.ts';
+import { anaEventKey, automationBlockReason } from '../_shared/runtimeSafety.ts';
 
 const EVENTS = new Set(['lead.created', 'message.received', 'stage.changed', 'meeting.done', 'timeout.48h', 'manual.run']);
 const MODES = new Set(['ia', 'humano']);
@@ -187,8 +188,9 @@ function canUseClaudeFallback(error: unknown): boolean {
 }
 
 async function callAi(system: string, context: Record<string, unknown>, storedCredentials: Record<string, unknown> = {}): Promise<{ provider: AiProvider; decision: unknown }> {
-  const openAiKey = Deno.env.get('OPENAI_API_KEY') || asText(storedCredentials.openai_key, 1_000);
-  const claudeKey = Deno.env.get('CLAUDE_API_KEY') || Deno.env.get('ANTHROPIC_API_KEY') || asText(storedCredentials.claude_key, 1_000);
+  // Never borrow another organization's/global provider credentials.
+  const openAiKey = asText(storedCredentials.openai_key, 1_000);
+  const claudeKey = asText(storedCredentials.claude_key, 1_000);
   const preferred = asText(storedCredentials.provedor_principal, 20).toLowerCase();
   const openAiModel = asText(storedCredentials.openai_model, 100);
   const claudeModel = asText(storedCredentials.claude_model, 100);
@@ -238,22 +240,36 @@ Deno.serve(async (request) => {
     }
 
     const { data: lead, error: leadError } = await admin.from('leads')
-      .select('id,organization_id,company,contact,segment,email,phone,whatsapp,score,stage,ana_stage,ana_outcome,modo_atendimento,owner_id,assigned_to,active_channel,ai_paused,last_contact,no_reply_deadline_at')
+      .select('id,organization_id,company,contact,segment,email,phone,whatsapp,score,stage,ana_stage,ana_outcome,modo_atendimento,owner_id,assigned_to,active_channel,ai_paused,opt_out,last_contact,no_reply_deadline_at')
       .eq('id', leadId).eq('organization_id', organizationId).maybeSingle();
     if (leadError || !lead) throw new Error('lead_not_found');
+    if (!internal && actorId) {
+      const { data: membership, error: membershipError } = await admin.from('organization_members').select('role')
+        .eq('organization_id', organizationId).eq('user_id', actorId).single();
+      if (membershipError) throw membershipError;
+      if (!['owner', 'admin', 'administrador', 'manager', 'gerente'].includes(membership.role)
+        && lead.owner_id !== actorId && lead.assigned_to !== actorId) throw new Error('lead_access_denied');
+    }
     const mode = asText(body.modo, 12).toLowerCase() || lead.modo_atendimento;
     if (!MODES.has(mode) || mode !== lead.modo_atendimento || !lead.owner_id) throw new Error('lead_mode_or_owner_required');
     const modo = mode as AnaMode;
     const currentStage = (lead.ana_stage || 'novo') as AnaStage;
     const executionContext = asObject(body.contexto);
-    const messageId = asText(body.message_id, 160) || asText(executionContext.inbound_event_id, 160);
-    const idempotencyKey = messageId
-      ? `${event}:${leadId}:message:${messageId}`
-      : `${event}:${leadId}:${Math.floor(Date.now() / 120_000)}`;
+    const dryRun = executionContext.dry_run === true || canonicalChannel(body.channel) === 'demo';
+    if (event === 'timeout.48h') {
+      // Existing cron owns a transactional lock + handoff + task. Do not race it here.
+      return json({ ok: true, skipped: true, reason: 'timeout_owned_by_server_scheduler' }, 200, headers);
+    }
+    const messageId = asText(body.message_id, 600) || asText(executionContext.inbound_event_id, 600);
+    const idempotencyKey = `${dryRun ? 'simulation:' : ''}${anaEventKey(event, leadId, messageId, asText(body.request_id, 160) || crypto.randomUUID())}`;
 
-    const { data: previousRun } = await admin.from('agent_runs').select('id,status,result,error_code,error_message')
+    const { data: previousRun, error: previousError } = await admin.from('agent_runs').select('id,status,result,error_code,error_message')
       .eq('organization_id', organizationId).eq('idempotency_key', idempotencyKey).maybeSingle();
-    if (previousRun) return json({ ok: previousRun.status === 'completed', duplicate: true, run: previousRun }, 200, headers);
+    if (previousError) throw previousError;
+    if (previousRun) {
+      const settled = ['completed', 'skipped'].includes(previousRun.status);
+      return json({ ok: settled, duplicate: true, run: previousRun }, settled ? 200 : 409, headers);
+    }
 
     const { data: run, error: runError } = await admin.from('agent_runs').insert({
       organization_id: organizationId, lead_id: leadId, actor_id: actorId, event, modo, status: 'running',
@@ -263,30 +279,41 @@ Deno.serve(async (request) => {
     runId = run.id as string;
 
     const activeChannel = canonicalChannel(lead.active_channel);
-    const [{ data: company }, { data: messages }, { data: channel }, { data: agent }, { data: catalog }, { data: knowledge }, { data: appointments }, { data: suppressions }, { data: aiIntegration }] = await Promise.all([
-      admin.from('company_settings').select('name,description,segment,website,phone,email,differentiators,ai_prompt,autonomy,lead_flow').eq('organization_id', organizationId).maybeSingle(),
+    const contextReads = await Promise.all([
+      admin.from('company_settings').select('name,description,segment,website,phone,email,differentiators,ai_prompt,autonomy,lead_flow,active,sandbox_mode,can_use_ia,ai_actions_enabled').eq('organization_id', organizationId).maybeSingle(),
       admin.from('lead_messages').select('sender,sender_name,type,text,sent_at').eq('organization_id', organizationId).eq('lead_id', leadId).order('sent_at', { ascending: false }).limit(20),
-      activeChannel ? admin.from('integrations').select('connected,enabled,paused').eq('organization_id', organizationId).eq('key', activeChannel).maybeSingle() : Promise.resolve({ data: null }),
+      activeChannel ? admin.from('integrations').select('connected,enabled,paused').eq('organization_id', organizationId).eq('key', activeChannel).maybeSingle() : Promise.resolve({ data: null, error: null }),
       admin.from('ai_agents').select('active_version_id').eq('organization_id', organizationId).eq('key', 'ana').maybeSingle(),
       admin.from('services').select('id,name,category,description,price,unit,term,max_discount').eq('organization_id', organizationId).eq('active', true).limit(50),
       admin.from('knowledge_chunks').select('content,metadata,documents!inner(name,status,metadata)').eq('organization_id', organizationId).eq('status', 'active').eq('documents.status', 'active').limit(80),
       admin.from('appointments').select('starts_at,ends_at,status,meeting_url').eq('organization_id', organizationId).eq('lead_id', leadId).order('starts_at', { ascending: false }).limit(10),
       admin.from('contact_suppressions').select('channel,reason,created_at').eq('organization_id', organizationId).eq('lead_id', leadId).limit(10),
-      admin.from('integrations').select('id').eq('organization_id', organizationId).eq('key', 'ai').maybeSingle(),
+      admin.from('integrations').select('id,enabled,connected,paused').eq('organization_id', organizationId).eq('key', 'ai').maybeSingle(),
+      admin.from('organization_module_data').select('data').eq('organization_id', organizationId).eq('module_key', 'configuracao_runtime').maybeSingle(),
     ]);
-    const { data: aiCredentials } = aiIntegration?.id
+    for (const read of contextReads) if (read.error) throw new Error('ana_context_read_failed');
+    const [{ data: company }, { data: messages }, { data: channel }, { data: agent }, { data: catalog }, { data: knowledge }, { data: appointments }, { data: suppressions }, { data: aiIntegration }, { data: runtime }] = contextReads;
+    const blocked = automationBlockReason({ company, ai: aiIntegration, runtime: runtime?.data ?? null, lead, dryRun });
+    if (blocked) {
+      const result = { skipped: true, reason: blocked, status_canal: 'bloqueado', mensagem_sugerida: '', acoes: [] };
+      const { error } = await admin.from('agent_runs').update({ status: 'skipped', result, completed_at: new Date().toISOString() }).eq('id', runId).eq('organization_id', organizationId);
+      if (error) throw error;
+      return json({ ok: true, run_id: runId, ...result }, 200, headers);
+    }
+    const { data: aiCredentials, error: credentialsError } = aiIntegration?.id
       ? await admin.rpc('read_integration_secret', { p_integration: aiIntegration.id })
-      : { data: null };
-    const { data: version } = agent?.active_version_id
-      ? await admin.from('ai_agent_versions').select('configuration').eq('id', agent.active_version_id).maybeSingle()
-      : { data: null };
-    const timeout = event === 'timeout.48h' || Boolean(lead.no_reply_deadline_at && new Date(lead.no_reply_deadline_at).getTime() <= Date.now());
-    const dryRun = executionContext.dry_run === true || canonicalChannel(body.channel) === 'demo';
+      : { data: null, error: null };
+    if (credentialsError) throw new Error('ai_credentials_read_failed');
+    const { data: version, error: versionError } = agent?.active_version_id
+      ? await admin.from('ai_agent_versions').select('configuration').eq('id', agent.active_version_id).eq('organization_id', organizationId).maybeSingle()
+      : { data: null, error: null };
+    if (versionError) throw new Error('agent_version_read_failed');
+    const timeout = false; // An inbound response is never an expired no-reply event.
     const chronologicalMessages = (messages ?? []).slice().reverse();
     const latestInboundMessage = chronologicalMessages.slice().reverse().find((message) => message.sender === 'lead') ?? null;
     const sensitiveInbound = requiresHumanReview(latestInboundMessage?.text);
     const matchedKnowledge = relevantKnowledge(knowledge ?? [], latestInboundMessage?.text);
-    const missingTechnicalKnowledge = hasTechnicalQuestion(latestInboundMessage?.text) && matchedKnowledge.length === 0;
+    const missingTechnicalKnowledge = executionContext.media_requires_review === true || (hasTechnicalQuestion(latestInboundMessage?.text) && matchedKnowledge.length === 0);
     const baseContext = {
       event, lead: { company: lead.company, contact: lead.contact, segment: lead.segment, active_channel: activeChannel, current_stage: stageLabel[currentStage] },
       company: company ?? {}, agent_configuration: asObject(version?.configuration), catalog: catalog ?? [], knowledge: matchedKnowledge,
@@ -324,6 +351,12 @@ Deno.serve(async (request) => {
 
     const needsHuman = decision.precisa_humano || decision.acoes.some((action) => action.tipo === 'handoff') || modo === 'humano' || timeout || Boolean(suppressions?.length) || sensitiveInbound || missingTechnicalKnowledge;
     const channelConnected = !dryRun && Boolean(channel?.connected && channel?.enabled && !channel?.paused);
+    if (dryRun) {
+      const result = { ...decision, dry_run: true, acoes_aplicadas: [], status_canal: 'simulacao_sem_alteracoes', provedor_ia: aiProvider };
+      const { error } = await admin.from('agent_runs').update({ status: 'completed', result, completed_at: new Date().toISOString() }).eq('id', runId).eq('organization_id', organizationId);
+      if (error) throw error;
+      return json({ ok: true, run_id: runId, ...result }, 200, headers);
+    }
     const update = {
       ana_stage: decision.proximo_estagio,
       ana_outcome: decision.outcome,
@@ -336,33 +369,45 @@ Deno.serve(async (request) => {
       last_contact: event === 'message.received' ? new Date().toISOString() : lead.last_contact,
       no_reply_deadline_at: event === 'message.received' ? null : lead.no_reply_deadline_at,
     };
-    const { error: updateError } = await admin.from('leads').update(update).eq('id', leadId).eq('organization_id', organizationId);
+    let leadWrite = admin.from('leads').update(update).eq('id', leadId).eq('organization_id', organizationId)
+      .eq('ai_paused', false).eq('modo_atendimento', 'ia').eq('opt_out', false).eq('owner_id', lead.owner_id);
+    leadWrite = lead.last_contact ? leadWrite.eq('last_contact', lead.last_contact) : leadWrite.is('last_contact', null);
+    const { data: updatedLead, error: updateError } = await leadWrite.select('id').maybeSingle();
     if (updateError) throw updateError;
+    if (!updatedLead) throw new Error('lead_changed_during_decision');
 
     const appliedActions: Array<Record<string, unknown>> = [];
     if (decision.mensagem_sugerida && !needsHuman) {
-      await admin.from('lead_messages').insert({
+      const { data: message, error: messageError } = await admin.from('lead_messages').insert({
         organization_id: organizationId, lead_id: leadId, sender: 'ana', sender_name: 'Ana',
         type: channelConnected ? 'draft' : 'pending_channel', text: decision.mensagem_sugerida, sent_at: new Date().toISOString(),
-      });
+      }).select('id').single();
+      if (messageError || !message) throw messageError ?? new Error('message_not_created');
       if (channelConnected && !suppressions?.length) {
-        await admin.from('outreach_jobs').upsert({
+        const { error: queueError } = await admin.from('outreach_jobs').upsert({
           organization_id: organizationId, lead_id: leadId, channel: activeChannel,
           run_at: new Date().toISOString(), status: 'queued', attempt: 0,
-          idempotency_key: `${runId}:message`, payload: { text: decision.mensagem_sugerida, agent_run_id: runId },
+          idempotency_key: `${runId}:message`, payload: { text: decision.mensagem_sugerida, agent_run_id: runId, message_id: message.id, context_last_contact: update.last_contact },
         }, { onConflict: 'idempotency_key', ignoreDuplicates: true });
+        if (queueError) throw queueError;
       }
       appliedActions.push({ tipo: 'enviar_mensagem', status: channelConnected && !suppressions?.length ? 'enfileirado' : 'pendente_canal' });
     }
     if (needsHuman) {
-      await admin.from('lead_handoffs').insert({ organization_id: organizationId, lead_id: leadId, to_user_id: lead.owner_id, assigned_to: lead.owner_id, status: 'pending', reason: decision.motivo || 'Revisar atendimento da Ana.', summary: decision.motivo || 'Revisar atendimento da Ana.', due_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(), context: { run_id: runId, event, score: decision.score } });
-      await admin.from('lead_tasks').insert({ organization_id: organizationId, lead_id: leadId, owner_id: lead.owner_id, owner_label: actorName || 'Responsável', text: decision.motivo || 'Revisar atendimento da Ana.', due_at: new Date().toISOString(), completed: false });
-      appliedActions.push({ tipo: 'handoff', status: 'criado' });
+      const { error: handoffError } = await admin.from('lead_handoffs').insert({ organization_id: organizationId, lead_id: leadId, to_user_id: lead.owner_id, assigned_to: lead.owner_id, status: 'pending', reason: decision.motivo || 'Revisar atendimento da Ana.', summary: decision.motivo || 'Revisar atendimento da Ana.', due_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(), context: { run_id: runId, event, score: decision.score } });
+      if (handoffError && handoffError.code !== '23505') throw handoffError;
+      if (!handoffError) {
+        const { error: taskError } = await admin.from('lead_tasks').insert({ organization_id: organizationId, lead_id: leadId, owner_id: lead.owner_id, owner_label: actorName || 'Responsável', text: decision.motivo || 'Revisar atendimento da Ana.', due_at: new Date().toISOString(), completed: false, metadata: { agent_run_id: runId } });
+        if (taskError) throw taskError;
+      }
+      appliedActions.push({ tipo: 'handoff', status: handoffError ? 'ja_existente' : 'criado' });
     }
     if (decision.acoes.some((action) => action.tipo === 'gerar_orcamento')) {
-      const { data: latest } = await admin.from('proposals').select('id').eq('organization_id', organizationId).eq('lead_id', leadId).in('status', ['draft', 'pending']).limit(1).maybeSingle();
+      const { data: latest, error: proposalReadError } = await admin.from('proposals').select('id').eq('organization_id', organizationId).eq('lead_id', leadId).in('status', ['draft', 'pending']).limit(1).maybeSingle();
+      if (proposalReadError) throw proposalReadError;
       if (!latest) {
-        await admin.from('proposals').insert({ organization_id: organizationId, lead_id: leadId, number: `ANA-${new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)}`, client: lead.company, items: [], value: 0, creator: 'ana', creator_name: 'Ana', owner_id: lead.owner_id, status: 'pending', need_approval: true });
+        const { error: proposalError } = await admin.from('proposals').insert({ organization_id: organizationId, lead_id: leadId, number: `ANA-${new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)}`, client: lead.company, items: [], value: 0, creator: 'ana', creator_name: 'Ana', owner_id: lead.owner_id, status: 'pending', need_approval: true });
+        if (proposalError) throw proposalError;
       }
       appliedActions.push({ tipo: 'gerar_orcamento', status: 'rascunho' });
     }
@@ -374,9 +419,10 @@ Deno.serve(async (request) => {
       outcome: decision.outcome,
       provedor_ia: aiProvider,
       fontes_consultadas: matchedKnowledge.map((item) => item.source),
-      status_canal: dryRun ? 'rascunho_demo' : channelConnected && !suppressions?.length ? 'enfileirado' : 'pendente_canal',
+      status_canal: needsHuman ? 'atendimento_humano' : appliedActions.some((action) => action.status === 'enfileirado') ? 'enfileirado' : 'sem_envio',
     };
-    await admin.from('agent_runs').update({ status: 'completed', result, completed_at: new Date().toISOString() }).eq('id', runId);
+    const { error: completedError } = await admin.from('agent_runs').update({ status: 'completed', result, completed_at: new Date().toISOString() }).eq('id', runId).eq('organization_id', organizationId);
+    if (completedError) throw completedError;
     await admin.from('audit_logs').insert({ organization_id: organizationId, actor_id: actorId, actor_name: actorName, actor_type: internal ? 'system' : 'user', action: 'ana.run.completed', detail: `Ana processou ${event}.`, entity_table: 'leads', entity_id: leadId, event_data: { run_id: runId, modo, needs_human: needsHuman } });
     return json({ ok: true, run_id: runId, ...result }, 200, headers);
   } catch (error) {

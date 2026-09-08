@@ -1,5 +1,6 @@
 import { createAdminClient, requireOrganizationRole, requireUser } from '../_shared/auth.ts';
 import { allowedCorsHeaders, hasAllowedOrigin, json, preflight, safeError } from '../_shared/http.ts';
+import { automationBlockReason, zapiBaseUrl } from '../_shared/runtimeSafety.ts';
 
 function canonicalChannel(value: unknown): string {
   const normalized = String(value ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -19,6 +20,14 @@ Deno.serve(async (request) => {
     const orgId = profile.active_organization_id as string;
     await requireOrganizationRole(admin, user.id, orgId, ['owner', 'admin', 'manager']);
     const body = await request.json().catch(() => ({})) as { run?: string };
+    const safetyReads = await Promise.all([
+      admin.from('company_settings').select('active,sandbox_mode,can_use_ia,ai_actions_enabled').eq('organization_id', orgId).maybeSingle(),
+      admin.from('integrations').select('enabled,connected,paused').eq('organization_id', orgId).eq('key', 'ai').maybeSingle(),
+      admin.from('organization_module_data').select('data').eq('organization_id', orgId).eq('module_key', 'configuracao_runtime').maybeSingle(),
+    ]);
+    if (safetyReads.some((read) => read.error)) throw new Error('runtime_safety_read_failed');
+    const blocked = automationBlockReason({ company: safetyReads[0].data, ai: safetyReads[1].data, runtime: safetyReads[2].data?.data ?? null });
+    if (blocked) return json({ ok: true, skipped: true, reason: blocked, sent_jobs: 0, timeout_runs: 0 }, 200, headers);
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const [{ count: sent }, { count: failed }, { count: optOuts }, { data: integration }, { data: activePolicy }] = await Promise.all([
       admin.from('outreach_jobs').select('*', { count: 'exact', head: true }).eq('organization_id', orgId).eq('channel', 'whatsapp').eq('status', 'processed').gte('processed_at', since),
@@ -44,60 +53,95 @@ Deno.serve(async (request) => {
       });
       if (integration?.id) await admin.from('integrations').update({ paused: true, status_detail: 'Envios pausados automaticamente pelo monitor de risco.' }).eq('id', integration.id).eq('organization_id', orgId);
     }
-    let timeoutRuns = 0;
+    const timeoutRuns = 0;
     let sentJobs = 0;
     let failedJobs = 0;
-    if (body.run === 'timeouts' || body.run === 'all') {
-      const { data: dueLeads, error: dueError } = await admin.from('leads')
-        .select('id,modo_atendimento,owner_id')
-        .eq('organization_id', orgId)
-        .eq('modo_atendimento', 'ia')
-        .not('owner_id', 'is', null)
-        .lte('no_reply_deadline_at', new Date().toISOString())
-        .limit(50);
-      if (dueError) throw dueError;
-      const functionUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/ana-run`;
-      const authorization = request.headers.get('authorization') ?? '';
-      for (const lead of dueLeads ?? []) {
-        const response = await fetch(functionUrl, {
-          method: 'POST',
-          headers: { Authorization: authorization, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ event: 'timeout.48h', lead_id: lead.id, modo: 'ia', contexto: { source: 'automation-worker' } }),
-        });
-        if (response.ok) timeoutRuns += 1;
-      }
-    }
+    // Timeout is exclusively owned by private.process_no_reply_deadlines (existing cron).
+    // Do not run a competing browser-triggered decision on the same expired lead.
     if (body.run === 'outreach' || body.run === 'all') {
       const { data: jobs, error: jobsError } = await admin.from('outreach_jobs')
         .select('id,lead_id,channel,attempt,payload')
         .eq('organization_id', orgId).eq('status', 'queued').lte('run_at', new Date().toISOString())
         .order('run_at', { ascending: true }).limit(25);
       if (jobsError) throw jobsError;
-      const { data: integration } = await admin.from('integrations').select('id,connected,enabled,paused')
-        .eq('organization_id', orgId).eq('key', 'whatsapp').maybeSingle();
-      const { data: credentials } = integration?.id ? await admin.rpc('read_integration_secret', { p_integration: integration.id }) : { data: null };
       for (const job of jobs ?? []) {
+        // Compare-and-set: only one caller can acquire a queued job. No automatic
+        // reclaim after an ambiguous provider result (that could send twice).
+        const { data: claimed, error: claimError } = await admin.from('outreach_jobs')
+          .update({ status: 'processing' }).eq('id', job.id).eq('organization_id', orgId).eq('status', 'queued').select('id').maybeSingle();
+        if (claimError) throw claimError;
+        if (!claimed) continue;
         const payload = (job.payload ?? {}) as Record<string, unknown>;
-        const { data: lead } = await admin.from('leads').select('phone,whatsapp,opt_out,ai_paused').eq('organization_id', orgId).eq('id', job.lead_id).maybeSingle();
-        const recipient = String(payload.recipient ?? lead?.whatsapp ?? lead?.phone ?? '').replace(/\D/g, '');
-        const message = String(payload.message ?? payload.text ?? '').trim().slice(0, 4_096);
+        let dispatchStarted = false;
+        let providerAccepted = false;
+        let providerMessageId: string | null = null;
         try {
+          const reads = await Promise.all([
+            admin.from('leads').select('phone,whatsapp,opt_out,ai_paused,owner_id,modo_atendimento,last_contact').eq('organization_id', orgId).eq('id', job.lead_id).maybeSingle(),
+            admin.from('company_settings').select('active,sandbox_mode,can_use_ia,ai_actions_enabled').eq('organization_id', orgId).maybeSingle(),
+            admin.from('integrations').select('enabled,connected,paused').eq('organization_id', orgId).eq('key', 'ai').maybeSingle(),
+            admin.from('organization_module_data').select('data').eq('organization_id', orgId).eq('module_key', 'configuracao_runtime').maybeSingle(),
+            admin.from('integrations').select('id,connected,enabled,paused').eq('organization_id', orgId).eq('key', 'whatsapp').maybeSingle(),
+            admin.from('contact_suppressions').select('id').eq('organization_id', orgId).eq('lead_id', job.lead_id).limit(1),
+          ]);
+          if (reads.some((read) => read.error)) throw new Error('dispatch_safety_read_failed');
+          const [{ data: lead }, { data: company }, { data: ai }, { data: runtime }, { data: integration }, { data: suppressions }] = reads;
+          const block = automationBlockReason({ company, ai, runtime: runtime?.data ?? null, lead });
+          if (block) throw new Error(block);
+          if (suppressions?.length) throw new Error('contact_suppressed');
+          const { data: credentials, error: credentialsError } = integration?.id
+            ? await admin.rpc('read_integration_secret', { p_integration: integration.id }) : { data: null, error: null };
+          if (credentialsError) throw new Error('channel_credentials_unavailable');
+          const recipient = String(lead?.whatsapp || lead?.phone || '').replace(/\D/g, '');
+          const message = String(payload.message ?? payload.text ?? '').trim().slice(0, 4_096);
           if (canonicalChannel(job.channel) !== 'whatsapp' || !integration?.connected || !integration.enabled || integration.paused || !credentials) throw new Error('channel_not_ready');
-          if (!lead || lead.opt_out || lead.ai_paused || !recipient || !message) throw new Error('lead_or_payload_blocked');
+          if (!lead || !/^\d{10,15}$/.test(recipient) || !message || typeof payload.message_id !== 'string' || typeof payload.agent_run_id !== 'string') throw new Error('lead_or_payload_blocked');
+          if (payload.recipient && String(payload.recipient).replace(/\D/g, '') !== recipient) throw new Error('recipient_mismatch');
+          if (!Object.hasOwn(payload, 'context_last_contact') ||
+            (lead.last_contact ? Date.parse(lead.last_contact) : null) !== (typeof payload.context_last_contact === 'string' ? Date.parse(payload.context_last_contact) : null)) throw new Error('outbound_context_stale');
+          const { data: decisionRun, error: decisionRunError } = await admin.from('agent_runs').select('id,status,result').eq('id', payload.agent_run_id)
+            .eq('organization_id', orgId).eq('lead_id', job.lead_id).maybeSingle();
+          if (decisionRunError || decisionRun?.status !== 'completed' || decisionRun.result?.status_canal !== 'enfileirado') throw new Error('outbound_decision_not_completed');
+          const { data: draft, error: draftError } = await admin.from('lead_messages').select('id,text,type').eq('id', payload.message_id)
+            .eq('organization_id', orgId).eq('lead_id', job.lead_id).eq('sender', 'ana').maybeSingle();
+          if (draftError || !draft || draft.type !== 'draft' || draft.text !== message) throw new Error('outbound_message_mismatch');
           const zapi = credentials as { instancia_id?: string; token?: string; client_token?: string; url_base?: string };
-          const baseUrl = (zapi.url_base || 'https://api.z-api.io').replace(/\/$/, '');
-          const response = await fetch(`${baseUrl}/instances/${encodeURIComponent(zapi.instancia_id ?? '')}/token/${encodeURIComponent(zapi.token ?? '')}/send-text`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...(zapi.client_token ? { 'Client-Token': zapi.client_token } : {}) }, body: JSON.stringify({ phone: recipient, message }) });
-          if (!response.ok) throw new Error(`provider_http_${response.status}`);
-          await admin.from('outreach_jobs').update({ status: 'processed', processed_at: new Date().toISOString(), error: null }).eq('id', job.id).eq('organization_id', orgId);
-          await admin.from('leads').update({
-            last_contact: new Date().toISOString(),
+          if (!zapi.instancia_id || !zapi.token || !zapi.client_token) throw new Error('channel_credentials_incomplete');
+          const baseUrl = zapiBaseUrl(zapi.url_base);
+          const { error: pendingError } = await admin.from('lead_outreach').upsert({ id: job.id, organization_id: orgId, lead_id: job.lead_id, owner_id: lead.owner_id, channel: 'whatsapp', status: 'pending', provider: 'zapi', content: message, metadata: { job_id: job.id, message_id: draft.id } }, { onConflict: 'id', ignoreDuplicates: true });
+          if (pendingError) throw pendingError;
+          dispatchStarted = true;
+          const response = await fetch(`${baseUrl}/instances/${encodeURIComponent(zapi.instancia_id)}/token/${encodeURIComponent(zapi.token)}/send-text`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'Client-Token': zapi.client_token }, body: JSON.stringify({ phone: recipient, message }), signal: AbortSignal.timeout(20_000), redirect: 'error' });
+          if (!response.ok) {
+            // Even an HTTP error may follow partial provider acceptance. Hold for reconciliation.
+            throw new Error(`provider_http_${response.status}`);
+          }
+          providerAccepted = true;
+          const receipt = await response.json() as { messageId?: unknown };
+          if (typeof receipt.messageId !== 'string' || !receipt.messageId) throw new Error('provider_receipt_missing');
+          providerMessageId = receipt.messageId;
+          const sentAt = new Date().toISOString();
+          const messageWrite = await admin.from('lead_messages').update({ type: 'sent', sent_at: sentAt, provider_message_id: receipt.messageId }).eq('id', draft.id).eq('organization_id', orgId);
+          if (messageWrite.error) throw messageWrite.error;
+          const outreachWrite = await admin.from('lead_outreach').update({ status: 'sent', provider_message_id: receipt.messageId, sent_at: sentAt }).eq('id', job.id).eq('organization_id', orgId);
+          if (outreachWrite.error) throw outreachWrite.error;
+          let leadUpdate = admin.from('leads').update({
+            last_contact: sentAt,
             no_reply_deadline_at: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(),
             no_reply_processed_at: null,
-          }).eq('id', job.lead_id).eq('organization_id', orgId);
+          }).eq('id', job.lead_id).eq('organization_id', orgId).eq('ai_paused', false);
+          // A concurrent inbound response must not regain a no-reply deadline.
+          leadUpdate = lead.last_contact ? leadUpdate.eq('last_contact', lead.last_contact) : leadUpdate.is('last_contact', null);
+          const { error: leadError } = await leadUpdate;
+          if (leadError) throw leadError;
+          const { error: processedError } = await admin.from('outreach_jobs').update({ status: 'processed', processed_at: sentAt, error: null, payload: { ...payload, provider_message_id: receipt.messageId } }).eq('id', job.id).eq('organization_id', orgId).eq('status', 'processing');
+          if (processedError) throw processedError;
           sentJobs += 1;
         } catch (error) {
           const attempt = Number(job.attempt ?? 0) + 1;
-          await admin.from('outreach_jobs').update({ status: attempt >= 3 ? 'failed' : 'queued', attempt, run_at: new Date(Date.now() + Math.min(30, attempt * 5) * 60_000).toISOString(), error: safeError(error) }).eq('id', job.id).eq('organization_id', orgId);
+          const code = providerAccepted ? 'provider_accepted_reconciliation_required' : dispatchStarted ? 'delivery_unknown_reconciliation_required' : safeError(error);
+          const { error: failureError } = await admin.from('outreach_jobs').update({ status: dispatchStarted ? 'reconciliation_required' : 'failed', attempt, error: code, payload: { ...payload, ...(providerMessageId ? { provider_message_id: providerMessageId } : {}) } }).eq('id', job.id).eq('organization_id', orgId).eq('status', 'processing');
+          if (failureError) throw new Error('job_failure_persist_failed');
           failedJobs += 1;
         }
       }

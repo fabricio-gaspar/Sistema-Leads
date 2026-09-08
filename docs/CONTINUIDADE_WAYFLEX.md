@@ -36,9 +36,9 @@ com checkpoints retomáveis e revisão final de layout/login. **Ainda não concl
 
 | Etapa | Estado | Entrega/aceite |
 |---|---|---|
-| 0. Continuidade e baseline | EM ANDAMENTO | Preservar trabalho herdado, plano no Git e release rastreável |
-| 1A. Segurança e contratos de entrada | PENDENTE | Autenticação interna, webhook válido/idempotente, mídia encaminhada sem inventar conteúdo |
-| 1B. Timeout e saída | PENDENTE | Ocorrência única por deadline, pausa humana respeitada, modo seguro no backend |
+| 0. Continuidade e baseline | CONCLUÍDO | Baseline herdado + plano salvos no remoto em 901d128 |
+| 1A. Segurança e contratos de entrada | PARCIAL — LOCAL TESTADO | Parser/contratos/autenticação corrigidos; fila transacional/retry ainda pendentes |
+| 1B. Timeout e saída | PARCIAL — LOCAL TESTADO | Bloqueios, claim de saída e rastreio; homologação concorrente real ainda pendente |
 | 1C. Worker independente | PENDENTE | Cron, lock, retry, dead-letter, heartbeat e teste com painel fechado |
 | 1D. Modo/integrações | PENDENTE | Única configuração remota, pré-flight e saúde real no painel |
 | 2. Stores e módulos | PENDENTE | Sem seed operacional fictício; salvar/erro/concorrência/permissões por módulo |
@@ -54,7 +54,50 @@ com checkpoints retomáveis e revisão final de layout/login. **Ainda não concl
 - Homologação separada ainda precisa ser provisionada com confirmação de eventual custo; não criar branch paga implicitamente.
 - Nenhum processo continua rodando pelo agente depois do fim da conversa/créditos. Retomada acontece no próximo pedido.
 
+## Checkpoint do lote de proteção do runtime
+
+Estado: **LOCAL TESTADO; ainda não aplicado no Supabase nem publicado no Site**.
+
+- `ana-run`: respeita sandbox, empresa ativa, ações IA, integração AI, kill switch remoto,
+  modo humano, opt-out e pausa; vendedor limitado à carteira. Credenciais pertencem à organização.
+- Simulação só registra a execução; não altera lead, tarefas, propostas, mensagens nem saída.
+- Identidade de mensagem estável; execução anteriormente falha responde falha/409.
+  Timeouts deixam de usar janela de dois minutos e de competir com o cron já existente.
+- O proprietário temporário do timeout é `private.process_no_reply_deadlines`, cron já ativo
+  a cada 15 minutos, com transação/lock. Não foi criado cron novo. A unificação definitiva
+  com o núcleo de decisões e os gates de empresa desse cron ainda precisa de migração.
+- Webhook: tipos Z-API explícitos; ecos do próprio número/grupos/notificações não acionam Ana;
+  estados válidos; erros de escrita verificados; JWT interno no gateway preservando verify_jwt.
+- Telefone comparado por identidade internacional completa; conflito entre leads é sinalizado.
+  Compatibilidade provisória com registros brasileiros formatados; normalização/indexação ainda pendente.
+- Eventos duplicados não reaplicam ações. O payload permanece guardado, porém a ingestão ainda
+  não é uma transação única: queda entre gravações exige reconciliação. NÃO anunciar exactly-once completo.
+- Fotos/áudios/documentos/vídeos recebidos ganham marcador de conteúdo não extraído e revisão humana.
+  Isso não implementa extração/OCR/transcrição nem a biblioteca multimídia.
+- Worker: claim condicional queued→processing; revalidação de bloqueios antes de cada envio;
+  exige mensagem vinculada a uma execução concluída; rejeita contexto desatualizado e URL não oficial.
+- Saída confirmada pelo provedor atualiza mensagem, outreach e ID do provedor. `sent` não é prova
+  de entrega/leitura. Recibos de status recebidos ainda aguardam reconciliação específica.
+- Resultado de envio ambíguo vai para `reconciliation_required`, sem reenvio automático.
+  Queda após claim pode deixar `processing`: lease/heartbeat/alerta/reconciliação ainda pendentes.
+- Jobs antigos sem vínculo de mensagem/contexto não são enviados automaticamente.
+- Funções legadas enviar-whatsapp/enviar-email/ana-ia/lead-workflow ainda precisam ser consolidadas.
+  Portanto estes gates não equivalem a proteção global comprovada de todos os caminhos.
+
+Verificação local: 57 testes de políticas/contratos + 20 de handlers com persistência/provedor
+simulados, além dos 27 testes anteriores. Type-check dos três handlers com tipos Supabase locais
+e declaração mínima de Deno. Não é execução de Deno, teste Postgres/RLS nem WhatsApp/Claude real.
+Nenhuma mensagem real enviada; nenhuma configuração de produção ativada.
+
+Bloqueio de ferramenta: instalação via `npm exec --package=supabase` retornou
+`network approval was cancelled before a decision was returned`. Não contornar nem repetir
+instalação sem resolver autorização. A skill Supabase pede CLI para nomear migrações.
+Testes usam ferramentas Node já instaladas, sem instalar dependências.
+
 ## Próxima ação exata
 
-Salvar baseline herdado e implementar/testar o primeiro lote de contratos e proteções do runtime.
-Consultar índices/constraints antes de migração; usar fixtures sintéticas e não callbacks privados nos testes.
+1. Salvar este lote no Git remoto.
+2. Aplicar `ana-run`, depois `automation-worker`, depois `webhook-whatsapp` pelos recursos Supabase
+   já autorizados. Preservar verify_jwt true/true/false. Confirmar versões remotas e atualizar checkpoint.
+3. Resolver migrações para ingestão/filas transacionais, worker server-side e modo único.
+4. Prosseguir módulos/base/homologação; ao final layout/login sem métricas inventadas.
