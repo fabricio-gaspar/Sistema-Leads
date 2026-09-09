@@ -1,5 +1,7 @@
+import type { SupabaseClient } from '@supabase/supabase-js'
 import { createServerFn } from '@tanstack/react-start'
 import { requireSupabaseAuth } from '@/integrations/supabase/auth-middleware'
+import type { CurrentDatabase } from '@/integrations/supabase/schema-current'
 import { z } from 'zod'
 
 export const COMMERCIAL_STAGES = [
@@ -19,7 +21,8 @@ const commercialStage = z.enum(COMMERCIAL_STAGES)
 export const listCommercialStages = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { data, error } = await context.supabase
+    const supabase = context.supabase as unknown as SupabaseClient<CurrentDatabase>
+    const { data, error } = await supabase
       .from('pipeline_stages')
       .select('id,pipeline_id,name,position,is_won,is_lost')
       .eq('active', true)
@@ -37,7 +40,8 @@ export const moveLeadCommercialStage = createServerFn({ method: 'POST' })
     z.object({ id: z.string().uuid(), stage: commercialStage }).parse(input),
   )
   .handler(async ({ data, context }) => {
-    const { data: lead, error: leadError } = await context.supabase
+    const supabase = context.supabase as unknown as SupabaseClient<CurrentDatabase>
+    const { data: lead, error: leadError } = await supabase
       .from('leads')
       .select('id,pipeline_id,pipeline_stage_id,company')
       .eq('id', data.id)
@@ -45,7 +49,7 @@ export const moveLeadCommercialStage = createServerFn({ method: 'POST' })
     if (leadError) throw new Error(leadError.message)
     if (!lead?.pipeline_id) throw new Error('Lead sem pipeline configurado.')
 
-    const { data: target, error: stageError } = await context.supabase
+    const { data: target, error: stageError } = await supabase
       .from('pipeline_stages')
       .select('id,name')
       .eq('pipeline_id', lead.pipeline_id)
@@ -57,7 +61,7 @@ export const moveLeadCommercialStage = createServerFn({ method: 'POST' })
 
     if (lead.pipeline_stage_id === target.id) return lead
 
-    const { data: row, error } = await context.supabase
+    const { data: row, error } = await supabase
       .from('leads')
       .update({ pipeline_stage_id: target.id })
       .eq('id', data.id)
