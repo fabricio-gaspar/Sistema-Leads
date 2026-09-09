@@ -3,6 +3,17 @@ import { allowedCorsHeaders, hasAllowedOrigin, json, preflight, safeError } from
 import { automationBlockReason, zapiBaseUrl } from '../_shared/runtimeSafety.ts';
 import { suppressionHashes, suppressionOrFilter } from '../_shared/contactSuppression.ts';
 
+function secureEqual(actual: string | null, expected: string): boolean {
+  if (!actual || !expected || actual.length !== expected.length) return false;
+  let difference = 0;
+  for (let index = 0; index < actual.length; index += 1) difference |= actual.charCodeAt(index) ^ expected.charCodeAt(index);
+  return difference === 0;
+}
+
+function isUuid(value: unknown): value is string {
+  return typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
 function canonicalChannel(value: unknown): string {
   const normalized = String(value ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
   return normalized === 'whatsapp' ? 'whatsapp' : normalized;
@@ -13,20 +24,57 @@ Deno.serve(async (request) => {
   if (!hasAllowedOrigin(request)) return json({ error: 'origin_not_allowed' }, 403);
   const headers = allowedCorsHeaders(request);
   if (request.method !== 'POST') return json({ error: 'method_not_allowed' }, 405, headers);
+  let schedulerIntegrationId: string | null = null;
+  let schedulerOrganizationId: string | null = null;
+  let serverScheduler = false;
   try {
-    const { user } = await requireUser(request);
+    const body = await request.json().catch(() => ({})) as { run?: string; organization_id?: unknown; source?: unknown };
     const admin = createAdminClient();
-    const { data: profile } = await admin.from('profiles').select('active_organization_id,name').eq('id', user.id).maybeSingle();
-    if (!profile?.active_organization_id) throw new Error('organization_context_required');
-    const orgId = profile.active_organization_id as string;
-    await requireOrganizationRole(admin, user.id, orgId, ['owner', 'admin', 'manager']);
-    const body = await request.json().catch(() => ({})) as { run?: string };
+    const schedulerToken = request.headers.get('x-leadai-scheduler-token');
+    let orgId: string;
+    let actor: { id: string; name: string } | null = null;
+
+    if (schedulerToken) {
+      if (body.run !== 'outreach' || !isUuid(body.organization_id) || body.source !== 'server_scheduler') throw new Error('scheduler_request_invalid');
+      const { data: scheduler, error: schedulerError } = await admin.from('integrations')
+        .select('id,organization_id').eq('organization_id', body.organization_id).eq('key', 'scheduler').maybeSingle();
+      if (schedulerError || !scheduler) throw new Error('scheduler_not_configured');
+      const { data: secret, error: secretError } = await admin.rpc('read_integration_secret', { p_integration: scheduler.id });
+      const expectedToken = typeof secret === 'object' && secret !== null && 'scheduler_token' in secret
+        ? String((secret as Record<string, unknown>).scheduler_token ?? '') : '';
+      if (secretError || expectedToken.length < 48 || !secureEqual(schedulerToken, expectedToken)) throw new Error('scheduler_authentication_failed');
+      orgId = scheduler.organization_id;
+      schedulerIntegrationId = scheduler.id;
+      schedulerOrganizationId = orgId;
+      serverScheduler = true;
+    } else {
+      const { user } = await requireUser(request);
+      const { data: profile } = await admin.from('profiles').select('active_organization_id,name').eq('id', user.id).maybeSingle();
+      if (!profile?.active_organization_id) throw new Error('organization_context_required');
+      orgId = profile.active_organization_id as string;
+      await requireOrganizationRole(admin, user.id, orgId, ['owner', 'admin', 'manager']);
+      actor = { id: user.id, name: profile.name || 'Usuário' };
+    }
+
     const safetyReads = await Promise.all([
       admin.from('company_settings').select('active,sandbox_mode,can_use_ia,ai_actions_enabled').eq('organization_id', orgId).maybeSingle(),
       admin.from('integrations').select('enabled,connected,paused').eq('organization_id', orgId).eq('key', 'ai').maybeSingle(),
       admin.from('organization_module_data').select('data').eq('organization_id', orgId).eq('module_key', 'configuracao_runtime').maybeSingle(),
     ]);
     if (safetyReads.some((read) => read.error)) throw new Error('runtime_safety_read_failed');
+    if (serverScheduler && schedulerIntegrationId) {
+      const { error: heartbeatError } = await admin.from('integrations').update({
+        connected: true,
+        enabled: true,
+        paused: false,
+        last_tested_at: new Date().toISOString(),
+        last_success_at: new Date().toISOString(),
+        last_error: null,
+        status_detail: 'Worker server-side em execução; heartbeat confirmado pelo agendador.',
+        updated_at: new Date().toISOString(),
+      }).eq('id', schedulerIntegrationId).eq('organization_id', orgId);
+      if (heartbeatError) throw new Error('scheduler_heartbeat_persist_failed');
+    }
     // A trava inicial protege qualquer saída real. Disponibilidade da IA e kill
     // switch são avaliados por job automático; respostas humanas não dependem da IA.
     const blocked = safetyReads[0].data?.active !== true
@@ -167,7 +215,23 @@ Deno.serve(async (request) => {
         }
       }
     }
-    await admin.from('audit_logs').insert({ organization_id: orgId, actor_id: user.id, actor_name: profile.name, actor_type: 'user', action: 'automation.worker_ran', detail: 'Telemetria, políticas de canal e timeouts avaliados.', entity_table: 'channel_health_samples', event_data: { sent_count: sentCount, opt_out_count: optOutCount, pause_recommended: shouldPause, timeout_runs: timeoutRuns } });
+    // O worker server-side pode ser executado a cada minuto. Registrar uma linha
+    // de auditoria por pulso degradaria o histórico; a evidência operacional fica
+    // no heartbeat da integração e em channel_health_samples.
+    if (!serverScheduler && actor) {
+      await admin.from('audit_logs').insert({ organization_id: orgId, actor_id: actor.id, actor_name: actor.name, actor_type: 'user', action: 'automation.worker_ran', detail: 'Telemetria, políticas de canal e timeouts avaliados.', entity_table: 'channel_health_samples', event_data: { sent_count: sentCount, opt_out_count: optOutCount, pause_recommended: shouldPause, timeout_runs: timeoutRuns } });
+    }
     return json({ ok: true, sent_count: sentCount, failed_count: failedCount, opt_out_count: optOutCount, pause_recommended: shouldPause, timeout_runs: timeoutRuns, sent_jobs: sentJobs, failed_jobs: failedJobs }, 200, headers);
-  } catch (error) { return json({ error: safeError(error) }, 400, headers); }
+  } catch (error) {
+    if (serverScheduler && schedulerIntegrationId && schedulerOrganizationId) {
+      const admin = createAdminClient();
+      await admin.from('integrations').update({
+        connected: false,
+        last_error: safeError(error).slice(0, 120),
+        status_detail: 'Worker server-side encontrou uma falha; consulte o Registro do Sistema.',
+        updated_at: new Date().toISOString(),
+      }).eq('id', schedulerIntegrationId).eq('organization_id', schedulerOrganizationId);
+    }
+    return json({ error: safeError(error) }, 400, headers);
+  }
 });

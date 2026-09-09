@@ -194,6 +194,22 @@ describe('Worker safety handler', () => {
     expect(calls.some((q) => q.table === 'outreach_jobs')).toBe(false);
     expectNoBusinessWrites();
   });
+  it('accepts only the Vault-backed server scheduler and records its heartbeat in demo', async () => {
+    override = (q) => {
+      if (q.table === 'read_integration_secret') return ok({ scheduler_token: 'a'.repeat(64) });
+      if (q.table === 'company_settings') return ok({ ...readyCompany, sandbox_mode: true });
+      return undefined;
+    };
+    await import('../functions/automation-worker/index');
+    const response = await handler(new Request('https://example.invalid/automation-worker', {
+      method: 'POST',
+      headers: { 'x-leadai-scheduler-token': 'a'.repeat(64), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ run: 'outreach', organization_id: org, source: 'server_scheduler' }),
+    }));
+    expect(await response.json()).toMatchObject({ ok: true, skipped: true, reason: 'sandbox_mode', sent_jobs: 0 });
+    expect(calls.find((q) => q.table === 'integrations' && q.operation === 'update')?.value).toMatchObject({ connected: true, enabled: true });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
   it('does not dispatch a job whose claim was won by another worker', async () => {
     setupQueue((q) => q.table === 'outreach_jobs' && q.operation === 'update' && q.value?.status === 'processing' ? ok(null) : undefined);
     await import('../functions/automation-worker/index');
@@ -349,5 +365,38 @@ describe('Operational mode authority', () => {
       action: 'operation.demo_mode_enabled',
       event_data: expect.objectContaining({ mode: 'demo' }),
     });
+  });
+
+  it('registers only the inbound Z-API webhook using the documented PUT contract', async () => {
+    override = (q) => {
+      if (q.table === 'read_integration_secret') return ok({
+        instancia_id: 'synthetic-instance', token: 'synthetic-instance-token', client_token: 'synthetic-client-token',
+        webhook_token: 'synthetic-webhook-token', url_base: 'https://api.z-api.io',
+      });
+      if (q.table === 'integrations' && q.operation === 'select') {
+        if (q.filters.key === 'whatsapp') return ok({ ...readyIntegration, key: 'whatsapp' });
+        if (q.filters.key === 'zapi_webhook') return ok({ ...readyIntegration, key: 'zapi_webhook', configuration: {} });
+        return ok([
+          { ...readyIntegration, key: 'ai', last_tested_at: recent, last_error: null },
+          { ...readyIntegration, key: 'whatsapp', last_tested_at: recent, last_error: null },
+          { ...readyIntegration, key: 'zapi_webhook', connected: false, enabled: true, last_tested_at: null, last_error: null, configuration: { registered_at: recent } },
+          { ...readyIntegration, key: 'scheduler', last_tested_at: recent, last_error: null },
+        ]);
+      }
+      return undefined;
+    };
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ value: true }), { status: 200 }));
+    await import('../functions/operational-diagnostics/index');
+    const response = await handler(new Request('https://example.invalid/operational-diagnostics', {
+      method: 'POST', headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'configure_whatsapp_webhook' }),
+    }));
+    expect(response.status).toBe(200);
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.z-api.io/instances/synthetic-instance/token/synthetic-instance-token/update-webhook-received',
+      expect.objectContaining({ method: 'PUT', headers: { 'Content-Type': 'application/json', 'Client-Token': 'synthetic-client-token' } }),
+    );
+    expect(fetchMock.mock.calls[0][1].body).toContain('integration_id=');
+    expect(calls.find((q) => q.table === 'integrations' && q.operation === 'update')?.value).toMatchObject({ enabled: true, connected: false });
   });
 });

@@ -5,3 +5,9 @@ project_id = "thgzrkppouoevapjquyu"
 # provider signature/secret inside the handler before reading or writing data.
 [functions.webhook-whatsapp]
 verify_jwt = false
+
+# O cron do banco não possui sessão de usuário. Esta função valida, no próprio
+# handler, um token rotativo por organização mantido no Vault; chamadas do
+# painel continuam exigindo sessão e papel administrativo.
+[functions.automation-worker]
+verify_jwt = false

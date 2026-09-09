@@ -64,7 +64,14 @@ export interface OperationalDiagnostics {
   risks: Array<{ id: string; channel: string; risk_level: string; action: string; reason: string; created_at: string }>;
 }
 
-async function invoke<T>(action: 'status' | 'set_kill_switch' | 'set_mode' | 'events', payload: Record<string, unknown> = {}): Promise<T> {
+type OperationalAction = 'status' | 'set_kill_switch' | 'set_mode' | 'events' | 'configure_whatsapp_webhook' | 'activate_scheduler';
+
+export interface OperationalSetupResult {
+  message: string;
+  status: OperationalStatus;
+}
+
+async function invoke<T>(action: OperationalAction, payload: Record<string, unknown> = {}): Promise<T> {
   const { data, error } = await supabase.functions.invoke('operational-diagnostics', { body: { action, ...payload } });
   if (error || !data?.ok) throw new Error(data?.erro ?? await detalheDoErroDeFuncao(error));
   return data as T;
@@ -84,4 +91,12 @@ export async function setOperationalMode(mode: OperationalMode): Promise<Operati
 
 export async function loadOperationalDiagnostics(): Promise<OperationalDiagnostics> {
   return invoke<OperationalDiagnostics>('events');
+}
+
+export async function configureWhatsAppInbound(): Promise<OperationalSetupResult> {
+  return invoke<OperationalSetupResult>('configure_whatsapp_webhook');
+}
+
+export async function activateServerScheduler(): Promise<OperationalSetupResult> {
+  return invoke<OperationalSetupResult>('activate_scheduler');
 }

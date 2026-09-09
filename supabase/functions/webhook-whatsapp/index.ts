@@ -112,6 +112,22 @@ Deno.serve(async (request) => {
     if (inboundStateError) throw new Error('inbound_state_persist_failed');
     const { error: eventStateError } = await admin.from('webhook_events').update({ ...state, lead_id: lead.id }).eq('id', event.id).eq('organization_id', eventOrg);
     if (eventStateError) throw new Error('event_state_persist_failed');
+    // A conexão de saída e a entrada são estados diferentes. Só considerar a
+    // entrada homologada após o callback real ter sido associado ao lead e
+    // passado pela Ana, sem precisar expor URL ou token ao painel.
+    const { error: webhookHealthError } = await admin.from('integrations').update({
+      connected: succeeded,
+      enabled: true,
+      paused: false,
+      last_tested_at: receivedAt,
+      last_success_at: succeeded ? receivedAt : null,
+      last_error: succeeded ? null : `ana_not_completed_${anaResponse.status}`,
+      status_detail: succeeded
+        ? 'Resposta recebida, vinculada ao lead e processada pela Ana.'
+        : 'Resposta recebida, mas o processamento da Ana precisa de reconciliação.',
+      updated_at: receivedAt,
+    }).eq('organization_id', eventOrg).eq('key', 'zapi_webhook');
+    if (webhookHealthError) throw new Error('webhook_health_persist_failed');
     await admin.from('audit_logs').insert({ organization_id: integration.organization_id, action: succeeded ? 'webhook.processed' : 'webhook.failed', detail: succeeded ? 'Mensagem vinculada ao lead; Ana avaliou o evento (incluindo bloqueios de segurança).' : 'Mensagem salva; execução da Ana pendente de reconciliação.', entity_table: 'leads', entity_id: lead.id, event_data: { provider: integration.provider, event_type: eventType, ana_status: anaResponse.status, skipped: anaResult?.skipped === true } });
     return json({ accepted: true, matched: true, processed: succeeded, skipped: anaResult?.skipped === true }, 202);
   } catch (error) {

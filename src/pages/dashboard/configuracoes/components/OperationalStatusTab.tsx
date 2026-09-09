@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { loadOperationalStatus, setOperationalKillSwitch, setOperationalMode, type OperationalStatus } from '@/lib/crm/operationalDiagnosticsRepository';
+import { Link } from 'react-router-dom';
+import { activateServerScheduler, configureWhatsAppInbound, loadOperationalStatus, setOperationalKillSwitch, setOperationalMode, type OperationalStatus } from '@/lib/crm/operationalDiagnosticsRepository';
 
 function formatDate(value: string | null): string {
   return value ? new Date(value).toLocaleString('pt-BR') : 'Ainda não registrado';
@@ -9,7 +10,10 @@ export default function OperationalStatusTab() {
   const [status, setStatus] = useState<OperationalStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [changing, setChanging] = useState(false);
+  const [settingUp, setSettingUp] = useState<'whatsapp' | 'scheduler' | null>(null);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const requestedSetup = new URLSearchParams(window.location.search).get('setup');
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -19,6 +23,28 @@ export default function OperationalStatusTab() {
   }, []);
 
   useEffect(() => { void refresh(); }, [refresh]);
+
+  const setupWhatsAppInbound = async () => {
+    if (settingUp) return;
+    setSettingUp('whatsapp'); setError(''); setNotice('');
+    try {
+      const result = await configureWhatsAppInbound();
+      setStatus(result.status); setNotice(result.message);
+    } catch {
+      setError('Não foi possível cadastrar a entrada da Z-API. A saída validada foi preservada; revise a conexão do WhatsApp e tente novamente.');
+    } finally { setSettingUp(null); }
+  };
+
+  const setupScheduler = async () => {
+    if (settingUp) return;
+    setSettingUp('scheduler'); setError(''); setNotice('');
+    try {
+      const result = await activateServerScheduler();
+      setStatus(result.status); setNotice(result.message);
+    } catch {
+      setError('Não foi possível preparar o worker server-side. Nenhuma automação real foi liberada; tente novamente ou consulte o Registro do Sistema.');
+    } finally { setSettingUp(null); }
+  };
 
   const changeKillSwitch = async () => {
     if (!status || changing) return;
@@ -56,6 +82,30 @@ export default function OperationalStatusTab() {
   return (
     <div className="space-y-5">
       {error && <div className="rounded-xl border border-accent-200 bg-accent-50 px-4 py-3 text-sm text-accent-800">{error}</div>}
+      {notice && <div className="rounded-xl border border-[#34C759]/25 bg-[#34C759]/10 px-4 py-3 text-sm text-[#237A3B]">{notice}</div>}
+      <section className="wf-surface overflow-hidden" aria-label="Assistente de ativação">
+        <div className="border-b border-background-200/70 px-5 py-4 md:px-6">
+          <p className="text-xs font-semibold uppercase tracking-[.12em] text-primary-700">Assistente de ativação</p>
+          <h2 className="mt-1 font-heading text-lg font-bold text-foreground-950">Conclua cada etapa no módulo certo</h2>
+          <p className="mt-1 max-w-3xl text-sm leading-relaxed text-foreground-500">A validação da instância Z-API e a entrada das respostas são etapas diferentes. O assistente registra o que é seguro no backend e só pede uma ação externa quando ela for indispensável.</p>
+        </div>
+        <div className="grid gap-3 p-5 lg:grid-cols-2 md:p-6">
+          <article className={`rounded-2xl border p-4 ${requestedSetup === 'whatsapp-webhook' ? 'border-[#0071E3]/40 bg-[#F2F7FF]' : 'border-background-200 bg-background-50/60'}`}>
+            <div className="flex items-start justify-between gap-3"><div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#0071E3]/10 text-[#0071E3]"><i className="ri-chat-check-line text-lg" /></div><span className={`rounded-full border px-2.5 py-1 font-mono text-[10px] font-semibold ${status.checks.find((item) => item.id === 'whatsapp_webhook')?.ok ? 'border-[#34C759]/25 bg-[#34C759]/10 text-[#237A3B]' : 'border-[#FF9500]/25 bg-[#FF9500]/10 text-[#B76100]'}`}>{status.checks.find((item) => item.id === 'whatsapp_webhook')?.ok ? 'HOMOLOGADO' : 'PENDENTE'}</span></div>
+            <h3 className="mt-3 text-sm font-bold text-foreground-950">1. Receber respostas do WhatsApp</h3>
+            <p className="mt-1 text-xs leading-relaxed text-foreground-500">{status.checks.find((item) => item.id === 'whatsapp_webhook')?.detail}</p>
+            <ol className="mt-3 space-y-1.5 text-xs leading-relaxed text-foreground-600"><li><strong>Primeiro:</strong> {status.checks.find((item) => item.id === 'whatsapp')?.ok ? 'a instância Z-API já está validada no módulo de Canais.' : 'valide a instância Z-API no módulo de Canais.'}</li><li><strong>Agora:</strong> cadastre esta entrada; nenhum token ou URL ficará exposto no painel.</li><li><strong>Por fim:</strong> envie uma mensagem de texto de um número que já esteja cadastrado em <Link to="/dashboard/leads" className="font-semibold text-primary-700 hover:underline">Leads</Link>. A Ana apenas registra e analisa a entrada no modo Demo.</li></ol>
+            <div className="mt-4 flex flex-wrap gap-2"><button type="button" onClick={() => void setupWhatsAppInbound()} disabled={settingUp === 'whatsapp' || !status.checks.find((item) => item.id === 'whatsapp')?.ok || status.checks.find((item) => item.id === 'whatsapp_webhook')?.ok} className="wf-btn-primary text-xs disabled:cursor-not-allowed disabled:opacity-60"><i className="ri-link" />{settingUp === 'whatsapp' ? 'Cadastrando…' : status.checks.find((item) => item.id === 'whatsapp_webhook')?.ok ? 'Entrada homologada' : status.checks.find((item) => item.id === 'whatsapp')?.ok ? 'Cadastrar entrada na Z-API' : 'Valide o WhatsApp primeiro'}</button><Link to="/dashboard/configuracoes?tab=conexoes" className="wf-btn-secondary text-xs">Ver canal WhatsApp</Link></div>
+          </article>
+          <article className={`rounded-2xl border p-4 ${requestedSetup === 'worker' ? 'border-[#0071E3]/40 bg-[#F2F7FF]' : 'border-background-200 bg-background-50/60'}`}>
+            <div className="flex items-start justify-between gap-3"><div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#5856D6]/10 text-[#5856D6]"><i className="ri-server-line text-lg" /></div><span className={`rounded-full border px-2.5 py-1 font-mono text-[10px] font-semibold ${status.checks.find((item) => item.id === 'scheduler')?.ok ? 'border-[#34C759]/25 bg-[#34C759]/10 text-[#237A3B]' : 'border-[#FF9500]/25 bg-[#FF9500]/10 text-[#B76100]'}`}>{status.checks.find((item) => item.id === 'scheduler')?.ok ? 'ATIVO' : 'PENDENTE'}</span></div>
+            <h3 className="mt-3 text-sm font-bold text-foreground-950">2. Processar automações 24/7</h3>
+            <p className="mt-1 text-xs leading-relaxed text-foreground-500">{status.checks.find((item) => item.id === 'scheduler')?.detail}</p>
+            <ol className="mt-3 space-y-1.5 text-xs leading-relaxed text-foreground-600"><li>Ao preparar, o sistema cria uma credencial interna no cofre e ativa o agendador do servidor.</li><li>Você não precisa cadastrar chave, e-mail ou URL para este módulo.</li><li>No Ambiente de Demonstração ele só confirma a saúde do worker; as saídas reais continuam bloqueadas.</li></ol>
+            <div className="mt-4 flex flex-wrap gap-2"><button type="button" onClick={() => void setupScheduler()} disabled={settingUp === 'scheduler' || status.checks.find((item) => item.id === 'scheduler')?.ok} className="wf-btn-primary text-xs disabled:cursor-not-allowed disabled:opacity-60"><i className="ri-play-circle-line" />{settingUp === 'scheduler' ? 'Preparando…' : status.checks.find((item) => item.id === 'scheduler')?.ok ? 'Worker ativo' : 'Preparar worker 24/7'}</button><button type="button" onClick={() => void refresh()} className="wf-btn-secondary text-xs"><i className="ri-refresh-line" />Verificar heartbeat</button></div>
+          </article>
+        </div>
+      </section>
       <section className="wf-surface p-5 md:p-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>

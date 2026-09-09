@@ -8,8 +8,8 @@ const routesByCheck: Record<string, string> = {
   kill_switch: '/dashboard/configuracoes?tab=operacao',
   ia: '/dashboard/configuracoes?tab=conexoes',
   whatsapp: '/dashboard/configuracoes?tab=conexoes',
-  whatsapp_webhook: '/dashboard/configuracoes?tab=conexoes',
-  scheduler: '/dashboard/registro-sistema',
+  whatsapp_webhook: '/dashboard/configuracoes?tab=operacao&setup=whatsapp-webhook',
+  scheduler: '/dashboard/configuracoes?tab=operacao&setup=worker',
 };
 
 function MissingCheck({ check }: { check: OperationalCheck }) {
