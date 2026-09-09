@@ -1,9 +1,5 @@
 import { useState } from 'react';
-import { useTemplatesPropostaStore, type TemplateProposta, type BlocoProposta } from '@/hooks/useTemplatesPropostaStore';
-import { useEmpresaSettingsStore } from '@/hooks/useEmpresaSettingsStore';
-import { useVariaveisGlobaisStore } from '@/hooks/useVariaveisGlobaisStore';
-import { montarValoresVariaveis, resolverVariaveis } from '@/lib/variaveis';
-import AutocompleteTextarea from '@/components/feature/AutocompleteTextarea';
+import { useTemplatesPropostaStore, type BlocoProposta, type TemplateProposta } from '@/hooks/useTemplatesPropostaStore';
 
 interface FormState {
   nome: string;
@@ -19,7 +15,7 @@ interface FormState {
 const formVazio = (): FormState => ({
   nome: '',
   descricao: '',
-  validadePadraoDias: 15,
+  validadePadraoDias: 0,
   formaPagamento: '',
   garantia: '',
   termos: '',
@@ -27,18 +23,29 @@ const formVazio = (): FormState => ({
   padrao: false,
 });
 
+const inputClass = 'w-full rounded-xl border border-[#E5E5EA] bg-[#F2F2F7] px-3.5 py-2.5 text-xs text-[#1D1D1F] placeholder:text-[#86868B] outline-none transition focus:border-[#0071E3] focus:bg-white focus:ring-2 focus:ring-[#0071E3]/20';
+
 export default function TemplatesPropostaTab() {
-  const { templates, atualizar, adicionar, excluir, definirPadrao } = useTemplatesPropostaStore();
-  const { settings: { organizacao } } = useEmpresaSettingsStore();
-  const { variaveis } = useVariaveisGlobaisStore();
+  const { templates, loading, saving, error, atualizar, adicionar, duplicar, excluir, definirPadrao, recarregar } = useTemplatesPropostaStore();
   const [toast, setToast] = useState('');
   const [modalAberto, setModalAberto] = useState(false);
   const [editando, setEditando] = useState<TemplateProposta | null>(null);
   const [form, setForm] = useState<FormState>(formVazio());
 
-  const mostrarToast = (msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(''), 3000);
+  const mostrarToast = (message: string) => {
+    setToast(message);
+    window.setTimeout(() => setToast(''), 3200);
+  };
+
+  const executar = async (action: () => Promise<void>, success: string) => {
+    try {
+      await action();
+      mostrarToast(success);
+      return true;
+    } catch {
+      mostrarToast('Não foi possível salvar. Revise sua conexão e tente novamente.');
+      return false;
+    }
   };
 
   const abrirNovo = () => {
@@ -47,284 +54,213 @@ export default function TemplatesPropostaTab() {
     setModalAberto(true);
   };
 
-  const abrirEdicao = (t: TemplateProposta) => {
-    setEditando(t);
+  const abrirEdicao = (template: TemplateProposta) => {
+    setEditando(template);
     setForm({
-      nome: t.nome,
-      descricao: t.descricao,
-      validadePadraoDias: t.validadePadraoDias,
-      formaPagamento: t.formaPagamento,
-      garantia: t.garantia,
-      termos: t.termos,
-      blocos: t.blocos,
-      padrao: t.padrao,
+      nome: template.nome,
+      descricao: template.descricao,
+      validadePadraoDias: template.validadePadraoDias,
+      formaPagamento: template.formaPagamento,
+      garantia: template.garantia,
+      termos: template.termos,
+      blocos: template.blocos.map((block) => ({ ...block })),
+      padrao: template.padrao,
     });
     setModalAberto(true);
   };
 
-  const salvar = () => {
+  const salvar = async () => {
     if (!form.nome.trim()) {
-      mostrarToast('Dê um nome ao template.');
+      mostrarToast('Informe um nome para o template.');
       return;
     }
     const base = {
       nome: form.nome.trim(),
       descricao: form.descricao.trim(),
-      validadePadraoDias: Math.max(1, Number(form.validadePadraoDias) || 15),
+      validadePadraoDias: Math.max(0, Number(form.validadePadraoDias) || 0),
       formaPagamento: form.formaPagamento.trim(),
       garantia: form.garantia.trim(),
       termos: form.termos.trim(),
-      blocos: form.blocos,
+      blocos: form.blocos
+        .map((block) => ({ ...block, titulo: block.titulo.trim(), texto: block.texto.trim() }))
+        .filter((block) => block.titulo || block.texto),
       padrao: form.padrao,
     };
-    if (editando) {
-      atualizar(editando.id, base);
-      mostrarToast('Template atualizado.');
-    } else {
-      adicionar({ id: `tp-${Date.now()}`, ...base, ativo: true });
-      mostrarToast('Template criado.');
-    }
-    setModalAberto(false);
+    const ok = editando
+      ? await executar(() => atualizar(editando.id, base), 'Template atualizado e salvo no sistema.')
+      : await executar(() => adicionar({ id: crypto.randomUUID(), ...base, ativo: true }), 'Template criado e salvo no sistema.');
+    if (ok) setModalAberto(false);
   };
 
-  const toggleAtivo = (t: TemplateProposta) => {
-    atualizar(t.id, { ativo: !t.ativo });
-  };
+  const addBloco = () => setForm((current) => ({
+    ...current,
+    blocos: [...current.blocos, { id: crypto.randomUUID(), titulo: '', texto: '' }],
+  }));
 
-  const excluirTemplate = (t: TemplateProposta) => {
-    excluir(t.id);
-    mostrarToast(`Template "${t.nome}" excluído.`);
-  };
+  const editarBloco = (id: string, change: Partial<BlocoProposta>) => setForm((current) => ({
+    ...current,
+    blocos: current.blocos.map((block) => block.id === id ? { ...block, ...change } : block),
+  }));
 
-  const addBloco = () => {
-    setForm((prev) => ({
-      ...prev,
-      blocos: [...prev.blocos, { id: `bl-${Date.now()}`, titulo: '', texto: '' }],
-    }));
-  };
-
-  const editarBloco = (id: string, mudanca: Partial<BlocoProposta>) => {
-    setForm((prev) => ({
-      ...prev,
-      blocos: prev.blocos.map((b) => (b.id === id ? { ...b, ...mudanca } : b)),
-    }));
-  };
-
-  const removerBloco = (id: string) => {
-    setForm((prev) => ({ ...prev, blocos: prev.blocos.filter((b) => b.id !== id) }));
-  };
-
-  // Pré-visualização com lead de teste + dados da empresa + variáveis globais.
-  const valores = montarValoresVariaveis({
-    lead: { nome: 'Carlos Mendes', empresa: 'Tech Solutions Ltda' },
-    organizacao,
-    customVars: variaveis,
-  });
-  valores.validade = '30/09/2026';
-  valores.forma_pagamento = form.formaPagamento || '—';
-  valores.garantia = form.garantia || '—';
-  const previaTermos = resolverVariaveis(form.termos || 'Nenhum termo definido.', valores);
+  const removerBloco = (id: string) => setForm((current) => ({
+    ...current,
+    blocos: current.blocos.filter((block) => block.id !== id),
+  }));
 
   return (
-    <div className="space-y-6">
-      {toast && (
-        <div className="bg-primary-100 border border-primary-200 text-primary-800 px-4 py-3 rounded-lg text-sm flex items-center gap-2">
-          <i className="ri-information-line"></i>
-          {toast}
+    <div className="space-y-5">
+      {(toast || error) && (
+        <div className={`rounded-xl border px-4 py-3 text-xs ${error ? 'border-[#FF3B30]/25 bg-[#FF3B30]/10 text-[#FF3B30]' : 'border-[#34C759]/25 bg-[#34C759]/10 text-[#237A3B]'}`}>
+          <i className={`${error ? 'ri-error-warning-line' : 'ri-checkbox-circle-line'} mr-2`} aria-hidden="true" />
+          {toast || error}
         </div>
       )}
 
-      <div className="bg-primary-50 border border-primary-200 rounded-xl p-4 text-sm">
-        <p className="font-semibold text-primary-800 flex items-center gap-2">
-          <i className="ri-file-text-line"></i>
-          Templates de proposta / orçamento
-        </p>
-        <p className="mt-1.5 text-primary-700 leading-relaxed">
-          Estruturas prontas de orçamento com validade, forma de pagamento, garantia, termos e blocos
-          reutilizáveis. Ao gerar uma proposta em Orçamentos, você escolhe o template — a Ana usa o
-          marcado como <b>padrão</b>. Variáveis como <code className="bg-background-50 border border-primary-200 px-1.5 py-0.5 rounded text-xs font-mono">{'{validade}'}</code> são resolvidas automaticamente.
-        </p>
-      </div>
-
-      <div className="bg-background-50 border border-background-200/70 rounded-xl overflow-hidden">
-        <div className="px-6 py-4 border-b border-background-200/70 flex items-center justify-between">
+      <section className="rounded-2xl border border-[#E5E5EA] bg-white p-5 shadow-xs">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h3 className="font-heading font-bold text-foreground-900 text-sm">Templates</h3>
-            <p className="text-xs text-foreground-500">Modelos de orçamento reutilizáveis.</p>
+            <p className="text-sm font-semibold tracking-tight text-[#1D1D1F]">Templates de orçamento</p>
+            <p className="mt-1 max-w-3xl text-xs leading-5 text-[#6E6E73]">
+              Estruturas industriais reutilizáveis. Os exemplos não afirmam preço, prazo, pagamento,
+              garantia ou certificação: esses campos permanecem em branco até validação humana.
+            </p>
           </div>
-          <button
-            onClick={abrirNovo}
-            className="inline-flex items-center gap-2 px-4 py-2 bg-primary-500 hover:bg-primary-600 text-background-50 rounded-lg text-xs font-semibold cursor-pointer whitespace-nowrap"
-          >
-            <i className="ri-add-line"></i>
-            Novo template
-          </button>
+          <div className="flex gap-2">
+            <button type="button" disabled={loading || saving} onClick={() => void recarregar()} className="rounded-xl border border-[#E5E5EA] bg-[#F2F2F7] px-3 py-2 text-xs font-semibold text-[#1D1D1F] transition hover:bg-[#E5E5EA] disabled:opacity-50">
+              <i className="ri-refresh-line mr-1.5" aria-hidden="true" />Atualizar
+            </button>
+            <button type="button" disabled={loading || saving} onClick={abrirNovo} className="rounded-xl bg-[#0071E3] px-3.5 py-2 text-xs font-semibold text-white shadow-xs transition hover:bg-[#0077ED] active:scale-[0.98] disabled:opacity-50">
+              <i className="ri-add-line mr-1.5" aria-hidden="true" />Novo template
+            </button>
+          </div>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-background-200/70 bg-background-100/50">
-                <th className="text-left px-6 py-3 text-foreground-500 font-medium text-xs">Nome</th>
-                <th className="text-left px-6 py-3 text-foreground-500 font-medium text-xs">Validade</th>
-                <th className="text-left px-6 py-3 text-foreground-500 font-medium text-xs hidden md:table-cell">Blocos</th>
-                <th className="text-left px-6 py-3 text-foreground-500 font-medium text-xs">Padrão</th>
-                <th className="text-left px-6 py-3 text-foreground-500 font-medium text-xs">Ativo</th>
-                <th className="text-left px-6 py-3 text-foreground-500 font-medium text-xs w-28"></th>
-              </tr>
-            </thead>
-            <tbody>
-              {templates.map((t) => (
-                <tr key={t.id} className="border-b border-background-100 hover:bg-background-50/50">
-                  <td className="px-6 py-3.5">
-                    <p className="font-medium text-foreground-900">{t.nome}</p>
-                    <p className="text-xs text-foreground-500 max-w-sm">{t.descricao}</p>
-                  </td>
-                  <td className="px-6 py-3.5 text-foreground-600">{t.validadePadraoDias} dias</td>
-                  <td className="px-6 py-3.5 text-foreground-600 hidden md:table-cell">{t.blocos.length} blocos</td>
-                  <td className="px-6 py-3.5">
-                    <button
-                      onClick={() => { definirPadrao(t.id); mostrarToast(`"${t.nome}" agora é o padrão.`); }}
-                      className={`w-10 h-5 rounded-full transition-colors relative cursor-pointer ${t.padrao ? 'bg-secondary-500' : 'bg-background-300'}`}
-                      title="Definir como padrão"
-                    >
-                      <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-background-50 rounded-full transition-transform ${t.padrao ? 'translate-x-5' : ''}`}></span>
-                    </button>
-                  </td>
-                  <td className="px-6 py-3.5">
-                    <button
-                      onClick={() => toggleAtivo(t)}
-                      className={`w-10 h-5 rounded-full transition-colors relative cursor-pointer ${t.ativo ? 'bg-primary-500' : 'bg-background-300'}`}
-                    >
-                      <span className={`absolute top-0.5 left-0.5 w-4 h-4 bg-background-50 rounded-full transition-transform ${t.ativo ? 'translate-x-5' : ''}`}></span>
-                    </button>
-                  </td>
-                  <td className="px-6 py-3.5">
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => abrirEdicao(t)}
-                        className="w-8 h-8 flex items-center justify-center rounded-lg bg-background-100 hover:bg-background-200 text-foreground-500 cursor-pointer"
-                        title="Editar"
-                      >
-                        <i className="ri-edit-line"></i>
-                      </button>
-                      <button
-                        onClick={() => excluirTemplate(t)}
-                        className="w-8 h-8 flex items-center justify-center rounded-lg bg-background-100 hover:bg-accent-50 text-accent-600 cursor-pointer"
-                        title="Excluir"
-                      >
-                        <i className="ri-delete-bin-6-line"></i>
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-              {templates.length === 0 && (
+      </section>
+
+      <section className="overflow-hidden rounded-2xl border border-[#E5E5EA] bg-white shadow-xs">
+        {loading ? (
+          <div className="flex items-center justify-center gap-2 px-6 py-12 text-xs text-[#6E6E73]">
+            <i className="ri-loader-4-line animate-spin" aria-hidden="true" />Carregando templates do banco…
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="border-b border-[#E5E5EA] bg-[#F8F9FA] font-mono text-[11px] uppercase text-[#86868B]">
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-foreground-400 text-sm">
-                    Nenhum template de proposta ainda.
-                  </td>
+                  <th className="px-5 py-3 font-medium">Modelo</th>
+                  <th className="px-5 py-3 font-medium">Validade</th>
+                  <th className="hidden px-5 py-3 font-medium md:table-cell">Blocos</th>
+                  <th className="px-5 py-3 font-medium">Estado</th>
+                  <th className="px-5 py-3 text-right font-medium">Ações</th>
                 </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+              </thead>
+              <tbody>
+                {templates.map((template) => (
+                  <tr key={template.id} className="border-b border-[#E5E5EA] transition last:border-0 hover:bg-[#F2F2F7]/70">
+                    <td className="px-5 py-3.5">
+                      <p className="font-semibold text-[#1D1D1F]">{template.nome}</p>
+                      <p className="mt-0.5 max-w-md text-[11px] leading-4 text-[#6E6E73]">{template.descricao || 'Sem descrição.'}</p>
+                    </td>
+                    <td className="whitespace-nowrap px-5 py-3.5 text-[#6E6E73]">{template.validadePadraoDias > 0 ? `${template.validadePadraoDias} dias` : 'Definir ao usar'}</td>
+                    <td className="hidden px-5 py-3.5 text-[#6E6E73] md:table-cell">{template.blocos.length}</td>
+                    <td className="px-5 py-3.5">
+                      <div className="flex flex-wrap gap-1.5">
+                        {template.padrao && <span className="rounded-full border border-[#5856D6]/25 bg-[#5856D6]/10 px-2 py-0.5 font-mono text-[10px] text-[#5856D6]">PADRÃO</span>}
+                        <span className={`rounded-full border px-2 py-0.5 font-mono text-[10px] ${template.ativo ? 'border-[#34C759]/25 bg-[#34C759]/10 text-[#237A3B]' : 'border-[#E5E5EA] bg-[#F2F2F7] text-[#86868B]'}`}>{template.ativo ? 'ATIVO' : 'INATIVO'}</span>
+                      </div>
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <div className="flex justify-end gap-1">
+                        {!template.padrao && <button type="button" disabled={saving} onClick={() => void executar(() => definirPadrao(template.id), `“${template.nome}” definido como padrão.`)} className="h-8 rounded-lg px-2 text-[#6E6E73] transition hover:bg-white hover:text-[#5856D6]" title="Definir como padrão"><i className="ri-star-line" /></button>}
+                        <button type="button" disabled={saving} onClick={() => void executar(() => atualizar(template.id, { ativo: !template.ativo }), `Template ${template.ativo ? 'desativado' : 'ativado'}.`)} className="h-8 rounded-lg px-2 text-[#6E6E73] transition hover:bg-white hover:text-[#0071E3]" title={template.ativo ? 'Desativar' : 'Ativar'}><i className={template.ativo ? 'ri-pause-circle-line' : 'ri-play-circle-line'} /></button>
+                        <button type="button" disabled={saving} onClick={() => abrirEdicao(template)} className="h-8 rounded-lg px-2 text-[#6E6E73] transition hover:bg-white hover:text-[#0071E3]" title="Editar"><i className="ri-edit-line" /></button>
+                        <button type="button" disabled={saving} onClick={() => void executar(() => duplicar(template.id), 'Template duplicado e salvo.')} className="h-8 rounded-lg px-2 text-[#6E6E73] transition hover:bg-white hover:text-[#0071E3]" title="Duplicar"><i className="ri-file-copy-line" /></button>
+                        <button type="button" disabled={saving} onClick={() => {
+                          if (window.confirm(`Excluir o template “${template.nome}”?`)) void executar(() => excluir(template.id), 'Template excluído.');
+                        }} className="h-8 rounded-lg px-2 text-[#6E6E73] transition hover:bg-[#FF3B30]/10 hover:text-[#FF3B30]" title="Excluir"><i className="ri-delete-bin-6-line" /></button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {templates.length === 0 && (
+                  <tr><td colSpan={5} className="px-6 py-12 text-center text-xs text-[#86868B]">Nenhum template cadastrado.</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
 
       {modalAberto && (
-        <div className="fixed inset-0 z-50 bg-foreground-950/50 flex items-center justify-center p-4" onClick={() => setModalAberto(false)}>
-          <div className="bg-background-50 rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="px-6 py-4 border-b border-background-200/70 flex items-center justify-between sticky top-0 bg-background-50 z-10">
-              <h3 className="font-heading font-bold text-foreground-950">{editando ? 'Editar template' : 'Novo template'}</h3>
-              <button onClick={() => setModalAberto(false)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-background-100 cursor-pointer">
-                <i className="ri-close-line text-lg"></i>
-              </button>
-            </div>
-            <div className="p-6 space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-foreground-800 mb-1.5">Nome</label>
-                  <input type="text" value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} placeholder="ex.: Projeto sob medida" className="w-full px-4 py-2.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-900" />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground-800 mb-1.5">Validade padrão (dias)</label>
-                  <input type="number" min={1} max={365} value={form.validadePadraoDias} onChange={(e) => setForm({ ...form, validadePadraoDias: Number(e.target.value) })} className="w-full px-4 py-2.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-900" />
-                </div>
-              </div>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#1D1D1F]/40 p-4" onClick={() => !saving && setModalAberto(false)}>
+          <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-[#E5E5EA] bg-white shadow-2xl" onClick={(event) => event.stopPropagation()}>
+            <header className="sticky top-0 z-10 flex items-center justify-between border-b border-[#E5E5EA] bg-white/95 px-6 py-4 backdrop-blur">
               <div>
-                <label className="block text-sm font-medium text-foreground-800 mb-1.5">Descrição</label>
-                <input type="text" value={form.descricao} onChange={(e) => setForm({ ...form, descricao: e.target.value })} placeholder="Para que serve este template?" className="w-full px-4 py-2.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-900" />
+                <h3 className="text-sm font-semibold tracking-tight text-[#1D1D1F]">{editando ? 'Editar template' : 'Novo template'}</h3>
+                <p className="mt-0.5 text-[11px] text-[#6E6E73]">As alterações serão salvas no banco da empresa ativa.</p>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground-800 mb-1.5">Forma de pagamento</label>
-                <input type="text" value={form.formaPagamento} onChange={(e) => setForm({ ...form, formaPagamento: e.target.value })} placeholder="ex.: 50% na assinatura e 50% na entrega" className="w-full px-4 py-2.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-900" />
+              <button type="button" disabled={saving} onClick={() => setModalAberto(false)} className="flex h-8 w-8 items-center justify-center rounded-lg text-[#6E6E73] hover:bg-[#F2F2F7]"><i className="ri-close-line text-lg" /></button>
+            </header>
+
+            <div className="space-y-4 p-6">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-[1fr_180px]">
+                <label className="text-xs font-medium text-[#1D1D1F]">Nome
+                  <input value={form.nome} onChange={(event) => setForm({ ...form, nome: event.target.value })} placeholder="Ex.: Peça técnica sob medida" className={`${inputClass} mt-1.5`} />
+                </label>
+                <label className="text-xs font-medium text-[#1D1D1F]">Validade em dias
+                  <input type="number" min={0} max={365} value={form.validadePadraoDias} onChange={(event) => setForm({ ...form, validadePadraoDias: Number(event.target.value) })} className={`${inputClass} mt-1.5`} />
+                  <span className="mt-1 block text-[10px] font-normal text-[#86868B]">Use 0 para definir em cada orçamento.</span>
+                </label>
               </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground-800 mb-1.5">Garantia</label>
-                <input type="text" value={form.garantia} onChange={(e) => setForm({ ...form, garantia: e.target.value })} placeholder="ex.: Garantia de 90 dias sobre as entregas" className="w-full px-4 py-2.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-900" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground-800 mb-1.5">Termos e condições</label>
-                <AutocompleteTextarea
-                  value={form.termos}
-                  onChange={(v) => setForm({ ...form, termos: v })}
-                  rows={3}
-                  tipo="proposta"
-                  placeholder="Use {validade}, {nome}, {empresa}... (ou complete com IA)"
-                />
-              </div>
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="block text-sm font-medium text-foreground-800">Blocos reutilizáveis</label>
-                  <button onClick={addBloco} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-secondary-500 hover:bg-secondary-600 text-background-50 rounded-lg text-xs font-semibold cursor-pointer whitespace-nowrap">
-                    <i className="ri-add-line"></i>
-                    Adicionar bloco
-                  </button>
-                </div>
-                <div className="space-y-2">
-                  {form.blocos.map((b) => (
-                    <div key={b.id} className="bg-background-100 rounded-lg p-3 space-y-2">
-                      <div className="flex gap-2">
-                        <input
-                          type="text"
-                          value={b.titulo}
-                          onChange={(e) => editarBloco(b.id, { titulo: e.target.value })}
-                          placeholder="Título do bloco"
-                          className="flex-1 px-3 py-2 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-900"
-                        />
-                        <button onClick={() => removerBloco(b.id)} className="w-8 h-8 flex items-center justify-center rounded-lg bg-background-50 hover:bg-accent-50 text-accent-600 cursor-pointer" title="Remover bloco">
-                          <i className="ri-close-line"></i>
-                        </button>
-                      </div>
-                      <textarea
-                        value={b.texto}
-                        onChange={(e) => editarBloco(b.id, { texto: e.target.value })}
-                        rows={2}
-                        placeholder="Conteúdo do bloco"
-                        className="w-full px-3 py-2 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-900 resize-none"
-                      />
-                    </div>
-                  ))}
-                  {form.blocos.length === 0 && (
-                    <p className="text-xs text-foreground-400">Nenhum bloco. Adicione cláusulas, condições ou rodapé.</p>
-                  )}
-                </div>
-              </div>
-              <label className="flex items-center gap-2.5 text-sm text-foreground-700 cursor-pointer">
-                <input type="checkbox" checked={form.padrao} onChange={(e) => setForm({ ...form, padrao: e.target.checked })} className="accent-[oklch(var(--secondary-500))] cursor-pointer" />
-                Usar como template padrão
+              <label className="block text-xs font-medium text-[#1D1D1F]">Descrição
+                <input value={form.descricao} onChange={(event) => setForm({ ...form, descricao: event.target.value })} placeholder="Quando este modelo deve ser usado?" className={`${inputClass} mt-1.5`} />
               </label>
 
-              <div className="bg-background-100/70 border border-background-200/70 rounded-lg p-4">
-                <p className="text-xs font-semibold text-foreground-500 uppercase tracking-wide mb-2">Pré-visualização (lead de teste)</p>
-                <p className="text-sm text-foreground-800 leading-relaxed whitespace-pre-line">{previaTermos}</p>
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <label className="text-xs font-medium text-[#1D1D1F]">Forma de pagamento
+                  <input value={form.formaPagamento} onChange={(event) => setForm({ ...form, formaPagamento: event.target.value })} placeholder="Preencher após aprovação humana" className={`${inputClass} mt-1.5`} />
+                </label>
+                <label className="text-xs font-medium text-[#1D1D1F]">Garantia
+                  <input value={form.garantia} onChange={(event) => setForm({ ...form, garantia: event.target.value })} placeholder="Preencher após aprovação humana" className={`${inputClass} mt-1.5`} />
+                </label>
               </div>
+              <label className="block text-xs font-medium text-[#1D1D1F]">Termos e condições
+                <textarea value={form.termos} onChange={(event) => setForm({ ...form, termos: event.target.value })} rows={3} placeholder="Use variáveis como {validade}, {nome} e {empresa}." className={`${inputClass} mt-1.5 resize-y`} />
+              </label>
+
+              <div className="rounded-xl border border-[#E5E5EA] bg-[#F8F9FA] p-4">
+                <div className="mb-3 flex items-center justify-between">
+                  <div>
+                    <p className="text-xs font-semibold text-[#1D1D1F]">Blocos reutilizáveis</p>
+                    <p className="mt-0.5 text-[10px] text-[#86868B]">Adicione somente informações confirmadas.</p>
+                  </div>
+                  <button type="button" onClick={addBloco} className="rounded-xl border border-[#E5E5EA] bg-white px-3 py-2 text-xs font-semibold text-[#1D1D1F] hover:bg-[#F2F2F7]"><i className="ri-add-line mr-1" />Adicionar bloco</button>
+                </div>
+                <div className="space-y-3">
+                  {form.blocos.map((block) => (
+                    <div key={block.id} className="space-y-2 rounded-xl border border-[#E5E5EA] bg-white p-3">
+                      <div className="flex gap-2">
+                        <input value={block.titulo} onChange={(event) => editarBloco(block.id, { titulo: event.target.value })} placeholder="Título do bloco" className={inputClass} />
+                        <button type="button" onClick={() => removerBloco(block.id)} className="h-9 w-9 shrink-0 rounded-lg text-[#FF3B30] hover:bg-[#FF3B30]/10" title="Remover bloco"><i className="ri-delete-bin-6-line" /></button>
+                      </div>
+                      <textarea value={block.texto} onChange={(event) => editarBloco(block.id, { texto: event.target.value })} rows={2} placeholder="Conteúdo confirmado" className={`${inputClass} resize-y`} />
+                    </div>
+                  ))}
+                  {form.blocos.length === 0 && <p className="py-4 text-center text-[11px] text-[#86868B]">Nenhum bloco adicionado.</p>}
+                </div>
+              </div>
+
+              <label className="flex cursor-pointer items-center gap-2.5 text-xs text-[#1D1D1F]">
+                <input type="checkbox" checked={form.padrao} onChange={(event) => setForm({ ...form, padrao: event.target.checked })} className="accent-[#0071E3]" />
+                Usar como template padrão
+              </label>
             </div>
-            <div className="px-6 py-4 border-t border-background-200/70 flex justify-end gap-2">
-              <button onClick={() => setModalAberto(false)} className="px-4 py-2.5 border border-background-300 text-foreground-700 rounded-lg text-sm font-semibold hover:bg-background-100 cursor-pointer whitespace-nowrap">Cancelar</button>
-              <button onClick={salvar} className="px-5 py-2.5 bg-primary-500 hover:bg-primary-600 text-background-50 rounded-lg text-sm font-bold cursor-pointer whitespace-nowrap">
-                {editando ? 'Salvar' : 'Criar template'}
+
+            <footer className="sticky bottom-0 flex justify-end gap-2 border-t border-[#E5E5EA] bg-white/95 px-6 py-4 backdrop-blur">
+              <button type="button" disabled={saving} onClick={() => setModalAberto(false)} className="rounded-xl border border-[#E5E5EA] bg-[#F2F2F7] px-4 py-2.5 text-xs font-semibold text-[#1D1D1F] hover:bg-[#E5E5EA] disabled:opacity-50">Cancelar</button>
+              <button type="button" disabled={saving} onClick={() => void salvar()} className="rounded-xl bg-[#0071E3] px-4 py-2.5 text-xs font-semibold text-white shadow-xs hover:bg-[#0077ED] disabled:opacity-50">
+                {saving ? 'Salvando…' : editando ? 'Salvar alterações' : 'Criar template'}
               </button>
-            </div>
+            </footer>
           </div>
         </div>
       )}

@@ -1,9 +1,10 @@
 import { Link } from 'react-router-dom';
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useLeadsStore } from '@/hooks/useLeadsStore';
 import { useConversasStore } from '@/hooks/useConversasStore';
 import { usePropostasStore } from '@/hooks/usePropostasStore';
 import SaudeWhatsappCard from '@/components/feature/SaudeWhatsappCard';
+import { loadOperationalDiagnostics, type OperationalDiagnostics } from '@/lib/crm/operationalDiagnosticsRepository';
 
 function Metric({ label, value, detail, icon, tone = 'primary' }: { label: string; value: number; detail: string; icon: string; tone?: 'primary' | 'secondary' | 'accent' }) {
   const tones = {
@@ -20,6 +21,11 @@ export default function Dashboard() {
   const [leads] = useLeadsStore();
   const { conversas } = useConversasStore();
   const { propostas } = usePropostasStore();
+  const [operacao, setOperacao] = useState<OperationalDiagnostics | null>(null);
+
+  useEffect(() => {
+    void loadOperationalDiagnostics().then(setOperacao).catch(() => setOperacao(null));
+  }, []);
   const data = useMemo(() => {
     const handoff = leads.filter((lead) => lead.modoAtendimento === 'HUMANO' || lead.automacaoStatus === 'AGUARDANDO_HUMANO');
     const active = leads.filter((lead) => !['Fechado — Ganho', 'Fechado — Perdido'].includes(lead.etapa));
@@ -28,6 +34,11 @@ export default function Dashboard() {
     const expiring = quotes.filter((proposal) => new Date(`${proposal.validade}T23:59:59`).getTime() - Date.now() < 3 * 86400000);
     return { handoff, active, hot, quotes, expiring };
   }, [leads, propostas]);
+
+  const anaRuns = operacao?.runs.filter((run) => run.status === 'completed').length ?? 0;
+  const processing = operacao?.summary.queuedJobs ?? null;
+  const offlineIntegrations = operacao?.status.integrations.filter((item) => item.health !== 'online').length ?? null;
+  const operationalAlerts = operacao ? operacao.summary.failedJobs + operacao.summary.openRiskEvents + (offlineIntegrations ?? 0) : null;
 
   return <div className="wf-page">
     <header className="wf-page-header">
@@ -43,6 +54,6 @@ export default function Dashboard() {
     </section>
 
     <section className="grid grid-cols-1 lg:grid-cols-2 gap-5"><div className="wf-surface p-5"><div className="flex items-center justify-between mb-4"><div><h2 className="font-heading font-semibold text-foreground-950">Funil simplificado</h2><p className="text-xs text-foreground-500">Acompanhe a conversa até o orçamento.</p></div><Link className="text-xs font-semibold text-primary-700" to="/dashboard/kanban">Abrir Kanban</Link></div><div className="space-y-3">{['Novo','Em Contato','Em Qualificação','Proposta em Preparação','Orçamento Enviado','Negociação'].map((stage, index) => { const count = leads.filter((lead) => lead.etapa === stage).length; return <div key={stage} className="flex items-center gap-3"><span className="w-5 text-xs font-semibold text-foreground-400">{String(index + 1).padStart(2, '0')}</span><span className="w-36 text-sm text-foreground-700">{['Entrou','Em conversa','Qualificado','Preparar orçamento','Orçamento enviado','Em decisão'][index]}</span><div className="flex-1 h-1.5 rounded-full bg-background-200 overflow-hidden"><div className="h-full bg-primary-600 rounded-full" style={{ width: `${Math.max(4, Math.min(100, count * 12))}%` }} /></div><span className="w-6 text-right text-xs font-semibold text-foreground-700">{count}</span></div>; })}</div></div>
-      <div className="wf-surface p-5"><h2 className="font-heading font-semibold text-foreground-950">Qualidade da Ana</h2><p className="text-xs text-foreground-500 mt-0.5">Decisões sensíveis continuam sob controle humano.</p><div className="mt-4 grid grid-cols-3 divide-x divide-background-200 rounded-lg border border-background-200"><div className="p-3"><p className="text-xl font-semibold text-foreground-950">{conversas.length}</p><p className="text-[11px] text-foreground-500">Conversas</p></div><div className="p-3"><p className="text-xl font-semibold text-foreground-950">{data.handoff.length}</p><p className="text-[11px] text-foreground-500">Handoffs</p></div><div className="p-3"><p className="text-xl font-semibold text-foreground-950">0</p><p className="text-[11px] text-foreground-500">Envios ativos</p></div></div><Link to="/dashboard/configuracoes?tab=ana" className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-primary-700"><i className="ri-robot-2-line"></i>Personalizar a Ana</Link></div></section>
+      <div className="wf-surface p-5"><div className="flex items-start justify-between gap-3"><div><h2 className="font-heading font-semibold text-foreground-950">Operação da Ana</h2><p className="text-xs text-foreground-500 mt-0.5">Execuções, conexões e alertas confirmados pelo backend.</p></div><Link to="/dashboard/registro-sistema" className="text-xs font-semibold text-primary-700">Ver registros</Link></div><div className="mt-4 grid grid-cols-2 divide-x divide-y divide-background-200 rounded-lg border border-background-200 sm:grid-cols-4 sm:divide-y-0"><div className="p-3"><p className="text-xl font-semibold text-foreground-950">{conversas.length}</p><p className="text-[11px] text-foreground-500">Conversas</p></div><div className="p-3"><p className="text-xl font-semibold text-foreground-950">{operacao ? anaRuns : '—'}</p><p className="text-[11px] text-foreground-500">Execuções concluídas</p></div><div className="p-3"><p className={`text-xl font-semibold ${offlineIntegrations ? 'text-accent-700' : 'text-foreground-950'}`}>{offlineIntegrations ?? '—'}</p><p className="text-[11px] text-foreground-500">APIs offline/vencidas</p></div><div className="p-3"><p className={`text-xl font-semibold ${operationalAlerts ? 'text-accent-700' : 'text-foreground-950'}`}>{operationalAlerts ?? '—'}</p><p className="text-[11px] text-foreground-500">Alertas operacionais</p></div></div><p className="mt-3 text-xs text-foreground-500">{processing === null ? 'Status da fila indisponível nesta sessão.' : processing === 0 ? 'Nenhuma saída aguardando processamento.' : `${processing} saída(s) aguardando processamento seguro.`}</p><Link to="/dashboard/configuracoes?tab=operacao" className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-primary-700"><i className="ri-pulse-line"></i>Ver status operacional</Link></div></section>
   </div>;
 }

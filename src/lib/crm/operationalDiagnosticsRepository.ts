@@ -21,6 +21,7 @@ export interface OperationalIntegration {
   lastSuccessAt: string | null;
   lastError: string | null;
   detail: string | null;
+  health: 'online' | 'offline' | 'stale';
 }
 
 export interface OperationalStatus {
@@ -62,7 +63,7 @@ export interface OperationalDiagnostics {
   risks: Array<{ id: string; channel: string; risk_level: string; action: string; reason: string; created_at: string }>;
 }
 
-async function invoke<T>(action: 'status' | 'set_kill_switch' | 'events', payload: Record<string, unknown> = {}): Promise<T> {
+async function invoke<T>(action: 'status' | 'set_kill_switch' | 'set_mode' | 'events', payload: Record<string, unknown> = {}): Promise<T> {
   const { data, error } = await supabase.functions.invoke('operational-diagnostics', { body: { action, ...payload } });
   if (error || !data?.ok) throw new Error(data?.erro ?? await detalheDoErroDeFuncao(error));
   return data as T;
@@ -74,6 +75,10 @@ export async function loadOperationalStatus(): Promise<OperationalStatus> {
 
 export async function setOperationalKillSwitch(enabled: boolean): Promise<OperationalStatus> {
   return (await invoke<{ status: OperationalStatus }>('set_kill_switch', { enabled })).status;
+}
+
+export async function setOperationalMode(mode: OperationalMode): Promise<OperationalStatus> {
+  return (await invoke<{ status: OperationalStatus }>('set_mode', { mode })).status;
 }
 
 export async function loadOperationalDiagnostics(): Promise<OperationalDiagnostics> {

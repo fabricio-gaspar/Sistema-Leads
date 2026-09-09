@@ -1,4 +1,4 @@
-// Tipos compartilhados do fluxo comercial do CRM WF Digital.
+// Tipos compartilhados do fluxo comercial do CRM WayFlex.
 // Fonte única de enums/contratos usados por stores, motor e telas.
 
 export type ModoAtendimento = 'IA' | 'HUMANO';

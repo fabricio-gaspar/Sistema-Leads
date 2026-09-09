@@ -106,7 +106,7 @@ export default function UsuarioDetalhesModal({
             <KpiCard label="Valor médio orçado" valor={fmtMoney(usuario.valorMedioOrcado)} />
             <KpiCard
               label="Tempo Resposta"
-              valor={`${fmtDecimal(usuario.tempoResposta)} min`}
+              valor={usuario.tempoResposta === null ? 'Não calculado' : `${fmtDecimal(usuario.tempoResposta)} min`}
             />
             <KpiCard label="Conversão" valor={`${fmtDecimal(taxaConversao)}%`} />
           </div>

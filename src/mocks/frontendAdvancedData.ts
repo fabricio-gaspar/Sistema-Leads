@@ -171,7 +171,7 @@ export const compromissos: Compromisso[] = [
     canal: 'telefone',
     status: 'agendado',
     responsavel: 'Paula SDR',
-    observacoes: 'Qualificar necessidade de marketing digital no setor da construção.',
+    observacoes: 'Qualificar a necessidade técnica e a aplicação industrial informada.',
   },
   {
     id: 'comp-5',

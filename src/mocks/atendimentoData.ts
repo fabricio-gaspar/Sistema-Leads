@@ -5,6 +5,7 @@ export interface Mensagem {
   texto: string;
   hora: string;
   notaInterna?: boolean;
+  statusEnvio?: 'aguardando' | 'enviada' | 'falhou' | 'reconciliacao';
   // Horários clicáveis oferecidos pela Ana durante o agendamento na conversa.
   opcoesHorario?: { data: string; horaInicio: string; horaFim: string; indice: number }[];
 }

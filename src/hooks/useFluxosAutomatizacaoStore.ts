@@ -39,7 +39,7 @@ export const fluxosIniciais: FluxoAutomatizacao[] = [
     gatilho: 'novo_lead',
     descricao: 'Sequência de primeiro contato para leads recém-ativados no Kanban.',
     passos: [
-      { id: 'p-1', diasApos: 0, canal: 'WhatsApp', mensagem: 'Olá, {nome}! Aqui é a Ana, da {empresa_nome}. Vi que você pode se interessar por nossos serviços de marketing digital. Posso te enviar uma apresentação rápida?' },
+      { id: 'p-1', diasApos: 0, canal: 'WhatsApp', mensagem: 'Olá, {nome}! Aqui é a Ana, da {empresa_nome}. Posso entender qual peça, material ou aplicação industrial você precisa avaliar?' },
       { id: 'p-2', diasApos: 1, canal: 'E-mail', mensagem: 'Oi {nome}, conforme conversamos, segue nossa apresentação institucional com cases e diferenciais. Fico à disposição para tirar qualquer dúvida!\n\n{assinatura}' },
       { id: 'p-3', diasApos: 3, canal: 'WhatsApp', mensagem: 'Oi {nome}, tudo bem? Vi que você ainda não teve tempo de ver a apresentação. Quer que eu resuma os principais pontos por aqui?' },
     ],

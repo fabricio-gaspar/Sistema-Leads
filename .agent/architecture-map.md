@@ -1,0 +1,30 @@
+# Mapa de arquitetura
+
+## Fluxo comercial crítico
+
+1. Canal/formulário/importação cria ou identifica `leads`.
+2. Entrada do WhatsApp passa por `webhook-whatsapp`, deduplicação e
+   `channel_inbound_events`/`lead_messages`.
+3. `ana-run` lê empresa, lead, histórico, catálogo, agenda e base aprovada.
+4. A decisão atualiza lead/estágio, cria tarefa/handoff/orçamento rascunho e, quando permitido,
+   cria uma mensagem e `outreach_jobs`.
+5. `automation-worker` valida novamente políticas e provedor antes da saída.
+6. Central de Atendimento lê `leads` + `lead_messages`; Kanban lê e grava o mesmo lead.
+7. Registro do Sistema consolida auditoria, execuções, entrada, fila e riscos.
+
+## Limites de responsabilidade
+
+| Camada | Responsabilidade |
+|---|---|
+| Frontend | Exibir, coletar intenção humana, chamar serviços e mostrar estados reais |
+| Edge Functions | Autenticar, autorizar, validar políticas, integrar provedores e auditar |
+| Postgres/RLS | Fonte da verdade, isolamento, integridade, idempotência e fila |
+| Storage/Base Ana | Arquivos privados, revisão e conteúdo aprovado por organização |
+| Site | Entrega privada do painel; não é motor de automação 24/7 |
+
+## Dependências de maior risco
+
+- `webhook-whatsapp` → `lead_messages` → `ana-run` → `outreach_jobs`.
+- `automation-worker` → Z-API → reconciliação de recibos.
+- `company_settings.sandbox_mode` e kill switch → todas as saídas automáticas.
+- `organization_members`/RLS → qualquer leitura ou escrita multiempresa.

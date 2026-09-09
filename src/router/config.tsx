@@ -16,6 +16,7 @@ const FunilConversao = lazy(() => import('../pages/dashboard/funil/page'));
 const Relatorios = lazy(() => import('../pages/dashboard/relatorios/page'));
 const Agenda = lazy(() => import('../pages/dashboard/agenda/page'));
 const Orcamentos = lazy(() => import('../pages/dashboard/orcamentos/page'));
+const RegistroSistema = lazy(() => import('../pages/dashboard/registro-sistema/page'));
 const Equipe = lazy(() => import('../pages/dashboard/equipe/page'));
 const DashboardLayout = lazy(() => import('../components/feature/DashboardLayout'));
 
@@ -91,6 +92,10 @@ const routes: RouteObject[] = [
       {
         path: "orcamentos",
         element: <Orcamentos />,
+      },
+      {
+        path: "registro-sistema",
+        element: <RegistroSistema />,
       },
       {
         path: "configuracoes",

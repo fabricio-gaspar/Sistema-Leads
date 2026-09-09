@@ -1,15 +1,12 @@
-import { createBackendStore } from '@/lib/backendStore';
+import { useEffect, useSyncExternalStore } from 'react';
+import { loadProposalTemplates, saveProposalTemplates } from '@/lib/crm/proposalTemplatesRepository';
 
-// Bloco reutilizável de uma proposta (cláusula, seção, rodapé). Pode ser
-// ligado/desligado ao montar um orçamento.
 export interface BlocoProposta {
   id: string;
   titulo: string;
   texto: string;
 }
 
-// Template de proposta/orçamento: estrutura pronta com validade, forma de
-// pagamento, garantia e termos, além de blocos reutilizáveis.
 export interface TemplateProposta {
   id: string;
   nome: string;
@@ -23,78 +20,189 @@ export interface TemplateProposta {
   padrao: boolean;
 }
 
-const inicial: TemplateProposta[] = [
+// Estruturas de exemplo sem preço, prazo, pagamento, garantia ou certificação
+// afirmados. Esses dados só podem ser preenchidos após validação humana.
+export const WAYFLEX_TEMPLATE_EXAMPLES: TemplateProposta[] = [
   {
-    id: 'tp-1',
-    nome: 'Projeto sob medida',
-    descricao: 'Orçamento padrão para projetos únicos (site, branding, automação).',
-    validadePadraoDias: 15,
-    formaPagamento: '50% na assinatura e 50% na entrega',
-    garantia: 'Garantia de 90 dias sobre as entregas, com suporte incluído no período.',
-    termos: 'Valores válidos até {validade}. Após a aprovação, o projeto inicia mediante pagamento da primeira parcela. Escopo e prazos descritos nesta proposta.',
+    id: 'wayflex-borracha-tecnica',
+    nome: 'Borracha técnica sob medida',
+    descricao: 'Levantamento técnico para peças de borracha conforme aplicação, desenho ou amostra.',
+    validadePadraoDias: 0,
+    formaPagamento: '',
+    garantia: '',
+    termos: '',
     blocos: [
-      { id: 'bl-1', titulo: 'Condições de pagamento', texto: '50% no aceite e 50% na entrega final, via PIX ou boleto.' },
-      { id: 'bl-2', titulo: 'Prazo de entrega', texto: 'Entrega em até 30 dias úteis após o aceite e pagamento da entrada.' },
-      { id: 'bl-3', titulo: 'Garantia', texto: 'Garantia de 90 dias sobre as entregas, com suporte incluído no período.' },
-      { id: 'bl-4', titulo: 'Escopo', texto: 'O escopo contempla exclusivamente os itens listados nesta proposta. Alterações serão orçadas à parte.' },
+      { id: 'borracha-aplicacao', titulo: 'Aplicação', texto: 'Descrever o equipamento, a função da peça e as condições de operação informadas pelo cliente.' },
+      { id: 'borracha-especificacao', titulo: 'Especificação técnica', texto: 'Registrar material solicitado, dimensões, dureza, temperatura, contato químico e tolerâncias quando confirmados.' },
+      { id: 'borracha-referencia', titulo: 'Referência para análise', texto: 'Relacionar desenho técnico, medidas, fotos ou amostra recebidos para validação da equipe.' },
+      { id: 'borracha-comercial', titulo: 'Condições comerciais', texto: 'Preencher preço, prazo, frete, impostos, pagamento, validade e garantia somente após aprovação humana.' },
     ],
     ativo: true,
     padrao: true,
   },
   {
-    id: 'tp-2',
-    nome: 'Mensalidade recorrente',
-    descricao: 'Para serviços contínuos (tráfego pago, SEO, gestão de CRM).',
-    validadePadraoDias: 30,
-    formaPagamento: 'Mensal, via cartão ou boleto recorrente',
-    garantia: 'Contrato sem fidelidade — cancele a qualquer momento com aviso de 30 dias.',
-    termos: 'Plano mensal com renovação automática. Valores reajustáveis anualmente mediante aviso prévio de 30 dias.',
+    id: 'wayflex-silicone',
+    nome: 'Peça técnica em silicone',
+    descricao: 'Modelo para coleta e organização dos requisitos de uma peça em silicone.',
+    validadePadraoDias: 0,
+    formaPagamento: '',
+    garantia: '',
+    termos: '',
     blocos: [
-      { id: 'bl-1', titulo: 'Condições de pagamento', texto: 'Mensalidade paga antecipadamente, no início de cada ciclo.' },
-      { id: 'bl-2', titulo: 'Sem fidelidade', texto: 'Cancelamento a qualquer momento, com aviso prévio de 30 dias.' },
-      { id: 'bl-3', titulo: 'Relatórios', texto: 'Relatório mensal de performance com métricas e recomendações.' },
+      { id: 'silicone-uso', titulo: 'Uso e ambiente', texto: 'Descrever aplicação, faixa de temperatura, pressão, contato com fluidos e ambiente de trabalho informados.' },
+      { id: 'silicone-dados', titulo: 'Dados da peça', texto: 'Registrar medidas, dureza, cor, acabamento, quantidade e referência técnica disponível.' },
+      { id: 'silicone-validacao', titulo: 'Validação técnica', texto: 'Registrar requisitos normativos ou certificações solicitados, sem confirmar atendimento antes da análise da equipe.' },
+      { id: 'silicone-comercial', titulo: 'Condições comerciais', texto: 'Preencher preço, prazo, frete, impostos, pagamento, validade e garantia somente após aprovação humana.' },
     ],
     ativo: true,
     padrao: false,
   },
   {
-    id: 'tp-3',
-    nome: 'Proposta simplificada',
-    descricao: 'Orçamento enxuto para fechamentos rápidos.',
-    validadePadraoDias: 7,
-    formaPagamento: '100% no aceite',
-    garantia: 'Garantia de 30 dias sobre as entregas.',
-    termos: 'Valores válidos até {validade}. Condições sujeitas a aprovação de crédito.',
+    id: 'wayflex-poliuretano',
+    nome: 'Peça técnica em poliuretano',
+    descricao: 'Modelo para componentes sujeitos a carga, impacto ou abrasão.',
+    validadePadraoDias: 0,
+    formaPagamento: '',
+    garantia: '',
+    termos: '',
     blocos: [
-      { id: 'bl-1', titulo: 'Condições de pagamento', texto: 'Pagamento integral no aceite, via PIX.' },
-      { id: 'bl-2', titulo: 'Prazo de entrega', texto: 'Entrega em até 15 dias úteis.' },
+      { id: 'pu-aplicacao', titulo: 'Aplicação e esforço', texto: 'Descrever carga, impacto, abrasão, rotação, velocidade e frequência de uso informados pelo cliente.' },
+      { id: 'pu-especificacao', titulo: 'Especificação da peça', texto: 'Registrar dimensões, dureza, quantidade, acabamento e desenho ou amostra de referência.' },
+      { id: 'pu-engenharia', titulo: 'Análise de engenharia', texto: 'Indicar os pontos que dependem de validação técnica antes da fabricação.' },
+      { id: 'pu-comercial', titulo: 'Condições comerciais', texto: 'Preencher preço, prazo, frete, impostos, pagamento, validade e garantia somente após aprovação humana.' },
+    ],
+    ativo: true,
+    padrao: false,
+  },
+  {
+    id: 'wayflex-desenvolvimento',
+    nome: 'Desenvolvimento de peça especial',
+    descricao: 'Modelo para demandas que exigem desenho, amostra, ferramental ou definição conjunta.',
+    validadePadraoDias: 0,
+    formaPagamento: '',
+    garantia: '',
+    termos: '',
+    blocos: [
+      { id: 'especial-necessidade', titulo: 'Necessidade do cliente', texto: 'Registrar o problema, resultado esperado, equipamento e cenário de uso.' },
+      { id: 'especial-referencias', titulo: 'Referências recebidas', texto: 'Listar desenhos, medidas, fotos, vídeos, amostras ou códigos fornecidos.' },
+      { id: 'especial-pendencias', titulo: 'Pendências para definição', texto: 'Listar informações técnicas e aprovações ainda necessárias para concluir o orçamento.' },
+      { id: 'especial-comercial', titulo: 'Condições comerciais', texto: 'Preencher preço, prazo, ferramental, frete, impostos, pagamento, validade e garantia somente após aprovação humana.' },
     ],
     ativo: true,
     padrao: false,
   },
 ];
 
-const STORAGE_KEY = 'leadai_templates_proposta_v1';
-const store = createBackendStore<TemplateProposta[]>('templates_proposta', STORAGE_KEY, inicial);
+interface TemplateState {
+  templates: TemplateProposta[];
+  loading: boolean;
+  saving: boolean;
+  loaded: boolean;
+  error: string | null;
+}
+
+let state: TemplateState = { templates: [], loading: false, saving: false, loaded: false, error: null };
+const listeners = new Set<() => void>();
+let loadPromise: Promise<void> | null = null;
+
+const notify = () => listeners.forEach((listener) => listener());
+const updateState = (next: Partial<TemplateState>) => {
+  state = { ...state, ...next };
+  notify();
+};
+const subscribe = (listener: () => void) => {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+};
+
+async function ensureLoaded(force = false): Promise<void> {
+  if (state.loaded && !force) return;
+  if (loadPromise) return loadPromise;
+  updateState({ loading: true, error: null });
+  loadPromise = (async () => {
+    try {
+      const remote = await loadProposalTemplates();
+      const templates = remote ?? WAYFLEX_TEMPLATE_EXAMPLES;
+      if (remote === null) await saveProposalTemplates(templates);
+      updateState({ templates, loaded: true });
+    } catch (error) {
+      console.error('[proposal-templates] falha ao carregar', error);
+      updateState({ error: 'Não foi possível carregar os templates do banco.' });
+    } finally {
+      updateState({ loading: false });
+      loadPromise = null;
+    }
+  })();
+  return loadPromise;
+}
+
+async function persist(next: TemplateProposta[]): Promise<void> {
+  updateState({ saving: true, error: null });
+  try {
+    await saveProposalTemplates(next);
+    updateState({ templates: next, loaded: true });
+  } catch (error) {
+    console.error('[proposal-templates] falha ao salvar', error);
+    updateState({ error: 'A alteração não foi salva. O conteúdo anterior foi mantido.' });
+    throw error;
+  } finally {
+    updateState({ saving: false });
+  }
+}
 
 export function useTemplatesPropostaStore() {
-  const templates = store.useStore();
+  const snapshot = useSyncExternalStore(subscribe, () => state, () => state);
 
-  const atualizar = (id: string, mudanca: Partial<TemplateProposta>) => {
-    store.set((prev) => prev.map((t) => (t.id === id ? { ...t, ...mudanca } : t)));
+  useEffect(() => {
+    void ensureLoaded();
+  }, []);
+
+  const atualizar = async (id: string, mudanca: Partial<TemplateProposta>) => {
+    let next = state.templates.map((template) => template.id === id ? { ...template, ...mudanca } : template);
+    if (mudanca.padrao) next = next.map((template) => ({ ...template, padrao: template.id === id }));
+    await persist(next);
   };
 
-  const adicionar = (t: TemplateProposta) => {
-    store.set((prev) => [...prev, t]);
+  const adicionar = async (template: TemplateProposta) => {
+    const next = template.padrao
+      ? [...state.templates.map((item) => ({ ...item, padrao: false })), template]
+      : [...state.templates, template];
+    await persist(next);
   };
 
-  const excluir = (id: string) => {
-    store.set((prev) => prev.filter((t) => t.id !== id));
+  const duplicar = async (id: string) => {
+    const source = state.templates.find((template) => template.id === id);
+    if (!source) throw new Error('proposal_template_not_found');
+    const copy: TemplateProposta = {
+      ...source,
+      id: crypto.randomUUID(),
+      nome: `${source.nome} — cópia`,
+      padrao: false,
+      blocos: source.blocos.map((block) => ({ ...block, id: crypto.randomUUID() })),
+    };
+    await persist([...state.templates, copy]);
   };
 
-  const definirPadrao = (id: string) => {
-    store.set((prev) => prev.map((t) => ({ ...t, padrao: t.id === id })));
+  const excluir = async (id: string) => {
+    const current = state.templates.find((template) => template.id === id);
+    const remaining = state.templates.filter((template) => template.id !== id);
+    const next = current?.padrao && remaining.length > 0
+      ? remaining.map((template, index) => ({ ...template, padrao: index === 0 }))
+      : remaining;
+    await persist(next);
   };
 
-  return { templates, atualizar, adicionar, excluir, definirPadrao };
+  const definirPadrao = async (id: string) => {
+    await persist(state.templates.map((template) => ({ ...template, padrao: template.id === id })));
+  };
+
+  return {
+    ...snapshot,
+    atualizar,
+    adicionar,
+    duplicar,
+    excluir,
+    definirPadrao,
+    recarregar: () => ensureLoaded(true),
+  };
 }

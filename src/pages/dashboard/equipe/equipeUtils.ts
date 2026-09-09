@@ -1,9 +1,9 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { mockUsers } from '@/mocks/users';
 import type { Conversa } from '@/mocks/atendimentoData';
 import type { Lead } from '@/mocks/leadsData';
 import type { Proposta } from '@/mocks/propostasData';
+import type { TeamMember } from '@/lib/crm/teamMembersRepository';
 
 export interface UsuarioMetricas {
   id: string;
@@ -22,7 +22,7 @@ export interface UsuarioMetricas {
   orcamentosAceitos: number;
   valorOrcado: number;
   valorMedioOrcado: number;
-  tempoResposta: number;
+  tempoResposta: number | null;
   canalWhatsapp: number;
   canalInstagram: number;
   canalEmail: number;
@@ -49,6 +49,7 @@ export function fmtDecimal(v: number) {
 }
 
 export function calcularMetricas(
+  membros: TeamMember[],
   conversas: Conversa[],
   leads: Lead[],
   propostas: Proposta[]
@@ -57,35 +58,33 @@ export function calcularMetricas(
   const totalValorOrcado = orcamentosAceitos.reduce((s, proposal) => s + proposal.valor, 0);
   const valorMedioOrcado = totalValorOrcado / (orcamentosAceitos.length || 1);
 
-  const usuarios = mockUsers.map((u) => {
+  const usuarios = membros.filter((member) => member.status === 'active').map((u) => {
     const nome = u.name;
-    const isAna = nome === 'Fabrício';
-    const anaAlias = 'Ana (IA)';
 
     const convDoUsuario = conversas.filter((c) => {
       const lead = leads.find((l) => l.id === c.leadId);
       if (!lead) return false;
-      return lead.responsavel === nome || (isAna && lead.responsavel === anaAlias);
+      return lead.responsavelId === u.userId || lead.responsavel === nome;
     });
 
     const leadsDoUsuario = leads.filter(
-      (l) => l.responsavel === nome || (isAna && l.responsavel === anaAlias)
+      (l) => l.responsavelId === u.userId || l.responsavel === nome
     );
 
     const propostasDoUsuario = propostas.filter(
-      (p) => p.responsavel === nome || (isAna && p.responsavel === anaAlias)
+      (p) => p.responsavel === nome
     );
 
-    const orcamentosAceitosDoUsuario = orcamentosAceitos.filter((proposal) => proposal.responsavel === nome || (isAna && proposal.responsavel === anaAlias));
+    const orcamentosAceitosDoUsuario = orcamentosAceitos.filter((proposal) => proposal.responsavel === nome);
     const valorOrcadoUsuario = orcamentosAceitosDoUsuario.reduce((s, proposal) => s + proposal.valor, 0);
 
     return {
-      id: u.id,
+      id: u.userId,
       nome: u.name,
       email: u.email,
       role: u.role,
-      company: u.company,
-      avatar: u.avatar,
+      company: 'WayFlex',
+      avatar: u.avatar || u.name.split(/\s+/).map((part) => part[0]).join('').slice(0, 2).toUpperCase(),
       conversas: convDoUsuario.length,
       conversasAtivas: convDoUsuario.filter((c) => c.status === 'ativo').length,
       conversasResolvidas: convDoUsuario.filter((c) => c.status === 'resolvido').length,
@@ -96,7 +95,7 @@ export function calcularMetricas(
       orcamentosAceitos: orcamentosAceitosDoUsuario.length,
       valorOrcado: valorOrcadoUsuario,
       valorMedioOrcado: valorOrcadoUsuario / (orcamentosAceitosDoUsuario.length || 1),
-      tempoResposta: isAna ? 2.3 : nome === 'Marina Sales' ? 5.9 : 8.2,
+      tempoResposta: null,
       canalWhatsapp: convDoUsuario.filter((c) => c.canal === 'whatsapp').length,
       canalInstagram: convDoUsuario.filter((c) => c.canal === 'instagram').length,
       canalEmail: convDoUsuario.filter((c) => c.canal === 'email').length,
@@ -171,7 +170,7 @@ export function exportarCSV(metricas: MetricasEquipe) {
     u.orcamentosAceitos,
     u.valorOrcado,
     Math.round(u.valorMedioOrcado),
-    fmtDecimal(u.tempoResposta),
+    u.tempoResposta === null ? 'Não calculado' : fmtDecimal(u.tempoResposta),
     u.canalWhatsapp,
     u.canalInstagram,
     u.canalEmail,
@@ -213,7 +212,7 @@ export function exportarPDF(metricas: MetricasEquipe, periodo: string) {
       String(u.orcamentosAceitos),
       fmtMoney(u.valorOrcado),
       fmtMoney(u.valorMedioOrcado),
-      `${fmtDecimal(u.tempoResposta)} min`,
+      u.tempoResposta === null ? 'Não calculado' : `${fmtDecimal(u.tempoResposta)} min`,
     ]),
     styles: { fontSize: 9 },
     headStyles: { fillColor: [30, 30, 30], textColor: 255 },

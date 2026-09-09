@@ -236,10 +236,10 @@ export const baseConhecimentoAna: ItemBaseConhecimento[] = [
   {
     id: 'bc-1',
     categoria: 'Produtos e serviços',
-    titulo: 'Consultoria de Marketing Digital',
-    conteudo: 'Estratégia end-to-end de marketing digital incluindo SEO, mídia paga, social media e automação de nutrição.',
+    titulo: 'Desenvolvimento de peça técnica',
+    conteudo: 'Levantamento de aplicação, medidas, material e condições de operação para análise técnica humana.',
     tags: ['consultoria', 'marketing', 'estratégia'],
-    produtoRelacionado: 'Consultoria de Marketing Digital',
+    produtoRelacionado: 'Peça técnica sob medida',
     status: 'rascunho',
     versao: 1,
     responsavel: 'A definir',

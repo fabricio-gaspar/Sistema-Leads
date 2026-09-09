@@ -1,12 +1,11 @@
 import { useState } from 'react';
 import EmpresaTabs from '@/pages/dashboard/empresa/components/EmpresaTabs';
 import PersonalizacaoAna from '@/pages/dashboard/personalizacao-ana/page';
-import ProdutosTab from './components/ProdutosTab';
+import CommercialCatalogTab from './components/CommercialCatalogTab';
 import IntegracoesOperacaoTab from './components/IntegracoesOperacaoTab';
 import OperationalStatusTab from './components/OperationalStatusTab';
 import TeamAccessTab from './components/TeamAccessTab';
 import SuppressionTab from './components/SuppressionTab';
-import DiagnosticsTab from './components/DiagnosticsTab';
 
 interface MenuItem {
   id: string;
@@ -32,7 +31,7 @@ const groups: MenuGroup[] = [
     items: [
       { id: 'empresa', label: 'Empresa e conhecimento', icon: 'ri-building-2-line' },
       { id: 'equipe', label: 'Equipe e acessos', icon: 'ri-team-line' },
-      { id: 'produtos', label: 'Catálogo para orçamento', icon: 'ri-shopping-bag-3-line' },
+      { id: 'produtos', label: 'Produtos e orçamentos', icon: 'ri-shopping-bag-3-line' },
     ],
   },
   {
@@ -45,7 +44,6 @@ const groups: MenuGroup[] = [
     title: 'Segurança e controle',
     items: [
       { id: 'supressao', label: 'Proteção de contatos', icon: 'ri-shield-check-line' },
-      { id: 'diagnostico', label: 'Diagnóstico e auditoria', icon: 'ri-file-search-line' },
     ],
   },
 ];
@@ -56,14 +54,14 @@ const legacyTabMap: Record<string, string> = {
   integracoes: 'conexoes',
   'integracoes-operacao': 'conexoes',
   ambiente: 'operacao',
-  logs: 'diagnostico',
+  logs: 'operacao',
   abordagem: 'ana',
   templates: 'ana',
   respostas: 'ana',
   variaveis: 'ana',
-  biblioteca: 'ana',
-  'templates-proposta': 'ana',
-  'templates-documento': 'ana',
+  biblioteca: 'empresa',
+  'templates-proposta': 'produtos',
+  'templates-documento': 'produtos',
   fluxos: 'ana',
   horarios: 'ana',
   automacoes: 'ana',
@@ -152,10 +150,9 @@ export default function DashboardConfiguracoes() {
           {tab === 'operacao' && <OperationalStatusTab />}
           {tab === 'empresa' && <EmpresaTabs />}
           {tab === 'equipe' && <TeamAccessTab />}
-          {tab === 'produtos' && <ProdutosTab />}
+          {tab === 'produtos' && <CommercialCatalogTab />}
           {tab === 'conexoes' && <IntegracoesOperacaoTab />}
           {tab === 'supressao' && <SuppressionTab />}
-          {tab === 'diagnostico' && <DiagnosticsTab />}
         </main>
       </div>
     </div>

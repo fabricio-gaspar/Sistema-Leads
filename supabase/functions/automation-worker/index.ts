@@ -27,7 +27,13 @@ Deno.serve(async (request) => {
       admin.from('organization_module_data').select('data').eq('organization_id', orgId).eq('module_key', 'configuracao_runtime').maybeSingle(),
     ]);
     if (safetyReads.some((read) => read.error)) throw new Error('runtime_safety_read_failed');
-    const blocked = automationBlockReason({ company: safetyReads[0].data, ai: safetyReads[1].data, runtime: safetyReads[2].data?.data ?? null });
+    // A trava inicial protege qualquer saída real. Disponibilidade da IA e kill
+    // switch são avaliados por job automático; respostas humanas não dependem da IA.
+    const blocked = safetyReads[0].data?.active !== true
+      ? 'company_not_active'
+      : safetyReads[0].data?.sandbox_mode !== false
+        ? 'sandbox_mode'
+        : null;
     if (blocked) return json({ ok: true, skipped: true, reason: blocked, sent_jobs: 0, timeout_runs: 0 }, 200, headers);
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const [{ count: sent }, { count: failed }, { count: optOuts }, { data: integration }, { data: activePolicy }] = await Promise.all([
@@ -73,6 +79,7 @@ Deno.serve(async (request) => {
         if (claimError) throw claimError;
         if (!claimed) continue;
         const payload = (job.payload ?? {}) as Record<string, unknown>;
+        const manualMessage = payload.manual === true;
         let dispatchStarted = false;
         let providerAccepted = false;
         let providerMessageId: string | null = null;
@@ -89,7 +96,9 @@ Deno.serve(async (request) => {
           const { data: suppressions, error: suppressionError } = await admin.from('contact_suppressions').select('id,channel')
             .eq('organization_id', orgId).or(suppressionOrFilter(job.lead_id, await suppressionHashes(lead ?? {}))).limit(1);
           if (suppressionError) throw new Error('dispatch_suppression_read_failed');
-          const block = automationBlockReason({ company, ai, runtime: runtime?.data ?? null, lead });
+          const block = manualMessage
+            ? (company?.active !== true ? 'company_not_active' : company?.sandbox_mode !== false ? 'operational_mode_protected' : null)
+            : automationBlockReason({ company, ai, runtime: runtime?.data ?? null, lead });
           if (block) throw new Error(block);
           if (suppressions?.some((suppression) => ['all', 'whatsapp'].includes(canonicalChannel(suppression.channel)))) throw new Error('contact_suppressed');
           const { data: credentials, error: credentialsError } = integration?.id
@@ -98,16 +107,18 @@ Deno.serve(async (request) => {
           const recipient = String(lead?.whatsapp || lead?.phone || '').replace(/\D/g, '');
           const message = String(payload.message ?? payload.text ?? '').trim().slice(0, 4_096);
           if (canonicalChannel(job.channel) !== 'whatsapp' || !integration?.connected || !integration.enabled || integration.paused || !credentials) throw new Error('channel_not_ready');
-          if (!lead || !/^\d{10,15}$/.test(recipient) || !message || typeof payload.message_id !== 'string' || typeof payload.agent_run_id !== 'string') throw new Error('lead_or_payload_blocked');
+          if (!lead || !/^\d{10,15}$/.test(recipient) || !message || typeof payload.message_id !== 'string' || (!manualMessage && typeof payload.agent_run_id !== 'string')) throw new Error('lead_or_payload_blocked');
           if (payload.recipient && String(payload.recipient).replace(/\D/g, '') !== recipient) throw new Error('recipient_mismatch');
           if (!Object.hasOwn(payload, 'context_last_contact') ||
             (lead.last_contact ? Date.parse(lead.last_contact) : null) !== (typeof payload.context_last_contact === 'string' ? Date.parse(payload.context_last_contact) : null)) throw new Error('outbound_context_stale');
-          const { data: decisionRun, error: decisionRunError } = await admin.from('agent_runs').select('id,status,result').eq('id', payload.agent_run_id)
-            .eq('organization_id', orgId).eq('lead_id', job.lead_id).maybeSingle();
-          if (decisionRunError || decisionRun?.status !== 'completed' || decisionRun.result?.status_canal !== 'enfileirado') throw new Error('outbound_decision_not_completed');
+          if (!manualMessage) {
+            const { data: decisionRun, error: decisionRunError } = await admin.from('agent_runs').select('id,status,result').eq('id', payload.agent_run_id)
+              .eq('organization_id', orgId).eq('lead_id', job.lead_id).maybeSingle();
+            if (decisionRunError || decisionRun?.status !== 'completed' || decisionRun.result?.status_canal !== 'enfileirado') throw new Error('outbound_decision_not_completed');
+          }
           const { data: draft, error: draftError } = await admin.from('lead_messages').select('id,text,type').eq('id', payload.message_id)
-            .eq('organization_id', orgId).eq('lead_id', job.lead_id).eq('sender', 'ana').maybeSingle();
-          if (draftError || !draft || draft.type !== 'draft' || draft.text !== message) throw new Error('outbound_message_mismatch');
+            .eq('organization_id', orgId).eq('lead_id', job.lead_id).eq('sender', manualMessage ? 'human' : 'ana').maybeSingle();
+          if (draftError || !draft || draft.type !== (manualMessage ? 'queued' : 'draft') || draft.text !== message) throw new Error('outbound_message_mismatch');
           const zapi = credentials as { instancia_id?: string; token?: string; client_token?: string; url_base?: string };
           if (!zapi.instancia_id || !zapi.token || !zapi.client_token) throw new Error('channel_credentials_incomplete');
           const baseUrl = zapiBaseUrl(zapi.url_base);
@@ -132,7 +143,8 @@ Deno.serve(async (request) => {
             last_contact: sentAt,
             no_reply_deadline_at: new Date(Date.now() + 48 * 60 * 60 * 1000).toISOString(),
             no_reply_processed_at: null,
-          }).eq('id', job.lead_id).eq('organization_id', orgId).eq('ai_paused', false);
+          }).eq('id', job.lead_id).eq('organization_id', orgId);
+          if (!manualMessage) leadUpdate = leadUpdate.eq('ai_paused', false);
           // A concurrent inbound response must not regain a no-reply deadline.
           leadUpdate = lead.last_contact ? leadUpdate.eq('last_contact', lead.last_contact) : leadUpdate.is('last_contact', null);
           const { error: leadError } = await leadUpdate;
@@ -143,8 +155,14 @@ Deno.serve(async (request) => {
         } catch (error) {
           const attempt = Number(job.attempt ?? 0) + 1;
           const code = providerAccepted ? 'provider_accepted_reconciliation_required' : dispatchStarted ? 'delivery_unknown_reconciliation_required' : safeError(error);
-          const { error: failureError } = await admin.from('outreach_jobs').update({ status: dispatchStarted ? 'reconciliation_required' : 'failed', attempt, error: code, payload: { ...payload, ...(providerMessageId ? { provider_message_id: providerMessageId } : {}) } }).eq('id', job.id).eq('organization_id', orgId).eq('status', 'processing');
+          const failedStatus = dispatchStarted ? 'reconciliation_required' : 'failed';
+          const { error: failureError } = await admin.from('outreach_jobs').update({ status: failedStatus, attempt, error: code, payload: { ...payload, ...(providerMessageId ? { provider_message_id: providerMessageId } : {}) } }).eq('id', job.id).eq('organization_id', orgId).eq('status', 'processing');
           if (failureError) throw new Error('job_failure_persist_failed');
+          if (manualMessage && typeof payload.message_id === 'string') {
+            const { error: messageFailureError } = await admin.from('lead_messages').update({ type: failedStatus })
+              .eq('id', payload.message_id).eq('organization_id', orgId).eq('lead_id', job.lead_id).eq('sender', 'human').eq('type', 'queued');
+            if (messageFailureError) throw new Error('manual_message_failure_persist_failed');
+          }
           failedJobs += 1;
         }
       }

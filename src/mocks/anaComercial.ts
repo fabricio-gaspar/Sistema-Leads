@@ -1,6 +1,6 @@
 // ============================================================
 // ESTRUTURA COMERCIAL DA ANA — RASCUNHO / INATIVO
-// WF Digital · Criado para revisão humana antes de ativação.
+// WayFlex · Conteúdo de demonstração sujeito a revisão humana antes de ativação.
 // Nenhuma mensagem é enviada a partir destes dados nesta versão.
 // ============================================================
 

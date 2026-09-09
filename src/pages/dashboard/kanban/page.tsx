@@ -7,7 +7,6 @@ import { useSavedViews } from '@/hooks/useSavedViews';
 import FilterChips from '@/components/feature/FilterChips';
 import type { FilterChip } from '@/components/feature/FilterChips';
 import SavedViewsControl from '@/components/feature/SavedViewsControl';
-import { leads as leadsSeed } from '@/mocks/leadsData';
 import type { Lead } from '@/mocks/leadsData';
 import { ACTIVE_PIPELINE_STAGES, PIPELINE_STAGE_LABEL, legacyStageForPipeline, stageFromLegacy } from '@/domain/pipeline';
 import LeadDrawer from './components/LeadDrawer';
@@ -82,8 +81,8 @@ export default function KanbanCRM() {
     mostrarToast(`${lead.nome} foi excluído do Kanban.`);
   };
 
-  const responsaveis = Array.from(new Set(leadsSeed.map((l) => l.responsavel))).sort();
-  const segmentosDisponiveis = Array.from(new Set(leadsSeed.map((l) => l.segmento))).sort();
+  const responsaveis = Array.from(new Set(leads.map((l) => l.responsavel).filter(Boolean))).sort();
+  const segmentosDisponiveis = Array.from(new Set(leads.map((l) => l.segmento).filter(Boolean))).sort();
   const temperaturasDisponiveis = ['Frio', 'Morno', 'Quente'];
 
   const hasFiltros = Boolean(busca || filtroResponsavel || filtroSegmento || filtroEtapa || filtroTemperatura || dataInicio || dataFim);

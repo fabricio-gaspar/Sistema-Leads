@@ -19,13 +19,23 @@ export default function DadosOrganizacaoForm() {
     assinaturaComercial: org.assinaturaComercial || '',
   });
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
 
   const atualizar = (campo: keyof typeof form, valor: string) => setForm((f) => ({ ...f, [campo]: valor }));
 
-  const salvar = () => {
-    salvarOrganizacao(form);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
+  const salvar = async () => {
+    setSaving(true);
+    setError('');
+    try {
+      await salvarOrganizacao(form);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } catch {
+      setError('Não foi possível salvar no banco. Nenhuma confirmação foi registrada.');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -90,14 +100,15 @@ export default function DadosOrganizacaoForm() {
         </div>
       </div>
       <div className="mt-5 flex items-center justify-end gap-3">
+        {error && <span className="mr-auto text-sm font-medium text-accent-700"><i className="ri-error-warning-line mr-1" />{error}</span>}
         {saved && (
           <span className="inline-flex items-center gap-2 text-primary-700 text-sm font-medium">
             <i className="ri-checkbox-circle-line"></i>
             Alterações salvas!
           </span>
         )}
-        <button onClick={salvar} className="px-5 py-2.5 bg-primary-500 hover:bg-primary-600 text-background-50 rounded-lg text-sm font-bold cursor-pointer whitespace-nowrap">
-          Salvar alterações
+        <button disabled={saving} onClick={() => void salvar()} className="px-5 py-2.5 bg-primary-500 hover:bg-primary-600 text-background-50 rounded-lg text-sm font-bold cursor-pointer whitespace-nowrap disabled:opacity-60">
+          {saving ? 'Salvando…' : 'Salvar alterações'}
         </button>
       </div>
     </section>

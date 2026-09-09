@@ -1,0 +1,15 @@
+{
+  "schema_version": 1,
+  "validated_commit": "4d072280a09b3b8462f5bf0dfa701b314eca31bb",
+  "last_validated_at": "2026-09-09T15:12:30Z",
+  "commands": [
+    {"command":"npm run type-check","status":"passed"},
+    {"command":"npm run lint","status":"passed","warnings":0},
+    {"command":"npm run type-check:edge","status":"passed"},
+    {"command":"npm run test","status":"passed","files":13,"tests":107},
+    {"command":"npm run build","status":"passed"}
+  ],
+  "covered": ["frontend_typecheck","lint","edge_typecheck","unit_and_contract_tests","production_build"],
+  "not_covered": ["authenticated_e2e","real_whatsapp","real_claude","cross_organization_rls","database_concurrency","mobile_authenticated_qa"],
+  "working_tree_validation": "passed_pending_commit"
+}

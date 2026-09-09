@@ -12,17 +12,19 @@ function channel(value: string | null): Conversa['canal'] {
 
 function messageFromRow(row: MessageRow): Mensagem {
   const sender = row.sender.toLowerCase();
+  const type = row.type.toLowerCase();
   return {
     id: row.id,
     autor: sender === 'lead' || sender === 'contact' || sender === 'cliente' ? 'cliente' : sender === 'ana' || sender === 'assistant' ? 'ana' : sender === 'system' || sender === 'sistema' ? 'sistema' : 'vendedor',
     nome: row.sender_name || 'Sistema',
-    texto: row.type === 'draft'
+    texto: type === 'draft'
       ? `Rascunho da Ana — aprovação necessária: ${row.text}`
-      : row.type === 'pending_channel'
+      : type === 'pending_channel'
         ? `Rascunho da Ana — canal pendente: ${row.text}`
         : row.text,
     hora: new Date(row.sent_at ?? row.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-    notaInterna: ['internal', 'draft', 'pending_channel'].includes(row.type),
+    notaInterna: ['internal', 'draft', 'pending_channel'].includes(type),
+    statusEnvio: type === 'queued' ? 'aguardando' : type === 'sent' ? 'enviada' : type === 'failed' ? 'falhou' : type === 'reconciliation_required' ? 'reconciliacao' : undefined,
   };
 }
 

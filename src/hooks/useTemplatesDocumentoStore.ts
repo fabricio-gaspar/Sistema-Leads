@@ -50,7 +50,7 @@ const inicial: TemplateDocumento[] = [
     nome: 'Termo de serviço',
     tipo: 'termo',
     conteudo:
-      'TERMO DE SERVIÇO\n\nA {empresa_nome} presta serviços de marketing digital e tecnologia. Ao contratar, o cliente concorda com os termos abaixo.\n\n1. Escopo: os serviços são limitados aos itens descritos na proposta.\n2. Uso: o cliente é responsável pelas informações fornecidas.\n3. Confidencialidade: dados tratados conforme LGPD.\n\nDúvidas: {empresa_email}.\n\n{assinatura}',
+      'TERMO COMERCIAL\n\nA {empresa_nome} fornece soluções industriais conforme as especificações descritas na proposta revisada.\n\n1. Escopo: limitado aos itens e requisitos confirmados na proposta.\n2. Informações técnicas: dependem dos dados, desenhos e amostras fornecidos e validados.\n3. Confidencialidade: dados tratados conforme a LGPD e as políticas aprovadas da empresa.\n\nDúvidas: {empresa_email}.\n\n{assinatura}',
     variaveis: ['empresa_nome', 'empresa_email', 'assinatura'],
     ativo: true,
   },

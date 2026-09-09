@@ -110,7 +110,7 @@ export default function FluxosProntosTab() {
 
   // Pré-visualização com lead de teste + dados da empresa + variáveis globais.
   const valores = montarValoresVariaveis({
-    lead: { nome: 'Carlos Mendes', empresa: 'Tech Solutions Ltda', oferta: 'marketing digital' },
+    lead: { nome: 'Lead de demonstração', empresa: 'Empresa de demonstração', oferta: 'solução industrial' },
     organizacao,
     customVars: variaveis,
   });

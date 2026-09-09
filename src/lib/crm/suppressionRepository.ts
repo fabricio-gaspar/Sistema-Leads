@@ -28,7 +28,7 @@ export async function loadContactSuppressions(): Promise<ContactSuppression[]> {
   return (data ?? []).map((item) => ({ id: item.id, contact: item.contact || 'Contato protegido', channel: item.channel, reason: item.reason, leadId: item.lead_id, createdAt: item.created_at }));
 }
 
-export async function addContactSuppression(input: { contact: string; channel: string; reason: string }): Promise<void> {
+export async function addContactSuppression(input: { contact: string; channel: string; reason: string; leadId?: string }): Promise<void> {
   const session = await resolveOrganizationSession();
   const contact = normalizeContact(input.contact);
   if (!contact) throw new Error('contact_required');
@@ -39,6 +39,7 @@ export async function addContactSuppression(input: { contact: string; channel: s
     contact_hash: contactHash,
     channel: input.channel.toLowerCase(),
     reason: input.reason.trim() || 'Solicitação de não contato',
+    lead_id: input.leadId ?? null,
   }, { onConflict: 'organization_id,contact_hash' });
   if (error) throw error;
 }

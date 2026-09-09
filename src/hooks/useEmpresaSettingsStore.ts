@@ -1,5 +1,4 @@
 import { useEffect, useSyncExternalStore } from 'react';
-import { diferenciais } from '@/mocks/businessData';
 import { regrasComerciais } from '@/mocks/comercialData';
 import { controleAna, regrasHandoffAna } from '@/mocks/anaComercial';
 import type { RegraHandoff } from '@/mocks/anaComercial';
@@ -53,7 +52,11 @@ const inicial: EmpresaSettings = {
   ramo: 'Soluções industriais em borracha, silicone e poliuretano, com peças técnicas sob medida para vedação, reposição e projetos especiais.',
   regiao: 'Sorocaba/SP e atendimento comercial para indústrias.',
   publico: 'Indústrias que precisam de peças técnicas, vedações, reposição ou desenvolvimento sob medida; priorizar responsáveis por manutenção, engenharia, compras e produção.',
-  diferenciais,
+  diferenciais: [
+    'Soluções industriais em borracha, silicone e poliuretano',
+    'Desenvolvimento de peças conforme os requisitos fornecidos pelo cliente',
+    'Análise técnica sujeita à validação da equipe WayFlex',
+  ],
   saudacao: identidadeAna.saudacao,
   corBalao: identidadeAna.corBalao,
   assinatura: assinaturaCta.assinatura,
@@ -90,27 +93,32 @@ async function hydrate(): Promise<void> {
   return hydratePromise;
 }
 
-function updateState(updater: (previous: EmpresaSettings) => EmpresaSettings): void {
-  state = updater(state);
-  notify();
-  writeQueue = writeQueue
-    .then(() => persistOperationalCompanySettings(state))
-    .catch((error) => {
-      console.error('[organization-settings] falha ao salvar fonte operacional', error);
-      void hydrate();
+function updateState(updater: (previous: EmpresaSettings) => EmpresaSettings): Promise<void> {
+  const operation = writeQueue
+    .catch(() => undefined)
+    .then(async () => {
+      const next = updater(state);
+      await persistOperationalCompanySettings(next);
+      state = next;
+      hydrated = true;
+      notify();
     });
+  writeQueue = operation.catch((error) => {
+    console.error('[organization-settings] falha ao salvar fonte operacional', error);
+  });
+  return operation;
 }
 
 export function useEmpresaSettingsStore() {
   const settings = useSyncExternalStore(subscribe, () => state, () => state);
   useEffect(() => { void hydrate(); }, []);
 
-  const salvar = (mudanca: Partial<EmpresaSettings>) => {
-    updateState((prev) => ({ ...prev, ...mudanca }));
+  const salvar = (mudanca: Partial<EmpresaSettings>): Promise<void> => {
+    return updateState((prev) => ({ ...prev, ...mudanca }));
   };
 
-  const salvarOrganizacao = (org: Organizacao) => {
-    updateState((prev) => ({ ...prev, organizacao: org }));
+  const salvarOrganizacao = (org: Organizacao): Promise<void> => {
+    return updateState((prev) => ({ ...prev, organizacao: org }));
   };
 
   return { settings, salvar, salvarOrganizacao };

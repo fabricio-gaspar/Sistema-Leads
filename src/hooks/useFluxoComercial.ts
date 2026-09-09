@@ -27,7 +27,7 @@ function preencherTemplate(texto: string, lead: Lead): string {
     .replace(/\{nome\}/g, lead.nome)
     .replace(/\{empresa\}/g, lead.empresa)
     .replace(/\{segmento\}/g, lead.segmento)
-    .replace(/\{servico\}/g, 'nossas soluções de marketing digital')
+    .replace(/\{servico\}/g, 'nossas soluções industriais em borracha, silicone e poliuretano')
     .replace(/\{oferta\}/g, 'nossa proposta sob medida')
     .replace(/\{link\}/g, 'https://www.wayflex.ind.br');
 }

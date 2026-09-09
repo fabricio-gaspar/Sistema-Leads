@@ -70,7 +70,7 @@ Deno.serve(async (request) => {
   try {
     const body = await request.json() as { canal?: string };
     const canal = String(body.canal ?? '').trim();
-    if (!['whatsapp', 'email', 'apify', 'google_places'].includes(canal)) throw new Error('unsupported_channel');
+    if (!['whatsapp', 'ai', 'apify', 'google_places'].includes(canal)) throw new Error('unsupported_channel');
     const { user } = await requireUser(request);
     admin = createAdminClient();
     const { data: profile } = await admin.from('profiles').select('active_organization_id,name').eq('id', user.id).maybeSingle();
@@ -122,6 +122,26 @@ Deno.serve(async (request) => {
         { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Client-Token': zapi.client_token }, body: JSON.stringify({ value: webhookUrl, notifySentByMe: false }) },
       );
       if (!webhookResponse.ok) throw new Error(`zapi_webhook_setup_${webhookResponse.status}`);
+    } else if (canal === 'ai') {
+      const ai = credentials as {
+        provedor_principal?: string;
+        openai_key?: string;
+        claude_key?: string;
+      };
+      const provider = String(ai.provedor_principal ?? '').trim().toLowerCase();
+      if (provider === 'claude') {
+        if (!ai.claude_key) throw new Error('ai_provider_key_missing');
+        response = await fetch('https://api.anthropic.com/v1/models?limit=1', {
+          headers: { 'x-api-key': ai.claude_key, 'anthropic-version': '2023-06-01' },
+        });
+      } else if (provider === 'openai') {
+        if (!ai.openai_key) throw new Error('ai_provider_key_missing');
+        response = await fetch('https://api.openai.com/v1/models', {
+          headers: { Authorization: `Bearer ${ai.openai_key}` },
+        });
+      } else {
+        throw new Error('ai_provider_invalid');
+      }
     } else if (canal === 'apify') {
       const apify = credentials as { api_token?: string; actor_id?: string; task_id?: string };
       if (!apify.api_token || (!apify.actor_id && !apify.task_id)) throw new Error('source_credentials_missing');
@@ -149,7 +169,11 @@ Deno.serve(async (request) => {
     }
     if (!response.ok) throw new Error('provider_error');
     const ready = true;
-    const statusDetail = canal === 'whatsapp' ? 'Conexão Z-API validada com segurança.' : `Conexão ${integration.provider} validada para a Busca de Leads.`;
+    const statusDetail = canal === 'whatsapp'
+      ? 'Conexão Z-API validada com segurança.'
+      : canal === 'ai'
+        ? 'Credencial do provedor principal da Ana validada sem gerar mensagem.'
+        : `Conexão ${integration.provider} validada para a Busca de Leads.`;
     await admin.from('integrations').update({ connected: true, enabled: true, paused: false, status_detail: statusDetail, last_tested_at: new Date().toISOString(), last_success_at: new Date().toISOString(), last_error: null, last_error_at: null }).eq('id', integration.id);
     if (sourceKey) {
       await admin.from('lead_source_configs').update({ enabled: true, mode: 'production', connection_status: 'connected', last_success_at: new Date().toISOString(), last_error: null, last_error_at: null, updated_at: new Date().toISOString() }).eq('organization_id', organizationId).eq('source_key', sourceKey);

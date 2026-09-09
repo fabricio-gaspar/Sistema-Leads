@@ -23,6 +23,7 @@ export default function PersonalizacaoAna({ embedded = false }: { embedded?: boo
   const [step, setStep] = useState(0);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState('');
   const [business, setBusiness] = useState(settings.ramo);
   const [audience, setAudience] = useState(settings.publico);
   const [greeting, setGreeting] = useState(settings.saudacao);
@@ -52,8 +53,9 @@ export default function PersonalizacaoAna({ embedded = false }: { embedded?: boo
     const handoffItems = splitPlaybookLines(handoffTriggers, DEFAULT_HANDOFF_TRIGGERS);
 
     setSaving(true);
+    setSaveError('');
     try {
-      salvar({
+      await salvar({
         ramo: business,
         publico: audience,
         saudacao: greeting,
@@ -80,14 +82,18 @@ export default function PersonalizacaoAna({ embedded = false }: { embedded?: boo
       });
       setSaved(true);
       setTimeout(() => setSaved(false), 2500);
+      return true;
+    } catch (error) {
+      console.error('[ana-settings] falha ao salvar configuração', error);
+      setSaveError('Não foi possível confirmar a gravação no banco. Revise a conexão e tente novamente.');
+      return false;
     } finally {
       setSaving(false);
     }
   };
 
   const saveAndContinue = async () => {
-    await save();
-    setStep((current) => Math.min(steps.length - 1, current + 1));
+    if (await save()) setStep((current) => Math.min(steps.length - 1, current + 1));
   };
 
   const content = [
@@ -192,6 +198,7 @@ export default function PersonalizacaoAna({ embedded = false }: { embedded?: boo
           {saved && <span className="saved">Configuração salva</span>}
         </div>
         <div className="form">{content}</div>
+        {saveError && <div className="mx-6 mb-4 rounded-xl border border-[#FF3B30]/25 bg-[#FF3B30]/10 px-4 py-3 text-sm text-[#D92D27]"><i className="ri-error-warning-line mr-2" />{saveError}</div>}
         <footer>
           <button className="secondary" disabled={step === 0 || saving} onClick={() => setStep((current) => current - 1)}>Voltar</button>
           <div className="form-actions">

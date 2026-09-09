@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLeadsStore, waitForLeadsPersistence } from '@/hooks/useLeadsStore';
 import { etapasCRM, segmentos } from '@/mocks/leadsData';
@@ -8,6 +8,7 @@ import { useListasStore } from '@/hooks/useListasStore';
 import { useFluxoComercial } from '@/hooks/useFluxoComercial';
 import { useAuth } from '@/hooks/useAuth';
 import { runAna } from '@/lib/crm/anaRunRepository';
+import { loadTeamMembers, type TeamMember } from '@/lib/crm/teamMembersRepository';
 
 const etapaCores: Record<string, string> = {
   'Novo': 'bg-background-200 text-foreground-600',
@@ -48,13 +49,20 @@ export default function Leads() {
   const [novoLead, setNovoLead] = useState({ nome: '', empresa: '', email: '', telefone: '', segmento: 'Tecnologia', cidade: '', estado: '', modo: 'IA' as 'IA' | 'HUMANO' });
   const [mostrarArquivados, setMostrarArquivados] = useState(false);
   const [editarModal, setEditarModal] = useState<Lead | null>(null);
-  const [editForm, setEditForm] = useState({ nome: '', email: '', telefone: '', responsavel: '', tags: '' });
+  const [editForm, setEditForm] = useState({ nome: '', email: '', telefone: '', responsavel: '', responsavelId: '', tags: '' });
+  const [membros, setMembros] = useState<TeamMember[]>([]);
   const [handoffEtapa, setHandoffEtapa] = useState('');
   const [modoSelecionado, setModoSelecionado] = useState<'IA' | 'HUMANO' | null>(null);
   const navigate = useNavigate();
   const listas = useListasStore();
   const fluxo = useFluxoComercial();
   const { user } = useAuth();
+
+  useEffect(() => {
+    void loadTeamMembers()
+      .then((result) => setMembros(result.filter((member) => member.status === 'active')))
+      .catch(() => setMembros([]));
+  }, []);
 
   const mostrarToast = (msg: string) => {
     setToast(msg);
@@ -68,6 +76,7 @@ export default function Leads() {
       email: lead.email,
       telefone: lead.telefone,
       responsavel: lead.responsavel,
+      responsavelId: lead.responsavelId,
       tags: lead.tags.join(', '),
     });
   };
@@ -88,6 +97,8 @@ export default function Leads() {
       return;
     }
     const tags = editForm.tags.split(',').map((t) => t.trim()).filter(Boolean);
+    const membro = membros.find((item) => item.userId === editForm.responsavelId);
+    const responsavelAna = editForm.responsavelId === '__ana__';
     setLeads((prev) =>
       prev.map((l) =>
         l.id === editarModal.id
@@ -97,8 +108,8 @@ export default function Leads() {
               email: editForm.email.trim(),
               telefone: editForm.telefone.trim(),
               whatsapp: editForm.telefone.trim() || l.whatsapp,
-              responsavel: editForm.responsavel,
-              responsavelId: editForm.responsavel === 'Ana (IA)' ? '' : l.responsavelId,
+              responsavel: responsavelAna ? 'Ana (IA)' : membro?.name || editForm.responsavel,
+              responsavelId: responsavelAna ? '' : membro?.userId || l.responsavelId,
               tags,
             }
           : l
@@ -783,8 +794,12 @@ export default function Leads() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-foreground-800 mb-1.5">Responsável</label>
-                <select value={editForm.responsavel} onChange={(e) => setEditForm({ ...editForm, responsavel: e.target.value })} className="w-full px-4 py-2.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-900 cursor-pointer">
-                  {['Ana (IA)', 'Marina Sales', 'João Vendedor', 'Paula SDR', 'Lucas CX', 'Você'].map((r) => <option key={r} value={r}>{r}</option>)}
+                <select value={editForm.responsavelId || '__ana__'} onChange={(e) => setEditForm({ ...editForm, responsavelId: e.target.value })} className="w-full px-4 py-2.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-900 cursor-pointer">
+                  <option value="__ana__">Ana (IA)</option>
+                  {editForm.responsavelId && !membros.some((membro) => membro.userId === editForm.responsavelId) && (
+                    <option value={editForm.responsavelId}>{editForm.responsavel || 'Responsável atual'}</option>
+                  )}
+                  {membros.map((membro) => <option key={membro.userId} value={membro.userId}>{membro.name}</option>)}
                 </select>
               </div>
               <div>

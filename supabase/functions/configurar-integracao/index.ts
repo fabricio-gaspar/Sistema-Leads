@@ -23,7 +23,10 @@ Deno.serve(async (request) => {
     if (canal === 'whatsapp' && (!instanceId || !token || !clientToken)) throw new Error('zapi_credentials_required');
     if (canal === 'apify' && (!apifyToken || (!actorId && !taskId))) throw new Error('apify_credentials_required');
     if (canal === 'google_places' && !googleApiKey) throw new Error('google_places_credentials_required');
-    if (canal === 'ai' && !openaiKey && !claudeKey) throw new Error('ai_provider_key_required');
+    const selectedAiProvider = String(credenciais.provedor_principal ?? '').trim().toLowerCase();
+    if (canal === 'ai' && !['openai', 'claude'].includes(selectedAiProvider)) throw new Error('ai_provider_required');
+    if (canal === 'ai' && selectedAiProvider === 'openai' && !openaiKey) throw new Error('ai_provider_key_required');
+    if (canal === 'ai' && selectedAiProvider === 'claude' && !claudeKey) throw new Error('ai_provider_key_required');
     const { user } = await requireUser(request);
     const admin = createAdminClient();
     const { data: profile } = await admin.from('profiles').select('active_organization_id,name').eq('id', user.id).maybeSingle();
@@ -49,7 +52,7 @@ Deno.serve(async (request) => {
         ? { api_token: apifyToken, actor_id: actorId, task_id: taskId, input_json: String(credenciais.input_json ?? '').trim() }
         : canal === 'google_places'
           ? { api_key: googleApiKey }
-          : { openai_key: openaiKey, claude_key: claudeKey, provedor_principal: String(credenciais.provedor_principal ?? 'OpenAI').trim().toLowerCase(), openai_model: String(credenciais.openai_model ?? 'gpt-4.1-mini').trim(), claude_model: String(credenciais.claude_model ?? 'claude-sonnet-5').trim() };
+          : { openai_key: openaiKey, claude_key: claudeKey, provedor_principal: selectedAiProvider, openai_model: String(credenciais.openai_model ?? '').trim(), claude_model: String(credenciais.claude_model ?? '').trim() };
     const { error: secretError } = await admin.rpc('store_integration_secret', { p_integration: integration.id, p_secret: credentials });
     if (secretError) throw new Error('integration_secret_save_failed');
     if (canal === 'whatsapp') {
@@ -63,7 +66,7 @@ Deno.serve(async (request) => {
       });
       if (!webhookResponse.ok) throw new Error(`zapi_webhook_setup_${webhookResponse.status}`);
     }
-    const publicConfiguration = canal === 'apify' ? { actor_id: actorId || null, task_id: taskId || null } : canal === 'ai' ? { provedor_principal: String(credenciais.provedor_principal ?? 'OpenAI').trim().toLowerCase(), openai_model: String(credenciais.openai_model ?? 'gpt-4.1-mini').trim(), claude_model: String(credenciais.claude_model ?? 'claude-sonnet-5').trim(), openai_configurado: Boolean(openaiKey), claude_configurado: Boolean(claudeKey) } : {};
+    const publicConfiguration = canal === 'apify' ? { actor_id: actorId || null, task_id: taskId || null } : canal === 'ai' ? { provedor_principal: selectedAiProvider, openai_model: String(credenciais.openai_model ?? '').trim(), claude_model: String(credenciais.claude_model ?? '').trim(), openai_configurado: Boolean(openaiKey), claude_configurado: Boolean(claudeKey) } : {};
     // store_integration_secret já atualiza a integração e preserva a referência
     // do cofre. Uma segunda atualização era redundante e podia falhar depois de
     // as credenciais terem sido salvas, prendendo o usuário no modal.

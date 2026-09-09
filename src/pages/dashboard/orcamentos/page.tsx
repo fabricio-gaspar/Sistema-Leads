@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import type { Proposta, ItemProposta } from '@/mocks/propostasData';
 import { useLeadsStore } from '@/hooks/useLeadsStore';
 import { usePropostasStore } from '@/hooks/usePropostasStore';
@@ -14,6 +15,7 @@ import { useTemasStore } from '@/hooks/useTemasStore';
 import { montarValoresVariaveis, resolverVariaveis } from '@/lib/variaveis';
 import { useCatalogoStore } from '@/hooks/useCatalogoStore';
 import { newProposalNumber } from '@/lib/crm/proposalsRepository';
+import { useAuth } from '@/hooks/useAuth';
 
 const statusLabel: Record<string, string> = {
   rascunho: 'Rascunho',
@@ -50,6 +52,8 @@ const valorComDesconto = (p: Proposta) => p.valor * (1 - (p.descontoPct || 0) / 
 const escapar = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 export default function Orcamentos() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
   const { propostas, atualizar, confirmarAceiteLocal, criar, excluir } = usePropostasStore();
   const [selecionada, setSelecionada] = useState<Proposta | null>(null);
   const [toast, setToast] = useState('');
@@ -58,6 +62,7 @@ export default function Orcamentos() {
   const [novaItens, setNovaItens] = useState<Record<string, number>>({});
   const [novaDesconto, setNovaDesconto] = useState(0);
   const [novaTemplateId, setNovaTemplateId] = useState('');
+  const [novaValidadeDias, setNovaValidadeDias] = useState(0);
   const [docModal, setDocModal] = useState<Proposta | null>(null);
   const [docTemplateId, setDocTemplateId] = useState('');
   const [perdaModal, setPerdaModal] = useState<Proposta | null>(null);
@@ -111,13 +116,11 @@ export default function Orcamentos() {
       mostrarToast('Proposta aguardando aprovação de desconto. Envio bloqueado.');
       return;
     }
-    atualizar(id, {
-      status: 'enviada',
-      validade: new Date(Date.now() + 15 * 86400000).toISOString().slice(0, 10),
-    });
-    moverLead(p, 'Orçamento Enviado');
-    fluxo.registrarAuditoria({ evento: 'PROPOSAL_SENT', ator: 'Usuário', alvo: p.empresa, detalhes: `Proposta ${p.numero} enviada` });
-    mostrarToast(`${p.numero} enviada ao lead. Kanban atualizado.`);
+    if (!p.leadId) {
+      mostrarToast('A proposta não possui um lead operacional vinculado. O envio não foi iniciado.');
+      return;
+    }
+    navigate(`/dashboard/atendimento?leadId=${p.leadId}`);
   };
 
   const aceitar = async (id: string) => {
@@ -318,7 +321,11 @@ export default function Orcamentos() {
     const numero = newProposalNumber();
     const precisaAprovacao = novaDesconto > config.descontoExigeAprovacaoAcima;
     const template = templatesProposta.find((t) => t.id === novaTemplateId && t.ativo);
-    const validadeDias = template?.validadePadraoDias ?? 15;
+    const validadeDias = Math.max(0, Number(novaValidadeDias) || 0);
+    if (validadeDias < 1) {
+      mostrarToast('Defina a validade comercial antes de criar a proposta.');
+      return;
+    }
     const nova: Proposta = {
       id: `pr-${Date.now()}`,
       numero,
@@ -336,7 +343,7 @@ export default function Orcamentos() {
       versao: 1,
       bloqueadaEnvio: precisaAprovacao,
       descontoAprovado: false,
-      aprovador: precisaAprovacao ? 'Marina Sales' : undefined,
+      aprovador: precisaAprovacao ? user?.name || 'Administrador da empresa' : undefined,
       templateId: template?.id,
       formaPagamento: template?.formaPagamento,
       garantia: template?.garantia,
@@ -346,7 +353,7 @@ export default function Orcamentos() {
     if (precisaAprovacao) {
       tarefas.criar({
         titulo: `Aprovar desconto de ${novaDesconto}% na proposta ${numero}`,
-        responsavel: 'Marina Sales',
+        responsavel: user?.name || 'Administrador da empresa',
         leadId: lead.id,
         leadNome: lead.nome,
         prioridade: 'ALTA',
@@ -359,6 +366,7 @@ export default function Orcamentos() {
     setNovaItens({});
     setNovaDesconto(0);
     setNovaTemplateId('');
+    setNovaValidadeDias(0);
     mostrarToast(precisaAprovacao ? `Proposta ${numero} criada aguardando aprovação de desconto.` : `Proposta ${numero} criada (rascunho).`);
   };
 
@@ -708,7 +716,7 @@ export default function Orcamentos() {
                   className="w-full px-4 py-2.5 bg-primary-500 hover:bg-primary-600 text-background-50 rounded-lg text-sm font-bold cursor-pointer whitespace-nowrap"
                 >
                   <i className="ri-send-plane-line mr-2"></i>
-                  Enviar proposta
+                  Revisar envio no atendimento
                 </button>
               )}
               {(selecionada.status === 'enviada' || selecionada.status === 'visualizada' || selecionada.status === 'aceita' || selecionada.status === 'recusada') && (
@@ -747,22 +755,40 @@ export default function Orcamentos() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-foreground-800 mb-1.5">Template de proposta</label>
-                <select value={novaTemplateId} onChange={(e) => setNovaTemplateId(e.target.value)} className="w-full px-4 py-2.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-900 cursor-pointer">
-                  <option value="">Sem template (validade padrão de 15 dias)</option>
+                <select value={novaTemplateId} onChange={(e) => {
+                  const templateId = e.target.value;
+                  const template = templatesProposta.find((item) => item.id === templateId);
+                  setNovaTemplateId(templateId);
+                  setNovaValidadeDias(template?.validadePadraoDias || 0);
+                }} className="w-full px-4 py-2.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-900 cursor-pointer">
+                  <option value="">Sem template</option>
                   {templatesProposta.filter((t) => t.ativo).map((t) => (
                     <option key={t.id} value={t.id}>{t.nome}{t.padrao ? ' (padrão)' : ''}</option>
                   ))}
                 </select>
                 {novaTemplateId ? (
                   <p className="text-xs text-foreground-500 mt-1.5">
-                    Validade: {templatesProposta.find((x) => x.id === novaTemplateId)?.validadePadraoDias ?? 15} dias · {templatesProposta.find((x) => x.id === novaTemplateId)?.formaPagamento}
+                    {templatesProposta.find((x) => x.id === novaTemplateId)?.formaPagamento || 'Condições comerciais ainda não definidas no template.'}
                   </p>
                 ) : (
                   <p className="text-xs text-accent-600 mt-1.5 flex items-center gap-1">
                     <i className="ri-alarm-warning-line"></i>
-                    Nenhum template selecionado — prazo padrão de 15 dias.
+                    Nenhum template selecionado. Preencha os dados comerciais manualmente.
                   </p>
                 )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-foreground-800 mb-1.5">Validade comercial (dias)</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={365}
+                  value={novaValidadeDias || ''}
+                  onChange={(e) => setNovaValidadeDias(Number(e.target.value))}
+                  placeholder="Defina após validação humana"
+                  className="w-full px-4 py-2.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-900"
+                />
+                <p className="mt-1.5 text-xs text-foreground-500">Obrigatório. O sistema não preenche um prazo comercial inventado.</p>
               </div>
               <div>
                 <label className="block text-sm font-medium text-foreground-800 mb-2">Itens do catálogo</label>

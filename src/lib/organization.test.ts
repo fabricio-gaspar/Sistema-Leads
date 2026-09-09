@@ -3,8 +3,8 @@ import { organizationSlug } from '@/lib/organizationSlug';
 
 describe('organizationSlug', () => {
   it('creates a stable URL-safe slug with tenant entropy', () => {
-    expect(organizationSlug('WF Digital — Soluções', 'c1a5b3d8-0000-4000-8000-000000000000'))
-      .toBe('wf-digital-solucoes-c1a5b3d8');
+    expect(organizationSlug('WayFlex — Soluções', 'c1a5b3d8-0000-4000-8000-000000000000'))
+      .toBe('wayflex-solucoes-c1a5b3d8');
   });
 
   it('uses a safe fallback for names without URL characters', () => {

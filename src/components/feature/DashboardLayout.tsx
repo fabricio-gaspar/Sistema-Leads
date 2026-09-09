@@ -24,6 +24,7 @@ const navItems: NavItem[] = [
   { label: 'Agenda', path: '/dashboard/agenda', icon: 'ri-calendar-event-line' },
   { label: 'Funil', path: '/dashboard/funil', icon: 'ri-arrow-down-line' },
   { label: 'Relatórios', path: '/dashboard/relatorios', icon: 'ri-bar-chart-line' },
+  { label: 'Registro do Sistema', path: '/dashboard/registro-sistema', icon: 'ri-file-list-3-line' },
   { label: 'Configurações', path: '/dashboard/configuracoes', icon: 'ri-settings-4-line' },
 ];
 
@@ -93,16 +94,12 @@ export default function DashboardLayout() {
         {/* Logo */}
         <div className="flex items-center justify-between px-4 py-4 border-b border-background-200/80">
           {sidebarOpen ? (
-            <Link to="/dashboard" className="flex min-w-0 items-center gap-3">
-              <div className="mac-traffic-lights" aria-hidden="true"><span></span><span></span><span></span></div>
-              <div className="w-8 h-8 bg-primary-500 rounded-xl flex items-center justify-center">
-                <i className="ri-flashlight-line text-background-50 text-sm"></i>
-              </div>
-              <span className="wf-brand-copy whitespace-nowrap"><strong>Wayflex Leads</strong><small>Commercial workspace</small></span>
+            <Link to="/dashboard" className="min-w-0 px-1 font-heading text-base font-extrabold tracking-[0.13em] text-foreground-950">
+              WAYFLEX
             </Link>
           ) : (
-            <Link to="/dashboard" className="w-8 h-8 bg-primary-500 rounded-xl flex items-center justify-center mx-auto">
-              <i className="ri-flashlight-line text-background-50 text-sm"></i>
+            <Link to="/dashboard" className="mx-auto font-heading text-sm font-extrabold tracking-[0.12em] text-foreground-950" aria-label="WayFlex">
+              W
             </Link>
           )}
           <button
@@ -188,7 +185,6 @@ export default function DashboardLayout() {
             >
               <i className="ri-menu-line text-foreground-700 text-lg"></i>
             </button>
-            <div className="hidden xl:flex mac-traffic-lights" aria-hidden="true"><span></span><span></span><span></span></div>
             <div className="relative hidden sm:block">
               <i className="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-foreground-400 text-sm"></i>
               <input

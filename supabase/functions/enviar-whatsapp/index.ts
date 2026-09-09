@@ -21,10 +21,15 @@ Deno.serve(async (request) => {
     const organizationId = profile.active_organization_id as string;
     const { data: membership } = await admin.from('organization_members').select('status').eq('organization_id', organizationId).eq('user_id', user.id).maybeSingle();
     if (!membership || membership.status !== 'active') throw new Error('organization_access_denied');
-    const { data: lead } = await admin.from('leads').select('id,opt_out,ai_paused').eq('id', leadId).eq('organization_id', organizationId).maybeSingle();
+    const { data: lead } = await admin.from('leads').select('id,opt_out,last_contact').eq('id', leadId).eq('organization_id', organizationId).maybeSingle();
     if (!lead) throw new Error('lead_not_found');
     if (lead.opt_out) throw new Error('lead_opted_out');
-    if (lead.ai_paused) throw new Error('ana_paused_for_lead');
+    // O modo humano pausa somente a Ana. Ele jamais pode impedir que o
+    // atendente responsável responda ao contato por esse canal.
+    const { data: company, error: companyError } = await admin.from('company_settings')
+      .select('active,sandbox_mode').eq('organization_id', organizationId).maybeSingle();
+    if (companyError || !company?.active) throw new Error('company_not_active');
+    if (company.sandbox_mode !== false) throw new Error('operational_mode_protected');
     const { data: integration } = await admin.from('integrations').select('id,key,provider,connected,enabled,paused')
       .eq('organization_id', organizationId).ilike('key', '%whatsapp%').order('updated_at', { ascending: false }).limit(1).maybeSingle();
     if (!integration?.connected || !integration.enabled || integration.paused) throw new Error('whatsapp_integration_not_ready');
@@ -34,12 +39,20 @@ Deno.serve(async (request) => {
     if (blockingPolicy?.action === 'pause') throw new Error('whatsapp_paused_by_risk_policy');
     if (blockingPolicy?.action === 'throttle') throw new Error('whatsapp_throttled_by_risk_policy');
     const idempotencyKey = crypto.randomUUID();
+    const { data: recordedMessage, error: messageError } = await admin.from('lead_messages').insert({
+      organization_id: organizationId, lead_id: lead.id, sender: 'human', sender_name: profile.name || 'Atendente',
+      type: 'queued', text: message,
+    }).select('id').single();
+    if (messageError || !recordedMessage) throw messageError ?? new Error('outbound_message_not_recorded');
     const { data: job, error: jobError } = await admin.from('outreach_jobs').insert({
       organization_id: organizationId, lead_id: lead.id, channel: 'whatsapp', attempt: 0, run_at: new Date().toISOString(), status: 'queued',
-      payload: { recipient, message, mode: text(body.modo, 32), provider: text(body.provedor, 80), requested_by: user.id, integration_id: integration.id },
+      payload: { recipient, message, message_id: recordedMessage.id, manual: true, mode: text(body.modo, 32), provider: text(body.provedor, 80), requested_by: user.id, integration_id: integration.id, context_last_contact: lead.last_contact ?? null },
       idempotency_key: idempotencyKey,
     }).select('id').single();
-    if (jobError || !job) throw jobError ?? new Error('outreach_job_not_created');
+    if (jobError || !job) {
+      await admin.from('lead_messages').delete().eq('id', recordedMessage.id).eq('organization_id', organizationId);
+      throw jobError ?? new Error('outreach_job_not_created');
+    }
     await admin.from('audit_logs').insert({ organization_id: organizationId, actor_id: user.id, actor_name: profile.name, actor_type: 'user', action: 'outreach.whatsapp_queued', detail: 'Mensagem colocada na fila segura.', entity_table: 'outreach_jobs', entity_id: job.id, event_data: { lead_id: lead.id, integration_id: integration.id, idempotency_key: idempotencyKey } });
     return json({ ok: true, enviado: false, id: job.id, detalhe: 'queued_for_authorized_worker', provedor: integration.provider }, 202, headers);
   } catch (error) { return json({ ok: false, enviado: false, erro: safeError(error) }, 400, headers); }

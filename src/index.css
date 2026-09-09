@@ -351,11 +351,6 @@ tbody tr:hover {
 .wf-card-interactive:hover { border-color: #d1d1d6; box-shadow: 0 8px 20px rgb(29 29 31 / .08); }
 .wf-button-danger { border-color: rgb(255 59 48 / .25); border-radius: .75rem; background: rgb(255 59 48 / .10); color: #ff3b30; }
 .wf-button-danger:hover { background: rgb(255 59 48 / .16); }
-.mac-traffic-lights { display: inline-flex; align-items: center; gap: .45rem; }
-.mac-traffic-lights > span { display: block; width: .75rem; height: .75rem; border-radius: 999px; box-shadow: 0 1px 1px rgb(29 29 31 / .12); }
-.mac-traffic-lights > span:nth-child(1) { background: #ff5f56; border: 1px solid rgb(224 68 62 / .60); }
-.mac-traffic-lights > span:nth-child(2) { background: #ffbd2e; border: 1px solid rgb(222 161 35 / .60); }
-.mac-traffic-lights > span:nth-child(3) { background: #27c93f; border: 1px solid rgb(26 171 41 / .60); }
 .wf-login-story { background: #ebecef; color: #1d1d1f; }
 .wf-login-story::before { border-color: rgb(0 113 227 / .10); box-shadow: 0 0 0 5rem rgb(0 113 227 / .04), 0 0 0 10rem rgb(0 113 227 / .025); }
 .wf-login-story .text-white, .wf-login-story .text-white\/90 { color: #1d1d1f !important; }

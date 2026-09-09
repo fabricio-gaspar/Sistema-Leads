@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useConversasStore } from '@/hooks/useConversasStore';
 import { useLeadsStore } from '@/hooks/useLeadsStore';
@@ -12,56 +12,9 @@ import {
   fmtDecimal,
 } from '@/pages/dashboard/equipe/equipeUtils';
 import type { UsuarioMetricas } from '@/pages/dashboard/equipe/equipeUtils';
+import { loadTeamMembers, type TeamMember } from '@/lib/crm/teamMembersRepository';
 
 const periodos = ['7 DIAS', '15 DIAS', 'ESTE MÊS', 'MÊS PASSADO', 'TUDO'];
-
-function DistribuicaoHoraChart() {
-  // Dados simulados de distribuição por hora (8h às 20h)
-  const pontos = [12, 28, 45, 38, 52, 68, 55, 42, 35, 48, 62, 50, 30];
-  const maxVal = Math.max(...pontos);
-  const width = 340;
-  const height = 80;
-  const paddingX = 10;
-  const paddingY = 8;
-  const chartW = width - paddingX * 2;
-  const chartH = height - paddingY * 2;
-
-  const points = pontos
-    .map((val, i) => {
-      const x = paddingX + (i / (pontos.length - 1)) * chartW;
-      const y = paddingY + chartH - (val / maxVal) * chartH;
-      return `${x},${y}`;
-    })
-    .join(' ');
-
-  return (
-    <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-20">
-      <defs>
-        <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0%" stopColor="oklch(var(--accent-500))" stopOpacity="0.15" />
-          <stop offset="100%" stopColor="oklch(var(--accent-500))" stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <path
-        d={`M${paddingX},${paddingY + chartH} L${points.split(' ').join(' L')} L${paddingX + chartW},${paddingY + chartH} Z`}
-        fill="url(#areaGrad)"
-      />
-      <polyline
-        points={points}
-        fill="none"
-        stroke="oklch(var(--accent-500))"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      {pontos.map((_, i) => {
-        const x = paddingX + (i / (pontos.length - 1)) * chartW;
-        const y = paddingY + chartH - (pontos[i] / maxVal) * chartH;
-        return <circle key={i} cx={x} cy={y} r="2.5" fill="oklch(var(--accent-500))" />;
-      })}
-    </svg>
-  );
-}
 
 export default function EquipePage() {
   const [periodoAtivo, setPeriodoAtivo] = useState('ESTE MÊS');
@@ -69,10 +22,18 @@ export default function EquipePage() {
   const { conversas } = useConversasStore();
   const [leads] = useLeadsStore();
   const { propostas } = usePropostasStore();
+  const [membros, setMembros] = useState<TeamMember[]>([]);
+  const [teamError, setTeamError] = useState('');
+
+  useEffect(() => {
+    void loadTeamMembers()
+      .then((result) => { setMembros(result); setTeamError(''); })
+      .catch(() => setTeamError('Não foi possível carregar a equipe real. Métricas por usuário ficaram indisponíveis.'));
+  }, []);
 
   const metricas = useMemo(
-    () => calcularMetricas(conversas, leads, propostas),
-    [conversas, leads, propostas]
+    () => calcularMetricas(membros, conversas, leads, propostas),
+    [membros, conversas, leads, propostas]
   );
 
   const leadsComConversa = leads.filter((l) => conversas.some((c) => c.leadId === l.id)).length;
@@ -143,6 +104,8 @@ export default function EquipePage() {
           Métricas detalhadas de performance por usuário e instância
         </p>
       </div>
+
+      {teamError && <div className="rounded-xl border border-[#FF3B30]/25 bg-[#FF3B30]/10 px-4 py-3 text-xs text-[#FF3B30]">{teamError}</div>}
 
       {/* Grid principal */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -313,47 +276,8 @@ export default function EquipePage() {
             </div>
           </div>
 
-          <div className="mb-3">
-            <p className="text-[10px] text-foreground-400 uppercase tracking-wider mb-2">
-              Distribuição por Hora
-            </p>
-            <DistribuicaoHoraChart />
-          </div>
-
-          <div>
-            <p className="text-[10px] text-foreground-400 uppercase tracking-wider mb-2">
-              Ranking — Tempo de Resposta
-            </p>
-            <div className="space-y-2">
-              {metricas.usuarios
-                .filter((u) => u.conversas > 0)
-                .sort((a, b) => a.tempoResposta - b.tempoResposta)
-                .map((u, idx) => (
-                  <button
-                    key={u.id}
-                    onClick={() => setUsuarioSelecionado(u)}
-                    className="w-full flex items-center gap-3 cursor-pointer text-left hover:opacity-80 transition-opacity"
-                  >
-                    <span className="text-[11px] text-foreground-500 w-4 font-medium">{idx + 1}</span>
-                    <div className="w-6 h-6 rounded-full bg-primary-100 text-primary-700 text-[10px] font-bold flex items-center justify-center flex-shrink-0">
-                      {u.avatar}
-                    </div>
-                    <div className="flex-1">
-                      <div className="h-2 bg-background-100 rounded-full overflow-hidden">
-                        <div
-                          className="h-full rounded-full bg-accent-400 transition-all"
-                          style={{
-                            width: `${Math.min((u.tempoResposta / 10) * 100, 100)}%`,
-                          }}
-                        ></div>
-                      </div>
-                    </div>
-                    <span className="text-[11px] text-foreground-600 font-medium w-14 text-right">
-                      {fmtDecimal(u.tempoResposta)} min
-                    </span>
-                  </button>
-                ))}
-            </div>
+          <div className="rounded-xl border border-[#E5E5EA] bg-[#F8F9FA] p-4 text-xs text-[#6E6E73]">
+            Distribuição por hora e tempo médio não são exibidos até que o sistema tenha timestamps suficientes para calcular essas métricas sem estimativas.
           </div>
         </div>
 

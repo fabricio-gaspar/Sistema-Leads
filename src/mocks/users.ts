@@ -15,15 +15,15 @@ export const mockUsers: MockUser[] = [
   {
     id: 'u-1',
     name: 'Fabrício',
-    email: 'fabricio@wfdigital.com.br',
+    email: 'fabricio@wayflex.ind.br',
     role: 'Administrador',
     company: 'Wayflex',
     avatar: 'F',
   },
   {
     id: 'u-2',
-    name: 'Marina Sales',
-    email: 'marina@wfdigital.com.br',
+    name: 'Gestor Comercial',
+    email: 'comercial@wayflex.ind.br',
     role: 'Gestor Comercial',
     company: 'Wayflex',
     avatar: 'M',
@@ -31,7 +31,7 @@ export const mockUsers: MockUser[] = [
   {
     id: 'u-3',
     name: 'João Vendedor',
-    email: 'joao@wfdigital.com.br',
+    email: 'vendas@wayflex.ind.br',
     role: 'Vendedor',
     company: 'Wayflex',
     avatar: 'J',

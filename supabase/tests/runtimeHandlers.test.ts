@@ -209,6 +209,23 @@ describe('Worker safety handler', () => {
     expect(calls.find((q) => q.table === 'lead_messages' && q.operation === 'update')?.value).toMatchObject({ type: 'sent', provider_message_id: 'synthetic-receipt' });
     expect(calls.find((q) => q.table === 'lead_outreach' && q.operation === 'update')?.value).toMatchObject({ status: 'sent', provider_message_id: 'synthetic-receipt' });
   });
+  it('dispatches a queued human message without requiring an Ana run', async () => {
+    const manualJob = {
+      ...job,
+      payload: { text: 'Mensagem humana sintética', message_id: 'synthetic-human-message', manual: true, context_last_contact: null },
+    };
+    override = (q) => {
+      if (q.table === 'outreach_jobs' && q.operation === 'select') return q.filters.status === 'queued' ? ok([manualJob]) : { ...ok(null), count: 0 };
+      if (q.table === 'read_integration_secret') return ok({ instancia_id: 'synthetic-instance', token: 'synthetic-token', client_token: 'synthetic-client' });
+      if (q.table === 'lead_messages' && q.operation === 'select') return ok({ id: 'synthetic-human-message', text: 'Mensagem humana sintética', sender: 'human', type: 'queued' });
+      return undefined;
+    };
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ messageId: 'synthetic-human-receipt' }), { status: 200 }));
+    await import('../functions/automation-worker/index');
+    expect(await (await handler(workerRequest())).json()).toMatchObject({ ok: true, sent_jobs: 1 });
+    expect(calls.some((q) => q.table === 'agent_runs' && q.operation === 'select')).toBe(false);
+    expect(calls.find((q) => q.table === 'lead_messages' && q.operation === 'update')?.value).toMatchObject({ type: 'sent', provider_message_id: 'synthetic-human-receipt' });
+  });
   it('holds an ambiguous network failure for reconciliation instead of retrying', async () => {
     setupQueue();
     fetchMock.mockRejectedValue(new TypeError('Synthetic timeout after sending bytes'));
@@ -224,5 +241,46 @@ describe('Worker safety handler', () => {
     expect(await (await handler(workerRequest())).json()).toMatchObject({ failed_jobs: 1 });
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(calls.filter((q) => q.table === 'outreach_jobs' && q.operation === 'update').at(-1)?.value).toMatchObject({ status: 'reconciliation_required', payload: { provider_message_id: 'synthetic-receipt' } });
+  });
+});
+
+describe('Operational mode authority', () => {
+  const statusRequest = (mode: 'protected' | 'real') => new Request('https://example.invalid/operational-diagnostics', {
+    method: 'POST',
+    headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'set_mode', mode }),
+  });
+  const recent = new Date().toISOString();
+
+  it('enables real mode only after the server preflight passes', async () => {
+    override = (q) => {
+      if (q.table === 'integrations' && q.operation === 'select') return ok([
+        { ...readyIntegration, key: 'ai', label: 'IA', last_tested_at: recent, last_error: null },
+        { ...readyIntegration, key: 'whatsapp', label: 'WhatsApp', last_tested_at: recent, last_error: null },
+        { ...readyIntegration, key: 'zapi_webhook', label: 'Webhook', last_tested_at: recent, last_error: null },
+        { ...readyIntegration, key: 'scheduler', label: 'Worker', last_tested_at: recent, last_error: null },
+      ]);
+      return undefined;
+    };
+    await import('../functions/operational-diagnostics/index');
+    const response = await handler(statusRequest('real'));
+    expect(response.status).toBe(200);
+    expect(calls.find((q) => q.table === 'company_settings' && q.operation === 'update')?.value).toMatchObject({ sandbox_mode: false });
+  });
+
+  it('keeps real mode blocked when an integration is offline', async () => {
+    override = (q) => {
+      if (q.table === 'integrations' && q.operation === 'select') return ok([
+        { ...readyIntegration, key: 'ai', label: 'IA', connected: false, last_tested_at: recent, last_error: null },
+        { ...readyIntegration, key: 'whatsapp', label: 'WhatsApp', last_tested_at: recent, last_error: null },
+        { ...readyIntegration, key: 'zapi_webhook', label: 'Webhook', last_tested_at: recent, last_error: null },
+        { ...readyIntegration, key: 'scheduler', label: 'Worker', last_tested_at: recent, last_error: null },
+      ]);
+      return undefined;
+    };
+    await import('../functions/operational-diagnostics/index');
+    const response = await handler(statusRequest('real'));
+    expect(response.status).toBe(400);
+    expect(calls.some((q) => q.table === 'company_settings' && q.operation === 'update')).toBe(false);
   });
 });

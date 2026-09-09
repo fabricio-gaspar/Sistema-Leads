@@ -7,14 +7,10 @@ import { detalheDoErroDeFuncao } from '@/lib/transportador';
 
 const statusMeta = {
   conectado: { label: 'Pronta', className: 'border-[#34C759]/25 bg-[#34C759]/12 text-[#218838]' },
-  pendente: { label: 'Não configurada', className: 'border-[#FF9500]/25 bg-[#FF9500]/12 text-[#B76100]' },
-  erro: { label: 'Requer atenção', className: 'border-[#FF3B30]/25 bg-[#FF3B30]/10 text-[#D92D27]' },
+  pendente: { label: 'Offline', className: 'border-[#E5E5EA] bg-[#F2F2F7] text-[#6E6E73]' },
+  erro: { label: 'Offline · erro', className: 'border-[#FF3B30]/25 bg-[#FF3B30]/10 text-[#D92D27]' },
   sandbox: { label: 'Protegida', className: 'border-[#AF52DE]/25 bg-[#AF52DE]/10 text-[#7A2CAD]' },
 };
-
-function providerLabel(key: OperationalIntegration['remoteKey']) {
-  return key === 'whatsapp' ? 'WhatsApp' : key === 'ai' ? 'IA da Ana' : key === 'apify' ? 'Apify' : 'Google Places';
-}
 
 function errorMessage(code: string, name: string) {
   const messages: Record<string, string> = {
@@ -22,6 +18,10 @@ function errorMessage(code: string, name: string) {
     source_credentials_missing: `Revise as credenciais de ${name} e salve novamente.`,
     source_not_configured: `${name} ainda não foi configurada.`,
     provider_error: `${name} recusou a validação. Confira chave, permissões e conta.`,
+    ai_provider_required: 'Escolha OpenAI ou Claude como provedor principal.',
+    ai_provider_key_required: 'Informe a chave do provedor principal selecionado.',
+    ai_provider_key_missing: 'A chave do provedor principal não foi encontrada no cofre.',
+    ai_provider_invalid: 'O provedor principal salvo não é válido. Configure OpenAI ou Claude novamente.',
     organization_access_denied: 'Seu usuário não possui permissão administrativa para configurar esta conexão.',
   };
   return messages[code] || `Não foi possível validar ${name}. ${code || 'Tente novamente.'}`;
@@ -61,13 +61,12 @@ export default function IntegracoesTab() {
 
   const refresh = async () => { await Promise.all([recarregar(), recarregarFontes()]); };
   const test = async (integration: OperationalIntegration) => {
-    if (integration.remoteKey === 'ai') { setNotice('A IA da Ana é verificada pelo Status operacional. Não há um teste artificial de envio nesta tela.'); return; }
     setTesting(integration.remoteKey); setNotice('');
     try {
       const { data, error } = await supabase.functions.invoke('testar-integracao', { body: { canal: integration.remoteKey } });
       if (error || !data?.pronto) throw new Error(error ? await detalheDoErroDeFuncao(error) : data?.erro || data?.detalhe);
       await refresh();
-      setNotice(`${integration.nome} foi validada. Nenhuma mensagem foi enviada durante o teste.`);
+      setNotice(`${integration.nome} foi validada. O teste não gerou conversa nem enviou mensagem a leads.`);
     } catch (cause) { setNotice(errorMessage(cause instanceof Error ? cause.message : '', integration.nome)); }
     finally { setTesting(null); }
   };
@@ -75,10 +74,10 @@ export default function IntegracoesTab() {
   return <div className="space-y-4">
     {notice && <div className="rounded-xl border border-[#0071E3]/20 bg-[#0071E3]/8 px-4 py-3 text-sm text-[#1559A6]">{notice}</div>}
     <div className="rounded-xl border border-[#0071E3]/20 bg-[#F2F7FF] px-4 py-3 text-sm text-[#365B83]"><strong>Fonte única.</strong> Os estados abaixo vêm da tabela de integrações da empresa. “Configurar” guarda segredos no cofre do backend; “Testar” apenas valida o provedor.</div>
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
       {integracoes.map((integration) => {
         const meta = statusMeta[integration.status];
-        return <article key={integration.remoteKey} className="flex min-h-[268px] flex-col rounded-2xl border border-[#E5E5EA] bg-white p-5 shadow-2xs"><div className="flex items-start justify-between gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#F2F2F7] text-[#0071E3]"><i className={`${integration.icone} text-lg`} /></div><span className={`rounded-full border px-2.5 py-1 font-mono text-[10px] font-semibold ${meta.className}`}>{meta.label}</span></div><h3 className="mt-4 font-bold text-[#1D1D1F]">{integration.nome}</h3><p className="mt-1 text-xs leading-relaxed text-[#6E6E73]">{integration.descricao}</p><div className="mt-4 space-y-1 text-[11px] text-[#86868B]"><p>Último teste: {integration.ultimoTeste}</p>{integration.lastError && <p className="text-[#D92D27]">{integration.lastError}</p>}</div><div className="mt-auto grid grid-cols-2 gap-2 pt-4"><button type="button" onClick={() => setConfiguring(integration)} className="wf-btn-secondary justify-center text-xs">Configurar</button><button type="button" disabled={testing === integration.remoteKey} onClick={() => void test(integration)} className="wf-btn-primary justify-center text-xs disabled:opacity-60">{testing === integration.remoteKey ? 'Validando…' : integration.remoteKey === 'ai' ? 'Ver status' : 'Testar'}</button></div></article>;
+        return <article key={integration.remoteKey} className="flex min-h-[224px] flex-col rounded-2xl border border-[#E5E5EA] bg-white p-4 shadow-2xs"><div className="flex items-start justify-between gap-3"><div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#F2F2F7] text-[#0071E3]"><i className={`${integration.icone} text-base`} /></div><span className={`rounded-full border px-2 py-0.5 font-mono text-[10px] font-semibold ${meta.className}`}>{meta.label}</span></div><h3 className="mt-3 text-sm font-bold text-[#1D1D1F]">{integration.nome}</h3><p className="mt-1 line-clamp-3 text-[11px] leading-relaxed text-[#6E6E73]">{integration.descricao}</p><div className="mt-3 space-y-1 text-[10px] text-[#86868B]"><p>Último teste: {integration.ultimoTeste}</p>{integration.lastError && <p className="line-clamp-2 text-[#D92D27]">{integration.lastError}</p>}</div><div className="mt-auto grid grid-cols-2 gap-2 pt-3"><button type="button" onClick={() => setConfiguring(integration)} className="wf-btn-secondary justify-center text-xs">Configurar</button><button type="button" disabled={testing === integration.remoteKey} onClick={() => void test(integration)} className="wf-btn-primary justify-center text-xs disabled:opacity-60">{testing === integration.remoteKey ? 'Validando…' : 'Testar'}</button></div></article>;
       })}
     </div>
     {configuring && <ConfigureModal integration={configuring} onClose={() => setConfiguring(null)} onSaved={refresh} />}

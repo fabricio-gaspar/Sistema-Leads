@@ -1,21 +1,14 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import type { Conversa, Mensagem } from '@/mocks/atendimentoData';
 import type { Lead } from '@/mocks/leadsData';
-import { autocompletarTexto } from '@/lib/anaIA';
 import { refreshConversasStore, useConversasStore } from '@/hooks/useConversasStore';
 import { useLeadsStore } from '@/hooks/useLeadsStore';
-import { useFluxoComercial } from '@/hooks/useFluxoComercial';
-import { useConfiguracaoStore } from '@/hooks/useConfiguracaoStore';
-import { useRespostasRapidasStore } from '@/hooks/useRespostasRapidasStore';
-import { useVariaveisGlobaisStore } from '@/hooks/useVariaveisGlobaisStore';
-import { useEmpresaSettingsStore } from '@/hooks/useEmpresaSettingsStore';
 import { usePropostasStore } from '@/hooks/usePropostasStore';
 import type { Proposta } from '@/mocks/propostasData';
-import { montarValoresVariaveis, resolverVariaveis } from '@/lib/variaveis';
 import { requestHumanHandoff, returnConversationToAna } from '@/lib/crm/handoffsRepository';
-import { runAna } from '@/lib/crm/anaRunRepository';
 import { addContactSuppression, loadContactSuppressions, type ContactSuppression } from '@/lib/crm/suppressionRepository';
+import { queueHumanMessage } from '@/lib/crm/humanMessageRepository';
 import ConversaDrawer from './components/ConversaDrawer';
 
 const statusCores: Record<string, string> = {
@@ -32,24 +25,10 @@ const statusLabel: Record<string, string> = {
   transferido: 'Transferido',
 };
 
-const simulacoesCliente = [
-  'Quanto custa para criar um site?',
-  'Vocês trabalham com tráfego pago?',
-  'Qual o prazo de entrega?',
-  'Está muito caro para o nosso momento, vocês tem desconto?',
-  'Gostaria de agendar uma reunião para conhecer melhor.',
-  'Quero saber mais sobre o plano Pro.',
-];
-
 export default function Atendimento() {
   const { conversas, adicionarMensagem, atualizarStatus, criarConversa } = useConversasStore();
   const [leads, setLeads] = useLeadsStore();
-  const fluxo = useFluxoComercial();
-  const { config } = useConfiguracaoStore();
-  const { respostas } = useRespostasRapidasStore();
-  const { variaveis } = useVariaveisGlobaisStore();
-  const { settings } = useEmpresaSettingsStore();
-  const { propostas, atualizar: atualizarProposta } = usePropostasStore();
+  const { propostas } = usePropostasStore();
   const [assumido, setAssumido] = useState(false);
   const [orcamentoModal, setOrcamentoModal] = useState(false);
   const [searchParams] = useSearchParams();
@@ -57,17 +36,12 @@ export default function Atendimento() {
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [texto, setTexto] = useState('');
-  const [anaPausada, setAnaPausada] = useState(false);
   const [notaInterna, setNotaInterna] = useState(false);
   const [busca, setBusca] = useState('');
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [anaDigitando, setAnaDigitando] = useState(false);
   const [optoutConfirmar, setOptoutConfirmar] = useState(false);
-  const [sugestaoIA, setSugestaoIA] = useState('');
-  const [gerandoIA, setGerandoIA] = useState(false);
   const [erroIA, setErroIA] = useState('');
   const [protectedContacts, setProtectedContacts] = useState<ContactSuppression[]>([]);
-  const indiceSimulacao = useRef(0);
 
   const selected = conversas.find((c) => c.id === selectedId) || conversas[0];
 
@@ -89,23 +63,11 @@ export default function Atendimento() {
 
   const leadSelecionado = leadDaConversa(selected);
 
-  const valores = montarValoresVariaveis({
-    lead: { nome: leadSelecionado?.nome || selected?.contato, empresa: selected?.empresa },
-    organizacao: settings.organizacao,
-    customVars: variaveis,
-  });
-  const inserirResposta = (textoResposta: string) => setTexto(resolverVariaveis(textoResposta, valores));
-
-  const textoAtual = texto.trim();
-  const exibirAtalhos = textoAtual.startsWith('/') && textoAtual.length > 1;
-  const atalhosFiltrados = exibirAtalhos
-    ? respostas.filter((r) => r.atalho.toLowerCase().includes(textoAtual.slice(1).toLowerCase()))
-    : [];
-
   const normalizeContact = (contact: string) => contact.includes('@') ? contact.trim().toLowerCase().replace(/\s+/g, '') : contact.replace(/\D/g, '');
+  const contactForChannel = selected?.canal === 'email' ? leadSelecionado?.email : leadSelecionado?.whatsapp || leadSelecionado?.telefone;
   const contatoBloqueado = selected ? protectedContacts.some((item) => {
     const channel = item.channel.toLowerCase();
-    return normalizeContact(item.contact) === normalizeContact(selected.contato) && (channel === 'all' || channel === selected.canal.toLowerCase());
+    return Boolean(contactForChannel) && normalizeContact(item.contact) === normalizeContact(contactForChannel) && (channel === 'all' || channel === selected.canal.toLowerCase());
   }) : false;
   const conversaTransferida = selected ? selected.status === 'transferido' : false;
 
@@ -139,8 +101,28 @@ export default function Atendimento() {
   const agora = () =>
     new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
-  const enviar = () => {
+  const enviar = async () => {
     if (!texto.trim()) return;
+    setErroIA('');
+    if (!notaInterna) {
+      if (!leadSelecionado) {
+        setErroIA('Este registro não possui um lead operacional vinculado. A mensagem não foi enviada.');
+        return;
+      }
+      try {
+        await queueHumanMessage({
+          leadId: leadSelecionado.id,
+          channel: selected.canal,
+          recipient: selected.canal === 'whatsapp' ? leadSelecionado.whatsapp : leadSelecionado.email,
+          text: texto.trim(),
+        });
+        setTexto('');
+        await refreshConversasStore();
+      } catch (error) {
+        setErroIA(error instanceof Error ? error.message : 'A mensagem não foi enfileirada.');
+      }
+      return;
+    }
     const nova: Mensagem = {
       id: `msg-${Date.now()}`,
       autor: 'vendedor',
@@ -154,100 +136,6 @@ export default function Atendimento() {
     setNotaInterna(false);
   };
 
-  const completarComIA = async () => {
-    if (!texto.trim()) {
-      setErroIA('Digite um trecho para a IA completar.');
-      return;
-    }
-    setGerandoIA(true);
-    setErroIA('');
-    setSugestaoIA('');
-    const r = await autocompletarTexto(texto, {
-      nome: selected?.contato,
-      empresa: selected?.empresa,
-      tipo: 'mensagem',
-    });
-    setGerandoIA(false);
-    if (r) setSugestaoIA(r);
-    else setErroIA('IA indisponível no momento. Você pode continuar digitando normalmente.');
-  };
-
-  const simularRespostaCliente = async () => {
-    if (!selected) return;
-    const leadAtual = leadSelecionado;
-    let msg: string;
-    if (leadAtual?.aguardandoEscolhaHorario && (leadAtual.slotsOfertados || []).length > 0) {
-      const escolhas = ['Prefiro a opção 1.', 'Pode ser o horário 2.', 'Fico com a opção 3.'];
-      msg = escolhas[indiceSimulacao.current % escolhas.length];
-    } else {
-      msg = simulacoesCliente[indiceSimulacao.current % simulacoesCliente.length];
-    }
-    indiceSimulacao.current += 1;
-    adicionarMensagem(selected.id, {
-      id: `msg-cli-${Date.now()}`,
-      autor: 'cliente',
-      nome: selected.contato,
-      texto: msg,
-      hora: agora(),
-    });
-
-    const lead = leadSelecionado;
-
-    // Bloqueios avaliados ANTES de qualquer análise/resposta automática.
-    if (contatoBloqueado || config.killSwitchGlobal || anaPausada || (lead && lead.bloqueado)) {
-      const motivo = contatoBloqueado
-        ? 'contato na lista de supressão (LGPD)'
-        : config.killSwitchGlobal
-          ? 'kill switch global ativo'
-          : lead && lead.bloqueado
-            ? 'lead bloqueado (opt-out)'
-            : 'Ana pausada pelo operador';
-      adicionarMensagem(selected.id, {
-        id: `msg-sys-${Date.now()}`,
-        autor: 'sistema',
-        nome: 'Sistema',
-        texto: `Envio automático bloqueado: ${motivo}.`,
-        hora: agora(),
-        notaInterna: true,
-      });
-      return;
-    }
-    if (lead && (lead.modoAtendimento ?? 'IA') === 'HUMANO') {
-      adicionarMensagem(selected.id, {
-        id: `msg-sys-${Date.now()}`,
-        autor: 'sistema',
-        nome: 'Sistema',
-        texto: 'Lead em modo humano. A Ana não responde automaticamente.',
-        hora: agora(),
-        notaInterna: true,
-      });
-      return;
-    }
-
-    if (!lead || !lead.responsavelId || !lead.modoAtendimento) {
-      adicionarMensagem(selected.id, {
-        id: `msg-sys-${Date.now()}`, autor: 'sistema', nome: 'Sistema', hora: agora(), notaInterna: true,
-        texto: 'Defina o modo de atendimento e o responsável antes de rodar a Ana.',
-      });
-      return;
-    }
-
-    // A mensagem é persistida antes da execução. A Ana recebe apenas o evento
-    // e monta o contexto no backend, onde gera um rascunho auditável.
-    await refreshConversasStore();
-    setAnaDigitando(true);
-    try {
-      const result = await runAna({ event: 'message.received', leadId: lead.id, modo: lead.modoAtendimento });
-      if (!result.ok) throw new Error(result.erro || 'ana_run_failed');
-      await refreshConversasStore();
-      if (result.precisa_humano) atualizarStatus(selected.id, 'transferido');
-    } catch {
-      setErroIA('A Ana não conseguiu gerar o rascunho. O lead e a mensagem foram preservados.');
-    } finally {
-      setAnaDigitando(false);
-    }
-  };
-
   const handoff = async () => {
     const lead = leadSelecionado;
     if (!lead) return;
@@ -258,7 +146,6 @@ export default function Atendimento() {
       setErroIA('Não foi possível registrar a transferência agora. Tente novamente.');
       return;
     }
-    fluxo.transferirParaHumano(lead.id, 'Transferência manual solicitada pelo operador', 'MEDIA');
     atualizarStatus(selected.id, 'transferido');
     setAssumido(false);
   };
@@ -275,7 +162,6 @@ export default function Atendimento() {
       setErroIA('Não foi possível assumir o atendimento agora. Tente novamente.');
       return;
     }
-    fluxo.assumirAtendimento(lead.id);
     setAssumido(true);
     adicionarMensagem(selected.id, {
       id: `msg-sys-${Date.now()}`,
@@ -298,7 +184,6 @@ export default function Atendimento() {
       setErroIA('Não foi possível devolver o atendimento para a Ana agora.');
       return;
     }
-    fluxo.devolverParaAna(lead.id);
     setAssumido(false);
     adicionarMensagem(selected.id, {
       id: `msg-sys-${Date.now()}`,
@@ -310,12 +195,13 @@ export default function Atendimento() {
     });
   };
 
-  // Busca a proposta (orçamento) do lead e a envia pelo chat, atualizando o Kanban.
+  // Prepara o orçamento no compositor. O envio continua passando pelo caminho
+  // real e auditável das demais mensagens humanas.
   const propostasDoLead = leadSelecionado
     ? propostas.filter((p) => (p.leadId ? p.leadId === leadSelecionado.id : p.lead === leadSelecionado.nome))
     : [];
 
-  const enviarOrcamento = (p: Proposta) => {
+  const prepararOrcamento = (p: Proposta) => {
     const total = p.valor * (1 - (p.descontoPct || 0) / 100);
     const textoOrcamento = [
       `Segue o orçamento ${p.numero}:`,
@@ -324,29 +210,18 @@ export default function Atendimento() {
       `Total: ${total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`,
       `Validade: ${new Date(p.validade + 'T00:00:00').toLocaleDateString('pt-BR')}`,
     ].filter(Boolean).join('\n');
-    adicionarMensagem(selected.id, {
-      id: `msg-${Date.now()}`,
-      autor: 'vendedor',
-      nome: 'Você',
-      texto: textoOrcamento,
-      hora: agora(),
-    });
-    atualizarProposta(p.id, { status: 'enviada', validade: new Date(Date.now() + 15 * 86400000).toISOString().slice(0, 10) });
-    const lead = leadSelecionado;
-    if (lead) {
-      setLeads((prev) =>
-        prev.map((l) => (l.id === lead.id ? { ...l, etapa: 'Orçamento' } : l))
-      );
-    }
-    fluxo.registrarAuditoria({ evento: 'PROPOSAL_SENT', ator: 'Você', alvo: leadSelecionado?.nome || p.lead, detalhes: `Proposta ${p.numero} enviada pela Central de Atendimento` });
+    setTexto(textoOrcamento);
+    setNotaInterna(false);
     setOrcamentoModal(false);
+    setErroIA('Orçamento preparado no campo de mensagem. Revise e clique em enviar para usar a fila real do canal.');
   };
 
   const registrarOptout = async () => {
     if (!selected) return;
     const channel = selected.canal === 'whatsapp' ? 'whatsapp' : selected.canal === 'email' ? 'email' : 'instagram';
     try {
-      await addContactSuppression({ contact: selected.contato, channel, reason: 'Opt-out solicitado pelo lead' });
+      if (!contactForChannel) throw new Error('contact_not_available');
+      await addContactSuppression({ contact: contactForChannel, channel, reason: 'Opt-out solicitado pelo lead', leadId: leadSelecionado?.id });
       await loadContactSuppressions().then(setProtectedContacts);
     } catch {
       setErroIA('Não foi possível registrar o opt-out na lista real de proteção. Nenhuma alteração local foi simulada.');
@@ -359,7 +234,6 @@ export default function Atendimento() {
           l.id === lead.id ? { ...l, bloqueado: true, automacaoStatus: 'CONCLUIDA' } : l
         )
       );
-      fluxo.registrarAuditoria({ evento: 'OPT_OUT', ator: 'Você', alvo: lead.nome, detalhes: 'Opt-out registrado manualmente' });
     }
     adicionarMensagem(selected.id, {
       id: `msg-${Date.now()}`,
@@ -396,24 +270,8 @@ export default function Atendimento() {
             <i className="ri-side-bar-line"></i>
             Painel do lead
           </button>
-          <button
-            onClick={() => setAnaPausada(!anaPausada)}
-            className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold cursor-pointer whitespace-nowrap transition-all ${
-              anaPausada ? 'bg-background-200 text-foreground-700' : 'bg-primary-500 text-background-50'
-            }`}
-          >
-            <span className={`w-2 h-2 rounded-full ${anaPausada ? 'bg-foreground-400' : 'bg-background-50 animate-pulse'}`}></span>
-            {anaPausada ? 'Ana pausada' : 'Ana ativa'}
-          </button>
         </div>
       </div>
-
-      {config.killSwitchGlobal && (
-        <div className="mb-4 bg-accent-500 text-background-50 px-4 py-3 rounded-lg text-sm flex items-center gap-2">
-          <i className="ri-alarm-warning-line"></i>
-          Kill switch global ativo — todas as respostas automáticas da Ana estão pausadas.
-        </div>
-      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 min-h-[520px] lg:h-[calc(100vh-220px)]">
         {/* Lista de conversas */}
@@ -589,58 +447,12 @@ export default function Atendimento() {
                       <div className={`rounded-2xl rounded-bl-md px-4 py-2.5 text-sm ${isAna ? 'bg-secondary-100 text-secondary-900' : 'bg-background-100 text-foreground-800'}`}>
                         {m.texto}
                       </div>
-                      {m.opcoesHorario && m.opcoesHorario.length > 0 && leadSelecionado?.aguardandoEscolhaHorario && (
-                        <div className="mt-2 space-y-1.5">
-                          {m.opcoesHorario.map((slot) => (
-                            <button
-                              key={slot.indice}
-                              onClick={() => leadSelecionado && fluxo.confirmarHorario(leadSelecionado.id, slot)}
-                              className="w-full flex items-center gap-2 px-3 py-2 rounded-lg border border-primary-300 bg-primary-50 hover:bg-primary-100 text-primary-800 text-sm cursor-pointer whitespace-nowrap transition-colors text-left"
-                            >
-                              <span className="w-5 h-5 flex items-center justify-center flex-shrink-0">
-                                <i className="ri-calendar-check-line"></i>
-                              </span>
-                              <span>
-                                {new Date(slot.data + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })} às {slot.horaInicio}
-                              </span>
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                      <p className="text-[10px] text-foreground-400 mt-1">{m.nome} · {m.hora}</p>
+                      <p className="text-[10px] text-foreground-400 mt-1">{m.nome} · {m.hora}{m.statusEnvio === 'aguardando' ? ' · aguardando fila' : m.statusEnvio === 'enviada' ? ' · enviada' : m.statusEnvio === 'falhou' ? ' · falhou' : m.statusEnvio === 'reconciliacao' ? ' · em reconciliação' : ''}</p>
                     </div>
                   </div>
                 </div>
               );
             })}
-            {anaDigitando && (
-              <div className="flex justify-start">
-                <div className="flex gap-2.5">
-                  <div className="w-7 h-7 rounded-full bg-secondary-500 flex items-center justify-center flex-shrink-0">
-                    <i className="ri-robot-line text-xs text-background-50"></i>
-                  </div>
-                  <div className="bg-secondary-100 text-secondary-900 rounded-2xl rounded-bl-md px-4 py-2.5 text-sm flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 bg-secondary-500 rounded-full animate-bounce"></span>
-                    <span className="w-1.5 h-1.5 bg-secondary-500 rounded-full animate-bounce" style={{ animationDelay: '0.15s' }}></span>
-                    <span className="w-1.5 h-1.5 bg-secondary-500 rounded-full animate-bounce" style={{ animationDelay: '0.3s' }}></span>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="px-5 py-3 border-t border-background-200/70 flex gap-2 flex-wrap items-center">
-            <span className="text-xs text-foreground-400 whitespace-nowrap flex-shrink-0">Respostas rápidas:</span>
-            {respostas.map((r) => (
-              <button
-                key={r.id}
-                onClick={() => inserirResposta(r.texto)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-background-100 hover:bg-background-200 text-foreground-600 rounded-full text-xs cursor-pointer whitespace-nowrap"
-              >
-                <span className="text-[10px] font-bold text-accent-600">/{r.atalho}</span>
-                <span className="max-w-[160px] truncate">{r.texto}</span>
-              </button>
-            ))}
           </div>
 
           <div className="px-5 py-4 border-t border-background-200/70">
@@ -662,76 +474,23 @@ export default function Atendimento() {
                 <i className="ri-lock-line text-base"></i>
               </button>
               <div className="relative flex-1">
-                {exibirAtalhos && atalhosFiltrados.length > 0 && (
-                  <div className="absolute bottom-full left-0 mb-2 w-full max-h-56 overflow-y-auto bg-background-50 border border-background-300 rounded-lg z-20">
-                    {atalhosFiltrados.map((r) => (
-                      <button
-                        key={r.id}
-                        onClick={() => inserirResposta(r.texto)}
-                        className="w-full flex items-center gap-2 px-3 py-2.5 text-left hover:bg-background-100 cursor-pointer"
-                      >
-                        <span className="text-[10px] font-bold text-accent-600 w-20 flex-shrink-0">/{r.atalho}</span>
-                        <span className="text-xs text-foreground-700 truncate">{r.texto}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
                 <input
                   type="text"
                   value={texto}
                   onChange={(e) => setTexto(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && enviar()}
-                  placeholder="Digite sua mensagem... (/atalho)"
+                  onKeyDown={(e) => { if (e.key === 'Enter') void enviar(); }}
+                  placeholder={notaInterna ? 'Digite uma nota interna...' : 'Digite uma mensagem para a fila segura...'}
                   className="w-full px-4 py-2.5 bg-background-100 border border-background-200/70 rounded-lg text-sm text-foreground-800 placeholder-foreground-400 focus:outline-none focus:border-primary-400"
                 />
               </div>
               <button
-                onClick={completarComIA}
-                disabled={gerandoIA}
-                className="w-10 h-10 flex items-center justify-center rounded-lg bg-secondary-100 hover:bg-secondary-200 text-secondary-700 cursor-pointer transition-colors"
-                title="Completar com IA"
-              >
-                {gerandoIA ? (
-                  <span className="w-4 h-4 border-2 border-secondary-400/30 border-t-secondary-600 rounded-full animate-spin"></span>
-                ) : (
-                  <i className="ri-sparkling-2-line text-base"></i>
-                )}
-              </button>
-              <button
-                onClick={enviar}
+                onClick={() => void enviar()}
                 className="w-10 h-10 bg-primary-500 hover:bg-primary-600 text-background-50 rounded-lg flex items-center justify-center cursor-pointer transition-colors"
               >
                 <i className="ri-send-plane-fill text-base"></i>
               </button>
             </div>
-            {sugestaoIA && (
-              <div className="mt-2 bg-primary-50 border border-primary-200 rounded-lg p-3">
-                <div className="flex items-center justify-between mb-1.5">
-                  <span className="text-xs font-semibold text-primary-700 flex items-center gap-1.5">
-                    <i className="ri-sparkling-2-line"></i>
-                    Sugestão da IA
-                  </span>
-                  <button onClick={() => setSugestaoIA('')} className="text-foreground-400 hover:text-foreground-600 cursor-pointer">
-                    <i className="ri-close-line"></i>
-                  </button>
-                </div>
-                <p className="text-sm text-foreground-700 whitespace-pre-line">{sugestaoIA}</p>
-                <button
-                  onClick={() => { setTexto(sugestaoIA); setSugestaoIA(''); }}
-                  className="mt-2 px-3 py-1.5 bg-primary-500 hover:bg-primary-600 text-background-50 rounded-md text-xs font-semibold cursor-pointer whitespace-nowrap"
-                >
-                  Usar sugestão
-                </button>
-              </div>
-            )}
             {erroIA && <p className="mt-1.5 text-xs text-foreground-500">{erroIA}</p>}
-            <button
-              onClick={simularRespostaCliente}
-              className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-secondary-600 hover:text-secondary-800 cursor-pointer whitespace-nowrap"
-            >
-              <i className="ri-flashlight-line"></i>
-              Simular resposta do cliente (testar a Ana)
-            </button>
           </div>
         </div>
       </div>
@@ -773,7 +532,7 @@ export default function Atendimento() {
           <div className="bg-background-50 rounded-xl max-w-lg w-full max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="px-6 py-4 border-b border-background-200/70 flex items-center justify-between sticky top-0 bg-background-50 z-10">
               <div>
-                <h3 className="font-heading font-bold text-foreground-950">Enviar orçamento</h3>
+                <h3 className="font-heading font-bold text-foreground-950">Preparar orçamento no chat</h3>
                 <p className="text-sm text-foreground-500">{leadSelecionado?.nome || selected?.contato} · {selected?.empresa}</p>
               </div>
               <button onClick={() => setOrcamentoModal(false)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-background-100 cursor-pointer">
@@ -814,11 +573,11 @@ export default function Atendimento() {
                         )}
                         {p.status !== 'aguardando_aprovacao' && p.status !== 'aceita' && (
                           <button
-                            onClick={() => enviarOrcamento(p)}
+                            onClick={() => prepararOrcamento(p)}
                             className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary-500 hover:bg-primary-600 text-background-50 rounded-lg text-xs font-semibold cursor-pointer whitespace-nowrap"
                           >
                             <i className="ri-send-plane-2-line"></i>
-                            Enviar pelo chat
+                            Preparar no chat
                           </button>
                         )}
                       </div>
@@ -839,7 +598,6 @@ export default function Atendimento() {
           conversa={selected}
           lead={leadSelecionado}
           onClose={() => setDrawerOpen(false)}
-          onInserirResposta={(resp) => setTexto(resp)}
         />
       )}
     </div>
