@@ -106,3 +106,5 @@
   real foi enviada e `company_settings.sandbox_mode` permaneceu ativo.
 - Implementação consolidada salva no commit
   `1fbd231ff88b4e02c3ddddd18253a1f3be8be5ee`; publicação do Site ainda pendente neste ponto.
+- A consolidação foi publicada com sucesso no Site oficial privado. O modo Demonstração foi
+  preservado e nenhuma integração externa foi acionada durante a publicação.

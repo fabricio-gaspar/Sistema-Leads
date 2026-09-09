@@ -4,9 +4,9 @@
   "baseline_commit": "1fbd231ff88b4e02c3ddddd18253a1f3be8be5ee",
   "last_audited_commit": "1fbd231ff88b4e02c3ddddd18253a1f3be8be5ee",
   "current_head_at_update": "1fbd231ff88b4e02c3ddddd18253a1f3be8be5ee",
-  "working_tree_status": "validated_pending_commit_and_publish",
+  "working_tree_status": "validated_and_published",
   "full_audit_required": false,
   "baseline_status": "validated",
   "updated_at": "2026-09-09T23:40:00Z",
-  "next_action": "Publicar a consolidação validada; depois homologar uma mensagem direta de um lead cadastrado em Ambiente de Demonstração e confirmar webhook, matching, histórico e ana-run exatamente uma vez."
+  "next_action": "Em Ambiente de Demonstração, homologar uma mensagem direta de um lead cadastrado e confirmar webhook, matching, histórico e ana-run exatamente uma vez; não reenviar credenciais nem reativar o worker."
 }
