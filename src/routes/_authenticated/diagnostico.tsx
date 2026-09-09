@@ -1,367 +1,52 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { AlertTriangle, CheckCircle2, Loader2, Play, Download, ShieldAlert } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Loader2, Play, Download, ShieldAlert, Radio, RefreshCw, Smartphone, ServerCog, LockKeyhole, Database } from "lucide-react";
 import { Card, SectionTitle } from "@/components/ui-kit";
 import { runMockScan, type MockScanReport, type MockFinding } from "@/lib/mock-scan.functions";
-import { getOutreachHealth } from "@/lib/outreach.functions";
 import { getComplianceSnapshot } from "@/lib/insights.functions";
+import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 
-export const Route = createFileRoute("/_authenticated/diagnostico")({
-  component: DiagnosticoPage,
-});
+export const Route = createFileRoute("/_authenticated/diagnostico")({ component: DiagnosticoPage });
+type Check = { id: string; label: string; ok: boolean; detail: string };
+type OperationalStatus = { mode: "real"|"demo"; modeLabel: string; productionReady: boolean; killSwitch: boolean; updatedAt: string|null; checks: Check[]; webhookDiagnostic?: { state?: string; detail?: string; lastEventAt?: string|null; testLead?: { id: string; label: string; phoneSuffix: string }|null } };
+const SEV_STYLE: Record<MockFinding["severity"], string> = { high:"bg-error-bg text-error", medium:"bg-warm-bg text-warm", low:"bg-bg-general text-text-sec" };
 
-const SEV_STYLE: Record<MockFinding["severity"], string> = {
-  high: "bg-error-bg text-error",
-  medium: "bg-warm-bg text-warm",
-  low: "bg-bg-general text-text-sec",
-};
+async function operational(action: string, extra: Record<string, unknown> = {}) {
+  const { data, error } = await supabase.functions.invoke("operational-diagnostics", { body: { action, ...extra } });
+  if (error || !data?.ok) throw new Error(data?.erro || error?.message || "Falha no diagnóstico operacional.");
+  return data as { ok: true; status: OperationalStatus; message?: string };
+}
 
 function DiagnosticoPage() {
-  const scanFn = useServerFn(runMockScan);
-  const healthFn = useServerFn(getOutreachHealth);
-  const [report, setReport] = useState<MockScanReport | null>(null);
-  const [err, setErr] = useState<string | null>(null);
-
-  const mut = useMutation({
-    mutationFn: () => scanFn(),
-    onSuccess: (r) => {
-      setReport(r);
-      setErr(null);
-    },
-    onError: (e) => setErr(e instanceof Error ? e.message : "Falha ao executar."),
-  });
-  const { data: health, isLoading: healthLoading } = useQuery({
-    queryKey: ["outreach-health"],
-    queryFn: () => healthFn(),
-  });
-
-  function downloadCSV() {
-    if (!report) return;
-    const header = ["tabela", "id", "coluna", "valor", "motivo", "severidade"];
-    const rows = report.findings.map((f) => [
-      f.table,
-      f.id ?? "",
-      f.column,
-      (f.value ?? "").replace(/"/g, '""'),
-      f.reason.replace(/"/g, '""'),
-      f.severity,
-    ]);
-    const csv = [header, ...rows]
-      .map((r) => r.map((c) => `"${c}"`).join(","))
-      .join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `diagnostico-mock-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }
-
-  const totalFindings = report?.findings.length ?? 0;
-
-  return (
-    <div className="space-y-4">
-      <ComplianceCard />
-
-      <Card>
-        <SectionTitle
-          title="Saúde das integrações"
-          hint="Verifica se as credenciais obrigatórias estão presentes, sem exibir segredos"
-        />
-        {healthLoading || !health ? (
-          <div className="flex items-center gap-2 text-[12px] text-text-sec">
-            <Loader2 className="h-4 w-4 animate-spin" /> Verificando configurações…
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 gap-2 md:grid-cols-4">
-            {[
-              ["Ana (IA)", health.ai],
-              ["Google Places", health.prospecting],
-              ["WhatsApp Z-API", health.zapi],
-              ["Token cliente Z-API", health.zapiClientToken],
-              ["Webhook WhatsApp", health.zapiWebhook],
-              ["E-mail Resend", health.email],
-              ["Webhook de e-mail", health.emailWebhook],
-              ["Agendador da cadência", health.scheduler],
-            ].map(([label, configured]) => (
-              <div key={String(label)} className="flex items-center justify-between rounded-md border border-border-card bg-bg-general p-2.5">
-                <span className="text-[11.5px] text-text-body">{String(label)}</span>
-                {configured ? (
-                  <span className="inline-flex items-center gap-1 text-[10.5px] font-medium text-success">
-                    <CheckCircle2 className="h-3.5 w-3.5" /> Configurada
-                  </span>
-                ) : (
-                  <span className="inline-flex items-center gap-1 text-[10.5px] font-medium text-warm">
-                    <AlertTriangle className="h-3.5 w-3.5" /> Pendente
-                  </span>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </Card>
-
-      <Card>
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2 text-[15px] font-semibold text-text-title">
-              <ShieldAlert className="h-4 w-4 text-primary" />
-              Diagnóstico de dados simulados
-            </div>
-            <p className="mt-1 max-w-2xl text-[12.5px] text-text-sec">
-              Varre as principais tabelas do sistema em busca de valores com padrão de teste
-              (lorem/ipsum, empresa X, contato Y, e-mails <code>@example.com</code>, telefones
-              repetidos, CNPJ inválido, integrações marcadas como conectadas sem configuração
-              real etc.). Apenas administradores podem executar.
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={() => mut.mutate()}
-              disabled={mut.isPending}
-              className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-[13px] font-medium text-primary-foreground hover:bg-primary-hover disabled:opacity-60"
-            >
-              {mut.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-              {mut.isPending ? "Analisando..." : "Executar varredura"}
-            </button>
-            {report && (
-              <button
-                onClick={downloadCSV}
-                className="inline-flex items-center gap-2 rounded-md border border-border-card bg-bg-card px-4 py-2 text-[13px] text-text-body hover:bg-bg-general"
-              >
-                <Download className="h-4 w-4" /> CSV
-              </button>
-            )}
-          </div>
-        </div>
-        {err && (
-          <div className="mt-3 rounded-md bg-error-bg px-3 py-2 text-[12.5px] text-error">
-            {err}
-          </div>
-        )}
-      </Card>
-
-      {report && (
-        <>
-          <div className="grid grid-cols-4 gap-4">
-            <Card>
-              <div className="text-[11px] uppercase text-text-ter">Executado em</div>
-              <div className="text-[15px] font-semibold text-text-title">
-                {new Date(report.scannedAt).toLocaleString("pt-BR")}
-              </div>
-            </Card>
-            <Card>
-              <div className="text-[11px] uppercase text-text-ter">Tabelas analisadas</div>
-              <div className="text-[22px] font-semibold text-text-title">{report.totals.length}</div>
-            </Card>
-            <Card>
-              <div className="text-[11px] uppercase text-text-ter">Registros</div>
-              <div className="text-[22px] font-semibold text-text-title">
-                {report.totals.reduce((a, t) => a + t.rows, 0)}
-              </div>
-            </Card>
-            <Card>
-              <div className="text-[11px] uppercase text-text-ter">Suspeitas</div>
-              <div className={`text-[22px] font-semibold ${totalFindings === 0 ? "text-success" : "text-error"}`}>
-                {totalFindings}
-              </div>
-            </Card>
-          </div>
-
-          <Card>
-            <SectionTitle title="Resumo por tabela" />
-            <table className="w-full text-[13px]">
-              <thead>
-                <tr className="text-left text-[11px] uppercase text-text-ter">
-                  <th className="pb-2">Tabela</th>
-                  <th className="pb-2">Linhas analisadas</th>
-                  <th className="pb-2">Suspeitas</th>
-                  <th className="pb-2">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border-card">
-                {report.totals.map((t) => (
-                  <tr key={t.table}>
-                    <td className="py-2.5 font-medium text-text-title">{t.table}</td>
-                    <td className="py-2.5 text-text-body">{t.rows}</td>
-                    <td className="py-2.5 text-text-body">{t.findings}</td>
-                    <td className="py-2.5">
-                      {t.findings === 0 ? (
-                        <span className="inline-flex items-center gap-1 text-success text-[12px]">
-                          <CheckCircle2 className="h-3.5 w-3.5" /> OK
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-error text-[12px]">
-                          <AlertTriangle className="h-3.5 w-3.5" /> Revisar
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </Card>
-
-          <Card>
-            <SectionTitle
-              title={`Suspeitas detalhadas (${totalFindings})`}
-              hint="Revise, corrija ou remova cada item"
-            />
-            {totalFindings === 0 ? (
-              <div className="flex items-center gap-2 rounded-md bg-success-bg px-3 py-3 text-[13px] text-success">
-                <CheckCircle2 className="h-4 w-4" /> Nenhum indício de dados simulados encontrado.
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-[13px]">
-                  <thead>
-                    <tr className="text-left text-[11px] uppercase text-text-ter">
-                      <th className="pb-2">Severidade</th>
-                      <th className="pb-2">Tabela</th>
-                      <th className="pb-2">Coluna</th>
-                      <th className="pb-2">Valor</th>
-                      <th className="pb-2">Motivo</th>
-                      <th className="pb-2">ID</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border-card">
-                    {report.findings.map((f, i) => (
-                      <tr key={i}>
-                        <td className="py-2">
-                          <span className={`rounded-full px-2 py-0.5 text-[10.5px] font-semibold uppercase ${SEV_STYLE[f.severity]}`}>
-                            {f.severity}
-                          </span>
-                        </td>
-                        <td className="py-2 font-medium text-text-title">{f.table}</td>
-                        <td className="py-2 text-text-body">{f.column}</td>
-                        <td className="py-2 max-w-[260px] truncate text-text-body" title={f.value ?? ""}>
-                          {f.value ?? <span className="text-text-ter">—</span>}
-                        </td>
-                        <td className="py-2 text-text-sec">{f.reason}</td>
-                        <td className="py-2 font-mono text-[10.5px] text-text-ter">
-                          {f.id ? f.id.slice(0, 8) : "—"}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </Card>
-        </>
-      )}
-
-      {!report && !mut.isPending && (
-        <Card>
-          <div className="p-6 text-center text-[13px] text-text-sec">
-            Clique em <strong>Executar varredura</strong> para gerar o relatório.
-          </div>
-        </Card>
-      )}
-    </div>
-  );
+  const qc=useQueryClient(),scanFn=useServerFn(runMockScan);
+  const [report,setReport]=useState<MockScanReport|null>(null),[scanError,setScanError]=useState<string|null>(null);
+  const status=useQuery({queryKey:["operational-status"],queryFn:async()=> (await operational("status")).status,refetchInterval:30_000});
+  const action=useMutation({mutationFn:({name,extra}:{name:string;extra?:Record<string,unknown>})=>operational(name,extra),onSuccess:(result)=>{if(result.message)toast.success(result.message);qc.setQueryData(["operational-status"],result.status);qc.invalidateQueries({queryKey:["operational-status"]})},onError:(e:Error)=>toast.error("Operação não concluída",{description:e.message})});
+  const scan=useMutation({mutationFn:()=>scanFn(),onSuccess:(value)=>{setReport(value);setScanError(null)},onError:(e)=>setScanError(e instanceof Error?e.message:"Falha ao executar.")});
+  return <div className="space-y-4">
+    <OperationalCenter status={status.data} loading={status.isLoading} refreshing={status.isFetching} busy={action.isPending} onRefresh={()=>status.refetch()} onAction={(name,extra)=>action.mutate({name,extra})} />
+    <ComplianceCard />
+    <Card><div className="flex flex-wrap items-start justify-between gap-4"><div><div className="flex items-center gap-2 text-[15px] font-semibold text-text-title"><ShieldAlert className="h-4 w-4 text-primary" /> Auditoria de dados de demonstração</div><p className="mt-1 max-w-2xl text-[12px] text-text-sec">Varre tabelas reais e sinaliza padrões de teste. A varredura não apaga dados automaticamente.</p></div><button onClick={()=>scan.mutate()} disabled={scan.isPending} className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-[12px] font-medium text-primary-foreground disabled:opacity-50">{scan.isPending?<Loader2 className="h-4 w-4 animate-spin"/>:<Play className="h-4 w-4"/>}{scan.isPending?"Analisando…":"Executar varredura"}</button></div>{scanError&&<div className="mt-3 rounded-md bg-error-bg px-3 py-2 text-[12px] text-error">{scanError}</div>}</Card>
+    {report&&<MockReport report={report} />}
+  </div>;
 }
 
-function ComplianceCard() {
-  const fn = useServerFn(getComplianceSnapshot);
-  const { data, isLoading } = useQuery({ queryKey: ["compliance-snapshot"], queryFn: () => fn() });
-
-  function downloadAuditCsv() {
-    if (!data) return;
-    const header = ["ocorrido_em", "acao", "ator", "tipo", "detalhe"];
-    const rows = data.auditLogs.map((r: any) => [
-      r.occurred_at,
-      r.action,
-      r.actor_name,
-      r.actor_type,
-      (r.detail ?? "").replace(/"/g, '""'),
-    ]);
-    const csv = [header, ...rows].map((r: any[]) => r.map((c: any) => `"${c}"`).join(",")).join("\n");
-    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `audit-logs-${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-  }
-
-  if (isLoading || !data) {
-    return (
-      <Card>
-        <div className="flex items-center gap-2 text-[12px] text-text-sec">
-          <Loader2 className="h-4 w-4 animate-spin" /> Carregando conformidade…
-        </div>
-      </Card>
-    );
-  }
-  return (
-    <Card>
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <div className="text-[15px] font-semibold text-text-title">Conformidade (LGPD) — últimos 30 dias</div>
-          <p className="mt-1 text-[12.5px] text-text-sec">
-            Opt-outs, supressões de contato, consentimentos e trilha de auditoria. Exporte quando necessário.
-          </p>
-        </div>
-        <button onClick={downloadAuditCsv}
-          className="inline-flex items-center gap-2 rounded-md border border-border-card bg-bg-card px-3 py-1.5 text-[12px] text-text-body hover:bg-bg-general">
-          <Download className="h-3.5 w-3.5" /> Auditoria (CSV)
-        </button>
-      </div>
-      <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-4">
-        <div className="rounded-md border border-border-card bg-bg-general p-2.5">
-          <div className="text-[10px] uppercase text-text-ter">Opt-outs ativos</div>
-          <div className="text-[20px] font-semibold text-hot">{data.optOutLeads.length}</div>
-        </div>
-        <div className="rounded-md border border-border-card bg-bg-general p-2.5">
-          <div className="text-[10px] uppercase text-text-ter">Supressões</div>
-          <div className="text-[20px] font-semibold text-warm">{data.suppressions.length}</div>
-        </div>
-        <div className="rounded-md border border-border-card bg-bg-general p-2.5">
-          <div className="text-[10px] uppercase text-text-ter">Eventos de consentimento</div>
-          <div className="text-[20px] font-semibold text-primary">{data.recentConsent.length}</div>
-        </div>
-        <div className="rounded-md border border-border-card bg-bg-general p-2.5">
-          <div className="text-[10px] uppercase text-text-ter">Logs de auditoria</div>
-          <div className="text-[20px] font-semibold text-text-title">{data.auditLogs.length}</div>
-        </div>
-      </div>
-      <div className="mt-3 grid grid-cols-1 gap-3 md:grid-cols-2">
-        <div>
-          <div className="mb-1 text-[12px] font-semibold text-text-title">Opt-outs recentes</div>
-          {data.optOutLeads.length === 0 ? (
-            <div className="text-[12px] text-text-ter">Nenhum lead com opt-out.</div>
-          ) : (
-            <ul className="max-h-40 space-y-1 overflow-y-auto text-[11.5px]">
-              {data.optOutLeads.slice(0, 20).map((l: any) => (
-                <li key={l.id} className="flex justify-between gap-2 rounded-md border border-border-card bg-bg-general px-2 py-1">
-                  <span className="truncate text-text-body">{l.company}{l.contact ? ` · ${l.contact}` : ""}</span>
-                  <span className="shrink-0 text-text-ter">{new Date(l.updated_at).toLocaleDateString("pt-BR")}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-        <div>
-          <div className="mb-1 text-[12px] font-semibold text-text-title">Eventos de consentimento</div>
-          {data.consentSummary.length === 0 ? (
-            <div className="text-[12px] text-text-ter">Sem registros no período.</div>
-          ) : (
-            <ul className="space-y-1 text-[11.5px]">
-              {data.consentSummary.map((c) => (
-                <li key={c.event} className="flex justify-between rounded-md border border-border-card bg-bg-general px-2 py-1">
-                  <span className="capitalize text-text-body">{c.event.replace(/_/g, " ")}</span>
-                  <span className="font-semibold text-primary">{c.count}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </div>
-    </Card>
-  );
+function OperationalCenter({status,loading,refreshing,busy,onRefresh,onAction}:{status:OperationalStatus|undefined;loading:boolean;refreshing:boolean;busy:boolean;onRefresh:()=>void;onAction:(name:string,extra?:Record<string,unknown>)=>void}){
+  if(loading||!status)return <Card><div className="flex items-center gap-2 p-3 text-[12px] text-text-sec"><Loader2 className="h-4 w-4 animate-spin"/>Verificando backend, canais e worker…</div></Card>;
+  const webhook=status.checks.find((c)=>c.id==="whatsapp_webhook"),scheduler=status.checks.find((c)=>c.id==="scheduler");
+  return <div className="space-y-4">
+    <Card className={status.mode==="real"?"border-success/40":"border-warm/40"}><div className="flex flex-wrap items-start justify-between gap-4"><div className="flex gap-3"><div className={`mt-0.5 rounded-full p-2 ${status.mode==="real"?"bg-success-bg text-success":"bg-warm-bg text-warm"}`}><Radio className="h-5 w-5"/></div><div><div className="text-[16px] font-semibold text-text-title">{status.modeLabel}</div><div className="mt-1 max-w-2xl text-[12px] text-text-sec">{status.mode==="real"?"Envios e automações reais estão liberados pelas regras do servidor.":"Dados e configurações podem ser validados com segurança; saídas reais continuam bloqueadas pelo servidor."}</div></div></div><div className="flex flex-wrap gap-2"><button onClick={onRefresh} disabled={refreshing} className="inline-flex items-center gap-1.5 rounded-md border border-border-card px-3 py-2 text-[12px]"><RefreshCw className={`h-3.5 w-3.5 ${refreshing?"animate-spin":""}`}/>Atualizar</button>{status.mode==="real"?<button onClick={()=>onAction("set_mode",{mode:"demo"})} disabled={busy} className="rounded-md border border-border-card px-3 py-2 text-[12px]">Voltar para Demonstração</button>:<button onClick={()=>onAction("set_mode",{mode:"real"})} disabled={busy||!status.productionReady} title={!status.productionReady?"Conclua os itens pendentes abaixo.":"Ativar operação real"} className="rounded-md bg-success px-3 py-2 text-[12px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40">Ativar Ambiente Real</button>}</div></div></Card>
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{status.checks.map((check)=><div key={check.id} className={`rounded-lg border p-3 ${check.ok?"border-success/25 bg-success-bg/40":"border-warm/35 bg-warm-bg/40"}`}><div className="flex items-start gap-2">{check.ok?<CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success"/>:<AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-warm"/>}<div><div className="text-[12px] font-semibold text-text-title">{check.label}</div><div className="mt-1 text-[10.5px] leading-relaxed text-text-sec">{check.detail}</div></div></div></div>)}</div>
+    {!webhook?.ok&&<Card><div className="grid gap-4 lg:grid-cols-[1fr_auto]"><div><div className="flex items-center gap-2 text-[13px] font-semibold text-text-title"><Smartphone className="h-4 w-4 text-primary"/>Homologação real do WhatsApp</div><p className="mt-1 text-[11.5px] leading-relaxed text-text-sec">{status.webhookDiagnostic?.detail||webhook?.detail}</p>{status.webhookDiagnostic?.testLead&&<div className="mt-3 rounded-md bg-bg-general p-3 text-[11px]"><div className="font-semibold text-text-title">Lead indicado para o teste: {status.webhookDiagnostic.testLead.label}</div><div className="mt-1 text-text-sec">Use o WhatsApp já cadastrado neste lead, final <strong>{status.webhookDiagnostic.testLead.phoneSuffix}</strong>. Envie uma mensagem comum para o número da Wayflex e volte aqui em seguida. A homologação só fica verde se o callback real for ligado ao lead e processado.</div></div>}</div><div className="flex items-center"><button onClick={()=>onAction("configure_whatsapp_webhook")} disabled={busy} className="rounded-md bg-primary px-3 py-2 text-[12px] font-medium text-primary-foreground">Registrar/atualizar webhook</button></div></div></Card>}
+    {!scheduler?.ok&&<Card><div className="flex flex-wrap items-center justify-between gap-3"><div className="flex gap-2"><ServerCog className="mt-0.5 h-4 w-4 text-primary"/><div><div className="text-[12px] font-semibold text-text-title">Worker 24/7</div><div className="text-[11px] text-text-sec">A fila precisa funcionar sem navegador aberto.</div></div></div><button onClick={()=>onAction("activate_scheduler")} disabled={busy} className="rounded-md bg-primary px-3 py-2 text-[12px] text-primary-foreground">Ativar worker</button></div></Card>}
+    {!status.productionReady&&<Card className="border-warm/30"><div className="flex gap-2"><LockKeyhole className="mt-0.5 h-4 w-4 text-warm"/><div><div className="text-[12px] font-semibold text-text-title">Produção protegida</div><div className="mt-1 text-[11px] text-text-sec">O botão de Ambiente Real permanece bloqueado até todos os checks obrigatórios serem comprovados pelo servidor. Nenhum status visual consegue contornar essa regra.</div></div></div></Card>}
+  </div>;
 }
+
+function MockReport({report}:{report:MockScanReport}){const total=report.findings.length;function csv(){const rows=[["tabela","id","coluna","valor","motivo","severidade"],...report.findings.map(f=>[f.table,f.id??"",f.column,f.value??"",f.reason,f.severity])];const blob=new Blob([rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(",")).join("\n")],{type:"text/csv;charset=utf-8"});const url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=`diagnostico-dados-${new Date().toISOString().slice(0,10)}.csv`;a.click();URL.revokeObjectURL(url)}return <Card><div className="flex items-center justify-between"><SectionTitle title={`Resultado da varredura · ${total} suspeita(s)`} hint={`${report.totals.reduce((a,t)=>a+t.rows,0)} registros analisados`} /><button onClick={csv} className="inline-flex items-center gap-1.5 rounded-md border border-border-card px-3 py-1.5 text-[11px]"><Download className="h-3.5 w-3.5"/>CSV</button></div>{!total?<div className="rounded-md bg-success-bg p-3 text-[12px] text-success"><CheckCircle2 className="mr-1 inline h-4 w-4"/>Nenhum padrão de simulação encontrado.</div>:<div className="overflow-x-auto"><table className="w-full text-[11.5px]"><thead className="text-left text-[10px] uppercase text-text-ter"><tr><th className="pb-2">Nível</th><th className="pb-2">Tabela</th><th className="pb-2">Campo</th><th className="pb-2">Motivo</th><th className="pb-2">ID</th></tr></thead><tbody className="divide-y divide-border-card">{report.findings.map((f,i)=><tr key={`${f.id}-${i}`}><td className="py-2"><span className={`rounded-full px-2 py-0.5 text-[9px] uppercase ${SEV_STYLE[f.severity]}`}>{f.severity}</span></td><td className="py-2 font-medium">{f.table}</td><td className="py-2">{f.column}</td><td className="py-2 text-text-sec">{f.reason}</td><td className="py-2 font-mono text-[9px] text-text-ter">{f.id?.slice(0,8)||"—"}</td></tr>)}</tbody></table></div>}</Card>}
+
+function ComplianceCard(){const fn=useServerFn(getComplianceSnapshot);const{data,isLoading}=useQuery({queryKey:["compliance-snapshot"],queryFn:()=>fn()});if(isLoading||!data)return <Card><div className="flex items-center gap-2 text-[12px] text-text-sec"><Loader2 className="h-4 w-4 animate-spin"/>Carregando conformidade…</div></Card>;return <Card><SectionTitle title="LGPD e rastreabilidade · 30 dias" hint="Dados reais de opt-out, supressão, consentimento e auditoria"/><div className="grid gap-3 sm:grid-cols-4"><Compliance label="Opt-outs ativos" value={data.optOutLeads.length}/><Compliance label="Supressões" value={data.suppressions.length}/><Compliance label="Consentimentos" value={data.recentConsent.length}/><Compliance label="Logs de auditoria" value={data.auditLogs.length}/></div><div className="mt-3 flex items-start gap-2 rounded-md bg-bg-general p-3 text-[10.5px] text-text-sec"><Database className="mt-0.5 h-3.5 w-3.5"/>A auditoria é separada da homologação operacional: um sistema pode ter dados limpos e ainda assim permanecer bloqueado para produção se uma integração crítica não estiver comprovada.</div></Card>}
+function Compliance({label,value}:{label:string;value:number}){return <div className="rounded-md border border-border-card bg-bg-general p-3"><div className="text-[10px] uppercase text-text-ter">{label}</div><div className="mt-1 text-[20px] font-semibold text-text-title">{value}</div></div>}
