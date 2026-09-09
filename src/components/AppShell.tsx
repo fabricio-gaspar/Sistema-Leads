@@ -2,7 +2,6 @@ import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   LayoutDashboard,
-  Building2,
   Search,
   Users,
   MessagesSquare,
@@ -30,12 +29,10 @@ import { supabase } from "@/integrations/supabase/client";
 
 const NAV = [
   { to: "/", label: "Dashboard", icon: LayoutDashboard },
-  { to: "/empresa", label: "Minha Empresa", icon: Building2 },
   { to: "/prospeccao", label: "Prospecção", icon: Search },
   { to: "/leads", label: "Leads", icon: Users },
   { to: "/atendimento", label: "Central de Atendimento", icon: MessagesSquare },
   { to: "/orcamentos", label: "Orçamentos", icon: FileText },
-  { to: "/pedidos", label: "Pedidos", icon: ShoppingCart },
   { to: "/relatorios", label: "Relatórios", icon: BarChart3 },
   { to: "/diagnostico", label: "Diagnóstico", icon: ShieldAlert },
   { to: "/configuracoes", label: "Configurações", icon: Settings },
@@ -81,7 +78,7 @@ export function AppShell({
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const title =
     TITLES[pathname] ??
-    (pathname.startsWith("/leads/") ? "Detalhe do Lead" : "WF Digital CRM");
+    (pathname.startsWith("/leads/") ? "Detalhe do Lead" : "Wayflex CRM");
 
   // Matriz de navegação por papel (mesma de _authenticated/route.tsx)
   const visibleNav = NAV.filter((item) => {
@@ -146,7 +143,7 @@ export function AppShell({
             WF
           </div>
           <div className="leading-tight">
-            <div className="text-sm font-semibold text-white">WF Digital</div>
+            <div className="text-sm font-semibold text-white">WAYFLEX</div>
             <div className="text-[11px] text-sidebar-foreground/60">CRM</div>
           </div>
         </div>
@@ -402,8 +399,7 @@ function SearchResults({ res, onPick }: { res: SearchResData | undefined; onPick
   if (!res) {
     return <div className="p-4 text-[12px] text-text-ter">Buscando…</div>;
   }
-  const empty =
-    res.leads.length === 0 && res.proposals.length === 0 && res.orders.length === 0;
+  const empty = res.leads.length === 0 && res.proposals.length === 0;
   if (empty) {
     return <div className="p-4 text-[12px] text-text-ter">Nenhum resultado.</div>;
   }
@@ -438,20 +434,6 @@ function SearchResults({ res, onPick }: { res: SearchResData | undefined; onPick
         >
           <span className="font-mono text-[11px] text-text-sec">{p.number}</span>
           <span className="ml-2 truncate text-text-title">{p.client}</span>
-        </Link>
-      ))}
-      {res.orders.length > 0 && (
-        <div className="px-3 pt-2 pb-1 text-[10px] uppercase text-text-ter">Pedidos</div>
-      )}
-      {res.orders.map((o) => (
-        <Link
-          key={o.id}
-          to="/pedidos"
-          onClick={onPick}
-          className="flex items-center justify-between px-3 py-2 text-[12.5px] hover:bg-bg-general"
-        >
-          <span className="font-mono text-[11px] text-text-sec">{o.number}</span>
-          <span className="ml-2 truncate text-text-title">{o.company}</span>
         </Link>
       ))}
     </div>
