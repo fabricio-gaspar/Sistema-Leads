@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useQuery } from "@tanstack/react-query";
 import { useServerFn } from "@tanstack/react-start";
-import { Users, MessagesSquare, FileText, ShoppingCart, TrendingUp, Bot, Flame, Loader2 } from "lucide-react";
+import { Users, MessagesSquare, FileText, TrendingUp, Bot, Flame, Loader2 } from "lucide-react";
 import { Card, SectionTitle } from "@/components/ui-kit";
 import { formatBRL } from "@/lib/leads-data";
 import { getDashboardStats } from "@/lib/crm.functions";
@@ -18,7 +18,7 @@ function Dashboard() {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid gap-4 md:grid-cols-3">
         <StatCard
           icon={Users}
           label="Leads ativos"
@@ -33,15 +33,9 @@ function Dashboard() {
         />
         <StatCard
           icon={FileText}
-          label="Propostas abertas"
+          label="Orçamentos abertos"
           value={val(data?.proposalsOpen)}
           hint={data ? formatBRL(data.proposalsValue) : ""}
-        />
-        <StatCard
-          icon={ShoppingCart}
-          label="Pedidos do mês"
-          value={val(data?.ordersMonthCount)}
-          hint={data ? formatBRL(data.ordersMonthValue) : ""}
         />
       </div>
 
@@ -62,7 +56,6 @@ function Dashboard() {
                 <QuickLink to="/prospeccao" icon={Bot} label="Prospecção com Ana" />
                 <QuickLink to="/atendimento" icon={MessagesSquare} label="Atendimento" />
                 <QuickLink to="/orcamentos" icon={FileText} label="Orçamentos" />
-                <QuickLink to="/pedidos" icon={ShoppingCart} label="Pedidos" />
                 <QuickLink to="/relatorios" icon={TrendingUp} label="Relatórios" />
               </div>
             )}
@@ -79,7 +72,7 @@ function Dashboard() {
               <Bot className="h-4 w-4 text-ia" /> Ana respondeu {data?.messagesAnaToday ?? 0} conversas hoje
             </li>
             <li className="flex items-center gap-2 text-text-body">
-              <FileText className="h-4 w-4 text-primary" /> {data?.proposalsOpen ?? 0} propostas em aberto
+              <FileText className="h-4 w-4 text-primary" /> {data?.proposalsOpen ?? 0} orçamentos em aberto
             </li>
           </ul>
         </Card>
