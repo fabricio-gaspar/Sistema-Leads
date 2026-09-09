@@ -6,15 +6,18 @@ import { Flame, Thermometer, Snowflake, Bot, User as UserIcon, Plus, Download, L
 import { toast } from "sonner";
 import { formatBRL } from "@/lib/leads-data";
 import { downloadCSV } from "@/lib/exports";
-import { createLead, listLeads, moveLeadStage, deleteLead } from "@/lib/crm.functions";
+import { createLead, listLeads, deleteLead } from "@/lib/crm.functions";
+import {
+  listCommercialStages,
+  moveLeadCommercialStage,
+  type CommercialStage,
+} from "@/lib/commercial-pipeline.functions";
 import type { Database } from "@/integrations/supabase/types";
 
 type LeadRow = Database["public"]["Tables"]["leads"]["Row"];
-type Stage = Database["public"]["Enums"]["lead_stage"];
+type Stage = CommercialStage;
 
 export const Route = createFileRoute("/_authenticated/leads")({ component: LeadsPage });
-
-const STAGES: Stage[] = ["Prospecção", "Qualificado", "Proposta", "Negociação", "Pedido", "Fechado", "Perdido"];
 
 function LeadsPage() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
@@ -25,7 +28,8 @@ function LeadsPage() {
 function Kanban() {
   const qc = useQueryClient();
   const listFn = useServerFn(listLeads);
-  const moveFn = useServerFn(moveLeadStage);
+  const stagesFn = useServerFn(listCommercialStages);
+  const moveFn = useServerFn(moveLeadCommercialStage);
   const createFn = useServerFn(createLead);
   const delFn = useServerFn(deleteLead);
 
@@ -33,10 +37,15 @@ function Kanban() {
     queryKey: ["leads"],
     queryFn: () => listFn(),
   });
+  const { data: stageRows = [], isLoading: stagesLoading, error: stagesError } = useQuery({
+    queryKey: ["commercial-stages"],
+    queryFn: () => stagesFn(),
+  });
 
   const moveMut = useMutation({
     mutationFn: (v: { id: string; stage: Stage }) => moveFn({ data: v }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["leads"] }),
+    onError: (e: Error) => toast.error(e.message),
   });
   const delMut = useMutation({
     mutationFn: (id: string) => delFn({ data: { id } }),
@@ -44,15 +53,22 @@ function Kanban() {
     onError: (e: Error) => toast.error(e.message),
   });
   const archiveMut = useMutation({
-    mutationFn: (id: string) => moveFn({ data: { id, stage: "Perdido" as Stage } }),
+    mutationFn: (id: string) => moveFn({ data: { id, stage: "Perdido" } }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["leads"] }); toast.success("Lead arquivado como Perdido"); },
+    onError: (e: Error) => toast.error(e.message),
   });
 
   const [dragId, setDragId] = useState<string | null>(null);
   const [overStage, setOverStage] = useState<Stage | null>(null);
   const [showNew, setShowNew] = useState(false);
 
-  const byStage = (s: Stage) => leads.filter((l) => l.stage === s);
+  const stageIdByName = new Map(stageRows.map((stage) => [stage.name as Stage, stage.id]));
+  const stageNameById = new Map(stageRows.map((stage) => [stage.id, stage.name as Stage]));
+  const stages = stageRows.map((stage) => stage.name as Stage);
+  const byStage = (s: Stage) => {
+    const stageId = stageIdByName.get(s);
+    return stageId ? leads.filter((lead) => lead.pipeline_stage_id === stageId) : [];
+  };
   const total = leads.length;
   const valorTotal = leads.reduce((a, l) => a + Number(l.value || 0), 0);
   const parados = leads.filter((l) => (l.stale_hours ?? 0) >= 48).length;
@@ -60,7 +76,8 @@ function Kanban() {
   const onDrop = (stage: Stage) => {
     if (dragId) {
       const cur = leads.find((l) => l.id === dragId);
-      if (cur && cur.stage !== stage) moveMut.mutate({ id: dragId, stage });
+      const targetStageId = stageIdByName.get(stage);
+      if (cur && targetStageId && cur.pipeline_stage_id !== targetStageId) moveMut.mutate({ id: dragId, stage });
     }
     setDragId(null);
     setOverStage(null);
@@ -81,15 +98,15 @@ function Kanban() {
         Valor: Number(l.value || 0),
         Score: l.score,
         Temperatura: l.temp,
-        Estagio: l.stage,
+        Estagio: stageNameById.get(l.pipeline_stage_id ?? "") ?? l.ana_stage ?? "Novo",
         Origem: l.origin ?? "",
       })),
     );
 
-  if (error) {
+  if (error || stagesError) {
     return (
       <div className="rounded-md border border-error/40 bg-error-bg p-4 text-[13px] text-error">
-        Erro ao carregar leads: {(error as Error).message}
+        Erro ao carregar pipeline: {((error ?? stagesError) as Error).message}
       </div>
     );
   }
@@ -119,14 +136,14 @@ function Kanban() {
         </div>
       </div>
 
-      {isLoading ? (
+      {isLoading || stagesLoading ? (
         <div className="flex flex-1 items-center justify-center text-text-sec">
           <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Carregando leads…
         </div>
       ) : (
         <div className="flex-1 overflow-x-auto">
           <div className="flex h-full min-w-max gap-3 pb-2">
-            {STAGES.map((s) => {
+            {stages.map((s) => {
               const items = byStage(s);
               const stageValor = items.reduce((a, l) => a + Number(l.value || 0), 0);
               const isOver = overStage === s;
@@ -180,10 +197,16 @@ function Kanban() {
 
       {showNew && (
         <NewLeadModal
+          stages={stages}
           onClose={() => setShowNew(false)}
           onCreate={async (payload) => {
-            await createFn({ data: payload });
-            qc.invalidateQueries({ queryKey: ["leads"] });
+            const { stage, ...leadPayload } = payload;
+            const created = await createFn({ data: leadPayload });
+            if (stage !== "Novo") await moveFn({ data: { id: created.id, stage } });
+            await Promise.all([
+              qc.invalidateQueries({ queryKey: ["leads"] }),
+              qc.invalidateQueries({ queryKey: ["commercial-stages"] }),
+            ]);
             setShowNew(false);
           }}
         />
@@ -311,7 +334,6 @@ function ChannelBadges({ lead }: { lead: LeadRow }) {
   );
 }
 
-
 export function TempBadge({ t, score }: { t: "hot" | "warm" | "cold"; score?: number }) {
   const map = {
     hot: { Icon: Flame, cls: "bg-hot-bg text-hot", label: "Hot" },
@@ -328,9 +350,11 @@ export function TempBadge({ t, score }: { t: "hot" | "warm" | "cold"; score?: nu
 }
 
 function NewLeadModal({
+  stages,
   onClose,
   onCreate,
 }: {
+  stages: Stage[];
   onClose: () => void;
   onCreate: (v: {
     company: string;
@@ -340,7 +364,7 @@ function NewLeadModal({
     segment?: string;
     value?: number;
     temp?: "hot" | "warm" | "cold";
-    stage?: Stage;
+    stage: Stage;
   }) => Promise<void>;
 }) {
   const [form, setForm] = useState({
@@ -351,7 +375,7 @@ function NewLeadModal({
     segment: "",
     value: "",
     temp: "warm" as "hot" | "warm" | "cold",
-    stage: "Prospecção" as Stage,
+    stage: "Novo" as Stage,
   });
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -456,7 +480,7 @@ function NewLeadModal({
                 onChange={(e) => setForm({ ...form, stage: e.target.value as Stage })}
                 className="h-9 w-full rounded-md border border-border-card bg-bg-card px-2 text-[13px] outline-none focus:border-primary"
               >
-                {STAGES.map((s) => (
+                {stages.map((s) => (
                   <option key={s}>{s}</option>
                 ))}
               </select>
