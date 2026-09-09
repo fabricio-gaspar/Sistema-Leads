@@ -21,6 +21,8 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true,
     "paths": {
+      "@/lib/prospecting.functions": ["./src/lib/prospecting-secure.functions.ts"],
+      "@/lib/sales-automation.functions": ["./src/lib/sales-automation-secure.functions.ts"],
       "@/*": ["./src/*"]
     }
   }

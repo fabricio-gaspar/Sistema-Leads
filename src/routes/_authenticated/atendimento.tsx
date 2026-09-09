@@ -42,8 +42,9 @@ import {
   updateCentralTicket,
 } from "@/lib/central-operations.functions";
 import type { Database } from "@/integrations/supabase/types";
+import type { CurrentLeadRow } from "@/integrations/supabase/schema-current";
 
-type LeadRow = Database["public"]["Tables"]["leads"]["Row"];
+type LeadRow = CurrentLeadRow;
 type MsgRow = Database["public"]["Tables"]["lead_messages"]["Row"];
 type OutreachRow = Database["public"]["Tables"]["lead_outreach"]["Row"];
 type AttachmentRow = {
@@ -68,11 +69,12 @@ function Atendimento() {
   const { isAdmin } = Route.useRouteContext();
   const listFn = useServerFn(listLeads);
   const teamFn = useServerFn(listTeam);
-  const { data: leads = [], isLoading } = useQuery<LeadRow[]>({
+  const { data: queriedLeads = [], isLoading } = useQuery({
     queryKey: ["leads"],
     queryFn: () => listFn(),
     refetchInterval: 30_000,
   });
+  const leads = queriedLeads as unknown as LeadRow[];
   const { data: team = [] } = useQuery<TeamMember[]>({
     queryKey: ["central-team"],
     queryFn: () => teamFn(),
@@ -104,8 +106,8 @@ function Atendimento() {
     return sellerScoped.filter((lead) => {
       if (term && ![lead.company, lead.contact, lead.email, lead.phone]
         .some((value) => value?.toLocaleLowerCase("pt-BR").includes(term))) return false;
-      if (queueFilter === "ia" && lead.owner !== "ia") return false;
-      if (queueFilter === "humano" && lead.owner !== "human") return false;
+      if (queueFilter === "ia" && lead.modo_atendimento !== "ia") return false;
+      if (queueFilter === "humano" && lead.modo_atendimento !== "humano") return false;
       if (queueFilter === "pendente" && !isPending(lead)) return false;
       if (queueFilter === "encerrados" && !isClosed(lead)) return false;
       if (queueFilter !== "encerrados" && queueFilter !== "todos" && isClosed(lead)) return false;
@@ -117,6 +119,7 @@ function Atendimento() {
   const contacted = sellerScoped.filter(hasContactAttempt).length;
   const replies = sellerScoped.filter(hasReply).length;
   const qualified = sellerScoped.filter((lead) =>
+    ["qualificando", "reuniao", "orcamento", "fechado"].includes(lead.ana_stage ?? "") ||
     ["Qualificado", "Proposta", "Negociação", "Pedido", "Fechado"].includes(lead.stage),
   ).length;
 
@@ -230,6 +233,7 @@ function LeadQueueItem({
   onSelect: () => void;
 }) {
   const wait = waitMin(lead.last_contact);
+  const isAI = lead.modo_atendimento === "ia";
   return (
     <li>
       <button
@@ -241,12 +245,12 @@ function LeadQueueItem({
             <div className="truncate text-[13px] font-medium text-text-title">{lead.company}</div>
             <div className="truncate text-[11.5px] text-text-sec">{lead.contact || "Contato não informado"}</div>
           </div>
-          <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${lead.owner === "ia" ? "bg-ia-bg text-ia" : "bg-primary/10 text-primary"}`}>
-            {lead.owner === "ia" ? "IA" : "Humano"}
+          <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${isAI ? "bg-ia-bg text-ia" : "bg-primary/10 text-primary"}`}>
+            {isAI ? "IA" : "Humano"}
           </span>
         </div>
         <div className="mt-2 flex items-center justify-between gap-2 text-[10.5px] text-text-ter">
-          <span className="truncate">{lead.stage} · {responsible}</span>
+          <span className="truncate">{commercialStageLabel(lead)} · {responsible}</span>
           <span className="shrink-0">{wait == null ? "Sem contato" : wait < 60 ? `${wait}min` : `${Math.floor(wait / 60)}h`}</span>
         </div>
         <div className="mt-2 flex gap-1">
@@ -347,14 +351,14 @@ function ConversationPane({
   const canSend = !!(lead.whatsapp || lead.phone || lead.instagram_user_id) && !lead.opt_out;
   const composerChannel = lead.instagram_user_id && !(lead.whatsapp || lead.phone) ? "Instagram" : "WhatsApp";
   const inferredSeller = sellers.some((seller) => seller.id === lead.owner_id) ? lead.owner_id : null;
-  const selectedSeller = lead.assigned_to || (lead.owner === "human" ? inferredSeller : null) || "";
+  const selectedSeller = lead.assigned_to || (lead.modo_atendimento === "humano" ? inferredSeller : null) || "";
 
   return (
     <Card padded={false} className="flex min-h-[680px] flex-col overflow-hidden">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border-card p-4">
         <div className="min-w-0">
           <div className="truncate text-[15px] font-semibold text-text-title">{lead.company}</div>
-          <div className="text-[12px] text-text-sec">{lead.contact || "Contato não informado"} · {lead.stage}</div>
+          <div className="text-[12px] text-text-sec">{lead.contact || "Contato não informado"} · {commercialStageLabel(lead)}</div>
           <div className="mt-1 text-[11px] text-text-ter">Responsável: {responsible}</div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -635,8 +639,9 @@ function Metric({ label, value, icon }: { label: string; value: number; icon: Re
 }
 
 function MessageBubble({ message, attachments }: { message: MsgRow; attachments: AttachmentRow[] }) {
-  const mine = message.sender !== "client";
-  const isAI = message.sender === "ia";
+  const sender = String(message.sender);
+  const mine = sender !== "lead" && sender !== "client";
+  const isAI = sender === "ana" || sender === "ia";
   return (
     <div className={`flex ${mine ? "justify-end" : "justify-start"}`}>
       <div className={`max-w-[75%] rounded-2xl px-3.5 py-2 text-[13px] shadow-sm ${mine ? isAI ? "rounded-br-sm bg-ia text-white" : "rounded-br-sm bg-primary text-primary-foreground" : "rounded-bl-sm border border-border-card bg-bg-card text-text-title"}`}>
@@ -678,18 +683,32 @@ function StatusBadge({ status }: { status: OutreachRow["status"] }) {
 }
 
 function responsibleId(lead: LeadRow) {
-  return lead.assigned_to || (lead.owner === "human" ? lead.owner_id : null);
+  return lead.assigned_to || (lead.modo_atendimento === "humano" ? lead.owner_id : null);
 }
 
 function responsibleLabel(lead: LeadRow, names: Map<string, string>) {
+  if (lead.modo_atendimento === "ia") return "Ana (IA)";
   if (lead.assigned_to) return names.get(lead.assigned_to) || "Vendedor atribuído";
-  if (lead.owner === "ia") return "Ana (IA)";
   if (lead.owner_id) return names.get(lead.owner_id) || "Vendedor responsável";
   return "Sem responsável";
 }
 
+function commercialStageLabel(lead: LeadRow) {
+  if (lead.ana_outcome === "ganho") return "Ganho";
+  if (lead.ana_outcome === "perdido") return "Perdido";
+  const labels: Record<string, string> = {
+    novo: "Novo",
+    apresentado: "Apresentado",
+    qualificando: "Qualificando",
+    reuniao: "Reunião",
+    orcamento: "Orçamento",
+    fechado: "Ganho / Perdido",
+  };
+  return (lead.ana_stage && labels[lead.ana_stage]) || lead.stage;
+}
+
 function isClosed(lead: LeadRow) {
-  return lead.stage === "Fechado" || lead.stage === "Perdido";
+  return lead.ana_outcome === "ganho" || lead.ana_outcome === "perdido" || lead.stage === "Fechado" || lead.stage === "Perdido";
 }
 
 function isPending(lead: LeadRow) {
