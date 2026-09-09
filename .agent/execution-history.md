@@ -54,4 +54,5 @@
   sem marcador de teste ficou preservado para revisão; não foram encontrados órfãos nas tabelas
   verificadas. O audit log append-only preservou o histórico de governança.
 - Publicadas: `operational-diagnostics` v4 e `configurar-integracao` v13.
-- Typecheck frontend/Edge, lint, 110 testes e build aprovados. Publicação e commit pendentes.
+- Typecheck frontend/Edge, lint, 110 testes e build aprovados. Site privado publicado como
+  versão 50 a partir do commit `1e2f3f406e0406c3c081d447ebbbb23510690045`.

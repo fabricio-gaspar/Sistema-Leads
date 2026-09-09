@@ -90,7 +90,8 @@ RLS entre duas empresas e QA mobile autenticado.
 
 ## Lote mais recente, ainda sem nova publicação
 
-- Commit validado: `64dc4dd1b696576781316244f38a1c913bffeb31`.
+- Commit validado e publicado: `1e2f3f406e0406c3c081d447ebbbb23510690045`.
+- Prévia privada atual: Site versão 50.
 - Ambiente de Demonstração segue ativo no banco. O Ambiente Real continua bloqueado até a
   pré-verificação aprovar empresa, Ana, kill switch, IA, WhatsApp, webhook e scheduler.
 - Nove leads de demonstração confirmados e seus vínculos operacionais foram removidos. O lead
