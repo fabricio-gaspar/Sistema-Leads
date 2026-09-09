@@ -1,12 +1,12 @@
 {
   "schema_version": 1,
   "baseline_version": 2,
-  "baseline_commit": "64dc4dd1b696576781316244f38a1c913bffeb31",
-  "last_audited_commit": "64dc4dd1b696576781316244f38a1c913bffeb31",
-  "current_head_at_update": "64dc4dd1b696576781316244f38a1c913bffeb31",
-  "working_tree_status": "validated_and_published",
+  "baseline_commit": "357bdb98adad24a2eaf2feb0ab75a083b8f1c1a8",
+  "last_audited_commit": "357bdb98adad24a2eaf2feb0ab75a083b8f1c1a8",
+  "current_head_at_update": "357bdb98adad24a2eaf2feb0ab75a083b8f1c1a8",
+  "working_tree_status": "validated_backend_and_frontend_pending_publication",
   "full_audit_required": false,
   "baseline_status": "validated",
-  "updated_at": "2026-09-09T20:05:00Z",
-  "next_action": "Manter Ambiente de Demonstração e homologar webhook, Claude e scheduler 24/7 em ambiente controlado antes de tentar Ambiente Real."
+  "updated_at": "2026-09-09T20:35:00Z",
+  "next_action": "Publicar a interface do assistente e, em sessão administrativa, usar Configurações > Status operacional para cadastrar a entrada Z-API e preparar o Worker 24/7; então confirmar callback e heartbeat antes de tentar Ambiente Real."
 }

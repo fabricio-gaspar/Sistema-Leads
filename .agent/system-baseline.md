@@ -31,6 +31,12 @@ orçamentos. Não é sistema de venda, checkout, pedido ou recebimento.
   Ambiente de Demonstração/Ambiente Real, com pré-flight e auditoria no backend. Produção segue bloqueada.
 - `integrations.category` separa persistentemente prospecção, comunicação, inteligência,
   agendamento e sistema. O painel não duplica o cofre nem a validação.
+- A saída Z-API é validada separadamente da entrada. O assistente cadastra o endpoint
+  oficial `update-webhook-received` no backend sem expor URL/token e só considera a
+  entrada homologada após callback real associado a um lead e processado pela Ana.
+- O cron `leadai-automation-worker-dispatch` está instalado no banco e chama o worker
+  com token por empresa do Vault após o administrador preparar o Worker 24/7. Em Demo,
+  o heartbeat é permitido, mas qualquer saída continua bloqueada pelo backend.
 - Nove dados de teste confirmados foram removidos com suas dependências. Um lead com inbound e
   sem marcador explícito de teste permanece preservado para revisão humana.
 - `operational-diagnostics` e `team-members` foram publicados.
@@ -40,7 +46,8 @@ orçamentos. Não é sistema de venda, checkout, pedido ou recebimento.
 ## Não declarar como concluído
 
 - Homologação real WhatsApp/Claude e E2E autenticado.
-- Worker 24/7 completo com lease/heartbeat/dead-letter/reconciliação.
+- Homologação do Worker 24/7 da WayFlex: a infraestrutura e o heartbeat existem, mas a
+  empresa ainda precisa ativá-lo no assistente e comprovar a primeira execução.
 - Pipeline multimídia completo (extração/OCR/transcrição/embeddings).
 - Remoção integral de stores/mocks operacionais e funções legadas.
 - Prontidão comercial sem nova auditoria final e piloto controlado.

@@ -8,7 +8,9 @@
 3. `ana-run` lê empresa, lead, histórico, catálogo, agenda e base aprovada.
 4. A decisão atualiza lead/estágio, cria tarefa/handoff/orçamento rascunho e, quando permitido,
    cria uma mensagem e `outreach_jobs`.
-5. `automation-worker` valida novamente políticas e provedor antes da saída.
+5. `private.dispatch_automation_workers` (cron) chama `automation-worker` a cada minuto
+   para empresas que ativaram o worker; um token por organização no Vault autentica a
+   chamada. O worker registra heartbeat e valida novamente políticas e provedor antes da saída.
 6. Central de Atendimento lê `leads` + `lead_messages`; Kanban lê e grava o mesmo lead.
 7. Registro do Sistema consolida auditoria, execuções, entrada, fila e riscos.
 
@@ -25,7 +27,7 @@
 ## Dependências de maior risco
 
 - `webhook-whatsapp` → `lead_messages` → `ana-run` → `outreach_jobs`.
-- `automation-worker` → Z-API → reconciliação de recibos.
+- `cron`/`pg_net` → `automation-worker` → Z-API → reconciliação de recibos.
 - `company_settings.sandbox_mode` e kill switch → todas as saídas automáticas. O painel os
   apresenta como Ambiente de Demonstração e Ambiente Real; a transição é validada no backend.
 - `integrations.category` → classificação persistida entre prospecção, comunicação,

@@ -103,3 +103,28 @@ RLS entre duas empresas e QA mobile autenticado.
 O sistema continua **não liberado para comercialização autônoma** enquanto os itens 1 a 3
 não forem homologados. Para retomar, começar pelo scheduler seguro ou pela homologação do
 webhook em ambiente controlado.
+
+## Lote atual — assistente de ativação de canal e worker
+
+- Commit de implementação: `357bdb98adad24a2eaf2feb0ab75a083b8f1c1a8`.
+- A conexão de saída Z-API da WayFlex está confirmada no banco. O antigo aviso foi
+  reescrito: ele não pede novamente a credencial; pede a **homologação da entrada de
+  respostas**, indispensável para que a Ana reaja ao lead.
+- Em **Configurações > Status operacional**, o assistente agora oferece:
+  1. **Cadastrar entrada na Z-API**: chama no backend o endpoint oficial
+     `PUT /update-webhook-received`, com URL e token protegidos no cofre. Depois, enviar
+     mensagem controlada a partir de um número já cadastrado como lead; o callback deve
+     aparecer como homologado somente depois de Ana processá-lo.
+  2. **Preparar worker 24/7**: não pede chave. Cria token interno por empresa no Vault e
+     habilita o cron do servidor. Em até um minuto, o card deve registrar heartbeat. No
+     Ambiente de Demonstração, essa verificação não envia mensagens.
+- Migration aplicada: `20260909182343_add_server_side_automation_dispatch`; cron ativo:
+  `leadai-automation-worker-dispatch` a cada minuto. O dispatcher retornou `0` enquanto
+  a WayFlex não ativa a integração scheduler, portanto nenhum efeito externo ocorreu.
+- Funções publicadas: `operational-diagnostics` v5, `automation-worker` v11 e
+  `webhook-whatsapp` v8. `automation-worker` só aceita sessão administrativa ou token
+  interno por organização; o acesso anônimo ao dispatcher de banco foi verificado como
+  negado.
+- Validação do lote: typecheck frontend/Edge, lint, 112 testes e build aprovados. Restam
+  a ação controlada do usuário no novo assistente, o callback Z-API e o primeiro heartbeat
+  para evidência de produção. O modo real continua bloqueado até isso ocorrer.

@@ -56,3 +56,20 @@
 - Publicadas: `operational-diagnostics` v4 e `configurar-integracao` v13.
 - Typecheck frontend/Edge, lint, 110 testes e build aprovados. Site privado publicado como
   versão 50 a partir do commit `1e2f3f406e0406c3c081d447ebbbb23510690045`.
+
+## 2026-09-09 — Assistente de entrada Z-API e Worker 24/7
+
+- Confirmado no banco: WhatsApp/Z-API de saída e Claude estavam validados; o item pendente
+  era a entrada de mensagens, não uma nova validação de credenciais.
+- O assistente agora cadastra somente o webhook oficial `PUT /update-webhook-received` pelo
+  backend, sem expor URL/token. A entrada só fica homologada após callback real vinculado
+  ao lead e processado pela Ana.
+- Migration `20260909182343_add_server_side_automation_dispatch` instalou o cron
+  `leadai-automation-worker-dispatch` por minuto. O botão prepara token por organização
+  no Vault; o worker aceita apenas esse token interno ou usuário administrador e grava
+  heartbeat sem liberar saída em Demo.
+- Publicadas: `automation-worker` v11 (`verify_jwt=false` com autenticação interna),
+  `operational-diagnostics` v5 e `webhook-whatsapp` v8.
+- Typecheck frontend/Edge, lint, 112 testes e build aprovados. O cron foi confirmado ativo;
+  como a integração scheduler da WayFlex segue desativada, a execução controlada retornou
+  zero despachos e nenhuma mensagem foi enviada.

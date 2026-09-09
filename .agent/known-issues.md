@@ -2,8 +2,9 @@
 
 ## Crítico
 
-- Worker de saída ainda não possui execução server-side completa com lease, heartbeat,
-  dead-letter e reconciliação automatizada.
+- O cron server-side e heartbeat do worker foram instalados, porém a empresa WayFlex ainda
+  não ativou o Worker 24/7 pelo assistente nem comprovou o primeiro heartbeat. Lease,
+  dead-letter e reconciliação ampliada continuam pendentes.
 - Fluxo real WhatsApp → Ana → resposta não foi homologado ponta a ponta com número autorizado.
 
 ## Alto
