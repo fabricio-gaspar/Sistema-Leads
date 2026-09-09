@@ -130,3 +130,40 @@ webhook em ambiente controlado.
   para evidência de produção. O modo real continua bloqueado até isso ocorrer.
 - Prévia privada publicada com sucesso como Site versão 51 a partir do commit
   `a202a3fb9c0c8c33b179d82b377bc9395d42b6ef`.
+
+## Lote atual — diagnóstico objetivo da homologação de respostas
+
+- Evidência consultada após o relato do usuário: a Z-API aceitou o cadastro da entrada às
+  `2026-09-09T18:32:29.026Z`, mas não há `webhook_events`, `channel_inbound_events`,
+  mensagens nem `agent_runs` novos após esse momento. Portanto, a mensagem de teste ainda
+  **não chegou ao endpoint do WayFlex**; não é falha da Ana, do modo Demo ou uma nova
+  exigência de credencial Z-API.
+- `operational-diagnostics` v6 adiciona diagnóstico de entrada baseado no servidor: sem
+  callback após o cadastro, callback sem lead correspondente, callback não suportado,
+  processamento pendente ou homologado. O pré-flight usa esse diagnóstico em vez de uma
+  frase genérica.
+- A interface mostra apenas o lead real disponível para teste, mascarando o telefone para os
+  quatro últimos dígitos, e separa “Atualizar diagnóstico” de “Recadastrar entrada”. Nenhum
+  lead fictício é criado e o Ambiente Real continua bloqueado até uma resposta efetivamente
+  recebida, vinculada e analisada.
+- Validação local: type-check frontend/Edge, lint, build e 113 testes aprovados. A função
+  publicada foi confirmada como `operational-diagnostics` v6, JWT obrigatório.
+
+## Consolidação oficial seletiva — 09/09/2026
+
+- O projeto atual do Work é a versão principal. A branch
+  `stabilize/production-readiness-2026-09-09` foi comparada por módulo e não foi aplicada por
+  cima do projeto.
+- Foram incorporados somente contratos comprovados: fontes das funções já implantadas,
+  migrations ausentes no repositório, pipeline canônico, matching de WhatsApp, handoff atômico,
+  RLS de mensagens/propostas e contrato de orçamentos.
+- `company_settings.sandbox_mode` permaneceu `true`; o gate de Ambiente Real recusou a mudança
+  em teste controlado porque a entrada WhatsApp ainda não está homologada.
+- O worker não é mais pendência: cron e heartbeat server-side estão ativos. O último callback
+  de teste foi de grupo e foi corretamente classificado como `non_direct_conversation`.
+- Evidência consolidada: typecheck frontend/Edge, lint sem warnings, 115 testes, build, criação
+  transacional de lead, telefone, pipeline, handoff, agenda, orçamento, ambiguidade WhatsApp,
+  bloqueio Demo/Real e RLS multiempresa aprovados.
+- Relatório completo: `docs/AUDITORIA_CONSOLIDACAO_2026-09-09.md`.
+- Próxima ação segura: publicar este checkpoint e, em Demo, receber uma mensagem individual de
+  um lead cadastrado para validar webhook → matching → histórico → `ana-run` exatamente uma vez.

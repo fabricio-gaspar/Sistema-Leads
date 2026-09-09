@@ -6,6 +6,12 @@ function formatDate(value: string | null): string {
   return value ? new Date(value).toLocaleString('pt-BR') : 'Ainda não registrado';
 }
 
+function inboundActionLabel(state: OperationalStatus['webhookDiagnostic']['state']): string {
+  if (state === 'not_configured') return 'Cadastrar entrada na Z-API';
+  if (state === 'homologated') return 'Entrada homologada';
+  return 'Recadastrar entrada';
+}
+
 export default function OperationalStatusTab() {
   const [status, setStatus] = useState<OperationalStatus | null>(null);
   const [loading, setLoading] = useState(true);
@@ -78,6 +84,9 @@ export default function OperationalStatusTab() {
 
   if (loading) return <div className="wf-surface p-6 text-sm text-foreground-500">Consultando o estado operacional…</div>;
   if (!status) return <div className="wf-surface p-6 text-sm text-accent-700">{error || 'Estado operacional indisponível.'}</div>;
+  const webhookCheck = status.checks.find((item) => item.id === 'whatsapp_webhook');
+  const whatsappCheck = status.checks.find((item) => item.id === 'whatsapp');
+  const inbound = status.webhookDiagnostic;
 
   return (
     <div className="space-y-5">
@@ -91,11 +100,14 @@ export default function OperationalStatusTab() {
         </div>
         <div className="grid gap-3 p-5 lg:grid-cols-2 md:p-6">
           <article className={`rounded-2xl border p-4 ${requestedSetup === 'whatsapp-webhook' ? 'border-[#0071E3]/40 bg-[#F2F7FF]' : 'border-background-200 bg-background-50/60'}`}>
-            <div className="flex items-start justify-between gap-3"><div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#0071E3]/10 text-[#0071E3]"><i className="ri-chat-check-line text-lg" /></div><span className={`rounded-full border px-2.5 py-1 font-mono text-[10px] font-semibold ${status.checks.find((item) => item.id === 'whatsapp_webhook')?.ok ? 'border-[#34C759]/25 bg-[#34C759]/10 text-[#237A3B]' : 'border-[#FF9500]/25 bg-[#FF9500]/10 text-[#B76100]'}`}>{status.checks.find((item) => item.id === 'whatsapp_webhook')?.ok ? 'HOMOLOGADO' : 'PENDENTE'}</span></div>
+            <div className="flex items-start justify-between gap-3"><div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#0071E3]/10 text-[#0071E3]"><i className="ri-chat-check-line text-lg" /></div><span className={`rounded-full border px-2.5 py-1 font-mono text-[10px] font-semibold ${webhookCheck?.ok ? 'border-[#34C759]/25 bg-[#34C759]/10 text-[#237A3B]' : 'border-[#FF9500]/25 bg-[#FF9500]/10 text-[#B76100]'}`}>{webhookCheck?.ok ? 'HOMOLOGADO' : 'PENDENTE'}</span></div>
             <h3 className="mt-3 text-sm font-bold text-foreground-950">1. Receber respostas do WhatsApp</h3>
-            <p className="mt-1 text-xs leading-relaxed text-foreground-500">{status.checks.find((item) => item.id === 'whatsapp_webhook')?.detail}</p>
-            <ol className="mt-3 space-y-1.5 text-xs leading-relaxed text-foreground-600"><li><strong>Primeiro:</strong> {status.checks.find((item) => item.id === 'whatsapp')?.ok ? 'a instância Z-API já está validada no módulo de Canais.' : 'valide a instância Z-API no módulo de Canais.'}</li><li><strong>Agora:</strong> cadastre esta entrada; nenhum token ou URL ficará exposto no painel.</li><li><strong>Por fim:</strong> envie uma mensagem de texto de um número que já esteja cadastrado em <Link to="/dashboard/leads" className="font-semibold text-primary-700 hover:underline">Leads</Link>. A Ana apenas registra e analisa a entrada no modo Demo.</li></ol>
-            <div className="mt-4 flex flex-wrap gap-2"><button type="button" onClick={() => void setupWhatsAppInbound()} disabled={settingUp === 'whatsapp' || !status.checks.find((item) => item.id === 'whatsapp')?.ok || status.checks.find((item) => item.id === 'whatsapp_webhook')?.ok} className="wf-btn-primary text-xs disabled:cursor-not-allowed disabled:opacity-60"><i className="ri-link" />{settingUp === 'whatsapp' ? 'Cadastrando…' : status.checks.find((item) => item.id === 'whatsapp_webhook')?.ok ? 'Entrada homologada' : status.checks.find((item) => item.id === 'whatsapp')?.ok ? 'Cadastrar entrada na Z-API' : 'Valide o WhatsApp primeiro'}</button><Link to="/dashboard/configuracoes?tab=conexoes" className="wf-btn-secondary text-xs">Ver canal WhatsApp</Link></div>
+            <p className="mt-1 text-xs leading-relaxed text-foreground-500">{inbound.detail}</p>
+            {inbound.state === 'waiting_callback' && <div className="mt-3 rounded-xl border border-[#FF9500]/25 bg-[#FF9500]/10 px-3 py-2.5 text-xs leading-relaxed text-[#8A5200]"><strong className="block text-[#754600]">O que falta agora</strong>{inbound.testLead ? <>No WhatsApp do contato <strong>{inbound.testLead.label}</strong> (final <strong>{inbound.testLead.phoneSuffix}</strong>), envie uma mensagem individual para o número conectado à Z-API. Depois clique em “Atualizar diagnóstico”.</> : <>Cadastre um lead com WhatsApp antes de realizar o teste. O sistema não cria um lead fictício para liberar o ambiente.</>}</div>}
+            {inbound.state === 'lead_not_matched' && <div className="mt-3 rounded-xl border border-[#FF3B30]/25 bg-[#FF3B30]/10 px-3 py-2.5 text-xs leading-relaxed text-[#A52620]"><strong className="block">A mensagem chegou, mas não pertence a um lead cadastrado.</strong>Abra o lead usado no teste, confira o WhatsApp salvo e envie outra mensagem somente depois de corrigir o número.</div>}
+            {inbound.state === 'unsupported_callback' && <div className="mt-3 rounded-xl border border-[#FF9500]/25 bg-[#FF9500]/10 px-3 py-2.5 text-xs leading-relaxed text-[#8A5200]"><strong className="block text-[#754600]">O callback chegou, mas não vale como resposta individual.</strong>{inbound.detail} Depois, clique em “Atualizar diagnóstico”.</div>}
+            <ol className="mt-3 space-y-1.5 text-xs leading-relaxed text-foreground-600"><li><strong>1.</strong> {whatsappCheck?.ok ? 'A instância Z-API já está validada para saída.' : 'Valide primeiro a instância Z-API no módulo de Canais.'}</li><li><strong>2.</strong> {inbound.state === 'not_configured' ? 'Cadastre a entrada abaixo; nenhum token ou URL ficará exposto.' : `A entrada foi cadastrada em ${formatDate(inbound.registeredAt)}.`}</li><li><strong>3.</strong> Envie uma mensagem de texto direta de um <Link to="/dashboard/leads" className="font-semibold text-primary-700 hover:underline">lead cadastrado</Link> para o WhatsApp conectado à Z-API. No modo Demo, a Ana só registra e analisa a entrada.</li></ol>
+            <div className="mt-4 flex flex-wrap gap-2"><button type="button" onClick={() => void setupWhatsAppInbound()} disabled={settingUp === 'whatsapp' || !whatsappCheck?.ok || webhookCheck?.ok} className="wf-btn-primary text-xs disabled:cursor-not-allowed disabled:opacity-60"><i className="ri-link" />{settingUp === 'whatsapp' ? 'Cadastrando…' : !whatsappCheck?.ok ? 'Valide o WhatsApp primeiro' : inboundActionLabel(inbound.state)}</button><button type="button" onClick={() => void refresh()} className="wf-btn-secondary text-xs"><i className="ri-refresh-line" />Atualizar diagnóstico</button><Link to="/dashboard/configuracoes?tab=conexoes" className="wf-btn-secondary text-xs">Ver canal WhatsApp</Link></div>
           </article>
           <article className={`rounded-2xl border p-4 ${requestedSetup === 'worker' ? 'border-[#0071E3]/40 bg-[#F2F7FF]' : 'border-background-200 bg-background-50/60'}`}>
             <div className="flex items-start justify-between gap-3"><div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#5856D6]/10 text-[#5856D6]"><i className="ri-server-line text-lg" /></div><span className={`rounded-full border px-2.5 py-1 font-mono text-[10px] font-semibold ${status.checks.find((item) => item.id === 'scheduler')?.ok ? 'border-[#34C759]/25 bg-[#34C759]/10 text-[#237A3B]' : 'border-[#FF9500]/25 bg-[#FF9500]/10 text-[#B76100]'}`}>{status.checks.find((item) => item.id === 'scheduler')?.ok ? 'ATIVO' : 'PENDENTE'}</span></div>

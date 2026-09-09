@@ -4,6 +4,7 @@ import { zapiBaseUrl } from '../_shared/runtimeSafety.ts';
 
 type Action = 'status' | 'set_kill_switch' | 'set_mode' | 'events' | 'configure_whatsapp_webhook' | 'activate_scheduler';
 type RequestedMode = 'demo' | 'protected' | 'real';
+type WebhookDiagnosticState = 'not_configured' | 'waiting_callback' | 'lead_not_matched' | 'unsupported_callback' | 'processing_failed' | 'homologated';
 
 function asObject(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
@@ -60,15 +61,84 @@ async function operationalStatus(admin: ReturnType<typeof createAdminClient>, or
   const whatsapp = integration('whatsapp');
   const whatsappWebhook = integration('zapi_webhook');
   const scheduler = integration('scheduler');
-  const webhookConfiguration = asObject(whatsappWebhook?.configuration);
-  const webhookRegistered = typeof webhookConfiguration.registered_at === 'string';
-  const killSwitch = asBoolean(runtime.killSwitchGlobal, true);
   const isFresh = (value: string | null | undefined) => {
     if (!value) return false;
     const testedAt = new Date(value).getTime();
     return Number.isFinite(testedAt) && Date.now() - testedAt <= 24 * 60 * 60 * 1000;
   };
   const isOnline = (item: typeof ai) => Boolean(item?.connected && item?.enabled && !item?.paused && !item?.last_error && isFresh(item?.last_tested_at));
+  const webhookConfiguration = asObject(whatsappWebhook?.configuration);
+  const registeredAt = typeof webhookConfiguration.registered_at === 'string' ? webhookConfiguration.registered_at : null;
+  const webhookRegistered = registeredAt !== null;
+  const [webhookEventRead, testLeadRead] = await Promise.all([
+    webhookRegistered
+      ? admin.from('webhook_events').select('status,error,created_at,processed_at,lead_id')
+        .eq('organization_id', organizationId).eq('provider', whatsappWebhook?.provider || 'Z-API')
+        .gte('created_at', registeredAt).order('created_at', { ascending: false }).limit(1)
+      : Promise.resolve({ data: [], error: null }),
+    admin.from('leads').select('id,company,contact,phone,whatsapp,updated_at').eq('organization_id', organizationId)
+      .order('updated_at', { ascending: false }).limit(10),
+  ]);
+  if (webhookEventRead.error || testLeadRead.error) throw new Error('operational_webhook_diagnostic_read_failed');
+  const latestWebhookEvent = (webhookEventRead.data ?? [])[0] as { status?: string; error?: string | null; created_at?: string | null; processed_at?: string | null; lead_id?: string | null } | undefined;
+  const testLead = (testLeadRead.data ?? []).find((lead) => typeof lead.phone === 'string' || typeof lead.whatsapp === 'string') ?? null;
+  const testLeadPhone = typeof testLead?.whatsapp === 'string' && testLead.whatsapp.trim()
+    ? testLead.whatsapp : typeof testLead?.phone === 'string' ? testLead.phone : '';
+  const testLeadLabel = testLead ? [testLead.contact, testLead.company].filter((value) => typeof value === 'string' && value.trim()).join(' · ') : null;
+  const webhookDiagnostic = (() => {
+    if (isOnline(whatsappWebhook)) return {
+      state: 'homologated' as WebhookDiagnosticState,
+      registeredAt,
+      lastEventAt: latestWebhookEvent?.created_at ?? whatsappWebhook?.last_success_at ?? null,
+      detail: whatsappWebhook?.status_detail || 'Uma resposta recebida foi vinculada a um lead e processada pela Ana.',
+      testLead: null,
+    };
+    if (!webhookRegistered) return {
+      state: 'not_configured' as WebhookDiagnosticState,
+      registeredAt: null,
+      lastEventAt: null,
+      detail: 'A saída da Z-API pode estar validada; cadastre agora somente a entrada das respostas para a Ana.',
+      testLead: null,
+    };
+    const testLeadSummary = testLead && testLeadPhone ? {
+      id: testLead.id,
+      label: testLeadLabel || 'Lead cadastrado',
+      phoneSuffix: testLeadPhone.replace(/\D/g, '').slice(-4),
+    } : null;
+    if (!latestWebhookEvent) return {
+      state: 'waiting_callback' as WebhookDiagnosticState,
+      registeredAt,
+      lastEventAt: null,
+      detail: 'A Z-API aceitou o cadastro, mas ainda não entregou nenhum callback ao WayFlex desde esse momento. Não há falha da Ana nem do cadastro do lead a corrigir no sistema.',
+      testLead: testLeadSummary,
+    };
+    if (latestWebhookEvent.error === 'lead_not_matched') return {
+      state: 'lead_not_matched' as WebhookDiagnosticState,
+      registeredAt,
+      lastEventAt: latestWebhookEvent.created_at ?? null,
+      detail: 'A Z-API entregou a mensagem, mas o número que a enviou não corresponde a nenhum WhatsApp cadastrado em Leads. Atualize o telefone do lead antes de repetir o teste.',
+      testLead: testLeadSummary,
+    };
+    if (latestWebhookEvent.status === 'ignored') return {
+      state: 'unsupported_callback' as WebhookDiagnosticState,
+      registeredAt,
+      lastEventAt: latestWebhookEvent.created_at ?? null,
+      detail: latestWebhookEvent.error === 'non_direct_conversation'
+        ? 'A Z-API recebeu o teste, mas ele veio de um grupo, lista ou canal. Para homologar, envie uma mensagem em conversa individual do número cadastrado no lead.'
+        : latestWebhookEvent.error === 'outgoing_or_unknown_direction'
+          ? 'A Z-API recebeu um evento de saída. Para homologar, o lead precisa enviar uma mensagem ao número conectado, e não o contrário.'
+          : 'A Z-API entregou um callback que não é uma mensagem direta de texto de um lead. Envie uma mensagem comum, individual e recebida de um lead cadastrado.',
+      testLead: testLeadSummary,
+    };
+    return {
+      state: 'processing_failed' as WebhookDiagnosticState,
+      registeredAt,
+      lastEventAt: latestWebhookEvent.created_at ?? null,
+      detail: 'A mensagem chegou ao WayFlex, mas o processamento não foi concluído. Consulte o Registro do Sistema antes de repetir o teste.',
+      testLead: testLeadSummary,
+    };
+  })();
+  const killSwitch = asBoolean(runtime.killSwitchGlobal, true);
   const checks = [
     { id: 'empresa', label: 'Empresa ativa', ok: company?.active === true, detail: company?.active === true ? 'Empresa habilitada.' : 'Empresa desativada no backend.' },
     { id: 'ia_empresa', label: 'Ações da Ana autorizadas', ok: company?.can_use_ia === true && company?.ai_actions_enabled === true, detail: company?.can_use_ia === true && company?.ai_actions_enabled === true ? 'Ações de IA permitidas.' : 'Ações de IA ainda bloqueadas pela empresa.' },
@@ -79,11 +149,7 @@ async function operationalStatus(admin: ReturnType<typeof createAdminClient>, or
       id: 'whatsapp_webhook',
       label: 'Respostas do WhatsApp homologadas',
       ok: isOnline(whatsappWebhook),
-      detail: isOnline(whatsappWebhook)
-        ? (whatsappWebhook?.status_detail || 'Uma resposta recebida foi processada pelo webhook.')
-        : webhookRegistered
-          ? 'A entrada já foi cadastrada na Z-API. Falta receber uma mensagem de teste de um lead cadastrado para homologar o fluxo.'
-          : 'A saída da Z-API pode estar validada; cadastre agora somente a entrada das respostas para a Ana.',
+      detail: webhookDiagnostic.detail,
     },
     {
       id: 'scheduler',
@@ -105,6 +171,7 @@ async function operationalStatus(admin: ReturnType<typeof createAdminClient>, or
     killSwitch,
     productionReady: checks.every((check) => check.ok),
     checks,
+    webhookDiagnostic,
     integrations: integrations.map((item) => ({
       key: item.key, label: item.label, category: item.category, provider: item.provider, connected: item.connected === true,
       enabled: item.enabled === true, paused: item.paused === true, lastTestedAt: item.last_tested_at,

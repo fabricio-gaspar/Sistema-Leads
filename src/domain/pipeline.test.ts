@@ -3,16 +3,35 @@ import { canTransitionOpportunity, legacyStageForPipeline, outcomeFromLegacy, st
 
 describe('pipeline comercial simplificado', () => {
   it('normaliza etapas legadas e separa o resultado', () => {
-    expect(stageFromLegacy('Negociação')).toBe('decision');
+    expect(stageFromLegacy('Negociação')).toBe('quote_sent');
     expect(stageFromLegacy('Proposta em Preparação')).toBe('quote_preparation');
     expect(legacyStageForPipeline('quote_preparation')).toBe('Reunião');
+    expect(stageFromLegacy('Ganho')).toBe('won');
+    expect(stageFromLegacy('Perdido')).toBe('lost');
+    expect(legacyStageForPipeline('won')).toBe('Ganho');
+    expect(legacyStageForPipeline('lost')).toBe('Perdido');
     expect(outcomeFromLegacy('Fechado — Ganho')).toBe('won');
   });
 
   it('impede fechamento ganho pela Ana', () => {
     expect(canTransitionOpportunity({
-      from: 'decision', to: 'decision', outcome: 'won', source: 'ai_suggestion', evidence: {},
+      from: 'quote_sent', to: 'won', outcome: 'won', source: 'ai_suggestion', evidence: {},
     })).toEqual({ ok: false, reason: 'A Ana não pode concluir uma oportunidade como ganha.' });
+  });
+
+  it('exige confirmação humana para os dois resultados finais', () => {
+    expect(canTransitionOpportunity({
+      from: 'quote_sent', to: 'won', source: 'human', evidence: {},
+    })).toEqual({ ok: false, reason: 'O fechamento como ganho exige confirmação humana.' });
+    expect(canTransitionOpportunity({
+      from: 'quote_sent', to: 'won', source: 'human', evidence: { confirmedByHuman: true },
+    }).ok).toBe(true);
+    expect(canTransitionOpportunity({
+      from: 'quote_sent', to: 'lost', source: 'human', evidence: {},
+    })).toEqual({ ok: false, reason: 'Perdas exigem confirmação humana, exceto opt-out inequívoco.' });
+    expect(canTransitionOpportunity({
+      from: 'quote_sent', to: 'lost', source: 'rule', evidence: { explicitOptOut: true },
+    }).ok).toBe(true);
   });
 
   it('exige evidência para o avanço no fluxo', () => {

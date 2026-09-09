@@ -2,18 +2,17 @@
 
 ## Crítico
 
-- O cron server-side e heartbeat do worker foram instalados, porém a empresa WayFlex ainda
-  não ativou o Worker 24/7 pelo assistente nem comprovou o primeiro heartbeat. Lease,
-  dead-letter e reconciliação ampliada continuam pendentes.
 - Fluxo real WhatsApp → Ana → resposta não foi homologado ponta a ponta com número autorizado.
+- O último teste recebido foi um callback de grupo e foi corretamente ignorado. A homologação
+  segue aguardando uma mensagem individual enviada por um lead cadastrado.
 
 ## Alto
 
-- Funções e stores legados ainda oferecem caminhos paralelos a `ana-run` e às tabelas reais.
 - Base multimídia registra arquivos, mas não extrai de forma completa PDF/DOCX/PPTX/XLSX,
   OCR de imagem, áudio ou vídeo.
-- Testes E2E autenticados, webhook real, concorrência e RLS entre duas organizações faltam.
-- Claude está configurado como provedor pretendido, mas permanece desabilitado e sem teste válido.
+- Testes E2E autenticados e roundtrips reais de WhatsApp/Claude/provedores opcionais faltam.
+- RLS entre duas organizações e operações transacionais principais foram testadas; não substituir
+  isso por uma afirmação de homologação externa.
 - Os registros de auditoria históricos são append-only no banco. As referências aos testes
   removidos não foram apagadas por esse mecanismo de governança; a Central, Kanban, Leads,
   filas, mensagens e execuções ficaram limpos, e o histórico auditável foi preservado.
@@ -25,6 +24,8 @@
 - Callbacks de entrega/leitura aguardam reconciliação específica.
 - O módulo secundário de Equipe ainda não calcula tempo de resposta por timestamps; o painel
   agora informa a indisponibilidade em vez de exibir números simulados.
+- O Auth do Supabase permanece com proteção contra senhas vazadas desativada.
+- O advisor aponta 111 índices sem uso; aguardar janela representativa antes de remover qualquer um.
 
 ## Sugestões, não bugs
 

@@ -21,11 +21,11 @@ const formatarData = (d: Date): string => {
 };
 
 const etapaCores: Record<string, string> = {
-  entered: 'bg-background-100/80 border-background-200', engaging: 'bg-background-100/80 border-background-200', qualified: 'bg-background-100/80 border-background-200', quote_preparation: 'bg-background-100/80 border-background-200', quote_sent: 'bg-background-100/80 border-background-200', decision: 'bg-background-100/80 border-background-200',
+  entered: 'bg-background-100/80 border-background-200', engaging: 'bg-background-100/80 border-background-200', qualified: 'bg-background-100/80 border-background-200', quote_preparation: 'bg-background-100/80 border-background-200', quote_sent: 'bg-background-100/80 border-background-200', won: 'bg-background-100/80 border-background-200', lost: 'bg-background-100/80 border-background-200',
 };
 
 const etapaIndicador: Record<string, string> = {
-  entered: 'bg-foreground-300', engaging: 'bg-primary-400', qualified: 'bg-primary-600', quote_preparation: 'bg-secondary-500', quote_sent: 'bg-accent-500', decision: 'bg-foreground-700',
+  entered: 'bg-foreground-300', engaging: 'bg-primary-400', qualified: 'bg-primary-600', quote_preparation: 'bg-secondary-500', quote_sent: 'bg-accent-500', won: 'bg-[#34C759]', lost: 'bg-[#FF3B30]',
 };
 
 const tempCores: Record<string, string> = {

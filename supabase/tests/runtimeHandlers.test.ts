@@ -30,7 +30,10 @@ function execute(query: Query): Result {
   calls.push({ ...query, filters: { ...query.filters } });
   const overridden = override?.(query);
   if (overridden) return overridden;
-  if (query.operation === 'rpc') return ok({});
+  if (query.operation === 'rpc') {
+    if (query.table === 'resolve_whatsapp_lead') return ok([{ lead_id: leadId, reason: 'unique_phone_identity' }]);
+    return ok({});
+  }
   if (query.operation !== 'select') return ok({ id: `${query.table}-id` });
   switch (query.table) {
     case 'profiles': return ok({ active_organization_id: org, name: 'Synthetic user' });
@@ -151,13 +154,14 @@ describe('Webhook handler contract — synthetic callbacks', () => {
     expect(calls.find((q) => q.table === 'channel_inbound_events' && q.operation === 'update')?.value?.status).toBe('failed');
   });
   it('does not pick one of two leads sharing a phone number', async () => {
-    override = (q) => q.table === 'leads' ? ok([readyLead, { ...readyLead, id: 'other-lead' }]) : undefined;
+    override = (q) => q.table === 'resolve_whatsapp_lead' ? ok([{ lead_id: null, reason: 'ambiguous_identity' }]) : undefined;
     await import('../functions/webhook-whatsapp/index');
-    expect(await (await handler(webhookRequest())).json()).toMatchObject({ error: 'ambiguous_lead_identity', requires_reconciliation: true });
+    expect(await (await handler(webhookRequest())).json()).toMatchObject({ accepted: true, matched: false, resolution: 'ambiguous_identity' });
+    expect(calls.find((q) => q.table === 'webhook_events' && q.operation === 'update')?.value).toMatchObject({ status: 'failed', error: 'lead_identity_ambiguous' });
     expect(fetchMock).not.toHaveBeenCalled();
   });
   it('records unmatched without the invalid unmatched status', async () => {
-    override = (q) => q.table === 'leads' ? ok([]) : undefined;
+    override = (q) => q.table === 'resolve_whatsapp_lead' ? ok([{ lead_id: null, reason: 'not_found' }]) : undefined;
     await import('../functions/webhook-whatsapp/index');
     expect(await (await handler(webhookRequest())).json()).toMatchObject({ matched: false });
     expect(calls.find((q) => q.table === 'webhook_events' && q.operation === 'update')?.value).toMatchObject({ status: 'failed', error: 'lead_not_matched' });
@@ -398,5 +402,52 @@ describe('Operational mode authority', () => {
     );
     expect(fetchMock.mock.calls[0][1].body).toContain('integration_id=');
     expect(calls.find((q) => q.table === 'integrations' && q.operation === 'update')?.value).toMatchObject({ enabled: true, connected: false });
+  });
+
+  it('reports that the provider has not delivered a callback yet instead of blaming Ana or the lead', async () => {
+    override = (q) => {
+      if (q.table === 'integrations' && q.operation === 'select') return ok([
+        { ...readyIntegration, key: 'ai', label: 'IA', last_tested_at: recent, last_error: null },
+        { ...readyIntegration, key: 'whatsapp', label: 'WhatsApp', last_tested_at: recent, last_error: null },
+        { ...readyIntegration, key: 'zapi_webhook', label: 'Entrada', connected: false, enabled: true, last_tested_at: null, last_error: null, configuration: { registered_at: recent } },
+        { ...readyIntegration, key: 'scheduler', label: 'Worker', last_tested_at: recent, last_error: null },
+      ]);
+      if (q.table === 'webhook_events') return ok([]);
+      return undefined;
+    };
+    await import('../functions/operational-diagnostics/index');
+    const response = await handler(new Request('https://example.invalid/operational-diagnostics', {
+      method: 'POST', headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'status' }),
+    }));
+    expect(response.status).toBe(200);
+    expect((await response.json()).status.webhookDiagnostic).toMatchObject({
+      state: 'waiting_callback',
+      registeredAt: recent,
+      lastEventAt: null,
+    });
+  });
+
+  it('explains that a group callback cannot homologate an individual lead conversation', async () => {
+    override = (q) => {
+      if (q.table === 'integrations' && q.operation === 'select') return ok([
+        { ...readyIntegration, key: 'ai', label: 'IA', last_tested_at: recent, last_error: null },
+        { ...readyIntegration, key: 'whatsapp', label: 'WhatsApp', last_tested_at: recent, last_error: null },
+        { ...readyIntegration, key: 'zapi_webhook', label: 'Entrada', connected: false, enabled: true, last_tested_at: null, last_error: null, configuration: { registered_at: recent } },
+        { ...readyIntegration, key: 'scheduler', label: 'Worker', last_tested_at: recent, last_error: null },
+      ]);
+      if (q.table === 'webhook_events') return ok([{ status: 'ignored', error: 'non_direct_conversation', created_at: recent }]);
+      return undefined;
+    };
+    await import('../functions/operational-diagnostics/index');
+    const response = await handler(new Request('https://example.invalid/operational-diagnostics', {
+      method: 'POST', headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'status' }),
+    }));
+    expect(response.status).toBe(200);
+    expect((await response.json()).status.webhookDiagnostic).toMatchObject({
+      state: 'unsupported_callback',
+      detail: expect.stringContaining('grupo'),
+    });
   });
 });

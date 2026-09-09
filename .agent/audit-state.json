@@ -1,12 +1,12 @@
 {
   "schema_version": 1,
-  "baseline_version": 2,
-  "baseline_commit": "357bdb98adad24a2eaf2feb0ab75a083b8f1c1a8",
-  "last_audited_commit": "357bdb98adad24a2eaf2feb0ab75a083b8f1c1a8",
-  "current_head_at_update": "357bdb98adad24a2eaf2feb0ab75a083b8f1c1a8",
-  "working_tree_status": "validated_and_published",
+  "baseline_version": 3,
+  "baseline_commit": "441c30e",
+  "last_audited_commit": "441c30e",
+  "current_head_at_update": "441c30e",
+  "working_tree_status": "validated_pending_commit_and_publish",
   "full_audit_required": false,
   "baseline_status": "validated",
-  "updated_at": "2026-09-09T20:42:00Z",
-  "next_action": "Em sessão administrativa, usar Configurações > Status operacional para cadastrar a entrada Z-API e preparar o Worker 24/7; então confirmar callback e heartbeat antes de tentar Ambiente Real."
+  "updated_at": "2026-09-09T23:40:00Z",
+  "next_action": "Publicar a consolidação validada; depois homologar uma mensagem direta de um lead cadastrado em Ambiente de Demonstração e confirmar webhook, matching, histórico e ana-run exatamente uma vez."
 }

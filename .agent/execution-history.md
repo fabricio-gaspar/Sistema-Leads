@@ -75,3 +75,32 @@
   zero despachos e nenhuma mensagem foi enviada.
 - Interface publicada com sucesso como Site privado versão 51 a partir do commit
   `a202a3fb9c0c8c33b179d82b377bc9395d42b6ef`.
+
+## 2026-09-09 — Diagnóstico da entrega de callback Z-API
+
+- Investigação do envio manual relatado: nenhum callback foi recebido no WayFlex depois do
+  registro da entrada, portanto não houve associação ao lead, execução da Ana ou atualização
+  de homologação. Não foram enviados testes adicionais nem callbacks antigos foram repetidos.
+- `operational-diagnostics` v6 agora devolve o estado objetivo do último callback desde o
+  cadastro e a interface orienta o teste com lead real de telefone mascarado. Há ação separada
+  para atualizar o diagnóstico e recadastrar somente a entrada, sem qualquer segredo no painel.
+- Type-check frontend/Edge, lint, build e 113 testes passaram.
+
+## 2026-09-09 — Consolidação seletiva do projeto oficial
+
+- O projeto atual do Work foi preservado como canônico e comparado, sem merge global, com
+  `stabilize/production-readiness-2026-09-09` e com o Supabase implantado.
+- O código-fonte local foi reconciliado com sete Edge Functions e 16 migrations que já estavam
+  implantadas, eliminando divergência de release sem sobrescrever o frontend atual.
+- Pipeline canônico de sete etapas restaurado no Dashboard/Kanban; Ganho e Perdido permanecem
+  separados e Ganho exige humano.
+- Handoff transformado em RPC transacional. O primeiro teste encontrou o campo obrigatório
+  `actor_name`; a transação reverteu e a migration corretiva foi aplicada antes da aprovação.
+- RLS-base de mensagens e propostas foi restaurada; isolamento entre duas organizações passou.
+- Contrato real de orçamento (itens e estados) foi alinhado e testado sem criar Pedido/Venda.
+- Matching de telefone bloqueou ambiguidade em transação e escolheu a única conversa IA ativa
+  no caso real observado.
+- Scheduler e heartbeat foram confirmados ativos. O callback relatado era de grupo e foi
+  corretamente ignorado; entrada direta continua pendente de homologação.
+- Typecheck frontend/Edge, lint, 115 testes e build de produção aprovados. Nenhuma mensagem
+  real foi enviada e `company_settings.sandbox_mode` permaneceu ativo.

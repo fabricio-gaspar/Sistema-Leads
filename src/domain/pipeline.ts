@@ -4,7 +4,8 @@ export const ACTIVE_PIPELINE_STAGES = [
   'qualified',
   'quote_preparation',
   'quote_sent',
-  'decision',
+  'won',
+  'lost',
 ] as const;
 
 export type PipelineStageCode = (typeof ACTIVE_PIPELINE_STAGES)[number];
@@ -17,7 +18,8 @@ export const PIPELINE_STAGE_LABEL: Record<PipelineStageCode, string> = {
   qualified: 'Qualificando',
   quote_preparation: 'Reunião',
   quote_sent: 'Orçamento',
-  decision: 'Ganho / Perdido',
+  won: 'Ganho',
+  lost: 'Perdido',
 };
 
 const legacyStageMap: Record<string, PipelineStageCode> = {
@@ -26,18 +28,18 @@ const legacyStageMap: Record<string, PipelineStageCode> = {
   'Qualificando': 'qualified',
   'Reunião': 'quote_preparation',
   'Orçamento': 'quote_sent',
-  Ganho: 'decision',
-  Perdido: 'decision',
+  Ganho: 'won',
+  Perdido: 'lost',
   'Em Contato': 'engaging',
   'Aguardando Resposta': 'engaging',
   'Em Qualificação': 'qualified',
   'Reunião Agendada': 'qualified',
   'Proposta em Preparação': 'quote_preparation',
   'Orçamento Enviado': 'quote_sent',
-  'Negociação': 'decision',
+  'Negociação': 'quote_sent',
   'Pausado': 'engaging',
-  'Fechado — Ganho': 'decision',
-  'Fechado — Perdido': 'decision',
+  'Fechado — Ganho': 'won',
+  'Fechado — Perdido': 'lost',
 };
 
 export function stageFromLegacy(stage: string): PipelineStageCode {
@@ -51,7 +53,8 @@ export function legacyStageForPipeline(stage: PipelineStageCode): string {
     qualified: 'Qualificando',
     quote_preparation: 'Reunião',
     quote_sent: 'Orçamento',
-    decision: 'Ganho',
+    won: 'Ganho',
+    lost: 'Perdido',
   }[stage];
 }
 
@@ -79,10 +82,13 @@ export function canTransitionOpportunity(input: {
 }): { ok: boolean; reason?: string } {
   const { from, to, outcome = 'open', source, evidence } = input;
 
-  if (outcome === 'won' && source !== 'human') {
+  if ((to === 'won' || outcome === 'won') && source !== 'human') {
     return { ok: false, reason: 'A Ana não pode concluir uma oportunidade como ganha.' };
   }
-  if (outcome === 'lost' && !evidence.explicitOptOut && !evidence.confirmedByHuman) {
+  if ((to === 'won' || outcome === 'won') && !evidence.confirmedByHuman) {
+    return { ok: false, reason: 'O fechamento como ganho exige confirmação humana.' };
+  }
+  if ((to === 'lost' || outcome === 'lost') && !evidence.explicitOptOut && !evidence.confirmedByHuman) {
     return { ok: false, reason: 'Perdas exigem confirmação humana, exceto opt-out inequívoco.' };
   }
   if (from === to) return { ok: true };
@@ -102,9 +108,6 @@ export function canTransitionOpportunity(input: {
   }
   if (to === 'quote_sent' && !evidence.hasSentQuote) {
     return { ok: false, reason: 'O orçamento precisa estar registrado como enviado.' };
-  }
-  if (to === 'decision' && !evidence.hasDecisionSignal) {
-    return { ok: false, reason: 'Falta uma resposta, visualização ou objeção verificável.' };
   }
   return { ok: true };
 }

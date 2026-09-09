@@ -25,6 +25,14 @@ export interface OperationalIntegration {
   health: 'online' | 'offline' | 'stale';
 }
 
+export interface OperationalWebhookDiagnostic {
+  state: 'not_configured' | 'waiting_callback' | 'lead_not_matched' | 'unsupported_callback' | 'processing_failed' | 'homologated';
+  registeredAt: string | null;
+  lastEventAt: string | null;
+  detail: string;
+  testLead: { id: string; label: string; phoneSuffix: string } | null;
+}
+
 export interface OperationalStatus {
   mode: OperationalMode;
   modeLabel: string;
@@ -33,6 +41,7 @@ export interface OperationalStatus {
   killSwitch: boolean;
   productionReady: boolean;
   checks: OperationalCheck[];
+  webhookDiagnostic: OperationalWebhookDiagnostic;
   integrations: OperationalIntegration[];
 }
 
