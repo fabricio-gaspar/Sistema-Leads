@@ -128,3 +128,5 @@ webhook em ambiente controlado.
 - Validação do lote: typecheck frontend/Edge, lint, 112 testes e build aprovados. Restam
   a ação controlada do usuário no novo assistente, o callback Z-API e o primeiro heartbeat
   para evidência de produção. O modo real continua bloqueado até isso ocorrer.
+- Prévia privada publicada com sucesso como Site versão 51 a partir do commit
+  `a202a3fb9c0c8c33b179d82b377bc9395d42b6ef`.
