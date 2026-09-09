@@ -12,9 +12,9 @@ import {
   moveLeadCommercialStage,
   type CommercialStage,
 } from "@/lib/commercial-pipeline.functions";
-import type { Database } from "@/integrations/supabase/types";
+import type { CurrentLeadRow } from "@/integrations/supabase/schema-current";
 
-type LeadRow = Database["public"]["Tables"]["leads"]["Row"];
+type LeadRow = CurrentLeadRow;
 type Stage = CommercialStage;
 
 export const Route = createFileRoute("/_authenticated/leads")({ component: LeadsPage });
@@ -33,10 +33,11 @@ function Kanban() {
   const createFn = useServerFn(createLead);
   const delFn = useServerFn(deleteLead);
 
-  const { data: leads = [], isLoading, error } = useQuery({
+  const { data: queriedLeads = [], isLoading, error } = useQuery({
     queryKey: ["leads"],
     queryFn: () => listFn(),
   });
+  const leads = queriedLeads as unknown as LeadRow[];
   const { data: stageRows = [], isLoading: stagesLoading, error: stagesError } = useQuery({
     queryKey: ["commercial-stages"],
     queryFn: () => stagesFn(),
@@ -274,7 +275,7 @@ function LeadCard({
             {isAI ? <Bot className="h-3 w-3" /> : <UserIcon className="h-3 w-3" />}
             <span className="truncate">{isAI ? "Ana (IA)" : "Humano"}</span>
           </div>
-          {(lead as any).ai_paused && (
+          {lead.ai_paused && (
             <span className="rounded-full bg-warm-bg px-1.5 py-0.5 text-[10px] font-medium text-warm">IA pausada</span>
           )}
         </div>
@@ -302,7 +303,7 @@ function LeadCard({
 }
 
 function ChannelBadges({ lead }: { lead: LeadRow }) {
-  const ch = ((lead as any).contact_channels ?? {}) as Record<string, { available?: boolean; last_status?: string | null }>;
+  const ch = (lead.contact_channels ?? {}) as Record<string, { available?: boolean; last_status?: string | null }>;
   const items = [
     { key: "whatsapp", label: "WA" },
     { key: "email", label: "@" },
