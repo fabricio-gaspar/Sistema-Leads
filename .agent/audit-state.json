@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
   "baseline_version": 3,
-  "baseline_commit": "441c30e",
-  "last_audited_commit": "441c30e",
-  "current_head_at_update": "441c30e",
+  "baseline_commit": "1fbd231ff88b4e02c3ddddd18253a1f3be8be5ee",
+  "last_audited_commit": "1fbd231ff88b4e02c3ddddd18253a1f3be8be5ee",
+  "current_head_at_update": "1fbd231ff88b4e02c3ddddd18253a1f3be8be5ee",
   "working_tree_status": "validated_pending_commit_and_publish",
   "full_audit_required": false,
   "baseline_status": "validated",

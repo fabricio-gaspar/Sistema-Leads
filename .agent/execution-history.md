@@ -104,3 +104,5 @@
   corretamente ignorado; entrada direta continua pendente de homologação.
 - Typecheck frontend/Edge, lint, 115 testes e build de produção aprovados. Nenhuma mensagem
   real foi enviada e `company_settings.sandbox_mode` permaneceu ativo.
+- Implementação consolidada salva no commit
+  `1fbd231ff88b4e02c3ddddd18253a1f3be8be5ee`; publicação do Site ainda pendente neste ponto.
