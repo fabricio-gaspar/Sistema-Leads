@@ -41,3 +41,17 @@
 - O header extra `Accept` foi removido; o teste automatizado protege esse
   contrato e confirma que a validação não envia mensagem.
 - Publicada `testar-integracao` v11. Typecheck Edge e 109 testes aprovados.
+
+## 2026-09-09 — Ambientes, limpeza segura e categorias de integração
+
+- Dashboard ganhou controle real de Ambiente de Demonstração/Ambiente Real. A fonte continua
+  em `company_settings.sandbox_mode`; a Edge Function faz o pré-flight e audita a alteração.
+  A versão atual mantém Ambiente Real bloqueado por IA, webhook e worker 24/7 não homologados.
+- `integrations.category` foi aplicado e indexado. Comunicação, Prospecção e Inteligência da
+  Ana usam a categoria persistida, sem duplicar credenciais ou testes.
+- Nove leads com marcadores objetivos de demonstração foram removidos com mensagens, tarefas,
+  execuções, filas, agenda, propostas, contatos e contas exclusivas. Um lead com inbound e
+  sem marcador de teste ficou preservado para revisão; não foram encontrados órfãos nas tabelas
+  verificadas. O audit log append-only preservou o histórico de governança.
+- Publicadas: `operational-diagnostics` v4 e `configurar-integracao` v13.
+- Typecheck frontend/Edge, lint, 110 testes e build aprovados. Publicação e commit pendentes.

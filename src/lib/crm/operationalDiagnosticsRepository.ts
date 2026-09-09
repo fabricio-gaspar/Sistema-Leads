@@ -1,7 +1,7 @@
 import { supabase } from '@/lib/supabase';
 import { detalheDoErroDeFuncao } from '@/lib/transportador';
 
-export type OperationalMode = 'protected' | 'real';
+export type OperationalMode = 'demo' | 'real';
 
 export interface OperationalCheck {
   id: string;
@@ -13,6 +13,7 @@ export interface OperationalCheck {
 export interface OperationalIntegration {
   key: string;
   label: string;
+  category: 'prospecting' | 'communication' | 'intelligence' | 'scheduling' | 'system' | null;
   provider: string | null;
   connected: boolean;
   enabled: boolean;

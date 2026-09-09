@@ -2,6 +2,7 @@ import { createAdminClient, requireOrganizationRole, requireUser } from '../_sha
 import { allowedCorsHeaders, hasAllowedOrigin, json, preflight, safeError } from '../_shared/http.ts';
 
 type Action = 'status' | 'set_kill_switch' | 'set_mode' | 'events';
+type RequestedMode = 'demo' | 'protected' | 'real';
 
 function asObject(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
@@ -14,7 +15,7 @@ function asBoolean(value: unknown, fallback = false): boolean {
 async function operationalStatus(admin: ReturnType<typeof createAdminClient>, organizationId: string) {
   const [companyRead, integrationsRead, runtimeRead] = await Promise.all([
     admin.from('company_settings').select('active,sandbox_mode,can_use_ia,ai_actions_enabled,updated_at').eq('organization_id', organizationId).maybeSingle(),
-    admin.from('integrations').select('key,label,provider,connected,enabled,paused,last_tested_at,last_success_at,last_error,status_detail').eq('organization_id', organizationId).order('label'),
+    admin.from('integrations').select('key,label,category,provider,connected,enabled,paused,last_tested_at,last_success_at,last_error,status_detail').eq('organization_id', organizationId).order('label'),
     admin.from('organization_module_data').select('data,updated_at').eq('organization_id', organizationId).eq('module_key', 'configuracao_runtime').maybeSingle(),
   ]);
   if (companyRead.error || integrationsRead.error || runtimeRead.error) throw new Error('operational_status_read_failed');
@@ -45,15 +46,15 @@ async function operationalStatus(admin: ReturnType<typeof createAdminClient>, or
   ];
 
   return {
-    mode: company?.sandbox_mode === false ? 'real' : 'protected',
-    modeLabel: company?.sandbox_mode === false ? 'Modo real' : 'Modo protegido',
+    mode: company?.sandbox_mode === false ? 'real' : 'demo',
+    modeLabel: company?.sandbox_mode === false ? 'Ambiente real' : 'Ambiente de demonstração',
     updatedAt: company?.updated_at ?? null,
     runtimeUpdatedAt: runtimeRead.data?.updated_at ?? null,
     killSwitch,
     productionReady: checks.every((check) => check.ok),
     checks,
     integrations: integrations.map((item) => ({
-      key: item.key, label: item.label, provider: item.provider, connected: item.connected === true,
+      key: item.key, label: item.label, category: item.category, provider: item.provider, connected: item.connected === true,
       enabled: item.enabled === true, paused: item.paused === true, lastTestedAt: item.last_tested_at,
       lastSuccessAt: item.last_success_at, lastError: item.last_error, detail: item.status_detail,
       health: item.connected === true && item.enabled === true && item.paused !== true && !item.last_error
@@ -119,8 +120,8 @@ Deno.serve(async (request) => {
     }
 
     if (action === 'set_mode') {
-      if (!['protected', 'real'].includes(String(body.mode))) throw new Error('operational_mode_value_required');
-      const requestedMode = String(body.mode) as 'protected' | 'real';
+      if (!['demo', 'protected', 'real'].includes(String(body.mode))) throw new Error('operational_mode_value_required');
+      const requestedMode = String(body.mode) as RequestedMode;
       const currentStatus = await operationalStatus(admin, organizationId);
       if (requestedMode === 'real' && !currentStatus.productionReady) {
         throw new Error('operational_preflight_failed');
@@ -132,9 +133,9 @@ Deno.serve(async (request) => {
       if (modeWriteError) throw new Error('operational_mode_save_failed');
       await admin.from('audit_logs').insert({
         organization_id: organizationId, actor_id: user.id, actor_name: profile.name, actor_type: 'user',
-        action: requestedMode === 'real' ? 'operation.real_mode_enabled' : 'operation.protected_mode_enabled',
-        detail: requestedMode === 'real' ? 'Modo real ativado após pré-verificação do servidor.' : 'Saída real bloqueada pelo modo protegido.',
-        entity_table: 'company_settings', event_data: { mode: requestedMode, preflight: currentStatus.checks },
+        action: requestedMode === 'real' ? 'operation.real_mode_enabled' : 'operation.demo_mode_enabled',
+        detail: requestedMode === 'real' ? 'Ambiente real ativado após pré-verificação do servidor.' : 'Ambiente de demonstração ativado; saídas reais bloqueadas.',
+        entity_table: 'company_settings', event_data: { mode: requestedMode === 'protected' ? 'demo' : requestedMode, preflight: currentStatus.checks },
       });
     }
 

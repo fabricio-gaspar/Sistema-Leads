@@ -52,7 +52,7 @@ function ConfigureModal({ integration, onClose, onSaved }: { integration: Operat
   return <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#1D1D1F]/45 p-4" onClick={onClose}><section className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-2xl border border-[#E5E5EA] bg-white shadow-xl" onClick={(event) => event.stopPropagation()}><header className="flex items-start justify-between border-b border-[#E5E5EA] px-5 py-4"><div><p className="text-xs font-semibold uppercase tracking-[.12em] text-[#0071E3]">Cofre seguro</p><h3 className="mt-1 text-lg font-bold tracking-tight text-[#1D1D1F]">Configurar {integration.nome}</h3><p className="mt-1 text-xs text-[#6E6E73]">As chaves são enviadas diretamente ao backend e não permanecem no navegador.</p></div><button type="button" onClick={onClose} className="rounded-lg p-2 text-[#6E6E73] hover:bg-[#F2F2F7]" aria-label="Fechar"><i className="ri-close-line text-lg" /></button></header><div className="space-y-4 p-5">{error && <div className="rounded-xl border border-[#FF3B30]/25 bg-[#FF3B30]/10 px-3.5 py-3 text-sm text-[#D92D27]">{error}</div>}{integration.campos.map((field) => <CredentialField key={field.id} field={field} value={values[field.id] || ''} onChange={(value) => setValues((current) => ({ ...current, [field.id]: value }))} />)}</div><footer className="flex justify-end gap-2 border-t border-[#E5E5EA] px-5 py-4"><button type="button" className="wf-btn-secondary" onClick={onClose}>Cancelar</button><button type="button" className="wf-btn-primary disabled:opacity-60" disabled={saving} onClick={() => void save()}>{saving ? 'Salvando…' : 'Salvar credenciais'}</button></footer></section></div>;
 }
 
-export default function IntegracoesTab() {
+export default function IntegracoesTab({ category }: { category?: OperationalIntegration['operationalCategory'] }) {
   const { integracoes, recarregar } = useIntegracoesStore();
   const { recarregar: recarregarFontes } = useFontesStore();
   const [configuring, setConfiguring] = useState<OperationalIntegration | null>(null);
@@ -71,15 +71,18 @@ export default function IntegracoesTab() {
     finally { setTesting(null); }
   };
 
+  const visibleIntegrations = category ? integracoes.filter((integration) => integration.operationalCategory === category) : integracoes;
+
   return <div className="space-y-4">
     {notice && <div className="rounded-xl border border-[#0071E3]/20 bg-[#0071E3]/8 px-4 py-3 text-sm text-[#1559A6]">{notice}</div>}
     <div className="rounded-xl border border-[#0071E3]/20 bg-[#F2F7FF] px-4 py-3 text-sm text-[#365B83]"><strong>Fonte única.</strong> Os estados abaixo vêm da tabela de integrações da empresa. “Configurar” guarda segredos no cofre do backend; “Testar” apenas valida o provedor.</div>
     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-      {integracoes.map((integration) => {
+      {visibleIntegrations.map((integration) => {
         const meta = statusMeta[integration.status];
         return <article key={integration.remoteKey} className="flex min-h-[224px] flex-col rounded-2xl border border-[#E5E5EA] bg-white p-4 shadow-2xs"><div className="flex items-start justify-between gap-3"><div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#F2F2F7] text-[#0071E3]"><i className={`${integration.icone} text-base`} /></div><span className={`rounded-full border px-2 py-0.5 font-mono text-[10px] font-semibold ${meta.className}`}>{meta.label}</span></div><h3 className="mt-3 text-sm font-bold text-[#1D1D1F]">{integration.nome}</h3><p className="mt-1 line-clamp-3 text-[11px] leading-relaxed text-[#6E6E73]">{integration.descricao}</p><div className="mt-3 space-y-1 text-[10px] text-[#86868B]"><p>Último teste: {integration.ultimoTeste}</p>{integration.lastError && <p className="line-clamp-2 text-[#D92D27]">{integration.lastError}</p>}</div><div className="mt-auto grid grid-cols-2 gap-2 pt-3"><button type="button" onClick={() => setConfiguring(integration)} className="wf-btn-secondary justify-center text-xs">Configurar</button><button type="button" disabled={testing === integration.remoteKey} onClick={() => void test(integration)} className="wf-btn-primary justify-center text-xs disabled:opacity-60">{testing === integration.remoteKey ? 'Validando…' : 'Testar'}</button></div></article>;
       })}
     </div>
+    {visibleIntegrations.length === 0 && <div className="rounded-2xl border border-dashed border-[#E5E5EA] bg-white p-6 text-sm text-[#6E6E73]">Nenhum conector desta categoria está disponível para esta empresa.</div>}
     {configuring && <ConfigureModal integration={configuring} onClose={() => setConfiguring(null)} onSaved={refresh} />}
   </div>;
 }

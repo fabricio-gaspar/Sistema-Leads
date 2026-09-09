@@ -4,6 +4,7 @@ import { useLeadsStore } from '@/hooks/useLeadsStore';
 import { useConversasStore } from '@/hooks/useConversasStore';
 import { usePropostasStore } from '@/hooks/usePropostasStore';
 import SaudeWhatsappCard from '@/components/feature/SaudeWhatsappCard';
+import OperationalModeControl from '@/components/feature/OperationalModeControl';
 import { loadOperationalDiagnostics, type OperationalDiagnostics } from '@/lib/crm/operationalDiagnosticsRepository';
 
 function Metric({ label, value, detail, icon, tone = 'primary' }: { label: string; value: number; detail: string; icon: string; tone?: 'primary' | 'secondary' | 'accent' }) {
@@ -47,6 +48,8 @@ export default function Dashboard() {
     </header>
 
     <section className="wf-metric-strip"><Metric label="Precisa de você" value={data.handoff.length} detail="Atendimentos com humano" icon="ri-user-received-line" tone="accent"/><Metric label="Leads no fluxo" value={data.active.length} detail="Oportunidades abertas" icon="ri-stack-line"/><Metric label="Alta prioridade" value={data.hot.length} detail="Leads com temperatura quente" icon="ri-fire-line" tone="secondary"/><Metric label="Orçamentos ativos" value={data.quotes.length} detail={`${data.expiring.length} vencendo em breve`} icon="ri-file-list-3-line"/></section>
+
+    <OperationalModeControl />
 
     <section className="grid grid-cols-1 xl:grid-cols-3 gap-5">
       <div className="xl:col-span-2 wf-surface overflow-hidden"><div className="px-5 py-4 border-b border-background-200/70 flex items-center justify-between"><div><h2 className="font-heading font-semibold text-foreground-950">Fila prioritária</h2><p className="text-xs text-foreground-500 mt-0.5">A Ana pausa automaticamente quando um humano assume.</p></div><Link className="text-xs font-semibold text-primary-700" to="/dashboard/atendimento">Ver inbox</Link></div><div className="divide-y divide-background-100">{data.handoff.slice(0, 5).map((lead) => <Link key={lead.id} to={`/dashboard/atendimento?leadId=${lead.id}`} className="flex items-center gap-3 px-5 py-3 hover:bg-background-100/70"><span className="w-9 h-9 rounded-full bg-primary-50 text-primary-700 flex items-center justify-center font-semibold">{lead.nome.charAt(0)}</span><span className="flex-1 min-w-0"><strong className="block text-sm text-foreground-900 truncate">{lead.nome || lead.empresa}</strong><span className="text-xs text-foreground-500">{lead.empresa} · {lead.motivoTransferencia || 'Aguardando ação humana'}</span></span><i className="ri-arrow-right-s-line text-foreground-400 text-lg"></i></Link>)}{data.handoff.length === 0 && <div className="px-5 py-10 text-center text-sm text-foreground-500"><i className="ri-checkbox-circle-line text-primary-500 text-xl block mb-2"></i>Nenhum atendimento aguardando você.</div>}</div></div>

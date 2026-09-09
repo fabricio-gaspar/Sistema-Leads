@@ -298,7 +298,7 @@ describe('Z-API status validation contract', () => {
 });
 
 describe('Operational mode authority', () => {
-  const statusRequest = (mode: 'protected' | 'real') => new Request('https://example.invalid/operational-diagnostics', {
+  const statusRequest = (mode: 'demo' | 'protected' | 'real') => new Request('https://example.invalid/operational-diagnostics', {
     method: 'POST',
     headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'set_mode', mode }),
@@ -335,5 +335,19 @@ describe('Operational mode authority', () => {
     const response = await handler(statusRequest('real'));
     expect(response.status).toBe(400);
     expect(calls.some((q) => q.table === 'company_settings' && q.operation === 'update')).toBe(false);
+  });
+
+  it('persists the demo environment in the backend and records the normalized mode', async () => {
+    override = (q) => q.table === 'integrations' && q.operation === 'select'
+      ? ok([])
+      : undefined;
+    await import('../functions/operational-diagnostics/index');
+    const response = await handler(statusRequest('demo'));
+    expect(response.status).toBe(200);
+    expect(calls.find((q) => q.table === 'company_settings' && q.operation === 'update')?.value).toMatchObject({ sandbox_mode: true });
+    expect(calls.find((q) => q.table === 'audit_logs' && q.operation === 'insert')?.value).toMatchObject({
+      action: 'operation.demo_mode_enabled',
+      event_data: expect.objectContaining({ mode: 'demo' }),
+    });
   });
 });

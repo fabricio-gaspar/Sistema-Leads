@@ -26,5 +26,8 @@
 
 - `webhook-whatsapp` → `lead_messages` → `ana-run` → `outreach_jobs`.
 - `automation-worker` → Z-API → reconciliação de recibos.
-- `company_settings.sandbox_mode` e kill switch → todas as saídas automáticas.
+- `company_settings.sandbox_mode` e kill switch → todas as saídas automáticas. O painel os
+  apresenta como Ambiente de Demonstração e Ambiente Real; a transição é validada no backend.
+- `integrations.category` → classificação persistida entre prospecção, comunicação,
+  inteligência, agendamento e sistema; não contém segredos.
 - `organization_members`/RLS → qualquer leitura ou escrita multiempresa.

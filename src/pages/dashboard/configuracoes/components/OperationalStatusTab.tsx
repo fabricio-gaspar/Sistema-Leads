@@ -35,18 +35,18 @@ export default function OperationalStatusTab() {
 
   const changeMode = async () => {
     if (!status || changing) return;
-    const next = status.mode === 'real' ? 'protected' : 'real';
+    const next = status.mode === 'real' ? 'demo' : 'real';
     if (next === 'real' && !status.productionReady) {
       setError('O modo real permanece bloqueado. Resolva todos os itens da pré-verificação antes de tentar novamente.');
       return;
     }
     const message = next === 'real'
       ? 'Ativar o modo real? Depois desta confirmação, ações que passarem por todas as políticas do servidor poderão produzir efeitos reais.'
-      : 'Voltar ao modo protegido e bloquear toda saída real?';
+      : 'Voltar ao Ambiente de Demonstração e bloquear toda saída real?';
     if (!window.confirm(message)) return;
     setChanging(true);
     try { setStatus(await setOperationalMode(next)); setError(''); }
-    catch { setError(next === 'real' ? 'O servidor recusou o modo real porque a pré-verificação não está completa.' : 'Não foi possível ativar o modo protegido. O estado anterior foi preservado.'); }
+    catch { setError(next === 'real' ? 'O servidor recusou o Ambiente Real porque a pré-verificação não está completa.' : 'Não foi possível ativar o Ambiente de Demonstração. O estado anterior foi preservado.'); }
     finally { setChanging(false); }
   };
 
@@ -78,7 +78,7 @@ export default function OperationalStatusTab() {
               title={status.mode !== 'real' && !status.productionReady ? 'Conclua toda a pré-verificação para liberar o modo real.' : undefined}
             >
               <i className={status.mode === 'real' ? 'ri-shield-check-line' : 'ri-rocket-line'} />
-              {changing ? 'Atualizando…' : status.mode === 'real' ? 'Voltar ao modo protegido' : 'Ativar modo real'}
+              {changing ? 'Atualizando…' : status.mode === 'real' ? 'Ativar demonstração' : 'Ativar Ambiente Real'}
             </button>
           </div>
         </div>

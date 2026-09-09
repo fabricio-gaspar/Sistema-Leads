@@ -5,6 +5,7 @@ import { supabase } from '@/lib/supabase';
 
 export type OperationalIntegration = Integracao & {
   remoteKey: 'whatsapp' | 'ai' | 'apify' | 'google_places';
+  operationalCategory: 'prospecting' | 'communication' | 'intelligence' | 'scheduling' | 'system';
   connected: boolean;
   enabled: boolean;
   paused: boolean;
@@ -37,6 +38,7 @@ function pendingDescriptor(key: SupportedKey): OperationalIntegration {
     status: 'pendente',
     ultimoTeste: 'Nunca testada',
     remoteKey: key,
+    operationalCategory: key === 'whatsapp' ? 'communication' : key === 'ai' ? 'intelligence' : 'prospecting',
     connected: false,
     enabled: false,
     paused: false,
@@ -66,7 +68,7 @@ async function hydrateFromBackend(force = false): Promise<void> {
 
   const { data, error } = await supabase
     .from('integrations')
-    .select('key,connected,enabled,paused,status_detail,last_error,last_tested_at')
+    .select('key,category,connected,enabled,paused,status_detail,last_error,last_tested_at')
     .eq('organization_id', organizationId)
     .in('key', [...supportedKeys]);
   if (error) {
@@ -82,6 +84,9 @@ async function hydrateFromBackend(force = false): Promise<void> {
     return {
       ...descriptor,
       remoteKey: key,
+      operationalCategory: (remote.category === 'prospecting' || remote.category === 'communication' || remote.category === 'intelligence' || remote.category === 'scheduling' || remote.category === 'system')
+        ? remote.category
+        : (key === 'whatsapp' ? 'communication' : key === 'ai' ? 'intelligence' : 'prospecting'),
       status: statusFromRemote(remote),
       ultimoTeste: remote.last_tested_at ? new Date(remote.last_tested_at).toLocaleString('pt-BR') : 'Nunca testada',
       descricao: remote.status_detail || descriptor.descricao,

@@ -13,6 +13,9 @@
   OCR de imagem, áudio ou vídeo.
 - Testes E2E autenticados, webhook real, concorrência e RLS entre duas organizações faltam.
 - Claude está configurado como provedor pretendido, mas permanece desabilitado e sem teste válido.
+- Os registros de auditoria históricos são append-only no banco. As referências aos testes
+  removidos não foram apagadas por esse mecanismo de governança; a Central, Kanban, Leads,
+  filas, mensagens e execuções ficaram limpos, e o histórico auditável foi preservado.
 
 ## Médio
 

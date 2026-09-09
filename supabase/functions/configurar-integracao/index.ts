@@ -33,16 +33,16 @@ Deno.serve(async (request) => {
     if (!profile?.active_organization_id) throw new Error('organization_context_required');
     const organizationId = profile.active_organization_id as string;
     await requireOrganizationRole(admin, user.id, organizationId, ['owner', 'admin', 'manager']);
-    const labels: Record<string, { label: string; provider: string; detail: string }> = {
-      whatsapp: { label: 'WhatsApp (Z-API)', provider: 'Z-API', detail: 'Mensageria WhatsApp.' },
-      apify: { label: 'Apify — Google Maps', provider: 'Apify', detail: 'Busca real por Actor ou Task autorizado.' },
-      google_places: { label: 'Google Places', provider: 'Google Places', detail: 'Busca real de empresas por texto e localização.' },
-      ai: { label: 'IA da Ana', provider: 'OpenAI / Claude', detail: 'Provedor comercial da Ana, configurado no cofre.' },
+    const labels: Record<string, { label: string; provider: string; detail: string; category: string }> = {
+      whatsapp: { label: 'WhatsApp (Z-API)', provider: 'Z-API', detail: 'Mensageria WhatsApp.', category: 'communication' },
+      apify: { label: 'Apify — Google Maps', provider: 'Apify', detail: 'Busca real por Actor ou Task autorizado.', category: 'prospecting' },
+      google_places: { label: 'Google Places', provider: 'Google Places', detail: 'Busca real de empresas por texto e localização.', category: 'prospecting' },
+      ai: { label: 'IA da Ana', provider: 'OpenAI / Claude', detail: 'Provedor comercial da Ana, configurado no cofre.', category: 'intelligence' },
     };
     const definition = labels[canal];
     const { data: existing, error } = await admin.from('integrations').select('id,configuration').eq('organization_id', organizationId).eq('key', canal).maybeSingle();
     if (error) throw new Error('integration_lookup_failed');
-    const inserted = existing ? null : await admin.from('integrations').insert({ organization_id: organizationId, key: canal, label: definition.label, provider: definition.provider, connected: false, enabled: false, paused: false, mode: 'production', status_detail: definition.detail, configuration: {} }).select('id,configuration').single();
+    const inserted = existing ? null : await admin.from('integrations').insert({ organization_id: organizationId, key: canal, label: definition.label, provider: definition.provider, category: definition.category, connected: false, enabled: false, paused: false, mode: 'production', status_detail: definition.detail, configuration: {} }).select('id,configuration').single();
     if (inserted?.error) throw new Error('integration_create_failed');
     const integration = existing ?? inserted?.data;
     if (!integration) throw new Error('integration_not_found');

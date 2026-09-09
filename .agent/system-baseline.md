@@ -27,7 +27,12 @@ orçamentos. Não é sistema de venda, checkout, pedido ou recebimento.
 
 - `ana-run` é a autoridade automática pretendida e aplica bloqueios de segurança.
 - Configurações principais passaram a consultar fontes remotas.
-- Modo operacional vem de `company_settings.sandbox_mode`; produção segue bloqueada.
+- Modo operacional vem de `company_settings.sandbox_mode`; Dashboard e Configurações exibem
+  Ambiente de Demonstração/Ambiente Real, com pré-flight e auditoria no backend. Produção segue bloqueada.
+- `integrations.category` separa persistentemente prospecção, comunicação, inteligência,
+  agendamento e sistema. O painel não duplica o cofre nem a validação.
+- Nove dados de teste confirmados foram removidos com suas dependências. Um lead com inbound e
+  sem marcador explícito de teste permanece preservado para revisão humana.
 - `operational-diagnostics` e `team-members` foram publicados.
 - Build, lint, typecheck e 104 testes estavam aprovados no commit-base.
 - A versão privada publicada correspondente ao último lote conhecido é a 48.

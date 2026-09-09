@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { supabase } from '@/lib/supabase';
 
-export type OperationalMode = 'loading' | 'protected' | 'real' | 'unavailable';
+export type OperationalMode = 'loading' | 'demo' | 'real' | 'unavailable';
 
 export function useOperationalMode() {
   const { user } = useAuth();
@@ -16,7 +16,7 @@ export function useOperationalMode() {
       if (profileError || !profile?.active_organization_id) throw new Error('organization_context_required');
       const { data: company, error: companyError } = await supabase.from('company_settings').select('sandbox_mode').eq('organization_id', profile.active_organization_id).maybeSingle();
       if (companyError || typeof company?.sandbox_mode !== 'boolean') throw new Error('operational_mode_unavailable');
-      setMode(company.sandbox_mode ? 'protected' : 'real');
+      setMode(company.sandbox_mode ? 'demo' : 'real');
     } catch { setMode('unavailable'); }
   }, [user]);
 
