@@ -1,181 +1,84 @@
 # Checkpoint — WayFlex CRM
 
-Última atualização: 2026-09-09. Pedido autorizado: implementar o plano da auditoria,
-com checkpoints retomáveis e revisão final de layout/login. **Ainda não concluído.**
+Última atualização: 2026-09-09. Este documento permite retomar o trabalho quando
+Fabricio disser **“pode seguir”**, sem depender do histórico da conversa.
 
-## Como retomar quando Fabricio disser "pode seguir"
+## Como retomar
 
-1. Reabrir este mesmo projeto e ler este documento, `AGENTS.md` e o estado Git.
-2. Conferir o último commit remoto antes de editar; preservar alterações locais.
-3. Revalidar apenas os contratos necessários à tarefa seguinte. Não repetir toda a auditoria.
-4. Executar a próxima tarefa aberta, testar, atualizar este documento e salvar no remoto.
-5. Não ativar disparos reais, não limpar histórico e não recriar infraestrutura faturável sem resolver o escopo.
+1. Ler `AGENTS.md`, `.agent/AGENT_OS.md`, `.agent/audit-state.json` e este arquivo.
+2. Conferir `git status`, o commit remoto e a versão privada do Site.
+3. Revalidar somente o delta e o fluxo afetado; não repetir a auditoria inteira.
+4. Preservar o modo protegido. Não enviar mensagens, ativar produção ou criar recurso
+   faturável sem autorização específica.
+5. Depois de cada lote: testar, atualizar `.agent/`, criar checkpoint Git e publicar apenas
+   quando a versão estiver validada.
 
-## Identidade e estado inicial observado
+## Identidade e baseline validado
 
-- Diretório: `/workspace/sites/leadai-crm-preview`.
-- Site: `appgprj_6a905559159c8191a61fb776b9a4c531`.
+- Repositório: `/workspace/sites/leadai-crm-preview`.
 - Supabase: `thgzrkppouoevapjquyu`.
-- Git inicial: `19ea9c4a55b566ec804cd52b8b3b248907022891`.
-- Última versão Sites consultada: 45, baseada em `51a7b2fad682e537df6246ee6cde738fe735b0d7`.
-- Alterações herdadas não commitadas: biblioteca Ana (UI/repository/ingest/migration), ranking de conhecimento e navegação.
-- Backend observado antes desta etapa: ana-run v12, ana-ia v8, base-ana-ingest v1.
+- Site privado: `appgprj_6a905559159c8191a61fb776b9a4c531`.
+- URL privada: `https://leadai-crm-preview.fabricio926564.chatgpt.site`.
+- Commit funcional validado: `7c0e02c9a62c2716de408aed6818cb27dec01c33`.
+- Baseline visual anterior: tag `baseline-pre-apple-mac-light-20260908` e Site versão 46.
+- Antes da nova publicação, o Site ativo era a versão 48 no commit
+  `4d072280a09b3b8462f5bf0dfa701b314eca31bb`.
 
-## Retificações da auditoria (confirmadas no código/contratos)
+## Entregas deste checkpoint
 
-- 52/100 não tem rubrica objetiva; não usar como certificação ou medida de cobertura.
-- `draft` e ausência de `lead_outreach` NÃO provam que não houve envio: worker envia à Z-API e não reconcilia esses registros.
-- `ana-run` atual não lê `sandbox_mode` nem enabled/connected da integração AI. Portanto estes campos, sozinhos, não explicam a ausência da resposta; a falta de enforcement é outro defeito.
-- Falha confirmada: webhook escreve `processing` em channel_inbound_events e `unmatched` em webhook_events; CHECKs remotos só aceitam received/processed/ignored/failed. Erros não são verificados.
-- Falha confirmada: webhook chama ana-run com segredo interno mas sem Authorization; deploy ana-run exige verify_jwt=true e bloqueia antes do handler.
-- Import de `type` de mocks não é dado simulado no bundle. Presets e dados operacionais precisam ser classificados separadamente.
-- Falta de embeddings não prova busca ineficaz; avaliar recuperação em perguntas reais antes de prometer ganho de qualidade.
-- CRUD deve corresponder ao domínio: logs não devem ser editados/duplicados; leads não devem ser duplicados sem regras de identidade.
+- Protocolo persistente `.agent/` conectado ao `AGENTS.md`.
+- Menu Configurações consolidado por responsabilidade. Diagnóstico, auditoria e registros
+  estão no menu independente **Registro do Sistema**.
+- Marca do shell mostra apenas **WAYFLEX**; sem círculos decorativos de janela.
+- Dashboard consulta métricas e alertas operacionais reais.
+- Central e Kanban compartilham lead e histórico em `lead_messages`; mensagens humanas usam
+  a fila de saída e não são simuladas no navegador.
+- Envio de orçamento agora prepara a mensagem para revisão; não altera status nem inventa
+  validade antes da confirmação real.
+- Quatro templates industriais persistidos, sem preço, prazo ou condição inventada.
+- Integrações não comprovadas aparecem offline. Teste de IA valida credencial sem enviar
+  mensagem. Cards diferenciam online, offline e teste vencido.
+- Mudança para modo real ocorre no backend, é auditada e exige pré-flight. O modo real está
+  corretamente bloqueado enquanto Claude, webhook de entrada e scheduler estão offline.
+- Formulários de empresa só confirmam sucesso depois da persistência. Presets comerciais
+  não comprovados foram retirados da tela; o catálogo real é a fonte indicada.
+- Equipe e responsáveis usam membros remotos. Tempos e gráficos simulados foram removidos.
+- Conteúdo operacional do frontend não exibe a antiga marca. Backup histórico permanece
+  restrito em `docs/backup_wayflex_2026-08-26.sql` e não é carregado pelo runtime.
 
-## Plano e critérios
+## Backend sincronizado
 
-| Etapa | Estado | Entrega/aceite |
-|---|---|---|
-| 0. Continuidade e baseline | CONCLUÍDO | Baseline herdado + plano salvos no remoto em 901d128 |
-| 1A. Segurança e contratos de entrada | PARCIAL — APLICADO | Parser/contratos/autenticação corrigidos; fila transacional/retry ainda pendentes |
-| 1B. Timeout e saída | PARCIAL — APLICADO | Bloqueios, claim de saída e rastreio; homologação concorrente real ainda pendente |
-| 1C. Worker independente | PENDENTE | Cron, lock, retry, dead-letter, heartbeat e teste com painel fechado |
-| 1D. Modo/integrações | PARCIAL — APLICADO | Painel de status e conexões usa fontes remotas; transição auditada e pré-flight transacional ainda pendentes |
-| 2. Stores e módulos | PENDENTE | Sem seed operacional fictício; salvar/erro/concorrência/permissões por módulo |
-| 3. Base multimídia | PENDENTE | Extração/OCR/transcrição, revisão, vigência, recuperação avaliada e mídia segura |
-| 4. Segurança/homologação | PENDENTE | Testes RLS/concorrência/E2E, advisors, piloto autorizado |
-| 5. Design final | PENDENTE | Login sem números fictícios, painel elegante, legível, responsivo e consistente |
+- `operational-diagnostics` v3, JWT obrigatório.
+- `automation-worker` v10, JWT obrigatório.
+- `enviar-whatsapp` v4, JWT obrigatório.
+- `testar-integracao` v9, JWT obrigatório.
+- `configurar-integracao` v11, JWT obrigatório.
+- `ana-run` v14 e `webhook-whatsapp` v7 permanecem ativos.
 
-## Política de retomada e entrega
+Nenhuma mensagem real foi enviada e `sandbox_mode` não foi alterado.
 
-- Checkpoints devem registrar concluído, em andamento, bloqueios e próximo comando/tarefa.
-- Cada etapa pequena é salva no Git remoto; salvar código não significa publicar o Site.
-- Enquanto não homologado, preservar sandbox e bloquear saída; nunca usar leads reais como fixtures.
-- Homologação separada ainda precisa ser provisionada com confirmação de eventual custo; não criar branch paga implicitamente.
-- Nenhum processo continua rodando pelo agente depois do fim da conversa/créditos. Retomada acontece no próximo pedido.
+## Validação
 
-## Checkpoint do lote de proteção do runtime
+- `npm run type-check`: aprovado.
+- `npm run type-check:edge`: aprovado.
+- `npm run lint`: aprovado, sem warnings.
+- `npm run test`: 13 arquivos, 107 testes aprovados.
+- `npm run build`: aprovado.
 
-Estado: **APLICADO no Supabase; commit 72b3fd7 salvo no Git remoto.**
-Funções confirmadas ACTIVE: `ana-run` v13 (verify_jwt=true), `automation-worker` v7
-(verify_jwt=true), `webhook-whatsapp` v7 (verify_jwt=false, autenticação própria preservada).
-Site publicado: versão **46**, source `95f6d14ce0568192347121406c42021ca9421437`.
-Saved version: `appgprj_6a905559159c8191a61fb776b9a4c531~appgver_21c6af3f374481919e6c72cb2221f8d7`.
-Deployment: `appgdep_6aa05c150e308191abad420f197f868c`, status **succeeded**.
-URL: https://leadai-crm-preview.fabricio926564.chatgpt.site
-Audiência privada existente preservada. Este checkpoint é atualizado depois da publicação;
-os commits posteriores que só alteram documentação não indicam divergência do runtime publicado.
+Isso ainda não substitui teste E2E autenticado, WhatsApp/Claude real, concorrência Postgres,
+RLS entre duas empresas e QA mobile autenticado.
 
-- `ana-run`: respeita sandbox, empresa ativa, ações IA, integração AI, kill switch remoto,
-  modo humano, opt-out e pausa; vendedor limitado à carteira. Credenciais pertencem à organização.
-- Simulação só registra a execução; não altera lead, tarefas, propostas, mensagens nem saída.
-- Identidade de mensagem estável; execução anteriormente falha responde falha/409.
-  Timeouts deixam de usar janela de dois minutos e de competir com o cron já existente.
-- O proprietário temporário do timeout é `private.process_no_reply_deadlines`, cron já ativo
-  a cada 15 minutos, com transação/lock. Não foi criado cron novo. A unificação definitiva
-  com o núcleo de decisões e os gates de empresa desse cron ainda precisa de migração.
-- Webhook: tipos Z-API explícitos; ecos do próprio número/grupos/notificações não acionam Ana;
-  estados válidos; erros de escrita verificados; JWT interno no gateway preservando verify_jwt.
-- Telefone comparado por identidade internacional completa; conflito entre leads é sinalizado.
-  Compatibilidade provisória com registros brasileiros formatados; normalização/indexação ainda pendente.
-- Eventos duplicados não reaplicam ações. O payload permanece guardado, porém a ingestão ainda
-  não é uma transação única: queda entre gravações exige reconciliação. NÃO anunciar exactly-once completo.
-- Fotos/áudios/documentos/vídeos recebidos ganham marcador de conteúdo não extraído e revisão humana.
-  Isso não implementa extração/OCR/transcrição nem a biblioteca multimídia.
-- Worker: claim condicional queued→processing; revalidação de bloqueios antes de cada envio;
-  exige mensagem vinculada a uma execução concluída; rejeita contexto desatualizado e URL não oficial.
-- Saída confirmada pelo provedor atualiza mensagem, outreach e ID do provedor. `sent` não é prova
-  de entrega/leitura. Recibos de status recebidos ainda aguardam reconciliação específica.
-- Resultado de envio ambíguo vai para `reconciliation_required`, sem reenvio automático.
-  Queda após claim pode deixar `processing`: lease/heartbeat/alerta/reconciliação ainda pendentes.
-- Jobs antigos sem vínculo de mensagem/contexto não são enviados automaticamente.
-- Funções legadas enviar-whatsapp/enviar-email/ana-ia/lead-workflow ainda precisam ser consolidadas.
-  Portanto estes gates não equivalem a proteção global comprovada de todos os caminhos.
+## Bloqueios verdadeiros restantes
 
-Verificação local: 57 testes de políticas/contratos + 20 de handlers com persistência/provedor
-simulados, além dos 27 testes anteriores. Type-check dos três handlers com tipos Supabase locais
-e declaração mínima de Deno. Não é execução de Deno, teste Postgres/RLS nem WhatsApp/Claude real.
-Nenhuma mensagem real enviada; nenhuma configuração de produção ativada.
+1. Criar scheduler server-side com segredo interno, lease, heartbeat, retry, dead-letter e
+   alerta. Não existe credencial segura disponível para concluir isso automaticamente.
+2. Homologar o webhook Z-API de entrada e recibos de entrega/leitura com número autorizado.
+3. Validar a credencial Claude e o fluxo completo WhatsApp → Ana → fila → provedor.
+4. Consolidar funções/stores legados que ainda oferecem caminhos paralelos a `ana-run`.
+5. Concluir extração de PDF/DOCX/PPTX/XLSX, OCR, transcrição e busca híbrida. Hoje a Ana usa
+   somente texto aprovado e transcrições fornecidas/revisadas.
+6. Substituir os presets/localStorage restantes de módulos secundários e executar E2E/RLS.
 
-## Login e indicação do modo — lote visual
-
-**PUBLICADO na versão 46**, no mesmo Site e audiência privada existente.
-
-- Login WayFlex CRM com composição sóbria, campos acessíveis, autocomplete, mensagens de erro
-  identificadas e sem métricas fictícias. Funções de autenticação existentes preservadas.
-- Indicador do topo consulta `company_settings.sandbox_mode` com sessão/organização ativa,
-  atualiza ao focar a janela e mostra falha de leitura. Não ativa integrações nem grava localStorage.
-- A antiga alternância local Demo/Real foi retirada porque anunciava uma ativação inexistente.
-  A transição real auditada/pré-flight é parte ainda pendente da etapa 1D.
-- Type-check frontend/Edge e lint aprovados. Build Vite/artefato Sites aprovado.
-- Inspeção do login por DOM e captura desktop 1363×936: sem rolagem horizontal, campos com
-  rótulos associados e interface renderizada. Não houve login, redefinição de senha nem envio de e-mail.
-- A revisão completa das telas autenticadas e a homologação mobile continuam pendentes.
-
-## Apple Mac Light — ponto de retorno e avaliação
-
-- Baseline de retorno criada antes do redesign: tag Git
-  `baseline-pre-apple-mac-light-20260908` no commit `d89f89b063c82399f8fd1d46fd75870736d06d26`.
-- A versão publicada 46 também permanece como referência visual anterior.
-- O redesign Apple Mac Light altera somente tokens, CSS global e elementos decorativos/layout
-  do shell. Não altera hooks, stores, rotas, dados, integrações, funções ou regras de negócio.
-- Ao entregar a versão para avaliação, perguntar explicitamente se Fabricio está satisfeito ou
-  quer restaurar este baseline. Restauração deve publicar novamente a versão 46 ou o commit/tag
-  acima, conforme o estado a ser revertido, sem recriar dados.
-- Versão Apple Mac Light publicada: versão **47**, source
-  `13c02333f5aee1b7d5a188b6a62d186cd7e517c0`, deployment concluído em
-  `https://leadai-crm-preview.fabricio926564.chatgpt.site`.
-
-## Configurações operacionais — lote em andamento
-
-Estado: **APLICADO no Supabase; frontend LOCAL, ainda não publicado.**
-
-- Há um commit local deste lote (`feat: connect settings to operational sources`).
-  O push para `origin/main` ficou pendente porque o ambiente não possui credencial para
-  `git.chatgpt-team.site`; não repetir o push sem a autenticação configurada.
-
-- O menu foi consolidado em: Configurar a Ana, Status operacional, Empresa e conhecimento,
-  Equipe e acessos, Catálogo, Canais/APIs/fontes, Proteção de contatos e Diagnóstico/auditoria.
-  URLs antigas são redirecionadas à área equivalente; `/dashboard/empresa` agora aponta para a
-  mesma fonte de Empresa e conhecimento, sem tela duplicada.
-- `Status operacional` consulta `company_settings`, `integrations` e o kill switch remoto.
-  O navegador não muda modo de produção e não executa mais `automation-worker` em intervalo.
-  O banner e a Busca de Leads mostram modo protegido/real a partir de `company_settings`, não
-  de localStorage. No modo protegido, a busca não cria prévia fictícia nem chama provedor.
-- Canais e fontes usam somente registros reais. Os botões locais de conectar/desconectar,
-  criar/editar/excluir fonte e estados mockados foram removidos. Credenciais passam por
-  `configurar-integracao`; teste/ativação usam o estado remoto confirmado.
-- Equipe e acessos passou a consultar `organization_members`/`profiles`; convite, papel,
-  bloqueio e remoção passam pela função administrativa `team-members`, que protege o último
-  administrador. O convite não foi disparado durante esta implementação.
-- Proteção de contatos grava `contact_suppressions`; Central de Atendimento também usa essa
-  lista real para registrar opt-out. `ana-run` v14 e `automation-worker` v8 conferem hash de
-  telefone/e-mail e respeitam o canal selecionado (ou todos os canais).
-- Diagnóstico usa registros reais de auditoria, execuções da Ana, entrada de canal, jobs e
-  eventos de risco; não usa mais o blob local de logs.
-- Funções novas publicadas com JWT obrigatório: `operational-diagnostics` v1 e
-  `team-members` v1. Atualizadas: `ana-run` v14 e `automation-worker` v8. Nenhuma mensagem
-  foi enviada, nenhuma integração foi testada e `sandbox_mode` não foi alterado.
-- Verificação local após a alteração: `npm run type-check`, `npm run lint`,
-  `npm run type-check:edge`, `npm run test` (**13 arquivos / 104 testes**) e `npm run build`.
-  Isso não substitui teste E2E autenticado nem homologação de WhatsApp/Claude.
-
-Limites preservados: este lote não cria o worker server-side/cron, não corrige o gateway
-inbound do WhatsApp, não ativa produção e não torna o sistema pronto para comercialização.
-O Site continua publicado na versão 47 até uma publicação expressamente autorizada.
-
-Bloqueio de ferramenta: instalação via `npm exec --package=supabase` retornou
-`network approval was cancelled before a decision was returned`. Não contornar nem repetir
-instalação sem resolver autorização. A skill Supabase pede CLI para nomear migrações.
-Testes usam ferramentas Node já instaladas, sem instalar dependências.
-
-## Próxima ação exata
-
-1. Fazer commit e push deste lote de Configurações; só publicar o frontend no Site se Fabricio autorizar.
-2. Implementar o worker server-side com heartbeat/dead-letter e concluir a transição única de
-   modo com pré-flight transacional, sem ativar produção.
-3. Corrigir o gateway inbound do WhatsApp e testar webhook, RLS, concorrência e E2E em
-   homologação antes de qualquer piloto controlado.
-
-Não repetir deploys deste lote. Para retomar, começar pelo item 1. Não considerar o sistema
-pronto para comercialização; não ativar produção para testar os bloqueios com leads reais.
+O sistema continua **não liberado para comercialização autônoma** enquanto os itens 1 a 3
+não forem homologados. Para retomar, começar pelo scheduler seguro ou pela homologação do
+webhook em ambiente controlado.
