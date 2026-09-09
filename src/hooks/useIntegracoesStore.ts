@@ -1,69 +1,103 @@
-import { integracoes as integracoesMock } from '@/mocks/businessData';
-import type { Integracao } from '@/mocks/businessData';
 import { useEffect, useMemo, useSyncExternalStore } from 'react';
+import { integracoes as integrationDescriptors } from '@/mocks/businessData';
+import type { Integracao } from '@/mocks/businessData';
 import { supabase } from '@/lib/supabase';
 
-const STORAGE_KEY = 'leadai_integracoes_v1';
-type StoredIntegration = Integracao & { remoteKey?: string };
-let state: StoredIntegration[] = carregarLocal();
+export type OperationalIntegration = Integracao & {
+  remoteKey: 'whatsapp' | 'ai' | 'apify' | 'google_places';
+  connected: boolean;
+  enabled: boolean;
+  paused: boolean;
+  lastError: string | null;
+  lastTestedAt: string | null;
+};
+
+const supportedKeys = ['whatsapp', 'ai', 'apify', 'google_places'] as const;
+type SupportedKey = typeof supportedKeys[number];
+
+const descriptorByKey: Record<SupportedKey, Integracao> = {
+  whatsapp: integrationDescriptors.find((item) => item.id === 'int-1')!,
+  ai: integrationDescriptors.find((item) => item.id === 'int-6')!,
+  apify: integrationDescriptors.find((item) => item.id === 'int-7')!,
+  google_places: integrationDescriptors.find((item) => item.id === 'int-8')!,
+};
+
+let state: OperationalIntegration[] = [];
 let hydratedUser: string | null = null;
 const listeners = new Set<() => void>();
 
-function carregarLocal(): StoredIntegration[] {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw) as StoredIntegration[];
-  } catch { /* fallback para presets */ }
-  return integracoesMock.map((integration) => ({ ...integration }));
+function notify() {
+  listeners.forEach((listener) => listener());
 }
 
-function persistir(): void {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch { /* sem cache local */ }
+function pendingDescriptor(key: SupportedKey): OperationalIntegration {
+  const descriptor = descriptorByKey[key];
+  return {
+    ...descriptor,
+    status: 'pendente',
+    ultimoTeste: 'Nunca testada',
+    remoteKey: key,
+    connected: false,
+    enabled: false,
+    paused: false,
+    lastError: null,
+    lastTestedAt: null,
+  };
 }
 
-function notify(): void { listeners.forEach((listener) => listener()); }
+function statusFromRemote(remote: { connected: boolean; enabled: boolean; paused: boolean; last_error: string | null }) {
+  if (remote.last_error || remote.paused) return 'erro' as const;
+  if (remote.connected && remote.enabled) return 'conectado' as const;
+  return 'pendente' as const;
+}
 
-const keyById: Record<string, string> = {
-  'int-1': 'whatsapp', 'int-2': 'email', 'int-3': 'instagram', 'int-4': 'voip', 'int-5': 'google_calendar', 'int-6': 'ai', 'int-7': 'apify', 'int-8': 'google_places',
-};
-
-async function hidratarDoBackend(force = false): Promise<void> {
+async function hydrateFromBackend(force = false): Promise<void> {
   const { data: auth } = await supabase.auth.getUser();
   const userId = auth.user?.id;
   if (!userId || (!force && hydratedUser === userId)) return;
-  const { data: profile } = await supabase.from('profiles').select('active_organization_id').eq('id', userId).maybeSingle();
+
+  const { data: profile, error: profileError } = await supabase
+    .from('profiles')
+    .select('active_organization_id')
+    .eq('id', userId)
+    .maybeSingle();
   const organizationId = profile?.active_organization_id as string | null | undefined;
-  if (!organizationId) return;
-  const { data, error } = await supabase.from('integrations')
-    .select('key,provider,connected,enabled,paused,status_detail,last_error,last_tested_at')
-    .eq('organization_id', organizationId);
+  if (profileError || !organizationId) return;
+
+  const { data, error } = await supabase
+    .from('integrations')
+    .select('key,connected,enabled,paused,status_detail,last_error,last_tested_at')
+    .eq('organization_id', organizationId)
+    .in('key', [...supportedKeys]);
   if (error) {
-    console.error('[integracoes] falha ao carregar conexões reais', error);
+    console.error('[integracoes] falha ao carregar conexões operacionais', error);
     return;
   }
-  const byKey = new Map((data ?? []).map((row) => [row.key, row]));
-  state = integracoesMock.map((mock) => {
-    const remote = byKey.get(keyById[mock.id]);
-    if (!remote) return mock;
+
+  const byKey = new Map((data ?? []).map((row) => [row.key as SupportedKey, row]));
+  state = supportedKeys.map((key) => {
+    const descriptor = descriptorByKey[key];
+    const remote = byKey.get(key);
+    if (!remote) return pendingDescriptor(key);
     return {
-      ...mock,
-      status: remote.connected && remote.enabled ? 'conectado' : (remote.paused || remote.last_error) ? 'erro' : 'pendente',
-      ultimoTeste: remote.last_tested_at ? new Date(remote.last_tested_at).toLocaleString('pt-BR') : mock.ultimoTeste,
-      descricao: remote.status_detail || mock.descricao,
-      remoteKey: remote.key,
+      ...descriptor,
+      remoteKey: key,
+      status: statusFromRemote(remote),
+      ultimoTeste: remote.last_tested_at ? new Date(remote.last_tested_at).toLocaleString('pt-BR') : 'Nunca testada',
+      descricao: remote.status_detail || descriptor.descricao,
+      connected: Boolean(remote.connected),
+      enabled: Boolean(remote.enabled),
+      paused: Boolean(remote.paused),
+      lastError: remote.last_error ?? null,
+      lastTestedAt: remote.last_tested_at ?? null,
     };
   });
-  persistir();
   hydratedUser = userId;
   notify();
 }
 
 export interface IntegracoesStore {
-  integracoes: Integracao[];
-  atualizar: (id: string, mudanca: Partial<Integracao>) => void;
-  conectar: (id: string) => void;
-  desconectar: (id: string) => void;
-  salvarCredenciais: (id: string, credenciais: Record<string, string>) => void;
+  integracoes: OperationalIntegration[];
   recarregar: () => Promise<void>;
 }
 
@@ -75,40 +109,16 @@ export function useIntegracoesStore(): IntegracoesStore {
   );
 
   useEffect(() => {
-    void hidratarDoBackend();
+    void hydrateFromBackend();
     const { data: subscription } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user?.id !== hydratedUser) {
         hydratedUser = null;
-        void hidratarDoBackend(true);
+        void hydrateFromBackend(true);
       }
     });
     return () => subscription.subscription.unsubscribe();
   }, []);
 
-  const integracoes = useMemo(() => {
-    const byId = new Map(raw.map((integration) => [integration.id, integration]));
-    return integracoesMock.map((mock) => ({ ...mock, ...byId.get(mock.id), campos: mock.campos, nome: mock.nome, icone: mock.icone, categoria: mock.categoria }));
-  }, [raw]);
-
-  const atualizar = (id: string, mudanca: Partial<Integracao>) => {
-    state = state.map((integration) => integration.id === id ? { ...integration, ...mudanca } : integration);
-    persistir();
-    notify();
-  };
-
-  const conectar = (id: string) => atualizar(id, { status: 'conectado', ultimoTeste: 'agora' });
-
-  const desconectar = (id: string) => atualizar(id, { status: 'pendente' });
-
-  const salvarCredenciais = (id: string, credenciais: Record<string, string>) => {
-    // Não persistir tokens/chaves no browser, localStorage ou JSON compartilhado.
-    // A próxima fase grava segredos somente no cofre de secrets do backend, por
-    // OAuth ou um endpoint administrativo autenticado.
-    void credenciais;
-    atualizar(id, { credenciais: undefined, status: 'pendente', ultimoTeste: 'Aguardando validação segura' });
-  };
-
-  const recarregar = async () => { await hidratarDoBackend(true); };
-
-  return { integracoes, atualizar, conectar, desconectar, salvarCredenciais, recarregar };
+  const integracoes = useMemo(() => raw, [raw]);
+  return { integracoes, recarregar: () => hydrateFromBackend(true) };
 }

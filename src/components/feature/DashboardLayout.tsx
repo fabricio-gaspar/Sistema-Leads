@@ -1,13 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link, useLocation, Outlet, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useNotificacoesStore } from '@/hooks/useNotificacoesStore';
 import { useTarefasStore } from '@/hooks/useTarefasStore';
-import { useConfiguracaoStore } from '@/hooks/useConfiguracaoStore';
 import { useSaudeWhatsapp } from '@/hooks/useSaudeWhatsapp';
+import { useOperationalMode } from '@/hooks/useOperationalMode';
 import SaudeWhatsappIndicator from '@/components/feature/SaudeWhatsappIndicator';
 import ModoExecucaoToggle from '@/components/feature/ModoExecucaoToggle';
-import { runOperationalAutomations } from '@/lib/crm/automationRepository';
 
 interface NavItem {
   label: string;
@@ -58,20 +57,8 @@ export default function DashboardLayout() {
   const { user, loading, logout } = useAuth();
   const notif = useNotificacoesStore();
   const tarefas = useTarefasStore();
-  const { config } = useConfiguracaoStore();
   const saude = useSaudeWhatsapp();
-
-  useEffect(() => {
-    if (!user || config.modoExecucao !== 'PRODUCAO') return;
-
-    const processar = () => {
-      void runOperationalAutomations().catch(() => undefined);
-    };
-
-    processar();
-    const intervalId = window.setInterval(processar, 60_000);
-    return () => window.clearInterval(intervalId);
-  }, [user, config.modoExecucao]);
+  const { mode: operationalMode } = useOperationalMode();
 
   if (loading) {
     return (
@@ -357,21 +344,12 @@ export default function DashboardLayout() {
           </div>
         </header>
 
-        {/* Banner de modo (Demo/Sandbox) */}
-        {config.modoExecucao !== 'PRODUCAO' && (
-          <div className={`px-4 sm:px-6 py-2 flex flex-wrap items-center gap-2 text-xs font-medium flex-shrink-0 ${config.modoExecucao === 'DEMO' ? 'bg-secondary-500 text-background-50' : 'bg-accent-500 text-background-50'}`}>
-            <i className={config.modoExecucao === 'DEMO' ? 'ri-flask-line' : 'ri-test-tube-line'}></i>
-            <span className="leading-5">
-              {config.modoExecucao === 'DEMO'
-                ? 'MODO DEMO — nada sai do navegador. Envios simulados.'
-                : 'MODO SANDBOX — mensagens enviadas apenas para contas/números de teste.'}
-            </span>
-            <Link
-              to="/dashboard/configuracoes"
-              className="ml-auto underline underline-offset-2 hover:opacity-80 cursor-pointer whitespace-nowrap"
-            >
-              Configurar ambiente
-            </Link>
+        {/* A origem é company_settings; o navegador não inicia filas nem decide o modo. */}
+        {operationalMode !== 'real' && operationalMode !== 'loading' && (
+          <div className="flex flex-shrink-0 flex-wrap items-center gap-2 bg-[#FF9500] px-4 py-2 text-xs font-medium text-white sm:px-6">
+            <i className="ri-shield-check-line" />
+            <span className="leading-5">MODO PROTEGIDO — saídas automáticas permanecem bloqueadas até as verificações do backend serem concluídas.</span>
+            <Link to="/dashboard/configuracoes?tab=operacao" className="ml-auto cursor-pointer whitespace-nowrap underline underline-offset-2 hover:opacity-80">Ver status operacional</Link>
           </div>
         )}
 

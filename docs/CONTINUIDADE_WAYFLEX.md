@@ -1,6 +1,6 @@
 # Checkpoint — WayFlex CRM
 
-Última atualização: 2026-09-08. Pedido autorizado: implementar o plano da auditoria,
+Última atualização: 2026-09-09. Pedido autorizado: implementar o plano da auditoria,
 com checkpoints retomáveis e revisão final de layout/login. **Ainda não concluído.**
 
 ## Como retomar quando Fabricio disser "pode seguir"
@@ -40,7 +40,7 @@ com checkpoints retomáveis e revisão final de layout/login. **Ainda não concl
 | 1A. Segurança e contratos de entrada | PARCIAL — APLICADO | Parser/contratos/autenticação corrigidos; fila transacional/retry ainda pendentes |
 | 1B. Timeout e saída | PARCIAL — APLICADO | Bloqueios, claim de saída e rastreio; homologação concorrente real ainda pendente |
 | 1C. Worker independente | PENDENTE | Cron, lock, retry, dead-letter, heartbeat e teste com painel fechado |
-| 1D. Modo/integrações | PENDENTE | Única configuração remota, pré-flight e saúde real no painel |
+| 1D. Modo/integrações | PARCIAL — APLICADO | Painel de status e conexões usa fontes remotas; transição auditada e pré-flight transacional ainda pendentes |
 | 2. Stores e módulos | PENDENTE | Sem seed operacional fictício; salvar/erro/concorrência/permissões por módulo |
 | 3. Base multimídia | PENDENTE | Extração/OCR/transcrição, revisão, vigência, recuperação avaliada e mídia segura |
 | 4. Segurança/homologação | PENDENTE | Testes RLS/concorrência/E2E, advisors, piloto autorizado |
@@ -126,6 +126,44 @@ Nenhuma mensagem real enviada; nenhuma configuração de produção ativada.
   `13c02333f5aee1b7d5a188b6a62d186cd7e517c0`, deployment concluído em
   `https://leadai-crm-preview.fabricio926564.chatgpt.site`.
 
+## Configurações operacionais — lote em andamento
+
+Estado: **APLICADO no Supabase; frontend LOCAL, ainda não publicado.**
+
+- Há um commit local deste lote (`feat: connect settings to operational sources`).
+  O push para `origin/main` ficou pendente porque o ambiente não possui credencial para
+  `git.chatgpt-team.site`; não repetir o push sem a autenticação configurada.
+
+- O menu foi consolidado em: Configurar a Ana, Status operacional, Empresa e conhecimento,
+  Equipe e acessos, Catálogo, Canais/APIs/fontes, Proteção de contatos e Diagnóstico/auditoria.
+  URLs antigas são redirecionadas à área equivalente; `/dashboard/empresa` agora aponta para a
+  mesma fonte de Empresa e conhecimento, sem tela duplicada.
+- `Status operacional` consulta `company_settings`, `integrations` e o kill switch remoto.
+  O navegador não muda modo de produção e não executa mais `automation-worker` em intervalo.
+  O banner e a Busca de Leads mostram modo protegido/real a partir de `company_settings`, não
+  de localStorage. No modo protegido, a busca não cria prévia fictícia nem chama provedor.
+- Canais e fontes usam somente registros reais. Os botões locais de conectar/desconectar,
+  criar/editar/excluir fonte e estados mockados foram removidos. Credenciais passam por
+  `configurar-integracao`; teste/ativação usam o estado remoto confirmado.
+- Equipe e acessos passou a consultar `organization_members`/`profiles`; convite, papel,
+  bloqueio e remoção passam pela função administrativa `team-members`, que protege o último
+  administrador. O convite não foi disparado durante esta implementação.
+- Proteção de contatos grava `contact_suppressions`; Central de Atendimento também usa essa
+  lista real para registrar opt-out. `ana-run` v14 e `automation-worker` v8 conferem hash de
+  telefone/e-mail e respeitam o canal selecionado (ou todos os canais).
+- Diagnóstico usa registros reais de auditoria, execuções da Ana, entrada de canal, jobs e
+  eventos de risco; não usa mais o blob local de logs.
+- Funções novas publicadas com JWT obrigatório: `operational-diagnostics` v1 e
+  `team-members` v1. Atualizadas: `ana-run` v14 e `automation-worker` v8. Nenhuma mensagem
+  foi enviada, nenhuma integração foi testada e `sandbox_mode` não foi alterado.
+- Verificação local após a alteração: `npm run type-check`, `npm run lint`,
+  `npm run type-check:edge`, `npm run test` (**13 arquivos / 104 testes**) e `npm run build`.
+  Isso não substitui teste E2E autenticado nem homologação de WhatsApp/Claude.
+
+Limites preservados: este lote não cria o worker server-side/cron, não corrige o gateway
+inbound do WhatsApp, não ativa produção e não torna o sistema pronto para comercialização.
+O Site continua publicado na versão 47 até uma publicação expressamente autorizada.
+
 Bloqueio de ferramenta: instalação via `npm exec --package=supabase` retornou
 `network approval was cancelled before a decision was returned`. Não contornar nem repetir
 instalação sem resolver autorização. A skill Supabase pede CLI para nomear migrações.
@@ -133,10 +171,11 @@ Testes usam ferramentas Node já instaladas, sem instalar dependências.
 
 ## Próxima ação exata
 
-1. Resolver bloqueio de ferramenta para novas migrações; implementar ingestão/filas transacionais,
-   worker server-side com heartbeat e modo único com pré-flight.
-2. Prosseguir consolidação dos caminhos legados, módulos/base/homologação e revisão visual completa.
-3. Antes de alegar prontidão, executar RLS/concorrência/E2E e piloto controlado autorizado.
+1. Fazer commit e push deste lote de Configurações; só publicar o frontend no Site se Fabricio autorizar.
+2. Implementar o worker server-side com heartbeat/dead-letter e concluir a transição única de
+   modo com pré-flight transacional, sem ativar produção.
+3. Corrigir o gateway inbound do WhatsApp e testar webhook, RLS, concorrência e E2E em
+   homologação antes de qualquer piloto controlado.
 
 Não repetir deploys deste lote. Para retomar, começar pelo item 1. Não considerar o sistema
 pronto para comercialização; não ativar produção para testar os bloqueios com leads reais.

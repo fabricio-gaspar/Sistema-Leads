@@ -7,7 +7,6 @@ import ResetPassword from '../pages/reset-password/page';
 
 const NotFound = lazy(() => import('../pages/NotFound'));
 const Dashboard = lazy(() => import('../pages/dashboard/page'));
-const Empresa = lazy(() => import('../pages/dashboard/empresa/page'));
 const BuscaLeads = lazy(() => import('../pages/dashboard/busca-leads/page'));
 const Atendimento = lazy(() => import('../pages/dashboard/atendimento/page'));
 const Leads = lazy(() => import('../pages/dashboard/leads/page'));
@@ -51,7 +50,7 @@ const routes: RouteObject[] = [
       },
       {
         path: "empresa",
-        element: <Empresa />,
+        element: <Navigate to="/dashboard/configuracoes?tab=empresa" replace />,
       },
       {
         path: "busca-leads",

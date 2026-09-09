@@ -1,6 +1,7 @@
 import { createAdminClient, requireOrganizationRole, requireUser } from '../_shared/auth.ts';
 import { allowedCorsHeaders, hasAllowedOrigin, json, preflight, safeError } from '../_shared/http.ts';
 import { anaEventKey, automationBlockReason } from '../_shared/runtimeSafety.ts';
+import { suppressionHashes, suppressionOrFilter } from '../_shared/contactSuppression.ts';
 
 const EVENTS = new Set(['lead.created', 'message.received', 'stage.changed', 'meeting.done', 'timeout.48h', 'manual.run']);
 const MODES = new Set(['ia', 'humano']);
@@ -90,6 +91,11 @@ function canonicalChannel(value: unknown): string | null {
   if (normalized === 'instagram' || normalized === 'meta') return 'instagram';
   if (normalized === 'voice' || normalized === 'voip' || normalized === 'telefone') return 'voice';
   return normalized || null;
+}
+
+function suppressionAppliesToChannel(value: unknown, activeChannel: string | null): boolean {
+  const channel = canonicalChannel(value);
+  return channel === 'all' || (!channel && activeChannel === null) || channel === activeChannel;
 }
 
 function transitionAllowed(current: AnaStage, next: AnaStage, outcome?: string): boolean {
@@ -287,12 +293,14 @@ Deno.serve(async (request) => {
       admin.from('services').select('id,name,category,description,price,unit,term,max_discount').eq('organization_id', organizationId).eq('active', true).limit(50),
       admin.from('knowledge_chunks').select('content,metadata,documents!inner(name,status,metadata)').eq('organization_id', organizationId).eq('status', 'active').eq('documents.status', 'active').limit(80),
       admin.from('appointments').select('starts_at,ends_at,status,meeting_url').eq('organization_id', organizationId).eq('lead_id', leadId).order('starts_at', { ascending: false }).limit(10),
-      admin.from('contact_suppressions').select('channel,reason,created_at').eq('organization_id', organizationId).eq('lead_id', leadId).limit(10),
+      admin.from('contact_suppressions').select('channel,reason,created_at').eq('organization_id', organizationId)
+        .or(suppressionOrFilter(leadId, await suppressionHashes(lead))).limit(10),
       admin.from('integrations').select('id,enabled,connected,paused').eq('organization_id', organizationId).eq('key', 'ai').maybeSingle(),
       admin.from('organization_module_data').select('data').eq('organization_id', organizationId).eq('module_key', 'configuracao_runtime').maybeSingle(),
     ]);
     for (const read of contextReads) if (read.error) throw new Error('ana_context_read_failed');
     const [{ data: company }, { data: messages }, { data: channel }, { data: agent }, { data: catalog }, { data: knowledge }, { data: appointments }, { data: suppressions }, { data: aiIntegration }, { data: runtime }] = contextReads;
+    const applicableSuppressions = (suppressions ?? []).filter((suppression) => suppressionAppliesToChannel(suppression.channel, activeChannel));
     const blocked = automationBlockReason({ company, ai: aiIntegration, runtime: runtime?.data ?? null, lead, dryRun });
     if (blocked) {
       const result = { skipped: true, reason: blocked, status_canal: 'bloqueado', mensagem_sugerida: '', acoes: [] };
@@ -317,18 +325,18 @@ Deno.serve(async (request) => {
     const baseContext = {
       event, lead: { company: lead.company, contact: lead.contact, segment: lead.segment, active_channel: activeChannel, current_stage: stageLabel[currentStage] },
       company: company ?? {}, agent_configuration: asObject(version?.configuration), catalog: catalog ?? [], knowledge: matchedKnowledge,
-      latest_inbound_message: latestInboundMessage, conversation: chronologicalMessages, appointments: appointments ?? [], suppressions: suppressions ?? [], contexto: executionContext,
-      policies: { allow_auto_quote: false, channel_connected: !dryRun && Boolean(channel?.connected && channel?.enabled && !channel?.paused), timeout_48h: timeout, suppressed: Boolean(suppressions?.length), dry_run: dryRun, knowledge_match_found: matchedKnowledge.length > 0, missing_technical_knowledge: missingTechnicalKnowledge },
+      latest_inbound_message: latestInboundMessage, conversation: chronologicalMessages, appointments: appointments ?? [], suppressions: applicableSuppressions, contexto: executionContext,
+      policies: { allow_auto_quote: false, channel_connected: !dryRun && Boolean(channel?.connected && channel?.enabled && !channel?.paused), timeout_48h: timeout, suppressed: Boolean(applicableSuppressions.length), dry_run: dryRun, knowledge_match_found: matchedKnowledge.length > 0, missing_technical_knowledge: missingTechnicalKnowledge },
     };
 
     let decision;
     let aiProvider: AiProvider | 'policy' = 'policy';
-    if (modo === 'humano' || timeout || Boolean(suppressions?.length) || sensitiveInbound || missingTechnicalKnowledge) {
+    if (modo === 'humano' || timeout || Boolean(applicableSuppressions.length) || sensitiveInbound || missingTechnicalKnowledge) {
       decision = {
         proximo_estagio: currentStage, outcome: null, mensagem_sugerida: '', score: Number(lead.score ?? 0),
         motivo: timeout
           ? '48h sem resposta: revisar como perdido.'
-          : suppressions?.length
+          : applicableSuppressions.length
             ? 'Lead com opt-out/supressão: novos contatos automáticos estão bloqueados.'
             : sensitiveInbound
               ? 'Demanda comercial ou sensível requer revisão humana antes de responder.'
@@ -336,7 +344,7 @@ Deno.serve(async (request) => {
                 ? 'A base aprovada não possui evidência suficiente para esta dúvida técnica.'
                 : 'Lead em modo humano: Ana não envia mensagens.',
         precisa_humano: true,
-        acoes: [{ tipo: 'handoff', payload: { reason: timeout ? 'timeout_48h' : suppressions?.length ? 'opt_out' : sensitiveInbound ? 'human_review_required' : missingTechnicalKnowledge ? 'knowledge_not_found' : 'modo_humano' } }],
+        acoes: [{ tipo: 'handoff', payload: { reason: timeout ? 'timeout_48h' : applicableSuppressions.length ? 'opt_out' : sensitiveInbound ? 'human_review_required' : missingTechnicalKnowledge ? 'knowledge_not_found' : 'modo_humano' } }],
       };
     } else {
       const companyInstructions = asText(company?.ai_prompt, 8_000);
@@ -349,7 +357,7 @@ Deno.serve(async (request) => {
       decision = parseDecision(ai.decision, currentStage);
     }
 
-    const needsHuman = decision.precisa_humano || decision.acoes.some((action) => action.tipo === 'handoff') || modo === 'humano' || timeout || Boolean(suppressions?.length) || sensitiveInbound || missingTechnicalKnowledge;
+    const needsHuman = decision.precisa_humano || decision.acoes.some((action) => action.tipo === 'handoff') || modo === 'humano' || timeout || Boolean(applicableSuppressions.length) || sensitiveInbound || missingTechnicalKnowledge;
     const channelConnected = !dryRun && Boolean(channel?.connected && channel?.enabled && !channel?.paused);
     if (dryRun) {
       const result = { ...decision, dry_run: true, acoes_aplicadas: [], status_canal: 'simulacao_sem_alteracoes', provedor_ia: aiProvider };
@@ -383,7 +391,7 @@ Deno.serve(async (request) => {
         type: channelConnected ? 'draft' : 'pending_channel', text: decision.mensagem_sugerida, sent_at: new Date().toISOString(),
       }).select('id').single();
       if (messageError || !message) throw messageError ?? new Error('message_not_created');
-      if (channelConnected && !suppressions?.length) {
+      if (channelConnected && !applicableSuppressions.length) {
         const { error: queueError } = await admin.from('outreach_jobs').upsert({
           organization_id: organizationId, lead_id: leadId, channel: activeChannel,
           run_at: new Date().toISOString(), status: 'queued', attempt: 0,
@@ -391,7 +399,7 @@ Deno.serve(async (request) => {
         }, { onConflict: 'idempotency_key', ignoreDuplicates: true });
         if (queueError) throw queueError;
       }
-      appliedActions.push({ tipo: 'enviar_mensagem', status: channelConnected && !suppressions?.length ? 'enfileirado' : 'pendente_canal' });
+      appliedActions.push({ tipo: 'enviar_mensagem', status: channelConnected && !applicableSuppressions.length ? 'enfileirado' : 'pendente_canal' });
     }
     if (needsHuman) {
       const { error: handoffError } = await admin.from('lead_handoffs').insert({ organization_id: organizationId, lead_id: leadId, to_user_id: lead.owner_id, assigned_to: lead.owner_id, status: 'pending', reason: decision.motivo || 'Revisar atendimento da Ana.', summary: decision.motivo || 'Revisar atendimento da Ana.', due_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(), context: { run_id: runId, event, score: decision.score } });

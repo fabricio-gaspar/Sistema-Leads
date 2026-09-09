@@ -1,7 +1,5 @@
-import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useIntegracoesStore } from '@/hooks/useIntegracoesStore';
-import { useEnvioLogStore } from '@/hooks/useEnvioLogStore';
 import type { Integracao } from '@/mocks/businessData';
 
 const STATUS: Record<Integracao['status'], { dot: string; title: string }> = {
@@ -13,10 +11,9 @@ const STATUS: Record<Integracao['status'], { dot: string; title: string }> = {
 
 export default function IntegracoesStatus() {
   const { integracoes } = useIntegracoesStore();
-  const { registros } = useEnvioLogStore();
 
   const conectados = integracoes.filter((i) => i.status === 'conectado').length;
-  const erros = useMemo(() => registros.filter((r) => r.resultado === 'erro'), [registros]);
+  const erros = integracoes.filter((i) => i.status === 'erro');
 
   return (
     <div className="bg-background-50 border border-background-200/60 rounded-xl p-4 h-full flex flex-col">
@@ -47,7 +44,7 @@ export default function IntegracoesStatus() {
           return (
             <Link
               key={i.id}
-              to="/dashboard/configuracoes"
+              to="/dashboard/configuracoes?tab=conexoes"
               title={s.title}
               className="group relative flex flex-col items-center justify-center gap-1.5 rounded-lg border border-background-200/60 bg-background-50 hover:border-background-200 hover:bg-background-100/60 transition-colors cursor-pointer p-3"
             >

@@ -7,14 +7,13 @@ import { useListasStore } from '@/hooks/useListasStore';
 import { fontesAtivas, useFontesStore } from '@/hooks/useFontesStore';
 import { templatesMensagem } from '@/mocks/templatesData';
 import { mockUsers } from '@/mocks/users';
-import { leadsPreviewInicial, temperaturaDe, tempBadge, tempLabel, eficienciaFonte, alertasLeads } from '@/mocks/enriquecimentoData';
+import { temperaturaDe, tempBadge, tempLabel, eficienciaFonte, alertasLeads } from '@/mocks/enriquecimentoData';
 import type { PreviewLead } from '@/mocks/enriquecimentoData';
 import PromptAgent from '@/pages/dashboard/busca-leads/components/PromptAgent';
 import LeadPreviewDrawer from '@/pages/dashboard/busca-leads/components/LeadPreviewDrawer';
 import CsvImportModal from '@/components/feature/CsvImportModal';
 import type { CampoImportacao, ResultadoImportacao } from '@/components/feature/CsvImportModal';
-import { limitarBuscaManual } from '@/lib/buscaManual';
-import { useConfiguracaoStore } from '@/hooks/useConfiguracaoStore';
+import { useOperationalMode } from '@/hooks/useOperationalMode';
 import { supabase } from '@/lib/supabase';
 
 const estados = ['SP', 'RJ', 'MG', 'PR', 'SC', 'RS', 'BA', 'PE', 'GO', 'DF'];
@@ -127,12 +126,9 @@ export default function BuscaLeads() {
   const fluxo = useFluxoComercial();
   const listas = useListasStore();
   const { fontes } = useFontesStore();
-  const { config } = useConfiguracaoStore();
+  const { mode: operationalMode } = useOperationalMode();
   const [csvModal, setCsvModal] = useState(false);
-  const fontesDisponiveis = fontesAtivas(fontes).filter((fonte) => {
-    if (config.modoExecucao !== 'PRODUCAO') return true;
-    return ['apify', 'google_places'].includes(fonte.sourceKey || '');
-  });
+  const fontesDisponiveis = fontesAtivas(fontes).filter((fonte) => ['apify', 'google_places'].includes(fonte.sourceKey || ''));
 
   useEffect(() => {
     if (fonteSelecionada && !fontesDisponiveis.some((fonte) => fonte.id === fonteSelecionada)) {
@@ -244,45 +240,32 @@ export default function BuscaLeads() {
     } as Record<string, string>)[fonteNome] || '';
 
     try {
-      let encontrados: PreviewLead[];
-      if (config.modoExecucao === 'PRODUCAO') {
-        if (!fontesDisponiveis.some((item) => item.id === fonteSelecionada)) throw new Error('source_disabled');
-        if (!sourceKey) throw new Error('source_not_configured');
-        const { data, error } = await supabase.functions.invoke('prospectar-leads', {
-          body: {
-            sourceKey,
-            mode: 'production',
-            filters: {
-              pais,
-              estado,
-              cidade,
-              raio,
-              atividades: atividadesSel,
-              segmentos: segs,
-              portes: portesSel,
-              cargo: cargoDecisor,
-              exigeSite: temSite === true,
-              exigeWhatsApp: temWhatsApp === true,
-              exigeEmail: temEmail === true,
-              volumeMaximo: leadsDia,
-            },
+      if (operationalMode !== 'real') throw new Error('operational_mode_protected');
+      if (!fontesDisponiveis.some((item) => item.id === fonteSelecionada)) throw new Error('source_disabled');
+      if (!sourceKey) throw new Error('source_not_configured');
+      const { data, error } = await supabase.functions.invoke('prospectar-leads', {
+        body: {
+          sourceKey,
+          mode: 'production',
+          filters: {
+            pais,
+            estado,
+            cidade,
+            raio,
+            atividades: atividadesSel,
+            segmentos: segs,
+            portes: portesSel,
+            cargo: cargoDecisor,
+            exigeSite: temSite === true,
+            exigeWhatsApp: temWhatsApp === true,
+            exigeEmail: temEmail === true,
+            volumeMaximo: leadsDia,
           },
-        });
-        if (error) throw new Error(await detalheDoErroBusca(error));
-        if (!data?.leads || !Array.isArray(data.leads)) throw new Error(data?.error || 'prospecting_empty_response');
-        encontrados = data.leads.map((lead: ProspectingLeadResponse, index: number) => prospectingLeadToPreview(lead, fonteNome, index));
-      } else {
-        encontrados = limitarBuscaManual(leadsPreviewInicial, {
-          fonte: fonteNome,
-          estado,
-          cidade,
-          cargo: cargoDecisor,
-          exigeSite: temSite,
-          exigeWhatsApp: temWhatsApp,
-          exigeEmail: temEmail,
-          volumeMaximo: leadsDia,
-        });
-      }
+        },
+      });
+      if (error) throw new Error(await detalheDoErroBusca(error));
+      if (!data?.leads || !Array.isArray(data.leads)) throw new Error(data?.error || 'prospecting_empty_response');
+      const encontrados = data.leads.map((lead: ProspectingLeadResponse, index: number) => prospectingLeadToPreview(lead, fonteNome, index));
 
       const cruzados = cruzarPreview(encontrados);
       setPreview(cruzados);
@@ -291,7 +274,7 @@ export default function BuscaLeads() {
       setResultado(
         dups > 0
           ? `${cruzados.length} leads encontrados (limite: ${leadsDia}). ${dups} duplicado(s) já no funil e bloqueado(s).`
-          : `${cruzados.length} leads encontrados (limite: ${leadsDia}), ${config.modoExecucao === 'PRODUCAO' ? 'resultado real' : 'prévia local'}.`,
+          : `${cruzados.length} leads encontrados (limite: ${leadsDia}), resultado real do provedor.`,
       );
       setEtapa(3);
     } catch (error) {
@@ -328,6 +311,7 @@ export default function BuscaLeads() {
       provider_invalid_response: `${fonte} respondeu em um formato incompatível. Use uma Task/Actor compatível ou ajuste a entrada adicional.`,
       organization_access_denied: 'Seu usuário não tem a permissão necessária na empresa ativa para executar buscas reais.',
       prospecting_empty_response: `A busca em ${fonte} terminou sem uma resposta válida.`,
+      operational_mode_protected: 'A empresa está em modo protegido. A Busca de Leads não cria prévias fictícias; conclua as verificações em Configurações → Status operacional antes de consultar um provedor real.',
     };
     return mensagens[code] || `Não foi possível buscar leads em ${fonte || 'a fonte selecionada'} no Modo Real. Tente novamente após validar a conexão.`;
   };
@@ -643,7 +627,7 @@ export default function BuscaLeads() {
                   ))}
                 </div>
               </div>
-              {fontesDisponiveis.length === 0 && <p className="text-sm text-foreground-500">Nenhuma fonte está ativa. Ative uma em Configurações → Fontes de leads.</p>}
+              {fontesDisponiveis.length === 0 && <p className="text-sm text-foreground-500">Nenhuma fonte está ativa e validada. Configure uma em Configurações → Canais, APIs e fontes.</p>}
               <div className="flex justify-end">
                 <button
                   onClick={avancar}

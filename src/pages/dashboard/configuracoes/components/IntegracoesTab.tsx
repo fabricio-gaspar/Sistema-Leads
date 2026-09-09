@@ -1,412 +1,86 @@
 import { useState } from 'react';
-import type { Integracao, CampoIntegracao } from '@/mocks/businessData';
-import { useIntegracoesStore } from '@/hooks/useIntegracoesStore';
+import type { CampoIntegracao } from '@/mocks/businessData';
+import { useIntegracoesStore, type OperationalIntegration } from '@/hooks/useIntegracoesStore';
 import { useFontesStore } from '@/hooks/useFontesStore';
 import { supabase } from '@/lib/supabase';
 import { detalheDoErroDeFuncao } from '@/lib/transportador';
 
-const statusMeta: Record<string, { cor: string; label: string }> = {
-  conectado: { cor: 'bg-primary-100 text-primary-700', label: 'Conectado' },
-  pendente: { cor: 'bg-accent-100 text-accent-700', label: 'Pendente' },
-  sandbox: { cor: 'bg-secondary-100 text-secondary-700', label: 'Sandbox' },
-  erro: { cor: 'bg-accent-500/20 text-accent-600', label: 'Erro' },
+const statusMeta = {
+  conectado: { label: 'Pronta', className: 'border-[#34C759]/25 bg-[#34C759]/12 text-[#218838]' },
+  pendente: { label: 'Não configurada', className: 'border-[#FF9500]/25 bg-[#FF9500]/12 text-[#B76100]' },
+  erro: { label: 'Requer atenção', className: 'border-[#FF3B30]/25 bg-[#FF3B30]/10 text-[#D92D27]' },
+  sandbox: { label: 'Protegida', className: 'border-[#AF52DE]/25 bg-[#AF52DE]/10 text-[#7A2CAD]' },
 };
 
-function getStatusMeta(status?: string) {
-  return statusMeta[status ?? 'pendente'] ?? statusMeta['pendente'];
+function providerLabel(key: OperationalIntegration['remoteKey']) {
+  return key === 'whatsapp' ? 'WhatsApp' : key === 'ai' ? 'IA da Ana' : key === 'apify' ? 'Apify' : 'Google Places';
 }
 
-function canalDaIntegracao(id: string): 'whatsapp' | 'apify' | 'google_places' | null {
-  if (id === 'int-1') return 'whatsapp';
-  if (id === 'int-7') return 'apify';
-  if (id === 'int-8') return 'google_places';
-  return null;
-}
-
-function mensagemDaFalhaDeConexao(codigo: string, nome: string): string {
-  const mensagens: Record<string, string> = {
-    zapi_credentials_required: 'Informe o ID da instância, o token da instância e o Client Token da Z-API antes de salvar.',
-    zapi_credentials_incomplete: 'Falta o ID da instância, o token ou o Client Token da Z-API. Abra Configurar e complete os três campos.',
-    zapi_client_token_rejected: 'A Z-API recusou o Client Token. No painel Z-API, abra Segurança → Token de Segurança da Conta e salve o token ativo nesse campo.',
-    zapi_instance_token_rejected: 'A Z-API recusou o Token da Instância. Copie novamente o token da instância — não o Client Token — no painel Z-API.',
-    zapi_instance_id_rejected: 'A Z-API não reconheceu o ID da instância. Confira o identificador exibido em Instâncias no painel Z-API.',
-    zapi_invalid_request: 'A Z-API recusou o formato da validação. Revise o ID, o Token da Instância e o Client Token salvos.',
-    zapi_http_401: 'A Z-API recusou as credenciais. Confira o ID da instância, o token e o Client Token no painel Z-API.',
-    zapi_http_403: 'A Z-API bloqueou esta chamada. Confira o Client Token e as permissões da conta.',
-    zapi_http_404: 'A instância não foi encontrada. Confira o ID da instância e deixe a URL base como https://api.z-api.io.',
-    zapi_http_429: 'A Z-API limitou temporariamente os testes. Aguarde alguns minutos e tente de novo.',
-    zapi_instance_not_connected: 'As credenciais são válidas, mas o número ainda não está conectado à instância Z-API. Conecte pelo QR Code no painel Z-API e teste de novo.',
-    zapi_phone_offline: 'A instância está autenticada, mas o celular vinculado está sem internet. Reconecte o aparelho e teste novamente.',
-    integration_credentials_missing: `As credenciais de ${nome} ainda não foram salvas. Use Configurar antes de testar.`,
-    source_credentials_missing: `As credenciais de ${nome} estão incompletas. Revise os campos obrigatórios e salve novamente.`,
-    source_not_configured: `${nome} ainda não está configurada para esta empresa. Salve as credenciais e teste de novo.`,
-    source_not_validated: `${nome} precisa passar no teste de conexão antes de ser ativada.`,
-    provider_error: `${nome} recusou a validação. Confira a chave, o Actor/Task ou as permissões da API.`,
-    organization_access_denied: 'Seu usuário não tem permissão administrativa na empresa ativa para configurar esta conexão.',
-    integration_lookup_failed: 'Não foi possível localizar a configuração desta integração. Atualize a página e tente novamente.',
-    integration_create_failed: 'Não foi possível preparar a integração para esta empresa. Tente novamente.',
-    integration_secret_save_failed: 'Não foi possível guardar as credenciais no cofre seguro. Tente salvar novamente.',
-    integration_update_failed: 'As credenciais foram recebidas, mas o estado da integração não pôde ser atualizado. Tente novamente.',
-    integration_source_config_lookup_failed: 'Não foi possível localizar a fonte de prospecção vinculada a esta integração. Tente novamente.',
-    integration_source_config_save_failed: 'Não foi possível preparar a fonte de prospecção vinculada. Tente salvar novamente.',
-    integration_audit_log_failed: 'As credenciais foram salvas, mas o registro de auditoria não pôde ser concluído. Atualize a página antes de continuar.',
+function errorMessage(code: string, name: string) {
+  const messages: Record<string, string> = {
+    integration_credentials_missing: `Salve as credenciais de ${name} antes de testar.`,
+    source_credentials_missing: `Revise as credenciais de ${name} e salve novamente.`,
+    source_not_configured: `${name} ainda não foi configurada.`,
+    provider_error: `${name} recusou a validação. Confira chave, permissões e conta.`,
+    organization_access_denied: 'Seu usuário não possui permissão administrativa para configurar esta conexão.',
   };
-  return mensagens[codigo] ?? (codigo.startsWith('zapi_http_')
-    ? `${nome} recusou o teste (${codigo.replace('zapi_http_', 'HTTP ')}). Confira as credenciais e tente de novo.`
-    : codigo);
+  return messages[code] || `Não foi possível validar ${name}. ${code || 'Tente novamente.'}`;
 }
 
-interface ConfigurarModalProps {
-  integracao: Integracao;
-  onFechar: () => void;
-  onSalvar: (id: string, credenciais: Record<string, string>) => Promise<void>;
+function CredentialField({ field, value, onChange }: { field: CampoIntegracao; value: string; onChange: (value: string) => void }) {
+  const inputClass = 'w-full rounded-xl border border-[#E5E5EA] bg-[#F2F2F7] px-3.5 py-2.5 text-sm text-[#1D1D1F] placeholder:text-[#86868B] outline-none transition focus:border-[#0071E3] focus:bg-white focus:ring-2 focus:ring-[#0071E3]/20';
+  return <label className="block text-sm font-semibold text-[#3A3A3C]"><span className="mb-1.5 block">{field.rotulo}{field.obrigatorio && <span className="ml-1 text-[#FF3B30]">*</span>}</span>{field.tipo === 'selecao' ? <select className={inputClass} value={value} onChange={(event) => onChange(event.target.value)}><option value="">Selecione…</option>{(field.opcoes || []).map((option) => <option key={option} value={option}>{option}</option>)}</select> : <input className={inputClass} type={field.tipo === 'senha' ? 'password' : 'text'} value={value} placeholder={field.placeholder} autoComplete="off" onChange={(event) => onChange(event.target.value)} />}{field.ajuda && <span className="mt-1.5 block text-xs font-normal text-[#86868B]">{field.ajuda}</span>}</label>;
 }
 
-function CampoCredencial({ campo, valor, aoMudar }: {
-  campo: CampoIntegracao;
-  valor: string;
-  aoMudar: (valor: string) => void;
-}) {
-  const [mostrarSenha, setMostrarSenha] = useState(false);
-
-  const base =
-    'w-full px-4 py-2.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-900 placeholder:text-foreground-400 focus:outline-none focus:border-primary-400 focus:ring-2 focus:ring-primary-100 transition-colors';
-
-  if (campo.tipo === 'selecao') {
-    return (
-      <select
-        value={valor}
-        onChange={(e) => aoMudar(e.target.value)}
-        className={`${base} cursor-pointer`}
-      >
-        <option value="">Selecione…</option>
-        {(campo.opcoes ?? []).map((op) => (
-          <option key={op} value={op}>{op}</option>
-        ))}
-      </select>
-    );
-  }
-
-  if (campo.tipo === 'senha') {
-    return (
-      <div className="relative">
-        <input
-          type={mostrarSenha ? 'text' : 'password'}
-          value={valor}
-          onChange={(e) => aoMudar(e.target.value)}
-          placeholder={campo.placeholder}
-          className={`${base} pr-11`}
-          autoComplete="off"
-        />
-        <button
-          type="button"
-          onClick={() => setMostrarSenha((v) => !v)}
-          className="absolute right-2 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded-md text-foreground-400 hover:text-foreground-700 cursor-pointer"
-          title={mostrarSenha ? 'Ocultar' : 'Mostrar'}
-        >
-          <i className={mostrarSenha ? 'ri-eye-off-line' : 'ri-eye-line'}></i>
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <input
-      type="text"
-      value={valor}
-      onChange={(e) => aoMudar(e.target.value)}
-      placeholder={campo.placeholder}
-      className={base}
-      autoComplete="off"
-    />
-  );
-}
-
-function ConfigurarModal({ integracao, onFechar, onSalvar }: ConfigurarModalProps) {
-  const [valores, setValores] = useState<Record<string, string>>(integracao.credenciais ?? {});
-  const [erro, setErro] = useState('');
-  const campos = integracao.campos ?? [];
-
-  const aoMudar = (campoId: string, valor: string) => {
-    setValores((prev) => ({ ...prev, [campoId]: valor }));
+function ConfigureModal({ integration, onClose, onSaved }: { integration: OperationalIntegration; onClose: () => void; onSaved: () => Promise<void> }) {
+  const [values, setValues] = useState<Record<string, string>>({});
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  const save = async () => {
+    const missing = integration.campos.filter((field) => field.obrigatorio && !values[field.id]?.trim()).map((field) => field.rotulo);
+    if (integration.remoteKey === 'apify' && !values.actor_id?.trim() && !values.task_id?.trim()) missing.push('Actor ID ou Task ID');
+    if (missing.length) { setError(`Preencha: ${[...new Set(missing)].join(', ')}.`); return; }
+    setSaving(true); setError('');
+    try {
+      const { data, error: invokeError } = await supabase.functions.invoke('configurar-integracao', { body: { canal: integration.remoteKey, credenciais: values } });
+      if (invokeError || !data?.ok) throw new Error(data?.erro || await detalheDoErroDeFuncao(invokeError));
+      await onSaved();
+      onClose();
+    } catch (cause) { setError(errorMessage(cause instanceof Error ? cause.message : '', integration.nome)); }
+    finally { setSaving(false); }
   };
-
-  const salvar = async () => {
-    const faltando = campos
-      .filter((c) => c.obrigatorio && !(valores[c.id] ?? '').trim())
-      .map((c) => c.rotulo);
-
-    if (integracao.id === 'int-7' && !(valores.actor_id ?? '').trim() && !(valores.task_id ?? '').trim()) {
-      setErro('Informe o Actor ID ou o Task ID do Apify.');
-      return;
-    }
-
-    if (faltando.length > 0) {
-      setErro(`Preencha os campos obrigatórios: ${faltando.join(', ')}.`);
-      return;
-    }
-
-    try { await onSalvar(integracao.id, valores); onFechar(); } catch (error) { setErro(error instanceof Error ? error.message : 'Não foi possível salvar as credenciais.'); }
-  };
-
-  return (
-    <div
-      className="fixed inset-0 z-50 bg-foreground-950/50 flex items-center justify-center p-4"
-      onClick={onFechar}
-    >
-      <div
-        className="bg-background-50 rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="px-6 py-4 border-b border-background-200/70 flex items-center justify-between sticky top-0 bg-background-50">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 bg-primary-100 rounded-lg flex items-center justify-center">
-              <i className={`${integracao.icone} text-primary-600 text-lg`}></i>
-            </div>
-            <div>
-              <h3 className="font-heading font-bold text-foreground-950">Configurar {integracao.nome}</h3>
-              <p className="text-xs text-foreground-500">{integracao.categoria}</p>
-            </div>
-          </div>
-          <button
-            onClick={onFechar}
-            className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-background-100 cursor-pointer"
-          >
-            <i className="ri-close-line text-lg"></i>
-          </button>
-        </div>
-
-        <div className="p-6 space-y-5">
-          <p className="text-sm text-foreground-600">{integracao.descricao}</p>
-
-          {erro && (
-            <div className="bg-accent-50 border border-accent-200 text-accent-700 px-4 py-3 rounded-lg text-sm flex items-start gap-2">
-              <i className="ri-error-warning-line mt-0.5"></i>
-              {erro}
-            </div>
-          )}
-
-          <div className="space-y-4">
-            {campos.map((campo) => (
-              <div key={campo.id}>
-                <label className="block text-sm font-medium text-foreground-800 mb-1.5">
-                  {campo.rotulo}
-                  {campo.obrigatorio && <span className="text-accent-600 ml-0.5">*</span>}
-                </label>
-                <CampoCredencial
-                  campo={campo}
-                  valor={valores[campo.id] ?? ''}
-                  aoMudar={(v) => aoMudar(campo.id, v)}
-                />
-                {campo.ajuda && (
-                  <p className="text-xs text-foreground-400 mt-1.5">{campo.ajuda}</p>
-                )}
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="px-6 py-4 border-t border-background-200/70 flex justify-end gap-2 sticky bottom-0 bg-background-50">
-          <button
-            onClick={onFechar}
-            className="px-4 py-2.5 border border-background-300 text-foreground-700 rounded-lg text-sm font-semibold hover:bg-background-100 cursor-pointer whitespace-nowrap"
-          >
-            Cancelar
-          </button>
-          <button
-            onClick={() => void salvar()}
-            className="px-5 py-2.5 bg-primary-500 hover:bg-primary-600 text-background-50 rounded-lg text-sm font-bold cursor-pointer whitespace-nowrap"
-          >
-            <i className="ri-save-line mr-1.5"></i>
-            Salvar credenciais
-          </button>
-        </div>
-      </div>
-    </div>
-  );
+  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#1D1D1F]/45 p-4" onClick={onClose}><section className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-2xl border border-[#E5E5EA] bg-white shadow-xl" onClick={(event) => event.stopPropagation()}><header className="flex items-start justify-between border-b border-[#E5E5EA] px-5 py-4"><div><p className="text-xs font-semibold uppercase tracking-[.12em] text-[#0071E3]">Cofre seguro</p><h3 className="mt-1 text-lg font-bold tracking-tight text-[#1D1D1F]">Configurar {integration.nome}</h3><p className="mt-1 text-xs text-[#6E6E73]">As chaves são enviadas diretamente ao backend e não permanecem no navegador.</p></div><button type="button" onClick={onClose} className="rounded-lg p-2 text-[#6E6E73] hover:bg-[#F2F2F7]" aria-label="Fechar"><i className="ri-close-line text-lg" /></button></header><div className="space-y-4 p-5">{error && <div className="rounded-xl border border-[#FF3B30]/25 bg-[#FF3B30]/10 px-3.5 py-3 text-sm text-[#D92D27]">{error}</div>}{integration.campos.map((field) => <CredentialField key={field.id} field={field} value={values[field.id] || ''} onChange={(value) => setValues((current) => ({ ...current, [field.id]: value }))} />)}</div><footer className="flex justify-end gap-2 border-t border-[#E5E5EA] px-5 py-4"><button type="button" className="wf-btn-secondary" onClick={onClose}>Cancelar</button><button type="button" className="wf-btn-primary disabled:opacity-60" disabled={saving} onClick={() => void save()}>{saving ? 'Salvando…' : 'Salvar credenciais'}</button></footer></section></div>;
 }
 
 export default function IntegracoesTab() {
-  const { integracoes, conectar, desconectar, salvarCredenciais, recarregar } = useIntegracoesStore();
+  const { integracoes, recarregar } = useIntegracoesStore();
   const { recarregar: recarregarFontes } = useFontesStore();
-  const [configurando, setConfigurando] = useState<Integracao | null>(null);
-  const [toast, setToast] = useState('');
-  const [testeZapi, setTesteZapi] = useState<{
-    aberto: boolean;
-    status: 'idle' | 'enviando' | 'ok' | 'erro';
-    msg: string;
-  }>({ aberto: false, status: 'idle', msg: '' });
+  const [configuring, setConfiguring] = useState<OperationalIntegration | null>(null);
+  const [testing, setTesting] = useState<OperationalIntegration['remoteKey'] | null>(null);
+  const [notice, setNotice] = useState('');
 
-  const mostrarToast = (msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(''), 3000);
+  const refresh = async () => { await Promise.all([recarregar(), recarregarFontes()]); };
+  const test = async (integration: OperationalIntegration) => {
+    if (integration.remoteKey === 'ai') { setNotice('A IA da Ana é verificada pelo Status operacional. Não há um teste artificial de envio nesta tela.'); return; }
+    setTesting(integration.remoteKey); setNotice('');
+    try {
+      const { data, error } = await supabase.functions.invoke('testar-integracao', { body: { canal: integration.remoteKey } });
+      if (error || !data?.pronto) throw new Error(error ? await detalheDoErroDeFuncao(error) : data?.erro || data?.detalhe);
+      await refresh();
+      setNotice(`${integration.nome} foi validada. Nenhuma mensagem foi enviada durante o teste.`);
+    } catch (cause) { setNotice(errorMessage(cause instanceof Error ? cause.message : '', integration.nome)); }
+    finally { setTesting(null); }
   };
 
-  const [canalEmTeste, setCanalEmTeste] = useState('whatsapp');
-
-  const testarIntegracaoReal = async (canal = canalEmTeste) => {
-    setTesteZapi((s) => ({ ...s, status: 'enviando', msg: '' }));
-
-    const { data, error } = await supabase.functions.invoke('testar-integracao', {
-      body: { canal },
-    });
-
-    if (error) {
-      const detalhe = await detalheDoErroDeFuncao(error);
-      setTesteZapi((s) => ({ ...s, status: 'erro', msg: mensagemDaFalhaDeConexao(detalhe, canal === 'apify' ? 'Apify' : canal === 'google_places' ? 'Google Places' : 'WhatsApp') }));
-      return;
-    }
-
-    if (data?.pronto) {
-      await Promise.all([recarregar(), recarregarFontes()]);
-      setTesteZapi((s) => ({ ...s, status: 'ok', msg: `Conexão válida com ${data.provedor ?? 'o provedor'}. ${canal === 'whatsapp' ? 'Nenhuma mensagem foi transmitida.' : 'A fonte está pronta para a Busca Manual no Modo Real.'}` }));
-    } else {
-      const detalhe = data?.detalhe || data?.erro || 'Integração não está pronta.';
-      setTesteZapi((s) => ({ ...s, status: 'erro', msg: mensagemDaFalhaDeConexao(detalhe, canal === 'apify' ? 'Apify' : canal === 'google_places' ? 'Google Places' : 'WhatsApp') }));
-    }
-  };
-
-  const temCredenciais = (it: Integracao) => {
-    const campos = it.campos ?? [];
-    const obrigatorios = campos.filter((c) => c.obrigatorio);
-    if (obrigatorios.length === 0) return false;
-    return obrigatorios.every((c) => (it.credenciais?.[c.id] ?? '').trim() !== '');
-  };
-
-  const testar = (it: Integracao) => {
-    const canal = canalDaIntegracao(it.id);
-    if (canal) {
-      setCanalEmTeste(canal);
-      setTesteZapi((s) => ({ ...s, aberto: true }));
-      void testarIntegracaoReal(canal);
-      return;
-    }
-    if (!temCredenciais(it)) {
-      setConfigurando(it);
-      return;
-    }
-    mostrarToast(`${it.nome}: credenciais presentes. O teste real será ativado ao conectar o provedor.`);
-  };
-
-  return (
-    <div className="space-y-4">
-      {toast && (
-        <div className="bg-primary-100 border border-primary-200 text-primary-800 px-4 py-3 rounded-lg text-sm flex items-center gap-2">
-          <i className="ri-information-line"></i>
-          {toast}
-        </div>
-      )}
-
-      <div className="bg-secondary-50 border border-secondary-200 text-secondary-800 px-4 py-3 rounded-lg text-sm flex items-start gap-2">
-        <i className="ri-information-line mt-0.5"></i>
-        <span>
-          <strong>Conexões reais.</strong> Clique em <strong>Configurar</strong> e preencha as credenciais de cada
-          provedor. Elas ficam salvas na sua conta no Backend e são usadas nas conexões de verdade.
-        </span>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {integracoes.map((it) => {
-          const meta = getStatusMeta(it.status);
-          const canal = canalDaIntegracao(it.id);
-          const usaConexaoSegura = Boolean(canal);
-          const exibeResultadoTeste = testeZapi.aberto && canal === canalEmTeste;
-          return (
-            <div key={it.id} className="bg-background-50 border border-background-200/70 rounded-xl p-5 flex flex-col">
-              <div className="flex items-start justify-between mb-4">
-                <div className="w-10 h-10 bg-primary-100 rounded-lg flex items-center justify-center">
-                  <i className={`${it.icone} text-primary-600 text-lg`}></i>
-                </div>
-                <span className={`inline-block px-2.5 py-1 rounded-md text-xs font-medium ${meta.cor}`}>
-                  {meta.label}
-                </span>
-              </div>
-
-              <h4 className="font-heading font-bold text-foreground-900 mb-1">{it.nome}</h4>
-              <p className="text-xs text-foreground-500 mb-3">{it.descricao}</p>
-
-                <div className="flex items-center gap-2 mb-4 text-xs">
-                  <span className="text-foreground-400">Último teste: {it.ultimoTeste}</span>
-                {it.status === 'conectado' && (
-                  <span className="inline-flex items-center gap-1 text-primary-700 font-medium">
-                    <i className="ri-checkbox-circle-fill"></i>
-                    pronto para uso
-                  </span>
-                )}
-              </div>
-
-              <div className="mt-auto space-y-2">
-                <button
-                  onClick={() => setConfigurando(it)}
-                  className="w-full px-3 py-2 bg-background-100 hover:bg-background-200 text-foreground-700 rounded-lg text-xs font-semibold cursor-pointer whitespace-nowrap"
-                >
-                  <i className="ri-settings-3-line mr-1.5"></i>
-                  Configurar
-                </button>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => testar(it)}
-                    className={`px-3 py-2 bg-background-100 hover:bg-background-200 text-foreground-700 rounded-lg text-xs font-semibold cursor-pointer whitespace-nowrap ${usaConexaoSegura ? 'w-full' : 'flex-1'}`}
-                  >
-                    {usaConexaoSegura ? 'Testar conexão' : 'Testar'}
-                  </button>
-                  {!usaConexaoSegura && (it.status === 'conectado' ? (
-                    <button
-                      onClick={() => { desconectar(it.id); mostrarToast(`${it.nome} desconectada.`); }}
-                      className="flex-1 px-3 py-2 bg-accent-100 hover:bg-accent-200 text-accent-800 rounded-lg text-xs font-semibold cursor-pointer whitespace-nowrap"
-                    >
-                      Desconectar
-                    </button>
-                  ) : (
-                    <button
-                      onClick={() => { conectar(it.id); mostrarToast(`${it.nome} conectada.`); }}
-                      className="flex-1 px-3 py-2 bg-primary-500 hover:bg-primary-600 text-background-50 rounded-lg text-xs font-semibold cursor-pointer whitespace-nowrap"
-                    >
-                      Conectar
-                    </button>
-                  ))}
-                </div>
-
-                {exibeResultadoTeste && (
-                  <div className="pt-1">
-                    {testeZapi.status === 'enviando' && <p className="text-xs text-foreground-500">Validando conexão segura…</p>}
-                    {testeZapi.status === 'ok' && (
-                      <p className="text-xs text-primary-700 flex items-start gap-1.5">
-                        <i className="ri-checkbox-circle-fill mt-0.5"></i>
-                        {testeZapi.msg}
-                      </p>
-                    )}
-                    {testeZapi.status === 'erro' && (
-                      <p className="text-xs text-accent-700 flex items-start gap-1.5">
-                        <i className="ri-error-warning-line mt-0.5"></i>
-                        {testeZapi.msg}
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {configurando && (
-        <ConfigurarModal
-          integracao={configurando}
-          onFechar={() => setConfigurando(null)}
-          onSalvar={async (id, credenciais) => {
-            const canal = id === 'int-1' ? 'whatsapp' : id === 'int-6' ? 'ai' : id === 'int-7' ? 'apify' : id === 'int-8' ? 'google_places' : '';
-            if (!canal) throw new Error('A conexão segura deste provedor ainda não está disponível.');
-            const { data, error } = await supabase.functions.invoke('configurar-integracao', { body: { canal, credenciais } });
-            if (error || !data?.ok) throw new Error(data?.erro ?? await detalheDoErroDeFuncao(error));
-            salvarCredenciais(id, credenciais);
-            await Promise.all([recarregar(), recarregarFontes()]);
-            mostrarToast(
-              'Credenciais guardadas no cofre seguro. Agora use “Testar conexão”.',
-            );
-          }}
-        />
-      )}
+  return <div className="space-y-4">
+    {notice && <div className="rounded-xl border border-[#0071E3]/20 bg-[#0071E3]/8 px-4 py-3 text-sm text-[#1559A6]">{notice}</div>}
+    <div className="rounded-xl border border-[#0071E3]/20 bg-[#F2F7FF] px-4 py-3 text-sm text-[#365B83]"><strong>Fonte única.</strong> Os estados abaixo vêm da tabela de integrações da empresa. “Configurar” guarda segredos no cofre do backend; “Testar” apenas valida o provedor.</div>
+    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      {integracoes.map((integration) => {
+        const meta = statusMeta[integration.status];
+        return <article key={integration.remoteKey} className="flex min-h-[268px] flex-col rounded-2xl border border-[#E5E5EA] bg-white p-5 shadow-2xs"><div className="flex items-start justify-between gap-3"><div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#F2F2F7] text-[#0071E3]"><i className={`${integration.icone} text-lg`} /></div><span className={`rounded-full border px-2.5 py-1 font-mono text-[10px] font-semibold ${meta.className}`}>{meta.label}</span></div><h3 className="mt-4 font-bold text-[#1D1D1F]">{integration.nome}</h3><p className="mt-1 text-xs leading-relaxed text-[#6E6E73]">{integration.descricao}</p><div className="mt-4 space-y-1 text-[11px] text-[#86868B]"><p>Último teste: {integration.ultimoTeste}</p>{integration.lastError && <p className="text-[#D92D27]">{integration.lastError}</p>}</div><div className="mt-auto grid grid-cols-2 gap-2 pt-4"><button type="button" onClick={() => setConfiguring(integration)} className="wf-btn-secondary justify-center text-xs">Configurar</button><button type="button" disabled={testing === integration.remoteKey} onClick={() => void test(integration)} className="wf-btn-primary justify-center text-xs disabled:opacity-60">{testing === integration.remoteKey ? 'Validando…' : integration.remoteKey === 'ai' ? 'Ver status' : 'Testar'}</button></div></article>;
+      })}
     </div>
-  );
+    {configuring && <ConfigureModal integration={configuring} onClose={() => setConfiguring(null)} onSaved={refresh} />}
+  </div>;
 }

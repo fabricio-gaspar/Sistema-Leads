@@ -1,19 +1,17 @@
 import { useState } from 'react';
-import type { Membro, Supressao } from '@/mocks/businessData';
-import { useAuth } from '@/hooks/useAuth';
-import { useSupressaoStore } from '@/hooks/useSupressaoStore';
-import { useEquipeStore } from '@/hooks/useEquipeStore';
-import FontesTab from './components/FontesTab';
-import ProdutosTab from './components/ProdutosTab';
-import LogsTab from './components/LogsTab';
-import IntegracoesOperacaoTab from './components/IntegracoesOperacaoTab';
 import EmpresaTabs from '@/pages/dashboard/empresa/components/EmpresaTabs';
 import PersonalizacaoAna from '@/pages/dashboard/personalizacao-ana/page';
+import ProdutosTab from './components/ProdutosTab';
+import IntegracoesOperacaoTab from './components/IntegracoesOperacaoTab';
+import OperationalStatusTab from './components/OperationalStatusTab';
+import TeamAccessTab from './components/TeamAccessTab';
+import SuppressionTab from './components/SuppressionTab';
+import DiagnosticsTab from './components/DiagnosticsTab';
 
 interface MenuItem {
   id: string;
   label: string;
-  icone: string;
+  icon: string;
 }
 
 interface MenuGroup {
@@ -23,61 +21,66 @@ interface MenuGroup {
 
 const groups: MenuGroup[] = [
   {
-    title: 'COMECE AQUI',
+    title: 'Comece aqui',
     items: [
-      { id: 'ana', label: 'Configurar a Ana', icone: 'ri-robot-2-line' },
+      { id: 'ana', label: 'Configurar a Ana', icon: 'ri-robot-2-line' },
+      { id: 'operacao', label: 'Status operacional', icon: 'ri-pulse-line' },
     ],
   },
   {
-    title: 'BASE COMERCIAL',
+    title: 'Base comercial',
     items: [
-      { id: 'empresa', label: 'Empresa e conhecimento', icone: 'ri-store-2-line' },
-      { id: 'equipe', label: 'Equipe e responsáveis', icone: 'ri-team-line' },
-      { id: 'produtos', label: 'Catálogo para orçamento', icone: 'ri-shopping-bag-line' },
+      { id: 'empresa', label: 'Empresa e conhecimento', icon: 'ri-building-2-line' },
+      { id: 'equipe', label: 'Equipe e acessos', icon: 'ri-team-line' },
+      { id: 'produtos', label: 'Catálogo para orçamento', icon: 'ri-shopping-bag-3-line' },
     ],
   },
   {
-    title: 'CAPTAÇÃO E CANAIS',
+    title: 'Captação e canais',
     items: [
-      { id: 'fontes', label: 'Fontes de leads', icone: 'ri-search-line' },
-      { id: 'integracoes-operacao', label: 'Canais e conexões', icone: 'ri-plug-line' },
+      { id: 'conexoes', label: 'Canais, APIs e fontes', icon: 'ri-plug-2-line' },
     ],
   },
   {
-    title: 'SEGURANÇA E CONTROLE',
+    title: 'Segurança e controle',
     items: [
-      { id: 'supressao', label: 'Proteção de contatos', icone: 'ri-shield-check-line' },
-      { id: 'logs', label: 'Diagnóstico e auditoria', icone: 'ri-file-list-3-line' },
+      { id: 'supressao', label: 'Proteção de contatos', icon: 'ri-shield-check-line' },
+      { id: 'diagnostico', label: 'Diagnóstico e auditoria', icon: 'ri-file-search-line' },
     ],
   },
 ];
 
-const compactedTabs: Record<string, string> = {
-  abordagem: 'ana', templates: 'ana', respostas: 'ana', variaveis: 'ana', biblioteca: 'ana',
-  'templates-proposta': 'ana', 'templates-documento': 'ana', temas: 'empresa', fluxos: 'ana',
-  horarios: 'ana', automacoes: 'ana', comercial: 'ana', pipeline: 'ana',
+const legacyTabMap: Record<string, string> = {
+  empresa: 'empresa',
+  fontes: 'conexoes',
+  integracoes: 'conexoes',
+  'integracoes-operacao': 'conexoes',
+  ambiente: 'operacao',
+  logs: 'diagnostico',
+  abordagem: 'ana',
+  templates: 'ana',
+  respostas: 'ana',
+  variaveis: 'ana',
+  biblioteca: 'ana',
+  'templates-proposta': 'ana',
+  'templates-documento': 'ana',
+  fluxos: 'ana',
+  horarios: 'ana',
+  automacoes: 'ana',
+  comercial: 'ana',
+  pipeline: 'ana',
 };
 
-const availableTabIds = new Set(groups.flatMap((group) => group.items.map((item) => item.id)));
+const availableTabs = new Set(groups.flatMap((group) => group.items.map((item) => item.id)));
 
-function initialTabFromUrl(): string {
+function tabFromUrl() {
   const requested = new URLSearchParams(window.location.search).get('tab') || 'ana';
-  const normalized = compactedTabs[requested] || requested;
-  return availableTabIds.has(normalized) ? normalized : 'ana';
+  const tab = legacyTabMap[requested] || requested;
+  return availableTabs.has(tab) ? tab : 'ana';
 }
 
 export default function DashboardConfiguracoes() {
-  const [tab, setTab] = useState(initialTabFromUrl);
-  const [toast, setToast] = useState('');
-  const { supressoes, adicionar: adicionarSupressaoStore, reativar, excluir: excluirSupressao } = useSupressaoStore();
-  const { membros, adicionar: adicionarMembro, atualizar: atualizarMembro, excluir: excluirMembro } = useEquipeStore();
-  const [conviteModal, setConviteModal] = useState(false);
-  const [convite, setConvite] = useState({ nome: '', email: '', cargo: 'Vendedor' });
-  const [editMembroModal, setEditMembroModal] = useState<Membro | null>(null);
-  const [editMembroForm, setEditMembroForm] = useState({ cargo: '', departamento: '' });
-  const [supModal, setSupModal] = useState(false);
-  const [supForm, setSupForm] = useState({ contato: '', canal: 'WhatsApp', motivo: '' });
-  const { user } = useAuth();
+  const [tab, setTab] = useState(tabFromUrl);
 
   const chooseTab = (nextTab: string) => {
     setTab(nextTab);
@@ -86,418 +89,75 @@ export default function DashboardConfiguracoes() {
     window.history.replaceState(null, '', url.toString());
   };
 
-  const mostrarToast = (msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(''), 3000);
-  };
-
-  const enviarConvite = () => {
-    if (!convite.nome.trim() || !convite.email.trim()) {
-      mostrarToast('Preencha nome e e-mail do membro.');
-      return;
-    }
-    const novo: Membro = {
-      id: `m-${Date.now()}`,
-      nome: convite.nome.trim(),
-      email: convite.email.trim(),
-      cargo: convite.cargo,
-      avatar: convite.nome.trim().charAt(0).toUpperCase(),
-      status: 'inativo',
-      departamento: 'Comercial',
-    };
-    adicionarMembro(novo);
-    setConviteModal(false);
-    setConvite({ nome: '', email: '', cargo: 'Vendedor' });
-    mostrarToast(`Convite enviado para ${novo.email}!`);
-  };
-
-  const abrirEdicaoMembro = (m: Membro) => {
-    setEditMembroModal(m);
-    setEditMembroForm({ cargo: m.cargo, departamento: m.departamento });
-  };
-
-  const salvarEdicaoMembro = () => {
-    if (!editMembroModal) return;
-    atualizarMembro(editMembroModal.id, editMembroForm);
-    setEditMembroModal(null);
-    mostrarToast('Membro atualizado.');
-  };
-
-  const reenviarConvite = (m: Membro) => {
-    mostrarToast(`Convite reenviado para ${m.email}.`);
-  };
-
-  const revogarAcesso = (m: Membro) => {
-    atualizarMembro(m.id, { status: 'inativo' });
-    mostrarToast(`Acesso de "${m.nome}" revogado.`);
-  };
-
-  const removerMembro = (m: Membro) => {
-    excluirMembro(m.id);
-    mostrarToast(`Membro "${m.nome}" removido.`);
-  };
-
-  const adicionarSupressao = () => {
-    if (!supForm.contato.trim()) {
-      mostrarToast('Informe o contato.');
-      return;
-    }
-    adicionarSupressaoStore({
-      contato: supForm.contato.trim(),
-      canal: supForm.canal as Supressao['canal'],
-      motivo: supForm.motivo.trim() || 'Adicionado manualmente',
-      ator: user?.name || 'Você',
-      origem: 'Manual',
-    });
-    setSupModal(false);
-    setSupForm({ contato: '', canal: 'WhatsApp', motivo: '' });
-    mostrarToast('Contato adicionado à lista de supressão!');
-  };
-
-  const reativarSupressao = (id: string) => {
-    reativar(id);
-    mostrarToast('Contato reativado — voltará a receber contatos.');
-  };
-
-  const excluirRegistroSupressao = (id: string) => {
-    excluirSupressao(id);
-    mostrarToast('Registro excluído da lista de supressão.');
-  };
+  const currentItem = groups.flatMap((group) => group.items).find((item) => item.id === tab);
 
   return (
     <div className="wf-page">
       <div className="wf-page-header">
         <div>
-        <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-primary-700">Administração</p>
-        <h1 className="wf-page-title mt-1">
-          Configurações
-        </h1>
-        <p className="wf-page-description">
-          Configure apenas o que move o funil: empresa, Ana, responsáveis, catálogo, captação, canais e proteção.
-        </p></div>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-primary-700">Administração</p>
+          <h1 className="wf-page-title mt-1">Configurações</h1>
+          <p className="wf-page-description">
+            Cada área abaixo altera ou mostra a configuração efetivamente usada na operação da WayFlex.
+          </p>
+        </div>
       </div>
 
-      {toast && (
-        <div className="mb-4 bg-primary-100 border border-primary-200 text-primary-800 px-4 py-3 rounded-lg text-sm flex items-center gap-2">
-          <i className="ri-information-line"></i>
-          {toast}
-        </div>
-      )}
-
-      <div className="flex flex-col lg:flex-row gap-4 lg:gap-6 items-stretch lg:items-start">
-        {/* Sidebar */}
-        <aside className="hidden lg:block w-[240px] flex-shrink-0 bg-background-50 border border-background-200/70 rounded-xl p-4 sticky top-6">
+      <div className="flex flex-col items-stretch gap-4 lg:flex-row lg:items-start lg:gap-6">
+        <aside className="hidden w-[248px] flex-shrink-0 rounded-2xl border border-[#E5E5EA] bg-white p-3 shadow-2xs lg:sticky lg:top-6 lg:block">
           {groups.map((group) => (
-            <div key={group.title} className="mb-5 last:mb-0">
-              <p className="text-[11px] font-bold text-foreground-400 uppercase tracking-wider mb-2 px-3">
+            <div key={group.title} className="mb-4 last:mb-0">
+              <p className="px-3 pb-1.5 pt-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#86868B]">
                 {group.title}
               </p>
               <div className="space-y-0.5">
                 {group.items.map((item) => (
                   <button
                     key={item.id}
+                    type="button"
                     onClick={() => chooseTab(item.id)}
-                    className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer ${
+                    className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-sm font-medium transition ${
                       tab === item.id
-                        ? 'bg-primary-500/10 text-primary-700'
-                        : 'text-foreground-600 hover:bg-background-100 hover:text-foreground-800'
+                        ? 'bg-[#0071E3] text-white shadow-xs'
+                        : 'text-[#4A4A4D] hover:bg-[#F2F2F7] hover:text-[#1D1D1F]'
                     }`}
                   >
-                    <span className="w-5 h-5 flex items-center justify-center">
-                      <i className={item.icone}></i>
-                    </span>
+                    <i className={`${item.icon} text-base`} aria-hidden="true" />
                     {item.label}
                   </button>
                 ))}
               </div>
-              {group.title !== 'SEGURANÇA E CONTROLE' && (
-                <div className="mt-4 border-b border-background-200/50" />
-              )}
             </div>
           ))}
         </aside>
 
-        {/* Mobile select */}
-        <div className="lg:hidden w-full">
+        <div className="lg:hidden">
+          <label className="sr-only" htmlFor="settings-section">Seção de configurações</label>
           <select
+            id="settings-section"
             value={tab}
-            onChange={(e) => chooseTab(e.target.value)}
-            className="w-full px-4 py-2.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-900 cursor-pointer"
+            onChange={(event) => chooseTab(event.target.value)}
+            className="w-full rounded-xl border border-[#E5E5EA] bg-[#F2F2F7] px-3.5 py-2.5 text-sm text-[#1D1D1F] outline-none focus:border-[#0071E3] focus:bg-white focus:ring-2 focus:ring-[#0071E3]/20"
           >
             {groups.map((group) => (
               <optgroup key={group.title} label={group.title}>
-                {group.items.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.label}
-                  </option>
-                ))}
+                {group.items.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
               </optgroup>
             ))}
           </select>
         </div>
 
-        {/* Content */}
-        <div className="flex-1 min-w-0">
-          {tab === 'fontes' && <FontesTab />}
-          {tab === 'produtos' && <ProdutosTab />}
-          {tab === 'logs' && <LogsTab />}
-
-          {/* Personalização completa da Ana */}
+        <main className="min-w-0 flex-1" aria-label={currentItem?.label || 'Configurações'}>
           {tab === 'ana' && <PersonalizacaoAna embedded />}
-
-          {/* Empresa */}
+          {tab === 'operacao' && <OperationalStatusTab />}
           {tab === 'empresa' && <EmpresaTabs />}
-
-          {/* Canais, conexões e modo operacional */}
-          {tab === 'integracoes-operacao' && <IntegracoesOperacaoTab />}
-
-          {/* Equipe */}
-          {tab === 'equipe' && (
-            <div className="bg-background-50 border border-background-200/70 rounded-xl overflow-hidden">
-              <div className="px-6 py-4 border-b border-background-200/70 flex items-center justify-between">
-                <h3 className="font-heading font-bold text-foreground-900 text-sm">Membros da equipe</h3>
-                <button onClick={() => setConviteModal(true)} className="inline-flex items-center gap-2 px-4 py-2 bg-primary-500 hover:bg-primary-600 text-background-50 rounded-lg text-xs font-semibold cursor-pointer whitespace-nowrap">
-                  <i className="ri-user-add-line"></i>
-                  Convidar membro
-                </button>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-background-200/70 bg-background-100/50">
-                      <th className="text-left px-6 py-3 text-foreground-500 font-medium text-xs">Membro</th>
-                      <th className="text-left px-6 py-3 text-foreground-500 font-medium text-xs">Cargo</th>
-                      <th className="text-left px-6 py-3 text-foreground-500 font-medium text-xs hidden md:table-cell">Departamento</th>
-                      <th className="text-left px-6 py-3 text-foreground-500 font-medium text-xs">Status</th>
-                      <th className="text-left px-6 py-3 text-foreground-500 font-medium text-xs w-28">Ações</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {membros.map((m) => (
-                      <tr key={m.id} className="border-b border-background-100 hover:bg-background-50/50">
-                        <td className="px-6 py-3.5">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded-full bg-background-200 flex items-center justify-center">
-                              <span className="text-foreground-700 font-bold text-xs">{m.avatar}</span>
-                            </div>
-                            <div>
-                              <p className="font-medium text-foreground-900">{m.nome}</p>
-                              <p className="text-foreground-500 text-xs">{m.email}</p>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-3.5 text-foreground-700">{m.cargo}</td>
-                        <td className="px-6 py-3.5 text-foreground-600 hidden md:table-cell">{m.departamento}</td>
-                        <td className="px-6 py-3.5">
-                          <span className={`inline-block px-2.5 py-1 rounded-md text-xs font-medium ${m.status === 'ativo' ? 'bg-primary-100 text-primary-700' : 'bg-background-200 text-foreground-500'}`}>
-                            {m.status === 'ativo' ? 'Ativo' : 'Inativo'}
-                          </span>
-                        </td>
-                        <td className="px-6 py-3.5">
-                          <div className="flex items-center gap-1">
-                            <button
-                              onClick={() => abrirEdicaoMembro(m)}
-                              className="w-8 h-8 flex items-center justify-center rounded-lg bg-background-100 hover:bg-background-200 text-foreground-500 cursor-pointer"
-                              title="Editar cargo"
-                            >
-                              <i className="ri-edit-line"></i>
-                            </button>
-                            {m.status === 'ativo' ? (
-                              <button
-                                onClick={() => revogarAcesso(m)}
-                                className="w-8 h-8 flex items-center justify-center rounded-lg bg-background-100 hover:bg-accent-50 text-accent-600 cursor-pointer"
-                                title="Revogar acesso"
-                              >
-                                <i className="ri-user-unfollow-line"></i>
-                              </button>
-                            ) : (
-                              <button
-                                onClick={() => reenviarConvite(m)}
-                                className="w-8 h-8 flex items-center justify-center rounded-lg bg-background-100 hover:bg-background-200 text-foreground-500 cursor-pointer"
-                                title="Reenviar convite"
-                              >
-                                <i className="ri-mail-send-line"></i>
-                              </button>
-                            )}
-                            <button
-                              onClick={() => removerMembro(m)}
-                              className="w-8 h-8 flex items-center justify-center rounded-lg bg-background-100 hover:bg-accent-50 text-accent-600 cursor-pointer"
-                              title="Remover membro"
-                            >
-                              <i className="ri-delete-bin-6-line"></i>
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {/* Supressão */}
-          {tab === 'supressao' && (
-            <div className="bg-background-50 border border-background-200/70 rounded-xl overflow-hidden">
-              <div className="px-6 py-4 border-b border-background-200/70 flex items-center justify-between">
-                <div>
-                  <h3 className="font-heading font-bold text-foreground-900 text-sm">Lista de supressão</h3>
-                  <p className="text-xs text-foreground-500">Contatos com opt-out. Cadências são pausadas automaticamente.</p>
-                </div>
-                <button onClick={() => setSupModal(true)} className="px-4 py-2 bg-secondary-500 hover:bg-secondary-600 text-background-50 rounded-lg text-xs font-semibold cursor-pointer whitespace-nowrap">
-                  Adicionar
-                </button>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-background-200/70 bg-background-100/50">
-                      <th className="text-left px-6 py-3 text-foreground-500 font-medium text-xs">Contato (hash)</th>
-                      <th className="text-left px-6 py-3 text-foreground-500 font-medium text-xs">Canal</th>
-                      <th className="text-left px-6 py-3 text-foreground-500 font-medium text-xs hidden md:table-cell">Motivo</th>
-                      <th className="text-left px-6 py-3 text-foreground-500 font-medium text-xs hidden lg:table-cell">Data</th>
-                      <th className="text-left px-6 py-3 text-foreground-500 font-medium text-xs">Status</th>
-                      <th className="text-left px-6 py-3 text-foreground-500 font-medium text-xs w-24">Ações</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {supressoes.map((s) => (
-                      <tr key={s.id} className="border-b border-background-100 hover:bg-background-50/50">
-                        <td className="px-6 py-3.5 font-mono text-xs text-foreground-700">{s.contato}</td>
-                        <td className="px-6 py-3.5 text-foreground-700">{s.canal}</td>
-                        <td className="px-6 py-3.5 text-foreground-600 hidden md:table-cell">{s.motivo}</td>
-                        <td className="px-6 py-3.5 text-foreground-600 hidden lg:table-cell">{new Date(s.data + 'T00:00:00').toLocaleDateString('pt-BR')}</td>
-                        <td className="px-6 py-3.5">
-                          <span className={`inline-block px-2.5 py-1 rounded-md text-xs font-medium ${s.status === 'ativo' ? 'bg-accent-100 text-accent-700' : 'bg-primary-100 text-primary-700'}`}>
-                            {s.status === 'ativo' ? 'Ativo' : 'Reativado'}
-                          </span>
-                        </td>
-                        <td className="px-6 py-3.5">
-                          <div className="flex items-center gap-1.5">
-                            {s.status === 'ativo' && (
-                              <button
-                                onClick={() => reativarSupressao(s.id)}
-                                className="px-2.5 py-1.5 bg-primary-500 hover:bg-primary-600 text-background-50 rounded-md text-xs font-semibold cursor-pointer whitespace-nowrap"
-                                title="Reativar contato"
-                              >
-                                <i className="ri-arrow-go-back-line"></i>
-                              </button>
-                            )}
-                            <button
-                              onClick={() => excluirRegistroSupressao(s.id)}
-                              className="px-2.5 py-1.5 bg-background-100 hover:bg-accent-50 text-accent-600 rounded-md text-xs cursor-pointer whitespace-nowrap"
-                              title="Excluir registro"
-                            >
-                              <i className="ri-delete-bin-6-line"></i>
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </div>
+          {tab === 'equipe' && <TeamAccessTab />}
+          {tab === 'produtos' && <ProdutosTab />}
+          {tab === 'conexoes' && <IntegracoesOperacaoTab />}
+          {tab === 'supressao' && <SuppressionTab />}
+          {tab === 'diagnostico' && <DiagnosticsTab />}
+        </main>
       </div>
-
-      {/* Modal Convidar membro */}
-      {conviteModal && (
-        <div className="fixed inset-0 z-50 bg-foreground-950/50 flex items-center justify-center p-4" onClick={() => setConviteModal(false)}>
-          <div className="bg-background-50 rounded-xl max-w-md w-full" onClick={(e) => e.stopPropagation()}>
-            <div className="px-6 py-4 border-b border-background-200/70 flex items-center justify-between">
-              <h3 className="font-heading font-bold text-foreground-950">Convidar membro</h3>
-              <button onClick={() => setConviteModal(false)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-background-100 cursor-pointer"><i className="ri-close-line text-lg"></i></button>
-            </div>
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-foreground-800 mb-1.5">Nome</label>
-                <input type="text" value={convite.nome} onChange={(e) => setConvite({ ...convite, nome: e.target.value })} placeholder="Nome do colaborador" className="w-full px-4 py-2.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-900" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground-800 mb-1.5">E-mail</label>
-                <input type="email" value={convite.email} onChange={(e) => setConvite({ ...convite, email: e.target.value })} placeholder="email@empresa.com" className="w-full px-4 py-2.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-900" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground-800 mb-1.5">Cargo</label>
-                <select value={convite.cargo} onChange={(e) => setConvite({ ...convite, cargo: e.target.value })} className="w-full px-4 py-2.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-900 cursor-pointer">
-                  {['Administrador', 'Gestor Comercial', 'Vendedor', 'SDR', 'CX'].map((c) => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
-            </div>
-            <div className="px-6 py-4 border-t border-background-200/70 flex justify-end gap-2">
-              <button onClick={() => setConviteModal(false)} className="px-4 py-2.5 border border-background-300 text-foreground-700 rounded-lg text-sm font-semibold hover:bg-background-100 cursor-pointer whitespace-nowrap">Cancelar</button>
-              <button onClick={enviarConvite} className="px-5 py-2.5 bg-primary-500 hover:bg-primary-600 text-background-50 rounded-lg text-sm font-bold cursor-pointer whitespace-nowrap">Enviar convite</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal Editar membro */}
-      {editMembroModal && (
-        <div className="fixed inset-0 z-50 bg-foreground-950/50 flex items-center justify-center p-4" onClick={() => setEditMembroModal(null)}>
-          <div className="bg-background-50 rounded-xl max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
-            <div className="px-6 py-4 border-b border-background-200/70 flex items-center justify-between">
-              <div>
-                <h3 className="font-heading font-bold text-foreground-950">Editar membro</h3>
-                <p className="text-sm text-foreground-500">{editMembroModal.nome}</p>
-              </div>
-              <button onClick={() => setEditMembroModal(null)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-background-100 cursor-pointer"><i className="ri-close-line text-lg"></i></button>
-            </div>
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-foreground-800 mb-1.5">Cargo</label>
-                <select value={editMembroForm.cargo} onChange={(e) => setEditMembroForm({ ...editMembroForm, cargo: e.target.value })} className="w-full px-4 py-2.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-900 cursor-pointer">
-                  {['Administrador', 'Gestor Comercial', 'Vendedor', 'SDR', 'CX'].map((c) => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground-800 mb-1.5">Departamento</label>
-                <select value={editMembroForm.departamento} onChange={(e) => setEditMembroForm({ ...editMembroForm, departamento: e.target.value })} className="w-full px-4 py-2.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-900 cursor-pointer">
-                  {['Direção', 'Comercial', 'Prospecção', 'Atendimento', 'Marketing'].map((d) => <option key={d} value={d}>{d}</option>)}
-                </select>
-              </div>
-            </div>
-            <div className="px-6 py-4 border-t border-background-200/70 flex justify-end gap-2">
-              <button onClick={() => setEditMembroModal(null)} className="px-4 py-2.5 border border-background-300 text-foreground-700 rounded-lg text-sm font-semibold hover:bg-background-100 cursor-pointer whitespace-nowrap">Cancelar</button>
-              <button onClick={salvarEdicaoMembro} className="px-5 py-2.5 bg-primary-500 hover:bg-primary-600 text-background-50 rounded-lg text-sm font-bold cursor-pointer whitespace-nowrap">Salvar</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal Adicionar supressão */}
-      {supModal && (
-        <div className="fixed inset-0 z-50 bg-foreground-950/50 flex items-center justify-center p-4" onClick={() => setSupModal(false)}>
-          <div className="bg-background-50 rounded-xl max-w-md w-full" onClick={(e) => e.stopPropagation()}>
-            <div className="px-6 py-4 border-b border-background-200/70 flex items-center justify-between">
-              <h3 className="font-heading font-bold text-foreground-950">Adicionar à lista de supressão</h3>
-              <button onClick={() => setSupModal(false)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-background-100 cursor-pointer"><i className="ri-close-line text-lg"></i></button>
-            </div>
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-foreground-800 mb-1.5">Contato (e-mail ou telefone)</label>
-                <input type="text" value={supForm.contato} onChange={(e) => setSupForm({ ...supForm, contato: e.target.value })} placeholder="contato@empresa.com ou (00) 00000-0000" className="w-full px-4 py-2.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-900" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground-800 mb-1.5">Canal</label>
-                <select value={supForm.canal} onChange={(e) => setSupForm({ ...supForm, canal: e.target.value })} className="w-full px-4 py-2.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-900 cursor-pointer">
-                  {['WhatsApp', 'E-mail', 'Telefone', 'Instagram'].map((c) => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground-800 mb-1.5">Motivo</label>
-                <input type="text" value={supForm.motivo} onChange={(e) => setSupForm({ ...supForm, motivo: e.target.value })} placeholder="Opt-out solicitado pelo lead" className="w-full px-4 py-2.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-900" />
-              </div>
-            </div>
-            <div className="px-6 py-4 border-t border-background-200/70 flex justify-end gap-2">
-              <button onClick={() => setSupModal(false)} className="px-4 py-2.5 border border-background-300 text-foreground-700 rounded-lg text-sm font-semibold hover:bg-background-100 cursor-pointer whitespace-nowrap">Cancelar</button>
-              <button onClick={adicionarSupressao} className="px-5 py-2.5 bg-secondary-500 hover:bg-secondary-600 text-background-50 rounded-lg text-sm font-bold cursor-pointer whitespace-nowrap">Adicionar</button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -3,7 +3,6 @@ import { useSearchParams } from 'react-router-dom';
 import type { Conversa, Mensagem } from '@/mocks/atendimentoData';
 import type { Lead } from '@/mocks/leadsData';
 import { autocompletarTexto } from '@/lib/anaIA';
-import { useSupressaoStore } from '@/hooks/useSupressaoStore';
 import { refreshConversasStore, useConversasStore } from '@/hooks/useConversasStore';
 import { useLeadsStore } from '@/hooks/useLeadsStore';
 import { useFluxoComercial } from '@/hooks/useFluxoComercial';
@@ -16,6 +15,7 @@ import type { Proposta } from '@/mocks/propostasData';
 import { montarValoresVariaveis, resolverVariaveis } from '@/lib/variaveis';
 import { requestHumanHandoff, returnConversationToAna } from '@/lib/crm/handoffsRepository';
 import { runAna } from '@/lib/crm/anaRunRepository';
+import { addContactSuppression, loadContactSuppressions, type ContactSuppression } from '@/lib/crm/suppressionRepository';
 import ConversaDrawer from './components/ConversaDrawer';
 
 const statusCores: Record<string, string> = {
@@ -46,7 +46,6 @@ export default function Atendimento() {
   const [leads, setLeads] = useLeadsStore();
   const fluxo = useFluxoComercial();
   const { config } = useConfiguracaoStore();
-  const { estaBloqueado, adicionar } = useSupressaoStore();
   const { respostas } = useRespostasRapidasStore();
   const { variaveis } = useVariaveisGlobaisStore();
   const { settings } = useEmpresaSettingsStore();
@@ -67,6 +66,7 @@ export default function Atendimento() {
   const [sugestaoIA, setSugestaoIA] = useState('');
   const [gerandoIA, setGerandoIA] = useState(false);
   const [erroIA, setErroIA] = useState('');
+  const [protectedContacts, setProtectedContacts] = useState<ContactSuppression[]>([]);
   const indiceSimulacao = useRef(0);
 
   const selected = conversas.find((c) => c.id === selectedId) || conversas[0];
@@ -76,6 +76,10 @@ export default function Atendimento() {
   useEffect(() => {
     if (!selectedId && conversas[0]) setSelectedId(conversas[0].id);
   }, [conversas, selectedId]);
+
+  useEffect(() => {
+    void loadContactSuppressions().then(setProtectedContacts).catch(() => undefined);
+  }, []);
 
   const leadDaConversa = (conv: Conversa | undefined): Lead | null => {
     if (!conv) return null;
@@ -98,7 +102,11 @@ export default function Atendimento() {
     ? respostas.filter((r) => r.atalho.toLowerCase().includes(textoAtual.slice(1).toLowerCase()))
     : [];
 
-  const contatoBloqueado = selected ? estaBloqueado(selected.contato, selected.canal) : false;
+  const normalizeContact = (contact: string) => contact.includes('@') ? contact.trim().toLowerCase().replace(/\s+/g, '') : contact.replace(/\D/g, '');
+  const contatoBloqueado = selected ? protectedContacts.some((item) => {
+    const channel = item.channel.toLowerCase();
+    return normalizeContact(item.contact) === normalizeContact(selected.contato) && (channel === 'all' || channel === selected.canal.toLowerCase());
+  }) : false;
   const conversaTransferida = selected ? selected.status === 'transferido' : false;
 
   // Abre a conversa do lead vindo do Kanban/Leads (via ?leadId=).
@@ -334,15 +342,16 @@ export default function Atendimento() {
     setOrcamentoModal(false);
   };
 
-  const registrarOptout = () => {
+  const registrarOptout = async () => {
     if (!selected) return;
-    adicionar({
-      contato: selected.contato,
-      canal: selected.canal === 'whatsapp' ? 'WhatsApp' : selected.canal === 'email' ? 'E-mail' : 'Instagram',
-      motivo: 'Opt-out solicitado pelo lead',
-      ator: 'Você',
-      origem: 'Manual',
-    });
+    const channel = selected.canal === 'whatsapp' ? 'whatsapp' : selected.canal === 'email' ? 'email' : 'instagram';
+    try {
+      await addContactSuppression({ contact: selected.contato, channel, reason: 'Opt-out solicitado pelo lead' });
+      await loadContactSuppressions().then(setProtectedContacts);
+    } catch {
+      setErroIA('Não foi possível registrar o opt-out na lista real de proteção. Nenhuma alteração local foi simulada.');
+      return;
+    }
     const lead = leadSelecionado;
     if (lead) {
       setLeads((prev) =>
@@ -749,7 +758,7 @@ export default function Atendimento() {
             <div className="px-6 py-4 border-t border-background-200/70 flex justify-end gap-2">
               <button onClick={() => setOptoutConfirmar(false)} className="px-4 py-2.5 border border-background-300 text-foreground-700 rounded-lg text-sm font-semibold hover:bg-background-100 cursor-pointer whitespace-nowrap">Cancelar</button>
               <button
-                onClick={() => { setOptoutConfirmar(false); registrarOptout(); }}
+                onClick={() => { setOptoutConfirmar(false); void registrarOptout(); }}
                 className="px-5 py-2.5 bg-accent-500 hover:bg-accent-600 text-background-50 rounded-lg text-sm font-bold cursor-pointer whitespace-nowrap"
               >
                 Confirmar bloqueio

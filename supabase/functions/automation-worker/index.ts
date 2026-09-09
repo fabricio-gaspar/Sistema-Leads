@@ -1,6 +1,7 @@
 import { createAdminClient, requireOrganizationRole, requireUser } from '../_shared/auth.ts';
 import { allowedCorsHeaders, hasAllowedOrigin, json, preflight, safeError } from '../_shared/http.ts';
 import { automationBlockReason, zapiBaseUrl } from '../_shared/runtimeSafety.ts';
+import { suppressionHashes, suppressionOrFilter } from '../_shared/contactSuppression.ts';
 
 function canonicalChannel(value: unknown): string {
   const normalized = String(value ?? '').toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -76,19 +77,21 @@ Deno.serve(async (request) => {
         let providerAccepted = false;
         let providerMessageId: string | null = null;
         try {
-          const reads = await Promise.all([
-            admin.from('leads').select('phone,whatsapp,opt_out,ai_paused,owner_id,modo_atendimento,last_contact').eq('organization_id', orgId).eq('id', job.lead_id).maybeSingle(),
+          const initialReads = await Promise.all([
+            admin.from('leads').select('phone,whatsapp,email,opt_out,ai_paused,owner_id,modo_atendimento,last_contact').eq('organization_id', orgId).eq('id', job.lead_id).maybeSingle(),
             admin.from('company_settings').select('active,sandbox_mode,can_use_ia,ai_actions_enabled').eq('organization_id', orgId).maybeSingle(),
             admin.from('integrations').select('enabled,connected,paused').eq('organization_id', orgId).eq('key', 'ai').maybeSingle(),
             admin.from('organization_module_data').select('data').eq('organization_id', orgId).eq('module_key', 'configuracao_runtime').maybeSingle(),
             admin.from('integrations').select('id,connected,enabled,paused').eq('organization_id', orgId).eq('key', 'whatsapp').maybeSingle(),
-            admin.from('contact_suppressions').select('id').eq('organization_id', orgId).eq('lead_id', job.lead_id).limit(1),
           ]);
-          if (reads.some((read) => read.error)) throw new Error('dispatch_safety_read_failed');
-          const [{ data: lead }, { data: company }, { data: ai }, { data: runtime }, { data: integration }, { data: suppressions }] = reads;
+          if (initialReads.some((read) => read.error)) throw new Error('dispatch_safety_read_failed');
+          const [{ data: lead }, { data: company }, { data: ai }, { data: runtime }, { data: integration }] = initialReads;
+          const { data: suppressions, error: suppressionError } = await admin.from('contact_suppressions').select('id,channel')
+            .eq('organization_id', orgId).or(suppressionOrFilter(job.lead_id, await suppressionHashes(lead ?? {}))).limit(1);
+          if (suppressionError) throw new Error('dispatch_suppression_read_failed');
           const block = automationBlockReason({ company, ai, runtime: runtime?.data ?? null, lead });
           if (block) throw new Error(block);
-          if (suppressions?.length) throw new Error('contact_suppressed');
+          if (suppressions?.some((suppression) => ['all', 'whatsapp'].includes(canonicalChannel(suppression.channel)))) throw new Error('contact_suppressed');
           const { data: credentials, error: credentialsError } = integration?.id
             ? await admin.rpc('read_integration_secret', { p_integration: integration.id }) : { data: null, error: null };
           if (credentialsError) throw new Error('channel_credentials_unavailable');
