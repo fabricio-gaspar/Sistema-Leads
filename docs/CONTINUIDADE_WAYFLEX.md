@@ -60,6 +60,9 @@ Fabricio disser **“pode seguir”**, sem depender do histórico da conversa.
   separam salvamento/validação da configuração de webhook Z-API.
 - Correção posterior: `testar-integracao` v11 usa o contrato oficial de status
   Z-API sem header extra; validação sem envio, protegida por teste de contrato.
+- Lote posterior: `operational-diagnostics` v4 e `configurar-integracao` v13.
+  O Dashboard controla Ambiente de Demonstração/Ambiente Real com pré-flight persistido;
+  as integrações passaram a ter categoria persistida entre comunicação, prospecção e IA.
 
 Nenhuma mensagem real foi enviada e `sandbox_mode` não foi alterado.
 
@@ -84,6 +87,17 @@ RLS entre duas empresas e QA mobile autenticado.
 5. Concluir extração de PDF/DOCX/PPTX/XLSX, OCR, transcrição e busca híbrida. Hoje a Ana usa
    somente texto aprovado e transcrições fornecidas/revisadas.
 6. Substituir os presets/localStorage restantes de módulos secundários e executar E2E/RLS.
+
+## Lote mais recente, ainda sem nova publicação
+
+- Commit validado: `64dc4dd1b696576781316244f38a1c913bffeb31`.
+- Ambiente de Demonstração segue ativo no banco. O Ambiente Real continua bloqueado até a
+  pré-verificação aprovar empresa, Ana, kill switch, IA, WhatsApp, webhook e scheduler.
+- Nove leads de demonstração confirmados e seus vínculos operacionais foram removidos. O lead
+  “Lavanderia / Fabricio Gaspar” foi preservado para **REVISÃO NECESSÁRIA** por ter inbound sem
+  marcador explícito de teste. Não há órfãos nas tabelas de lead verificadas.
+- Histórico de auditoria é append-only e foi preservado por governança; ele não volta a aparecer
+  como lead, conversa, tarefa, execução, proposta ou fila operacional.
 
 O sistema continua **não liberado para comercialização autônoma** enquanto os itens 1 a 3
 não forem homologados. Para retomar, começar pelo scheduler seguro ou pela homologação do

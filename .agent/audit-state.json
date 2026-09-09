@@ -1,12 +1,12 @@
 {
   "schema_version": 1,
   "baseline_version": 2,
-  "baseline_commit": "7c0e02c9a62c2716de408aed6818cb27dec01c33",
-  "last_audited_commit": "7c0e02c9a62c2716de408aed6818cb27dec01c33",
-  "current_head_at_update": "7c0e02c9a62c2716de408aed6818cb27dec01c33",
-  "working_tree_status": "validated_and_published",
+  "baseline_commit": "64dc4dd1b696576781316244f38a1c913bffeb31",
+  "last_audited_commit": "64dc4dd1b696576781316244f38a1c913bffeb31",
+  "current_head_at_update": "64dc4dd1b696576781316244f38a1c913bffeb31",
+  "working_tree_status": "validated_pending_publication",
   "full_audit_required": false,
   "baseline_status": "validated",
-  "updated_at": "2026-09-09T15:15:00Z",
-  "next_action": "Iniciar scheduler 24/7 e homologação do webhook em ambiente controlado, sem ativar produção."
+  "updated_at": "2026-09-09T20:05:00Z",
+  "next_action": "Publicar a prévia do commit 64dc4dd, manter Ambiente de Demonstração e depois homologar webhook, Claude e scheduler 24/7 em ambiente controlado."
 }
