@@ -58,6 +58,8 @@ Fabricio disser **“pode seguir”**, sem depender do histórico da conversa.
 - `ana-run` v14 e `webhook-whatsapp` v7 permanecem ativos.
 - Correção posterior: `configurar-integracao` v12 e `testar-integracao` v10
   separam salvamento/validação da configuração de webhook Z-API.
+- Correção posterior: `testar-integracao` v11 usa o contrato oficial de status
+  Z-API sem header extra; validação sem envio, protegida por teste de contrato.
 
 Nenhuma mensagem real foi enviada e `sandbox_mode` não foi alterado.
 

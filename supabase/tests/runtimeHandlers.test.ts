@@ -271,6 +271,32 @@ describe('Z-API credential configuration contract', () => {
   });
 });
 
+describe('Z-API status validation contract', () => {
+  it('uses the documented status headers and does not send a message', async () => {
+    override = (q) => {
+      if (q.table === 'read_integration_secret') return ok({
+        instancia_id: 'synthetic-instance', token: 'synthetic-instance-token', client_token: 'synthetic-client-token', url_base: 'https://api.z-api.io',
+      });
+      return undefined;
+    };
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ connected: true, smartphoneConnected: true }), { status: 200 }));
+    await import('../functions/testar-integracao/index');
+    const request = new Request('https://example.invalid/testar-integracao', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ canal: 'whatsapp' }),
+    });
+    const response = await handler(request);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ ok: true, pronto: true });
+    expect(fetchMock).toHaveBeenCalledWith(
+      'https://api.z-api.io/instances/synthetic-instance/token/synthetic-instance-token/status',
+      expect.objectContaining({ headers: { 'Content-Type': 'application/json', 'Client-Token': 'synthetic-client-token' } }),
+    );
+    expect(fetchMock.mock.calls[0][1].headers).not.toHaveProperty('Accept');
+  });
+});
+
 describe('Operational mode authority', () => {
   const statusRequest = (mode: 'protected' | 'real') => new Request('https://example.invalid/operational-diagnostics', {
     method: 'POST',

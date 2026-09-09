@@ -33,3 +33,11 @@
   existir callback controlado com contrato confirmado.
 - Publicadas: `configurar-integracao` v12 e `testar-integracao` v10. Testes:
   typecheck Edge e 108 testes aprovados.
+
+## 2026-09-09 — Correção Z-API: contrato de status
+
+- A documentação oficial atual foi confrontada com o teste: `GET /status` usa
+  somente `Client-Token` e `Content-Type: application/json`.
+- O header extra `Accept` foi removido; o teste automatizado protege esse
+  contrato e confirma que a validação não envia mensagem.
+- Publicada `testar-integracao` v11. Typecheck Edge e 109 testes aprovados.

@@ -97,12 +97,11 @@ Deno.serve(async (request) => {
         `${baseUrl}/instances/${encodeURIComponent(zapi.instancia_id)}/token/${encodeURIComponent(zapi.token)}/status`,
         {
           headers: {
-            // A própria Z-API exige Content-Type em todas as chamadas. O
-            // endpoint de status não possui corpo, mas sem esse header alguns
-            // ambientes do provedor devolvem HTTP 400 em vez do diagnóstico.
+            // Contrato oficial da Z-API para status: Client-Token e
+            // Content-Type. Não adicionar headers de negociação fora desse
+            // contrato; algumas instâncias respondem 400 a variações.
             'Content-Type': 'application/json',
             'Client-Token': zapi.client_token,
-            Accept: 'application/json',
           },
         },
       );
