@@ -55,17 +55,12 @@ Deno.serve(async (request) => {
           : { openai_key: openaiKey, claude_key: claudeKey, provedor_principal: selectedAiProvider, openai_model: String(credenciais.openai_model ?? '').trim(), claude_model: String(credenciais.claude_model ?? '').trim() };
     const { error: secretError } = await admin.rpc('store_integration_secret', { p_integration: integration.id, p_secret: credentials });
     if (secretError) throw new Error('integration_secret_save_failed');
-    if (canal === 'whatsapp') {
-      const zapi = credentials as { instancia_id: string; token: string; client_token: string; url_base: string; webhook_token: string };
-      const baseUrl = zapi.url_base.replace(/\/$/, '');
-      const webhookUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/webhook-whatsapp?integration_id=${integration.id}&token=${zapi.webhook_token}`;
-      const webhookResponse = await fetch(`${baseUrl}/instances/${encodeURIComponent(zapi.instancia_id)}/token/${encodeURIComponent(zapi.token)}/update-every-webhooks`, {
-        method: 'PUT',
-        headers: { 'Client-Token': zapi.client_token, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ value: webhookUrl, notifySentByMe: false }),
-      });
-      if (!webhookResponse.ok) throw new Error(`zapi_webhook_setup_${webhookResponse.status}`);
-    }
+    // Salvar credenciais não pode depender da configuração de callbacks do
+    // provedor. A Z-API aceitou a instância, mas devolveu HTTP 400 para o
+    // endpoint legado `update-every-webhooks`; tratar isso como falha de
+    // salvamento deixava as chaves gravadas no cofre e a interface informando
+    // o contrário. A homologação inbound é uma etapa própria: só será marcada
+    // como pronta depois de um callback real controlado.
     const publicConfiguration = canal === 'apify' ? { actor_id: actorId || null, task_id: taskId || null } : canal === 'ai' ? { provedor_principal: selectedAiProvider, openai_model: String(credenciais.openai_model ?? '').trim(), claude_model: String(credenciais.claude_model ?? '').trim(), openai_configurado: Boolean(openaiKey), claude_configurado: Boolean(claudeKey) } : {};
     // store_integration_secret já atualiza a integração e preserva a referência
     // do cofre. Uma segunda atualização era redundante e podia falhar depois de

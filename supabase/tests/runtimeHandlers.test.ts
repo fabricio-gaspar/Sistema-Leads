@@ -244,6 +244,33 @@ describe('Worker safety handler', () => {
   });
 });
 
+describe('Z-API credential configuration contract', () => {
+  it('stores credentials without attempting to mutate the provider webhook', async () => {
+    await import('../functions/configurar-integracao/index');
+    const request = new Request('https://example.invalid/configurar-integracao', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        canal: 'whatsapp',
+        credenciais: {
+          instancia_id: 'synthetic-instance',
+          token: 'synthetic-instance-token',
+          client_token: 'synthetic-client-token',
+          url_base: 'https://api.z-api.io',
+        },
+      }),
+    });
+    const response = await handler(request);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ ok: true });
+    expect(calls.find((q) => q.table === 'store_integration_secret' && q.operation === 'rpc')?.value).toMatchObject({
+      p_integration: integrationId,
+      p_secret: expect.objectContaining({ instancia_id: 'synthetic-instance' }),
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
 describe('Operational mode authority', () => {
   const statusRequest = (mode: 'protected' | 'real') => new Request('https://example.invalid/operational-diagnostics', {
     method: 'POST',

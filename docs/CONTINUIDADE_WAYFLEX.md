@@ -56,6 +56,8 @@ Fabricio disser **“pode seguir”**, sem depender do histórico da conversa.
 - `testar-integracao` v9, JWT obrigatório.
 - `configurar-integracao` v11, JWT obrigatório.
 - `ana-run` v14 e `webhook-whatsapp` v7 permanecem ativos.
+- Correção posterior: `configurar-integracao` v12 e `testar-integracao` v10
+  separam salvamento/validação da configuração de webhook Z-API.
 
 Nenhuma mensagem real foi enviada e `sandbox_mode` não foi alterado.
 

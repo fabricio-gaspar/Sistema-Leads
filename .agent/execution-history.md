@@ -20,3 +20,16 @@
 - Implementação salva no commit `7c0e02c9a62c2716de408aed6818cb27dec01c33`.
 - Prévia privada publicada como Site versão 49 a partir do checkpoint documental
   `947cf10d18e921e4250e5878b0a7ea43dedb3a6b`; publicação concluída com sucesso.
+
+## 2026-09-09 — Correção Z-API: salvamento de credenciais
+
+- Causa confirmada: `configurar-integracao` misturava a gravação no cofre com
+  uma tentativa automática de registrar webhook em `update-every-webhooks`.
+  A resposta HTTP 400 desse endpoint fazia a interface informar que as chaves
+  não haviam sido salvas, embora já estivessem no cofre.
+- O salvamento e o teste de conexão agora não alteram webhook. Eles validam
+  somente a instância, token e conexão do aparelho, sem enviar mensagem.
+- A homologação do webhook segue pendente e mantém o modo real bloqueado até
+  existir callback controlado com contrato confirmado.
+- Publicadas: `configurar-integracao` v12 e `testar-integracao` v10. Testes:
+  typecheck Edge e 108 testes aprovados.

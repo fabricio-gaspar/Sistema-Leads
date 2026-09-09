@@ -111,17 +111,9 @@ Deno.serve(async (request) => {
       if (!status || typeof status !== 'object') throw new Error('zapi_invalid_request');
       if (!status.connected) throw new Error('zapi_instance_not_connected');
       if (!status.smartphoneConnected) throw new Error('zapi_phone_offline');
-      if (!zapi.webhook_token) {
-        zapi.webhook_token = crypto.randomUUID().replace(/-/g, '');
-        const { error: secretUpdateError } = await admin.rpc('store_integration_secret', { p_integration: integration.id, p_secret: zapi });
-        if (secretUpdateError) throw new Error('zapi_webhook_secret_save_failed');
-      }
-      const webhookUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/webhook-whatsapp?integration_id=${integration.id}&token=${zapi.webhook_token}`;
-      const webhookResponse = await fetch(
-        `${baseUrl}/instances/${encodeURIComponent(zapi.instancia_id)}/token/${encodeURIComponent(zapi.token)}/update-every-webhooks`,
-        { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Client-Token': zapi.client_token }, body: JSON.stringify({ value: webhookUrl, notifySentByMe: false }) },
-      );
-      if (!webhookResponse.ok) throw new Error(`zapi_webhook_setup_${webhookResponse.status}`);
+      // Esta validação confirma somente instância, credenciais e conexão do
+      // aparelho, sem modificar webhooks. O callback inbound possui contrato
+      // próprio e só pode ser considerado pronto após homologação controlada.
     } else if (canal === 'ai') {
       const ai = credentials as {
         provedor_principal?: string;
