@@ -17,3 +17,6 @@
 - Modo real ganhou pré-flight no backend e permanece bloqueado com Claude, webhook e scheduler offline.
 - Equipe e responsáveis agora usam membros reais; gráficos e tempos estimados foram removidos.
 - Typecheck frontend/Edge, lint, 107 testes e build aprovados. Commit e publicação ainda pendentes.
+- Implementação salva no commit `7c0e02c9a62c2716de408aed6818cb27dec01c33`.
+- Prévia privada publicada como Site versão 49 a partir do checkpoint documental
+  `947cf10d18e921e4250e5878b0a7ea43dedb3a6b`; publicação concluída com sucesso.

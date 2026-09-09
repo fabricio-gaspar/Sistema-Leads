@@ -4,9 +4,9 @@
   "baseline_commit": "7c0e02c9a62c2716de408aed6818cb27dec01c33",
   "last_audited_commit": "7c0e02c9a62c2716de408aed6818cb27dec01c33",
   "current_head_at_update": "7c0e02c9a62c2716de408aed6818cb27dec01c33",
-  "working_tree_status": "validated_checkpoint_metadata_pending",
+  "working_tree_status": "validated_and_published",
   "full_audit_required": false,
   "baseline_status": "validated",
   "updated_at": "2026-09-09T15:15:00Z",
-  "next_action": "Publicar e validar a prévia privada; depois iniciar scheduler 24/7 e homologação do webhook sem ativar produção."
+  "next_action": "Iniciar scheduler 24/7 e homologação do webhook em ambiente controlado, sem ativar produção."
 }

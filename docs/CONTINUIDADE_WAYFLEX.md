@@ -23,6 +23,8 @@ Fabricio disser **“pode seguir”**, sem depender do histórico da conversa.
 - Baseline visual anterior: tag `baseline-pre-apple-mac-light-20260908` e Site versão 46.
 - Antes da nova publicação, o Site ativo era a versão 48 no commit
   `4d072280a09b3b8462f5bf0dfa701b314eca31bb`.
+- Prévia atual: Site versão 49, publicada com sucesso a partir do commit
+  `947cf10d18e921e4250e5878b0a7ea43dedb3a6b`.
 
 ## Entregas deste checkpoint
 
