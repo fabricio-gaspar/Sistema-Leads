@@ -639,8 +639,9 @@ function Metric({ label, value, icon }: { label: string; value: number; icon: Re
 }
 
 function MessageBubble({ message, attachments }: { message: MsgRow; attachments: AttachmentRow[] }) {
-  const mine = message.sender !== "lead";
-  const isAI = message.sender === "ana" || message.sender === "ia";
+  const sender = String(message.sender);
+  const mine = sender !== "lead" && sender !== "client";
+  const isAI = sender === "ana" || sender === "ia";
   return (
     <div className={`flex ${mine ? "justify-end" : "justify-start"}`}>
       <div className={`max-w-[75%] rounded-2xl px-3.5 py-2 text-[13px] shadow-sm ${mine ? isAI ? "rounded-br-sm bg-ia text-white" : "rounded-br-sm bg-primary text-primary-foreground" : "rounded-bl-sm border border-border-card bg-bg-card text-text-title"}`}>
