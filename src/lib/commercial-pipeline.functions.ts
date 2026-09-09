@@ -23,14 +23,12 @@ export const listCommercialStages = createServerFn({ method: 'GET' })
       .from('pipeline_stages')
       .select('id,pipeline_id,name,position,is_won,is_lost')
       .eq('active', true)
-      .not('ana_stage_key', 'is', null)
       .order('position', { ascending: true })
     if (error) throw new Error(error.message)
 
-    const canonical = (data ?? []).filter((row) =>
+    return (data ?? []).filter((row) =>
       (COMMERCIAL_STAGES as readonly string[]).includes(row.name),
     )
-    return canonical
   })
 
 export const moveLeadCommercialStage = createServerFn({ method: 'POST' })
