@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "validated_commit": "working_tree_publish_button_clarity_2026-09-10",
+  "validated_commit": "228be6a36dff00982860e7a8cb9ee33e91c5f778",
   "last_validated_at": "2026-09-10T20:20:00-03:00",
   "commands": [
     {"command":"npm run type-check","status":"passed"},

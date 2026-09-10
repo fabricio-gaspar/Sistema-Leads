@@ -326,3 +326,4 @@ webhook em ambiente controlado.
 - Foram aprovados type-check frontend/Edge, lint sem warnings, 15 arquivos/159 testes e build.
   A reprodução visual confirmou o estado bloqueado sem edição e o botão habilitado após alteração
   local; nenhum dado, mensagem, provedor IA ou modo operacional foi alterado durante o teste.
+- A correção foi publicada no Site oficial como versão 68, preservando a audiência privada.
