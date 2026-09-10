@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import type { Conversa, Mensagem } from '@/mocks/atendimentoData';
 import type { Lead } from '@/mocks/leadsData';
@@ -25,11 +25,23 @@ const statusLabel: Record<string, string> = {
   transferido: 'Transferido',
 };
 
+const deliveryLabel: Record<NonNullable<Mensagem['statusEnvio']>, string> = {
+  aguardando: 'aguardando fila',
+  aceita: 'aceita pelo provedor',
+  entregue: 'entregue',
+  lida: 'lida',
+  falhou: 'falhou',
+  reconciliacao: 'em reconciliação',
+};
+
+function formatTraceDate(value?: string | null): string {
+  return value ? new Date(value).toLocaleString('pt-BR') : 'não informado';
+}
+
 export default function Atendimento() {
   const { conversas, adicionarMensagem, atualizarStatus, criarConversa } = useConversasStore();
   const [leads, setLeads] = useLeadsStore();
   const { propostas } = usePropostasStore();
-  const [assumido, setAssumido] = useState(false);
   const [orcamentoModal, setOrcamentoModal] = useState(false);
   const [searchParams] = useSearchParams();
   const leadIdParam = searchParams.get('leadId');
@@ -42,7 +54,13 @@ export default function Atendimento() {
   const [optoutConfirmar, setOptoutConfirmar] = useState(false);
   const [erroIA, setErroIA] = useState('');
   const [enviando, setEnviando] = useState(false);
+  const [handoffAction, setHandoffAction] = useState<'transfer' | 'takeover' | 'return' | null>(null);
   const [protectedContacts, setProtectedContacts] = useState<ContactSuppression[]>([]);
+  // Mantém a mesma chave idempotente enquanto uma mensagem está na fila ou em
+  // reconciliação. Se o operador repetir o mesmo texto nesse intervalo, o
+  // backend reconhece a solicitação em vez de criar uma segunda saída.
+  const pendingMessageRequests = useRef(new Map<string, string>());
+  const handoffActionLock = useRef(false);
 
   const selected = conversas.find((c) => c.id === selectedId) || conversas[0];
 
@@ -54,6 +72,16 @@ export default function Atendimento() {
 
   useEffect(() => {
     void loadContactSuppressions().then(setProtectedContacts).catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    const refresh = () => { void refreshConversasStore(); };
+    const interval = window.setInterval(refresh, 10_000);
+    window.addEventListener('focus', refresh);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('focus', refresh);
+    };
   }, []);
 
   const leadDaConversa = (conv: Conversa | undefined): Lead | null => {
@@ -71,6 +99,9 @@ export default function Atendimento() {
     return Boolean(contactForChannel) && normalizeContact(item.contact) === normalizeContact(contactForChannel) && (channel === 'all' || channel === selected.canal.toLowerCase());
   }) : false;
   const conversaTransferida = selected ? selected.status === 'transferido' : false;
+  const responsabilidadeHumana = conversaTransferida
+    || leadSelecionado?.modoAtendimento === 'HUMANO'
+    || leadSelecionado?.automacaoStatus === 'AGUARDANDO_HUMANO';
 
   // Abre a conversa do lead vindo do Kanban/Leads (via ?leadId=).
   useEffect(() => {
@@ -112,13 +143,25 @@ export default function Atendimento() {
       }
       try {
         setEnviando(true);
+        const messageText = texto.trim();
+        const recipient = selected.canal === 'whatsapp' ? leadSelecionado.whatsapp : leadSelecionado.email;
+        const fingerprint = `${leadSelecionado.id}:${selected.canal}:${recipient}:${messageText}`;
+        let requestId = pendingMessageRequests.current.get(fingerprint);
+        if (!requestId) {
+          requestId = crypto.randomUUID();
+          pendingMessageRequests.current.set(fingerprint, requestId);
+        }
         const result = await queueHumanMessage({
           leadId: leadSelecionado.id,
           channel: selected.canal,
-          recipient: selected.canal === 'whatsapp' ? leadSelecionado.whatsapp : leadSelecionado.email,
-          text: texto.trim(),
+          recipient,
+          text: messageText,
+          requestId,
         });
-        setTexto('');
+        if (!['queued', 'reconciliation'].includes(result.delivery)) {
+          pendingMessageRequests.current.delete(fingerprint);
+        }
+        if (result.delivery !== 'failed') setTexto('');
         await refreshConversasStore();
         setErroIA(result.detail);
       } catch (error) {
@@ -141,63 +184,66 @@ export default function Atendimento() {
     setNotaInterna(false);
   };
 
+  const runHandoffAction = async (
+    action: NonNullable<typeof handoffAction>,
+    operation: () => Promise<void>,
+    fallbackError: string,
+  ): Promise<void> => {
+    if (handoffActionLock.current) return;
+    handoffActionLock.current = true;
+    setHandoffAction(action);
+    setErroIA('');
+    try {
+      await operation();
+      await refreshConversasStore();
+    } catch {
+      setErroIA(fallbackError);
+    } finally {
+      handoffActionLock.current = false;
+      setHandoffAction(null);
+    }
+  };
+
   const handoff = async () => {
     const lead = leadSelecionado;
-    if (!lead) return;
-    try {
-      await requestHumanHandoff(lead.id, 'Transferência manual solicitada pelo operador');
-    } catch (error) {
-      console.error('[handoff] falha ao persistir transferência', error);
-      setErroIA('Não foi possível registrar a transferência agora. Tente novamente.');
+    if (!lead) {
+      setErroIA('Este registro não possui um lead operacional vinculado. A transferência não foi registrada.');
       return;
     }
-    atualizarStatus(selected.id, 'transferido');
-    setAssumido(false);
+    await runHandoffAction(
+      'transfer',
+      () => requestHumanHandoff(lead.id, 'Transferência manual solicitada pelo operador'),
+      'Não foi possível registrar a transferência agora. Tente novamente.',
+    );
   };
 
   // O humano assume a conversa a qualquer momento: pausa a Ana (se estiver ativa)
   // e passa a interagir livremente com o lead, sem perder o histórico.
   const assumir = async () => {
     const lead = leadSelecionado;
-    if (!lead) return;
-    try {
-      await requestHumanHandoff(lead.id, 'Atendimento assumido manualmente pelo operador', 'takeover');
-    } catch (error) {
-      console.error('[handoff] falha ao assumir atendimento', error);
-      setErroIA('Não foi possível assumir o atendimento agora. Tente novamente.');
+    if (!lead) {
+      setErroIA('Este registro não possui um lead operacional vinculado. O atendimento não foi assumido.');
       return;
     }
-    setAssumido(true);
-    adicionarMensagem(selected.id, {
-      id: `msg-sys-${Date.now()}`,
-      autor: 'sistema',
-      nome: 'Sistema',
-      texto: 'Você assumiu o atendimento. A Ana foi pausada neste lead — agora você interage diretamente.',
-      hora: agora(),
-      notaInterna: true,
-    });
+    await runHandoffAction(
+      'takeover',
+      () => requestHumanHandoff(lead.id, 'Atendimento assumido manualmente pelo operador', 'takeover'),
+      'Não foi possível assumir o atendimento agora. Tente novamente.',
+    );
   };
 
   // Devolve o atendimento para a Ana (reverte o "assumir").
   const devolver = async () => {
     const lead = leadSelecionado;
-    if (!lead) return;
-    try {
-      await returnConversationToAna(lead.id);
-    } catch (error) {
-      console.error('[handoff] falha ao devolver para Ana', error);
-      setErroIA('Não foi possível devolver o atendimento para a Ana agora.');
+    if (!lead) {
+      setErroIA('Este registro não possui um lead operacional vinculado. O atendimento não foi devolvido.');
       return;
     }
-    setAssumido(false);
-    adicionarMensagem(selected.id, {
-      id: `msg-sys-${Date.now()}`,
-      autor: 'sistema',
-      nome: 'Sistema',
-      texto: 'Atendimento devolvido para a Ana.',
-      hora: agora(),
-      notaInterna: true,
-    });
+    await runHandoffAction(
+      'return',
+      () => returnConversationToAna(lead.id),
+      'Não foi possível devolver o atendimento para a Ana agora.',
+    );
   };
 
   // Prepara o orçamento no compositor. O envio continua passando pelo caminho
@@ -358,21 +404,23 @@ export default function Atendimento() {
                 <i className="ri-file-list-3-line"></i>
                 Orçamento
               </button>
-              {!assumido ? (
+              {!responsabilidadeHumana ? (
                 <button
-                  onClick={assumir}
-                  className="inline-flex items-center gap-2 px-3 py-2 bg-primary-500 hover:bg-primary-600 text-background-50 rounded-lg text-xs font-semibold cursor-pointer whitespace-nowrap"
+                  onClick={() => void assumir()}
+                  disabled={handoffAction !== null}
+                  className="inline-flex items-center gap-2 px-3 py-2 bg-primary-500 hover:bg-primary-600 disabled:bg-primary-300 text-background-50 rounded-lg text-xs font-semibold cursor-pointer disabled:cursor-wait whitespace-nowrap"
                 >
                   <i className="ri-user-received-line"></i>
-                  Assumir
+                  {handoffAction === 'takeover' ? 'Assumindo...' : 'Assumir'}
                 </button>
               ) : (
                 <button
-                  onClick={devolver}
-                  className="inline-flex items-center gap-2 px-3 py-2 bg-primary-100 hover:bg-primary-200 text-primary-700 rounded-lg text-xs font-semibold cursor-pointer whitespace-nowrap"
+                  onClick={() => void devolver()}
+                  disabled={handoffAction !== null}
+                  className="inline-flex items-center gap-2 px-3 py-2 bg-primary-100 hover:bg-primary-200 disabled:opacity-50 text-primary-700 rounded-lg text-xs font-semibold cursor-pointer disabled:cursor-wait whitespace-nowrap"
                 >
                   <i className="ri-robot-line"></i>
-                  Devolver p/ Ana
+                  {handoffAction === 'return' ? 'Devolvendo...' : 'Devolver p/ Ana'}
                 </button>
               )}
               <button
@@ -382,13 +430,16 @@ export default function Atendimento() {
               >
                 <i className="ri-forbid-2-line text-base"></i>
               </button>
-              <button
-                onClick={handoff}
-                className="inline-flex items-center gap-2 px-3 py-2 bg-secondary-100 hover:bg-secondary-200 text-secondary-800 rounded-lg text-xs font-semibold cursor-pointer whitespace-nowrap"
-              >
-                <i className="ri-user-add-line"></i>
-                Transferir
-              </button>
+              {!responsabilidadeHumana && (
+                <button
+                  onClick={() => void handoff()}
+                  disabled={handoffAction !== null}
+                  className="inline-flex items-center gap-2 px-3 py-2 bg-secondary-100 hover:bg-secondary-200 disabled:opacity-50 text-secondary-800 rounded-lg text-xs font-semibold cursor-pointer disabled:cursor-wait whitespace-nowrap"
+                >
+                  <i className="ri-user-add-line"></i>
+                  {handoffAction === 'transfer' ? 'Transferindo...' : 'Transferir'}
+                </button>
+              )}
             </div>
           </div>
 
@@ -398,22 +449,10 @@ export default function Atendimento() {
               Contato na lista de supressão (LGPD). A Ana está bloqueada de enviar mensagens.
             </div>
           )}
-          {!contatoBloqueado && assumido && (
+          {!contatoBloqueado && responsabilidadeHumana && (
             <div className="px-5 py-2.5 bg-primary-50 border-b border-primary-200 flex items-center gap-2 text-xs text-primary-800">
               <i className="ri-user-received-line"></i>
-              Você assumiu este atendimento — a Ana está pausada. Envie mensagens livremente.
-            </div>
-          )}
-          {!contatoBloqueado && conversaTransferida && (
-            <div className="px-5 py-2.5 bg-secondary-50 border-b border-secondary-200 flex items-center gap-2 text-xs text-secondary-800">
-              <i className="ri-user-shared-line"></i>
-              Atendimento transferido para um humano. A Ana não responde automaticamente.
-            </div>
-          )}
-          {!contatoBloqueado && !conversaTransferida && leadSelecionado && (leadSelecionado.modoAtendimento ?? 'IA') === 'HUMANO' && (
-            <div className="px-5 py-2.5 bg-secondary-50 border-b border-secondary-200 flex items-center gap-2 text-xs text-secondary-800">
-              <i className="ri-user-line"></i>
-              Lead em modo humano — a Ana não envia mensagens automáticas.
+              Atendimento sob responsabilidade humana. A Ana está pausada para este lead; o histórico permanece nesta Central.
             </div>
           )}
 
@@ -436,7 +475,21 @@ export default function Atendimento() {
                       <div className="bg-primary-500 text-background-50 rounded-2xl rounded-br-md px-4 py-2.5 text-sm">
                         {m.texto}
                       </div>
-                      <p className="text-[10px] text-foreground-400 text-right mt-1">{m.nome} · {m.hora}</p>
+                      <p className="text-[10px] text-foreground-400 text-right mt-1">{m.nome} · {m.hora}{m.statusEnvio ? ` · ${deliveryLabel[m.statusEnvio]}` : ''}</p>
+                      {(m.correlationId || m.providerMessageId || m.historicoStatus?.length) && (
+                        <details className="mt-1 text-right text-[10px] text-foreground-400">
+                          <summary className="cursor-pointer select-none">ver trilha da mensagem</summary>
+                          <div className="mt-1 rounded-lg border border-background-200 bg-background-50 p-2 text-left leading-relaxed">
+                            <p>Direção: enviada · Canal: {selected.canal}</p>
+                            <p>ID interno: {m.id}</p>
+                            <p>Correlation ID: {m.correlationId || 'não informado'}</p>
+                            <p>ID do provedor: {m.providerMessageId || 'não informado'}</p>
+                            <p>Tentativas: {m.tentativas ?? 0}</p>
+                            {m.historicoStatus?.map((item, index) => <p key={`${item.label}-${index}`}>{item.label}: {formatTraceDate(item.at)}</p>)}
+                            {m.erroTecnico && <p>Detalhe técnico: {m.erroTecnico.slice(0, 120)}</p>}
+                          </div>
+                        </details>
+                      )}
                     </div>
                   </div>
                 );
@@ -452,7 +505,21 @@ export default function Atendimento() {
                       <div className={`rounded-2xl rounded-bl-md px-4 py-2.5 text-sm ${isAna ? 'bg-secondary-100 text-secondary-900' : 'bg-background-100 text-foreground-800'}`}>
                         {m.texto}
                       </div>
-                      <p className="text-[10px] text-foreground-400 mt-1">{m.nome} · {m.hora}{m.statusEnvio === 'aguardando' ? ' · aguardando fila' : m.statusEnvio === 'enviada' ? ' · enviada' : m.statusEnvio === 'falhou' ? ' · falhou' : m.statusEnvio === 'reconciliacao' ? ' · em reconciliação' : ''}</p>
+                      <p className="text-[10px] text-foreground-400 mt-1">{m.nome} · {m.hora}{m.statusEnvio ? ` · ${deliveryLabel[m.statusEnvio]}` : ''}</p>
+                      {(m.correlationId || m.providerMessageId || m.historicoStatus?.length) && (
+                        <details className="mt-1 text-[10px] text-foreground-400">
+                          <summary className="cursor-pointer select-none">ver trilha da mensagem</summary>
+                          <div className="mt-1 rounded-lg border border-background-200 bg-background-50 p-2 leading-relaxed">
+                            <p>Direção: {m.autor === 'cliente' ? 'recebida' : 'enviada'} · Canal: {selected.canal}</p>
+                            <p>ID interno: {m.id}</p>
+                            <p>Correlation ID: {m.correlationId || 'não informado'}</p>
+                            <p>ID do provedor: {m.providerMessageId || 'não informado'}</p>
+                            <p>Tentativas: {m.tentativas ?? 0}</p>
+                            {m.historicoStatus?.map((item, index) => <p key={`${item.label}-${index}`}>{item.label}: {formatTraceDate(item.at)}</p>)}
+                            {m.erroTecnico && <p>Detalhe técnico: {m.erroTecnico.slice(0, 120)}</p>}
+                          </div>
+                        </details>
+                      )}
                     </div>
                   </div>
                 </div>

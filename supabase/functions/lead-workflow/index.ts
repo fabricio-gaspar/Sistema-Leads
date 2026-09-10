@@ -3,6 +3,7 @@ import { allowedCorsHeaders, hasAllowedOrigin, json, preflight, safeError } from
 
 const ACTIONS = new Set(['start_ai', 'assign_human', 'record_inbound']);
 const asText = (value: unknown, max = 500) => typeof value === 'string' ? value.trim().slice(0, max) : '';
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 Deno.serve(async (request) => {
   const options = preflight(request); if (options) return options;
@@ -14,7 +15,7 @@ Deno.serve(async (request) => {
     const body = await request.json() as Record<string, unknown>;
     const action = asText(body.action, 40);
     const leadId = asText(body.lead_id, 80);
-    if (!ACTIONS.has(action) || !/^[0-9a-f-]{36}$/i.test(leadId)) throw new Error('invalid_action_or_lead');
+    if (!ACTIONS.has(action) || !UUID.test(leadId)) throw new Error('invalid_action_or_lead');
 
     const { user } = await requireUser(request);
     const admin = createAdminClient();
@@ -104,6 +105,11 @@ Deno.serve(async (request) => {
     if (modeError) throw modeError;
 
     const authorization = request.headers.get('authorization') || '';
+    // Preserve a caller-provided id across a retry. The compatibility endpoint
+    // still accepts legacy callers that do not yet send one, but every
+    // ana-run invocation receives an idempotency key input.
+    const requestedRunId = asText(body.request_id, 80);
+    const requestId = UUID.test(requestedRunId) ? requestedRunId : crypto.randomUUID();
     const anaResponse = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/ana-run`, {
       method: 'POST',
       headers: { Authorization: authorization, 'Content-Type': 'application/json' },
@@ -111,6 +117,7 @@ Deno.serve(async (request) => {
         event: 'manual.run',
         lead_id: leadId,
         modo: 'ia',
+        request_id: requestId,
         contexto: { source: 'lead-workflow-compat', requested_by: user.id },
       }),
       signal: AbortSignal.timeout(45_000),
@@ -131,4 +138,3 @@ Deno.serve(async (request) => {
     return json({ ok: false, error: safeError(error) }, 400, headers);
   }
 });
-

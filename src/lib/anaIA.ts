@@ -1,9 +1,9 @@
 import { supabase } from '@/lib/supabase';
 import type { AnaliseMensagem } from '@/lib/tipos';
 
-// Cliente das sugestões auxiliares da Ana. A execução comercial é centralizada
-// em `ana-run`, no backend; estas chamadas nunca expõem chave de IA no browser.
-
+// O browser pode oferecer auxílio de edição sob ação explícita do usuário, mas
+// não pode decidir, redigir ou responder automaticamente por uma conversa.
+// ana-run é a única autoridade para essas ações no backend.
 const TIMEOUT_MS = 9000;
 
 export interface ContextoLead {
@@ -39,33 +39,27 @@ async function invocar(body: Record<string, unknown>): Promise<RespostaIA | null
   }
 }
 
-// Gera a resposta de conversa da Ana para a mensagem do lead.
-export async function gerarResposta(mensagem: string, contexto: ContextoLead = {}): Promise<string | null> {
-  if (!mensagem.trim()) return null;
-  const resposta = await comTimeout(
-    invocar({ acao: 'responder', mensagem, contexto })
-  );
-  if (!resposta || !resposta.ok || !resposta.texto) return null;
-  return resposta.texto;
+// Contrato legado preservado: o navegador nunca gera uma resposta de conversa.
+export async function gerarResposta(_mensagem: string, _contexto: ContextoLead = {}): Promise<string | null> {
+  return null;
 }
 
-// Analisa a intenção/sentimento da mensagem do lead usando a IA.
-export async function analisarComIA(mensagem: string): Promise<AnaliseMensagem | null> {
-  if (!mensagem.trim()) return null;
-  const resposta = await comTimeout(invocar({ acao: 'analisar', mensagem }));
-  if (!resposta || !resposta.ok || !resposta.analise) return null;
-  return resposta.analise;
+// Contrato legado preservado: a análise que governa um lead só ocorre em ana-run.
+export async function analisarComIA(_mensagem: string): Promise<AnaliseMensagem | null> {
+  return null;
 }
 
-// Redige textos de proposta/follow-up personalizados pela IA.
-export async function redigirTexto(tipo: 'proposta' | 'followup', contexto: ContextoLead = {}): Promise<string | null> {
-  const resposta = await comTimeout(invocar({ acao: 'redigir', contexto: { ...contexto, tipo } }));
-  if (!resposta || !resposta.ok || !resposta.texto) return null;
-  return resposta.texto;
+// Contrato legado preservado: follow-ups e propostas automáticas não são
+// redigidos pelo cliente nem enviados a partir dele.
+export async function redigirTexto(
+  _tipo: 'proposta' | 'followup',
+  _contexto: ContextoLead = {}
+): Promise<string | null> {
+  return null;
 }
 
-// Autocomplete assistido por IA: completa um trecho já digitado (descrição de
-// produto, texto de proposta ou mensagem) sem nunca bloquear a digitação.
+// Autocomplete é uma sugestão para texto já iniciado por uma pessoa. Ele não
+// envia nem grava mensagens, e continua sujeito ao fluxo humano da Central.
 export async function autocompletarTexto(
   trecho: string,
   contexto: ContextoLead & { tipo?: 'produto' | 'proposta' | 'mensagem' } = {}

@@ -11,6 +11,17 @@ export type OperationalIntegration = Integracao & {
   paused: boolean;
   lastError: string | null;
   lastTestedAt: string | null;
+  anaProviderConfiguration: AnaProviderConfiguration | null;
+};
+
+export type AnaProviderConfiguration = {
+  provider: 'openai' | 'claude';
+  model: string;
+  openaiModel: string | null;
+  claudeModel: string | null;
+  openaiConfigured: boolean;
+  claudeConfigured: boolean;
+  selectedModelValidated: false;
 };
 
 const supportedKeys = ['whatsapp', 'ai', 'apify', 'google_places'] as const;
@@ -44,6 +55,45 @@ function pendingDescriptor(key: SupportedKey): OperationalIntegration {
     paused: false,
     lastError: null,
     lastTestedAt: null,
+    anaProviderConfiguration: null,
+  };
+}
+
+function asObject(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+}
+
+function allowedModel(provider: 'openai' | 'claude', value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const model = value.trim();
+  const models = provider === 'openai'
+    ? ['gpt-4.1-mini', 'gpt-4.1', 'gpt-4o-mini']
+    : ['claude-sonnet-5', 'claude-haiku-4-5', 'claude-opus-5'];
+  return models.includes(model) ? model : null;
+}
+
+function publicBoolean(value: unknown): boolean {
+  return value === true || value === 'true';
+}
+
+function anaProviderConfiguration(value: unknown): AnaProviderConfiguration | null {
+  const configuration = asObject(value);
+  const provider = configuration.ana_provider;
+  if (provider !== 'openai' && provider !== 'claude') return null;
+  const model = allowedModel(provider, configuration.ana_model);
+  if (!model) return null;
+  return {
+    provider,
+    model,
+    openaiModel: allowedModel('openai', configuration.ana_openai_model),
+    claudeModel: allowedModel('claude', configuration.ana_claude_model),
+    openaiConfigured: publicBoolean(configuration.ana_openai_configured),
+    claudeConfigured: publicBoolean(configuration.ana_claude_configured),
+    // A configuração pública não é prova de chamada ao modelo. O backend só
+    // pode mudar esse estado depois de uma validação explícita do modelo.
+    selectedModelValidated: false,
   };
 }
 
@@ -68,7 +118,9 @@ async function hydrateFromBackend(force = false): Promise<void> {
 
   const { data, error } = await supabase
     .from('integrations')
-    .select('key,category,connected,enabled,paused,status_detail,last_error,last_tested_at')
+    // Nunca hidratar o JSON inteiro no navegador: este recorte transporta
+    // somente o estado público da Ana, sem a referência do cofre ou chaves.
+    .select('key,category,connected,enabled,paused,status_detail,last_error,last_tested_at,ana_provider:configuration->>provedor_principal,ana_model:configuration->>modelo_principal,ana_openai_model:configuration->>openai_model,ana_claude_model:configuration->>claude_model,ana_openai_configured:configuration->>openai_configurado,ana_claude_configured:configuration->>claude_configurado')
     .eq('organization_id', organizationId)
     .in('key', [...supportedKeys]);
   if (error) {
@@ -95,6 +147,7 @@ async function hydrateFromBackend(force = false): Promise<void> {
       paused: Boolean(remote.paused),
       lastError: remote.last_error ?? null,
       lastTestedAt: remote.last_tested_at ?? null,
+      anaProviderConfiguration: key === 'ai' ? anaProviderConfiguration(remote) : null,
     };
   });
   hydratedUser = userId;

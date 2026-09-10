@@ -54,7 +54,25 @@ describe('Z-API contract — synthetic payloads only', () => {
     { notification: 'PROFILE_NAME_UPDATED' }, { reaction: { value: '❤️' } }, { isEdit: true }, { waitingMessage: true },
     { type: 'ConnectedCallback' }, { messageId: '' }, { phone: '5511999990000-group' }, { phone: '81896604192873@lid' },
   ])('does not feed non-inbound event %# to Ana', (patch) => expect(parseZapiEvent({ ...inbound, ...patch }).kind).toBe('ignored'));
-  it('does not interpret RECEIVED delivery status as a lead reply', () => expect(parseZapiEvent({ type: 'MessageStatusCallback', status: 'RECEIVED', ids: ['id'] }).kind).toBe('receipt'));
+  it('keeps provider receipts separate from inbound lead replies with their ordered status', () => {
+    expect(parseZapiEvent({ type: 'DeliveryCallback', messageId: 'provider-sent' })).toMatchObject({ kind: 'receipt', status: 'sent', expectedMessageCount: 1 });
+    expect(parseZapiEvent({ type: 'MessageStatusCallback', status: 'RECEIVED', ids: ['provider-delivered'] })).toMatchObject({ kind: 'receipt', status: 'delivered', expectedMessageCount: 1 });
+    expect(parseZapiEvent({ type: 'MessageStatusCallback', status: 'READ', ids: ['provider-read'] })).toMatchObject({ kind: 'receipt', status: 'read', expectedMessageCount: 1 });
+  });
+  it('preserves every unique ID and the exact expected batch size for receipt reconciliation', () => {
+    expect(parseZapiEvent({
+      type: 'MessageStatusCallback', status: 'READ', ids: ['provider-1', 'provider-2', 'provider-1'], moment: 1_772_494_009_341,
+    })).toMatchObject({
+      kind: 'receipt',
+      providerMessageIds: ['provider-1', 'provider-2'],
+      expectedMessageCount: 2,
+      occurredAt: '2026-03-02T23:26:49.341Z',
+    });
+  });
+  it('treats an explicit provider error as failed and rejects oversized receipt batches', () => {
+    expect(parseZapiEvent({ type: 'DeliveryCallback', messageId: 'provider-error', error: 'synthetic provider failure' })).toMatchObject({ kind: 'receipt', status: 'failed', providerError: true });
+    expect(parseZapiEvent({ type: 'MessageStatusCallback', status: 'READ', ids: Array.from({ length: 101 }, (_, index) => `provider-${index}`) })).toEqual({ kind: 'ignored', reason: 'receipt_batch_too_large' });
+  });
   it.each(['image', 'audio', 'video', 'document', 'sticker'])('marks %s as unprocessed media, never invented text', (kind) => {
     expect(parseZapiEvent({ ...inbound, text: undefined, [kind]: { mimeType: 'test', url: 'https://example.invalid/media' } })).toMatchObject({ kind: 'inbound', mediaRequiresReview: true, text: expect.stringContaining('ainda não extraído') });
   });

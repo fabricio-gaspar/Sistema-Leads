@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { etapasCRM } from '@/mocks/leadsData';
 import type { Lead } from '@/mocks/leadsData';
 import { useFluxoComercial } from '@/hooks/useFluxoComercial';
@@ -97,8 +97,9 @@ export default function LeadDrawer({ lead, onClose, onMudarEtapa, onAbrirConvers
   const { tarefas, alternar } = useTarefasStore();
   const [runs, setRuns] = useState<AgentRunTimelineItem[]>([]);
   const [loadingRuns, setLoadingRuns] = useState(true);
-  const [runningAna, setRunningAna] = useState(false);
+  const [anaAction, setAnaAction] = useState<'run' | 'pause' | 'resume' | 'return' | null>(null);
   const [anaError, setAnaError] = useState('');
+  const anaActionLock = useRef(false);
 
   const refreshRuns = useCallback(async () => {
     setLoadingRuns(true);
@@ -108,9 +109,32 @@ export default function LeadDrawer({ lead, onClose, onMudarEtapa, onAbrirConvers
 
   useEffect(() => { void refreshRuns(); }, [refreshRuns]);
 
+  const runAnaAction = useCallback(async (
+    action: NonNullable<typeof anaAction>,
+    operation: () => Promise<void>,
+    fallbackError: string,
+  ) => {
+    if (anaActionLock.current) return;
+    anaActionLock.current = true;
+    setAnaAction(action);
+    setAnaError('');
+    try {
+      await operation();
+      await refreshRuns();
+    } catch (error) {
+      setAnaError(error instanceof Error && error.message ? error.message : fallbackError);
+    } finally {
+      anaActionLock.current = false;
+      setAnaAction(null);
+    }
+  }, [refreshRuns]);
+
   const tarefasDoLead = tarefas.filter((t) => t.leadId === lead.id);
   const modo = lead.modoAtendimento ?? 'IA';
   const statusAutomacao = lead.automacaoStatus ?? 'ATIVA';
+  const atendimentoHumano = modo === 'HUMANO' || statusAutomacao === 'AGUARDANDO_HUMANO';
+  const anaPodeExecutar = modo === 'IA' && statusAutomacao === 'ATIVA';
+  const acaoEmAndamento = anaAction !== null;
 
   const historico = (lead.historico && lead.historico.length > 0 ? lead.historico : []).map((h) => ({
     acao: h.tipo,
@@ -191,50 +215,51 @@ export default function LeadDrawer({ lead, onClose, onMudarEtapa, onAbrirConvers
               {/* Ações da Ana / humano */}
               <div className="grid grid-cols-2 gap-2">
                 <button
-                  disabled={runningAna || modo !== 'IA'}
-                  onClick={() => {
-                    setRunningAna(true); setAnaError('');
-                    void onRodarAna(lead).then(refreshRuns).catch((error) => setAnaError(error instanceof Error ? error.message : 'Não foi possível rodar a Ana.')).finally(() => setRunningAna(false));
-                  }}
+                  disabled={acaoEmAndamento || !anaPodeExecutar}
+                  onClick={() => void runAnaAction('run', () => onRodarAna(lead), 'Não foi possível rodar a Ana.')}
                   className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-primary-500 hover:bg-primary-600 disabled:opacity-50 text-background-50 rounded-lg text-xs font-semibold cursor-pointer whitespace-nowrap"
-                  title={modo === 'IA' ? 'Executar a Ana com o contexto atual do lead' : 'Em modo humano a Ana não responde automaticamente'}
+                  title={anaPodeExecutar ? 'Executar a Ana com o contexto atual do lead' : 'A Ana só pode ser executada quando o atendimento estiver ativo sob sua responsabilidade'}
                 >
-                  <i className="ri-sparkling-2-line"></i> {runningAna ? 'Rodando...' : 'Rodar Ana'}
+                  <i className="ri-sparkling-2-line"></i> {anaAction === 'run' ? 'Rodando...' : 'Rodar Ana'}
                 </button>
-                {statusAutomacao === 'ATIVA' && (
+                {anaPodeExecutar && (
                   <button
-                    onClick={() => fluxo.pausarAna(lead.id)}
-                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-background-100 hover:bg-background-200 text-foreground-700 rounded-lg text-xs font-semibold cursor-pointer whitespace-nowrap"
+                    disabled={acaoEmAndamento}
+                    onClick={() => void runAnaAction('pause', () => fluxo.pausarAna(lead.id), 'Não foi possível pausar a Ana agora.')}
+                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-background-100 hover:bg-background-200 disabled:opacity-50 text-foreground-700 rounded-lg text-xs font-semibold cursor-pointer whitespace-nowrap"
                   >
-                    <i className="ri-pause-circle-line"></i> Pausar Ana
+                    <i className="ri-pause-circle-line"></i> {anaAction === 'pause' ? 'Pausando...' : 'Pausar Ana'}
                   </button>
                 )}
-                {statusAutomacao === 'PAUSADA' && (
+                {statusAutomacao === 'PAUSADA' && !atendimentoHumano && (
                   <button
-                    onClick={() => fluxo.retomarAna(lead.id)}
-                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-secondary-100 hover:bg-secondary-200 text-secondary-800 rounded-lg text-xs font-semibold cursor-pointer whitespace-nowrap"
+                    disabled={acaoEmAndamento}
+                    onClick={() => void runAnaAction('resume', () => fluxo.retomarAna(lead.id), 'Não foi possível retomar a Ana agora.')}
+                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-secondary-100 hover:bg-secondary-200 disabled:opacity-50 text-secondary-800 rounded-lg text-xs font-semibold cursor-pointer whitespace-nowrap"
                   >
-                    <i className="ri-play-circle-line"></i> Retomar Ana
+                    <i className="ri-play-circle-line"></i> {anaAction === 'resume' ? 'Retomando...' : 'Retomar Ana'}
                   </button>
                 )}
-                {statusAutomacao === 'AGUARDANDO_HUMANO' && (
+                {atendimentoHumano && (
                   <button
-                    onClick={() => fluxo.assumirAtendimento(lead.id)}
-                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-primary-500 hover:bg-primary-600 text-background-50 rounded-lg text-xs font-semibold cursor-pointer whitespace-nowrap"
+                    disabled
+                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-primary-100 text-primary-700 rounded-lg text-xs font-semibold whitespace-nowrap"
+                    title="A Ana está pausada para este lead; o histórico permanece disponível na Central de Atendimento"
                   >
-                    <i className="ri-user-received-line"></i> Assumir
+                    <i className="ri-user-check-line"></i> Atendimento humano
                   </button>
                 )}
-                {(statusAutomacao === 'PAUSADA' || statusAutomacao === 'AGUARDANDO_HUMANO') && (
+                {(statusAutomacao === 'PAUSADA' || atendimentoHumano) && (
                   <button
-                    onClick={() => fluxo.devolverParaAna(lead.id)}
-                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-background-100 hover:bg-background-200 text-foreground-700 rounded-lg text-xs font-semibold cursor-pointer whitespace-nowrap"
+                    disabled={acaoEmAndamento}
+                    onClick={() => void runAnaAction('return', () => fluxo.devolverParaAna(lead.id), 'Não foi possível devolver o atendimento para a Ana agora.')}
+                    className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-background-100 hover:bg-background-200 disabled:opacity-50 text-foreground-700 rounded-lg text-xs font-semibold cursor-pointer whitespace-nowrap"
                   >
-                    <i className="ri-robot-line"></i> Devolver p/ Ana
+                    <i className="ri-robot-line"></i> {anaAction === 'return' ? 'Devolvendo...' : 'Devolver p/ Ana'}
                   </button>
                 )}
               </div>
-              {anaError && <p className="text-xs text-accent-700 bg-accent-50 border border-accent-200 rounded-lg px-3 py-2">{anaError}</p>}
+              {anaError && <p role="alert" className="text-xs text-accent-700 bg-accent-50 border border-accent-200 rounded-lg px-3 py-2">{anaError}</p>}
 
               {/* Análise da Ana */}
               {(lead.intencao || lead.proximaAcao) && (

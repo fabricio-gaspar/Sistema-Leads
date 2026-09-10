@@ -1,15 +1,15 @@
 {
   "schema_version": 1,
-  "validated_commit": "pending_publication_immediate_whatsapp_2026-09-10",
-  "last_validated_at": "2026-09-10T15:10:00Z",
+  "validated_commit": "pending_publication_ana_configuration_policy_2026-09-10",
+  "last_validated_at": "2026-09-10T18:35:00Z",
   "commands": [
     {"command":"npm run type-check","status":"passed"},
     {"command":"npm run lint","status":"passed","warnings":0},
     {"command":"npm run type-check:edge","status":"passed"},
-    {"command":"vitest run supabase/tests/runtimeHandlers.test.ts","status":"passed_with_open_handle","checks":39,"note":"Todas as verificações foram impressas como aprovadas; o processo permaneceu aberto após concluir e foi interrompido manualmente."},
+    {"command":"npm test","status":"passed","files":13,"checks":154},
     {"command":"npm run build","status":"passed"}
   ],
   "covered": ["frontend_typecheck","lint","edge_typecheck","unit_and_contract_tests","production_build"],
-  "not_covered": ["authenticated_e2e","real_whatsapp","real_claude","cross_organization_rls","database_concurrency","mobile_authenticated_qa"],
+  "not_covered": ["authenticated_e2e","real_whatsapp","real_claude","cross_organization_rls","provider_receipt_race","mobile_authenticated_qa"],
   "working_tree_validation": "passed"
 }

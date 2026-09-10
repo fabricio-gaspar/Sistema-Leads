@@ -1,6 +1,41 @@
 import { createAdminClient, requireOrganizationRole, requireUser } from '../_shared/auth.ts';
 import { allowedCorsHeaders, hasAllowedOrigin, json, preflight, safeError } from '../_shared/http.ts';
 
+const AI_MODELS = {
+  openai: ['gpt-4.1-mini', 'gpt-4.1', 'gpt-4o-mini'],
+  claude: ['claude-sonnet-5', 'claude-haiku-4-5', 'claude-opus-5'],
+} as const;
+
+type AiProvider = keyof typeof AI_MODELS;
+
+function asObject(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+}
+
+function asText(value: unknown, maximum = 1_000): string {
+  return typeof value === 'string' ? value.trim().slice(0, maximum) : '';
+}
+
+function isAiProvider(value: string): value is AiProvider {
+  return value === 'openai' || value === 'claude';
+}
+
+function acceptedModel(provider: AiProvider, submitted: string, stored: string): string {
+  const allowedModels: readonly string[] = AI_MODELS[provider];
+  if (submitted && !allowedModels.includes(submitted)) throw new Error('ai_model_not_allowed');
+  const candidate = submitted || stored;
+  return allowedModels.includes(candidate) ? candidate : '';
+}
+
+function storedSecretReference(configuration: Record<string, unknown>): string | null {
+  const reference = asText(configuration.secret_ref, 80);
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(reference)
+    ? reference
+    : null;
+}
+
 Deno.serve(async (request) => {
   const options = preflight(request); if (options) return options;
   if (!hasAllowedOrigin(request)) return json({ ok: false, erro: 'origin_not_allowed' }, 403);
@@ -10,23 +45,19 @@ Deno.serve(async (request) => {
     const body = await request.json() as { canal?: string; credenciais?: Record<string, unknown> };
     const canal = String(body.canal ?? '').trim();
     if (!['whatsapp', 'apify', 'google_places', 'ai'].includes(canal)) throw new Error('unsupported_channel');
-    const credenciais = body.credenciais ?? {};
-    const instanceId = String(credenciais.instancia_id ?? '').trim();
-    const token = String(credenciais.token ?? '').trim();
-    const clientToken = String(credenciais.client_token ?? '').trim();
-    const apifyToken = String(credenciais.api_token ?? '').trim();
-    const actorId = String(credenciais.actor_id ?? '').trim();
-    const taskId = String(credenciais.task_id ?? '').trim();
-    const googleApiKey = String(credenciais.api_key ?? '').trim();
-    const openaiKey = String(credenciais.openai_key ?? '').trim();
-    const claudeKey = String(credenciais.claude_key ?? '').trim();
+    const credenciais = asObject(body.credenciais);
+    const instanceId = asText(credenciais.instancia_id, 300);
+    const token = asText(credenciais.token, 500);
+    const clientToken = asText(credenciais.client_token, 500);
+    const apifyToken = asText(credenciais.api_token, 1_000);
+    const actorId = asText(credenciais.actor_id, 300);
+    const taskId = asText(credenciais.task_id, 300);
+    const googleApiKey = asText(credenciais.api_key, 1_000);
     if (canal === 'whatsapp' && (!instanceId || !token || !clientToken)) throw new Error('zapi_credentials_required');
     if (canal === 'apify' && (!apifyToken || (!actorId && !taskId))) throw new Error('apify_credentials_required');
     if (canal === 'google_places' && !googleApiKey) throw new Error('google_places_credentials_required');
-    const selectedAiProvider = String(credenciais.provedor_principal ?? '').trim().toLowerCase();
-    if (canal === 'ai' && !['openai', 'claude'].includes(selectedAiProvider)) throw new Error('ai_provider_required');
-    if (canal === 'ai' && selectedAiProvider === 'openai' && !openaiKey) throw new Error('ai_provider_key_required');
-    if (canal === 'ai' && selectedAiProvider === 'claude' && !claudeKey) throw new Error('ai_provider_key_required');
+    const selectedAiProvider = asText(credenciais.provedor_principal, 30).toLowerCase();
+    if (canal === 'ai' && !isAiProvider(selectedAiProvider)) throw new Error('ai_provider_required');
     const { user } = await requireUser(request);
     const admin = createAdminClient();
     const { data: profile } = await admin.from('profiles').select('active_organization_id,name').eq('id', user.id).maybeSingle();
@@ -46,13 +77,63 @@ Deno.serve(async (request) => {
     if (inserted?.error) throw new Error('integration_create_failed');
     const integration = existing ?? inserted?.data;
     if (!integration) throw new Error('integration_not_found');
-    const credentials = canal === 'whatsapp'
+    let selectedAiModel = '';
+    let aiPublicConfiguration: Record<string, unknown> | null = null;
+    let credentials: Record<string, unknown> = canal === 'whatsapp'
       ? { instancia_id: instanceId, token, client_token: clientToken, numero_origem: String(credenciais.numero_origem ?? '').trim(), url_base: String(credenciais.url_base ?? 'https://api.z-api.io').trim(), webhook_token: crypto.randomUUID().replace(/-/g, '') }
       : canal === 'apify'
         ? { api_token: apifyToken, actor_id: actorId, task_id: taskId, input_json: String(credenciais.input_json ?? '').trim() }
         : canal === 'google_places'
           ? { api_key: googleApiKey }
-          : { openai_key: openaiKey, claude_key: claudeKey, provedor_principal: selectedAiProvider, openai_model: String(credenciais.openai_model ?? '').trim(), claude_model: String(credenciais.claude_model ?? '').trim() };
+          : {};
+
+    if (canal === 'ai') {
+      const { data: storedSecret, error: storedSecretError } = await admin.rpc('read_integration_secret', { p_integration: integration.id });
+      if (storedSecretError) throw new Error('integration_secret_read_failed');
+      const previousCredentials = asObject(storedSecret);
+      const openaiKey = asText(credenciais.openai_key, 1_000) || asText(previousCredentials.openai_key, 1_000);
+      const claudeKey = asText(credenciais.claude_key, 1_000) || asText(previousCredentials.claude_key, 1_000);
+      const openaiModel = acceptedModel('openai', asText(credenciais.openai_model, 100), asText(previousCredentials.openai_model, 100));
+      const claudeModel = acceptedModel('claude', asText(credenciais.claude_model, 100), asText(previousCredentials.claude_model, 100));
+      const provider = selectedAiProvider as AiProvider;
+      selectedAiModel = provider === 'openai' ? openaiModel : claudeModel;
+      if (!selectedAiModel) throw new Error('ai_model_required');
+      if (provider === 'openai' && !openaiKey) throw new Error('ai_provider_key_required');
+      if (provider === 'claude' && !claudeKey) throw new Error('ai_provider_key_required');
+
+      // Campos de senha em branco significam "manter no cofre", nunca apagar uma
+      // chave já armazenada. Somente este objeto segue para a função de Vault.
+      credentials = {
+        openai_key: openaiKey,
+        claude_key: claudeKey,
+        provedor_principal: provider,
+        openai_model: openaiModel,
+        claude_model: claudeModel,
+      };
+      const secretRef = storedSecretReference(asObject(integration.configuration));
+      aiPublicConfiguration = {
+        ...(secretRef ? { secret_ref: secretRef } : {}),
+        configured: false,
+        provedor_principal: provider,
+        modelo_principal: selectedAiModel,
+        openai_model: openaiModel || null,
+        claude_model: claudeModel || null,
+        openai_configurado: Boolean(openaiKey),
+        claude_configurado: Boolean(claudeKey),
+        // A configuração nunca se passa por homologação: o teste atual verifica
+        // credencial/provedor, não uma chamada ao modelo selecionado.
+        modelo_principal_validado: false,
+      };
+      const { error: publicConfigurationError } = await admin.from('integrations').update({
+        provider: provider === 'openai' ? 'OpenAI' : 'Claude',
+        configuration: aiPublicConfiguration,
+        connected: false,
+        enabled: false,
+        paused: false,
+        status_detail: 'Configuração atualizada. Aguardando gravação segura no cofre.',
+      }).eq('id', integration.id).eq('organization_id', organizationId);
+      if (publicConfigurationError) throw new Error('integration_public_configuration_save_failed');
+    }
     const { error: secretError } = await admin.rpc('store_integration_secret', { p_integration: integration.id, p_secret: credentials });
     if (secretError) throw new Error('integration_secret_save_failed');
     // Salvar credenciais não pode depender da configuração de callbacks do
@@ -61,7 +142,7 @@ Deno.serve(async (request) => {
     // salvamento deixava as chaves gravadas no cofre e a interface informando
     // o contrário. A homologação inbound é uma etapa própria: só será marcada
     // como pronta depois de um callback real controlado.
-    const publicConfiguration = canal === 'apify' ? { actor_id: actorId || null, task_id: taskId || null } : canal === 'ai' ? { provedor_principal: selectedAiProvider, openai_model: String(credenciais.openai_model ?? '').trim(), claude_model: String(credenciais.claude_model ?? '').trim(), openai_configurado: Boolean(openaiKey), claude_configurado: Boolean(claudeKey) } : {};
+    const publicConfiguration = canal === 'apify' ? { actor_id: actorId || null, task_id: taskId || null } : aiPublicConfiguration ?? {};
     // store_integration_secret já atualiza a integração e preserva a referência
     // do cofre. Uma segunda atualização era redundante e podia falhar depois de
     // as credenciais terem sido salvas, prendendo o usuário no modal.
@@ -78,7 +159,8 @@ Deno.serve(async (request) => {
         if (sourceInsertError) throw new Error('integration_source_config_save_failed');
       }
     }
-    const { error: auditError } = await admin.from('audit_logs').insert({ organization_id: organizationId, actor_id: user.id, actor_name: profile.name, actor_type: 'user', action: `integration.${canal}_configured`, detail: `Credenciais de ${definition.provider} guardadas no cofre seguro.`, entity_table: 'integrations', entity_id: integration.id, event_data: { provider: definition.provider, configured_fields: Object.keys(credentials).filter((key) => key !== 'token' && key !== 'api_token' && key !== 'api_key' && Boolean(credentials[key as keyof typeof credentials])) } });
+    const nonSecretFields = new Set(['token', 'api_token', 'api_key', 'client_token', 'openai_key', 'claude_key', 'webhook_token']);
+    const { error: auditError } = await admin.from('audit_logs').insert({ organization_id: organizationId, actor_id: user.id, actor_name: profile.name, actor_type: 'user', action: `integration.${canal}_configured`, detail: `Credenciais de ${definition.provider} guardadas no cofre seguro.`, entity_table: 'integrations', entity_id: integration.id, event_data: { provider: canal === 'ai' ? selectedAiProvider : definition.provider, model: canal === 'ai' ? selectedAiModel : null, configured_fields: Object.keys(credentials).filter((key) => !nonSecretFields.has(key) && Boolean(credentials[key])) } });
     if (auditError) console.error('integration_audit_log_failed', { canal, integrationId: integration.id });
     return json({ ok: true, mensagem: 'Credenciais guardadas com segurança. Valide a conexão para ativar a fonte.' }, 200, headers);
   } catch (error) { return json({ ok: false, erro: safeError(error) }, 400, headers); }

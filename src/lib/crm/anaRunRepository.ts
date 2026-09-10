@@ -27,9 +27,12 @@ export interface AgentRunTimelineItem {
   created_at: string;
 }
 
-export async function runAna(input: { event: AnaRunEvent; leadId: string; modo: 'IA' | 'HUMANO'; contexto?: Record<string, unknown> }): Promise<AnaRunResult> {
+export async function runAna(input: { event: AnaRunEvent; leadId: string; modo: 'IA' | 'HUMANO'; contexto?: Record<string, unknown>; requestId?: string }): Promise<AnaRunResult> {
+  const requestId = input.requestId || (input.event === 'lead.created'
+    ? `lead-created:${input.leadId}`
+    : crypto.randomUUID());
   const { data, error } = await supabase.functions.invoke('ana-run', {
-    body: { event: input.event, lead_id: input.leadId, modo: input.modo.toLowerCase(), contexto: input.contexto ?? {} },
+    body: { event: input.event, lead_id: input.leadId, modo: input.modo.toLowerCase(), contexto: input.contexto ?? {}, request_id: requestId },
   });
   if (error) {
     const response = (error as { context?: Response }).context;

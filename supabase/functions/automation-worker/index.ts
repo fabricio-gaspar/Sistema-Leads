@@ -1,25 +1,1875 @@
-import { createAdminClient, requireOrganizationRole, requireUser } from '../_shared/auth.ts';
-import { allowedCorsHeaders, hasAllowedOrigin, json, preflight, safeError } from '../_shared/http.ts';
-import { automationBlockReason, zapiBaseUrl } from '../_shared/runtimeSafety.ts';
-import { suppressionHashes, suppressionOrFilter } from '../_shared/contactSuppression.ts';
+import {
+  createAdminClient,
+  requireOrganizationRole,
+  requireUser,
+} from "../_shared/auth.ts";
+import {
+  allowedCorsHeaders,
+  hasAllowedOrigin,
+  json,
+  preflight,
+  safeError,
+} from "../_shared/http.ts";
+import {
+  anaResponseSucceeded,
+  automationBlockReason,
+  zapiBaseUrl,
+} from "../_shared/runtimeSafety.ts";
+import {
+  suppressionHashes,
+  suppressionOrFilter,
+} from "../_shared/contactSuppression.ts";
 
-function secureEqual(actual:string|null,expected:string):boolean{if(!actual||!expected||actual.length!==expected.length)return false;let difference=0;for(let i=0;i<actual.length;i++)difference|=actual.charCodeAt(i)^expected.charCodeAt(i);return difference===0}
-function isUuid(v:unknown):v is string{return typeof v==='string'&&/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v)}
-function canonicalChannel(v:unknown):string{const n=String(v??'').toLowerCase().replace(/[^a-z0-9]/g,'');if(n==='whatsapp')return'whatsapp';if(n==='email'||n==='resend')return'email';return n}
-function validEmail(v:string):boolean{return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)}
-function asObject(v:unknown):Record<string,unknown>{return v&&typeof v==='object'&&!Array.isArray(v)?v as Record<string,unknown>: {}}
-function asText(v:unknown,m=4096):string{return typeof v==='string'?v.trim().slice(0,m):''}
-function activeControlledSandboxTest(payload:Record<string,unknown>, now=Date.now()):boolean{if(payload.controlled_test!==true)return false;const expiresAt=Date.parse(asText(payload.controlled_test_expires_at,64));return Number.isFinite(expiresAt)&&expiresAt>now}
-type Admin=ReturnType<typeof createAdminClient>;
+function secureEqual(actual: string | null, expected: string): boolean {
+  if (!actual || !expected || actual.length !== expected.length) return false;
+  let difference = 0;
+  for (let i = 0; i < actual.length; i++)
+    difference |= actual.charCodeAt(i) ^ expected.charCodeAt(i);
+  return difference === 0;
+}
+function isUuid(v: unknown): v is string {
+  return (
+    typeof v === "string" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      v,
+    )
+  );
+}
+function canonicalChannel(v: unknown): string {
+  const n = String(v ?? "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
+  if (n === "whatsapp") return "whatsapp";
+  if (n === "email" || n === "resend") return "email";
+  return n;
+}
+function validEmail(v: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+}
+function asObject(v: unknown): Record<string, unknown> {
+  return v && typeof v === "object" && !Array.isArray(v)
+    ? (v as Record<string, unknown>)
+    : {};
+}
+function asText(v: unknown, m = 4096): string {
+  return typeof v === "string" ? v.trim().slice(0, m) : "";
+}
+function activeControlledSandboxTest(
+  payload: Record<string, unknown>,
+  now = Date.now(),
+): boolean {
+  if (payload.controlled_test !== true) return false;
+  const expiresAt = Date.parse(asText(payload.controlled_test_expires_at, 64));
+  return Number.isFinite(expiresAt) && expiresAt > now;
+}
+type Admin = ReturnType<typeof createAdminClient>;
 
-async function maintainKnowledgeEmbeddings(admin:Admin,org:string){const{data:chunks,error}=await admin.from('knowledge_chunks').select('id,content,metadata').eq('organization_id',org).eq('status','active').is('embedding',null).order('created_at',{ascending:true}).limit(20);if(error||!chunks?.length)return{processed:0,remaining:0,status:error?'read_failed':'complete'};const{data:ai,error:ae}=await admin.from('integrations').select('id,enabled,connected,paused').eq('organization_id',org).eq('key','ai').maybeSingle();if(ae||!ai?.enabled||!ai.connected||ai.paused)return{processed:0,remaining:chunks.length,status:'ai_not_ready'};const{data:secret,error:se}=await admin.rpc('read_integration_secret',{p_integration:ai.id});const key=asText(asObject(secret).openai_key,1000);if(se||!key)return{processed:0,remaining:chunks.length,status:'embedding_provider_not_configured'};try{const r=await fetch('https://api.openai.com/v1/embeddings',{method:'POST',headers:{Authorization:`Bearer ${key}`,'Content-Type':'application/json'},body:JSON.stringify({model:'text-embedding-3-small',dimensions:1536,input:chunks.map(x=>x.content)}),signal:AbortSignal.timeout(30000)});if(!r.ok)return{processed:0,remaining:chunks.length,status:`provider_${r.status}`};const b=await r.json() as{data?:Array<{index?:number;embedding?:number[]}>};const vectors=(b.data??[]).slice().sort((a,b)=>Number(a.index??0)-Number(b.index??0));if(vectors.length!==chunks.length||vectors.some(x=>!Array.isArray(x.embedding)||x.embedding?.length!==1536))return{processed:0,remaining:chunks.length,status:'invalid_embedding_response'};let processed=0;const indexedAt=new Date().toISOString();for(let i=0;i<chunks.length;i++){const metadata={...asObject(chunks[i].metadata),embedding_model:'text-embedding-3-small',embedding_indexed_at:indexedAt};const{error:e}=await admin.from('knowledge_chunks').update({embedding:vectors[i].embedding,metadata}).eq('id',chunks[i].id).eq('organization_id',org).is('embedding',null);if(!e)processed++}const{count}=await admin.from('knowledge_chunks').select('id',{count:'exact',head:true}).eq('organization_id',org).eq('status','active').is('embedding',null);return{processed,remaining:count??Math.max(0,chunks.length-processed),status:'ok'}}catch{return{processed:0,remaining:chunks.length,status:'network_error'}}}
+type AnaPolicy = {
+  configurationVersionId: string;
+  dailyMessageLimit: number;
+  allowedChannels: string[];
+  firstFollowUpHours: number;
+  secondFollowUpHours: number;
+  timeoutHours: number;
+  businessHoursOnly: boolean;
+};
 
-async function sendWhatsapp(credentials:Record<string,unknown>,recipient:string,message:string){const id=asText(credentials.instancia_id,300),token=asText(credentials.token,500),client=asText(credentials.client_token,500);if(!id||!token||!client)throw new Error('channel_credentials_incomplete');const r=await fetch(`${zapiBaseUrl(credentials.url_base)}/instances/${encodeURIComponent(id)}/token/${encodeURIComponent(token)}/send-text`,{method:'POST',headers:{'Content-Type':'application/json','Client-Token':client},body:JSON.stringify({phone:recipient,message}),signal:AbortSignal.timeout(20000),redirect:'error'});if(!r.ok)throw new Error(`provider_http_${r.status}`);const receipt=await r.json() as{messageId?:unknown};if(typeof receipt.messageId!=='string'||!receipt.messageId)throw new Error('provider_receipt_missing');return{provider:'zapi',messageId:receipt.messageId}}
-async function sendEmail(credentials:Record<string,unknown>,configuration:Record<string,unknown>,recipient:string,message:string,subject:string){const key=asText(credentials.resend_api_key||credentials.api_key,1000),fromEmail=asText(credentials.from_email||configuration.from_email,254),fromName=asText(credentials.from_name||configuration.from_name,160)||'Wayflex';if(!key||!validEmail(fromEmail))throw new Error('email_credentials_incomplete');const r=await fetch('https://api.resend.com/emails',{method:'POST',headers:{Authorization:`Bearer ${key}`,'Content-Type':'application/json'},body:JSON.stringify({from:`${fromName} <${fromEmail}>`,to:[recipient],subject:subject||'Contato Wayflex',text:message}),signal:AbortSignal.timeout(20000),redirect:'error'});if(!r.ok)throw new Error(`provider_http_${r.status}`);const receipt=await r.json() as{id?:unknown};if(typeof receipt.id!=='string'||!receipt.id)throw new Error('provider_receipt_missing');return{provider:'resend',messageId:receipt.id}}
+type BusinessHoursDecision = {
+  allowed: boolean;
+  reason: string;
+  nextRunAt: string | null;
+  localDay: string;
+};
 
-Deno.serve(async(request)=>{const pf=preflight(request);if(pf)return pf;if(!hasAllowedOrigin(request))return json({error:'origin_not_allowed'},403);const headers=allowedCorsHeaders(request);if(request.method!=='POST')return json({error:'method_not_allowed'},405,headers);let schedulerIntegrationId:string|null=null,schedulerOrganizationId:string|null=null,serverScheduler=false;try{const body=await request.json().catch(()=>({})) as{run?:string;organization_id?:unknown;source?:unknown;job_id?:unknown};const requestedJobId=body.job_id===undefined?null:body.job_id;if(requestedJobId!==null&&!isUuid(requestedJobId))throw new Error('outreach_job_id_invalid');const admin=createAdminClient();const schedulerToken=request.headers.get('x-leadai-scheduler-token');let orgId:string;let actor:{id:string;name:string}|null=null;if(schedulerToken){if(body.run!=='outreach'||!isUuid(body.organization_id)||body.source!=='server_scheduler'||requestedJobId!==null)throw new Error('scheduler_request_invalid');const{data:scheduler,error}=await admin.from('integrations').select('id,organization_id').eq('organization_id',body.organization_id).eq('key','scheduler').maybeSingle();if(error||!scheduler)throw new Error('scheduler_not_configured');const{data:secret,error:se}=await admin.rpc('read_integration_secret',{p_integration:scheduler.id});const expected=asText(asObject(secret).scheduler_token,1000);if(se||expected.length<48||!secureEqual(schedulerToken,expected))throw new Error('scheduler_authentication_failed');orgId=scheduler.organization_id;schedulerIntegrationId=scheduler.id;schedulerOrganizationId=orgId;serverScheduler=true}else{const{user}=await requireUser(request);const{data:profile}=await admin.from('profiles').select('active_organization_id,name').eq('id',user.id).maybeSingle();if(!profile?.active_organization_id)throw new Error('organization_context_required');orgId=profile.active_organization_id as string;await requireOrganizationRole(admin,user.id,orgId,['owner','admin','manager']);actor={id:user.id,name:profile.name||'Usuário'}}
-const reads=await Promise.all([admin.from('company_settings').select('active,sandbox_mode,can_use_ia,ai_actions_enabled').eq('organization_id',orgId).maybeSingle(),admin.from('integrations').select('enabled,connected,paused').eq('organization_id',orgId).eq('key','ai').maybeSingle(),admin.from('organization_module_data').select('data').eq('organization_id',orgId).eq('module_key','configuracao_runtime').maybeSingle()]);if(reads.some(x=>x.error))throw new Error('runtime_safety_read_failed');if(serverScheduler&&schedulerIntegrationId){const{error}=await admin.from('integrations').update({connected:true,enabled:true,paused:false,last_tested_at:new Date().toISOString(),last_success_at:new Date().toISOString(),last_error:null,status_detail:'Worker server-side em execução; heartbeat confirmado pelo agendador.',updated_at:new Date().toISOString()}).eq('id',schedulerIntegrationId).eq('organization_id',orgId);if(error)throw new Error('scheduler_heartbeat_persist_failed')}
-const knowledgeMaintenance=serverScheduler?await maintainKnowledgeEmbeddings(admin,orgId):{processed:0,remaining:0,status:'manual_skip'};const blocked=reads[0].data?.active!==true?'company_not_active':null;if(blocked)return json({ok:true,skipped:true,reason:blocked,sent_jobs:0,timeout_runs:0,knowledge_embeddings:knowledgeMaintenance},200,headers);if(reads[0].data?.sandbox_mode===true){if(body.run!=='outreach'&&body.run!=='all')return json({ok:true,skipped:true,reason:'sandbox_mode',sent_jobs:0,timeout_runs:0,knowledge_embeddings:knowledgeMaintenance},200,headers);const{data:queuedTests,error:queuedTestsError}=await admin.from('outreach_jobs').select('payload').eq('organization_id',orgId).eq('status','queued').lte('run_at',new Date().toISOString()).limit(25);if(queuedTestsError)throw queuedTestsError;if(!(queuedTests??[]).some(job=>activeControlledSandboxTest(asObject(job.payload))))return json({ok:true,skipped:true,reason:'sandbox_mode',sent_jobs:0,timeout_runs:0,knowledge_embeddings:knowledgeMaintenance},200,headers);}
-const since=new Date(Date.now()-86400000).toISOString();const[{count:sent},{count:failed},{count:optOuts},{data:wa},{data:activePolicy}]=await Promise.all([admin.from('outreach_jobs').select('*',{count:'exact',head:true}).eq('organization_id',orgId).eq('channel','whatsapp').eq('status','processed').gte('processed_at',since),admin.from('outreach_jobs').select('*',{count:'exact',head:true}).eq('organization_id',orgId).eq('channel','whatsapp').eq('status','failed').gte('run_at',since),admin.from('contact_suppressions').select('*',{count:'exact',head:true}).eq('organization_id',orgId).ilike('channel','whatsapp').gte('created_at',since),admin.from('integrations').select('id').eq('organization_id',orgId).eq('key','whatsapp').maybeSingle(),admin.from('channel_policy_events').select('risk_level,action').eq('organization_id',orgId).eq('channel','whatsapp').is('resolved_at',null).order('created_at',{ascending:false}).limit(1).maybeSingle()]);const sentCount=sent??0,failedCount=failed??0,optOutCount=optOuts??0;await admin.from('channel_health_samples').insert({organization_id:orgId,integration_id:wa?.id??null,channel:'whatsapp',source:'provider_queue',sent_count:sentCount,delivered_count:0,failed_count:failedCount,opt_out_count:optOutCount,complaint_count:0,raw_metrics:{window_hours:24,worker:'automation-worker'}});const optOutRate=sentCount>0?optOutCount/sentCount:0,failureRate=sentCount+failedCount>0?failedCount/(sentCount+failedCount):0,shouldPause=sentCount+failedCount>=20&&(optOutRate>=.08||failureRate>=.15);if(shouldPause){if(!activePolicy)await admin.from('channel_policy_events').insert({organization_id:orgId,integration_id:wa?.id??null,channel:'whatsapp',risk_level:'high',action:'pause',reason:optOutRate>=.08?'Taxa de opt-out acima do limite operacional configurado.':'Taxa de falhas acima do limite operacional configurado.',evidence:{sent_count:sentCount,failed_count:failedCount,opt_out_count:optOutCount,failure_rate:failureRate,opt_out_rate:optOutRate}});if(wa?.id)await admin.from('integrations').update({paused:true,status_detail:'Envios pausados automaticamente pelo monitor de risco.'}).eq('id',wa.id).eq('organization_id',orgId)}
-let sentJobs=0,failedJobs=0;const jobResults:Array<{id:string;status:'sent'|'failed';error?:string}>=[];if(body.run==='outreach'||body.run==='all'){let jobsRequest=admin.from('outreach_jobs').select('id,lead_id,channel,attempt,payload').eq('organization_id',orgId).eq('status','queued').lte('run_at',new Date().toISOString()).order('run_at',{ascending:true}).limit(25);if(requestedJobId)jobsRequest=jobsRequest.eq('id',requestedJobId);const{data:jobs,error}=await jobsRequest;if(error)throw error;for(const job of jobs??[]){const payload=asObject(job.payload);if(reads[0].data?.sandbox_mode===true&&!activeControlledSandboxTest(payload))continue;const channel=canonicalChannel(job.channel);const{data:claimed,error:ce}=await admin.from('outreach_jobs').update({status:'processing'}).eq('id',job.id).eq('organization_id',orgId).eq('status','queued').select('id').maybeSingle();if(ce)throw ce;if(!claimed)continue;const manual=payload.manual===true;let dispatchStarted=false,providerAccepted=false,providerMessageId:string|null=null;try{if(!['whatsapp','email'].includes(channel))throw new Error('channel_not_supported');const initial=await Promise.all([admin.from('leads').select('phone,whatsapp,email,opt_out,ai_paused,owner_id,modo_atendimento,last_contact').eq('organization_id',orgId).eq('id',job.lead_id).maybeSingle(),admin.from('company_settings').select('active,sandbox_mode,can_use_ia,ai_actions_enabled').eq('organization_id',orgId).maybeSingle(),admin.from('integrations').select('enabled,connected,paused').eq('organization_id',orgId).eq('key','ai').maybeSingle(),admin.from('organization_module_data').select('data').eq('organization_id',orgId).eq('module_key','configuracao_runtime').maybeSingle(),admin.from('integrations').select('id,provider,connected,enabled,paused,configuration').eq('organization_id',orgId).eq('key',channel).maybeSingle()]);if(initial.some(x=>x.error))throw new Error('dispatch_safety_read_failed');const[{data:lead},{data:company},{data:ai},{data:runtime},{data:integration}]=initial;const controlledSandboxTest=manual&&company?.sandbox_mode===true&&activeControlledSandboxTest(payload);const{data:suppressions,error:se}=await admin.from('contact_suppressions').select('id,channel').eq('organization_id',orgId).or(suppressionOrFilter(job.lead_id,await suppressionHashes(lead??{}))).limit(10);if(se)throw new Error('dispatch_suppression_read_failed');const block=manual?(company?.active!==true?'company_not_active':company?.sandbox_mode!==false&&!controlledSandboxTest?'operational_mode_protected':null):automationBlockReason({company,ai,runtime:runtime?.data??null,lead});if(block)throw new Error(block);if(suppressions?.some(s=>['all',channel].includes(canonicalChannel(s.channel))))throw new Error('contact_suppressed');const{data:credentials,error:credsError}=integration?.id?await admin.rpc('read_integration_secret',{p_integration:integration.id}):{data:null,error:null};if(credsError)throw new Error('channel_credentials_unavailable');const recipient=channel==='whatsapp'?String(lead?.whatsapp||lead?.phone||'').replace(/\D/g,''):String(lead?.email||'').trim().toLowerCase(),message=asText(payload.message??payload.text,4096);if(!integration?.connected||!integration.enabled||integration.paused||!credentials)throw new Error('channel_not_ready');if(!lead||!message||typeof payload.message_id!=='string'||(!manual&&typeof payload.agent_run_id!=='string'))throw new Error('lead_or_payload_blocked');if(channel==='whatsapp'&&!/^\d{10,15}$/.test(recipient))throw new Error('recipient_invalid');if(channel==='email'&&!validEmail(recipient))throw new Error('recipient_invalid');if(payload.recipient){const expected=channel==='whatsapp'?String(payload.recipient).replace(/\D/g,''):String(payload.recipient).trim().toLowerCase();if(expected!==recipient)throw new Error('recipient_mismatch')}if(!Object.hasOwn(payload,'context_last_contact')||(lead.last_contact?Date.parse(lead.last_contact):null)!==(typeof payload.context_last_contact==='string'?Date.parse(payload.context_last_contact):null))throw new Error('outbound_context_stale');if(!manual){const{data:run,error:re}=await admin.from('agent_runs').select('id,status,result').eq('id',payload.agent_run_id).eq('organization_id',orgId).eq('lead_id',job.lead_id).maybeSingle();if(re||run?.status!=='completed'||run.result?.status_canal!=='enfileirado')throw new Error('outbound_decision_not_completed')}const{data:draft,error:de}=await admin.from('lead_messages').select('id,text,type').eq('id',payload.message_id).eq('organization_id',orgId).eq('lead_id',job.lead_id).eq('sender',manual?'human':'ana').maybeSingle();if(de||!draft||draft.type!==(manual?'queued':'draft')||draft.text!==message)throw new Error('outbound_message_mismatch');const provider=channel==='whatsapp'?'zapi':'resend';const{error:pe}=await admin.from('lead_outreach').upsert({id:job.id,organization_id:orgId,lead_id:job.lead_id,owner_id:lead.owner_id,channel,status:'pending',provider,content:message,metadata:{job_id:job.id,message_id:draft.id,subject:channel==='email'?asText(payload.subject,300):null,controlled_test:controlledSandboxTest}},{onConflict:'id',ignoreDuplicates:true});if(pe)throw pe;dispatchStarted=true;const receipt=channel==='whatsapp'?await sendWhatsapp(asObject(credentials),recipient,message):await sendEmail(asObject(credentials),asObject(integration.configuration),recipient,message,asText(payload.subject,300));providerAccepted=true;providerMessageId=receipt.messageId;const sentAt=new Date().toISOString();const mw=await admin.from('lead_messages').update({type:'sent',sent_at:sentAt,provider_message_id:receipt.messageId}).eq('id',draft.id).eq('organization_id',orgId);if(mw.error)throw mw.error;const ow=await admin.from('lead_outreach').update({status:'sent',provider_message_id:receipt.messageId,sent_at:sentAt}).eq('id',job.id).eq('organization_id',orgId);if(ow.error)throw ow.error;let lu=admin.from('leads').update({last_contact:sentAt,no_reply_deadline_at:new Date(Date.now()+172800000).toISOString(),no_reply_processed_at:null}).eq('id',job.lead_id).eq('organization_id',orgId);if(!manual)lu=lu.eq('ai_paused',false);lu=lead.last_contact?lu.eq('last_contact',lead.last_contact):lu.is('last_contact',null);const{error:le}=await lu;if(le)throw le;const{error:oe}=await admin.from('outreach_jobs').update({status:'processed',processed_at:sentAt,error:null,payload:{...payload,provider_message_id:receipt.messageId}}).eq('id',job.id).eq('organization_id',orgId).eq('status','processing');if(oe)throw oe;sentJobs++;jobResults.push({id:job.id,status:'sent'})}catch(error){const attempt=Number(job.attempt??0)+1,code=providerAccepted?'provider_accepted_reconciliation_required':dispatchStarted?'delivery_unknown_reconciliation_required':safeError(error),status=dispatchStarted?'reconciliation_required':'failed';const{error:fe}=await admin.from('outreach_jobs').update({status,attempt,error:code,payload:{...payload,...(providerMessageId?{provider_message_id:providerMessageId}:{})}}).eq('id',job.id).eq('organization_id',orgId).eq('status','processing');if(fe)throw new Error('job_failure_persist_failed');if(manual&&typeof payload.message_id==='string')await admin.from('lead_messages').update({type:status}).eq('id',payload.message_id).eq('organization_id',orgId).eq('lead_id',job.lead_id).eq('sender','human').eq('type','queued');failedJobs++;jobResults.push({id:job.id,status:'failed',error:code})}}}
-if(!serverScheduler&&actor)await admin.from('audit_logs').insert({organization_id:orgId,actor_id:actor.id,actor_name:actor.name,actor_type:'user',action:'automation.worker_ran',detail:'Telemetria, políticas de canal, fila e manutenção semântica avaliadas.',entity_table:'channel_health_samples',event_data:{sent_count:sentCount,opt_out_count:optOutCount,pause_recommended:shouldPause,knowledge_embeddings:knowledgeMaintenance}});return json({ok:true,sent_count:sentCount,failed_count:failedCount,opt_out_count:optOutCount,pause_recommended:shouldPause,timeout_runs:0,sent_jobs:sentJobs,failed_jobs:failedJobs,job_results:jobResults,knowledge_embeddings:knowledgeMaintenance},200,headers)}catch(error){if(serverScheduler&&schedulerIntegrationId&&schedulerOrganizationId){const admin=createAdminClient();await admin.from('integrations').update({connected:false,last_error:safeError(error).slice(0,120),status_detail:'Worker server-side encontrou uma falha; consulte o Registro do Sistema.',updated_at:new Date().toISOString()}).eq('id',schedulerIntegrationId).eq('organization_id',schedulerOrganizationId)}return json({error:safeError(error)},400,headers)}});
+function asBoolean(value: unknown, fallback = false): boolean {
+  return typeof value === "boolean" ? value : fallback;
+}
+
+function boundedInteger(
+  value: unknown,
+  fallback: number,
+  min: number,
+  max: number,
+): number {
+  const parsed = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(parsed)) return fallback;
+  return Math.min(max, Math.max(min, Math.round(parsed)));
+}
+
+function configuredChannels(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return [
+    ...new Set(
+      value
+        .map((channel) => canonicalChannel(channel))
+        .filter((channel) => channel === "whatsapp" || channel === "email"),
+    ),
+  ];
+}
+
+function parseAnaPolicy(
+  configurationVersionId: unknown,
+  configuration: unknown,
+): AnaPolicy | null {
+  const versionId = asText(configurationVersionId, 80);
+  if (!isUuid(versionId)) return null;
+  const source = asObject(configuration);
+  const cadence = asObject(source.cadencePolicy);
+  const allowedChannels = configuredChannels(source.allowedChannels);
+  if (!allowedChannels.length) return null;
+  return {
+    configurationVersionId: versionId,
+    dailyMessageLimit: boundedInteger(source.dailyMessageLimit, 5, 1, 20),
+    allowedChannels,
+    firstFollowUpHours: boundedInteger(
+      cadence.firstFollowUpHours,
+      24,
+      1,
+      24 * 30,
+    ),
+    secondFollowUpHours: boundedInteger(
+      cadence.secondFollowUpHours,
+      72,
+      2,
+      24 * 60,
+    ),
+    timeoutHours: boundedInteger(cadence.timeoutHours, 120, 24, 24 * 90),
+    businessHoursOnly: asBoolean(cadence.businessHoursOnly, true),
+  };
+}
+
+async function readPublishedAnaPolicy(admin: Admin, organizationId: string) {
+  const { data: agent, error: agentError } = await admin
+    .from("ai_agents")
+    .select("active_version_id")
+    .eq("organization_id", organizationId)
+    .eq("key", "ana")
+    .maybeSingle();
+  if (agentError) throw new Error("ana_configuration_read_failed");
+  const versionId = asText(agent?.active_version_id, 80);
+  if (!isUuid(versionId)) return null;
+  const { data: version, error: versionError } = await admin
+    .from("ai_agent_versions")
+    .select("configuration")
+    .eq("id", versionId)
+    .eq("organization_id", organizationId)
+    .maybeSingle();
+  if (versionError) throw new Error("ana_configuration_read_failed");
+  return parseAnaPolicy(versionId, version?.configuration);
+}
+
+function normalizedDay(value: unknown): string {
+  return asText(value, 80)
+    .toLocaleLowerCase("pt-BR")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z]/g, "");
+}
+
+function clockMinutes(value: unknown): number | null {
+  const match = /^(\d{1,2}):(\d{2})$/.exec(asText(value, 8));
+  if (!match) return null;
+  const hours = Number(match[1]);
+  const minutes = Number(match[2]);
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
+  return hours * 60 + minutes;
+}
+
+function validTimeZone(value: unknown): string | null {
+  const candidate = asText(value, 80);
+  if (!candidate) return null;
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: candidate }).format();
+    return candidate;
+  } catch {
+    return null;
+  }
+}
+
+function resolveTimeZone(
+  runtime: Record<string, unknown>,
+  company: Record<string, unknown>,
+): string {
+  const uiSettings = asObject(company.ui_settings);
+  return (
+    validTimeZone(runtime.timezone) ??
+    validTimeZone(uiSettings.timezone) ??
+    "America/Sao_Paulo"
+  );
+}
+
+type LocalDateTime = {
+  year: number;
+  month: number;
+  day: number;
+  hour: number;
+  minute: number;
+  weekday: string;
+};
+
+function localDateTime(date: Date, timeZone: string): LocalDateTime {
+  const parts = new Intl.DateTimeFormat("pt-BR", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+    weekday: "long",
+  }).formatToParts(date);
+  const numeric = (type: Intl.DateTimeFormatPartTypes) =>
+    Number(parts.find((part) => part.type === type)?.value ?? 0);
+  return {
+    year: numeric("year"),
+    month: numeric("month"),
+    day: numeric("day"),
+    hour: numeric("hour"),
+    minute: numeric("minute"),
+    weekday: parts.find((part) => part.type === "weekday")?.value ?? "",
+  };
+}
+
+function localDayKey(parts: Pick<LocalDateTime, "year" | "month" | "day">): string {
+  return `${parts.year}-${String(parts.month).padStart(2, "0")}-${String(
+    parts.day,
+  ).padStart(2, "0")}`;
+}
+
+function addLocalDays(
+  date: Pick<LocalDateTime, "year" | "month" | "day">,
+  days: number,
+) {
+  const result = new Date(Date.UTC(date.year, date.month - 1, date.day + days));
+  return {
+    year: result.getUTCFullYear(),
+    month: result.getUTCMonth() + 1,
+    day: result.getUTCDate(),
+  };
+}
+
+function zonedTime(
+  date: Pick<LocalDateTime, "year" | "month" | "day">,
+  minuteOfDay: number,
+  timeZone: string,
+): Date {
+  const hour = Math.floor(minuteOfDay / 60);
+  const minute = minuteOfDay % 60;
+  const expected = Date.UTC(date.year, date.month - 1, date.day, hour, minute);
+  let timestamp = expected;
+  // Re-evaluate the offset so this also behaves correctly when a configured
+  // organization uses a zone with daylight-saving transitions.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const actual = localDateTime(new Date(timestamp), timeZone);
+    const observed = Date.UTC(
+      actual.year,
+      actual.month - 1,
+      actual.day,
+      actual.hour,
+      actual.minute,
+    );
+    timestamp += expected - observed;
+  }
+  return new Date(timestamp);
+}
+
+function businessHoursDecision(
+  runtime: Record<string, unknown>,
+  timeZone: string,
+  now = new Date(),
+): BusinessHoursDecision {
+  const configuredDays = Array.isArray(runtime.diasSemana)
+    ? runtime.diasSemana.map(asObject)
+    : [];
+  const holidays = new Set(
+    (Array.isArray(runtime.feriados) ? runtime.feriados : [])
+      .map((holiday) => asText(asObject(holiday).data, 10))
+      .filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date)),
+  );
+  const nowLocal = localDateTime(now, timeZone);
+  const localDay = localDayKey(nowLocal);
+  const validWindows = configuredDays
+    .map((day) => ({
+      day: normalizedDay(day.dia),
+      active: day.ativo === true,
+      start: clockMinutes(day.inicio),
+      end: clockMinutes(day.fim),
+    }))
+    .filter(
+      (day): day is { day: string; active: boolean; start: number; end: number } =>
+        Boolean(day.day) && day.start !== null && day.end !== null && day.end > day.start,
+    );
+  if (!validWindows.some((window) => window.active)) {
+    return {
+      allowed: false,
+      reason: "business_hours_configuration_missing",
+      nextRunAt: null,
+      localDay,
+    };
+  }
+
+  for (let offset = 0; offset < 14; offset++) {
+    const date = addLocalDays(nowLocal, offset);
+    const dateKey = localDayKey(date);
+    if (holidays.has(dateKey)) continue;
+    const weekday = normalizedDay(
+      localDateTime(zonedTime(date, 12 * 60, timeZone), timeZone).weekday,
+    );
+    const window = validWindows.find(
+      (candidate) => candidate.active && candidate.day === weekday,
+    );
+    if (!window) continue;
+    const opensAt = zonedTime(date, window.start, timeZone);
+    const closesAt = zonedTime(date, window.end, timeZone);
+    if (now < opensAt) {
+      return {
+        allowed: false,
+        reason: "outside_business_hours",
+        nextRunAt: opensAt.toISOString(),
+        localDay,
+      };
+    }
+    if (now < closesAt) {
+      return { allowed: true, reason: "business_hours_open", nextRunAt: null, localDay };
+    }
+  }
+  return {
+    allowed: false,
+    reason: "business_hours_next_window_not_found",
+    nextRunAt: null,
+    localDay,
+  };
+}
+
+function sameInstant(left: unknown, right: unknown): boolean {
+  const leftTime = Date.parse(asText(left, 64));
+  const rightTime = Date.parse(asText(right, 64));
+  return Number.isFinite(leftTime) && leftTime === rightTime;
+}
+
+function sameNullableInstant(left: unknown, right: unknown): boolean {
+  const leftText = asText(left, 64);
+  const rightText = asText(right, 64);
+  return !leftText && !rightText ? true : sameInstant(leftText, rightText);
+}
+
+function validFutureInstant(value: unknown, after: Date): string | null {
+  const text = asText(value, 64);
+  const parsed = Date.parse(text);
+  return Number.isFinite(parsed) && parsed > after.getTime() ? text : null;
+}
+
+function nextLocalDayStart(timeZone: string, now = new Date()): Date {
+  const nextDay = addLocalDays(localDateTime(now, timeZone), 1);
+  return zonedTime(nextDay, 5, timeZone);
+}
+
+async function deferJob(
+  admin: Admin,
+  organizationId: string,
+  jobId: string,
+  reason: string,
+  runAt: string,
+) {
+  const { error } = await admin
+    .from("outreach_jobs")
+    .update({
+      status: "queued",
+      run_at: runAt,
+      locked_at: null,
+      locked_by: null,
+      error: reason,
+    })
+    .eq("id", jobId)
+    .eq("organization_id", organizationId)
+    .eq("status", "processing");
+  if (error) throw new Error("outreach_job_defer_failed");
+}
+
+async function cancelCadenceJob(
+  admin: Admin,
+  organizationId: string,
+  jobId: string,
+  reason: string,
+) {
+  const { error } = await admin
+    .from("outreach_jobs")
+    .update({
+      status: "cancelled",
+      processed_at: new Date().toISOString(),
+      locked_at: null,
+      locked_by: null,
+      error: reason,
+    })
+    .eq("id", jobId)
+    .eq("organization_id", organizationId)
+    .eq("status", "processing");
+  if (error) throw new Error("cadence_job_cancel_failed");
+}
+
+async function completeCadenceJob(
+  admin: Admin,
+  organizationId: string,
+  jobId: string,
+) {
+  const { error } = await admin
+    .from("outreach_jobs")
+    .update({
+      status: "processed",
+      processed_at: new Date().toISOString(),
+      locked_at: null,
+      locked_by: null,
+      error: null,
+    })
+    .eq("id", jobId)
+    .eq("organization_id", organizationId)
+    .eq("status", "processing");
+  if (error) throw new Error("cadence_job_complete_failed");
+}
+
+async function retryCadenceJob(
+  admin: Admin,
+  organizationId: string,
+  jobId: string,
+  attempt: number,
+  reason: string,
+) {
+  const { error } = await admin
+    .from("outreach_jobs")
+    .update({
+      status: "queued",
+      run_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(),
+      attempt,
+      locked_at: null,
+      locked_by: null,
+      error: reason,
+    })
+    .eq("id", jobId)
+    .eq("organization_id", organizationId)
+    .eq("status", "processing");
+  if (error) throw new Error("cadence_job_retry_failed");
+}
+
+async function failCadenceJob(
+  admin: Admin,
+  organizationId: string,
+  jobId: string,
+  attempt: number,
+  reason: string,
+) {
+  const { error } = await admin
+    .from("outreach_jobs")
+    .update({
+      status: "failed",
+      attempt,
+      locked_at: null,
+      locked_by: null,
+      error: reason,
+    })
+    .eq("id", jobId)
+    .eq("organization_id", organizationId)
+    .eq("status", "processing");
+  if (error) throw new Error("cadence_job_fail_failed");
+}
+
+/**
+ * The queue claim is deliberately short-lived, so a human takeover can happen
+ * while an automatic job is being prepared.  Re-read the operational state
+ * immediately before a provider call (and before creating another cadence
+ * job) instead of relying on the earlier queue-read snapshot.
+ */
+async function automaticDispatchBlock(
+  admin: Admin,
+  input: {
+    organizationId: string;
+    leadId: string;
+    channel: string;
+    expectedLastContact: unknown;
+    expectedNoReplyDeadline?: unknown;
+    expectedConfigurationVersionId?: string;
+  },
+): Promise<string | null> {
+  const [leadResult, companyResult, aiResult, runtimeResult, handoffResult, channelResult] =
+    await Promise.all([
+      admin
+        .from("leads")
+        .select(
+          "owner_id,modo_atendimento,ai_paused,opt_out,last_contact,no_reply_deadline_at",
+        )
+        .eq("organization_id", input.organizationId)
+        .eq("id", input.leadId)
+        .maybeSingle(),
+      admin
+        .from("company_settings")
+        .select("active,sandbox_mode,can_use_ia,ai_actions_enabled")
+        .eq("organization_id", input.organizationId)
+        .maybeSingle(),
+      admin
+        .from("integrations")
+        .select("enabled,connected,paused")
+        .eq("organization_id", input.organizationId)
+        .eq("key", "ai")
+        .maybeSingle(),
+      admin
+        .from("organization_module_data")
+        .select("data")
+        .eq("organization_id", input.organizationId)
+        .eq("module_key", "configuracao_runtime")
+        .maybeSingle(),
+      admin
+        .from("lead_handoffs")
+        .select("id")
+        .eq("organization_id", input.organizationId)
+        .eq("lead_id", input.leadId)
+        .in("status", ["pending", "accepted"])
+        .limit(1)
+        .maybeSingle(),
+      admin
+        .from("integrations")
+        .select("enabled,connected,paused")
+        .eq("organization_id", input.organizationId)
+        .eq("key", input.channel)
+        .maybeSingle(),
+    ]);
+  if (
+    [
+      leadResult,
+      companyResult,
+      aiResult,
+      runtimeResult,
+      handoffResult,
+      channelResult,
+    ].some((result) => result.error)
+  )
+    throw new Error("dispatch_final_safety_read_failed");
+
+  const block = automationBlockReason({
+    company: companyResult.data,
+    ai: aiResult.data,
+    runtime: asObject(runtimeResult.data?.data),
+    lead: leadResult.data,
+  });
+  if (block) return block;
+  if (handoffResult.data?.id) return "lead_handoff_open";
+  if (!sameNullableInstant(leadResult.data?.last_contact, input.expectedLastContact))
+    return "outbound_context_stale";
+  if (
+    input.expectedNoReplyDeadline !== undefined &&
+    !sameInstant(
+      leadResult.data?.no_reply_deadline_at,
+      input.expectedNoReplyDeadline,
+    )
+  )
+    return "cadence_context_stale";
+  if (
+    !channelResult.data?.connected ||
+    channelResult.data.enabled !== true ||
+    channelResult.data.paused !== false
+  )
+    return "channel_not_ready";
+  if (input.expectedConfigurationVersionId) {
+    const policy = await readPublishedAnaPolicy(admin, input.organizationId);
+    if (!policy) return "ana_configuration_missing";
+    if (
+      policy.configurationVersionId !== input.expectedConfigurationVersionId ||
+      !policy.allowedChannels.includes(input.channel)
+    )
+      return "ana_configuration_changed_before_cadence";
+  }
+  return null;
+}
+
+async function scheduleAnaCadence(
+  admin: Admin,
+  input: {
+    organizationId: string;
+    leadId: string;
+    sourceJobId: string;
+    sourceMessageId: string;
+    channel: string;
+    sentAt: string;
+    initialSentAt?: string | null;
+    previousCadenceStep?: string | null;
+    noReplyDeadlineAt: string;
+    policy: AnaPolicy;
+  },
+) {
+  const sentAt = Date.parse(input.sentAt);
+  const initialSentAt = Date.parse(input.initialSentAt ?? input.sentAt);
+  const deadlineAt = Date.parse(input.noReplyDeadlineAt);
+  if (
+    !Number.isFinite(sentAt) ||
+    !Number.isFinite(initialSentAt) ||
+    !Number.isFinite(deadlineAt) ||
+    deadlineAt <= sentAt
+  )
+    return { scheduled: 0, error: "cadence_schedule_input_invalid" };
+  const steps = input.previousCadenceStep === "first"
+    ? [{ name: "second", hours: input.policy.secondFollowUpHours, base: initialSentAt }]
+    : input.previousCadenceStep
+      ? []
+      : [{ name: "first", hours: input.policy.firstFollowUpHours, base: sentAt }];
+  if (!steps.length) return { scheduled: 0, error: null };
+  const finalBlock = await automaticDispatchBlock(admin, {
+    organizationId: input.organizationId,
+    leadId: input.leadId,
+    channel: input.channel,
+    expectedLastContact: input.sentAt,
+    expectedNoReplyDeadline: input.noReplyDeadlineAt,
+    expectedConfigurationVersionId: input.policy.configurationVersionId,
+  });
+  if (finalBlock) return { scheduled: 0, error: finalBlock };
+  let scheduled = 0;
+  for (const step of steps) {
+    // The second step is not created until the first was provider-accepted.
+    // Its configured offset remains relative to the original outreach, but it
+    // can never be scheduled before the accepted first follow-up.
+    const runAt = Math.max(
+      sentAt,
+      step.base + step.hours * 60 * 60 * 1000,
+    );
+    // A follow-up cannot compete with the already-configured timeout handoff.
+    if (runAt >= deadlineAt) continue;
+    const { error } = await admin.from("outreach_jobs").upsert(
+      {
+        organization_id: input.organizationId,
+        lead_id: input.leadId,
+        channel: "automation",
+        run_at: new Date(runAt).toISOString(),
+        status: "queued",
+        attempt: 0,
+        idempotency_key: `ana-cadence:${input.sourceJobId}:${step.name}`,
+        payload: {
+          kind: "ana_cadence",
+          step: step.name,
+          target_channel: input.channel,
+          source_job_id: input.sourceJobId,
+          source_message_id: input.sourceMessageId,
+          initial_sent_at: new Date(initialSentAt).toISOString(),
+          expected_last_contact: input.sentAt,
+          no_reply_deadline_at: input.noReplyDeadlineAt,
+          configuration_version_id: input.policy.configurationVersionId,
+        },
+      },
+      { onConflict: "idempotency_key", ignoreDuplicates: true },
+    );
+    if (error) return { scheduled, error: "cadence_schedule_persist_failed" };
+    scheduled++;
+  }
+  return { scheduled, error: null };
+}
+
+async function processAnaCadenceJob(
+  admin: Admin,
+  input: {
+    organizationId: string;
+    job: { id: string; lead_id: string; attempt?: unknown; payload: Record<string, unknown> };
+  },
+): Promise<{ status: "completed" | "deferred" | "cancelled" | "failed"; reason?: string }> {
+  const { organizationId, job } = input;
+  const payload = job.payload;
+  const configurationVersionId = asText(payload.configuration_version_id, 80);
+  const expectedLastContact = asText(payload.expected_last_contact, 64);
+  const deadlineAt = asText(payload.no_reply_deadline_at, 64);
+  const targetChannel = canonicalChannel(payload.target_channel);
+  try {
+    if (
+      !isUuid(configurationVersionId) ||
+      !expectedLastContact ||
+      !validFutureInstant(deadlineAt, new Date(0)) ||
+      !["whatsapp", "email"].includes(targetChannel) ||
+      payload.dry_run === true
+    ) {
+      await cancelCadenceJob(admin, organizationId, job.id, "cadence_payload_invalid");
+      return { status: "cancelled", reason: "cadence_payload_invalid" };
+    }
+
+    const [leadResult, companyResult, aiResult, runtimeResult] = await Promise.all([
+      admin
+        .from("leads")
+        .select(
+          "id,owner_id,modo_atendimento,ai_paused,opt_out,last_contact,no_reply_deadline_at,active_channel",
+        )
+        .eq("organization_id", organizationId)
+        .eq("id", job.lead_id)
+        .maybeSingle(),
+      admin
+        .from("company_settings")
+        .select("active,sandbox_mode,can_use_ia,ai_actions_enabled,ui_settings")
+        .eq("organization_id", organizationId)
+        .maybeSingle(),
+      admin
+        .from("integrations")
+        .select("enabled,connected,paused")
+        .eq("organization_id", organizationId)
+        .eq("key", "ai")
+        .maybeSingle(),
+      admin
+        .from("organization_module_data")
+        .select("data")
+        .eq("organization_id", organizationId)
+        .eq("module_key", "configuracao_runtime")
+        .maybeSingle(),
+    ]);
+    if ([leadResult, companyResult, aiResult, runtimeResult].some((read) => read.error))
+      throw new Error("cadence_context_read_failed");
+
+    const policy = await readPublishedAnaPolicy(admin, organizationId);
+    if (!policy) {
+      await cancelCadenceJob(admin, organizationId, job.id, "ana_configuration_missing");
+      return { status: "cancelled", reason: "ana_configuration_missing" };
+    }
+    if (policy.configurationVersionId !== configurationVersionId) {
+      await cancelCadenceJob(
+        admin,
+        organizationId,
+        job.id,
+        "ana_configuration_changed_before_cadence",
+      );
+      return {
+        status: "cancelled",
+        reason: "ana_configuration_changed_before_cadence",
+      };
+    }
+    if (!policy.allowedChannels.includes(targetChannel)) {
+      await cancelCadenceJob(
+        admin,
+        organizationId,
+        job.id,
+        "cadence_channel_not_allowed_by_ana_configuration",
+      );
+      return {
+        status: "cancelled",
+        reason: "cadence_channel_not_allowed_by_ana_configuration",
+      };
+    }
+
+    const lead = leadResult.data;
+    const company = companyResult.data;
+    const runtime = asObject(runtimeResult.data?.data);
+    const blocked = automationBlockReason({
+      company,
+      ai: aiResult.data,
+      runtime,
+      lead,
+    });
+    if (blocked) {
+      await cancelCadenceJob(admin, organizationId, job.id, `cadence_${blocked}`);
+      return { status: "cancelled", reason: `cadence_${blocked}` };
+    }
+    if (
+      !sameInstant(lead?.last_contact, expectedLastContact) ||
+      !sameInstant(lead?.no_reply_deadline_at, deadlineAt)
+    ) {
+      await cancelCadenceJob(admin, organizationId, job.id, "cadence_context_stale");
+      return { status: "cancelled", reason: "cadence_context_stale" };
+    }
+    if (Date.parse(deadlineAt) <= Date.now()) {
+      await cancelCadenceJob(admin, organizationId, job.id, "cadence_deadline_expired");
+      return { status: "cancelled", reason: "cadence_deadline_expired" };
+    }
+
+    const timeZone = resolveTimeZone(runtime, asObject(company));
+    if (policy.businessHoursOnly) {
+      const businessHours = businessHoursDecision(runtime, timeZone);
+      if (!businessHours.allowed) {
+        if (!businessHours.nextRunAt) {
+          await cancelCadenceJob(admin, organizationId, job.id, businessHours.reason);
+          return { status: "cancelled", reason: businessHours.reason };
+        }
+        await deferJob(
+          admin,
+          organizationId,
+          job.id,
+          businessHours.reason,
+          businessHours.nextRunAt,
+        );
+        return { status: "deferred", reason: businessHours.reason };
+      }
+    }
+
+    const baseUrl = Deno.env.get("SUPABASE_URL");
+    const serviceJwt = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const internalCredential = Deno.env.get("WHATSAPP_WEBHOOK_SHARED_SECRET");
+    if (!baseUrl || !serviceJwt || !internalCredential)
+      throw new Error("cadence_internal_auth_not_configured");
+    const response = await fetch(`${baseUrl}/functions/v1/ana-run`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${serviceJwt}`,
+        "Content-Type": "application/json",
+        "x-internal-worker-secret": internalCredential,
+      },
+      body: JSON.stringify({
+        event: "cadence.followup",
+        lead_id: job.lead_id,
+        modo: "ia",
+        organization_id: organizationId,
+        request_id: `cadence:${job.id}`,
+        retry_failed: true,
+        contexto: {
+          cadence: {
+            step: asText(payload.step, 20),
+            target_channel: targetChannel,
+            source_job_id: asText(payload.source_job_id, 80),
+            source_message_id: asText(payload.source_message_id, 80),
+            initial_sent_at: asText(payload.initial_sent_at, 64),
+            expected_last_contact: expectedLastContact,
+            no_reply_deadline_at: deadlineAt,
+            configuration_version_id: configurationVersionId,
+          },
+        },
+      }),
+      signal: AbortSignal.timeout(45_000),
+    });
+    const result = await response.json().catch(() => null);
+    if (anaResponseSucceeded(response.status, result)) {
+      if (asObject(result).skipped === true) {
+        const reason = asText(asObject(result).reason, 120) || "ana_cadence_skipped";
+        await cancelCadenceJob(admin, organizationId, job.id, reason);
+        return { status: "cancelled", reason };
+      }
+      await completeCadenceJob(admin, organizationId, job.id);
+      return { status: "completed" };
+    }
+    throw new Error(`ana_cadence_not_completed_${response.status}`);
+  } catch (error) {
+    const attempt = boundedInteger(job.attempt, 0, 0, 100) + 1;
+    const reason = `ana_cadence_${safeError(error).slice(0, 96)}`;
+    if (attempt < 3) {
+      await retryCadenceJob(admin, organizationId, job.id, attempt, reason);
+      return { status: "deferred", reason };
+    }
+    await failCadenceJob(admin, organizationId, job.id, attempt, reason);
+    return { status: "failed", reason };
+  }
+}
+
+async function maintainKnowledgeEmbeddings(admin: Admin, org: string) {
+  const { data: chunks, error } = await admin
+    .from("knowledge_chunks")
+    .select("id,content,metadata")
+    .eq("organization_id", org)
+    .eq("status", "active")
+    .is("embedding", null)
+    .order("created_at", { ascending: true })
+    .limit(20);
+  if (error || !chunks?.length)
+    return {
+      processed: 0,
+      remaining: 0,
+      status: error ? "read_failed" : "complete",
+    };
+  const { data: ai, error: ae } = await admin
+    .from("integrations")
+    .select("id,enabled,connected,paused")
+    .eq("organization_id", org)
+    .eq("key", "ai")
+    .maybeSingle();
+  if (ae || !ai?.enabled || !ai.connected || ai.paused)
+    return { processed: 0, remaining: chunks.length, status: "ai_not_ready" };
+  const { data: secret, error: se } = await admin.rpc(
+    "read_integration_secret",
+    { p_integration: ai.id },
+  );
+  const key = asText(asObject(secret).openai_key, 1000);
+  if (se || !key)
+    return {
+      processed: 0,
+      remaining: chunks.length,
+      status: "embedding_provider_not_configured",
+    };
+  try {
+    const r = await fetch("https://api.openai.com/v1/embeddings", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${key}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "text-embedding-3-small",
+        dimensions: 1536,
+        input: chunks.map((x) => x.content),
+      }),
+      signal: AbortSignal.timeout(30000),
+    });
+    if (!r.ok)
+      return {
+        processed: 0,
+        remaining: chunks.length,
+        status: `provider_${r.status}`,
+      };
+    const b = (await r.json()) as {
+      data?: Array<{ index?: number; embedding?: number[] }>;
+    };
+    const vectors = (b.data ?? [])
+      .slice()
+      .sort((a, b) => Number(a.index ?? 0) - Number(b.index ?? 0));
+    if (
+      vectors.length !== chunks.length ||
+      vectors.some(
+        (x) => !Array.isArray(x.embedding) || x.embedding?.length !== 1536,
+      )
+    )
+      return {
+        processed: 0,
+        remaining: chunks.length,
+        status: "invalid_embedding_response",
+      };
+    let processed = 0;
+    const indexedAt = new Date().toISOString();
+    for (let i = 0; i < chunks.length; i++) {
+      const metadata = {
+        ...asObject(chunks[i].metadata),
+        embedding_model: "text-embedding-3-small",
+        embedding_indexed_at: indexedAt,
+      };
+      const { error: e } = await admin
+        .from("knowledge_chunks")
+        .update({ embedding: vectors[i].embedding, metadata })
+        .eq("id", chunks[i].id)
+        .eq("organization_id", org)
+        .is("embedding", null);
+      if (!e) processed++;
+    }
+    const { count } = await admin
+      .from("knowledge_chunks")
+      .select("id", { count: "exact", head: true })
+      .eq("organization_id", org)
+      .eq("status", "active")
+      .is("embedding", null);
+    return {
+      processed,
+      remaining: count ?? Math.max(0, chunks.length - processed),
+      status: "ok",
+    };
+  } catch {
+    return { processed: 0, remaining: chunks.length, status: "network_error" };
+  }
+}
+
+async function sendWhatsapp(
+  credentials: Record<string, unknown>,
+  recipient: string,
+  message: string,
+) {
+  const id = asText(credentials.instancia_id, 300),
+    token = asText(credentials.token, 500),
+    client = asText(credentials.client_token, 500);
+  if (!id || !token || !client)
+    throw new Error("channel_credentials_incomplete");
+  const r = await fetch(
+    `${zapiBaseUrl(credentials.url_base)}/instances/${encodeURIComponent(id)}/token/${encodeURIComponent(token)}/send-text`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Client-Token": client },
+      body: JSON.stringify({ phone: recipient, message }),
+      signal: AbortSignal.timeout(20000),
+      redirect: "error",
+    },
+  );
+  if (!r.ok) throw new Error(`provider_http_${r.status}`);
+  const receipt = (await r.json()) as { messageId?: unknown };
+  if (typeof receipt.messageId !== "string" || !receipt.messageId)
+    throw new Error("provider_receipt_missing");
+  return { provider: "zapi", messageId: receipt.messageId };
+}
+async function sendEmail(
+  credentials: Record<string, unknown>,
+  configuration: Record<string, unknown>,
+  recipient: string,
+  message: string,
+  subject: string,
+) {
+  const key = asText(credentials.resend_api_key || credentials.api_key, 1000),
+    fromEmail = asText(credentials.from_email || configuration.from_email, 254),
+    fromName =
+      asText(credentials.from_name || configuration.from_name, 160) ||
+      "Wayflex";
+  if (!key || !validEmail(fromEmail))
+    throw new Error("email_credentials_incomplete");
+  const r = await fetch("https://api.resend.com/emails", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${key}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      from: `${fromName} <${fromEmail}>`,
+      to: [recipient],
+      subject: subject || "Contato Wayflex",
+      text: message,
+    }),
+    signal: AbortSignal.timeout(20000),
+    redirect: "error",
+  });
+  if (!r.ok) throw new Error(`provider_http_${r.status}`);
+  const receipt = (await r.json()) as { id?: unknown };
+  if (typeof receipt.id !== "string" || !receipt.id)
+    throw new Error("provider_receipt_missing");
+  return { provider: "resend", messageId: receipt.id };
+}
+
+Deno.serve(async (request) => {
+  const pf = preflight(request);
+  if (pf) return pf;
+  if (!hasAllowedOrigin(request))
+    return json({ error: "origin_not_allowed" }, 403);
+  const headers = allowedCorsHeaders(request);
+  if (request.method !== "POST")
+    return json({ error: "method_not_allowed" }, 405, headers);
+  let schedulerIntegrationId: string | null = null,
+    schedulerOrganizationId: string | null = null,
+    serverScheduler = false;
+  try {
+    const body = (await request.json().catch(() => ({}))) as {
+      run?: string;
+      organization_id?: unknown;
+      source?: unknown;
+      job_id?: unknown;
+    };
+    const requestedJobId = body.job_id === undefined ? null : body.job_id;
+    if (requestedJobId !== null && !isUuid(requestedJobId))
+      throw new Error("outreach_job_id_invalid");
+    const admin = createAdminClient();
+    const schedulerToken = request.headers.get("x-leadai-scheduler-token");
+    let orgId: string;
+    let actor: { id: string; name: string } | null = null;
+    if (schedulerToken) {
+      if (
+        body.run !== "outreach" ||
+        !isUuid(body.organization_id) ||
+        body.source !== "server_scheduler" ||
+        requestedJobId !== null
+      )
+        throw new Error("scheduler_request_invalid");
+      const { data: scheduler, error } = await admin
+        .from("integrations")
+        .select("id,organization_id")
+        .eq("organization_id", body.organization_id)
+        .eq("key", "scheduler")
+        .maybeSingle();
+      if (error || !scheduler) throw new Error("scheduler_not_configured");
+      const { data: secret, error: se } = await admin.rpc(
+        "read_integration_secret",
+        { p_integration: scheduler.id },
+      );
+      const expected = asText(asObject(secret).scheduler_token, 1000);
+      if (se || expected.length < 48 || !secureEqual(schedulerToken, expected))
+        throw new Error("scheduler_authentication_failed");
+      orgId = scheduler.organization_id;
+      schedulerIntegrationId = scheduler.id;
+      schedulerOrganizationId = orgId;
+      serverScheduler = true;
+    } else {
+      const { user } = await requireUser(request);
+      const { data: profile } = await admin
+        .from("profiles")
+        .select("active_organization_id,name")
+        .eq("id", user.id)
+        .maybeSingle();
+      if (!profile?.active_organization_id)
+        throw new Error("organization_context_required");
+      orgId = profile.active_organization_id as string;
+      await requireOrganizationRole(admin, user.id, orgId, [
+        "owner",
+        "admin",
+        "manager",
+      ]);
+      actor = { id: user.id, name: profile.name || "Usuário" };
+    }
+    const reads = await Promise.all([
+      admin
+        .from("company_settings")
+        .select("active,sandbox_mode,can_use_ia,ai_actions_enabled")
+        .eq("organization_id", orgId)
+        .maybeSingle(),
+      admin
+        .from("integrations")
+        .select("enabled,connected,paused")
+        .eq("organization_id", orgId)
+        .eq("key", "ai")
+        .maybeSingle(),
+      admin
+        .from("organization_module_data")
+        .select("data")
+        .eq("organization_id", orgId)
+        .eq("module_key", "configuracao_runtime")
+        .maybeSingle(),
+    ]);
+    if (reads.some((x) => x.error))
+      throw new Error("runtime_safety_read_failed");
+    if (serverScheduler && schedulerIntegrationId) {
+      const { error } = await admin
+        .from("integrations")
+        .update({
+          connected: true,
+          enabled: true,
+          paused: false,
+          last_tested_at: new Date().toISOString(),
+          last_success_at: new Date().toISOString(),
+          last_error: null,
+          status_detail:
+            "Worker server-side em execução; heartbeat confirmado pelo agendador.",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", schedulerIntegrationId)
+        .eq("organization_id", orgId);
+      if (error) throw new Error("scheduler_heartbeat_persist_failed");
+    }
+    const knowledgeMaintenance = serverScheduler
+      ? await maintainKnowledgeEmbeddings(admin, orgId)
+      : { processed: 0, remaining: 0, status: "manual_skip" };
+    const blocked =
+      reads[0].data?.active !== true ? "company_not_active" : null;
+    if (blocked)
+      return json(
+        {
+          ok: true,
+          skipped: true,
+          reason: blocked,
+          sent_jobs: 0,
+          timeout_runs: 0,
+          knowledge_embeddings: knowledgeMaintenance,
+        },
+        200,
+        headers,
+      );
+    if (reads[0].data?.sandbox_mode === true) {
+      if (body.run !== "outreach" && body.run !== "all")
+        return json(
+          {
+            ok: true,
+            skipped: true,
+            reason: "sandbox_mode",
+            sent_jobs: 0,
+            timeout_runs: 0,
+            knowledge_embeddings: knowledgeMaintenance,
+          },
+          200,
+          headers,
+        );
+      const { data: queuedTests, error: queuedTestsError } = await admin
+        .from("outreach_jobs")
+        .select("payload")
+        .eq("organization_id", orgId)
+        .eq("status", "queued")
+        .lte("run_at", new Date().toISOString())
+        .limit(25);
+      if (queuedTestsError) throw queuedTestsError;
+      if (
+        !(queuedTests ?? []).some((job) =>
+          activeControlledSandboxTest(asObject(job.payload)),
+        )
+      )
+        return json(
+          {
+            ok: true,
+            skipped: true,
+            reason: "sandbox_mode",
+            sent_jobs: 0,
+            timeout_runs: 0,
+            knowledge_embeddings: knowledgeMaintenance,
+          },
+          200,
+          headers,
+        );
+    }
+    const since = new Date(Date.now() - 86400000).toISOString();
+    const [
+      { count: sent },
+      { count: failed },
+      { count: optOuts },
+      { data: wa },
+      { data: activePolicy },
+    ] = await Promise.all([
+      admin
+        .from("outreach_jobs")
+        .select("*", { count: "exact", head: true })
+        .eq("organization_id", orgId)
+        .eq("channel", "whatsapp")
+        .eq("status", "processed")
+        .gte("processed_at", since),
+      admin
+        .from("outreach_jobs")
+        .select("*", { count: "exact", head: true })
+        .eq("organization_id", orgId)
+        .eq("channel", "whatsapp")
+        .eq("status", "failed")
+        .gte("run_at", since),
+      admin
+        .from("contact_suppressions")
+        .select("*", { count: "exact", head: true })
+        .eq("organization_id", orgId)
+        .ilike("channel", "whatsapp")
+        .gte("created_at", since),
+      admin
+        .from("integrations")
+        .select("id")
+        .eq("organization_id", orgId)
+        .eq("key", "whatsapp")
+        .maybeSingle(),
+      admin
+        .from("channel_policy_events")
+        .select("risk_level,action")
+        .eq("organization_id", orgId)
+        .eq("channel", "whatsapp")
+        .is("resolved_at", null)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
+    ]);
+    const sentCount = sent ?? 0,
+      failedCount = failed ?? 0,
+      optOutCount = optOuts ?? 0;
+    await admin
+      .from("channel_health_samples")
+      .insert({
+        organization_id: orgId,
+        integration_id: wa?.id ?? null,
+        channel: "whatsapp",
+        source: "provider_queue",
+        sent_count: sentCount,
+        delivered_count: 0,
+        failed_count: failedCount,
+        opt_out_count: optOutCount,
+        complaint_count: 0,
+        raw_metrics: { window_hours: 24, worker: "automation-worker" },
+      });
+    const optOutRate = sentCount > 0 ? optOutCount / sentCount : 0,
+      failureRate =
+        sentCount + failedCount > 0
+          ? failedCount / (sentCount + failedCount)
+          : 0,
+      shouldPause =
+        sentCount + failedCount >= 20 &&
+        (optOutRate >= 0.08 || failureRate >= 0.15);
+    if (shouldPause) {
+      if (!activePolicy)
+        await admin
+          .from("channel_policy_events")
+          .insert({
+            organization_id: orgId,
+            integration_id: wa?.id ?? null,
+            channel: "whatsapp",
+            risk_level: "high",
+            action: "pause",
+            reason:
+              optOutRate >= 0.08
+                ? "Taxa de opt-out acima do limite operacional configurado."
+                : "Taxa de falhas acima do limite operacional configurado.",
+            evidence: {
+              sent_count: sentCount,
+              failed_count: failedCount,
+              opt_out_count: optOutCount,
+              failure_rate: failureRate,
+              opt_out_rate: optOutRate,
+            },
+          });
+      if (wa?.id)
+        await admin
+          .from("integrations")
+          .update({
+            paused: true,
+            status_detail:
+              "Envios pausados automaticamente pelo monitor de risco.",
+          })
+          .eq("id", wa.id)
+          .eq("organization_id", orgId);
+    }
+    let sentJobs = 0,
+      failedJobs = 0;
+    const jobResults: Array<{
+      id: string;
+      status: "sent" | "failed" | "deferred" | "cadence_completed" | "cadence_deferred" | "cadence_cancelled";
+      error?: string;
+      cadence_scheduled?: number;
+      cadence_error?: string;
+    }> = [];
+    const workerLockId = crypto.randomUUID();
+    if (body.run === "outreach" || body.run === "all") {
+      let jobsRequest = admin
+        .from("outreach_jobs")
+        .select("id,lead_id,channel,attempt,payload")
+        .eq("organization_id", orgId)
+        .eq("status", "queued")
+        .lte("run_at", new Date().toISOString())
+        .order("run_at", { ascending: true })
+        .limit(25);
+      if (requestedJobId) jobsRequest = jobsRequest.eq("id", requestedJobId);
+      const { data: jobs, error } = await jobsRequest;
+      if (error) throw error;
+      for (const job of jobs ?? []) {
+        const payload = asObject(job.payload);
+        if (
+          reads[0].data?.sandbox_mode === true &&
+          !activeControlledSandboxTest(payload)
+        )
+          continue;
+        const channel = canonicalChannel(job.channel);
+        const { data: claimed, error: ce } = await admin
+          .from("outreach_jobs")
+          .update({
+            status: "processing",
+            locked_at: new Date().toISOString(),
+            locked_by: serverScheduler ? `server_scheduler:${workerLockId}` : `manual:${actor?.id ?? workerLockId}`,
+          })
+          .eq("id", job.id)
+          .eq("organization_id", orgId)
+          .eq("status", "queued")
+          .select("id")
+          .maybeSingle();
+        if (ce) throw ce;
+        if (!claimed) continue;
+        if (payload.kind === "ana_cadence") {
+          const cadence = await processAnaCadenceJob(admin, {
+            organizationId: orgId,
+            job: {
+              id: job.id,
+              lead_id: job.lead_id,
+              attempt: job.attempt,
+              payload,
+            },
+          });
+          if (cadence.status === "failed") failedJobs++;
+          jobResults.push({
+            id: job.id,
+            status:
+              cadence.status === "completed"
+                ? "cadence_completed"
+                : cadence.status === "deferred"
+                  ? "cadence_deferred"
+                  : cadence.status === "cancelled"
+                    ? "cadence_cancelled"
+                    : "failed",
+            ...(cadence.reason ? { error: cadence.reason } : {}),
+          });
+          continue;
+        }
+        const manual = payload.manual === true;
+        let persistedPayload = payload;
+        let dispatchStarted = false,
+          providerAccepted = false,
+          providerMessageId: string | null = null;
+        try {
+          if (!["whatsapp", "email"].includes(channel))
+            throw new Error("channel_not_supported");
+          const initial = await Promise.all([
+            admin
+              .from("leads")
+              .select(
+                "phone,whatsapp,email,opt_out,ai_paused,owner_id,modo_atendimento,last_contact,no_reply_deadline_at",
+              )
+              .eq("organization_id", orgId)
+              .eq("id", job.lead_id)
+              .maybeSingle(),
+            admin
+              .from("company_settings")
+              .select("active,sandbox_mode,can_use_ia,ai_actions_enabled,ui_settings")
+              .eq("organization_id", orgId)
+              .maybeSingle(),
+            admin
+              .from("integrations")
+              .select("enabled,connected,paused")
+              .eq("organization_id", orgId)
+              .eq("key", "ai")
+              .maybeSingle(),
+            admin
+              .from("organization_module_data")
+              .select("data")
+              .eq("organization_id", orgId)
+              .eq("module_key", "configuracao_runtime")
+              .maybeSingle(),
+            admin
+              .from("integrations")
+              .select("id,provider,connected,enabled,paused,configuration")
+              .eq("organization_id", orgId)
+              .eq("key", channel)
+              .maybeSingle(),
+          ]);
+          if (initial.some((x) => x.error))
+            throw new Error("dispatch_safety_read_failed");
+          const [
+            { data: lead },
+            { data: company },
+            { data: ai },
+            { data: runtime },
+            { data: integration },
+          ] = initial;
+          const controlledSandboxTest =
+            manual &&
+            company?.sandbox_mode === true &&
+            activeControlledSandboxTest(payload);
+          const { data: suppressions, error: se } = await admin
+            .from("contact_suppressions")
+            .select("id,channel")
+            .eq("organization_id", orgId)
+            .or(
+              suppressionOrFilter(
+                job.lead_id,
+                await suppressionHashes(lead ?? {}),
+              ),
+            )
+            .limit(10);
+          if (se) throw new Error("dispatch_suppression_read_failed");
+          const block = manual
+            ? company?.active !== true
+              ? "company_not_active"
+              : company?.sandbox_mode !== false && !controlledSandboxTest
+                ? "operational_mode_protected"
+                : null
+            : automationBlockReason({
+                company,
+                ai,
+                runtime: runtime?.data ?? null,
+                lead,
+              });
+          if (block) throw new Error(block);
+          if (
+            suppressions?.some((s) =>
+              ["all", channel].includes(canonicalChannel(s.channel)),
+            )
+          )
+            throw new Error("contact_suppressed");
+          let anaPolicy: AnaPolicy | null = null;
+          let noReplyDeadlineAt: string | null = null;
+          let isCadenceOutbound = false;
+          let cadenceDeadlineAt: string | null = null;
+          if (!manual) {
+            anaPolicy = await readPublishedAnaPolicy(admin, orgId);
+            if (!anaPolicy) throw new Error("ana_configuration_missing");
+            if (!anaPolicy.allowedChannels.includes(channel))
+              throw new Error("channel_not_allowed_by_ana_configuration");
+            const queuedConfigurationVersionId = asText(
+              payload.configuration_version_id,
+              80,
+            );
+            const queuedCadence = asObject(payload.cadence);
+            isCadenceOutbound = Object.keys(queuedCadence).length > 0;
+            cadenceDeadlineAt = validFutureInstant(
+              queuedCadence.no_reply_deadline_at,
+              new Date(),
+            );
+            if (isCadenceOutbound) {
+              const queuedStep = asText(queuedCadence.step, 20);
+              const queuedVersionId = asText(
+                queuedCadence.configuration_version_id,
+                80,
+              );
+              const expectedLastContact = asText(
+                queuedCadence.expected_last_contact,
+                64,
+              );
+              if (
+                !["first", "second"].includes(queuedStep) ||
+                !isUuid(queuedVersionId) ||
+                queuedVersionId !== anaPolicy.configurationVersionId
+              )
+                throw new Error("ana_configuration_changed_before_cadence");
+              if (
+                !cadenceDeadlineAt ||
+                !sameInstant(payload.no_reply_deadline_at, cadenceDeadlineAt) ||
+                !sameInstant(lead?.last_contact, expectedLastContact) ||
+                !sameInstant(lead?.no_reply_deadline_at, cadenceDeadlineAt)
+              )
+                throw new Error("cadence_context_stale");
+            } else if (
+              !isUuid(queuedConfigurationVersionId) ||
+              queuedConfigurationVersionId !== anaPolicy.configurationVersionId
+            ) {
+              throw new Error("ana_configuration_changed_before_dispatch");
+            }
+            const runtimeConfiguration = asObject(runtime?.data);
+            const timeZone = resolveTimeZone(
+              runtimeConfiguration,
+              asObject(company),
+            );
+            const now = new Date();
+            const businessHours = businessHoursDecision(
+              runtimeConfiguration,
+              timeZone,
+              now,
+            );
+            if (anaPolicy.businessHoursOnly && !businessHours.allowed) {
+              if (!businessHours.nextRunAt)
+                throw new Error(businessHours.reason);
+              await deferJob(
+                admin,
+                orgId,
+                job.id,
+                businessHours.reason,
+                businessHours.nextRunAt,
+              );
+              jobResults.push({
+                id: job.id,
+                status: "deferred",
+                error: businessHours.reason,
+              });
+              continue;
+            }
+            const localDay = anaPolicy.businessHoursOnly
+              ? businessHours.localDay
+              : localDayKey(localDateTime(now, timeZone));
+            const { data: reservation, error: reservationError } = await admin.rpc(
+              "reserve_ana_outbound_policy",
+              {
+                p_organization_id: orgId,
+                p_job_id: job.id,
+                p_lead_id: job.lead_id,
+                p_channel: channel,
+                p_daily_limit: anaPolicy.dailyMessageLimit,
+                p_time_zone: timeZone,
+                p_local_day: localDay,
+                p_configuration_version_id: anaPolicy.configurationVersionId,
+              },
+            );
+            if (reservationError)
+              throw new Error("ana_policy_reservation_failed");
+            const policyReservation = Array.isArray(reservation)
+              ? reservation[0]
+              : reservation;
+            if (asObject(policyReservation).allowed !== true) {
+              const reason =
+                asText(asObject(policyReservation).reason, 120) ||
+                "ana_policy_reservation_rejected";
+              if (reason === "ana_daily_message_limit_reached") {
+                let runAt = nextLocalDayStart(timeZone, now);
+                if (anaPolicy.businessHoursOnly) {
+                  const nextBusiness = businessHoursDecision(
+                    runtimeConfiguration,
+                    timeZone,
+                    runAt,
+                  );
+                  if (!nextBusiness.allowed && !nextBusiness.nextRunAt)
+                    throw new Error(nextBusiness.reason);
+                  if (nextBusiness.nextRunAt)
+                    runAt = new Date(nextBusiness.nextRunAt);
+                }
+                await deferJob(admin, orgId, job.id, reason, runAt.toISOString());
+                jobResults.push({
+                  id: job.id,
+                  status: "deferred",
+                  error: reason,
+                });
+                continue;
+              }
+              throw new Error(reason);
+            }
+            persistedPayload = {
+              ...payload,
+              ana_policy_day: localDay,
+              ana_policy_version_id: anaPolicy.configurationVersionId,
+            };
+            noReplyDeadlineAt = isCadenceOutbound
+              ? cadenceDeadlineAt
+              : validFutureInstant(payload.no_reply_deadline_at, now) ??
+                new Date(
+                  now.getTime() + anaPolicy.timeoutHours * 60 * 60 * 1000,
+                ).toISOString();
+          }
+          const { data: credentials, error: credsError } = integration?.id
+            ? await admin.rpc("read_integration_secret", {
+                p_integration: integration.id,
+              })
+            : { data: null, error: null };
+          if (credsError) throw new Error("channel_credentials_unavailable");
+          const recipient =
+              channel === "whatsapp"
+                ? String(lead?.whatsapp || lead?.phone || "").replace(/\D/g, "")
+                : String(lead?.email || "")
+                    .trim()
+                    .toLowerCase(),
+            message = asText(payload.message ?? payload.text, 4096);
+          if (
+            !integration?.connected ||
+            !integration.enabled ||
+            integration.paused ||
+            !credentials
+          )
+            throw new Error("channel_not_ready");
+          if (
+            !lead ||
+            !message ||
+            typeof payload.message_id !== "string" ||
+            (!manual && typeof payload.agent_run_id !== "string")
+          )
+            throw new Error("lead_or_payload_blocked");
+          if (channel === "whatsapp" && !/^\d{10,15}$/.test(recipient))
+            throw new Error("recipient_invalid");
+          if (channel === "email" && !validEmail(recipient))
+            throw new Error("recipient_invalid");
+          if (payload.recipient) {
+            const expected =
+              channel === "whatsapp"
+                ? String(payload.recipient).replace(/\D/g, "")
+                : String(payload.recipient).trim().toLowerCase();
+            if (expected !== recipient) throw new Error("recipient_mismatch");
+          }
+          if (
+            !Object.hasOwn(payload, "context_last_contact") ||
+            (lead.last_contact ? Date.parse(lead.last_contact) : null) !==
+              (typeof payload.context_last_contact === "string"
+                ? Date.parse(payload.context_last_contact)
+                : null)
+          )
+            throw new Error("outbound_context_stale");
+          if (!manual) {
+            const { data: run, error: re } = await admin
+              .from("agent_runs")
+              .select("id,status,result")
+              .eq("id", payload.agent_run_id)
+              .eq("organization_id", orgId)
+              .eq("lead_id", job.lead_id)
+              .maybeSingle();
+            if (
+              re ||
+              run?.status !== "completed" ||
+              run.result?.status_canal !== "enfileirado"
+            )
+              throw new Error("outbound_decision_not_completed");
+          }
+          const { data: draft, error: de } = await admin
+            .from("lead_messages")
+            .select("id,text,type")
+            .eq("id", payload.message_id)
+            .eq("organization_id", orgId)
+            .eq("lead_id", job.lead_id)
+            .eq("sender", manual ? "human" : "ana")
+            .maybeSingle();
+          if (
+            de ||
+            !draft ||
+            draft.type !== (manual ? "queued" : "draft") ||
+            draft.text !== message
+          )
+            throw new Error("outbound_message_mismatch");
+          const provider = channel === "whatsapp" ? "zapi" : "resend";
+          const { error: pe } = await admin
+            .from("lead_outreach")
+            .upsert(
+              {
+                id: job.id,
+                organization_id: orgId,
+                lead_id: job.lead_id,
+                owner_id: lead.owner_id,
+                channel,
+                status: "pending",
+                provider,
+                content: message,
+                metadata: {
+                  job_id: job.id,
+                  message_id: draft.id,
+                  subject:
+                    channel === "email" ? asText(payload.subject, 300) : null,
+                  controlled_test: controlledSandboxTest,
+                },
+              },
+              { onConflict: "id", ignoreDuplicates: true },
+            );
+          if (pe) throw pe;
+          if (!manual) {
+            const finalBlock = await automaticDispatchBlock(admin, {
+              organizationId: orgId,
+              leadId: job.lead_id,
+              channel,
+              expectedLastContact: payload.context_last_contact,
+              ...(isCadenceOutbound
+                ? { expectedNoReplyDeadline: cadenceDeadlineAt }
+                : {}),
+              expectedConfigurationVersionId: asText(
+                payload.configuration_version_id,
+                80,
+              ),
+            });
+            if (finalBlock) {
+              await admin
+                .from("lead_outreach")
+                .update({
+                  status: "failed",
+                  error: finalBlock,
+                  updated_at: new Date().toISOString(),
+                })
+                .eq("id", job.id)
+                .eq("organization_id", orgId)
+                .eq("status", "pending");
+              throw new Error(finalBlock);
+            }
+          }
+          dispatchStarted = true;
+          const receipt =
+            channel === "whatsapp"
+              ? await sendWhatsapp(asObject(credentials), recipient, message)
+              : await sendEmail(
+                  asObject(credentials),
+                  asObject(integration.configuration),
+                  recipient,
+                  message,
+                  asText(payload.subject, 300),
+                );
+          providerAccepted = true;
+          providerMessageId = receipt.messageId;
+          const sentAt = new Date().toISOString();
+          const { error: acceptanceError } = await admin.rpc(
+            "record_outreach_provider_acceptance",
+            {
+              p_organization_id: orgId,
+              p_job_id: job.id,
+              p_lead_id: job.lead_id,
+              p_message_id: draft.id,
+              p_provider: provider,
+              p_provider_message_id: receipt.messageId,
+              p_sent_at: sentAt,
+              p_no_reply_deadline_at: noReplyDeadlineAt,
+            },
+          );
+          if (acceptanceError) throw acceptanceError;
+          let cadence: { scheduled: number; error: string | null } = {
+            scheduled: 0,
+            error: null,
+          };
+          const previousCadence = asObject(payload.cadence);
+          const previousCadenceStep = asText(previousCadence.step, 20);
+          if (
+            !manual &&
+            anaPolicy &&
+            (!previousCadenceStep || previousCadenceStep === "first")
+          ) {
+            try {
+              cadence = await scheduleAnaCadence(admin, {
+                organizationId: orgId,
+                leadId: job.lead_id,
+                sourceJobId: asText(previousCadence.source_job_id, 80) || job.id,
+                sourceMessageId: draft.id,
+                channel,
+                sentAt,
+                initialSentAt:
+                  asText(previousCadence.initial_sent_at, 64) || sentAt,
+                previousCadenceStep: previousCadenceStep || null,
+                noReplyDeadlineAt: noReplyDeadlineAt!,
+                policy: anaPolicy,
+              });
+            } catch {
+              cadence = { scheduled: 0, error: "cadence_schedule_persist_failed" };
+            }
+          }
+          if (cadence.error) {
+            await admin.from("audit_logs").insert({
+              organization_id: orgId,
+              actor_name: "Ana",
+              actor_type: "system",
+              action: "ana.cadence_schedule_failed",
+              detail: "A mensagem foi aceita pelo provedor, mas a cadência não foi agendada.",
+              entity_table: "outreach_jobs",
+              entity_id: job.id,
+              event_data: { reason: cadence.error },
+            });
+          }
+          sentJobs++;
+          jobResults.push({
+            id: job.id,
+            status: "sent",
+            cadence_scheduled: cadence.scheduled,
+            ...(cadence.error ? { cadence_error: cadence.error } : {}),
+          });
+        } catch (error) {
+          const attempt = Number(job.attempt ?? 0) + 1,
+            code = providerAccepted
+              ? "provider_accepted_reconciliation_required"
+              : dispatchStarted
+                ? "delivery_unknown_reconciliation_required"
+                : safeError(error),
+            status = dispatchStarted ? "reconciliation_required" : "failed";
+          if (providerMessageId) {
+            await admin
+              .from("lead_outreach")
+              .update({ provider_message_id: providerMessageId, updated_at: new Date().toISOString() })
+              .eq("id", job.id)
+              .eq("organization_id", orgId)
+              .is("provider_message_id", null);
+          }
+          const { error: fe } = await admin
+            .from("outreach_jobs")
+            .update({
+              status,
+              attempt,
+              locked_at: null,
+              locked_by: null,
+              error: code,
+              payload: {
+                ...persistedPayload,
+                ...(providerMessageId
+                  ? { provider_message_id: providerMessageId }
+                  : {}),
+              },
+            })
+            .eq("id", job.id)
+            .eq("organization_id", orgId)
+            .eq("status", "processing");
+          if (fe) throw new Error("job_failure_persist_failed");
+          if (manual && typeof payload.message_id === "string")
+            await admin
+              .from("lead_messages")
+              .update({ type: status })
+              .eq("id", payload.message_id)
+              .eq("organization_id", orgId)
+              .eq("lead_id", job.lead_id)
+              .eq("sender", "human")
+              .eq("type", "queued");
+          failedJobs++;
+          jobResults.push({ id: job.id, status: "failed", error: code });
+        }
+      }
+    }
+    if (!serverScheduler && actor)
+      await admin
+        .from("audit_logs")
+        .insert({
+          organization_id: orgId,
+          actor_id: actor.id,
+          actor_name: actor.name,
+          actor_type: "user",
+          action: "automation.worker_ran",
+          detail:
+            "Telemetria, políticas de canal, fila e manutenção semântica avaliadas.",
+          entity_table: "channel_health_samples",
+          event_data: {
+            sent_count: sentCount,
+            opt_out_count: optOutCount,
+            pause_recommended: shouldPause,
+            knowledge_embeddings: knowledgeMaintenance,
+          },
+        });
+    return json(
+      {
+        ok: true,
+        sent_count: sentCount,
+        failed_count: failedCount,
+        opt_out_count: optOutCount,
+        pause_recommended: shouldPause,
+        timeout_runs: 0,
+        sent_jobs: sentJobs,
+        failed_jobs: failedJobs,
+        job_results: jobResults,
+        knowledge_embeddings: knowledgeMaintenance,
+      },
+      200,
+      headers,
+    );
+  } catch (error) {
+    if (serverScheduler && schedulerIntegrationId && schedulerOrganizationId) {
+      const admin = createAdminClient();
+      await admin
+        .from("integrations")
+        .update({
+          connected: false,
+          last_error: safeError(error).slice(0, 120),
+          status_detail:
+            "Worker server-side encontrou uma falha; consulte o Registro do Sistema.",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", schedulerIntegrationId)
+        .eq("organization_id", schedulerOrganizationId);
+    }
+    return json({ error: safeError(error) }, 400, headers);
+  }
+});

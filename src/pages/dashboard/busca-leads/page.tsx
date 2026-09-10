@@ -128,7 +128,7 @@ export default function BuscaLeads() {
   const { fontes } = useFontesStore();
   const { mode: operationalMode } = useOperationalMode();
   const [csvModal, setCsvModal] = useState(false);
-  const fontesDisponiveis = fontesAtivas(fontes).filter((fonte) => ['apify', 'google_places'].includes(fonte.sourceKey || ''));
+  const fontesDisponiveis = fontesAtivas(fontes).filter((fonte) => fonte.sourceKey === 'apify');
 
   useEffect(() => {
     if (fonteSelecionada && !fontesDisponiveis.some((fonte) => fonte.id === fonteSelecionada)) {
@@ -233,7 +233,6 @@ export default function BuscaLeads() {
     const fonteNome = fonte?.nome || '';
     const sourceKey = fonte?.sourceKey || ({
       'Receita Federal': 'cnpj',
-      'Google Places': 'google_places',
       'Apify — Google Maps': 'apify',
       'Importação CSV': 'csv',
       'Pesquisa assistida por IA': 'ai',

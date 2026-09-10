@@ -5,12 +5,24 @@ import { zapiBaseUrl } from '../_shared/runtimeSafety.ts';
 type Action = 'status' | 'set_kill_switch' | 'activate_real' | 'events' | 'configure_whatsapp_webhook' | 'activate_scheduler';
 type WebhookDiagnosticState = 'not_configured' | 'waiting_callback' | 'lead_not_matched' | 'unsupported_callback' | 'processing_failed' | 'homologated';
 
+const ZAPI_WEBHOOK_ENDPOINTS = [
+  'update-webhook-received',
+  'update-webhook-delivery',
+  'update-webhook-message-status',
+] as const;
+
 function asObject(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
 
 function asBoolean(value: unknown, fallback = false): boolean {
   return typeof value === 'boolean' ? value : fallback;
+}
+
+function textArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? [...new Set(value.filter((item): item is string => typeof item === 'string').map((item) => item.trim()).filter(Boolean))]
+    : [];
 }
 
 function randomSecret(): string {
@@ -68,11 +80,13 @@ async function operationalStatus(admin: ReturnType<typeof createAdminClient>, or
   const isOnline = (item: typeof ai) => Boolean(item?.connected && item?.enabled && !item?.paused && !item?.last_error && isFresh(item?.last_tested_at));
   const webhookConfiguration = asObject(whatsappWebhook?.configuration);
   const registeredAt = typeof webhookConfiguration.registered_at === 'string' ? webhookConfiguration.registered_at : null;
-  const webhookRegistered = registeredAt !== null;
+  const registeredEndpoints = textArray(webhookConfiguration.registration_endpoints);
+  const webhookRegistered = registeredAt !== null
+    && ZAPI_WEBHOOK_ENDPOINTS.every((endpoint) => registeredEndpoints.includes(endpoint));
   const [webhookEventRead, testLeadRead] = await Promise.all([
     webhookRegistered
-      ? admin.from('webhook_events').select('status,error,created_at,processed_at,lead_id')
-        .eq('organization_id', organizationId).eq('provider', whatsappWebhook?.provider || 'Z-API')
+      ? admin.from('channel_inbound_events').select('status,error,created_at,processed_at,lead_id,event_type')
+        .eq('organization_id', organizationId).eq('provider', whatsapp?.provider || 'Z-API').eq('event_type', 'ReceivedCallback')
         .gte('created_at', registeredAt).order('created_at', { ascending: false }).limit(1)
       : Promise.resolve({ data: [], error: null }),
     admin.from('leads').select('id,company,contact,phone,whatsapp,updated_at').eq('organization_id', organizationId)
@@ -85,7 +99,7 @@ async function operationalStatus(admin: ReturnType<typeof createAdminClient>, or
     ? testLead.whatsapp : typeof testLead?.phone === 'string' ? testLead.phone : '';
   const testLeadLabel = testLead ? [testLead.contact, testLead.company].filter((value) => typeof value === 'string' && value.trim()).join(' · ') : null;
   const webhookDiagnostic = (() => {
-    if (isOnline(whatsappWebhook)) return {
+    if (webhookRegistered && isOnline(whatsappWebhook)) return {
       state: 'homologated' as WebhookDiagnosticState,
       registeredAt,
       lastEventAt: latestWebhookEvent?.created_at ?? whatsappWebhook?.last_success_at ?? null,
@@ -96,7 +110,7 @@ async function operationalStatus(admin: ReturnType<typeof createAdminClient>, or
       state: 'not_configured' as WebhookDiagnosticState,
       registeredAt: null,
       lastEventAt: null,
-      detail: 'A saída da Z-API pode estar validada; cadastre agora somente a entrada das respostas para a Ana.',
+      detail: 'A saída da Z-API pode estar validada; cadastre os callbacks de entrada, entrega e status de mensagem antes de homologar respostas para a Ana.',
       testLead: null,
     };
     const testLeadSummary = testLead && testLeadPhone ? {
@@ -198,28 +212,53 @@ async function configureWhatsAppWebhook(
   const webhookToken = typeof zapi?.webhook_token === 'string' ? zapi.webhook_token.trim() : '';
   if (credentialsError || !instanceId || !token || !clientToken || !webhookToken) throw new Error('whatsapp_webhook_credentials_missing');
 
-  const callbackUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/webhook-whatsapp?integration_id=${encodeURIComponent(whatsapp.id)}&token=${encodeURIComponent(webhookToken)}`;
-  const response = await fetch(`${zapiBaseUrl(typeof zapi?.url_base === 'string' ? zapi.url_base : undefined)}/instances/${encodeURIComponent(instanceId)}/token/${encodeURIComponent(token)}/update-webhook-received`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json', 'Client-Token': clientToken },
-    body: JSON.stringify({ value: callbackUrl }),
-    signal: AbortSignal.timeout(20_000),
-    redirect: 'error',
-  });
-  const providerBody = await response.json().catch(() => null) as Record<string, unknown> | null;
-  if (!response.ok || providerBody?.value === false) throw new Error(`zapi_webhook_setup_${response.status}`);
-
   const webhook = await upsertOperationalIntegration(admin, organizationId, {
     key: 'zapi_webhook',
-    label: 'Entrada do WhatsApp',
+    label: 'Webhooks do WhatsApp',
     provider: 'Z-API',
     category: 'communication',
-    detail: 'Recebe respostas do WhatsApp para a Ana.',
+    detail: 'Recebe respostas, confirmações de entrega e status de mensagens do WhatsApp.',
   });
+  const now = new Date().toISOString();
+  const callbackUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/webhook-whatsapp?integration_id=${encodeURIComponent(whatsapp.id)}&token=${encodeURIComponent(webhookToken)}`;
+  const registered: string[] = [];
+  try {
+    for (const endpoint of ZAPI_WEBHOOK_ENDPOINTS) {
+      const response = await fetch(`${zapiBaseUrl(typeof zapi?.url_base === 'string' ? zapi.url_base : undefined)}/instances/${encodeURIComponent(instanceId)}/token/${encodeURIComponent(token)}/${endpoint}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Client-Token': clientToken },
+        body: JSON.stringify({ value: callbackUrl }),
+        signal: AbortSignal.timeout(20_000),
+        redirect: 'error',
+      });
+      const providerBody = await response.json().catch(() => null) as Record<string, unknown> | null;
+      if (!response.ok || providerBody?.value === false) throw new Error(`zapi_webhook_setup_${endpoint}_${response.status}`);
+      registered.push(endpoint);
+    }
+  } catch (error) {
+    const { error: partialStateError } = await admin.from('integrations').update({
+      connected: false,
+      enabled: true,
+      paused: false,
+      last_error: safeError(error).slice(0, 160),
+      last_error_at: now,
+      status_detail: 'Cadastro dos callbacks Z-API não foi concluído; nenhuma resposta da Ana foi homologada.',
+      configuration: {
+        ...asObject(webhook.configuration),
+        registration_attempted_at: now,
+        registration_endpoints: registered,
+        registration_complete: false,
+      },
+      updated_at: now,
+    }).eq('id', webhook.id).eq('organization_id', organizationId);
+    if (partialStateError) throw new Error('whatsapp_webhook_partial_state_save_failed');
+    throw error;
+  }
   const configuration = {
     ...asObject(webhook.configuration),
-    registered_at: new Date().toISOString(),
-    registration_endpoint: 'update-webhook-received',
+    registered_at: now,
+    registration_endpoints: ZAPI_WEBHOOK_ENDPOINTS,
+    registration_complete: true,
   };
   const { error: updateError } = await admin.from('integrations').update({
     connected: false,
@@ -228,9 +267,9 @@ async function configureWhatsAppWebhook(
     last_tested_at: null,
     last_success_at: null,
     last_error: null,
-    status_detail: 'Entrada cadastrada na Z-API; aguardando uma resposta de teste de um lead cadastrado.',
+    status_detail: 'Callbacks Z-API cadastrados; aguardando uma mensagem direta de teste de um lead cadastrado.',
     configuration,
-    updated_at: new Date().toISOString(),
+    updated_at: now,
   }).eq('id', webhook.id).eq('organization_id', organizationId);
   if (updateError) throw new Error('whatsapp_webhook_status_save_failed');
   await admin.from('audit_logs').insert({
@@ -238,13 +277,13 @@ async function configureWhatsAppWebhook(
     actor_id: actor.id,
     actor_name: actor.name,
     actor_type: 'user',
-    action: 'integration.whatsapp_webhook_registered',
-    detail: 'Entrada de mensagens registrada na Z-API; aguardando callback controlado.',
+    action: 'integration.whatsapp_webhooks_registered',
+    detail: 'Callbacks de entrada, entrega e status registrados na Z-API; aguardando callback controlado.',
     entity_table: 'integrations',
     entity_id: webhook.id,
-    event_data: { provider: 'Z-API', endpoint: 'update-webhook-received' },
+    event_data: { provider: 'Z-API', endpoints: ZAPI_WEBHOOK_ENDPOINTS },
   });
-  return 'A entrada da Z-API foi cadastrada. Agora envie uma mensagem de um número que já exista como lead para concluir a homologação.';
+  return 'Os callbacks de entrada, entrega e status foram cadastrados na Z-API. Agora envie uma mensagem direta de um número que já exista como lead para concluir a homologação.';
 }
 
 async function activateScheduler(

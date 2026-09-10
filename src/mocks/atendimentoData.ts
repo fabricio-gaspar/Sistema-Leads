@@ -5,7 +5,16 @@ export interface Mensagem {
   texto: string;
   hora: string;
   notaInterna?: boolean;
-  statusEnvio?: 'aguardando' | 'enviada' | 'falhou' | 'reconciliacao';
+  statusEnvio?: 'aguardando' | 'aceita' | 'entregue' | 'lida' | 'falhou' | 'reconciliacao';
+  criadoEm?: string;
+  enviadoEm?: string | null;
+  entregueEm?: string | null;
+  lidoEm?: string | null;
+  providerMessageId?: string | null;
+  correlationId?: string | null;
+  tentativas?: number;
+  erroTecnico?: string | null;
+  historicoStatus?: { label: string; at?: string }[];
   // Horários clicáveis oferecidos pela Ana durante o agendamento na conversa.
   opcoesHorario?: { data: string; horaInicio: string; horaFim: string; indice: number }[];
 }

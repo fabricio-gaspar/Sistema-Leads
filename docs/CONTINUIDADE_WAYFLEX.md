@@ -1,6 +1,6 @@
 # Checkpoint — WayFlex CRM
 
-Última atualização: 2026-09-09. Este documento permite retomar o trabalho quando
+Última atualização: 2026-09-10. Este documento permite retomar o trabalho quando
 Fabricio disser **“pode seguir”**, sem depender do histórico da conversa.
 
 ## Como retomar
@@ -221,3 +221,29 @@ webhook em ambiente controlado.
   segura caso essa tentativa não termine.
 - Isto homologa somente a saída do WhatsApp. Para a Ana receber e responder, ainda é necessário
   cadastrar um lead com o mesmo número e enviar uma resposta individual para o webhook.
+
+## Configuração publicada da Ana e cadência segura — 10/09/2026
+
+- A tela **Configurar a Ana** agora publica uma versão ativa por organização. Essa versão é a
+  fonte de instruções, tom, canais permitidos, horários, cadência, limite diário por lead e
+  limiar de transferência. Publicar não liga canais, não libera o Ambiente Real e não envia
+  mensagens.
+- `ana-run` é a única autoridade automática. Os caminhos legados no navegador deixaram de
+  disparar respostas ou follow-ups automáticos; a configuração não tem fallback para saudação
+  genérica. Cada saída automática guarda a versão que a gerou e é bloqueada se essa versão
+  deixar de ser a ativa. Orçamentos, preço, prazo, desconto e negociação exigem revisão humana.
+- Foram aplicadas no projeto Supabase oficial as migrations de reconciliação de handoff e
+  mensagens humanas, reserva de política de cadência e reserva idempotente de teste direto
+  WhatsApp. As funções de configuração, Ana, worker, integração e webhook foram publicadas
+  nas versões correspondentes deste checkpoint.
+- As chaves de IA continuam no Vault: a interface só lê provedor, modelo e estado público.
+  Selecionar ou salvar um modelo não comprova uma chamada real ao provedor.
+- Validação local deste checkpoint: type-check do frontend e das Edge Functions, lint, 154
+  testes e build aprovados. Não foi feito envio real, teste de modelo, mudança de
+  `sandbox_mode` ou exclusão de dados.
+- Limites conhecidos: recibo de entrega/leitura que chegar antes da persistência da aceitação
+  do provedor pode exigir callback repetido para reconciliação; há uma janela residual entre a
+  última revalidação do worker e a chamada ao provedor; e timeout já agendado não é rearmado
+  retroativamente quando a configuração da Ana muda. Se a aceitação remota ocorrer e a
+  persistência local falhar, o job fica em reconciliação até tratamento operacional. Esses
+  pontos não autorizam afirmar homologação externa ponta a ponta.

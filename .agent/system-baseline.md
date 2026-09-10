@@ -62,4 +62,17 @@ orçamentos. Não é sistema de venda, checkout, pedido ou recebimento.
 - Remoção integral de stores/mocks operacionais e funções legadas.
 - Prontidão comercial sem nova auditoria final e piloto controlado.
 
+## Delta atual — configuração da Ana
+
+- A versão ativa de `ai_agents`/`ai_agent_versions` é a fonte de comportamento da Ana:
+  conteúdo, canais, cadência, horário comercial, limite diário por lead e handoff.
+- `ana-run` é a única autoridade automática; a interface não envia automaticamente nem
+  conserva um fallback textual genérico. Conteúdo comercial sensível é encaminhado para
+  revisão humana. Uma saída automática traz a versão que a gerou e é recusada se a versão
+  publicada tiver mudado.
+- `automation-worker` revalida proteção interna, canal, handoff, configuração e lead antes
+  do provedor. Isso reduz, mas não elimina, a corrida entre uma tomada humana e a chamada
+  externa.
+- A seleção de provedor/modelo não expõe chaves nem é evidência de execução do modelo.
+
 Detalhes de continuidade e releases ficam em `docs/CONTINUIDADE_WAYFLEX.md`.

@@ -151,3 +151,21 @@
 - A causa estrutural do relato foi corrigida: a Central antes apenas gravava o job e aguardava o próximo ciclo do worker. Agora ela chama o worker autenticado para despachar **somente o job recém-criado**; o claim atômico mantém o cron seguro contra duplicidade e a fila continua como recuperação se a tentativa imediata não concluir.
 - Em **Configurações > Canais, APIs e fontes**, o botão de teste do WhatsApp agora abre um fluxo único: número controlado + mensagem → validação da Z-API → envio real direto. A nova função `enviar-teste-whatsapp` exige JWT e papel administrativo, não usa segredo no navegador, não cria lead/conversa e mascara o telefone na auditoria.
 - Funções implantadas: `automation-worker` v15 e `enviar-teste-whatsapp` v1. Type-check frontend/Edge, lint e build passaram. O teste direcionado imprimiu 39 verificações aprovadas; o processo permaneceu aberto após a saída e foi interrompido somente então. Nenhuma mensagem real foi enviada pelo agente.
+
+## 2026-09-10 — Configuração publicada da Ana e políticas de cadência
+
+- A personalização passou a salvar uma versão ativa da Ana, sem ativar canais ou enviar por
+  efeito colateral. A versão governa comportamento, conteúdo, canais, cadência, horário,
+  limite diário por lead e handoff do `ana-run`. Toda saída automática guarda essa versão e
+  é bloqueada se outra configuração for publicada antes do provedor.
+- Foram aplicadas as migrations `20260910170000_reconcile_handoffs_and_human_messages`,
+  `20260910183000_enforce_ana_cadence_policy` e
+  `20260910190000_reserve_whatsapp_direct_test` no projeto Supabase oficial.
+- Foram publicadas as funções `ana-ia` v9, `ana-run` v20, `automation-worker` v17,
+  `configurar-integracao` v14, `enviar-teste-whatsapp` v2, `enviar-whatsapp` v6,
+  `operational-diagnostics` v12, `testar-integracao` v14, `webhook-whatsapp` v15 e
+  `lead-workflow` v3.
+- A configuração de IA não revela chave; modelos permitidos são validados no backend e o
+  painel declara corretamente que a seleção não equivale a teste real do modelo.
+- Type-check frontend/Edge, lint, 154 testes e build passaram. Não houve envio de WhatsApp,
+  execução de modelo, alteração de `sandbox_mode` ou remoção de dados neste lote.

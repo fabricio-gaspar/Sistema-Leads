@@ -35,10 +35,45 @@ export interface AnaPersonalization {
   };
 }
 
-export async function saveAnaPersonalization(configuration: AnaPersonalization): Promise<void> {
+export interface AnaPersonalizationSnapshot {
+  configuration: AnaPersonalization | null;
+  version: { id: string; number: number; publishedAt: string | null } | null;
+}
+
+export interface AnaPersonalizationPublishResult {
+  version: { id: string; number: number; publishedAt: string | null };
+}
+
+export async function loadAnaPersonalization(): Promise<AnaPersonalizationSnapshot> {
+  const { data, error } = await supabase.functions.invoke('ana-ia', {
+    body: { acao: 'obter_configuracao' },
+  });
+  if (error) throw error;
+  if (!data?.ok) throw new Error(data?.erro ?? 'ana_configuration_not_loaded');
+  return {
+    configuration: data.configuration && typeof data.configuration === 'object'
+      ? data.configuration as AnaPersonalization
+      : null,
+    version: data.version && typeof data.version.id === 'string' && typeof data.version.number === 'number'
+      ? { id: data.version.id, number: data.version.number, publishedAt: typeof data.version.publishedAt === 'string' ? data.version.publishedAt : null }
+      : null,
+  };
+}
+
+export async function saveAnaPersonalization(configuration: AnaPersonalization): Promise<AnaPersonalizationPublishResult> {
   const { data, error } = await supabase.functions.invoke('ana-ia', {
     body: { acao: 'salvar_configuracao', configuracao: configuration },
   });
   if (error) throw error;
   if (!data?.ok) throw new Error(data?.erro ?? 'ana_configuration_not_saved');
+  if (typeof data.version?.id !== 'string' || typeof data.version?.number !== 'number') {
+    throw new Error('ana_configuration_version_not_confirmed');
+  }
+  return {
+    version: {
+      id: data.version.id,
+      number: data.version.number,
+      publishedAt: typeof data.version.publishedAt === 'string' ? data.version.publishedAt : null,
+    },
+  };
 }

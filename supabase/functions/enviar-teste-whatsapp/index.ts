@@ -5,6 +5,30 @@ import { zapiBaseUrl } from '../_shared/runtimeSafety.ts';
 const text = (value: unknown, max = 1_000) => typeof value === 'string' ? value.trim().slice(0, max) : '';
 const object = (value: unknown): Record<string, unknown> => value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
 
+type DirectTestReservationStatus = 'reserved' | 'provider_accepted' | 'reconciliation_required';
+
+function requestId(value: unknown): string {
+  const candidate = text(value, 80).toLowerCase();
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(candidate)) {
+    throw new Error('test_request_id_invalid');
+  }
+  return candidate;
+}
+
+async function directTestFingerprint(phone: string, message: string): Promise<string> {
+  const value = new TextEncoder().encode(`${phone}\u0000${message}`);
+  const digest = await crypto.subtle.digest('SHA-256', value);
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
+
+function rpcStatus(value: unknown): DirectTestReservationStatus | null {
+  const row = Array.isArray(value) ? value[0] : value;
+  const status = object(row).status;
+  return status === 'reserved' || status === 'provider_accepted' || status === 'reconciliation_required'
+    ? status
+    : null;
+}
+
 function whatsappPhone(value: unknown): string {
   const digits = text(value, 80).replace(/\D/g, '');
   const normalized = /^[1-9]\d{9,10}$/.test(digits) ? `55${digits}` : digits;
@@ -27,11 +51,18 @@ Deno.serve(async (request) => {
   if (request.method !== 'POST') return json({ ok: false, erro: 'method_not_allowed' }, 405, headers);
 
   try {
-    const body = await request.json().catch(() => ({})) as { phone?: unknown; message?: unknown; confirmation?: unknown };
+    const body = await request.json().catch(() => ({})) as {
+      phone?: unknown;
+      message?: unknown;
+      confirmation?: unknown;
+      request_id?: unknown;
+    };
     if (body.confirmation !== 'SEND_REAL_WHATSAPP_TEST') throw new Error('test_message_confirmation_required');
+    const idempotencyRequestId = requestId(body.request_id);
     const phone = whatsappPhone(body.phone);
     const message = text(body.message, 600);
     if (!message) throw new Error('test_message_required');
+    const fingerprint = await directTestFingerprint(phone, message);
 
     const { user } = await requireUser(request);
     const admin = createAdminClient();
@@ -63,6 +94,44 @@ Deno.serve(async (request) => {
     if (statusBody?.connected !== true) throw new Error('zapi_instance_not_connected');
     if (statusBody?.smartphoneConnected !== true) throw new Error('zapi_phone_offline');
 
+    // This reservation is intentionally persisted immediately before send-text.
+    // A retry with this request_id, or with an unresolved matching payload under
+    // a different request_id, must never create a second external WhatsApp send.
+    const { data: reservation, error: reservationError } = await admin.rpc('reserve_whatsapp_direct_test', {
+      p_organization_id: organizationId,
+      p_actor_id: user.id,
+      p_actor_name: text(profile.name, 160) || 'Usuário',
+      p_integration_id: integration.id,
+      p_request_id: idempotencyRequestId,
+      p_phone_suffix: phone.slice(-4),
+      p_message_length: message.length,
+      p_test_fingerprint: fingerprint,
+    });
+    const reservationStatus = rpcStatus(reservation);
+    if (reservationError || !reservationStatus) throw new Error('whatsapp_test_reservation_failed');
+    if (reservationStatus === 'provider_accepted') {
+      return json({
+        ok: true,
+        providerAccepted: true,
+        duplicate: true,
+        resendBlocked: true,
+        deliveryConfirmed: false,
+        readConfirmed: false,
+        phoneSuffix: phone.slice(-4),
+        mensagem: 'Este teste já foi aceito pela Z-API. O envio não foi repetido; entrega e leitura não foram confirmadas.',
+      }, 200, headers);
+    }
+    if (reservationStatus === 'reconciliation_required') {
+      return json({
+        ok: false,
+        providerAccepted: false,
+        reconciliationRequired: true,
+        resendBlocked: true,
+        phoneSuffix: phone.slice(-4),
+        mensagem: 'Há uma tentativa anterior sem confirmação interna conclusiva. O envio não foi repetido.',
+      }, 409, headers);
+    }
+
     const sendResponse = await fetch(`${baseUrl}/instances/${encodeURIComponent(instanceId)}/token/${encodeURIComponent(token)}/send-text`, {
       method: 'POST', headers: headersToProvider, body: JSON.stringify({ phone, message }), signal: AbortSignal.timeout(20_000), redirect: 'error',
     });
@@ -70,22 +139,45 @@ Deno.serve(async (request) => {
     if (!sendResponse.ok) throw new Error(failureCode(sendResponse.status));
     if (typeof receipt?.messageId !== 'string' || !receipt.messageId) throw new Error('zapi_test_receipt_missing');
 
+    // Do not retain the provider receipt or the test text in audit metadata. The
+    // RPC records only masked, minimal reconciliation evidence.
+    const { data: acceptance, error: acceptanceError } = await admin.rpc('record_whatsapp_direct_test_provider_acceptance', {
+      p_organization_id: organizationId,
+      p_integration_id: integration.id,
+      p_request_id: idempotencyRequestId,
+    });
+    if (acceptanceError || rpcStatus(acceptance) !== 'provider_accepted') {
+      return json({
+        ok: true,
+        providerAccepted: true,
+        reconciliationRequired: true,
+        resendBlocked: true,
+        deliveryConfirmed: false,
+        readConfirmed: false,
+        phoneSuffix: phone.slice(-4),
+        mensagem: 'A mensagem foi aceita pela Z-API, mas o registro interno precisa de conciliação. Não reenvie este teste.',
+      }, 202, headers);
+    }
+
     const now = new Date().toISOString();
     const { error: healthError } = await admin.from('integrations').update({
       connected: true, enabled: true, paused: false,
       status_detail: 'Conexão Z-API validada. A última mensagem de teste foi aceita pelo provedor.',
       last_tested_at: now, last_success_at: now, last_error: null, last_error_at: null, updated_at: now,
     }).eq('id', integration.id).eq('organization_id', organizationId);
-    if (healthError) throw new Error('whatsapp_test_status_save_failed');
-    await admin.from('audit_logs').insert({
-      organization_id: organizationId, actor_id: user.id, actor_name: profile.name, actor_type: 'user',
-      action: 'outreach.whatsapp_direct_test_sent',
-      detail: 'Mensagem de teste aceita pela Z-API após validação de conexão.',
-      entity_table: 'integrations', entity_id: integration.id,
-      event_data: { phone_suffix: phone.slice(-4), message_length: message.length, provider_message_id: receipt.messageId },
-    });
 
-    return json({ ok: true, providerAccepted: true, phoneSuffix: phone.slice(-4) }, 200, headers);
+    return json({
+      ok: true,
+      providerAccepted: true,
+      resendBlocked: true,
+      deliveryConfirmed: false,
+      readConfirmed: false,
+      statusUpdated: !healthError,
+      phoneSuffix: phone.slice(-4),
+      mensagem: healthError
+        ? 'Mensagem de teste aceita pela Z-API. A atualização de status será conciliada; entrega e leitura não foram confirmadas.'
+        : 'Mensagem de teste aceita pela Z-API. Entrega e leitura não foram confirmadas.',
+    }, healthError ? 202 : 200, headers);
   } catch (error) {
     return json({ ok: false, erro: safeError(error) }, 400, headers);
   }
