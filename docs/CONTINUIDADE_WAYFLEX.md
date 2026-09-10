@@ -306,3 +306,6 @@ webhook em ambiente controlado.
 - Validação local: type-check frontend/Edge, lint sem warnings, 15 arquivos/159 testes, build
   e smoke test do Worker com valores públicos simulados passaram. Não houve envio de WhatsApp,
   chamada a modelo, alteração de `sandbox_mode`, exclusão de lead nem download de mídia.
+- A publicação final foi concluída no Site oficial como versão 65. A verificação no navegador
+  confirmou que a rota inicial agora abre a tela de login, em vez de “Configuração necessária”.
+  Não foi feito login, envio, execução de modelo ou interação comercial durante essa checagem.
