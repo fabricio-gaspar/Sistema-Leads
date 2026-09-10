@@ -189,3 +189,23 @@ webhook em ambiente controlado.
 - Relatório completo: `docs/AUDITORIA_CONSOLIDACAO_2026-09-09.md`.
 - Próxima ação segura: publicar este checkpoint e, em Demo, receber uma mensagem individual de
   um lead cadastrado para validar webhook → matching → histórico → `ana-run` exatamente uma vez.
+
+## Ambiente Real único e limpeza segura — 10/09/2026
+
+- O painel não oferece mais modo ou botão de Demonstração. `company_settings.sandbox_mode`
+  continua apenas como proteção interna: enquanto estiver ligado, o painel informa que o
+  Ambiente Real está em preparação e o backend bloqueia saídas automáticas.
+- A validação bem-sucedida da Z-API registra a integração como pronta e, com empresa ativa e
+  fila sem itens antigos, grava `sandbox_mode=false`. Assim a Central de Atendimento pode operar
+  no Ambiente Real sem depender de localStorage. A tela diferencia claramente comunicação manual
+  liberada de automações da Ana ainda pendentes.
+- A ação **Verificar preparação** permanece útil depois da ativação do canal: ela continua
+  tentando configurar o webhook de entrada e o worker 24/7, em vez de parar por o Ambiente Real
+  já estar habilitado para comunicação.
+- A migration `20260910134209_purge_selected_test_leads` e a função autenticada
+  `cleanup-test-leads` removem, dentro de uma transação, o grafo completo de leads de teste
+  previamente selecionados. O painel mostra os candidatos, exige seleção e confirmação e nunca
+  apaga dados ambíguos automaticamente.
+- Funções implantadas: `testar-integracao` v13, `operational-diagnostics` v11 e
+  `cleanup-test-leads` v1, todas com JWT obrigatório. Nenhuma mensagem foi enviada e nenhuma
+  exclusão foi disparada durante este lote.

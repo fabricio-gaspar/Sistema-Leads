@@ -2,11 +2,11 @@
   "schema_version": 1,
   "baseline_version": 3,
   "baseline_commit": "1fbd231ff88b4e02c3ddddd18253a1f3be8be5ee",
-  "last_audited_commit": "1fbd231ff88b4e02c3ddddd18253a1f3be8be5ee",
-  "current_head_at_update": "1fbd231ff88b4e02c3ddddd18253a1f3be8be5ee",
-  "working_tree_status": "guided_activation_edge_deployed_frontend_pending_publish",
+  "last_audited_commit": "6d738c237be90fe82df5c54bc2c1a7ac2d69a350",
+  "current_head_at_update": "6d738c237be90fe82df5c54bc2c1a7ac2d69a350",
+  "working_tree_status": "real_environment_and_confirmed_cleanup_ready_for_site_publish",
   "full_audit_required": false,
   "baseline_status": "validated",
-  "updated_at": "2026-09-10T00:00:00Z",
-  "next_action": "Publicar a ativação inteligente. O operador deve clicar em Ambiente Real; o backend prepara os itens seguros, permanece em Demonstração se houver bloqueio e mostra somente a próxima ação necessária."
+  "updated_at": "2026-09-10T14:30:00Z",
+  "next_action": "Publicar o checkpoint. Depois, o operador deve validar a Z-API em Configurações > Canais, selecionar somente os leads de teste confirmados em Status operacional e, se desejar automação da Ana, concluir a entrada WhatsApp e o heartbeat do worker."
 }
