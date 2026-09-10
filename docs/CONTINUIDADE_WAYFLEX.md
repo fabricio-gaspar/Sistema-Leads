@@ -241,3 +241,5 @@ webhook em ambiente controlado.
 - Nenhum dado do Supabase, segredo, lead ou mensagem foi alterado durante este lote. A inspeção
   visual autenticada por Computer Use ficou pendente por falha local de permissão ao carregar o
   módulo do navegador; a referência foi analisada pela imagem pública da página compartilhada.
+- O código foi registrado no commit `83ffd1001f8c6777a85f3aec304e1434897d5d8e` e publicado
+  com sucesso no Site oficial como versão 59, sem mudar a audiência existente.

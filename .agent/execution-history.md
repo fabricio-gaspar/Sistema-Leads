@@ -169,3 +169,5 @@
   de produção foram aprovados. O Computer Use não carregou por erro local de permissão no módulo
   do navegador, portanto a inspeção autenticada visual permanece pendente; nenhuma operação de
   banco, integração, lead ou mensagem foi executada neste lote.
+- Implementação registrada no commit `83ffd1001f8c6777a85f3aec304e1434897d5d8e` e publicada
+  com sucesso no Site oficial como versão 59, preservando a audiência customizada existente.
