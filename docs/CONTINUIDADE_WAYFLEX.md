@@ -291,7 +291,9 @@ webhook em ambiente controlado.
   as duas variáveis públicas do ambiente do Site correspondiam ao projeto Supabase
   `thgzrkppouoevapjquyu`, mas o bundle estático ainda podia nascer sem elas. O Worker agora
   entrega `/runtime-config.js` com cache `no-store`; o navegador lê URL e chave publicável em
-  tempo de execução. O pacote foi verificado sem URL real nem chave publicável gravadas.
+  tempo de execução. O manifesto de hosting foi convertido de estático para Worker para que a
+  rota dinâmica seja atendida em produção. O pacote foi verificado sem URL real nem chave
+  publicável gravadas.
 - A migration `20260910195000_refresh_wayflex_official_ana_catalog` foi aplicada ao projeto
   oficial. Ela aposentou as 7 memórias gerais v1 e ativou 61 fontes rastreáveis da Wayflex:
   17 catálogos, 18 segmentos, 18 famílias de acessórios e 8 fontes institucionais, de
