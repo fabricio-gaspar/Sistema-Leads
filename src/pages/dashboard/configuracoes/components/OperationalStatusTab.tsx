@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { activateServerScheduler, configureWhatsAppInbound, loadOperationalStatus, setOperationalKillSwitch, setOperationalMode, type OperationalStatus } from '@/lib/crm/operationalDiagnosticsRepository';
+import { activateRealEnvironment, activateServerScheduler, configureWhatsAppInbound, loadOperationalStatus, setOperationalKillSwitch, setOperationalMode, type OperationalStatus } from '@/lib/crm/operationalDiagnosticsRepository';
 
 function formatDate(value: string | null): string {
   return value ? new Date(value).toLocaleString('pt-BR') : 'Ainda não registrado';
@@ -68,17 +68,21 @@ export default function OperationalStatusTab() {
   const changeMode = async () => {
     if (!status || changing) return;
     const next = status.mode === 'real' ? 'demo' : 'real';
-    if (next === 'real' && !status.productionReady) {
-      setError('O modo real permanece bloqueado. Resolva todos os itens da pré-verificação antes de tentar novamente.');
-      return;
-    }
     const message = next === 'real'
-      ? 'Ativar o modo real? Depois desta confirmação, ações que passarem por todas as políticas do servidor poderão produzir efeitos reais.'
+      ? 'Preparar e ativar o Ambiente Real? O servidor fará as verificações e permanecerá em Demonstração se ainda faltar alguma confirmação.'
       : 'Voltar ao Ambiente de Demonstração e bloquear toda saída real?';
     if (!window.confirm(message)) return;
     setChanging(true);
-    try { setStatus(await setOperationalMode(next)); setError(''); }
-    catch { setError(next === 'real' ? 'O servidor recusou o Ambiente Real porque a pré-verificação não está completa.' : 'Não foi possível ativar o Ambiente de Demonstração. O estado anterior foi preservado.'); }
+    try {
+      if (next === 'real') {
+        const result = await activateRealEnvironment();
+        setStatus(result.status); setNotice(result.message);
+      } else {
+        setStatus(await setOperationalMode(next)); setNotice('Ambiente de Demonstração ativo.');
+      }
+      setError('');
+    }
+    catch { setError(next === 'real' ? 'Não foi possível concluir a preparação. O Ambiente de Demonstração foi preservado.' : 'Não foi possível ativar o Ambiente de Demonstração. O estado anterior foi preservado.'); }
     finally { setChanging(false); }
   };
 
@@ -134,10 +138,10 @@ export default function OperationalStatusTab() {
             </div>
             <button
               type="button"
-              disabled={changing || (status.mode !== 'real' && !status.productionReady)}
+              disabled={changing}
               onClick={() => void changeMode()}
               className={`wf-btn text-xs disabled:cursor-not-allowed disabled:opacity-50 ${status.mode === 'real' ? 'wf-btn-secondary' : 'wf-btn-primary'}`}
-              title={status.mode !== 'real' && !status.productionReady ? 'Conclua toda a pré-verificação para liberar o modo real.' : undefined}
+              title={status.mode !== 'real' ? 'O servidor preparará automaticamente os itens seguros e só ativará depois da validação final.' : undefined}
             >
               <i className={status.mode === 'real' ? 'ri-shield-check-line' : 'ri-rocket-line'} />
               {changing ? 'Atualizando…' : status.mode === 'real' ? 'Ativar demonstração' : 'Ativar Ambiente Real'}

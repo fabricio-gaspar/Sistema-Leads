@@ -73,11 +73,17 @@ export interface OperationalDiagnostics {
   risks: Array<{ id: string; channel: string; risk_level: string; action: string; reason: string; created_at: string }>;
 }
 
-type OperationalAction = 'status' | 'set_kill_switch' | 'set_mode' | 'events' | 'configure_whatsapp_webhook' | 'activate_scheduler';
+type OperationalAction = 'status' | 'set_kill_switch' | 'set_mode' | 'activate_real' | 'events' | 'configure_whatsapp_webhook' | 'activate_scheduler';
 
 export interface OperationalSetupResult {
   message: string;
   status: OperationalStatus;
+}
+
+export interface OperationalActivationResult extends OperationalSetupResult {
+  activated: boolean;
+  actions: string[];
+  remaining: OperationalCheck[];
 }
 
 async function invoke<T>(action: OperationalAction, payload: Record<string, unknown> = {}): Promise<T> {
@@ -96,6 +102,10 @@ export async function setOperationalKillSwitch(enabled: boolean): Promise<Operat
 
 export async function setOperationalMode(mode: OperationalMode): Promise<OperationalStatus> {
   return (await invoke<{ status: OperationalStatus }>('set_mode', { mode })).status;
+}
+
+export async function activateRealEnvironment(): Promise<OperationalActivationResult> {
+  return invoke<OperationalActivationResult>('activate_real');
 }
 
 export async function loadOperationalDiagnostics(): Promise<OperationalDiagnostics> {

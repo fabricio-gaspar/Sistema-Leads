@@ -379,6 +379,58 @@ describe('Operational mode authority', () => {
   });
   const recent = new Date().toISOString();
 
+  const guidedActivationRequest = () => new Request('https://example.invalid/operational-diagnostics', {
+    method: 'POST',
+    headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'activate_real' }),
+  });
+
+  it('prepares and activates the real environment only after the final server check passes', async () => {
+    let sandboxMode = true;
+    override = (q) => {
+      if (q.table === 'company_settings' && q.operation === 'select') return ok({ ...readyCompany, sandbox_mode: sandboxMode });
+      if (q.table === 'company_settings' && q.operation === 'update') {
+        sandboxMode = q.value?.sandbox_mode !== false;
+        return ok({ id: org });
+      }
+      if (q.table === 'integrations' && q.operation === 'select') return ok([
+        { ...readyIntegration, key: 'ai', label: 'IA', last_tested_at: recent, last_error: null },
+        { ...readyIntegration, key: 'whatsapp', label: 'WhatsApp', last_tested_at: recent, last_error: null },
+        { ...readyIntegration, key: 'zapi_webhook', label: 'Webhook', last_tested_at: recent, last_error: null },
+        { ...readyIntegration, key: 'scheduler', label: 'Worker', last_tested_at: recent, last_error: null },
+      ]);
+      return undefined;
+    };
+    await import('../functions/operational-diagnostics/index');
+    const response = await handler(guidedActivationRequest());
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ activated: true, status: { mode: 'real', productionReady: true } });
+    expect(calls.find((q) => q.table === 'company_settings' && q.operation === 'update')?.value).toMatchObject({ sandbox_mode: false });
+  });
+
+  it('keeps demo active and returns only real blockers when external confirmation is still missing', async () => {
+    override = (q) => {
+      if (q.table === 'company_settings' && q.operation === 'select') return ok({ ...readyCompany, sandbox_mode: true });
+      if (q.table === 'integrations' && q.operation === 'select') return ok([
+        { ...readyIntegration, key: 'ai', label: 'IA', last_tested_at: recent, last_error: null },
+        { ...readyIntegration, key: 'whatsapp', label: 'WhatsApp', last_tested_at: recent, last_error: null },
+        { ...readyIntegration, key: 'zapi_webhook', label: 'Webhook', connected: false, enabled: true, last_tested_at: null, last_error: null, configuration: { registered_at: recent } },
+        { ...readyIntegration, key: 'scheduler', label: 'Worker', last_tested_at: recent, last_error: null },
+      ]);
+      if (q.table === 'webhook_events') return ok([]);
+      return undefined;
+    };
+    await import('../functions/operational-diagnostics/index');
+    const response = await handler(guidedActivationRequest());
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      activated: false,
+      remaining: [{ id: 'whatsapp_webhook', ok: false }],
+      status: { mode: 'demo' },
+    });
+    expect(calls.some((q) => q.table === 'company_settings' && q.operation === 'update')).toBe(false);
+  });
+
   it('enables real mode only after the server preflight passes', async () => {
     override = (q) => {
       if (q.table === 'integrations' && q.operation === 'select') return ok([

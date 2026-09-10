@@ -2,7 +2,7 @@ import { createAdminClient, requireOrganizationRole, requireUser } from '../_sha
 import { allowedCorsHeaders, hasAllowedOrigin, json, preflight, safeError } from '../_shared/http.ts';
 import { zapiBaseUrl } from '../_shared/runtimeSafety.ts';
 
-type Action = 'status' | 'set_kill_switch' | 'set_mode' | 'events' | 'configure_whatsapp_webhook' | 'activate_scheduler';
+type Action = 'status' | 'set_kill_switch' | 'set_mode' | 'activate_real' | 'events' | 'configure_whatsapp_webhook' | 'activate_scheduler';
 type RequestedMode = 'demo' | 'protected' | 'real';
 type WebhookDiagnosticState = 'not_configured' | 'waiting_callback' | 'lead_not_matched' | 'unsupported_callback' | 'processing_failed' | 'homologated';
 
@@ -290,6 +290,83 @@ async function activateScheduler(
   return 'Worker preparado. O servidor fará a primeira verificação em até um minuto; atualize este painel para confirmar o heartbeat.';
 }
 
+async function activateRealEnvironment(
+  admin: ReturnType<typeof createAdminClient>,
+  organizationId: string,
+  actor: { id: string; name: string | null },
+) {
+  let status = await operationalStatus(admin, organizationId);
+  if (status.mode === 'real') return {
+    activated: true,
+    message: 'O Ambiente Real já está ativo e validado pelo servidor.',
+    actions: [] as string[],
+    remaining: [] as typeof status.checks,
+    status,
+  };
+
+  const actions: string[] = [];
+  const check = (id: string) => status.checks.find((item) => item.id === id);
+
+  if (!check('scheduler')?.ok) {
+    const scheduler = status.integrations.find((item) => item.key === 'scheduler');
+    if (!scheduler?.enabled) {
+      await activateScheduler(admin, organizationId, actor);
+      actions.push('Worker 24/7 preparado automaticamente.');
+    }
+  }
+
+  if (!check('whatsapp_webhook')?.ok && status.webhookDiagnostic.state === 'not_configured' && check('whatsapp')?.ok) {
+    await configureWhatsAppWebhook(admin, organizationId, actor);
+    actions.push('Entrada de respostas do WhatsApp cadastrada automaticamente.');
+  }
+
+  status = await operationalStatus(admin, organizationId);
+  const checksExceptKillSwitch = status.checks.filter((item) => item.id !== 'kill_switch');
+  if (status.killSwitch && checksExceptKillSwitch.every((item) => item.ok)) {
+    const { data: current, error: currentError } = await admin.from('organization_module_data').select('data')
+      .eq('organization_id', organizationId).eq('module_key', 'configuracao_runtime').maybeSingle();
+    if (currentError) throw new Error('operational_runtime_read_failed');
+    const data = { ...asObject(current?.data), killSwitchGlobal: false };
+    const { error: writeError } = await admin.from('organization_module_data').upsert({
+      organization_id: organizationId, module_key: 'configuracao_runtime', data, updated_by: actor.id, updated_at: new Date().toISOString(),
+    }, { onConflict: 'organization_id,module_key' });
+    if (writeError) throw new Error('operational_runtime_save_failed');
+    await admin.from('audit_logs').insert({
+      organization_id: organizationId, actor_id: actor.id, actor_name: actor.name, actor_type: 'user',
+      action: 'automation.kill_switch_disabled', detail: 'Pausa global liberada durante a ativação validada do Ambiente Real.',
+      entity_table: 'organization_module_data', event_data: { module_key: 'configuracao_runtime', source: 'guided_real_activation' },
+    });
+    actions.push('Pausa global liberada após as demais verificações serem aprovadas.');
+    status = await operationalStatus(admin, organizationId);
+  }
+
+  const remaining = status.checks.filter((item) => !item.ok);
+  if (remaining.length > 0) return {
+    activated: false,
+    message: actions.length > 0
+      ? 'O sistema concluiu a preparação automática. Falta somente a ação indicada abaixo.'
+      : 'O sistema continua protegido. Conclua somente a ação indicada abaixo e tente ativar novamente.',
+    actions,
+    remaining,
+    status,
+  };
+
+  const { error: modeWriteError } = await admin.from('company_settings').update({
+    sandbox_mode: false,
+    updated_at: new Date().toISOString(),
+  }).eq('organization_id', organizationId);
+  if (modeWriteError) throw new Error('operational_mode_save_failed');
+  await admin.from('audit_logs').insert({
+    organization_id: organizationId, actor_id: actor.id, actor_name: actor.name, actor_type: 'user',
+    action: 'operation.real_mode_enabled',
+    detail: 'Ambiente Real preparado e ativado após pré-verificação final do servidor.',
+    entity_table: 'company_settings', event_data: { source: 'guided_real_activation', preflight: status.checks, automatic_actions: actions },
+  });
+  actions.push('Ambiente Real ativado.');
+  status = await operationalStatus(admin, organizationId);
+  return { activated: true, message: 'Ambiente Real ativo. O sistema está pronto para operar com as políticas de segurança.', actions, remaining: [], status };
+}
+
 async function diagnosticEvents(admin: ReturnType<typeof createAdminClient>, organizationId: string) {
   const [status, auditRead, runsRead, webhookRead, queuedRead, failedJobsRead, riskRead] = await Promise.all([
     operationalStatus(admin, organizationId),
@@ -319,7 +396,7 @@ Deno.serve(async (request) => {
   try {
     const body = await request.json().catch(() => ({})) as { action?: Action; enabled?: unknown; mode?: unknown };
     const action = body.action ?? 'status';
-    if (!['status', 'set_kill_switch', 'set_mode', 'events', 'configure_whatsapp_webhook', 'activate_scheduler'].includes(action)) throw new Error('unsupported_action');
+    if (!['status', 'set_kill_switch', 'set_mode', 'activate_real', 'events', 'configure_whatsapp_webhook', 'activate_scheduler'].includes(action)) throw new Error('unsupported_action');
     const { user } = await requireUser(request);
     const admin = createAdminClient();
     const { data: profile, error: profileError } = await admin.from('profiles').select('active_organization_id,name').eq('id', user.id).maybeSingle();
@@ -335,6 +412,10 @@ Deno.serve(async (request) => {
     if (action === 'activate_scheduler') {
       const message = await activateScheduler(admin, organizationId, { id: user.id, name: profile.name ?? null });
       return json({ ok: true, message, status: await operationalStatus(admin, organizationId) }, 200, headers);
+    }
+
+    if (action === 'activate_real') {
+      return json({ ok: true, ...(await activateRealEnvironment(admin, organizationId, { id: user.id, name: profile.name ?? null })) }, 200, headers);
     }
 
     if (action === 'set_kill_switch') {

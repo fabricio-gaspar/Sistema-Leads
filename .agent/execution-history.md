@@ -124,3 +124,16 @@
   handlers passou 33 verificações; o processo do Vitest não encerrou sozinho após concluir,
   por isso foi interrompido depois do resultado. Build e lint aguardam nova execução porque
   a execução local foi cancelada pelo ambiente antes de iniciar.
+## 2026-09-10 — Ativação inteligente do Ambiente Real
+
+- O botão Ambiente Real deixou de ficar bloqueado pela lista de pré-requisitos. Ao ser
+  confirmado, chama uma única operação autenticada no backend.
+- O backend prepara o worker quando ainda não foi configurado, cadastra a entrada Z-API
+  quando o canal de saída já está validado e libera o kill switch somente depois de todas
+  as demais verificações passarem.
+- `company_settings.sandbox_mode` continua como única autoridade. Se faltar confirmação
+  externa, o resultado permanece em Demonstração e informa somente a próxima ação. O modo
+  real só é gravado após nova verificação integral do servidor.
+- `operational-diagnostics` v8 publicado com JWT obrigatório. Type-check frontend/Edge,
+  lint, build e 35 testes direcionados do fluxo passaram. Nenhum modo foi ativado e nenhuma
+  mensagem foi enviada durante a implantação.

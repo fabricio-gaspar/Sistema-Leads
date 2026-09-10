@@ -119,6 +119,15 @@ webhook em ambiente controlado.
   usar **Enviar teste controlado**, confirmar e aguardar o processamento do worker. Depois o
   lead deve responder pela conversa individual para concluir a homologação de entrada.
 
+## Lote atual — ativação inteligente
+
+- O Dashboard mantém os botões Demonstração e Ambiente Real, mas o Ambiente Real agora chama
+  um orquestrador autenticado no backend em vez de apenas bloquear o clique.
+- O orquestrador prepara worker e entrada do WhatsApp quando aplicável, desliga a pausa global
+  somente no momento seguro e grava `sandbox_mode=false` apenas após a checagem final completa.
+- Quando uma confirmação externa ainda é indispensável, o sistema permanece em Demonstração
+  e apresenta uma única próxima ação. Nenhuma ativação ou mensagem externa ocorreu na publicação.
+
 - Commit de implementação: `357bdb98adad24a2eaf2feb0ab75a083b8f1c1a8`.
 - A conexão de saída Z-API da WayFlex está confirmada no banco. O antigo aviso foi
   reescrito: ele não pede novamente a credencial; pede a **homologação da entrada de
