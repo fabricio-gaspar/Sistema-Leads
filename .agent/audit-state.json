@@ -2,11 +2,11 @@
   "schema_version": 1,
   "baseline_version": 3,
   "baseline_commit": "1fbd231ff88b4e02c3ddddd18253a1f3be8be5ee",
-  "last_audited_commit": "4632121c6822bd00e0856ca073613713821d9c98",
-  "current_head_at_update": "4632121c6822bd00e0856ca073613713821d9c98",
-  "working_tree_status": "direct_zapi_test_and_immediate_manual_dispatch_edge_deployed_site_pending_publish",
+  "last_audited_commit": "1979f73576c645a046fbf2d4bd6770f35f11b6b8",
+  "current_head_at_update": "1979f73576c645a046fbf2d4bd6770f35f11b6b8",
+  "working_tree_status": "wayflex_executive_layout_validated_pending_commit_and_publish",
   "full_audit_required": false,
   "baseline_status": "validated",
-  "updated_at": "2026-09-10T15:15:00Z",
-  "next_action": "Publicar este checkpoint. Depois, o operador deve usar Configurações > Canais, APIs e fontes > WhatsApp > Testar envio com um número próprio; em seguida, enviar uma mensagem manual pela Central e, para homologar Ana, responder por um lead com o mesmo número." 
+  "updated_at": "2026-09-10T20:23:35Z",
+  "next_action": "Commitar e publicar o layout no Site oficial existente; depois executar inspeção visual autenticada quando o Computer Use voltar a carregar no host."
 }

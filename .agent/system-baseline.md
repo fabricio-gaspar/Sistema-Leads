@@ -12,6 +12,8 @@ orçamentos. Não é sistema de venda, checkout, pedido ou recebimento.
 - React, TypeScript, Vite e Tailwind no frontend.
 - Supabase Auth/Postgres/RLS/Storage/Edge Functions no backend.
 - Site privado existente, com publicação vinculada ao repositório Git.
+- O design global segue o padrão **Wayflex Executive Light**: superfícies claras, contraste
+  neutro, verde institucional, bordas finas e navegação orientada ao processo comercial.
 
 ## Fontes operacionais principais
 
@@ -50,6 +52,11 @@ orçamentos. Não é sistema de venda, checkout, pedido ou recebimento.
   por marcadores objetivos são exibidos antes de remover mensagens, filas, execuções, Kanban,
   agenda, atendimento, orçamentos e identidades de canal. Nenhum candidato é apagado automaticamente.
 - `operational-diagnostics` e `team-members` foram publicados.
+- O Dashboard organiza o processo em **Começo · captar**, **Meio · atender** e
+  **Final · fechar**. Os cartões Ambiente Real, Z-API, entrada WhatsApp, Ana, worker e
+  fontes são calculados pelo diagnóstico do backend; não há indicador decorativo de online.
+- Configurações separa responsabilidades em **Canais**, **APIs** e **Fontes**. A validação
+  e o teste direto da Z-API ficam exclusivamente no bloco Canais > WhatsApp.
 - Build, lint, typecheck e 104 testes estavam aprovados no commit-base.
 - A versão privada publicada correspondente ao último lote conhecido é a 48.
 

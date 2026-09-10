@@ -221,3 +221,23 @@ webhook em ambiente controlado.
   segura caso essa tentativa não termine.
 - Isto homologa somente a saída do WhatsApp. Para a Ana receber e responder, ainda é necessário
   cadastrar um lead com o mesmo número e enviar uma resposta individual para o webhook.
+
+## Layout Wayflex Executive Light — 10/09/2026
+
+- A linguagem visual do Site foi alinhada à referência fornecida: base branca/cinza muito clara,
+  verde institucional, bordas finas, sombras discretas e densidade de dashboard executivo. A
+  mudança reaproveita componentes, rotas e regras existentes; não houve redesenho de domínio.
+- O menu global agora comunica o fluxo comercial: **Começo · captar** (Busca e Leads),
+  **Meio · atender** (Kanban, Central e Agenda), **Final · fechar** (Orçamentos, Funil e
+  Relatórios) e Administração. A busca lateral filtra telas reais e o topo usa breadcrumb.
+- O Dashboard ganhou atalhos de começo/meio/final e cartões de recursos que consultam
+  `operational-diagnostics`: Ambiente Real, WhatsApp Z-API, entrada, Ana, worker e fontes. O
+  rótulo Ativo nunca é decorativo; durante consulta aparece “Consultando”.
+- Configurações inicia em Status operacional e separa **Canais** (WhatsApp/Z-API), **APIs**
+  (IA e prospecção) e **Fontes** (ativação na Busca de Leads). O teste Z-API permanece somente
+  no cartão WhatsApp. Conexão validada e uso ativo são exibidos como fatos diferentes.
+- Regressão adicionada para impedir que integração conectada porém desativada apareça ativa.
+  Type-check frontend/Edge, lint, 14 arquivos de teste/127 verificações e build passaram.
+- Nenhum dado do Supabase, segredo, lead ou mensagem foi alterado durante este lote. A inspeção
+  visual autenticada por Computer Use ficou pendente por falha local de permissão ao carregar o
+  módulo do navegador; a referência foi analisada pela imagem pública da página compartilhada.

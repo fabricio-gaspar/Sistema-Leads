@@ -20,16 +20,16 @@ interface MenuGroup {
 
 const groups: MenuGroup[] = [
   {
-    title: 'Comece aqui',
+    title: 'Configuração inicial',
     items: [
-      { id: 'ana', label: 'Configurar a Ana', icon: 'ri-robot-2-line' },
       { id: 'operacao', label: 'Status operacional', icon: 'ri-pulse-line' },
+      { id: 'empresa', label: 'Empresa e conhecimento', icon: 'ri-building-2-line' },
+      { id: 'ana', label: 'Configurar a Ana', icon: 'ri-robot-2-line' },
     ],
   },
   {
-    title: 'Base comercial',
+    title: 'Operação comercial',
     items: [
-      { id: 'empresa', label: 'Empresa e conhecimento', icon: 'ri-building-2-line' },
       { id: 'equipe', label: 'Equipe e acessos', icon: 'ri-team-line' },
       { id: 'produtos', label: 'Produtos e orçamentos', icon: 'ri-shopping-bag-3-line' },
     ],
@@ -72,9 +72,9 @@ const legacyTabMap: Record<string, string> = {
 const availableTabs = new Set(groups.flatMap((group) => group.items.map((item) => item.id)));
 
 function tabFromUrl() {
-  const requested = new URLSearchParams(window.location.search).get('tab') || 'ana';
+  const requested = new URLSearchParams(window.location.search).get('tab') || 'operacao';
   const tab = legacyTabMap[requested] || requested;
-  return availableTabs.has(tab) ? tab : 'ana';
+  return availableTabs.has(tab) ? tab : 'operacao';
 }
 
 export default function DashboardConfiguracoes() {
@@ -94,18 +94,18 @@ export default function DashboardConfiguracoes() {
       <div className="wf-page-header">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-primary-700">Administração</p>
-          <h1 className="wf-page-title mt-1">Configurações</h1>
+          <h1 className="wf-page-title mt-1">Configurações do sistema</h1>
           <p className="wf-page-description">
-            Cada área abaixo altera ou mostra a configuração efetivamente usada na operação da WayFlex.
+            Siga a ordem do menu: confirme a operação, cadastre a base da empresa, configure a Ana e então conecte canais e fontes.
           </p>
         </div>
       </div>
 
       <div className="flex flex-col items-stretch gap-4 lg:flex-row lg:items-start lg:gap-6">
-        <aside className="hidden w-[248px] flex-shrink-0 rounded-2xl border border-[#E5E5EA] bg-white p-3 shadow-2xs lg:sticky lg:top-6 lg:block">
+        <aside className="hidden w-[258px] flex-shrink-0 rounded-xl border border-background-200 bg-white p-3 shadow-2xs lg:sticky lg:top-6 lg:block">
           {groups.map((group) => (
             <div key={group.title} className="mb-4 last:mb-0">
-              <p className="px-3 pb-1.5 pt-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#86868B]">
+              <p className="px-3 pb-1.5 pt-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-foreground-400">
                 {group.title}
               </p>
               <div className="space-y-0.5">
@@ -114,10 +114,10 @@ export default function DashboardConfiguracoes() {
                     key={item.id}
                     type="button"
                     onClick={() => chooseTab(item.id)}
-                    className={`flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-sm font-medium transition ${
+                    className={`flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition ${
                       tab === item.id
-                        ? 'bg-[#0071E3] text-white shadow-xs'
-                        : 'text-[#4A4A4D] hover:bg-[#F2F2F7] hover:text-[#1D1D1F]'
+                        ? 'bg-primary-50 text-primary-800 shadow-xs ring-1 ring-inset ring-primary-100'
+                        : 'text-foreground-600 hover:bg-background-100 hover:text-foreground-950'
                     }`}
                   >
                     <i className={`${item.icon} text-base`} aria-hidden="true" />
@@ -135,7 +135,7 @@ export default function DashboardConfiguracoes() {
             id="settings-section"
             value={tab}
             onChange={(event) => chooseTab(event.target.value)}
-            className="w-full rounded-xl border border-[#E5E5EA] bg-[#F2F2F7] px-3.5 py-2.5 text-sm text-[#1D1D1F] outline-none focus:border-[#0071E3] focus:bg-white focus:ring-2 focus:ring-[#0071E3]/20"
+            className="w-full rounded-xl border border-background-200 bg-background-100 px-3.5 py-2.5 text-sm text-foreground-950 outline-none focus:border-primary-500 focus:bg-white focus:ring-2 focus:ring-primary-500/20"
           >
             {groups.map((group) => (
               <optgroup key={group.title} label={group.title}>

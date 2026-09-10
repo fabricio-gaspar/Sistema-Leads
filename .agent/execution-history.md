@@ -151,3 +151,21 @@
 - A causa estrutural do relato foi corrigida: a Central antes apenas gravava o job e aguardava o próximo ciclo do worker. Agora ela chama o worker autenticado para despachar **somente o job recém-criado**; o claim atômico mantém o cron seguro contra duplicidade e a fila continua como recuperação se a tentativa imediata não concluir.
 - Em **Configurações > Canais, APIs e fontes**, o botão de teste do WhatsApp agora abre um fluxo único: número controlado + mensagem → validação da Z-API → envio real direto. A nova função `enviar-teste-whatsapp` exige JWT e papel administrativo, não usa segredo no navegador, não cria lead/conversa e mascara o telefone na auditoria.
 - Funções implantadas: `automation-worker` v15 e `enviar-teste-whatsapp` v1. Type-check frontend/Edge, lint e build passaram. O teste direcionado imprimiu 39 verificações aprovadas; o processo permaneceu aberto após a saída e foi interrompido somente então. Nenhuma mensagem real foi enviada pelo agente.
+
+## 2026-09-10 — Layout executivo e fluxo comercial orientado
+
+- O Site oficial foi preservado como fonte operacional; o `main` público do GitHub foi
+  comparado e não recebeu merge global porque contém uma stack histórica diferente. A branch
+  de estabilização não foi necessária para este delta exclusivamente visual e informacional.
+- O shell passou para o padrão Wayflex Executive Light e o menu foi agrupado em Começo · captar,
+  Meio · atender, Final · fechar e Administração. A antiga busca sem ação foi substituída por
+  filtro funcional de telas e o indicador textual não comprovado “Ana está online” foi removido.
+- O Dashboard ganhou sequência de trabalho com rotas reais e cartões de Ambiente Real, Z-API,
+  entrada WhatsApp, Ana, worker e fontes calculados por `operational-diagnostics`.
+- Configurações agora explica e separa Canais, APIs e Fontes. O teste direto da Z-API permanece
+  somente em Canais > WhatsApp. Integração conectada mas desativada aparece como configurada e
+  inativa, com teste de regressão dedicado.
+- Type-check frontend/Edge, lint sem warnings, 14 arquivos de teste com 127 verificações e build
+  de produção foram aprovados. O Computer Use não carregou por erro local de permissão no módulo
+  do navegador, portanto a inspeção autenticada visual permanece pendente; nenhuma operação de
+  banco, integração, lead ou mensagem foi executada neste lote.

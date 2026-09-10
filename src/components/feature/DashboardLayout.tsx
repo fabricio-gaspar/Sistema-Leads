@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useLocation, Outlet, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useNotificacoesStore } from '@/hooks/useNotificacoesStore';
@@ -14,19 +14,49 @@ interface NavItem {
   icon: string;
 }
 
-const navItems: NavItem[] = [
-  { label: 'Dashboard', path: '/dashboard', icon: 'ri-dashboard-line' },
-  { label: 'Busca de Leads', path: '/dashboard/busca-leads', icon: 'ri-search-eye-line' },
-  { label: 'Leads', path: '/dashboard/leads', icon: 'ri-user-search-line' },
-  { label: 'Kanban', path: '/dashboard/kanban', icon: 'ri-layout-masonry-line' },
-  { label: 'Central de Atendimento', path: '/dashboard/atendimento', icon: 'ri-customer-service-2-line' },
-  { label: 'Orçamentos', path: '/dashboard/orcamentos', icon: 'ri-file-list-3-line' },
-  { label: 'Agenda', path: '/dashboard/agenda', icon: 'ri-calendar-event-line' },
-  { label: 'Funil', path: '/dashboard/funil', icon: 'ri-arrow-down-line' },
-  { label: 'Relatórios', path: '/dashboard/relatorios', icon: 'ri-bar-chart-line' },
-  { label: 'Registro do Sistema', path: '/dashboard/registro-sistema', icon: 'ri-file-list-3-line' },
-  { label: 'Configurações', path: '/dashboard/configuracoes', icon: 'ri-settings-4-line' },
+interface NavSection {
+  title: string;
+  items: NavItem[];
+}
+
+const navSections: NavSection[] = [
+  {
+    title: 'Visão geral',
+    items: [{ label: 'Dashboard', path: '/dashboard', icon: 'ri-dashboard-line' }],
+  },
+  {
+    title: 'Começo · captar',
+    items: [
+      { label: 'Busca de Leads', path: '/dashboard/busca-leads', icon: 'ri-search-eye-line' },
+      { label: 'Leads', path: '/dashboard/leads', icon: 'ri-user-search-line' },
+    ],
+  },
+  {
+    title: 'Meio · atender',
+    items: [
+      { label: 'Kanban', path: '/dashboard/kanban', icon: 'ri-layout-masonry-line' },
+      { label: 'Central de Atendimento', path: '/dashboard/atendimento', icon: 'ri-customer-service-2-line' },
+      { label: 'Agenda', path: '/dashboard/agenda', icon: 'ri-calendar-event-line' },
+    ],
+  },
+  {
+    title: 'Final · fechar',
+    items: [
+      { label: 'Orçamentos', path: '/dashboard/orcamentos', icon: 'ri-file-list-3-line' },
+      { label: 'Funil', path: '/dashboard/funil', icon: 'ri-filter-3-line' },
+      { label: 'Relatórios', path: '/dashboard/relatorios', icon: 'ri-bar-chart-line' },
+    ],
+  },
+  {
+    title: 'Administração',
+    items: [
+      { label: 'Registro do Sistema', path: '/dashboard/registro-sistema', icon: 'ri-shield-check-line' },
+      { label: 'Configurações', path: '/dashboard/configuracoes', icon: 'ri-settings-4-line' },
+    ],
+  },
 ];
+
+const navItems = navSections.flatMap((section) => section.items);
 
 const tipoIcone: Record<string, string> = {
   lead: 'ri-user-search-line text-primary-600',
@@ -50,6 +80,7 @@ const formatarDataNotif = (iso: string) => {
 
 export default function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth >= 1024);
+  const [navQuery, setNavQuery] = useState('');
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [painelAba, setPainelAba] = useState<'notificacoes' | 'tarefas'>('notificacoes');
@@ -60,6 +91,13 @@ export default function DashboardLayout() {
   const tarefas = useTarefasStore();
   const saude = useSaudeWhatsapp();
   const { mode: operationalMode } = useOperationalMode();
+  const filteredSections = useMemo(() => {
+    const query = navQuery.trim().toLocaleLowerCase('pt-BR');
+    if (!query) return navSections;
+    return navSections
+      .map((section) => ({ ...section, items: section.items.filter((item) => item.label.toLocaleLowerCase('pt-BR').includes(query)) }))
+      .filter((section) => section.items.length > 0);
+  }, [navQuery]);
 
   if (loading) {
     return (
@@ -81,6 +119,7 @@ export default function DashboardLayout() {
   const naoLidas = notif.naoLidas;
   const tarefasPendentes = tarefas.tarefas.filter((t) => !t.concluida).length;
   const badgeAtencao = naoLidas + tarefasPendentes;
+  const currentPage = navItems.find((item) => item.path === location.pathname) ?? navItems[0];
 
   return (
     <div className="flex h-screen bg-background-100">
@@ -88,14 +127,15 @@ export default function DashboardLayout() {
       {/* Sidebar */}
       <aside
         className={`${
-          sidebarOpen ? 'w-64 translate-x-0' : '-translate-x-full w-64 lg:translate-x-0 lg:w-20'
+          sidebarOpen ? 'w-[252px] translate-x-0' : '-translate-x-full w-[252px] lg:translate-x-0 lg:w-[76px]'
         } wf-sidebar transition-all duration-300 flex flex-col fixed lg:relative z-30 h-full`}
       >
         {/* Logo */}
-        <div className="flex items-center justify-between px-4 py-4 border-b border-background-200/80">
+        <div className="flex min-h-[68px] items-center justify-between border-b border-background-200/80 px-4 py-3.5">
           {sidebarOpen ? (
-            <Link to="/dashboard" className="min-w-0 px-1 font-heading text-base font-extrabold tracking-[0.13em] text-foreground-950">
-              WAYFLEX
+            <Link to="/dashboard" className="wf-brand-copy min-w-0 px-1">
+              <strong className="font-heading tracking-[0.08em]">WAYFLEX</strong>
+              <small>Sistema de Leads</small>
             </Link>
           ) : (
             <Link to="/dashboard" className="mx-auto font-heading text-sm font-extrabold tracking-[0.12em] text-foreground-950" aria-label="WayFlex">
@@ -104,34 +144,62 @@ export default function DashboardLayout() {
           )}
           <button
             onClick={() => setSidebarOpen(!sidebarOpen)}
+            aria-label={sidebarOpen ? 'Recolher menu lateral' : 'Expandir menu lateral'}
+            aria-expanded={sidebarOpen}
             className="wf-icon-button !w-7 !h-7 cursor-pointer"
           >
             <i className={`${sidebarOpen ? 'ri-arrow-left-s-line' : 'ri-arrow-right-s-line'} text-sm`}></i>
           </button>
         </div>
 
-        {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto py-4 px-3">
-          <ul className="space-y-1">
-            {navItems.map((item) => {
-              const isActive = location.pathname === item.path;
-              return (
-                <li key={item.path}>
-                  <Link
-                    to={item.path}
-                    onClick={() => { if (window.innerWidth < 1024) setSidebarOpen(false); }}
-                    className={`wf-nav-item ${isActive ? 'is-active' : ''} flex items-center gap-3 px-3 py-2.5 rounded-lg group cursor-pointer whitespace-nowrap`}
-                  >
-                    <div className="w-5 h-5 flex items-center justify-center">
-                      <i className={`${item.icon} text-lg`}></i>
-                    </div>
-                    {sidebarOpen && <span className="text-sm font-medium">{item.label}</span>}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
+        {sidebarOpen && (
+          <div className="px-3 pt-3">
+            <label className="relative block">
+              <span className="sr-only">Buscar uma tela</span>
+              <i className="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-sm text-foreground-400" aria-hidden="true" />
+              <input
+                value={navQuery}
+                onChange={(event) => setNavQuery(event.target.value)}
+                placeholder="Buscar uma tela"
+                className="wf-sidebar-search w-full pl-9 pr-3"
+              />
+            </label>
+          </div>
+        )}
 
+        {/* Navigation */}
+        <nav className="flex-1 overflow-y-auto px-3 py-3">
+          <div className="space-y-4">
+            {filteredSections.map((section) => (
+              <section key={section.title}>
+                {sidebarOpen && <p className="wf-nav-section-label">{section.title}</p>}
+                <ul className="space-y-0.5">
+                  {section.items.map((item) => {
+                    const isActive = location.pathname === item.path;
+                    return (
+                      <li key={item.path}>
+                        <Link
+                          to={item.path}
+                          title={!sidebarOpen ? item.label : undefined}
+                          aria-current={isActive ? 'page' : undefined}
+                          onClick={() => { if (window.innerWidth < 1024) setSidebarOpen(false); }}
+                          className={`wf-nav-item ${isActive ? 'is-active' : ''} group flex cursor-pointer items-center gap-3 whitespace-nowrap rounded-lg px-3 py-2.5`}
+                        >
+                          <div className="flex h-5 w-5 flex-shrink-0 items-center justify-center">
+                            <i className={`${item.icon} text-[17px]`} aria-hidden="true" />
+                          </div>
+                          {sidebarOpen && <span className="truncate text-sm font-medium">{item.label}</span>}
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </section>
+            ))}
+            {sidebarOpen && filteredSections.length === 0 && (
+              <p className="px-3 py-6 text-center text-xs leading-5 text-foreground-400">Nenhuma tela encontrada.</p>
+            )}
+          </div>
         </nav>
 
         {/* User */}
@@ -140,7 +208,7 @@ export default function DashboardLayout() {
             onClick={() => setUserMenuOpen(!userMenuOpen)}
             className="w-full flex items-center gap-3 cursor-pointer rounded-lg p-1 hover:bg-background-800/30 transition-colors"
           >
-            <div className="w-9 h-9 rounded-full bg-accent-500 flex items-center justify-center flex-shrink-0">
+            <div className="w-9 h-9 rounded-full bg-primary-600 flex items-center justify-center flex-shrink-0">
               <span className="text-background-50 font-heading font-bold text-sm">{user.avatar}</span>
             </div>
             {sidebarOpen && (
@@ -185,23 +253,15 @@ export default function DashboardLayout() {
             >
               <i className="ri-menu-line text-foreground-700 text-lg"></i>
             </button>
-            <div className="relative hidden sm:block">
-              <i className="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-foreground-400 text-sm"></i>
-              <input
-                type="text"
-                placeholder="Buscar leads, conversas, tarefas..."
-                className="pl-9 pr-4 py-2 bg-background-100 border border-background-200/70 rounded-xl text-sm text-foreground-800 placeholder-foreground-400 focus:outline-none focus:border-primary-400 focus:ring-1 focus:ring-primary-400/20 w-72 transition-all"
-              />
-            </div>
+            <nav aria-label="Navegação estrutural" className="hidden items-center gap-2 text-sm sm:flex">
+              <Link to="/dashboard" className="text-foreground-400 hover:text-primary-700" aria-label="Dashboard"><i className="ri-home-5-line" /></Link>
+              <i className="ri-arrow-right-s-line text-foreground-300" aria-hidden="true" />
+              <span className="font-semibold text-foreground-800">{currentPage.label}</span>
+            </nav>
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
             <ModoExecucaoToggle />
-
-            <div className="hidden md:flex items-center gap-2 bg-primary-100 px-3 py-1.5 rounded-full">
-              <span className="w-2 h-2 rounded-full bg-primary-500 animate-pulse"></span>
-              <span className="text-xs font-medium text-primary-700 whitespace-nowrap">Ana está online</span>
-            </div>
 
             <SaudeWhatsappIndicator />
 
@@ -334,9 +394,9 @@ export default function DashboardLayout() {
               )}
             </div>
 
-            <button className="hidden sm:flex w-9 h-9 items-center justify-center rounded-lg bg-background-100 hover:bg-background-200 cursor-pointer transition-colors">
+            <Link to="/dashboard/configuracoes" aria-label="Abrir configurações" className="hidden sm:flex w-9 h-9 items-center justify-center rounded-lg bg-background-100 hover:bg-background-200 cursor-pointer transition-colors">
               <i className="ri-question-line text-foreground-600 text-lg"></i>
-            </button>
+            </Link>
           </div>
         </header>
 

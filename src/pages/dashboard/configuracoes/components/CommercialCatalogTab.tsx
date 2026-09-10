@@ -13,14 +13,14 @@ export default function CommercialCatalogTab() {
         <button
           type="button"
           onClick={() => setSection('catalogo')}
-          className={`rounded-xl px-4 py-2 text-xs transition ${section === 'catalogo' ? 'bg-[#0071E3] font-semibold text-white shadow-xs' : 'text-[#6E6E73] hover:bg-[#E5E5EA] hover:text-[#1D1D1F]'}`}
+            className={`rounded-xl px-4 py-2 text-xs transition ${section === 'catalogo' ? 'bg-primary-600 font-semibold text-white shadow-xs' : 'text-foreground-500 hover:bg-background-200 hover:text-foreground-950'}`}
         >
           Produtos e catálogo
         </button>
         <button
           type="button"
           onClick={() => setSection('templates')}
-          className={`rounded-xl px-4 py-2 text-xs transition ${section === 'templates' ? 'bg-[#0071E3] font-semibold text-white shadow-xs' : 'text-[#6E6E73] hover:bg-[#E5E5EA] hover:text-[#1D1D1F]'}`}
+            className={`rounded-xl px-4 py-2 text-xs transition ${section === 'templates' ? 'bg-primary-600 font-semibold text-white shadow-xs' : 'text-foreground-500 hover:bg-background-200 hover:text-foreground-950'}`}
         >
           Templates de orçamento
         </button>
