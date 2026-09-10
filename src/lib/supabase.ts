@@ -1,10 +1,12 @@
 import { createClient } from '@supabase/supabase-js';
 import { resolveSupabaseConfig } from './supabaseConfig';
+import { readRuntimeSupabaseConfig } from './runtimeSupabaseConfig';
 
+const runtimeConfig = readRuntimeSupabaseConfig();
 const configuration = resolveSupabaseConfig({
-  url: import.meta.env.VITE_PUBLIC_SUPABASE_URL as string | undefined,
-  publishableKey: import.meta.env.VITE_PUBLIC_SUPABASE_PUBLISHABLE_KEY as string | undefined,
-  anonKey: import.meta.env.VITE_PUBLIC_SUPABASE_ANON_KEY as string | undefined,
+  url: runtimeConfig.url,
+  publishableKey: runtimeConfig.publishableKey,
+  anonKey: runtimeConfig.anonKey,
 });
 
 export const isSupabaseConfigured = configuration.isConfigured;

@@ -23,6 +23,14 @@ const supportedChannels = [
   { id: 'email', label: 'E-mail' },
 ] as const;
 
+const WAYFLEX_OFFICIAL_KNOWLEDGE = [
+  'Site institucional da Wayflex',
+  '17 catálogos oficiais por aplicação',
+  '18 segmentos industriais publicados',
+  '18 famílias de acessórios industriais',
+  'Critérios técnicos, qualificação e limites comerciais aprovados',
+];
+
 export default function PersonalizacaoAna({ embedded = false }: { embedded?: boolean }) {
   const { settings } = useEmpresaSettingsStore();
   const [step, setStep] = useState(0);
@@ -42,7 +50,7 @@ export default function PersonalizacaoAna({ embedded = false }: { embedded?: boo
   );
   const [tone, setTone] = useState<'consultivo' | 'direto' | 'acolhedor' | 'tecnico'>('tecnico');
   const [approvedKnowledge, setApprovedKnowledge] = useState(
-    'Site institucional da Wayflex\nCatálogo de soluções em borracha, silicone e poliuretano\nInformações técnicas e políticas comerciais aprovadas',
+    joinPlaybookLines(WAYFLEX_OFFICIAL_KNOWLEDGE),
   );
   const [discountLimit, setDiscountLimit] = useState(0);
   const [firstFollowUpHours, setFirstFollowUpHours] = useState(24);
@@ -184,6 +192,9 @@ export default function PersonalizacaoAna({ embedded = false }: { embedded?: boo
       <div className="mt rounded-lg border border-primary-200 bg-primary-50 p-4 text-sm text-primary-900">
         <strong>Documentos, fotos, apresentações, portfólio e vídeos:</strong> envie, revise e aprove o conteúdo que a Ana poderá consultar.
         <Link to="/dashboard/configuracoes?tab=empresa&subtab=fontes" className="mt-2 inline-flex items-center gap-1 font-semibold text-primary-700 hover:underline">Abrir Base aprovada da Ana <i className="ri-arrow-right-line" /></Link>
+      </div>
+      <div className="mt rounded-lg border border-secondary-200 bg-secondary-50 p-4 text-sm text-secondary-900">
+        <strong>Conteúdo oficial Wayflex disponível:</strong> a Base aprovada reúne catálogos, segmentos e acessórios com a página-fonte de cada item. A Ana usa esse material para orientar e qualificar; preço, prazo, certificação e especificação continuam sujeitos à validação humana/técnica.
       </div>
       <label className="mt">Resumo das fontes aprovadas</label>
       <textarea value={approvedKnowledge} onChange={(event) => { markDirty(); setApprovedKnowledge(event.target.value); }} placeholder="Um item por linha" />

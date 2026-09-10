@@ -284,3 +284,23 @@ webhook em ambiente controlado.
   mensagem, lead, integração ou segredo foi alterado.
 - A correção foi publicada com sucesso no Site oficial como versão 61. A próxima validação é
   somente atualizar a página autenticada e confirmar a abertura normal do CRM.
+
+## Configuração pública resiliente e catálogo oficial da Ana — 10/09/2026
+
+- A nova ocorrência de “Configuração necessária” foi confirmada como falha de empacotamento:
+  as duas variáveis públicas do ambiente do Site correspondiam ao projeto Supabase
+  `thgzrkppouoevapjquyu`, mas o bundle estático ainda podia nascer sem elas. O Worker agora
+  entrega `/runtime-config.js` com cache `no-store`; o navegador lê URL e chave publicável em
+  tempo de execução. O pacote foi verificado sem URL real nem chave publicável gravadas.
+- A migration `20260910195000_refresh_wayflex_official_ana_catalog` foi aplicada ao projeto
+  oficial. Ela aposentou as 7 memórias gerais v1 e ativou 61 fontes rastreáveis da Wayflex:
+  17 catálogos, 18 segmentos, 18 famílias de acessórios e 8 fontes institucionais, de
+  qualificação, respostas e limites. Cada item guarda a página oficial de origem e, nos
+  catálogos, a referência visual por texto alternativo; nenhuma imagem externa foi baixada.
+- `ana-run` v21 foi publicado. A recuperação lexical agora inclui URL-fonte e referência visual
+  no contexto, e perguntas sobre catálogos, acessórios e componentes falham para revisão quando
+  não houver fonte correspondente. Preço, prazo, estoque, certificação, laudo, composição e
+  compatibilidade continuam bloqueados para confirmação humana/técnica.
+- Validação local: type-check frontend/Edge, lint sem warnings, 15 arquivos/159 testes, build
+  e smoke test do Worker com valores públicos simulados passaram. Não houve envio de WhatsApp,
+  chamada a modelo, alteração de `sandbox_mode`, exclusão de lead nem download de mídia.

@@ -9,9 +9,10 @@
   para uma rota real.
 - O Dashboard mostra uma sequência de trabalho e cartões de recursos derivados do
   `operational-diagnostics`; nenhum estado ativo é inferido localmente.
-- `src/lib/supabase.ts` lê `VITE_PUBLIC_SUPABASE_URL` e
-  `VITE_PUBLIC_SUPABASE_PUBLISHABLE_KEY` no build Vite. Para o artefato estático oficial,
-  passe os valores publicados pelo ambiente do Site ao build; não os versionar em `.env`.
+- `src/lib/supabase.ts` prefere a configuração pública entregue pelo Worker em
+  `/runtime-config.js` e preserva as variáveis `VITE_PUBLIC_SUPABASE_*` apenas como fallback
+  local. O Worker lê URL e chave publicável do ambiente do Site a cada carregamento; não
+  versionar valores reais em `.env` ou no Git.
 - Dados operacionais devem vir de repositories em `src/lib/crm/`; localStorage é permitido
   somente para filtros e preferências pessoais.
 - Telas críticas: Dashboard, Leads, Kanban, Atendimento, Orçamentos, Agenda, Configurações e

@@ -83,7 +83,7 @@ function configuredHandoffTrigger(value: unknown, message: unknown): string | nu
   return null;
 }
 const hasTechnicalQuestion = (value: unknown): boolean =>
-  /\b(material|borracha|silicone|poliuretano|epdm|nitr[ií]lica|neoprene|viton|pe[çc]a|ved[aã][çc][aã]o|medida|desenho|amostra|compat[ií]vel|compatibilidade|certifica[çc][aã]o|norma|temperatura|qu[ií]mic|press[aã]o|aplica[çc][aã]o|at[oó]xic|sanit[aá]ri|resist[eê]ncia|especifica[çc][aã]o)\b/i.test(asText(value, 4_000));
+  /\b(material|borracha|silicone|poliuretano|epdm|nitr[ií]lica|neoprene|viton|pe[çc]a|ved[aã][çc][aã]o|medida|desenho|amostra|compat[ií]vel|compatibilidade|certifica[çc][aã]o|norma|temperatura|qu[ií]mic|press[aã]o|aplica[çc][aã]o|at[oó]xic|sanit[aá]ri|resist[eê]ncia|especifica[çc][aã]o|cat[aá]logo|acess[oó]rio|segmento|perfil|gaxeta|junta|mangueira|rolamento|acoplamento|correia|retentor|o[ -]?ring|coxim|bucha|válvula)\b/i.test(asText(value, 4_000));
 const normalizeForSearch = (value: unknown): string => asText(value, 12_000).toLocaleLowerCase('pt-BR').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
 const SEARCH_STOP_WORDS = new Set(['para', 'com', 'sem', 'uma', 'que', 'isso', 'como', 'qual', 'quais', 'voces', 'sobre', 'essa', 'esse', 'esta', 'estao', 'tem', 'tenho', 'por', 'nos', 'dos', 'das', 'sao', 'ser', 'mais']);
 function relevantKnowledge(entries: unknown[], question: unknown) {
@@ -95,7 +95,17 @@ function relevantKnowledge(entries: unknown[], question: unknown) {
     const documentMetadata = asObject(document.metadata);
     const searchable = normalizeForSearch(`${asText(record.content, 8_000)} ${asText(document.name, 300)} ${(Array.isArray(metadata.keywords) ? metadata.keywords : []).join(' ')} ${(Array.isArray(documentMetadata.tags) ? documentMetadata.tags : []).join(' ')}`);
     const score = terms.reduce((total, term) => total + (searchable.includes(term) ? 1 : 0), 0);
-    return { score, content: asText(record.content, 2_000), metadata: { category: asText(metadata.category, 80) || asText(documentMetadata.category, 80), keywords: Array.isArray(metadata.keywords) ? metadata.keywords : (Array.isArray(documentMetadata.tags) ? documentMetadata.tags : []) }, source: asText(document.name, 200) || 'Base aprovada da Ana' };
+    return {
+      score,
+      content: asText(record.content, 2_000),
+      metadata: {
+        category: asText(metadata.category, 80) || asText(documentMetadata.category, 80),
+        keywords: Array.isArray(metadata.keywords) ? metadata.keywords : (Array.isArray(documentMetadata.tags) ? documentMetadata.tags : []),
+        image_alt: asText(metadata.image_alt, 200) || asText(documentMetadata.image_alt, 200),
+      },
+      source: asText(document.name, 200) || 'Base aprovada da Ana',
+      source_url: asText(document.source_url, 500) || asText(metadata.source_url, 500) || asText(documentMetadata.source_url, 500),
+    };
   }).filter((entry) => entry.content && (terms.length === 0 || entry.score > 0)).sort((a, b) => b.score - a.score).slice(0, 6);
 }
 function approvedCompanyContext(value: unknown): Record<string, unknown> {
@@ -359,7 +369,7 @@ Deno.serve(async (request) => {
       activeChannel ? admin.from('integrations').select('connected,enabled,paused').eq('organization_id', organizationId).eq('key', activeChannel).maybeSingle() : Promise.resolve({ data: null, error: null }),
       admin.from('ai_agents').select('active_version_id').eq('organization_id', organizationId).eq('key', 'ana').maybeSingle(),
       admin.from('services').select('id,name,category,description,price,unit,term,max_discount').eq('organization_id', organizationId).eq('active', true).limit(50),
-      admin.from('knowledge_chunks').select('content,metadata,documents!inner(name,status,metadata)').eq('organization_id', organizationId).eq('status', 'active').eq('documents.status', 'active').limit(80),
+      admin.from('knowledge_chunks').select('content,metadata,documents!inner(name,status,metadata,source_url)').eq('organization_id', organizationId).eq('status', 'active').eq('documents.status', 'active').limit(80),
       admin.from('appointments').select('starts_at,ends_at,status,meeting_url').eq('organization_id', organizationId).eq('lead_id', leadId).order('starts_at', { ascending: false }).limit(10),
       admin.from('contact_suppressions').select('channel,reason,created_at').eq('organization_id', organizationId)
         .or(suppressionOrFilter(leadId, await suppressionHashes(lead))).limit(10),

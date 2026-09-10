@@ -14,10 +14,10 @@ orçamentos. Não é sistema de venda, checkout, pedido ou recebimento.
 - Site privado existente, com publicação vinculada ao repositório Git.
 - O design global segue o padrão **Wayflex Executive Light**: superfícies claras, contraste
   neutro, verde institucional, bordas finas e navegação orientada ao processo comercial.
-- Como este Site é uma exportação estática Vite, `VITE_PUBLIC_SUPABASE_URL` e
-  `VITE_PUBLIC_SUPABASE_PUBLISHABLE_KEY` são incorporadas no build. O ambiente do Site é a
-  fonte dos valores, mas uma publicação exige reconstruir o artefato com ambos; eles nunca
-  são gravados no repositório e somente a chave publicável pode ir ao navegador.
+- Como este Site é uma exportação estática Vite, o Worker do Site entrega
+  `/runtime-config.js` com `VITE_PUBLIC_SUPABASE_URL` e a chave publicável. O ambiente do Site
+  é a fonte desses valores; o artefato e o Git não guardam nenhum valor real. O endpoint tem
+  `no-store`, portanto a alteração de ambiente não exige recompilar a chave no bundle.
 
 ## Fontes operacionais principais
 
@@ -27,7 +27,9 @@ orçamentos. Não é sistema de venda, checkout, pedido ou recebimento.
 - `outreach_jobs` e `lead_outreach`: fila e rastreio de saída.
 - `channel_inbound_events` e `webhook_events`: entrada e callbacks.
 - `company_settings`, `integrations` e `organization_module_data`: configuração operacional.
-- `knowledge_documents`/`knowledge_chunks`: base aprovada consultável pela Ana.
+- `knowledge_documents`/`knowledge_chunks`: base aprovada consultável pela Ana. A curadoria
+  pública Wayflex v2 contém 61 fontes ativas (catálogos, segmentos, acessórios e políticas),
+  cada uma com a página oficial de origem.
 
 ## Estado validado antes do delta atual
 

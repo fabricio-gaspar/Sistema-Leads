@@ -46,6 +46,18 @@ const assets = Object.fromEntries(await Promise.all(staticFiles.map(async (file)
 const worker = `
 const assets = ${JSON.stringify(assets)};
 
+function runtimeConfigScript(env) {
+  const config = {};
+  for (const key of [
+    'VITE_PUBLIC_SUPABASE_URL',
+    'VITE_PUBLIC_SUPABASE_PUBLISHABLE_KEY',
+    'VITE_PUBLIC_SUPABASE_ANON_KEY',
+  ]) {
+    config[key] = typeof env[key] === 'string' ? env[key] : '';
+  }
+  return 'window.__WAYFLEX_RUNTIME_CONFIG__ = ' + JSON.stringify(config) + ';';
+}
+
 function decodeBase64(value) {
   const binary = atob(value);
   const bytes = new Uint8Array(binary.length);
@@ -60,8 +72,16 @@ function isNavigationRequest(request) {
 }
 
 export default {
-  async fetch(request) {
+  async fetch(request, env) {
     let path = decodeURIComponent(new URL(request.url).pathname);
+    if (path === '/runtime-config.js') {
+      return new Response(runtimeConfigScript(env), {
+        headers: {
+          'content-type': 'application/javascript; charset=utf-8',
+          'cache-control': 'no-store',
+        },
+      });
+    }
     if (path === '/' || (!assets[path] && isNavigationRequest(request))) path = '/index.html';
     const asset = assets[path];
     if (!asset) return new Response('Not found', { status: 404 });
