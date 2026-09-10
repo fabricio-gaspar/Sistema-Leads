@@ -108,3 +108,19 @@
   `1fbd231ff88b4e02c3ddddd18253a1f3be8be5ee`; publicação do Site ainda pendente neste ponto.
 - A consolidação foi publicada com sucesso no Site oficial privado. O modo Demonstração foi
   preservado e nenhuma integração externa foi acionada durante a publicação.
+## 2026-09-10 — Central: teste controlado de WhatsApp em Demonstração
+
+- Diagnóstico confirmado no servidor: a mensagem manual era bloqueada por
+  `operational_mode_protected` antes de criar a fila quando `sandbox_mode=true`; portanto
+  não chegava à Z-API nem criava histórico de saída.
+- `enviar-whatsapp` v5 permite exclusivamente um **teste controlado** confirmado por
+  owner/admin/manager. Ele é auditado, expira em cinco minutos e não libera Ana, cadências
+  ou Ambiente Real. Mensagens manuais comuns seguem bloqueadas no modo Demonstração.
+- `automation-worker` v14 ignora toda fila em Demonstração, salvo esse job controlado ainda
+  válido. A seleção da integração de saída foi corrigida para usar a chave exata `whatsapp`,
+  sem confundir o webhook de entrada com o canal de envio.
+- A Central ganhou botão e confirmação explícita para o teste. As funções implantadas foram
+  verificadas nas versões v5 e v14. Type-check frontend/Edge passou. O arquivo de teste de
+  handlers passou 33 verificações; o processo do Vitest não encerrou sozinho após concluir,
+  por isso foi interrompido depois do resultado. Build e lint aguardam nova execução porque
+  a execução local foi cancelada pelo ambiente antes de iniciar.

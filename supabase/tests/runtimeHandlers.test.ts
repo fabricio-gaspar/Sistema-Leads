@@ -37,7 +37,7 @@ function execute(query: Query): Result {
   if (query.operation !== 'select') return ok({ id: `${query.table}-id` });
   switch (query.table) {
     case 'profiles': return ok({ active_organization_id: org, name: 'Synthetic user' });
-    case 'organization_members': return ok({ role: 'admin' });
+    case 'organization_members': return ok({ role: 'admin', status: 'active' });
     case 'company_settings': return ok(readyCompany);
     case 'organization_module_data': return ok({ data: { killSwitchGlobal: false } });
     case 'leads': return ok('id' in query.filters ? readyLead : [readyLead]);
@@ -174,6 +174,39 @@ describe('Webhook handler contract — synthetic callbacks', () => {
   });
 });
 
+describe('Central manual WhatsApp gateway', () => {
+  function manualWhatsAppRequest(body: Row = {}) {
+    return new Request('https://example.invalid/enviar-whatsapp', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ leadId, para: '5511999990000', texto: 'Oi', modo: 'humano', ...body }),
+    });
+  }
+
+  it('keeps ordinary manual messages blocked in sandbox before queue writes', async () => {
+    override = (q) => q.table === 'company_settings' ? ok({ ...readyCompany, sandbox_mode: true }) : undefined;
+    await import('../functions/enviar-whatsapp/index');
+    const response = await handler(manualWhatsAppRequest());
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ ok: false, erro: 'operational_mode_protected' });
+    expect(calls.some((q) => q.table === 'lead_messages' && q.operation === 'insert')).toBe(false);
+    expect(calls.some((q) => q.table === 'outreach_jobs' && q.operation === 'insert')).toBe(false);
+  });
+
+  it('queues an explicitly confirmed controlled test using the outbound WhatsApp integration', async () => {
+    override = (q) => q.table === 'company_settings' ? ok({ ...readyCompany, sandbox_mode: true }) : undefined;
+    await import('../functions/enviar-whatsapp/index');
+    const response = await handler(manualWhatsAppRequest({ teste_controlado: true }));
+    expect(response.status).toBe(202);
+    expect(await response.json()).toMatchObject({ ok: true, teste_controlado: true });
+    expect(calls.find((q) => q.table === 'integrations' && q.operation === 'select')?.filters).toMatchObject({ key: 'whatsapp' });
+    expect(calls.find((q) => q.table === 'outreach_jobs' && q.operation === 'insert')?.value?.payload).toMatchObject({
+      controlled_test: true,
+      manual: true,
+    });
+  });
+});
+
 describe('Worker safety handler', () => {
   const job = { id: 'synthetic-job', lead_id: leadId, channel: 'whatsapp', attempt: 0, payload: { text: 'Mensagem sintética', message_id: 'synthetic-draft', agent_run_id: 'synthetic-run', context_last_contact: null } };
   function workerRequest() {
@@ -195,7 +228,7 @@ describe('Worker safety handler', () => {
     await import('../functions/automation-worker/index');
     const response = await handler(new Request('https://example.invalid/automation-worker', { method: 'POST', headers: { Authorization: 'Bearer synthetic-user' }, body: JSON.stringify({ run: 'all' }) }));
     expect(await response.json()).toMatchObject({ ok: true, skipped: true, reason: 'sandbox_mode', sent_jobs: 0 });
-    expect(calls.some((q) => q.table === 'outreach_jobs')).toBe(false);
+    expect(calls.filter((q) => q.table === 'outreach_jobs' && q.operation === 'select')).toHaveLength(1);
     expectNoBusinessWrites();
   });
   it('accepts only the Vault-backed server scheduler and records its heartbeat in demo', async () => {
@@ -245,6 +278,27 @@ describe('Worker safety handler', () => {
     expect(await (await handler(workerRequest())).json()).toMatchObject({ ok: true, sent_jobs: 1 });
     expect(calls.some((q) => q.table === 'agent_runs' && q.operation === 'select')).toBe(false);
     expect(calls.find((q) => q.table === 'lead_messages' && q.operation === 'update')?.value).toMatchObject({ type: 'sent', provider_message_id: 'synthetic-human-receipt' });
+  });
+  it('dispatches only an unexpired controlled human test while sandbox is on', async () => {
+    const controlledJob = {
+      ...job,
+      payload: {
+        text: 'Oi de teste', message_id: 'synthetic-controlled-message', manual: true,
+        controlled_test: true, controlled_test_expires_at: new Date(Date.now() + 60_000).toISOString(), context_last_contact: null,
+      },
+    };
+    override = (q) => {
+      if (q.table === 'company_settings') return ok({ ...readyCompany, sandbox_mode: true });
+      if (q.table === 'outreach_jobs' && q.operation === 'select') return q.filters.status === 'queued' ? ok([controlledJob]) : { ...ok(null), count: 0 };
+      if (q.table === 'read_integration_secret') return ok({ instancia_id: 'synthetic-instance', token: 'synthetic-token', client_token: 'synthetic-client' });
+      if (q.table === 'lead_messages' && q.operation === 'select') return ok({ id: 'synthetic-controlled-message', text: 'Oi de teste', sender: 'human', type: 'queued' });
+      return undefined;
+    };
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ messageId: 'synthetic-controlled-receipt' }), { status: 200 }));
+    await import('../functions/automation-worker/index');
+    expect(await (await handler(workerRequest())).json()).toMatchObject({ ok: true, sent_jobs: 1 });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(calls.find((q) => q.table === 'lead_outreach' && q.operation === 'upsert')?.value?.metadata).toMatchObject({ controlled_test: true });
   });
   it('holds an ambiguous network failure for reconciliation instead of retrying', async () => {
     setupQueue();

@@ -106,6 +106,19 @@ webhook em ambiente controlado.
 
 ## Lote atual — assistente de ativação de canal e worker
 
+## Lote atual — envio controlado pela Central
+
+- A causa da falha de envio manual em Demonstração foi corrigida no backend: o bloqueio
+  ocorria antes da criação do job, o que impedia qualquer teste real de saída.
+- A Central agora permite "Enviar teste controlado" após confirmação explícita. A mensagem
+  escolhida é a única liberada, fica auditada e expira em cinco minutos; Ana, cadências e
+  Ambiente Real permanecem bloqueados.
+- Funções implantadas: `enviar-whatsapp` v5 e `automation-worker` v14. A integração de
+  saída passa a ser selecionada por `key = whatsapp`, sem risco de usar o registro do webhook.
+- Próximo passo humano: em uma conversa individual com lead cadastrado, escrever "Oi",
+  usar **Enviar teste controlado**, confirmar e aguardar o processamento do worker. Depois o
+  lead deve responder pela conversa individual para concluir a homologação de entrada.
+
 - Commit de implementação: `357bdb98adad24a2eaf2feb0ab75a083b8f1c1a8`.
 - A conexão de saída Z-API da WayFlex está confirmada no banco. O antigo aviso foi
   reescrito: ele não pede novamente a credencial; pede a **homologação da entrada de

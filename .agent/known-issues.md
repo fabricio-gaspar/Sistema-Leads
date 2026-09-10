@@ -3,6 +3,8 @@
 ## Crítico
 
 - Fluxo real WhatsApp → Ana → resposta não foi homologado ponta a ponta com número autorizado.
+- A Central passou a oferecer envio controlado em Demonstração para destravar a homologação,
+  mas a entrega ao número e a resposta de volta ainda dependem de teste explícito do operador.
 - O último teste recebido foi um callback de grupo e foi corretamente ignorado. A homologação
   segue aguardando uma mensagem individual enviada por um lead cadastrado.
 

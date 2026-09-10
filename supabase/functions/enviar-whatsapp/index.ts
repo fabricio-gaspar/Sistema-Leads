@@ -1,4 +1,4 @@
-import { createAdminClient, requireUser } from '../_shared/auth.ts';
+import { createAdminClient, requireOrganizationRole, requireUser } from '../_shared/auth.ts';
 import { allowedCorsHeaders, hasAllowedOrigin, json, preflight, safeError } from '../_shared/http.ts';
 
 const text = (value: unknown, max = 8_000) => typeof value === 'string' ? value.trim().slice(0, max) : '';
@@ -13,6 +13,7 @@ Deno.serve(async (request) => {
     const leadId = text(body.leadId, 64);
     const recipient = text(body.para, 80).replace(/[^0-9+]/g, '');
     const message = text(body.texto, 4_096);
+    const controlledTestRequested = body.teste_controlado === true;
     if (!leadId || !recipient || !message) throw new Error('lead_recipient_and_message_required');
     const { user } = await requireUser(request);
     const admin = createAdminClient();
@@ -29,9 +30,11 @@ Deno.serve(async (request) => {
     const { data: company, error: companyError } = await admin.from('company_settings')
       .select('active,sandbox_mode').eq('organization_id', organizationId).maybeSingle();
     if (companyError || !company?.active) throw new Error('company_not_active');
-    if (company.sandbox_mode !== false) throw new Error('operational_mode_protected');
+    const controlledSandboxTest = company.sandbox_mode === true && controlledTestRequested;
+    if (company.sandbox_mode !== false && !controlledSandboxTest) throw new Error('operational_mode_protected');
+    if (controlledSandboxTest) await requireOrganizationRole(admin, user.id, organizationId, ['owner', 'admin', 'manager']);
     const { data: integration } = await admin.from('integrations').select('id,key,provider,connected,enabled,paused')
-      .eq('organization_id', organizationId).ilike('key', '%whatsapp%').order('updated_at', { ascending: false }).limit(1).maybeSingle();
+      .eq('organization_id', organizationId).eq('key', 'whatsapp').maybeSingle();
     if (!integration?.connected || !integration.enabled || integration.paused) throw new Error('whatsapp_integration_not_ready');
     const { data: blockingPolicy } = await admin.from('channel_policy_events')
       .select('id,risk_level,action').eq('organization_id', organizationId).eq('channel', 'whatsapp')
@@ -39,21 +42,23 @@ Deno.serve(async (request) => {
     if (blockingPolicy?.action === 'pause') throw new Error('whatsapp_paused_by_risk_policy');
     if (blockingPolicy?.action === 'throttle') throw new Error('whatsapp_throttled_by_risk_policy');
     const idempotencyKey = crypto.randomUUID();
+    const now = new Date();
+    const controlledTestExpiresAt = controlledSandboxTest ? new Date(now.getTime() + 5 * 60_000).toISOString() : null;
     const { data: recordedMessage, error: messageError } = await admin.from('lead_messages').insert({
       organization_id: organizationId, lead_id: lead.id, sender: 'human', sender_name: profile.name || 'Atendente',
       type: 'queued', text: message,
     }).select('id').single();
     if (messageError || !recordedMessage) throw messageError ?? new Error('outbound_message_not_recorded');
     const { data: job, error: jobError } = await admin.from('outreach_jobs').insert({
-      organization_id: organizationId, lead_id: lead.id, channel: 'whatsapp', attempt: 0, run_at: new Date().toISOString(), status: 'queued',
-      payload: { recipient, message, message_id: recordedMessage.id, manual: true, mode: text(body.modo, 32), provider: text(body.provedor, 80), requested_by: user.id, integration_id: integration.id, context_last_contact: lead.last_contact ?? null },
+      organization_id: organizationId, lead_id: lead.id, channel: 'whatsapp', attempt: 0, run_at: now.toISOString(), status: 'queued',
+      payload: { recipient, message, message_id: recordedMessage.id, manual: true, mode: text(body.modo, 32), provider: text(body.provedor, 80), requested_by: user.id, integration_id: integration.id, context_last_contact: lead.last_contact ?? null, controlled_test: controlledSandboxTest, controlled_test_expires_at: controlledTestExpiresAt },
       idempotency_key: idempotencyKey,
     }).select('id').single();
     if (jobError || !job) {
       await admin.from('lead_messages').delete().eq('id', recordedMessage.id).eq('organization_id', organizationId);
       throw jobError ?? new Error('outreach_job_not_created');
     }
-    await admin.from('audit_logs').insert({ organization_id: organizationId, actor_id: user.id, actor_name: profile.name, actor_type: 'user', action: 'outreach.whatsapp_queued', detail: 'Mensagem colocada na fila segura.', entity_table: 'outreach_jobs', entity_id: job.id, event_data: { lead_id: lead.id, integration_id: integration.id, idempotency_key: idempotencyKey } });
-    return json({ ok: true, enviado: false, id: job.id, detalhe: 'queued_for_authorized_worker', provedor: integration.provider }, 202, headers);
+    await admin.from('audit_logs').insert({ organization_id: organizationId, actor_id: user.id, actor_name: profile.name, actor_type: 'user', action: controlledSandboxTest ? 'outreach.whatsapp_controlled_test_queued' : 'outreach.whatsapp_queued', detail: controlledSandboxTest ? 'Teste controlado colocado na fila segura.' : 'Mensagem colocada na fila segura.', entity_table: 'outreach_jobs', entity_id: job.id, event_data: { lead_id: lead.id, integration_id: integration.id, idempotency_key: idempotencyKey, controlled_test: controlledSandboxTest } });
+    return json({ ok: true, enviado: false, id: job.id, detalhe: controlledSandboxTest ? 'controlled_test_queued_for_authorized_worker' : 'queued_for_authorized_worker', teste_controlado: controlledSandboxTest, provedor: integration.provider }, 202, headers);
   } catch (error) { return json({ ok: false, enviado: false, erro: safeError(error) }, 400, headers); }
 });
