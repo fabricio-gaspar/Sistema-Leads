@@ -256,3 +256,5 @@ webhook em ambiente controlado.
 - Antes de publicar, foram aprovados type-check frontend/Edge, lint, 14 arquivos/127 testes,
   o build e a verificação de presença da URL/chave publicável no artefato. Nenhuma tabela,
   mensagem, lead, integração ou segredo foi alterado.
+- A correção foi publicada com sucesso no Site oficial como versão 61. A próxima validação é
+  somente atualizar a página autenticada e confirmar a abertura normal do CRM.

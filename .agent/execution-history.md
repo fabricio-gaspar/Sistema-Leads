@@ -183,3 +183,5 @@
   foi usada.
 - Type-check frontend/Edge, lint sem warnings e 14 arquivos/127 testes passaram antes da
   publicação corretiva.
+- Publicação corretiva concluída com sucesso no Site oficial como versão 61. A audiência
+  customizada foi preservada; nenhuma variável sensível foi adicionada ao Site ou ao Git.
