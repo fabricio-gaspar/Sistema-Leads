@@ -23,6 +23,15 @@ function errorMessage(code: string, name: string) {
     ai_provider_key_missing: 'A chave do provedor principal não foi encontrada no cofre.',
     ai_provider_invalid: 'O provedor principal salvo não é válido. Configure OpenAI ou Claude novamente.',
     organization_access_denied: 'Seu usuário não possui permissão administrativa para configurar esta conexão.',
+    test_phone_invalid: 'Informe um número de WhatsApp válido, com DDD. O DDI 55 é adicionado automaticamente quando necessário.',
+    test_message_required: 'Escreva a mensagem de teste antes de enviar.',
+    test_message_confirmation_required: 'Confirme o envio da mensagem de teste.',
+    zapi_test_message_rejected: 'A Z-API recusou a mensagem de teste. Confira o número informado e a situação da instância.',
+    zapi_test_receipt_missing: 'A Z-API não confirmou o recebimento da solicitação. Nenhuma entrega foi assumida.',
+    zapi_credentials_rejected: 'A Z-API recusou as credenciais. Salve e valide novamente.',
+    zapi_instance_not_connected: 'A instância existe, mas o WhatsApp ainda não está conectado.',
+    zapi_phone_offline: 'O celular vinculado à instância está offline.',
+    whatsapp_paused_by_risk_policy: 'O canal está pausado por uma política de risco. Consulte o Status operacional.',
   };
   return messages[code] || `Não foi possível validar ${name}. ${code || 'Tente novamente.'}`;
 }
@@ -52,10 +61,54 @@ function ConfigureModal({ integration, onClose, onSaved }: { integration: Operat
   return <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#1D1D1F]/45 p-4" onClick={onClose}><section className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-2xl border border-[#E5E5EA] bg-white shadow-xl" onClick={(event) => event.stopPropagation()}><header className="flex items-start justify-between border-b border-[#E5E5EA] px-5 py-4"><div><p className="text-xs font-semibold uppercase tracking-[.12em] text-[#0071E3]">Cofre seguro</p><h3 className="mt-1 text-lg font-bold tracking-tight text-[#1D1D1F]">Configurar {integration.nome}</h3><p className="mt-1 text-xs text-[#6E6E73]">As chaves são enviadas diretamente ao backend e não permanecem no navegador.</p></div><button type="button" onClick={onClose} className="rounded-lg p-2 text-[#6E6E73] hover:bg-[#F2F2F7]" aria-label="Fechar"><i className="ri-close-line text-lg" /></button></header><div className="space-y-4 p-5">{error && <div className="rounded-xl border border-[#FF3B30]/25 bg-[#FF3B30]/10 px-3.5 py-3 text-sm text-[#D92D27]">{error}</div>}{integration.campos.map((field) => <CredentialField key={field.id} field={field} value={values[field.id] || ''} onChange={(value) => setValues((current) => ({ ...current, [field.id]: value }))} />)}</div><footer className="flex justify-end gap-2 border-t border-[#E5E5EA] px-5 py-4"><button type="button" className="wf-btn-secondary" onClick={onClose}>Cancelar</button><button type="button" className="wf-btn-primary disabled:opacity-60" disabled={saving} onClick={() => void save()}>{saving ? 'Salvando…' : 'Salvar credenciais'}</button></footer></section></div>;
 }
 
+function WhatsAppTestModal({ integration, onClose, onCompleted }: { integration: OperationalIntegration; onClose: () => void; onCompleted: (environmentMessage: string | null) => Promise<void> }) {
+  const [phone, setPhone] = useState('');
+  const [message, setMessage] = useState('Olá! Esta é uma mensagem de teste enviada pela WayFlex.');
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+
+  const send = async () => {
+    if (!phone.trim() || !message.trim() || sending) return;
+    if (!window.confirm(`Enviar uma mensagem real de teste para o número final ${phone.replace(/\D/g, '').slice(-4) || 'informado'}?`)) return;
+    setSending(true); setError(''); setSuccess('');
+    try {
+      const validation = await supabase.functions.invoke('testar-integracao', { body: { canal: 'whatsapp' } });
+      if (validation.error || !validation.data?.pronto) throw new Error(validation.error ? await detalheDoErroDeFuncao(validation.error) : validation.data?.erro || validation.data?.detalhe);
+      const directTest = await supabase.functions.invoke('enviar-teste-whatsapp', {
+        body: { phone, message, confirmation: 'SEND_REAL_WHATSAPP_TEST' },
+      });
+      if (directTest.error || !directTest.data?.ok) throw new Error(directTest.error ? await detalheDoErroDeFuncao(directTest.error) : directTest.data?.erro);
+      await onCompleted(validation.data?.ambienteRealMensagem || null);
+      setSuccess(`Mensagem aceita pela Z-API e enviada ao número final ${directTest.data.phoneSuffix}.`);
+    } catch (cause) {
+      setError(errorMessage(cause instanceof Error ? cause.message : '', integration.nome));
+    } finally { setSending(false); }
+  };
+
+  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#1D1D1F]/45 p-4" onClick={onClose}>
+    <section className="w-full max-w-xl rounded-2xl border border-[#E5E5EA] bg-white shadow-xl" onClick={(event) => event.stopPropagation()}>
+      <header className="flex items-start justify-between border-b border-[#E5E5EA] px-5 py-4">
+        <div><p className="text-xs font-semibold uppercase tracking-[.12em] text-[#0071E3]">Teste real do canal</p><h3 className="mt-1 text-lg font-bold tracking-tight text-[#1D1D1F]">Enviar teste pelo WhatsApp</h3><p className="mt-1 text-xs leading-relaxed text-[#6E6E73]">Informe um número seu. O sistema valida a Z-API e envia uma única mensagem real, sem criar lead, conversa ou automação.</p></div>
+        <button type="button" onClick={onClose} className="rounded-lg p-2 text-[#6E6E73] hover:bg-[#F2F2F7]" aria-label="Fechar"><i className="ri-close-line text-lg" /></button>
+      </header>
+      <div className="space-y-4 p-5">
+        {error && <div className="rounded-xl border border-[#FF3B30]/25 bg-[#FF3B30]/10 px-3.5 py-3 text-sm text-[#D92D27]">{error}</div>}
+        {success && <div className="rounded-xl border border-[#34C759]/25 bg-[#34C759]/10 px-3.5 py-3 text-sm text-[#237A3B]">{success}</div>}
+        <label className="block text-sm font-semibold text-[#3A3A3C]"><span className="mb-1.5 block">Número para teste</span><input className="w-full rounded-xl border border-[#E5E5EA] bg-[#F2F2F7] px-3.5 py-2.5 text-sm text-[#1D1D1F] placeholder:text-[#86868B] outline-none transition focus:border-[#0071E3] focus:bg-white focus:ring-2 focus:ring-[#0071E3]/20" inputMode="tel" autoComplete="tel" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="(11) 99999-9999" /></label>
+        <label className="block text-sm font-semibold text-[#3A3A3C]"><span className="mb-1.5 block">Mensagem</span><textarea className="min-h-24 w-full resize-y rounded-xl border border-[#E5E5EA] bg-[#F2F2F7] px-3.5 py-2.5 text-sm text-[#1D1D1F] placeholder:text-[#86868B] outline-none transition focus:border-[#0071E3] focus:bg-white focus:ring-2 focus:ring-[#0071E3]/20" maxLength={600} value={message} onChange={(event) => setMessage(event.target.value)} /></label>
+        <p className="rounded-xl border border-[#FF9500]/25 bg-[#FF9500]/10 px-3 py-2.5 text-xs leading-relaxed text-[#8A5200]">Este envio é real. Use um número sob seu controle. Para testar a resposta automática da Ana, cadastre esse mesmo número em um lead depois.</p>
+      </div>
+      <footer className="flex flex-wrap justify-end gap-2 border-t border-[#E5E5EA] px-5 py-4"><button type="button" className="wf-btn-secondary" onClick={onClose}>Fechar</button><button type="button" className="wf-btn-primary disabled:opacity-60" disabled={sending || !phone.trim() || !message.trim()} onClick={() => void send()}><i className={sending ? 'ri-loader-4-line animate-spin' : 'ri-send-plane-fill'} />{sending ? 'Validando e enviando…' : 'Validar e enviar teste'}</button></footer>
+    </section>
+  </div>;
+}
+
 export default function IntegracoesTab({ category }: { category?: OperationalIntegration['operationalCategory'] }) {
   const { integracoes, recarregar } = useIntegracoesStore();
   const { recarregar: recarregarFontes } = useFontesStore();
   const [configuring, setConfiguring] = useState<OperationalIntegration | null>(null);
+  const [whatsappTest, setWhatsappTest] = useState<OperationalIntegration | null>(null);
   const [testing, setTesting] = useState<OperationalIntegration['remoteKey'] | null>(null);
   const [notice, setNotice] = useState('');
 
@@ -81,14 +134,15 @@ export default function IntegracoesTab({ category }: { category?: OperationalInt
 
   return <div className="space-y-4">
     {notice && <div className="rounded-xl border border-[#0071E3]/20 bg-[#0071E3]/8 px-4 py-3 text-sm text-[#1559A6]">{notice}</div>}
-    <div className="rounded-xl border border-[#0071E3]/20 bg-[#F2F7FF] px-4 py-3 text-sm text-[#365B83]"><strong>Fonte única.</strong> Os estados abaixo vêm da tabela de integrações da empresa. “Configurar” guarda segredos no cofre do backend; “Testar” apenas valida o provedor.</div>
+    <div className="rounded-xl border border-[#0071E3]/20 bg-[#F2F7FF] px-4 py-3 text-sm text-[#365B83]"><strong>Fonte única.</strong> Os estados abaixo vêm da tabela de integrações da empresa. “Configurar” guarda segredos no cofre; no WhatsApp, “Testar” valida a Z-API e permite enviar uma mensagem real para o número que você informar.</div>
     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
       {visibleIntegrations.map((integration) => {
         const meta = statusMeta[integration.status];
-        return <article key={integration.remoteKey} className="flex min-h-[224px] flex-col rounded-2xl border border-[#E5E5EA] bg-white p-4 shadow-2xs"><div className="flex items-start justify-between gap-3"><div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#F2F2F7] text-[#0071E3]"><i className={`${integration.icone} text-base`} /></div><span className={`rounded-full border px-2 py-0.5 font-mono text-[10px] font-semibold ${meta.className}`}>{meta.label}</span></div><h3 className="mt-3 text-sm font-bold text-[#1D1D1F]">{integration.nome}</h3><p className="mt-1 line-clamp-3 text-[11px] leading-relaxed text-[#6E6E73]">{integration.descricao}</p><div className="mt-3 space-y-1 text-[10px] text-[#86868B]"><p>Último teste: {integration.ultimoTeste}</p>{integration.lastError && <p className="line-clamp-2 text-[#D92D27]">{integration.lastError}</p>}</div><div className="mt-auto grid grid-cols-2 gap-2 pt-3"><button type="button" onClick={() => setConfiguring(integration)} className="wf-btn-secondary justify-center text-xs">Configurar</button><button type="button" disabled={testing === integration.remoteKey} onClick={() => void test(integration)} className="wf-btn-primary justify-center text-xs disabled:opacity-60">{testing === integration.remoteKey ? 'Validando…' : 'Testar'}</button></div></article>;
+        return <article key={integration.remoteKey} className="flex min-h-[224px] flex-col rounded-2xl border border-[#E5E5EA] bg-white p-4 shadow-2xs"><div className="flex items-start justify-between gap-3"><div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#F2F2F7] text-[#0071E3]"><i className={`${integration.icone} text-base`} /></div><span className={`rounded-full border px-2 py-0.5 font-mono text-[10px] font-semibold ${meta.className}`}>{meta.label}</span></div><h3 className="mt-3 text-sm font-bold text-[#1D1D1F]">{integration.nome}</h3><p className="mt-1 line-clamp-3 text-[11px] leading-relaxed text-[#6E6E73]">{integration.descricao}</p><div className="mt-3 space-y-1 text-[10px] text-[#86868B]"><p>Último teste: {integration.ultimoTeste}</p>{integration.lastError && <p className="line-clamp-2 text-[#D92D27]">{integration.lastError}</p>}</div><div className="mt-auto grid grid-cols-2 gap-2 pt-3"><button type="button" onClick={() => setConfiguring(integration)} className="wf-btn-secondary justify-center text-xs">Configurar</button><button type="button" disabled={testing === integration.remoteKey} onClick={() => integration.remoteKey === 'whatsapp' ? setWhatsappTest(integration) : void test(integration)} className="wf-btn-primary justify-center text-xs disabled:opacity-60">{testing === integration.remoteKey ? 'Validando…' : integration.remoteKey === 'whatsapp' ? 'Testar envio' : 'Testar'}</button></div></article>;
       })}
     </div>
     {visibleIntegrations.length === 0 && <div className="rounded-2xl border border-dashed border-[#E5E5EA] bg-white p-6 text-sm text-[#6E6E73]">Nenhum conector desta categoria está disponível para esta empresa.</div>}
     {configuring && <ConfigureModal integration={configuring} onClose={() => setConfiguring(null)} onSaved={refresh} />}
+    {whatsappTest && <WhatsAppTestModal integration={whatsappTest} onClose={() => setWhatsappTest(null)} onCompleted={async (environmentMessage) => { await refresh(); setNotice(`Z-API validada e mensagem de teste aceita. ${environmentMessage || 'O canal está pronto para uso.'}`); }} />}
   </div>;
 }

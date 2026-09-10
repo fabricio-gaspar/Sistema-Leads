@@ -37,9 +37,15 @@ orçamentos. Não é sistema de venda, checkout, pedido ou recebimento.
 - A saída Z-API é validada separadamente da entrada. O assistente cadastra o endpoint
   oficial `update-webhook-received` no backend sem expor URL/token e só considera a
   entrada homologada após callback real associado a um lead e processado pela Ana.
+- Configurações > Canais oferece um teste direto de WhatsApp: o operador informa um número
+  controlado, o backend valida a instância e envia uma única mensagem real sem criar lead,
+  conversa ou automação. Esse teste não comprova a entrada nem a Ana.
+- A Central cria o registro e o job auditável antes de chamar o worker para despachar somente
+  aquela mensagem humana. Se a tentativa imediata não fechar, o job permanece na fila
+  server-side para recuperação segura.
 - O cron `leadai-automation-worker-dispatch` está instalado no banco e chama o worker
-  com token por empresa do Vault após o administrador preparar o Worker 24/7. Em Demo,
-  o heartbeat é permitido, mas qualquer saída continua bloqueada pelo backend.
+  com token por empresa do Vault após o administrador preparar o Worker 24/7. A proteção
+  interna de `sandbox_mode` continua bloqueando saídas automáticas até a preparação real.
 - A limpeza de teste agora é transacional e exige seleção explícita: candidatos identificados
   por marcadores objetivos são exibidos antes de remover mensagens, filas, execuções, Kanban,
   agenda, atendimento, orçamentos e identidades de canal. Nenhum candidato é apagado automaticamente.

@@ -3,8 +3,8 @@
 ## Crítico
 
 - Fluxo real WhatsApp → Ana → resposta não foi homologado ponta a ponta com número autorizado.
-- A Central permite comunicação manual somente depois da validação real da Z-API; a entrega ao
-  número e a resposta de volta ainda dependem de teste explícito do operador.
+- A Central agora tenta despachar a mensagem humana imediatamente, mas a aceitação por uma
+  instância Z-API real e a entrega ao número continuam dependendo do teste explícito do operador.
 - O último teste recebido foi um callback de grupo e foi corretamente ignorado. A homologação
   segue aguardando uma mensagem individual enviada por um lead cadastrado.
 

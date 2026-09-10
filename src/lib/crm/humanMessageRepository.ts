@@ -4,6 +4,7 @@ import { detalheDoErroDeFuncao } from '@/lib/transportador';
 export interface HumanMessageResult {
   queued: boolean;
   detail: string;
+  delivery: 'sent' | 'queued';
 }
 
 /**
@@ -28,5 +29,32 @@ export async function queueHumanMessage(input: { leadId: string; channel: 'whats
     };
     throw new Error(messages[detail] || `A mensagem não foi enfileirada: ${detail || 'falha de validação'}.`);
   }
-  return { queued: true, detail: data.detalhe || 'Mensagem registrada e colocada na fila segura.' };
+  const jobId = typeof data.id === 'string' ? data.id : '';
+  if (!jobId) return { queued: true, delivery: 'queued', detail: data.detalhe || 'Mensagem registrada. O worker seguro fará o envio.' };
+
+  // A mensagem humana tenta ser despachada imediatamente. Se houver uma falha
+  // transitória, o job permanece disponível ao worker server-side; assim o
+  // operador não depende de esperar o próximo ciclo para saber se a Z-API
+  // aceitou a mensagem.
+  const immediate = await supabase.functions.invoke('automation-worker', {
+    body: { run: 'outreach', job_id: jobId },
+  });
+  const outcome = Array.isArray(immediate.data?.job_results)
+    ? immediate.data.job_results.find((item: { id?: unknown }) => item.id === jobId) as { status?: unknown; error?: unknown } | undefined
+    : undefined;
+  if (outcome?.status === 'sent') {
+    return { queued: true, delivery: 'sent', detail: 'Mensagem aceita pela Z-API e registrada no histórico do lead.' };
+  }
+  if (outcome?.status === 'failed') {
+    const code = typeof outcome.error === 'string' ? outcome.error : 'dispatch_failed';
+    const messages: Record<string, string> = {
+      recipient_invalid: 'O WhatsApp deste lead é inválido. Corrija o número antes de tentar novamente.',
+      recipient_mismatch: 'O número salvo no lead não corresponde ao destinatário da conversa.',
+      channel_not_ready: 'A Z-API não está pronta para envio. Valide o canal em Configurações.',
+      provider_http_400: 'A Z-API recusou a mensagem. Confira o número do lead e tente novamente.',
+      contact_suppressed: 'Este contato está protegido por opt-out. Nenhuma mensagem foi enviada.',
+    };
+    throw new Error(messages[code] || `A mensagem foi registrada, mas a Z-API não a aceitou: ${code}.`);
+  }
+  return { queued: true, delivery: 'queued', detail: 'Mensagem registrada na fila segura. O worker server-side continuará o envio automaticamente.' };
 }

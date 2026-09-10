@@ -209,3 +209,15 @@ webhook em ambiente controlado.
 - Funções implantadas: `testar-integracao` v13, `operational-diagnostics` v11 e
   `cleanup-test-leads` v1, todas com JWT obrigatório. Nenhuma mensagem foi enviada e nenhuma
   exclusão foi disparada durante este lote.
+
+## Teste simples de saída WhatsApp — 10/09/2026
+
+- O teste da Z-API não depende mais de criar lead, preparar worker ou esperar a fila. Em
+  **Configurações > Canais, APIs e fontes > WhatsApp > Testar envio**, informar um número sob
+  controle do operador e uma mensagem. O backend confirma a instância e envia uma mensagem real
+  diretamente; a confirmação do provedor e apenas os quatro últimos dígitos ficam auditados.
+- Para uma mensagem manual da Central, o job continua sendo criado e auditado primeiro, mas a
+  Central solicita o despacho do job específico imediatamente. O cron continua como recuperação
+  segura caso essa tentativa não termine.
+- Isto homologa somente a saída do WhatsApp. Para a Ana receber e responder, ainda é necessário
+  cadastrar um lead com o mesmo número e enviar uma resposta individual para o webhook.

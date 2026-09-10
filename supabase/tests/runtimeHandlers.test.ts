@@ -279,6 +279,28 @@ describe('Worker safety handler', () => {
     expect(calls.some((q) => q.table === 'agent_runs' && q.operation === 'select')).toBe(false);
     expect(calls.find((q) => q.table === 'lead_messages' && q.operation === 'update')?.value).toMatchObject({ type: 'sent', provider_message_id: 'synthetic-human-receipt' });
   });
+  it('dispatches only the selected human job when the Central requests an immediate send', async () => {
+    const selectedJob = {
+      ...job,
+      id: leadId,
+      payload: { text: 'Mensagem humana imediata', message_id: 'synthetic-immediate-message', manual: true, context_last_contact: null },
+    };
+    override = (q) => {
+      if (q.table === 'outreach_jobs' && q.operation === 'select') return q.filters.status === 'queued' && q.filters.id === leadId ? ok([selectedJob]) : { ...ok(null), count: 0 };
+      if (q.table === 'read_integration_secret') return ok({ instancia_id: 'synthetic-instance', token: 'synthetic-token', client_token: 'synthetic-client' });
+      if (q.table === 'lead_messages' && q.operation === 'select') return ok({ id: 'synthetic-immediate-message', text: 'Mensagem humana imediata', sender: 'human', type: 'queued' });
+      return undefined;
+    };
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ messageId: 'synthetic-immediate-receipt' }), { status: 200 }));
+    await import('../functions/automation-worker/index');
+    const response = await handler(new Request('https://example.invalid/automation-worker', {
+      method: 'POST', headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ run: 'outreach', job_id: leadId }),
+    }));
+    const body = await response.json();
+    expect(body).toMatchObject({ ok: true, sent_jobs: 1, job_results: [{ id: leadId, status: 'sent' }] });
+    expect(calls.filter((q) => q.table === 'outreach_jobs' && q.operation === 'select').at(-1)?.filters).toMatchObject({ id: leadId, status: 'queued' });
+  });
   it('dispatches only an unexpired controlled human test while sandbox is on', async () => {
     const controlledJob = {
       ...job,
@@ -369,6 +391,45 @@ describe('Z-API status validation contract', () => {
     );
     expect(fetchMock.mock.calls[0][1].headers).not.toHaveProperty('Accept');
     expect(calls.find((q) => q.table === 'company_settings' && q.operation === 'update')?.value).toMatchObject({ sandbox_mode: false });
+  });
+});
+
+describe('Z-API direct test message contract', () => {
+  it('validates the provider and sends one confirmed message without creating a lead or queue job', async () => {
+    override = (q) => {
+      if (q.table === 'read_integration_secret') return ok({
+        instancia_id: 'synthetic-instance', token: 'synthetic-instance-token', client_token: 'synthetic-client-token', url_base: 'https://api.z-api.io',
+      });
+      return undefined;
+    };
+    fetchMock
+      .mockResolvedValueOnce(new Response(JSON.stringify({ connected: true, smartphoneConnected: true }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ messageId: 'synthetic-direct-receipt' }), { status: 200 }));
+    await import('../functions/enviar-teste-whatsapp/index');
+    const response = await handler(new Request('https://example.invalid/enviar-teste-whatsapp', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone: '(11) 99999-0000', message: 'Teste controlado', confirmation: 'SEND_REAL_WHATSAPP_TEST' }),
+    }));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ ok: true, providerAccepted: true, phoneSuffix: '0000' });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[1][0]).toBe('https://api.z-api.io/instances/synthetic-instance/token/synthetic-instance-token/send-text');
+    expect(JSON.parse(fetchMock.mock.calls[1][1].body)).toMatchObject({ phone: '5511999990000', message: 'Teste controlado' });
+    expect(calls.some((q) => q.table === 'leads' && q.operation === 'insert')).toBe(false);
+    expect(calls.some((q) => q.table === 'outreach_jobs' && q.operation === 'insert')).toBe(false);
+  });
+
+  it('requires an explicit real-send confirmation before contacting the provider', async () => {
+    await import('../functions/enviar-teste-whatsapp/index');
+    const response = await handler(new Request('https://example.invalid/enviar-teste-whatsapp', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone: '(11) 99999-0000', message: 'Teste controlado' }),
+    }));
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ ok: false, erro: 'test_message_confirmation_required' });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 
