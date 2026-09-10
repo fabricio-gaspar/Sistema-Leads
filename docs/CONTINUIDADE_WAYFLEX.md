@@ -309,3 +309,8 @@ webhook em ambiente controlado.
 - A publicação final foi concluída no Site oficial como versão 65. A verificação no navegador
   confirmou que a rota inicial agora abre a tela de login, em vez de “Configuração necessária”.
   Não foi feito login, envio, execução de modelo ou interação comercial durante essa checagem.
+- Pela tela autenticada **Configurar a Ana**, a versão ativa foi publicada como v13 com sete
+  itens de resumo: site oficial, 17 catálogos, 18 segmentos, 18 famílias de acessórios,
+  materiais/qualificação/limites, páginas-fonte e a regra de validação humana/técnica. A
+  conferência no banco confirmou a versão ativa e manteve somente WhatsApp como canal permitido;
+  publicar a configuração não habilitou o canal nem enviou mensagens.
