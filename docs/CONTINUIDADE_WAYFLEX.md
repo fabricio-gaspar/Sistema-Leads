@@ -327,3 +327,14 @@ webhook em ambiente controlado.
   A reprodução visual confirmou o estado bloqueado sem edição e o botão habilitado após alteração
   local; nenhum dado, mensagem, provedor IA ou modo operacional foi alterado durante o teste.
 - A correção foi publicada no Site oficial como versão 68, preservando a audiência privada.
+
+## Ana automática ativa após revalidação da IA — 10/09/2026
+
+- A tela de Dashboard mostrava **Ana automática · Inativo** apesar de Ambiente Real, WhatsApp,
+  entrada, worker e política publicada estarem ativos. A inspeção confirmou que a verificação
+  da credencial do provedor de IA havia vencido, o que mantém a automação bloqueada por segurança.
+- Foi executada a validação autenticada da credencial de IA. Ela confirmou acesso ao provedor sem
+  enviar mensagem, executar o modelo, alterar a configuração comercial ou disparar a fila.
+- Após recarregar o Dashboard, o backend confirmou **Ana automática · Ativo**: IA, canal,
+  entrada, worker e políticas foram confirmados. Isso não substitui homologação de uma resposta
+  real de modelo ou de entrega/leitura externa.

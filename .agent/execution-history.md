@@ -215,3 +215,14 @@
 - Type-check frontend/Edge, lint, 15 arquivos/159 testes e build passaram. A reprodução no
   navegador confirmou o botão bloqueado no estado já publicado e habilitado após edição local;
   nenhuma publicação, mensagem, chamada de modelo ou alteração operacional foi disparada no teste.
+
+## 2026-09-10 — Ana automática ativada por verificação operacional
+
+- O Dashboard mostrava “Ana automática · Inativo” embora a política publicada, o WhatsApp, a
+  entrada e o worker estivessem ativos. A causa comprovada era a validade expirada da última
+  verificação da credencial de IA.
+- A credencial do provedor principal foi revalidada pelo fluxo autenticado de Configurações.
+  O teste consulta o provedor para validar acesso, não envia mensagem, não executa o modelo e
+  não altera a configuração comercial.
+- Depois da atualização, o Dashboard confirmou **Ana automática · Ativo** e Ambiente Real ativo,
+  com IA, canal, entrada, worker e políticas confirmados. Nenhuma mensagem foi enviada.
