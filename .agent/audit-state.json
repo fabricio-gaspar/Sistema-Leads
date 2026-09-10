@@ -13,6 +13,6 @@
   },
   "full_audit_required": false,
   "baseline_status": "validated",
-  "updated_at": "2026-09-10T23:58:00Z",
+  "updated_at": "2026-09-11T00:10:00Z",
   "next_action": "O cadastro de teste explicitamente solicitado foi removido do grafo operacional. Um novo teste pode cadastrar o telefone novamente; retenções append-only de auditoria permanecem por governança e não participam de matching, atendimento, fila ou automação."
 }

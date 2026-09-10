@@ -240,3 +240,9 @@
   implantada os retém deliberadamente. Eles não participam do matching, atendimento, fila ou
   automação e não impedem o novo cadastro do telefone. Nenhuma mensagem foi enviada e nenhuma
   integração, política da Ana ou `sandbox_mode` foi alterado.
+
+## 2026-09-11 — Segunda limpeza explícita do lead Fabricio Gaspar
+
+- O cadastro recriado com o telefone informado foi localizado de forma única e removido pela
+  mesma transação oficial, restrita à organização Wayflex.
+- Verificação posterior: zero lead, mensagem, item de fila, execução da Ana e vínculo de canal.

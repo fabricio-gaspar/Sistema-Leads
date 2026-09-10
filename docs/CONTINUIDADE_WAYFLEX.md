@@ -350,3 +350,9 @@ webhook em ambiente controlado.
 - `audit_logs` e `domain_events` são append-only no ambiente implantado e foram preservados como
   evidência de governança. Essas retenções não são usadas por matching, atendimento, fila ou
   automação. Não houve envio de mensagem, alteração da Ana, integração ou `sandbox_mode`.
+
+## Segunda limpeza do lead Fabricio Gaspar — 11/09/2026
+
+- O cadastro recriado com o telefone informado foi localizado de forma única e excluído pela
+  transação operacional oficial, limitada à organização Wayflex.
+- A verificação confirmou zero lead, mensagem, fila, execução da Ana e vínculo de canal restantes.
