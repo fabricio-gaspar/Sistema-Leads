@@ -226,3 +226,17 @@
   não altera a configuração comercial.
 - Depois da atualização, o Dashboard confirmou **Ana automática · Ativo** e Ambiente Real ativo,
   com IA, canal, entrada, worker e políticas confirmados. Nenhuma mensagem foi enviada.
+
+## 2026-09-10 — Limpeza explícita de lead de teste
+
+- O operador solicitou excluir o único cadastro associado ao telefone informado, para repetir
+  um teste. A consulta prévia confirmou um único ID na organização Wayflex e a transação foi
+  limitada exatamente a esse ID.
+- O grafo operacional foi removido pela função transacional: cadastro, mensagens, filas,
+  execuções, atendimento, Kanban, agenda, comercial e vínculos de canal/matching. A verificação
+  posterior confirmou zero registros diretos em todas as tabelas relacionadas ao lead e nas
+  dependências das execuções de automação.
+- `audit_logs` e `domain_events` permanecem como evidência append-only da organização; a função
+  implantada os retém deliberadamente. Eles não participam do matching, atendimento, fila ou
+  automação e não impedem o novo cadastro do telefone. Nenhuma mensagem foi enviada e nenhuma
+  integração, política da Ana ou `sandbox_mode` foi alterado.

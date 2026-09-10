@@ -338,3 +338,15 @@ webhook em ambiente controlado.
 - Após recarregar o Dashboard, o backend confirmou **Ana automática · Ativo**: IA, canal,
   entrada, worker e políticas foram confirmados. Isso não substitui homologação de uma resposta
   real de modelo ou de entrega/leitura externa.
+
+## Limpeza explícita de lead para novo teste — 10/09/2026
+
+- Mediante solicitação explícita do operador, foi identificado um único lead associado ao
+  telefone fornecido e a exclusão foi executada pela transação de limpeza, delimitada à empresa
+  Wayflex e ao ID confirmado.
+- A validação posterior confirmou ausência do lead e de seus vínculos operacionais: mensagens,
+  filas, execuções da Ana, automações, Central, Kanban, agenda, comercial e identidades de
+  canal/matching. O telefone pode ser cadastrado novamente para um teste limpo.
+- `audit_logs` e `domain_events` são append-only no ambiente implantado e foram preservados como
+  evidência de governança. Essas retenções não são usadas por matching, atendimento, fila ou
+  automação. Não houve envio de mensagem, alteração da Ana, integração ou `sandbox_mode`.

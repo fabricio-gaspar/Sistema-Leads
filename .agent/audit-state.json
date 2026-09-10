@@ -4,7 +4,7 @@
   "baseline_commit": "1fbd231ff88b4e02c3ddddd18253a1f3be8be5ee",
   "last_audited_commit": "228be6a36dff00982860e7a8cb9ee33e91c5f778",
   "current_head_at_update": "228be6a36dff00982860e7a8cb9ee33e91c5f778",
-  "working_tree_status": "ana_automatic_active_confirmed_runtime_2026-09-10",
+  "working_tree_status": "explicit_test_lead_cleanup_verified_2026-09-10",
   "last_site_publication": {
     "commit": "228be6a36dff00982860e7a8cb9ee33e91c5f778",
     "working_tree_status": "ana_publish_button_clarity_published_site_v68",
@@ -13,6 +13,6 @@
   },
   "full_audit_required": false,
   "baseline_status": "validated",
-  "updated_at": "2026-09-10T23:25:00Z",
-  "next_action": "Ana automática está ativa após revalidação segura da credencial de IA. O próximo teste, se necessário, deve ser controlado e comprovar somente o fluxo externo desejado; não repetir mensagens nem callbacks antigos."
+  "updated_at": "2026-09-10T23:58:00Z",
+  "next_action": "O cadastro de teste explicitamente solicitado foi removido do grafo operacional. Um novo teste pode cadastrar o telefone novamente; retenções append-only de auditoria permanecem por governança e não participam de matching, atendimento, fila ou automação."
 }
