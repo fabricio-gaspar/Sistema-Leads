@@ -23,7 +23,7 @@ const formVazio = (): FormState => ({
   padrao: false,
 });
 
-const inputClass = 'w-full rounded-xl border border-[#E5E5EA] bg-[#F2F2F7] px-3.5 py-2.5 text-xs text-[#1D1D1F] placeholder:text-[#86868B] outline-none transition focus:border-[#0071E3] focus:bg-white focus:ring-2 focus:ring-[#0071E3]/20';
+const inputClass = 'w-full rounded-xl border border-background-200 bg-background-100 px-3.5 py-2.5 text-xs text-foreground-950 placeholder:text-foreground-400 outline-none transition focus:border-primary-500 focus:bg-white focus:ring-2 focus:ring-primary-500/20';
 
 export default function TemplatesPropostaTab() {
   const { templates, loading, saving, error, atualizar, adicionar, duplicar, excluir, definirPadrao, recarregar } = useTemplatesPropostaStore();
@@ -129,7 +129,7 @@ export default function TemplatesPropostaTab() {
             <button type="button" disabled={loading || saving} onClick={() => void recarregar()} className="rounded-xl border border-[#E5E5EA] bg-[#F2F2F7] px-3 py-2 text-xs font-semibold text-[#1D1D1F] transition hover:bg-[#E5E5EA] disabled:opacity-50">
               <i className="ri-refresh-line mr-1.5" aria-hidden="true" />Atualizar
             </button>
-            <button type="button" disabled={loading || saving} onClick={abrirNovo} className="rounded-xl bg-[#0071E3] px-3.5 py-2 text-xs font-semibold text-white shadow-xs transition hover:bg-[#0077ED] active:scale-[0.98] disabled:opacity-50">
+        <button type="button" disabled={loading || saving} onClick={abrirNovo} className="rounded-xl bg-primary-600 px-3.5 py-2 text-xs font-semibold text-white shadow-xs transition hover:bg-primary-700 active:scale-[0.98] disabled:opacity-50">
               <i className="ri-add-line mr-1.5" aria-hidden="true" />Novo template
             </button>
           </div>
@@ -171,9 +171,9 @@ export default function TemplatesPropostaTab() {
                     <td className="px-5 py-3.5">
                       <div className="flex justify-end gap-1">
                         {!template.padrao && <button type="button" disabled={saving} onClick={() => void executar(() => definirPadrao(template.id), `“${template.nome}” definido como padrão.`)} className="h-8 rounded-lg px-2 text-[#6E6E73] transition hover:bg-white hover:text-[#5856D6]" title="Definir como padrão"><i className="ri-star-line" /></button>}
-                        <button type="button" disabled={saving} onClick={() => void executar(() => atualizar(template.id, { ativo: !template.ativo }), `Template ${template.ativo ? 'desativado' : 'ativado'}.`)} className="h-8 rounded-lg px-2 text-[#6E6E73] transition hover:bg-white hover:text-[#0071E3]" title={template.ativo ? 'Desativar' : 'Ativar'}><i className={template.ativo ? 'ri-pause-circle-line' : 'ri-play-circle-line'} /></button>
-                        <button type="button" disabled={saving} onClick={() => abrirEdicao(template)} className="h-8 rounded-lg px-2 text-[#6E6E73] transition hover:bg-white hover:text-[#0071E3]" title="Editar"><i className="ri-edit-line" /></button>
-                        <button type="button" disabled={saving} onClick={() => void executar(() => duplicar(template.id), 'Template duplicado e salvo.')} className="h-8 rounded-lg px-2 text-[#6E6E73] transition hover:bg-white hover:text-[#0071E3]" title="Duplicar"><i className="ri-file-copy-line" /></button>
+                      <button type="button" disabled={saving} onClick={() => void executar(() => atualizar(template.id, { ativo: !template.ativo }), `Template ${template.ativo ? 'desativado' : 'ativado'}.`)} className="h-8 rounded-lg px-2 text-foreground-500 transition hover:bg-white hover:text-primary-700" title={template.ativo ? 'Desativar' : 'Ativar'}><i className={template.ativo ? 'ri-pause-circle-line' : 'ri-play-circle-line'} /></button>
+                      <button type="button" disabled={saving} onClick={() => abrirEdicao(template)} className="h-8 rounded-lg px-2 text-foreground-500 transition hover:bg-white hover:text-primary-700" title="Editar"><i className="ri-edit-line" /></button>
+                      <button type="button" disabled={saving} onClick={() => void executar(() => duplicar(template.id), 'Template duplicado e salvo.')} className="h-8 rounded-lg px-2 text-foreground-500 transition hover:bg-white hover:text-primary-700" title="Duplicar"><i className="ri-file-copy-line" /></button>
                         <button type="button" disabled={saving} onClick={() => {
                           if (window.confirm(`Excluir o template “${template.nome}”?`)) void executar(() => excluir(template.id), 'Template excluído.');
                         }} className="h-8 rounded-lg px-2 text-[#6E6E73] transition hover:bg-[#FF3B30]/10 hover:text-[#FF3B30]" title="Excluir"><i className="ri-delete-bin-6-line" /></button>
@@ -250,14 +250,14 @@ export default function TemplatesPropostaTab() {
               </div>
 
               <label className="flex cursor-pointer items-center gap-2.5 text-xs text-[#1D1D1F]">
-                <input type="checkbox" checked={form.padrao} onChange={(event) => setForm({ ...form, padrao: event.target.checked })} className="accent-[#0071E3]" />
+                <input type="checkbox" checked={form.padrao} onChange={(event) => setForm({ ...form, padrao: event.target.checked })} className="accent-primary-600" />
                 Usar como template padrão
               </label>
             </div>
 
             <footer className="sticky bottom-0 flex justify-end gap-2 border-t border-[#E5E5EA] bg-white/95 px-6 py-4 backdrop-blur">
               <button type="button" disabled={saving} onClick={() => setModalAberto(false)} className="rounded-xl border border-[#E5E5EA] bg-[#F2F2F7] px-4 py-2.5 text-xs font-semibold text-[#1D1D1F] hover:bg-[#E5E5EA] disabled:opacity-50">Cancelar</button>
-              <button type="button" disabled={saving} onClick={() => void salvar()} className="rounded-xl bg-[#0071E3] px-4 py-2.5 text-xs font-semibold text-white shadow-xs hover:bg-[#0077ED] disabled:opacity-50">
+            <button type="button" disabled={saving} onClick={() => void salvar()} className="rounded-xl bg-primary-600 px-4 py-2.5 text-xs font-semibold text-white shadow-xs hover:bg-primary-700 disabled:opacity-50">
                 {saving ? 'Salvando…' : editando ? 'Salvar alterações' : 'Criar template'}
               </button>
             </footer>

@@ -4,9 +4,15 @@
   "baseline_commit": "1fbd231ff88b4e02c3ddddd18253a1f3be8be5ee",
   "last_audited_commit": "pending_commit_ana_configuration_policy_2026-09-10",
   "current_head_at_update": "pending_commit_ana_configuration_policy_2026-09-10",
-  "working_tree_status": "ana_configuration_policy_migrations_and_edge_functions_deployed_site_checkpoint_pending_publish",
+  "working_tree_status": "merged_official_site_source_ana_configuration_policy_checkpoint_validated_pending_publish",
+  "last_site_publication": {
+    "commit": "e4b1666c878df01ac0db3d12a290531a42107446",
+    "working_tree_status": "static_supabase_public_config_published_site_v61",
+    "site_version": 61,
+    "validated_at": "2026-09-10T20:48:27Z"
+  },
   "full_audit_required": false,
   "baseline_status": "validated",
-  "updated_at": "2026-09-10T18:35:00Z",
-  "next_action": "Publicar este checkpoint no Site oficial existente. Depois, o operador pode testar explicitamente o modelo e, em Configurações > Canais, APIs e fontes > WhatsApp > Testar envio, usar um número próprio. Para homologar Ana, é necessária uma resposta individual de um lead cadastrado; não inferir entrega/leitura de callback único."
+  "updated_at": "2026-09-10T20:48:27Z",
+  "next_action": "Publicar este checkpoint de política da Ana no Site oficial existente. Depois, confirmar o login e as leituras do CRM no navegador autenticado; o operador pode testar explicitamente o modelo e, em Configurações > Canais, APIs e fontes > WhatsApp > Testar envio, usar um número próprio. Para homologar Ana, é necessária uma resposta individual de um lead cadastrado; não inferir entrega/leitura de callback único."
 }

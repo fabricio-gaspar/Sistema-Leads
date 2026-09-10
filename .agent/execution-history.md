@@ -167,5 +167,39 @@
   `lead-workflow` v3.
 - A configuração de IA não revela chave; modelos permitidos são validados no backend e o
   painel declara corretamente que a seleção não equivale a teste real do modelo.
-- Type-check frontend/Edge, lint, 154 testes e build passaram. Não houve envio de WhatsApp,
+- Type-check frontend/Edge, lint, 157 testes e build passaram. Não houve envio de WhatsApp,
   execução de modelo, alteração de `sandbox_mode` ou remoção de dados neste lote.
+
+## 2026-09-10 — Layout executivo e fluxo comercial orientado
+
+- O Site oficial foi preservado como fonte operacional; o `main` público do GitHub foi
+  comparado e não recebeu merge global porque contém uma stack histórica diferente. A branch
+  de estabilização não foi necessária para este delta exclusivamente visual e informacional.
+- O shell passou para o padrão Wayflex Executive Light e o menu foi agrupado em Começo · captar,
+  Meio · atender, Final · fechar e Administração. A antiga busca sem ação foi substituída por
+  filtro funcional de telas e o indicador textual não comprovado “Ana está online” foi removido.
+- O Dashboard ganhou sequência de trabalho com rotas reais e cartões de Ambiente Real, Z-API,
+  entrada WhatsApp, Ana, worker e fontes calculados por `operational-diagnostics`.
+- Configurações agora explica e separa Canais, APIs e Fontes. O teste direto da Z-API permanece
+  somente em Canais > WhatsApp. Integração conectada mas desativada aparece como configurada e
+  inativa, com teste de regressão dedicado.
+- Type-check frontend/Edge, lint sem warnings, 14 arquivos de teste com 127 verificações e build
+  de produção foram aprovados. O Computer Use não carregou por erro local de permissão no módulo
+  do navegador, portanto a inspeção autenticada visual permanece pendente; nenhuma operação de
+  banco, integração, lead ou mensagem foi executada neste lote.
+- Implementação registrada no commit `83ffd1001f8c6777a85f3aec304e1434897d5d8e` e publicada
+  com sucesso no Site oficial como versão 59, preservando a audiência customizada existente.
+
+## 2026-09-10 — Recuperação da configuração pública do Supabase no Site
+
+- A tela “Configuração necessária” foi reproduzida como falha de empacotamento, não de banco:
+  os dois valores públicos estavam corretos no ambiente do Site e conferiam com o projeto
+  `thgzrkppouoevapjquyu`, mas a exportação Vite anterior fora gerada sem eles.
+- O artefato estático foi reconstruído com URL pública e chave publicável ativas obtidas pelo
+  conector oficial. A URL e a chave foram verificadas no pacote sem serem registradas no Git,
+  em arquivos `.env` ou em logs; nenhuma chave privada, dado operacional ou integração externa
+  foi usada.
+- Type-check frontend/Edge, lint sem warnings e 14 arquivos/127 testes passaram antes da
+  publicação corretiva.
+- Publicação corretiva concluída com sucesso no Site oficial como versão 61. A audiência
+  customizada foi preservada; nenhuma variável sensível foi adicionada ao Site ou ao Git.

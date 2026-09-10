@@ -97,9 +97,10 @@ function anaProviderConfiguration(value: unknown): AnaProviderConfiguration | nu
   };
 }
 
-function statusFromRemote(remote: { connected: boolean; enabled: boolean; paused: boolean; last_error: string | null }) {
+export function integrationDisplayStatus(remote: { connected: boolean; enabled: boolean; paused: boolean; last_error: string | null }) {
   if (remote.last_error || remote.paused) return 'erro' as const;
   if (remote.connected && remote.enabled) return 'conectado' as const;
+  if (remote.connected) return 'sandbox' as const;
   return 'pendente' as const;
 }
 
@@ -139,7 +140,7 @@ async function hydrateFromBackend(force = false): Promise<void> {
       operationalCategory: (remote.category === 'prospecting' || remote.category === 'communication' || remote.category === 'intelligence' || remote.category === 'scheduling' || remote.category === 'system')
         ? remote.category
         : (key === 'whatsapp' ? 'communication' : key === 'ai' ? 'intelligence' : 'prospecting'),
-      status: statusFromRemote(remote),
+      status: integrationDisplayStatus(remote),
       ultimoTeste: remote.last_tested_at ? new Date(remote.last_tested_at).toLocaleString('pt-BR') : 'Nunca testada',
       descricao: remote.status_detail || descriptor.descricao,
       connected: Boolean(remote.connected),

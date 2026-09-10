@@ -238,7 +238,7 @@ webhook em ambiente controlado.
   nas versões correspondentes deste checkpoint.
 - As chaves de IA continuam no Vault: a interface só lê provedor, modelo e estado público.
   Selecionar ou salvar um modelo não comprova uma chamada real ao provedor.
-- Validação local deste checkpoint: type-check do frontend e das Edge Functions, lint, 154
+- Validação local deste checkpoint: type-check do frontend e das Edge Functions, lint, 157
   testes e build aprovados. Não foi feito envio real, teste de modelo, mudança de
   `sandbox_mode` ou exclusão de dados.
 - Limites conhecidos: recibo de entrega/leitura que chegar antes da persistência da aceitação
@@ -247,3 +247,40 @@ webhook em ambiente controlado.
   retroativamente quando a configuração da Ana muda. Se a aceitação remota ocorrer e a
   persistência local falhar, o job fica em reconciliação até tratamento operacional. Esses
   pontos não autorizam afirmar homologação externa ponta a ponta.
+
+## Layout Wayflex Executive Light — 10/09/2026
+
+- A linguagem visual do Site foi alinhada à referência fornecida: base branca/cinza muito clara,
+  verde institucional, bordas finas, sombras discretas e densidade de dashboard executivo. A
+  mudança reaproveita componentes, rotas e regras existentes; não houve redesenho de domínio.
+- O menu global agora comunica o fluxo comercial: **Começo · captar** (Busca e Leads),
+  **Meio · atender** (Kanban, Central e Agenda), **Final · fechar** (Orçamentos, Funil e
+  Relatórios) e Administração. A busca lateral filtra telas reais e o topo usa breadcrumb.
+- O Dashboard ganhou atalhos de começo/meio/final e cartões de recursos que consultam
+  `operational-diagnostics`: Ambiente Real, WhatsApp Z-API, entrada, Ana, worker e fontes. O
+  rótulo Ativo nunca é decorativo; durante consulta aparece “Consultando”.
+- Configurações inicia em Status operacional e separa **Canais** (WhatsApp/Z-API), **APIs**
+  (IA e prospecção) e **Fontes** (ativação na Busca de Leads). O teste Z-API permanece somente
+  no cartão WhatsApp. Conexão validada e uso ativo são exibidos como fatos diferentes.
+- Regressão adicionada para impedir que integração conectada porém desativada apareça ativa.
+  Type-check frontend/Edge, lint, 14 arquivos de teste/127 verificações e build passaram.
+- Nenhum dado do Supabase, segredo, lead ou mensagem foi alterado durante este lote. A inspeção
+  visual autenticada por Computer Use ficou pendente por falha local de permissão ao carregar o
+  módulo do navegador; a referência foi analisada pela imagem pública da página compartilhada.
+- O código foi registrado no commit `83ffd1001f8c6777a85f3aec304e1434897d5d8e` e publicado
+  com sucesso no Site oficial como versão 59, sem mudar a audiência existente.
+
+## Recuperação do Supabase no Site estático — 10/09/2026
+
+- A mensagem “Configuração necessária” não indicava credencial ausente no Site nem erro do
+  projeto Supabase. A URL pública e a chave publicável existentes foram confirmadas contra
+  `thgzrkppouoevapjquyu`; o problema era que a versão estática anterior havia sido gerada sem
+  essas variáveis no processo Vite.
+- O artefato corretivo é construído com os valores públicos do ambiente do Site. Eles entram
+  somente no bundle de navegador, como exige o cliente Supabase, e não em arquivos `.env`, Git,
+  respostas, logs, Vault de frontend ou qualquer chave privada.
+- Antes de publicar, foram aprovados type-check frontend/Edge, lint, 14 arquivos/127 testes,
+  o build e a verificação de presença da URL/chave publicável no artefato. Nenhuma tabela,
+  mensagem, lead, integração ou segredo foi alterado.
+- A correção foi publicada com sucesso no Site oficial como versão 61. A próxima validação é
+  somente atualizar a página autenticada e confirmar a abertura normal do CRM.

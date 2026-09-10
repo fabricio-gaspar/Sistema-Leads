@@ -60,7 +60,7 @@ export default function DadosTab() {
             value={ramo}
             onChange={(e) => setRamo(e.target.value)}
             placeholder="Descreva o segmento principal da empresa"
-            className="w-full px-3.5 py-2.5 bg-[#F2F2F7] border border-[#E5E5EA] rounded-xl text-xs text-[#1D1D1F] placeholder-[#86868B] focus:bg-white focus:border-[#0071E3] focus:outline-none focus:ring-2 focus:ring-[#0071E3]/20 transition"
+        className="w-full px-3.5 py-2.5 bg-background-100 border border-background-200 rounded-xl text-xs text-foreground-950 placeholder-foreground-400 focus:bg-white focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20 transition"
           />
         </div>
       </section>
@@ -68,8 +68,8 @@ export default function DadosTab() {
       <section className="bg-white border border-[#E5E5EA] rounded-2xl p-6 shadow-xs">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-[#0071E3]/10 rounded-xl flex items-center justify-center">
-              <i className="ri-box-3-line text-[#0071E3]"></i>
+          <div className="w-9 h-9 bg-primary-100 rounded-xl flex items-center justify-center">
+            <i className="ri-box-3-line text-primary-700"></i>
             </div>
             <div>
               <h3 className="font-heading font-bold text-[#1D1D1F]">Produtos e modelos de orçamento</h3>
@@ -135,7 +135,7 @@ export default function DadosTab() {
               value={regiao}
               onChange={(e) => setRegiao(e.target.value)}
               placeholder="Ex.: Sorocaba/SP e atendimento comercial para indústrias"
-              className="w-full px-3.5 py-2.5 bg-[#F2F2F7] border border-[#E5E5EA] rounded-xl text-xs text-[#1D1D1F] placeholder-[#86868B] focus:bg-white focus:border-[#0071E3] focus:outline-none focus:ring-2 focus:ring-[#0071E3]/20 transition"
+                  className="w-full px-3.5 py-2.5 bg-background-100 border border-background-200 rounded-xl text-xs text-foreground-950 placeholder-foreground-400 focus:bg-white focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20 transition"
             />
           </div>
           <div>

@@ -1,15 +1,27 @@
 {
   "schema_version": 1,
   "validated_commit": "pending_publication_ana_configuration_policy_2026-09-10",
-  "last_validated_at": "2026-09-10T18:35:00Z",
+  "last_validated_at": "2026-09-10T22:35:00Z",
   "commands": [
     {"command":"npm run type-check","status":"passed"},
     {"command":"npm run lint","status":"passed","warnings":0},
     {"command":"npm run type-check:edge","status":"passed"},
-    {"command":"npm test","status":"passed","files":13,"checks":154},
+    {"command":"npm test","status":"passed","files":14,"checks":157},
     {"command":"npm run build","status":"passed"}
   ],
+  "prior_site_artifact_validation": {
+    "validated_commit": "e4b1666c878df01ac0db3d12a290531a42107446",
+    "last_validated_at": "2026-09-10T20:42:46Z",
+    "commands": [
+      {"command":"tsc --noEmit --project tsconfig.app.json","status":"passed"},
+      {"command":"eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0","status":"passed","warnings":0},
+      {"command":"tsc --project tsconfig.edge.json","status":"passed"},
+      {"command":"vitest run --configLoader runner","status":"passed","test_files":14,"checks":127,"note":"O config foi tornado ESM-safe para o loader runner; todos os testes encerraram normalmente."},
+      {"command":"vite build com VITE_PUBLIC_SUPABASE_URL e VITE_PUBLIC_SUPABASE_PUBLISHABLE_KEY do ambiente do Site","status":"passed","note":"Artefato contém exatamente uma ocorrência da URL pública e uma da chave publicável; nenhum segredo foi gravado no Git."},
+      {"command":"node scripts/build-sites-artifact.mjs","status":"passed"}
+    ]
+  },
   "covered": ["frontend_typecheck","lint","edge_typecheck","unit_and_contract_tests","production_build"],
-  "not_covered": ["authenticated_e2e","real_whatsapp","real_claude","cross_organization_rls","provider_receipt_race","mobile_authenticated_qa"],
+  "not_covered": ["authenticated_e2e","real_whatsapp","real_claude","cross_organization_rls","database_concurrency","provider_receipt_race","mobile_authenticated_qa","computer_use_visual_qa_unavailable_due_local_module_permission"],
   "working_tree_validation": "passed"
 }
