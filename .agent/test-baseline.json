@@ -1,13 +1,14 @@
 {
   "schema_version": 1,
-  "validated_commit": "83ffd1001f8c6777a85f3aec304e1434897d5d8e",
-  "last_validated_at": "2026-09-10T20:23:35Z",
+  "validated_commit": "pending_static_supabase_rebuild_2026-09-10",
+  "last_validated_at": "2026-09-10T20:42:46Z",
   "commands": [
     {"command":"tsc --noEmit --project tsconfig.app.json","status":"passed"},
     {"command":"eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0","status":"passed","warnings":0},
     {"command":"tsc --project tsconfig.edge.json","status":"passed"},
     {"command":"vitest run --configLoader runner","status":"passed","test_files":14,"checks":127,"note":"O config foi tornado ESM-safe para o loader runner; todos os testes encerraram normalmente."},
-    {"command":"vite build && node scripts/build-sites-artifact.mjs","status":"passed","note":"Executado diretamente com o Node empacotado porque npm não estava disponível neste host."}
+    {"command":"vite build com VITE_PUBLIC_SUPABASE_URL e VITE_PUBLIC_SUPABASE_PUBLISHABLE_KEY do ambiente do Site","status":"passed","note":"Artefato contém exatamente uma ocorrência da URL pública e uma da chave publicável; nenhum segredo foi gravado no Git."},
+    {"command":"node scripts/build-sites-artifact.mjs","status":"passed"}
   ],
   "covered": ["frontend_typecheck","lint","edge_typecheck","unit_and_contract_tests","production_build"],
   "not_covered": ["authenticated_e2e","real_whatsapp","real_claude","cross_organization_rls","database_concurrency","mobile_authenticated_qa","computer_use_visual_qa_unavailable_due_local_module_permission"],

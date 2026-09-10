@@ -14,6 +14,10 @@ orçamentos. Não é sistema de venda, checkout, pedido ou recebimento.
 - Site privado existente, com publicação vinculada ao repositório Git.
 - O design global segue o padrão **Wayflex Executive Light**: superfícies claras, contraste
   neutro, verde institucional, bordas finas e navegação orientada ao processo comercial.
+- Como este Site é uma exportação estática Vite, `VITE_PUBLIC_SUPABASE_URL` e
+  `VITE_PUBLIC_SUPABASE_PUBLISHABLE_KEY` são incorporadas no build. O ambiente do Site é a
+  fonte dos valores, mas uma publicação exige reconstruir o artefato com ambos; eles nunca
+  são gravados no repositório e somente a chave publicável pode ir ao navegador.
 
 ## Fontes operacionais principais
 

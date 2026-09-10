@@ -2,11 +2,11 @@
   "schema_version": 1,
   "baseline_version": 3,
   "baseline_commit": "1fbd231ff88b4e02c3ddddd18253a1f3be8be5ee",
-  "last_audited_commit": "83ffd1001f8c6777a85f3aec304e1434897d5d8e",
-  "current_head_at_update": "83ffd1001f8c6777a85f3aec304e1434897d5d8e",
-  "working_tree_status": "wayflex_executive_layout_published_site_v59",
+  "last_audited_commit": "5ed97735eda128e0eed0fe5118cb633f14e675a9",
+  "current_head_at_update": "5ed97735eda128e0eed0fe5118cb633f14e675a9",
+  "working_tree_status": "static_supabase_public_config_validated_pending_publish",
   "full_audit_required": false,
   "baseline_status": "validated",
-  "updated_at": "2026-09-10T20:31:44Z",
-  "next_action": "Executar inspeção visual autenticada da Dashboard e de Configurações quando o Computer Use voltar a carregar no host; não há correção técnica pendente deste lote."
+  "updated_at": "2026-09-10T20:42:46Z",
+  "next_action": "Publicar o artefato estático reconstruído com a URL e chave publicável já confirmadas no ambiente do Site; depois confirmar que a tela de configuração necessária não aparece mais."
 }

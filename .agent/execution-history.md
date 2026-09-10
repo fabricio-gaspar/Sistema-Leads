@@ -171,3 +171,15 @@
   banco, integração, lead ou mensagem foi executada neste lote.
 - Implementação registrada no commit `83ffd1001f8c6777a85f3aec304e1434897d5d8e` e publicada
   com sucesso no Site oficial como versão 59, preservando a audiência customizada existente.
+
+## 2026-09-10 — Recuperação da configuração pública do Supabase no Site
+
+- A tela “Configuração necessária” foi reproduzida como falha de empacotamento, não de banco:
+  os dois valores públicos estavam corretos no ambiente do Site e conferiam com o projeto
+  `thgzrkppouoevapjquyu`, mas a exportação Vite anterior fora gerada sem eles.
+- O artefato estático foi reconstruído com URL pública e chave publicável ativas obtidas pelo
+  conector oficial. A URL e a chave foram verificadas no pacote sem serem registradas no Git,
+  em arquivos `.env` ou em logs; nenhuma chave privada, dado operacional ou integração externa
+  foi usada.
+- Type-check frontend/Edge, lint sem warnings e 14 arquivos/127 testes passaram antes da
+  publicação corretiva.

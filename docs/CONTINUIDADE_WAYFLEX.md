@@ -243,3 +243,16 @@ webhook em ambiente controlado.
   módulo do navegador; a referência foi analisada pela imagem pública da página compartilhada.
 - O código foi registrado no commit `83ffd1001f8c6777a85f3aec304e1434897d5d8e` e publicado
   com sucesso no Site oficial como versão 59, sem mudar a audiência existente.
+
+## Recuperação do Supabase no Site estático — 10/09/2026
+
+- A mensagem “Configuração necessária” não indicava credencial ausente no Site nem erro do
+  projeto Supabase. A URL pública e a chave publicável existentes foram confirmadas contra
+  `thgzrkppouoevapjquyu`; o problema era que a versão estática anterior havia sido gerada sem
+  essas variáveis no processo Vite.
+- O artefato corretivo é construído com os valores públicos do ambiente do Site. Eles entram
+  somente no bundle de navegador, como exige o cliente Supabase, e não em arquivos `.env`, Git,
+  respostas, logs, Vault de frontend ou qualquer chave privada.
+- Antes de publicar, foram aprovados type-check frontend/Edge, lint, 14 arquivos/127 testes,
+  o build e a verificação de presença da URL/chave publicável no artefato. Nenhuma tabela,
+  mensagem, lead, integração ou segredo foi alterado.
