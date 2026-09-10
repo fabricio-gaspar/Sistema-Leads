@@ -368,15 +368,64 @@ describe('Z-API status validation contract', () => {
       expect.objectContaining({ headers: { 'Content-Type': 'application/json', 'Client-Token': 'synthetic-client-token' } }),
     );
     expect(fetchMock.mock.calls[0][1].headers).not.toHaveProperty('Accept');
+    expect(calls.find((q) => q.table === 'company_settings' && q.operation === 'update')?.value).toMatchObject({ sandbox_mode: false });
+  });
+});
+
+describe('Test lead cleanup contract', () => {
+  const cleanupRequest = (body: Row) => new Request('https://example.invalid/cleanup-test-leads', {
+    method: 'POST',
+    headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+
+  const testLead = {
+    id: leadId,
+    company: 'Lavanderia de teste',
+    contact: 'Fabricio Gaspar',
+    phone: '5511999990000',
+    whatsapp: '5511999990000',
+    origin: 'teste controlado',
+    source_record_id: null,
+    source_metadata: { test: true },
+  };
+
+  it('only previews candidates marked by the approved test criteria', async () => {
+    override = (q) => {
+      if (q.table === 'leads' && q.operation === 'select') return ok([testLead]);
+      if (['lead_messages', 'outreach_jobs', 'agent_runs'].includes(q.table) && q.operation === 'select') return ok([{ lead_id: leadId }]);
+      return undefined;
+    };
+    await import('../functions/cleanup-test-leads/index');
+    const response = await handler(cleanupRequest({ action: 'preview' }));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ ok: true, candidates: [{ id: leadId, messageCount: 1, jobCount: 1, runCount: 1 }] });
+    expect(calls.some((q) => q.table === 'purge_selected_test_leads')).toBe(false);
+  });
+
+  it('requires confirmed selected IDs before invoking the transactional purge', async () => {
+    override = (q) => {
+      if (q.table === 'leads' && q.operation === 'select') return ok([testLead]);
+      if (['lead_messages', 'outreach_jobs', 'agent_runs'].includes(q.table) && q.operation === 'select') return ok([]);
+      if (q.table === 'purge_selected_test_leads') return ok([{ lead_id: leadId }]);
+      return undefined;
+    };
+    await import('../functions/cleanup-test-leads/index');
+    const response = await handler(cleanupRequest({ action: 'delete', leadIds: [leadId], confirmation: 'LIMPAR TESTES' }));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ ok: true, deletedCount: 1, deletedIds: [leadId] });
+    expect(calls.find((q) => q.table === 'purge_selected_test_leads' && q.operation === 'rpc')?.value).toMatchObject({ p_lead_ids: [leadId], p_organization_id: org });
+  });
+
+  it('rejects cleanup without explicit confirmation before any purge', async () => {
+    await import('../functions/cleanup-test-leads/index');
+    const response = await handler(cleanupRequest({ action: 'delete', leadIds: [leadId] }));
+    expect(response.status).toBe(400);
+    expect(calls.some((q) => q.table === 'purge_selected_test_leads')).toBe(false);
   });
 });
 
 describe('Operational mode authority', () => {
-  const statusRequest = (mode: 'demo' | 'protected' | 'real') => new Request('https://example.invalid/operational-diagnostics', {
-    method: 'POST',
-    headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'set_mode', mode }),
-  });
   const recent = new Date().toISOString();
 
   const guidedActivationRequest = () => new Request('https://example.invalid/operational-diagnostics', {
@@ -408,7 +457,7 @@ describe('Operational mode authority', () => {
     expect(calls.find((q) => q.table === 'company_settings' && q.operation === 'update')?.value).toMatchObject({ sandbox_mode: false });
   });
 
-  it('keeps demo active and returns only real blockers when external confirmation is still missing', async () => {
+  it('keeps the real environment in preparation and returns only blockers when external confirmation is still missing', async () => {
     override = (q) => {
       if (q.table === 'company_settings' && q.operation === 'select') return ok({ ...readyCompany, sandbox_mode: true });
       if (q.table === 'integrations' && q.operation === 'select') return ok([
@@ -426,55 +475,20 @@ describe('Operational mode authority', () => {
     expect(await response.json()).toMatchObject({
       activated: false,
       remaining: [{ id: 'whatsapp_webhook', ok: false }],
-      status: { mode: 'demo' },
+      status: { mode: 'setup' },
     });
     expect(calls.some((q) => q.table === 'company_settings' && q.operation === 'update')).toBe(false);
   });
 
-  it('enables real mode only after the server preflight passes', async () => {
-    override = (q) => {
-      if (q.table === 'integrations' && q.operation === 'select') return ok([
-        { ...readyIntegration, key: 'ai', label: 'IA', last_tested_at: recent, last_error: null },
-        { ...readyIntegration, key: 'whatsapp', label: 'WhatsApp', last_tested_at: recent, last_error: null },
-        { ...readyIntegration, key: 'zapi_webhook', label: 'Webhook', last_tested_at: recent, last_error: null },
-        { ...readyIntegration, key: 'scheduler', label: 'Worker', last_tested_at: recent, last_error: null },
-      ]);
-      return undefined;
-    };
+  it('does not expose a manual switch back to the removed Demo mode', async () => {
     await import('../functions/operational-diagnostics/index');
-    const response = await handler(statusRequest('real'));
-    expect(response.status).toBe(200);
-    expect(calls.find((q) => q.table === 'company_settings' && q.operation === 'update')?.value).toMatchObject({ sandbox_mode: false });
-  });
-
-  it('keeps real mode blocked when an integration is offline', async () => {
-    override = (q) => {
-      if (q.table === 'integrations' && q.operation === 'select') return ok([
-        { ...readyIntegration, key: 'ai', label: 'IA', connected: false, last_tested_at: recent, last_error: null },
-        { ...readyIntegration, key: 'whatsapp', label: 'WhatsApp', last_tested_at: recent, last_error: null },
-        { ...readyIntegration, key: 'zapi_webhook', label: 'Webhook', last_tested_at: recent, last_error: null },
-        { ...readyIntegration, key: 'scheduler', label: 'Worker', last_tested_at: recent, last_error: null },
-      ]);
-      return undefined;
-    };
-    await import('../functions/operational-diagnostics/index');
-    const response = await handler(statusRequest('real'));
+    const response = await handler(new Request('https://example.invalid/operational-diagnostics', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'set_mode', mode: 'demo' }),
+    }));
     expect(response.status).toBe(400);
     expect(calls.some((q) => q.table === 'company_settings' && q.operation === 'update')).toBe(false);
-  });
-
-  it('persists the demo environment in the backend and records the normalized mode', async () => {
-    override = (q) => q.table === 'integrations' && q.operation === 'select'
-      ? ok([])
-      : undefined;
-    await import('../functions/operational-diagnostics/index');
-    const response = await handler(statusRequest('demo'));
-    expect(response.status).toBe(200);
-    expect(calls.find((q) => q.table === 'company_settings' && q.operation === 'update')?.value).toMatchObject({ sandbox_mode: true });
-    expect(calls.find((q) => q.table === 'audit_logs' && q.operation === 'insert')?.value).toMatchObject({
-      action: 'operation.demo_mode_enabled',
-      event_data: expect.objectContaining({ mode: 'demo' }),
-    });
   });
 
   it('registers only the inbound Z-API webhook using the documented PUT contract', async () => {

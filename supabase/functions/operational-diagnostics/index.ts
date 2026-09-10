@@ -2,8 +2,7 @@ import { createAdminClient, requireOrganizationRole, requireUser } from '../_sha
 import { allowedCorsHeaders, hasAllowedOrigin, json, preflight, safeError } from '../_shared/http.ts';
 import { zapiBaseUrl } from '../_shared/runtimeSafety.ts';
 
-type Action = 'status' | 'set_kill_switch' | 'set_mode' | 'activate_real' | 'events' | 'configure_whatsapp_webhook' | 'activate_scheduler';
-type RequestedMode = 'demo' | 'protected' | 'real';
+type Action = 'status' | 'set_kill_switch' | 'activate_real' | 'events' | 'configure_whatsapp_webhook' | 'activate_scheduler';
 type WebhookDiagnosticState = 'not_configured' | 'waiting_callback' | 'lead_not_matched' | 'unsupported_callback' | 'processing_failed' | 'homologated';
 
 function asObject(value: unknown): Record<string, unknown> {
@@ -164,8 +163,8 @@ async function operationalStatus(admin: ReturnType<typeof createAdminClient>, or
   ];
 
   return {
-    mode: company?.sandbox_mode === false ? 'real' : 'demo',
-    modeLabel: company?.sandbox_mode === false ? 'Ambiente real' : 'Ambiente de demonstração',
+    mode: company?.sandbox_mode === false ? 'real' : 'setup',
+    modeLabel: company?.sandbox_mode === false ? 'Ambiente Real ativo' : 'Ambiente Real em preparação',
     updatedAt: company?.updated_at ?? null,
     runtimeUpdatedAt: runtimeRead.data?.updated_at ?? null,
     killSwitch,
@@ -296,11 +295,12 @@ async function activateRealEnvironment(
   actor: { id: string; name: string | null },
 ) {
   let status = await operationalStatus(admin, organizationId);
-  if (status.mode === 'real') return {
+  const realAlreadyEnabled = status.mode === 'real';
+  if (realAlreadyEnabled && status.productionReady) return {
     activated: true,
     message: 'O Ambiente Real já está ativo e validado pelo servidor.',
     actions: [] as string[],
-    remaining: [] as typeof status.checks,
+    remaining: [],
     status,
   };
 
@@ -343,28 +343,36 @@ async function activateRealEnvironment(
   const remaining = status.checks.filter((item) => !item.ok);
   if (remaining.length > 0) return {
     activated: false,
-    message: actions.length > 0
-      ? 'O sistema concluiu a preparação automática. Falta somente a ação indicada abaixo.'
-      : 'O sistema continua protegido. Conclua somente a ação indicada abaixo e tente ativar novamente.',
+    message: realAlreadyEnabled
+      ? actions.length > 0
+        ? 'A comunicação no Ambiente Real continua ativa. O sistema concluiu a preparação automática e falta somente a ação indicada para liberar as automações da Ana.'
+        : 'A comunicação no Ambiente Real continua ativa. Conclua somente a ação indicada abaixo para liberar as automações da Ana.'
+      : actions.length > 0
+        ? 'O sistema concluiu a preparação automática. Falta somente a ação indicada abaixo.'
+        : 'O Ambiente Real ainda está em preparação. Conclua somente a ação indicada abaixo e verifique novamente.',
     actions,
     remaining,
     status,
   };
 
-  const { error: modeWriteError } = await admin.from('company_settings').update({
-    sandbox_mode: false,
-    updated_at: new Date().toISOString(),
-  }).eq('organization_id', organizationId);
-  if (modeWriteError) throw new Error('operational_mode_save_failed');
-  await admin.from('audit_logs').insert({
-    organization_id: organizationId, actor_id: actor.id, actor_name: actor.name, actor_type: 'user',
-    action: 'operation.real_mode_enabled',
-    detail: 'Ambiente Real preparado e ativado após pré-verificação final do servidor.',
-    entity_table: 'company_settings', event_data: { source: 'guided_real_activation', preflight: status.checks, automatic_actions: actions },
-  });
-  actions.push('Ambiente Real ativado.');
+  if (!realAlreadyEnabled) {
+    const { error: modeWriteError } = await admin.from('company_settings').update({
+      sandbox_mode: false,
+      updated_at: new Date().toISOString(),
+    }).eq('organization_id', organizationId);
+    if (modeWriteError) throw new Error('operational_mode_save_failed');
+    await admin.from('audit_logs').insert({
+      organization_id: organizationId, actor_id: actor.id, actor_name: actor.name, actor_type: 'user',
+      action: 'operation.real_mode_enabled',
+      detail: 'Ambiente Real preparado e ativado após pré-verificação final do servidor.',
+      entity_table: 'company_settings', event_data: { source: 'guided_real_activation', preflight: status.checks, automatic_actions: actions },
+    });
+    actions.push('Ambiente Real ativado.');
+  } else {
+    actions.push('Automações da Ana liberadas após a verificação final.');
+  }
   status = await operationalStatus(admin, organizationId);
-  return { activated: true, message: 'Ambiente Real ativo. O sistema está pronto para operar com as políticas de segurança.', actions, remaining: [], status };
+  return { activated: true, message: realAlreadyEnabled ? 'Ambiente Real ativo. As automações da Ana agora estão prontas para operar com as políticas de segurança.' : 'Ambiente Real ativo. O sistema está pronto para operar com as políticas de segurança.', actions, remaining: [], status };
 }
 
 async function diagnosticEvents(admin: ReturnType<typeof createAdminClient>, organizationId: string) {
@@ -396,7 +404,7 @@ Deno.serve(async (request) => {
   try {
     const body = await request.json().catch(() => ({})) as { action?: Action; enabled?: unknown; mode?: unknown };
     const action = body.action ?? 'status';
-    if (!['status', 'set_kill_switch', 'set_mode', 'activate_real', 'events', 'configure_whatsapp_webhook', 'activate_scheduler'].includes(action)) throw new Error('unsupported_action');
+    if (!['status', 'set_kill_switch', 'activate_real', 'events', 'configure_whatsapp_webhook', 'activate_scheduler'].includes(action)) throw new Error('unsupported_action');
     const { user } = await requireUser(request);
     const admin = createAdminClient();
     const { data: profile, error: profileError } = await admin.from('profiles').select('active_organization_id,name').eq('id', user.id).maybeSingle();
@@ -433,26 +441,6 @@ Deno.serve(async (request) => {
         action: body.enabled ? 'automation.kill_switch_enabled' : 'automation.kill_switch_disabled',
         detail: body.enabled ? 'Automação global pausada manualmente.' : 'Automação global liberada manualmente.',
         entity_table: 'organization_module_data', event_data: { module_key: 'configuracao_runtime', kill_switch: body.enabled },
-      });
-    }
-
-    if (action === 'set_mode') {
-      if (!['demo', 'protected', 'real'].includes(String(body.mode))) throw new Error('operational_mode_value_required');
-      const requestedMode = String(body.mode) as RequestedMode;
-      const currentStatus = await operationalStatus(admin, organizationId);
-      if (requestedMode === 'real' && !currentStatus.productionReady) {
-        throw new Error('operational_preflight_failed');
-      }
-      const { error: modeWriteError } = await admin.from('company_settings').update({
-        sandbox_mode: requestedMode !== 'real',
-        updated_at: new Date().toISOString(),
-      }).eq('organization_id', organizationId);
-      if (modeWriteError) throw new Error('operational_mode_save_failed');
-      await admin.from('audit_logs').insert({
-        organization_id: organizationId, actor_id: user.id, actor_name: profile.name, actor_type: 'user',
-        action: requestedMode === 'real' ? 'operation.real_mode_enabled' : 'operation.demo_mode_enabled',
-        detail: requestedMode === 'real' ? 'Ambiente real ativado após pré-verificação do servidor.' : 'Ambiente de demonstração ativado; saídas reais bloqueadas.',
-        entity_table: 'company_settings', event_data: { mode: requestedMode === 'protected' ? 'demo' : requestedMode, preflight: currentStatus.checks },
       });
     }
 

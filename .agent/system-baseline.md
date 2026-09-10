@@ -27,8 +27,11 @@ orçamentos. Não é sistema de venda, checkout, pedido ou recebimento.
 
 - `ana-run` é a autoridade automática pretendida e aplica bloqueios de segurança.
 - Configurações principais passaram a consultar fontes remotas.
-- Modo operacional vem de `company_settings.sandbox_mode`; Dashboard e Configurações exibem
-  Ambiente de Demonstração/Ambiente Real, com pré-flight e auditoria no backend. Produção segue bloqueada.
+- O painel expõe somente **Ambiente Real**. `company_settings.sandbox_mode` permanece como
+  guarda interna de segurança: enquanto verdadeiro, o painel informa “configuração pendente”
+  e o backend bloqueia saídas automáticas. Após validar a Z-API sem itens antigos na fila,
+  `testar-integracao` grava o Ambiente Real e audita a ativação. Comunicação manual e
+  automação da Ana têm sinais de prontidão separados.
 - `integrations.category` separa persistentemente prospecção, comunicação, inteligência,
   agendamento e sistema. O painel não duplica o cofre nem a validação.
 - A saída Z-API é validada separadamente da entrada. O assistente cadastra o endpoint
@@ -37,8 +40,9 @@ orçamentos. Não é sistema de venda, checkout, pedido ou recebimento.
 - O cron `leadai-automation-worker-dispatch` está instalado no banco e chama o worker
   com token por empresa do Vault após o administrador preparar o Worker 24/7. Em Demo,
   o heartbeat é permitido, mas qualquer saída continua bloqueada pelo backend.
-- Nove dados de teste confirmados foram removidos com suas dependências. Um lead com inbound e
-  sem marcador explícito de teste permanece preservado para revisão humana.
+- A limpeza de teste agora é transacional e exige seleção explícita: candidatos identificados
+  por marcadores objetivos são exibidos antes de remover mensagens, filas, execuções, Kanban,
+  agenda, atendimento, orçamentos e identidades de canal. Nenhum candidato é apagado automaticamente.
 - `operational-diagnostics` e `team-members` foram publicados.
 - Build, lint, typecheck e 104 testes estavam aprovados no commit-base.
 - A versão privada publicada correspondente ao último lote conhecido é a 48.

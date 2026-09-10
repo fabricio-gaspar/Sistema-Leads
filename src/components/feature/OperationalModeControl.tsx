@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { activateRealEnvironment, loadOperationalStatus, setOperationalMode, type OperationalCheck, type OperationalStatus } from '@/lib/crm/operationalDiagnosticsRepository';
+import { activateRealEnvironment, loadOperationalStatus, type OperationalCheck, type OperationalStatus } from '@/lib/crm/operationalDiagnosticsRepository';
 
 const routesByCheck: Record<string, string> = {
   empresa: '/dashboard/configuracoes?tab=empresa',
@@ -8,7 +8,7 @@ const routesByCheck: Record<string, string> = {
   kill_switch: '/dashboard/configuracoes?tab=operacao',
   ia: '/dashboard/configuracoes?tab=conexoes',
   whatsapp: '/dashboard/configuracoes?tab=conexoes',
-  whatsapp_webhook: '/dashboard/atendimento',
+  whatsapp_webhook: '/dashboard/configuracoes?tab=operacao&setup=whatsapp-webhook',
   scheduler: '/dashboard/configuracoes?tab=operacao&setup=worker',
 };
 
@@ -29,59 +29,51 @@ export default function OperationalModeControl() {
 
   const refresh = useCallback(async () => {
     try {
-      const next = await loadOperationalStatus();
-      setStatus(next);
+      setStatus(await loadOperationalStatus());
       setError('');
-    } catch { setError('Não foi possível consultar o ambiente operacional agora.'); }
+    } catch { setError('Não foi possível consultar o Ambiente Real agora.'); }
   }, []);
 
   useEffect(() => { void refresh(); }, [refresh]);
 
-  const changeMode = async (mode: 'demo' | 'real') => {
-    if (!status || busy || mode === status.mode) return;
-    const confirmation = mode === 'real'
-      ? 'Preparar e ativar o Ambiente Real? O servidor fará as verificações e continuará em Demonstração se ainda faltar alguma confirmação.'
-      : 'Voltar ao Ambiente de Demonstração? Novas saídas reais serão bloqueadas imediatamente.';
-    if (!window.confirm(confirmation)) return;
+  const prepare = async () => {
+    if (!status || busy) return;
+    if (!window.confirm('Verificar e preparar o Ambiente Real? O servidor só libera operações depois das confirmações obrigatórias.')) return;
     setBusy(true);
     try {
-      if (mode === 'real') {
-        const result = await activateRealEnvironment();
-        setStatus(result.status);
-        setNotice(result.message);
-      } else {
-        setStatus(await setOperationalMode(mode));
-        setNotice('Ambiente de Demonstração ativo. Toda nova saída real está bloqueada.');
-      }
+      const result = await activateRealEnvironment();
+      setStatus(result.status);
+      setNotice(result.message);
       setError('');
     } catch {
-      setError(mode === 'real' ? 'Não foi possível concluir a preparação. O Ambiente de Demonstração foi preservado.' : 'O ambiente não foi alterado; o estado anterior foi preservado.');
+      setError('Não foi possível concluir a preparação. As proteções do servidor foram preservadas.');
       setNotice('');
     } finally { setBusy(false); }
   };
 
-  if (!status) return <section className="wf-surface p-5"><p className="text-sm text-foreground-500">{error || 'Consultando o ambiente operacional…'}</p></section>;
+  if (!status) return <section className="wf-surface p-5"><p className="text-sm text-foreground-500">{error || 'Consultando o Ambiente Real…'}</p></section>;
   const missing = status.checks.filter((check) => !check.ok && check.id !== 'kill_switch');
   const isReal = status.mode === 'real';
+  const automationReady = status.productionReady;
 
   return <section className="wf-surface overflow-hidden">
     <div className="flex flex-col gap-4 p-5 md:flex-row md:items-start md:justify-between md:p-6">
       <div>
         <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-primary-700">Ambiente operacional</p>
-        <h2 className="mt-1 font-heading text-xl font-bold tracking-tight text-foreground-950">{isReal ? 'Ambiente Real ativo' : 'Ambiente de Demonstração ativo'}</h2>
-        <p className="mt-1 max-w-2xl text-sm leading-relaxed text-foreground-500">{isReal ? 'O backend autorizou operações reais após a pré-verificação. As políticas de segurança continuam obrigatórias.' : 'Testes ficam isolados: o backend bloqueia novos envios e automações externas.'}</p>
+        <h2 className="mt-1 font-heading text-xl font-bold tracking-tight text-foreground-950">{isReal ? automationReady ? 'Ambiente Real ativo' : 'Ambiente Real ativo · automação em preparação' : 'Ambiente Real em preparação'}</h2>
+        <p className="mt-1 max-w-2xl text-sm leading-relaxed text-foreground-500">{isReal ? automationReady ? 'O backend confirmou a operação real. As políticas de segurança, opt-out e pausa global continuam obrigatórias.' : 'O WhatsApp já pode ser usado pela Central de Atendimento. A Ana automática continua bloqueada até as verificações abaixo serem concluídas.' : 'Conclua somente as verificações necessárias. Até lá, o backend mantém saídas automáticas bloqueadas.'}</p>
       </div>
-      <div className="inline-flex shrink-0 rounded-xl border border-[#E5E5EA] bg-[#F2F2F7] p-1" role="group" aria-label="Selecionar ambiente operacional">
-        <button type="button" onClick={() => void changeMode('demo')} disabled={busy || !isReal} className={`rounded-lg px-3 py-2 text-xs font-semibold transition disabled:cursor-not-allowed ${!isReal ? 'bg-white text-[#1D1D1F] shadow-xs' : 'text-[#6E6E73] hover:text-[#1D1D1F]'}`}>Demonstração</button>
-        <button type="button" onClick={() => void changeMode('real')} disabled={busy || isReal} className={`rounded-lg px-3 py-2 text-xs font-semibold transition disabled:cursor-not-allowed ${isReal ? 'bg-[#0071E3] text-white shadow-xs' : 'text-[#6E6E73] hover:text-[#1D1D1F]'}`}>{busy && !isReal ? 'Preparando…' : 'Ambiente Real'}</button>
+      <div className={`inline-flex shrink-0 items-center gap-2 rounded-full border px-3 py-2 text-xs font-semibold ${automationReady ? 'border-[#34C759]/25 bg-[#34C759]/10 text-[#237A3B]' : 'border-[#FF9500]/25 bg-[#FF9500]/10 text-[#8A5200]'}`}>
+        <span className={`h-2 w-2 rounded-full ${automationReady ? 'bg-[#34C759]' : 'bg-[#FF9500]'}`} />
+        {automationReady ? 'AUTOMAÇÃO PRONTA' : isReal ? 'COMUNICAÇÃO ATIVA' : 'CONFIGURAÇÃO PENDENTE'}
       </div>
     </div>
     {error && <div className="mx-5 mb-5 rounded-xl border border-[#FF9500]/25 bg-[#FF9500]/10 px-3.5 py-3 text-sm text-[#9A5A00] md:mx-6">{error}</div>}
     {notice && <div className="mx-5 mb-5 rounded-xl border border-[#34C759]/25 bg-[#34C759]/10 px-3.5 py-3 text-sm text-[#237A3B] md:mx-6">{notice}</div>}
-    {!isReal && <div className="border-t border-background-200/70 bg-[#F8F9FA] px-5 py-4 md:px-6">
-      <div className="flex items-center justify-between gap-3"><div><h3 className="text-sm font-bold text-foreground-950">Ativação inteligente</h3><p className="mt-0.5 text-xs text-foreground-500">Clique em “Ambiente Real”. O sistema prepara o que puder e só ativa depois da validação final.</p></div><Link to="/dashboard/configuracoes?tab=operacao" className="text-xs font-semibold text-primary-700">Ver detalhes</Link></div>
-      {missing.length > 0 && <div className="mt-3"><p className="mb-2 text-[11px] font-semibold uppercase tracking-[.1em] text-[#86868B]">Próxima ação</p><MissingCheck check={missing[0]} />{missing.length > 1 && <p className="mt-2 text-xs text-foreground-500">As outras verificações serão tratadas automaticamente ou apresentadas uma por vez.</p>}</div>}
-      {missing.length === 0 && <p className="mt-3 rounded-xl border border-[#34C759]/25 bg-[#34C759]/10 px-3 py-2.5 text-sm text-[#237A3B]">Tudo pronto. Clique em “Ambiente Real” para concluir a ativação.</p>}
+    {!automationReady && <div className="border-t border-background-200/70 bg-[#F8F9FA] px-5 py-4 md:px-6">
+      <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="text-sm font-bold text-foreground-950">Preparação assistida</h3><p className="mt-0.5 text-xs text-foreground-500">O sistema conclui automaticamente as etapas internas que já podem ser verificadas.</p></div><button type="button" onClick={() => void prepare()} disabled={busy} className="wf-btn-primary text-xs disabled:opacity-60"><i className="ri-shield-check-line" />{busy ? 'Verificando…' : 'Verificar preparação'}</button></div>
+      {missing.length > 0 && <div className="mt-3"><p className="mb-2 text-[11px] font-semibold uppercase tracking-[.1em] text-[#86868B]">Próxima ação</p><MissingCheck check={missing[0]} />{missing.length > 1 && <p className="mt-2 text-xs text-foreground-500">As demais etapas aparecerão quando esta for concluída.</p>}</div>}
+      {missing.length === 0 && <p className="mt-3 rounded-xl border border-[#34C759]/25 bg-[#34C759]/10 px-3 py-2.5 text-sm text-[#237A3B]">Tudo pronto. Clique em “Verificar preparação” para registrar a ativação no backend.</p>}
     </div>}
   </section>;
 }

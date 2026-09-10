@@ -1,7 +1,7 @@
 import { supabase } from '@/lib/supabase';
 import { detalheDoErroDeFuncao } from '@/lib/transportador';
 
-export type OperationalMode = 'demo' | 'real';
+export type OperationalMode = 'setup' | 'real';
 
 export interface OperationalCheck {
   id: string;
@@ -73,7 +73,7 @@ export interface OperationalDiagnostics {
   risks: Array<{ id: string; channel: string; risk_level: string; action: string; reason: string; created_at: string }>;
 }
 
-type OperationalAction = 'status' | 'set_kill_switch' | 'set_mode' | 'activate_real' | 'events' | 'configure_whatsapp_webhook' | 'activate_scheduler';
+type OperationalAction = 'status' | 'set_kill_switch' | 'activate_real' | 'events' | 'configure_whatsapp_webhook' | 'activate_scheduler';
 
 export interface OperationalSetupResult {
   message: string;
@@ -98,10 +98,6 @@ export async function loadOperationalStatus(): Promise<OperationalStatus> {
 
 export async function setOperationalKillSwitch(enabled: boolean): Promise<OperationalStatus> {
   return (await invoke<{ status: OperationalStatus }>('set_kill_switch', { enabled })).status;
-}
-
-export async function setOperationalMode(mode: OperationalMode): Promise<OperationalStatus> {
-  return (await invoke<{ status: OperationalStatus }>('set_mode', { mode })).status;
 }
 
 export async function activateRealEnvironment(): Promise<OperationalActivationResult> {

@@ -149,7 +149,7 @@ export default function Landing() {
               href="#funcionalidades"
               className="bg-background-50/10 hover:bg-background-50/20 backdrop-blur-sm border border-background-50/30 text-background-50 px-8 py-3.5 rounded-lg text-base font-semibold font-heading transition-all cursor-pointer whitespace-nowrap w-full sm:w-auto"
             >
-              Ver Demonstração
+              Conhecer a plataforma
             </a>
           </div>
 

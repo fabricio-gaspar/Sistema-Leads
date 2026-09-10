@@ -66,7 +66,13 @@ export default function IntegracoesTab({ category }: { category?: OperationalInt
       const { data, error } = await supabase.functions.invoke('testar-integracao', { body: { canal: integration.remoteKey } });
       if (error || !data?.pronto) throw new Error(error ? await detalheDoErroDeFuncao(error) : data?.erro || data?.detalhe);
       await refresh();
-      setNotice(`${integration.nome} foi validada. O teste não gerou conversa nem enviou mensagem a leads.`);
+      if (integration.remoteKey === 'whatsapp') {
+        setNotice(data.ambienteRealAtivo
+          ? 'Z-API validada. WhatsApp pronto para uso e Ambiente Real ativado no backend.'
+          : `Z-API validada. WhatsApp pronto para uso. ${data.ambienteRealMensagem || 'Verifique o status operacional antes de liberar automações.'}`);
+      } else {
+        setNotice(`${integration.nome} foi validada. O teste não gerou conversa nem enviou mensagem a leads.`);
+      }
     } catch (cause) { setNotice(errorMessage(cause instanceof Error ? cause.message : '', integration.nome)); }
     finally { setTesting(null); }
   };

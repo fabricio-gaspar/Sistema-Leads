@@ -40,7 +40,6 @@ export default function Atendimento() {
   const [busca, setBusca] = useState('');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [optoutConfirmar, setOptoutConfirmar] = useState(false);
-  const [testeControladoConfirmar, setTesteControladoConfirmar] = useState(false);
   const [erroIA, setErroIA] = useState('');
   const [enviando, setEnviando] = useState(false);
   const [protectedContacts, setProtectedContacts] = useState<ContactSuppression[]>([]);
@@ -103,7 +102,7 @@ export default function Atendimento() {
   const agora = () =>
     new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
-  const enviar = async (controlledTest = false) => {
+  const enviar = async () => {
     if (!texto.trim() || enviando) return;
     setErroIA('');
     if (!notaInterna) {
@@ -118,7 +117,6 @@ export default function Atendimento() {
           channel: selected.canal,
           recipient: selected.canal === 'whatsapp' ? leadSelecionado.whatsapp : leadSelecionado.email,
           text: texto.trim(),
-          controlledTest,
         });
         setTexto('');
         await refreshConversasStore();
@@ -499,17 +497,6 @@ export default function Atendimento() {
                 <i className={enviando ? 'ri-loader-4-line animate-spin text-base' : 'ri-send-plane-fill text-base'}></i>
               </button>
             </div>
-            {!notaInterna && selected.canal === 'whatsapp' && (
-              <button
-                type="button"
-                onClick={() => setTesteControladoConfirmar(true)}
-                disabled={!texto.trim() || enviando}
-                className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-primary-700 hover:text-primary-800 disabled:text-foreground-400 disabled:cursor-not-allowed cursor-pointer"
-              >
-                <i className="ri-flask-line"></i>
-                Enviar teste controlado
-              </button>
-            )}
             {erroIA && <p className="mt-1.5 text-xs text-foreground-500">{erroIA}</p>}
           </div>
         </div>
@@ -541,42 +528,6 @@ export default function Atendimento() {
                 className="px-5 py-2.5 bg-accent-500 hover:bg-accent-600 text-background-50 rounded-lg text-sm font-bold cursor-pointer whitespace-nowrap"
               >
                 Confirmar bloqueio
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {testeControladoConfirmar && (
-        <div className="fixed inset-0 z-50 bg-foreground-950/50 flex items-center justify-center p-4" onClick={() => setTesteControladoConfirmar(false)}>
-          <div className="bg-background-50 rounded-xl max-w-md w-full" onClick={(e) => e.stopPropagation()}>
-            <div className="px-6 py-4 border-b border-background-200/70 flex items-center justify-between">
-              <div>
-                <h3 className="font-heading font-bold text-foreground-950">Enviar teste controlado</h3>
-                <p className="text-xs text-foreground-500 mt-1">Validação de canal no Ambiente de Demonstração</p>
-              </div>
-              <button onClick={() => setTesteControladoConfirmar(false)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-background-100 cursor-pointer" aria-label="Fechar">
-                <i className="ri-close-line text-lg"></i>
-              </button>
-            </div>
-            <div className="p-6">
-              <div className="flex items-start gap-3">
-                <div className="w-10 h-10 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center flex-shrink-0">
-                  <i className="ri-shield-check-line text-lg"></i>
-                </div>
-                <p className="text-sm text-foreground-700">
-                  Esta ação enviará apenas a mensagem atual para <b>{selected.contato}</b>. Ela ficará auditada como teste e não libera a Ana, cadências nem o Ambiente Real.
-                </p>
-              </div>
-            </div>
-            <div className="px-6 py-4 border-t border-background-200/70 flex justify-end gap-2">
-              <button onClick={() => setTesteControladoConfirmar(false)} className="px-4 py-2.5 border border-background-300 text-foreground-700 rounded-lg text-sm font-semibold hover:bg-background-100 cursor-pointer">Cancelar</button>
-              <button
-                onClick={() => { setTesteControladoConfirmar(false); void enviar(true); }}
-                disabled={enviando}
-                className="px-5 py-2.5 bg-primary-500 hover:bg-primary-600 disabled:bg-primary-300 text-background-50 rounded-lg text-sm font-bold cursor-pointer disabled:cursor-wait"
-              >
-                Confirmar teste
               </button>
             </div>
           </div>

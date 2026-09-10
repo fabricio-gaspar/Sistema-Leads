@@ -3,8 +3,8 @@
 ## Crítico
 
 - Fluxo real WhatsApp → Ana → resposta não foi homologado ponta a ponta com número autorizado.
-- A Central passou a oferecer envio controlado em Demonstração para destravar a homologação,
-  mas a entrega ao número e a resposta de volta ainda dependem de teste explícito do operador.
+- A Central permite comunicação manual somente depois da validação real da Z-API; a entrega ao
+  número e a resposta de volta ainda dependem de teste explícito do operador.
 - O último teste recebido foi um callback de grupo e foi corretamente ignorado. A homologação
   segue aguardando uma mensagem individual enviada por um lead cadastrado.
 
@@ -15,9 +15,9 @@
 - Testes E2E autenticados e roundtrips reais de WhatsApp/Claude/provedores opcionais faltam.
 - RLS entre duas organizações e operações transacionais principais foram testadas; não substituir
   isso por uma afirmação de homologação externa.
-- Os registros de auditoria históricos são append-only no banco. As referências aos testes
-  removidos não foram apagadas por esse mecanismo de governança; a Central, Kanban, Leads,
-  filas, mensagens e execuções ficaram limpos, e o histórico auditável foi preservado.
+- Os registros de auditoria históricos são append-only no banco. A limpeza proposta preserva
+  esse histórico de governança e só remove os candidatos que o operador selecionar e confirmar;
+  até essa confirmação, nenhum dado operacional é apagado automaticamente.
 
 ## Médio
 
