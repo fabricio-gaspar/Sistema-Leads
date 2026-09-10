@@ -203,3 +203,15 @@
   publicação corretiva.
 - Publicação corretiva concluída com sucesso no Site oficial como versão 61. A audiência
   customizada foi preservada; nenhuma variável sensível foi adicionada ao Site ou ao Git.
+
+## 2026-09-10 — Clareza da publicação em Configurar a Ana
+
+- A investigação autenticada confirmou que `ana-ia` está ativa e que a configuração v13 carrega.
+  O botão da etapa final parecia inoperante porque estava corretamente bloqueado sem alteração
+  pendente, mas conservava o rótulo genérico “Publicar configuração”.
+- A interface agora informa que a versão atual já está publicada, explica que uma edição cria
+  uma nova versão e passa a mostrar “Publicar alteração” somente quando há mudança pendente.
+  Isso evita criar versões duplicadas e torna o estado acionável.
+- Type-check frontend/Edge, lint, 15 arquivos/159 testes e build passaram. A reprodução no
+  navegador confirmou o botão bloqueado no estado já publicado e habilitado após edição local;
+  nenhuma publicação, mensagem, chamada de modelo ou alteração operacional foi disparada no teste.

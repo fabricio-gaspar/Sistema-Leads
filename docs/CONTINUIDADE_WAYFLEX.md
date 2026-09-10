@@ -314,3 +314,15 @@ webhook em ambiente controlado.
   materiais/qualificação/limites, páginas-fonte e a regra de validação humana/técnica. A
   conferência no banco confirmou a versão ativa e manteve somente WhatsApp como canal permitido;
   publicar a configuração não habilitou o canal nem enviou mensagens.
+
+## Clareza do botão Publicar configuração da Ana — 10/09/2026
+
+- A investigação autenticada confirmou que a configuração v13 é carregada e que `ana-ia` está
+  ativa. O botão da etapa 6 aparecia bloqueado porque não havia alteração pendente, mas o rótulo
+  “Publicar configuração” não explicava a condição e fazia o fluxo parecer com defeito.
+- A etapa agora informa a versão já publicada, mostra “Altere algum campo para publicar” no
+  estado sem mudança e muda para “Publicar alteração” somente após uma edição. Assim o operador
+  sabe exatamente como criar a próxima versão sem gerar versões duplicadas no banco.
+- Foram aprovados type-check frontend/Edge, lint sem warnings, 15 arquivos/159 testes e build.
+  A reprodução visual confirmou o estado bloqueado sem edição e o botão habilitado após alteração
+  local; nenhum dado, mensagem, provedor IA ou modo operacional foi alterado durante o teste.

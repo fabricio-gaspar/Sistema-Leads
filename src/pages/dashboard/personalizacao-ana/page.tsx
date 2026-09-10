@@ -177,6 +177,15 @@ export default function PersonalizacaoAna({ embedded = false }: { embedded?: boo
     setStep((current) => Math.min(steps.length - 1, current + 1));
   };
 
+  const isPublicationStep = step === steps.length - 1;
+  const publicationButtonLabel = saving
+    ? 'Publicando...'
+    : isPublicationStep
+      ? isDirty
+        ? 'Publicar alteração'
+        : 'Altere algum campo para publicar'
+      : 'Continuar';
+
   const content = [
     <>
       <div className="setup-note">A Ana usa estas informações apenas para apresentar a Wayflex e identificar o perfil certo de cliente.</div>
@@ -283,11 +292,23 @@ export default function PersonalizacaoAna({ embedded = false }: { embedded?: boo
         {saved && <span className="saved">Configuração publicada</span>}
         </div>
         <fieldset className="form" disabled={loadingConfiguration || !loadSucceeded || saving} style={{ border: 0, margin: 0, minWidth: 0, padding: 0 }}>{content}</fieldset>
+        {isPublicationStep && loadSucceeded && !isDirty && !saved && (
+          <p className="mx-6 mb-4 text-sm text-foreground-500" role="status">
+            A versão v{publishedVersion ?? 'atual'} já está publicada. Altere algum campo para criar e publicar uma nova versão.
+          </p>
+        )}
         {saveError && <div className="mx-6 mb-4 rounded-xl border border-[#FF3B30]/25 bg-[#FF3B30]/10 px-4 py-3 text-sm text-[#D92D27]"><i className="ri-error-warning-line mr-2" />{saveError}{loadFailed && <button type="button" className="ml-2 font-semibold underline" onClick={() => setLoadAttempt((current) => current + 1)}>Tentar carregar novamente</button>}</div>}
         <footer>
           <button className="secondary" disabled={step === 0 || saving || loadingConfiguration} onClick={() => setStep((current) => current - 1)}>Voltar</button>
           <div className="form-actions">
-            <button className="primary" disabled={saving || loadingConfiguration || (!loadSucceeded || (step === steps.length - 1 && !isDirty))} onClick={continueOrPublish}>{saving ? 'Publicando...' : step === steps.length - 1 ? 'Publicar configuração' : 'Continuar'}</button>
+            <button
+              className="primary"
+              disabled={saving || loadingConfiguration || (!loadSucceeded || (isPublicationStep && !isDirty))}
+              title={isPublicationStep && !isDirty ? 'Edite algum campo para publicar uma nova versão.' : undefined}
+              onClick={continueOrPublish}
+            >
+              {publicationButtonLabel}
+            </button>
           </div>
         </footer>
       </section>

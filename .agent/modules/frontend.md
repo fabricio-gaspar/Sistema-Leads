@@ -17,3 +17,6 @@
   somente para filtros e preferências pessoais.
 - Telas críticas: Dashboard, Leads, Kanban, Atendimento, Orçamentos, Agenda, Configurações e
   Registro do Sistema.
+- Em **Configurar a Ana**, a última etapa apresenta explicitamente a versão já publicada e o
+  botão só fica habilitado após alteração pendente. O rótulo e a dica explicam esse estado para
+  evitar a aparência de falha e impedir versões duplicadas sem mudança.

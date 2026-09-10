@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "validated_commit": "12ad1d6c394cca780a7b07c6e6a917404d50826c",
-  "last_validated_at": "2026-09-10T22:58:00Z",
+  "validated_commit": "working_tree_publish_button_clarity_2026-09-10",
+  "last_validated_at": "2026-09-10T20:20:00-03:00",
   "commands": [
     {"command":"npm run type-check","status":"passed"},
     {"command":"npm run lint","status":"passed","warnings":0},
@@ -24,5 +24,5 @@
   },
   "covered": ["frontend_typecheck","lint","edge_typecheck","unit_and_contract_tests","production_build"],
   "not_covered": ["authenticated_e2e","real_whatsapp","real_claude","cross_organization_rls","database_concurrency","provider_receipt_race","mobile_authenticated_qa","computer_use_visual_qa_unavailable_due_local_module_permission"],
-  "working_tree_validation": "passed"
+  "working_tree_validation": "passed: configuração v13 carregada no navegador autenticado; etapa 6 explica que publicação sem alterações não cria versão duplicada e uma edição libera o botão."
 }
