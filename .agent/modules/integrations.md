@@ -12,6 +12,9 @@
   ou não verificada — nunca online por preset.
 - Testes de provedor não devem enviar mensagens. Testes reais usam somente contas/números
   expressamente autorizados.
+- No Dashboard, o resumo compacto intencionalmente reduz a leitura a **Conectado** ou
+  **Desconectado**. O primeiro só é emitido pelo diagnóstico com `connected`, `enabled`, sem
+  pausa/erro e teste fresco; os demais casos não recebem rótulo positivo.
 
 ## 2026-09-11 — Apify Google Maps retomável
 

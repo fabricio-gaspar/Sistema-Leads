@@ -289,3 +289,16 @@
 - Validação: type-check frontend/Edge, lint, build e 15 arquivos/163 testes aprovados. Não foi
   executada busca real pelo agente; Computer Use não pôde carregar o navegador por falha local
   de permissão.
+
+# 2026-09-11 — Canais e APIs compacto e binário
+
+- O card do Dashboard foi reduzido para uma grade de nome + estado, sem provedor, horário ou
+  estados operacionais intermediários. Não alterou integrações, Edge Functions, banco, rotas ou
+  configuração.
+- A fonte permanece `operational-diagnostics`: **Conectado** requer conexão habilitada, sem
+  pausa/erro e validação dentro da janela do backend; os demais casos aparecem como
+  **Desconectado**.
+- Consulta somente-leitura confirmou o projeto Supabase oficial acessível pelo MCP. Foram
+  aprovados type-check frontend/Edge, lint, 15 arquivos/163 testes, build Vite e artefato
+  Worker. A publicação oficial da versão 73 foi confirmada, sem enviar mensagens nem alterar
+  dados operacionais.

@@ -410,3 +410,19 @@ webhook em ambiente controlado.
 - A configuração pública atual da fonte indica Actor Google Maps e nenhuma Task. Se um `apify_http_400` voltar a ocorrer, o cartão da Apify apresenta **Corrigir Actor Google Maps**: a ação server-side preserva o token no Vault, troca somente o Actor e pede uma nova validação antes de habilitar a fonte. `configurar-integracao` v16 e `prospectar-leads` v8 estão ativos, ambos com JWT obrigatório.
 - Validação local: type-check frontend/Edge, lint, build e 15 arquivos/163 testes passaram. Não foi iniciada nova busca externa pelo agente, não houve importação de leads, mensagem, alteração da Ana ou exposição de segredo. A validação visual autenticada por Computer Use ficou pendente porque o módulo local do navegador recusou carregamento por permissão.
 - PUBLICADO: Site oficial versão 72, commit `78f41985b5c38b799849b503800cb7c4d0c293ad`, com deploy confirmado como `succeeded` e audiência customizada preservada.
+
+## Dashboard — Canais e APIs compacto — 11/09/2026
+
+- O card **Canais e APIs** foi reduzido a uma grade compacta com o nome de cada conexão e um
+  único estado: **Conectado** ou **Desconectado**. Foram removidos provedor, data de teste e
+  estados intermediários apenas dessa apresentação.
+- O dado não é local nem decorativo: o Dashboard continua a consumir `operational-diagnostics`
+  autenticado. O backend só entrega `online` quando a integração está conectada, habilitada,
+  sem pausa/erro e com validação dentro de 24 horas. O card traduz qualquer outro estado para
+  **Desconectado**.
+- A consulta somente-leitura ao projeto Supabase oficial foi concluída pelo MCP. Nenhuma
+  integração, dado, segredo, mensagem, fila ou automação foi alterado nesta rodada.
+- Validação: type-check frontend/Edge, lint sem warnings, 15 arquivos/163 testes, build Vite e
+  artefato Worker aprovados. QA visual autenticado não foi executado nesta rodada.
+- PUBLICADO: Site oficial versão 73, commit `fb8fce803d77ac3235e75f22f9d82586786bc5a1`, com
+  deploy confirmado como `succeeded` e audiência customizada preservada.

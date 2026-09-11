@@ -2,17 +2,17 @@
   "schema_version": 1,
   "baseline_version": 3,
   "baseline_commit": "1fbd231ff88b4e02c3ddddd18253a1f3be8be5ee",
-  "last_audited_commit": "78f41985b5c38b799849b503800cb7c4d0c293ad",
-  "current_head_at_update": "78f41985b5c38b799849b503800cb7c4d0c293ad",
-  "working_tree_status": "mapped_apify_search_published_site_v72",
+  "last_audited_commit": "fb8fce803d77ac3235e75f22f9d82586786bc5a1",
+  "current_head_at_update": "fb8fce803d77ac3235e75f22f9d82586786bc5a1",
+  "working_tree_status": "dashboard_connection_status_compacted_published_site_v73; unrelated local changes preserved",
   "last_site_publication": {
-    "commit": "78f41985b5c38b799849b503800cb7c4d0c293ad",
-    "site_version": 72,
-    "validated_at": "2026-09-11T16:31:31-03:00",
+    "commit": "fb8fce803d77ac3235e75f22f9d82586786bc5a1",
+    "site_version": 73,
+    "validated_at": "2026-09-11T17:16:09-03:00",
     "working_tree_status": "published"
   },
   "full_audit_required": false,
   "baseline_status": "validated",
-  "updated_at": "2026-09-11T16:31:31-03:00",
-  "next_action": "Busca Apify agora inicia e retoma execuções sem segurar a requisição. Próxima busca manual pode confirmar o retorno real do provedor; QA visual autenticado não executado nesta rodada."
+  "updated_at": "2026-09-11T17:16:09-03:00",
+  "next_action": "O card Canais e APIs apresenta somente Conectado/Desconectado a partir de operational-diagnostics. Uma atualização autenticada do Dashboard pode confirmar visualmente a publicação; não houve validação externa, envio nem alteração de dados nesta rodada."
 }
