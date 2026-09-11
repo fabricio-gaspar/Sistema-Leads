@@ -2,17 +2,17 @@
   "schema_version": 1,
   "baseline_version": 3,
   "baseline_commit": "1fbd231ff88b4e02c3ddddd18253a1f3be8be5ee",
-  "last_audited_commit": "228be6a36dff00982860e7a8cb9ee33e91c5f778",
-  "current_head_at_update": "228be6a36dff00982860e7a8cb9ee33e91c5f778",
-  "working_tree_status": "legacy_scheduler_heartbeat_sync_applied_2026-09-11",
+  "last_audited_commit": "5893352d252c61fb03dcc35b005757c3f4d6995c",
+  "current_head_at_update": "5893352d252c61fb03dcc35b005757c3f4d6995c",
+  "working_tree_status": "visual_refinement_published_site_v69",
   "last_site_publication": {
-    "commit": "228be6a36dff00982860e7a8cb9ee33e91c5f778",
-    "working_tree_status": "ana_publish_button_clarity_published_site_v68",
-    "site_version": 68,
-    "validated_at": "2026-09-10T23:25:00Z"
+    "commit": "5893352d252c61fb03dcc35b005757c3f4d6995c",
+    "site_version": 69,
+    "validated_at": "2026-09-11T15:08:48.885091Z",
+    "working_tree_status": "published"
   },
   "full_audit_required": false,
   "baseline_status": "validated",
-  "updated_at": "2026-09-11T12:24:00Z",
-  "next_action": "A telemetria legada de heartbeat agora é sincronizada pelo gatilho do scheduler e foi verificada como success. A próxima validação funcional continua sendo o fluxo controlado WhatsApp → webhook → Ana, sem reprocessar callbacks antigos."
+  "updated_at": "2026-09-11T15:08:48.885091Z",
+  "next_action": "Visual publicado. Próximo pedido deve preservar regras e dados; QA visual autenticado não executado nesta rodada."
 }

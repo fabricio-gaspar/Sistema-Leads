@@ -2,6 +2,9 @@
 
 ## Refinamento visual executivo — 11/09/2026
 
+- PUBLICADO: Site oficial versão 69, commit `5893352d252c61fb03dcc35b005757c3f4d6995c`,
+  deploy confirmado como succeeded. Audiência privada preservada.
+
 - Dashboard apresenta indicadores da carteira, barras proporcionais por etapa do Kanban,
   temperatura de leads abertos, conexões com estado individual e acompanhamento humano.
   Não exibe atalhos de começo/meio/fim nem gráficos de evolução sem dados históricos.
