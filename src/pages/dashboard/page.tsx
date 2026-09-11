@@ -4,7 +4,6 @@ import { useLeadsStore } from '@/hooks/useLeadsStore';
 import { useConversasStore } from '@/hooks/useConversasStore';
 import { usePropostasStore } from '@/hooks/usePropostasStore';
 import SaudeWhatsappCard from '@/components/feature/SaudeWhatsappCard';
-import OperationalModeControl from '@/components/feature/OperationalModeControl';
 import { loadOperationalDiagnostics, type OperationalDiagnostics } from '@/lib/crm/operationalDiagnosticsRepository';
 import { ACTIVE_PIPELINE_STAGES, PIPELINE_STAGE_LABEL, stageFromLegacy } from '@/domain/pipeline';
 
@@ -21,37 +20,20 @@ function Metric({ label, value, detail, icon, tone = 'primary' }: { label: strin
   </div>;
 }
 
-function JourneyStep({ step, title, description, icon, links }: { step: string; title: string; description: string; icon: string; links: Array<{ label: string; to: string }> }) {
-  return <article className="wf-journey-step">
-    <div className="flex items-start gap-3">
-      <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary-700"><i className={`${icon} text-lg`} /></span>
-      <div className="min-w-0">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-primary-700">{step}</p>
-        <h3 className="mt-1 text-base font-semibold text-foreground-950">{title}</h3>
-        <p className="mt-1 text-sm leading-5 text-foreground-500">{description}</p>
-      </div>
-    </div>
-    <div className="mt-4 flex flex-wrap gap-2">
-      {links.map((link) => <Link key={link.to} to={link.to} className="wf-journey-link">{link.label}<i className="ri-arrow-right-line" /></Link>)}
-    </div>
-  </article>;
-}
-
-function ResourceCard({ title, detail, icon, state, href }: { title: string; detail: string; icon: string; state: ResourceState; href: string }) {
+function ResourceCard({ title, detail, icon, state }: { title: string; detail: string; icon: string; state: ResourceState }) {
   const meta = {
     active: { label: 'Ativo', className: 'border-emerald-200 bg-emerald-50 text-emerald-700', dot: 'bg-emerald-500' },
     inactive: { label: 'Inativo', className: 'border-background-200 bg-background-100 text-foreground-600', dot: 'bg-foreground-300' },
     loading: { label: 'Consultando', className: 'border-background-200 bg-white text-foreground-500', dot: 'bg-foreground-300 animate-pulse' },
   }[state];
-  return <Link to={href} className="group flex min-h-[154px] flex-col rounded-xl border border-background-200 bg-white p-4 transition hover:-translate-y-0.5 hover:border-primary-200 hover:shadow-[0_10px_24px_rgba(23,43,34,0.07)]">
+  return <article className="flex min-h-[132px] flex-col rounded-xl border border-background-200 bg-white p-4">
     <div className="flex items-start justify-between gap-3">
       <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-background-100 text-primary-700"><i className={`${icon} text-base`} /></span>
       <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${meta.className}`}><span className={`h-1.5 w-1.5 rounded-full ${meta.dot}`} />{meta.label}</span>
     </div>
     <h3 className="mt-3 text-sm font-semibold text-foreground-950">{title}</h3>
     <p className="mt-1 line-clamp-2 text-xs leading-5 text-foreground-500">{detail}</p>
-    <span className="mt-auto pt-3 text-xs font-semibold text-primary-700">Ver configuração <i className="ri-arrow-right-line inline-block transition group-hover:translate-x-0.5" /></span>
-  </Link>;
+  </article>;
 }
 
 function statusFrom(ok: boolean | undefined, loaded: boolean): ResourceState {
@@ -84,33 +66,33 @@ export default function Dashboard() {
   const prospectingActive = prospecting.some((item) => item.health === 'online' && item.connected && item.enabled && !item.paused);
   const resources = [
     {
-      title: 'Ambiente Real', icon: 'ri-shield-check-line', href: '/dashboard/configuracoes?tab=operacao',
+      title: 'Ambiente Real', icon: 'ri-shield-check-line',
       state: statusFrom(operacao?.status.mode === 'real', loaded),
       detail: operacao?.status.mode === 'real' ? 'Modo confirmado por company_settings no backend.' : 'As saídas automáticas permanecem protegidas pelo backend.',
     },
     {
-      title: 'WhatsApp · Z-API', icon: 'ri-whatsapp-line', href: '/dashboard/configuracoes?tab=conexoes',
+      title: 'WhatsApp · Z-API', icon: 'ri-whatsapp-line',
       state: statusFrom(check('whatsapp')?.ok, loaded), detail: check('whatsapp')?.detail || 'Consultando a conexão de saída do WhatsApp.',
     },
     {
-      title: 'Entrada do WhatsApp', icon: 'ri-message-2-line', href: '/dashboard/configuracoes?tab=operacao',
+      title: 'Entrada do WhatsApp', icon: 'ri-message-2-line',
       state: statusFrom(check('whatsapp_webhook')?.ok, loaded), detail: check('whatsapp_webhook')?.detail || 'Consultando o recebimento de respostas.',
     },
     {
-      title: 'Ana automática', icon: 'ri-robot-2-line', href: '/dashboard/configuracoes?tab=ana',
+      title: 'Ana automática', icon: 'ri-robot-2-line',
       state: statusFrom(operacao?.status.productionReady, loaded),
       detail: operacao?.status.productionReady ? 'IA, canal, entrada, worker e políticas foram confirmados.' : 'A Ana só fica ativa quando todas as proteções obrigatórias passam.',
     },
     {
-      title: 'Worker 24/7', icon: 'ri-loop-right-line', href: '/dashboard/configuracoes?tab=operacao',
+      title: 'Worker 24/7', icon: 'ri-loop-right-line',
       state: statusFrom(check('scheduler')?.ok, loaded), detail: check('scheduler')?.detail || 'Consultando o heartbeat do servidor.',
     },
     {
-      title: 'Fontes de prospecção', icon: 'ri-radar-line', href: '/dashboard/configuracoes?tab=conexoes',
+      title: 'Fontes de prospecção', icon: 'ri-radar-line',
       state: statusFrom(prospectingActive, loaded),
       detail: prospectingActive ? `${prospecting.filter((item) => item.health === 'online' && item.enabled).length} fonte(s) pronta(s) para captar leads.` : 'Apify e Google Places aguardam configuração e ativação.',
     },
-  ] satisfies Array<{ title: string; detail: string; icon: string; state: ResourceState; href: string }>;
+  ] satisfies Array<{ title: string; detail: string; icon: string; state: ResourceState }>;
 
   const anaRuns = operacao?.runs.filter((run) => run.status === 'completed').length ?? 0;
   const processing = operacao?.summary.queuedJobs ?? null;
@@ -120,27 +102,15 @@ export default function Dashboard() {
 
   return <div className="wf-page">
     <header className="wf-page-header">
-      <div><p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-primary-700">Comando comercial</p><h1 className="wf-page-title mt-1">Dashboard</h1><p className="wf-page-description">Do primeiro lead ao orçamento: acompanhe o fluxo comercial e o estado real dos recursos que sustentam a operação.</p></div>
-      <div className="flex flex-wrap gap-2"><Link to="/dashboard/leads" className="wf-btn-primary"><i className="ri-user-add-line" />Gerenciar leads</Link><Link to="/dashboard/atendimento" className="wf-btn-secondary"><i className="ri-customer-service-2-line" />Atendimento</Link><Link to="/dashboard/kanban" className="wf-btn-secondary"><i className="ri-layout-masonry-line" />Kanban</Link></div>
+      <div><p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-primary-700">Visão operacional</p><h1 className="wf-page-title mt-1">Dashboard</h1><p className="wf-page-description">Indicadores para priorizar atendimento, acompanhar o Kanban e conferir a saúde das integrações.</p></div>
     </header>
 
     <section className="wf-metric-strip" aria-label="Resumo comercial"><Metric label="Precisa de você" value={data.handoff.length} detail="Atendimentos com humano" icon="ri-user-received-line" tone="accent" /><Metric label="Leads no fluxo" value={data.active.length} detail="Oportunidades abertas" icon="ri-stack-line" /><Metric label="Alta prioridade" value={data.hot.length} detail="Leads com temperatura quente" icon="ri-fire-line" tone="secondary" /><Metric label="Orçamentos ativos" value={data.quotes.length} detail={`${data.expiring.length} vencendo em breve`} icon="ri-file-list-3-line" /></section>
-
-    <section className="wf-surface overflow-hidden">
-      <div className="border-b border-background-200 px-5 py-4"><p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-primary-700">Fluxo de trabalho</p><h2 className="mt-1 text-lg font-semibold text-foreground-950">Começo, meio e final em uma única sequência</h2><p className="mt-1 text-sm text-foreground-500">Cada etapa abre diretamente o módulo que executa aquela parte do processo.</p></div>
-      <div className="grid divide-y divide-background-200 lg:grid-cols-3 lg:divide-x lg:divide-y-0">
-        <JourneyStep step="1 · Começo" title="Captar e cadastrar" description={`${data.active.length} lead(s) estão em etapas abertas do pipeline.`} icon="ri-search-eye-line" links={[{ label: 'Buscar leads', to: '/dashboard/busca-leads' }, { label: 'Lista de leads', to: '/dashboard/leads' }]} />
-        <JourneyStep step="2 · Meio" title="Conversar e qualificar" description={`${conversas.length} conversa(s) no histórico e ${data.handoff.length} aguardando humano.`} icon="ri-message-3-line" links={[{ label: 'Abrir Kanban', to: '/dashboard/kanban' }, { label: 'Central', to: '/dashboard/atendimento' }]} />
-        <JourneyStep step="3 · Final" title="Reunir e orçar" description={`${data.quotes.length} orçamento(s) enviados ou visualizados.`} icon="ri-file-list-3-line" links={[{ label: 'Agenda', to: '/dashboard/agenda' }, { label: 'Orçamentos', to: '/dashboard/orcamentos' }]} />
-      </div>
-    </section>
 
     <section>
       <div className="mb-3 flex flex-wrap items-end justify-between gap-3"><div><p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-primary-700">Estado do sistema</p><h2 className="mt-1 text-lg font-semibold text-foreground-950">Principais recursos</h2><p className="mt-1 text-sm text-foreground-500">Ativo e inativo são calculados pelo backend e pelas integrações da empresa.</p></div><p className="text-xs text-foreground-400">{statusUpdatedAt ? `Atualizado em ${new Date(statusUpdatedAt).toLocaleString('pt-BR')}` : 'Consultando atualização operacional…'}</p></div>
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">{resources.map((resource) => <ResourceCard key={resource.title} {...resource} />)}</div>
     </section>
-
-    <OperationalModeControl />
 
     <section className="grid grid-cols-1 gap-5 xl:grid-cols-3">
       <div className="wf-surface overflow-hidden xl:col-span-2"><div className="flex items-center justify-between border-b border-background-200 px-5 py-4"><div><h2 className="font-heading font-semibold text-foreground-950">Fila prioritária</h2><p className="mt-0.5 text-xs text-foreground-500">A Ana pausa automaticamente quando um humano assume.</p></div><Link className="text-xs font-semibold text-primary-700" to="/dashboard/atendimento">Ver Central</Link></div><div className="divide-y divide-background-100">{data.handoff.slice(0, 5).map((lead) => <Link key={lead.id} to={`/dashboard/atendimento?leadId=${lead.id}`} className="flex items-center gap-3 px-5 py-3 hover:bg-background-100/70"><span className="flex h-9 w-9 items-center justify-center rounded-full bg-primary-50 font-semibold text-primary-700">{lead.nome.charAt(0)}</span><span className="min-w-0 flex-1"><strong className="block truncate text-sm text-foreground-900">{lead.nome || lead.empresa}</strong><span className="text-xs text-foreground-500">{lead.empresa} · {lead.motivoTransferencia || 'Aguardando ação humana'}</span></span><i className="ri-arrow-right-s-line text-lg text-foreground-400" /></Link>)}{data.handoff.length === 0 && <div className="px-5 py-10 text-center text-sm text-foreground-500"><i className="ri-checkbox-circle-line mb-2 block text-xl text-primary-500" />Nenhum atendimento aguardando você.</div>}</div></div>

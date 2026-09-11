@@ -25,14 +25,14 @@ const navSections: NavSection[] = [
     items: [{ label: 'Dashboard', path: '/dashboard', icon: 'ri-dashboard-line' }],
   },
   {
-    title: 'Começo · captar',
+    title: 'Prospecção',
     items: [
       { label: 'Busca de Leads', path: '/dashboard/busca-leads', icon: 'ri-search-eye-line' },
       { label: 'Leads', path: '/dashboard/leads', icon: 'ri-user-search-line' },
     ],
   },
   {
-    title: 'Meio · atender',
+    title: 'Atendimento',
     items: [
       { label: 'Kanban', path: '/dashboard/kanban', icon: 'ri-layout-masonry-line' },
       { label: 'Central de Atendimento', path: '/dashboard/atendimento', icon: 'ri-customer-service-2-line' },
@@ -40,7 +40,7 @@ const navSections: NavSection[] = [
     ],
   },
   {
-    title: 'Final · fechar',
+    title: 'Comercial',
     items: [
       { label: 'Orçamentos', path: '/dashboard/orcamentos', icon: 'ri-file-list-3-line' },
       { label: 'Funil', path: '/dashboard/funil', icon: 'ri-filter-3-line' },
