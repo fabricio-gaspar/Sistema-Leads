@@ -96,15 +96,18 @@ export default function Dashboard() {
       </div>
     </section>
 
-    <section className="grid items-start gap-4 xl:grid-cols-2">
+    <section className="grid items-start gap-4 xl:grid-cols-[minmax(0,.8fr)_minmax(0,1.2fr)]">
       <article className="wf-surface overflow-hidden">
-        <div className="wf-overview-heading border-b border-background-200 p-4"><div><h2>Canais e APIs</h2><p>Conexão e ativação de cada serviço</p></div><Link to="/dashboard/configuracoes?tab=conexoes" className="wf-overview-link">Configurar ↗</Link></div>
-        <div className="divide-y divide-background-100">
-          {integrations.map((item) => <div key={item.key} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
-            <div className="min-w-0"><p className="text-sm font-semibold text-foreground-800">{item.label}</p><p className="mt-1 text-xs text-foreground-500">{item.provider || 'Serviço do sistema'}{item.lastTestedAt ? ` · Verificado em ${new Date(item.lastTestedAt).toLocaleString('pt-BR')}` : ' · Sem verificação registrada'}</p></div>
-            <Status neutral={!item.enabled || item.paused} good={item.health === 'online'} label={!item.enabled ? 'Desativado' : item.paused ? 'Pausado' : item.health === 'online' ? 'Conectado' : item.health === 'stale' ? 'Validação vencida' : 'Desconectado'} />
-          </div>)}
-          {!integrations.length && <p className="p-4 text-sm text-foreground-500">{diagnosticError ? 'Não foi possível consultar as conexões. Consulte o Registro do Sistema.' : operacao ? 'Nenhuma conexão cadastrada.' : 'Consultando conexões…'}</p>}
+        <div className="wf-overview-heading border-b border-background-200 px-4 py-3"><h2>Canais e APIs</h2><Link to="/dashboard/configuracoes?tab=conexoes" className="wf-overview-link">Configurar ↗</Link></div>
+        <div className="grid divide-y divide-background-100 sm:grid-cols-2 sm:divide-x sm:divide-y-0">
+          {integrations.map((item) => {
+            const connected = item.health === 'online';
+            return <div key={item.key} className="flex items-center justify-between gap-2 px-4 py-2.5">
+              <p className="min-w-0 truncate text-sm font-semibold text-foreground-800">{item.label}</p>
+              <span className={`shrink-0 rounded-md px-2 py-1 text-xs font-semibold ${connected ? 'bg-emerald-50 text-emerald-800' : 'bg-rose-50 text-rose-700'}`}>{connected ? 'Conectado' : 'Desconectado'}</span>
+            </div>;
+          })}
+          {!integrations.length && <p className="p-4 text-sm text-foreground-500 sm:col-span-2">{diagnosticError ? 'Não foi possível consultar as conexões. Consulte o Registro do Sistema.' : operacao ? 'Nenhuma conexão cadastrada.' : 'Consultando conexões…'}</p>}
         </div>
       </article>
       <div className="space-y-4">
