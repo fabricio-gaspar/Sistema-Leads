@@ -260,6 +260,16 @@
 - Type-check frontend/Edge, lint sem warnings, 15 arquivos/159 testes e build do artefato
   do Site foram aprovados. QA visual autenticado não foi executado nesta rodada.
 
+# 2026-09-11 — Correção da busca Apify
+
+- Diagnóstico confirmado no banco: não havia `prospecting_runs` nem cache para as tentativas;
+  a inserção era recusada porque a função omitira `estimated_records` e `quote_expires_at`,
+  ambos obrigatórios no schema implantado.
+- `prospectar-leads` v6 foi publicada com os campos obrigatórios. A tela deixou de avançar por
+  temporizadores para uma revisão vazia e expõe erro/resultado vazio de forma distinta.
+- Type-check frontend/Edge, lint, build e 160 testes em 15 arquivos passaram. Nenhuma busca
+  externa foi disparada pelo agente.
+
 # 2026-09-11 — Sincronização do heartbeat legado
 
 - Causa confirmada: `automation-worker` atualiza a integração `scheduler`, que alimenta o diagnóstico operacional, mas o registro histórico `automation_heartbeats.automation_engine` não era atualizado desde agosto.

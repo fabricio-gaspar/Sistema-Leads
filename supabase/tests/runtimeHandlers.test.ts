@@ -102,6 +102,43 @@ beforeEach(() => {
   fetchMock = vi.fn(async () => { throw new Error('Unexpected external call in safety test'); });
   vi.stubGlobal('fetch', fetchMock);
 });
+
+describe('Prospecting handler persistence contract', () => {
+  it('creates an executable Apify run with every required database field before contacting the provider', async () => {
+    override = (q) => {
+      if (q.table === 'lead_source_configs' && q.operation === 'select') {
+        return ok({ id: 'source-config', enabled: true, mode: 'production', connection_status: 'connected' });
+      }
+      if (q.table === 'integrations' && q.operation === 'select') {
+        return ok({ id: integrationId, provider: 'Apify', enabled: true, connected: true, paused: false });
+      }
+      if (q.table === 'read_integration_secret' && q.operation === 'rpc') {
+        return ok({ api_token: 'synthetic-apify-token', actor_id: 'synthetic-google-maps-actor' });
+      }
+      return undefined;
+    };
+    fetchMock
+      .mockResolvedValueOnce(new Response(JSON.stringify({ data: { id: 'provider-run', defaultDatasetId: 'dataset-id' } }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify([]), { status: 200 }));
+
+    await import('../functions/prospectar-leads/index');
+    const response = await handler(new Request('https://example.invalid/prospectar-leads', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sourceKey: 'apify', mode: 'production', filters: { cidade: 'São Paulo', estado: 'SP', volumeMaximo: 30 } }),
+    }));
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ ok: true, sourceKey: 'apify', leads: [] });
+    expect(calls.find((q) => q.table === 'prospecting_runs' && q.operation === 'insert')?.value).toMatchObject({
+      requested_quantity: 30,
+      estimated_records: 30,
+      quote_expires_at: expect.any(String),
+      requires_confirmation: false,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+});
 afterEach(() => vi.unstubAllGlobals());
 
 function anaRequest(patch: Row = {}) {

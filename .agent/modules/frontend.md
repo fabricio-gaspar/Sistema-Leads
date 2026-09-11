@@ -4,6 +4,9 @@
   status individual das integrações, atendimento humano e fila. Barras zero permanecem vazias.
 - Compactação de 11/09: o mesmo Dashboard usa cards e listas mais densos, sem alterar fontes
   remotas, callbacks, estados, rotas ou regras de domínio.
+- Busca manual: a revisão só abre após retorno real do provedor. Falhas ficam visíveis nos
+  filtros, e um retorno vazio real mostra estado vazio explícito. O adaptador reconhece os
+  campos de empresa e localização devolvidos pela prospecção.
 - Menu usa Prospecção, Atendimento e Comercial. Configurações agrupam conexões, empresa/IA,
   gestão comercial e segurança, preservando IDs, callbacks e componentes de formulário.
 

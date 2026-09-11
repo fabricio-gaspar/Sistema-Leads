@@ -20,7 +20,7 @@ const estados = ['SP', 'RJ', 'MG', 'PR', 'SC', 'RS', 'BA', 'PE', 'GO', 'DF'];
 const atividades = ['Tecnologia', 'Saúde', 'Educação', 'Varejo', 'Indústria', 'Logística', 'Marketing', 'Consultoria', 'Financeiro', 'Imobiliário'];
 const cargos = ['CEO', 'Diretor', 'Gerente', 'Coordenador', 'Analista', 'Proprietário'];
 
-const fasesBusca = ['Buscando nas fontes', 'Enriquecendo contatos', 'Qualificando com a Ana', 'Removendo duplicados'];
+const fasesBusca = ['Consultando a fonte configurada'];
 
 interface ProspectingLeadResponse {
   id?: string;
@@ -29,6 +29,8 @@ interface ProspectingLeadResponse {
   name?: string;
   empresa?: string;
   company?: string;
+  razao_social?: string;
+  nome_fantasia?: string;
   telefone?: string;
   phone?: string;
   whatsapp?: string;
@@ -37,8 +39,10 @@ interface ProspectingLeadResponse {
   website?: string;
   cidade?: string;
   city?: string;
+  municipio?: string;
   estado?: string;
   state?: string;
+  uf?: string;
   cargo?: string;
   segmento?: string;
   porte?: string;
@@ -48,14 +52,14 @@ interface ProspectingLeadResponse {
 }
 
 function prospectingLeadToPreview(lead: ProspectingLeadResponse, fonte: string, index: number): PreviewLead {
-  const nome = lead.nome || lead.name || 'Contato sem nome';
-  const empresa = lead.empresa || lead.company || nome;
+  const nome = lead.nome || lead.name || lead.nome_fantasia || lead.razao_social || 'Contato sem nome';
+  const empresa = lead.empresa || lead.company || lead.razao_social || lead.nome_fantasia || nome;
   const telefone = lead.telefone || lead.phone || lead.whatsapp || '';
   const email = lead.email || '';
   const site = lead.site || lead.website || '';
   const score = typeof lead.score === 'number' ? Math.max(0, Math.min(100, Math.round(lead.score))) : 60;
-  const cidadeReal = lead.cidade || lead.city || '';
-  const estadoReal = lead.estado || lead.state || '';
+  const cidadeReal = lead.cidade || lead.city || lead.municipio || '';
+  const estadoReal = lead.estado || lead.state || lead.uf || '';
   return {
     id: lead.id || lead.externalId || `real-${index}-${Date.now()}`,
     nome,
@@ -109,6 +113,7 @@ export default function BuscaLeads() {
   const [temEmail, setTemEmail] = useState<boolean | null>(null);
   const [buscando, setBuscando] = useState(false);
   const [resultado, setResultado] = useState<string | null>(null);
+  const [erroBusca, setErroBusca] = useState<string | null>(null);
   const [preview, setPreview] = useState<PreviewLead[]>([]);
   const [selecionados, setSelecionados] = useState<string[]>([]);
   const [faseBusca, setFaseBusca] = useState('');
@@ -215,18 +220,7 @@ export default function BuscaLeads() {
     }
   };
 
-  const buscar = () => {
-    setBuscando(true);
-    setResultado(null);
-    setFeedbackAna('');
-    setFaseBusca(fasesBusca[0]);
-    setTimeout(() => setFaseBusca(fasesBusca[1]), 450);
-    setTimeout(() => setFaseBusca(fasesBusca[2]), 950);
-    setTimeout(() => setFaseBusca(fasesBusca[3]), 1400);
-    setTimeout(() => {
-      void executarBusca();
-    }, 1900);
-  };
+  const buscar = () => { void executarBusca(); };
 
   const executarBusca = async () => {
     const fonte = fontes.find((item) => item.id === fonteSelecionada);
@@ -238,6 +232,11 @@ export default function BuscaLeads() {
       'Pesquisa assistida por IA': 'ai',
     } as Record<string, string>)[fonteNome] || '';
 
+    setBuscando(true);
+    setResultado(null);
+    setErroBusca(null);
+    setFeedbackAna('');
+    setFaseBusca(fasesBusca[0]);
     try {
       if (operationalMode !== 'real') throw new Error('operational_mode_protected');
       if (!fontesDisponiveis.some((item) => item.id === fonteSelecionada)) throw new Error('source_disabled');
@@ -273,15 +272,16 @@ export default function BuscaLeads() {
       setResultado(
         dups > 0
           ? `${cruzados.length} leads encontrados (limite: ${leadsDia}). ${dups} duplicado(s) já no funil e bloqueado(s).`
-          : `${cruzados.length} leads encontrados (limite: ${leadsDia}), resultado real do provedor.`,
+          : cruzados.length
+            ? `${cruzados.length} leads encontrados (limite: ${leadsDia}), resultado real do provedor.`
+            : `${fonteNome} concluiu a busca, mas não retornou leads para estes filtros. Nenhum lead foi importado.`,
       );
       setEtapa(3);
     } catch (error) {
       setPreview([]);
       setSelecionados([]);
       const message = error instanceof Error ? error.message : 'prospecting_failed';
-      setResultado(mensagemBuscaReal(message, fonteNome));
-      setEtapa(3);
+      setErroBusca(mensagemBuscaReal(message, fonteNome));
     } finally {
       setBuscando(false);
       setFaseBusca('');
@@ -811,6 +811,13 @@ export default function BuscaLeads() {
                 </button>
               </div>
 
+              {erroBusca && (
+                <div role="alert" className="border border-secondary-200 bg-secondary-50 px-4 py-3 text-sm text-secondary-800 rounded-lg flex items-start gap-2">
+                  <i className="ri-error-warning-line mt-0.5" aria-hidden="true"></i>
+                  <span>{erroBusca}</span>
+                </div>
+              )}
+
               {buscando && (
                 <div className="bg-background-50 border border-background-200/70 rounded-xl p-6">
                   <div className="flex items-center gap-2 mb-4">
@@ -864,13 +871,17 @@ export default function BuscaLeads() {
                   </div>
                   <div className="flex items-center gap-3">
                     <span className="text-xs text-foreground-500">{selecionados.length} de {preview.length} selecionados</span>
-                    <button onClick={selecionarTodos} className="text-xs text-primary-600 hover:text-primary-700 font-medium cursor-pointer whitespace-nowrap">
-                      {selecionados.length === preview.filter((l) => !l.duplicado).length ? 'Desmarcar todos' : 'Selecionar todos'}
+                    <button onClick={selecionarTodos} disabled={preview.length === 0} className="text-xs text-primary-600 hover:text-primary-700 disabled:text-foreground-400 disabled:cursor-not-allowed font-medium cursor-pointer whitespace-nowrap">
+                      {preview.length > 0 && selecionados.length === preview.filter((l) => !l.duplicado).length ? 'Desmarcar todos' : 'Selecionar todos'}
                     </button>
                   </div>
                 </div>
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
+                  {preview.length === 0 ? (
+                    <div className="px-6 py-10 text-center text-sm text-foreground-500">
+                      A fonte não retornou nenhum lead para os filtros informados. Ajuste os filtros e tente novamente.
+                    </div>
+                  ) : <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-background-200/70 bg-background-100/50">
                         <th className="text-left px-4 py-3 w-10">
@@ -948,7 +959,7 @@ export default function BuscaLeads() {
                         </tr>
                       ))}
                     </tbody>
-                  </table>
+                  </table>}
                 </div>
               </div>
 
