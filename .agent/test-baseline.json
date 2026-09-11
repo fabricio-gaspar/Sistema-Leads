@@ -1,12 +1,12 @@
 {
   "schema_version": 1,
-  "validated_commit": "228be6a36dff00982860e7a8cb9ee33e91c5f778",
-  "last_validated_at": "2026-09-11T15:19:06-03:00",
+  "validated_commit": "78f41985b5c38b799849b503800cb7c4d0c293ad",
+  "last_validated_at": "2026-09-11T16:31:31-03:00",
   "commands": [
     {"command":"npm run type-check","status":"passed"},
     {"command":"npm run lint","status":"passed","warnings":0},
     {"command":"npm run type-check:edge","status":"passed"},
-    {"command":"npm test","status":"passed","files":15,"checks":160},
+    {"command":"npm test","status":"passed","files":15,"checks":163},
     {"command":"npm run build","status":"passed"},
     {"command":"runtime Worker smoke test com valores públicos simulados","status":"passed","note":"/runtime-config.js retorna no-store e entrega URL/chave somente em runtime; o bundle não contém os valores reais."}
   ],
@@ -24,5 +24,5 @@
   },
   "covered": ["frontend_typecheck","lint","edge_typecheck","unit_and_contract_tests","production_build"],
   "not_covered": ["authenticated_e2e","real_whatsapp","real_claude","cross_organization_rls","database_concurrency","provider_receipt_race","mobile_authenticated_qa","computer_use_visual_qa_unavailable_due_local_module_permission"],
-  "working_tree_validation": "passed: busca Apify cria a execução com os campos obrigatórios do banco; a revisão só abre após resposta real. Type-check frontend/Edge, lint, 15 arquivos/160 testes e build aprovados."
+  "working_tree_validation": "passed: busca Apify inicia e retoma a execução remota por runId, e a revisão só abre após resposta final. Type-check frontend/Edge, lint, 15 arquivos/163 testes e build aprovados."
 }
