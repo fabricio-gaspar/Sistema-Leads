@@ -2,17 +2,17 @@
   "schema_version": 1,
   "baseline_version": 3,
   "baseline_commit": "1fbd231ff88b4e02c3ddddd18253a1f3be8be5ee",
-  "last_audited_commit": "5893352d252c61fb03dcc35b005757c3f4d6995c",
-  "current_head_at_update": "5893352d252c61fb03dcc35b005757c3f4d6995c",
-  "working_tree_status": "visual_refinement_published_site_v69",
+  "last_audited_commit": "3862ca243a5be0645e8dbfacb4b45c6282a7f2c2",
+  "current_head_at_update": "3862ca243a5be0645e8dbfacb4b45c6282a7f2c2",
+  "working_tree_status": "dashboard_compaction_published_site_v70",
   "last_site_publication": {
-    "commit": "5893352d252c61fb03dcc35b005757c3f4d6995c",
-    "site_version": 69,
-    "validated_at": "2026-09-11T15:08:48.885091Z",
+    "commit": "3862ca243a5be0645e8dbfacb4b45c6282a7f2c2",
+    "site_version": 70,
+    "validated_at": "2026-09-11T14:41:33.6508589-03:00",
     "working_tree_status": "published"
   },
   "full_audit_required": false,
   "baseline_status": "validated",
-  "updated_at": "2026-09-11T15:08:48.885091Z",
-  "next_action": "Visual publicado. Próximo pedido deve preservar regras e dados; QA visual autenticado não executado nesta rodada."
+  "updated_at": "2026-09-11T14:41:33.6508589-03:00",
+  "next_action": "Dashboard compacto publicado. Próximo pedido deve preservar regras e dados; QA visual autenticado não executado nesta rodada."
 }
