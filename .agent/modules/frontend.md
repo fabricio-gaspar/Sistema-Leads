@@ -30,3 +30,15 @@
 - Em **Configurar a Ana**, a última etapa apresenta explicitamente a versão já publicada e o
   botão só fica habilitado após alteração pendente. O rótulo e a dica explicam esse estado para
   evitar a aparência de falha e impedir versões duplicadas sem mudança.
+
+## Busca de Leads — 11/09/2026
+
+- A busca manual usa Fonte → Filtros → Revisão → Importação. Fontes de prospecção ainda não
+  validadas aparecem bloqueadas, em vez de desaparecerem do seletor.
+- O retorno real pode ser assíncrono: enquanto a Apify processa, a tela consulta a mesma
+  execução por `runId`; a revisão só aparece quando o backend entrega resultados finais.
+- `ProspectingMap` desenha somente latitude/longitude devolvidos pela fonte, com tiles do
+  OpenStreetMap e abertura do drawer ao clicar no marcador. Sem coordenadas, exibe estado
+  transparente e mantém os leads na tabela.
+- A última etapa exige seleção e leva ao módulo Leads após a persistência. Não há promessa nem
+  disparo automático da Ana ou de WhatsApp nesse fluxo.

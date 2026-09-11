@@ -275,3 +275,17 @@
 - Causa confirmada: `automation-worker` atualiza a integração `scheduler`, que alimenta o diagnóstico operacional, mas o registro histórico `automation_heartbeats.automation_engine` não era atualizado desde agosto.
 - Aplicada a migration `20260911110000_sync_legacy_scheduler_heartbeat`: trigger privado sincroniza o heartbeat legado a cada novo `last_success_at` do scheduler e faz backfill da última confirmação existente.
 - Verificação no Supabase: trigger instalado; `automation_engine` em `success`, sem erro. Type-check frontend/Edge, lint e build passaram. O Vitest não iniciou neste worktree por limitação de resolução do esbuild através da dependência compartilhada; a migration foi verificada diretamente no banco.
+
+# 2026-09-11 — Busca Apify assíncrona e revisão geográfica
+
+- Foram encontrados dois `prospecting_runs` da organização Wayflex em `running`, com mais de
+  cinco minutos e sem `provider_run_id`; a implementação anterior aguardava o Actor na mesma
+  requisição. Os dois foram marcados como `legacy_provider_start_timeout`, sem apagar registros
+  ou tocar em leads, cache, integração ou Vault.
+- A Edge Function agora inicia a consulta, persiste a execução remota e permite polling
+  autenticado até `SUCCEEDED`. A revisão recebe resultado/cache apenas no término; coordenadas
+  válidas são mantidas para o mapa. Contratos cobrem início pendente, retomada concluída,
+  coordenadas e fronteira do Vault ao reparar Actor.
+- Validação: type-check frontend/Edge, lint, build e 15 arquivos/163 testes aprovados. Não foi
+  executada busca real pelo agente; Computer Use não pôde carregar o navegador por falha local
+  de permissão.

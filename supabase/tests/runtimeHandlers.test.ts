@@ -118,8 +118,11 @@ describe('Prospecting handler persistence contract', () => {
       return undefined;
     };
     fetchMock
-      .mockResolvedValueOnce(new Response(JSON.stringify({ data: { id: 'provider-run', defaultDatasetId: 'dataset-id' } }), { status: 200 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify([]), { status: 200 }));
+      .mockResolvedValueOnce(new Response(JSON.stringify({ data: { id: 'provider-run', status: 'SUCCEEDED', defaultDatasetId: 'dataset-id' } }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify([{
+        title: 'Borracharia de teste',
+        location: { lat: '-23.5505', lng: '-46.6333' },
+      }]), { status: 200 }));
 
     await import('../functions/prospectar-leads/index');
     const response = await handler(new Request('https://example.invalid/prospectar-leads', {
@@ -129,7 +132,11 @@ describe('Prospecting handler persistence contract', () => {
     }));
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ ok: true, sourceKey: 'apify', leads: [] });
+    expect(await response.json()).toMatchObject({
+      ok: true,
+      sourceKey: 'apify',
+      leads: [{ razao_social: 'Borracharia de teste', latitude: -23.5505, longitude: -46.6333 }],
+    });
     expect(calls.find((q) => q.table === 'prospecting_runs' && q.operation === 'insert')?.value).toMatchObject({
       requested_quantity: 30,
       estimated_records: 30,
@@ -137,6 +144,92 @@ describe('Prospecting handler persistence contract', () => {
       requires_confirmation: false,
     });
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps a long-running Apify execution resumable instead of holding the browser request open', async () => {
+    override = (q) => {
+      if (q.table === 'lead_source_configs' && q.operation === 'select') return ok({ id: 'source-config', enabled: true, mode: 'production', connection_status: 'connected' });
+      if (q.table === 'integrations' && q.operation === 'select') return ok({ id: integrationId, provider: 'Apify', enabled: true, connected: true, paused: false });
+      if (q.table === 'read_integration_secret' && q.operation === 'rpc') return ok({ api_token: 'synthetic-apify-token', actor_id: 'synthetic-google-maps-actor' });
+      return undefined;
+    };
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ data: { id: 'provider-run', status: 'RUNNING', defaultDatasetId: 'dataset-id' } }), { status: 200 }));
+
+    await import('../functions/prospectar-leads/index');
+    const response = await handler(new Request('https://example.invalid/prospectar-leads', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sourceKey: 'apify', mode: 'production', filters: { cidade: 'São Paulo', estado: 'SP', volumeMaximo: 5 } }),
+    }));
+
+    expect(response.status).toBe(202);
+    expect(await response.json()).toMatchObject({ ok: true, pending: true, sourceKey: 'apify' });
+    expect(calls.find((q) => q.table === 'prospecting_runs' && q.operation === 'update')?.value).toMatchObject({ provider_run_id: 'provider-run' });
+    expect(calls.some((q) => q.table === 'prospecting_cache' && q.operation === 'insert')).toBe(false);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('finalizes a pending Apify run only after the provider reports completion', async () => {
+    override = (q) => {
+      if (q.table === 'lead_source_configs' && q.operation === 'select') return ok({ id: 'source-config', enabled: true, mode: 'production', connection_status: 'connected' });
+      if (q.table === 'integrations' && q.operation === 'select') return ok({ id: integrationId, provider: 'Apify', enabled: true, connected: true, paused: false });
+      if (q.table === 'read_integration_secret' && q.operation === 'rpc') return ok({ api_token: 'synthetic-apify-token', actor_id: 'synthetic-google-maps-actor' });
+      if (q.table === 'prospecting_runs' && q.operation === 'select') return ok({ id: 'existing-run', source_key: 'apify', source_config_id: 'source-config', status: 'running', filters: { cidade: 'São Paulo', estado: 'SP', volumeMaximo: 5 }, provider_run_id: 'provider-run' });
+      return undefined;
+    };
+    fetchMock
+      .mockResolvedValueOnce(new Response(JSON.stringify({ data: { id: 'provider-run', status: 'SUCCEEDED', defaultDatasetId: 'dataset-id' } }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify([{ title: 'Empresa concluída', location: { lat: -23.5, lng: -46.6 } }]), { status: 200 }));
+
+    await import('../functions/prospectar-leads/index');
+    const response = await handler(new Request('https://example.invalid/prospectar-leads', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sourceKey: 'apify', mode: 'production', runId: 'existing-run' }),
+    }));
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ ok: true, pending: false, runId: 'existing-run', leads: [{ razao_social: 'Empresa concluída' }] });
+    expect(calls.some((q) => q.table === 'prospecting_runs' && q.operation === 'insert')).toBe(false);
+    expect(calls.find((q) => q.table === 'prospecting_runs' && q.operation === 'update')?.value).toMatchObject({ status: 'completed', provider_run_id: 'provider-run' });
+  });
+});
+
+describe('Integration configuration secret boundary', () => {
+  it('replaces only the incompatible Apify actor in the Vault and exposes no token', async () => {
+    override = (q) => {
+      if (q.table === 'integrations' && q.operation === 'select') return ok({ id: integrationId, configuration: {} });
+      if (q.table === 'read_integration_secret' && q.operation === 'rpc') {
+        return ok({ api_token: 'synthetic-apify-token', actor_id: 'apify/google-search-scraper', task_id: 'old-task', input_json: '{"language":"pt-BR"}' });
+      }
+      if (q.table === 'lead_source_configs' && q.operation === 'select') return ok({ id: 'source-config' });
+      return undefined;
+    };
+
+    await import('../functions/configurar-integracao/index');
+    const response = await handler(new Request('https://example.invalid/configurar-integracao', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ canal: 'apify', credenciais: { usar_actor_google_maps: true } }),
+    }));
+
+    const payload = await response.json();
+    expect(response.status).toBe(200);
+    expect(payload).toMatchObject({ ok: true, mensagem: expect.stringContaining('Actor Google Maps') });
+    expect(JSON.stringify(payload)).not.toContain('synthetic-apify-token');
+    expect(calls.find((q) => q.table === 'store_integration_secret' && q.operation === 'rpc')?.value).toMatchObject({
+      p_integration: integrationId,
+      p_secret: {
+        api_token: 'synthetic-apify-token',
+        actor_id: 'compass/google-maps-extractor',
+        task_id: '',
+      },
+    });
+    expect(calls.find((q) => q.table === 'lead_source_configs' && q.operation === 'update')?.value).toMatchObject({
+      enabled: false,
+      connection_status: 'configured',
+      configuration: { actor_id: 'compass/google-maps-extractor', task_id: null },
+    });
   });
 });
 afterEach(() => vi.unstubAllGlobals());

@@ -15,6 +15,7 @@ const statusMeta = {
 function errorMessage(code: string, name: string) {
   const messages: Record<string, string> = {
     integration_credentials_missing: `Salve as credenciais de ${name} antes de testar.`,
+    apify_credentials_missing: 'A credencial da Apify não foi encontrada no cofre. Configure a fonte novamente.',
     source_credentials_missing: `Revise as credenciais de ${name} e salve novamente.`,
     source_not_configured: `${name} ainda não foi configurada.`,
     provider_error: `${name} recusou a validação. Confira chave, permissões e conta.`,
@@ -139,10 +140,11 @@ function WhatsAppTestModal({ integration, onClose, onCompleted }: { integration:
 
 export default function IntegracoesTab({ category }: { category?: OperationalIntegration['operationalCategory'] }) {
   const { integracoes, recarregar } = useIntegracoesStore();
-  const { recarregar: recarregarFontes } = useFontesStore();
+  const { fontes, recarregar: recarregarFontes } = useFontesStore();
   const [configuring, setConfiguring] = useState<OperationalIntegration | null>(null);
   const [whatsappTest, setWhatsappTest] = useState<OperationalIntegration | null>(null);
   const [testing, setTesting] = useState<OperationalIntegration['remoteKey'] | null>(null);
+  const [repairingApify, setRepairingApify] = useState(false);
   const [notice, setNotice] = useState('');
 
   const refresh = async () => { await Promise.all([recarregar(), recarregarFontes()]); };
@@ -163,6 +165,21 @@ export default function IntegracoesTab({ category }: { category?: OperationalInt
     finally { setTesting(null); }
   };
 
+  const repairApifyGoogleMapsActor = async (integration: OperationalIntegration) => {
+    if (repairingApify) return;
+    setRepairingApify(true); setNotice('');
+    try {
+      const { data, error } = await supabase.functions.invoke('configurar-integracao', {
+        body: { canal: 'apify', credenciais: { usar_actor_google_maps: true } },
+      });
+      if (error || !data?.ok) throw new Error(error ? await detalheDoErroDeFuncao(error) : data?.erro);
+      await refresh();
+      setNotice('Actor de Google Maps corrigido no cofre. Agora use “Testar conexão”; a fonte só será ativada se a Apify aceitar a validação.');
+    } catch (cause) {
+      setNotice(errorMessage(cause instanceof Error ? cause.message : '', integration.nome));
+    } finally { setRepairingApify(false); }
+  };
+
   const visibleIntegrations = category ? integracoes.filter((integration) => integration.operationalCategory === category) : integracoes;
 
   return <div className="space-y-4">
@@ -171,6 +188,11 @@ export default function IntegracoesTab({ category }: { category?: OperationalInt
       {visibleIntegrations.map((integration) => {
         const meta = statusMeta[integration.status];
         const anaConfiguration = integration.anaProviderConfiguration;
+        const sourceError = integration.remoteKey === 'apify'
+          ? fontes.find((source) => source.sourceKey === 'apify')?.lastError ?? null
+          : null;
+        const canRepairApifyActor = integration.remoteKey === 'apify'
+          && (integration.lastError === 'apify_http_400' || sourceError === 'apify_http_400');
         return <article key={integration.remoteKey} className="flex min-h-[250px] flex-col rounded-xl border border-background-200 bg-white p-4 shadow-2xs">
           <div className="flex items-start justify-between gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-50 text-primary-700"><i className={`${integration.icone} text-base`} /></div>
@@ -190,8 +212,9 @@ export default function IntegracoesTab({ category }: { category?: OperationalInt
               <p className="text-[#8A5200]">Modelo ainda não validado por uma chamada ao modelo.</p>
             </>}
             {integration.lastError && <p className="line-clamp-2 text-[#D92D27]">{integration.lastError}</p>}
+            {!integration.lastError && sourceError && <p className="line-clamp-2 text-[#D92D27]">Busca: {sourceError}</p>}
           </div>
-          <div className="mt-auto grid grid-cols-2 gap-2 pt-3"><button type="button" onClick={() => setConfiguring(integration)} className="wf-btn-secondary justify-center text-xs">Configurar</button><button type="button" disabled={testing === integration.remoteKey} onClick={() => integration.remoteKey === 'whatsapp' ? setWhatsappTest(integration) : void test(integration)} className="wf-btn-primary justify-center text-xs disabled:opacity-60">{testing === integration.remoteKey ? 'Validando…' : integration.remoteKey === 'whatsapp' ? 'Testar envio' : 'Testar conexão'}</button></div>
+          <div className="mt-auto grid grid-cols-2 gap-2 pt-3"><button type="button" onClick={() => setConfiguring(integration)} className="wf-btn-secondary justify-center text-xs">Configurar</button><button type="button" disabled={testing === integration.remoteKey || (integration.remoteKey === 'apify' && repairingApify)} onClick={() => integration.remoteKey === 'whatsapp' ? setWhatsappTest(integration) : void test(integration)} className="wf-btn-primary justify-center text-xs disabled:opacity-60">{testing === integration.remoteKey ? 'Validando…' : integration.remoteKey === 'whatsapp' ? 'Testar envio' : 'Testar conexão'}</button>{canRepairApifyActor && <button type="button" disabled={repairingApify} onClick={() => void repairApifyGoogleMapsActor(integration)} className="col-span-2 wf-btn-secondary justify-center text-xs text-primary-700 disabled:opacity-60"><i className={repairingApify ? 'ri-loader-4-line animate-spin' : 'ri-map-pin-line'} />{repairingApify ? 'Corrigindo Actor…' : 'Corrigir Actor Google Maps'}</button>}</div>
         </article>;
       })}
     </div>
