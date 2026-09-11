@@ -426,3 +426,25 @@ webhook em ambiente controlado.
   artefato Worker aprovados. QA visual autenticado não foi executado nesta rodada.
 - PUBLICADO: Site oficial versão 73, commit `fb8fce803d77ac3235e75f22f9d82586786bc5a1`, com
   deploy confirmado como `succeeded` e audiência customizada preservada.
+
+## Dashboard — conversas reais em tempo real — 11/09/2026
+
+- O Dashboard passou a exibir um gráfico horizontalmente rolável das últimas 24 horas de
+  conversas. Ele agrega exclusivamente `lead_messages` carregadas pela Central: separa
+  recebidas de enviadas, exclui notas internas e mostra estado vazio quando não houver mensagem
+  operacional no período. Não há seed, estimativa ou série de conteúdo inventado.
+- A migration `20260911180000_enable_lead_messages_realtime` foi aplicada no projeto Supabase
+  oficial. A verificação posterior confirmou `public.lead_messages` na publicação
+  `supabase_realtime`; o assinante do Dashboard é filtrado por `organization_id` e recarrega a
+  fonte operacional ao receber INSERT, UPDATE ou DELETE autorizado por RLS.
+- O selo “Ao vivo” só é apresentado depois de `SUBSCRIBED`. Falha, timeout ou ausência de sessão
+  deixam explícito que a consulta permanece real, mas que a página deve ser atualizada até a
+  conexão em tempo real voltar.
+- Validação local: type-check frontend/Edge, lint sem warnings, 16 arquivos/165 testes, build
+  Vite e artefato do Site aprovados. O teste novo cobre a janela de 24 horas, direção das
+  mensagens e exclusão de nota interna. Não houve envio de mensagem, mudança de integração,
+  lead, automação ou configuração comercial.
+- PUBLICADO: Site oficial versão 74, commit `1a2f0d1c40e20be475dd2eff34463228fe0a550e`, com
+  deploy confirmado como `succeeded` e audiência customizada preservada. A inspeção visual
+  autenticada não foi possível porque o runtime local de Computer Use falhou antes de acessar a
+  janela por permissão; não declarar essa checagem como concluída.

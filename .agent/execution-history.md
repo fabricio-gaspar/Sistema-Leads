@@ -302,3 +302,18 @@
   aprovados type-check frontend/Edge, lint, 15 arquivos/163 testes, build Vite e artefato
   Worker. A publicação oficial da versão 73 foi confirmada, sem enviar mensagens nem alterar
   dados operacionais.
+
+# 2026-09-11 — Gráfico Realtime de conversas no Dashboard
+
+- Consulta no projeto Supabase oficial confirmou que `lead_messages` ainda não participava de
+  `supabase_realtime`. A migration `20260911180000_enable_lead_messages_realtime` foi aplicada
+  e a verificação posterior confirmou a tabela publicada.
+- O Dashboard agora agrega mensagens operacionais da Central nas últimas 24 horas, separando
+  recebidas/enviadas e excluindo notas internas. A faixa do gráfico é horizontalmente rolável e
+  a assinatura Realtime é filtrada pela organização autenticada. O selo só diz Ao vivo após
+  `SUBSCRIBED`.
+- Type-check frontend/Edge, lint, 16 arquivos/165 testes, build Vite e artefato Worker passaram.
+  O commit `1a2f0d1c40e20be475dd2eff34463228fe0a550e` foi publicado no Site oficial como versão
+  74. Não houve envio de mensagem, alteração de lead, automação, integração ou configuração
+  comercial. A validação visual autenticada ficou pendente porque Computer Use falhou por
+  permissão antes de abrir a janela.

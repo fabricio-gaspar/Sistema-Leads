@@ -1,5 +1,11 @@
 # Frontend
 
+- Dashboard: o gráfico de conversas usa somente o histórico operacional carregado da Central e
+  mostra as últimas 24 horas em faixa horizontal rolável. Notas internas não entram na métrica;
+  nenhuma mensagem no período produz estado vazio, nunca valores ou conteúdo simulados.
+- O selo do gráfico declara “Ao vivo” somente após a assinatura Realtime estar `SUBSCRIBED`.
+  A assinatura é limitada à `organization_id` da sessão; falha de conexão não é mascarada como
+  atualização em tempo real.
 - Refinamento visual de 11/09: Dashboard concentra métricas, distribuição Kanban e temperatura,
   status individual das integrações, atendimento humano e fila. Barras zero permanecem vazias.
 - Compactação de 11/09: o mesmo Dashboard usa cards e listas mais densos, sem alterar fontes
