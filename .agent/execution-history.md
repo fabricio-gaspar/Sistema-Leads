@@ -253,6 +253,13 @@
 - Type-check frontend/Edge, lint, 159 testes/15 arquivos, build Vite e Worker aprovados.
 - Recuperado Git HTTPS usando helper já instalado e OpenSSL. Publicação no Site oficial autorizada.
 
+# 2026-09-11 — Compactação do Dashboard
+
+- O Dashboard foi tornado mais compacto apenas por classes de apresentação: menos padding,
+  gaps e altura nos cards, barras e listas; nenhum dado, estado, regra ou integração mudou.
+- Type-check frontend/Edge, lint sem warnings, 15 arquivos/159 testes e build do artefato
+  do Site foram aprovados. QA visual autenticado não foi executado nesta rodada.
+
 # 2026-09-11 — Sincronização do heartbeat legado
 
 - Causa confirmada: `automation-worker` atualiza a integração `scheduler`, que alimenta o diagnóstico operacional, mas o registro histórico `automation_heartbeats.automation_engine` não era atualizado desde agosto.

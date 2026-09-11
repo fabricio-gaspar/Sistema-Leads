@@ -2,6 +2,8 @@
 
 - Refinamento visual de 11/09: Dashboard concentra métricas, distribuição Kanban e temperatura,
   status individual das integrações, atendimento humano e fila. Barras zero permanecem vazias.
+- Compactação de 11/09: o mesmo Dashboard usa cards e listas mais densos, sem alterar fontes
+  remotas, callbacks, estados, rotas ou regras de domínio.
 - Menu usa Prospecção, Atendimento e Comercial. Configurações agrupam conexões, empresa/IA,
   gestão comercial e segurança, preservando IDs, callbacks e componentes de formulário.
 

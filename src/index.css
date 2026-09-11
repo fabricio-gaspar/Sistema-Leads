@@ -601,13 +601,13 @@ h1, h2, h3, h4, h5, h6 {
 .wf-topbar { background: #fff !important; backdrop-filter: none; }
 .wf-overview-metric {
   min-width: 0;
-  padding: 1.3rem;
+  padding: 1rem;
   background: #fff;
   border: 1px solid #e2e7ec;
   border-radius: 1rem;
   box-shadow: 0 2px 6px rgb(20 35 50 / .025);
 }
-.wf-overview-metric:first-child { border-top: 3px solid #169b62; padding-top: calc(1.3rem - 2px); }
+.wf-overview-metric:first-child { border-top: 3px solid #169b62; padding-top: calc(1rem - 2px); }
 .wf-eyebrow { font-size: .75rem; line-height: 1.5; font-weight: 600; color: #168252; letter-spacing: .08em; text-transform: uppercase; }
 .wf-overview-heading { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: .75rem; }
 .wf-overview-heading h2 { font-size: 1rem; font-weight: 650; letter-spacing: -.02em; }

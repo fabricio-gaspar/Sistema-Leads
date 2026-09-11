@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "validated_commit": "228be6a36dff00982860e7a8cb9ee33e91c5f778",
-  "last_validated_at": "2026-09-10T20:20:00-03:00",
+  "last_validated_at": "2026-09-11T14:34:16-03:00",
   "commands": [
     {"command":"npm run type-check","status":"passed"},
     {"command":"npm run lint","status":"passed","warnings":0},
@@ -24,5 +24,5 @@
   },
   "covered": ["frontend_typecheck","lint","edge_typecheck","unit_and_contract_tests","production_build"],
   "not_covered": ["authenticated_e2e","real_whatsapp","real_claude","cross_organization_rls","database_concurrency","provider_receipt_race","mobile_authenticated_qa","computer_use_visual_qa_unavailable_due_local_module_permission"],
-  "working_tree_validation": "passed: configuração v13 carregada no navegador autenticado; etapa 6 explica que publicação sem alterações não cria versão duplicada e uma edição libera o botão."
+  "working_tree_validation": "passed: compactação visual do Dashboard preserva dados, estados e rotas; type-check frontend/Edge, lint, 15 arquivos/159 testes e build do artefato do Site aprovados."
 }

@@ -54,72 +54,72 @@ export default function Dashboard() {
       <span className="text-sm text-foreground-500">Posição atual da carteira</span>
     </header>
 
-    <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-label="Indicadores da carteira">
+    <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4" aria-label="Indicadores da carteira">
       {metrics.map((item) => <article key={item.label} className="wf-overview-metric">
         <div className="flex items-center justify-between gap-3"><p className="text-sm font-medium text-foreground-600">{item.label}</p><i className={`${item.icon} text-lg text-primary-600`} aria-hidden="true" /></div>
-        <p className="mt-4 text-3xl font-semibold tracking-tight text-foreground-950 tabular-nums">{item.value.toLocaleString('pt-BR')}</p>
-        <p className="mt-2 text-sm text-foreground-500">{item.detail}</p>
+        <p className="mt-3 text-3xl font-semibold tracking-tight text-foreground-950 tabular-nums">{item.value.toLocaleString('pt-BR')}</p>
+        <p className="mt-1 text-sm text-foreground-500">{item.detail}</p>
       </article>)}
     </section>
 
-    <section className="grid gap-5 xl:grid-cols-[minmax(0,1.65fr)_minmax(0,1fr)]">
-      <article className="wf-surface p-5 md:p-6">
+    <section className="grid gap-4 xl:grid-cols-[minmax(0,1.65fr)_minmax(0,1fr)]">
+      <article className="wf-surface p-4 md:p-5">
         <div className="wf-overview-heading"><div><h2>Distribuição no Kanban</h2><p>Quantidade de leads em cada etapa</p></div><Link to="/dashboard/kanban" className="wf-overview-link">Ver Kanban ↗</Link></div>
-        <div className="mt-6 space-y-4" role="img" aria-label={data.stages.map(({ stage, count }) => `${PIPELINE_STAGE_LABEL[stage]}: ${count}`).join('; ')}>
+        <div className="mt-4 space-y-3" role="img" aria-label={data.stages.map(({ stage, count }) => `${PIPELINE_STAGE_LABEL[stage]}: ${count}`).join('; ')}>
           {data.stages.map(({ stage, count }) => <div key={stage} className="grid grid-cols-[7rem_minmax(0,1fr)_2rem] items-center gap-3 sm:grid-cols-[8rem_minmax(0,1fr)_2rem]">
             <span className="text-sm text-foreground-600">{PIPELINE_STAGE_LABEL[stage]}</span>
-            <div className="h-3 overflow-hidden rounded bg-background-100"><div className={`h-full rounded ${stage === 'lost' ? 'bg-rose-400' : stage === 'won' ? 'bg-emerald-600' : 'bg-primary-500'}`} style={{ width: `${count / maxCount * 100}%` }} /></div>
+            <div className="h-2.5 overflow-hidden rounded bg-background-100"><div className={`h-full rounded ${stage === 'lost' ? 'bg-rose-400' : stage === 'won' ? 'bg-emerald-600' : 'bg-primary-500'}`} style={{ width: `${count / maxCount * 100}%` }} /></div>
             <span className="text-right text-sm font-semibold tabular-nums text-foreground-800">{count}</span>
           </div>)}
         </div>
-        {leads.length === 0 && <p className="mt-5 text-sm text-foreground-500">Nenhum lead disponível na carteira carregada.</p>}
+        {leads.length === 0 && <p className="mt-4 text-sm text-foreground-500">Nenhum lead disponível na carteira carregada.</p>}
       </article>
-      <article className="wf-surface p-5 md:p-6">
+      <article className="wf-surface p-4 md:p-5">
         <div className="wf-overview-heading"><div><h2>Temperatura dos leads</h2><p>Classificação das oportunidades abertas</p></div></div>
-        <p className="mt-6 text-4xl font-semibold tracking-tight text-foreground-950 tabular-nums">{data.active.length}<span className="ml-2 text-sm font-normal tracking-normal text-foreground-500">em aberto</span></p>
-        <div className="mt-5 space-y-5">
+        <p className="mt-4 text-3xl font-semibold tracking-tight text-foreground-950 tabular-nums">{data.active.length}<span className="ml-2 text-sm font-normal tracking-normal text-foreground-500">em aberto</span></p>
+        <div className="mt-4 space-y-4">
           {data.temperatures.map(({ label, count, color }) => <div key={label}>
             <div className="mb-2 flex justify-between text-sm"><span className="text-foreground-600">{label}</span><span className="font-semibold tabular-nums text-foreground-800">{count} <span className="ml-2 font-normal text-foreground-500">{data.active.length ? Math.round(count / data.active.length * 100) : 0}%</span></span></div>
             <div className="h-2 overflow-hidden rounded-full bg-background-100"><div className="h-full rounded-full" style={{ width: `${data.active.length ? count / data.active.length * 100 : 0}%`, background: color }} /></div>
           </div>)}
         </div>
-        <p className="mt-6 border-t border-background-200 pt-4 text-sm leading-6 text-foreground-500">A temperatura ajuda a priorizar a carteira; não representa uma previsão de fechamento.</p>
+        <p className="mt-4 border-t border-background-200 pt-3 text-sm leading-6 text-foreground-500">A temperatura ajuda a priorizar a carteira; não representa uma previsão de fechamento.</p>
       </article>
     </section>
 
     <section className="wf-surface overflow-hidden" aria-label="Saúde operacional">
       <div className="grid divide-y divide-background-200 lg:grid-cols-3 lg:divide-x lg:divide-y-0">
-        {services.map((service) => <div key={service.label} className="flex items-start gap-3 p-5">
+        {services.map((service) => <div key={service.label} className="flex items-start gap-3 p-4">
           <i className={`${service.icon} mt-0.5 text-xl text-primary-600`} aria-hidden="true" />
           <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center justify-between gap-2"><h2 className="text-sm font-semibold text-foreground-900">{service.label}</h2><Status neutral={!operacao} good={Boolean(service.ok)} label={!operacao ? diagnosticError ? 'Indisponível' : 'Consultando' : service.ok ? 'Ativo' : 'Pendente'} /></div><p className="mt-2 text-sm text-foreground-500">{operacao ? service.detail : 'Estado ainda não confirmado'}</p></div>
         </div>)}
       </div>
     </section>
 
-    <section className="grid items-start gap-5 xl:grid-cols-2">
+    <section className="grid items-start gap-4 xl:grid-cols-2">
       <article className="wf-surface overflow-hidden">
-        <div className="wf-overview-heading border-b border-background-200 p-5"><div><h2>Canais e APIs</h2><p>Conexão e ativação de cada serviço</p></div><Link to="/dashboard/configuracoes?tab=conexoes" className="wf-overview-link">Configurar ↗</Link></div>
+        <div className="wf-overview-heading border-b border-background-200 p-4"><div><h2>Canais e APIs</h2><p>Conexão e ativação de cada serviço</p></div><Link to="/dashboard/configuracoes?tab=conexoes" className="wf-overview-link">Configurar ↗</Link></div>
         <div className="divide-y divide-background-100">
-          {integrations.map((item) => <div key={item.key} className="flex flex-wrap items-center justify-between gap-3 px-5 py-4">
+          {integrations.map((item) => <div key={item.key} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
             <div className="min-w-0"><p className="text-sm font-semibold text-foreground-800">{item.label}</p><p className="mt-1 text-xs text-foreground-500">{item.provider || 'Serviço do sistema'}{item.lastTestedAt ? ` · Verificado em ${new Date(item.lastTestedAt).toLocaleString('pt-BR')}` : ' · Sem verificação registrada'}</p></div>
             <Status neutral={!item.enabled || item.paused} good={item.health === 'online'} label={!item.enabled ? 'Desativado' : item.paused ? 'Pausado' : item.health === 'online' ? 'Conectado' : item.health === 'stale' ? 'Validação vencida' : 'Desconectado'} />
           </div>)}
-          {!integrations.length && <p className="p-5 text-sm text-foreground-500">{diagnosticError ? 'Não foi possível consultar as conexões. Consulte o Registro do Sistema.' : operacao ? 'Nenhuma conexão cadastrada.' : 'Consultando conexões…'}</p>}
+          {!integrations.length && <p className="p-4 text-sm text-foreground-500">{diagnosticError ? 'Não foi possível consultar as conexões. Consulte o Registro do Sistema.' : operacao ? 'Nenhuma conexão cadastrada.' : 'Consultando conexões…'}</p>}
         </div>
       </article>
-      <div className="space-y-5">
+      <div className="space-y-4">
         <article className="wf-surface overflow-hidden">
-          <div className="wf-overview-heading border-b border-background-200 p-5"><div><h2>Acompanhamento humano</h2><p>Conversas sob responsabilidade da equipe</p></div><Link to="/dashboard/atendimento" className="wf-overview-link">Ver Central ↗</Link></div>
-          <div className="divide-y divide-background-100">{data.handoff.slice(0, 4).map((lead) => <Link key={lead.id} to={`/dashboard/atendimento?leadId=${lead.id}`} className="flex items-center gap-3 px-5 py-4 hover:bg-background-100">
+          <div className="wf-overview-heading border-b border-background-200 p-4"><div><h2>Acompanhamento humano</h2><p>Conversas sob responsabilidade da equipe</p></div><Link to="/dashboard/atendimento" className="wf-overview-link">Ver Central ↗</Link></div>
+          <div className="divide-y divide-background-100">{data.handoff.slice(0, 4).map((lead) => <Link key={lead.id} to={`/dashboard/atendimento?leadId=${lead.id}`} className="flex items-center gap-3 px-4 py-3 hover:bg-background-100">
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-50 font-semibold text-primary-700">{(lead.nome || lead.empresa || 'L').charAt(0)}</span>
             <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-foreground-800">{lead.nome || lead.empresa}</p><p className="mt-1 text-sm text-foreground-500">{lead.motivoTransferencia || 'Atendimento humano'}</p></div><i className="ri-arrow-right-s-line text-foreground-400" aria-hidden="true" />
           </Link>)}</div>
-          {data.handoff.length === 0 && <p className="px-5 py-8 text-sm text-foreground-500">Nenhum atendimento humano na carteira carregada.</p>}
+          {data.handoff.length === 0 && <p className="px-4 py-6 text-sm text-foreground-500">Nenhum atendimento humano na carteira carregada.</p>}
         </article>
-        <article className="wf-surface p-5">
+        <article className="wf-surface p-4">
           <div className="wf-overview-heading"><div><h2>Fila e registros</h2><p>{conversas.length} conversas na Central</p></div><Link to="/dashboard/registro-sistema" className="wf-overview-link">Ver registros ↗</Link></div>
-          <dl className="mt-5 grid grid-cols-3 gap-3 border-t border-background-200 pt-5">
-            {[{ label: 'Na fila', value: operacao?.summary.queuedJobs }, { label: 'Falhas de envio', value: operacao?.summary.failedJobs }, { label: 'Riscos abertos', value: operacao?.summary.openRiskEvents }].map((item) => <div key={item.label}><dt className="text-sm text-foreground-500">{item.label}</dt><dd className="mt-2 text-2xl font-semibold tabular-nums text-foreground-900">{item.value ?? '—'}</dd></div>)}
+          <dl className="mt-4 grid grid-cols-3 gap-3 border-t border-background-200 pt-4">
+            {[{ label: 'Na fila', value: operacao?.summary.queuedJobs }, { label: 'Falhas de envio', value: operacao?.summary.failedJobs }, { label: 'Riscos abertos', value: operacao?.summary.openRiskEvents }].map((item) => <div key={item.label}><dt className="text-sm text-foreground-500">{item.label}</dt><dd className="mt-1 text-2xl font-semibold tabular-nums text-foreground-900">{item.value ?? '—'}</dd></div>)}
           </dl>
         </article>
       </div>
