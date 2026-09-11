@@ -1,10 +1,14 @@
 import { Link } from 'react-router-dom';
 import { useEffect, useMemo, useState } from 'react';
 import { useLeadsStore } from '@/hooks/useLeadsStore';
-import { useConversasStore } from '@/hooks/useConversasStore';
+import { refreshConversasStore, useConversasStore } from '@/hooks/useConversasStore';
 import { usePropostasStore } from '@/hooks/usePropostasStore';
 import { loadOperationalDiagnostics, type OperationalDiagnostics } from '@/lib/crm/operationalDiagnosticsRepository';
 import { ACTIVE_PIPELINE_STAGES, PIPELINE_STAGE_LABEL, stageFromLegacy } from '@/domain/pipeline';
+import { resolveOrganizationSession } from '@/lib/organizationSession';
+import { supabase } from '@/lib/supabase';
+import ConversationActivityChart from './components/ConversationActivityChart';
+import type { ConversationRealtimeState } from './components/conversationActivity';
 
 function Status({ good, label, neutral = false }: { good: boolean; label: string; neutral?: boolean }) {
   return <span className={`wf-overview-status wf-overview-status--${neutral ? 'neutral' : good ? 'good' : 'warning'}`}>{label}</span>;
@@ -16,8 +20,32 @@ export default function Dashboard() {
   const { propostas } = usePropostasStore();
   const [operacao, setOperacao] = useState<OperationalDiagnostics | null>(null);
   const [diagnosticError, setDiagnosticError] = useState(false);
+  const [conversationRealtime, setConversationRealtime] = useState<ConversationRealtimeState>('connecting');
   useEffect(() => {
     void loadOperationalDiagnostics().then(setOperacao).catch(() => setDiagnosticError(true));
+  }, []);
+  useEffect(() => {
+    let disposed = false;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    void resolveOrganizationSession()
+      .then(({ organizationId }) => {
+        if (disposed) return;
+        channel = supabase.channel(`dashboard-conversations:${organizationId}`)
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'lead_messages', filter: `organization_id=eq.${organizationId}` }, () => {
+            void refreshConversasStore();
+          })
+          .subscribe((status) => {
+            if (disposed) return;
+            setConversationRealtime(status === 'SUBSCRIBED' ? 'live' : ['CHANNEL_ERROR', 'TIMED_OUT', 'CLOSED'].includes(status) ? 'unavailable' : 'connecting');
+          });
+      })
+      .catch(() => {
+        if (!disposed) setConversationRealtime('unavailable');
+      });
+    return () => {
+      disposed = true;
+      if (channel) void supabase.removeChannel(channel);
+    };
   }, []);
 
   const data = useMemo(() => {
@@ -86,6 +114,8 @@ export default function Dashboard() {
         <p className="mt-4 border-t border-background-200 pt-3 text-sm leading-6 text-foreground-500">A temperatura ajuda a priorizar a carteira; não representa uma previsão de fechamento.</p>
       </article>
     </section>
+
+    <ConversationActivityChart conversas={conversas} realtimeState={conversationRealtime} />
 
     <section className="wf-surface overflow-hidden" aria-label="Saúde operacional">
       <div className="grid divide-y divide-background-200 lg:grid-cols-3 lg:divide-x lg:divide-y-0">
