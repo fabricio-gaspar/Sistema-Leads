@@ -1,5 +1,10 @@
 # Frontend
 
+- Refinamento visual de 11/09: Dashboard concentra métricas, distribuição Kanban e temperatura,
+  status individual das integrações, atendimento humano e fila. Barras zero permanecem vazias.
+- Menu usa Prospecção, Atendimento e Comercial. Configurações agrupam conexões, empresa/IA,
+  gestão comercial e segurança, preservando IDs, callbacks e componentes de formulário.
+
 - React/TypeScript/Vite, rotas em `src/router/config.tsx`.
 - Shell e menu em `src/components/feature/DashboardLayout.tsx`.
 - Design atual segue tokens Wayflex Executive Light em `src/index.css`: branco e cinza

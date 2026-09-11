@@ -1,5 +1,19 @@
 # Checkpoint — WayFlex CRM
 
+## Refinamento visual executivo — 11/09/2026
+
+- Dashboard apresenta indicadores da carteira, barras proporcionais por etapa do Kanban,
+  temperatura de leads abertos, conexões com estado individual e acompanhamento humano.
+  Não exibe atalhos de começo/meio/fim nem gráficos de evolução sem dados históricos.
+- Configurações agrupadas em Operação e conexões, Empresa e inteligência, Gestão comercial
+  e Segurança e controle. Canais, APIs e fontes preservam seus componentes e ações existentes.
+- Refinamento compartilhado de superfícies, espaçamento, tipografia, foco e menu lateral.
+  Nenhuma alteração em hooks, repositórios, regras de domínio, Edge Functions ou dados.
+- Validação: type-check frontend/Edge, lint e 159 testes em 15 arquivos passaram. Build Vite
+  e artefato Worker concluídos. Sem QA visual autenticado nesta rodada.
+- Git HTTPS recuperado com o helper existente em mingw64/bin e TLS OpenSSL por comando;
+  credenciais temporárias não foram persistidas.
+
 Última atualização: 2026-09-10. Este documento permite retomar o trabalho quando
 Fabricio disser **“pode seguir”**, sem depender do histórico da conversa.
 

@@ -246,6 +246,13 @@
 - O cadastro recriado com o telefone informado foi localizado de forma única e removido pela
   mesma transação oficial, restrita à organização Wayflex.
 - Verificação posterior: zero lead, mensagem, item de fila, execução da Ana e vínculo de canal.
+# 2026-09-11 — Refinamento visual executivo
+
+- Interface refinada sem alterações operacionais. Dashboard usa as mesmas fontes remotas,
+  gráficos de distribuição e status por conexão; configurações reorganizadas por responsabilidade.
+- Type-check frontend/Edge, lint, 159 testes/15 arquivos, build Vite e Worker aprovados.
+- Recuperado Git HTTPS usando helper já instalado e OpenSSL. Publicação no Site oficial autorizada.
+
 # 2026-09-11 — Sincronização do heartbeat legado
 
 - Causa confirmada: `automation-worker` atualiza a integração `scheduler`, que alimenta o diagnóstico operacional, mas o registro histórico `automation_heartbeats.automation_engine` não era atualizado desde agosto.

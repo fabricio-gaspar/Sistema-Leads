@@ -20,29 +20,29 @@ interface MenuGroup {
 
 const groups: MenuGroup[] = [
   {
-    title: 'Configuração inicial',
+    title: 'Operação e conexões',
     items: [
       { id: 'operacao', label: 'Status operacional', icon: 'ri-pulse-line' },
+      { id: 'conexoes', label: 'Canais, APIs e fontes', icon: 'ri-plug-2-line' },
+    ],
+  },
+  {
+    title: 'Empresa e inteligência',
+    items: [
       { id: 'empresa', label: 'Empresa e conhecimento', icon: 'ri-building-2-line' },
       { id: 'ana', label: 'Configurar a Ana', icon: 'ri-robot-2-line' },
     ],
   },
   {
-    title: 'Operação comercial',
+    title: 'Gestão comercial',
     items: [
-      { id: 'equipe', label: 'Equipe e acessos', icon: 'ri-team-line' },
       { id: 'produtos', label: 'Produtos e orçamentos', icon: 'ri-shopping-bag-3-line' },
-    ],
-  },
-  {
-    title: 'Captação e canais',
-    items: [
-      { id: 'conexoes', label: 'Canais, APIs e fontes', icon: 'ri-plug-2-line' },
     ],
   },
   {
     title: 'Segurança e controle',
     items: [
+      { id: 'equipe', label: 'Equipe e acessos', icon: 'ri-team-line' },
       { id: 'supressao', label: 'Proteção de contatos', icon: 'ri-shield-check-line' },
     ],
   },
@@ -90,13 +90,13 @@ export default function DashboardConfiguracoes() {
   const currentItem = groups.flatMap((group) => group.items).find((item) => item.id === tab);
 
   return (
-    <div className="wf-page">
+    <div className="wf-page wf-settings">
       <div className="wf-page-header">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-primary-700">Administração</p>
           <h1 className="wf-page-title mt-1">Configurações do sistema</h1>
           <p className="wf-page-description">
-            Siga a ordem do menu: confirme a operação, cadastre a base da empresa, configure a Ana e então conecte canais e fontes.
+            Conexões, conhecimento, operação comercial e acessos — cada ajuste no seu lugar.
           </p>
         </div>
       </div>
@@ -105,7 +105,7 @@ export default function DashboardConfiguracoes() {
         <aside className="hidden w-[258px] flex-shrink-0 rounded-xl border border-background-200 bg-white p-3 shadow-2xs lg:sticky lg:top-6 lg:block">
           {groups.map((group) => (
             <div key={group.title} className="mb-4 last:mb-0">
-              <p className="px-3 pb-1.5 pt-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-foreground-400">
+              <p className="px-3 pb-2 pt-2 text-xs font-semibold tracking-wide text-foreground-500">
                 {group.title}
               </p>
               <div className="space-y-0.5">
