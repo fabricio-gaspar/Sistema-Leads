@@ -356,3 +356,9 @@ webhook em ambiente controlado.
 - O cadastro recriado com o telefone informado foi localizado de forma única e excluído pela
   transação operacional oficial, limitada à organização Wayflex.
 - A verificação confirmou zero lead, mensagem, fila, execução da Ana e vínculo de canal restantes.
+
+## Sincronização do heartbeat legado — 11/09/2026
+
+- A telemetria operacional atual já usa a integração `scheduler`, atualizada pelo worker server-side. A tabela histórica `automation_heartbeats`, porém, permanecia em `never` desde agosto e podia induzir relatórios legados a indicar uma falha inexistente.
+- A migration `20260911110000_sync_legacy_scheduler_heartbeat` instala um trigger que espelha toda nova confirmação de `integrations.last_success_at` do scheduler para `automation_heartbeats.automation_engine`. O registro existente foi preenchido com a última execução confirmada.
+- A verificação posterior confirmou trigger instalado e `automation_engine` em `success`, sem erro. Nenhuma mensagem, lead, configuração da Ana ou modo operacional foi alterado.

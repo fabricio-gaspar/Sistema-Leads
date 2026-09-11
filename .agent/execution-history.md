@@ -246,3 +246,8 @@
 - O cadastro recriado com o telefone informado foi localizado de forma única e removido pela
   mesma transação oficial, restrita à organização Wayflex.
 - Verificação posterior: zero lead, mensagem, item de fila, execução da Ana e vínculo de canal.
+# 2026-09-11 — Sincronização do heartbeat legado
+
+- Causa confirmada: `automation-worker` atualiza a integração `scheduler`, que alimenta o diagnóstico operacional, mas o registro histórico `automation_heartbeats.automation_engine` não era atualizado desde agosto.
+- Aplicada a migration `20260911110000_sync_legacy_scheduler_heartbeat`: trigger privado sincroniza o heartbeat legado a cada novo `last_success_at` do scheduler e faz backfill da última confirmação existente.
+- Verificação no Supabase: trigger instalado; `automation_engine` em `success`, sem erro. Type-check frontend/Edge, lint e build passaram. O Vitest não iniciou neste worktree por limitação de resolução do esbuild através da dependência compartilhada; a migration foi verificada diretamente no banco.
