@@ -470,3 +470,13 @@ webhook em ambiente controlado.
   com deploy confirmado como `succeeded` e audiência owner-only preservada. A inspeção visual
   autenticada confirmou o mapa, a configuração v17 e a navegação dos blocos até a etapa 6, sem
   editar ou publicar qualquer campo operacional.
+
+## Restauração do layout anterior de Configurar a Ana — 13/09/2026
+
+- O mapa visual da versão 75 foi removido após rejeição explícita do operador. A tela voltou à
+  navegação compacta anterior de seis etapas.
+- A restauração foi limitada ao JSX e CSS introduzidos pelo mapa. A comparação desses dois
+  arquivos com a versão 74 ficou sem diferença; formulário, persistência, publicação, Supabase,
+  `ana-run`, Dashboard, Busca/Apify e Realtime foram preservados.
+- Type-check frontend/Edge, lint sem warnings, 16 arquivos/165 testes e build de produção
+  passaram. Nenhum dado, mensagem, integração, segredo ou configuração da Ana foi alterado.

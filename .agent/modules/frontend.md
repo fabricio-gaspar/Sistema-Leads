@@ -38,10 +38,9 @@
 - Em **Configurar a Ana**, a última etapa apresenta explicitamente a versão já publicada e o
   botão só fica habilitado após alteração pendente. O rótulo e a dica explicam esse estado para
   evitar a aparência de falha e impedir versões duplicadas sem mudança.
-- **Configurar a Ana** também apresenta um mapa de decisão interativo sobre os mesmos seis passos.
-  Os blocos apenas selecionam o formulário existente; não alteram payload, persistência nem a
-  autoridade automática de `ana-run`. O mapa registra a base oficial em catálogos, segmentos e
-  acessórios, as decisões de reunião/handoff e o pipeline canônico.
+- **Configurar a Ana** usa novamente a navegação compacta anterior de seis etapas. O mapa visual
+  da versão 75 foi removido a pedido do operador; formulário, payload, persistência e autoridade
+  automática de `ana-run` permaneceram inalterados.
 
 ## Busca de Leads — 11/09/2026
 

@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "validated_commit": "d1cb86a13aef65029382bc66ce36f5899802d3ee",
-  "last_validated_at": "2026-09-13T13:31:00-03:00",
+  "validated_commit": "23d191446b8256a3d940894c6512525d956b5b02",
+  "last_validated_at": "2026-09-13T13:50:30-03:00",
   "commands": [
     {"command":"npm run type-check","status":"passed"},
     {"command":"npm run lint","status":"passed","warnings":0},
@@ -24,5 +24,5 @@
   },
   "covered": ["frontend_typecheck","lint","edge_typecheck","unit_and_contract_tests","production_build"],
   "not_covered": ["authenticated_e2e","real_whatsapp","real_claude","cross_organization_rls","database_concurrency","provider_receipt_race","mobile_authenticated_qa"],
-  "working_tree_validation": "passed: a ponta oficial da versão 74 foi integrada ao mapa da Ana. Type-check frontend/Edge, lint, 16 arquivos/165 testes, build Vite e artefato Worker aprovados. A inspeção autenticada da versão 75 confirmou o mapa, a configuração v17 e a navegação até a etapa 6 sem salvar alterações."
+  "working_tree_validation": "passed: a tela Configurar a Ana voltou exatamente ao JSX/CSS da versão 74 nos dois arquivos afetados. Type-check frontend/Edge, lint, 16 arquivos/165 testes, build Vite e artefato Worker aprovados."
 }

@@ -332,3 +332,12 @@
 - PUBLICADO: Site oficial versão 75, commit `0e8221bb4263d42c6c98652fcfb42d929ba09899`,
   com deploy `succeeded` e audiência owner-only preservada. A inspeção autenticada confirmou o
   mapa, a configuração v17 e a navegação até a etapa 6; nenhum campo foi alterado ou publicado.
+
+## 2026-09-13 — Restauração do layout anterior da Ana
+
+- O operador rejeitou o mapa visual da versão 75 e solicitou voltar ao formato anterior.
+- Somente o JSX e o CSS introduzidos pelo mapa foram desfeitos. A comparação com a versão 74 ficou
+  sem diferença nos dois arquivos; formulário, publicação, Supabase, Ana e demais módulos foram
+  preservados.
+- Type-check frontend/Edge, lint, 16 arquivos/165 testes e build passaram. Nenhum dado, mensagem,
+  integração, segredo ou configuração operacional foi alterado.
