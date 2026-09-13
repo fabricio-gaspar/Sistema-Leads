@@ -107,3 +107,13 @@ Detalhes de continuidade e releases ficam em `docs/CONTINUIDADE_WAYFLEX.md`.
   estados distintos.
 - A reconciliação server-side encerra aceite comprovado sem reenvio. Seis registros históricos
   foram corrigidos e `automation-worker` v19 contém a rotina recorrente.
+
+## Delta de operação automática e alertas — 13/09/2026
+
+- A operação diária da Ana reutiliza `prospecting_schedules`, `prospecting_schedule_runs`, Apify,
+  `automation-worker` e `ana-run`. Três modos governam a execução: simulação sem provedor,
+  supervisionado com aprovação e automático sujeito à prontidão e limites.
+- `lead_qualifications` é a leitura estruturada de interesse/intenção/evidência. `domain_events`
+  aciona notificações auditáveis; `notifications` é fonte do sino e da Atenção do vendedor.
+- O estado de implantação é `ana_operation_enabled=false` e `ana_operation_mode=simulation`.
+  Código e schema não equivalem à homologação de Apify, WhatsApp, IA ou Calendar reais.

@@ -15,13 +15,14 @@ const list = (value: unknown, maximum = 20): string[] => Array.isArray(value)
   ? value.filter((item): item is string => typeof item === 'string').map((item) => item.trim()).filter(Boolean).slice(0, maximum)
   : [];
 const object = (value: unknown): Record<string, unknown> => value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
+function secureEqual(actual: string | null, expected: string): boolean { if (!actual || !expected || actual.length !== expected.length) return false; let difference = 0; for (let i = 0; i < actual.length; i += 1) difference |= actual.charCodeAt(i) ^ expected.charCodeAt(i); return difference === 0; }
 
 function normalizeFilters(value: unknown): Filters {
   const input = object(value);
   const volume = typeof input.volumeMaximo === 'number' && Number.isFinite(input.volumeMaximo) ? Math.floor(input.volumeMaximo) : 30;
   const raio = typeof input.raio === 'number' && Number.isFinite(input.raio) ? Math.floor(input.raio) : 50;
   return {
-    pais: text(input.pais, 80) || 'Brasil', estado: text(input.estado, 2).toUpperCase(), cidade: text(input.cidade, 120),
+    pais: text(input.pais, 80) || 'Brasil', estado: (text(input.estado, 2) || list(input.estados, 27)[0] || '').toUpperCase().slice(0, 2), cidade: text(input.cidade, 120),
     raio: Math.max(1, Math.min(200, raio)), atividades: list(input.atividades), segmentos: list(input.segmentos), portes: list(input.portes),
     cargo: text(input.cargo, 80), exigeSite: input.exigeSite === true, exigeWhatsApp: input.exigeWhatsApp === true,
     exigeEmail: input.exigeEmail === true, volumeMaximo: Math.max(1, Math.min(100, volume)),
@@ -173,11 +174,29 @@ Deno.serve(async (request) => {
     if (!['apify', 'google_places'].includes(sourceKey)) throw new Error('source_not_supported');
     if (body.mode !== 'production') throw new Error('production_mode_required');
     const requestedRunId = text(body.runId, 80);
-    const { user } = await requireUser(request); admin = createAdminClient();
-    const { data: profile, error: profileError } = await admin.from('profiles').select('active_organization_id,name').eq('id', user.id).maybeSingle();
-    if (profileError || !profile?.active_organization_id) throw new Error('organization_context_required');
-    const organizationId = profile.active_organization_id as string;
-    await requireOrganizationRole(admin, user.id, organizationId, ['owner', 'admin', 'manager', 'seller', 'sdr']);
+    admin = createAdminClient();
+    const schedulerToken = request.headers.get('x-leadai-scheduler-token');
+    let organizationId = '', requestedBy = '', actorName = 'Ana · operação automática', actorType = 'user';
+    if (schedulerToken) {
+      organizationId = text(body.organization_id, 80);
+      const scheduleRunId = text(body.schedule_run_id, 80);
+      if (!organizationId || !scheduleRunId || body.source !== 'server_scheduler' || sourceKey !== 'apify') throw new Error('scheduler_request_invalid');
+      const [{ data: scheduler }, { data: scheduleRun }] = await Promise.all([
+        admin.from('integrations').select('id').eq('organization_id', organizationId).eq('key', 'scheduler').maybeSingle(),
+        admin.from('prospecting_schedule_runs').select('requested_by,schedule_id,status').eq('organization_id', organizationId).eq('id', scheduleRunId).in('status', ['queued','running']).maybeSingle(),
+      ]);
+      if (!scheduler || !scheduleRun?.requested_by) throw new Error('scheduler_request_invalid');
+      const { data: secret, error: secretError } = await admin.rpc('read_integration_secret', { p_integration: scheduler.id });
+      const expected = text(object(secret).scheduler_token, 1_000);
+      if (secretError || expected.length < 48 || !secureEqual(schedulerToken, expected)) throw new Error('scheduler_authentication_failed');
+      requestedBy = scheduleRun.requested_by; actorType = 'system';
+    } else {
+      const { user } = await requireUser(request);
+      const { data: profile, error: profileError } = await admin.from('profiles').select('active_organization_id,name').eq('id', user.id).maybeSingle();
+      if (profileError || !profile?.active_organization_id) throw new Error('organization_context_required');
+      organizationId = profile.active_organization_id as string; requestedBy = user.id; actorName = profile.name || 'Usuário';
+      await requireOrganizationRole(admin, user.id, organizationId, ['owner', 'admin', 'manager', 'seller', 'sdr']);
+    }
     const { data: source, error: sourceError } = await admin.from('lead_source_configs').select('id,enabled,mode,connection_status').eq('organization_id', organizationId).eq('source_key', sourceKey).maybeSingle() as { data: SourceRow | null; error: unknown };
     if (sourceError || !source) throw new Error('source_not_configured'); sourceId = source.id;
     if (!source.enabled || source.connection_status !== 'connected') throw new Error('source_disabled');
@@ -189,7 +208,7 @@ Deno.serve(async (request) => {
 
     let filters: Filters, providerRunId = '', datasetId = '';
     if (requestedRunId) {
-      const { data: run, error: runError } = await admin.from('prospecting_runs').select('id,source_key,source_config_id,status,filters,provider_run_id').eq('id', requestedRunId).eq('organization_id', organizationId).eq('requested_by', user.id).maybeSingle() as { data: ProspectingRun | null; error: unknown };
+      const { data: run, error: runError } = await admin.from('prospecting_runs').select('id,source_key,source_config_id,status,filters,provider_run_id').eq('id', requestedRunId).eq('organization_id', organizationId).eq('requested_by', requestedBy).maybeSingle() as { data: ProspectingRun | null; error: unknown };
       if (runError || !run || run.source_key !== sourceKey || run.source_config_id !== source.id) throw new Error('prospecting_run_not_found');
       if (run.status !== 'running' || !run.provider_run_id) throw new Error('prospecting_run_not_pending');
       runId = run.id; filters = normalizeFilters(run.filters); providerRunId = run.provider_run_id;
@@ -203,7 +222,7 @@ Deno.serve(async (request) => {
     } else {
       filters = normalizeFilters(body.filters);
       const filtersJson = JSON.parse(JSON.stringify(filters)), filtersHash = await hash(`${sourceKey}:${JSON.stringify(filtersJson)}`), startedAt = new Date().toISOString();
-      const { data: run, error: runError } = await admin.from('prospecting_runs').insert({ organization_id: organizationId, source_config_id: source.id, source_key: sourceKey, mode: 'production', status: 'running', filters: filtersJson, filters_hash: filtersHash, requested_quantity: filters.volumeMaximo, estimated_records: filters.volumeMaximo, quote_expires_at: startedAt, requested_by: user.id, cost_known: false, requires_confirmation: false, estimate_basis: 'provider_actual', started_at: startedAt }).select('id').single();
+      const { data: run, error: runError } = await admin.from('prospecting_runs').insert({ organization_id: organizationId, source_config_id: source.id, source_key: sourceKey, mode: 'production', status: 'running', filters: filtersJson, filters_hash: filtersHash, requested_quantity: filters.volumeMaximo, estimated_records: filters.volumeMaximo, quote_expires_at: startedAt, requested_by: requestedBy, cost_known: false, requires_confirmation: false, estimate_basis: 'provider_actual', started_at: startedAt }).select('id').single();
       if (runError || !run) throw runError ?? new Error('prospecting_run_not_created'); runId = run.id as string;
       if (sourceKey === 'apify') {
         const provider = await startApify(credentials as Record<string, unknown>, filters); providerRunId = provider.providerRunId; datasetId = provider.datasetId;
@@ -220,12 +239,12 @@ Deno.serve(async (request) => {
       : await callGoogle(credentials as Record<string, unknown>, filters);
     const leads = result.leads.filter((lead) => (!filters.exigeWhatsApp || Boolean(lead.whatsapp)) && (!filters.exigeEmail || Boolean(lead.email)) && (!filters.exigeSite || Boolean(lead.website))).slice(0, filters.volumeMaximo);
     const filtersHash = await hash(`${sourceKey}:${JSON.stringify(filters)}`);
-    const { data: cache, error: cacheError } = await admin.from('prospecting_cache').insert({ organization_id: organizationId, user_id: user.id, filters_hash: filtersHash, filters: { source: sourceKey, uf: filters.estado || null, municipio: filters.cidade || null, keyword: terms(filters).join(' '), radius_km: filters.raio || null, limit: filters.volumeMaximo }, results: leads, total_found: leads.length, scored: true, name: `${sourceKey} · ${filters.cidade || filters.estado || 'Brasil'} · ${new Date().toLocaleDateString('pt-BR')}`, saved: true, expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), source: sourceKey }).select('id').single();
+    const { data: cache, error: cacheError } = await admin.from('prospecting_cache').insert({ organization_id: organizationId, user_id: requestedBy, filters_hash: filtersHash, filters: { source: sourceKey, uf: filters.estado || null, municipio: filters.cidade || null, keyword: terms(filters).join(' '), radius_km: filters.raio || null, limit: filters.volumeMaximo }, results: leads, total_found: leads.length, scored: true, name: `${sourceKey} · ${filters.cidade || filters.estado || 'Brasil'} · ${new Date().toLocaleDateString('pt-BR')}`, saved: true, expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), source: sourceKey }).select('id').single();
     if (cacheError || !cache) throw cacheError ?? new Error('prospecting_cache_not_created');
     const now = new Date().toISOString();
     await admin.from('prospecting_runs').update({ status: 'completed', provider_run_id: result.providerRunId, result_cache_id: cache.id, result_count: leads.length, completed_at: now, updated_at: now, last_error: null }).eq('id', runId);
     await admin.from('lead_source_configs').update({ last_success_at: now, last_error: null, last_error_at: null }).eq('id', source.id);
-    await admin.from('audit_logs').insert({ organization_id: organizationId, actor_id: user.id, actor_name: profile.name, actor_type: 'user', action: 'prospecting.completed', detail: `Busca real concluída via ${sourceKey}.`, entity_table: 'prospecting_runs', entity_id: runId, event_data: { sourceKey, resultCount: leads.length, requestedQuantity: filters.volumeMaximo, cacheId: cache.id } });
+    await admin.from('audit_logs').insert({ organization_id: organizationId, actor_id: actorType === 'user' ? requestedBy : null, actor_name: actorName, actor_type: actorType, action: 'prospecting.completed', detail: `Busca real concluída via ${sourceKey}.`, entity_table: 'prospecting_runs', entity_id: runId, event_data: { sourceKey, resultCount: leads.length, requestedQuantity: filters.volumeMaximo, cacheId: cache.id } });
     return json({ ok: true, pending: false, runId, cacheId: cache.id, sourceKey, leads }, 200, headers);
   } catch (error) {
     const message = safeError(error), now = new Date().toISOString();

@@ -362,3 +362,15 @@
   retorno para a Ana sem persistir dados ou chamar provedores. Type-check frontend/Edge, lint,
   16 arquivos/168 testes e build passaram. Busca Apify, modelo, Calendar e WhatsApp reais não
   foram acionados nesta rodada.
+
+## 2026-09-13 — Operação automática e alertas comerciais
+
+- Extensão aditiva sobre Apify, scheduler, `ana-run`, Leads, Kanban, Central, Dashboard e o kill
+  switch existentes; nenhum segundo motor automático foi criado.
+- Schema, RLS, Realtime, roteamento de eventos, preferências, fila de execução, limites e resumo
+  diário foram aplicados no Supabase oficial. O primeiro teste transacional detectou o enum de
+  papéis divergente; a função foi corrigida e o teste seguinte passou com rollback.
+- Edge Functions publicadas: `ana-operations` v1, `ana-run` v24, `prospectar-leads` v11 e
+  `automation-worker` v22. Chamadas sem autenticação foram recusadas.
+- A operação permaneceu desativada e em Simulação; nenhum WhatsApp, Apify, modelo ou Calendar real
+  foi chamado. A homologação externa continua sendo ação explícita do operador.

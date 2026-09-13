@@ -98,6 +98,12 @@ export interface Notificacao {
   lida: boolean;
   responsavelId?: string;
   data: string;
+  link?: string;
+  leadId?: string;
+  prioridade?: 'low' | 'normal' | 'high' | 'urgent';
+  acaoNecessaria?: boolean;
+  acaoRecomendada?: string;
+  status?: 'open' | 'acknowledged' | 'resolved';
 }
 
 export interface RegistroAuditoria {

@@ -8,6 +8,7 @@ import {
   joinPlaybookLines,
   splitPlaybookLines,
 } from '@/lib/anaCommercialPlaybook';
+import AnaAutomaticOperation from './AnaAutomaticOperation';
 
 const steps = [
   { title: 'Empresa e público', description: 'O contexto que a Ana usa para se apresentar.' },
@@ -32,6 +33,7 @@ const WAYFLEX_OFFICIAL_KNOWLEDGE = [
 ];
 
 export default function PersonalizacaoAna({ embedded = false }: { embedded?: boolean }) {
+  const [section, setSection] = useState<'behavior' | 'operation'>('behavior');
   const { settings } = useEmpresaSettingsStore();
   const [step, setStep] = useState(0);
   const [saved, setSaved] = useState(false);
@@ -273,6 +275,11 @@ export default function PersonalizacaoAna({ embedded = false }: { embedded?: boo
         <p>Em seis passos, defina como ela apresenta sua empresa, qualifica o lead e sugere o próximo passo com controle humano.</p>
         {loadingConfiguration ? <p className="hint mt-2">Carregando a configuração publicada…</p> : publishedVersion ? <p className="hint mt-2">Versão publicada em uso pela Ana: v{publishedVersion}.</p> : <p className="hint mt-2">Ainda não há uma versão publicada; salvar não ativa canais nem automações.</p>}
       </header>
+      <nav className="mb-5 mt-4 flex flex-wrap gap-2" aria-label="Áreas da configuração da Ana">
+        <button type="button" onClick={() => setSection('behavior')} className={`rounded-lg border px-4 py-2 text-sm font-semibold ${section === 'behavior' ? 'border-primary-500 bg-primary-50 text-primary-800' : 'border-background-200 bg-white text-foreground-600'}`}><i className="ri-message-3-line mr-2" />Comportamento e conhecimento</button>
+        <button type="button" onClick={() => setSection('operation')} className={`rounded-lg border px-4 py-2 text-sm font-semibold ${section === 'operation' ? 'border-primary-500 bg-primary-50 text-primary-800' : 'border-background-200 bg-white text-foreground-600'}`}><i className="ri-robot-2-line mr-2" />Operação automática</button>
+      </nav>
+      {section === 'operation' ? <AnaAutomaticOperation /> : <>
       <nav className="steps" aria-label="Etapas da configuração da Ana">
         {steps.map((item, index) => (
           <button key={item.title} type="button" title={`${index + 1}. ${item.title}`} aria-current={index === step ? 'step' : undefined} onClick={() => setStep(index)} className={index === step ? 'active' : index < step ? 'done' : ''}>
@@ -312,6 +319,7 @@ export default function PersonalizacaoAna({ embedded = false }: { embedded?: boo
           </div>
         </footer>
       </section>
+      </>}
     </div>
   );
 }

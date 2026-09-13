@@ -1012,6 +1012,139 @@ async function sendEmail(
   return { provider: "resend", messageId: receipt.id };
 }
 
+function nextAnaScheduleAt(timeZone: string, runTime: unknown, weekdays: unknown, from = new Date()): string {
+  const minute = clockMinutes(asText(runTime, 8).slice(0, 5)) ?? 9 * 60;
+  const allowed = Array.isArray(weekdays) ? weekdays.map(Number).filter((day) => Number.isInteger(day) && day >= 0 && day <= 6) : [1, 2, 3, 4, 5];
+  const local = localDateTime(from, timeZone);
+  for (let offset = 0; offset < 8; offset += 1) {
+    const day = addLocalDays(local, offset);
+    const noon = zonedTime(day, 12 * 60, timeZone);
+    if (!allowed.includes(noon.getUTCDay())) continue;
+    const candidate = zonedTime(day, minute, timeZone);
+    if (candidate.getTime() > from.getTime() + 30_000) return candidate.toISOString();
+  }
+  return new Date(from.getTime() + 24 * 60 * 60 * 1000).toISOString();
+}
+
+async function createCommercialDigests(admin: Admin, organizationId: string) {
+  const { data: preferences, error } = await admin.from('notification_preferences').select('user_id,digest_time,timezone').eq('organization_id', organizationId).eq('digest_enabled', true);
+  if (error) throw new Error('digest_preferences_read_failed');
+  let created = 0;
+  for (const preference of preferences ?? []) {
+    const timeZone = validTimeZone(preference.timezone) ?? 'America/Sao_Paulo';
+    const local = localDateTime(new Date(), timeZone);
+    const digestMinute = clockMinutes(asText(preference.digest_time, 8).slice(0, 5)) ?? 18 * 60;
+    if (local.hour * 60 + local.minute < digestMinute) continue;
+    const dateKey = localDayKey(local);
+    const dayStart = zonedTime(local, 0, timeZone).toISOString();
+    const { data: ownedLeads, error: ownedLeadsError } = await admin.from('leads').select('id').eq('organization_id', organizationId).or(`owner_id.eq.${preference.user_id},assigned_to.eq.${preference.user_id}`);
+    if (ownedLeadsError) throw new Error('digest_leads_read_failed');
+    const leadIds = (ownedLeads ?? []).map((lead) => lead.id);
+    const emptyCount = Promise.resolve({ count: 0 });
+    const [{ count: replies }, { count: hot }, { count: meetings }, { count: quotes }, { count: human }] = await Promise.all(leadIds.length ? [
+      admin.from('domain_events').select('id', { count: 'exact', head: true }).eq('organization_id', organizationId).eq('event_name', 'lead.reply.received').in('entity_id', leadIds).gte('occurred_at', dayStart),
+      admin.from('lead_qualifications').select('id', { count: 'exact', head: true }).eq('organization_id', organizationId).in('lead_id', leadIds).eq('interest_level', 'hot').gte('updated_at', dayStart),
+      admin.from('lead_qualifications').select('id', { count: 'exact', head: true }).eq('organization_id', organizationId).in('lead_id', leadIds).eq('requested_action', 'meeting').gte('updated_at', dayStart),
+      admin.from('lead_qualifications').select('id', { count: 'exact', head: true }).eq('organization_id', organizationId).in('lead_id', leadIds).eq('requested_action', 'quote').gte('updated_at', dayStart),
+      admin.from('lead_qualifications').select('id', { count: 'exact', head: true }).eq('organization_id', organizationId).in('lead_id', leadIds).eq('requested_action', 'human').gte('updated_at', dayStart),
+    ] : [emptyCount, emptyCount, emptyCount, emptyCount, emptyCount]);
+    const description = `${replies ?? 0} responderam · ${hot ?? 0} quentes · ${meetings ?? 0} reuniões · ${quotes ?? 0} orçamentos · ${human ?? 0} exigem atendimento humano.`;
+    const { data } = await admin.from('notifications').upsert({ organization_id: organizationId, user_id: preference.user_id, kind: 'DAILY_DIGEST', title: `Resumo comercial — ${dateKey.split('-').reverse().join('/')}`, description, read: false, link: '/dashboard', priority: 'normal', status: 'open', action_required: false, recommended_action: 'Revisar prioridades do dia', metadata: { date: dateKey, replies, hot, meetings, quotes, human }, deduplication_key: `daily-digest:${dateKey}` }, { onConflict: 'organization_id,user_id,deduplication_key', ignoreDuplicates: true }).select('id').maybeSingle();
+    if (data?.id) created += 1;
+  }
+  return created;
+}
+
+async function processAnaOperations(admin: Admin, organizationId: string, schedulerToken: string) {
+  const now = new Date();
+  const [{ data: company }, { data: runtime }] = await Promise.all([
+    admin.from('company_settings').select('active,sandbox_mode,ana_operation_enabled,ana_operation_mode').eq('organization_id', organizationId).maybeSingle(),
+    admin.from('organization_module_data').select('data').eq('organization_id', organizationId).eq('module_key', 'configuracao_runtime').maybeSingle(),
+  ]);
+  const digestCreated = await createCommercialDigests(admin, organizationId);
+  if (company?.active !== true || company?.sandbox_mode === true || company?.ana_operation_enabled !== true || asObject(runtime?.data).killSwitchGlobal === true) return { status: 'disabled', digest_created: digestCreated };
+  const mode = asText(company.ana_operation_mode, 20);
+  const { data: dueSchedules, error: dueError } = await admin.from('prospecting_schedules').select('*').eq('organization_id', organizationId).eq('active', true).lte('next_run_at', now.toISOString()).limit(5);
+  if (dueError) throw new Error('ana_schedule_read_failed');
+  for (const schedule of dueSchedules ?? []) {
+    const timeZone = validTimeZone(schedule.timezone) ?? 'America/Sao_Paulo';
+    const localDate = localDayKey(localDateTime(now, timeZone));
+    const status = mode === 'simulation' ? 'simulated' : mode === 'supervised' ? 'awaiting_approval' : 'queued';
+    const { error: runError } = await admin.from('prospecting_schedule_runs').upsert({ organization_id: organizationId, schedule_id: schedule.id, operation_mode: mode, idempotency_key: `scheduled:${schedule.id}:${localDate}`, scheduled_local_date: localDate, status, requested_by: schedule.owner_id, next_run_at: status === 'queued' ? now.toISOString() : null, completed_at: status === 'simulated' ? now.toISOString() : null, result: status === 'simulated' ? { simulated: true, external_calls: 0, filters: schedule.filters, quantity: schedule.quantity } : {} }, { onConflict: 'organization_id,idempotency_key', ignoreDuplicates: true });
+    if (runError) throw new Error('ana_schedule_run_create_failed');
+    const nextRun = nextAnaScheduleAt(timeZone, schedule.run_time, schedule.weekdays, now);
+    const { error: scheduleError } = await admin.from('prospecting_schedules').update({ last_run_at: now.toISOString(), next_run_at: nextRun, locked_at: null, locked_by: null, updated_at: now.toISOString() }).eq('organization_id', organizationId).eq('id', schedule.id);
+    if (scheduleError) throw new Error('ana_schedule_advance_failed');
+  }
+
+  const { data: run, error: runReadError } = await admin.from('prospecting_schedule_runs').select('*,prospecting_schedules(*)').eq('organization_id', organizationId).in('status', ['queued','running']).lte('next_run_at', now.toISOString()).order('created_at', { ascending: true }).limit(1).maybeSingle();
+  if (runReadError) throw new Error('ana_operation_queue_read_failed');
+  if (!run) return { status: 'idle', digest_created: digestCreated };
+  const schedule = asObject(run.prospecting_schedules);
+  const executionAuthorized = run.operation_mode === 'automatic'
+    ? schedule.paid_prospecting_approved === true
+    : run.operation_mode === 'supervised' && isUuid(run.approved_by);
+  if (!executionAuthorized) return { status: 'approval_required', digest_created: digestCreated };
+  const timeZone = validTimeZone(schedule.timezone) ?? 'America/Sao_Paulo';
+  const localDate = localDayKey(localDateTime(now, timeZone));
+  const monthStart = `${localDate.slice(0, 7)}-01`;
+  const { data: recentRuns, error: usageError } = await admin.from('prospecting_schedule_runs').select('scheduled_local_date,imported_count').eq('organization_id', organizationId).eq('schedule_id', run.schedule_id).gte('scheduled_local_date', monthStart).in('status', ['completed','running']);
+  if (usageError) throw new Error('ana_operation_usage_read_failed');
+  const dailyUsed = (recentRuns ?? []).filter((item) => item.scheduled_local_date === localDate).reduce((sum, item) => sum + Number(item.imported_count || 0), 0);
+  const monthlyUsed = (recentRuns ?? []).reduce((sum, item) => sum + Number(item.imported_count || 0), 0);
+  const remaining = Math.min(
+    boundedInteger(schedule.quantity, 20, 1, 100),
+    Math.max(0, boundedInteger(schedule.daily_cap, 50, 1, 10_000) - dailyUsed),
+    Math.max(0, boundedInteger(schedule.monthly_cap, 500, 1, 100_000) - monthlyUsed),
+  );
+  if (remaining <= 0) {
+    await admin.from('prospecting_schedule_runs').update({ status: 'cancelled', error_code: 'prospecting_cap_reached', completed_at: now.toISOString(), result: { daily_used: dailyUsed, monthly_used: monthlyUsed } }).eq('id', run.id).eq('organization_id', organizationId);
+    return { status: 'cap_reached', digest_created: digestCreated };
+  }
+  const lockId = crypto.randomUUID();
+  const { data: claimed, error: claimError } = await admin.from('prospecting_schedule_runs').update({ status: 'running', locked_at: now.toISOString(), locked_by: `automation-worker:${lockId}`, started_at: run.started_at || now.toISOString() }).eq('organization_id', organizationId).eq('id', run.id).in('status', ['queued','running']).select('id').maybeSingle();
+  if (claimError || !claimed) return { status: 'contended', digest_created: digestCreated };
+  const baseUrl = Deno.env.get('SUPABASE_URL'), serviceJwt = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  if (!baseUrl || !serviceJwt) throw new Error('ana_operation_internal_auth_missing');
+  const response = await fetch(`${baseUrl}/functions/v1/prospectar-leads`, { method: 'POST', headers: { Authorization: `Bearer ${serviceJwt}`, 'Content-Type': 'application/json', 'x-leadai-scheduler-token': schedulerToken }, body: JSON.stringify({ sourceKey: 'apify', mode: 'production', source: 'server_scheduler', organization_id: organizationId, schedule_run_id: run.id, filters: { ...asObject(schedule.filters), volumeMaximo: remaining }, ...(run.prospecting_run_id ? { runId: run.prospecting_run_id } : {}) }), signal: AbortSignal.timeout(45_000) });
+  const result = asObject(await response.json().catch(() => ({})));
+  if (response.status === 202 && isUuid(result.runId)) {
+    await admin.from('prospecting_schedule_runs').update({ prospecting_run_id: result.runId, next_run_at: new Date(Date.now() + 60_000).toISOString(), locked_at: null, locked_by: null, result: { pending: true } }).eq('id', run.id).eq('organization_id', organizationId);
+    return { status: 'provider_pending', digest_created: digestCreated };
+  }
+  if (!response.ok || result.ok !== true || !Array.isArray(result.leads)) {
+    const code = asText(result.error, 120) || `prospecting_http_${response.status}`;
+    await admin.from('prospecting_schedule_runs').update({ status: 'failed', error_code: code, error_message: 'A busca automática não foi concluída.', completed_at: new Date().toISOString(), locked_at: null, locked_by: null }).eq('id', run.id).eq('organization_id', organizationId);
+    return { status: 'failed', error: code, digest_created: digestCreated };
+  }
+  let imported = 0, approved = 0, rejected = 0;
+  const minimum = boundedInteger(schedule.auto_approve_min_score, 70, 0, 100);
+  let assignmentUsers = [asText(schedule.owner_id, 80)].filter(isUuid);
+  if (schedule.assignment_strategy === 'round_robin') {
+    const { data: members } = await admin.from('organization_members').select('user_id').eq('organization_id', organizationId).eq('status', 'active').in('role', ['vendedor','sdr']).order('created_at', { ascending: true });
+    const available = (members ?? []).map((member) => asText(member.user_id, 80)).filter(isUuid);
+    if (available.length) assignmentUsers = available;
+  }
+  for (const raw of result.leads.slice(0, remaining).map(asObject)) {
+    const score = boundedInteger(raw.score, 0, 0, 100), whatsapp = asText(raw.whatsapp, 80), email = asText(raw.email, 300);
+    if (score < minimum) { rejected += 1; continue; }
+    const contactApproved = Boolean(whatsapp) && asText(asObject(raw.channel_verification).whatsapp, 40) === 'source_reported';
+    const sourceRecordId = asText(raw.source_record_id, 300) || crypto.randomUUID();
+    const assignedTo = assignmentUsers.length ? assignmentUsers[imported % assignmentUsers.length] : null;
+    const { data: inserted, error: insertError } = await admin.from('leads').upsert({ organization_id: organizationId, company: asText(raw.razao_social, 500) || asText(raw.nome_fantasia, 500) || 'Empresa prospectada', phone: asText(raw.telefone, 80) || null, whatsapp: whatsapp || null, email: email || null, segment: asText(raw.cnae_descricao, 300) || null, uf: asText(raw.uf, 2) || null, city: asText(raw.municipio, 160) || null, score, temp: score >= 80 ? 'hot' : score >= 55 ? 'warm' : 'cold', stage: 'Prospecção', origin: 'Apify · operação automática', owner_id: assignedTo, assigned_to: assignedTo, owner: 'ia', active_channel: whatsapp ? 'whatsapp' : email ? 'email' : null, modo_atendimento: assignedTo ? 'ia' : 'humano', ai_paused: !assignedTo, contact_approval_status: contactApproved && assignedTo ? 'approved' : 'pending', contact_approval_reason: contactApproved && assignedTo ? 'Canal informado explicitamente pela fonte e fit acima do limite configurado.' : 'Canal ou responsável requer validação humana.', contact_approved_at: contactApproved && assignedTo ? new Date().toISOString() : null, contact_approved_by: contactApproved && assignedTo ? assignedTo : null, automation_status: contactApproved && assignedTo ? 'running' : 'pending_approval', source_record_id: sourceRecordId, source_url: asText(raw.source_url, 1000) || null, source_metadata: { prospecting_run_id: result.runId, schedule_run_id: run.id, score_reason: raw.score_reason }, deduplication_key: `apify:${sourceRecordId}` }, { onConflict: 'organization_id,deduplication_key', ignoreDuplicates: true }).select('id').maybeSingle();
+    if (insertError) throw new Error('ana_lead_import_failed');
+    if (!inserted?.id) continue;
+    imported += 1;
+    if (contactApproved && assignedTo) {
+      approved += 1;
+      const internalCredential = Deno.env.get('WHATSAPP_WEBHOOK_SHARED_SECRET');
+      if (internalCredential) await fetch(`${baseUrl}/functions/v1/ana-run`, { method: 'POST', headers: { Authorization: `Bearer ${serviceJwt}`, 'Content-Type': 'application/json', 'x-internal-worker-secret': internalCredential }, body: JSON.stringify({ event: 'lead.created', lead_id: inserted.id, modo: 'ia', organization_id: organizationId, request_id: `operation:${run.id}:${inserted.id}` }), signal: AbortSignal.timeout(45_000) }).catch(() => undefined);
+    }
+  }
+  await admin.from('prospecting_schedule_runs').update({ status: 'completed', prospecting_run_id: result.runId, result_cache_id: result.cacheId, candidate_count: result.leads.length, imported_count: imported, approved_count: approved, rejected_count: rejected, completed_at: new Date().toISOString(), next_run_at: null, locked_at: null, locked_by: null, result: { source: 'apify', candidate_count: result.leads.length, imported, approved, rejected } }).eq('id', run.id).eq('organization_id', organizationId);
+  return { status: 'completed', imported, approved, rejected, digest_created: digestCreated };
+}
+
 Deno.serve(async (request) => {
   const pf = preflight(request);
   if (pf) return pf;
@@ -1039,7 +1172,7 @@ Deno.serve(async (request) => {
     let actor: { id: string; name: string } | null = null;
     if (schedulerToken) {
       if (
-        body.run !== "outreach" ||
+        !["outreach", "all"].includes(body.run || "") ||
         !isUuid(body.organization_id) ||
         body.source !== "server_scheduler" ||
         requestedJobId !== null
@@ -1083,7 +1216,7 @@ Deno.serve(async (request) => {
     const reads = await Promise.all([
       admin
         .from("company_settings")
-        .select("active,sandbox_mode,can_use_ia,ai_actions_enabled")
+        .select("active,sandbox_mode,can_use_ia,ai_actions_enabled,ana_operation_enabled,ana_operation_mode")
         .eq("organization_id", orgId)
         .maybeSingle(),
       admin
@@ -1132,6 +1265,9 @@ Deno.serve(async (request) => {
     const knowledgeMaintenance = serverScheduler
       ? await maintainKnowledgeEmbeddings(admin, orgId)
       : { processed: 0, remaining: 0, status: "manual_skip" };
+    const anaOperations = serverScheduler && schedulerToken
+      ? await processAnaOperations(admin, orgId, schedulerToken)
+      : { status: 'manual_skip', digest_created: 0 };
     const blocked =
       reads[0].data?.active !== true ? "company_not_active" : null;
     if (blocked)
@@ -1867,6 +2003,7 @@ Deno.serve(async (request) => {
         job_results: jobResults,
         knowledge_embeddings: knowledgeMaintenance,
         reconciled_provider_acceptances: reconciledProviderAcceptances,
+        ana_operations: anaOperations,
       },
       200,
       headers,

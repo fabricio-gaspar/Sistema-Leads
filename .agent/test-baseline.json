@@ -1,17 +1,19 @@
 {
   "schema_version": 1,
-  "validated_commit": "working-tree-after-019ffc874d54e2033ee8e73b456d5f14fda9fe8d",
-  "last_validated_at": "2026-09-13T15:05:00-03:00",
+  "validated_commit": "working-tree-after-b437b20",
+  "last_validated_at": "2026-09-13T15:55:00-03:00",
   "commands": [
     {"command":"npm run type-check","status":"passed"},
     {"command":"npm run lint","status":"passed","warnings":0},
     {"command":"npm run type-check:edge","status":"passed"},
-    {"command":"npm test","status":"passed","files":16,"checks":168},
+    {"command":"npm test","status":"passed","files":16,"checks":170},
     {"command":"npm run build","status":"passed"},
     {"command":"Supabase transaction rollback: queue_human_whatsapp_message repetida","status":"passed","note":"A segunda chamada reutilizou o mesmo job por idempotência; toda a transação foi revertida e nenhum envio externo ocorreu."},
     {"command":"Supabase transaction rollback: provider acceptance + delivered receipt","status":"passed","note":"Fila, lead_outreach, mensagem, aceite e entrega foram validados atomicamente e revertidos sem chamar a Z-API."},
     {"command":"Supabase transaction rollback: request_human_handoff + return_handoff_to_ana","status":"passed","note":"Handoff e retorno concluíram para lead autorizado; toda alteração foi revertida."},
-    {"command":"runtime Worker smoke test com valores públicos simulados","status":"passed","note":"/runtime-config.js retorna no-store e entrega URL/chave somente em runtime; o bundle não contém os valores reais."}
+    {"command":"runtime Worker smoke test com valores públicos simulados","status":"passed","note":"/runtime-config.js retorna no-store e entrega URL/chave somente em runtime; o bundle não contém os valores reais."},
+    {"command":"Supabase transaction rollback: domain_events para notifications","status":"passed","note":"O primeiro teste detectou enum app_role incorreto; após correção, evento de interesse gerou notificação do responsável e toda a transação foi revertida."},
+    {"command":"Edge Functions sem autenticação","status":"passed","note":"ana-operations recusou sem JWT (401) e automation-worker recusou sem sessão/token interno (400); nenhum provedor foi chamado."}
   ],
   "prior_site_artifact_validation": {
     "validated_commit": "e4b1666c878df01ac0db3d12a290531a42107446",
@@ -27,5 +29,5 @@
   },
   "covered": ["frontend_typecheck","lint","edge_typecheck","unit_and_contract_tests","production_build"],
   "not_covered": ["authenticated_e2e","real_whatsapp","real_claude","cross_organization_rls","database_concurrency","provider_receipt_race","mobile_authenticated_qa"],
-  "working_tree_validation": "passed: segurança de contato, scoring, recuperação híbrida, agenda, diagnóstico e reconciliação validados. Type-check frontend/Edge, lint, 16 arquivos/168 testes, build Vite e artefato Worker aprovados; testes SQL transacionais executados com rollback."
+  "working_tree_validation": "passed: operação automática, alertas comerciais, RLS, evento-notificação, modos simulação/supervisionado, autenticação, type-check frontend/Edge, lint, 16 arquivos/170 testes e build aprovados; nenhum provedor externo foi chamado."
 }

@@ -25,6 +25,10 @@
   leitura e o provedor ainda é uma janela TOCTOU residual.
 - Alterar a configuração publicada da Ana governa novas saídas; um timeout de ausência de
   resposta já agendado não é reavaliado/rearmado retroativamente.
+- O novo modo Automático está implementado, porém permanece desativado e em Simulação até o
+  operador salvar a rotina e comprovar o ciclo externo Apify → WhatsApp → resposta → Ana.
+- Notificações imediatas no painel e resumo diário estão implementados; aviso opcional ao vendedor
+  pelo próprio WhatsApp não foi ativado sem número de destino e homologação específica do canal.
 
 ## Médio
 

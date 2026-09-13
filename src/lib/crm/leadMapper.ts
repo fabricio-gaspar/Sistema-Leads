@@ -40,6 +40,8 @@ export interface CrmLeadRow {
   score_verified_at?: string | null;
   created_at: string;
   updated_at: string;
+  next_action_at?: string | null;
+  no_reply_deadline_at?: string | null;
 }
 
 export function isUuid(value: string): boolean {
@@ -211,7 +213,7 @@ export function crmRowToLead(row: CrmLeadRow): Lead {
     modoAtendimento: isHuman ? 'HUMANO' : 'IA', automacaoStatus: isHuman ? 'AGUARDANDO_HUMANO' : row.automation_status === 'running' && approvalStatus === 'approved' ? 'ATIVA' : 'PAUSADA',
     responsavelId: row.owner_id ?? row.assigned_to ?? undefined, canalPreferencial: leadChannelLabel(row.active_channel),
     anaStage: row.ana_stage as Lead['anaStage'], anaOutcome: row.ana_outcome === 'ganho' || row.ana_outcome === 'perdido' ? row.ana_outcome : null,
-    intencao: null, sentimento: 'NEUTRO', confianca: 0, proximaAcao: null, motivoTransferencia: '', nextFollowUpAt: null, timeoutAt: null,
+    intencao: null, sentimento: 'NEUTRO', confianca: 0, proximaAcao: null, motivoTransferencia: '', nextFollowUpAt: row.next_action_at ?? null, timeoutAt: row.no_reply_deadline_at ?? null,
     followUpCount: 0, maxFollowUps: 2, automationEvents: [], historico: [], bloqueado: Boolean(row.opt_out), contatoPermitido: isContactApproved && !row.opt_out,
     consentimentoWhatsApp: isContactApproved && canonicalLeadChannel(row.active_channel) === 'whatsapp', consentimentoEmail: isContactApproved && canonicalLeadChannel(row.active_channel) === 'email',
     contactApprovalStatus: approvalStatus, contactApprovalReason: row.contact_approval_reason ?? '', contactApprovedAt: row.contact_approved_at ?? null,

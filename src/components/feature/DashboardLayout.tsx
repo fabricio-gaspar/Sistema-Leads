@@ -327,7 +327,7 @@ export default function DashboardLayout() {
                               key={n.id}
                               onClick={() => {
                                 notif.marcarLida(n.id);
-                                navigate(n.tipo === 'HANDOFF' ? '/dashboard/atendimento' : '/dashboard/leads');
+                                navigate(n.link || (n.tipo === 'HANDOFF' ? '/dashboard/atendimento' : '/dashboard/leads'));
                                 setNotifOpen(false);
                               }}
                               className={`w-full flex items-start gap-3 px-4 py-3 text-left border-b border-background-100 hover:bg-background-50/50 transition-colors cursor-pointer ${
@@ -347,6 +347,7 @@ export default function DashboardLayout() {
                                   )}
                                 </div>
                                 <p className="text-xs text-foreground-500 mt-0.5 line-clamp-2">{n.descricao}</p>
+                                {n.acaoRecomendada && <p className="mt-1 text-xs font-medium text-primary-700">Próxima ação: {n.acaoRecomendada}</p>}
                                 <p className="text-[10px] text-foreground-400 mt-1">{formatarDataNotif(n.data)}</p>
                               </div>
                             </button>

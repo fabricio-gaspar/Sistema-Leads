@@ -9,6 +9,8 @@ import { resolveOrganizationSession } from '@/lib/organizationSession';
 import { supabase } from '@/lib/supabase';
 import ConversationActivityChart from './components/ConversationActivityChart';
 import type { ConversationRealtimeState } from './components/conversationActivity';
+import SellerAttentionPanel from './components/SellerAttentionPanel';
+import { useNotificacoesStore } from '@/hooks/useNotificacoesStore';
 
 function Status({ good, label, neutral = false }: { good: boolean; label: string; neutral?: boolean }) {
   return <span className={`wf-overview-status wf-overview-status--${neutral ? 'neutral' : good ? 'good' : 'warning'}`}>{label}</span>;
@@ -18,6 +20,7 @@ export default function Dashboard() {
   const [leads] = useLeadsStore();
   const { conversas } = useConversasStore();
   const { propostas } = usePropostasStore();
+  const notifications = useNotificacoesStore();
   const [operacao, setOperacao] = useState<OperationalDiagnostics | null>(null);
   const [diagnosticError, setDiagnosticError] = useState(false);
   const [conversationRealtime, setConversationRealtime] = useState<ConversationRealtimeState>('connecting');
@@ -89,6 +92,8 @@ export default function Dashboard() {
         <p className="mt-1 text-sm text-foreground-500">{item.detail}</p>
       </article>)}
     </section>
+
+    <SellerAttentionPanel notifications={notifications.notificacoes} leads={leads} />
 
     <section className="grid gap-4 xl:grid-cols-[minmax(0,1.65fr)_minmax(0,1fr)]">
       <article className="wf-surface p-4 md:p-5">

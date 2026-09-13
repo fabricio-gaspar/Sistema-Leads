@@ -271,13 +271,44 @@ describe('Ana handler safety — mocked persistence, no real providers', () => {
     override = (q) => q.table === 'contact_suppressions' ? { data: null, error: { message: 'synthetic database failure' } } : undefined;
     await import('../functions/ana-run/index');
     expect((await handler(anaRequest())).status).toBe(400);
-    expectNoBusinessWrites();
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(calls.find((q) => q.table === 'domain_events' && q.operation === 'upsert')?.value).toMatchObject({ event_name: 'lead.analysis.failed' });
+    expect(calls.some((q) => ['leads', 'lead_messages', 'outreach_jobs', 'lead_handoffs'].includes(q.table) && ['insert', 'update', 'upsert'].includes(q.operation))).toBe(false);
   });
   it('does not call an AI provider or mutate the lead during simulation', async () => {
     await import('../functions/ana-run/index');
     const response = await handler(anaRequest({ contexto: { dry_run: true } }));
     expect(await response.json()).toMatchObject({ ok: true, dry_run: true, acoes_aplicadas: [], status_canal: 'simulacao_sem_alteracoes' });
     expectNoBusinessWrites();
+  });
+  it('enforces the published operation simulation mode even without a dry-run flag', async () => {
+    override = (q) => q.table === 'company_settings' && q.operation === 'select'
+      ? ok({ ...readyCompany, ana_operation_enabled: true, ana_operation_mode: 'simulation' })
+      : undefined;
+    await import('../functions/ana-run/index');
+    const response = await handler(anaRequest());
+    expect(await response.json()).toMatchObject({ ok: true, dry_run: true, status_canal: 'simulacao_sem_alteracoes' });
+    expectNoBusinessWrites();
+  });
+  it('keeps a supervised reply and meeting request pending approval without calling Calendar or the outbound queue', async () => {
+    override = (q) => {
+      if (q.table === 'company_settings' && q.operation === 'select') return ok({ ...readyCompany, ana_operation_enabled: true, ana_operation_mode: 'supervised' });
+      if (q.table === 'lead_messages' && q.operation === 'select') return ok([{ id: 'a1111111-1111-4111-8111-111111111111', ...safeInbound()[0] }]);
+      if (q.table === 'read_integration_secret') return ok(configuredOpenAiSecret());
+      return undefined;
+    };
+    fetchMock.mockResolvedValue(openAiDecisionResponse({
+      proximo_estagio: 'apresentado', outcome: null, score: 90, motivo: 'Lead pediu reunião', precisa_humano: false,
+      mensagem_sugerida: 'Posso preparar os próximos passos.', acoes: [{ tipo: 'agendar_reuniao', payload: { starts_at: '2026-09-15T10:00:00-03:00' } }],
+    }));
+    await import('../functions/ana-run/index');
+    const response = await handler(anaRequest());
+    expect(await response.json()).toMatchObject({ ok: true, supervised: true, status_canal: 'aguardando_aprovacao' });
+    expect(calls.find((q) => q.table === 'lead_messages' && q.operation === 'insert')?.value).toMatchObject({ type: 'pending_approval', sent_at: null });
+    expect(calls.some((q) => q.table === 'outreach_jobs' && q.operation === 'upsert')).toBe(false);
+    expect(calls.some((q) => q.table === 'appointments' && q.operation === 'insert')).toBe(false);
+    expect(calls.some((q) => q.table === 'lead_qualifications' && q.operation === 'upsert')).toBe(true);
+    expect(calls.some((q) => q.table === 'domain_events' && q.operation === 'upsert')).toBe(true);
   });
   it('fails closed when the active Ana version has no allowed channels', async () => {
     override = (q) => q.table === 'ai_agent_versions' && q.operation === 'select'

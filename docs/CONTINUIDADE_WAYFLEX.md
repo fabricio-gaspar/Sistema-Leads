@@ -515,3 +515,29 @@ webhook em ambiente controlado.
   Não houve busca Apify, mensagem, chamada de IA ou evento Calendar real nesta rodada.
 - Referências operacionais: `docs/audit/saturday-regression-analysis.md`,
   `docs/DIAGNOSTICO_MENSAGENS.md` e `docs/RELATORIO_PRONTIDAO_2026-09-13.md`.
+
+## Operação automática e Central de Alertas Comerciais — 13/09/2026
+
+- **Configurações → Ana → Operação automática** agora governa a rotina existente em três modos:
+  Simulação, Supervisionado e Automático. O estado inicial aplicado no banco é desativado e em
+  Simulação; nenhum provedor foi chamado durante a implantação.
+- A configuração persiste agenda, fuso, dias, ICP, regiões, canais mínimos, score, limites diário
+  e mensal, distribuição, alertas, resumo diário e autorização explícita para prospecção paga.
+  O botão **Pausar tudo** reutiliza o kill switch operacional já existente.
+- `automation-worker` mantém uma fila idempotente em `prospecting_schedule_runs`, respeita limites,
+  inicia/retoma o Apify, deduplica importações e distribui em rodízio quando configurado. No modo
+  supervisionado, a busca e a resposta da Ana permanecem em aprovação; no automático, somente
+  canal explicitamente informado pela fonte e score aprovado podem seguir para `ana-run`.
+- `ana-run` continua como única autoridade de decisão e passou a persistir a qualificação comercial
+  estruturada. Reunião, orçamento, lead quente, interesse, pedido humano e falha geram eventos
+  objetivos e notificações auditáveis para o responsável.
+- O sino usa `notifications` com Realtime e o Dashboard ganhou **Atenção do vendedor** com Responder
+  agora, Leads quentes, Reuniões e orçamentos, Acompanhamentos de hoje e Sem resposta há muito tempo.
+  O worker produz um resumo diário por carteira do vendedor no horário configurado.
+- Migrations aplicadas no projeto oficial: `ana_autonomous_operation_and_commercial_alerts`,
+  `commercial_alert_preferences`, `fix_commercial_alert_app_roles` e
+  `index_ana_operation_foreign_keys`. Edge Functions publicadas: `ana-operations` v1, `ana-run` v24,
+  `prospectar-leads` v11 e `automation-worker` v22.
+- Validação sem efeitos externos: teste SQL transacional com rollback confirmou evento → notificação;
+  endpoints rejeitaram chamadas sem autenticação; type-check frontend/Edge, lint, testes de contrato
+  e build foram executados. WhatsApp, Apify, modelo de IA e Calendar reais não foram chamados.

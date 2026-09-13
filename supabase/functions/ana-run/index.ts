@@ -231,7 +231,7 @@ function parseDecision(raw: unknown, current: AnaStage) {
   const actions = Array.isArray(value.acoes) ? value.acoes.slice(0, 5).map((action) => {
     const item = asObject(action);
     return { tipo: asText(item.tipo, 40), payload: asObject(item.payload) };
-  }).filter((action) => ['atualizar_lead', 'enviar_mensagem', 'gerar_orcamento', 'handoff'].includes(action.tipo)) : [];
+  }).filter((action) => ['atualizar_lead', 'enviar_mensagem', 'agendar_reuniao', 'gerar_orcamento', 'handoff'].includes(action.tipo)) : [];
   if (!STAGES.includes(next)) throw new Error('ana_invalid_stage');
   if (!transitionAllowed(current, next, outcome)) throw new Error('ana_stage_jump_rejected');
   if (next === 'fechado' && !['ganho', 'perdido'].includes(outcome)) throw new Error('ana_invalid_outcome');
@@ -245,6 +245,47 @@ function parseDecision(raw: unknown, current: AnaStage) {
     motivo: asText(value.motivo, 1_000),
     precisa_humano: value.precisa_humano === true,
   };
+}
+
+async function persistCommercialQualification(
+  admin: ReturnType<typeof createAdminClient>,
+  organizationId: string,
+  leadId: string,
+  runId: string,
+  messageId: string | null,
+  decision: ReturnType<typeof parseDecision>,
+  latestInbound: Record<string, unknown> | null,
+) {
+  const actionTypes = new Set(decision.acoes.map((action) => action.tipo));
+  const requestedAction = actionTypes.has('agendar_reuniao') ? 'meeting'
+    : actionTypes.has('gerar_orcamento') ? 'quote'
+    : decision.precisa_humano || actionTypes.has('handoff') ? 'human'
+    : decision.proximo_estagio !== 'novo' ? 'follow_up' : 'none';
+  const interestLevel = decision.score >= 80 ? 'hot' : decision.score >= 55 ? 'positive' : decision.score < 20 ? 'negative' : 'neutral';
+  const evidence = messageId ? [{ message_id: messageId, excerpt: asText(latestInbound?.text, 240) }] : [];
+  const { error: qualificationError } = await admin.from('lead_qualifications').upsert({
+    organization_id: organizationId, lead_id: leadId, source_agent_run_id: runId, source_message_id: isUuid(messageId || '') ? messageId : null,
+    intent: requestedAction === 'none' ? null : requestedAction, sentiment: interestLevel, next_action: decision.motivo || null,
+    summary: decision.motivo || 'Qualificação comercial atualizada pela Ana.', evidence, readiness_score: decision.score,
+    interest_level: interestLevel, requested_action: requestedAction, confidence: decision.score, updated_by: 'ia', updated_at: new Date().toISOString(),
+  }, { onConflict: 'lead_id' });
+  if (qualificationError) throw qualificationError;
+
+  const eventNames = [
+    ...(interestLevel === 'positive' ? ['lead.interaction.positive', 'lead.interest.detected'] : []),
+    ...(interestLevel === 'hot' ? ['lead.interest.detected', 'lead.hot.detected'] : []),
+    ...(requestedAction === 'meeting' ? ['lead.meeting.requested'] : []),
+    ...(requestedAction === 'quote' ? ['lead.quote.requested'] : []),
+    ...(requestedAction === 'human' ? ['lead.human.requested'] : []),
+  ];
+  for (const eventName of [...new Set(eventNames)]) {
+    const { error: eventError } = await admin.from('domain_events').upsert({
+      organization_id: organizationId, event_name: eventName, entity_type: 'lead', entity_id: leadId,
+      actor_type: 'agent', actor_id: null, idempotency_key: `${runId}:${eventName}`,
+      payload: { summary: decision.motivo || 'Atualização comercial identificada pela Ana.', next_action: requestedAction, score: decision.score, evidence },
+    }, { onConflict: 'organization_id,idempotency_key', ignoreDuplicates: true });
+    if (eventError) throw eventError;
+  }
 }
 
 const ANA_REQUEST = (context: Record<string, unknown>) =>
@@ -436,11 +477,13 @@ Deno.serve(async (request) => {
   let admin: ReturnType<typeof createAdminClient> | null = null;
   let runId: string | null = null;
   let organizationId: string | null = null;
+  let activeLeadId: string | null = null;
   try {
     const body = asObject(await request.json());
     const event = normalizeEvent(body.event);
     const leadId = asText(body.lead_id, 80);
     if (!EVENTS.has(event) || !isUuid(leadId)) throw new Error('ana_invalid_input');
+    activeLeadId = leadId;
 
     admin = createAdminClient();
     const internal = await isAuthenticatedInternalRequest(admin, request, body);
@@ -476,7 +519,7 @@ Deno.serve(async (request) => {
     const modo = mode as AnaMode;
     const currentStage = (lead.ana_stage || 'novo') as AnaStage;
     const executionContext = asObject(body.contexto);
-    const dryRun = executionContext.dry_run === true || canonicalChannel(body.channel) === 'demo';
+    const requestedDryRun = executionContext.dry_run === true || canonicalChannel(body.channel) === 'demo';
     if (event === 'timeout.48h') {
       // Existing cron owns a transactional lock + handoff + task. Do not race it here.
       return json({ ok: true, skipped: true, reason: 'timeout_owned_by_server_scheduler' }, 200, headers);
@@ -484,7 +527,7 @@ Deno.serve(async (request) => {
     const messageId = asText(body.message_id, 600) || asText(executionContext.inbound_event_id, 600);
     const requestId = asText(body.request_id, 160);
     if (event !== 'message.received' && !requestId) throw new Error('ana_request_id_required');
-    const idempotencyKey = `${dryRun ? 'simulation:' : ''}${anaEventKey(event, leadId, messageId, requestId)}`;
+    const idempotencyKey = `${requestedDryRun ? 'simulation:' : ''}${anaEventKey(event, leadId, messageId, requestId)}`;
 
     const { data: previousRun, error: previousError } = await admin.from('agent_runs').select('id,status,result,error_code,error_message')
       .eq('organization_id', organizationId).eq('idempotency_key', idempotencyKey).maybeSingle();
@@ -512,8 +555,8 @@ Deno.serve(async (request) => {
 
     const activeChannel = canonicalChannel(lead.active_channel);
     const contextReads = await Promise.all([
-      admin.from('company_settings').select('name,description,segment,website,phone,email,active,sandbox_mode,can_use_ia,ai_actions_enabled').eq('organization_id', organizationId).maybeSingle(),
-      admin.from('lead_messages').select('sender,sender_name,type,text,sent_at').eq('organization_id', organizationId).eq('lead_id', leadId).order('sent_at', { ascending: false }).limit(20),
+      admin.from('company_settings').select('name,description,segment,website,phone,email,active,sandbox_mode,can_use_ia,ai_actions_enabled,ana_operation_enabled,ana_operation_mode').eq('organization_id', organizationId).maybeSingle(),
+      admin.from('lead_messages').select('id,sender,sender_name,type,text,sent_at').eq('organization_id', organizationId).eq('lead_id', leadId).order('sent_at', { ascending: false }).limit(20),
       activeChannel ? admin.from('integrations').select('connected,enabled,paused').eq('organization_id', organizationId).eq('key', activeChannel).maybeSingle() : Promise.resolve({ data: null, error: null }),
       admin.from('ai_agents').select('active_version_id').eq('organization_id', organizationId).eq('key', 'ana').maybeSingle(),
       admin.from('services').select('id,name,category,description,price,unit,term,max_discount').eq('organization_id', organizationId).eq('active', true).limit(50),
@@ -526,6 +569,9 @@ Deno.serve(async (request) => {
     ]);
     for (const read of contextReads) if (read.error) throw new Error('ana_context_read_failed');
     const [{ data: company }, { data: messages }, { data: channel }, { data: agent }, { data: catalog }, { data: knowledge }, { data: appointments }, { data: suppressions }, { data: aiIntegration }, { data: runtime }] = contextReads;
+    const operationMode = company?.ana_operation_enabled === true ? asText(company.ana_operation_mode, 20) : 'automatic';
+    const supervised = operationMode === 'supervised';
+    const dryRun = requestedDryRun || operationMode === 'simulation';
     const applicableSuppressions = (suppressions ?? []).filter((suppression) => suppressionAppliesToChannel(suppression.channel, activeChannel));
     const blocked = automationBlockReason({ company, ai: aiIntegration, runtime: runtime?.data ?? null, lead, dryRun, requiresApprovedContact: event !== 'message.received' });
     if (blocked) {
@@ -649,7 +695,7 @@ Deno.serve(async (request) => {
     const meetingAction = decision.acoes.find((action) => action.tipo === 'agendar_reuniao');
     let meetingApplied: { externalId: string; meetingUrl: string | null } | null = null;
     let schedulingFailure: string | null = null;
-    if (meetingAction && !dryRun && !decision.precisa_humano) {
+    if (meetingAction && !dryRun && !supervised && !decision.precisa_humano) {
       const requestedMeeting = meetingRequest(meetingAction.payload, latestInboundMessage?.text);
       if (!requestedMeeting) schedulingFailure = 'Pedido de reunião sem data e horário explícitos ou válidos.';
       else {
@@ -692,6 +738,20 @@ Deno.serve(async (request) => {
     const channelConnected = !dryRun && Boolean(channel?.connected && channel?.enabled && !channel?.paused);
     if (dryRun) {
       const result = { ...decision, dry_run: true, acoes_aplicadas: [], status_canal: 'simulacao_sem_alteracoes', provedor_ia: aiProvider };
+      const { error } = await admin.from('agent_runs').update({ status: 'completed', result, completed_at: new Date().toISOString() }).eq('id', runId).eq('organization_id', organizationId);
+      if (error) throw error;
+      return json({ ok: true, run_id: runId, ...result }, 200, headers);
+    }
+    const inboundEvidence = latestInboundMessage && typeof latestInboundMessage === 'object' ? latestInboundMessage as Record<string, unknown> : null;
+    await persistCommercialQualification(admin, organizationId, leadId, runId, asText(inboundEvidence?.id, 80) || null, decision, inboundEvidence);
+    if (supervised) {
+      if (decision.mensagem_sugerida) {
+        const { error: draftError } = await admin.from('lead_messages').insert({
+          organization_id: organizationId, lead_id: leadId, sender: 'ana', sender_name: 'Ana', type: 'pending_approval', text: decision.mensagem_sugerida, sent_at: null,
+        });
+        if (draftError) throw draftError;
+      }
+      const result = { ...decision, supervised: true, acoes_aplicadas: [], status_canal: 'aguardando_aprovacao', provedor_ia: aiProvider };
       const { error } = await admin.from('agent_runs').update({ status: 'completed', result, completed_at: new Date().toISOString() }).eq('id', runId).eq('organization_id', organizationId);
       if (error) throw error;
       return json({ ok: true, run_id: runId, ...result }, 200, headers);
@@ -791,6 +851,11 @@ Deno.serve(async (request) => {
   } catch (error) {
     const code = errorCode(error);
     if (admin && runId) await admin.from('agent_runs').update({ status: 'failed', error_code: code, error_message: safeError(error), completed_at: new Date().toISOString() }).eq('id', runId);
+    if (admin && organizationId && activeLeadId && runId) await admin.from('domain_events').upsert({
+      organization_id: organizationId, event_name: 'lead.analysis.failed', entity_type: 'lead', entity_id: activeLeadId,
+      actor_type: 'agent', actor_id: null, idempotency_key: `${runId}:lead.analysis.failed`,
+      payload: { reason: 'A análise automática falhou e requer revisão humana.', next_action: 'Abrir a conversa', error_code: code },
+    }, { onConflict: 'organization_id,idempotency_key', ignoreDuplicates: true });
     return json({ ok: false, erro: code }, 400, headers);
   }
 });
