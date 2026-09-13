@@ -4,15 +4,15 @@
   "baseline_commit": "1fbd231ff88b4e02c3ddddd18253a1f3be8be5ee",
   "last_audited_commit": "d1cb86a13aef65029382bc66ce36f5899802d3ee",
   "current_head_at_update": "d1cb86a13aef65029382bc66ce36f5899802d3ee",
-  "working_tree_status": "site_v74_integrated; ana_decision_map_validated_pending_publication",
+  "working_tree_status": "ana_decision_map_published_site_v75_visual_qa_passed",
   "last_site_publication": {
-    "commit": "1a2f0d1c40e20be475dd2eff34463228fe0a550e",
-    "site_version": 74,
-    "validated_at": "2026-09-11T18:01:33-03:00",
+    "commit": "0e8221bb4263d42c6c98652fcfb42d929ba09899",
+    "site_version": 75,
+    "validated_at": "2026-09-13T16:34:00Z",
     "working_tree_status": "published"
   },
   "full_audit_required": false,
   "baseline_status": "validated",
-  "updated_at": "2026-09-13T16:26:24Z",
-  "next_action": "Publicar o mapa visual no Site oficial preservando a audiência owner-only e concluir a inspeção visual autenticada."
+  "updated_at": "2026-09-13T16:34:00Z",
+  "next_action": "Mapa visual publicado e validado no Site oficial. Manter a homologação externa de WhatsApp e respostas da Ana como pendência separada."
 }

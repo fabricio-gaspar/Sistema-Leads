@@ -329,3 +329,6 @@
 - A ponta oficial da versão 74 foi integrada por merge, sem força ou rollback. O conjunto passou
   em type-check frontend/Edge, lint, 16 arquivos/165 testes e build. Não houve operação no
   Supabase, envio de mensagem, alteração de integração, segredo ou dado operacional.
+- PUBLICADO: Site oficial versão 75, commit `0e8221bb4263d42c6c98652fcfb42d929ba09899`,
+  com deploy `succeeded` e audiência owner-only preservada. A inspeção autenticada confirmou o
+  mapa, a configuração v17 e a navegação até a etapa 6; nenhum campo foi alterado ou publicado.

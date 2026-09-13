@@ -466,3 +466,7 @@ webhook em ambiente controlado.
   e Edge Functions, lint sem warnings, 16 arquivos/165 testes e build de produção passaram no
   conjunto final. Nenhuma mensagem, lead, tabela, integração, segredo ou configuração da Ana foi
   alterada durante este delta exclusivamente visual.
+- PUBLICADO: Site oficial versão 75, commit `0e8221bb4263d42c6c98652fcfb42d929ba09899`,
+  com deploy confirmado como `succeeded` e audiência owner-only preservada. A inspeção visual
+  autenticada confirmou o mapa, a configuração v17 e a navegação dos blocos até a etapa 6, sem
+  editar ou publicar qualquer campo operacional.
