@@ -462,7 +462,7 @@ webhook em ambiente controlado.
 - O pipeline canônico é exibido como orientação: Novo → Apresentado → Qualificando → Reunião →
   Orçamento → Ganho/Perdido. O estado visual usa somente a versão carregada e alterações locais
   pendentes; não declara canal, automação ou envio como ativo.
-- Type-check frontend e Edge Functions, lint sem warnings, 15 arquivos/159 testes e build de
-  produção passaram antes da integração das mudanças remotas já publicadas. Nenhuma mensagem,
-  lead, tabela, integração, segredo ou configuração da Ana foi alterada durante este delta
-  exclusivamente visual.
+- A ponta oficial da versão 74 foi integrada por merge, sem força ou rollback. Type-check frontend
+  e Edge Functions, lint sem warnings, 16 arquivos/165 testes e build de produção passaram no
+  conjunto final. Nenhuma mensagem, lead, tabela, integração, segredo ou configuração da Ana foi
+  alterada durante este delta exclusivamente visual.

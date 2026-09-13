@@ -326,6 +326,6 @@
 - O diagrama representa a base aprovada por catálogos, segmentos e acessórios, o caminho de
   qualificação, as decisões de reunião/orçamento e cadência/handoff, a revisão final e o pipeline
   canônico. Estado publicado e alterações pendentes continuam derivados dos dados reais da tela.
-- Type-check frontend/Edge, lint, 15 arquivos/159 testes e build passaram antes da integração das
-  mudanças remotas já publicadas. Não houve operação no Supabase, envio de mensagem, alteração de
-  integração, segredo ou dado operacional.
+- A ponta oficial da versão 74 foi integrada por merge, sem força ou rollback. O conjunto passou
+  em type-check frontend/Edge, lint, 16 arquivos/165 testes e build. Não houve operação no
+  Supabase, envio de mensagem, alteração de integração, segredo ou dado operacional.
