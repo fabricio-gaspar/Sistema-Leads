@@ -273,15 +273,101 @@ export default function PersonalizacaoAna({ embedded = false }: { embedded?: boo
         <p>Em seis passos, defina como ela apresenta sua empresa, qualifica o lead e sugere o próximo passo com controle humano.</p>
         {loadingConfiguration ? <p className="hint mt-2">Carregando a configuração publicada…</p> : publishedVersion ? <p className="hint mt-2">Versão publicada em uso pela Ana: v{publishedVersion}.</p> : <p className="hint mt-2">Ainda não há uma versão publicada; salvar não ativa canais nem automações.</p>}
       </header>
-      <nav className="steps" aria-label="Etapas da configuração da Ana">
-        {steps.map((item, index) => (
-          <button key={item.title} type="button" title={`${index + 1}. ${item.title}`} aria-current={index === step ? 'step' : undefined} onClick={() => setStep(index)} className={index === step ? 'active' : index < step ? 'done' : ''}>
-            <span>{index + 1}</span>
-            <b>{item.title}</b>
-            <small className="step-description">{item.description}</small>
+      <section className="ana-map" aria-labelledby="ana-map-title">
+        <div className="ana-map__heading">
+          <div>
+            <p className="eyebrow">Mapa de decisão</p>
+            <h2 id="ana-map-title">Como a Ana usa esta configuração</h2>
+            <p>Selecione um bloco para revisar as informações e regras daquela etapa.</p>
+          </div>
+          <span className={`ana-map__status ${isDirty ? 'is-pending' : ''}`}>
+            <i className={isDirty ? 'ri-pencil-line' : 'ri-checkbox-circle-line'} aria-hidden="true" />
+            {isDirty ? 'Alterações pendentes' : publishedVersion ? `Versão v${publishedVersion}` : 'Não publicada'}
+          </span>
+        </div>
+
+        <nav className="ana-map__canvas" aria-label="Etapas da configuração da Ana">
+          <div className="ana-map__identity">
+            <span className="ana-map__identity-icon"><i className="ri-robot-2-line" aria-hidden="true" /></span>
+            <span><strong>Ana</strong><small>Assistente de IA da Wayflex</small></span>
+            <span className="ana-map__control"><i className="ri-shield-check-line" aria-hidden="true" /> Controle humano</span>
+          </div>
+
+          <span className="ana-map__connector" aria-hidden="true" />
+
+          <button type="button" aria-current={step === 0 ? 'step' : undefined} onClick={() => setStep(0)} className={`ana-map__node ana-map__node--company ${step === 0 ? 'is-active' : ''}`}>
+            <span className="ana-map__node-icon"><i className="ri-building-2-line" aria-hidden="true" /></span>
+            <span className="ana-map__node-copy"><small>Etapa 1</small><strong>Empresa e público</strong><span>Contexto, oferta e cliente ideal</span></span>
+            <i className="ri-arrow-right-s-line ana-map__open" aria-hidden="true" />
           </button>
-        ))}
-      </nav>
+
+          <span className="ana-map__connector" aria-hidden="true" />
+
+          <button type="button" aria-current={step === 1 ? 'step' : undefined} onClick={() => setStep(1)} className={`ana-map__node ana-map__node--knowledge ${step === 1 ? 'is-active' : ''}`}>
+            <span className="ana-map__node-icon"><i className="ri-book-open-line" aria-hidden="true" /></span>
+            <span className="ana-map__node-copy"><small>Etapa 2 · Base aprovada</small><strong>Oferta permitida</strong><span>Somente fontes confiáveis e conteúdo aprovado</span></span>
+            <i className="ri-arrow-right-s-line ana-map__open" aria-hidden="true" />
+          </button>
+
+          <div className="ana-map__branch" aria-label="Conteúdo oficial disponível para a Ana">
+            <div className="ana-map__source">
+              <i className="ri-file-list-3-line" aria-hidden="true" />
+              <span><strong>17</strong><small>Catálogos oficiais</small></span>
+            </div>
+            <div className="ana-map__source">
+              <i className="ri-pie-chart-2-line" aria-hidden="true" />
+              <span><strong>18</strong><small>Segmentos industriais</small></span>
+            </div>
+            <div className="ana-map__source">
+              <i className="ri-shopping-cart-2-line" aria-hidden="true" />
+              <span><strong>18</strong><small>Famílias de acessórios</small></span>
+            </div>
+          </div>
+
+          <span className="ana-map__merge ana-map__merge--three" aria-hidden="true" />
+          <span className="ana-map__connector" aria-hidden="true" />
+
+          <button type="button" aria-current={step === 2 ? 'step' : undefined} onClick={() => setStep(2)} className={`ana-map__node ana-map__node--conversation ${step === 2 ? 'is-active' : ''}`}>
+            <span className="ana-map__node-icon"><i className="ri-question-answer-line" aria-hidden="true" /></span>
+            <span className="ana-map__node-copy"><small>Etapa 3</small><strong>Conversa e qualificação</strong><span>Tom, apresentação e perguntas ao lead</span></span>
+            <i className="ri-arrow-right-s-line ana-map__open" aria-hidden="true" />
+          </button>
+
+          <span className="ana-map__connector" aria-hidden="true" />
+          <span className="ana-map__decision"><i className="ri-git-branch-line" aria-hidden="true" /> Próxima decisão</span>
+
+          <div className="ana-map__decisions">
+            <button type="button" aria-current={step === 3 ? 'step' : undefined} onClick={() => setStep(3)} className={`ana-map__node ana-map__node--commercial ${step === 3 ? 'is-active' : ''}`}>
+              <span className="ana-map__node-icon"><i className="ri-calendar-check-line" aria-hidden="true" /></span>
+              <span className="ana-map__node-copy"><small>Etapa 4</small><strong>Reunião e orçamento</strong><span>Lead pronto, sempre com aprovação humana</span></span>
+              <i className="ri-arrow-right-s-line ana-map__open" aria-hidden="true" />
+            </button>
+            <button type="button" aria-current={step === 4 ? 'step' : undefined} onClick={() => setStep(4)} className={`ana-map__node ana-map__node--handoff ${step === 4 ? 'is-active' : ''}`}>
+              <span className="ana-map__node-icon"><i className="ri-timer-line" aria-hidden="true" /></span>
+              <span className="ana-map__node-copy"><small>Etapa 5</small><strong>Cadência e handoff</strong><span>Sem resposta, risco ou baixa confiança</span></span>
+              <i className="ri-arrow-right-s-line ana-map__open" aria-hidden="true" />
+            </button>
+          </div>
+
+          <span className="ana-map__merge ana-map__merge--two" aria-hidden="true" />
+          <span className="ana-map__connector" aria-hidden="true" />
+
+          <button type="button" aria-current={step === 5 ? 'step' : undefined} onClick={() => setStep(5)} className={`ana-map__node ana-map__node--publish ${step === 5 ? 'is-active' : ''}`}>
+            <span className="ana-map__node-icon"><i className="ri-send-plane-line" aria-hidden="true" /></span>
+            <span className="ana-map__node-copy"><small>Etapa 6</small><strong>Canais e publicar</strong><span>Revisão final; publicar não ativa canais</span></span>
+            <i className="ri-arrow-right-s-line ana-map__open" aria-hidden="true" />
+          </button>
+        </nav>
+
+        <div className="ana-map__pipeline" aria-label="Pipeline comercial canônico">
+          <span>Novo</span><i className="ri-arrow-right-line" aria-hidden="true" />
+          <span>Apresentado</span><i className="ri-arrow-right-line" aria-hidden="true" />
+          <span>Qualificando</span><i className="ri-arrow-right-line" aria-hidden="true" />
+          <span>Reunião</span><i className="ri-arrow-right-line" aria-hidden="true" />
+          <span>Orçamento</span><i className="ri-arrow-right-line" aria-hidden="true" />
+          <span>Ganho / Perdido</span>
+        </div>
+      </section>
       <section className="card">
         <div className="card-head">
           <div>
