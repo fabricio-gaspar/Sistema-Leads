@@ -356,3 +356,20 @@ webhook em ambiente controlado.
 - O cadastro recriado com o telefone informado foi localizado de forma única e excluído pela
   transação operacional oficial, limitada à organização Wayflex.
 - A verificação confirmou zero lead, mensagem, fila, execução da Ana e vínculo de canal restantes.
+
+## Mapa visual interativo de Configurar a Ana — 13/09/2026
+
+- A navegação linear de **Configurar a Ana** foi reorganizada como um mapa de decisão moderno,
+  mantendo os seis formulários, estados e ações existentes. Cada bloco seleciona sua etapa; não
+  houve alteração no payload, na persistência, no botão de publicação ou na autoridade de
+  `ana-run`.
+- O mapa mostra Ana como IA sob controle humano, empresa/público, oferta permitida e Base
+  aprovada, os grupos oficiais de 17 catálogos, 18 segmentos e 18 famílias de acessórios,
+  conversa/qualificação, as decisões de reunião/orçamento e cadência/handoff, e a revisão final
+  de canais/publicação.
+- O pipeline canônico é exibido como orientação: Novo → Apresentado → Qualificando → Reunião →
+  Orçamento → Ganho/Perdido. O estado visual usa somente a versão carregada e alterações locais
+  pendentes; não declara canal, automação ou envio como ativo.
+- Type-check frontend e Edge Functions, lint sem warnings, 15 arquivos/159 testes e build de
+  produção passaram. Nenhuma mensagem, lead, tabela, integração, segredo ou configuração da Ana
+  foi alterada durante este delta exclusivamente visual.

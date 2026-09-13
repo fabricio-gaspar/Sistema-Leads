@@ -246,3 +246,14 @@
 - O cadastro recriado com o telefone informado foi localizado de forma única e removido pela
   mesma transação oficial, restrita à organização Wayflex.
 - Verificação posterior: zero lead, mensagem, item de fila, execução da Ana e vínculo de canal.
+
+## 2026-09-13 — Mapa visual de decisão da Ana
+
+- A navegação dos seis passos de Configurar a Ana foi convertida em um mapa interativo responsivo.
+  Os blocos reutilizam `setStep` e o formulário existente; save, publicação, repositório e payload
+  não foram modificados.
+- O diagrama representa a base aprovada por catálogos, segmentos e acessórios, o caminho de
+  qualificação, as decisões de reunião/orçamento e cadência/handoff, a revisão final e o pipeline
+  canônico. Estado publicado e alterações pendentes continuam derivados dos dados reais da tela.
+- Type-check frontend/Edge, lint, 15 arquivos/159 testes e build passaram. Não houve operação no
+  Supabase, envio de mensagem, alteração de integração, segredo ou dado operacional.
