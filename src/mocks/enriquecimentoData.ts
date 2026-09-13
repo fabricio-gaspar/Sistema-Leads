@@ -21,6 +21,8 @@ export interface PreviewLead {
   motivos: string[];
   canais: { whatsapp: boolean; email: boolean; site: boolean; instagram: boolean };
   selecionado: boolean;
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 export const leadsPreviewInicial: PreviewLead[] = [

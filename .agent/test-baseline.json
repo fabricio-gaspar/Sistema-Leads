@@ -1,12 +1,12 @@
 {
   "schema_version": 1,
-  "validated_commit": "09a42bdf2be5c1fd2bf50c3ceaffee73d7bb395c",
-  "last_validated_at": "2026-09-13T13:26:24-03:00",
+  "validated_commit": "1a2f0d1c40e20be475dd2eff34463228fe0a550e",
+  "last_validated_at": "2026-09-11T18:01:33-03:00",
   "commands": [
     {"command":"npm run type-check","status":"passed"},
     {"command":"npm run lint","status":"passed","warnings":0},
     {"command":"npm run type-check:edge","status":"passed"},
-    {"command":"npm test","status":"passed","files":15,"checks":159},
+    {"command":"vitest run --configLoader runner","status":"passed","files":16,"checks":165},
     {"command":"npm run build","status":"passed"},
     {"command":"runtime Worker smoke test com valores públicos simulados","status":"passed","note":"/runtime-config.js retorna no-store e entrega URL/chave somente em runtime; o bundle não contém os valores reais."}
   ],
@@ -23,6 +23,6 @@
     ]
   },
   "covered": ["frontend_typecheck","lint","edge_typecheck","unit_and_contract_tests","production_build"],
-  "not_covered": ["authenticated_e2e","real_whatsapp","real_claude","cross_organization_rls","database_concurrency","provider_receipt_race","mobile_authenticated_qa"],
-  "working_tree_validation": "passed: o mapa visual reutiliza os seis estados e handlers existentes; nenhum campo, payload, repositório ou fluxo de publicação foi alterado. A inspeção visual autenticada será concluída no Site oficial publicado."
+  "not_covered": ["authenticated_e2e","real_whatsapp","real_claude","cross_organization_rls","database_concurrency","provider_receipt_race","mobile_authenticated_qa","computer_use_visual_qa_unavailable_due_local_module_permission"],
+  "working_tree_validation": "passed: o gráfico do Dashboard agrega lead_messages operacionais das últimas 24 horas, separa entrada/saída, exclui notas internas e recebe alterações Realtime por organização. Type-check frontend/Edge, lint, 16 arquivos/165 testes, build Vite e artefato Worker aprovados."
 }

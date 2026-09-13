@@ -246,6 +246,77 @@
 - O cadastro recriado com o telefone informado foi localizado de forma única e removido pela
   mesma transação oficial, restrita à organização Wayflex.
 - Verificação posterior: zero lead, mensagem, item de fila, execução da Ana e vínculo de canal.
+# 2026-09-11 — Refinamento visual executivo
+
+- Interface refinada sem alterações operacionais. Dashboard usa as mesmas fontes remotas,
+  gráficos de distribuição e status por conexão; configurações reorganizadas por responsabilidade.
+- Type-check frontend/Edge, lint, 159 testes/15 arquivos, build Vite e Worker aprovados.
+- Recuperado Git HTTPS usando helper já instalado e OpenSSL. Publicação no Site oficial autorizada.
+
+# 2026-09-11 — Compactação do Dashboard
+
+- O Dashboard foi tornado mais compacto apenas por classes de apresentação: menos padding,
+  gaps e altura nos cards, barras e listas; nenhum dado, estado, regra ou integração mudou.
+- Type-check frontend/Edge, lint sem warnings, 15 arquivos/159 testes e build do artefato
+  do Site foram aprovados. QA visual autenticado não foi executado nesta rodada.
+
+# 2026-09-11 — Correção da busca Apify
+
+- Diagnóstico confirmado no banco: não havia `prospecting_runs` nem cache para as tentativas;
+  a inserção era recusada porque a função omitira `estimated_records` e `quote_expires_at`,
+  ambos obrigatórios no schema implantado.
+- `prospectar-leads` v6 foi publicada com os campos obrigatórios. A tela deixou de avançar por
+  temporizadores para uma revisão vazia e expõe erro/resultado vazio de forma distinta.
+- Type-check frontend/Edge, lint, build e 160 testes em 15 arquivos passaram. Nenhuma busca
+  externa foi disparada pelo agente.
+
+# 2026-09-11 — Sincronização do heartbeat legado
+
+- Causa confirmada: `automation-worker` atualiza a integração `scheduler`, que alimenta o diagnóstico operacional, mas o registro histórico `automation_heartbeats.automation_engine` não era atualizado desde agosto.
+- Aplicada a migration `20260911110000_sync_legacy_scheduler_heartbeat`: trigger privado sincroniza o heartbeat legado a cada novo `last_success_at` do scheduler e faz backfill da última confirmação existente.
+- Verificação no Supabase: trigger instalado; `automation_engine` em `success`, sem erro. Type-check frontend/Edge, lint e build passaram. O Vitest não iniciou neste worktree por limitação de resolução do esbuild através da dependência compartilhada; a migration foi verificada diretamente no banco.
+
+# 2026-09-11 — Busca Apify assíncrona e revisão geográfica
+
+- Foram encontrados dois `prospecting_runs` da organização Wayflex em `running`, com mais de
+  cinco minutos e sem `provider_run_id`; a implementação anterior aguardava o Actor na mesma
+  requisição. Os dois foram marcados como `legacy_provider_start_timeout`, sem apagar registros
+  ou tocar em leads, cache, integração ou Vault.
+- A Edge Function agora inicia a consulta, persiste a execução remota e permite polling
+  autenticado até `SUCCEEDED`. A revisão recebe resultado/cache apenas no término; coordenadas
+  válidas são mantidas para o mapa. Contratos cobrem início pendente, retomada concluída,
+  coordenadas e fronteira do Vault ao reparar Actor.
+- Validação: type-check frontend/Edge, lint, build e 15 arquivos/163 testes aprovados. Não foi
+  executada busca real pelo agente; Computer Use não pôde carregar o navegador por falha local
+  de permissão.
+
+# 2026-09-11 — Canais e APIs compacto e binário
+
+- O card do Dashboard foi reduzido para uma grade de nome + estado, sem provedor, horário ou
+  estados operacionais intermediários. Não alterou integrações, Edge Functions, banco, rotas ou
+  configuração.
+- A fonte permanece `operational-diagnostics`: **Conectado** requer conexão habilitada, sem
+  pausa/erro e validação dentro da janela do backend; os demais casos aparecem como
+  **Desconectado**.
+- Consulta somente-leitura confirmou o projeto Supabase oficial acessível pelo MCP. Foram
+  aprovados type-check frontend/Edge, lint, 15 arquivos/163 testes, build Vite e artefato
+  Worker. A publicação oficial da versão 73 foi confirmada, sem enviar mensagens nem alterar
+  dados operacionais.
+
+# 2026-09-11 — Gráfico Realtime de conversas no Dashboard
+
+- Consulta no projeto Supabase oficial confirmou que `lead_messages` ainda não participava de
+  `supabase_realtime`. A migration `20260911180000_enable_lead_messages_realtime` foi aplicada
+  e a verificação posterior confirmou a tabela publicada.
+- O Dashboard agora agrega mensagens operacionais da Central nas últimas 24 horas, separando
+  recebidas/enviadas e excluindo notas internas. A faixa do gráfico é horizontalmente rolável e
+  a assinatura Realtime é filtrada pela organização autenticada. O selo só diz Ao vivo após
+  `SUBSCRIBED`.
+- Type-check frontend/Edge, lint, 16 arquivos/165 testes, build Vite e artefato Worker passaram.
+  O commit `1a2f0d1c40e20be475dd2eff34463228fe0a550e` foi publicado no Site oficial como versão
+  74. Não houve envio de mensagem, alteração de lead, automação, integração ou configuração
+  comercial. A validação visual autenticada ficou pendente porque Computer Use falhou por
+  permissão antes de abrir a janela.
 
 ## 2026-09-13 — Mapa visual de decisão da Ana
 
@@ -255,5 +326,6 @@
 - O diagrama representa a base aprovada por catálogos, segmentos e acessórios, o caminho de
   qualificação, as decisões de reunião/orçamento e cadência/handoff, a revisão final e o pipeline
   canônico. Estado publicado e alterações pendentes continuam derivados dos dados reais da tela.
-- Type-check frontend/Edge, lint, 15 arquivos/159 testes e build passaram. Não houve operação no
-  Supabase, envio de mensagem, alteração de integração, segredo ou dado operacional.
+- Type-check frontend/Edge, lint, 15 arquivos/159 testes e build passaram antes da integração das
+  mudanças remotas já publicadas. Não houve operação no Supabase, envio de mensagem, alteração de
+  integração, segredo ou dado operacional.

@@ -5,6 +5,7 @@ const AI_MODELS = {
   openai: ['gpt-4.1-mini', 'gpt-4.1', 'gpt-4o-mini'],
   claude: ['claude-sonnet-5', 'claude-haiku-4-5', 'claude-opus-5'],
 } as const;
+const APIFY_GOOGLE_MAPS_ACTOR = 'compass/google-maps-extractor';
 
 type AiProvider = keyof typeof AI_MODELS;
 
@@ -52,9 +53,10 @@ Deno.serve(async (request) => {
     const apifyToken = asText(credenciais.api_token, 1_000);
     const actorId = asText(credenciais.actor_id, 300);
     const taskId = asText(credenciais.task_id, 300);
+    const useGoogleMapsActor = canal === 'apify' && credenciais.usar_actor_google_maps === true;
     const googleApiKey = asText(credenciais.api_key, 1_000);
     if (canal === 'whatsapp' && (!instanceId || !token || !clientToken)) throw new Error('zapi_credentials_required');
-    if (canal === 'apify' && (!apifyToken || (!actorId && !taskId))) throw new Error('apify_credentials_required');
+    if (canal === 'apify' && !useGoogleMapsActor && (!apifyToken || (!actorId && !taskId))) throw new Error('apify_credentials_required');
     if (canal === 'google_places' && !googleApiKey) throw new Error('google_places_credentials_required');
     const selectedAiProvider = asText(credenciais.provedor_principal, 30).toLowerCase();
     if (canal === 'ai' && !isAiProvider(selectedAiProvider)) throw new Error('ai_provider_required');
@@ -86,6 +88,23 @@ Deno.serve(async (request) => {
         : canal === 'google_places'
           ? { api_key: googleApiKey }
           : {};
+
+    if (canal === 'apify' && useGoogleMapsActor) {
+      const { data: storedSecret, error: storedSecretError } = await admin.rpc('read_integration_secret', { p_integration: integration.id });
+      if (storedSecretError) throw new Error('integration_secret_read_failed');
+      const previousCredentials = asObject(storedSecret);
+      const storedToken = asText(previousCredentials.api_token, 1_000);
+      if (!storedToken) throw new Error('apify_credentials_missing');
+      // O token nunca volta ao navegador: esta operação apenas troca o Actor no
+      // cofre e remove uma Task que poderia sobrepor o payload Google Maps.
+      credentials = {
+        ...previousCredentials,
+        api_token: storedToken,
+        actor_id: APIFY_GOOGLE_MAPS_ACTOR,
+        task_id: '',
+        input_json: asText(previousCredentials.input_json, 20_000),
+      };
+    }
 
     if (canal === 'ai') {
       const { data: storedSecret, error: storedSecretError } = await admin.rpc('read_integration_secret', { p_integration: integration.id });
@@ -142,7 +161,9 @@ Deno.serve(async (request) => {
     // salvamento deixava as chaves gravadas no cofre e a interface informando
     // o contrário. A homologação inbound é uma etapa própria: só será marcada
     // como pronta depois de um callback real controlado.
-    const publicConfiguration = canal === 'apify' ? { actor_id: actorId || null, task_id: taskId || null } : aiPublicConfiguration ?? {};
+    const publicConfiguration = canal === 'apify'
+      ? { actor_id: asText(credentials.actor_id, 300) || null, task_id: asText(credentials.task_id, 300) || null }
+      : aiPublicConfiguration ?? {};
     // store_integration_secret já atualiza a integração e preserva a referência
     // do cofre. Uma segunda atualização era redundante e podia falhar depois de
     // as credenciais terem sido salvas, prendendo o usuário no modal.
@@ -160,8 +181,8 @@ Deno.serve(async (request) => {
       }
     }
     const nonSecretFields = new Set(['token', 'api_token', 'api_key', 'client_token', 'openai_key', 'claude_key', 'webhook_token']);
-    const { error: auditError } = await admin.from('audit_logs').insert({ organization_id: organizationId, actor_id: user.id, actor_name: profile.name, actor_type: 'user', action: `integration.${canal}_configured`, detail: `Credenciais de ${definition.provider} guardadas no cofre seguro.`, entity_table: 'integrations', entity_id: integration.id, event_data: { provider: canal === 'ai' ? selectedAiProvider : definition.provider, model: canal === 'ai' ? selectedAiModel : null, configured_fields: Object.keys(credentials).filter((key) => !nonSecretFields.has(key) && Boolean(credentials[key])) } });
+    const { error: auditError } = await admin.from('audit_logs').insert({ organization_id: organizationId, actor_id: user.id, actor_name: profile.name, actor_type: 'user', action: `integration.${canal}_configured`, detail: useGoogleMapsActor ? 'Actor Google Maps atualizado no cofre seguro; valide a conexão antes de prospectar.' : `Credenciais de ${definition.provider} guardadas no cofre seguro.`, entity_table: 'integrations', entity_id: integration.id, event_data: { provider: canal === 'ai' ? selectedAiProvider : definition.provider, model: canal === 'ai' ? selectedAiModel : null, configured_fields: Object.keys(credentials).filter((key) => !nonSecretFields.has(key) && Boolean(credentials[key])), ...(useGoogleMapsActor ? { actor_strategy: 'google_maps' } : {}) } });
     if (auditError) console.error('integration_audit_log_failed', { canal, integrationId: integration.id });
-    return json({ ok: true, mensagem: 'Credenciais guardadas com segurança. Valide a conexão para ativar a fonte.' }, 200, headers);
+    return json({ ok: true, mensagem: useGoogleMapsActor ? 'Actor Google Maps atualizado com segurança. Valide a conexão para ativar a fonte.' : 'Credenciais guardadas com segurança. Valide a conexão para ativar a fonte.' }, 200, headers);
   } catch (error) { return json({ ok: false, erro: safeError(error) }, 400, headers); }
 });

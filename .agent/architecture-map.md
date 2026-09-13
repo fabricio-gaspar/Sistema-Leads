@@ -19,7 +19,9 @@
 Antes de chamar o provedor, o worker reserva a política de cadência por lead e registra a
 aceitação separadamente do recibo de entrega/leitura. A reserva impede extrapolar o limite
 diário em concorrência; recibos antecipados ainda dependem de nova reconciliação do callback.
-6. Central de Atendimento lê `leads` + `lead_messages`; Kanban lê e grava o mesmo lead.
+6. Central de Atendimento lê `leads` + `lead_messages`; Kanban lê e grava o mesmo lead. O
+   Dashboard deriva o gráfico de conversas dessa mesma leitura e assina alterações autorizadas
+   de `lead_messages` por organização no Supabase Realtime.
 7. Registro do Sistema consolida auditoria, execuções, entrada, fila e riscos.
 
 ## Limites de responsabilidade

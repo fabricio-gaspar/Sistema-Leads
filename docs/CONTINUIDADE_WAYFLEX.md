@@ -1,5 +1,22 @@
 # Checkpoint — WayFlex CRM
 
+## Refinamento visual executivo — 11/09/2026
+
+- PUBLICADO: Site oficial versão 69, commit `5893352d252c61fb03dcc35b005757c3f4d6995c`,
+  deploy confirmado como succeeded. Audiência privada preservada.
+
+- Dashboard apresenta indicadores da carteira, barras proporcionais por etapa do Kanban,
+  temperatura de leads abertos, conexões com estado individual e acompanhamento humano.
+  Não exibe atalhos de começo/meio/fim nem gráficos de evolução sem dados históricos.
+- Configurações agrupadas em Operação e conexões, Empresa e inteligência, Gestão comercial
+  e Segurança e controle. Canais, APIs e fontes preservam seus componentes e ações existentes.
+- Refinamento compartilhado de superfícies, espaçamento, tipografia, foco e menu lateral.
+  Nenhuma alteração em hooks, repositórios, regras de domínio, Edge Functions ou dados.
+- Validação: type-check frontend/Edge, lint e 159 testes em 15 arquivos passaram. Build Vite
+  e artefato Worker concluídos. Sem QA visual autenticado nesta rodada.
+- Git HTTPS recuperado com o helper existente em mingw64/bin e TLS OpenSSL por comando;
+  credenciais temporárias não foram persistidas.
+
 Última atualização: 2026-09-10. Este documento permite retomar o trabalho quando
 Fabricio disser **“pode seguir”**, sem depender do histórico da conversa.
 
@@ -357,6 +374,81 @@ webhook em ambiente controlado.
   transação operacional oficial, limitada à organização Wayflex.
 - A verificação confirmou zero lead, mensagem, fila, execução da Ana e vínculo de canal restantes.
 
+## Sincronização do heartbeat legado — 11/09/2026
+
+- A telemetria operacional atual já usa a integração `scheduler`, atualizada pelo worker server-side. A tabela histórica `automation_heartbeats`, porém, permanecia em `never` desde agosto e podia induzir relatórios legados a indicar uma falha inexistente.
+- A migration `20260911110000_sync_legacy_scheduler_heartbeat` instala um trigger que espelha toda nova confirmação de `integrations.last_success_at` do scheduler para `automation_heartbeats.automation_engine`. O registro existente foi preenchido com a última execução confirmada.
+- A verificação posterior confirmou trigger instalado e `automation_engine` em `success`, sem erro. Nenhuma mensagem, lead, configuração da Ana ou modo operacional foi alterado.
+
+## Dashboard operacional sem atalhos redundantes — 11/09/2026
+
+- O Dashboard deixou de repetir a navegação do menu. A área principal agora prioriza indicadores de leads, handoffs, orçamentos, estado real de APIs/canais, fila, Kanban e alertas operacionais.
+- Os agrupamentos do menu foram renomeados para Prospecção, Atendimento e Comercial. Não há mais rótulos de começo, meio ou fim no layout.
+
+## Dashboard compacto — 11/09/2026
+
+- Somente a apresentação visual do Dashboard foi reduzida: cards, barras, listas e blocos de status usam menos altura e espaçamento, preservando os mesmos dados, estados, filtros, rotas e regras.
+- Validação local: type-check do frontend e Edge Functions, lint sem warnings, 15 arquivos/159 testes e build do artefato do Site passaram.
+- Nenhum dado do Supabase, configuração, integração, mensagem, fila ou automação foi alterado. A inspeção visual autenticada permanece pendente nesta rodada.
+- PUBLICADO: Site oficial versão 70, commit `3862ca243a5be0645e8dbfacb4b45c6282a7f2c2`, com deploy confirmado como succeeded e audiência existente preservada.
+
+## Busca Apify — execução real e revisão fiel — 11/09/2026
+
+- Causa confirmada: `prospectar-leads` tentava inserir em `prospecting_runs` sem os campos obrigatórios `estimated_records` e `quote_expires_at`. O banco recusava a criação antes de qualquer chamada à Apify; por isso não havia execução, cache ou lead para exibir.
+- A função publicada `prospectar-leads` v6 agora grava esses campos com o volume solicitado e o instante da execução, mantendo a consulta direta sem confirmação/cobrança inventada.
+- A Busca manual não simula mais enriquecimento, Ana ou remoção de duplicados por temporizadores. Em falha, ela permanece nos filtros e mostra o erro; em retorno vazio real, a revisão mostra a ausência de resultados sem tabela enganosa. O mapeamento também reconhece os campos reais retornados pelo provedor.
+- Validação local: type-check frontend/Edge, lint, 15 arquivos/160 testes e build passaram. Nenhuma nova busca Apify foi disparada durante a correção.
+- PUBLICADO: Site oficial versão 71, commit `e551635f180c4606ccedf27dac70393b443eb4b6`, com deploy confirmado como succeeded e audiência existente preservada.
+
+## Busca de Leads — mapa, revisão e execução retomável — 11/09/2026
+
+- A busca manual agora usa quatro etapas reais: **Fonte**, **Filtros**, **Revisão** e **Importação**. O seletor mantém fontes de prospecção não validadas visíveis, mas bloqueadas com orientação; cidade, UF, raio de cobertura, tipo/nicho, porte, contatos e quantidade são definidos antes da consulta.
+- A revisão só abre depois de uma resposta final do provedor. Ela mostra lista selecionável, duplicados, contatos, contagem real de WhatsApp/e-mail e mapa OpenStreetMap dos resultados que vierem com latitude e longitude. Resultado sem coordenada continua na lista; nenhum marcador ou localização é inventado.
+- A importação exige seleção explícita e só então cria a lista e navega para **Leads**. Ela não envia apresentação, não aciona a Ana e não dispara WhatsApp.
+- Causa adicional confirmada: o endpoint anterior esperava a finalização da Apify na mesma requisição. Duas execuções ficaram sem `provider_run_id` e não podiam ser retomadas. Esses dois registros específicos foram preservados e marcados como `legacy_provider_start_timeout`; nenhum lead, cache ou dado comercial foi removido.
+- `prospectar-leads` v8 agora inicia a execução rapidamente, grava o identificador do provedor e é consultado pelo painel até a conclusão. Somente após `SUCCEEDED` a função lê o dataset, grava o cache e conclui a execução. Falha/cancelamento do provedor não é apresentado como resultado vazio.
+- A configuração pública atual da fonte indica Actor Google Maps e nenhuma Task. Se um `apify_http_400` voltar a ocorrer, o cartão da Apify apresenta **Corrigir Actor Google Maps**: a ação server-side preserva o token no Vault, troca somente o Actor e pede uma nova validação antes de habilitar a fonte. `configurar-integracao` v16 e `prospectar-leads` v8 estão ativos, ambos com JWT obrigatório.
+- Validação local: type-check frontend/Edge, lint, build e 15 arquivos/163 testes passaram. Não foi iniciada nova busca externa pelo agente, não houve importação de leads, mensagem, alteração da Ana ou exposição de segredo. A validação visual autenticada por Computer Use ficou pendente porque o módulo local do navegador recusou carregamento por permissão.
+- PUBLICADO: Site oficial versão 72, commit `78f41985b5c38b799849b503800cb7c4d0c293ad`, com deploy confirmado como `succeeded` e audiência customizada preservada.
+
+## Dashboard — Canais e APIs compacto — 11/09/2026
+
+- O card **Canais e APIs** foi reduzido a uma grade compacta com o nome de cada conexão e um
+  único estado: **Conectado** ou **Desconectado**. Foram removidos provedor, data de teste e
+  estados intermediários apenas dessa apresentação.
+- O dado não é local nem decorativo: o Dashboard continua a consumir `operational-diagnostics`
+  autenticado. O backend só entrega `online` quando a integração está conectada, habilitada,
+  sem pausa/erro e com validação dentro de 24 horas. O card traduz qualquer outro estado para
+  **Desconectado**.
+- A consulta somente-leitura ao projeto Supabase oficial foi concluída pelo MCP. Nenhuma
+  integração, dado, segredo, mensagem, fila ou automação foi alterado nesta rodada.
+- Validação: type-check frontend/Edge, lint sem warnings, 15 arquivos/163 testes, build Vite e
+  artefato Worker aprovados. QA visual autenticado não foi executado nesta rodada.
+- PUBLICADO: Site oficial versão 73, commit `fb8fce803d77ac3235e75f22f9d82586786bc5a1`, com
+  deploy confirmado como `succeeded` e audiência customizada preservada.
+
+## Dashboard — conversas reais em tempo real — 11/09/2026
+
+- O Dashboard passou a exibir um gráfico horizontalmente rolável das últimas 24 horas de
+  conversas. Ele agrega exclusivamente `lead_messages` carregadas pela Central: separa
+  recebidas de enviadas, exclui notas internas e mostra estado vazio quando não houver mensagem
+  operacional no período. Não há seed, estimativa ou série de conteúdo inventado.
+- A migration `20260911180000_enable_lead_messages_realtime` foi aplicada no projeto Supabase
+  oficial. A verificação posterior confirmou `public.lead_messages` na publicação
+  `supabase_realtime`; o assinante do Dashboard é filtrado por `organization_id` e recarrega a
+  fonte operacional ao receber INSERT, UPDATE ou DELETE autorizado por RLS.
+- O selo “Ao vivo” só é apresentado depois de `SUBSCRIBED`. Falha, timeout ou ausência de sessão
+  deixam explícito que a consulta permanece real, mas que a página deve ser atualizada até a
+  conexão em tempo real voltar.
+- Validação local: type-check frontend/Edge, lint sem warnings, 16 arquivos/165 testes, build
+  Vite e artefato do Site aprovados. O teste novo cobre a janela de 24 horas, direção das
+  mensagens e exclusão de nota interna. Não houve envio de mensagem, mudança de integração,
+  lead, automação ou configuração comercial.
+- PUBLICADO: Site oficial versão 74, commit `1a2f0d1c40e20be475dd2eff34463228fe0a550e`, com
+  deploy confirmado como `succeeded` e audiência customizada preservada. A inspeção visual
+  autenticada não foi possível porque o runtime local de Computer Use falhou antes de acessar a
+  janela por permissão; não declarar essa checagem como concluída.
+
 ## Mapa visual interativo de Configurar a Ana — 13/09/2026
 
 - A navegação linear de **Configurar a Ana** foi reorganizada como um mapa de decisão moderno,
@@ -371,5 +463,6 @@ webhook em ambiente controlado.
   Orçamento → Ganho/Perdido. O estado visual usa somente a versão carregada e alterações locais
   pendentes; não declara canal, automação ou envio como ativo.
 - Type-check frontend e Edge Functions, lint sem warnings, 15 arquivos/159 testes e build de
-  produção passaram. Nenhuma mensagem, lead, tabela, integração, segredo ou configuração da Ana
-  foi alterada durante este delta exclusivamente visual.
+  produção passaram antes da integração das mudanças remotas já publicadas. Nenhuma mensagem,
+  lead, tabela, integração, segredo ou configuração da Ana foi alterada durante este delta
+  exclusivamente visual.

@@ -2,14 +2,14 @@
   "schema_version": 1,
   "baseline_version": 3,
   "baseline_commit": "1fbd231ff88b4e02c3ddddd18253a1f3be8be5ee",
-  "last_audited_commit": "09a42bdf2be5c1fd2bf50c3ceaffee73d7bb395c",
-  "current_head_at_update": "09a42bdf2be5c1fd2bf50c3ceaffee73d7bb395c",
-  "working_tree_status": "ana_decision_map_validated_pending_publication",
+  "last_audited_commit": "1a2f0d1c40e20be475dd2eff34463228fe0a550e",
+  "current_head_at_update": "1a2f0d1c40e20be475dd2eff34463228fe0a550e",
+  "working_tree_status": "site_v74_integrated; ana_decision_map_validated_pending_publication",
   "last_site_publication": {
-    "commit": "228be6a36dff00982860e7a8cb9ee33e91c5f778",
-    "working_tree_status": "ana_publish_button_clarity_published_site_v68",
-    "site_version": 68,
-    "validated_at": "2026-09-10T23:25:00Z"
+    "commit": "1a2f0d1c40e20be475dd2eff34463228fe0a550e",
+    "site_version": 74,
+    "validated_at": "2026-09-11T18:01:33-03:00",
+    "working_tree_status": "published"
   },
   "full_audit_required": false,
   "baseline_status": "validated",

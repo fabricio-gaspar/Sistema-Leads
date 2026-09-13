@@ -61,6 +61,9 @@ orçamentos. Não é sistema de venda, checkout, pedido ou recebimento.
 - O Dashboard organiza o processo em **Começo · captar**, **Meio · atender** e
   **Final · fechar**. Os cartões Ambiente Real, Z-API, entrada WhatsApp, Ana, worker e
   fontes são calculados pelo diagnóstico do backend; não há indicador decorativo de online.
+- O Dashboard também consolida a atividade das conversas a partir de `lead_messages` reais.
+  A assinatura Realtime é restrita à organização autenticada e o selo de atualização ao vivo só
+  é exposto após a confirmação de inscrição pelo Supabase.
 - Configurações separa responsabilidades em **Canais**, **APIs** e **Fontes**. A validação
   e o teste direto da Z-API ficam exclusivamente no bloco Canais > WhatsApp.
 - Build, lint, typecheck e 104 testes estavam aprovados no commit-base.
