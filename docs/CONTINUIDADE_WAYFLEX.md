@@ -480,3 +480,5 @@ webhook em ambiente controlado.
   `ana-run`, Dashboard, Busca/Apify e Realtime foram preservados.
 - Type-check frontend/Edge, lint sem warnings, 16 arquivos/165 testes e build de produção
   passaram. Nenhum dado, mensagem, integração, segredo ou configuração da Ana foi alterado.
+- PUBLICADO: Site oficial versão 76, commit `0b7892bd048c47d37be1d7985b9cfafaa61d8d26`,
+  com deploy confirmado como `succeeded` e audiência owner-only preservada.

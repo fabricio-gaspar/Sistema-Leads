@@ -341,3 +341,5 @@
   preservados.
 - Type-check frontend/Edge, lint, 16 arquivos/165 testes e build passaram. Nenhum dado, mensagem,
   integração, segredo ou configuração operacional foi alterado.
+- PUBLICADO: Site oficial versão 76, commit `0b7892bd048c47d37be1d7985b9cfafaa61d8d26`,
+  com deploy `succeeded` e audiência owner-only preservada.
