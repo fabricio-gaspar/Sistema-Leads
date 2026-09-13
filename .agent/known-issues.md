@@ -10,9 +10,6 @@
 - Um callback de entrega/leitura que chegue antes da persistência da aceitação do provedor pode
   ficar sem correspondência até o provedor repetir o callback. Não declarar entrega/leitura
   confiável antes de uma homologação específica.
-- Se o provedor aceitar uma saída e a persistência local da aceitação falhar, o job fica em
-  `reconciliation_required`; ainda falta uma rotina server-side que conclua automaticamente
-  job e rascunho a partir de um recibo posterior.
 
 ## Alto
 
@@ -40,6 +37,13 @@
 - O advisor aponta 111 índices sem uso; aguardar janela representativa antes de remover qualquer um.
 - Funções RPC de handoff usam `SECURITY DEFINER` intencionalmente para efetivar a operação
   transacional sob RLS, com validação de membro, organização e papel no corpo da função.
+
+## Resolvido em 13/09/2026
+
+- A falha posterior ao aceite Z-API foi localizada nas formas SQL especiais
+  `pg_catalog.coalesce/nullif`. As funções atômicas foram corrigidas e a rotina
+  `reconcile_provider_accepted_outreach` finaliza somente registros com identificador do
+  provedor comprovado, sem fazer nova chamada externa. Seis jobs históricos foram conciliados.
 
 ## Sugestões, não bugs
 

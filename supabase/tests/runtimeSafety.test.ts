@@ -6,10 +6,14 @@ const ready = {
   company: { active: true, sandbox_mode: false, can_use_ia: true, ai_actions_enabled: true },
   ai: { enabled: true, connected: true, paused: false },
   runtime: { killSwitchGlobal: false },
-  lead: { owner_id: 'owner', modo_atendimento: 'ia', ai_paused: false, opt_out: false },
+  lead: { owner_id: 'owner', modo_atendimento: 'ia', ai_paused: false, opt_out: false, contact_approval_status: 'approved' },
 };
 describe('backend safety authority', () => {
   it('allows only explicitly ready automation', () => expect(automationBlockReason(ready)).toBeNull());
+  it('requires recorded approval for proactive automation', () => {
+    expect(automationBlockReason({ ...ready, lead: { ...ready.lead, contact_approval_status: 'pending' }, requiresApprovedContact: true })).toBe('contact_approval_required');
+    expect(automationBlockReason({ ...ready, lead: { ...ready.lead, contact_approval_status: 'pending' } })).toBeNull();
+  });
   it.each([
     [{ ...ready, company: null }, 'company_inactive'],
     [{ ...ready, company: { ...ready.company, active: false } }, 'company_inactive'],

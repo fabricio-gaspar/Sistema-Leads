@@ -62,14 +62,26 @@ export interface OperationalEvent {
   event_type?: string;
   error?: string | null;
   processed_at?: string | null;
+  run_at?: string | null;
+  scheduled_for?: string | null;
+  sent_at?: string | null;
+  delivered_at?: string | null;
+  read_at?: string | null;
+  replied_at?: string | null;
+  failed_at?: string | null;
+  channel?: string;
+  attempt?: number;
+  lead_id?: string;
 }
 
 export interface OperationalDiagnostics {
   status: OperationalStatus;
-  summary: { queuedJobs: number; failedJobs: number; openRiskEvents: number };
+  summary: { queuedJobs: number; failedJobs: number; reconciliationJobs: number; openRiskEvents: number };
   audit: OperationalEvent[];
   runs: OperationalEvent[];
   inbound: OperationalEvent[];
+  jobs: OperationalEvent[];
+  outreach: OperationalEvent[];
   risks: Array<{ id: string; channel: string; risk_level: string; action: string; reason: string; created_at: string }>;
 }
 

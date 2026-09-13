@@ -22,10 +22,22 @@ export interface CrmLeadRow {
   opt_out: boolean | null;
   ai_paused: boolean | null;
   automation_status: string | null;
+  contact_approval_status?: string | null;
+  contact_approval_reason?: string | null;
+  contact_approved_at?: string | null;
+  contact_approved_by?: string | null;
   active_channel: string | null;
   city: string | null;
   size: string | null;
   source_metadata: Record<string, unknown> | null;
+  source_record_id?: string | null;
+  source_url?: string | null;
+  deduplication_key?: string | null;
+  prospect_identity?: string | null;
+  score_snapshot?: Record<string, unknown> | null;
+  score_explanation?: string | null;
+  score_source?: string | null;
+  score_verified_at?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -115,8 +127,26 @@ function leadChannelLabel(value: string | null): string | undefined {
   return ({ whatsapp: 'WhatsApp', email: 'E-mail', instagram: 'Instagram', voice: 'VoIP' } as Record<string, string>)[canonicalLeadChannel(value) ?? ''] ?? value ?? undefined;
 }
 
+function normalizedIdentity(lead: Lead): string | null {
+  const cnpj = lead.cnpj.replace(/\D/g, '');
+  if (cnpj.length === 14) return `cnpj:${cnpj}`;
+  const whatsapp = lead.whatsapp.replace(/\D/g, '');
+  if (whatsapp.length >= 10) return `whatsapp:${whatsapp}`;
+  const email = lead.email.trim().toLowerCase();
+  if (email) return `email:${email}`;
+  const company = lead.empresa.toLocaleLowerCase('pt-BR').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+  return company ? `company:${company}` : null;
+}
+
 export function leadToCrmRow(lead: Lead, organizationId: string): Partial<CrmLeadRow> & { organization_id: string; company: string } {
   const ana = legacyToAnaStage[lead.etapa] ?? { stage: lead.anaStage ?? 'novo', outcome: lead.anaOutcome ?? undefined };
+  const approvalStatus = lead.contactApprovalStatus ?? (lead.contatoPermitido ? 'approved' : 'pending');
+  const scoreSnapshot = {
+    fit: Math.max(0, Math.min(100, Math.round(lead.fitScore ?? lead.score))),
+    contactability: Math.max(0, Math.min(100, Math.round(lead.contactabilityScore ?? 0))),
+    engagement: Math.max(0, Math.min(100, Math.round(lead.engagementScore ?? 0))),
+  };
+  const identity = lead.deduplicationKey || normalizedIdentity(lead);
   return {
     id: persistentLeadId(lead.id),
     organization_id: organizationId,
@@ -136,13 +166,24 @@ export function leadToCrmRow(lead: Lead, organizationId: string): Partial<CrmLea
     owner: lead.responsavel || 'ia',
     owner_id: lead.responsavelId && isUuid(lead.responsavelId) ? lead.responsavelId : null,
     assigned_to: lead.responsavelId && isUuid(lead.responsavelId) ? lead.responsavelId : null,
-    opt_out: Boolean(lead.bloqueado || lead.contatoPermitido === false),
+    opt_out: Boolean(lead.bloqueado || approvalStatus === 'rejected'),
     ai_paused: (lead.modoAtendimento ?? 'IA') === 'HUMANO',
-    automation_status: lead.automacaoStatus === 'AGUARDANDO_HUMANO' ? 'human' : lead.automacaoStatus === 'PAUSADA' ? 'paused' : 'running',
+    automation_status: approvalStatus !== 'approved' ? 'pending_approval' : lead.automacaoStatus === 'AGUARDANDO_HUMANO' ? 'human' : lead.automacaoStatus === 'PAUSADA' ? 'paused' : 'running',
+    contact_approval_status: approvalStatus,
+    contact_approval_reason: lead.contactApprovalReason?.trim() || null,
+    contact_approved_at: approvalStatus === 'approved' ? (lead.contactApprovedAt || new Date().toISOString()) : null,
     active_channel: canonicalLeadChannel(lead.canalPreferencial),
     city: lead.cidade || null,
     size: lead.porte || null,
-    source_metadata: { cnpj: lead.cnpj, estado: lead.estado, tags: lead.tags, cargo: lead.cargo, campanha: lead.campanha },
+    source_record_id: lead.sourceRecordId?.trim() || null,
+    source_url: lead.sourceUrl?.trim() || null,
+    deduplication_key: identity,
+    prospect_identity: identity,
+    score_snapshot: scoreSnapshot,
+    score_explanation: lead.scoreExplanation?.trim() || null,
+    score_source: lead.origem.trim() || null,
+    score_verified_at: lead.scoreVerifiedAt || new Date().toISOString(),
+    source_metadata: { cnpj: lead.cnpj, estado: lead.estado, tags: lead.tags, cargo: lead.cargo, campanha: lead.campanha, score_breakdown: scoreSnapshot },
   };
 }
 
@@ -155,20 +196,28 @@ export function crmRowToLead(row: CrmLeadRow): Lead {
   const score = row.score ?? 0;
   const isHuman = row.modo_atendimento === 'humano' || row.ai_paused || row.automation_status === 'human';
   const etapaAna = row.ana_stage ? (row.ana_stage === 'fechado' && row.ana_outcome === 'perdido' ? 'Perdido' : anaStageToLegacy[row.ana_stage] ?? 'Novo') : (stageToLegacy[row.stage] ?? 'Novo');
+  const scoreSnapshot = row.score_snapshot ?? (meta.score_breakdown && typeof meta.score_breakdown === 'object' ? meta.score_breakdown as Record<string, unknown> : {});
+  const approvalStatus = row.contact_approval_status === 'approved' || row.contact_approval_status === 'rejected' ? row.contact_approval_status : 'pending';
+  const isContactApproved = row.contact_approval_status == null ? !row.opt_out : approvalStatus === 'approved';
   return {
     id: row.id, nome: row.contact ?? '', empresa: row.company,
-    cnpj: typeof meta.cnpj === 'string' ? meta.cnpj : '—', email: row.email ?? '', telefone: row.phone ?? '', whatsapp: row.whatsapp ?? row.phone ?? '',
+    cnpj: typeof meta.cnpj === 'string' ? meta.cnpj : '—', email: row.email ?? '', telefone: row.phone ?? '', whatsapp: row.whatsapp ?? '',
     segmento: row.segment ?? '', cidade: row.city ?? '', estado: typeof meta.estado === 'string' ? meta.estado : '', porte: row.size ?? '',
     score, temperatura: temperature(row.temp, score), etapa: etapaAna, origem: row.origin ?? '',
     responsavel: row.owner === 'ia' || !row.owner ? 'Ana (IA)' : row.owner,
     tags: Array.isArray(meta.tags) ? meta.tags.filter((tag): tag is string => typeof tag === 'string') : [],
     ultimaInteracao: row.updated_at ? new Date(row.updated_at).toLocaleDateString('pt-BR') : '—', criadoEm: row.created_at.slice(0, 10),
     cargo: typeof meta.cargo === 'string' ? meta.cargo : undefined, campanha: typeof meta.campanha === 'string' ? meta.campanha : undefined,
-    modoAtendimento: isHuman ? 'HUMANO' : 'IA', automacaoStatus: isHuman ? 'AGUARDANDO_HUMANO' : row.automation_status === 'paused' ? 'PAUSADA' : 'ATIVA',
+    modoAtendimento: isHuman ? 'HUMANO' : 'IA', automacaoStatus: isHuman ? 'AGUARDANDO_HUMANO' : row.automation_status === 'running' && approvalStatus === 'approved' ? 'ATIVA' : 'PAUSADA',
     responsavelId: row.owner_id ?? row.assigned_to ?? undefined, canalPreferencial: leadChannelLabel(row.active_channel),
     anaStage: row.ana_stage as Lead['anaStage'], anaOutcome: row.ana_outcome === 'ganho' || row.ana_outcome === 'perdido' ? row.ana_outcome : null,
     intencao: null, sentimento: 'NEUTRO', confianca: 0, proximaAcao: null, motivoTransferencia: '', nextFollowUpAt: null, timeoutAt: null,
-    followUpCount: 0, maxFollowUps: 2, automationEvents: [], historico: [], bloqueado: Boolean(row.opt_out), contatoPermitido: !row.opt_out,
-    consentimentoWhatsApp: false, consentimentoEmail: false, primeiroContatoEnviadoEm: null, aguardandoAtivacao: false, noShows: 0, fluxosProgramados: [], arquivado: false,
+    followUpCount: 0, maxFollowUps: 2, automationEvents: [], historico: [], bloqueado: Boolean(row.opt_out), contatoPermitido: isContactApproved && !row.opt_out,
+    consentimentoWhatsApp: isContactApproved && canonicalLeadChannel(row.active_channel) === 'whatsapp', consentimentoEmail: isContactApproved && canonicalLeadChannel(row.active_channel) === 'email',
+    contactApprovalStatus: approvalStatus, contactApprovalReason: row.contact_approval_reason ?? '', contactApprovedAt: row.contact_approved_at ?? null,
+    sourceRecordId: row.source_record_id ?? undefined, sourceUrl: row.source_url ?? undefined, deduplicationKey: row.deduplication_key ?? undefined,
+    fitScore: typeof scoreSnapshot.fit === 'number' ? scoreSnapshot.fit : score, contactabilityScore: typeof scoreSnapshot.contactability === 'number' ? scoreSnapshot.contactability : 0,
+    engagementScore: typeof scoreSnapshot.engagement === 'number' ? scoreSnapshot.engagement : 0, scoreExplanation: row.score_explanation ?? '', scoreVerifiedAt: row.score_verified_at ?? null,
+    primeiroContatoEnviadoEm: null, aguardandoAtivacao: approvalStatus !== 'approved', noShows: 0, fluxosProgramados: [], arquivado: false,
   };
 }

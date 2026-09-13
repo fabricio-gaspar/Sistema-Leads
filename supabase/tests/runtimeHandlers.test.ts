@@ -19,7 +19,7 @@ const integrationId = 'c1111111-1111-4111-8111-111111111111';
 const anaConfigurationVersionId = 'd1111111-1111-4111-8111-111111111111';
 const readyCompany = { active: true, sandbox_mode: false, can_use_ia: true, ai_actions_enabled: true };
 const readyIntegration = { id: integrationId, organization_id: org, provider: 'zapi', enabled: true, connected: true, paused: false };
-const readyLead = { id: leadId, organization_id: org, owner_id: 'owner', assigned_to: 'owner', modo_atendimento: 'ia', ai_paused: false, opt_out: false, ana_stage: 'novo', score: 0, active_channel: 'whatsapp', phone: '(11) 99999-0000', first_inbound_at: null };
+const readyLead = { id: leadId, organization_id: org, owner_id: 'owner', assigned_to: 'owner', modo_atendimento: 'ia', ai_paused: false, opt_out: false, contact_approval_status: 'approved', ana_stage: 'novo', score: 0, active_channel: 'whatsapp', phone: '(11) 99999-0000', first_inbound_at: null };
 const readyAnaConfiguration = {
   dailyMessageLimit: 5,
   allowedChannels: ['whatsapp', 'email'],
@@ -135,7 +135,7 @@ describe('Prospecting handler persistence contract', () => {
     expect(await response.json()).toMatchObject({
       ok: true,
       sourceKey: 'apify',
-      leads: [{ razao_social: 'Borracharia de teste', latitude: -23.5505, longitude: -46.6333 }],
+      leads: [{ razao_social: 'Borracharia de teste', latitude: -23.5505, longitude: -46.6333, whatsapp: null, contact_approval_status: 'pending' }],
     });
     expect(calls.find((q) => q.table === 'prospecting_runs' && q.operation === 'insert')?.value).toMatchObject({
       requested_quantity: 30,

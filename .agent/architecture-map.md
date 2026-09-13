@@ -24,6 +24,22 @@ diário em concorrência; recibos antecipados ainda dependem de nova reconcilia�
    de `lead_messages` por organização no Supabase Realtime.
 7. Registro do Sistema consolida auditoria, execuções, entrada, fila e riscos.
 
+## Guardas de contato e inteligência
+
+- `phone` é telefone; somente `whatsapp` comprovado identifica o canal WhatsApp.
+- `leads.contact_approval_status = approved` e `contact_approved_at` são pré-condições para
+  qualquer saída automática. A aprovação pode ser registrada pelo operador com motivo ou por
+  uma mensagem individual iniciada pelo próprio lead.
+- O score operacional mantém três eixos: aderência ao ICP, contactabilidade e engajamento. A
+  origem externa fica em `source_record_id`, `source_url` e `deduplication_key`.
+- `ana-run` combina a leitura lexical da Base aprovada com `match_knowledge_chunks` quando o
+  embedding existe. Sem vetor/provedor, permanece no fallback lexical e não inventa conteúdo.
+- Reunião só é criada após horário explícito, disponibilidade Google Calendar e idempotência.
+  Falha ou ambiguidade gera handoff, não confirmação fictícia.
+- `record_outreach_provider_acceptance` grava aceite; `reconcile_whatsapp_receipt` promove para
+  entregue/lida; `reconcile_provider_accepted_outreach` corrige persistência local após aceite
+  comprovado e nunca reenvia.
+
 ## Limites de responsabilidade
 
 | Camada | Responsabilidade |

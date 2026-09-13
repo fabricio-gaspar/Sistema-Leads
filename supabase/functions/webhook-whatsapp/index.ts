@@ -328,6 +328,9 @@ Deno.serve(async (request) => {
       last_contact: receivedAt,
       no_reply_deadline_at: null,
       no_reply_processed_at: null,
+      contact_approval_status: 'approved',
+      contact_approval_reason: 'Contato iniciou uma conversa individual no WhatsApp.',
+      contact_approved_at: receivedAt,
     }).eq('organization_id', integration.organization_id).eq('id', lead.id);
     if (leadUpdateError) throw new Error('inbound_lead_update_failed');
 

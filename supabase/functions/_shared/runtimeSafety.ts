@@ -6,7 +6,7 @@ export interface CompanySafety {
   ai_actions_enabled?: boolean | null;
 }
 export interface IntegrationSafety { connected?: boolean | null; enabled?: boolean | null; paused?: boolean | null }
-export interface LeadSafety { owner_id?: string | null; modo_atendimento?: string | null; ai_paused?: boolean | null; opt_out?: boolean | null }
+export interface LeadSafety { owner_id?: string | null; modo_atendimento?: string | null; ai_paused?: boolean | null; opt_out?: boolean | null; contact_approval_status?: string | null }
 
 export function automationBlockReason(input: {
   company: CompanySafety | null;
@@ -14,6 +14,7 @@ export function automationBlockReason(input: {
   runtime: { killSwitchGlobal?: unknown } | null;
   lead?: LeadSafety | null;
   dryRun?: boolean;
+  requiresApprovedContact?: boolean;
 }): string | null {
   if (!input.company || input.company.active !== true) return 'company_inactive';
   if (input.company.sandbox_mode !== false && !input.dryRun) return 'sandbox_mode';
@@ -26,6 +27,7 @@ export function automationBlockReason(input: {
     if (input.lead.modo_atendimento !== 'ia') return 'human_mode';
     if (input.lead.ai_paused !== false) return 'lead_paused';
     if (input.lead.opt_out !== false) return 'lead_opt_out';
+    if (input.requiresApprovedContact && input.lead.contact_approval_status !== 'approved') return 'contact_approval_required';
   }
   return null;
 }

@@ -58,6 +58,17 @@ export interface Lead {
   contatoPermitido?: boolean;
   consentimentoWhatsApp?: boolean;
   consentimentoEmail?: boolean;
+  contactApprovalStatus?: 'pending' | 'approved' | 'rejected';
+  contactApprovalReason?: string;
+  contactApprovedAt?: string | null;
+  sourceRecordId?: string;
+  sourceUrl?: string;
+  deduplicationKey?: string;
+  fitScore?: number;
+  contactabilityScore?: number;
+  engagementScore?: number;
+  scoreExplanation?: string;
+  scoreVerifiedAt?: string | null;
   motivoPerda?: string;
   primeiroContatoEnviadoEm?: string | null;
   // — Lista de origem (Busca de Leads) e estado de aprovação —

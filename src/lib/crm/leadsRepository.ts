@@ -39,11 +39,19 @@ export async function persistOperationalLeads(previous: Lead[], next: Lead[]): P
     const row = leadToCrmRow(lead, session.organizationId);
     if (previousLead) {
       const patch = changedOperationalLeadFields(previousLead, lead, session.organizationId);
+      if (previousLead.contactApprovalStatus !== 'approved' && lead.contactApprovalStatus === 'approved') {
+        patch.contact_approved_by = session.userId;
+        patch.contact_approved_at = lead.contactApprovedAt || new Date().toISOString();
+      }
       if (!Object.keys(patch).length) continue;
       const { error } = await supabase.from('leads').update(patch)
         .eq('id', lead.id).eq('organization_id', session.organizationId);
       if (error) throw error;
       continue;
+    }
+    if (row.contact_approval_status === 'approved') {
+      row.contact_approved_by = session.userId;
+      row.contact_approved_at = row.contact_approved_at || new Date().toISOString();
     }
     const request = supabase.from('leads').insert(row);
     const { error } = await request;

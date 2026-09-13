@@ -415,22 +415,27 @@ async function activateRealEnvironment(
 }
 
 async function diagnosticEvents(admin: ReturnType<typeof createAdminClient>, organizationId: string) {
-  const [status, auditRead, runsRead, webhookRead, queuedRead, failedJobsRead, riskRead] = await Promise.all([
+  const [status, auditRead, runsRead, webhookRead, jobsRead, outreachRead, queuedRead, failedJobsRead, reconciliationRead, riskRead] = await Promise.all([
     operationalStatus(admin, organizationId),
     admin.from('audit_logs').select('id,actor_name,actor_type,action,detail,occurred_at,created_at').eq('organization_id', organizationId).order('occurred_at', { ascending: false }).limit(80),
     admin.from('agent_runs').select('id,event,status,error_code,error_message,created_at,completed_at').eq('organization_id', organizationId).order('created_at', { ascending: false }).limit(50),
     admin.from('channel_inbound_events').select('id,provider,event_type,status,error,created_at,processed_at').eq('organization_id', organizationId).order('created_at', { ascending: false }).limit(50),
+    admin.from('outreach_jobs').select('id,lead_id,channel,status,attempt,run_at,processed_at,error').eq('organization_id', organizationId).order('run_at', { ascending: false }).limit(50),
+    admin.from('lead_outreach').select('id,lead_id,channel,status,provider,scheduled_for,sent_at,delivered_at,read_at,replied_at,failed_at,error,created_at').eq('organization_id', organizationId).order('created_at', { ascending: false }).limit(50),
     admin.from('outreach_jobs').select('*', { count: 'exact', head: true }).eq('organization_id', organizationId).in('status', ['queued', 'processing', 'reconciliation_required']),
     admin.from('outreach_jobs').select('*', { count: 'exact', head: true }).eq('organization_id', organizationId).eq('status', 'failed'),
+    admin.from('outreach_jobs').select('*', { count: 'exact', head: true }).eq('organization_id', organizationId).eq('status', 'reconciliation_required'),
     admin.from('channel_policy_events').select('id,channel,risk_level,action,reason,created_at').eq('organization_id', organizationId).is('resolved_at', null).order('created_at', { ascending: false }).limit(20),
   ]);
-  if ([auditRead, runsRead, webhookRead, queuedRead, failedJobsRead, riskRead].some((read) => read.error)) throw new Error('operational_diagnostics_read_failed');
+  if ([auditRead, runsRead, webhookRead, jobsRead, outreachRead, queuedRead, failedJobsRead, reconciliationRead, riskRead].some((read) => read.error)) throw new Error('operational_diagnostics_read_failed');
   return {
     status,
-    summary: { queuedJobs: queuedRead.count ?? 0, failedJobs: failedJobsRead.count ?? 0, openRiskEvents: (riskRead.data ?? []).length },
+    summary: { queuedJobs: queuedRead.count ?? 0, failedJobs: failedJobsRead.count ?? 0, reconciliationJobs: reconciliationRead.count ?? 0, openRiskEvents: (riskRead.data ?? []).length },
     audit: (auditRead.data ?? []).map((item) => ({ ...item, occurredAt: item.occurred_at ?? item.created_at })),
     runs: runsRead.data ?? [],
     inbound: webhookRead.data ?? [],
+    jobs: jobsRead.data ?? [],
+    outreach: outreachRead.data ?? [],
     risks: riskRead.data ?? [],
   };
 }

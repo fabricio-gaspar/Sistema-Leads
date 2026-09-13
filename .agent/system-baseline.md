@@ -27,7 +27,7 @@ orçamentos. Não é sistema de venda, checkout, pedido ou recebimento.
 - `outreach_jobs` e `lead_outreach`: fila e rastreio de saída.
 - `channel_inbound_events` e `webhook_events`: entrada e callbacks.
 - `company_settings`, `integrations` e `organization_module_data`: configuração operacional.
-- `knowledge_documents`/`knowledge_chunks`: base aprovada consultável pela Ana. A curadoria
+- `documents`/`knowledge_chunks`: base aprovada consultável pela Ana. A curadoria
   pública Wayflex v2 contém 61 fontes ativas (catálogos, segmentos, acessórios e políticas),
   cada uma com a página oficial de origem.
 
@@ -92,3 +92,18 @@ orçamentos. Não é sistema de venda, checkout, pedido ou recebimento.
 - A seleção de provedor/modelo não expõe chaves nem é evidência de execução do modelo.
 
 Detalhes de continuidade e releases ficam em `docs/CONTINUIDADE_WAYFLEX.md`.
+
+## Delta de segurança e autonomia — 13/09/2026
+
+- O fluxo principal mantém somente Apify e entrada manual; conectores legados não foram
+  apagados, mas não aparecem na busca principal.
+- Telefone não é mais promovido implicitamente a WhatsApp. A Ana e o worker exigem aprovação
+  explícita de contato para qualquer ação proativa.
+- A Base aprovada entra na decisão por recuperação híbrida quando houver embedding; a instalação
+  atual tem 61 chunks ativos ainda sem vetor, portanto usa fallback lexical.
+- A Ana pode agendar reunião apenas com horário explícito e disponibilidade confirmada; não cria
+  orçamento com valor/prazo nem passa do limite comercial de orçamento.
+- O diagnóstico lista fila e saída por mensagem. Aceite do provedor, entrega e leitura são
+  estados distintos.
+- A reconciliação server-side encerra aceite comprovado sem reenvio. Seis registros históricos
+  foram corrigidos e `automation-worker` v19 contém a rotina recorrente.

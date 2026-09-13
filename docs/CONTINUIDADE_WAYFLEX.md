@@ -482,3 +482,36 @@ webhook em ambiente controlado.
   passaram. Nenhum dado, mensagem, integração, segredo ou configuração da Ana foi alterado.
 - PUBLICADO: Site oficial versão 76, commit `0b7892bd048c47d37be1d7985b9cfafaa61d8d26`,
   com deploy confirmado como `succeeded` e audiência owner-only preservada.
+
+## Segurança de contato e autonomia controlada da Ana — 13/09/2026
+
+- O fluxo principal de prospecção expõe somente **Apify** e as entradas manuais existentes. O
+  backend legado foi preservado, sem criar fonte nova nem apagar configuração.
+- A pontuação de captura foi separada em **aderência**, **contactabilidade** e **engajamento**;
+  a origem do registro e a explicação do score passam até `leads`. Um telefone móvel não é mais
+  considerado WhatsApp por formato.
+- Busca, cadastro manual, importação, Leads e Kanban só ativam a Ana quando o canal foi confirmado,
+  a autorização foi marcada e a origem dessa autorização foi registrada. O backend repete essa
+  guarda em `ana-run`, `automation-worker` e no retorno do handoff.
+- Mensagem individual recebida do próprio lead registra autorização de contato por iniciativa
+  do destinatário. Grupo, ambiguidade ou direção inválida continuam bloqueados.
+- `ana-run` combina conteúdo lexical aprovado e `match_knowledge_chunks` quando existir embedding.
+  A instalação tem 61 documentos/chunks ativos e zero embeddings na verificação desta rodada;
+  nenhuma reindexação paga foi iniciada sem autorização do operador.
+- A ação `agendar_reuniao` exige horário explícito com offset, intervalo futuro válido,
+  disponibilidade do Google Calendar e chave de idempotência. A Ana só confirma depois do evento;
+  qualquer falha transfere para humano.
+- O Registro do Sistema mostra jobs e saídas recentes por mensagem. Aceite, entrega e leitura não
+  são tratados como sinônimos.
+- Seis jobs históricos continham `provider_message_id` da Z-API e erro
+  `provider_accepted_reconciliation_required`. A causa foi corrigida nas funções SQL atômicas;
+  os seis foram reconciliados para `processed/sent` sem chamada ao provedor. A verificação posterior
+  encontrou zero jobs em reconciliação. `automation-worker` v19 repete a rotina sem reenvio.
+- Migrations aplicadas: `20260913173405`, `20260913174113`, `20260913174227`, `20260913174320`,
+  `20260913174711` e `20260913174751`. As duas correções intermediárias de reconciliação foram
+  preservadas porque já fazem parte do histórico aplicado; a última contém a definição válida.
+- Validação: type-check frontend/Edge, lint sem warnings, 16 arquivos/168 testes, build e testes
+  SQL transacionais com rollback para fila idempotente, aceite, entrega, handoff e retorno à Ana.
+  Não houve busca Apify, mensagem, chamada de IA ou evento Calendar real nesta rodada.
+- Referências operacionais: `docs/audit/saturday-regression-analysis.md`,
+  `docs/DIAGNOSTICO_MENSAGENS.md` e `docs/RELATORIO_PRONTIDAO_2026-09-13.md`.

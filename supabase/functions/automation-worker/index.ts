@@ -494,7 +494,7 @@ async function automaticDispatchBlock(
       admin
         .from("leads")
         .select(
-          "owner_id,modo_atendimento,ai_paused,opt_out,last_contact,no_reply_deadline_at",
+          "owner_id,modo_atendimento,ai_paused,opt_out,contact_approval_status,last_contact,no_reply_deadline_at",
         )
         .eq("organization_id", input.organizationId)
         .eq("id", input.leadId)
@@ -548,6 +548,7 @@ async function automaticDispatchBlock(
     ai: aiResult.data,
     runtime: asObject(runtimeResult.data?.data),
     lead: leadResult.data,
+    requiresApprovedContact: true,
   });
   if (block) return block;
   if (handoffResult.data?.id) return "lead_handoff_open";
@@ -688,7 +689,7 @@ async function processAnaCadenceJob(
       admin
         .from("leads")
         .select(
-          "id,owner_id,modo_atendimento,ai_paused,opt_out,last_contact,no_reply_deadline_at,active_channel",
+          "id,owner_id,modo_atendimento,ai_paused,opt_out,contact_approval_status,last_contact,no_reply_deadline_at,active_channel",
         )
         .eq("organization_id", organizationId)
         .eq("id", job.lead_id)
@@ -752,6 +753,7 @@ async function processAnaCadenceJob(
       ai: aiResult.data,
       runtime,
       lead,
+      requiresApprovedContact: true,
     });
     if (blocked) {
       await cancelCadenceJob(admin, organizationId, job.id, `cadence_${blocked}`);
@@ -1117,6 +1119,16 @@ Deno.serve(async (request) => {
         .eq("organization_id", orgId);
       if (error) throw new Error("scheduler_heartbeat_persist_failed");
     }
+    let reconciledProviderAcceptances = 0;
+    if (serverScheduler) {
+      const { data: reconciled, error: reconciliationError } = await admin.rpc(
+        "reconcile_provider_accepted_outreach",
+        { p_organization_id: orgId, p_limit: 100 },
+      );
+      if (reconciliationError)
+        throw new Error("provider_acceptance_reconciliation_failed");
+      reconciledProviderAcceptances = Number(reconciled ?? 0);
+    }
     const knowledgeMaintenance = serverScheduler
       ? await maintainKnowledgeEmbeddings(admin, orgId)
       : { processed: 0, remaining: 0, status: "manual_skip" };
@@ -1131,6 +1143,7 @@ Deno.serve(async (request) => {
           sent_jobs: 0,
           timeout_runs: 0,
           knowledge_embeddings: knowledgeMaintenance,
+          reconciled_provider_acceptances: reconciledProviderAcceptances,
         },
         200,
         headers,
@@ -1145,6 +1158,7 @@ Deno.serve(async (request) => {
             sent_jobs: 0,
             timeout_runs: 0,
             knowledge_embeddings: knowledgeMaintenance,
+            reconciled_provider_acceptances: reconciledProviderAcceptances,
           },
           200,
           headers,
@@ -1358,7 +1372,7 @@ Deno.serve(async (request) => {
             admin
               .from("leads")
               .select(
-                "phone,whatsapp,email,opt_out,ai_paused,owner_id,modo_atendimento,last_contact,no_reply_deadline_at",
+                "phone,whatsapp,email,opt_out,ai_paused,owner_id,modo_atendimento,contact_approval_status,last_contact,no_reply_deadline_at",
               )
               .eq("organization_id", orgId)
               .eq("id", job.lead_id)
@@ -1423,6 +1437,7 @@ Deno.serve(async (request) => {
                 ai,
                 runtime: runtime?.data ?? null,
                 lead,
+                requiresApprovedContact: true,
               });
           if (block) throw new Error(block);
           if (
@@ -1851,6 +1866,7 @@ Deno.serve(async (request) => {
         failed_jobs: failedJobs,
         job_results: jobResults,
         knowledge_embeddings: knowledgeMaintenance,
+        reconciled_provider_acceptances: reconciledProviderAcceptances,
       },
       200,
       headers,

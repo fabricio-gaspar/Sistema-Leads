@@ -343,3 +343,22 @@
   integração, segredo ou configuração operacional foi alterado.
 - PUBLICADO: Site oficial versão 76, commit `0b7892bd048c47d37be1d7985b9cfafaa61d8d26`,
   com deploy `succeeded` e audiência owner-only preservada.
+
+## 2026-09-13 — Segurança de contato, autonomia da Ana e mensageria reconciliável
+
+- O projeto oficial e o Supabase `thgzrkppouoevapjquyu` foram confirmados antes do delta. O
+  escopo existente foi reaproveitado; nenhum módulo paralelo, segredo ou Site adicional foi criado.
+- A captura passou a separar aderência, contactabilidade e engajamento, preservando origem e
+  identidade externa. Telefone deixou de ser presumido como WhatsApp; Busca, Leads, Kanban,
+  mapper, `ana-run` e worker exigem aprovação de contato antes de uma saída automática.
+- `ana-run` passou a usar recuperação híbrida da Base aprovada quando houver embedding e recebeu
+  ação idempotente de agenda com verificação de disponibilidade. Conteúdo comercial sensível
+  permanece sob handoff humano.
+- O diagnóstico passou a listar fila e trilha de saída por mensagem. Seis jobs antigos já aceitos
+  pela Z-API estavam presos porque as funções SQL qualificavam incorretamente `coalesce/nullif`.
+  As funções atômicas foram corrigidas; os seis estados foram finalizados localmente, sem reenvio,
+  e `automation-worker` v19 passou a executar essa reconciliação de forma recorrente.
+- Testes SQL transacionais com rollback comprovaram fila idempotente, aceite, entrega, handoff e
+  retorno para a Ana sem persistir dados ou chamar provedores. Type-check frontend/Edge, lint,
+  16 arquivos/168 testes e build passaram. Busca Apify, modelo, Calendar e WhatsApp reais não
+  foram acionados nesta rodada.

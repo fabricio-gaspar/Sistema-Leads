@@ -49,6 +49,13 @@ interface ProspectingLeadResponse {
   porte?: string;
   cnpj?: string;
   score?: number;
+  fit_score?: number;
+  contactability_score?: number;
+  engagement_score?: number;
+  score_reason?: string;
+  source_record_id?: string;
+  source_url?: string;
+  channel_verification?: { whatsapp?: string; email?: string };
   sourceUrl?: string;
   latitude?: number | null;
   longitude?: number | null;
@@ -66,7 +73,8 @@ interface ProspectingResponse {
 function prospectingLeadToPreview(lead: ProspectingLeadResponse, fonte: string, index: number): PreviewLead {
   const nome = lead.nome || lead.name || lead.nome_fantasia || lead.razao_social || 'Contato sem nome';
   const empresa = lead.empresa || lead.company || lead.razao_social || lead.nome_fantasia || nome;
-  const telefone = lead.telefone || lead.phone || lead.whatsapp || '';
+  const whatsapp = lead.whatsapp || '';
+  const telefone = lead.telefone || lead.phone || whatsapp;
   const email = lead.email || '';
   const site = lead.site || lead.website || '';
   const score = typeof lead.score === 'number' ? Math.max(0, Math.min(100, Math.round(lead.score))) : 60;
@@ -81,6 +89,7 @@ function prospectingLeadToPreview(lead: ProspectingLeadResponse, fonte: string, 
     cnpj: lead.cnpj || '—',
     cargo: lead.cargo || '',
     telefone,
+    whatsapp,
     email,
     localidade: [cidadeReal, estadoReal].filter(Boolean).join(' - ') || '—',
     fonte,
@@ -89,8 +98,15 @@ function prospectingLeadToPreview(lead: ProspectingLeadResponse, fonte: string, 
     score,
     temperatura: temperaturaDe(score),
     completude: Math.round(([nome, empresa, telefone, email, site].filter(Boolean).length / 5) * 100),
-    motivos: [lead.segmento || 'Fonte real', lead.sourceUrl ? 'Origem verificada' : 'Contato retornado pelo provedor'].filter(Boolean),
-    canais: { whatsapp: Boolean(telefone), email: Boolean(email && validarEmailReal(email)), site: Boolean(site), instagram: false },
+    fitScore: lead.fit_score ?? score,
+    contactabilityScore: lead.contactability_score ?? 0,
+    engagementScore: lead.engagement_score ?? 0,
+    scoreExplanation: lead.score_reason || '',
+    motivos: [lead.segmento || 'Fonte real', lead.source_url || lead.sourceUrl ? 'Origem rastreável' : 'Contato retornado pelo provedor'].filter(Boolean),
+    canais: { whatsapp: Boolean(whatsapp), email: Boolean(email && validarEmailReal(email)), site: Boolean(site), instagram: false },
+    whatsappStatus: lead.channel_verification?.whatsapp === 'source_reported' && whatsapp ? 'verified' : telefone ? 'unverified' : 'absent',
+    sourceRecordId: lead.source_record_id || lead.id || lead.externalId,
+    sourceUrl: lead.source_url || lead.sourceUrl,
     selecionado: true,
     latitude: Number.isFinite(latitude) && Math.abs(latitude) <= 85 ? latitude : null,
     longitude: Number.isFinite(longitude) && Math.abs(longitude) <= 180 ? longitude : null,
@@ -142,13 +158,17 @@ export default function BuscaLeads() {
   const [canal, setCanal] = useState('WhatsApp');
   const [template, setTemplate] = useState('tm-1');
   const [tags, setTags] = useState('');
+  const [autorizacaoContato, setAutorizacaoContato] = useState(false);
+  const [origemAutorizacao, setOrigemAutorizacao] = useState('');
 
   const [leads, setLeads] = useLeadsStore();
   const listas = useListasStore();
   const { fontes } = useFontesStore();
   const { mode: operationalMode } = useOperationalMode();
   const [csvModal, setCsvModal] = useState(false);
-  const fontesProspecao = fontes.filter((fonte) => fonte.sourceKey === 'apify' || fonte.sourceKey === 'google_places');
+  // O fluxo oficial atual usa Apify; integrações legadas permanecem preservadas,
+  // porém fora da captura principal até homologação explícita.
+  const fontesProspecao = fontes.filter((fonte) => fonte.sourceKey === 'apify');
   const fontesDisponiveis = fontesAtivas(fontesProspecao);
 
   useEffect(() => {
@@ -187,14 +207,16 @@ export default function BuscaLeads() {
     });
   };
 
-  const mapearNovoLead = (dados: Partial<Lead> & { nome: string; empresa: string }): Lead => ({
+  const mapearNovoLead = (dados: Partial<Lead> & { nome: string; empresa: string }): Lead => {
+    const contatoAprovado = dados.contactApprovalStatus === 'approved';
+    return ({
     id: crypto.randomUUID(),
     nome: dados.nome,
     empresa: dados.empresa,
     cnpj: dados.cnpj || '—',
     email: dados.email || '',
     telefone: dados.telefone || '',
-    whatsapp: dados.whatsapp || dados.telefone || '',
+    whatsapp: dados.whatsapp || '',
     segmento: dados.segmento || (atividadesSel[0] || 'Tecnologia'),
     cidade: dados.cidade || '',
     estado: dados.estado || '',
@@ -206,14 +228,25 @@ export default function BuscaLeads() {
     responsavel: dados.responsavel || responsavelNome,
     responsavelId: modoAtendimento === 'IA' ? '' : responsavel,
     modoAtendimento,
-    automacaoStatus: 'ATIVA',
+    automacaoStatus: contatoAprovado && modoAtendimento === 'IA' ? 'ATIVA' : 'PAUSADA',
     canalPreferencial: canal,
     templateId: template,
     tags: dados.tags || (tags ? tags.split(',').map((t) => t.trim()).filter(Boolean) : []),
     bloqueado: false,
-    contatoPermitido: true,
-    consentimentoWhatsApp: true,
-    consentimentoEmail: true,
+    contatoPermitido: contatoAprovado,
+    consentimentoWhatsApp: contatoAprovado && canal === 'WhatsApp',
+    consentimentoEmail: contatoAprovado && canal === 'E-mail',
+    contactApprovalStatus: contatoAprovado ? 'approved' : 'pending',
+    contactApprovalReason: dados.contactApprovalReason || '',
+    contactApprovedAt: contatoAprovado ? new Date().toISOString() : null,
+    sourceRecordId: dados.sourceRecordId,
+    sourceUrl: dados.sourceUrl,
+    deduplicationKey: dados.deduplicationKey,
+    fitScore: dados.fitScore,
+    contactabilityScore: dados.contactabilityScore,
+    engagementScore: dados.engagementScore ?? 0,
+    scoreExplanation: dados.scoreExplanation,
+    scoreVerifiedAt: dados.scoreVerifiedAt || new Date().toISOString(),
     maxFollowUps: 2,
     followUpCount: 0,
     intencao: null,
@@ -225,8 +258,9 @@ export default function BuscaLeads() {
     historico: [{ id: `h-import-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`, tipo: 'IMPORTACAO', descricao: `Lead importado via ${dados.origem || 'Importação'}`, ator: 'Sistema', data: new Date().toISOString() }],
     ultimaInteracao: 'agora',
     criadoEm: dados.criadoEm || new Date().toISOString().slice(0, 10),
-    aguardandoAtivacao: true,
+    aguardandoAtivacao: !contatoAprovado,
   });
+  };
 
   const toggle = (lista: string[], setLista: (v: string[]) => void, valor: string) => {
     if (lista.includes(valor)) {
@@ -408,20 +442,31 @@ export default function BuscaLeads() {
     const nomeFinal = nomeLista.trim() || `Prospecção ${cidade} · ${new Date().toLocaleDateString('pt-BR')}`;
     const selecionadosLeads = preview
       .filter((l) => !l.duplicado && selecionados.includes(l.id))
-      .map((l) =>
-        mapearNovoLead({
+      .map((l) => {
+        const canalComprovado = canal === 'WhatsApp' ? l.whatsappStatus === 'verified' : canal === 'E-mail' ? l.canais.email : Boolean(l.telefone);
+        const contatoAprovado = autorizacaoContato && Boolean(origemAutorizacao.trim()) && canalComprovado;
+        return mapearNovoLead({
           nome: l.nome,
           empresa: l.empresa,
           email: l.email,
           telefone: l.telefone,
+          whatsapp: l.whatsapp || '',
           segmento: atividadesSel[0] || segs[0] || 'Tecnologia',
           cidade: l.localidade.split(' - ')[0] || cidade,
           estado: l.localidade.split(' - ')[1] || estado,
           score: l.score,
           origem: l.fonte,
           tags: fonte?.tagsPadrao,
+          contactApprovalStatus: contatoAprovado ? 'approved' : 'pending',
+          contactApprovalReason: contatoAprovado ? origemAutorizacao.trim() : canalComprovado ? 'Aguardando registro de autorização para contato.' : 'Canal preferencial ainda não comprovado.',
+          sourceRecordId: l.sourceRecordId,
+          sourceUrl: l.sourceUrl,
+          fitScore: l.fitScore,
+          contactabilityScore: l.contactabilityScore,
+          engagementScore: l.engagementScore,
+          scoreExplanation: l.scoreExplanation,
         })
-      );
+      });
     if (!selecionadosLeads.length) {
       setResultado('Selecione pelo menos um lead válido antes de enviar para o módulo Leads.');
       return;
@@ -722,7 +767,7 @@ export default function BuscaLeads() {
                       </div>
                       <div>
                         <label className="block text-sm font-medium text-foreground-800 mb-1.5">Volume máximo</label>
-                        <input type="number" min={1} max={500} value={leadsDia} onChange={(e) => setLeadsDia(Number(e.target.value))} className="w-full px-4 py-2.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-900" />
+                        <input type="number" min={1} max={100} value={leadsDia} onChange={(e) => setLeadsDia(Math.max(1, Math.min(100, Number(e.target.value))))} className="w-full px-4 py-2.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-900" />
                       </div>
                     </div>
                     <div className="mt-4 flex flex-wrap gap-4">
@@ -855,11 +900,11 @@ export default function BuscaLeads() {
                           <input type="checkbox" checked={selecionados.length > 0 && selecionados.length === preview.filter((l) => !l.duplicado).length} onChange={selecionarTodos} className="cursor-pointer" />
                         </th>
                         <th className="text-left px-4 py-3 text-foreground-500 font-medium text-xs">Lead</th>
-                        <th className="text-left px-4 py-3 text-foreground-500 font-medium text-xs">Temperatura</th>
+                        <th className="text-left px-4 py-3 text-foreground-500 font-medium text-xs">Aderência</th>
                         <th className="text-left px-4 py-3 text-foreground-500 font-medium text-xs hidden md:table-cell">Localidade</th>
                         <th className="text-left px-4 py-3 text-foreground-500 font-medium text-xs">Fonte</th>
                         <th className="text-left px-4 py-3 text-foreground-500 font-medium text-xs hidden lg:table-cell">Completude</th>
-                        <th className="text-left px-4 py-3 text-foreground-500 font-medium text-xs">Score</th>
+                        <th className="text-left px-4 py-3 text-foreground-500 font-medium text-xs">Contato</th>
                         <th className="text-left px-4 py-3 text-foreground-500 font-medium text-xs">Ações</th>
                       </tr>
                     </thead>
@@ -878,9 +923,7 @@ export default function BuscaLeads() {
                             <p className="text-xs text-foreground-400">{l.telefone} · {l.email}</p>
                           </td>
                           <td className="px-4 py-3.5">
-                            <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-medium ${tempBadge[l.temperatura]}`}>
-                              {tempLabel[l.temperatura]}
-                            </span>
+                            <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-medium ${tempBadge[l.temperatura]}`}>{l.fitScore ?? l.score}/100</span>
                           </td>
                           <td className="px-4 py-3.5 text-foreground-600 hidden md:table-cell">{l.localidade}</td>
                           <td className="px-4 py-3.5 text-foreground-700">{l.fonte}</td>
@@ -897,8 +940,9 @@ export default function BuscaLeads() {
                           </td>
                           <td className="px-4 py-3.5">
                             <span className="inline-block px-2.5 py-1 rounded-md text-xs font-medium bg-primary-100 text-primary-700">
-                              {l.score}
+                              {l.contactabilityScore ?? 0}/100
                             </span>
+                            {l.whatsappStatus === 'unverified' && <p className="mt-1 text-[11px] text-accent-700">Telefone ≠ WhatsApp</p>}
                             {l.validacao === 'revisar' && !l.duplicado && (
                               <p className="text-[11px] text-secondary-600 mt-1 flex items-center gap-0.5">
                                 <i className="ri-alert-line"></i> Revisar
@@ -933,7 +977,7 @@ export default function BuscaLeads() {
                 <div className="xl:col-span-2 space-y-4">
                   <ProspectingMap leads={preview} selectedIds={selecionados} onSelect={abrirLead} />
                   <section className="grid grid-cols-2 divide-x divide-background-200 overflow-hidden rounded-xl border border-background-200/70 bg-white text-center">
-                    <div className="px-3 py-3"><p className="text-lg font-bold text-foreground-950">{preview.filter((lead) => lead.canais.whatsapp).length}</p><p className="mt-0.5 text-[11px] text-foreground-500">Com WhatsApp</p></div>
+                    <div className="px-3 py-3"><p className="text-lg font-bold text-foreground-950">{preview.filter((lead) => lead.canais.whatsapp).length}</p><p className="mt-0.5 text-[11px] text-foreground-500">WhatsApp informado pela fonte</p></div>
                     <div className="px-3 py-3"><p className="text-lg font-bold text-foreground-950">{preview.filter((lead) => lead.canais.email).length}</p><p className="mt-0.5 text-[11px] text-foreground-500">Com e-mail válido</p></div>
                   </section>
                 </div>
@@ -1008,6 +1052,14 @@ export default function BuscaLeads() {
                         <label className="block text-sm font-medium text-foreground-800 mb-1.5">Tags (separadas por vírgula)</label>
                         <input type="text" value={tags} onChange={(e) => setTags(e.target.value)} placeholder="prospecção, agosto, saopaulo" className="w-full px-4 py-2.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-900" />
                       </div>
+                      <div className="md:col-span-2 rounded-xl border border-background-200 bg-background-100/50 p-4">
+                        <label className="flex cursor-pointer items-start gap-3 text-sm text-foreground-800">
+                          <input type="checkbox" checked={autorizacaoContato} onChange={(e) => setAutorizacaoContato(e.target.checked)} className="mt-0.5 cursor-pointer" />
+                          <span><strong>Tenho autorização comprovável para contatar estes destinatários pelo canal escolhido.</strong><span className="mt-1 block text-xs text-foreground-500">Sem esta confirmação, os leads serão importados com a Ana pausada e nenhum primeiro contato será liberado.</span></span>
+                        </label>
+                        {autorizacaoContato && <div className="mt-3"><label className="block text-xs font-medium text-foreground-700 mb-1.5">Origem da autorização</label><input type="text" value={origemAutorizacao} onChange={(e) => setOrigemAutorizacao(e.target.value)} placeholder="Ex.: formulário do site em 13/09/2026" className="w-full px-3 py-2 bg-white border border-background-300 rounded-lg text-sm text-foreground-900" /></div>}
+                        {canal === 'WhatsApp' && preview.some((lead) => selecionados.includes(lead.id) && lead.whatsappStatus !== 'verified') && <p className="mt-3 text-xs text-accent-700">Há números apenas encontrados como telefone. Esses leads permanecerão pausados até o WhatsApp ser comprovado, mesmo com a autorização marcada.</p>}
+                      </div>
                     </div>
                   </section>
                 </div>
@@ -1020,6 +1072,7 @@ export default function BuscaLeads() {
                       <div className="flex justify-between"><span className="text-background-400">Modo</span><span className="font-medium">{modoAtendimento}</span></div>
                       <div className="flex justify-between"><span className="text-background-400">Responsável</span><span className="font-medium">{responsavelNome}</span></div>
                       <div className="flex justify-between"><span className="text-background-400">Canal</span><span className="font-medium">{canal}</span></div>
+                      <div className="flex justify-between"><span className="text-background-400">Contato automático</span><span className="font-medium">{autorizacaoContato && origemAutorizacao.trim() ? 'Somente canais comprovados' : 'Pausado para revisão'}</span></div>
                     </div>
                   </div>
                 </div>

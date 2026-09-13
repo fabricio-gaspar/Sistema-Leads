@@ -33,43 +33,57 @@ function terms(filters: Filters) { const values = [...(filters.atividades ?? [])
 function stringFrom(record: Record<string, unknown>, keys: string[]): string { for (const key of keys) { const value = record[key]; if (typeof value === 'string' && value.trim()) return value.trim().slice(0, 1_000); } return ''; }
 function coordinate(value: unknown, limit: number): number | null { const parsed = typeof value === 'number' ? value : Number(value); return Number.isFinite(parsed) && Math.abs(parsed) <= limit ? parsed : null; }
 
-function detectWhatsapp(phone: string | null) {
-  if (!phone) return null;
-  const digits = phone.replace(/\D/g, '');
-  const local = digits.length === 13 && digits.startsWith('55') ? digits.slice(2) : digits;
-  return local.length === 11 && local[2] === '9' ? `(${local.slice(0, 2)}) ${local.slice(2, 7)}-${local.slice(7)}` : null;
+type RawProspect = { id: string; name: string; phone: string; whatsapp: string; email: string; website: string; sourceUrl: string; cnpj: string; city: string; uf: string; segment: string; address: string; latitude?: number | null; longitude?: number | null };
+
+function score(raw: RawProspect, filters: Filters) {
+  const reasons: string[] = [];
+  const requestedTerms = terms(filters).map((item) => item.toLocaleLowerCase('pt-BR'));
+  const segment = raw.segment.toLocaleLowerCase('pt-BR');
+  const segmentMatch = requestedTerms.some((term) => segment.includes(term) || term.includes(segment));
+  let fit = raw.name ? 20 : 0;
+  if (segmentMatch) { fit += 40; reasons.push('atividade compatível com o filtro'); }
+  else if (raw.segment) { fit += 20; reasons.push('atividade empresarial identificada'); }
+  if (filters.estado && raw.uf.toUpperCase() === filters.estado) { fit += 20; reasons.push('região desejada'); }
+  if (raw.website) { fit += 10; reasons.push('site empresarial encontrado'); }
+  if (raw.id) fit += 10;
+
+  let contactability = 0;
+  if (raw.phone) { contactability += 30; reasons.push('telefone encontrado, ainda não validado como WhatsApp'); }
+  if (raw.whatsapp) { contactability += 30; reasons.push('WhatsApp informado explicitamente pela fonte'); }
+  if (raw.email) { contactability += 25; reasons.push('e-mail encontrado'); }
+  if (raw.website) contactability += 15;
+  const engagement = 0;
+  if ((filters.exigeWhatsApp && !raw.whatsapp) || (filters.exigeEmail && !raw.email) || (filters.exigeSite && !raw.website)) {
+    reasons.push('um canal obrigatório não foi comprovado');
+  }
+  const overall = Math.round(Math.min(100, fit) * 0.65 + Math.min(100, contactability) * 0.35);
+  return { overall, fit: Math.min(100, fit), contactability: Math.min(100, contactability), engagement, reason: reasons.join(' · ') || 'Empresa identificada pela fonte configurada' };
 }
 
-function score(contact: { telefone: string | null; whatsapp: string | null; email: string | null; website: string | null; uf: string | null }, filters: Filters) {
-  let scoreValue = 35; const reasons: string[] = [];
-  if (contact.whatsapp) { scoreValue += 20; reasons.push('WhatsApp disponível'); } else if (contact.telefone) { scoreValue += 12; reasons.push('telefone disponível'); }
-  if (contact.email) { scoreValue += 12; reasons.push('e-mail disponível'); }
-  if (contact.website) { scoreValue += 10; reasons.push('site disponível'); }
-  if (filters.estado && contact.uf?.toUpperCase() === filters.estado) { scoreValue += 10; reasons.push('região desejada'); }
-  if ((filters.exigeWhatsApp && !contact.whatsapp) || (filters.exigeEmail && !contact.email) || (filters.exigeSite && !contact.website)) scoreValue = Math.min(scoreValue, 35);
-  return { score: Math.min(100, scoreValue), reason: reasons.length ? reasons.join(' · ') : 'Sinais públicos básicos disponíveis' };
-}
-
-function external(source: 'apify' | 'google_places', raw: { id: string; name: string; phone: string; email: string; website: string; city: string; uf: string; segment: string; address: string; latitude?: number | null; longitude?: number | null }, filters: Filters) {
-  const telefone = raw.phone || null, whatsapp = detectWhatsapp(telefone), website = raw.website || null;
-  const scored = score({ telefone, whatsapp, email: raw.email || null, website, uf: raw.uf || filters.estado || null }, filters);
+function external(source: 'apify' | 'google_places', raw: RawProspect, filters: Filters) {
+  const telefone = raw.phone || null, whatsapp = raw.whatsapp || null, website = raw.website || null;
+  const scored = score(raw, filters);
   return {
-    cnpj: raw.id, razao_social: raw.name, nome_fantasia: raw.name || null, cnae_principal: null, cnae_descricao: raw.segment || terms(filters)[0] || null,
+    cnpj: raw.cnpj || null, razao_social: raw.name, nome_fantasia: raw.name || null, cnae_principal: null, cnae_descricao: raw.segment || terms(filters)[0] || null,
     porte: null, capital_social: null, situacao: 'Fonte externa validada', data_abertura: null, telefone, whatsapp, email: raw.email || null,
     logradouro: raw.address || null, numero: null, bairro: null, municipio: raw.city || filters.cidade || null, uf: (raw.uf || filters.estado || '').slice(0, 2).toUpperCase() || null,
-    cep: null, website, latitude: raw.latitude ?? null, longitude: raw.longitude ?? null, distance_km: null, deterministic_score: scored.score, score: scored.score,
-    score_reason: scored.reason, source,
+    cep: null, website, latitude: raw.latitude ?? null, longitude: raw.longitude ?? null, distance_km: null,
+    deterministic_score: scored.overall, score: scored.overall, fit_score: scored.fit, contactability_score: scored.contactability, engagement_score: scored.engagement,
+    score_reason: scored.reason, source, source_record_id: raw.id, source_url: raw.sourceUrl || null,
+    channel_verification: { whatsapp: whatsapp ? 'source_reported' : telefone ? 'unverified' : 'absent', email: raw.email ? 'format_pending' : 'absent' },
+    contact_approval_status: 'pending',
   };
 }
 
 function normalizeApify(item: unknown, index: number, filters: Filters) {
   const record = object(item), address = object(record.address), location = object(record.location);
   const phone = stringFrom(record, ['phone', 'phoneNumber', 'telephone', 'contactPhone']);
+  const whatsapp = stringFrom(record, ['whatsapp', 'whatsappNumber']);
   const website = stringFrom(record, ['website', 'websiteUrl', 'companyWebsite']);
   const name = stringFrom(record, ['title', 'name', 'businessName', 'companyName']) || `Empresa ${index + 1}`;
   const id = stringFrom(record, ['placeId', 'place_id', 'cid', 'id']) || `apify-${crypto.randomUUID()}`;
   return external('apify', {
-    id, name, phone, email: stringFrom(record, ['email', 'emailAddress']), website, city: stringFrom(record, ['city', 'municipality']) || stringFrom(address, ['city']),
+    id, name, phone, whatsapp, email: stringFrom(record, ['email', 'emailAddress']), website, sourceUrl: stringFrom(record, ['url', 'googleMapsUrl', 'placeUrl']), cnpj: stringFrom(record, ['cnpj', 'taxId']), city: stringFrom(record, ['city', 'municipality']) || stringFrom(address, ['city']),
     uf: stringFrom(record, ['state', 'stateCode', 'region']) || stringFrom(address, ['state']), segment: stringFrom(record, ['categoryName', 'category', 'industry']),
     address: stringFrom(record, ['address', 'streetAddress', 'fullAddress']) || stringFrom(address, ['full', 'label', 'address']),
     latitude: coordinate(record.latitude ?? record.lat ?? location.lat ?? location.latitude, 85), longitude: coordinate(record.longitude ?? record.lng ?? location.lng ?? location.longitude, 180),
@@ -81,7 +95,7 @@ function normalizeGoogle(item: unknown, index: number, filters: Filters) {
   const name = text(display.text, 1_000) || `Empresa ${index + 1}`;
   const phone = text(record.internationalPhoneNumber || record.nationalPhoneNumber, 100);
   const types = Array.isArray(record.types) ? record.types.filter((item): item is string => typeof item === 'string').join(', ') : '';
-  return external('google_places', { id: text(record.id, 300) || `google-${crypto.randomUUID()}`, name, phone, email: '', website: text(record.websiteUri, 1_000), city: filters.cidade || '', uf: filters.estado || '', segment: types, address: text(record.formattedAddress, 1_000), latitude: coordinate(location.latitude, 85), longitude: coordinate(location.longitude, 180) }, filters);
+  return external('google_places', { id: text(record.id, 300) || `google-${crypto.randomUUID()}`, name, phone, whatsapp: '', email: '', website: text(record.websiteUri, 1_000), sourceUrl: text(record.googleMapsUri, 1_000), cnpj: '', city: filters.cidade || '', uf: filters.estado || '', segment: types, address: text(record.formattedAddress, 1_000), latitude: coordinate(location.latitude, 85), longitude: coordinate(location.longitude, 180) }, filters);
 }
 
 function apifyInput(credentials: Record<string, unknown>, filters: Filters) {
@@ -204,9 +218,9 @@ Deno.serve(async (request) => {
     const result = sourceKey === 'apify'
       ? { providerRunId, leads: await apifyItems(credentials as Record<string, unknown>, datasetId, filters) }
       : await callGoogle(credentials as Record<string, unknown>, filters);
-    const leads = result.leads.slice(0, filters.volumeMaximo);
+    const leads = result.leads.filter((lead) => (!filters.exigeWhatsApp || Boolean(lead.whatsapp)) && (!filters.exigeEmail || Boolean(lead.email)) && (!filters.exigeSite || Boolean(lead.website))).slice(0, filters.volumeMaximo);
     const filtersHash = await hash(`${sourceKey}:${JSON.stringify(filters)}`);
-    const { data: cache, error: cacheError } = await admin.from('prospecting_cache').insert({ organization_id: organizationId, user_id: user.id, filters_hash: filtersHash, filters: { source: sourceKey, uf: filters.estado || null, municipio: filters.cidade || null, keyword: terms(filters).join(' '), radius_km: filters.raio || null, limit: filters.volumeMaximo }, results: leads, total_found: leads.length, scored: true, name: `${sourceKey} · ${filters.cidade || filters.estado || 'Brasil'} · ${new Date().toLocaleDateString('pt-BR')}`, saved: true, expires_at: new Date(Date.now() + 315_360_000_000).toISOString(), source: sourceKey }).select('id').single();
+    const { data: cache, error: cacheError } = await admin.from('prospecting_cache').insert({ organization_id: organizationId, user_id: user.id, filters_hash: filtersHash, filters: { source: sourceKey, uf: filters.estado || null, municipio: filters.cidade || null, keyword: terms(filters).join(' '), radius_km: filters.raio || null, limit: filters.volumeMaximo }, results: leads, total_found: leads.length, scored: true, name: `${sourceKey} · ${filters.cidade || filters.estado || 'Brasil'} · ${new Date().toLocaleDateString('pt-BR')}`, saved: true, expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), source: sourceKey }).select('id').single();
     if (cacheError || !cache) throw cacheError ?? new Error('prospecting_cache_not_created');
     const now = new Date().toISOString();
     await admin.from('prospecting_runs').update({ status: 'completed', provider_run_id: result.providerRunId, result_cache_id: cache.id, result_count: leads.length, completed_at: now, updated_at: now, last_error: null }).eq('id', runId);

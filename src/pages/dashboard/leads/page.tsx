@@ -46,13 +46,14 @@ export default function Leads() {
   const [detalhe, setDetalhe] = useState<Lead | null>(null);
   const [toast, setToast] = useState('');
   const [novoModal, setNovoModal] = useState(false);
-  const [novoLead, setNovoLead] = useState({ nome: '', empresa: '', email: '', telefone: '', segmento: 'Tecnologia', cidade: '', estado: '', modo: 'IA' as 'IA' | 'HUMANO' });
+  const [novoLead, setNovoLead] = useState({ nome: '', empresa: '', email: '', telefone: '', segmento: 'Tecnologia', cidade: '', estado: '', modo: 'IA' as 'IA' | 'HUMANO', whatsappConfirmado: false, autorizacaoContato: false, origemAutorizacao: '' });
   const [mostrarArquivados, setMostrarArquivados] = useState(false);
   const [editarModal, setEditarModal] = useState<Lead | null>(null);
   const [editForm, setEditForm] = useState({ nome: '', email: '', telefone: '', responsavel: '', responsavelId: '', tags: '' });
   const [membros, setMembros] = useState<TeamMember[]>([]);
   const [handoffEtapa, setHandoffEtapa] = useState('');
   const [modoSelecionado, setModoSelecionado] = useState<'IA' | 'HUMANO' | null>(null);
+  const [aprovacaoKanban, setAprovacaoKanban] = useState({ confirmada: false, origem: '' });
   const navigate = useNavigate();
   const listas = useListasStore();
   const fluxo = useFluxoComercial();
@@ -99,6 +100,7 @@ export default function Leads() {
     const tags = editForm.tags.split(',').map((t) => t.trim()).filter(Boolean);
     const membro = membros.find((item) => item.userId === editForm.responsavelId);
     const responsavelAna = editForm.responsavelId === '__ana__';
+    const telefoneAlterado = normalizar(editForm.telefone) !== normalizar(editarModal.telefone);
     setLeads((prev) =>
       prev.map((l) =>
         l.id === editarModal.id
@@ -107,7 +109,14 @@ export default function Leads() {
               nome: editForm.nome.trim(),
               email: editForm.email.trim(),
               telefone: editForm.telefone.trim(),
-              whatsapp: editForm.telefone.trim() || l.whatsapp,
+              whatsapp: telefoneAlterado ? '' : l.whatsapp,
+              contactApprovalStatus: telefoneAlterado ? 'pending' : l.contactApprovalStatus,
+              contactApprovalReason: telefoneAlterado ? 'Telefone alterado; canal e autorização precisam ser comprovados novamente.' : l.contactApprovalReason,
+              contactApprovedAt: telefoneAlterado ? null : l.contactApprovedAt,
+              contatoPermitido: telefoneAlterado ? false : l.contatoPermitido,
+              consentimentoWhatsApp: telefoneAlterado ? false : l.consentimentoWhatsApp,
+              aguardandoAtivacao: telefoneAlterado ? true : l.aguardandoAtivacao,
+              automacaoStatus: telefoneAlterado ? 'PAUSADA' : l.automacaoStatus,
               responsavel: responsavelAna ? 'Ana (IA)' : membro?.name || editForm.responsavel,
               responsavelId: responsavelAna ? '' : membro?.userId || l.responsavelId,
               tags,
@@ -139,14 +148,26 @@ export default function Leads() {
       mostrarToast('Sua sessão não possui um responsável válido. Entre novamente antes de enviar ao Kanban.');
       return;
     }
+    const exigeNovaAprovacao = modo === 'IA' && ids.some((id) => { const lead = leads.find((item) => item.id === id); return lead?.contactApprovalStatus !== 'approved' || !lead.whatsapp; });
+    if (exigeNovaAprovacao && (!aprovacaoKanban.confirmada || !aprovacaoKanban.origem.trim())) {
+      mostrarToast('Confirme o WhatsApp, a autorização e informe a origem antes de ativar a Ana.');
+      return;
+    }
     const idsSet = new Set(ids);
     setLeads((current) => current.map((lead) => idsSet.has(lead.id) ? {
-      ...lead, aguardandoAtivacao: false, modoAtendimento: modo, responsavelId: lead.responsavelId || user.id,
+      ...lead,
+      whatsapp: modo === 'IA' && (lead.contactApprovalStatus !== 'approved' || !lead.whatsapp) ? lead.whatsapp || lead.telefone : lead.whatsapp,
+      contactApprovalStatus: modo === 'IA' ? 'approved' : lead.contactApprovalStatus,
+      contactApprovalReason: modo === 'IA' && (lead.contactApprovalStatus !== 'approved' || !lead.whatsapp) ? aprovacaoKanban.origem.trim() : lead.contactApprovalReason,
+      contactApprovedAt: modo === 'IA' && (lead.contactApprovalStatus !== 'approved' || !lead.whatsapp) ? new Date().toISOString() : lead.contactApprovedAt,
+      contatoPermitido: modo === 'IA' ? true : lead.contatoPermitido,
+      consentimentoWhatsApp: modo === 'IA' ? true : lead.consentimentoWhatsApp,
+      aguardandoAtivacao: false, modoAtendimento: modo, responsavelId: lead.responsavelId || user.id,
       responsavel: lead.responsavel === 'Ana (IA)' || !lead.responsavel ? 'Você' : lead.responsavel,
       etapa: 'Novo', etapaHandoff, automacaoStatus: modo === 'HUMANO' ? 'AGUARDANDO_HUMANO' : 'ATIVA',
     } : lead));
     await waitForLeadsPersistence();
-    const result = await Promise.allSettled(ids.map((leadId) => runAna({ event: 'lead.created', leadId, modo })));
+    const result = modo === 'IA' ? await Promise.allSettled(ids.map((leadId) => runAna({ event: 'lead.created', leadId, modo }))) : [];
     const processados = result.filter((item) => item.status === 'fulfilled' && item.value.ok).length;
     listas.listas.forEach((lista) => {
       if (lista.status === 'pendente' && lista.leadIds.length > 0 && lista.leadIds.every((lid) => idsSet.has(lid))) {
@@ -157,6 +178,7 @@ export default function Leads() {
     setSelecionados([]);
     setEnvioAlvo(null);
     setModoSelecionado(null);
+    setAprovacaoKanban({ confirmada: false, origem: '' });
   };
 
   const criarLead = async () => {
@@ -186,6 +208,11 @@ export default function Leads() {
       mostrarToast('Sua sessão não possui um responsável válido. Entre novamente antes de criar o lead.');
       return;
     }
+    const contatoAprovado = novoLead.whatsappConfirmado && novoLead.autorizacaoContato && Boolean(novoLead.origemAutorizacao.trim());
+    if (novoLead.modo === 'IA' && !contatoAprovado) {
+      mostrarToast('Para ativar a Ana, confirme que o número é WhatsApp e registre a origem da autorização.');
+      return;
+    }
     const novo: Lead = {
       id: crypto.randomUUID(),
       nome: novoLead.nome.trim(),
@@ -193,7 +220,7 @@ export default function Leads() {
       cnpj: '',
       email: novoLead.email.trim(),
       telefone: novoLead.telefone.trim(),
-      whatsapp: novoLead.telefone.trim(),
+      whatsapp: novoLead.whatsappConfirmado ? novoLead.telefone.trim() : '',
       segmento: novoLead.segmento,
       cidade: novoLead.cidade.trim() || '—',
       estado: novoLead.estado.trim() || '—',
@@ -206,20 +233,24 @@ export default function Leads() {
       responsavelId: user.id,
       tags: [],
       modoAtendimento: novoLead.modo,
-      automacaoStatus: novoLead.modo === 'HUMANO' ? 'AGUARDANDO_HUMANO' : 'ATIVA',
+      automacaoStatus: novoLead.modo === 'HUMANO' ? 'AGUARDANDO_HUMANO' : contatoAprovado ? 'ATIVA' : 'PAUSADA',
       canalPreferencial: 'WhatsApp',
       templateId: 'tm-1',
-      contatoPermitido: true,
-      consentimentoWhatsApp: true,
-      consentimentoEmail: true,
+      contatoPermitido: contatoAprovado,
+      consentimentoWhatsApp: contatoAprovado,
+      consentimentoEmail: false,
+      contactApprovalStatus: contatoAprovado ? 'approved' : 'pending',
+      contactApprovalReason: contatoAprovado ? novoLead.origemAutorizacao.trim() : 'Aguardando comprovação de autorização.',
+      contactApprovedAt: contatoAprovado ? new Date().toISOString() : null,
+      aguardandoAtivacao: novoLead.modo === 'IA' && !contatoAprovado,
       ultimaInteracao: 'agora',
       criadoEm: new Date().toISOString().slice(0, 10),
     };
     setLeads((prev) => [novo, ...prev]);
     await waitForLeadsPersistence();
-    const result = await runAna({ event: 'lead.created', leadId: novo.id, modo: novoLead.modo }).catch(() => null);
+    const result = novoLead.modo === 'IA' && contatoAprovado ? await runAna({ event: 'lead.created', leadId: novo.id, modo: novoLead.modo }).catch(() => null) : null;
     setNovoModal(false);
-    setNovoLead({ nome: '', empresa: '', email: '', telefone: '', segmento: 'Tecnologia', cidade: '', estado: '', modo: 'IA' });
+    setNovoLead({ nome: '', empresa: '', email: '', telefone: '', segmento: 'Tecnologia', cidade: '', estado: '', modo: 'IA', whatsappConfirmado: false, autorizacaoContato: false, origemAutorizacao: '' });
     mostrarToast(result?.ok ? 'Lead criado e processado pela Ana.' : 'Lead criado. A Ana fica disponível quando o backend estiver configurado.');
   };
 
@@ -509,14 +540,14 @@ export default function Leads() {
 
       {/* Modal de escolha de modo (Ana ou Humano) ao enviar para o Kanban */}
       {envioAlvo && (
-        <div className="fixed inset-0 z-50 bg-foreground-950/50 flex items-center justify-center p-4" onClick={() => { setEnvioAlvo(null); setModoSelecionado(null); }}>
+        <div className="fixed inset-0 z-50 bg-foreground-950/50 flex items-center justify-center p-4" onClick={() => { setEnvioAlvo(null); setModoSelecionado(null); setAprovacaoKanban({ confirmada: false, origem: '' }); }}>
           <div className="bg-background-50 rounded-xl max-w-lg w-full" onClick={(e) => e.stopPropagation()}>
             <div className="px-6 py-4 border-b border-background-200/70 flex items-center justify-between">
               <div>
                 <h3 className="font-heading font-bold text-foreground-950">Enviar para o Kanban</h3>
                 <p className="text-sm text-foreground-500">{envioAlvo.length} lead(s) selecionado(s)</p>
               </div>
-              <button onClick={() => { setEnvioAlvo(null); setModoSelecionado(null); }} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-background-100 cursor-pointer">
+              <button onClick={() => { setEnvioAlvo(null); setModoSelecionado(null); setAprovacaoKanban({ confirmada: false, origem: '' }); }} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-background-100 cursor-pointer">
                 <i className="ri-close-line text-lg"></i>
               </button>
             </div>
@@ -539,7 +570,7 @@ export default function Leads() {
                   <div>
                     <p className="font-semibold text-foreground-900 text-sm">Ana (IA)</p>
                     <p className="text-xs text-foreground-500 mt-1">
-                      A Ana faz o primeiro contato e assume a conversa de ponta a ponta, respondendo e avançando o funil automaticamente.
+                      A Ana conduz as etapas autorizadas e transfere preço, prazo, compromisso técnico e fechamento para aprovação humana.
                     </p>
                   </div>
                 </button>
@@ -565,6 +596,7 @@ export default function Leads() {
 
               {modoSelecionado === 'IA' && (
                 <div className="mt-4 pt-4 border-t border-background-100">
+                  {envioAlvo.some((id) => { const lead = leads.find((item) => item.id === id); return lead?.contactApprovalStatus !== 'approved' || !lead.whatsapp; }) && <div className="mb-4 rounded-xl border border-accent-200 bg-accent-50 p-4"><label className="flex cursor-pointer items-start gap-2 text-xs text-accent-900"><input type="checkbox" checked={aprovacaoKanban.confirmada} onChange={(e) => setAprovacaoKanban((current) => ({ ...current, confirmada: e.target.checked }))} className="mt-0.5" /><span>Confirmo que os números selecionados são WhatsApp e que os destinatários autorizaram o contato da Wayflex.</span></label>{aprovacaoKanban.confirmada && <input type="text" value={aprovacaoKanban.origem} onChange={(e) => setAprovacaoKanban((current) => ({ ...current, origem: e.target.value }))} placeholder="Origem da autorização: formulário, evento, solicitação…" className="mt-3 w-full rounded-lg border border-accent-200 bg-white px-3 py-2 text-sm text-foreground-900" />}</div>}
                   <label className="block text-xs font-semibold text-foreground-600 mb-1.5 flex items-center gap-1.5">
                     <i className="ri-robot-line text-secondary-600"></i>
                     Até qual etapa a Ana atende antes de transferir pro humano?
@@ -586,10 +618,10 @@ export default function Leads() {
               )}
             </div>
             <div className="px-6 py-4 border-t border-background-200/70 flex justify-end gap-2">
-              <button onClick={() => { setEnvioAlvo(null); setModoSelecionado(null); }} className="px-4 py-2.5 border border-background-300 text-foreground-700 rounded-lg text-sm font-semibold hover:bg-background-100 cursor-pointer whitespace-nowrap">Cancelar</button>
+              <button onClick={() => { setEnvioAlvo(null); setModoSelecionado(null); setAprovacaoKanban({ confirmada: false, origem: '' }); }} className="px-4 py-2.5 border border-background-300 text-foreground-700 rounded-lg text-sm font-semibold hover:bg-background-100 cursor-pointer whitespace-nowrap">Cancelar</button>
               <button
                 onClick={() => modoSelecionado && enviarParaKanban(envioAlvo, modoSelecionado, modoSelecionado === 'IA' ? handoffEtapa || undefined : undefined)}
-                disabled={!modoSelecionado}
+                disabled={!modoSelecionado || (modoSelecionado === 'IA' && envioAlvo.some((id) => { const lead = leads.find((item) => item.id === id); return lead?.contactApprovalStatus !== 'approved' || !lead.whatsapp; }) && (!aprovacaoKanban.confirmada || !aprovacaoKanban.origem.trim()))}
                 className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary-500 hover:bg-primary-600 disabled:bg-primary-300 disabled:cursor-not-allowed text-background-50 rounded-lg text-sm font-bold cursor-pointer whitespace-nowrap"
               >
                 <i className="ri-send-plane-2-line"></i>
@@ -621,7 +653,16 @@ export default function Leads() {
                 <span className={`px-3 py-1.5 rounded-full text-xs font-medium ${etapaCores[detalhe.etapa]}`}>{detalhe.etapa}</span>
                 <span className="px-3 py-1.5 rounded-full text-xs font-medium bg-primary-100 text-primary-700">Score {detalhe.score}</span>
                 <span className="px-3 py-1.5 rounded-full text-xs font-medium bg-accent-100 text-accent-700">{detalhe.temperatura}</span>
+                <span className={`px-3 py-1.5 rounded-full text-xs font-medium ${detalhe.contactApprovalStatus === 'approved' ? 'bg-primary-100 text-primary-700' : 'bg-background-200 text-foreground-600'}`}>{detalhe.contactApprovalStatus === 'approved' ? 'Contato autorizado' : 'Aguardando autorização'}</span>
               </div>
+
+              <div className="grid grid-cols-3 gap-2 rounded-xl border border-background-200 bg-background-100/50 p-3 text-center">
+                <div><p className="text-base font-bold text-foreground-900">{detalhe.fitScore ?? detalhe.score}</p><p className="text-[10px] text-foreground-500">Aderência</p></div>
+                <div><p className="text-base font-bold text-foreground-900">{detalhe.contactabilityScore ?? 0}</p><p className="text-[10px] text-foreground-500">Contato</p></div>
+                <div><p className="text-base font-bold text-foreground-900">{detalhe.engagementScore ?? 0}</p><p className="text-[10px] text-foreground-500">Engajamento</p></div>
+              </div>
+              {detalhe.scoreExplanation && <p className="text-xs text-foreground-600">{detalhe.scoreExplanation}</p>}
+              {detalhe.contactApprovalReason && <p className="text-xs text-foreground-600"><strong>Autorização:</strong> {detalhe.contactApprovalReason}</p>}
 
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div>
@@ -727,7 +768,7 @@ export default function Leads() {
                   <input type="email" value={novoLead.email} onChange={(e) => setNovoLead({ ...novoLead, email: e.target.value })} placeholder="contato@empresa.com" className="w-full px-4 py-2.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-900" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-foreground-800 mb-1.5">Telefone / WhatsApp</label>
+                  <label className="block text-sm font-medium text-foreground-800 mb-1.5">Telefone</label>
                   <input type="text" value={novoLead.telefone} onChange={(e) => setNovoLead({ ...novoLead, telefone: e.target.value })} placeholder="(00) 00000-0000" className="w-full px-4 py-2.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-900" />
                 </div>
               </div>
@@ -754,6 +795,12 @@ export default function Leads() {
                   <option value="HUMANO">Humano — sem disparo automático</option>
                 </select>
                 <p className="mt-1.5 text-xs text-foreground-500">Você será definido como responsável por este lead.</p>
+              </div>
+              <div className="rounded-xl border border-background-200 bg-background-100/50 p-4 space-y-3">
+                <label className="flex cursor-pointer items-start gap-2 text-xs text-foreground-800"><input type="checkbox" checked={novoLead.whatsappConfirmado} onChange={(e) => setNovoLead({ ...novoLead, whatsappConfirmado: e.target.checked })} className="mt-0.5" /><span>Confirmo que o telefone informado está ativo no WhatsApp.</span></label>
+                <label className="flex cursor-pointer items-start gap-2 text-xs text-foreground-800"><input type="checkbox" checked={novoLead.autorizacaoContato} onChange={(e) => setNovoLead({ ...novoLead, autorizacaoContato: e.target.checked })} className="mt-0.5" /><span>Confirmo que o destinatário autorizou contato da Wayflex.</span></label>
+                {(novoLead.whatsappConfirmado || novoLead.autorizacaoContato) && <input type="text" value={novoLead.origemAutorizacao} onChange={(e) => setNovoLead({ ...novoLead, origemAutorizacao: e.target.value })} placeholder="Origem da autorização: formulário, evento, solicitação…" className="w-full rounded-lg border border-background-300 bg-white px-3 py-2 text-sm text-foreground-900" />}
+                <p className="text-[11px] text-foreground-500">No modo Ana, as duas confirmações e a origem são obrigatórias antes do primeiro contato.</p>
               </div>
             </div>
             <div className="px-6 py-4 border-t border-background-200/70 flex justify-end gap-2">
