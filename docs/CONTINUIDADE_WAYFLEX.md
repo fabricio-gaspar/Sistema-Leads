@@ -464,6 +464,22 @@ webhook em ambiente controlado.
   uma pasta sem permissão de leitura. A validação visual autenticada permanece pendente: o runtime
   de Computer Use falhou por permissão antes de abrir o navegador.
 
+## Equipe — correção do vínculo organizacional de Juca — 14/09/2026
+
+- Causa comprovada: `auth.admin.createUser` acionava `private.handle_new_auth_user` antes de existir
+  um `organization_invites` para a WayFlex. O gatilho tratava o cadastro como onboarding comum,
+  criava uma organização pessoal chamada Juca e por isso o membro não aparecia na equipe WayFlex.
+- `team-members` v4 prepara o convite organizacional antes de criar ou convidar o usuário, bloqueia
+  convites simultâneos para outra organização e restaura o estado anterior quando o Auth recusa a
+  criação. A função preserva as proteções de autoexclusão presentes na v3.
+- O cadastro real `juca@wayflex.ind.br` foi reparado de forma delimitada: usuário confirmado,
+  perfil ativo na WayFlex, papel `administrador`, status `active` e um único vínculo organizacional.
+  A organização de onboarding incorreta tinha zero leads, mensagens ou eventos; seu vínculo foi
+  removido. O registro de auditoria imutável e os defaults inacessíveis foram preservados.
+- A inspeção autenticada confirmou Juca e fabricio na lista de **Equipe e Acessos**. Type-check
+  frontend/Edge, lint, 16 arquivos/172 testes e build passaram. A senha não foi consultada,
+  registrada nem alterada; o login de Juca permanece para confirmação pelo próprio usuário.
+
 ## Mapa visual interativo de Configurar a Ana — 13/09/2026
 
 - A navegação linear de **Configurar a Ana** foi reorganizada como um mapa de decisão moderno,

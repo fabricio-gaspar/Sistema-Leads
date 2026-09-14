@@ -11,6 +11,11 @@ const errors: Record<string, string> = {
   invalid_member_password: 'Use uma senha com 8 a 128 caracteres.',
   member_email_already_registered: 'Este e-mail já possui uma conta. Use os controles da lista para ajustar seu acesso.',
   member_creation_failed: 'Não foi possível criar o acesso direto.',
+  member_invite_conflict: 'Este e-mail possui um convite ativo para outra organização.',
+  member_invitation_preparation_failed: 'Não foi possível preparar o vínculo com a Wayflex.',
+  member_self_deletion_protected: 'Você não pode remover o próprio acesso por esta tela.',
+  member_linked_to_another_organization: 'Este membro também pertence a outra organização e não pode ser excluído por esta tela.',
+  member_identity_deletion_failed: 'Não foi possível remover a identidade deste membro.',
 };
 
 function errorMessage(error: unknown): string {

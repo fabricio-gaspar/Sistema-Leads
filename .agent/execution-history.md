@@ -328,6 +328,18 @@
   não iniciou devido à resolução do esbuild para uma pasta compartilhada sem permissão de leitura.
   O Computer Use também não pôde abrir o navegador pelo erro local `EPERM`.
 
+# 2026-09-14 — Reparo do acesso de Juca e prevenção de onboarding paralelo
+
+- O cadastro havia sido criado no Auth, mas o gatilho de novo usuário o associou a uma organização
+  pessoal porque o vínculo WayFlex só era gravado depois de `createUser`.
+- O fluxo agora cria a autorização em `organization_invites` antes do Auth e restaura esse registro
+  em caso de falha. `team-members` v4 foi publicada com JWT obrigatório.
+- Juca foi movido para a organização WayFlex como administrador ativo. O vínculo com a organização
+  pessoal indevida foi removido após confirmar zero dados operacionais; a auditoria imutável foi
+  preservada. A tela autenticada passou a listar Juca e fabricio.
+- Type-check frontend/Edge, lint, build e 16 arquivos/172 testes passaram. Não houve leitura ou
+  alteração de senha, mensagem, lead, integração comercial ou configuração da Ana.
+
 ## 2026-09-13 — Mapa visual de decisão da Ana
 
 - A navegação dos seis passos de Configurar a Ana foi convertida em um mapa interativo responsivo.

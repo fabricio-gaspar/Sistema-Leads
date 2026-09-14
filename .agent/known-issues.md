@@ -49,6 +49,13 @@
   `reconcile_provider_accepted_outreach` finaliza somente registros com identificador do
   provedor comprovado, sem fazer nova chamada externa. Seis jobs históricos foram conciliados.
 
+## Resolvido em 14/09/2026
+
+- A criação direta de membro chamava o Auth antes de preparar o vínculo com a organização. O
+  gatilho de onboarding criava uma organização pessoal e o membro não aparecia na equipe WayFlex.
+  `team-members` v4 inverteu a ordem, usa `organization_invites` e restaura a autorização em falha.
+  O cadastro de Juca foi reparado e confirmado na lista autenticada.
+
 ## Sugestões, não bugs
 
 - Ambiente de homologação isolado e piloto controlado antes de comercializar.

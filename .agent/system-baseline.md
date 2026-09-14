@@ -117,3 +117,11 @@ Detalhes de continuidade e releases ficam em `docs/CONTINUIDADE_WAYFLEX.md`.
   aciona notificações auditáveis; `notifications` é fonte do sino e da Atenção do vendedor.
 - O estado de implantação é `ana_operation_enabled=false` e `ana_operation_mode=simulation`.
   Código e schema não equivalem à homologação de Apify, WhatsApp, IA ou Calendar reais.
+
+## Delta de equipe e acesso — 14/09/2026
+
+- Criação e convite de membros preparam `organization_invites` antes do Supabase Auth. Assim,
+  `private.handle_new_auth_user` associa a identidade diretamente à organização ativa e não cria
+  um onboarding paralelo.
+- Juca está confirmado, ativo e com papel de administrador na WayFlex. O login com a senha definida
+  pelo operador não foi executado pelo agente e continua sendo a validação humana restante.

@@ -73,3 +73,12 @@ diário em concorrência; recibos antecipados ainda dependem de nova reconcilia�
    por Realtime. O worker cria o resumo diário restrito à carteira de cada vendedor.
 5. Simulação não chama provedores; supervisão exige aprovação; automático exige prontidão completa,
    autorização do Apify, canal comprovado, score mínimo, limites e kill switch desligado.
+
+## Equipe e identidade
+
+1. A tela chama `team-members` com a sessão do administrador e a organização ativa do perfil.
+2. A função grava uma autorização curta em `organization_invites` antes de criar ou convidar no
+   Supabase Auth. O gatilho `private.handle_new_auth_user` consome essa autorização e cria perfil,
+   `organization_members` e `user_roles` na organização correta.
+3. O backend reforça papel/status, confirma o `active_organization_id` e audita a ação sem registrar
+   senha. Falha do Auth restaura ou remove somente a autorização preparada pela tentativa.
