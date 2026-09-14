@@ -118,6 +118,7 @@ Deno.serve(async (request) => {
     const { data: current, error: currentError } = await admin.from('organization_members').select('role,status')
       .eq('organization_id', organizationId).eq('user_id', targetUserId).maybeSingle();
     if (currentError || !current) throw currentError ?? new Error('member_not_found');
+    if (targetUserId === user.id) throw new Error('member_self_deletion_protected');
 
     if (action === 'update_role') {
       const role = memberRole(body.role);
@@ -140,10 +141,15 @@ Deno.serve(async (request) => {
     }
 
     await ensureAnotherAdministrator(admin, organizationId, targetUserId, current.role === 'administrador' && current.status === 'active');
-    const { error } = await admin.from('organization_members').delete().eq('organization_id', organizationId).eq('user_id', targetUserId);
-    if (error) throw error;
-    await admin.from('audit_logs').insert({ organization_id: organizationId, actor_id: user.id, actor_name: profile.name, actor_type: 'user', action: 'team.member_removed', detail: 'Membro removido da organização.', entity_table: 'organization_members', event_data: { user_id: targetUserId } });
-    return json({ ok: true }, 200, headers);
+    const { count: otherOrganizationCount, error: otherOrganizationError } = await admin.from('organization_members')
+      .select('organization_id', { count: 'exact', head: true }).eq('user_id', targetUserId).neq('organization_id', organizationId);
+    if (otherOrganizationError) throw otherOrganizationError;
+    if ((otherOrganizationCount ?? 0) > 0) throw new Error('member_linked_to_another_organization');
+
+    const { error: deleteUserError } = await admin.auth.admin.deleteUser(targetUserId);
+    if (deleteUserError) throw new Error('member_identity_deletion_failed');
+    await admin.from('audit_logs').insert({ organization_id: organizationId, actor_id: user.id, actor_name: profile.name, actor_type: 'user', action: 'team.member_deleted', detail: 'Identidade do membro removida definitivamente.', entity_table: 'organization_members', event_data: { user_id: targetUserId } });
+    return json({ ok: true, deleted_identity: true }, 200, headers);
   } catch (error) {
     return json({ ok: false, erro: safeError(error) }, 400, headers);
   }

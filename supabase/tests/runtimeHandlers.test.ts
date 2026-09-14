@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 type Row = Record<string, unknown>;
 type Query = { table: string; operation: string; value?: Row; filters: Record<string, unknown> };
 type Result = { data: unknown; error: null | { message: string; code?: string }; count?: number };
-const state = vi.hoisted(() => ({ admin: {} as object }));
+const state = vi.hoisted(() => ({ admin: {} as object, deleteUser: vi.fn() }));
 vi.mock('../functions/_shared/auth.ts', () => ({
   createAdminClient: () => state.admin,
   requireUser: async (request: Request) => {
@@ -85,8 +85,12 @@ function execute(query: Query): Result {
 function queryFor(table: string) {
   const query: Query = { table, operation: 'select', filters: {} };
   const chain: Record<string, unknown> = {};
-  for (const method of ['eq', 'is', 'in', 'not', 'gte', 'lte', 'ilike', 'or', 'order', 'limit']) {
-    chain[method] = (key: string, value: unknown) => { if (method === 'eq') query.filters[key] = value; return chain; };
+  for (const method of ['eq', 'neq', 'is', 'in', 'not', 'gte', 'lte', 'ilike', 'or', 'order', 'limit']) {
+    chain[method] = (key: string, value: unknown) => {
+      if (method === 'eq') query.filters[key] = value;
+      if (method === 'neq') query.filters[`neq:${key}`] = value;
+      return chain;
+    };
   }
   chain.select = () => chain;
   for (const method of ['insert', 'update', 'upsert']) chain[method] = (value: Row) => { query.operation = method; query.value = value; return chain; };
@@ -97,10 +101,57 @@ function queryFor(table: string) {
 
 beforeEach(() => {
   vi.resetModules(); calls = []; override = undefined; acceptedLeadState = {};
-  state.admin = { from: queryFor, rpc: (name: string, value: Row) => Promise.resolve(execute({ table: name, operation: 'rpc', value, filters: {} })) };
+  state.deleteUser = vi.fn(async () => ({ data: { user: { id: 'deleted-user' } }, error: null }));
+  state.admin = {
+    from: queryFor,
+    rpc: (name: string, value: Row) => Promise.resolve(execute({ table: name, operation: 'rpc', value, filters: {} })),
+    auth: { admin: { deleteUser: state.deleteUser } },
+  };
   vi.stubGlobal('Deno', { env: { get: (name: string) => ({ SUPABASE_URL: 'https://example.invalid', SUPABASE_SERVICE_ROLE_KEY: 'synthetic-service-jwt', WHATSAPP_WEBHOOK_SHARED_SECRET: 'synthetic-internal-secret' } as Record<string, string>)[name] }, serve: (callback: typeof handler) => { handler = callback; } });
   fetchMock = vi.fn(async () => { throw new Error('Unexpected external call in safety test'); });
   vi.stubGlobal('fetch', fetchMock);
+});
+
+describe('Team member identity deletion', () => {
+  const removedUserId = 'e1111111-1111-4111-8111-111111111111';
+  const removalRequest = () => new Request('https://example.invalid/team-members', {
+    method: 'POST',
+    headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'remove', user_id: removedUserId }),
+  });
+
+  it('hard-deletes an unshared member identity after preserving commercial records', async () => {
+    override = (query) => {
+      if (query.table !== 'organization_members' || query.operation !== 'select' || query.filters.user_id !== removedUserId) return undefined;
+      if (query.filters['neq:organization_id'] === org) return { data: [], error: null, count: 0 };
+      return ok({ role: 'vendedor', status: 'active' });
+    };
+
+    await import('../functions/team-members/index');
+    const response = await handler(removalRequest());
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ ok: true, deleted_identity: true });
+    expect(state.deleteUser).toHaveBeenCalledWith(removedUserId);
+    expect(calls.find((query) => query.table === 'audit_logs' && query.operation === 'insert')?.value).toMatchObject({
+      action: 'team.member_deleted', event_data: { user_id: removedUserId },
+    });
+  });
+
+  it('does not delete an identity that belongs to another organization', async () => {
+    override = (query) => {
+      if (query.table !== 'organization_members' || query.operation !== 'select' || query.filters.user_id !== removedUserId) return undefined;
+      if (query.filters['neq:organization_id'] === org) return { data: [], error: null, count: 1 };
+      return ok({ role: 'vendedor', status: 'active' });
+    };
+
+    await import('../functions/team-members/index');
+    const response = await handler(removalRequest());
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ ok: false, erro: 'member_linked_to_another_organization' });
+    expect(state.deleteUser).not.toHaveBeenCalled();
+  });
 });
 
 describe('Prospecting handler persistence contract', () => {

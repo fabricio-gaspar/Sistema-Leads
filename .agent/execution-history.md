@@ -384,3 +384,15 @@
   `automation-worker` v22. Chamadas sem autenticação foram recusadas.
 - A operação permaneceu desativada e em Simulação; nenhum WhatsApp, Apify, modelo ou Calendar real
   foi chamado. A homologação externa continua sendo ação explícita do operador.
+
+## 2026-09-14 — Exclusão definitiva em Equipe
+
+- Confirmação: projeto Supabase `thgzrkppouoevapjquyu` (Sistema de Leads).
+- Migration `20260914203238_member_identity_deletion` aplicada: 13 FKs para `auth.users` usam
+  `ON DELETE SET NULL`; `prospecting_runs.requested_by` aceita nulo. Não houve exclusão de usuários.
+- `team-members` v3 passou a usar `auth.admin.deleteUser` somente para membro não compartilhado,
+  após bloquear autoexclusão, última administração e identidade ligada a outra organização.
+- Histórico comercial é preservado sem responsável; dados de identidade e acesso são eliminados,
+  permitindo recriar o mesmo e-mail posteriormente.
+- Verificação local: type-check frontend/Edge, lint e build aprovados. Teste de regressão adicionado;
+  Vitest bloqueado antes de iniciar por permissões do diretório de dependências compartilhado.

@@ -11,6 +11,9 @@ const errors: Record<string, string> = {
   invalid_member_password: 'Use uma senha com 8 a 128 caracteres.',
   member_email_already_registered: 'Este e-mail já possui uma conta. Use os controles da lista para ajustar seu acesso.',
   member_creation_failed: 'Não foi possível criar o acesso direto.',
+  member_self_deletion_protected: 'Você não pode excluir a própria conta por esta tela.',
+  member_linked_to_another_organization: 'Esta conta também pertence a outra empresa e não pode ser apagada por aqui.',
+  member_identity_deletion_failed: 'Não foi possível apagar a conta definitivamente. Nenhum acesso foi removido.',
 };
 
 function errorMessage(error: unknown): string {
@@ -52,7 +55,7 @@ export default function TeamAccessTab() {
     finally { setBusy(null); }
   };
   const remove = async (member: TeamMember) => {
-    if (!window.confirm(`Remover ${member.name} da empresa? Essa pessoa perde o acesso imediatamente.`)) return;
+    if (!window.confirm(`Excluir ${member.name} definitivamente? Credenciais, perfil e dados pessoais serão apagados. Registros comerciais serão preservados sem responsável.`)) return;
     setBusy(member.userId);
     try { await removeTeamMember(member.userId); await refresh(); }
     catch (cause) { setError(errorMessage(cause)); }

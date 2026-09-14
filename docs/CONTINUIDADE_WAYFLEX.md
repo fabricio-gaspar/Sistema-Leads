@@ -556,3 +556,21 @@ webhook em ambiente controlado.
 - Validação sem efeitos externos: teste SQL transacional com rollback confirmou evento → notificação;
   endpoints rejeitaram chamadas sem autenticação; type-check frontend/Edge, lint, testes de contrato
   e build foram executados. WhatsApp, Apify, modelo de IA e Calendar reais não foram chamados.
+
+## 2026-09-14 — Exclusão definitiva de membro da equipe
+
+- **Configurações → Equipe e responsáveis → Excluir** agora remove definitivamente a identidade
+  não compartilhada: credenciais, sessões, perfil, papéis, preferências, notificações e associação
+  à organização deixam de existir. O mesmo e-mail pode ser criado novamente depois.
+- Registros comerciais da empresa não são apagados. Leads, tarefas, propostas, handoffs, auditorias
+  e históricos de prospecção antes associados ao membro permanecem na organização com a referência
+  de responsável vazia, prontos para redistribuição.
+- A remoção recusa a própria conta do operador, preserva a regra de que deve existir outro
+  administrador e bloqueia a exclusão se a identidade também pertence a outra organização.
+- Migration aplicada no Supabase oficial: `20260914203238_member_identity_deletion`.
+  Ela tornou anuláveis as 13 referências de identidade que antes bloqueavam a exclusão e não removeu
+  nenhum usuário ou dado comercial nesta implantação.
+- Edge Function publicada: `team-members` v3. Foram adicionados testes de regressão para exclusão
+  de identidade não compartilhada e bloqueio de conta compartilhada. Type-check frontend/Edge,
+  lint e build passaram; o Vitest não iniciou por erro local de permissão no diretório compartilhado
+  de dependências, antes da execução de qualquer caso de teste.
