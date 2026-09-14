@@ -2,7 +2,7 @@ import { createAdminClient, requireOrganizationRole, requireUser } from '../_sha
 import { allowedCorsHeaders, hasAllowedOrigin, json, preflight, safeError } from '../_shared/http.ts';
 
 const roles = new Set(['administrador', 'vendedor', 'sdr', 'cx']);
-type Action = 'invite' | 'update_role' | 'set_status' | 'remove';
+type Action = 'create' | 'invite' | 'update_role' | 'set_status' | 'remove';
 
 function text(value: unknown, max = 180): string {
   return typeof value === 'string' ? value.trim().slice(0, max) : '';
@@ -12,6 +12,21 @@ function memberRole(value: unknown): string {
   const role = text(value, 40).toLowerCase();
   if (!roles.has(role)) throw new Error('invalid_member_role');
   return role;
+}
+
+function memberPassword(value: unknown): string {
+  if (typeof value !== 'string' || value.length < 8 || value.length > 128) {
+    throw new Error('invalid_member_password');
+  }
+  return value;
+}
+
+function isExistingAuthUser(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const candidate = error as { code?: unknown; message?: unknown };
+  return candidate.code === 'email_exists'
+    || candidate.code === 'user_already_exists'
+    || (typeof candidate.message === 'string' && /already (been )?registered|already exists/i.test(candidate.message));
 }
 
 async function ensureAnotherAdministrator(
@@ -34,13 +49,48 @@ Deno.serve(async (request) => {
   try {
     const body = await request.json().catch(() => ({})) as Record<string, unknown>;
     const action = text(body.action, 32) as Action;
-    if (!['invite', 'update_role', 'set_status', 'remove'].includes(action)) throw new Error('unsupported_action');
+    if (!['create', 'invite', 'update_role', 'set_status', 'remove'].includes(action)) throw new Error('unsupported_action');
     const { user } = await requireUser(request);
     const admin = createAdminClient();
     const { data: profile, error: profileError } = await admin.from('profiles').select('active_organization_id,name').eq('id', user.id).maybeSingle();
     if (profileError || !profile?.active_organization_id) throw new Error('organization_context_required');
     const organizationId = profile.active_organization_id;
     await requireOrganizationRole(admin, user.id, organizationId, ['owner', 'admin']);
+
+    if (action === 'create') {
+      const email = text(body.email, 254).toLowerCase();
+      const name = text(body.name, 120);
+      const password = memberPassword(body.password);
+      const role = memberRole(body.role);
+      if (!name) throw new Error('invalid_member_name');
+      if (!/^\S+@\S+\.\S+$/.test(email)) throw new Error('invalid_member_email');
+
+      const { data: created, error: createError } = await admin.auth.admin.createUser({
+        email,
+        password,
+        email_confirm: true,
+        user_metadata: { name },
+      });
+      if (createError || !created.user) {
+        if (isExistingAuthUser(createError)) throw new Error('member_email_already_registered');
+        throw createError ?? new Error('member_creation_failed');
+      }
+
+      const now = new Date().toISOString();
+      const { error: membershipError } = await admin.from('organization_members').upsert({
+        organization_id: organizationId, user_id: created.user.id, role, status: 'active', updated_at: now,
+      }, { onConflict: 'organization_id,user_id' });
+      if (membershipError) {
+        await admin.auth.admin.deleteUser(created.user.id);
+        throw membershipError;
+      }
+
+      await admin.from('audit_logs').insert({
+        organization_id: organizationId, actor_id: user.id, actor_name: profile.name, actor_type: 'user', action: 'team.member_created',
+        detail: `Acesso criado para ${email}.`, entity_table: 'organization_members', event_data: { email, role, user_id: created.user.id },
+      });
+      return json({ ok: true, user_id: created.user.id, message: 'Acesso criado e liberado.' }, 201, headers);
+    }
 
     if (action === 'invite') {
       const email = text(body.email, 254).toLowerCase();

@@ -318,6 +318,16 @@
   comercial. A validação visual autenticada ficou pendente porque Computer Use falhou por
   permissão antes de abrir a janela.
 
+# 2026-09-14 — Criação direta de membro da equipe
+
+- A Edge Function `team-members` foi publicada como v2 com a ação autenticada `create`. Apenas
+  owner/admin da organização ativa pode criar um usuário confirmado e associá-lo como membro ativo.
+- A interface de Equipe passou a separar **Criar acesso** de **Convidar membro**. A senha é enviada
+  somente ao backend durante a requisição e não é persistida nos logs de auditoria nem no Git.
+- Type-check frontend/Edge e lint passaram; build Vite e artefato do Site foram gerados. O Vitest
+  não iniciou devido à resolução do esbuild para uma pasta compartilhada sem permissão de leitura.
+  O Computer Use também não pôde abrir o navegador pelo erro local `EPERM`.
+
 ## 2026-09-13 — Mapa visual de decisão da Ana
 
 - A navegação dos seis passos de Configurar a Ana foi convertida em um mapa interativo responsivo.

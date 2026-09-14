@@ -53,6 +53,10 @@ export async function inviteTeamMember(input: { name: string; email: string; rol
   await mutate('invite', input);
 }
 
+export async function createTeamMember(input: { name: string; email: string; password: string; role: TeamRole }): Promise<void> {
+  await mutate('create', input);
+}
+
 export async function updateTeamRole(userId: string, role: TeamRole): Promise<void> {
   await mutate('update_role', { user_id: userId, role });
 }

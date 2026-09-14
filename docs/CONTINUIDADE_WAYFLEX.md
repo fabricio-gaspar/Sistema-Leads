@@ -449,6 +449,21 @@ webhook em ambiente controlado.
   autenticada não foi possível porque o runtime local de Computer Use falhou antes de acessar a
   janela por permissão; não declarar essa checagem como concluída.
 
+## Equipe — criação direta de acesso administrativo — 14/09/2026
+
+- A aba **Configurações > Equipe** passou a oferecer **Criar acesso** além do convite por e-mail.
+  A ação usa a Edge Function `team-members` v2, que exige sessão autenticada e papel de
+  administrador/owner na organização ativa.
+- O backend valida nome, e-mail, papel e comprimento da senha, cria o usuário por
+  `auth.admin.createUser` somente no servidor, confirma o e-mail e registra o membro ativo na
+  mesma organização. A senha não é incluída em audit logs, eventos, respostas ou repositório.
+- Se a associação organizacional falhar, o usuário recém-criado é removido para evitar uma conta
+  órfã. E-mails já cadastrados retornam um erro específico, sem alterar permissões existentes.
+- Validação local: type-check do frontend e das Edge Functions, lint e build Vite aprovados. O
+  Vitest não inicializou neste worktree porque o esbuild resolve a dependência compartilhada em
+  uma pasta sem permissão de leitura. A validação visual autenticada permanece pendente: o runtime
+  de Computer Use falhou por permissão antes de abrir o navegador.
+
 ## Mapa visual interativo de Configurar a Ana — 13/09/2026
 
 - A navegação linear de **Configurar a Ana** foi reorganizada como um mapa de decisão moderno,
