@@ -11,6 +11,7 @@ vi.mock('../functions/_shared/auth.ts', () => ({
     return { user: { id: 'owner' } };
   },
   requireOrganizationRole: async () => undefined,
+  requireOrganizationPermission: async () => undefined,
 }));
 
 const org = 'a1111111-1111-4111-8111-111111111111';
@@ -151,6 +152,44 @@ describe('Team member identity deletion', () => {
     expect(response.status).toBe(400);
     expect(await response.json()).toMatchObject({ ok: false, erro: 'member_linked_to_another_organization' });
     expect(state.deleteUser).not.toHaveBeenCalled();
+  });
+
+  it('persists an explicit, complete permission map for a team member', async () => {
+    const permissions = {
+      'leads.read_all': true,
+      'leads.read_assigned': true,
+      'leads.create': true,
+      'leads.edit_all': false,
+      'leads.edit_assigned': true,
+      'leads.delete': false,
+      'conversations.read_all': true,
+      'conversations.reply_all': false,
+      'conversations.reply_assigned': true,
+      'messages.delete': false,
+      'prospecting.manage': true,
+      'proposals.manage': false,
+      'configuration.manage': false,
+      'website_entry.manage': false,
+      'team.manage': false,
+      'audit.view': false,
+    };
+
+    await import('../functions/team-members/index');
+    const response = await handler(new Request('https://example.invalid/team-members', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'permissions_set', user_id: removedUserId, permissions }),
+    }));
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ ok: true });
+    const stored = calls.find((query) => query.table === 'team_member_permissions' && query.operation === 'upsert')?.value;
+    expect(stored).toEqual(expect.arrayContaining([
+      expect.objectContaining({ organization_id: org, user_id: removedUserId, permission: 'leads.delete', allowed: false }),
+      expect.objectContaining({ organization_id: org, user_id: removedUserId, permission: 'prospecting.manage', allowed: true }),
+    ]));
+    expect(calls.find((query) => query.table === 'audit_logs' && query.operation === 'insert')?.value)
+      .toMatchObject({ action: 'team.member_permissions_changed', event_data: { user_id: removedUserId } });
   });
 });
 
@@ -545,6 +584,30 @@ describe('Webhook handler contract — synthetic callbacks', () => {
     expect(await (await handler(webhookRequest())).json()).toMatchObject({ matched: false });
     expect(calls.find((q) => q.table === 'webhook_events' && q.operation === 'update')?.value).toMatchObject({ status: 'failed', error: 'lead_not_matched' });
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it('creates a lead only for a matching active site-entry marker and hides the marker from the conversation', async () => {
+    override = (q) => {
+      if (q.table === 'resolve_whatsapp_lead') return ok([{ lead_id: null, reason: 'not_found' }]);
+      if (q.table === 'whatsapp_site_entries') return ok({ id: 'site-entry-1', source_label: 'Formulário institucional' });
+      return undefined;
+    };
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ ok: true, skipped: true, reason: 'sandbox_mode' }), { status: 200 }));
+    await import('../functions/webhook-whatsapp/index');
+    const response = await handler(webhookRequest({
+      ...callback,
+      messageId: 'synthetic-website-entry',
+      text: { message: 'Preciso de uma vedação industrial [WF:ABCDEF123456]' },
+    }));
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ matched: true, processed: true, resolution: 'site_entry_created' });
+    expect(calls.find((q) => q.table === 'leads' && q.operation === 'insert')?.value).toMatchObject({
+      company: 'Contato do site',
+      origin: 'Formulário institucional',
+      source_record_id: 'website-whatsapp:site-entry-1',
+    });
+    expect(calls.find((q) => q.table === 'lead_messages' && q.operation === 'insert')?.value?.text)
+      .toBe('Preciso de uma vedação industrial');
   });
   it('ignores outgoing echoes without running Ana', async () => {
     await import('../functions/webhook-whatsapp/index');

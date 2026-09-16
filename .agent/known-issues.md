@@ -29,6 +29,9 @@
   operador salvar a rotina e comprovar o ciclo externo Apify → WhatsApp → resposta → Ana.
 - Notificações imediatas no painel e resumo diário estão implementados; aviso opcional ao vendedor
   pelo próprio WhatsApp não foi ativado sem número de destino e homologação específica do canal.
+- A entrada pelo site foi implantada, mas ainda não recebeu configuração de número e link por um
+  administrador nem callback externo de validação. Ela não deve ser declarada homologada antes de
+  um teste controlado com o marcador do link.
 
 ## Médio
 
@@ -41,6 +44,9 @@
 - O advisor aponta 111 índices sem uso; aguardar janela representativa antes de remover qualquer um.
 - Funções RPC de handoff usam `SECURITY DEFINER` intencionalmente para efetivar a operação
   transacional sob RLS, com validação de membro, organização e papel no corpo da função.
+- O Vitest não consegue iniciar neste worktree por uma junção de `node_modules` que aponta para
+  uma pasta sem permissão de leitura do esbuild. Type-check frontend/Edge, lint e build passaram,
+  mas os novos testes de contrato aguardam correção desse ambiente local.
 
 ## Resolvido em 13/09/2026
 

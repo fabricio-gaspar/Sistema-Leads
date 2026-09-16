@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient, type User } from 'npm:@supabase/supabase-js@2.57.4';
+import { hasOrganizationPermission, requireOrganizationPermission, type OrganizationPermission } from './permissions.ts';
 
 export interface AuthContext {
   client: SupabaseClient;
@@ -57,3 +58,5 @@ export async function requireOrganizationRole(
     throw new Error('organization_access_denied');
   }
 }
+
+export { hasOrganizationPermission, requireOrganizationPermission, type OrganizationPermission };

@@ -1,5 +1,6 @@
 import IntegracoesTab from './IntegracoesTab';
 import FontesTab from './FontesTab';
+import WhatsAppSiteEntry from './WhatsAppSiteEntry';
 
 function SectionHeading({ icon, eyebrow, title, description }: { icon: string; eyebrow: string; title: string; description: string }) {
   return <div className="mb-4 flex items-start gap-3">
@@ -23,6 +24,7 @@ export default function IntegracoesOperacaoTab() {
     <section className="wf-settings-section">
       <SectionHeading icon="ri-message-3-line" eyebrow="Canais" title="WhatsApp e atendimento" description="Instância Z-API, conexão do WhatsApp e teste de envio para a Central e a Ana." />
       <IntegracoesTab category="communication" />
+      <WhatsAppSiteEntry />
     </section>
 
     <section className="wf-settings-section">

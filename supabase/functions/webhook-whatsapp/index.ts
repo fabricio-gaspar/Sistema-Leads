@@ -23,6 +23,74 @@ async function sha256(value: string): Promise<string> {
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
+function siteEntryCode(message: string): string | null {
+  const found = message.match(/\[WF:([a-z0-9]{8,32})\]/i);
+  return found ? found[1].toUpperCase() : null;
+}
+
+function messageWithoutSiteEntryCode(message: string): string {
+  return message.replace(/\s*\[WF:[a-z0-9]{8,32}\]\s*/ig, ' ').replace(/\s{2,}/g, ' ').trim();
+}
+
+async function createLeadFromWebsiteEntry(
+  admin: Admin,
+  organizationId: string,
+  phone: string,
+  message: string,
+): Promise<Row | null> {
+  const entryCode = siteEntryCode(message);
+  if (!entryCode) return null;
+  const { data: entry, error: entryError } = await admin.from('whatsapp_site_entries')
+    .select('id,source_label').eq('organization_id', organizationId).eq('entry_code', entryCode).eq('active', true).maybeSingle();
+  if (entryError) throw new Error('site_entry_lookup_failed');
+  if (!entry) return null;
+  const identity = `whatsapp:${phone.replace(/\D/g, '')}`;
+  const now = new Date().toISOString();
+  const { data: lead, error: leadError } = await admin.from('leads').insert({
+    organization_id: organizationId,
+    company: 'Contato do site',
+    contact: 'Visitante do site',
+    phone,
+    whatsapp: phone,
+    segment: 'Site',
+    score: 50,
+    temp: 'warm',
+    stage: 'Prospecção',
+    value: 0,
+    owner: 'ia',
+    origin: entry.source_label,
+    active_channel: 'whatsapp',
+    contact_approval_status: 'approved',
+    contact_approval_reason: 'Contato iniciou conversa pelo botão do site.',
+    contact_approved_at: now,
+    first_inbound_at: now,
+    last_contact: now,
+    modo_atendimento: 'ia',
+    automation_status: 'running',
+    deduplication_key: identity,
+    prospect_identity: identity,
+    source_record_id: `website-whatsapp:${entry.id}`,
+    source_metadata: { website_entry_id: entry.id, entry_channel: 'whatsapp' },
+    score_snapshot: { fit: 50, contactability: 100, engagement: 50 },
+    score_source: 'website_whatsapp',
+    score_verified_at: now,
+  }).select('id,modo_atendimento,ai_paused,automation_status,owner_id,first_inbound_at').maybeSingle();
+  if (leadError) {
+    if (leadError.code === '23505') return null;
+    throw new Error('site_entry_lead_creation_failed');
+  }
+  if (!lead) throw new Error('site_entry_lead_missing');
+  await admin.from('audit_logs').insert({
+    organization_id: organizationId,
+    action: 'webhook.site_lead_created',
+    detail: 'Lead criado a partir da entrada de WhatsApp do site.',
+    entity_table: 'leads',
+    entity_id: lead.id,
+    event_data: { source: 'website_whatsapp', phone_suffix: phone.slice(-4) },
+  });
+  return lead as Row;
+}
+
 function firstRow(value: unknown): Row | null {
   const candidate = Array.isArray(value) ? value[0] : value;
   return candidate && typeof candidate === 'object' ? candidate as Row : null;
@@ -197,15 +265,24 @@ Deno.serve(async (request) => {
       return acceptedWebhook({ accepted: true, ignored: true, reason: normalized.reason });
     }
 
-    const { phone, text: message } = normalized;
+    const { phone, text: rawMessage } = normalized;
+    const message = messageWithoutSiteEntryCode(rawMessage) || rawMessage;
     const { data: resolutionRows, error: resolutionError } = await admin.rpc('resolve_whatsapp_lead', {
       p_organization_id: integration.organization_id,
       p_phone: phone,
     });
     if (resolutionError) throw new Error('lead_resolution_failed');
     const resolution = firstRow(resolutionRows);
-    const resolvedLeadId = text(resolution?.lead_id, 80);
-    const resolutionReason = text(resolution?.reason, 120) || 'not_found';
+    let resolvedLeadId = text(resolution?.lead_id, 80);
+    let resolutionReason = text(resolution?.reason, 120) || 'not_found';
+
+    if (!resolvedLeadId && resolutionReason !== 'ambiguous_identity') {
+      const websiteLead = await createLeadFromWebsiteEntry(admin, integration.organization_id, phone, rawMessage);
+      if (websiteLead) {
+        resolvedLeadId = text(websiteLead.id, 80);
+        resolutionReason = 'site_entry_created';
+      }
+    }
 
     if (!resolvedLeadId) {
       const code = resolutionReason === 'ambiguous_identity' ? 'lead_identity_ambiguous' : 'lead_not_matched';

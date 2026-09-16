@@ -1,8 +1,9 @@
-import { createAdminClient, requireOrganizationRole, requireUser } from '../_shared/auth.ts';
+import { createAdminClient, requireOrganizationPermission, requireUser } from '../_shared/auth.ts';
 import { allowedCorsHeaders, hasAllowedOrigin, json, preflight, safeError } from '../_shared/http.ts';
+import { defaultPermissionsForRole, organizationPermissions, type OrganizationPermission } from '../_shared/permissions.ts';
 
 const roles = new Set(['administrador', 'vendedor', 'sdr', 'cx']);
-type Action = 'create' | 'invite' | 'update_role' | 'set_status' | 'remove';
+type Action = 'create' | 'invite' | 'update_role' | 'set_status' | 'remove' | 'permissions_get' | 'permissions_set';
 
 function text(value: unknown, max = 180): string {
   return typeof value === 'string' ? value.trim().slice(0, max) : '';
@@ -49,13 +50,13 @@ Deno.serve(async (request) => {
   try {
     const body = await request.json().catch(() => ({})) as Record<string, unknown>;
     const action = text(body.action, 32) as Action;
-    if (!['create', 'invite', 'update_role', 'set_status', 'remove'].includes(action)) throw new Error('unsupported_action');
+    if (!['create', 'invite', 'update_role', 'set_status', 'remove', 'permissions_get', 'permissions_set'].includes(action)) throw new Error('unsupported_action');
     const { user } = await requireUser(request);
     const admin = createAdminClient();
     const { data: profile, error: profileError } = await admin.from('profiles').select('active_organization_id,name').eq('id', user.id).maybeSingle();
     if (profileError || !profile?.active_organization_id) throw new Error('organization_context_required');
     const organizationId = profile.active_organization_id;
-    await requireOrganizationRole(admin, user.id, organizationId, ['owner', 'admin']);
+    await requireOrganizationPermission(admin, organizationId, user.id, 'team.manage');
 
     if (action === 'create') {
       const email = text(body.email, 254).toLowerCase();
@@ -118,7 +119,32 @@ Deno.serve(async (request) => {
     const { data: current, error: currentError } = await admin.from('organization_members').select('role,status')
       .eq('organization_id', organizationId).eq('user_id', targetUserId).maybeSingle();
     if (currentError || !current) throw currentError ?? new Error('member_not_found');
-    if (targetUserId === user.id) throw new Error('member_self_deletion_protected');
+    if (action === 'remove' && targetUserId === user.id) throw new Error('member_self_deletion_protected');
+
+    if (action === 'permissions_get') {
+      const { data: rows, error } = await admin.from('team_member_permissions')
+        .select('permission,allowed').eq('organization_id', organizationId).eq('user_id', targetUserId);
+      if (error) throw error;
+      const overrides = new Map((rows ?? []).map((row) => [row.permission, row.allowed === true]));
+      const defaults = defaultPermissionsForRole(current.role);
+      const permissions = Object.fromEntries(organizationPermissions.map((permission) => [permission, overrides.get(permission) ?? defaults[permission]]));
+      return json({ ok: true, role: current.role, permissions }, 200, headers);
+    }
+
+    if (action === 'permissions_set') {
+      const requested = body.permissions;
+      if (!requested || typeof requested !== 'object' || Array.isArray(requested)) throw new Error('permissions_required');
+      const permissionMap = requested as Record<string, unknown>;
+      const values = organizationPermissions.map((permission) => {
+        const allowed = permissionMap[permission];
+        if (typeof allowed !== 'boolean') throw new Error('invalid_permission_value');
+        return { organization_id: organizationId, user_id: targetUserId, permission, allowed, updated_at: new Date().toISOString() };
+      });
+      const { error } = await admin.from('team_member_permissions').upsert(values, { onConflict: 'organization_id,user_id,permission' });
+      if (error) throw error;
+      await admin.from('audit_logs').insert({ organization_id: organizationId, actor_id: user.id, actor_name: profile.name, actor_type: 'user', action: 'team.member_permissions_changed', detail: 'Permissões individuais do membro atualizadas.', entity_table: 'organization_members', event_data: { user_id: targetUserId } });
+      return json({ ok: true }, 200, headers);
+    }
 
     if (action === 'update_role') {
       const role = memberRole(body.role);

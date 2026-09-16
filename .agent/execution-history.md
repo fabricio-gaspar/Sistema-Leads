@@ -328,6 +328,18 @@
   não iniciou devido à resolução do esbuild para uma pasta compartilhada sem permissão de leitura.
   O Computer Use também não pôde abrir o navegador pelo erro local `EPERM`.
 
+# 2026-09-16 — Governança da base, entrada do site e permissões individuais
+
+- Migration `20260916205958_lead_governance_permissions_and_site_whatsapp` aplicada no Supabase
+  oficial. Ela criou a matriz de permissões por membro, a configuração pública de entrada do site,
+  RLS correspondente e a leitura/exclusão administrativa do grafo operacional de leads.
+- Edge Functions publicadas: `team-members` v5, `lead-governance` v1,
+  `site-whatsapp-entry` v1 e `webhook-whatsapp` v17. O webhook conserva bloqueio para matching
+  ambíguo; não cria lead para mensagens desconhecidas sem o marcador de uma entrada ativa.
+- Type-check frontend/Edge, lint e build passaram. O teste de contrato recebeu cenários para
+  permissões e entrada do site, mas Vitest não iniciou por permissão negada no worktree ligado ao
+  `node_modules`. Nenhum lead, mensagem, configuração Z-API ou chamada a provedor foi executado.
+
 ## 2026-09-13 — Mapa visual de decisão da Ana
 
 - A navegação dos seis passos de Configurar a Ana foi convertida em um mapa interativo responsivo.

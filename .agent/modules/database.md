@@ -9,3 +9,8 @@
 - `lead_messages` participa da publicação `supabase_realtime` desde a migration
   `20260911180000_enable_lead_messages_realtime`. O frontend filtra os eventos por organização;
   a mesma RLS que protege a leitura da Central governa a entrega de alterações Postgres.
+
+- A migration `20260916205958_lead_governance_permissions_and_site_whatsapp` cria RLS para
+  `team_member_permissions` e `whatsapp_site_entries`, a matriz privada `has_org_permission`,
+  e limita Leads, mensagens e integrações às permissões verificadas. As RPCs administrativas
+  continuam somente para service_role; o navegador não pode chamar o purge diretamente.

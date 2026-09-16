@@ -574,3 +574,28 @@ webhook em ambiente controlado.
   de identidade não compartilhada e bloqueio de conta compartilhada. Type-check frontend/Edge,
   lint e build passaram; o Vitest não iniciou por erro local de permissão no diretório compartilhado
   de dependências, antes da execução de qualquer caso de teste.
+
+## 2026-09-16 — Base de Leads, site/WhatsApp e permissões por usuário
+
+- **Leads** recebeu uma Base de Leads administrativa com filtros de status de atividade,
+  responsável e busca. A exclusão é definitiva apenas para itens selecionados depois que o
+  administrador digita `EXCLUIR N LEADS`; o backend reaproveita a transação já aprovada para
+  remover mensagens, filas, execuções, vínculos de canal, Kanban, propostas e demais conexões
+  operacionais. Nenhum registro foi removido durante a implantação.
+- **Canais > WhatsApp** agora contém a Entrada do site. O administrador informa somente o número
+  público já conectado à Z-API, rótulo/origem e mensagem inicial; o sistema produz um link
+  `wa.me`. O marcador público no texto permite que o webhook crie o primeiro lead do visitante,
+  registre a mensagem na Central e use exclusivamente `ana-run`. Sem marcador válido, ou em caso
+  de identidade ambígua, o matching continua bloqueado e nenhum lead é criado.
+- **Equipe e responsáveis** ganhou matriz de permissões individuais. Ela cobre Leads, conversas,
+  prospecção, propostas, configurações, entrada do site, equipe e auditoria; o backend, RLS e UI
+  usam a mesma matriz. Administradores preservam acesso completo. Não há chave Z-API, service
+  role, token de IA nem qualquer outro segredo nessas telas ou no Git.
+- Supabase oficial: migration `20260916205958_lead_governance_permissions_and_site_whatsapp`;
+  Edge Functions `team-members` v5, `lead-governance` v1, `site-whatsapp-entry` v1 e
+  `webhook-whatsapp` v17, todas ativas. A consulta administrativa retornou zero fora do contexto
+  de backend e duas linhas para a organização com dados quando avaliada como service_role.
+- Validação: type-check frontend/Edge, lint sem warnings e build/artefato do Site passaram. Foram
+  acrescentados contratos para matriz de permissões e entrada pelo site. O Vitest permanece
+  bloqueado antes de iniciar pelo `node_modules` ligado a diretório sem permissão local. Não houve
+  envio/recebimento real de WhatsApp, chamada de IA, mudança de Z-API ou ação sobre leads.

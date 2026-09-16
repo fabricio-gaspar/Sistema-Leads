@@ -2,9 +2,9 @@
   "schema_version": 1,
   "baseline_version": 3,
   "baseline_commit": "1fbd231ff88b4e02c3ddddd18253a1f3be8be5ee",
-  "last_audited_commit": "019ffc874d54e2033ee8e73b456d5f14fda9fe8d",
-  "current_head_at_update": "019ffc874d54e2033ee8e73b456d5f14fda9fe8d",
-  "working_tree_status": "ana_operation_and_commercial_alerts_validated_pending_commit_and_site_publish",
+  "last_audited_commit": "e4642b83fe6e1ab1ea4b660a6a3ff388a65e77d8",
+  "current_head_at_update": "e4642b83fe6e1ab1ea4b660a6a3ff388a65e77d8",
+  "working_tree_status": "lead_governance_permissions_and_site_whatsapp_validated_pending_commit_and_site_publish",
   "last_site_publication": {
     "commit": "0b7892bd048c47d37be1d7985b9cfafaa61d8d26",
     "site_version": 76,
@@ -13,6 +13,6 @@
   },
   "full_audit_required": false,
   "baseline_status": "validated",
-  "updated_at": "2026-09-13T18:55:00Z",
-  "next_action": "Criar checkpoint Git, publicar no Site oficial e manter a operação desativada em Simulação até homologação externa controlada."
+  "updated_at": "2026-09-16T21:05:00Z",
+  "next_action": "Criar checkpoint Git e publicar no Site oficial; configurar o número Z-API no novo bloco de entrada do site e homologar uma conversa externa controlada antes de declarar o fluxo de site/WhatsApp concluído."
 }

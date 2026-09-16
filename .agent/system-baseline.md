@@ -117,3 +117,13 @@ Detalhes de continuidade e releases ficam em `docs/CONTINUIDADE_WAYFLEX.md`.
   aciona notificações auditáveis; `notifications` é fonte do sino e da Atenção do vendedor.
 - O estado de implantação é `ana_operation_enabled=false` e `ana_operation_mode=simulation`.
   Código e schema não equivalem à homologação de Apify, WhatsApp, IA ou Calendar reais.
+
+## Delta de governança e entrada do site — 16/09/2026
+
+- `team_member_permissions` representa exceções individuais sobre o perfil padrão. A matriz é
+  aplicada pela função privada de autorização, pelas políticas RLS e pelas Edge Functions.
+- `whatsapp_site_entries` guarda apenas o número público e o marcador do link de entrada. Nenhum
+  token Z-API, service role ou segredo de IA entra nessa tabela, no frontend ou no Git.
+- A Base de Leads administrativa recebe dados do backend e só exclui selecionados após confirmação
+  textual. A rotina transacional remove o grafo operacional, preservando os registros de auditoria
+  imutáveis por governança.

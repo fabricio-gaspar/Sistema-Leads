@@ -73,3 +73,13 @@ diário em concorrência; recibos antecipados ainda dependem de nova reconcilia�
    por Realtime. O worker cria o resumo diário restrito à carteira de cada vendedor.
 5. Simulação não chama provedores; supervisão exige aprovação; automático exige prontidão completa,
    autorização do Apify, canal comprovado, score mínimo, limites e kill switch desligado.
+
+## Governança da base e entrada do site
+
+1. Um administrador configura uma entrada de site com o número público já conectado à Z-API.
+2. O link `wa.me` inclui um marcador público. Mensagem desconhecida sem marcador continua não
+   vinculada; matching ambíguo continua bloqueado sem escolher um lead arbitrariamente.
+3. Marcador ativo cria o primeiro lead, registra o inbound e delega qualquer decisão automática
+   exclusivamente a `ana-run`.
+4. A Base de Leads lista ciclo de atividade e responsável. `lead-governance` exige a permissão de
+   exclusão e confirmação explícita antes de reaproveitar o purge transacional completo.

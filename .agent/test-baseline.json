@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
   "validated_commit": "working-tree-after-b437b20",
-  "last_validated_at": "2026-09-13T15:55:00-03:00",
+  "last_validated_at": "2026-09-16T18:05:00-03:00",
   "commands": [
     {"command":"npm run type-check","status":"passed"},
     {"command":"npm run lint","status":"passed","warnings":0},
@@ -13,7 +13,13 @@
     {"command":"Supabase transaction rollback: request_human_handoff + return_handoff_to_ana","status":"passed","note":"Handoff e retorno concluíram para lead autorizado; toda alteração foi revertida."},
     {"command":"runtime Worker smoke test com valores públicos simulados","status":"passed","note":"/runtime-config.js retorna no-store e entrega URL/chave somente em runtime; o bundle não contém os valores reais."},
     {"command":"Supabase transaction rollback: domain_events para notifications","status":"passed","note":"O primeiro teste detectou enum app_role incorreto; após correção, evento de interesse gerou notificação do responsável e toda a transação foi revertida."},
-    {"command":"Edge Functions sem autenticação","status":"passed","note":"ana-operations recusou sem JWT (401) e automation-worker recusou sem sessão/token interno (400); nenhum provedor foi chamado."}
+    {"command":"Edge Functions sem autenticação","status":"passed","note":"ana-operations recusou sem JWT (401) e automation-worker recusou sem sessão/token interno (400); nenhum provedor foi chamado."},
+    {"command":"tsc --noEmit --project tsconfig.app.json","status":"passed","note":"Validação do painel de base, configuração do link de site e permissões."},
+    {"command":"tsc --project tsconfig.edge.json","status":"passed","note":"Validação de team-members v5, lead-governance v1, site-whatsapp-entry v1 e webhook-whatsapp v17."},
+    {"command":"eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0","status":"passed","warnings":0},
+    {"command":"vite build && node scripts/build-sites-artifact.mjs","status":"passed","note":"Artefato oficial produzido sem segredo no bundle."},
+    {"command":"vitest run supabase/tests/runtimeHandlers.test.ts --config vitest.config.ts","status":"blocked","note":"O esbuild não consegue ler a pasta compartilhada alvo da junção de node_modules; nenhum teste iniciou."},
+    {"command":"Supabase read-only governance snapshot","status":"passed","note":"A consulta retornou zero fora do contexto service_role e duas linhas para a organização mais ativa no contexto de backend; nenhum lead foi alterado."}
   ],
   "prior_site_artifact_validation": {
     "validated_commit": "e4b1666c878df01ac0db3d12a290531a42107446",
@@ -29,5 +35,5 @@
   },
   "covered": ["frontend_typecheck","lint","edge_typecheck","unit_and_contract_tests","production_build"],
   "not_covered": ["authenticated_e2e","real_whatsapp","real_claude","cross_organization_rls","database_concurrency","provider_receipt_race","mobile_authenticated_qa"],
-  "working_tree_validation": "passed: operação automática, alertas comerciais, RLS, evento-notificação, modos simulação/supervisionado, autenticação, type-check frontend/Edge, lint, 16 arquivos/170 testes e build aprovados; nenhum provedor externo foi chamado."
+  "working_tree_validation": "passed: RLS de permissões, snapshot administrativo de leads, Edge Functions e build; type-check frontend/Edge e lint sem warnings. Vitest bloqueado antes de iniciar pelo ambiente local. Nenhum provedor externo, lead, mensagem ou configuração de canal foi acionado."
 }

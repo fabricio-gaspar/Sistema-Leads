@@ -53,3 +53,10 @@
   transparente e mantém os leads na tabela.
 - A última etapa exige seleção e leva ao módulo Leads após a persistência. Não há promessa nem
   disparo automático da Ana ou de WhatsApp nesse fluxo.
+
+## Governança e entrada do site — 16/09/2026
+
+- Leads inclui a Base de Leads: filtros por ciclo de atividade, seleção explícita e confirmação
+  textual antes de uma exclusão definitiva.
+- Configurações > Canais > WhatsApp inclui a entrada do site, com link copiável e status real da
+  configuração. Equipe ganhou editor de permissões por membro; nenhuma dessas telas exibe segredo.

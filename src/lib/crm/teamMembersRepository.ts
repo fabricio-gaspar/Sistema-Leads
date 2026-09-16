@@ -3,6 +3,33 @@ import { resolveOrganizationSession } from '@/lib/organizationSession';
 import { detalheDoErroDeFuncao } from '@/lib/transportador';
 
 export type TeamRole = 'administrador' | 'vendedor' | 'sdr' | 'cx';
+export const teamPermissions = [
+  'leads.read_all', 'leads.read_assigned', 'leads.create', 'leads.edit_all',
+  'leads.edit_assigned', 'leads.delete', 'conversations.read_all',
+  'conversations.reply_all', 'conversations.reply_assigned', 'messages.delete',
+  'prospecting.manage', 'proposals.manage', 'configuration.manage',
+  'website_entry.manage', 'team.manage', 'audit.view',
+] as const;
+export type TeamPermission = typeof teamPermissions[number];
+
+export const teamPermissionLabel: Record<TeamPermission, string> = {
+  'leads.read_all': 'Ver todos os leads',
+  'leads.read_assigned': 'Ver leads sob responsabilidade',
+  'leads.create': 'Criar leads',
+  'leads.edit_all': 'Editar todos os leads',
+  'leads.edit_assigned': 'Editar leads sob responsabilidade',
+  'leads.delete': 'Excluir leads definitivamente',
+  'conversations.read_all': 'Ver todas as conversas',
+  'conversations.reply_all': 'Responder todas as conversas',
+  'conversations.reply_assigned': 'Responder conversas sob responsabilidade',
+  'messages.delete': 'Excluir mensagens',
+  'prospecting.manage': 'Gerenciar busca de leads',
+  'proposals.manage': 'Criar e editar orçamentos',
+  'configuration.manage': 'Alterar configurações e integrações',
+  'website_entry.manage': 'Configurar entrada da Ana pelo site',
+  'team.manage': 'Gerenciar equipe e permissões',
+  'audit.view': 'Consultar Registro do Sistema',
+};
 
 export interface TeamMember {
   userId: string;
@@ -44,9 +71,10 @@ export async function loadTeamMembers(): Promise<TeamMember[]> {
   });
 }
 
-async function mutate(action: string, payload: Record<string, unknown>): Promise<void> {
+async function mutate<T extends Record<string, unknown> = Record<string, unknown>>(action: string, payload: Record<string, unknown>): Promise<T> {
   const { data, error } = await supabase.functions.invoke('team-members', { body: { action, ...payload } });
   if (error || !data?.ok) throw new Error(data?.erro ?? await detalheDoErroDeFuncao(error));
+  return data as T;
 }
 
 export async function inviteTeamMember(input: { name: string; email: string; role: TeamRole }): Promise<void> {
@@ -67,4 +95,12 @@ export async function setTeamMemberStatus(userId: string, enabled: boolean): Pro
 
 export async function removeTeamMember(userId: string): Promise<void> {
   await mutate('remove', { user_id: userId });
+}
+
+export async function loadTeamMemberPermissions(userId: string): Promise<{ role: TeamRole; permissions: Record<TeamPermission, boolean> }> {
+  return mutate('permissions_get', { user_id: userId });
+}
+
+export async function saveTeamMemberPermissions(userId: string, permissions: Record<TeamPermission, boolean>): Promise<void> {
+  await mutate('permissions_set', { user_id: userId, permissions });
 }
