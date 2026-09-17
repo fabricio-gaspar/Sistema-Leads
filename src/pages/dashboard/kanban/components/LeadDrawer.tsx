@@ -133,7 +133,8 @@ export default function LeadDrawer({ lead, onClose, onMudarEtapa, onAbrirConvers
   const modo = lead.modoAtendimento ?? 'IA';
   const statusAutomacao = lead.automacaoStatus ?? 'ATIVA';
   const atendimentoHumano = modo === 'HUMANO' || statusAutomacao === 'AGUARDANDO_HUMANO';
-  const anaPodeExecutar = modo === 'IA' && statusAutomacao === 'ATIVA';
+  const contatoPendente = modo === 'IA' && lead.contactApprovalStatus !== 'approved';
+  const anaPodeExecutar = modo === 'IA' && statusAutomacao === 'ATIVA' && !contatoPendente;
   const acaoEmAndamento = anaAction !== null;
 
   const historico = (lead.historico && lead.historico.length > 0 ? lead.historico : []).map((h) => ({
@@ -212,13 +213,18 @@ export default function LeadDrawer({ lead, onClose, onMudarEtapa, onAbrirConvers
         <div className="flex-1 overflow-y-auto p-6 space-y-5">
           {aba === 'resumo' && (
             <>
+              {contatoPendente && (
+                <div role="status" className="rounded-lg border border-accent-200 bg-accent-50 px-3 py-2 text-xs text-accent-900">
+                  O atendimento da Ana está definido para este lead, mas o primeiro contato permanece bloqueado até a comprovação do canal e da autorização do destinatário.
+                </div>
+              )}
               {/* Ações da Ana / humano */}
               <div className="grid grid-cols-2 gap-2">
                 <button
                   disabled={acaoEmAndamento || !anaPodeExecutar}
                   onClick={() => void runAnaAction('run', () => onRodarAna(lead), 'Não foi possível rodar a Ana.')}
                   className="inline-flex items-center justify-center gap-1.5 px-3 py-2 bg-primary-500 hover:bg-primary-600 disabled:opacity-50 text-background-50 rounded-lg text-xs font-semibold cursor-pointer whitespace-nowrap"
-                  title={anaPodeExecutar ? 'Executar a Ana com o contexto atual do lead' : 'A Ana só pode ser executada quando o atendimento estiver ativo sob sua responsabilidade'}
+                  title={contatoPendente ? 'Registre a comprovação do canal e a autorização antes do primeiro contato da Ana' : anaPodeExecutar ? 'Executar a Ana com o contexto atual do lead' : 'A Ana só pode ser executada quando o atendimento estiver ativo sob sua responsabilidade'}
                 >
                   <i className="ri-sparkling-2-line"></i> {anaAction === 'run' ? 'Rodando...' : 'Rodar Ana'}
                 </button>
@@ -231,7 +237,7 @@ export default function LeadDrawer({ lead, onClose, onMudarEtapa, onAbrirConvers
                     <i className="ri-pause-circle-line"></i> {anaAction === 'pause' ? 'Pausando...' : 'Pausar Ana'}
                   </button>
                 )}
-                {statusAutomacao === 'PAUSADA' && !atendimentoHumano && (
+                {statusAutomacao === 'PAUSADA' && !atendimentoHumano && !contatoPendente && (
                   <button
                     disabled={acaoEmAndamento}
                     onClick={() => void runAnaAction('resume', () => fluxo.retomarAna(lead.id), 'Não foi possível retomar a Ana agora.')}
@@ -249,7 +255,7 @@ export default function LeadDrawer({ lead, onClose, onMudarEtapa, onAbrirConvers
                     <i className="ri-user-check-line"></i> Atendimento humano
                   </button>
                 )}
-                {(statusAutomacao === 'PAUSADA' || atendimentoHumano) && (
+                {(statusAutomacao === 'PAUSADA' || atendimentoHumano) && !contatoPendente && (
                   <button
                     disabled={acaoEmAndamento}
                     onClick={() => void runAnaAction('return', () => fluxo.devolverParaAna(lead.id), 'Não foi possível devolver o atendimento para a Ana agora.')}

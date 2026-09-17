@@ -11,6 +11,7 @@ import type { Lead } from '@/mocks/leadsData';
 import { ACTIVE_PIPELINE_STAGES, PIPELINE_STAGE_LABEL, legacyStageForPipeline, stageFromLegacy } from '@/domain/pipeline';
 import LeadDrawer from './components/LeadDrawer';
 import { runAna } from '@/lib/crm/anaRunRepository';
+import { isContactActivationPending, shouldDisplayInKanban } from '@/lib/crm/kanbanLeadVisibility';
 import { runOperationalAutomations } from '@/lib/crm/automationRepository';
 
 const formatarData = (d: Date): string => {
@@ -150,9 +151,9 @@ export default function KanbanCRM() {
 
   const termo = busca.trim().toLowerCase();
   const leadsFiltrados = leads.filter((l) => {
-    // Um lead só entra no board depois de ter modo de atendimento e uma
-    // pessoa responsável persistida. Isso impede disparos sem carteira.
-    if (l.aguardandoAtivacao || !l.modoAtendimento || !l.responsavelId) return false;
+    // O board representa a carteira atribuída. Contato pendente continua visível
+    // em Novo, mas a Ana permanece bloqueada até a autorização ser registrada.
+    if (!shouldDisplayInKanban(l)) return false;
     if (termo && !l.nome.toLowerCase().includes(termo) && !l.empresa.toLowerCase().includes(termo)) return false;
     if (filtroResponsavel && l.responsavel !== filtroResponsavel) return false;
     if (filtroSegmento && l.segmento !== filtroSegmento) return false;
@@ -162,6 +163,8 @@ export default function KanbanCRM() {
     if (dataFim && l.criadoEm > dataFim) return false;
     return true;
   });
+
+  const contatosPendentes = leadsFiltrados.filter(isContactActivationPending);
 
   const leadsPorEtapa = (etapa: string) => leadsFiltrados.filter((l) => stageFromLegacy(l.etapa) === etapa);
 
@@ -433,6 +436,12 @@ export default function KanbanCRM() {
         </div>
       )}
 
+      {contatosPendentes.length > 0 && (
+        <div role="status" className="mb-4 rounded-lg border border-accent-200 bg-accent-50 px-4 py-3 text-sm text-accent-900">
+          <strong>{contatosPendentes.length} lead(s) aguardando autorização de contato.</strong> Eles já estão no Kanban, em Novo, mas a Ana não iniciará mensagem até a comprovação de canal e autorização ser registrada.
+        </div>
+      )}
+
       <div className="flex gap-4 overflow-x-auto pb-4 min-h-[calc(100vh-240px)] snap-x snap-mandatory">
         {ACTIVE_PIPELINE_STAGES.map((etapa) => {
           const lista = leadsPorEtapa(etapa);
@@ -486,6 +495,12 @@ export default function KanbanCRM() {
                         {(lead.modoAtendimento ?? 'IA') === 'IA' ? 'IA' : 'Humano'}
                       </span>
                       <span className="text-[9px] text-foreground-400 truncate">{lead.responsavel}</span>
+                      {isContactActivationPending(lead) && (
+                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-semibold bg-accent-100 text-accent-800">
+                          <i className="ri-shield-check-line text-[10px]"></i>
+                          Autorização pendente
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="inline-block px-2 py-0.5 rounded-md text-[10px] font-medium bg-background-100 text-foreground-600 border border-background-200">
