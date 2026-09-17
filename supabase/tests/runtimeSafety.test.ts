@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { anaEventKey, anaResponseSucceeded, automationBlockReason, zapiBaseUrl } from '../functions/_shared/runtimeSafety';
 import { parseZapiEvent, providerPhone, storedPhone } from '../functions/_shared/zapiInbound';
 
@@ -88,5 +89,19 @@ describe('Z-API contract — synthetic payloads only', () => {
     expect(providerPhone('5511999990000-group')).toBeNull();
     expect(storedPhone('99999-0000')).toBe('999990000');
     expect(storedPhone('+54 11 99999-0000')).not.toBe(storedPhone('+55 11 99999-0000'));
+  });
+});
+
+describe('Z-API direct-test reservation migration', () => {
+  it('keeps PostgreSQL special forms unqualified', () => {
+    const migration = readFileSync(
+      new URL('../migrations/20260917150914_fix_whatsapp_direct_test_reservation_special_forms.sql', import.meta.url),
+      'utf8',
+    );
+
+    expect(migration).toContain('v_actor_name := coalesce(');
+    expect(migration).toContain("nullif(pg_catalog.left(pg_catalog.btrim(p_actor_name), 160), ''::text)");
+    expect(migration).not.toContain('pg_catalog.coalesce(');
+    expect(migration).not.toContain('pg_catalog.nullif(');
   });
 });
