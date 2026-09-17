@@ -669,5 +669,7 @@ webhook em ambiente controlado.
   autorização são necessários antes do primeiro contato.
 - Validação local: contrato de regressão direto, type-check frontend/Edge, lint e build passaram.
   Vitest não iniciou por restrição de leitura da junção `node_modules`; nenhum teste Vitest rodou.
-  O formulário autenticado anterior foi fechado sem criar lead. Publicação e confirmação visual
-  pós-deploy ainda pendentes neste checkpoint.
+  O formulário autenticado anterior foi fechado sem criar lead.
+- PUBLICADO: Site oficial versão 84, commit `ddc4beb3a7cf6a909ea6fd6ed154d8230a25498a`, deploy
+  `succeeded`. A sessão autenticada exibiu apenas o aviso de contato pendente; não havia caixas de
+  confirmação nem campo de origem. O diálogo foi cancelado sem inserir um lead.

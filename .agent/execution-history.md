@@ -464,3 +464,6 @@
 - Validação: contrato direto passou; type-check frontend/Edge, lint e build/artefato do Site
   passaram. Vitest foi bloqueado antes de iniciar pela junção local de `node_modules`. O modal
   autenticado foi aberto e cancelado sem inserir lead, mensagem ou dado externo.
+- PUBLICADO: Site oficial versão 84, commit `ddc4beb3a7cf6a909ea6fd6ed154d8230a25498a`, deploy
+  `succeeded`. A inspeção autenticada confirmou a remoção das caixas e do campo de origem; o
+  diálogo foi cancelado sem criar qualquer registro.

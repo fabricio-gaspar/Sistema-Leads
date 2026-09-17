@@ -158,3 +158,6 @@ Detalhes de continuidade e releases ficam em `docs/CONTINUIDADE_WAYFLEX.md`.
   não amplia a permissão de contato nem contorna `ana-run`.
 - A prova local do contrato confirmou a classificação de telefone como Telefone e de e-mail como
   E-mail. Nenhum lead ou mensagem foi criado para validar esta alteração.
+- PUBLICADO: Site oficial versão 84, commit `ddc4beb3a7cf6a909ea6fd6ed154d8230a25498a`, com
+  deploy confirmado como `succeeded`. A inspeção autenticada confirmou o aviso de contato pendente
+  e a ausência das caixas; o diálogo foi cancelado sem inserir dados.
