@@ -632,3 +632,8 @@ webhook em ambiente controlado.
   artefato do Site aprovados. Vitest não iniciou porque a junção local de `node_modules` aponta
   para uma pasta sem permissão de leitura. Falta publicar e validar visualmente o diálogo sem
   confirmar uma exclusão.
+
+- PUBLICADO: Site oficial versão 82, commit `0c63c294dc226beb4bdeaa2af26a9618785cf680`, com
+  deploy confirmado como `succeeded` e audiência pública existente preservada. A inspeção
+  autenticada abriu o diálogo para um lead selecionado, exibiu a frase exigida e manteve a ação
+  definitiva desabilitada; o diálogo foi cancelado sem remover dados.

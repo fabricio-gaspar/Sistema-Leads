@@ -352,6 +352,8 @@
   mantido para não alterar a política específica de limpeza de testes sem decisão do operador.
 - Type-check, lint, teste direto da frase de confirmação e build/artefato do Site passaram.
   Vitest não iniciou por permissão de leitura da junção de dependências.
+- PUBLICADO: Site oficial versão 82, commit `0c63c294dc226beb4bdeaa2af26a9618785cf680`.
+  A inspeção autenticada abriu o diálogo e o cancelou sem acionar exclusão.
 
 # 2026-09-14 — Reparo do acesso de Juca e prevenção de onboarding paralelo
 

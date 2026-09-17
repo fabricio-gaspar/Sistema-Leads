@@ -27,7 +27,8 @@
     {"command":"eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0","status":"passed","warnings":0},
     {"command":"node --input-type=module -e leadPurgeConfirmation","status":"passed","note":"Cobriu a frase exata e recusou variações de caixa e quantidade."},
     {"command":"vite build && node scripts/build-sites-artifact.mjs","status":"passed","note":"Artefato oficial produzido após a substituição de window.prompt."},
-    {"command":"vitest run src/pages/dashboard/leads/components/leadPurgeConfirmation.test.ts","status":"blocked","note":"O esbuild não inicia neste worktree porque node_modules é uma junção para diretório compartilhado sem permissão; nenhum teste Vitest iniciou."}
+    {"command":"vitest run src/pages/dashboard/leads/components/leadPurgeConfirmation.test.ts","status":"blocked","note":"O esbuild não inicia neste worktree porque node_modules é uma junção para diretório compartilhado sem permissão; nenhum teste Vitest iniciou."},
+    {"command":"Computer Use autenticado no Site oficial, versão 82","status":"passed","note":"Com um lead selecionado, o diálogo React abriu, exibiu a frase EXCLUIR 1 LEADS e manteve a ação definitiva desabilitada. O diálogo foi cancelado; nenhum registro foi excluído."}
   ],
   "prior_site_artifact_validation": {
     "validated_commit": "e4b1666c878df01ac0db3d12a290531a42107446",
