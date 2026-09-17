@@ -522,3 +522,22 @@
 - Type-check frontend/Edge, lint, build e contrato direto do resumo diário passaram. Vitest segue
   impedido de iniciar pelo destino sem permissão da junção de `node_modules`. Nenhum dado de lead,
   mensagem ou configuração de relatório foi ativado durante este lote.
+
+# 2026-09-17 — Entrada WhatsApp: diagnóstico de ausência de callback e prevenção de rota obsoleta
+
+- O lead relatado `Fabricio Gaspar · WF Digital` com final `1875` foi confirmado como autorizado,
+  com WhatsApp normalizado, apresentação enviada pela Ana e aceite de saída registrado. A consulta
+  de `channel_inbound_events` e `webhook_events` retornou zero callback recebido para esse lead
+  após sua criação; portanto a mensagem relatada não chegou ao WayFlex, à Central ou ao `ana-run`.
+- O cadastro de entrada da Z-API foi reenviado ao provedor com os três callbacks documentados
+  (recebimento, entrega e status). A Z-API aceitou o recadastro. Nenhuma mensagem foi enviada por
+  esta correção e a mensagem anterior não pode ser recuperada porque nunca alcançou o backend.
+- `configurar-integracao` v18 agora preserva o token de callback e, se instância, token de rota ou
+  URL-base da Z-API mudar, invalida explicitamente a homologação de entrada sem expor credenciais.
+  `operational-diagnostics` v15 mostra esse estado como "credenciais alteradas" e orienta o
+  recadastro antes de esperar respostas.
+- A proteção tem contratos de regressão para a invalidação e para o diagnóstico. Type-check
+  frontend/Edge e lint passaram; Vitest permanece bloqueado antes do início pela junção local de
+  `node_modules` sem acesso do esbuild.
+- Pendente externo: enviar uma nova mensagem individual do número já cadastrado após o recadastro
+  e confirmar no banco o callback, a mensagem na Central e a resposta da Ana.

@@ -2,17 +2,17 @@
   "schema_version": 1,
   "baseline_version": 3,
   "baseline_commit": "1fbd231ff88b4e02c3ddddd18253a1f3be8be5ee",
-  "last_audited_commit": "7caa8903aa9c92b3d9ea5751ea50dd408e286374",
-  "current_head_at_update": "7caa8903aa9c92b3d9ea5751ea50dd408e286374",
-  "working_tree_status": "ana_whatsapp_activation_published_version_86",
+  "last_audited_commit": "648fcff3da2236811489a429da8059d4ac88246e",
+  "current_head_at_update": "648fcff3da2236811489a429da8059d4ac88246e",
+  "working_tree_status": "zapi_inbound_callback_recovery_ready_for_site_publication",
   "last_site_publication": {
-    "commit": "7caa8903aa9c92b3d9ea5751ea50dd408e286374",
-    "site_version": 86,
-    "validated_at": "2026-09-17T19:17:04Z",
+    "commit": "648fcff3da2236811489a429da8059d4ac88246e",
+    "site_version": 87,
+    "validated_at": "2026-09-17T20:38:04Z",
     "working_tree_status": "published"
   },
   "full_audit_required": false,
   "baseline_status": "validated",
-  "updated_at": "2026-09-17T19:17:04Z",
-  "next_action": "O lead autorizado relatado foi reparado para canal WhatsApp e está pronto no Kanban. Aguarda confirmação do operador imediatamente antes de clicar em Rodar Ana, pois isso criará uma mensagem externa via Z-API."
+  "updated_at": "2026-09-17T20:59:45Z",
+  "next_action": "Após publicar a interface, enviar uma nova mensagem individual do WhatsApp 11997441875 ao número conectado à Z-API. Confirmar callback, Central e resposta da Ana antes de declarar a entrada homologada."
 }

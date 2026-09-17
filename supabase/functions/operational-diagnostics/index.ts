@@ -3,7 +3,7 @@ import { allowedCorsHeaders, hasAllowedOrigin, json, preflight, safeError } from
 import { zapiBaseUrl } from '../_shared/runtimeSafety.ts';
 
 type Action = 'status' | 'set_kill_switch' | 'activate_real' | 'events' | 'configure_whatsapp_webhook' | 'activate_scheduler';
-type WebhookDiagnosticState = 'not_configured' | 'waiting_callback' | 'lead_not_matched' | 'unsupported_callback' | 'processing_failed' | 'homologated';
+type WebhookDiagnosticState = 'not_configured' | 'credentials_changed' | 'waiting_callback' | 'lead_not_matched' | 'unsupported_callback' | 'processing_failed' | 'homologated';
 
 const ZAPI_WEBHOOK_ENDPOINTS = [
   'update-webhook-received',
@@ -169,8 +169,12 @@ async function operationalStatus(admin: ReturnType<typeof createAdminClient>, or
         : 'Sem evento de risco aberto na leitura atual.';
   const webhookConfiguration = asObject(whatsappWebhook?.configuration);
   const registeredAt = typeof webhookConfiguration.registered_at === 'string' ? webhookConfiguration.registered_at : null;
+  const registrationInvalidatedAt = typeof webhookConfiguration.registration_invalidated_at === 'string'
+    ? webhookConfiguration.registration_invalidated_at
+    : null;
+  const registrationInvalidated = webhookConfiguration.registration_complete === false && registrationInvalidatedAt !== null;
   const registeredEndpoints = textArray(webhookConfiguration.registration_endpoints);
-  const webhookRegistered = registeredAt !== null
+  const webhookRegistered = !registrationInvalidated && registeredAt !== null
     && ZAPI_WEBHOOK_ENDPOINTS.every((endpoint) => registeredEndpoints.includes(endpoint));
   const [webhookEventRead, testLeadRead] = await Promise.all([
     webhookRegistered
@@ -187,7 +191,19 @@ async function operationalStatus(admin: ReturnType<typeof createAdminClient>, or
   const testLeadPhone = typeof testLead?.whatsapp === 'string' && testLead.whatsapp.trim()
     ? testLead.whatsapp : typeof testLead?.phone === 'string' ? testLead.phone : '';
   const testLeadLabel = testLead ? [testLead.contact, testLead.company].filter((value) => typeof value === 'string' && value.trim()).join(' · ') : null;
+  const testLeadSummary = testLead && testLeadPhone ? {
+    id: testLead.id,
+    label: testLeadLabel || 'Lead cadastrado',
+    phoneSuffix: testLeadPhone.replace(/\D/g, '').slice(-4),
+  } : null;
   const webhookDiagnostic = (() => {
+    if (registrationInvalidated) return {
+      state: 'credentials_changed' as WebhookDiagnosticState,
+      registeredAt,
+      lastEventAt: null,
+      detail: 'As credenciais da instância Z-API foram alteradas depois do último cadastro de entrada. Recadastre os callbacks antes de esperar novas respostas.',
+      testLead: testLeadSummary,
+    };
     if (webhookRegistered && isOnline(whatsappWebhook)) return {
       state: 'homologated' as WebhookDiagnosticState,
       registeredAt,
@@ -202,11 +218,6 @@ async function operationalStatus(admin: ReturnType<typeof createAdminClient>, or
       detail: 'A saída da Z-API pode estar validada; cadastre os callbacks de entrada, entrega e status de mensagem antes de homologar respostas para a Ana.',
       testLead: null,
     };
-    const testLeadSummary = testLead && testLeadPhone ? {
-      id: testLead.id,
-      label: testLeadLabel || 'Lead cadastrado',
-      phoneSuffix: testLeadPhone.replace(/\D/g, '').slice(-4),
-    } : null;
     if (!latestWebhookEvent) return {
       state: 'waiting_callback' as WebhookDiagnosticState,
       registeredAt,
@@ -374,6 +385,8 @@ async function configureWhatsAppWebhook(
     registration_endpoints: ZAPI_WEBHOOK_ENDPOINTS,
     registration_complete: true,
   };
+  delete configuration.registration_invalidated_at;
+  delete configuration.registration_invalidation_reason;
   const { error: updateError } = await admin.from('integrations').update({
     connected: false,
     enabled: true,

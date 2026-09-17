@@ -1236,6 +1236,61 @@ describe('Z-API credential configuration contract', () => {
     });
     expect(fetchMock).not.toHaveBeenCalled();
   });
+
+  it('marks the inbound registration pending when the Z-API callback route changes', async () => {
+    const webhookIntegrationId = 'f1111111-1111-4111-8111-111111111111';
+    override = (q) => {
+      if (q.table === 'integrations' && q.operation === 'select') {
+        if (q.filters.key === 'whatsapp') return ok({ id: integrationId, configuration: {} });
+        if (q.filters.key === 'zapi_webhook') return ok({
+          id: webhookIntegrationId,
+          configuration: {
+            registered_at: '2026-09-17T12:00:00.000Z',
+            registration_complete: true,
+            registration_endpoints: ['update-webhook-received'],
+          },
+        });
+      }
+      if (q.table === 'read_integration_secret' && q.operation === 'rpc') {
+        return ok({
+          instancia_id: 'old-instance',
+          token: 'old-instance-token',
+          client_token: 'synthetic-client-token',
+          url_base: 'https://api.z-api.io',
+          webhook_token: 'synthetic-existing-webhook-token',
+        });
+      }
+      return undefined;
+    };
+    await import('../functions/configurar-integracao/index');
+    const response = await handler(new Request('https://example.invalid/configurar-integracao', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        canal: 'whatsapp',
+        credenciais: {
+          instancia_id: 'new-instance',
+          token: 'new-instance-token',
+          client_token: 'synthetic-client-token',
+          url_base: 'https://api.z-api.io',
+        },
+      }),
+    }));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ ok: true, mensagem: expect.stringContaining('Recadastre agora a entrada') });
+    expect(calls.find((q) => q.table === 'integrations' && q.operation === 'update' && q.filters.id === webhookIntegrationId)?.value)
+      .toMatchObject({
+        connected: false,
+        last_error: 'whatsapp_credentials_changed',
+        configuration: expect.objectContaining({
+          registration_complete: false,
+          registration_invalidation_reason: 'whatsapp_credentials_changed',
+        }),
+      });
+    expect(calls.find((q) => q.table === 'audit_logs' && q.operation === 'insert')?.value)
+      .toMatchObject({ event_data: expect.objectContaining({ webhook_registration_invalidated: true }) });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
 });
 
 describe('Ana provider configuration contract', () => {
@@ -1695,6 +1750,42 @@ describe('Operational mode authority', () => {
       state: 'waiting_callback',
       registeredAt: recent,
       lastEventAt: null,
+    });
+  });
+
+  it('requires a fresh callback registration after the Z-API callback route changes', async () => {
+    override = (q) => {
+      if (q.table === 'integrations' && q.operation === 'select') return ok([
+        { ...readyIntegration, key: 'ai', label: 'IA', last_tested_at: recent, last_error: null },
+        { ...readyIntegration, key: 'whatsapp', label: 'WhatsApp', last_tested_at: recent, last_error: null },
+        {
+          ...readyIntegration,
+          key: 'zapi_webhook',
+          label: 'Entrada',
+          connected: false,
+          enabled: true,
+          last_tested_at: null,
+          last_error: 'whatsapp_credentials_changed',
+          configuration: {
+            registered_at: recent,
+            registration_complete: false,
+            registration_invalidated_at: recent,
+            registration_invalidation_reason: 'whatsapp_credentials_changed',
+          },
+        },
+        { ...readyIntegration, key: 'scheduler', label: 'Worker', last_tested_at: recent, last_error: null },
+      ]);
+      return undefined;
+    };
+    await import('../functions/operational-diagnostics/index');
+    const response = await handler(new Request('https://example.invalid/operational-diagnostics', {
+      method: 'POST', headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'status' }),
+    }));
+    expect(response.status).toBe(200);
+    expect((await response.json()).status).toMatchObject({
+      webhookDiagnostic: { state: 'credentials_changed', registeredAt: recent },
+      checks: expect.arrayContaining([{ id: 'whatsapp_webhook', ok: false }]),
     });
   });
 

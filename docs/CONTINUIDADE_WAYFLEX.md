@@ -745,3 +745,23 @@ webhook em ambiente controlado.
 - PUBLICADO: Site oficial versão 86, commit `7caa8903aa9c92b3d9ea5751ea50dd408e286374`, deploy
   confirmado como `succeeded`. Type-check frontend/Edge, lint e build passaram; Vitest não iniciou
   devido à permissão da junção local de `node_modules`.
+
+## 2026-09-17 — Resposta recebida não chegou à Central
+
+- O banco confirmou que o lead `Fabricio Gaspar · WF Digital` (final `1875`) tinha WhatsApp
+  normalizado, autorização válida, apresentação enviada pela Ana e aceite de saída pela Z-API.
+  Porém, após a criação do lead, não existia evento em `channel_inbound_events` nem
+  `webhook_events` associado ao contato. A resposta informada pelo operador não atingiu o backend;
+  por consequência, não havia mensagem para exibir na Central e o `ana-run` não foi chamado.
+- O recadastro da entrada foi aceito pela Z-API para recebimento, entrega e status. Ele não enviou
+  mensagem ao contato e não expôs segredo. A mensagem anterior não é recuperável, pois não foi
+  entregue ao WayFlex.
+- Publicadas no Supabase oficial: `configurar-integracao` v18 e
+  `operational-diagnostics` v15, ambas com JWT obrigatório. Ao salvar uma rota Z-API diferente, o
+  sistema preserva o token de callback, invalida a homologação anterior de forma auditável e exige
+  recadastro. A tela passa a diferenciar esse caso de uma Ana ou lead com falha.
+- Contratos de regressão foram adicionados para a mudança de rota e para o diagnóstico de
+  credenciais alteradas. Type-check frontend/Edge e lint passaram; Vitest não pôde iniciar pela
+  junção local de `node_modules` que o esbuild não consegue ler.
+- Próxima prova necessária: enviar uma mensagem nova, individual, do WhatsApp final `1875` ao
+  número da instância; então confirmar callback recebido, mensagem na Central e resposta da Ana.

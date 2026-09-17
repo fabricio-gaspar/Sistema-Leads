@@ -2,7 +2,9 @@
 
 ## Crítico
 
-- Fluxo real WhatsApp → Ana → resposta não foi homologado ponta a ponta com número autorizado.
+- O fluxo real WhatsApp → Ana → resposta ainda precisa de uma mensagem nova, individual, enviada
+  após o recadastro da entrada Z-API. A mensagem relatada do lead com final `1875` não gerou
+  callback no WayFlex e não pode ser reprocessada; não houve falha da Ana a partir dela.
 - A Central agora tenta despachar a mensagem humana imediatamente, mas a aceitação por uma
   instância Z-API real e a entrega ao número continuam dependendo do teste explícito do operador.
 - O último teste recebido foi um callback de grupo e foi corretamente ignorado. A homologação

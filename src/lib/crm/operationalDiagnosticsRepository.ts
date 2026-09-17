@@ -55,7 +55,7 @@ export interface WhatsappMonitoring {
 }
 
 export interface OperationalWebhookDiagnostic {
-  state: 'not_configured' | 'waiting_callback' | 'lead_not_matched' | 'unsupported_callback' | 'processing_failed' | 'homologated';
+  state: 'not_configured' | 'credentials_changed' | 'waiting_callback' | 'lead_not_matched' | 'unsupported_callback' | 'processing_failed' | 'homologated';
   registeredAt: string | null;
   lastEventAt: string | null;
   detail: string;
