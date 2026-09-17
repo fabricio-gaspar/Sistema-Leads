@@ -9,6 +9,7 @@ import { useFluxoComercial } from '@/hooks/useFluxoComercial';
 import { useAuth } from '@/hooks/useAuth';
 import { runAna } from '@/lib/crm/anaRunRepository';
 import { loadTeamMembers, type TeamMember } from '@/lib/crm/teamMembersRepository';
+import { pendingManualLeadContact } from '@/lib/crm/manualLeadContact';
 import LeadBaseManager from './components/LeadBaseManager';
 
 const etapaCores: Record<string, string> = {
@@ -47,7 +48,7 @@ export default function Leads() {
   const [detalhe, setDetalhe] = useState<Lead | null>(null);
   const [toast, setToast] = useState('');
   const [novoModal, setNovoModal] = useState(false);
-  const [novoLead, setNovoLead] = useState({ nome: '', empresa: '', email: '', telefone: '', segmento: 'Tecnologia', cidade: '', estado: '', modo: 'IA' as 'IA' | 'HUMANO', whatsappConfirmado: false, autorizacaoContato: false, origemAutorizacao: '' });
+  const [novoLead, setNovoLead] = useState({ nome: '', empresa: '', email: '', telefone: '', segmento: 'Tecnologia', cidade: '', estado: '', modo: 'IA' as 'IA' | 'HUMANO' });
   const [mostrarArquivados, setMostrarArquivados] = useState(false);
   const [editarModal, setEditarModal] = useState<Lead | null>(null);
   const [editForm, setEditForm] = useState({ nome: '', email: '', telefone: '', responsavel: '', responsavelId: '', tags: '' });
@@ -209,11 +210,6 @@ export default function Leads() {
       mostrarToast('Sua sessão não possui um responsável válido. Entre novamente antes de criar o lead.');
       return;
     }
-    const contatoAprovado = novoLead.whatsappConfirmado && novoLead.autorizacaoContato && Boolean(novoLead.origemAutorizacao.trim());
-    if (novoLead.modo === 'IA' && !contatoAprovado) {
-      mostrarToast('Para ativar a Ana, confirme que o número é WhatsApp e registre a origem da autorização.');
-      return;
-    }
     const novo: Lead = {
       id: crypto.randomUUID(),
       nome: novoLead.nome.trim(),
@@ -221,7 +217,6 @@ export default function Leads() {
       cnpj: '',
       email: novoLead.email.trim(),
       telefone: novoLead.telefone.trim(),
-      whatsapp: novoLead.whatsappConfirmado ? novoLead.telefone.trim() : '',
       segmento: novoLead.segmento,
       cidade: novoLead.cidade.trim() || '—',
       estado: novoLead.estado.trim() || '—',
@@ -234,25 +229,20 @@ export default function Leads() {
       responsavelId: user.id,
       tags: [],
       modoAtendimento: novoLead.modo,
-      automacaoStatus: novoLead.modo === 'HUMANO' ? 'AGUARDANDO_HUMANO' : contatoAprovado ? 'ATIVA' : 'PAUSADA',
-      canalPreferencial: 'WhatsApp',
+      automacaoStatus: novoLead.modo === 'HUMANO' ? 'AGUARDANDO_HUMANO' : 'PAUSADA',
       templateId: 'tm-1',
-      contatoPermitido: contatoAprovado,
-      consentimentoWhatsApp: contatoAprovado,
-      consentimentoEmail: false,
-      contactApprovalStatus: contatoAprovado ? 'approved' : 'pending',
-      contactApprovalReason: contatoAprovado ? novoLead.origemAutorizacao.trim() : 'Aguardando comprovação de autorização.',
-      contactApprovedAt: contatoAprovado ? new Date().toISOString() : null,
-      aguardandoAtivacao: novoLead.modo === 'IA' && !contatoAprovado,
+      ...pendingManualLeadContact(novoLead),
+      aguardandoAtivacao: novoLead.modo === 'IA',
       ultimaInteracao: 'agora',
       criadoEm: new Date().toISOString().slice(0, 10),
     };
     setLeads((prev) => [novo, ...prev]);
     await waitForLeadsPersistence();
-    const result = novoLead.modo === 'IA' && contatoAprovado ? await runAna({ event: 'lead.created', leadId: novo.id, modo: novoLead.modo }).catch(() => null) : null;
     setNovoModal(false);
-    setNovoLead({ nome: '', empresa: '', email: '', telefone: '', segmento: 'Tecnologia', cidade: '', estado: '', modo: 'IA', whatsappConfirmado: false, autorizacaoContato: false, origemAutorizacao: '' });
-    mostrarToast(result?.ok ? 'Lead criado e processado pela Ana.' : 'Lead criado. A Ana fica disponível quando o backend estiver configurado.');
+    setNovoLead({ nome: '', empresa: '', email: '', telefone: '', segmento: 'Tecnologia', cidade: '', estado: '', modo: 'IA' });
+    mostrarToast(novoLead.modo === 'IA'
+      ? 'Lead criado. A Ana aguardará a confirmação de canal e autorização antes do primeiro contato.'
+      : 'Lead criado em atendimento humano.');
   };
 
   const base = mostrarArquivados ? leads.filter((l) => l.arquivado) : leads.filter((l) => !l.arquivado);
@@ -799,11 +789,9 @@ export default function Leads() {
                 </select>
                 <p className="mt-1.5 text-xs text-foreground-500">Você será definido como responsável por este lead.</p>
               </div>
-              <div className="rounded-xl border border-background-200 bg-background-100/50 p-4 space-y-3">
-                <label className="flex cursor-pointer items-start gap-2 text-xs text-foreground-800"><input type="checkbox" checked={novoLead.whatsappConfirmado} onChange={(e) => setNovoLead({ ...novoLead, whatsappConfirmado: e.target.checked })} className="mt-0.5" /><span>Confirmo que o telefone informado está ativo no WhatsApp.</span></label>
-                <label className="flex cursor-pointer items-start gap-2 text-xs text-foreground-800"><input type="checkbox" checked={novoLead.autorizacaoContato} onChange={(e) => setNovoLead({ ...novoLead, autorizacaoContato: e.target.checked })} className="mt-0.5" /><span>Confirmo que o destinatário autorizou contato da Wayflex.</span></label>
-                {(novoLead.whatsappConfirmado || novoLead.autorizacaoContato) && <input type="text" value={novoLead.origemAutorizacao} onChange={(e) => setNovoLead({ ...novoLead, origemAutorizacao: e.target.value })} placeholder="Origem da autorização: formulário, evento, solicitação…" className="w-full rounded-lg border border-background-300 bg-white px-3 py-2 text-sm text-foreground-900" />}
-                <p className="text-[11px] text-foreground-500">No modo Ana, as duas confirmações e a origem são obrigatórias antes do primeiro contato.</p>
+              <div className="rounded-xl border border-background-200 bg-background-100/50 p-4">
+                <p className="text-xs font-semibold text-foreground-800">Contato pendente de validação</p>
+                <p className="mt-1 text-[11px] leading-relaxed text-foreground-500">O lead será criado normalmente. O telefone não será tratado como WhatsApp e a Ana não fará o primeiro contato até a autorização ser registrada.</p>
               </div>
             </div>
             <div className="px-6 py-4 border-t border-background-200/70 flex justify-end gap-2">
