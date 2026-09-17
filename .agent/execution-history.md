@@ -1,5 +1,18 @@
 # Histórico resumido de execução
 
+## 2026-09-17 — Correção da reserva do teste direto Z-API
+
+- O erro `whatsapp_test_reservation_failed` foi reproduzido no banco antes de qualquer chamada
+  externa: a função `reserve_whatsapp_direct_test` tentava resolver
+  `pg_catalog.coalesce/nullif`, que não existem como funções desse catálogo.
+- A migration `20260917150914_fix_whatsapp_direct_test_reservation_special_forms` foi aplicada no
+  Supabase oficial. Ela preserva a reserva idempotente, os advisory locks, a auditoria e o grant
+  exclusivo de `service_role`; não modifica segredos, integração, lead, fila ou Edge Function.
+- O rollback controlado retornou `reserved` mesmo com nome de ator vazio. A auditoria posterior
+  retornou zero linhas para a prova; nenhuma mensagem foi criada nem a Z-API foi chamada.
+- Type-check frontend/Edge, lint, contrato estático e build do artefato do Site passaram. O Vitest
+  segue bloqueado antes de iniciar pela junção local de dependências sem permissão de leitura.
+
 ## 2026-09-09 — Baseline de Configurações
 
 - Configurações passaram a usar status, equipe, integrações, fontes e supressões remotos.

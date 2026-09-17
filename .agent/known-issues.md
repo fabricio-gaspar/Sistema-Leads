@@ -66,6 +66,17 @@
   `team-members` v4 inverteu a ordem, usa `organization_invites` e restaura a autorização em falha.
   O cadastro de Juca foi reparado e confirmado na lista autenticada.
 
+## Resolvido em 17/09/2026
+
+- O teste direto de WhatsApp falhava com `whatsapp_test_reservation_failed` depois de a instância
+  Z-API já ter sido validada, mas antes da chamada ao provedor. A causa era a qualificação inválida
+  de `coalesce` e `nullif` como se fossem funções `pg_catalog` na reserva idempotente.
+- A migration `20260917150914_fix_whatsapp_direct_test_reservation_special_forms` usa as formas
+  especiais corretas, preserva `security invoker` e o `EXECUTE` exclusivo de `service_role`.
+  O teste transacional retornou `reserved`, foi revertido e não deixou auditoria nem disparou envio.
+- Ainda falta o operador executar um teste externo controlado para comprovar o aceite da Z-API;
+  a correção interna não é evidência de entrega ou leitura de WhatsApp.
+
 ## Sugestões, não bugs
 
 - Ambiente de homologação isolado e piloto controlado antes de comercializar.

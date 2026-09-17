@@ -135,3 +135,15 @@ Detalhes de continuidade e releases ficam em `docs/CONTINUIDADE_WAYFLEX.md`.
   um onboarding paralelo.
 - Juca está confirmado, ativo e com papel de administrador na WayFlex. O login com a senha definida
   pelo operador não foi executado pelo agente e continua sendo a validação humana restante.
+
+## Delta de teste direto Z-API — 17/09/2026
+
+- `enviar-teste-whatsapp` estava correto ao interromper o fluxo antes de `/send-text` quando a
+  reserva idempotente retornava erro. A falha SQL foi localizada em
+  `reserve_whatsapp_direct_test`, não na credencial ou na instância Z-API.
+- A migration `20260917150914_fix_whatsapp_direct_test_reservation_special_forms` troca somente
+  `pg_catalog.coalesce/nullif` pelas formas especiais válidas, mantendo validação, locks,
+  idempotência, auditoria, `security invoker` e grants existentes.
+- Em transação revertida como `service_role`, a reserva retornou `reserved`; a checagem posterior
+  encontrou zero auditorias persistidas para a prova. Nenhum lead, fila, mensagem ou provedor foi
+  alterado. O próximo teste externo fica exclusivamente sob comando do operador.

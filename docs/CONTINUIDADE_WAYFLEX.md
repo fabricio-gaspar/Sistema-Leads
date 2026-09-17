@@ -637,3 +637,20 @@ webhook em ambiente controlado.
   deploy confirmado como `succeeded` e audiência pública existente preservada. A inspeção
   autenticada abriu o diálogo para um lead selecionado, exibiu a frase exigida e manteve a ação
   definitiva desabilitada; o diálogo foi cancelado sem remover dados.
+
+## 2026-09-17 — Reserva do teste direto Z-API
+
+- Causa confirmada para `whatsapp_test_reservation_failed`: depois de validar a instância, a Edge
+  Function chamava a reserva idempotente e o PostgreSQL recusava `pg_catalog.coalesce/nullif`.
+  Portanto, o fluxo falhava antes de criar a auditoria de reserva e antes de chamar `/send-text`.
+- A migration aplicada no Supabase oficial é
+  `20260917150914_fix_whatsapp_direct_test_reservation_special_forms`. Ela usa `coalesce` e
+  `nullif` como formas especiais do PostgreSQL, mantendo locks, idempotência, `security invoker`
+  e o grant apenas para `service_role`.
+- A prova transacional devolveu `reserved` e foi revertida; a consulta posterior retornou zero
+  registros de auditoria para o request de prova. Nenhuma mensagem, fila, lead, segredo ou chamada
+  Z-API foi gerada nesta correção.
+- Validação local: type-check frontend/Edge, lint, contrato de migration e build/artefato do Site
+  aprovados. O Vitest não iniciou porque a junção local de `node_modules` leva a um diretório sem
+  permissão de leitura pelo esbuild. Falta somente o teste externo controlado, no painel
+  **Configurações > Canais > WhatsApp**, para comprovar aceite/entrega do provedor.

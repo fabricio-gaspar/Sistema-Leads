@@ -2,9 +2,9 @@
   "schema_version": 1,
   "baseline_version": 3,
   "baseline_commit": "1fbd231ff88b4e02c3ddddd18253a1f3be8be5ee",
-  "last_audited_commit": "0c63c294dc226beb4bdeaa2af26a9618785cf680",
-  "current_head_at_update": "0c63c294dc226beb4bdeaa2af26a9618785cf680",
-  "working_tree_status": "lead_purge_confirmation_dialog_published_version_82",
+  "last_audited_commit": "fa4e10ba369e0191a975f5d63ebd996526c165a2",
+  "current_head_at_update": "fa4e10ba369e0191a975f5d63ebd996526c165a2",
+  "working_tree_status": "whatsapp_direct_test_reservation_sql_applied",
   "last_site_publication": {
     "commit": "0c63c294dc226beb4bdeaa2af26a9618785cf680",
     "site_version": 82,
@@ -13,6 +13,6 @@
   },
   "full_audit_required": false,
   "baseline_status": "validated",
-  "updated_at": "2026-09-17T14:20:00Z",
-  "next_action": "Se o operador quiser excluir um lead, selecionar somente o registro desejado, digitar a frase exibida no diálogo e confirmar. O painel legado de limpeza de testes permanece separado para decisão de consolidação futura."
+  "updated_at": "2026-09-17T15:15:00Z",
+  "next_action": "No painel Configurações > Canais > WhatsApp, executar um único teste direto controlado e confirmar no Registro do Sistema se a Z-API aceitou a mensagem. Esse teste externo ainda não foi feito nesta correção."
 }

@@ -28,7 +28,15 @@
     {"command":"node --input-type=module -e leadPurgeConfirmation","status":"passed","note":"Cobriu a frase exata e recusou variações de caixa e quantidade."},
     {"command":"vite build && node scripts/build-sites-artifact.mjs","status":"passed","note":"Artefato oficial produzido após a substituição de window.prompt."},
     {"command":"vitest run src/pages/dashboard/leads/components/leadPurgeConfirmation.test.ts","status":"blocked","note":"O esbuild não inicia neste worktree porque node_modules é uma junção para diretório compartilhado sem permissão; nenhum teste Vitest iniciou."},
-    {"command":"Computer Use autenticado no Site oficial, versão 82","status":"passed","note":"Com um lead selecionado, o diálogo React abriu, exibiu a frase EXCLUIR 1 LEADS e manteve a ação definitiva desabilitada. O diálogo foi cancelado; nenhum registro foi excluído."}
+    {"command":"Computer Use autenticado no Site oficial, versão 82","status":"passed","note":"Com um lead selecionado, o diálogo React abriu, exibiu a frase EXCLUIR 1 LEADS e manteve a ação definitiva desabilitada. O diálogo foi cancelado; nenhum registro foi excluído."},
+    {"command":"Supabase transaction rollback: reserve_whatsapp_direct_test","status":"passed","note":"Como service_role e com actor_name em branco, a reserva retornou reserved. A transação foi revertida; a consulta posterior encontrou zero auditorias para o request_id de prova e nenhuma chamada à Z-API foi feita."},
+    {"command":"Supabase function definition and privileges: reserve_whatsapp_direct_test","status":"passed","note":"A definição usa coalesce/nullif não qualificados; service_role mantém EXECUTE e authenticated continua sem EXECUTE."},
+    {"command":"migration special-form contract smoke","status":"passed","note":"O arquivo 20260917150914 exige coalesce/nullif como formas especiais e rejeita as grafias pg_catalog inválidas."},
+    {"command":"tsc --noEmit --project tsconfig.app.json","status":"passed","note":"Validado após a correção da migration e contrato de regressão."},
+    {"command":"tsc --project tsconfig.edge.json","status":"passed","note":"Validado após a correção da migration e contrato de regressão."},
+    {"command":"eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0","status":"passed","warnings":0},
+    {"command":"vitest run supabase/tests/runtimeSafety.test.ts","status":"blocked","note":"O esbuild não inicia porque a junção local de node_modules aponta para diretório sem permissão de leitura; nenhum caso de teste Vitest iniciou."},
+    {"command":"vite build && node scripts/build-sites-artifact.mjs","status":"passed","note":"Artefato oficial produzido após a correção, sem segredo no bundle."}
   ],
   "prior_site_artifact_validation": {
     "validated_commit": "e4b1666c878df01ac0db3d12a290531a42107446",
