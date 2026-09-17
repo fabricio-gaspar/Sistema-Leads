@@ -17,6 +17,8 @@ const errors: Record<string, string> = {
   permission_denied: 'Seu usuário não possui a permissão necessária para esta ação.',
   permissions_required: 'Informe as permissões do membro antes de salvar.',
   invalid_permission_value: 'Uma das permissões informadas é inválida.',
+  member_invite_conflict: 'Este e-mail possui um convite ativo para outra organização.',
+  member_invitation_preparation_failed: 'Não foi possível preparar o vínculo com a Wayflex.',
 };
 
 function errorMessage(error: unknown): string {

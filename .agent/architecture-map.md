@@ -83,3 +83,12 @@ diário em concorrência; recibos antecipados ainda dependem de nova reconcilia�
    exclusivamente a `ana-run`.
 4. A Base de Leads lista ciclo de atividade e responsável. `lead-governance` exige a permissão de
    exclusão e confirmação explícita antes de reaproveitar o purge transacional completo.
+
+## Equipe e identidade
+
+1. A tela chama `team-members` com a sessão do administrador e a organização ativa do perfil.
+2. A função grava uma autorização curta em `organization_invites` antes de criar ou convidar no
+   Supabase Auth. O gatilho `private.handle_new_auth_user` consome essa autorização e cria perfil,
+   `organization_members` e `user_roles` na organização correta.
+3. O backend reforça papel/status, confirma o `active_organization_id` e audita a ação sem registrar
+   senha. Falha do Auth restaura ou remove somente a autorização preparada pela tentativa.

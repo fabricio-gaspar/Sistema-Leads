@@ -30,6 +30,67 @@ function isExistingAuthUser(error: unknown): boolean {
     || (typeof candidate.message === 'string' && /already (been )?registered|already exists/i.test(candidate.message));
 }
 
+interface PreparedInvite {
+  id: string;
+  previous: {
+    role: string;
+    invited_by: string | null;
+    expires_at: string;
+    accepted_at: string | null;
+  } | null;
+}
+
+async function prepareOrganizationInvite(
+  admin: ReturnType<typeof createAdminClient>, organizationId: string, actorId: string, email: string, role: string,
+): Promise<PreparedInvite> {
+  const now = new Date();
+  const { data: pendingInvites, error: pendingError } = await admin.from('organization_invites')
+    .select('id,organization_id').ilike('email', email).is('accepted_at', null).gt('expires_at', now.toISOString());
+  if (pendingError) throw pendingError;
+  if ((pendingInvites ?? []).some((invite) => invite.organization_id !== organizationId)) {
+    throw new Error('member_invite_conflict');
+  }
+
+  const { data: existing, error: existingError } = await admin.from('organization_invites')
+    .select('id,role,invited_by,expires_at,accepted_at')
+    .eq('organization_id', organizationId).eq('email', email).maybeSingle();
+  if (existingError) throw existingError;
+
+  const invitation = {
+    organization_id: organizationId,
+    email,
+    role,
+    invited_by: actorId,
+    expires_at: new Date(now.getTime() + 15 * 60 * 1000).toISOString(),
+    accepted_at: null,
+  };
+  const query = existing?.id
+    ? admin.from('organization_invites').update(invitation).eq('id', existing.id)
+    : admin.from('organization_invites').insert(invitation);
+  const { data: prepared, error: prepareError } = await query.select('id').single();
+  if (prepareError || !prepared?.id) throw prepareError ?? new Error('member_invitation_preparation_failed');
+  return {
+    id: prepared.id,
+    previous: existing ? {
+      role: existing.role,
+      invited_by: existing.invited_by,
+      expires_at: existing.expires_at,
+      accepted_at: existing.accepted_at,
+    } : null,
+  };
+}
+
+async function restorePreparedInvite(
+  admin: ReturnType<typeof createAdminClient>, prepared: PreparedInvite,
+): Promise<void> {
+  if (prepared.previous) {
+    await admin.from('organization_invites').update(prepared.previous)
+      .eq('id', prepared.id).is('accepted_at', null);
+    return;
+  }
+  await admin.from('organization_invites').delete().eq('id', prepared.id).is('accepted_at', null);
+}
+
 async function ensureAnotherAdministrator(
   admin: ReturnType<typeof createAdminClient>, organizationId: string, targetUserId: string, removesAdmin: boolean,
 ) {
@@ -66,6 +127,8 @@ Deno.serve(async (request) => {
       if (!name) throw new Error('invalid_member_name');
       if (!/^\S+@\S+\.\S+$/.test(email)) throw new Error('invalid_member_email');
 
+      const preparedInvite = await prepareOrganizationInvite(admin, organizationId, user.id, email, role);
+
       const { data: created, error: createError } = await admin.auth.admin.createUser({
         email,
         password,
@@ -73,6 +136,7 @@ Deno.serve(async (request) => {
         user_metadata: { name },
       });
       if (createError || !created.user) {
+        await restorePreparedInvite(admin, preparedInvite);
         if (isExistingAuthUser(createError)) throw new Error('member_email_already_registered');
         throw createError ?? new Error('member_creation_failed');
       }
@@ -84,6 +148,13 @@ Deno.serve(async (request) => {
       if (membershipError) {
         await admin.auth.admin.deleteUser(created.user.id);
         throw membershipError;
+      }
+      const { error: profileError } = await admin.from('profiles').update({
+        name, email, active: true, active_organization_id: organizationId, updated_at: now,
+      }).eq('id', created.user.id);
+      if (profileError) {
+        await admin.auth.admin.deleteUser(created.user.id);
+        throw profileError;
       }
 
       await admin.from('audit_logs').insert({
@@ -98,11 +169,15 @@ Deno.serve(async (request) => {
       const name = text(body.name, 120);
       const role = memberRole(body.role);
       if (!/^\S+@\S+\.\S+$/.test(email)) throw new Error('invalid_member_email');
+      const preparedInvite = await prepareOrganizationInvite(admin, organizationId, user.id, email, role);
       const redirectTo = `${Deno.env.get('ALLOWED_ORIGIN') ?? 'https://leadai-crm-preview.fabricio926564.chatgpt.site'}/login`;
       const { data: invitation, error: invitationError } = await admin.auth.admin.inviteUserByEmail(email, {
         data: name ? { name } : {}, redirectTo,
       });
-      if (invitationError || !invitation.user) throw invitationError ?? new Error('member_invitation_failed');
+      if (invitationError || !invitation.user) {
+        await restorePreparedInvite(admin, preparedInvite);
+        throw invitationError ?? new Error('member_invitation_failed');
+      }
       const { error: membershipError } = await admin.from('organization_members').upsert({
         organization_id: organizationId, user_id: invitation.user.id, role, status: 'active', updated_at: new Date().toISOString(),
       }, { onConflict: 'organization_id,user_id' });

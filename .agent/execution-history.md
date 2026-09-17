@@ -333,12 +333,24 @@
 - Migration `20260916205958_lead_governance_permissions_and_site_whatsapp` aplicada no Supabase
   oficial. Ela criou a matriz de permissões por membro, a configuração pública de entrada do site,
   RLS correspondente e a leitura/exclusão administrativa do grafo operacional de leads.
-- Edge Functions publicadas: `team-members` v5, `lead-governance` v1,
+- Edge Functions publicadas: `team-members` v6, `lead-governance` v1,
   `site-whatsapp-entry` v1 e `webhook-whatsapp` v17. O webhook conserva bloqueio para matching
   ambíguo; não cria lead para mensagens desconhecidas sem o marcador de uma entrada ativa.
 - Type-check frontend/Edge, lint e build passaram. O teste de contrato recebeu cenários para
   permissões e entrada do site, mas Vitest não iniciou por permissão negada no worktree ligado ao
   `node_modules`. Nenhum lead, mensagem, configuração Z-API ou chamada a provedor foi executado.
+
+# 2026-09-14 — Reparo do acesso de Juca e prevenção de onboarding paralelo
+
+- O cadastro havia sido criado no Auth, mas o gatilho de novo usuário o associou a uma organização
+  pessoal porque o vínculo WayFlex só era gravado depois de `createUser`.
+- O fluxo agora cria a autorização em `organization_invites` antes do Auth e restaura esse registro
+  em caso de falha. `team-members` v4 foi publicada com JWT obrigatório.
+- Juca foi movido para a organização WayFlex como administrador ativo. O vínculo com a organização
+  pessoal indevida foi removido após confirmar zero dados operacionais; a auditoria imutável foi
+  preservada. A tela autenticada passou a listar Juca e fabricio.
+- Type-check frontend/Edge, lint, build e 16 arquivos/172 testes passaram. Não houve leitura ou
+  alteração de senha, mensagem, lead, integração comercial ou configuração da Ana.
 
 ## 2026-09-13 — Mapa visual de decisão da Ana
 

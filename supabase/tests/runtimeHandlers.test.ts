@@ -86,7 +86,7 @@ function execute(query: Query): Result {
 function queryFor(table: string) {
   const query: Query = { table, operation: 'select', filters: {} };
   const chain: Record<string, unknown> = {};
-  for (const method of ['eq', 'neq', 'is', 'in', 'not', 'gte', 'lte', 'ilike', 'or', 'order', 'limit']) {
+  for (const method of ['eq', 'is', 'in', 'not', 'gt', 'gte', 'lte', 'neq', 'ilike', 'or', 'order', 'limit']) {
     chain[method] = (key: string, value: unknown) => {
       if (method === 'eq') query.filters[key] = value;
       if (method === 'neq') query.filters[`neq:${key}`] = value;
@@ -95,6 +95,7 @@ function queryFor(table: string) {
   }
   chain.select = () => chain;
   for (const method of ['insert', 'update', 'upsert']) chain[method] = (value: Row) => { query.operation = method; query.value = value; return chain; };
+  chain.delete = () => { query.operation = 'delete'; return chain; };
   chain.single = chain.maybeSingle = () => chain;
   chain.then = (resolve: (result: Result) => unknown, reject: (error: unknown) => unknown) => Promise.resolve(execute(query)).then(resolve, reject);
   return chain;
@@ -320,6 +321,79 @@ describe('Integration configuration secret boundary', () => {
       connection_status: 'configured',
       configuration: { actor_id: 'compass/google-maps-extractor', task_id: null },
     });
+  });
+});
+
+describe('Team member creation contract', () => {
+  it('prepares the organization invite before creating the Auth user', async () => {
+    const createUser = vi.fn(async () => ({ data: { user: { id: 'new-team-user' } }, error: null }));
+    state.admin = {
+      from: queryFor,
+      rpc: (name: string, value: Row) => Promise.resolve(execute({ table: name, operation: 'rpc', value, filters: {} })),
+      auth: { admin: { createUser, deleteUser: vi.fn(async () => ({ error: null })) } },
+    };
+    override = (q) => {
+      if (q.table === 'organization_invites' && q.operation === 'select') {
+        return 'organization_id' in q.filters ? ok(null) : ok([]);
+      }
+      return undefined;
+    };
+
+    await import('../functions/team-members/index');
+    const response = await handler(new Request('https://example.invalid/team-members', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'create', name: 'Novo membro', email: 'MEMBRO@WAYFLEX.IND.BR', password: 'synthetic-password', role: 'vendedor' }),
+    }));
+
+    expect(response.status).toBe(201);
+    expect(await response.json()).toMatchObject({ ok: true, user_id: 'new-team-user' });
+    expect(createUser).toHaveBeenCalledWith(expect.objectContaining({
+      email: 'membro@wayflex.ind.br', email_confirm: true, user_metadata: { name: 'Novo membro' },
+    }));
+    const inviteIndex = calls.findIndex((q) => q.table === 'organization_invites' && q.operation === 'insert');
+    const membershipIndex = calls.findIndex((q) => q.table === 'organization_members' && q.operation === 'upsert');
+    expect(inviteIndex).toBeGreaterThanOrEqual(0);
+    expect(membershipIndex).toBeGreaterThan(inviteIndex);
+    expect(calls[inviteIndex].value).toMatchObject({
+      organization_id: org,
+      email: 'membro@wayflex.ind.br',
+      role: 'vendedor',
+      invited_by: 'owner',
+      accepted_at: null,
+    });
+    expect(calls.find((q) => q.table === 'profiles' && q.operation === 'update')?.value)
+      .toMatchObject({ active_organization_id: org, name: 'Novo membro', email: 'membro@wayflex.ind.br' });
+    expect(calls.some((q) => q.table === 'organizations')).toBe(false);
+  });
+
+  it('removes the prepared invite when Auth rejects an existing email', async () => {
+    state.admin = {
+      from: queryFor,
+      rpc: (name: string, value: Row) => Promise.resolve(execute({ table: name, operation: 'rpc', value, filters: {} })),
+      auth: { admin: {
+        createUser: vi.fn(async () => ({ data: { user: null }, error: { code: 'email_exists', message: 'already registered' } })),
+        deleteUser: vi.fn(async () => ({ error: null })),
+      } },
+    };
+    override = (q) => {
+      if (q.table === 'organization_invites' && q.operation === 'select') {
+        return 'organization_id' in q.filters ? ok(null) : ok([]);
+      }
+      return undefined;
+    };
+
+    await import('../functions/team-members/index');
+    const response = await handler(new Request('https://example.invalid/team-members', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'create', name: 'Membro existente', email: 'existing@wayflex.ind.br', password: 'synthetic-password', role: 'administrador' }),
+    }));
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ ok: false, erro: 'member_email_already_registered' });
+    expect(calls.some((q) => q.table === 'organization_invites' && q.operation === 'delete')).toBe(true);
+    expect(calls.some((q) => q.table === 'organization_members' && q.operation === 'upsert')).toBe(false);
   });
 });
 afterEach(() => vi.unstubAllGlobals());
