@@ -12,6 +12,8 @@
   retornou zero linhas para a prova; nenhuma mensagem foi criada nem a Z-API foi chamada.
 - Type-check frontend/Edge, lint, contrato estático e build do artefato do Site passaram. O Vitest
   segue bloqueado antes de iniciar pela junção local de dependências sem permissão de leitura.
+- PUBLICADO: Site oficial versão 83, commit `0f567b4836d6f5338873dd2605f648564db2ce57`, com
+  deploy `succeeded` e acesso público existente preservado.
 
 ## 2026-09-09 — Baseline de Configurações
 

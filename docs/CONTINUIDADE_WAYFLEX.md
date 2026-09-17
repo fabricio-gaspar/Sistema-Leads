@@ -654,3 +654,5 @@ webhook em ambiente controlado.
   aprovados. O Vitest não iniciou porque a junção local de `node_modules` leva a um diretório sem
   permissão de leitura pelo esbuild. Falta somente o teste externo controlado, no painel
   **Configurações > Canais > WhatsApp**, para comprovar aceite/entrega do provedor.
+- PUBLICADO: Site oficial versão 83, commit `0f567b4836d6f5338873dd2605f648564db2ce57`, deploy
+  `succeeded` e acesso público existente preservado.
