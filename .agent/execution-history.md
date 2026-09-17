@@ -484,3 +484,20 @@
   `succeeded`. A inspeção autenticada confirmou o lead no Kanban em Novo, com IA e autorização
   pendente. Um bundle antigo em cache precisou ser recarregado; após a recarga, não houve erro de
   rota nem ação externa.
+
+# 2026-09-17 — Ativação WhatsApp e apresentação inicial da Ana
+
+- Diagnóstico confirmado no lead relatado: a execução `lead.created` existia, mas estava `skipped`
+  por `channel_not_allowed_by_ana_configuration`. O cadastro tinha WhatsApp e autorização válidos,
+  porém `active_channel=email`; e-mail está desconectado e a configuração publicada da Ana permite
+  somente WhatsApp. Não houve job, mensagem ou chamada ao worker/provedor.
+- Correção: a ativação no Kanban passa a persistir WhatsApp como canal operacional quando Ana é
+  autorizada, usa idempotência por canal e mostra falha ao operador. `ana-run` v25 trata o primeiro
+  contato autorizado sem mensagens como apresentação institucional canônica, grava o estágio
+  Apresentado e cria a fila auditável sem depender do modelo.
+- O reparo de dados foi limitado ao lead relatado e alterou apenas `active_channel` para WhatsApp.
+  O drawer autenticado mostrou canal preferencial WhatsApp, automação ativa e Rodar Ana disponível.
+  O botão não foi acionado, portanto não há evidência de saída, aceite, entrega ou leitura.
+- PUBLICADO: Site oficial versão 86, commit `7caa8903aa9c92b3d9ea5751ea50dd408e286374`, deploy
+  `succeeded`. Type-check frontend/Edge, lint e build passaram; Vitest permaneceu bloqueado antes de
+  iniciar por permissão na junção local de dependências.

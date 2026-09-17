@@ -173,3 +173,16 @@ Detalhes de continuidade e releases ficam em `docs/CONTINUIDADE_WAYFLEX.md`.
 - PUBLICADO: Site oficial versão 85, commit `48861eb7d79c8c5628f172f12d85c97f1b386c72`, deploy
   confirmado como `succeeded`. A inspeção autenticada confirmou o cartão no Kanban em Novo com
   autorização pendente, sem executar Ana ou enviar mensagem.
+
+## Delta de ativação e apresentação da Ana — 17/09/2026
+
+- O estado pendente do cadastro manual continua seguro: telefone isolado não é promovido a WhatsApp
+  durante a criação. A promoção ocorre apenas quando o operador autoriza Ana no Kanban e há um
+  contato WhatsApp informado, gravando `active_channel=whatsapp` antes de chamar `ana-run`.
+- A primeira execução autorizada em `novo` e sem histórico usa a apresentação institucional canônica
+  dentro de `ana-run`; ela avança somente para `apresentado` e insere a mensagem na fila idempotente.
+  As políticas de empresa, sandbox, kill switch, canal, opt-out, responsável e autorização seguem
+  sendo verificadas antes desse ponto.
+- `ana-run` v25 e o Site oficial versão 86 foram publicados. O lead relatado foi reparado somente no
+  campo de canal e o drawer confirma WhatsApp/automação ativa. Nenhuma ação externa foi acionada;
+  o primeiro envio ainda requer confirmação específica do operador e comprovação posterior de aceite.

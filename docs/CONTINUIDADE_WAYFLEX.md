@@ -694,3 +694,21 @@ webhook em ambiente controlado.
   deploy `succeeded`. A inspeção autenticada confirmou Fabricio Gaspar / WF Digital em **Novo**,
   com IA, responsável atribuído, selo **Autorização pendente** e aviso de bloqueio do primeiro
   contato. Nenhum botão de Ana, mensagem ou job foi acionado.
+
+## 2026-09-17 — Ana: apresentação inicial após envio ao Kanban
+
+- O lead relatado não ficou parado por Z-API ou worker. O banco confirmou uma execução `lead.created`
+  como `skipped` por `channel_not_allowed_by_ana_configuration`: tinha `active_channel=email`, e-mail
+  desconectado e a versão ativa da Ana aceita somente WhatsApp. Por isso não havia mensagem nem job.
+- Ao enviar um lead autorizado para o Kanban com Ana, o frontend agora promove explicitamente o
+  telefone comprovado a WhatsApp como canal operacional; não infere autorização no cadastro manual.
+  A mesma ação envia uma chave idempotente vinculada ao canal e informa bloqueio de modo explícito.
+- `ana-run` v25 preserva todas as guardas existentes e, no primeiro contato autorizado em Novo sem
+  histórico, usa a apresentação canônica da Wayflex, progride para Apresentado e cria a fila
+  auditável. Não depende de modelo de IA para esse texto fixo.
+- O reparo de dados alterou somente o canal do lead relatado para WhatsApp. O drawer do Kanban
+  confirmou WhatsApp, automação ativa e Rodar Ana disponível. Nenhuma mensagem foi disparada nesta
+  rodada: aguarda confirmação do operador imediatamente antes da ação externa.
+- PUBLICADO: Site oficial versão 86, commit `7caa8903aa9c92b3d9ea5751ea50dd408e286374`, deploy
+  confirmado como `succeeded`. Type-check frontend/Edge, lint e build passaram; Vitest não iniciou
+  devido à permissão da junção local de `node_modules`.

@@ -91,6 +91,15 @@
   A migration `20260917175303_fix_pending_manual_lead_phone_identity` também remove a inferência
   incorreta de WhatsApp a partir de telefone e corrigiu somente o registro manual pendente afetado.
 
+- Um lead já autorizado podia ser ativado para a Ana com `active_channel=email` quando o formulário
+  também possuía e-mail. A versão anterior de `ana-run` registrou corretamente a execução como
+  `skipped`, com motivo `channel_not_allowed_by_ana_configuration`: a configuração publicada só
+  permite WhatsApp e a integração de e-mail está desconectada. A ativação agora fixa WhatsApp como
+  canal operacional, usa uma idempotência por canal e reporta bloqueio de forma explícita. `ana-run`
+  v25 produz a apresentação institucional canônica no primeiro contato e avança somente de Novo para
+  Apresentado, antes de enfileirar a mensagem. O envio real permanece pendente de confirmação do
+  operador e de aceite comprovado da Z-API.
+
 ## Sugestões, não bugs
 
 - Ambiente de homologação isolado e piloto controlado antes de comercializar.
