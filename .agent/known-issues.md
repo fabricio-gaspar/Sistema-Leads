@@ -35,6 +35,10 @@
 
 ## Médio
 
+- A limpeza de leads possui dois pontos de UI: a Base de Leads geral em **Leads** e o painel
+  legado **Limpar leads de teste** em Configurações. Eles têm escopos diferentes, mas ambos
+  chegam ao mesmo grafo de exclusão; o legado ainda usa `window.confirm`. Não removê-lo sem
+  decisão explícita sobre manter a limpeza restrita de testes ou consolidá-la no gerenciador geral.
 - Parte do painel ainda importa tipos e presets de `mocks`; é preciso separar tipo de dado
   simulado e remover qualquer seed do runtime de produção.
 - Callbacks de entrega/leitura aguardam reconciliação específica.

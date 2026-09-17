@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/lib/supabase';
 import { detalheDoErroDeFuncao } from '@/lib/transportador';
+import { isLeadPurgeConfirmationValid, leadPurgeConfirmation } from './leadPurgeConfirmation';
 
 type LifecycleStatus = 'Em conversa' | 'Ativo' | 'Sem interação' | 'Inativo' | 'Ganho' | 'Perdido';
 
@@ -56,6 +57,8 @@ export default function LeadBaseManager() {
   const [status, setStatus] = useState<'Todos' | LifecycleStatus>('Todos');
   const [owner, setOwner] = useState('Todos');
   const [selected, setSelected] = useState<string[]>([]);
+  const [purgeDialogOpen, setPurgeDialogOpen] = useState(false);
+  const [purgeConfirmation, setPurgeConfirmation] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -82,15 +85,20 @@ export default function LeadBaseManager() {
   const toggle = (id: string) => setSelected((current) => current.includes(id) ? current.filter((selectedId) => selectedId !== id) : [...current, id]);
   const toggleFiltered = () => setSelected((current) => filtered.length > 0 && filtered.every((lead) => current.includes(lead.id)) ? current.filter((id) => !filtered.some((lead) => lead.id === id)) : [...new Set([...current, ...filtered.map((lead) => lead.id)])]);
 
-  const purge = async () => {
+  const openPurgeDialog = () => {
     if (!selected.length || !canDelete) return;
-    const confirmation = `EXCLUIR ${selected.length} LEADS`;
-    const entered = window.prompt(`Esta ação apaga definitivamente ${selected.length} lead(s), mensagens, tarefas, propostas, eventos, filas e vínculos do canal. Digite exatamente:\n${confirmation}`, '');
-    if (entered === null) return;
+    setPurgeConfirmation('');
+    setPurgeDialogOpen(true);
+  };
+
+  const purge = async () => {
+    if (!selected.length || !canDelete || !isLeadPurgeConfirmationValid(purgeConfirmation, selected.length)) return;
     setBusy(true);
     try {
-      const result = await invoke<{ deleted_count: number }>('purge', { lead_ids: selected, confirmation: entered });
+      const result = await invoke<{ deleted_count: number }>('purge', { lead_ids: selected, confirmation: purgeConfirmation });
       setSelected([]);
+      setPurgeDialogOpen(false);
+      setPurgeConfirmation('');
       setNotice(`${result.deleted_count} lead(s) foram removidos definitivamente da base.`);
       await load();
     } catch (error) { setNotice(errorMessage(error)); }
@@ -111,9 +119,23 @@ export default function LeadBaseManager() {
     <div className="mt-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_190px_190px]">
       <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar por empresa, contato ou origem" className="w-full rounded-xl border border-background-200 bg-white px-3 py-2.5 text-sm" />
       <select value={owner} onChange={(event) => setOwner(event.target.value)} className="rounded-xl border border-background-200 bg-white px-3 py-2.5 text-sm"><option value="Todos">Todos os responsáveis</option>{owners.filter((item) => item !== 'Todos').map((item) => <option key={item} value={item}>{item}</option>)}</select>
-      <button type="button" disabled={!canDelete || selected.length === 0 || busy} onClick={() => void purge()} className="rounded-xl bg-accent-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-accent-700 disabled:cursor-not-allowed disabled:opacity-50"><i className="ri-delete-bin-6-line mr-1.5" />Excluir selecionados ({selected.length})</button>
+      <button type="button" disabled={!canDelete || selected.length === 0 || busy} onClick={openPurgeDialog} className="rounded-xl bg-accent-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-accent-700 disabled:cursor-not-allowed disabled:opacity-50"><i className="ri-delete-bin-6-line mr-1.5" />Excluir selecionados ({selected.length})</button>
     </div>
     {loading ? <p className="py-10 text-center text-sm text-foreground-500">Carregando status reais da base…</p> : <div className="mt-4 overflow-x-auto rounded-xl border border-background-200"><table className="w-full min-w-[760px] text-sm"><thead className="bg-background-100 text-left text-[11px] font-semibold uppercase tracking-wide text-foreground-500"><tr><th className="w-12 px-4 py-3"><input aria-label="Selecionar leads filtrados" type="checkbox" checked={filtered.length > 0 && filtered.every((lead) => selected.includes(lead.id))} onChange={toggleFiltered} disabled={!canDelete} className="h-4 w-4 accent-primary-600" /></th><th className="px-4 py-3">Lead</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Responsável</th><th className="px-4 py-3">Interação</th><th className="px-4 py-3 text-right">Mensagens</th></tr></thead><tbody>{filtered.map((lead) => <tr key={lead.id} className="border-t border-background-200/70"><td className="px-4 py-3"><input aria-label={`Selecionar ${lead.company}`} type="checkbox" checked={selected.includes(lead.id)} onChange={() => toggle(lead.id)} disabled={!canDelete} className="h-4 w-4 accent-primary-600" /></td><td className="px-4 py-3"><p className="font-semibold text-foreground-800">{lead.company}</p><p className="mt-0.5 text-xs text-foreground-500">{lead.contact || 'Contato não informado'} · {lead.origin || 'Origem não informada'}</p></td><td className="px-4 py-3"><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${badge[lead.lifecycle_status]}`}>{lead.lifecycle_status}</span><p className="mt-1 text-xs text-foreground-500">{lead.stage}</p></td><td className="px-4 py-3 text-foreground-600">{lead.owner || 'Sem responsável'}</td><td className="px-4 py-3 text-foreground-600">{formatDate(lead.last_activity_at)}</td><td className="px-4 py-3 text-right font-medium text-foreground-700">{lead.message_count}</td></tr>)}</tbody></table>{filtered.length === 0 && <p className="px-5 py-10 text-center text-sm text-foreground-500">Nenhum lead corresponde aos filtros selecionados.</p>}</div>}
     {!canDelete && !loading && <p className="mt-3 text-xs leading-5 text-foreground-500">Seu acesso permite consultar a base, mas não excluir leads definitivamente.</p>}
+    {purgeDialogOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground-950/50 p-4" onClick={() => !busy && setPurgeDialogOpen(false)}>
+      <div role="dialog" aria-modal="true" aria-labelledby="lead-purge-title" className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-xl" onClick={(event) => event.stopPropagation()}>
+        <p className="text-[11px] font-semibold uppercase tracking-[.12em] text-accent-700">Ação irreversível</p>
+        <h3 id="lead-purge-title" className="mt-1 font-heading text-xl font-bold text-foreground-950">Excluir {selected.length} lead(s) definitivamente?</h3>
+        <p className="mt-3 text-sm leading-6 text-foreground-600">Serão removidos os leads selecionados e seus vínculos operacionais: mensagens, tarefas, propostas, eventos e filas. Essa ação não pode ser desfeita.</p>
+        <label className="mt-5 block text-sm font-semibold text-foreground-800">Digite <code className="rounded bg-background-100 px-1.5 py-1 text-xs">{leadPurgeConfirmation(selected.length)}</code> para confirmar
+          <input autoFocus value={purgeConfirmation} onChange={(event) => setPurgeConfirmation(event.target.value)} className="mt-2 w-full rounded-xl border border-background-300 bg-white px-3 py-2.5 text-sm font-normal text-foreground-900 outline-none focus:border-accent-500" aria-label="Confirmação da exclusão definitiva" />
+        </label>
+        <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <button type="button" onClick={() => setPurgeDialogOpen(false)} disabled={busy} className="rounded-xl border border-background-300 px-4 py-2.5 text-sm font-semibold text-foreground-700 hover:bg-background-100 disabled:opacity-60">Cancelar</button>
+          <button type="button" onClick={() => void purge()} disabled={busy || !isLeadPurgeConfirmationValid(purgeConfirmation, selected.length)} className="rounded-xl bg-accent-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-accent-700 disabled:cursor-not-allowed disabled:opacity-50">{busy ? 'Excluindo…' : 'Excluir definitivamente'}</button>
+        </div>
+      </div>
+    </div>}
   </section>;
 }

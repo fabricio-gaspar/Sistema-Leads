@@ -22,6 +22,12 @@
     {"command":"Supabase read-only governance snapshot","status":"passed","note":"A consulta retornou zero fora do contexto service_role e duas linhas para a organização mais ativa no contexto de backend; nenhum lead foi alterado."}
     ,{"command":"team-members create com Auth simulado","status":"passed","note":"Confirmou preparação do vínculo organizacional antes da criação do usuário e restauração do convite em e-mail já existente."},
     {"command":"Supabase + inspeção autenticada de Equipe e Acessos","status":"passed","note":"Juca aparece uma única vez, confirmado, ativo e como administrador da organização WayFlex; a organização pessoal indevida ficou sem membro e sem acesso."},
+    {"command":"LeadBaseManager: reprodução autenticada do botão Excluir selecionados","status":"passed","note":"A versão publicada foi reproduzida sem confirmar exclusão: o navegador registrou prompt() is not supported antes de qualquer chamada ao backend. A correção substitui essa dependência por diálogo React."},
+    {"command":"tsc --noEmit --project tsconfig.app.json","status":"passed","note":"Diálogo React de confirmação da exclusão definitiva."},
+    {"command":"eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0","status":"passed","warnings":0},
+    {"command":"node --input-type=module -e leadPurgeConfirmation","status":"passed","note":"Cobriu a frase exata e recusou variações de caixa e quantidade."},
+    {"command":"vite build && node scripts/build-sites-artifact.mjs","status":"passed","note":"Artefato oficial produzido após a substituição de window.prompt."},
+    {"command":"vitest run src/pages/dashboard/leads/components/leadPurgeConfirmation.test.ts","status":"blocked","note":"O esbuild não inicia neste worktree porque node_modules é uma junção para diretório compartilhado sem permissão; nenhum teste Vitest iniciou."}
   ],
   "prior_site_artifact_validation": {
     "validated_commit": "e4b1666c878df01ac0db3d12a290531a42107446",

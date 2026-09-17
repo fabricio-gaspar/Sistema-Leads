@@ -615,3 +615,20 @@ webhook em ambiente controlado.
   acrescentados contratos para matriz de permissões e entrada pelo site. O Vitest permanece
   bloqueado antes de iniciar pelo `node_modules` ligado a diretório sem permissão local. Não houve
   envio/recebimento real de WhatsApp, chamada de IA, mudança de Z-API ou ação sobre leads.
+
+## 2026-09-17 — Exclusão definitiva de Leads: confirmação compatível com o Site
+
+- Causa confirmada no Site autenticado: o botão de **Gestão da base** chamava `window.prompt`;
+  o runtime de hospedagem bloqueia essa API com `prompt() is not supported`, antes de qualquer
+  chamada a `lead-governance` ou alteração no Supabase.
+- A confirmação agora é um diálogo interno. Ele exige exatamente `EXCLUIR N LEADS`, mantém o
+  botão definitivo desabilitado até a frase conferir e envia a mesma frase à validação server-side.
+  Nenhum lead foi removido durante diagnóstico, implementação ou validação.
+- Foram identificados dois pontos de limpeza: o gerenciador geral em **Leads** e o painel legado
+  **Limpar leads de teste** em Configurações. O segundo é restrito a candidatos de teste, usa
+  `cleanup-test-leads` e a transação compartilhada; foi mantido para evitar mudar a política de
+  limpeza de testes sem autorização. Recomenda-se consolidar a UI em uma decisão futura.
+- Validação local: type-check frontend, lint, teste direto da frase de confirmação e build do
+  artefato do Site aprovados. Vitest não iniciou porque a junção local de `node_modules` aponta
+  para uma pasta sem permissão de leitura. Falta publicar e validar visualmente o diálogo sem
+  confirmar uma exclusão.

@@ -340,6 +340,19 @@
   permissões e entrada do site, mas Vitest não iniciou por permissão negada no worktree ligado ao
   `node_modules`. Nenhum lead, mensagem, configuração Z-API ou chamada a provedor foi executado.
 
+# 2026-09-17 — Reparo da confirmação da exclusão na Base de Leads
+
+- A inspeção autenticada reproduziu o botão **Excluir selecionados** com um lead marcado, sem
+  aceitar a exclusão. O console confirmou `prompt() is not supported`; portanto a falha ocorria
+  no frontend antes de a Edge Function `lead-governance` receber a requisição.
+- `LeadBaseManager` substituiu `window.prompt` por diálogo React acessível, com a mesma frase
+  `EXCLUIR N LEADS` validada localmente e no backend. Nenhum lead foi excluído nesta correção.
+- Há um painel legado independente em Configurações para candidatos marcados como teste. Ele usa
+  `cleanup-test-leads` e a transação compartilhada; foi identificado como duplicidade de UI, mas
+  mantido para não alterar a política específica de limpeza de testes sem decisão do operador.
+- Type-check, lint, teste direto da frase de confirmação e build/artefato do Site passaram.
+  Vitest não iniciou por permissão de leitura da junção de dependências.
+
 # 2026-09-14 — Reparo do acesso de Juca e prevenção de onboarding paralelo
 
 - O cadastro havia sido criado no Auth, mas o gatilho de novo usuário o associou a uma organização
