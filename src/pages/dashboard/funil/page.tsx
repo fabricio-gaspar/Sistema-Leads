@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useLeadsStore } from '@/hooks/useLeadsStore';
 import { etapasCRM } from '@/mocks/leadsData';
 import { periodoDesde, maxDataString, dentroDoPeriodo } from '@/lib/periodo';
+import LeadBaseManager from '../leads/components/LeadBaseManager';
 
 const etapaCores: Record<string, string> = {
   'Novo': 'bg-background-200',
@@ -244,6 +245,10 @@ export default function FunilConversao() {
             })}
           </div>
         </div>
+      </div>
+
+      <div className="mt-8">
+        <LeadBaseManager />
       </div>
     </div>
   );

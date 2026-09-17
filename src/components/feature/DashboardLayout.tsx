@@ -50,7 +50,6 @@ const navSections: NavSection[] = [
   {
     title: 'Administração',
     items: [
-      { label: 'Registro do Sistema', path: '/dashboard/registro-sistema', icon: 'ri-shield-check-line' },
       { label: 'Configurações', path: '/dashboard/configuracoes', icon: 'ri-settings-4-line' },
     ],
   },

@@ -1,9 +1,10 @@
 import { createAdminClient, requireOrganizationPermission, requireUser } from '../_shared/auth.ts';
 import { allowedCorsHeaders, hasAllowedOrigin, json, preflight, safeError } from '../_shared/http.ts';
 import { defaultPermissionsForRole, organizationPermissions, type OrganizationPermission } from '../_shared/permissions.ts';
+import { maskDailyReportPhone, normalizeDailyReportPhone, validDailyReportTime } from '../_shared/dailyLeadReport.ts';
 
 const roles = new Set(['administrador', 'vendedor', 'sdr', 'cx']);
-type Action = 'create' | 'invite' | 'update_role' | 'set_status' | 'remove' | 'permissions_get' | 'permissions_set';
+type Action = 'create' | 'invite' | 'update_role' | 'set_status' | 'remove' | 'permissions_get' | 'permissions_set' | 'daily_report_get' | 'daily_report_set';
 
 function text(value: unknown, max = 180): string {
   return typeof value === 'string' ? value.trim().slice(0, max) : '';
@@ -20,6 +21,43 @@ function memberPassword(value: unknown): string {
     throw new Error('invalid_member_password');
   }
   return value;
+}
+
+function reportTimeZone(value: unknown): string {
+  const candidate = text(value, 80) || 'America/Sao_Paulo';
+  try {
+    new Intl.DateTimeFormat('pt-BR', { timeZone: candidate }).format();
+    return candidate;
+  } catch {
+    throw new Error('invalid_daily_report_timezone');
+  }
+}
+
+async function dailyReportSettings(
+  admin: ReturnType<typeof createAdminClient>,
+  organizationId: string,
+  userId: string,
+) {
+  const [preferenceRead, deliveryRead] = await Promise.all([
+    admin.from('notification_preferences')
+      .select('daily_lead_report_enabled,daily_lead_report_phone,daily_lead_report_time,timezone,daily_lead_report_last_status,daily_lead_report_last_sent_at,daily_lead_report_last_error')
+      .eq('organization_id', organizationId).eq('user_id', userId).maybeSingle(),
+    admin.from('daily_lead_report_deliveries')
+      .select('status,sent_at,error,created_at').eq('organization_id', organizationId).eq('user_id', userId)
+      .order('created_at', { ascending: false }).limit(1).maybeSingle(),
+  ]);
+  if (preferenceRead.error || deliveryRead.error) throw new Error('daily_report_settings_read_failed');
+  const preference = preferenceRead.data;
+  const delivery = deliveryRead.data;
+  return {
+    enabled: preference?.daily_lead_report_enabled === true,
+    phoneSuffix: maskDailyReportPhone(preference?.daily_lead_report_phone) || null,
+    scheduleTime: validDailyReportTime(preference?.daily_lead_report_time) || '18:00',
+    timezone: reportTimeZone(preference?.timezone),
+    lastStatus: delivery?.status ?? preference?.daily_lead_report_last_status ?? null,
+    lastSentAt: delivery?.sent_at ?? preference?.daily_lead_report_last_sent_at ?? null,
+    lastError: delivery?.error ?? preference?.daily_lead_report_last_error ?? null,
+  };
 }
 
 function isExistingAuthUser(error: unknown): boolean {
@@ -111,7 +149,7 @@ Deno.serve(async (request) => {
   try {
     const body = await request.json().catch(() => ({})) as Record<string, unknown>;
     const action = text(body.action, 32) as Action;
-    if (!['create', 'invite', 'update_role', 'set_status', 'remove', 'permissions_get', 'permissions_set'].includes(action)) throw new Error('unsupported_action');
+    if (!['create', 'invite', 'update_role', 'set_status', 'remove', 'permissions_get', 'permissions_set', 'daily_report_get', 'daily_report_set'].includes(action)) throw new Error('unsupported_action');
     const { user } = await requireUser(request);
     const admin = createAdminClient();
     const { data: profile, error: profileError } = await admin.from('profiles').select('active_organization_id,name').eq('id', user.id).maybeSingle();
@@ -219,6 +257,50 @@ Deno.serve(async (request) => {
       if (error) throw error;
       await admin.from('audit_logs').insert({ organization_id: organizationId, actor_id: user.id, actor_name: profile.name, actor_type: 'user', action: 'team.member_permissions_changed', detail: 'Permissões individuais do membro atualizadas.', entity_table: 'organization_members', event_data: { user_id: targetUserId } });
       return json({ ok: true }, 200, headers);
+    }
+
+    if (action === 'daily_report_get') {
+      return json({ ok: true, settings: await dailyReportSettings(admin, organizationId, targetUserId) }, 200, headers);
+    }
+
+    if (action === 'daily_report_set') {
+      if (typeof body.enabled !== 'boolean') throw new Error('daily_report_enabled_required');
+      const { data: existing, error: existingError } = await admin.from('notification_preferences')
+        .select('daily_lead_report_phone,daily_lead_report_time,timezone')
+        .eq('organization_id', organizationId).eq('user_id', targetUserId).maybeSingle();
+      if (existingError) throw new Error('daily_report_settings_read_failed');
+      const rawPhone = text(body.phone, 40);
+      const suppliedPhone = rawPhone ? normalizeDailyReportPhone(rawPhone) : null;
+      if (rawPhone && !suppliedPhone) throw new Error('invalid_daily_report_phone');
+      const phone = suppliedPhone || normalizeDailyReportPhone(existing?.daily_lead_report_phone);
+      if (body.enabled && !phone) throw new Error('daily_report_phone_required');
+      const scheduleTime = validDailyReportTime(body.schedule_time)
+        || validDailyReportTime(existing?.daily_lead_report_time)
+        || '18:00';
+      if (body.schedule_time !== undefined && !validDailyReportTime(body.schedule_time)) throw new Error('invalid_daily_report_time');
+      const timezone = reportTimeZone(body.timezone ?? existing?.timezone);
+      const { error: writeError } = await admin.from('notification_preferences').upsert({
+        organization_id: organizationId,
+        user_id: targetUserId,
+        daily_lead_report_enabled: body.enabled,
+        daily_lead_report_phone: phone,
+        daily_lead_report_time: scheduleTime,
+        timezone,
+        updated_by: user.id,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'organization_id,user_id' });
+      if (writeError) throw new Error('daily_report_settings_save_failed');
+      await admin.from('audit_logs').insert({
+        organization_id: organizationId,
+        actor_id: user.id,
+        actor_name: profile.name,
+        actor_type: 'user',
+        action: body.enabled ? 'notification.daily_report_enabled' : 'notification.daily_report_disabled',
+        detail: body.enabled ? 'Resumo diário pelo WhatsApp habilitado para um usuário.' : 'Resumo diário pelo WhatsApp desabilitado para um usuário.',
+        entity_table: 'notification_preferences',
+        event_data: { user_id: targetUserId, schedule_time: scheduleTime, timezone, phone_suffix: phone?.slice(-4) ?? null },
+      });
+      return json({ ok: true, settings: await dailyReportSettings(admin, organizationId, targetUserId) }, 200, headers);
     }
 
     if (action === 'update_role') {

@@ -13,21 +13,46 @@ function SectionHeading({ icon, eyebrow, title, description }: { icon: string; e
   </div>;
 }
 
-export default function IntegracoesOperacaoTab() {
+export type IntegrationOperationSection = 'channels' | 'apis' | 'sources';
+
+const sectionCopy: Record<IntegrationOperationSection, { eyebrow: string; title: string; description: string }> = {
+  channels: {
+    eyebrow: 'Canais',
+    title: 'Canais de atendimento',
+    description: 'Configure a comunicação que conversa com leads e alimenta a Central de Atendimento.',
+  },
+  apis: {
+    eyebrow: 'APIs',
+    title: 'APIs e inteligência',
+    description: 'Configure os provedores que validam, enriquecem e processam informações no servidor.',
+  },
+  sources: {
+    eyebrow: 'Fontes',
+    title: 'Fontes de prospecção',
+    description: 'Defina quais origens validadas podem disponibilizar empresas para a Busca de Leads.',
+  },
+};
+
+export default function IntegracoesOperacaoTab({ section }: { section?: IntegrationOperationSection }) {
+  const showChannels = !section || section === 'channels';
+  const showApis = !section || section === 'apis';
+  const showSources = !section || section === 'sources';
+  const copy = section ? sectionCopy[section] : null;
+
   return <div className="space-y-8">
     <header>
-      <p className="wf-eyebrow">Conexões</p>
-      <h2 className="mt-1 text-xl font-semibold text-foreground-950">Canais, APIs e fontes</h2>
-      <p className="mt-2 text-sm leading-6 text-foreground-500">Configure a comunicação, os serviços de inteligência e a origem dos leads.</p>
+      <p className="wf-eyebrow">{copy?.eyebrow || 'Conexões'}</p>
+      <h2 className="mt-1 text-xl font-semibold text-foreground-950">{copy?.title || 'Canais, APIs e fontes'}</h2>
+      <p className="mt-2 text-sm leading-6 text-foreground-500">{copy?.description || 'Configure a comunicação, os serviços de inteligência e a origem dos leads.'}</p>
     </header>
 
-    <section className="wf-settings-section">
+    {showChannels && <section className="wf-settings-section">
       <SectionHeading icon="ri-message-3-line" eyebrow="Canais" title="WhatsApp e atendimento" description="Instância Z-API, conexão do WhatsApp e teste de envio para a Central e a Ana." />
       <IntegracoesTab category="communication" />
       <WhatsAppSiteEntry />
-    </section>
+    </section>}
 
-    <section className="wf-settings-section">
+    {showApis && <section className="wf-settings-section">
       <SectionHeading icon="ri-code-s-slash-line" eyebrow="APIs" title="Inteligência e prospecção" description="Provedor de IA para a Ana e serviços de pesquisa de empresas e contatos." />
       <div className="space-y-7">
         <div>
@@ -45,11 +70,11 @@ export default function IntegracoesOperacaoTab() {
           <IntegracoesTab category="prospecting" />
         </div>
       </div>
-    </section>
+    </section>}
 
-    <section className="wf-settings-section">
+    {showSources && <section className="wf-settings-section">
       <SectionHeading icon="ri-radar-line" eyebrow="Fontes" title="Fontes da Busca de Leads" description="Depois que a API estiver validada, defina quais origens realmente podem criar oportunidades na Busca de Leads." />
       <FontesTab />
-    </section>
+    </section>}
   </div>;
 }

@@ -79,10 +79,26 @@ Deno.serve(async (request) => {
     if (inserted?.error) throw new Error('integration_create_failed');
     const integration = existing ?? inserted?.data;
     if (!integration) throw new Error('integration_not_found');
+    // The webhook URL contains this credential. Rotating it when the operator
+    // merely saves the Z-API settings leaves the provider calling the old URL
+    // and the callback is rejected before it can be audited. Keep a valid
+    // existing token; a new token is needed only for the first configuration.
+    const storedWhatsAppSecret = canal === 'whatsapp' && existing
+      ? await admin.rpc('read_integration_secret', { p_integration: integration.id })
+      : { data: null, error: null };
+    if (storedWhatsAppSecret.error) throw new Error('integration_secret_read_failed');
+    const existingWebhookToken = asText(asObject(storedWhatsAppSecret.data).webhook_token, 128);
     let selectedAiModel = '';
     let aiPublicConfiguration: Record<string, unknown> | null = null;
     let credentials: Record<string, unknown> = canal === 'whatsapp'
-      ? { instancia_id: instanceId, token, client_token: clientToken, numero_origem: String(credenciais.numero_origem ?? '').trim(), url_base: String(credenciais.url_base ?? 'https://api.z-api.io').trim(), webhook_token: crypto.randomUUID().replace(/-/g, '') }
+      ? {
+        instancia_id: instanceId,
+        token,
+        client_token: clientToken,
+        numero_origem: String(credenciais.numero_origem ?? '').trim(),
+        url_base: String(credenciais.url_base ?? 'https://api.z-api.io').trim(),
+        webhook_token: existingWebhookToken || crypto.randomUUID().replace(/-/g, ''),
+      }
       : canal === 'apify'
         ? { api_token: apifyToken, actor_id: actorId, task_id: taskId, input_json: String(credenciais.input_json ?? '').trim() }
         : canal === 'google_places'

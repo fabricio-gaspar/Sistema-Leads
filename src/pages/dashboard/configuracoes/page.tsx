@@ -6,6 +6,7 @@ import IntegracoesOperacaoTab from './components/IntegracoesOperacaoTab';
 import OperationalStatusTab from './components/OperationalStatusTab';
 import TeamAccessTab from './components/TeamAccessTab';
 import SuppressionTab from './components/SuppressionTab';
+import DiagnosticsTab from './components/DiagnosticsTab';
 
 interface MenuItem {
   id: string;
@@ -20,10 +21,17 @@ interface MenuGroup {
 
 const groups: MenuGroup[] = [
   {
-    title: 'Operação e conexões',
+    title: 'Operação',
     items: [
       { id: 'operacao', label: 'Status operacional', icon: 'ri-pulse-line' },
-      { id: 'conexoes', label: 'Canais, APIs e fontes', icon: 'ri-plug-2-line' },
+    ],
+  },
+  {
+    title: 'Canais e integrações',
+    items: [
+      { id: 'canais', label: 'Canais', icon: 'ri-message-3-line' },
+      { id: 'apis', label: 'APIs', icon: 'ri-code-s-slash-line' },
+      { id: 'fontes', label: 'Fontes', icon: 'ri-radar-line' },
     ],
   },
   {
@@ -40,9 +48,10 @@ const groups: MenuGroup[] = [
     ],
   },
   {
-    title: 'Segurança e controle',
+    title: 'Acesso e governança',
     items: [
-      { id: 'equipe', label: 'Equipe e acessos', icon: 'ri-team-line' },
+      { id: 'usuarios', label: 'Usuários', icon: 'ri-team-line' },
+      { id: 'registro', label: 'Registro do Sistema', icon: 'ri-shield-check-line' },
       { id: 'supressao', label: 'Proteção de contatos', icon: 'ri-shield-check-line' },
     ],
   },
@@ -50,9 +59,10 @@ const groups: MenuGroup[] = [
 
 const legacyTabMap: Record<string, string> = {
   empresa: 'empresa',
-  fontes: 'conexoes',
-  integracoes: 'conexoes',
-  'integracoes-operacao': 'conexoes',
+  conexoes: 'canais',
+  integracoes: 'apis',
+  'integracoes-operacao': 'canais',
+  equipe: 'usuarios',
   ambiente: 'operacao',
   logs: 'operacao',
   abordagem: 'ana',
@@ -149,9 +159,12 @@ export default function DashboardConfiguracoes() {
           {tab === 'ana' && <PersonalizacaoAna embedded />}
           {tab === 'operacao' && <OperationalStatusTab />}
           {tab === 'empresa' && <EmpresaTabs />}
-          {tab === 'equipe' && <TeamAccessTab />}
+          {tab === 'usuarios' && <TeamAccessTab />}
           {tab === 'produtos' && <CommercialCatalogTab />}
-          {tab === 'conexoes' && <IntegracoesOperacaoTab />}
+          {tab === 'canais' && <IntegracoesOperacaoTab section="channels" />}
+          {tab === 'apis' && <IntegracoesOperacaoTab section="apis" />}
+          {tab === 'fontes' && <IntegracoesOperacaoTab section="sources" />}
+          {tab === 'registro' && <DiagnosticsTab />}
           {tab === 'supressao' && <SuppressionTab />}
         </main>
       </div>

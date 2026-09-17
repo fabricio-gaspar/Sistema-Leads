@@ -25,6 +25,32 @@ function textArray(value: unknown): string[] {
     : [];
 }
 
+function safeNonNegativeNumber(value: unknown): number | null {
+  const number = typeof value === 'number' ? value : typeof value === 'string' ? Number(value) : Number.NaN;
+  return Number.isFinite(number) && number >= 0 && number <= 1_000_000_000 ? number : null;
+}
+
+function safeIsoDate(value: unknown): string | null {
+  if (typeof value !== 'string' || !value.trim()) return null;
+  return Number.isFinite(Date.parse(value)) ? value : null;
+}
+
+function safeIntegrationTelemetry(value: unknown) {
+  const configuration = asObject(value);
+  const creditsRemaining = [
+    configuration.credits_remaining,
+    configuration.credit_balance,
+    configuration.credits_available,
+    configuration.quota_remaining,
+  ].map(safeNonNegativeNumber).find((candidate): candidate is number => candidate !== null) ?? null;
+  const expiresAt = [
+    configuration.expires_at,
+    configuration.session_expires_at,
+    configuration.subscription_expires_at,
+  ].map(safeIsoDate).find((candidate): candidate is string => candidate !== null) ?? null;
+  return { creditsRemaining, expiresAt, available: creditsRemaining !== null || expiresAt !== null };
+}
+
 function randomSecret(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(32));
   return Array.from(bytes, (value) => value.toString(16).padStart(2, '0')).join('');
@@ -57,12 +83,53 @@ async function upsertOperationalIntegration(
 }
 
 async function operationalStatus(admin: ReturnType<typeof createAdminClient>, organizationId: string) {
-  const [companyRead, integrationsRead, runtimeRead] = await Promise.all([
+  const now = new Date();
+  const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000).toISOString();
+  const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000).toISOString();
+  const [
+    companyRead,
+    integrationsRead,
+    runtimeRead,
+    sourcesRead,
+    sentHourRead,
+    sentDayRead,
+    dailyReportHourRead,
+    dailyReportDayRead,
+    inboundHourRead,
+    inboundDayRead,
+    deliveredDayRead,
+    failedDayRead,
+    policyRead,
+  ] = await Promise.all([
     admin.from('company_settings').select('active,sandbox_mode,can_use_ia,ai_actions_enabled,updated_at').eq('organization_id', organizationId).maybeSingle(),
     admin.from('integrations').select('key,label,category,provider,connected,enabled,paused,last_tested_at,last_success_at,last_error,status_detail,configuration').eq('organization_id', organizationId).order('label'),
     admin.from('organization_module_data').select('data,updated_at').eq('organization_id', organizationId).eq('module_key', 'configuracao_runtime').maybeSingle(),
+    admin.from('lead_source_configs').select('source_key,label,enabled,mode,connection_status,last_success_at,last_error').eq('organization_id', organizationId).order('label'),
+    admin.from('outreach_jobs').select('*', { count: 'exact', head: true }).eq('organization_id', organizationId).eq('channel', 'whatsapp').eq('status', 'processed').gte('processed_at', oneHourAgo),
+    admin.from('outreach_jobs').select('*', { count: 'exact', head: true }).eq('organization_id', organizationId).eq('channel', 'whatsapp').eq('status', 'processed').gte('processed_at', oneDayAgo),
+    admin.from('daily_lead_report_deliveries').select('*', { count: 'exact', head: true }).eq('organization_id', organizationId).eq('status', 'sent').gte('sent_at', oneHourAgo),
+    admin.from('daily_lead_report_deliveries').select('*', { count: 'exact', head: true }).eq('organization_id', organizationId).eq('status', 'sent').gte('sent_at', oneDayAgo),
+    admin.from('channel_inbound_events').select('*', { count: 'exact', head: true }).eq('organization_id', organizationId).gte('created_at', oneHourAgo),
+    admin.from('channel_inbound_events').select('*', { count: 'exact', head: true }).eq('organization_id', organizationId).gte('created_at', oneDayAgo),
+    admin.from('lead_outreach').select('*', { count: 'exact', head: true }).eq('organization_id', organizationId).eq('channel', 'whatsapp').not('delivered_at', 'is', null).gte('delivered_at', oneDayAgo),
+    admin.from('outreach_jobs').select('*', { count: 'exact', head: true }).eq('organization_id', organizationId).eq('channel', 'whatsapp').eq('status', 'failed').gte('run_at', oneDayAgo),
+    admin.from('channel_policy_events').select('id,risk_level,action,reason,created_at').eq('organization_id', organizationId).eq('channel', 'whatsapp').is('resolved_at', null).order('created_at', { ascending: false }).limit(20),
   ]);
-  if (companyRead.error || integrationsRead.error || runtimeRead.error) throw new Error('operational_status_read_failed');
+  if ([
+    companyRead,
+    integrationsRead,
+    runtimeRead,
+    sourcesRead,
+    sentHourRead,
+    sentDayRead,
+    dailyReportHourRead,
+    dailyReportDayRead,
+    inboundHourRead,
+    inboundDayRead,
+    deliveredDayRead,
+    failedDayRead,
+    policyRead,
+  ].some((read) => read.error)) throw new Error('operational_status_read_failed');
 
   const company = companyRead.data;
   const runtime = asObject(runtimeRead.data?.data);
@@ -78,6 +145,28 @@ async function operationalStatus(admin: ReturnType<typeof createAdminClient>, or
     return Number.isFinite(testedAt) && Date.now() - testedAt <= 24 * 60 * 60 * 1000;
   };
   const isOnline = (item: typeof ai) => Boolean(item?.connected && item?.enabled && !item?.paused && !item?.last_error && isFresh(item?.last_tested_at));
+  const activeWhatsappPolicies = policyRead.data ?? [];
+  const sentLastHour = (sentHourRead.count ?? 0) + (dailyReportHourRead.count ?? 0);
+  const sentLast24Hours = (sentDayRead.count ?? 0) + (dailyReportDayRead.count ?? 0);
+  const inboundLastHour = inboundHourRead.count ?? 0;
+  const inboundLast24Hours = inboundDayRead.count ?? 0;
+  const deliveredLast24Hours = deliveredDayRead.count ?? 0;
+  const failedLast24Hours = failedDayRead.count ?? 0;
+  const pausedByPolicy = activeWhatsappPolicies.some((event) => event.action === 'pause');
+  const whatsappMonitoringState = whatsapp?.paused || pausedByPolicy
+    ? 'paused'
+    : !whatsapp?.connected || !whatsapp?.enabled
+      ? 'unavailable'
+      : activeWhatsappPolicies.length > 0 || failedLast24Hours > 0
+        ? 'attention'
+        : 'stable';
+  const whatsappMonitoringDetail = whatsappMonitoringState === 'paused'
+    ? 'Envios estão pausados por uma política de risco ativa.'
+    : whatsappMonitoringState === 'unavailable'
+      ? 'O canal não está conectado e habilitado para enviar mensagens.'
+      : whatsappMonitoringState === 'attention'
+        ? 'Há falha recente ou evento de risco aberto; consulte os detalhes antes de aumentar o volume.'
+        : 'Sem evento de risco aberto na leitura atual.';
   const webhookConfiguration = asObject(whatsappWebhook?.configuration);
   const registeredAt = typeof webhookConfiguration.registered_at === 'string' ? webhookConfiguration.registered_at : null;
   const registeredEndpoints = textArray(webhookConfiguration.registration_endpoints);
@@ -192,7 +281,32 @@ async function operationalStatus(admin: ReturnType<typeof createAdminClient>, or
       health: item.connected === true && item.enabled === true && item.paused !== true && !item.last_error
         ? (isFresh(item.last_tested_at) ? 'online' : 'stale')
         : 'offline',
+      telemetry: safeIntegrationTelemetry(item.configuration),
     })),
+    sources: (sourcesRead.data ?? []).map((source) => ({
+      key: source.source_key,
+      label: source.label,
+      enabled: source.enabled === true,
+      mode: source.mode,
+      connectionStatus: source.connection_status,
+      lastSuccessAt: source.last_success_at,
+      lastError: source.last_error,
+      health: source.connection_status === 'connected' && !source.last_error
+        ? (source.enabled === true ? 'online' : 'stale')
+        : 'offline',
+    })),
+    whatsappMonitoring: {
+      updatedAt: now.toISOString(),
+      state: whatsappMonitoringState,
+      detail: whatsappMonitoringDetail,
+      sentLastHour,
+      sentLast24Hours,
+      inboundLastHour,
+      inboundLast24Hours,
+      deliveredLast24Hours,
+      failedLast24Hours,
+      openRiskEvents: activeWhatsappPolicies.length,
+    },
   };
 }
 

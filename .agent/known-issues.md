@@ -51,6 +51,9 @@
 - O Vitest não consegue iniciar neste worktree por uma junção de `node_modules` que aponta para
   uma pasta sem permissão de leitura do esbuild. Type-check frontend/Edge, lint e build passaram,
   mas os novos testes de contrato aguardam correção desse ambiente local.
+- O advisor de segurança informa que `daily_lead_report_deliveries` possui RLS sem policy. Isso é
+  intencional: todo acesso de navegador foi revogado e somente `service_role` do backend possui
+  privilégio na tabela. Não adicionar policy de cliente para silenciar o aviso.
 
 ## Resolvido em 13/09/2026
 

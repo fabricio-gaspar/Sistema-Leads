@@ -23,6 +23,35 @@ export interface OperationalIntegration {
   lastError: string | null;
   detail: string | null;
   health: 'online' | 'offline' | 'stale';
+  telemetry: {
+    creditsRemaining: number | null;
+    expiresAt: string | null;
+    available: boolean;
+  };
+}
+
+export interface OperationalSource {
+  key: string;
+  label: string;
+  enabled: boolean;
+  mode: string | null;
+  connectionStatus: string | null;
+  lastSuccessAt: string | null;
+  lastError: string | null;
+  health: 'online' | 'offline' | 'stale';
+}
+
+export interface WhatsappMonitoring {
+  updatedAt: string;
+  state: 'stable' | 'attention' | 'paused' | 'unavailable';
+  detail: string;
+  sentLastHour: number;
+  sentLast24Hours: number;
+  inboundLastHour: number;
+  inboundLast24Hours: number;
+  deliveredLast24Hours: number;
+  failedLast24Hours: number;
+  openRiskEvents: number;
 }
 
 export interface OperationalWebhookDiagnostic {
@@ -43,6 +72,8 @@ export interface OperationalStatus {
   checks: OperationalCheck[];
   webhookDiagnostic: OperationalWebhookDiagnostic;
   integrations: OperationalIntegration[];
+  sources: OperationalSource[];
+  whatsappMonitoring: WhatsappMonitoring;
 }
 
 export interface OperationalEvent {

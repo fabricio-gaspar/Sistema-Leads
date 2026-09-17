@@ -16,6 +16,39 @@ function Status({ good, label, neutral = false }: { good: boolean; label: string
   return <span className={`wf-overview-status wf-overview-status--${neutral ? 'neutral' : good ? 'good' : 'warning'}`}>{label}</span>;
 }
 
+type ConnectionOverviewItem = {
+  id: string;
+  label: string;
+  connected: boolean;
+  creditsRemaining?: number | null;
+  expiresAt?: string | null;
+};
+
+function providerTelemetry(item: ConnectionOverviewItem): string | null {
+  if (typeof item.creditsRemaining === 'number') return `Créditos informados: ${item.creditsRemaining.toLocaleString('pt-BR')}`;
+  if (item.expiresAt) {
+    const expiresAt = new Date(item.expiresAt);
+    if (Number.isFinite(expiresAt.getTime())) return `Sessão até ${expiresAt.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })}`;
+  }
+  return null;
+}
+
+function ConnectionOverview({ title, link, items, empty }: { title: string; link: string; items: ConnectionOverviewItem[]; empty: string }) {
+  return <article className="wf-surface overflow-hidden">
+    <div className="wf-overview-heading border-b border-background-200 px-4 py-3"><h2>{title}</h2><Link to={link} className="wf-overview-link">Configurar ↗</Link></div>
+    <div className="divide-y divide-background-100">
+      {items.map((item) => {
+        const telemetry = providerTelemetry(item);
+        return <div key={item.id} className="flex items-center justify-between gap-3 px-4 py-3">
+          <div className="min-w-0"><p className="truncate text-sm font-semibold text-foreground-800">{item.label}</p>{telemetry && <p className="mt-0.5 truncate text-xs text-foreground-500">{telemetry}</p>}</div>
+          <span className={`shrink-0 rounded-md px-2 py-1 text-xs font-semibold ${item.connected ? 'bg-emerald-50 text-emerald-800' : 'bg-rose-50 text-rose-700'}`}>{item.connected ? 'Conectado' : 'Desconectado'}</span>
+        </div>;
+      })}
+      {!items.length && <p className="px-4 py-5 text-sm text-foreground-500">{empty}</p>}
+    </div>
+  </article>;
+}
+
 export default function Dashboard() {
   const [leads] = useLeadsStore();
   const { conversas } = useConversasStore();
@@ -25,7 +58,24 @@ export default function Dashboard() {
   const [diagnosticError, setDiagnosticError] = useState(false);
   const [conversationRealtime, setConversationRealtime] = useState<ConversationRealtimeState>('connecting');
   useEffect(() => {
-    void loadOperationalDiagnostics().then(setOperacao).catch(() => setDiagnosticError(true));
+    let disposed = false;
+    const refreshOperationalData = async () => {
+      try {
+        const diagnostic = await loadOperationalDiagnostics();
+        if (!disposed) {
+          setOperacao(diagnostic);
+          setDiagnosticError(false);
+        }
+      } catch {
+        if (!disposed) setDiagnosticError(true);
+      }
+    };
+    void refreshOperationalData();
+    const interval = window.setInterval(() => void refreshOperationalData(), 60_000);
+    return () => {
+      disposed = true;
+      window.clearInterval(interval);
+    };
   }, []);
   useEffect(() => {
     let disposed = false;
@@ -66,6 +116,26 @@ export default function Dashboard() {
 
   const maxCount = Math.max(1, ...data.stages.map((item) => item.count));
   const integrations = operacao?.status.integrations ?? [];
+  const channels = integrations.filter((item) => item.category === 'communication').map((item) => ({
+    id: item.key,
+    label: item.label,
+    connected: item.health === 'online',
+    creditsRemaining: item.telemetry.creditsRemaining,
+    expiresAt: item.telemetry.expiresAt,
+  }));
+  const apis = integrations.filter((item) => item.category === 'intelligence').map((item) => ({
+    id: item.key,
+    label: item.label,
+    connected: item.health === 'online',
+    creditsRemaining: item.telemetry.creditsRemaining,
+    expiresAt: item.telemetry.expiresAt,
+  }));
+  const sources = (operacao?.status.sources ?? []).map((source) => ({
+    id: source.key,
+    label: source.label,
+    connected: source.connectionStatus === 'connected' && !source.lastError,
+  }));
+  const whatsappMonitoring = operacao?.status.whatsappMonitoring;
   const scheduler = operacao?.status.checks.find((item) => item.id === 'scheduler');
   const metrics = [
     { label: 'Leads abertos', value: data.active.length, detail: `${leads.length} cadastros na carteira`, icon: 'ri-user-search-line' },
@@ -122,6 +192,20 @@ export default function Dashboard() {
 
     <ConversationActivityChart conversas={conversas} realtimeState={conversationRealtime} />
 
+    <section className="wf-surface overflow-hidden" aria-label="Monitoramento do WhatsApp">
+      <div className="wf-overview-heading border-b border-background-200 p-4"><div><h2>Monitoramento do WhatsApp</h2><p>Leitura operacional atualizada a cada minuto enquanto este painel permanece aberto.</p></div><Link to="/dashboard/configuracoes?tab=canais" className="wf-overview-link">Ver canal ↗</Link></div>
+      <div className="grid divide-y divide-background-100 sm:grid-cols-2 sm:divide-x sm:divide-y-0 xl:grid-cols-5">
+        {[
+          { label: 'Envios aceitos · 1h', value: whatsappMonitoring?.sentLastHour },
+          { label: 'Envios aceitos · 24h', value: whatsappMonitoring?.sentLast24Hours },
+          { label: 'Entradas registradas · 24h', value: whatsappMonitoring?.inboundLast24Hours },
+          { label: 'Entregas confirmadas · 24h', value: whatsappMonitoring?.deliveredLast24Hours },
+          { label: 'Falhas de envio · 24h', value: whatsappMonitoring?.failedLast24Hours },
+        ].map((item) => <div key={item.label} className="px-4 py-3"><p className="text-xs font-medium text-foreground-500">{item.label}</p><p className="mt-1 text-2xl font-semibold tabular-nums text-foreground-900">{item.value ?? '—'}</p></div>)}
+      </div>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-background-200 px-4 py-3 text-sm"><span className={`rounded-md px-2 py-1 text-xs font-semibold ${whatsappMonitoring?.state === 'stable' ? 'bg-emerald-50 text-emerald-800' : whatsappMonitoring?.state === 'paused' ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-800'}`}>{whatsappMonitoring?.state === 'stable' ? 'Sem risco aberto' : whatsappMonitoring?.state === 'paused' ? 'Envio pausado' : whatsappMonitoring?.state === 'attention' ? 'Requer atenção' : whatsappMonitoring ? 'Canal indisponível' : diagnosticError ? 'Leitura indisponível' : 'Consultando'}</span><p className="min-w-0 flex-1 text-foreground-500">{whatsappMonitoring?.detail ?? 'Os indicadores só são exibidos após a consulta segura ao backend.'}</p>{typeof whatsappMonitoring?.openRiskEvents === 'number' && <span className="text-xs text-foreground-500">{whatsappMonitoring.openRiskEvents} risco(s) aberto(s)</span>}</div>
+    </section>
+
     <section className="wf-surface overflow-hidden" aria-label="Saúde operacional">
       <div className="grid divide-y divide-background-200 lg:grid-cols-3 lg:divide-x lg:divide-y-0">
         {services.map((service) => <div key={service.label} className="flex items-start gap-3 p-4">
@@ -131,21 +215,13 @@ export default function Dashboard() {
       </div>
     </section>
 
-    <section className="grid items-start gap-4 xl:grid-cols-[minmax(0,.8fr)_minmax(0,1.2fr)]">
-      <article className="wf-surface overflow-hidden">
-        <div className="wf-overview-heading border-b border-background-200 px-4 py-3"><h2>Canais e APIs</h2><Link to="/dashboard/configuracoes?tab=conexoes" className="wf-overview-link">Configurar ↗</Link></div>
-        <div className="grid divide-y divide-background-100 sm:grid-cols-2 sm:divide-x sm:divide-y-0">
-          {integrations.map((item) => {
-            const connected = item.health === 'online';
-            return <div key={item.key} className="flex items-center justify-between gap-2 px-4 py-2.5">
-              <p className="min-w-0 truncate text-sm font-semibold text-foreground-800">{item.label}</p>
-              <span className={`shrink-0 rounded-md px-2 py-1 text-xs font-semibold ${connected ? 'bg-emerald-50 text-emerald-800' : 'bg-rose-50 text-rose-700'}`}>{connected ? 'Conectado' : 'Desconectado'}</span>
-            </div>;
-          })}
-          {!integrations.length && <p className="p-4 text-sm text-foreground-500 sm:col-span-2">{diagnosticError ? 'Não foi possível consultar as conexões. Consulte o Registro do Sistema.' : operacao ? 'Nenhuma conexão cadastrada.' : 'Consultando conexões…'}</p>}
-        </div>
-      </article>
-      <div className="space-y-4">
+    <section className="grid items-start gap-4 lg:grid-cols-3">
+      <ConnectionOverview title="Canais" link="/dashboard/configuracoes?tab=canais" items={channels} empty={diagnosticError ? 'Não foi possível consultar os canais.' : operacao ? 'Nenhum canal cadastrado.' : 'Consultando canais…'} />
+      <ConnectionOverview title="APIs" link="/dashboard/configuracoes?tab=apis" items={apis} empty={diagnosticError ? 'Não foi possível consultar as APIs.' : operacao ? 'Nenhuma API cadastrada.' : 'Consultando APIs…'} />
+      <ConnectionOverview title="Fontes" link="/dashboard/configuracoes?tab=fontes" items={sources} empty={diagnosticError ? 'Não foi possível consultar as fontes.' : operacao ? 'Nenhuma fonte cadastrada.' : 'Consultando fontes…'} />
+    </section>
+
+    <section className="grid items-start gap-4 lg:grid-cols-2">
         <article className="wf-surface overflow-hidden">
           <div className="wf-overview-heading border-b border-background-200 p-4"><div><h2>Acompanhamento humano</h2><p>Conversas sob responsabilidade da equipe</p></div><Link to="/dashboard/atendimento" className="wf-overview-link">Ver Central ↗</Link></div>
           <div className="divide-y divide-background-100">{data.handoff.slice(0, 4).map((lead) => <Link key={lead.id} to={`/dashboard/atendimento?leadId=${lead.id}`} className="flex items-center gap-3 px-4 py-3 hover:bg-background-100">
@@ -155,12 +231,11 @@ export default function Dashboard() {
           {data.handoff.length === 0 && <p className="px-4 py-6 text-sm text-foreground-500">Nenhum atendimento humano na carteira carregada.</p>}
         </article>
         <article className="wf-surface p-4">
-          <div className="wf-overview-heading"><div><h2>Fila e registros</h2><p>{conversas.length} conversas na Central</p></div><Link to="/dashboard/registro-sistema" className="wf-overview-link">Ver registros ↗</Link></div>
+          <div className="wf-overview-heading"><div><h2>Fila e registros</h2><p>{conversas.length} conversas na Central</p></div><Link to="/dashboard/configuracoes?tab=registro" className="wf-overview-link">Ver registros ↗</Link></div>
           <dl className="mt-4 grid grid-cols-3 gap-3 border-t border-background-200 pt-4">
             {[{ label: 'Na fila', value: operacao?.summary.queuedJobs }, { label: 'Falhas de envio', value: operacao?.summary.failedJobs }, { label: 'Riscos abertos', value: operacao?.summary.openRiskEvents }].map((item) => <div key={item.label}><dt className="text-sm text-foreground-500">{item.label}</dt><dd className="mt-1 text-2xl font-semibold tabular-nums text-foreground-900">{item.value ?? '—'}</dd></div>)}
           </dl>
         </article>
-      </div>
     </section>
   </div>;
 }

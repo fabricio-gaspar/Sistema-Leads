@@ -1202,7 +1202,14 @@ describe('Worker safety handler', () => {
 });
 
 describe('Z-API credential configuration contract', () => {
-  it('stores credentials without attempting to mutate the provider webhook', async () => {
+  it('preserves the webhook credential while saving Z-API settings without mutating the provider webhook', async () => {
+    override = (q) => {
+      if (q.table === 'integrations' && q.operation === 'select') return ok({ id: integrationId, configuration: {} });
+      if (q.table === 'read_integration_secret' && q.operation === 'rpc') {
+        return ok({ webhook_token: 'synthetic-existing-webhook-token' });
+      }
+      return undefined;
+    };
     await import('../functions/configurar-integracao/index');
     const request = new Request('https://example.invalid/configurar-integracao', {
       method: 'POST',
@@ -1222,7 +1229,10 @@ describe('Z-API credential configuration contract', () => {
     expect(await response.json()).toMatchObject({ ok: true });
     expect(calls.find((q) => q.table === 'store_integration_secret' && q.operation === 'rpc')?.value).toMatchObject({
       p_integration: integrationId,
-      p_secret: expect.objectContaining({ instancia_id: 'synthetic-instance' }),
+      p_secret: expect.objectContaining({
+        instancia_id: 'synthetic-instance',
+        webhook_token: 'synthetic-existing-webhook-token',
+      }),
     });
     expect(fetchMock).not.toHaveBeenCalled();
   });

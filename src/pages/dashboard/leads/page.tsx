@@ -10,7 +10,6 @@ import { useAuth } from '@/hooks/useAuth';
 import { runAna } from '@/lib/crm/anaRunRepository';
 import { loadTeamMembers, type TeamMember } from '@/lib/crm/teamMembersRepository';
 import { approvedAnaWhatsAppChannel, pendingManualLeadContact } from '@/lib/crm/manualLeadContact';
-import LeadBaseManager from './components/LeadBaseManager';
 
 const etapaCores: Record<string, string> = {
   'Novo': 'bg-background-200 text-foreground-600',
@@ -344,8 +343,6 @@ export default function Leads() {
           {toast}
         </div>
       )}
-
-      <LeadBaseManager />
 
       {/* Listas recebidas da Busca de Leads (aguardando aprovação) */}
       {listas.listas.filter((l) => l.status === 'pendente').length > 0 && (

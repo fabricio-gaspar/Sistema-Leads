@@ -501,3 +501,24 @@
 - PUBLICADO: Site oficial versão 86, commit `7caa8903aa9c92b3d9ea5751ea50dd408e286374`, deploy
   `succeeded`. Type-check frontend/Edge, lint e build passaram; Vitest permaneceu bloqueado antes de
   iniciar por permissão na junção local de dependências.
+
+# 2026-09-17 — Organização operacional, monitoramento e resumo diário opcional
+
+- Configurações passou a separar Canais, APIs e Fontes. Registro do Sistema foi incorporado à
+  seção de governança; a rota anterior apenas redireciona. Equipe e acessos foi renomeada para
+  Usuários. A gestão da base de Leads agora está no Funil de Conversão e não permanece duplicada
+  na tela de Leads.
+- O Dashboard consulta o backend a cada minuto e apresenta cartões compactos separados por tipo
+  de conexão. O monitor do WhatsApp usa estados e contagens reais persistidas de fila, callbacks,
+  recibos, falhas e política de risco; não calcula saldo, crédito ou expiração quando o provedor
+  não fornece esse dado público.
+- Migration `20260917213000_daily_whatsapp_lead_reports` aplicada no Supabase oficial. O relatório
+  diário por WhatsApp é configurável por usuário, fica desligado por padrão e é executado apenas
+  pelo agendador server-side em Ambiente Real. O registro idempotente armazena hash do resumo,
+  nunca mensagem ou telefone; a UI recebe somente os quatro últimos dígitos do destinatário.
+- Edge Functions publicadas: `automation-worker` v23, `team-members` v7 e
+  `operational-diagnostics` v14. A telemetria do worker passou a usar a origem permitida pelo
+  schema (`derived`), em vez de um valor que o banco rejeitava silenciosamente.
+- Type-check frontend/Edge, lint, build e contrato direto do resumo diário passaram. Vitest segue
+  impedido de iniciar pelo destino sem permissão da junção de `node_modules`. Nenhum dado de lead,
+  mensagem ou configuração de relatório foi ativado durante este lote.

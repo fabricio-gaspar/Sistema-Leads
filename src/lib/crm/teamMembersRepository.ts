@@ -81,6 +81,16 @@ export async function inviteTeamMember(input: { name: string; email: string; rol
   await mutate('invite', input);
 }
 
+export interface DailyLeadReportSettings {
+  enabled: boolean;
+  phoneSuffix: string | null;
+  scheduleTime: string;
+  timezone: string;
+  lastStatus: 'sending' | 'sent' | 'failed' | 'reconciliation_required' | 'blocked' | null;
+  lastSentAt: string | null;
+  lastError: string | null;
+}
+
 export async function createTeamMember(input: { name: string; email: string; password: string; role: TeamRole }): Promise<void> {
   await mutate('create', input);
 }
@@ -103,4 +113,23 @@ export async function loadTeamMemberPermissions(userId: string): Promise<{ role:
 
 export async function saveTeamMemberPermissions(userId: string, permissions: Record<TeamPermission, boolean>): Promise<void> {
   await mutate('permissions_set', { user_id: userId, permissions });
+}
+
+export async function loadDailyLeadReportSettings(userId: string): Promise<DailyLeadReportSettings> {
+  const result = await mutate<{ settings: DailyLeadReportSettings }>('daily_report_get', { user_id: userId });
+  return result.settings;
+}
+
+export async function saveDailyLeadReportSettings(
+  userId: string,
+  input: { enabled: boolean; phone?: string; scheduleTime: string; timezone: string },
+): Promise<DailyLeadReportSettings> {
+  const result = await mutate<{ settings: DailyLeadReportSettings }>('daily_report_set', {
+    user_id: userId,
+    enabled: input.enabled,
+    phone: input.phone,
+    schedule_time: input.scheduleTime,
+    timezone: input.timezone,
+  });
+  return result.settings;
 }

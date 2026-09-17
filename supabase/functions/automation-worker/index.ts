@@ -19,6 +19,14 @@ import {
   suppressionHashes,
   suppressionOrFilter,
 } from "../_shared/contactSuppression.ts";
+import {
+  dailyLeadReportStage,
+  dailyLeadReportStages,
+  formatDailyLeadReport,
+  normalizeDailyReportPhone,
+  validDailyReportTime,
+  type DailyLeadReportStage,
+} from "../_shared/dailyLeadReport.ts";
 
 function secureEqual(actual: string | null, expected: string): boolean {
   if (!actual || !expected || actual.length !== expected.length) return false;
@@ -53,6 +61,11 @@ function asObject(v: unknown): Record<string, unknown> {
 }
 function asText(v: unknown, m = 4096): string {
   return typeof v === "string" ? v.trim().slice(0, m) : "";
+}
+
+async function sha256Hex(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return Array.from(new Uint8Array(digest), (item) => item.toString(16).padStart(2, "0")).join("");
 }
 function activeControlledSandboxTest(
   payload: Record<string, unknown>,
@@ -1055,6 +1068,196 @@ async function createCommercialDigests(admin: Admin, organizationId: string) {
   return created;
 }
 
+type DailyReportPreference = {
+  user_id: string;
+  daily_lead_report_phone: string | null;
+  daily_lead_report_time: string | null;
+  timezone: string | null;
+};
+
+type DailyReportRun = {
+  status: 'idle' | 'sent' | 'blocked' | 'integration_unavailable' | 'real_mode_required' | 'manual_skip';
+  due: number;
+  sent: number;
+  failed: number;
+  reconciliationRequired: number;
+};
+
+async function setDailyReportPreferenceState(
+  admin: Admin,
+  organizationId: string,
+  userId: string,
+  state: 'sending' | 'sent' | 'failed' | 'reconciliation_required' | 'blocked',
+  input: { sentAt?: string; error?: string | null } = {},
+) {
+  const { error } = await admin.from('notification_preferences').update({
+    daily_lead_report_last_status: state,
+    ...(input.sentAt ? { daily_lead_report_last_sent_at: input.sentAt } : {}),
+    daily_lead_report_last_error: input.error ?? null,
+    updated_at: new Date().toISOString(),
+  }).eq('organization_id', organizationId).eq('user_id', userId);
+  if (error) throw new Error('daily_report_preference_state_save_failed');
+}
+
+async function dailyLeadReportContent(
+  admin: Admin,
+  organizationId: string,
+  userId: string,
+  role: string,
+  local: LocalDateTime,
+  timeZone: string,
+): Promise<string> {
+  let query = admin.from('leads').select('stage,created_at,last_contact').eq('organization_id', organizationId);
+  if (role !== 'administrador') query = query.or(`owner_id.eq.${userId},assigned_to.eq.${userId}`);
+  const { data, error } = await query;
+  if (error) throw new Error('daily_report_leads_read_failed');
+  const start = zonedTime(local, 0, timeZone).getTime();
+  const stages = dailyLeadReportStages.reduce((current, stage) => {
+    current[stage] = 0;
+    return current;
+  }, {} as Record<DailyLeadReportStage, number>);
+  let totalLeads = 0;
+  let newLeads = 0;
+  let interactionsToday = 0;
+  let noInteraction = 0;
+  for (const lead of (data ?? []) as Array<{ stage?: unknown; created_at?: unknown; last_contact?: unknown }>) {
+    const stage = dailyLeadReportStage(lead.stage);
+    stages[stage] += 1;
+    totalLeads += 1;
+    const createdAt = Date.parse(asText(lead.created_at, 64));
+    if (Number.isFinite(createdAt) && createdAt >= start) newLeads += 1;
+    const lastContact = Date.parse(asText(lead.last_contact, 64));
+    if (Number.isFinite(lastContact) && lastContact >= start) interactionsToday += 1;
+    if (!Number.isFinite(lastContact)) noInteraction += 1;
+  }
+  const dateLabel = `${String(local.day).padStart(2, '0')}/${String(local.month).padStart(2, '0')}`;
+  return formatDailyLeadReport({
+    dateLabel,
+    totalLeads,
+    newLeads,
+    interactionsToday,
+    noInteraction,
+    stages,
+  });
+}
+
+async function processDailyWhatsappReports(admin: Admin, organizationId: string): Promise<DailyReportRun> {
+  const empty = (status: DailyReportRun['status']): DailyReportRun => ({ status, due: 0, sent: 0, failed: 0, reconciliationRequired: 0 });
+  const [companyRead, preferencesRead, whatsappRead, riskRead] = await Promise.all([
+    admin.from('company_settings').select('active,sandbox_mode').eq('organization_id', organizationId).maybeSingle(),
+    admin.from('notification_preferences')
+      .select('user_id,daily_lead_report_phone,daily_lead_report_time,timezone')
+      .eq('organization_id', organizationId).eq('daily_lead_report_enabled', true),
+    admin.from('integrations').select('id,connected,enabled,paused').eq('organization_id', organizationId).eq('key', 'whatsapp').maybeSingle(),
+    admin.from('channel_policy_events').select('id').eq('organization_id', organizationId).eq('channel', 'whatsapp')
+      .eq('action', 'pause').is('resolved_at', null).limit(1).maybeSingle(),
+  ]);
+  if (companyRead.error || preferencesRead.error || whatsappRead.error || riskRead.error) throw new Error('daily_report_runtime_read_failed');
+  if (companyRead.data?.active !== true || companyRead.data?.sandbox_mode !== false) return empty('real_mode_required');
+  const now = new Date();
+  const due = (preferencesRead.data ?? []).map((item) => {
+    const preference = item as DailyReportPreference;
+    const timeZone = validTimeZone(preference.timezone) ?? 'America/Sao_Paulo';
+    const local = localDateTime(now, timeZone);
+    const scheduleTime = validDailyReportTime(preference.daily_lead_report_time) || '18:00';
+    const scheduledMinute = clockMinutes(scheduleTime) ?? 18 * 60;
+    return { preference, timeZone, local, scheduleTime, due: local.hour * 60 + local.minute >= scheduledMinute };
+  }).filter((item) => item.due);
+  if (!due.length) return empty('idle');
+  const whatsapp = whatsappRead.data;
+  const channelUnavailable = !whatsapp?.connected || !whatsapp?.enabled || whatsapp?.paused || Boolean(riskRead.data);
+  if (channelUnavailable) {
+    await Promise.all(due.map(({ preference }) => setDailyReportPreferenceState(admin, organizationId, preference.user_id, 'blocked', {
+      error: whatsapp?.paused || riskRead.data ? 'whatsapp_policy_pause_active' : 'whatsapp_channel_unavailable',
+    }).catch(() => undefined)));
+    return { ...empty('blocked'), due: due.length };
+  }
+  if (!whatsapp) return { ...empty('blocked'), due: due.length };
+  const { data: credentials, error: credentialsError } = await admin.rpc('read_integration_secret', { p_integration: whatsapp.id });
+  if (credentialsError) {
+    await Promise.all(due.map(({ preference }) => setDailyReportPreferenceState(admin, organizationId, preference.user_id, 'blocked', { error: 'whatsapp_credentials_unavailable' }).catch(() => undefined)));
+    return { ...empty('integration_unavailable'), due: due.length };
+  }
+
+  let sent = 0;
+  let failed = 0;
+  let reconciliationRequired = 0;
+  for (const item of due) {
+    const { preference, timeZone, local, scheduleTime } = item;
+    const phone = normalizeDailyReportPhone(preference.daily_lead_report_phone);
+    if (!phone) {
+      failed += 1;
+      await setDailyReportPreferenceState(admin, organizationId, preference.user_id, 'blocked', { error: 'daily_report_phone_invalid' }).catch(() => undefined);
+      continue;
+    }
+    const { data: member, error: memberError } = await admin.from('organization_members').select('role,status')
+      .eq('organization_id', organizationId).eq('user_id', preference.user_id).maybeSingle();
+    if (memberError || !member || member.status !== 'active') {
+      failed += 1;
+      await setDailyReportPreferenceState(admin, organizationId, preference.user_id, 'blocked', { error: 'daily_report_member_inactive' }).catch(() => undefined);
+      continue;
+    }
+    let providerAccepted = false;
+    let deliveryId: string | null = null;
+    try {
+      const content = await dailyLeadReportContent(admin, organizationId, preference.user_id, asText(member.role, 40), local, timeZone);
+      const localDay = localDayKey(local);
+      const { data: reservation, error: reservationError } = await admin.from('daily_lead_report_deliveries').insert({
+        organization_id: organizationId,
+        user_id: preference.user_id,
+        local_day: localDay,
+        scheduled_for: scheduleTime,
+        message_sha256: await sha256Hex(content),
+        status: 'sending',
+        attempted_at: new Date().toISOString(),
+      }).select('id').maybeSingle();
+      if (reservationError?.code === '23505') continue;
+      if (reservationError || !reservation?.id) throw new Error('daily_report_reservation_failed');
+      deliveryId = reservation.id;
+      await setDailyReportPreferenceState(admin, organizationId, preference.user_id, 'sending');
+      const receipt = await sendWhatsapp(asObject(credentials), phone, content);
+      providerAccepted = true;
+      const sentAt = new Date().toISOString();
+      const { error: deliveryError } = await admin.from('daily_lead_report_deliveries').update({
+        status: 'sent', sent_at: sentAt, provider_message_id: receipt.messageId, error: null, updated_at: sentAt,
+      }).eq('id', deliveryId).eq('organization_id', organizationId).eq('status', 'sending');
+      if (deliveryError) throw new Error('daily_report_acceptance_persist_failed');
+      await setDailyReportPreferenceState(admin, organizationId, preference.user_id, 'sent', { sentAt });
+      await admin.from('audit_logs').insert({
+        organization_id: organizationId,
+        actor_name: 'Sistema',
+        actor_type: 'system',
+        action: 'notification.daily_report_provider_accepted',
+        detail: 'Resumo diário aceito pela Z-API para entrega ao usuário configurado.',
+        entity_table: 'daily_lead_report_deliveries',
+        entity_id: deliveryId,
+        event_data: { user_id: preference.user_id, local_day: localDay, phone_suffix: phone.slice(-4) },
+      });
+      sent += 1;
+    } catch (error) {
+      const state = providerAccepted ? 'reconciliation_required' : 'failed';
+      const code = providerAccepted ? 'daily_report_provider_accepted_reconciliation_required' : safeError(error).slice(0, 160);
+      if (deliveryId) await admin.from('daily_lead_report_deliveries').update({
+        status: state, error: code, updated_at: new Date().toISOString(),
+      }).eq('id', deliveryId).eq('organization_id', organizationId);
+      await setDailyReportPreferenceState(admin, organizationId, preference.user_id, state, { error: code }).catch(() => undefined);
+      await admin.from('audit_logs').insert({
+        organization_id: organizationId,
+        actor_name: 'Sistema',
+        actor_type: 'system',
+        action: providerAccepted ? 'notification.daily_report_reconciliation_required' : 'notification.daily_report_failed',
+        detail: providerAccepted ? 'A Z-API aceitou o resumo diário, mas o registro final requer reconciliação.' : 'O resumo diário não foi enviado pelo provedor.',
+        entity_table: 'daily_lead_report_deliveries',
+        entity_id: deliveryId,
+        event_data: { user_id: preference.user_id, phone_suffix: phone.slice(-4), reason: code },
+      });
+      if (providerAccepted) reconciliationRequired += 1;
+      else failed += 1;
+    }
+  }
+  return { status: sent > 0 ? 'sent' : 'idle', due: due.length, sent, failed, reconciliationRequired };
+}
+
 async function processAnaOperations(admin: Admin, organizationId: string, schedulerToken: string) {
   const now = new Date();
   const [{ data: company }, { data: runtime }] = await Promise.all([
@@ -1268,6 +1471,9 @@ Deno.serve(async (request) => {
     const anaOperations = serverScheduler && schedulerToken
       ? await processAnaOperations(admin, orgId, schedulerToken)
       : { status: 'manual_skip', digest_created: 0 };
+    const dailyWhatsappReports = serverScheduler
+      ? await processDailyWhatsappReports(admin, orgId)
+      : { status: 'manual_skip', due: 0, sent: 0, failed: 0, reconciliationRequired: 0 };
     const blocked =
       reads[0].data?.active !== true ? "company_not_active" : null;
     if (blocked)
@@ -1280,6 +1486,7 @@ Deno.serve(async (request) => {
           timeout_runs: 0,
           knowledge_embeddings: knowledgeMaintenance,
           reconciled_provider_acceptances: reconciledProviderAcceptances,
+          daily_whatsapp_reports: dailyWhatsappReports,
         },
         200,
         headers,
@@ -1295,6 +1502,7 @@ Deno.serve(async (request) => {
             timeout_runs: 0,
             knowledge_embeddings: knowledgeMaintenance,
             reconciled_provider_acceptances: reconciledProviderAcceptances,
+            daily_whatsapp_reports: dailyWhatsappReports,
           },
           200,
           headers,
@@ -1372,13 +1580,13 @@ Deno.serve(async (request) => {
     const sentCount = sent ?? 0,
       failedCount = failed ?? 0,
       optOutCount = optOuts ?? 0;
-    await admin
+    const { error: healthSampleError } = await admin
       .from("channel_health_samples")
       .insert({
         organization_id: orgId,
         integration_id: wa?.id ?? null,
         channel: "whatsapp",
-        source: "provider_queue",
+        source: "derived",
         sent_count: sentCount,
         delivered_count: 0,
         failed_count: failedCount,
@@ -1386,6 +1594,7 @@ Deno.serve(async (request) => {
         complaint_count: 0,
         raw_metrics: { window_hours: 24, worker: "automation-worker" },
       });
+    if (healthSampleError) throw new Error("channel_health_sample_persist_failed");
     const optOutRate = sentCount > 0 ? optOutCount / sentCount : 0,
       failureRate =
         sentCount + failedCount > 0
@@ -2004,6 +2213,7 @@ Deno.serve(async (request) => {
         knowledge_embeddings: knowledgeMaintenance,
         reconciled_provider_acceptances: reconciledProviderAcceptances,
         ana_operations: anaOperations,
+        daily_whatsapp_reports: dailyWhatsappReports,
       },
       200,
       headers,

@@ -1,5 +1,38 @@
 # Checkpoint — WayFlex CRM
 
+## Organização operacional, monitoramento e resumo diário — 17/09/2026
+
+- **Configurações** agora separa Canais, APIs e Fontes em itens próprios. Os links legados
+  continuam redirecionando para a seção equivalente; **Registro do Sistema** fica em
+  Configurações > Acesso e governança e a rota antiga redireciona para lá. **Equipe e acessos**
+  passa a se chamar **Usuários**.
+- A gestão de status e limpeza definitiva foi movida de **Leads** para **Funil de Conversão**;
+  não existe uma segunda cópia dessa gestão na tela de Leads.
+- O Dashboard apresenta Canais, APIs e Fontes em cartões compactos e separados, com estado de
+  conexão validado pelo backend. Saldo/crédito ou expiração só aparece quando o provedor expõe
+  esse dado público na configuração; o painel não estima nem inventa saldo.
+- O novo monitor do WhatsApp usa contagens reais de jobs aceitos, callbacks de entrada,
+  recibos de entrega, falhas e eventos de política nas últimas 1h/24h. O painel atualiza a
+  leitura a cada minuto e mostra pausa/atenção somente a partir do estado persistido no servidor.
+- Foi aplicado o relatório diário opcional por WhatsApp em **Usuários**. O administrador define
+  destinatário, horário e fuso para cada membro. A configuração fica desligada por padrão; o
+  worker só considera envios em Ambiente Real, por agendador server-side, canal saudável e sem
+  política de pausa. O resumo contém somente totais agregados do funil, nunca nomes, telefones
+  de leads ou conteúdo de conversas. O telefone é mascarado nas leituras da interface e a tabela
+  de entregas guarda hash do conteúdo, não o conteúdo nem o número.
+- Migration aplicada: `20260917213000_daily_whatsapp_lead_reports`. RLS está ligado na nova
+  tabela e o acesso é exclusivo do backend `service_role`; nenhuma política de leitura de cliente
+  foi criada intencionalmente.
+- Funções implantadas no projeto `thgzrkppouoevapjquyu`: `automation-worker` v23,
+  `team-members` v7 e `operational-diagnostics` v14. O worker também corrige a origem do sample
+  de saúde do canal para o valor permitido pelo schema, permitindo que a telemetria persista.
+- Validação antes da publicação do Site: type-check frontend e Edge, lint e build/artefato
+  passaram. O contrato direto de resumo diário passou, incluindo telefone normalizado/mascarado,
+  horário válido, etapas canônicas e ausência de dado individual de lead. Vitest continua
+  bloqueado antes de iniciar pela junção local de `node_modules` sem permissão para o esbuild.
+- Nenhum lead foi alterado, nenhuma mensagem foi criada/enviada e nenhuma configuração de relatório
+  foi ativada nesta implementação.
+
 ## Refinamento visual executivo — 11/09/2026
 
 - PUBLICADO: Site oficial versão 69, commit `5893352d252c61fb03dcc35b005757c3f4d6995c`,
