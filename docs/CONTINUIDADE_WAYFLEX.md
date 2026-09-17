@@ -690,3 +690,7 @@ webhook em ambiente controlado.
 - Validação pré-publicação: type-check frontend/Edge, lint, contrato direto de Kanban/migration e
   build/artefato do Site aprovados. Vitest não iniciou devido à permissão de leitura no destino da
   junção local de `node_modules`; nenhum caso Vitest foi executado.
+- PUBLICADO: Site oficial versão 85, commit `48861eb7d79c8c5628f172f12d85c97f1b386c72`, com
+  deploy `succeeded`. A inspeção autenticada confirmou Fabricio Gaspar / WF Digital em **Novo**,
+  com IA, responsável atribuído, selo **Autorização pendente** e aviso de bloqueio do primeiro
+  contato. Nenhum botão de Ana, mensagem ou job foi acionado.

@@ -50,7 +50,8 @@
     {"command":"tsc --project tsconfig.edge.json","status":"passed","note":"Sem regressão nas Edge Functions após a migration de identidade de contato."},
     {"command":"eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0","status":"passed","warnings":0},
     {"command":"vite build && node scripts/build-sites-artifact.mjs","status":"passed","note":"Artefato oficial produzido após a correção; o aviso conhecido de runtime-config.js não interrompe o build."},
-    {"command":"vitest run src/lib/crm/kanbanLeadVisibility.test.ts src/lib/crm/leadMapper.test.ts supabase/tests/manualLeadPhoneNormalization.test.ts","status":"blocked","note":"O esbuild não conseguiu acessar o destino da junção local de node_modules; nenhum caso Vitest iniciou."}
+    {"command":"vitest run src/lib/crm/kanbanLeadVisibility.test.ts src/lib/crm/leadMapper.test.ts supabase/tests/manualLeadPhoneNormalization.test.ts","status":"blocked","note":"O esbuild não conseguiu acessar o destino da junção local de node_modules; nenhum caso Vitest iniciou."},
+    {"command":"Computer Use autenticado no Site oficial, versão 85","status":"passed","note":"Após recarregar o bundle publicado, Kanban exibiu Fabricio Gaspar / WF Digital em Novo, com modo IA, responsável Você, selo Autorização pendente e o aviso de que a Ana não iniciará mensagem antes de comprovação. Nenhuma ação da Ana foi acionada."}
   ],
   "prior_site_artifact_validation": {
     "validated_commit": "e4b1666c878df01ac0db3d12a290531a42107446",
@@ -66,5 +67,5 @@
   },
   "covered": ["frontend_typecheck","lint","edge_typecheck","unit_and_contract_tests","production_build"],
   "not_covered": ["authenticated_e2e","login_como_novo_membro","real_whatsapp","real_claude","cross_organization_rls","database_concurrency","provider_receipt_race","mobile_authenticated_qa"],
-  "working_tree_validation": "passed: contrato de contato pendente, type-check frontend/Edge, lint sem warnings e build. O Site autenticado foi aberto e o modal foi cancelado sem criar lead. Vitest foi bloqueado antes de iniciar pelo ambiente local. Nenhum provedor externo, lead, mensagem ou configuração de canal foi acionado."
+  "working_tree_validation": "passed: contrato de visibilidade/identidade, type-check frontend/Edge, lint, build e inspeção autenticada do Kanban publicado. Vitest foi bloqueado antes de iniciar pelo ambiente local. Nenhum provedor externo, mensagem, job ou execução da Ana foi acionado."
 }

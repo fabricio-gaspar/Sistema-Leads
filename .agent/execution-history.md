@@ -480,3 +480,7 @@
 - A migration `20260917175303_fix_pending_manual_lead_phone_identity` foi aplicada no Supabase
   oficial: não há mais cópia de telefone para WhatsApp e somente o registro manual pendente exato
   foi corrigido. Nenhuma mensagem, job, execução da Ana ou chamada à Z-API foi criada.
+- PUBLICADO: Site oficial versão 85, commit `48861eb7d79c8c5628f172f12d85c97f1b386c72`, deploy
+  `succeeded`. A inspeção autenticada confirmou o lead no Kanban em Novo, com IA e autorização
+  pendente. Um bundle antigo em cache precisou ser recarregado; após a recarga, não houve erro de
+  rota nem ação externa.

@@ -170,3 +170,6 @@ Detalhes de continuidade e releases ficam em `docs/CONTINUIDADE_WAYFLEX.md`.
 - A normalização de `leads.whatsapp` preserva apenas uma identidade WhatsApp explicitamente
   informada. Um telefone genérico vazio não é mais copiado para esse campo. O ajuste de dados foi
   limitado aos cadastros manuais pendentes criados pela regra anterior.
+- PUBLICADO: Site oficial versão 85, commit `48861eb7d79c8c5628f172f12d85c97f1b386c72`, deploy
+  confirmado como `succeeded`. A inspeção autenticada confirmou o cartão no Kanban em Novo com
+  autorização pendente, sem executar Ana ou enviar mensagem.
