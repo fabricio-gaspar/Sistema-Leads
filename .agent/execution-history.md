@@ -467,3 +467,16 @@
 - PUBLICADO: Site oficial versão 84, commit `ddc4beb3a7cf6a909ea6fd6ed154d8230a25498a`, deploy
   `succeeded`. A inspeção autenticada confirmou a remoção das caixas e do campo de origem; o
   diálogo foi cancelado sem criar qualquer registro.
+
+# 2026-09-17 — Lead manual pendente visível no Kanban
+
+- A consulta do registro relatado confirmou `contact_approval_status=pending`, automação pendente,
+  zero mensagens, zero jobs e zero execuções da Ana. Não houve falha do provedor: o cadastro não
+  deveria acionar `ana-run` antes da autorização, mas o filtro de `aguardandoAtivacao` também o
+  escondia indevidamente do Kanban.
+- A correção exibe a carteira atribuída no Kanban, conserva o cartão na etapa Novo e comunica o
+  bloqueio de primeiro contato. O drawer remove ações que poderiam sugerir uma ativação manual
+  prematura. O contrato de regressão cobre lead pendente atribuído e registro sem fluxo atribuído.
+- A migration `20260917175303_fix_pending_manual_lead_phone_identity` foi aplicada no Supabase
+  oficial: não há mais cópia de telefone para WhatsApp e somente o registro manual pendente exato
+  foi corrigido. Nenhuma mensagem, job, execução da Ana ou chamada à Z-API foi criada.

@@ -673,3 +673,20 @@ webhook em ambiente controlado.
 - PUBLICADO: Site oficial versão 84, commit `ddc4beb3a7cf6a909ea6fd6ed154d8230a25498a`, deploy
   `succeeded`. A sessão autenticada exibiu apenas o aviso de contato pendente; não havia caixas de
   confirmação nem campo de origem. O diálogo foi cancelado sem inserir um lead.
+
+## 2026-09-17 — Lead manual com Ana: visibilidade correta no Kanban
+
+- Diagnóstico do cadastro relatado: ele foi persistido com modo Ana, responsável atribuído e
+  `contact_approval_status=pending`. O filtro do Kanban removia qualquer lead com
+  `aguardandoAtivacao`, portanto o cartão não aparecia. Como o primeiro contato ainda não estava
+  autorizado, o frontend também não chamou `ana-run`; banco confirmou zero mensagens, jobs e
+  execuções. Não foi falha da Z-API ou do worker.
+- O Kanban agora mostra esse lead em **Novo**, com aviso e selo de autorização pendente. O drawer
+  explica o bloqueio e não permite Rodar, Retomar ou Devolver para Ana antes de comprovação de canal
+  e autorização. A regra de bloqueio server-side continua igual.
+- A migration `20260917175303_fix_pending_manual_lead_phone_identity` evita que um telefone seja
+  copiado implicitamente para `whatsapp` e corrigiu somente o registro manual pendente afetado.
+  Nenhum envio, job, execução, integração ou segredo foi acionado durante a correção.
+- Validação pré-publicação: type-check frontend/Edge, lint, contrato direto de Kanban/migration e
+  build/artefato do Site aprovados. Vitest não iniciou devido à permissão de leitura no destino da
+  junção local de `node_modules`; nenhum caso Vitest foi executado.

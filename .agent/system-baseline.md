@@ -161,3 +161,12 @@ Detalhes de continuidade e releases ficam em `docs/CONTINUIDADE_WAYFLEX.md`.
 - PUBLICADO: Site oficial versão 84, commit `ddc4beb3a7cf6a909ea6fd6ed154d8230a25498a`, com
   deploy confirmado como `succeeded`. A inspeção autenticada confirmou o aviso de contato pendente
   e a ausência das caixas; o diálogo foi cancelado sem inserir dados.
+
+## Delta de visibilidade do Kanban e identidade de contato — 17/09/2026
+
+- O Kanban passou a representar a carteira atribuída mesmo quando o primeiro contato ainda está
+  pendente. Esse cartão fica em **Novo**, com aviso e selo de autorização pendente; a Ana não pode
+  ser executada, retomada ou receber devolução antes de canal e autorização comprovados.
+- A normalização de `leads.whatsapp` preserva apenas uma identidade WhatsApp explicitamente
+  informada. Um telefone genérico vazio não é mais copiado para esse campo. O ajuste de dados foi
+  limitado aos cadastros manuais pendentes criados pela regra anterior.

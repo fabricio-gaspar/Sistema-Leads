@@ -2,9 +2,9 @@
   "schema_version": 1,
   "baseline_version": 3,
   "baseline_commit": "1fbd231ff88b4e02c3ddddd18253a1f3be8be5ee",
-  "last_audited_commit": "b6df760",
-  "current_head_at_update": "f98f64efd4ff73ebdaea269299bff7399ee6865b",
-  "working_tree_status": "manual_lead_pending_authorization_published_version_84",
+  "last_audited_commit": "fa89765c5fb324e0055e68120dff35f0d95ac8b4",
+  "current_head_at_update": "fa89765c5fb324e0055e68120dff35f0d95ac8b4",
+  "working_tree_status": "manual_lead_kanban_visibility_validated_pending_publication",
   "last_site_publication": {
     "commit": "ddc4beb3a7cf6a909ea6fd6ed154d8230a25498a",
     "site_version": 84,
@@ -13,6 +13,6 @@
   },
   "full_audit_required": false,
   "baseline_status": "validated",
-  "updated_at": "2026-09-17T17:31:42Z",
-  "next_action": "O formulário Novo Lead está publicado e visualmente validado. Em uso real, registre a comprovação de canal e autorização antes de solicitar o primeiro contato da Ana."
+  "updated_at": "2026-09-17T20:00:00Z",
+  "next_action": "Publicar e validar visualmente que um lead manual com Ana designada aparece no Kanban em Novo com autorização pendente. Registrar canal e autorização comprovados continua obrigatório antes do primeiro contato da Ana."
 }

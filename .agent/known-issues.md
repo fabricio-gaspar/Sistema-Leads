@@ -84,6 +84,13 @@
   declarar telefone como WhatsApp e sem acionar a Ana. A aprovação comprovada continua obrigatória
   no backend antes do primeiro contato.
 
+- Um lead manual pendente recebia corretamente o modo Ana e a responsabilidade, mas era ocultado
+  do Kanban pelo filtro de `aguardandoAtivacao`; por consequência, não existia fila, execução da
+  Ana ou mensagem para o registro analisado. O Kanban agora mostra o cartão em **Novo** com o
+  estado explícito de autorização pendente e bloqueia os botões de execução até a aprovação.
+  A migration `20260917175303_fix_pending_manual_lead_phone_identity` também remove a inferência
+  incorreta de WhatsApp a partir de telefone e corrigiu somente o registro manual pendente afetado.
+
 ## Sugestões, não bugs
 
 - Ambiente de homologação isolado e piloto controlado antes de comercializar.

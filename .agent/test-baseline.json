@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "validated_commit": "b6df760",
-  "last_validated_at": "2026-09-17T18:05:00-03:00",
+  "validated_commit": "fa89765c5fb324e0055e68120dff35f0d95ac8b4",
+  "last_validated_at": "2026-09-17T20:00:00-03:00",
   "commands": [
     {"command":"npm run type-check","status":"passed"},
     {"command":"npm run lint","status":"passed","warnings":0},
@@ -43,7 +43,14 @@
     {"command":"eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0","status":"passed","warnings":0},
     {"command":"vite build && node scripts/build-sites-artifact.mjs","status":"passed","note":"Build do Site concluído; a mensagem runtime-config.js é aviso conhecido do Vite e não interrompe o artefato."},
     {"command":"vitest run src/lib/crm/manualLeadContact.test.ts","status":"blocked","note":"O esbuild não iniciou porque a junção local de node_modules aponta para diretório sem permissão de leitura; nenhum caso Vitest foi executado."},
-    {"command":"Computer Use autenticado no Site oficial, versão 84","status":"passed","note":"Novo Lead exibiu somente o aviso de contato pendente, sem caixas de confirmação ou campo de origem. O diálogo foi cancelado sem criar lead."}
+    {"command":"Computer Use autenticado no Site oficial, versão 84","status":"passed","note":"Novo Lead exibiu somente o aviso de contato pendente, sem caixas de confirmação ou campo de origem. O diálogo foi cancelado sem criar lead."},
+    {"command":"Supabase: inspeção do lead manual relatado e da trigger normalize_lead_zapi_phone","status":"passed","note":"O lead estava pending_approval, com zero mensagens, jobs e execuções; a migration removeu WhatsApp derivado somente do cadastro manual pendente exato e a função passou a preservar WhatsApp apenas quando explicitamente informado."},
+    {"command":"node --experimental-strip-types contracts: kanbanLeadVisibility e manualLeadPhoneNormalization","status":"passed","note":"Cobriu visibilidade de lead Ana pendente, ausência de workflow e a proibição de derivar WhatsApp de telefone genérico."},
+    {"command":"tsc --noEmit --project tsconfig.app.json","status":"passed","note":"Validado após visibilidade de contato pendente no Kanban."},
+    {"command":"tsc --project tsconfig.edge.json","status":"passed","note":"Sem regressão nas Edge Functions após a migration de identidade de contato."},
+    {"command":"eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0","status":"passed","warnings":0},
+    {"command":"vite build && node scripts/build-sites-artifact.mjs","status":"passed","note":"Artefato oficial produzido após a correção; o aviso conhecido de runtime-config.js não interrompe o build."},
+    {"command":"vitest run src/lib/crm/kanbanLeadVisibility.test.ts src/lib/crm/leadMapper.test.ts supabase/tests/manualLeadPhoneNormalization.test.ts","status":"blocked","note":"O esbuild não conseguiu acessar o destino da junção local de node_modules; nenhum caso Vitest iniciou."}
   ],
   "prior_site_artifact_validation": {
     "validated_commit": "e4b1666c878df01ac0db3d12a290531a42107446",
