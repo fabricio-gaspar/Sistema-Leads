@@ -487,6 +487,30 @@ describe('Ana handler safety — mocked persistence, no real providers', () => {
     });
     expectNoBusinessWrites();
   });
+  it('moves an authorized new WhatsApp lead to Apresentado and queues the canonical presentation without invoking a model', async () => {
+    override = (q) => q.table === 'lead_messages' && q.operation === 'select' ? ok([]) : undefined;
+    await import('../functions/ana-run/index');
+    const response = await handler(anaRequest({
+      event: 'lead.created',
+      modo: 'ia',
+      request_id: `lead-created:${leadId}:whatsapp`,
+    }));
+
+    expect(await response.json()).toMatchObject({
+      ok: true,
+      proximo_estagio: 'Apresentado',
+      status_canal: 'enfileirado',
+      mensagem_sugerida: expect.stringContaining('Sou a Ana, assistente virtual da Wayflex'),
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(calls.find((q) => q.table === 'leads' && q.operation === 'update')?.value).toMatchObject({
+      ana_stage: 'apresentado', stage: 'Prospecção', ai_paused: false,
+    });
+    expect(calls.find((q) => q.table === 'outreach_jobs' && q.operation === 'upsert')?.value).toMatchObject({
+      channel: 'whatsapp', status: 'queued',
+      payload: expect.objectContaining({ text: expect.stringContaining('Soluções em borracha, silicone e poliuretano') }),
+    });
+  });
   it('hands off a pricing request before invoking a model or creating an outbound message', async () => {
     await import('../functions/ana-run/index');
     const response = await handler(anaRequest());

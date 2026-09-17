@@ -13,7 +13,9 @@ export interface AnaRunResult {
   mensagem_sugerida?: string;
   motivo?: string;
   precisa_humano?: boolean;
-  status_canal?: 'enfileirado' | 'rascunho_para_aprovacao' | 'pendente_canal';
+  skipped?: boolean;
+  reason?: string;
+  status_canal?: 'enfileirado' | 'rascunho_para_aprovacao' | 'pendente_canal' | 'canal_nao_permitido' | 'bloqueado';
   erro?: string;
 }
 

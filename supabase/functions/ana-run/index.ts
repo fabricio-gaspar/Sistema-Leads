@@ -21,6 +21,12 @@ Faça handoff se o contato pedir humano, fizer reclamação, mencionar jurídico
 Use agendar_reuniao somente quando o lead tiver escolhido explicitamente data e horário. Envie starts_at em ISO 8601 com fuso, duration_minutes entre 15 e 120 e só diga que a reunião foi agendada quando a ação estiver disponível no contexto.
 Quando contexto.cadence estiver presente, trate-o como um follow-up já autorizado pelo worker: só retome a conversa sem resposta, em uma mensagem breve, sem repetir a apresentação e sem contornar qualquer handoff ou política.`;
 
+// The first contact is not a generative decision: it is the approved,
+// canonical Wayflex introduction.  This keeps the Novo → Apresentado
+// transition independent of model availability and makes the activation
+// auditable through ana-run and the outbound queue.
+const INITIAL_WAYFLEX_PRESENTATION = 'Olá, tudo bem? Sou a Ana, assistente virtual da Wayflex. Trabalhamos com soluções técnicas em borracha, silicone e poliuretano para aplicações industriais. Para eu direcionar corretamente, qual peça, equipamento ou problema você precisa atender? Atenciosamente, Ana — Assistente virtual da Wayflex Soluções em borracha, silicone e poliuretano.';
+
 const stageLabel: Record<AnaStage, string> = {
   novo: 'Novo', apresentado: 'Apresentado', qualificando: 'Qualificando', reuniao: 'Reunião', orcamento: 'Orçamento', fechado: 'Ganho / Perdido',
 };
@@ -639,6 +645,7 @@ Deno.serve(async (request) => {
     const timeout = false; // An inbound response is never an expired no-reply event.
     const chronologicalMessages = (messages ?? []).slice().reverse();
     const latestInboundMessage = chronologicalMessages.slice().reverse().find((message) => message.sender === 'lead') ?? null;
+    const initialPresentation = event === 'lead.created' && currentStage === 'novo' && chronologicalMessages.length === 0;
     const sensitiveInbound = requiresHumanReview(latestInboundMessage?.text);
     const configurationTrigger = configuredHandoffTrigger(agentConfiguration.handoffTriggers, latestInboundMessage?.text);
     const lexicalKnowledge = relevantKnowledge(knowledge ?? [], latestInboundMessage?.text);
@@ -654,7 +661,7 @@ Deno.serve(async (request) => {
       policies: { allow_auto_quote: false, channel_connected: !dryRun && Boolean(channel?.connected && channel?.enabled && !channel?.paused), timeout_48h: timeout, suppressed: Boolean(applicableSuppressions.length), dry_run: dryRun, knowledge_match_found: matchedKnowledge.length > 0, knowledge_strategy: semanticMatches.length ? 'hybrid' : 'keyword', missing_technical_knowledge: missingTechnicalKnowledge, cadence: event === 'cadence.followup' ? cadenceContext : null },
     };
 
-    let decision;
+    let decision: ReturnType<typeof parseDecision>;
     let aiProvider: AiProvider | 'policy' = 'policy';
     if (dryRun) {
       // A simulation must never call an AI provider or enqueue an outbound job.
@@ -663,6 +670,13 @@ Deno.serve(async (request) => {
         motivo: 'Simulação local: nenhum provedor de IA ou canal foi chamado.',
         precisa_humano: false,
         acoes: [],
+      };
+    } else if (initialPresentation) {
+      decision = {
+        proximo_estagio: 'apresentado', outcome: null, mensagem_sugerida: INITIAL_WAYFLEX_PRESENTATION,
+        score: Math.max(Number(lead.score ?? 0), lowConfidenceThreshold),
+        motivo: 'Apresentação institucional inicial da Wayflex.', precisa_humano: false,
+        acoes: [{ tipo: 'atualizar_lead', payload: { ana_stage: 'apresentado' } }, { tipo: 'enviar_mensagem', payload: { channel: activeChannel } }],
       };
     } else if (modo === 'humano' || timeout || Boolean(applicableSuppressions.length) || sensitiveInbound || configurationTrigger || missingTechnicalKnowledge) {
       decision = {
@@ -714,7 +728,7 @@ Deno.serve(async (request) => {
       ? null
       : schedulingFailure
         ? schedulingFailure
-        : decision.score < lowConfidenceThreshold
+        : !initialPresentation && decision.score < lowConfidenceThreshold
         ? `Confiança da decisão (${decision.score}%) abaixo do mínimo configurado (${lowConfidenceThreshold}%).`
         : automaticQuoteRequested
           ? 'Orçamento ou proposta requer revisão humana antes de qualquer resposta automática.'
