@@ -656,3 +656,18 @@ webhook em ambiente controlado.
   **Configurações > Canais > WhatsApp**, para comprovar aceite/entrega do provedor.
 - PUBLICADO: Site oficial versão 83, commit `0f567b4836d6f5338873dd2605f648564db2ce57`, deploy
   `succeeded` e acesso público existente preservado.
+
+## 2026-09-17 — Novo Lead: persistir como contato pendente
+
+- O problema era exclusivamente anterior ao Supabase: no modo Ana, o formulário exigia duas
+  confirmações e uma origem de autorização. Sem preencher a origem, `criarLead` retornava e o
+  registro não era criado. Não havia duplicidade para os valores analisados e a sessão tinha
+  `leads.create`.
+- As confirmações foram removidas da tela. Ao salvar, o contato fica explicitamente pendente:
+  telefone não é WhatsApp, não há consentimento declarado, a automação fica pausada e a Ana não
+  é disparada. A guarda no mapper, Kanban, `ana-run` e worker permanece: canal comprovado e
+  autorização são necessários antes do primeiro contato.
+- Validação local: contrato de regressão direto, type-check frontend/Edge, lint e build passaram.
+  Vitest não iniciou por restrição de leitura da junção `node_modules`; nenhum teste Vitest rodou.
+  O formulário autenticado anterior foi fechado sem criar lead. Publicação e confirmação visual
+  pós-deploy ainda pendentes neste checkpoint.

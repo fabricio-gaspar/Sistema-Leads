@@ -147,3 +147,14 @@ Detalhes de continuidade e releases ficam em `docs/CONTINUIDADE_WAYFLEX.md`.
 - Em transação revertida como `service_role`, a reserva retornou `reserved`; a checagem posterior
   encontrou zero auditorias persistidas para a prova. Nenhum lead, fila, mensagem ou provedor foi
   alterado. O próximo teste externo fica exclusivamente sob comando do operador.
+
+## Delta de cadastro manual de leads — 17/09/2026
+
+- O formulário **Novo Lead** não pede mais confirmação manual de WhatsApp, autorização ou origem
+  para salvar o registro. Essa trava era somente de interface e interrompia o fluxo antes do
+  repositório de Leads.
+- O cadastro resultante usa `contact_approval_status = pending`, não declara WhatsApp, não concede
+  consentimento e mantém a automação pausada/aguardando ativação. Portanto, remover as marcações
+  não amplia a permissão de contato nem contorna `ana-run`.
+- A prova local do contrato confirmou a classificação de telefone como Telefone e de e-mail como
+  E-mail. Nenhum lead ou mensagem foi criado para validar esta alteração.

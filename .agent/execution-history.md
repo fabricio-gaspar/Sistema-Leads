@@ -450,3 +450,17 @@
   permitindo recriar o mesmo e-mail posteriormente.
 - Verificação local: type-check frontend/Edge, lint e build aprovados. Teste de regressão adicionado;
   Vitest bloqueado antes de iniciar por permissões do diretório de dependências compartilhado.
+
+# 2026-09-17 — Cadastro manual sem bloqueio visual de autorização
+
+- Causa: no modo Ana, `criarLead` exigia duas caixas de confirmação e uma origem de autorização
+  no próprio navegador. Sem a origem, a função retornava antes de chamar o repositório ou o
+  Supabase. A inspeção de dados confirmou ausência de duplicidade para o formulário analisado e
+  permissão `leads.create` válida para a sessão autenticada.
+- Correção: `pendingManualLeadContact` torna explícito o estado seguro de um cadastro manual:
+  contato pendente, sem consentimento, sem WhatsApp e com canal apenas E-mail ou Telefone quando
+  declarado. A criação não chama `runAna`; a validação comprovada segue obrigatória no backend
+  antes de qualquer primeiro contato.
+- Validação: contrato direto passou; type-check frontend/Edge, lint e build/artefato do Site
+  passaram. Vitest foi bloqueado antes de iniciar pela junção local de `node_modules`. O modal
+  autenticado foi aberto e cancelado sem inserir lead, mensagem ou dado externo.

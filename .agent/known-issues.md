@@ -77,6 +77,13 @@
 - Ainda falta o operador executar um teste externo controlado para comprovar o aceite da Z-API;
   a correção interna não é evidência de entrega ou leitura de WhatsApp.
 
+- **Novo Lead** bloqueava a criação no navegador quando o modo Ana era selecionado, antes de
+  alcançar o Supabase: exigia duas caixas de confirmação e uma origem de autorização. A consulta
+  no projeto oficial confirmou que não havia duplicidade para o formulário analisado e que a
+  permissão `leads.create` estava concedida. O formulário agora grava contato pendente, sem
+  declarar telefone como WhatsApp e sem acionar a Ana. A aprovação comprovada continua obrigatória
+  no backend antes do primeiro contato.
+
 ## Sugestões, não bugs
 
 - Ambiente de homologação isolado e piloto controlado antes de comercializar.

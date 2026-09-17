@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "validated_commit": "working-tree-after-3e464b9",
-  "last_validated_at": "2026-09-16T18:05:00-03:00",
+  "validated_commit": "b6df760",
+  "last_validated_at": "2026-09-17T18:05:00-03:00",
   "commands": [
     {"command":"npm run type-check","status":"passed"},
     {"command":"npm run lint","status":"passed","warnings":0},
@@ -36,7 +36,13 @@
     {"command":"tsc --project tsconfig.edge.json","status":"passed","note":"Validado após a correção da migration e contrato de regressão."},
     {"command":"eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0","status":"passed","warnings":0},
     {"command":"vitest run supabase/tests/runtimeSafety.test.ts","status":"blocked","note":"O esbuild não inicia porque a junção local de node_modules aponta para diretório sem permissão de leitura; nenhum caso de teste Vitest iniciou."},
-    {"command":"vite build && node scripts/build-sites-artifact.mjs","status":"passed","note":"Artefato oficial produzido após a correção, sem segredo no bundle."}
+    {"command":"vite build && node scripts/build-sites-artifact.mjs","status":"passed","note":"Artefato oficial produzido após a correção, sem segredo no bundle."},
+    {"command":"node --experimental-strip-types manualLeadContact contract smoke","status":"passed","note":"Telefone manual permaneceu sem WhatsApp e sem consentimento; e-mail é o único canal declarado quando informado."},
+    {"command":"tsc --noEmit --project tsconfig.app.json","status":"passed","note":"Validado após retirar a trava visual do cadastro manual e persistir contato pendente."},
+    {"command":"tsc --project tsconfig.edge.json","status":"passed","note":"Sem regressão no contrato das Edge Functions."},
+    {"command":"eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0","status":"passed","warnings":0},
+    {"command":"vite build && node scripts/build-sites-artifact.mjs","status":"passed","note":"Build do Site concluído; a mensagem runtime-config.js é aviso conhecido do Vite e não interrompe o artefato."},
+    {"command":"vitest run src/lib/crm/manualLeadContact.test.ts","status":"blocked","note":"O esbuild não iniciou porque a junção local de node_modules aponta para diretório sem permissão de leitura; nenhum caso Vitest foi executado."}
   ],
   "prior_site_artifact_validation": {
     "validated_commit": "e4b1666c878df01ac0db3d12a290531a42107446",
@@ -52,5 +58,5 @@
   },
   "covered": ["frontend_typecheck","lint","edge_typecheck","unit_and_contract_tests","production_build"],
   "not_covered": ["authenticated_e2e","login_como_novo_membro","real_whatsapp","real_claude","cross_organization_rls","database_concurrency","provider_receipt_race","mobile_authenticated_qa"],
-  "working_tree_validation": "passed: RLS de permissões, snapshot administrativo de leads, Edge Functions e build; type-check frontend/Edge e lint sem warnings. Vitest bloqueado antes de iniciar pelo ambiente local. Nenhum provedor externo, lead, mensagem ou configuração de canal foi acionado."
+  "working_tree_validation": "passed: contrato de contato pendente, type-check frontend/Edge, lint sem warnings e build. O Site autenticado foi aberto e o modal foi cancelado sem criar lead. Vitest foi bloqueado antes de iniciar pelo ambiente local. Nenhum provedor externo, lead, mensagem ou configuração de canal foi acionado."
 }
