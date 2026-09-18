@@ -1783,10 +1783,11 @@ describe('Operational mode authority', () => {
       body: JSON.stringify({ action: 'status' }),
     }));
     expect(response.status).toBe(200);
-    expect((await response.json()).status).toMatchObject({
-      webhookDiagnostic: { state: 'credentials_changed', registeredAt: recent },
-      checks: expect.arrayContaining([{ id: 'whatsapp_webhook', ok: false }]),
-    });
+    const payload = await response.json();
+    expect(payload.status.webhookDiagnostic).toMatchObject({ state: 'credentials_changed', registeredAt: recent });
+    const inboundCheck = (payload.status.checks as Array<{ id?: string; ok?: boolean }>)
+      .find((check) => check.id === 'whatsapp_webhook');
+    expect(inboundCheck).toMatchObject({ id: 'whatsapp_webhook', ok: false });
   });
 
   it('reports an unmatched callback instead of claiming that Z-API did not call', async () => {
