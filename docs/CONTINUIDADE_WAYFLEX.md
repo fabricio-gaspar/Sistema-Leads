@@ -765,3 +765,22 @@ webhook em ambiente controlado.
   junção local de `node_modules` que o esbuild não consegue ler.
 - Próxima prova necessária: enviar uma mensagem nova, individual, do WhatsApp final `1875` ao
   número da instância; então confirmar callback recebido, mensagem na Central e resposta da Ana.
+
+## 2026-09-18 — Z-API chama o backend, mas de números diferentes do lead de teste
+
+- Após o recadastro, a consulta confirmou que o lead final `1875` possui zero evento de entrada,
+  zero mensagem recebida e zero execução `message.received` da Ana. Logo, não houve dado que a
+  Central pudesse exibir nem pergunta que a Ana pudesse responder.
+- O provedor, porém, está entregando callbacks: entradas individuais reais chegaram dos finais
+  `0307` e `8864`, todas bloqueadas como `lead_not_matched`. A associação aproximada não foi
+  habilitada; ela violaria a regra de identidade e poderia entregar uma conversa ao lead errado.
+- A inconsistência visual foi corrigida em `operational-diagnostics` v17. Antes, ele só consultava
+  `channel_inbound_events`, que só nasce depois do matching; agora consulta o evento auditado em
+  `webhook_events` e informa que a mensagem chegou sem lead correspondente. A página autenticada
+  confirmou esse estado após atualizar o diagnóstico.
+- Type-check frontend/Edge e lint passaram. O Vitest segue impedido antes de iniciar pela junção
+  local de `node_modules` sem acesso do esbuild. Nenhuma mensagem, exclusão ou edição de lead foi
+  executada nesta correção.
+- A única prova externa restante é enviar uma mensagem nova usando o WhatsApp final `1875`, em
+  conversa individual para a instância Z-API. Ao chegar, o evento deverá criar a mensagem na
+  Central e acionar `ana-run`; confirmar essas três evidências antes de considerar o fluxo pronto.

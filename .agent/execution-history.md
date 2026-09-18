@@ -541,3 +541,22 @@
   `node_modules` sem acesso do esbuild.
 - Pendente externo: enviar uma nova mensagem individual do número já cadastrado após o recadastro
   e confirmar no banco o callback, a mensagem na Central e a resposta da Ana.
+
+# 2026-09-18 — Callback Z-API não vinculado visível no diagnóstico
+
+- Nova consulta no projeto oficial confirmou que o lead `Fabricio Gaspar · WF Digital` (final
+  `1875`) segue com zero eventos de entrada, zero mensagens recebidas e zero execuções da Ana por
+  `message.received`. A apresentação anterior permanece registrada como saída aceita.
+- A Z-API está alcançando o WayFlex: eventos individuais recebidos após o recadastro vieram dos
+  números finais `0307` e `8864`, todos com `lead_not_matched`. Eles não pertencem ao lead do
+  teste, portanto a Central e a Ana os bloqueiam corretamente em vez de associá-los por aproximação.
+- Causa do indicador enganoso: o diagnóstico consultava somente `channel_inbound_events`, tabela
+  que existe apenas após um lead ser resolvido. Callbacks sem lead ficavam em `webhook_events` e o
+  painel concluía falsamente que a Z-API não tinha chamado o sistema.
+- Correção: `operational-diagnostics` v17 consulta os eventos auditados de webhook para o estado
+  de entrada. A validação visual autenticada confirmou o texto correto: mensagem entregue, mas sem
+  WhatsApp cadastrado correspondente. Type-check frontend/Edge e lint passaram; Vitest continua
+  bloqueado pelo `node_modules` local antes de iniciar.
+- Não houve envio, exclusão ou modificação de lead nesta etapa. Para concluir o fluxo real, a
+  próxima mensagem precisa sair efetivamente do número final `1875`; mensagens de outro aparelho
+  são, por projeto, recusadas para impedir mistura de conversas.

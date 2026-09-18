@@ -178,7 +178,10 @@ async function operationalStatus(admin: ReturnType<typeof createAdminClient>, or
     && ZAPI_WEBHOOK_ENDPOINTS.every((endpoint) => registeredEndpoints.includes(endpoint));
   const [webhookEventRead, testLeadRead] = await Promise.all([
     webhookRegistered
-      ? admin.from('channel_inbound_events').select('status,error,created_at,processed_at,lead_id,event_type')
+      // `channel_inbound_events` is intentionally created only after a lead was
+      // resolved. Read the raw, audited webhook event here as well, otherwise an
+      // unmatched callback is misleadingly reported as if Z-API never called us.
+      ? admin.from('webhook_events').select('status,error,created_at,processed_at,lead_id,event_type')
         .eq('organization_id', organizationId).eq('provider', whatsapp?.provider || 'Z-API').eq('event_type', 'ReceivedCallback')
         .gte('created_at', registeredAt).order('created_at', { ascending: false }).limit(1)
       : Promise.resolve({ data: [], error: null }),
@@ -186,7 +189,13 @@ async function operationalStatus(admin: ReturnType<typeof createAdminClient>, or
       .order('updated_at', { ascending: false }).limit(10),
   ]);
   if (webhookEventRead.error || testLeadRead.error) throw new Error('operational_webhook_diagnostic_read_failed');
-  const latestWebhookEvent = (webhookEventRead.data ?? [])[0] as { status?: string; error?: string | null; created_at?: string | null; processed_at?: string | null; lead_id?: string | null } | undefined;
+  const latestWebhookEvent = (webhookEventRead.data ?? [])[0] as {
+    status?: string;
+    error?: string | null;
+    created_at?: string | null;
+    processed_at?: string | null;
+    lead_id?: string | null;
+  } | undefined;
   const testLead = (testLeadRead.data ?? []).find((lead) => typeof lead.phone === 'string' || typeof lead.whatsapp === 'string') ?? null;
   const testLeadPhone = typeof testLead?.whatsapp === 'string' && testLead.whatsapp.trim()
     ? testLead.whatsapp : typeof testLead?.phone === 'string' ? testLead.phone : '';
@@ -229,7 +238,7 @@ async function operationalStatus(admin: ReturnType<typeof createAdminClient>, or
       state: 'lead_not_matched' as WebhookDiagnosticState,
       registeredAt,
       lastEventAt: latestWebhookEvent.created_at ?? null,
-      detail: 'A Z-API entregou a mensagem, mas o número que a enviou não corresponde a nenhum WhatsApp cadastrado em Leads. Atualize o telefone do lead antes de repetir o teste.',
+      detail: 'A Z-API entregou uma mensagem, mas ela não corresponde a nenhum WhatsApp cadastrado em Leads. Use o mesmo número do lead antes de repetir o teste.',
       testLead: testLeadSummary,
     };
     if (latestWebhookEvent.status === 'ignored') return {

@@ -1659,7 +1659,7 @@ describe('Operational mode authority', () => {
         { ...readyIntegration, key: 'zapi_webhook', label: 'Webhook', connected: false, enabled: true, last_tested_at: null, last_error: null, configuration: registeredZapiWebhook() },
         { ...readyIntegration, key: 'scheduler', label: 'Worker', last_tested_at: recent, last_error: null },
       ]);
-      if (q.table === 'channel_inbound_events') return ok([]);
+      if (q.table === 'webhook_events') return ok([]);
       return undefined;
     };
     await import('../functions/operational-diagnostics/index');
@@ -1737,7 +1737,7 @@ describe('Operational mode authority', () => {
         { ...readyIntegration, key: 'zapi_webhook', label: 'Entrada', connected: false, enabled: true, last_tested_at: null, last_error: null, configuration: registeredZapiWebhook() },
         { ...readyIntegration, key: 'scheduler', label: 'Worker', last_tested_at: recent, last_error: null },
       ]);
-      if (q.table === 'channel_inbound_events') return ok([]);
+      if (q.table === 'webhook_events') return ok([]);
       return undefined;
     };
     await import('../functions/operational-diagnostics/index');
@@ -1789,6 +1789,34 @@ describe('Operational mode authority', () => {
     });
   });
 
+  it('reports an unmatched callback instead of claiming that Z-API did not call', async () => {
+    override = (q) => {
+      if (q.table === 'integrations' && q.operation === 'select') return ok([
+        { ...readyIntegration, key: 'ai', label: 'IA', last_tested_at: recent, last_error: null },
+        { ...readyIntegration, key: 'whatsapp', label: 'WhatsApp', last_tested_at: recent, last_error: null },
+        { ...readyIntegration, key: 'zapi_webhook', label: 'Entrada', connected: false, enabled: true, last_tested_at: null, last_error: null, configuration: registeredZapiWebhook() },
+        { ...readyIntegration, key: 'scheduler', label: 'Worker', last_tested_at: recent, last_error: null },
+      ]);
+      if (q.table === 'webhook_events') return ok([{
+        status: 'failed',
+        error: 'lead_not_matched',
+        created_at: recent,
+      }]);
+      return undefined;
+    };
+    await import('../functions/operational-diagnostics/index');
+    const response = await handler(new Request('https://example.invalid/operational-diagnostics', {
+      method: 'POST', headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'status' }),
+    }));
+    expect(response.status).toBe(200);
+    expect((await response.json()).status.webhookDiagnostic).toMatchObject({
+      state: 'lead_not_matched',
+      lastEventAt: recent,
+      detail: expect.stringContaining('não corresponde'),
+    });
+  });
+
   it('explains that a group callback cannot homologate an individual lead conversation', async () => {
     override = (q) => {
       if (q.table === 'integrations' && q.operation === 'select') return ok([
@@ -1797,7 +1825,7 @@ describe('Operational mode authority', () => {
         { ...readyIntegration, key: 'zapi_webhook', label: 'Entrada', connected: false, enabled: true, last_tested_at: null, last_error: null, configuration: registeredZapiWebhook() },
         { ...readyIntegration, key: 'scheduler', label: 'Worker', last_tested_at: recent, last_error: null },
       ]);
-      if (q.table === 'channel_inbound_events') return ok([{ status: 'ignored', error: 'non_direct_conversation', created_at: recent }]);
+      if (q.table === 'webhook_events') return ok([{ status: 'ignored', error: 'non_direct_conversation', created_at: recent }]);
       return undefined;
     };
     await import('../functions/operational-diagnostics/index');
