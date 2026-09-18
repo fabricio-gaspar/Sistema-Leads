@@ -2,17 +2,17 @@
   "schema_version": 1,
   "baseline_version": 3,
   "baseline_commit": "1fbd231ff88b4e02c3ddddd18253a1f3be8be5ee",
-  "last_audited_commit": "7715e4693e3cb3663e1ff4e0f7b0ec717fcfb5f9",
-  "current_head_at_update": "7715e4693e3cb3663e1ff4e0f7b0ec717fcfb5f9",
+  "last_audited_commit": "255217ca478e68eec3cadfbcfa1a6fd10cb4f010",
+  "current_head_at_update": "255217ca478e68eec3cadfbcfa1a6fd10cb4f010",
   "working_tree_status": "ana_manual_activation_persistence_guard_validated",
   "last_site_publication": {
-    "commit": "7715e4693e3cb3663e1ff4e0f7b0ec717fcfb5f9",
-    "site_version": 88,
-    "validated_at": "2026-09-18T12:10:00Z",
+    "commit": "255217ca478e68eec3cadfbcfa1a6fd10cb4f010",
+    "site_version": 90,
+    "validated_at": "2026-09-18T13:36:04Z",
     "working_tree_status": "published"
   },
   "full_audit_required": false,
   "baseline_status": "validated",
-  "updated_at": "2026-09-18T13:40:00Z",
+  "updated_at": "2026-09-18T13:36:04Z",
   "next_action": "No site publicado, criar ou selecionar um lead em modo Ana, confirmar WhatsApp e autorização verdadeira no diálogo de ativação e enviar ao Kanban. Confirmar no banco a atualização, o agent run, a fila e, somente após aceite do provedor, a apresentação e a transição para Apresentado."
 }

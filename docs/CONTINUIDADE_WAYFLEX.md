@@ -803,3 +803,5 @@ webhook em ambiente controlado.
 - Regressão incluída para o contrato de confirmação de atualização. Type-check frontend/Edge,
   lint e build do Site passaram. O Vitest não iniciou porque o esbuild não tem permissão para ler o
   destino da junção local de `node_modules`; nenhum teste Vitest foi contabilizado como aprovado.
+- PUBLICADO: Site oficial versão 90, commit `255217ca478e68eec3cadfbcfa1a6fd10cb4f010`, com
+  deploy `succeeded` em `2026-09-18T13:36:04Z`. O acesso público existente foi preservado.
