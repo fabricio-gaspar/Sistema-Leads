@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import type { Conversa, Mensagem } from '@/mocks/atendimentoData';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { respostasRapidas, type Conversa, type Mensagem } from '@/mocks/atendimentoData';
 import type { Lead } from '@/mocks/leadsData';
 import { refreshConversasStore, useConversasStore } from '@/hooks/useConversasStore';
 import { useLeadsStore } from '@/hooks/useLeadsStore';
@@ -9,6 +9,8 @@ import type { Proposta } from '@/mocks/propostasData';
 import { requestHumanHandoff, returnConversationToAna } from '@/lib/crm/handoffsRepository';
 import { addContactSuppression, loadContactSuppressions, type ContactSuppression } from '@/lib/crm/suppressionRepository';
 import { queueHumanMessage } from '@/lib/crm/humanMessageRepository';
+import { resolveOrganizationSession } from '@/lib/organizationSession';
+import { supabase } from '@/lib/supabase';
 import ConversaDrawer from './components/ConversaDrawer';
 
 const statusCores: Record<string, string> = {
@@ -34,12 +36,29 @@ const deliveryLabel: Record<NonNullable<Mensagem['statusEnvio']>, string> = {
   reconciliacao: 'em reconciliação',
 };
 
+type ConversationRealtimeState = 'connecting' | 'live' | 'unavailable';
+type InboxFilter = 'all' | 'waiting' | 'human' | 'ana';
+
+const inboxFilters: { id: InboxFilter; label: string }[] = [
+  { id: 'all', label: 'Todas' },
+  { id: 'waiting', label: 'Aguardando' },
+  { id: 'human', label: 'Com você' },
+  { id: 'ana', label: 'Ana' },
+];
+
+const realtimeCopy: Record<ConversationRealtimeState, string> = {
+  connecting: 'Conectando atualizações',
+  live: 'Atualização ao vivo',
+  unavailable: 'Atualização automática',
+};
+
 function formatTraceDate(value?: string | null): string {
   return value ? new Date(value).toLocaleString('pt-BR') : 'não informado';
 }
 
 export default function Atendimento() {
   const { conversas, adicionarMensagem, atualizarStatus, criarConversa } = useConversasStore();
+  const navigate = useNavigate();
   const [leads, setLeads] = useLeadsStore();
   const { propostas } = usePropostasStore();
   const [orcamentoModal, setOrcamentoModal] = useState(false);
@@ -50,19 +69,27 @@ export default function Atendimento() {
   const [texto, setTexto] = useState('');
   const [notaInterna, setNotaInterna] = useState(false);
   const [busca, setBusca] = useState('');
+  const [inboxFilter, setInboxFilter] = useState<InboxFilter>('all');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [optoutConfirmar, setOptoutConfirmar] = useState(false);
   const [erroIA, setErroIA] = useState('');
   const [enviando, setEnviando] = useState(false);
   const [handoffAction, setHandoffAction] = useState<'transfer' | 'takeover' | 'return' | null>(null);
   const [protectedContacts, setProtectedContacts] = useState<ContactSuppression[]>([]);
+  const [conversationRealtime, setConversationRealtime] = useState<ConversationRealtimeState>('connecting');
+  const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
   // Mantém a mesma chave idempotente enquanto uma mensagem está na fila ou em
   // reconciliação. Se o operador repetir o mesmo texto nesse intervalo, o
   // backend reconhece a solicitação em vez de criar uma segunda saída.
   const pendingMessageRequests = useRef(new Map<string, string>());
   const handoffActionLock = useRef(false);
+  const messagesPanelRef = useRef<HTMLDivElement>(null);
+  const shouldStickToBottomRef = useRef(true);
+  const previousConversationRef = useRef<string | null>(null);
 
   const selected = conversas.find((c) => c.id === selectedId) || conversas[0];
+  const selectedConversationId = selected?.id ?? null;
+  const selectedMessageCount = selected?.mensagens.length ?? 0;
 
   // A store é hidratada de forma assíncrona. Sem uma conversa selecionada, a
   // tela não tenta acessar dados inexistentes durante a primeira renderização.
@@ -71,18 +98,84 @@ export default function Atendimento() {
   }, [conversas, selectedId]);
 
   useEffect(() => {
+    const panel = messagesPanelRef.current;
+    if (!panel || !selectedConversationId) return;
+    const conversationChanged = previousConversationRef.current !== selectedConversationId;
+    if (conversationChanged || shouldStickToBottomRef.current) {
+      panel.scrollTo({ top: panel.scrollHeight, behavior: conversationChanged ? 'auto' : 'smooth' });
+    }
+    previousConversationRef.current = selectedConversationId;
+  }, [selectedConversationId, selectedMessageCount]);
+
+  useEffect(() => {
     void loadContactSuppressions().then(setProtectedContacts).catch(() => undefined);
   }, []);
 
+  const refreshInbox = useCallback(async () => {
+    await refreshConversasStore();
+    setLastSyncedAt(new Date());
+  }, []);
+
+  // O histórico chega pelo mesmo canal autenticado do Supabase usado no
+  // Dashboard. A interface apenas recarrega a fonte operacional após o evento;
+  // ela não cria mensagens nem acessa segredos no navegador.
   useEffect(() => {
-    const refresh = () => { void refreshConversasStore(); };
-    const interval = window.setInterval(refresh, 10_000);
-    window.addEventListener('focus', refresh);
+    let disposed = false;
+    let refreshTimer: number | null = null;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+
+    const scheduleRefresh = () => {
+      if (refreshTimer !== null) window.clearTimeout(refreshTimer);
+      refreshTimer = window.setTimeout(() => void refreshInbox(), 180);
+    };
+
+    void resolveOrganizationSession()
+      .then(({ organizationId }) => {
+        if (disposed) return;
+        channel = supabase.channel(`atendimento-messages:${organizationId}`)
+          .on('postgres_changes', {
+            event: '*',
+            schema: 'public',
+            table: 'lead_messages',
+            filter: `organization_id=eq.${organizationId}`,
+          }, scheduleRefresh)
+          .subscribe((status) => {
+            if (disposed) return;
+            setConversationRealtime(
+              status === 'SUBSCRIBED'
+                ? 'live'
+                : ['CHANNEL_ERROR', 'TIMED_OUT', 'CLOSED'].includes(status)
+                  ? 'unavailable'
+                  : 'connecting',
+            );
+          });
+      })
+      .catch(() => {
+        if (!disposed) setConversationRealtime('unavailable');
+      });
+
+    return () => {
+      disposed = true;
+      if (refreshTimer !== null) window.clearTimeout(refreshTimer);
+      if (channel) void supabase.removeChannel(channel);
+    };
+  }, [refreshInbox]);
+
+  // Realtime é o caminho principal. O intervalo é somente uma recuperação
+  // silenciosa para redes que bloqueiem WebSocket ou em caso de reconexão.
+  useEffect(() => {
+    void refreshInbox();
+    const interval = window.setInterval(
+      () => void refreshInbox(),
+      conversationRealtime === 'live' ? 60_000 : 15_000,
+    );
+    const onFocus = () => void refreshInbox();
+    window.addEventListener('focus', onFocus);
     return () => {
       window.clearInterval(interval);
-      window.removeEventListener('focus', refresh);
+      window.removeEventListener('focus', onFocus);
     };
-  }, []);
+  }, [conversationRealtime, refreshInbox]);
 
   const leadDaConversa = (conv: Conversa | undefined): Lead | null => {
     if (!conv) return null;
@@ -297,9 +390,25 @@ export default function Atendimento() {
     atualizarStatus(selected.id, 'resolvido');
   };
 
-  const filtradas = conversas.filter((c) =>
-    (c.contato + c.empresa).toLowerCase().includes(busca.toLowerCase())
-  );
+  const conversaComHumano = (conversa: Conversa) => {
+    const lead = leadDaConversa(conversa);
+    return conversa.status === 'transferido'
+      || lead?.modoAtendimento === 'HUMANO'
+      || lead?.automacaoStatus === 'AGUARDANDO_HUMANO';
+  };
+
+  const filtradas = conversas.filter((c) => {
+    if (!(c.contato + c.empresa).toLowerCase().includes(busca.toLowerCase())) return false;
+    if (inboxFilter === 'waiting') return c.status === 'aguardando';
+    if (inboxFilter === 'human') return conversaComHumano(c);
+    if (inboxFilter === 'ana') return !conversaComHumano(c) && c.status !== 'resolvido';
+    return true;
+  });
+
+  const statusDaAna = responsabilidadeHumana ? 'Pausada para humano' : leadSelecionado?.modoAtendimento === 'IA' ? 'Acompanhando este lead' : 'Não atribuída';
+  const shortSyncTime = lastSyncedAt
+    ? lastSyncedAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
+    : '—';
 
   return (
     <div className="wf-page">
@@ -310,13 +419,35 @@ export default function Atendimento() {
             Central de Atendimento
           </h1>
           <p className="wf-page-description">
-            Inbox multicanal com a Ana, filas, SLA e histórico pesquisável.
+            Conversas, contexto comercial e ações auditáveis em uma única tela.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
+          <span
+            className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-semibold ${
+              conversationRealtime === 'live'
+                ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                : conversationRealtime === 'connecting'
+                  ? 'border-primary-200 bg-primary-50 text-primary-700'
+                  : 'border-amber-200 bg-amber-50 text-amber-800'
+            }`}
+            title={`Última sincronização: ${shortSyncTime}`}
+          >
+            <i className={conversationRealtime === 'connecting' ? 'ri-loader-4-line animate-spin' : 'ri-broadcast-line'} />
+            {realtimeCopy[conversationRealtime]}
+          </span>
+          <button
+            type="button"
+            onClick={() => void refreshInbox()}
+            className="wf-btn-secondary cursor-pointer whitespace-nowrap"
+            title="Atualizar a Central agora"
+          >
+            <i className="ri-refresh-line" />
+            Atualizar
+          </button>
           <button
             onClick={() => setDrawerOpen(true)}
-            className="wf-btn-secondary cursor-pointer whitespace-nowrap"
+            className="wf-btn-secondary cursor-pointer whitespace-nowrap xl:hidden"
           >
             <i className="ri-side-bar-line"></i>
             Painel do lead
@@ -324,10 +455,19 @@ export default function Atendimento() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 min-h-[520px] lg:h-[calc(100vh-220px)]">
+      <div className="grid min-h-[560px] grid-cols-1 gap-4 lg:h-[calc(100vh-220px)] lg:grid-cols-[minmax(280px,0.78fr)_minmax(0,1.7fr)] xl:grid-cols-[300px_minmax(0,1fr)_280px]">
         {/* Lista de conversas */}
-        <div className="lg:col-span-1 wf-surface flex flex-col overflow-hidden min-h-[280px] max-h-[360px] lg:max-h-none">
-          <div className="p-4 border-b border-background-200/70">
+        <div className="wf-surface flex min-h-[280px] max-h-[360px] flex-col overflow-hidden lg:max-h-none">
+          <div className="border-b border-background-200/70 bg-background-50 p-4">
+            <div className="mb-3 flex items-center justify-between gap-2">
+              <div>
+                <p className="text-sm font-bold text-foreground-900">Conversas</p>
+                <p className="text-xs text-foreground-500">{filtradas.length} na caixa atual</p>
+              </div>
+              <span className="rounded-full bg-background-100 px-2.5 py-1 text-[11px] font-semibold text-foreground-600">
+                {conversas.reduce((total, conversa) => total + conversa.naoLidas, 0)} novas
+              </span>
+            </div>
             <div className="relative">
               <i className="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-foreground-400 text-sm"></i>
               <input
@@ -338,18 +478,39 @@ export default function Atendimento() {
                 className="w-full pl-9 pr-4 py-2 bg-background-100 border border-background-200/70 rounded-lg text-sm text-foreground-800 placeholder-foreground-400 focus:outline-none focus:border-primary-400"
               />
             </div>
+            <div className="mt-3 flex gap-1 overflow-x-auto pb-0.5" aria-label="Filtrar conversas">
+              {inboxFilters.map((filter) => (
+                <button
+                  key={filter.id}
+                  type="button"
+                  onClick={() => setInboxFilter(filter.id)}
+                  className={`whitespace-nowrap rounded-full px-2.5 py-1.5 text-[11px] font-semibold transition ${
+                    inboxFilter === filter.id
+                      ? 'bg-primary-500 text-background-50'
+                      : 'bg-background-100 text-foreground-600 hover:bg-background-200'
+                  }`}
+                >
+                  {filter.label}
+                </button>
+              ))}
+            </div>
           </div>
           <div className="flex-1 overflow-y-auto">
+            {filtradas.length === 0 && (
+              <div className="px-5 py-10 text-center text-sm text-foreground-500">
+                Nenhuma conversa neste filtro.
+              </div>
+            )}
             {filtradas.map((c) => (
               <button
                 key={c.id}
                 onClick={() => setSelectedId(c.id)}
-                className={`w-full flex items-start gap-3 px-4 py-3.5 border-b border-background-100 text-left transition-colors cursor-pointer ${
-                  selectedId === c.id ? 'bg-primary-50' : 'hover:bg-background-50/50'
+                className={`w-full flex items-start gap-3 border-b border-background-100 px-4 py-3.5 text-left transition-colors cursor-pointer ${
+                  selected.id === c.id ? 'bg-[#e8f3ec]' : 'hover:bg-background-50/50'
                 }`}
               >
-                <div className="w-9 h-9 rounded-full bg-background-200 flex items-center justify-center flex-shrink-0">
-                  <span className="text-foreground-700 font-bold text-sm">{c.contato.charAt(0)}</span>
+                <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-primary-100">
+                  <span className="text-sm font-bold text-primary-700">{c.contato.charAt(0)}</span>
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
@@ -375,20 +536,21 @@ export default function Atendimento() {
         </div>
 
         {/* Chat */}
-        <div className="lg:col-span-2 wf-surface flex flex-col overflow-hidden">
-          <div className="px-5 py-4 border-b border-background-200/70 flex items-center justify-between">
+        <div className="wf-surface flex min-w-0 flex-col overflow-hidden">
+          <div className="flex items-center justify-between border-b border-background-200/70 bg-[#f0f2f5] px-4 py-3">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-full bg-primary-100 flex items-center justify-center">
-                <span className="text-primary-700 font-bold">{selected.contato.charAt(0)}</span>
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-100">
+                <span className="font-bold text-primary-700">{selected.contato.charAt(0)}</span>
               </div>
-              <div>
+              <div className="min-w-0">
                 <p className="font-semibold text-foreground-900 text-sm">{selected.contato}</p>
-                <p className="text-xs text-foreground-500">
-                  {selected.protocolo} · {selected.empresa} · SLA {selected.sla}
+                <p className="truncate text-xs text-foreground-500">
+                  <i className={selected.canal === 'whatsapp' ? 'ri-whatsapp-line mr-1 text-emerald-600' : selected.canal === 'email' ? 'ri-mail-line mr-1' : 'ri-instagram-line mr-1'} />
+                  {selected.empresa} · {statusDaAna}
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5">
               <button
                 onClick={() => setDrawerOpen(true)}
                 className="w-9 h-9 flex items-center justify-center rounded-lg bg-background-100 hover:bg-background-200 text-foreground-500 cursor-pointer transition-colors lg:hidden"
@@ -396,13 +558,9 @@ export default function Atendimento() {
               >
                 <i className="ri-side-bar-line"></i>
               </button>
-              <button
-                onClick={() => setOrcamentoModal(true)}
-                className="inline-flex items-center gap-2 px-3 py-2 bg-background-100 hover:bg-background-200 text-foreground-700 rounded-lg text-xs font-semibold cursor-pointer whitespace-nowrap"
-                title="Buscar e enviar orçamento"
-              >
-                <i className="ri-file-list-3-line"></i>
-                Orçamento
+              <button onClick={() => setOrcamentoModal(true)} className="inline-flex items-center gap-1.5 rounded-lg bg-background-50 px-2.5 py-2 text-xs font-semibold text-foreground-700 shadow-sm transition hover:bg-background-100 cursor-pointer" title="Buscar e enviar orçamento">
+                <i className="ri-file-list-3-line" />
+                <span className="hidden sm:inline">Orçamento</span>
               </button>
               {!responsabilidadeHumana ? (
                 <button
@@ -456,7 +614,22 @@ export default function Atendimento() {
             </div>
           )}
 
-          <div className="flex-1 overflow-y-auto p-5 space-y-4 bg-background-50">
+          <div
+            ref={messagesPanelRef}
+            onScroll={(event) => {
+              const panel = event.currentTarget;
+              shouldStickToBottomRef.current = panel.scrollHeight - panel.scrollTop - panel.clientHeight < 96;
+            }}
+            className="flex-1 space-y-4 overflow-y-auto bg-[#efeae2] p-4 md:p-5"
+            role="log"
+            aria-live="polite"
+            aria-label={`Mensagens de ${selected.contato}`}
+          >
+            <div className="flex justify-center">
+              <span className="rounded-full bg-white/80 px-3 py-1 text-[10px] font-medium uppercase tracking-wide text-foreground-500 shadow-sm">
+                {selected.protocolo} · SLA {selected.sla}
+              </span>
+            </div>
             {selected.mensagens.map((m) => {
               if (m.autor === 'sistema' || m.notaInterna) {
                 return (
@@ -472,14 +645,14 @@ export default function Atendimento() {
                 return (
                   <div key={m.id} className="flex justify-end">
                     <div className="max-w-[75%]">
-                      <div className="bg-primary-500 text-background-50 rounded-2xl rounded-br-md px-4 py-2.5 text-sm">
+                      <div className="rounded-2xl rounded-br-md bg-[#d9fdd3] px-4 py-2.5 text-sm text-[#111b21] shadow-sm">
                         {m.texto}
                       </div>
                       <p className="text-[10px] text-foreground-400 text-right mt-1">{m.nome} · {m.hora}{m.statusEnvio ? ` · ${deliveryLabel[m.statusEnvio]}` : ''}</p>
                       {(m.correlationId || m.providerMessageId || m.historicoStatus?.length) && (
-                        <details className="mt-1 text-right text-[10px] text-foreground-400">
+                        <details className="mt-1 text-right text-[10px] text-foreground-500">
                           <summary className="cursor-pointer select-none">ver trilha da mensagem</summary>
-                          <div className="mt-1 rounded-lg border border-background-200 bg-background-50 p-2 text-left leading-relaxed">
+                          <div className="mt-1 rounded-lg border border-background-200 bg-white p-2 text-left leading-relaxed">
                             <p>Direção: enviada · Canal: {selected.canal}</p>
                             <p>ID interno: {m.id}</p>
                             <p>Correlation ID: {m.correlationId || 'não informado'}</p>
@@ -502,14 +675,14 @@ export default function Atendimento() {
                       {isAna ? <i className="ri-robot-line text-xs"></i> : <span className="text-xs font-bold">{m.nome.charAt(0)}</span>}
                     </div>
                     <div>
-                      <div className={`rounded-2xl rounded-bl-md px-4 py-2.5 text-sm ${isAna ? 'bg-secondary-100 text-secondary-900' : 'bg-background-100 text-foreground-800'}`}>
+                      <div className={`rounded-2xl rounded-bl-md px-4 py-2.5 text-sm shadow-sm ${isAna ? 'bg-primary-100 text-primary-950' : 'bg-white text-foreground-800'}`}>
                         {m.texto}
                       </div>
                       <p className="text-[10px] text-foreground-400 mt-1">{m.nome} · {m.hora}{m.statusEnvio ? ` · ${deliveryLabel[m.statusEnvio]}` : ''}</p>
                       {(m.correlationId || m.providerMessageId || m.historicoStatus?.length) && (
                         <details className="mt-1 text-[10px] text-foreground-400">
                           <summary className="cursor-pointer select-none">ver trilha da mensagem</summary>
-                          <div className="mt-1 rounded-lg border border-background-200 bg-background-50 p-2 leading-relaxed">
+                          <div className="mt-1 rounded-lg border border-background-200 bg-white p-2 leading-relaxed">
                             <p>Direção: {m.autor === 'cliente' ? 'recebida' : 'enviada'} · Canal: {selected.canal}</p>
                             <p>ID interno: {m.id}</p>
                             <p>Correlation ID: {m.correlationId || 'não informado'}</p>
@@ -527,7 +700,7 @@ export default function Atendimento() {
             })}
           </div>
 
-          <div className="px-5 py-4 border-t border-background-200/70">
+          <div className="border-t border-background-200/70 bg-[#f0f2f5] px-4 py-3">
             {notaInterna && (
               <div className="mb-2 inline-flex items-center gap-2 bg-accent-100 text-accent-800 text-xs px-3 py-1.5 rounded-full">
                 <i className="ri-lock-line"></i>
@@ -537,7 +710,23 @@ export default function Atendimento() {
                 </button>
               </div>
             )}
-            <div className="flex items-center gap-2">
+            {!notaInterna && (
+              <div className="mb-2 flex items-center gap-1.5 overflow-x-auto pb-0.5">
+                <span className="shrink-0 text-[11px] font-semibold text-foreground-500">Atalhos:</span>
+                {respostasRapidas.slice(0, 3).map((resposta) => (
+                  <button
+                    key={resposta}
+                    type="button"
+                    onClick={() => setTexto(resposta)}
+                    className="shrink-0 rounded-full border border-background-200 bg-background-50 px-2.5 py-1 text-[11px] font-medium text-foreground-600 transition hover:border-primary-200 hover:text-primary-700"
+                    title="Inserir no campo de mensagem para revisar antes de enviar"
+                  >
+                    {resposta.length > 28 ? `${resposta.slice(0, 28)}…` : resposta}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="flex items-end gap-2">
               <button
                 onClick={() => setNotaInterna(!notaInterna)}
                 className={`w-10 h-10 flex items-center justify-center rounded-lg cursor-pointer transition-colors ${notaInterna ? 'bg-accent-500 text-background-50' : 'bg-background-100 text-foreground-500 hover:bg-background-200'}`}
@@ -546,13 +735,18 @@ export default function Atendimento() {
                 <i className="ri-lock-line text-base"></i>
               </button>
               <div className="relative flex-1">
-                <input
-                  type="text"
+                <textarea
                   value={texto}
                   onChange={(e) => setTexto(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') void enviar(); }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                      e.preventDefault();
+                      void enviar();
+                    }
+                  }}
                   placeholder={notaInterna ? 'Digite uma nota interna...' : 'Digite uma mensagem para a fila segura...'}
-                  className="w-full px-4 py-2.5 bg-background-100 border border-background-200/70 rounded-lg text-sm text-foreground-800 placeholder-foreground-400 focus:outline-none focus:border-primary-400"
+                  rows={1}
+                  className="max-h-28 min-h-10 w-full resize-y rounded-xl border border-background-200/70 bg-background-50 px-4 py-2.5 text-sm text-foreground-800 placeholder-foreground-400 focus:border-primary-400 focus:outline-none"
                 />
               </div>
               <button
@@ -567,6 +761,100 @@ export default function Atendimento() {
             {erroIA && <p className="mt-1.5 text-xs text-foreground-500">{erroIA}</p>}
           </div>
         </div>
+
+        <aside className="hidden min-h-0 flex-col overflow-y-auto xl:flex">
+          <section className="wf-surface overflow-hidden">
+            <div className="border-b border-background-200/70 px-4 py-3">
+              <p className="text-sm font-bold text-foreground-900">Contexto do lead</p>
+              <p className="mt-0.5 text-xs text-foreground-500">Dados operacionais vinculados à conversa</p>
+            </div>
+            <div className="space-y-3 p-4">
+              <div>
+                <p className="text-sm font-semibold text-foreground-900">{leadSelecionado?.nome || selected.contato}</p>
+                <p className="truncate text-xs text-foreground-500">{leadSelecionado?.empresa || selected.empresa}</p>
+              </div>
+              <dl className="grid grid-cols-2 gap-x-3 gap-y-3 border-y border-background-100 py-3 text-xs">
+                <div>
+                  <dt className="text-foreground-500">Etapa</dt>
+                  <dd className="mt-0.5 font-semibold text-foreground-800">{leadSelecionado?.etapa || selected.fila}</dd>
+                </div>
+                <div>
+                  <dt className="text-foreground-500">Responsável</dt>
+                  <dd className="mt-0.5 font-semibold text-foreground-800">{responsabilidadeHumana ? 'Você' : 'Ana (IA)'}</dd>
+                </div>
+                <div>
+                  <dt className="text-foreground-500">Canal</dt>
+                  <dd className="mt-0.5 font-semibold capitalize text-foreground-800">{selected.canal}</dd>
+                </div>
+                <div>
+                  <dt className="text-foreground-500">Contato</dt>
+                  <dd className="mt-0.5 truncate font-semibold text-foreground-800" title={contactForChannel || undefined}>{contactForChannel || 'Não informado'}</dd>
+                </div>
+              </dl>
+              <div className="grid gap-2">
+                <button
+                  type="button"
+                  onClick={() => leadSelecionado && navigate(`/dashboard/agenda?leadId=${encodeURIComponent(leadSelecionado.id)}&new=1`)}
+                  disabled={!leadSelecionado}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-background-200 bg-background-50 px-3 py-2.5 text-xs font-semibold text-foreground-700 transition hover:border-primary-200 hover:text-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <i className="ri-calendar-event-line" />
+                  Agendar compromisso
+                </button>
+                <button
+                  type="button"
+                  onClick={() => leadSelecionado && navigate(`/dashboard/orcamentos?leadId=${encodeURIComponent(leadSelecionado.id)}&new=1`)}
+                  disabled={!leadSelecionado}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary-500 px-3 py-2.5 text-xs font-semibold text-background-50 transition hover:bg-primary-600 disabled:cursor-not-allowed disabled:bg-primary-300"
+                >
+                  <i className="ri-file-add-line" />
+                  Criar orçamento
+                </button>
+                <button
+                  type="button"
+                  onClick={() => leadSelecionado && navigate(`/dashboard/kanban?leadId=${encodeURIComponent(leadSelecionado.id)}`)}
+                  disabled={!leadSelecionado}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold text-foreground-600 transition hover:bg-background-100 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <i className="ri-layout-column-line" />
+                  Ver no Kanban
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <section className="mt-4 wf-surface overflow-hidden">
+            <div className="flex items-center justify-between border-b border-background-200/70 px-4 py-3">
+              <div>
+                <p className="text-sm font-bold text-foreground-900">Orçamentos</p>
+                <p className="mt-0.5 text-xs text-foreground-500">{propostasDoLead.length} vínculo(s) deste lead</p>
+              </div>
+              <button type="button" onClick={() => setOrcamentoModal(true)} className="text-xs font-semibold text-primary-700 hover:text-primary-800">Abrir</button>
+            </div>
+            <div className="space-y-2 p-3">
+              {propostasDoLead.length === 0 ? (
+                <p className="px-1 py-2 text-xs leading-5 text-foreground-500">Ainda não há proposta. Crie uma a partir deste lead para retornar ao chat com o texto preparado.</p>
+              ) : (
+                propostasDoLead.slice(0, 2).map((proposta) => (
+                  <button key={proposta.id} type="button" onClick={() => setOrcamentoModal(true)} className="w-full rounded-lg border border-background-100 bg-background-50 px-3 py-2 text-left transition hover:border-primary-200">
+                    <p className="text-xs font-semibold text-foreground-800">{proposta.numero}</p>
+                    <p className="mt-0.5 truncate text-[11px] text-foreground-500">{proposta.status === 'rascunho' ? 'Rascunho' : proposta.status}</p>
+                  </button>
+                ))
+              )}
+            </div>
+          </section>
+
+          <section className="mt-4 rounded-xl border border-primary-100 bg-primary-50 px-4 py-3">
+            <div className="flex items-start gap-2.5">
+              <i className="ri-robot-line mt-0.5 text-primary-700" />
+              <div>
+                <p className="text-xs font-bold text-primary-900">Ana</p>
+                <p className="mt-0.5 text-xs leading-5 text-primary-800">{statusDaAna}. Assumir ou devolver nesta conversa registra a transição no backend.</p>
+              </div>
+            </div>
+          </section>
+        </aside>
       </div>
 
       {optoutConfirmar && (
@@ -618,7 +906,19 @@ export default function Atendimento() {
                 <div className="text-center py-10 text-foreground-400 text-sm">
                   <i className="ri-file-list-3-line text-3xl mb-3 block"></i>
                   Nenhum orçamento para este lead ainda.
-                  <p className="mt-2 text-xs">Crie uma proposta no menu Orçamentos e volte aqui para enviá-la.</p>
+                  <p className="mt-2 text-xs">Crie uma proposta e volte aqui para revisá-la antes de enviar pela fila segura.</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOrcamentoModal(false);
+                      if (leadSelecionado) navigate(`/dashboard/orcamentos?leadId=${encodeURIComponent(leadSelecionado.id)}&new=1`);
+                    }}
+                    disabled={!leadSelecionado}
+                    className="mt-4 inline-flex items-center gap-2 rounded-lg bg-primary-500 px-4 py-2 text-xs font-semibold text-background-50 transition hover:bg-primary-600 disabled:cursor-not-allowed disabled:bg-primary-300"
+                  >
+                    <i className="ri-file-add-line" />
+                    Criar proposta
+                  </button>
                 </div>
               ) : (
                 propostasDoLead.map((p) => {

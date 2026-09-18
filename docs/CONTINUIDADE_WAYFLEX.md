@@ -805,3 +805,23 @@ webhook em ambiente controlado.
   destino da junção local de `node_modules`; nenhum teste Vitest foi contabilizado como aprovado.
 - PUBLICADO: Site oficial versão 90, commit `255217ca478e68eec3cadfbcfa1a6fd10cb4f010`, com
   deploy `succeeded` em `2026-09-18T13:36:04Z`. O acesso público existente foi preservado.
+
+## 2026-09-18 — Central de Atendimento: Realtime, contexto comercial e visual de conversa
+
+- A Central recebeu uma superfície de atendimento em três áreas: caixa de conversas com filtros,
+  chat com composição inspirada no WhatsApp e contexto comercial do lead. Notas internas,
+  handoff humano/Ana, opt-out, fila humana auditável e a trilha de entrega existentes foram
+  preservados.
+- A atualização de novas mensagens não depende mais de F5: a tela assina `lead_messages` pelo
+  Realtime do Supabase com filtro da organização autenticada e relê a fonte operacional após cada
+  evento. O selo só mostra **Atualização ao vivo** depois de `SUBSCRIBED`; se o WebSocket estiver
+  indisponível, uma atualização automática de recuperação permanece ativa e é exibida como tal.
+- O painel contextual liga o mesmo lead à Agenda e aos Orçamentos. Ambos recebem o identificador
+  no endereço e abrem somente o formulário pré-selecionado; compromisso, proposta e mensagem não
+  são criados automaticamente. O envio de orçamento continua passando pela preparação e pela fila
+  segura da Central.
+- Validação local: type-check frontend e Edge, lint e build/artefato do Site aprovados. A suíte Vitest
+  foi executada com `--configLoader runner`: 193 de 194 testes passaram. A única falha é o contrato
+  pré-existente de diagnóstico Z-API `requires a fresh callback registration after the Z-API
+  callback route changes`, fora dos arquivos deste lote. Não houve mensagem externa, alteração de
+  lead, execução da Ana nem mudança de integração nesta alteração.

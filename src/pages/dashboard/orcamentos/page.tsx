@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { Proposta, ItemProposta } from '@/mocks/propostasData';
 import { useLeadsStore } from '@/hooks/useLeadsStore';
 import { usePropostasStore } from '@/hooks/usePropostasStore';
@@ -53,6 +53,7 @@ const escapar = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').re
 
 export default function Orcamentos() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
   const { propostas, atualizar, confirmarAceiteLocal, criar, excluir } = usePropostasStore();
   const [selecionada, setSelecionada] = useState<Proposta | null>(null);
@@ -83,6 +84,19 @@ export default function Orcamentos() {
   const { variaveis: variaveisGlobais } = useVariaveisGlobaisStore();
   const { temaPadrao } = useTemasStore();
   const { produtos: produtosCatalogo } = useCatalogoStore();
+
+  // Quando o atendimento pede um orçamento, apenas abre o formulário deste
+  // módulo com o lead já selecionado. Nenhuma proposta é criada sem a ação
+  // explícita do usuário em "Criar proposta".
+  useEffect(() => {
+    const requestedLeadId = searchParams.get('leadId');
+    if (searchParams.get('new') !== '1' || !requestedLeadId || !leads.some((lead) => lead.id === requestedLeadId)) return;
+    setNovaLeadId(requestedLeadId);
+    setNovoModal(true);
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete('new');
+    setSearchParams(nextParams, { replace: true });
+  }, [leads, searchParams, setSearchParams]);
   const catalogo = useMemo(
     () => produtosCatalogo
       .filter((produto) => produto.ativo && produto.podeOrcamento)

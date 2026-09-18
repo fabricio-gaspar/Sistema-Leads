@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useLocalStorageState } from '@/hooks/useLocalStorageState';
 import { useSavedViews } from '@/hooks/useSavedViews';
 import FilterChips from '@/components/feature/FilterChips';
@@ -70,6 +71,7 @@ const calcularHoraFim = (inicio: string): string => {
 export default function Agenda() {
   const { compromissos: comps, criar, atualizar, excluir: removerCompromisso } = useCompromissosStore();
   const [leads] = useLeadsStore();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const hoje = new Date();
   const hojeStr = formatarData(hoje);
@@ -95,6 +97,18 @@ export default function Agenda() {
   const [remarcarModal, setRemarcarModal] = useState<Compromisso | null>(null);
   const [remarcarData, setRemarcarData] = useState('');
   const [remarcarHora, setRemarcarHora] = useState('');
+
+  // A Central envia o lead no endereço e abre somente o formulário de
+  // compromisso. A criação continua nesta tela, usando a mesma store da Agenda.
+  useEffect(() => {
+    const requestedLeadId = searchParams.get('leadId');
+    if (searchParams.get('new') !== '1' || !requestedLeadId || !leads.some((lead) => lead.id === requestedLeadId)) return;
+    setNovoLeadId(requestedLeadId);
+    setNovoModal(true);
+    const nextParams = new URLSearchParams(searchParams);
+    nextParams.delete('new');
+    setSearchParams(nextParams, { replace: true });
+  }, [leads, searchParams, setSearchParams]);
 
   const mostrarToast = (msg: string) => {
     setToast(msg);

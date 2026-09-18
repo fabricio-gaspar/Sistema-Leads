@@ -42,6 +42,22 @@
   da versão 75 foi removido a pedido do operador; formulário, payload, persistência e autoridade
   automática de `ana-run` permaneceram inalterados.
 
+## Central de Atendimento — 18/09/2026
+
+- A Central usa uma assinatura Supabase Realtime de `lead_messages`, filtrada pela
+  `organization_id` da sessão autenticada. O evento apenas solicita nova leitura do repository
+  operacional; ele não insere mensagem, não escolhe lead e não acessa segredo no navegador.
+- O selo só diz **Atualização ao vivo** após `SUBSCRIBED`. Durante reconexão ou em rede sem
+  WebSocket, a Central continua atualizando automaticamente por leitura periódica e deixa isso
+  explícito, sem exigir F5 nem alegar um estado ao vivo inexistente.
+- O layout da Central é uma superfície de trabalho com caixa de conversas, conversa e contexto
+  comercial. Em desktop, o contexto liga Agenda, Orçamentos e Kanban pelo ID do lead; em telas
+  menores, continua disponível pelo drawer. Agenda e Orçamentos recebem `leadId` com `new=1` apenas
+  para abrir seus formulários já preenchidos — nenhuma reunião ou proposta é criada sem confirmação
+  explícita no respectivo módulo.
+- Atalhos de resposta apenas preenchem o compositor. A mensagem humana continua passando pela fila
+  auditável e o orçamento preparado continua exigindo revisão e envio explícito.
+
 ## Busca de Leads — 11/09/2026
 
 - A busca manual usa Fonte → Filtros → Revisão → Importação. Fontes de prospecção ainda não

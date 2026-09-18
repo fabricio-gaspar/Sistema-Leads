@@ -51,9 +51,10 @@
 - O advisor aponta 111 índices sem uso; aguardar janela representativa antes de remover qualquer um.
 - Funções RPC de handoff usam `SECURITY DEFINER` intencionalmente para efetivar a operação
   transacional sob RLS, com validação de membro, organização e papel no corpo da função.
-- O Vitest não consegue iniciar neste worktree por uma junção de `node_modules` que aponta para
-  uma pasta sem permissão de leitura do esbuild. Type-check frontend/Edge, lint e build passaram,
-  mas os novos testes de contrato aguardam correção desse ambiente local.
+- O Vitest deve ser executado com `--configLoader runner`; o loader padrão do esbuild não consegue
+  percorrer a junção local de `node_modules`. Com o runner, a suíte executa normalmente. Em
+  18/09, 193 de 194 casos passaram; a falha restante é o contrato pré-existente de diagnóstico
+  Z-API sobre troca de rota de callback, sem relação com a Central, Realtime, Agenda ou Orçamentos.
 - O advisor de segurança informa que `daily_lead_report_deliveries` possui RLS sem policy. Isso é
   intencional: todo acesso de navegador foi revogado e somente `service_role` do backend possui
   privilégio na tabela. Não adicionar policy de cliente para silenciar o aviso.

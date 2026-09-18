@@ -64,6 +64,11 @@
     ,{"command":"eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0","status":"passed","warnings":0}
     ,{"command":"vite build && node scripts/build-sites-artifact.mjs","status":"passed","note":"Artefato do Site produzido após a correção; nenhum segredo foi incluído."}
     ,{"command":"vitest run src/lib/crm/leadsRepository.test.ts","status":"blocked","note":"O esbuild não iniciou porque a junção local de node_modules aponta para diretório sem permissão de leitura; nenhum caso Vitest foi executado."}
+    ,{"command":"tsc --noEmit --project tsconfig.app.json","status":"passed","note":"Central de Atendimento com Realtime e atalhos de Agenda/Orçamentos."}
+    ,{"command":"tsc --project tsconfig.edge.json","status":"passed","note":"Sem regressão em Edge Functions."}
+    ,{"command":"eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0","status":"passed","warnings":0,"note":"Central de Atendimento, Agenda e Orçamentos sem avisos."}
+    ,{"command":"vitest run --configLoader runner","status":"partial","test_files":22,"checks":194,"passed":193,"failed":1,"note":"O runner contorna a limitação da junção local. A única falha pré-existente é Operational mode authority > requires a fresh callback registration after the Z-API callback route changes."}
+    ,{"command":"vite build --configLoader runner && node scripts/build-sites-artifact.mjs","status":"passed","note":"Artefato oficial da Central produzido sem segredo no bundle."}
   ],
   "prior_site_artifact_validation": {
     "validated_commit": "e4b1666c878df01ac0db3d12a290531a42107446",
@@ -79,5 +84,5 @@
   },
   "covered": ["frontend_typecheck","lint","edge_typecheck","unit_and_contract_tests","production_build"],
   "not_covered": ["authenticated_e2e","login_como_novo_membro","real_whatsapp","real_claude","cross_organization_rls","database_concurrency","provider_receipt_race","mobile_authenticated_qa"],
-  "working_tree_validation": "passed: contrato de visibilidade/identidade, type-check frontend/Edge, lint, build e inspeção autenticada do Kanban publicado. Vitest foi bloqueado antes de iniciar pelo ambiente local. Nenhum provedor externo, mensagem, job ou execução da Ana foi acionado."
+  "working_tree_validation": "Central com Realtime organizacional, contexto comercial e atalhos pré-selecionados: type-check, lint e build aprovados. Vitest executado com configLoader runner: 193/194, falha pré-existente de contrato Z-API fora deste lote. Nenhum provedor externo, mensagem, job ou execução da Ana foi acionado."
 }

@@ -575,3 +575,17 @@
   transforma telefone em consentimento nem envia mensagem automaticamente.
 - Type-check frontend/Edge, lint e build passaram. O Vitest foi bloqueado antes de iniciar porque
   a junção compartilhada de `node_modules` não é legível pelo esbuild.
+
+# 2026-09-18 — Central de Atendimento: atualização ao vivo e contexto comercial
+
+- Escopo: melhoria visual e de operação da Central sem alterar a autoridade de `ana-run`, filas,
+  regras de opt-out, contatos ou integrações.
+- Leitura confirmada: o projeto Supabase `thgzrkppouoevapjquyu` está `ACTIVE_HEALTHY`; somente
+  `public.lead_messages` está na publicação `supabase_realtime`. A Central assina exclusivamente
+  essa tabela, filtrada por organização, e relê o repository autorizado após o evento.
+- Implementado: caixa com filtros, chat com bolhas e compositor multi-linha, atalhos que apenas
+  preenchem texto, painel de lead, criação de Agenda/Orçamento pré-selecionada por URL e retorno ao
+  Kanban. Nenhuma ação externa é acionada por abrir esses atalhos.
+- Validação: `tsc --noEmit --project tsconfig.app.json` e ESLint sem avisos passaram; Vite +
+  `build-sites-artifact.mjs` passou. `vitest run --configLoader runner` executou 194 casos,
+  com 193 aprovados e uma falha pré-existente no contrato de rota de callback Z-API.
