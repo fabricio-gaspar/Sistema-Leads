@@ -92,3 +92,18 @@ diário em concorrência; recibos antecipados ainda dependem de nova reconcilia�
    `organization_members` e `user_roles` na organização correta.
 3. O backend reforça papel/status, confirma o `active_organization_id` e audita a ação sem registrar
    senha. Falha do Auth restaura ou remove somente a autorização preparada pela tentativa.
+
+## Conhecimento comercial estruturado
+
+1. `catalog-knowledge` aceita somente adaptadores explícitos das três páginas Wayflex iniciais e
+   grava `knowledge_sources` + `knowledge_source_imports`; falhas são persistidas sem fallback
+   fictício.
+2. Produtos, serviços, catálogos e documentos vivem em `knowledge_catalog_items`; relações
+   tipadas vivem em `knowledge_item_relations`. Triggers privados geram o documento/chunk derivado
+   da mesma base aprovada já usada por `ana-run`.
+3. A Central busca apenas itens ativos por RLS, prepara o texto verificável e chama o gateway
+   humano existente. `queue_human_whatsapp_catalog_message` associa conteúdo ao mesmo job/mensagem
+   idempotente e grava `conversation_knowledge_events`.
+4. PDF/imagem não abre rota própria de envio: enquanto mídia não for homologada, o conteúdo sai
+   como URL rastreável via texto. A Ana recebe intenção comercial e chunks aprovados, nunca uma
+   permissão adicional de despacho.

@@ -18,6 +18,12 @@
 
 - Base multimídia registra arquivos, mas não extrai de forma completa PDF/DOCX/PPTX/XLSX,
   OCR de imagem, áudio ou vídeo.
+- O catálogo comercial compartilha PDF e imagem como URL rastreável pela fila humana já
+  homologada. Anexo binário direto só deve ser adicionado após existir pipeline de mídia,
+  recebimento e recibo comprovados; não declarar o card de catálogo como envio de arquivo nativo.
+- As fontes Wayflex novas ainda aguardam a primeira sincronização autenticada em produção. O
+  adaptador registra falha de rede/HTTP no servidor; não considerar o conteúdo disponível para
+  Ana ou Central antes do estado saudável e da revisão de itens importados.
 - Testes E2E autenticados e roundtrips reais de WhatsApp/Claude/provedores opcionais faltam.
 - RLS entre duas organizações e operações transacionais principais foram testadas; não substituir
   isso por uma afirmação de homologação externa.

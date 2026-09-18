@@ -1,5 +1,36 @@
 # Checkpoint — WayFlex CRM
 
+## Base comercial inteligente — 18/09/2026
+
+- Implementada uma única base operacional de conhecimento em **Configurações > Empresa e
+  conhecimento**, com as abas Visão geral, Produtos e acessórios, Serviços, Catálogos e
+  documentos, Documentos e mídia, Fontes de conhecimento e Configurações da Ana. O catálogo
+  visual/local anterior deixou de ser uma segunda fonte de verdade e direciona para essa base.
+- As fontes iniciais são específicas por adaptador: `/acessorios` cria itens de produto,
+  `/servicos` cria serviços e `/catalogos` procura somente PDFs/catálogos. Cada item retém a URL
+  de origem e só armazena conteúdo efetivamente encontrado; uma falha de download fica registrada
+  na fonte e na execução de importação, sem criar informação inventada.
+- As migrations `commercial_knowledge_catalog`, `index_commercial_knowledge_foreign_keys` e
+  `consolidate_commercial_knowledge_policies` foram aplicadas no Supabase oficial. Elas adicionam
+  fontes, itens, relacionamentos e eventos da conversa, com RLS/RBAC por organização, uma política
+  por ação e índices de FKs. Itens aprovados para a Ana geram
+  `documents`/`knowledge_chunks` derivados na mesma base já consultada por `ana-run`.
+- A Central ganhou pesquisa lateral de Produtos, Serviços, Catálogos e Arquivos, prévia de origem
+  e formatos rápido, comercial e técnico. Ao enviar, ela conserva o caminho comprovado
+  `enviar-whatsapp` → fila → `automation-worker`, com idempotência e evento no histórico. Arquivo
+  ou imagem é enviado como **link rastreável**, pois não existe pipeline de mídia homologado e o
+  sistema não afirma anexos inexistentes.
+- `ana-run` v30 classifica a intenção como produto, serviço, catálogo, dúvida técnica, orçamento
+  ou geral e usa somente o conteúdo aprovado. Sem resposta suficiente, ela pergunta pelo dado
+  técnico ou faz handoff; não confirma preço, prazo ou especificação sem fonte.
+- Funções publicadas: `catalog-knowledge` v3, `enviar-whatsapp` v7 e `ana-run` v30, todas com
+  JWT obrigatório. Nenhuma mensagem, job, execução automática ou dado de lead foi criado nesta
+  implementação.
+- Validação: type-check frontend/Edge, lint, build e artefato do Site passaram. A suíte Vitest
+  executou 198 verificações: 197 passaram; a única falha é o contrato pré-existente de diagnóstico
+  Z-API sobre rota de callback, fora deste lote. A sincronização autenticada das fontes e o envio
+  externo de um conteúdo ficam para validação controlada, sem declarar sucesso antecipadamente.
+
 ## Organização operacional, monitoramento e resumo diário — 17/09/2026
 
 - **Configurações** agora separa Canais, APIs e Fontes em itens próprios. Os links legados

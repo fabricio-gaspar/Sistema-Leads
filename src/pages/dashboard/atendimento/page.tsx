@@ -11,7 +11,9 @@ import { addContactSuppression, loadContactSuppressions, type ContactSuppression
 import { queueHumanMessage } from '@/lib/crm/humanMessageRepository';
 import { resolveOrganizationSession } from '@/lib/organizationSession';
 import { supabase } from '@/lib/supabase';
+import { loadConversationKnowledgeEvents, type ConversationKnowledgeEvent } from '@/lib/crm/catalogKnowledgeRepository';
 import ConversaDrawer from './components/ConversaDrawer';
+import ConversationKnowledgePanel, { type PreparedKnowledgeContent } from './components/ConversationKnowledgePanel';
 
 const statusCores: Record<string, string> = {
   ativo: 'bg-primary-100 text-primary-700',
@@ -78,6 +80,9 @@ export default function Atendimento() {
   const [protectedContacts, setProtectedContacts] = useState<ContactSuppression[]>([]);
   const [conversationRealtime, setConversationRealtime] = useState<ConversationRealtimeState>('connecting');
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
+  const [knowledgeOpen, setKnowledgeOpen] = useState(false);
+  const [preparedKnowledge, setPreparedKnowledge] = useState<PreparedKnowledgeContent | null>(null);
+  const [knowledgeEvents, setKnowledgeEvents] = useState<ConversationKnowledgeEvent[]>([]);
   // Mantém a mesma chave idempotente enquanto uma mensagem está na fila ou em
   // reconciliação. Se o operador repetir o mesmo texto nesse intervalo, o
   // backend reconhece a solicitação em vez de criar uma segunda saída.
@@ -90,6 +95,13 @@ export default function Atendimento() {
   const selected = conversas.find((c) => c.id === selectedId) || conversas[0];
   const selectedConversationId = selected?.id ?? null;
   const selectedMessageCount = selected?.mensagens.length ?? 0;
+
+  const prepareKnowledge = (content: PreparedKnowledgeContent) => {
+    setPreparedKnowledge(content);
+    setTexto(content.text);
+    setNotaInterna(false);
+    setErroIA(`Conteúdo “${content.item.name}” preparado. Revise o texto antes de enviar pela fila segura.`);
+  };
 
   // A store é hidratada de forma assíncrona. Sem uma conversa selecionada, a
   // tela não tenta acessar dados inexistentes durante a primeira renderização.
@@ -110,6 +122,14 @@ export default function Atendimento() {
   useEffect(() => {
     void loadContactSuppressions().then(setProtectedContacts).catch(() => undefined);
   }, []);
+
+  useEffect(() => {
+    const leadId = selected?.leadId;
+    if (!leadId) { setKnowledgeEvents([]); return; }
+    let active = true;
+    void loadConversationKnowledgeEvents(leadId).then((events) => { if (active) setKnowledgeEvents(events); }).catch(() => { if (active) setKnowledgeEvents([]); });
+    return () => { active = false; };
+  }, [selected?.leadId, selectedMessageCount]);
 
   const refreshInbox = useCallback(async () => {
     await refreshConversasStore();
@@ -238,7 +258,8 @@ export default function Atendimento() {
         setEnviando(true);
         const messageText = texto.trim();
         const recipient = selected.canal === 'whatsapp' ? leadSelecionado.whatsapp : leadSelecionado.email;
-        const fingerprint = `${leadSelecionado.id}:${selected.canal}:${recipient}:${messageText}`;
+        const knowledgeFingerprint = preparedKnowledge ? `${preparedKnowledge.item.id}:${preparedKnowledge.format}` : 'text';
+        const fingerprint = `${leadSelecionado.id}:${selected.canal}:${recipient}:${messageText}:${knowledgeFingerprint}`;
         let requestId = pendingMessageRequests.current.get(fingerprint);
         if (!requestId) {
           requestId = crypto.randomUUID();
@@ -250,11 +271,12 @@ export default function Atendimento() {
           recipient,
           text: messageText,
           requestId,
+          knowledgeContent: preparedKnowledge ? { itemId: preparedKnowledge.item.id, presentationFormat: preparedKnowledge.format } : null,
         });
         if (!['queued', 'reconciliation'].includes(result.delivery)) {
           pendingMessageRequests.current.delete(fingerprint);
         }
-        if (result.delivery !== 'failed') setTexto('');
+        if (result.delivery !== 'failed') { setTexto(''); setPreparedKnowledge(null); }
         await refreshConversasStore();
         setErroIA(result.detail);
       } catch (error) {
@@ -409,6 +431,7 @@ export default function Atendimento() {
   const shortSyncTime = lastSyncedAt
     ? lastSyncedAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
     : '—';
+  const knowledgeEventByMessage = new Map(knowledgeEvents.map((event) => [event.messageId, event]));
 
   return (
     <div className="wf-page">
@@ -649,6 +672,14 @@ export default function Atendimento() {
                         {m.texto}
                       </div>
                       <p className="text-[10px] text-foreground-400 text-right mt-1">{m.nome} · {m.hora}{m.statusEnvio ? ` · ${deliveryLabel[m.statusEnvio]}` : ''}</p>
+                      {knowledgeEventByMessage.get(m.id)?.item && (
+                        <div className="mt-2 ml-auto flex max-w-[260px] items-center gap-2 rounded-lg border border-primary-200 bg-primary-50 px-2.5 py-2 text-left">
+                          <span className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-md bg-primary-100 text-primary-700">
+                            {knowledgeEventByMessage.get(m.id)?.item?.imageUrl ? <img src={knowledgeEventByMessage.get(m.id)?.item?.imageUrl || ''} alt="" className="h-full w-full object-cover" /> : <i className="ri-bookmark-3-line text-xs" />}
+                          </span>
+                          <span className="min-w-0"><span className="block truncate text-[11px] font-bold text-primary-900">Conteúdo enviado · {knowledgeEventByMessage.get(m.id)?.item?.name}</span><span className="block text-[10px] text-primary-700">{knowledgeEventByMessage.get(m.id)?.presentationFormat === 'technical' ? 'Formato técnico' : knowledgeEventByMessage.get(m.id)?.presentationFormat === 'commercial' ? 'Formato comercial' : 'Conteúdo rastreável'}</span></span>
+                        </div>
+                      )}
                       {(m.correlationId || m.providerMessageId || m.historicoStatus?.length) && (
                         <details className="mt-1 text-right text-[10px] text-foreground-500">
                           <summary className="cursor-pointer select-none">ver trilha da mensagem</summary>
@@ -710,6 +741,12 @@ export default function Atendimento() {
                 </button>
               </div>
             )}
+            {preparedKnowledge && !notaInterna && (
+              <div className="mb-2 flex items-center justify-between gap-2 rounded-lg border border-primary-200 bg-primary-50 px-3 py-2 text-xs text-primary-900">
+                <span className="min-w-0 truncate"><i className="ri-bookmark-3-line mr-1.5" />Conteúdo preparado: <strong>{preparedKnowledge.item.name}</strong> · {preparedKnowledge.format === 'technical' ? 'técnico' : preparedKnowledge.format === 'commercial' ? 'comercial' : 'rápido'}</span>
+                <button type="button" onClick={() => setPreparedKnowledge(null)} className="shrink-0 text-primary-700 hover:text-primary-900" title="Remover vínculo do conteúdo"><i className="ri-close-line text-base" /></button>
+              </div>
+            )}
             {!notaInterna && (
               <div className="mb-2 flex items-center gap-1.5 overflow-x-auto pb-0.5">
                 <span className="shrink-0 text-[11px] font-semibold text-foreground-500">Atalhos:</span>
@@ -734,10 +771,21 @@ export default function Atendimento() {
               >
                 <i className="ri-lock-line text-base"></i>
               </button>
+              {!notaInterna && (
+                <button
+                  type="button"
+                  onClick={() => setKnowledgeOpen(true)}
+                  className="inline-flex h-10 items-center gap-1.5 rounded-lg bg-background-100 px-2.5 text-xs font-semibold text-foreground-600 transition hover:bg-primary-100 hover:text-primary-800"
+                  title="Buscar produtos, serviços e catálogos"
+                >
+                  <i className="ri-book-open-line text-base" />
+                  <span className="hidden sm:inline">Produtos</span>
+                </button>
+              )}
               <div className="relative flex-1">
                 <textarea
                   value={texto}
-                  onChange={(e) => setTexto(e.target.value)}
+                  onChange={(e) => { setTexto(e.target.value); if (preparedKnowledge && e.target.value !== preparedKnowledge.text) setPreparedKnowledge(null); }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault();
@@ -854,6 +902,12 @@ export default function Atendimento() {
               </div>
             </div>
           </section>
+
+          <ConversationKnowledgePanel
+            context={selected.mensagens.slice().reverse().find((message) => message.autor === 'cliente')?.texto || selected.ultimaMensagem}
+            onPrepare={prepareKnowledge}
+            className="mt-4"
+          />
         </aside>
       </div>
 
@@ -973,6 +1027,22 @@ export default function Atendimento() {
           lead={leadSelecionado}
           onClose={() => setDrawerOpen(false)}
         />
+      )}
+      {knowledgeOpen && (
+        <div className="fixed inset-0 z-50 flex justify-end bg-foreground-950/50" onClick={() => setKnowledgeOpen(false)}>
+          <aside className="flex h-full w-full max-w-md flex-col overflow-y-auto bg-background-50 shadow-xl" onClick={(event) => event.stopPropagation()}>
+            <header className="flex items-center justify-between border-b border-background-200/70 px-5 py-4">
+              <div><h3 className="font-heading text-base font-bold text-foreground-950">Produtos, serviços e catálogos</h3><p className="mt-0.5 text-xs text-foreground-500">Conteúdo rastreável da empresa</p></div>
+              <button type="button" onClick={() => setKnowledgeOpen(false)} className="rounded-lg p-1.5 hover:bg-background-100" aria-label="Fechar conteúdo"><i className="ri-close-line text-lg" /></button>
+            </header>
+            <div className="p-4">
+              <ConversationKnowledgePanel
+                context={selected.mensagens.slice().reverse().find((message) => message.autor === 'cliente')?.texto || selected.ultimaMensagem}
+                onPrepare={(content) => { prepareKnowledge(content); setKnowledgeOpen(false); }}
+              />
+            </div>
+          </aside>
+        </div>
       )}
     </div>
   );

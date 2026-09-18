@@ -186,3 +186,16 @@ Detalhes de continuidade e releases ficam em `docs/CONTINUIDADE_WAYFLEX.md`.
 - `ana-run` v25 e o Site oficial versão 86 foram publicados. O lead relatado foi reparado somente no
   campo de canal e o drawer confirma WhatsApp/automação ativa. Nenhuma ação externa foi acionada;
   o primeiro envio ainda requer confirmação específica do operador e comprovação posterior de aceite.
+
+## Delta de conhecimento comercial — 18/09/2026
+
+- Produtos, serviços, catálogos e documentos agora pertencem a uma única base rastreável por
+  organização. `knowledge_catalog_items` e relações aprovadas geram documentos/chunks derivados
+  para a mesma recuperação já usada por `ana-run`.
+- As três páginas Wayflex iniciais são tratadas por adaptadores separados em `catalog-knowledge`;
+  um erro de fetch é visível no estado da fonte/importação, sem criar conteúdo fictício.
+- A Central prepara formatos rápido/comercial/técnico e mantém o caminho humano de fila existente.
+  Arquivos seguem como link rastreável até a homologação de uma pipeline de mídia própria.
+- Migrations, RLS e índices de FKs foram aplicados no projeto oficial. `catalog-knowledge` v3,
+  `enviar-whatsapp` v7 e `ana-run` v30 estão ativos e exigem JWT. Nenhuma mensagem ou lead foi
+  criado como parte desta implementação.

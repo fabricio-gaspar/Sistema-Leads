@@ -630,3 +630,21 @@
 - Publiquei `team-members` v8, `ana-run` v29 e `automation-worker` v28. Não havia item na fila e
   nenhum envio externo foi disparado durante a validação.
 - Testes aprovados: Vitest (5), type-check frontend/Edge, lint e build Vite.
+
+# 2026-09-18 — Base comercial inteligente para Ana e Central
+
+- Reaproveitei `documents`, `knowledge_chunks`, `ana-run`, a fila humana e a Central existentes;
+  não criei segundo motor de IA, outro WhatsApp ou catálogo local paralelo. O antigo catálogo de
+  Configurações agora indica a base canônica em Empresa e conhecimento.
+- A migration comercial cria fontes, itens tipados, relações, importações e eventos da conversa
+  com RLS/RBAC; a segunda migration acrescenta índices de FKs sinalizados pelo advisor. O trigger
+  privado materializa apenas itens ativos/aprovados na memória já consumida pela Ana.
+- `catalog-knowledge` v3 aceita apenas as três URLs Wayflex previstas e persiste estado/erro de
+  sincronização. `enviar-whatsapp` v7 vincula conteúdo ao job humano idempotente; `ana-run` v30
+  recebe intenção comercial sem ampliar seu poder de despacho.
+- Central permite pesquisar, pré-visualizar e preparar produto, serviço, catálogo ou arquivo em
+  formatos rápido/comercial/técnico. Sem pipeline homologada de mídia, PDF/imagem sai como link
+  auditável, não como anexo alegado.
+- Validações: type-check frontend/Edge, lint, build/artefato e os 2 testes de formatter passaram.
+  A suíte completa pelo runner teve 197/198 êxitos; a falha única é pré-existente no contrato de
+  diagnóstico Z-API. Não houve sync remoto, mensagem, job, lead ou chamada de IA nesta rodada.

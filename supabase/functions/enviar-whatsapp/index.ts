@@ -20,9 +20,15 @@ Deno.serve(async (request) => {
     const recipient = text(body.para, 80).replace(/[^0-9+]/g, '');
     const message = text(body.texto, 4_096);
     const requestId = text(body.request_id, 80);
+    const catalogItemId = text(body.content_item_id, 64);
+    const catalogPresentationFormat = text(body.content_presentation_format, 24).toLowerCase();
     const controlledTestRequested = body.teste_controlado === true;
     if (!isUuid(leadId) || !/^\+?\d{10,15}$/.test(recipient) || !message) throw new Error('lead_recipient_and_message_required');
     if (!isUuid(requestId)) throw new Error('message_request_id_required');
+    if (catalogItemId && (!isUuid(catalogItemId) || !['quick', 'commercial', 'technical', 'link', 'document'].includes(catalogPresentationFormat))) {
+      throw new Error('catalog_content_input_required');
+    }
+    if (!catalogItemId && catalogPresentationFormat) throw new Error('catalog_content_input_required');
     const { user } = await requireUser(request);
     const admin = createAdminClient();
     const { data: profile, error: profileError } = await admin.from('profiles').select('active_organization_id,name').eq('id', user.id).maybeSingle();
@@ -46,6 +52,8 @@ Deno.serve(async (request) => {
         || payload.recipient !== recipient
         || payload.message !== message
         || payload.request_id !== requestId
+        || text(payload.catalog_item_id, 64) !== catalogItemId
+        || text(payload.catalog_presentation_format, 24) !== catalogPresentationFormat
         || (payload.controlled_test === true) !== controlledTestRequested
         || String(existingJob.status ?? '') === '') throw new Error('idempotency_payload_mismatch');
       return json({
@@ -77,7 +85,7 @@ Deno.serve(async (request) => {
     if (blockingPolicy?.action === 'throttle') throw new Error('whatsapp_throttled_by_risk_policy');
     const now = new Date();
     const controlledTestExpiresAt = controlledSandboxTest ? new Date(now.getTime() + 5 * 60_000).toISOString() : null;
-    const { data: queuedRows, error: queueError } = await admin.rpc('queue_human_whatsapp_message', {
+    const queueInput = {
       p_organization_id: organizationId,
       p_lead_id: lead.id,
       p_user_id: user.id,
@@ -89,7 +97,13 @@ Deno.serve(async (request) => {
       p_context_last_contact: lead.last_contact ?? null,
       p_controlled_test: controlledSandboxTest,
       p_controlled_test_expires_at: controlledTestExpiresAt,
-    });
+    };
+    const { data: queuedRows, error: queueError } = await admin.rpc(
+      catalogItemId ? 'queue_human_whatsapp_catalog_message' : 'queue_human_whatsapp_message',
+      catalogItemId
+        ? { ...queueInput, p_item_id: catalogItemId, p_presentation_format: catalogPresentationFormat }
+        : queueInput,
+    );
     const queued = firstRow(queuedRows);
     if (queueError || !queued?.job_id) throw queueError ?? new Error('outreach_job_not_created');
     const duplicate = queued.duplicate === true;
@@ -99,7 +113,7 @@ Deno.serve(async (request) => {
         action: controlledSandboxTest ? 'outreach.whatsapp_controlled_test_queued' : 'outreach.whatsapp_queued',
         detail: controlledSandboxTest ? 'Teste controlado colocado na fila segura.' : 'Mensagem colocada na fila segura.',
         entity_table: 'outreach_jobs', entity_id: queued.job_id,
-        event_data: { lead_id: lead.id, integration_id: integration.id, request_id: requestId, controlled_test: controlledSandboxTest },
+        event_data: { lead_id: lead.id, integration_id: integration.id, request_id: requestId, controlled_test: controlledSandboxTest, catalog_item_id: catalogItemId || null, catalog_presentation_format: catalogPresentationFormat || null },
       });
     }
     return json({
