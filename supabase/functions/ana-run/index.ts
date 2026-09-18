@@ -2,6 +2,7 @@ import { createAdminClient, requireOrganizationRole, requireUser } from '../_sha
 import { allowedCorsHeaders, hasAllowedOrigin, json, preflight, safeError } from '../_shared/http.ts';
 import { anaEventKey, automationBlockReason } from '../_shared/runtimeSafety.ts';
 import { suppressionHashes, suppressionOrFilter } from '../_shared/contactSuppression.ts';
+import { handoffStageReached } from '../_shared/handoffPolicy.ts';
 
 const EVENTS = new Set(['lead.created', 'message.received', 'stage.changed', 'meeting.done', 'timeout.48h', 'manual.run', 'cadence.followup']);
 const MODES = new Set(['ia', 'humano']);
@@ -33,7 +34,6 @@ const stageLabel: Record<AnaStage, string> = {
 const databaseStage: Record<AnaStage, string> = {
   novo: 'Prospecção', apresentado: 'Prospecção', qualificando: 'Qualificado', reuniao: 'Qualificado', orcamento: 'Proposta', fechado: 'Fechado',
 };
-
 const ANA_DECISION_SCHEMA = {
   type: 'object', additionalProperties: false,
   required: ['proximo_estagio', 'outcome', 'acoes', 'mensagem_sugerida', 'score', 'motivo', 'precisa_humano'],
@@ -513,6 +513,10 @@ Deno.serve(async (request) => {
       .select('id,organization_id,company,contact,segment,email,phone,whatsapp,score,stage,ana_stage,ana_outcome,modo_atendimento,owner_id,assigned_to,active_channel,ai_paused,opt_out,contact_approval_status,last_contact,no_reply_deadline_at')
       .eq('id', leadId).eq('organization_id', organizationId).maybeSingle();
     if (leadError || !lead) throw new Error('lead_not_found');
+    const { data: handoffPolicy, error: handoffPolicyError } = await admin.from('lead_handoff_policies')
+      .select('assignee_user_id,handoff_stage,notify_whatsapp')
+      .eq('organization_id', organizationId).eq('lead_id', leadId).maybeSingle();
+    if (handoffPolicyError) throw new Error('handoff_policy_read_failed');
     if (!internal && actorId) {
       const { data: membership, error: membershipError } = await admin.from('organization_members').select('role')
         .eq('organization_id', organizationId).eq('user_id', actorId).single();
@@ -748,7 +752,9 @@ Deno.serve(async (request) => {
       };
     }
 
-    const needsHuman = decision.precisa_humano || decision.acoes.some((action) => action.tipo === 'handoff') || modo === 'humano' || timeout || Boolean(applicableSuppressions.length) || sensitiveInbound || Boolean(configurationTrigger) || missingTechnicalKnowledge || Boolean(policyHandoffReason);
+    const stageLimitReached = Boolean(handoffPolicy) && handoffStageReached(decision.proximo_estagio, handoffPolicy?.handoff_stage);
+    if (stageLimitReached && !decision.motivo) decision = { ...decision, motivo: `Etapa de transferência ${stageLabel[asText(handoffPolicy?.handoff_stage, 40) as AnaStage]} atingida.` };
+    const needsHuman = decision.precisa_humano || decision.acoes.some((action) => action.tipo === 'handoff') || modo === 'humano' || timeout || Boolean(applicableSuppressions.length) || sensitiveInbound || Boolean(configurationTrigger) || missingTechnicalKnowledge || Boolean(policyHandoffReason) || stageLimitReached;
     // A request to arrange a meeting needs a human to confirm availability,
     // but it is safe for Ana to acknowledge it and say that a consultant will
     // confirm the slots. Keep the handoff open; only release this narrow,
@@ -847,11 +853,18 @@ Deno.serve(async (request) => {
       appliedActions.push({ tipo: 'enviar_mensagem', status: channelConnected && !applicableSuppressions.length ? 'enfileirado' : 'pendente_canal' });
     }
     if (needsHuman) {
-      const { error: handoffError } = await admin.from('lead_handoffs').insert({ organization_id: organizationId, lead_id: leadId, to_user_id: lead.owner_id, assigned_to: lead.owner_id, status: 'pending', reason: decision.motivo || 'Revisar atendimento da Ana.', summary: decision.motivo || 'Revisar atendimento da Ana.', due_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(), context: { run_id: runId, event, score: decision.score } });
+      const handoffAssigneeId = stageLimitReached ? handoffPolicy?.assignee_user_id : lead.owner_id;
+      if (!handoffAssigneeId) throw new Error('handoff_assignee_required');
+      const { data: createdHandoff, error: handoffError } = await admin.from('lead_handoffs').insert({ organization_id: organizationId, lead_id: leadId, to_user_id: handoffAssigneeId, assigned_to: handoffAssigneeId, status: 'pending', reason: decision.motivo || 'Revisar atendimento da Ana.', summary: decision.motivo || 'Revisar atendimento da Ana.', due_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(), context: { run_id: runId, event, score: decision.score, stage_limit_reached: stageLimitReached } }).select('id').maybeSingle();
       if (handoffError && handoffError.code !== '23505') throw handoffError;
       if (!handoffError) {
-        const { error: taskError } = await admin.from('lead_tasks').insert({ organization_id: organizationId, lead_id: leadId, owner_id: lead.owner_id, owner_label: actorName || 'Responsável', text: decision.motivo || 'Revisar atendimento da Ana.', due_at: new Date().toISOString(), completed: false, metadata: { agent_run_id: runId } });
+        const { error: taskError } = await admin.from('lead_tasks').insert({ organization_id: organizationId, lead_id: leadId, owner_id: handoffAssigneeId, owner_label: actorName || 'Responsável', text: decision.motivo || 'Revisar atendimento da Ana.', due_at: new Date().toISOString(), completed: false, metadata: { agent_run_id: runId, handoff_id: createdHandoff?.id ?? null, stage_limit_reached: stageLimitReached } });
         if (taskError) throw taskError;
+        const { error: handoffEventError } = await admin.from('domain_events').insert({
+          organization_id: organizationId, event_name: 'lead.handoff.requested', entity_type: 'lead', entity_id: leadId,
+          actor_type: 'ai', actor_id: null, payload: { handoff_id: createdHandoff?.id ?? null, summary: decision.motivo || 'Revisar atendimento da Ana.', next_action: 'Assumir o atendimento', stage_limit_reached: stageLimitReached }, occurred_at: new Date().toISOString(),
+        });
+        if (handoffEventError) throw handoffEventError;
       }
       appliedActions.push({ tipo: 'handoff', status: handoffError ? 'ja_existente' : 'criado' });
     }

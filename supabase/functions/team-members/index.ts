@@ -1,10 +1,10 @@
 import { createAdminClient, requireOrganizationPermission, requireUser } from '../_shared/auth.ts';
 import { allowedCorsHeaders, hasAllowedOrigin, json, preflight, safeError } from '../_shared/http.ts';
-import { defaultPermissionsForRole, organizationPermissions, type OrganizationPermission } from '../_shared/permissions.ts';
+import { defaultPermissionsForRole, organizationPermissions } from '../_shared/permissions.ts';
 import { maskDailyReportPhone, normalizeDailyReportPhone, validDailyReportTime } from '../_shared/dailyLeadReport.ts';
 
 const roles = new Set(['administrador', 'vendedor', 'sdr', 'cx']);
-type Action = 'create' | 'invite' | 'update_role' | 'set_status' | 'remove' | 'permissions_get' | 'permissions_set' | 'daily_report_get' | 'daily_report_set';
+type Action = 'create' | 'invite' | 'update_role' | 'set_status' | 'remove' | 'permissions_get' | 'permissions_set' | 'daily_report_get' | 'daily_report_set' | 'handoff_alert_get' | 'handoff_alert_set';
 
 function text(value: unknown, max = 180): string {
   return typeof value === 'string' ? value.trim().slice(0, max) : '';
@@ -57,6 +57,21 @@ async function dailyReportSettings(
     lastStatus: delivery?.status ?? preference?.daily_lead_report_last_status ?? null,
     lastSentAt: delivery?.sent_at ?? preference?.daily_lead_report_last_sent_at ?? null,
     lastError: delivery?.error ?? preference?.daily_lead_report_last_error ?? null,
+  };
+}
+
+async function handoffAlertSettings(
+  admin: ReturnType<typeof createAdminClient>,
+  organizationId: string,
+  userId: string,
+) {
+  const { data, error } = await admin.from('notification_preferences')
+    .select('handoff_whatsapp_enabled,handoff_whatsapp_phone')
+    .eq('organization_id', organizationId).eq('user_id', userId).maybeSingle();
+  if (error) throw new Error('handoff_alert_settings_read_failed');
+  return {
+    enabled: data?.handoff_whatsapp_enabled === true,
+    phoneSuffix: maskDailyReportPhone(data?.handoff_whatsapp_phone) || null,
   };
 }
 
@@ -301,6 +316,38 @@ Deno.serve(async (request) => {
         event_data: { user_id: targetUserId, schedule_time: scheduleTime, timezone, phone_suffix: phone?.slice(-4) ?? null },
       });
       return json({ ok: true, settings: await dailyReportSettings(admin, organizationId, targetUserId) }, 200, headers);
+    }
+
+    if (action === 'handoff_alert_get') {
+      return json({ ok: true, settings: await handoffAlertSettings(admin, organizationId, targetUserId) }, 200, headers);
+    }
+
+    if (action === 'handoff_alert_set') {
+      if (typeof body.enabled !== 'boolean') throw new Error('handoff_alert_enabled_required');
+      const { data: existing, error: existingError } = await admin.from('notification_preferences')
+        .select('handoff_whatsapp_phone').eq('organization_id', organizationId).eq('user_id', targetUserId).maybeSingle();
+      if (existingError) throw new Error('handoff_alert_settings_read_failed');
+      const rawPhone = text(body.phone, 40);
+      const suppliedPhone = rawPhone ? normalizeDailyReportPhone(rawPhone) : null;
+      if (rawPhone && !suppliedPhone) throw new Error('invalid_handoff_alert_phone');
+      const phone = suppliedPhone || normalizeDailyReportPhone(existing?.handoff_whatsapp_phone);
+      if (body.enabled && !phone) throw new Error('handoff_alert_phone_required');
+      const { error: writeError } = await admin.from('notification_preferences').upsert({
+        organization_id: organizationId,
+        user_id: targetUserId,
+        handoff_whatsapp_enabled: body.enabled,
+        handoff_whatsapp_phone: phone,
+        updated_by: user.id,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'organization_id,user_id' });
+      if (writeError) throw new Error('handoff_alert_settings_save_failed');
+      await admin.from('audit_logs').insert({
+        organization_id: organizationId, actor_id: user.id, actor_name: profile.name, actor_type: 'user',
+        action: body.enabled ? 'notification.handoff_alert_enabled' : 'notification.handoff_alert_disabled',
+        detail: body.enabled ? 'Aviso de transferência por WhatsApp habilitado para um usuário.' : 'Aviso de transferência por WhatsApp desabilitado para um usuário.',
+        entity_table: 'notification_preferences', event_data: { user_id: targetUserId, phone_suffix: phone?.slice(-4) ?? null },
+      });
+      return json({ ok: true, settings: await handoffAlertSettings(admin, organizationId, targetUserId) }, 200, headers);
     }
 
     if (action === 'update_role') {

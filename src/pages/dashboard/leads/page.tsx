@@ -10,6 +10,11 @@ import { useAuth } from '@/hooks/useAuth';
 import { runAna } from '@/lib/crm/anaRunRepository';
 import { loadTeamMembers, type TeamMember } from '@/lib/crm/teamMembersRepository';
 import { approvedAnaWhatsAppChannel, pendingManualLeadContact } from '@/lib/crm/manualLeadContact';
+import { configureLeadHandoffPolicy, handoffStages, type HandoffStage } from '@/lib/crm/handoffPolicyRepository';
+
+const handoffStageLabels: Record<HandoffStage, string> = {
+  novo: 'Novo', apresentado: 'Apresentado', qualificando: 'Qualificando', reuniao: 'Reunião', orcamento: 'Orçamento',
+};
 
 const etapaCores: Record<string, string> = {
   'Novo': 'bg-background-200 text-foreground-600',
@@ -53,6 +58,8 @@ export default function Leads() {
   const [editForm, setEditForm] = useState({ nome: '', email: '', telefone: '', responsavel: '', responsavelId: '', tags: '' });
   const [membros, setMembros] = useState<TeamMember[]>([]);
   const [handoffEtapa, setHandoffEtapa] = useState('');
+  const [handoffAssigneeId, setHandoffAssigneeId] = useState('');
+  const [handoffNotifyWhatsapp, setHandoffNotifyWhatsapp] = useState(false);
   const [modoSelecionado, setModoSelecionado] = useState<'IA' | 'HUMANO' | null>(null);
   const [aprovacaoKanban, setAprovacaoKanban] = useState({ confirmada: false, origem: '' });
   const navigate = useNavigate();
@@ -143,7 +150,7 @@ export default function Leads() {
 
   // Aprova os leads selecionados e persiste modo + responsável antes de
   // acionar a Ana no backend.
-  const enviarParaKanban = async (ids: string[], modo: 'IA' | 'HUMANO', etapaHandoff?: string) => {
+  const enviarParaKanban = async (ids: string[], modo: 'IA' | 'HUMANO', etapaHandoff?: HandoffStage) => {
     if (ids.length === 0) return;
     if (!user?.id) {
       mostrarToast('Sua sessão não possui um responsável válido. Entre novamente antes de enviar ao Kanban.');
@@ -161,6 +168,28 @@ export default function Leads() {
       mostrarToast('Informe um telefone/WhatsApp válido antes de ativar a Ana.');
       return;
     }
+    const handoffMember = membros.find((member) => member.userId === handoffAssigneeId);
+    if (modo === 'IA') {
+      try {
+        await configureLeadHandoffPolicy({
+          leadIds: ids,
+          assigneeUserId: etapaHandoff ? handoffAssigneeId || null : null,
+          stage: etapaHandoff ?? null,
+          notifyWhatsapp: etapaHandoff ? handoffNotifyWhatsapp : false,
+        });
+      } catch (error) {
+        const code = error instanceof Error ? error.message : '';
+        const message = code.includes('handoff_whatsapp_not_configured')
+          ? 'O vendedor não possui WhatsApp de aviso configurado. Configure em Usuários antes de ativar este aviso.'
+          : code.includes('handoff_assignee_cannot_reply')
+            ? 'O usuário escolhido não tem permissão para responder conversas.'
+            : code.includes('handoff_assignee')
+              ? 'Escolha um vendedor ativo para receber a transferência.'
+              : 'Não foi possível gravar a regra de transferência. A Ana não foi acionada.';
+        mostrarToast(message);
+        return;
+      }
+    }
     const idsSet = new Set(ids);
     setLeads((current) => current.map((lead) => {
       if (!idsSet.has(lead.id)) return lead;
@@ -173,9 +202,10 @@ export default function Leads() {
         contactApprovedAt: modo === 'IA' && (lead.contactApprovalStatus !== 'approved' || !lead.whatsapp) ? new Date().toISOString() : lead.contactApprovedAt,
         contatoPermitido: modo === 'IA' ? true : lead.contatoPermitido,
         consentimentoWhatsApp: modo === 'IA' ? true : lead.consentimentoWhatsApp,
-        aguardandoAtivacao: false, modoAtendimento: modo, responsavelId: lead.responsavelId || user.id,
-        responsavel: lead.responsavel === 'Ana (IA)' || !lead.responsavel ? 'Você' : lead.responsavel,
+        aguardandoAtivacao: false, modoAtendimento: modo, responsavelId: etapaHandoff ? handoffAssigneeId : lead.responsavelId || user.id,
+        responsavel: etapaHandoff ? handoffMember?.name || lead.responsavel : lead.responsavel === 'Ana (IA)' || !lead.responsavel ? 'Você' : lead.responsavel,
         etapa: 'Novo', etapaHandoff, automacaoStatus: modo === 'HUMANO' ? 'AGUARDANDO_HUMANO' : 'ATIVA',
+        handoffWhatsappAtivo: etapaHandoff ? handoffNotifyWhatsapp : false,
       };
     }));
     try {
@@ -210,6 +240,7 @@ export default function Leads() {
     setEnvioAlvo(null);
     setModoSelecionado(null);
     setAprovacaoKanban({ confirmada: false, origem: '' });
+    setHandoffEtapa(''); setHandoffAssigneeId(''); setHandoffNotifyWhatsapp(false);
   };
 
   const criarLead = async () => {
@@ -569,14 +600,14 @@ export default function Leads() {
 
       {/* Modal de escolha de modo (Ana ou Humano) ao enviar para o Kanban */}
       {envioAlvo && (
-        <div className="fixed inset-0 z-50 bg-foreground-950/50 flex items-center justify-center p-4" onClick={() => { setEnvioAlvo(null); setModoSelecionado(null); setAprovacaoKanban({ confirmada: false, origem: '' }); }}>
+        <div className="fixed inset-0 z-50 bg-foreground-950/50 flex items-center justify-center p-4" onClick={() => { setEnvioAlvo(null); setModoSelecionado(null); setAprovacaoKanban({ confirmada: false, origem: '' }); setHandoffEtapa(''); setHandoffAssigneeId(''); setHandoffNotifyWhatsapp(false); }}>
           <div className="bg-background-50 rounded-xl max-w-lg w-full" onClick={(e) => e.stopPropagation()}>
             <div className="px-6 py-4 border-b border-background-200/70 flex items-center justify-between">
               <div>
                 <h3 className="font-heading font-bold text-foreground-950">Enviar para o Kanban</h3>
                 <p className="text-sm text-foreground-500">{envioAlvo.length} lead(s) selecionado(s)</p>
               </div>
-              <button onClick={() => { setEnvioAlvo(null); setModoSelecionado(null); setAprovacaoKanban({ confirmada: false, origem: '' }); }} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-background-100 cursor-pointer">
+              <button onClick={() => { setEnvioAlvo(null); setModoSelecionado(null); setAprovacaoKanban({ confirmada: false, origem: '' }); setHandoffEtapa(''); setHandoffAssigneeId(''); setHandoffNotifyWhatsapp(false); }} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-background-100 cursor-pointer">
                 <i className="ri-close-line text-lg"></i>
               </button>
             </div>
@@ -636,21 +667,23 @@ export default function Leads() {
                     className="w-full px-4 py-2.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-900 cursor-pointer"
                   >
                     <option value="">Até o fim do funil (Ana conduz tudo)</option>
-                    {['Novo', 'Apresentado', 'Qualificando', 'Reunião', 'Orçamento'].map((e) => (
-                      <option key={e} value={e}>{e}</option>
+                    {handoffStages.map((stage) => (
+                      <option key={stage} value={stage}>{handoffStageLabels[stage]}</option>
                     ))}
                   </select>
-                  <p className="text-[11px] text-foreground-400 mt-1.5">
-                    Ao chegar nessa etapa, a Ana transfere o lead pro vendedor (com tarefa e notificação). Vale apenas para a opção Ana (IA).
-                  </p>
+                  {handoffEtapa && <div className="mt-3 space-y-3 rounded-xl border border-background-200 bg-background-100/60 p-3">
+                    <label className="block text-xs font-semibold text-foreground-600">Vendedor que assumirá a transferência<select value={handoffAssigneeId} onChange={(event) => setHandoffAssigneeId(event.target.value)} className="mt-1.5 w-full rounded-lg border border-background-300 bg-background-50 px-3 py-2 text-sm text-foreground-900"><option value="">Selecione um usuário ativo</option>{membros.map((member) => <option key={member.userId} value={member.userId}>{member.name} · {member.role}</option>)}</select></label>
+                    <label className="flex items-start gap-2 text-xs text-foreground-700"><input type="checkbox" checked={handoffNotifyWhatsapp} onChange={(event) => setHandoffNotifyWhatsapp(event.target.checked)} className="mt-0.5" /><span><strong>Enviar aviso interno por WhatsApp</strong><span className="mt-0.5 block text-foreground-500">O número é configurado em Usuários &gt; Aviso de transferência. O aviso não entra no histórico do lead.</span></span></label>
+                  </div>}
+                  <p className="text-[11px] text-foreground-400 mt-1.5">Ao atingir a etapa escolhida, a Ana pausa, cria a tarefa e transfere ao vendedor definido. A regra é gravada no servidor.</p>
                 </div>
               )}
             </div>
             <div className="px-6 py-4 border-t border-background-200/70 flex justify-end gap-2">
-              <button onClick={() => { setEnvioAlvo(null); setModoSelecionado(null); setAprovacaoKanban({ confirmada: false, origem: '' }); }} className="px-4 py-2.5 border border-background-300 text-foreground-700 rounded-lg text-sm font-semibold hover:bg-background-100 cursor-pointer whitespace-nowrap">Cancelar</button>
+              <button onClick={() => { setEnvioAlvo(null); setModoSelecionado(null); setAprovacaoKanban({ confirmada: false, origem: '' }); setHandoffEtapa(''); setHandoffAssigneeId(''); setHandoffNotifyWhatsapp(false); }} className="px-4 py-2.5 border border-background-300 text-foreground-700 rounded-lg text-sm font-semibold hover:bg-background-100 cursor-pointer whitespace-nowrap">Cancelar</button>
               <button
-                onClick={() => modoSelecionado && enviarParaKanban(envioAlvo, modoSelecionado, modoSelecionado === 'IA' ? handoffEtapa || undefined : undefined)}
-                disabled={!modoSelecionado || (modoSelecionado === 'IA' && envioAlvo.some((id) => { const lead = leads.find((item) => item.id === id); return lead?.contactApprovalStatus !== 'approved' || !lead.whatsapp; }) && (!aprovacaoKanban.confirmada || !aprovacaoKanban.origem.trim()))}
+                onClick={() => modoSelecionado && enviarParaKanban(envioAlvo, modoSelecionado, modoSelecionado === 'IA' && handoffEtapa ? handoffEtapa as HandoffStage : undefined)}
+                disabled={!modoSelecionado || (modoSelecionado === 'IA' && Boolean(handoffEtapa) && !handoffAssigneeId) || (modoSelecionado === 'IA' && envioAlvo.some((id) => { const lead = leads.find((item) => item.id === id); return lead?.contactApprovalStatus !== 'approved' || !lead.whatsapp; }) && (!aprovacaoKanban.confirmada || !aprovacaoKanban.origem.trim()))}
                 className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary-500 hover:bg-primary-600 disabled:bg-primary-300 disabled:cursor-not-allowed text-background-50 rounded-lg text-sm font-bold cursor-pointer whitespace-nowrap"
               >
                 <i className="ri-send-plane-2-line"></i>

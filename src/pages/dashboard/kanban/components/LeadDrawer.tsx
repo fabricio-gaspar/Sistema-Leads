@@ -362,19 +362,10 @@ export default function LeadDrawer({ lead, onClose, onMudarEtapa, onAbrirConvers
                     <i className="ri-robot-line"></i>
                     Até qual etapa a Ana atende?
                   </p>
-                  <select
-                    value={lead.etapaHandoff || ''}
-                    onChange={(e) => fluxo.atualizarEtapaHandoff(lead.id, e.target.value)}
-                    className="w-full px-3 py-2.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-900 cursor-pointer"
-                  >
-                    <option value="">Até o fim do funil (Ana conduz tudo)</option>
-                    {etapasHandoff.map((e) => (
-                      <option key={e} value={e}>{e}</option>
-                    ))}
-                  </select>
-                  <p className="text-[10px] text-foreground-400 mt-1.5">
-                    Ao chegar nessa etapa, a Ana transfere o lead pro vendedor (com tarefa e notificação).
-                  </p>
+                  <div className="rounded-lg border border-background-200 bg-background-50 px-3 py-2.5 text-sm text-foreground-900">
+                    {lead.etapaHandoff ? `Transferir em ${lead.etapaHandoff}` : 'Sem transferência automática configurada'}
+                  </div>
+                  <p className="text-[10px] text-foreground-400 mt-1.5">Configure a etapa e o vendedor em Leads &gt; Enviar para o Kanban. A regra é aplicada pelo servidor.</p>
                 </div>
               )}
 

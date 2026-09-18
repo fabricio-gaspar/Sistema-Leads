@@ -44,6 +44,13 @@ export interface CrmLeadRow {
   no_reply_deadline_at?: string | null;
 }
 
+export type LeadHandoffPolicyRow = {
+  lead_id: string;
+  handoff_stage: string;
+  assignee_user_id: string;
+  notify_whatsapp: boolean;
+};
+
 export function isUuid(value: string): boolean {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
@@ -193,7 +200,7 @@ function databaseStageForAna(stage: string): string {
   return ({ novo: 'Prospecção', apresentado: 'Prospecção', qualificando: 'Qualificado', reuniao: 'Qualificado', orcamento: 'Proposta', fechado: 'Fechado' } as Record<string, string>)[stage] ?? 'Prospecção';
 }
 
-export function crmRowToLead(row: CrmLeadRow): Lead {
+export function crmRowToLead(row: CrmLeadRow, handoffPolicy?: LeadHandoffPolicyRow): Lead {
   const meta = row.source_metadata ?? {};
   const score = row.score ?? 0;
   const isHuman = row.modo_atendimento === 'humano' || row.ai_paused || row.automation_status === 'human';
@@ -221,5 +228,6 @@ export function crmRowToLead(row: CrmLeadRow): Lead {
     fitScore: typeof scoreSnapshot.fit === 'number' ? scoreSnapshot.fit : score, contactabilityScore: typeof scoreSnapshot.contactability === 'number' ? scoreSnapshot.contactability : 0,
     engagementScore: typeof scoreSnapshot.engagement === 'number' ? scoreSnapshot.engagement : 0, scoreExplanation: row.score_explanation ?? '', scoreVerifiedAt: row.score_verified_at ?? null,
     primeiroContatoEnviadoEm: null, aguardandoAtivacao: approvalStatus !== 'approved', noShows: 0, fluxosProgramados: [], arquivado: false,
+    etapaHandoff: handoffPolicy?.handoff_stage, handoffWhatsappAtivo: handoffPolicy?.notify_whatsapp === true,
   };
 }

@@ -1,6 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { resolveOrganizationSession } from '@/lib/organizationSession';
-import { crmRowToLead, leadToCrmRow, persistentLeadId, type CrmLeadRow } from '@/lib/crm/leadMapper';
+import { crmRowToLead, leadToCrmRow, persistentLeadId, type CrmLeadRow, type LeadHandoffPolicyRow } from '@/lib/crm/leadMapper';
 import type { Lead } from '@/mocks/leadsData';
 
 export async function loadOperationalLeads(): Promise<Lead[]> {
@@ -11,7 +11,14 @@ export async function loadOperationalLeads(): Promise<Lead[]> {
     .eq('organization_id', session.organizationId)
     .order('updated_at', { ascending: false });
   if (error) throw error;
-  return ((data ?? []) as CrmLeadRow[]).map(crmRowToLead);
+  const rows = (data ?? []) as CrmLeadRow[];
+  const ids = rows.map((lead) => lead.id).filter((id): id is string => Boolean(id));
+  const { data: policies, error: policiesError } = ids.length
+    ? await supabase.from('lead_handoff_policies').select('lead_id,handoff_stage,assignee_user_id,notify_whatsapp').in('lead_id', ids)
+    : { data: [], error: null };
+  if (policiesError) throw policiesError;
+  const policyByLead = new Map(((policies ?? []) as LeadHandoffPolicyRow[]).map((policy) => [policy.lead_id, policy]));
+  return rows.map((lead) => crmRowToLead(lead, policyByLead.get(lead.id)));
 }
 
 function sameValue(left: unknown, right: unknown): boolean {

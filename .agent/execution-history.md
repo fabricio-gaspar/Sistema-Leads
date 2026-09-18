@@ -620,3 +620,13 @@
   ação comercial, acompanhamento e atraso.
 - Não houve alteração de fontes de dados, regras comerciais, filas, automações ou integrações.
 - Validação: type-check frontend, lint e build Vite aprovados.
+
+# 2026-09-18 — Política de transferência da Ana por lead
+
+- Implementei a seleção persistida de vendedor responsável, etapa canônica de transferência e
+  opt-in de aviso WhatsApp no fluxo **Leads > Enviar para Kanban**.
+- O banco oficial recebeu a política, a fila privada de avisos e a RPC com validação de função do
+  usuário alvo. A checagem confirmou que não existe escrita/leitura direta da fila pelo frontend.
+- Publiquei `team-members` v8, `ana-run` v29 e `automation-worker` v28. Não havia item na fila e
+  nenhum envio externo foi disparado durante a validação.
+- Testes aprovados: Vitest (5), type-check frontend/Edge, lint e build Vite.

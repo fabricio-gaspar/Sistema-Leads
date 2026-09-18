@@ -857,3 +857,26 @@ webhook em ambiente controlado.
 - A origem dos dados e os comportamentos operacionais foram preservados; não foram alteradas
   filas, automações, regras da Ana, integrações ou registros.
 - Validação local: type-check frontend, lint e build Vite aprovados.
+
+## 2026-09-18 — Transferência programada da Ana para um vendedor
+
+- O envio ao Kanban agora grava uma política operacional real, e não apenas uma seleção visual:
+  o administrador define o usuário humano de destino e a etapa canônica em que a Ana deve
+  transferir o atendimento (**Novo**, **Apresentado**, **Qualificando**, **Reunião** ou
+  **Orçamento**). A política é persistida por lead e aparece em leituras posteriores.
+- Ao atingir a etapa configurada, `ana-run` v29 pausa a Ana, cria o handoff e a tarefa para o
+  usuário escolhido e registra o evento que alimenta a notificação interna. Não é criado novo
+  envio ao lead por essa configuração.
+- Em **Configurações > Usuários**, cada administrador pode habilitar opcionalmente o aviso de
+  transferência por WhatsApp e registrar o telefone do próprio usuário. O aviso é enfileirado de
+  forma auditável e só o `automation-worker` v28 pode despachá-lo após as verificações existentes
+  de Ambiente Real, integração Z-API e política de risco. O telefone não é exposto à interface
+  depois de salvo.
+- Migration oficial `20260918185000_handoff_assignee_and_whatsapp_alerts` aplicada no Supabase
+  `thgzrkppouoevapjquyu`. A verificação de privilégios confirmou que usuários autenticados podem
+  chamar apenas a RPC controlada; não podem ler nem inserir na fila de avisos. A fila estava vazia
+  durante a validação, portanto nenhum WhatsApp foi enviado.
+- Regressão: 5 testes Vitest passaram com `--configLoader runner`; type-check frontend/Edge, lint
+  e build Vite também passaram. Edge Functions publicadas: `team-members` v8, `ana-run` v29 e
+  `automation-worker` v28. O teste de envio real permanece pendente de confirmação específica do
+  operador, pois ele geraria uma mensagem externa.

@@ -91,6 +91,11 @@ export interface DailyLeadReportSettings {
   lastError: string | null;
 }
 
+export interface HandoffWhatsappAlertSettings {
+  enabled: boolean;
+  phoneSuffix: string | null;
+}
+
 export async function createTeamMember(input: { name: string; email: string; password: string; role: TeamRole }): Promise<void> {
   await mutate('create', input);
 }
@@ -130,6 +135,21 @@ export async function saveDailyLeadReportSettings(
     phone: input.phone,
     schedule_time: input.scheduleTime,
     timezone: input.timezone,
+  });
+  return result.settings;
+}
+
+export async function loadHandoffWhatsappAlertSettings(userId: string): Promise<HandoffWhatsappAlertSettings> {
+  const result = await mutate<{ settings: HandoffWhatsappAlertSettings }>('handoff_alert_get', { user_id: userId });
+  return result.settings;
+}
+
+export async function saveHandoffWhatsappAlertSettings(
+  userId: string,
+  input: { enabled: boolean; phone?: string },
+): Promise<HandoffWhatsappAlertSettings> {
+  const result = await mutate<{ settings: HandoffWhatsappAlertSettings }>('handoff_alert_set', {
+    user_id: userId, enabled: input.enabled, phone: input.phone,
   });
   return result.settings;
 }

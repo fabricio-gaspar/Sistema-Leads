@@ -1267,6 +1267,59 @@ async function processDailyWhatsappReports(admin: Admin, organizationId: string)
   return { status: sent > 0 ? 'sent' : 'idle', due: due.length, sent, failed, reconciliationRequired };
 }
 
+type HandoffWhatsappRun = { status: 'idle' | 'sent' | 'blocked' | 'integration_unavailable' | 'real_mode_required'; queued: number; sent: number; failed: number; reconciliationRequired: number };
+
+async function processHandoffWhatsappNotifications(admin: Admin, organizationId: string): Promise<HandoffWhatsappRun> {
+  const empty = (status: HandoffWhatsappRun['status']): HandoffWhatsappRun => ({ status, queued: 0, sent: 0, failed: 0, reconciliationRequired: 0 });
+  const { data: deliveries, error: deliveriesError } = await admin.from('handoff_whatsapp_deliveries')
+    .select('id,handoff_id,lead_id,recipient_user_id,recipient_phone').eq('organization_id', organizationId).eq('status', 'queued').order('created_at', { ascending: true }).limit(25);
+  if (deliveriesError) throw new Error('handoff_notification_queue_read_failed');
+  if (!(deliveries ?? []).length) return empty('idle');
+  const [companyRead, whatsappRead, riskRead] = await Promise.all([
+    admin.from('company_settings').select('active,sandbox_mode').eq('organization_id', organizationId).maybeSingle(),
+    admin.from('integrations').select('id,connected,enabled,paused').eq('organization_id', organizationId).eq('key', 'whatsapp').maybeSingle(),
+    admin.from('channel_policy_events').select('id').eq('organization_id', organizationId).eq('channel', 'whatsapp').eq('action', 'pause').is('resolved_at', null).limit(1).maybeSingle(),
+  ]);
+  if (companyRead.error || whatsappRead.error || riskRead.error) throw new Error('handoff_notification_runtime_read_failed');
+  if (companyRead.data?.active !== true || companyRead.data?.sandbox_mode !== false) return { ...empty('real_mode_required'), queued: deliveries!.length };
+  const whatsapp = whatsappRead.data;
+  if (!whatsapp?.connected || !whatsapp.enabled || whatsapp.paused || riskRead.data) return { ...empty('blocked'), queued: deliveries!.length };
+  const { data: credentials, error: credentialsError } = await admin.rpc('read_integration_secret', { p_integration: whatsapp.id });
+  if (credentialsError) return { ...empty('integration_unavailable'), queued: deliveries!.length };
+  let sent = 0; let failed = 0; let reconciliationRequired = 0;
+  for (const delivery of deliveries ?? []) {
+    const { data: claimed, error: claimError } = await admin.from('handoff_whatsapp_deliveries').update({ status: 'sending', attempted_at: new Date().toISOString(), updated_at: new Date().toISOString(), error: null }).eq('id', delivery.id).eq('organization_id', organizationId).eq('status', 'queued').select('id').maybeSingle();
+    if (claimError) throw new Error('handoff_notification_claim_failed');
+    if (!claimed) continue;
+    let providerAccepted = false;
+    try {
+      const [{ data: lead, error: leadError }, { data: handoff, error: handoffError }] = await Promise.all([
+        admin.from('leads').select('company,contact,ana_stage').eq('id', delivery.lead_id).eq('organization_id', organizationId).maybeSingle(),
+        admin.from('lead_handoffs').select('reason').eq('id', delivery.handoff_id).eq('organization_id', organizationId).maybeSingle(),
+      ]);
+      if (leadError || handoffError || !lead || !handoff) throw new Error('handoff_notification_context_not_found');
+      const subject = asText(lead.contact, 120) || asText(lead.company, 160) || 'um lead';
+      const reason = asText(handoff.reason, 220) || 'A Ana solicitou atendimento humano.';
+      const stage = asText(lead.ana_stage, 40) || 'atual';
+      const message = `Wayflex: ${subject} foi transferido para você na etapa ${stage}. Motivo: ${reason} Abra a Central de Atendimento para assumir.`;
+      const receipt = await sendWhatsapp(asObject(credentials), delivery.recipient_phone, message);
+      providerAccepted = true;
+      const sentAt = new Date().toISOString();
+      const { error: sentError } = await admin.from('handoff_whatsapp_deliveries').update({ status: 'sent', provider_message_id: receipt.messageId, sent_at: sentAt, updated_at: sentAt, error: null }).eq('id', delivery.id).eq('organization_id', organizationId).eq('status', 'sending');
+      if (sentError) throw new Error('handoff_notification_acceptance_persist_failed');
+      await admin.from('audit_logs').insert({ organization_id: organizationId, actor_name: 'Sistema', actor_type: 'system', action: 'notification.handoff_provider_accepted', detail: 'Aviso interno de transferência aceito pela Z-API.', entity_table: 'handoff_whatsapp_deliveries', entity_id: delivery.id, event_data: { handoff_id: delivery.handoff_id, user_id: delivery.recipient_user_id, phone_suffix: delivery.recipient_phone.slice(-4) } });
+      sent += 1;
+    } catch (error) {
+      const status = providerAccepted ? 'reconciliation_required' : 'failed';
+      const code = providerAccepted ? 'handoff_notification_provider_accepted_reconciliation_required' : safeError(error).slice(0, 160);
+      await admin.from('handoff_whatsapp_deliveries').update({ status, error: code, updated_at: new Date().toISOString() }).eq('id', delivery.id).eq('organization_id', organizationId);
+      await admin.from('audit_logs').insert({ organization_id: organizationId, actor_name: 'Sistema', actor_type: 'system', action: providerAccepted ? 'notification.handoff_reconciliation_required' : 'notification.handoff_failed', detail: providerAccepted ? 'A Z-API aceitou o aviso interno, mas a persistência final requer reconciliação.' : 'O aviso interno de transferência não foi enviado.', entity_table: 'handoff_whatsapp_deliveries', entity_id: delivery.id, event_data: { handoff_id: delivery.handoff_id, user_id: delivery.recipient_user_id, phone_suffix: delivery.recipient_phone.slice(-4), reason: code } });
+      if (providerAccepted) reconciliationRequired += 1; else failed += 1;
+    }
+  }
+  return { status: sent > 0 ? 'sent' : 'idle', queued: deliveries!.length, sent, failed, reconciliationRequired };
+}
+
 async function processAnaOperations(admin: Admin, organizationId: string, schedulerToken: string) {
   const now = new Date();
   const [{ data: company }, { data: runtime }] = await Promise.all([
@@ -1483,6 +1536,9 @@ Deno.serve(async (request) => {
     const dailyWhatsappReports = serverScheduler
       ? await processDailyWhatsappReports(admin, orgId)
       : { status: 'manual_skip', due: 0, sent: 0, failed: 0, reconciliationRequired: 0 };
+    const handoffWhatsappNotifications = serverScheduler
+      ? await processHandoffWhatsappNotifications(admin, orgId)
+      : { status: 'manual_skip', queued: 0, sent: 0, failed: 0, reconciliationRequired: 0 };
     const blocked =
       reads[0].data?.active !== true ? "company_not_active" : null;
     if (blocked)
@@ -2259,6 +2315,7 @@ Deno.serve(async (request) => {
         reconciled_provider_acceptances: reconciledProviderAcceptances,
         ana_operations: anaOperations,
         daily_whatsapp_reports: dailyWhatsappReports,
+        handoff_whatsapp_notifications: handoffWhatsappNotifications,
       },
       200,
       headers,

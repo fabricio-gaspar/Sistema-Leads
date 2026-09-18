@@ -84,6 +84,7 @@ export interface Lead {
   fluxosProgramados?: FluxoProgramado[];
   // — Limite de atendimento da Ana (handoff por etapa) —
   etapaHandoff?: string;
+  handoffWhatsappAtivo?: boolean;
   // — Coleta de produtos para orçamento (a Ana pergunta, o humano prepara) —
   aguardandoProdutosOrcamento?: boolean;
 }
