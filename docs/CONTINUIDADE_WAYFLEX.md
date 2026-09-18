@@ -825,3 +825,7 @@ webhook em ambiente controlado.
   pré-existente de diagnóstico Z-API `requires a fresh callback registration after the Z-API
   callback route changes`, fora dos arquivos deste lote. Não houve mensagem externa, alteração de
   lead, execução da Ana nem mudança de integração nesta alteração.
+- PUBLICADO: Site oficial versão 91, commit `14468b0998a455a8220ae9200ea4d428b35fa894`, deploy
+  `succeeded` em `2026-09-18T14:43:16Z`. A inspeção autenticada confirmou o selo **Atualização ao
+  vivo**, o histórico operacional existente e os controles da Central, sem enviar mensagem ou
+  alterar registro.

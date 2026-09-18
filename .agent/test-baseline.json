@@ -69,6 +69,7 @@
     ,{"command":"eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0","status":"passed","warnings":0,"note":"Central de Atendimento, Agenda e Orçamentos sem avisos."}
     ,{"command":"vitest run --configLoader runner","status":"partial","test_files":22,"checks":194,"passed":193,"failed":1,"note":"O runner contorna a limitação da junção local. A única falha pré-existente é Operational mode authority > requires a fresh callback registration after the Z-API callback route changes."}
     ,{"command":"vite build --configLoader runner && node scripts/build-sites-artifact.mjs","status":"passed","note":"Artefato oficial da Central produzido sem segredo no bundle."}
+    ,{"command":"Computer Use autenticado no Site oficial, versão 91","status":"passed","note":"Central exibiu Atualização ao vivo, conversa operacional, trilhas de mensagem, atalhos e compositor. Nenhuma mensagem foi enviada e nenhum registro foi modificado."}
   ],
   "prior_site_artifact_validation": {
     "validated_commit": "e4b1666c878df01ac0db3d12a290531a42107446",

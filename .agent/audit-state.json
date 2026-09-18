@@ -2,17 +2,17 @@
   "schema_version": 1,
   "baseline_version": 3,
   "baseline_commit": "1fbd231ff88b4e02c3ddddd18253a1f3be8be5ee",
-  "last_audited_commit": "255217ca478e68eec3cadfbcfa1a6fd10cb4f010",
-  "current_head_at_update": "255217ca478e68eec3cadfbcfa1a6fd10cb4f010",
-  "working_tree_status": "central_realtime_and_commercial_context_validated_pending_publication",
+  "last_audited_commit": "14468b0998a455a8220ae9200ea4d428b35fa894",
+  "current_head_at_update": "14468b0998a455a8220ae9200ea4d428b35fa894",
+  "working_tree_status": "central_realtime_and_commercial_context_published",
   "last_site_publication": {
-    "commit": "255217ca478e68eec3cadfbcfa1a6fd10cb4f010",
-    "site_version": 90,
-    "validated_at": "2026-09-18T13:36:04Z",
+    "commit": "14468b0998a455a8220ae9200ea4d428b35fa894",
+    "site_version": 91,
+    "validated_at": "2026-09-18T14:43:16Z",
     "working_tree_status": "published"
   },
   "full_audit_required": false,
   "baseline_status": "validated",
-  "updated_at": "2026-09-18T15:00:00Z",
-  "next_action": "Confirmar no Site publicado que a Central mostra o selo de Realtime, atualiza uma nova lead_message sem F5 e abre Agenda/Orçamentos com o lead pré-selecionado. Não enviar mensagem externa sem confirmação pontual do operador."
+  "updated_at": "2026-09-18T14:43:16Z",
+  "next_action": "A Central publicada já mostra Realtime conectado. Para homologar a chegada ponta a ponta, aguardar uma mensagem externa real do lead autorizado e confirmar apenas a visualização da nova lead_message, sem repetir nem enviar mensagens sem confirmação pontual do operador."
 }

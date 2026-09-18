@@ -589,3 +589,6 @@
 - Validação: `tsc --noEmit --project tsconfig.app.json` e ESLint sem avisos passaram; Vite +
   `build-sites-artifact.mjs` passou. `vitest run --configLoader runner` executou 194 casos,
   com 193 aprovados e uma falha pré-existente no contrato de rota de callback Z-API.
+- Publicação: Site oficial v91, deploy concluído. A inspeção autenticada da Central confirmou
+  **Atualização ao vivo**, a conversa operacional de Fabricio Gaspar e o compositor sem realizar
+  envio, alteração de lead ou mudança de configuração.
