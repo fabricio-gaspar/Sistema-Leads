@@ -592,3 +592,21 @@
 - Publicação: Site oficial v91, deploy concluído. A inspeção autenticada da Central confirmou
   **Atualização ao vivo**, a conversa operacional de Fabricio Gaspar e o compositor sem realizar
   envio, alteração de lead ou mudança de configuração.
+
+# 2026-09-18 — Ana: confirmação segura de pedido de reunião durante handoff
+
+- A entrada do lead final `1875` chegou, foi associada corretamente e abriu `message.received`,
+  mas a execução falhou ao inserir `domain_events.actor_type='agent'`. O schema aceita somente
+  `user`, `ai`, `system` e `provider`.
+- Publicado `ana-run` v28: grava eventos da Ana como `ai` e permite exclusivamente uma confirmação
+  curta de pedido de reunião quando o handoff humano continua obrigatório. Cotação, preço, prazo,
+  opt-out, conteúdo sensível e demais bloqueios permanecem sem despacho automático.
+- Publicado `automation-worker` v27: reconhece somente o marcador interno
+  `meeting_confirmation` nas duas leituras de segurança do job, sem liberar outros jobs em
+  atendimento humano. Também evita que uma falha local anterior a uma chamada de provedor seja
+  herdada por uma futura confirmação segura.
+- Com confirmação explícita do operador, a mesma mensagem já gerada foi reenfileirada — sem
+  gerar outra resposta — e a Z-API aceitou o envio. A Central autenticada mostrou a resposta da
+  Ana como **aceita pelo provedor**. Não há recibo de entrega/leitura nesta evidência.
+- Validação local: type-check frontend e Edge, lint e build Vite passaram. A validação visual
+  autenticada confirmou a mensagem no histórico e o provider message id foi persistido.

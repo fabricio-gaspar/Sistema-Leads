@@ -287,7 +287,7 @@ async function persistCommercialQualification(
   for (const eventName of [...new Set(eventNames)]) {
     const { error: eventError } = await admin.from('domain_events').upsert({
       organization_id: organizationId, event_name: eventName, entity_type: 'lead', entity_id: leadId,
-      actor_type: 'agent', actor_id: null, idempotency_key: `${runId}:${eventName}`,
+      actor_type: 'ai', actor_id: null, idempotency_key: `${runId}:${eventName}`,
       payload: { summary: decision.motivo || 'Atualização comercial identificada pela Ana.', next_action: requestedAction, score: decision.score, evidence },
     }, { onConflict: 'organization_id,idempotency_key', ignoreDuplicates: true });
     if (eventError) throw eventError;
@@ -749,6 +749,21 @@ Deno.serve(async (request) => {
     }
 
     const needsHuman = decision.precisa_humano || decision.acoes.some((action) => action.tipo === 'handoff') || modo === 'humano' || timeout || Boolean(applicableSuppressions.length) || sensitiveInbound || Boolean(configurationTrigger) || missingTechnicalKnowledge || Boolean(policyHandoffReason);
+    // A request to arrange a meeting needs a human to confirm availability,
+    // but it is safe for Ana to acknowledge it and say that a consultant will
+    // confirm the slots. Keep the handoff open; only release this narrow,
+    // non-commercial acknowledgement when no other safety guard applies.
+    const meetingAcknowledgement = Boolean(decision.mensagem_sugerida)
+      && /\b(reuni[aã]o|agend(?:ar|amento)?|hor[aá]rio)\b/i.test(asText(latestInboundMessage?.text, 4_000))
+      && decision.acoes.some((action) => action.tipo === 'handoff')
+      && !timeout
+      && !applicableSuppressions.length
+      && !sensitiveInbound
+      && !configurationTrigger
+      && !missingTechnicalKnowledge
+      && !policyHandoffReason
+      && modo !== 'humano'
+      && !requiresHumanReview(decision.mensagem_sugerida);
     const channelConnected = !dryRun && Boolean(channel?.connected && channel?.enabled && !channel?.paused);
     if (dryRun) {
       const result = { ...decision, dry_run: true, acoes_aplicadas: [], status_canal: 'simulacao_sem_alteracoes', provedor_ia: aiProvider };
@@ -792,7 +807,7 @@ Deno.serve(async (request) => {
 
     const appliedActions: Array<Record<string, unknown>> = [];
     if (meetingApplied) appliedActions.push({ tipo: 'agendar_reuniao', status: 'confirmado', external_id: meetingApplied.externalId, meeting_url: meetingApplied.meetingUrl });
-    if (decision.mensagem_sugerida && !needsHuman) {
+    if (decision.mensagem_sugerida && (!needsHuman || meetingAcknowledgement)) {
       const { data: message, error: messageError } = await admin.from('lead_messages').insert({
         organization_id: organizationId, lead_id: leadId, sender: 'ana', sender_name: 'Ana',
         type: channelConnected ? 'draft' : 'pending_channel', text: decision.mensagem_sugerida, sent_at: null,
@@ -820,6 +835,7 @@ Deno.serve(async (request) => {
             message_id: message.id,
             context_last_contact: update.last_contact,
             configuration_version_id: configurationVersionId,
+            ...(meetingAcknowledgement ? { handoff_acknowledgement: 'meeting_confirmation' } : {}),
             ...(cadencePayload ? {
               cadence: cadencePayload,
               no_reply_deadline_at: cadencePayload.no_reply_deadline_at,
@@ -867,7 +883,7 @@ Deno.serve(async (request) => {
     if (admin && runId) await admin.from('agent_runs').update({ status: 'failed', error_code: code, error_message: safeError(error), completed_at: new Date().toISOString() }).eq('id', runId);
     if (admin && organizationId && activeLeadId && runId) await admin.from('domain_events').upsert({
       organization_id: organizationId, event_name: 'lead.analysis.failed', entity_type: 'lead', entity_id: activeLeadId,
-      actor_type: 'agent', actor_id: null, idempotency_key: `${runId}:lead.analysis.failed`,
+      actor_type: 'ai', actor_id: null, idempotency_key: `${runId}:lead.analysis.failed`,
       payload: { reason: 'A análise automática falhou e requer revisão humana.', next_action: 'Abrir a conversa', error_code: code },
     }, { onConflict: 'organization_id,idempotency_key', ignoreDuplicates: true });
     return json({ ok: false, erro: code }, 400, headers);

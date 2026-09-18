@@ -500,6 +500,7 @@ async function automaticDispatchBlock(
     expectedLastContact: unknown;
     expectedNoReplyDeadline?: unknown;
     expectedConfigurationVersionId?: string;
+    allowMeetingHandoffAcknowledgement?: boolean;
   },
 ): Promise<string | null> {
   const [leadResult, companyResult, aiResult, runtimeResult, handoffResult, channelResult] =
@@ -563,8 +564,16 @@ async function automaticDispatchBlock(
     lead: leadResult.data,
     requiresApprovedContact: true,
   });
-  if (block) return block;
-  if (handoffResult.data?.id) return "lead_handoff_open";
+  if (
+    block &&
+    !(
+      input.allowMeetingHandoffAcknowledgement === true &&
+      block === "human_mode"
+    )
+  )
+    return block;
+  if (handoffResult.data?.id && !input.allowMeetingHandoffAcknowledgement)
+    return "lead_handoff_open";
   if (!sameNullableInstant(leadResult.data?.last_contact, input.expectedLastContact))
     return "outbound_context_stale";
   if (
@@ -1759,6 +1768,8 @@ Deno.serve(async (request) => {
             manual &&
             company?.sandbox_mode === true &&
             activeControlledSandboxTest(payload);
+          const meetingHandoffAcknowledgement =
+            payload.handoff_acknowledgement === "meeting_confirmation";
           const { data: suppressions, error: se } = await admin
             .from("contact_suppressions")
             .select("id,channel")
@@ -1784,7 +1795,19 @@ Deno.serve(async (request) => {
                 lead,
                 requiresApprovedContact: true,
               });
-          if (block) throw new Error(block);
+          // Ana may acknowledge a meeting request while a human handoff is
+          // open. The queue marker is only written by ana-run after the
+          // narrow meeting-safety policy has passed; every other safety block
+          // remains mandatory.
+          if (
+            block &&
+            !(
+              !manual &&
+              meetingHandoffAcknowledgement &&
+              block === "human_mode"
+            )
+          )
+            throw new Error(block);
           if (
             suppressions?.some((s) =>
               ["all", channel].includes(canonicalChannel(s.channel)),
@@ -1981,10 +2004,17 @@ Deno.serve(async (request) => {
               .eq("organization_id", orgId)
               .eq("lead_id", job.lead_id)
               .maybeSingle();
+            const queuedByAna = run?.result?.status_canal === "enfileirado" ||
+              (meetingHandoffAcknowledgement &&
+                Array.isArray(run?.result?.acoes) &&
+                run.result.acoes.some((action: unknown) => {
+                  const item = asObject(action);
+                  return item.tipo === "enviar_mensagem" && item.status === "enfileirado";
+                }));
             if (
               re ||
               run?.status !== "completed" ||
-              run.result?.status_canal !== "enfileirado"
+              !queuedByAna
             )
               throw new Error("outbound_decision_not_completed");
           }
@@ -2040,6 +2070,7 @@ Deno.serve(async (request) => {
                 payload.configuration_version_id,
                 80,
               ),
+              allowMeetingHandoffAcknowledgement: meetingHandoffAcknowledgement,
             });
             if (finalBlock) {
               await admin
@@ -2054,6 +2085,20 @@ Deno.serve(async (request) => {
                 .eq("status", "pending");
               throw new Error(finalBlock);
             }
+          }
+          if (!manual && meetingHandoffAcknowledgement) {
+            // This narrowly approved acknowledgement can be retried after a
+            // pre-dispatch handoff block. Clear only that stale local failure
+            // before the provider is called; never overwrite a provider ID.
+            const { error: retryStateError } = await admin
+              .from("lead_outreach")
+              .update({ status: "pending", error: null, updated_at: new Date().toISOString() })
+              .eq("id", job.id)
+              .eq("organization_id", orgId)
+              .eq("status", "failed")
+              .in("error", ["human_mode", "outbound_decision_not_completed"])
+              .is("provider_message_id", null);
+            if (retryStateError) throw new Error("handoff_acknowledgement_retry_state_failed");
           }
           dispatchStarted = true;
           const receipt =

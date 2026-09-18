@@ -829,3 +829,19 @@ webhook em ambiente controlado.
   `succeeded` em `2026-09-18T14:43:16Z`. A inspeção autenticada confirmou o selo **Atualização ao
   vivo**, o histórico operacional existente e os controles da Central, sem enviar mensagem ou
   alterar registro.
+
+## 2026-09-18 — Ana responde pedido de reunião com handoff humano aberto
+
+- A mensagem do lead final `1875` foi recebida, exibida na Central e acionou a Ana. A primeira
+  execução falhava na auditoria porque `ana-run` usava `domain_events.actor_type='agent'`, valor
+  rejeitado pelo check do banco. A função publicada `ana-run` v28 usa `ai`.
+- Para pedido de reunião sem data e horário, a Ana não agenda nem promete disponibilidade: envia
+  uma confirmação curta e mantém o handoff humano aberto para o consultor confirmar horários.
+  Esta exceção é limitada a jobs internos `meeting_confirmation`; opt-out, conteúdo comercial
+  sensível, orçamento, preço, prazo e demais guardas continuam bloqueando o envio automático.
+- `automation-worker` v27 reconhece esse marcador nas verificações inicial e final. A resposta
+  foi aceita pela Z-API e aparece na Central como **aceita pelo provedor**. Ainda não há prova de
+  entrega ou leitura; não afirmar além do aceite do provedor.
+- Validação: type-check frontend/Edge, lint e build passaram; Computer Use autenticado confirmou
+  a conversa, a nova resposta da Ana e o estado transferido para humano. Nenhuma credencial foi
+  exposta.
