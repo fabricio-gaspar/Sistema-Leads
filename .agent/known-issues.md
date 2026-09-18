@@ -106,6 +106,11 @@
   Apresentado, antes de enfileirar a mensagem. O envio real permanece pendente de confirmação do
   operador e de aceite comprovado da Z-API.
 
+- A camada de persistência do cliente podia ocultar uma atualização de lead rejeitada ou sem linha
+  retornada. Isso foi corrigido: toda atualização operacional agora exige o `id` retornado pelo
+  Supabase e a tela bloqueia `ana-run` se a gravação não for confirmada. A limitação externa restante
+  é apenas o Vitest local, que não inicia pela permissão do destino de `node_modules`.
+
 ## Sugestões, não bugs
 
 - Ambiente de homologação isolado e piloto controlado antes de comercializar.

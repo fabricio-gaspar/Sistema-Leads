@@ -784,3 +784,22 @@ webhook em ambiente controlado.
 - A única prova externa restante é enviar uma mensagem nova usando o WhatsApp final `1875`, em
   conversa individual para a instância Z-API. Ao chegar, o evento deverá criar a mensagem na
   Central e acionar `ana-run`; confirmar essas três evidências antes de considerar o fluxo pronto.
+
+## 2026-09-18 — Ativação da Ana após cadastro manual: falha persistida agora é visível
+
+- O cadastro relatado de `Fabricio Gaspar · WF Digital` foi criado no Supabase em **Novo**, com
+  modo Ana, mas continuou com `contact_approval_status=pending`, sem WhatsApp operacional e sem
+  qualquer atualização posterior. Banco confirmou zero `agent_runs`, `outreach_jobs` e mensagens:
+  portanto a Ana não recusou o contato; ela jamais foi chamada.
+- A origem da confusão era o fluxo em duas telas: Novo Lead cria um contato deliberadamente
+  pendente, e a ativação precisa confirmar canal WhatsApp e autorização no diálogo **Enviar para
+  Kanban**. O modal de criação agora abre esse diálogo de ativação imediatamente após a persistência
+  bem-sucedida de um lead em modo Ana. A ação externa continua exigindo a confirmação factual do
+  operador e uma origem de autorização; ela não é inferida do telefone.
+- O repositório de leads agora confirma que o `UPDATE` atingiu exatamente o registro esperado.
+  Atualização bloqueada por RLS ou que não retornar linha gera `lead_update_not_persisted`; a UI
+  desfaz o estado otimista, informa que a Ana não foi acionada e não chama `ana-run`. Isso elimina
+  o falso sucesso que deixava o lead visualmente ativado sem persistência no servidor.
+- Regressão incluída para o contrato de confirmação de atualização. Type-check frontend/Edge,
+  lint e build do Site passaram. O Vitest não iniciou porque o esbuild não tem permissão para ler o
+  destino da junção local de `node_modules`; nenhum teste Vitest foi contabilizado como aprovado.

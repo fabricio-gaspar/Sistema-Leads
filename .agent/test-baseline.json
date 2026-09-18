@@ -59,6 +59,11 @@
     {"command":"vitest run src/lib/crm/manualLeadContact.test.ts supabase/tests/runtimeHandlers.test.ts","status":"blocked","note":"O esbuild não consegue ler o destino da junção local de node_modules; nenhum caso iniciou. O novo contrato cobre a ativação WhatsApp e a apresentação inicial sem chamada ao modelo."},
     {"command":"Supabase read-only + reparo limitado do lead relatado","status":"passed","note":"O único lead analisado tinha uma execução Ana skipped por channel_not_allowed_by_ana_configuration, active_channel=email, e-mail desconectado e WhatsApp permitido. Após publicar, somente active_channel foi ajustado para whatsapp; não foi criada mensagem, fila ou chamada ao provedor."},
     {"command":"Computer Use no Site oficial, versão 86","status":"passed","note":"Kanban carregou e o drawer do lead confirmou canal preferencial WhatsApp, automação ativa e o botão Rodar Ana disponível. O botão não foi acionado; a mensagem externa aguarda confirmação pontual do operador."}
+    ,{"command":"tsc --noEmit --project tsconfig.app.json","status":"passed","note":"Validado após a guarda de persistência e a abertura direta do diálogo de ativação da Ana."}
+    ,{"command":"tsc --project tsconfig.edge.json","status":"passed","note":"Sem regressão nas Edge Functions."}
+    ,{"command":"eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0","status":"passed","warnings":0}
+    ,{"command":"vite build && node scripts/build-sites-artifact.mjs","status":"passed","note":"Artefato do Site produzido após a correção; nenhum segredo foi incluído."}
+    ,{"command":"vitest run src/lib/crm/leadsRepository.test.ts","status":"blocked","note":"O esbuild não iniciou porque a junção local de node_modules aponta para diretório sem permissão de leitura; nenhum caso Vitest foi executado."}
   ],
   "prior_site_artifact_validation": {
     "validated_commit": "e4b1666c878df01ac0db3d12a290531a42107446",

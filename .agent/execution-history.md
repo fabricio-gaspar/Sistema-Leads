@@ -560,3 +560,18 @@
 - Não houve envio, exclusão ou modificação de lead nesta etapa. Para concluir o fluxo real, a
   próxima mensagem precisa sair efetivamente do número final `1875`; mensagens de outro aparelho
   são, por projeto, recusadas para impedir mistura de conversas.
+
+# 2026-09-18 — Proteção de persistência na ativação manual da Ana
+
+- A leitura do Supabase para o lead recém-criado confirmou somente o `INSERT`: estava em Novo,
+  pendente de autorização, sem WhatsApp operacional e sem `agent_runs`, `outreach_jobs` ou
+  mensagens. Não houve chamada a `ana-run` e nenhuma tentativa de envio externo.
+- A camada cliente antes engolia o erro assíncrono de persistência. A atualização agora solicita o
+  `id` de retorno do Supabase e falha explicitamente caso a RLS ou qualquer condição impeça a linha
+  de ser atualizada. O store reconcilia o estado otimista com o servidor e a tela não aciona Ana em
+  caso de falha.
+- Para reduzir o erro operacional, criar um lead em modo Ana passa diretamente ao diálogo de
+  ativação do Kanban. O operador ainda precisa comprovar WhatsApp e autorização; o sistema não
+  transforma telefone em consentimento nem envia mensagem automaticamente.
+- Type-check frontend/Edge, lint e build passaram. O Vitest foi bloqueado antes de iniciar porque
+  a junção compartilhada de `node_modules` não é legível pelo esbuild.

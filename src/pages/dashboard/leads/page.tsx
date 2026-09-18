@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useLeadsStore, waitForLeadsPersistence } from '@/hooks/useLeadsStore';
+import { getLeadsSnapshot, useLeadsStore, waitForLeadsPersistence } from '@/hooks/useLeadsStore';
 import { etapasCRM, segmentos } from '@/mocks/leadsData';
 import type { Lead } from '@/mocks/leadsData';
 import { podeTransicionar } from '@/lib/automacao';
@@ -178,7 +178,19 @@ export default function Leads() {
         etapa: 'Novo', etapaHandoff, automacaoStatus: modo === 'HUMANO' ? 'AGUARDANDO_HUMANO' : 'ATIVA',
       };
     }));
-    await waitForLeadsPersistence();
+    try {
+      await waitForLeadsPersistence();
+    } catch {
+      mostrarToast('A ativação não foi gravada no servidor. A Ana não foi acionada e nenhum envio foi feito. Tente novamente ou consulte o Registro do Sistema.');
+      return;
+    }
+    if (modo === 'IA' && ids.some((id) => {
+      const persisted = getLeadsSnapshot().find((lead) => lead.id === id);
+      return !persisted || persisted.contactApprovalStatus !== 'approved' || !persisted.whatsapp;
+    })) {
+      mostrarToast('A ativação não foi confirmada no servidor. A Ana não foi acionada e nenhum envio foi feito.');
+      return;
+    }
     const result = modo === 'IA'
       ? await Promise.allSettled(ids.map((leadId) => runAna({ event: 'lead.created', leadId, modo, requestId: `lead-created:${leadId}:whatsapp` })))
       : [];
@@ -254,12 +266,21 @@ export default function Leads() {
       criadoEm: new Date().toISOString().slice(0, 10),
     };
     setLeads((prev) => [novo, ...prev]);
-    await waitForLeadsPersistence();
+    try {
+      await waitForLeadsPersistence();
+    } catch {
+      mostrarToast('Não foi possível criar o lead no servidor. Nenhuma ativação da Ana foi iniciada.');
+      return;
+    }
     setNovoModal(false);
     setNovoLead({ nome: '', empresa: '', email: '', telefone: '', segmento: 'Tecnologia', cidade: '', estado: '', modo: 'IA' });
-    mostrarToast(novoLead.modo === 'IA'
-      ? 'Lead criado. A Ana aguardará a confirmação de canal e autorização antes do primeiro contato.'
-      : 'Lead criado em atendimento humano.');
+    if (novo.modoAtendimento === 'IA') {
+      setEnvioAlvo([novo.id]);
+      setModoSelecionado('IA');
+      mostrarToast('Lead criado. Confirme o canal e a autorização para ativar a Ana.');
+      return;
+    }
+    mostrarToast('Lead criado em atendimento humano.');
   };
 
   const base = mostrarArquivados ? leads.filter((l) => l.arquivado) : leads.filter((l) => !l.arquivado);

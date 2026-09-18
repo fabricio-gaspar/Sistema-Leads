@@ -30,6 +30,12 @@ export function changedOperationalLeadFields(previous: Lead, next: Lead, organiz
   ));
 }
 
+export function assertLeadUpdatePersisted(data: { id: string } | null, leadId: string): void {
+  if (!data || data.id !== leadId) {
+    throw new Error('lead_update_not_persisted');
+  }
+}
+
 export async function persistOperationalLeads(previous: Lead[], next: Lead[]): Promise<Lead[]> {
   const session = await resolveOrganizationSession();
   const previousById = new Map(previous.map((lead) => [lead.id, lead]));
@@ -44,9 +50,11 @@ export async function persistOperationalLeads(previous: Lead[], next: Lead[]): P
         patch.contact_approved_at = lead.contactApprovedAt || new Date().toISOString();
       }
       if (!Object.keys(patch).length) continue;
-      const { error } = await supabase.from('leads').update(patch)
-        .eq('id', lead.id).eq('organization_id', session.organizationId);
+      const { data, error } = await supabase.from('leads').update(patch)
+        .eq('id', lead.id).eq('organization_id', session.organizationId)
+        .select('id').maybeSingle();
       if (error) throw error;
+      assertLeadUpdatePersisted(data, lead.id);
       continue;
     }
     if (row.contact_approval_status === 'approved') {

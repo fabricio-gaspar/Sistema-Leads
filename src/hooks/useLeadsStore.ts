@@ -7,7 +7,8 @@ import { persistentLeadId } from '@/lib/crm/leadMapper';
 let state: Lead[] = [];
 let hydrated = false;
 let hydratePromise: Promise<void> | null = null;
-let writeQueue = Promise.resolve();
+let writeQueue: Promise<void> = Promise.resolve();
+let latestPersistenceError: unknown = null;
 const listeners = new Set<() => void>();
 
 const notify = () => listeners.forEach((listener) => listener());
@@ -46,10 +47,15 @@ function updateState(updater: React.SetStateAction<Lead[]>): void {
     .then(async () => {
       const persisted = await persistOperationalLeads(previous, next);
       state = persisted.map(normalizarLead);
+      latestPersistenceError = null;
       notify();
     })
     .catch((error) => {
       console.error('[crm-leads] falha ao salvar fonte operacional', error);
+      latestPersistenceError = error;
+      // `hydrate()` is a no-op while the store is marked hydrated. Clear the
+      // flag so the optimistic state is reconciled with the server on failure.
+      hydrated = false;
       void hydrate();
     });
 }
@@ -73,4 +79,9 @@ export function getLeadsSnapshot(): Lead[] {
 // synchronous UI contract while allowing the caller to respect foreign keys.
 export async function waitForLeadsPersistence(): Promise<void> {
   await writeQueue;
+  if (latestPersistenceError) {
+    const error = latestPersistenceError;
+    latestPersistenceError = null;
+    throw error;
+  }
 }
