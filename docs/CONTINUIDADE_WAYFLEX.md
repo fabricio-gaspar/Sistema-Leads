@@ -30,6 +30,11 @@
   executou 198 verificações: 197 passaram; a única falha é o contrato pré-existente de diagnóstico
   Z-API sobre rota de callback, fora deste lote. A sincronização autenticada das fontes e o envio
   externo de um conteúdo ficam para validação controlada, sem declarar sucesso antecipadamente.
+- Publicado no Site oficial: versão 94, commit `e9c2ccff212ed349c6f4b102643a9444aeb47416`,
+  deploy confirmado como `succeeded` em `https://leadai-crm-preview.fabricio926564.chatgpt.site`.
+  A verificação autenticada confirmou as sete abas de Empresa e conhecimento, o painel lateral da
+  Central e nenhum erro de console. A base começa vazia de propósito: a primeira sincronização só
+  ocorre pela ação autenticada do administrador em **Fontes de conhecimento**.
 
 ## Organização operacional, monitoramento e resumo diário — 17/09/2026
 
