@@ -610,3 +610,13 @@
   Ana como **aceita pelo provedor**. Não há recibo de entrega/leitura nesta evidência.
 - Validação local: type-check frontend e Edge, lint e build Vite passaram. A validação visual
   autenticada confirmou a mensagem no histórico e o provider message id foi persistido.
+
+# 2026-09-18 — Dashboard: atenção do vendedor compacta
+
+- O painel agora mostra somente categorias com itens reais, reduz a lista visível a duas ações por
+  categoria e reúne o restante no acesso à Central.
+- Cada alerta pertence somente à sua prioridade mais alta, evitando a duplicação entre “Responder
+  agora”, “Leads quentes” e “Reuniões e orçamentos”. Ícones identificam urgência, interesse,
+  ação comercial, acompanhamento e atraso.
+- Não houve alteração de fontes de dados, regras comerciais, filas, automações ou integrações.
+- Validação: type-check frontend, lint e build Vite aprovados.

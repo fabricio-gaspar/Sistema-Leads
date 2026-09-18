@@ -845,3 +845,15 @@ webhook em ambiente controlado.
 - Validação: type-check frontend/Edge, lint e build passaram; Computer Use autenticado confirmou
   a conversa, a nova resposta da Ana e o estado transferido para humano. Nenhuma credencial foi
   exposta.
+
+## 2026-09-18 — Dashboard: painel de atenção do vendedor compacto
+
+- O card foi reorganizado como uma fila comercial compacta: somente categorias com itens reais
+  ficam visíveis, com até duas ações por categoria e um acesso claro para ver o restante na
+  Central de Atendimento.
+- A prioridade é exclusiva: um mesmo alerta aparece apenas na categoria mais importante, evitando
+  repetições entre urgência, lead quente e reunião/orçamento. Os ícones identificam responder,
+  interesse, ação comercial, acompanhamento e atraso.
+- A origem dos dados e os comportamentos operacionais foram preservados; não foram alteradas
+  filas, automações, regras da Ana, integrações ou registros.
+- Validação local: type-check frontend, lint e build Vite aprovados.
