@@ -75,6 +75,10 @@
     ,{"command":"eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0","status":"passed","warnings":0}
     ,{"command":"vitest run --configLoader runner","status":"partial","test_files":24,"checks":198,"passed":197,"failed":1,"note":"Os dois testes de formatação do catálogo passaram. A única falha pré-existente continua em Operational mode authority > requires a fresh callback registration after the Z-API callback route changes."}
     ,{"command":"vite build --configLoader runner && node scripts/build-sites-artifact.mjs","status":"passed","note":"Artefato Sites do catálogo comercial produzido sem segredo no bundle; aviso runtime-config.js é conhecido e não bloqueia a compilação."}
+    ,{"command":"vitest run --configLoader runner supabase/tests/catalogKnowledgeParser.test.ts","status":"passed","test_files":1,"checks":2,"note":"Regressão do parser portátil: importação de produto e PDF de catálogo sem DOMParser no runtime Edge."}
+    ,{"command":"Computer Use autenticado: Fontes de conhecimento","status":"passed","note":"A primeira sincronização expôs DOMParser is not defined em catalog-knowledge v3; após v4, /acessorios, /servicos e /catalogos ficaram Sincronizada. A visão geral confirmou 3 fontes saudáveis e 3 itens ativos para Ana."}
+    ,{"command":"vitest run --configLoader runner","status":"partial","test_files":25,"checks":200,"passed":199,"failed":1,"note":"O parser de catálogo e as alterações existentes passaram. A única falha continua pré-existente em Operational mode authority > requires a fresh callback registration after the Z-API callback route changes."}
+    ,{"command":"vite build --configLoader runner && node scripts/build-sites-artifact.mjs","status":"passed","note":"Artefato Sites reconstruído após catalog-knowledge v4; aviso runtime-config.js é conhecido e não bloqueia a compilação."}
   ],
   "prior_site_artifact_validation": {
     "validated_commit": "e4b1666c878df01ac0db3d12a290531a42107446",
@@ -90,5 +94,5 @@
   },
   "covered": ["frontend_typecheck","lint","edge_typecheck","unit_and_contract_tests","production_build"],
   "not_covered": ["authenticated_e2e","login_como_novo_membro","real_whatsapp","real_claude","cross_organization_rls","database_concurrency","provider_receipt_race","mobile_authenticated_qa"],
-  "working_tree_validation": "Central com Realtime organizacional, contexto comercial e atalhos pré-selecionados: type-check, lint e build aprovados. Vitest executado com configLoader runner: 193/194, falha pré-existente de contrato Z-API fora deste lote. Nenhum provedor externo, mensagem, job ou execução da Ana foi acionado."
+  "working_tree_validation": "Catálogo comercial, parser portátil e fontes oficiais: type-check Edge e teste de regressão aprovados; Computer Use confirmou três fontes saudáveis e três itens ativos. Nenhum WhatsApp, job de mensagem ou execução adicional da Ana foi criado nesta correção."
 }

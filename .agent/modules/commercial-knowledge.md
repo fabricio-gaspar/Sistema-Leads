@@ -34,7 +34,11 @@
   `consolidate_commercial_knowledge_policies` foram aplicadas no projeto oficial. As cinco tabelas
   novas têm RLS e as tabelas de gestão têm uma política por ação; o advisor não apontou nova falha
   de política para elas.
-- `catalog-knowledge` v3, `enviar-whatsapp` v7 e `ana-run` v30 estão ativos e exigem JWT.
-- Type-check frontend/Edge, lint, build e dois testes de formatação de conteúdo passaram.
-- A sincronização real das páginas e um envio externo de conteúdo continuam dependentes da ação
-  autenticada/autorizações próprias; não devem ser declarados homologados antes disso.
+- `catalog-knowledge` v4, `enviar-whatsapp` v7 e `ana-run` v30 estão ativos e exigem JWT.
+  A v4 remove a dependência inexistente de `DOMParser` no Edge Runtime.
+- Type-check frontend/Edge, lint, build e quatro testes de conteúdo passaram, incluindo dois de
+  regressão do parser portátil.
+- A sincronização autenticada de `/acessorios`, `/servicos` e `/catalogos` foi concluída: há três
+  fontes saudáveis e três itens ativos para a Ana e a Central. A origem retornou somente as três
+  páginas resumidas, sem cards/PDFs individuais no HTML; portanto nada adicional foi criado.
+  Um envio externo de conteúdo ainda depende da autorização própria para a mensagem.

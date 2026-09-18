@@ -647,4 +647,11 @@
   auditável, não como anexo alegado.
 - Validações: type-check frontend/Edge, lint, build/artefato e os 2 testes de formatter passaram.
   A suíte completa pelo runner teve 197/198 êxitos; a falha única é pré-existente no contrato de
-  diagnóstico Z-API. Não houve sync remoto, mensagem, job, lead ou chamada de IA nesta rodada.
+  diagnóstico Z-API. Na publicação inicial não houve sincronização remota, mensagem, job, lead
+  ou chamada de IA.
+- A primeira sincronização autenticada expôs `DOMParser is not defined` no Edge Runtime. O parser
+  foi substituído por extração HTML portátil em `catalog-knowledge` v4, com dois testes de
+  regressão. A repetição sincronizou `/acessorios`, `/servicos` e `/catalogos`: três fontes
+  saudáveis e três itens rastreáveis ativos para a Ana e a Central. Como a origem não expôs cards
+  individuais ou PDFs no HTML retornado, cada página entrou como um item de origem; nenhum dado
+  comercial foi inventado e nenhum WhatsApp, job ou execução nova da Ana foi disparado.

@@ -23,18 +23,24 @@
 - `ana-run` v30 classifica a intenção como produto, serviço, catálogo, dúvida técnica, orçamento
   ou geral e usa somente o conteúdo aprovado. Sem resposta suficiente, ela pergunta pelo dado
   técnico ou faz handoff; não confirma preço, prazo ou especificação sem fonte.
-- Funções publicadas: `catalog-knowledge` v3, `enviar-whatsapp` v7 e `ana-run` v30, todas com
+- Funções publicadas: `catalog-knowledge` v4, `enviar-whatsapp` v7 e `ana-run` v30, todas com
   JWT obrigatório. Nenhuma mensagem, job, execução automática ou dado de lead foi criado nesta
   implementação.
+- A primeira execução autenticada revelou que `DOMParser` não existe no runtime da Edge Function.
+  A correção foi publicada em `catalog-knowledge` v4 com parser HTML portátil, coberta por dois
+  testes de regressão. As três fontes oficiais foram sincronizadas com sucesso e disponibilizam
+  3 itens ativos para Ana e Central (um por página). O site de origem não expôs cards individuais
+  ou PDFs no HTML retornado, então a importação manteve somente as páginas rastreáveis e não
+  inventou catálogo adicional.
 - Validação: type-check frontend/Edge, lint, build e artefato do Site passaram. A suíte Vitest
-  executou 198 verificações: 197 passaram; a única falha é o contrato pré-existente de diagnóstico
+  executou 200 verificações: 199 passaram; a única falha é o contrato pré-existente de diagnóstico
   Z-API sobre rota de callback, fora deste lote. A sincronização autenticada das fontes e o envio
   externo de um conteúdo ficam para validação controlada, sem declarar sucesso antecipadamente.
 - Publicado no Site oficial: versão 94, commit `e9c2ccff212ed349c6f4b102643a9444aeb47416`,
   deploy confirmado como `succeeded` em `https://leadai-crm-preview.fabricio926564.chatgpt.site`.
   A verificação autenticada confirmou as sete abas de Empresa e conhecimento, o painel lateral da
-  Central e nenhum erro de console. A base começa vazia de propósito: a primeira sincronização só
-  ocorre pela ação autenticada do administrador em **Fontes de conhecimento**.
+  Central e nenhum erro de console. A primeira sincronização foi concluída; atualizações futuras
+  continuam disponíveis em **Fontes de conhecimento**.
 
 ## Organização operacional, monitoramento e resumo diário — 17/09/2026
 

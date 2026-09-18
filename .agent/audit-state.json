@@ -4,15 +4,15 @@
   "baseline_commit": "1dc6275b8c7d70de953b66397a8c89f5e97bc15b",
   "last_audited_commit": "1dc6275b8c7d70de953b66397a8c89f5e97bc15b",
   "current_head_at_update": "1dc6275b8c7d70de953b66397a8c89f5e97bc15b",
-  "working_tree_status": "commercial_knowledge_catalog_implemented_and_validated_pending_site_publication",
+  "working_tree_status": "commercial_knowledge_catalog_published_parser_fixed_and_sources_synced",
   "last_site_publication": {
-    "commit": "14468b0998a455a8220ae9200ea4d428b35fa894",
-    "site_version": 91,
-    "validated_at": "2026-09-18T14:43:16Z",
-    "working_tree_status": "published_before_commercial_knowledge_catalog"
+    "commit": "d5ddf1a9f49124eb7d9b87c2f8b9bae0ddad6a9f",
+    "site_version": 95,
+    "validated_at": "2026-09-18T20:41:55Z",
+    "working_tree_status": "commercial_knowledge_catalog_published"
   },
   "full_audit_required": false,
   "baseline_status": "validated_with_external_homologation_pending",
-  "updated_at": "2026-09-18T20:07:43Z",
-  "next_action": "Publicar o Site oficial com o catálogo comercial; depois, um administrador pode sincronizar cada fonte Wayflex em Configurações > Empresa e conhecimento. Validar envio de conteúdo na Central somente com autorização pontual para uma mensagem externa."
+  "updated_at": "2026-09-18T20:48:30Z",
+  "next_action": "Revisar os três itens rastreáveis em Configurações > Empresa e conhecimento; ampliar a fonte somente quando o site oficial expuser conteúdo estruturado ou houver adaptador aprovado. Validar envio de conteúdo na Central somente com autorização pontual para uma mensagem externa."
 }

@@ -21,9 +21,11 @@
 - O catálogo comercial compartilha PDF e imagem como URL rastreável pela fila humana já
   homologada. Anexo binário direto só deve ser adicionado após existir pipeline de mídia,
   recebimento e recibo comprovados; não declarar o card de catálogo como envio de arquivo nativo.
-- As fontes Wayflex novas ainda aguardam a primeira sincronização autenticada em produção. O
-  adaptador registra falha de rede/HTTP no servidor; não considerar o conteúdo disponível para
-  Ana ou Central antes do estado saudável e da revisão de itens importados.
+- As três fontes Wayflex foram sincronizadas e estão saudáveis, com uma página rastreável por
+  fonte disponível para Ana e Central. O HTML retornado não expôs cards individuais nem PDFs;
+  ampliar o catálogo depende de a origem publicar esses itens no HTML ou de um adaptador futuro
+  autorizado para a estrutura real da fonte. O sistema não preenche essa lacuna com dados
+  inventados.
 - Testes E2E autenticados e roundtrips reais de WhatsApp/Claude/provedores opcionais faltam.
 - RLS entre duas organizações e operações transacionais principais foram testadas; não substituir
   isso por uma afirmação de homologação externa.

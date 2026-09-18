@@ -1,27 +1,11 @@
 import { createAdminClient, requireOrganizationPermission, requireUser } from '../_shared/auth.ts';
 import { allowedCorsHeaders, hasAllowedOrigin, json, preflight, safeError } from '../_shared/http.ts';
-
-type ItemType = 'product' | 'service' | 'catalog' | 'document';
-type Scope = 'products' | 'services' | 'catalogs';
-
-interface ExtractedItem {
-  type: ItemType;
-  name: string;
-  externalKey: string;
-  shortDescription: string | null;
-  technicalDescription: string | null;
-  imageUrl: string | null;
-  attachmentUrl: string | null;
-  websiteUrl: string | null;
-  sourceUrl: string;
-  keywords: string[];
-}
+import { extractCatalogKnowledgeItems, type CatalogKnowledgeSourceDefinition } from '../_shared/catalogKnowledgeParser.ts';
 
 const text = (value: unknown, max = 12_000): string => typeof value === 'string' ? value.trim().replace(/\s+/g, ' ').slice(0, max) : '';
 const object = (value: unknown): Record<string, unknown> => value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
-const normalize = (value: string) => text(value, 800).toLocaleLowerCase('pt-BR').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 
-function sourceDefinition(raw: unknown): { url: string; itemType: ItemType; scope: Scope; name: string } {
+function sourceDefinition(raw: unknown): CatalogKnowledgeSourceDefinition {
   const candidate = text(raw, 2_000);
   let parsed: URL;
   try { parsed = new URL(candidate); } catch { throw new Error('knowledge_source_url_invalid'); }
@@ -33,117 +17,6 @@ function sourceDefinition(raw: unknown): { url: string; itemType: ItemType; scop
   if (pathname === '/servicos') return { url: parsed.toString(), itemType: 'service', scope: 'services', name: 'Wayflex — Serviços' };
   if (pathname === '/catalogos') return { url: parsed.toString(), itemType: 'catalog', scope: 'catalogs', name: 'Wayflex — Catálogos' };
   throw new Error('knowledge_source_adapter_not_available');
-}
-
-function safeUrl(value: string | null | undefined, base: string): string | null {
-  if (!value) return null;
-  try {
-    const url = new URL(value, base);
-    return ['https:', 'http:'].includes(url.protocol) ? url.toString() : null;
-  } catch { return null; }
-}
-
-function elementText(element: Element | null | undefined, max = 2_000): string {
-  return text(element?.textContent || '', max);
-}
-
-function uniqueValues(values: string[], max = 24): string[] {
-  return [...new Set(values.map((value) => text(value, 80)).filter(Boolean))].slice(0, max);
-}
-
-function firstImage(container: Element, base: string): string | null {
-  const image = container.querySelector('img[src]');
-  return safeUrl(image?.getAttribute('src'), base);
-}
-
-function firstContentLink(container: Element, base: string): string | null {
-  const links = Array.from(container.querySelectorAll('a[href]'));
-  const match = links.find((link) => {
-    const href = link.getAttribute('href') || '';
-    return href && !href.startsWith('#') && !href.startsWith('mailto:') && !href.startsWith('tel:');
-  });
-  return safeUrl(match?.getAttribute('href'), base);
-}
-
-function nearestTitle(container: Element): string {
-  return elementText(container.querySelector('h1,h2,h3,h4,h5,[data-title],.title,.entry-title'), 300)
-    || elementText(container.querySelector('a[href]'), 300);
-}
-
-function rootFor(document: Document): Element {
-  return document.querySelector('main, #content, .site-main, .entry-content, article') || document.body;
-}
-
-function pageFallback(root: Element, definition: ReturnType<typeof sourceDefinition>): ExtractedItem {
-  const title = elementText(root.querySelector('h1'), 300) || definition.name;
-  const paragraphs = Array.from(root.querySelectorAll('p')).map((node) => elementText(node, 1_200)).filter((value) => value.length >= 24);
-  const body = elementText(root, 10_000);
-  return {
-    type: definition.itemType,
-    name: title,
-    externalKey: `page:${normalize(definition.url)}`,
-    shortDescription: paragraphs[0] || null,
-    technicalDescription: body || null,
-    imageUrl: firstImage(root, definition.url),
-    attachmentUrl: null,
-    websiteUrl: definition.url,
-    sourceUrl: definition.url,
-    keywords: uniqueValues([definition.scope, ...title.split(/\s+/), ...paragraphs.slice(0, 1).flatMap((value) => value.split(/\s+/))]),
-  };
-}
-
-function extractCatalogs(root: Element, definition: ReturnType<typeof sourceDefinition>): ExtractedItem[] {
-  const seen = new Set<string>();
-  const items: ExtractedItem[] = [];
-  for (const link of Array.from(root.querySelectorAll('a[href]'))) {
-    const attachmentUrl = safeUrl(link.getAttribute('href'), definition.url);
-    if (!attachmentUrl || !/\.pdf(?:$|[?#])/i.test(attachmentUrl)) continue;
-    const container = link.closest('article,li,section,div') || link;
-    const name = elementText(link, 300) || nearestTitle(container) || 'Catálogo Wayflex';
-    const key = `pdf:${normalize(attachmentUrl)}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    const description = elementText(container.querySelector('p'), 1_600);
-    items.push({
-      type: 'catalog', name, externalKey: key, shortDescription: description || null,
-      technicalDescription: description || null, imageUrl: firstImage(container, definition.url), attachmentUrl,
-      websiteUrl: definition.url, sourceUrl: attachmentUrl,
-      keywords: uniqueValues(['catalogo', 'catálogo', ...name.split(/\s+/), ...description.split(/\s+/)]),
-    });
-  }
-  return items;
-}
-
-function extractCards(root: Element, definition: ReturnType<typeof sourceDefinition>): ExtractedItem[] {
-  const nodes = Array.from(root.querySelectorAll('article, [class*="product" i], [class*="produto" i], [class*="service" i], [class*="servic" i], [class*="card" i]'));
-  const seen = new Set<string>();
-  const items: ExtractedItem[] = [];
-  for (const node of nodes) {
-    const name = nearestTitle(node);
-    if (name.length < 3 || /^(menu|inicio|home|contato|saiba mais|ler mais)$/i.test(name)) continue;
-    const description = elementText(node.querySelector('p'), 2_000) || elementText(node, 2_000);
-    if (description.length < 16) continue;
-    const websiteUrl = firstContentLink(node, definition.url) || definition.url;
-    const key = `${normalize(name)}:${normalize(websiteUrl)}`;
-    if (!key || seen.has(key)) continue;
-    seen.add(key);
-    items.push({
-      type: definition.itemType, name, externalKey: key, shortDescription: description.slice(0, 500) || null,
-      technicalDescription: description || null, imageUrl: firstImage(node, definition.url), attachmentUrl: null,
-      websiteUrl, sourceUrl: websiteUrl,
-      keywords: uniqueValues([definition.scope, ...name.split(/\s+/), ...description.split(/\s+/)]),
-    });
-    if (items.length >= 60) break;
-  }
-  return items;
-}
-
-function extractItems(html: string, definition: ReturnType<typeof sourceDefinition>): ExtractedItem[] {
-  const document = new DOMParser().parseFromString(html, 'text/html');
-  if (!document) throw new Error('knowledge_source_html_invalid');
-  const root = rootFor(document);
-  const extracted = definition.scope === 'catalogs' ? extractCatalogs(root, definition) : extractCards(root, definition);
-  return extracted.length ? extracted : [pageFallback(root, definition)];
 }
 
 async function getOrganization(request: Request) {
@@ -207,7 +80,7 @@ Deno.serve(async (request) => {
     if (!response.ok) throw new Error(`knowledge_source_http_${response.status}`);
     const html = await response.text();
     if (!html || html.length < 80) throw new Error('knowledge_source_empty');
-    const items = extractItems(html, definition);
+    const items = extractCatalogKnowledgeItems(html, definition);
     const keys = items.map((item) => item.externalKey);
     const { data: existing, error: existingError } = await admin.from('knowledge_catalog_items')
       .select('external_key,status,ana_enabled').eq('organization_id', organizationId).eq('source_id', sourceId).in('external_key', keys);
