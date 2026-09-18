@@ -2,9 +2,9 @@
   "schema_version": 1,
   "baseline_version": 4,
   "baseline_commit": "1dc6275b8c7d70de953b66397a8c89f5e97bc15b",
-  "last_audited_commit": "1dc6275b8c7d70de953b66397a8c89f5e97bc15b",
-  "current_head_at_update": "1dc6275b8c7d70de953b66397a8c89f5e97bc15b",
-  "working_tree_status": "commercial_knowledge_catalog_published_parser_fixed_and_sources_synced",
+  "last_audited_commit": "c980be93faa562f65d5e33563a5164db33c07618",
+  "current_head_at_update": "c980be93faa562f65d5e33563a5164db33c07618",
+  "working_tree_status": "central_and_commercial_knowledge_current_source_revalidated_pending_site_publication",
   "last_site_publication": {
     "commit": "d5ddf1a9f49124eb7d9b87c2f8b9bae0ddad6a9f",
     "site_version": 95,
@@ -13,6 +13,6 @@
   },
   "full_audit_required": false,
   "baseline_status": "validated_with_external_homologation_pending",
-  "updated_at": "2026-09-18T20:48:30Z",
-  "next_action": "Revisar os três itens rastreáveis em Configurações > Empresa e conhecimento; ampliar a fonte somente quando o site oficial expuser conteúdo estruturado ou houver adaptador aprovado. Validar envio de conteúdo na Central somente com autorização pontual para uma mensagem externa."
+  "updated_at": "2026-09-18T20:31:26-03:00",
+  "next_action": "Publicar o checkpoint c980be93faa562f65d5e33563a5164db33c07618 no Site oficial, preservando a audiência pública já existente. Depois, revisar os três itens rastreáveis em Configurações > Empresa e conhecimento; testar envio de conteúdo somente com autorização pontual para uma mensagem externa."
 }

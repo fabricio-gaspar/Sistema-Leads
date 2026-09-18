@@ -655,3 +655,18 @@
   saudáveis e três itens rastreáveis ativos para a Ana e a Central. Como a origem não expôs cards
   individuais ou PDFs no HTML retornado, cada página entrou como um item de origem; nenhum dado
   comercial foi inventado e nenhum WhatsApp, job ou execução nova da Ana foi disparado.
+
+# 2026-09-18 — Revalidação da Central e da base comercial atual
+
+- O checkout foi sincronizado por fast-forward com a versão oficial mais recente antes de qualquer
+  alteração, preservando as evoluções já publicadas da Central em três áreas e do catálogo
+  contextual.
+- A Central já atende ao fluxo solicitado: filtros e pesquisa de conversas, atualização ao vivo,
+  histórico auditável, handoff, opt-out, agenda/orçamento pré-selecionados e catálogo pesquisável
+  que apenas prepara texto/link para a fila humana existente.
+- A suíte completa revelou uma única asserção incompatível com o matcher de lista do Vitest. O
+  contrato foi corrigido para localizar explicitamente a verificação de webhook inválido; runtime,
+  Edge Functions, Supabase, Z-API e fluxos comerciais não foram modificados.
+- Validação: type-check frontend/Edge, lint, 25 arquivos/200 testes e build/artefato do Site
+  passaram. Nenhuma mensagem, job, lead, integração, configuração da Ana ou dado comercial foi
+  criado ou alterado.

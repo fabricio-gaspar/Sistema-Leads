@@ -1,5 +1,19 @@
 # Checkpoint — WayFlex CRM
 
+## Revalidação da Central e catálogo contextual — 18/09/2026
+
+- A versão oficial atual já contém a Central em três áreas: conversas, chat operacional e contexto
+  comercial do lead. Mantém filtros, atualização ao vivo, handoff humano/Ana, opt-out, fila humana
+  auditável, Agenda, Orçamentos e Kanban sem criar caminhos paralelos.
+- O painel de conhecimento usa a base comercial canônica: produtos, serviços, catálogos e arquivos
+  são pesquisáveis, mostram origem rastreável e apenas preenchem uma mensagem revisável. O envio
+  continua exclusivamente na fila homologada; PDF e imagem seguem como link até existir mídia
+  homologada.
+- Uma asserção de teste para callback Z-API invalidado foi ajustada sem mudar backend ou regra de
+  negócio. Validação local: type-check frontend/Edge, lint, 25 arquivos/200 testes e build passaram.
+- Nenhuma mensagem, job, lead, integração ou configuração da Ana foi alterado. A publicação deste
+  checkpoint deve preservar a audiência pública já existente do Site.
+
 ## Base comercial inteligente — 18/09/2026
 
 - Implementada uma única base operacional de conhecimento em **Configurações > Empresa e

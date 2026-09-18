@@ -59,10 +59,9 @@
 - O advisor aponta 111 índices sem uso; aguardar janela representativa antes de remover qualquer um.
 - Funções RPC de handoff usam `SECURITY DEFINER` intencionalmente para efetivar a operação
   transacional sob RLS, com validação de membro, organização e papel no corpo da função.
-- O Vitest deve ser executado com `--configLoader runner`; o loader padrão do esbuild não consegue
-  percorrer a junção local de `node_modules`. Com o runner, a suíte executa normalmente. Em
-  18/09, 193 de 194 casos passaram; a falha restante é o contrato pré-existente de diagnóstico
-  Z-API sobre troca de rota de callback, sem relação com a Central, Realtime, Agenda ou Orçamentos.
+- O Vitest deve ser executado com `--configLoader runner` quando o ambiente não consegue
+  percorrer a junção local de `node_modules`. Nesta cópia do projeto, `npm test` executou a suíte
+  completa: 25 arquivos e 200 casos passaram.
 - O advisor de segurança informa que `daily_lead_report_deliveries` possui RLS sem policy. Isso é
   intencional: todo acesso de navegador foi revogado e somente `service_role` do backend possui
   privilégio na tabela. Não adicionar policy de cliente para silenciar o aviso.
@@ -80,6 +79,13 @@
   gatilho de onboarding criava uma organização pessoal e o membro não aparecia na equipe WayFlex.
   `team-members` v4 inverteu a ordem, usa `organization_invites` e restaura a autorização em falha.
   O cadastro de Juca foi reparado e confirmado na lista autenticada.
+
+## Resolvido em 18/09/2026
+
+- O contrato de diagnóstico para uma rota de callback Z-API invalidada usava um matcher parcial
+  incompatível com a lista de verificações. A asserção agora procura explicitamente o check
+  `whatsapp_webhook` e confirma que ele fica bloqueado. Não houve alteração no diagnóstico,
+  backend, Z-API ou fila de mensagens.
 
 ## Resolvido em 17/09/2026
 
