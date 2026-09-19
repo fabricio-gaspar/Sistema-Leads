@@ -1,5 +1,20 @@
 # Checkpoint — WayFlex CRM
 
+## Refinamento visual da Central de Atendimento — 19/09/2026
+
+- A Central preserva os fluxos homologados e passa a seguir a composição visual de três áreas da
+  referência: lista de conversas à esquerda, chat central com ações organizadas e painel comercial
+  mais amplo à direita. A alteração não toca em Ana, Supabase, Edge Functions, filas ou integrações.
+- Os cards de conversas, dados do lead, orçamentos e produtos/catálogos não usam mais truncamento
+  para conteúdo operacional. Textos disponíveis quebram linha e a lista rola quando necessário,
+  sem ocultar o restante da mensagem ou descrição.
+- Os botões de catálogo, orçamento, reunião, assumir/devolver Ana, transferência e opt-out foram
+  apenas reorganizados visualmente; todos continuam chamando os handlers existentes. O catálogo
+  ainda somente prepara texto/link revisável para a fila auditável.
+- Validação local: `npm run type-check`, `npm run lint`, `npm test` (25 arquivos/200 testes) e
+  `npm run build` passaram. A publicação deste checkpoint deve preservar a audiência pública do
+  Site oficial. Não houve envio de WhatsApp, alteração de lead ou execução da Ana.
+
 ## Revalidação da Central e catálogo contextual — 18/09/2026
 
 - A versão oficial atual já contém a Central em três áreas: conversas, chat operacional e contexto

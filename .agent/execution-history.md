@@ -670,3 +670,13 @@
 - Validação: type-check frontend/Edge, lint, 25 arquivos/200 testes e build/artefato do Site
   passaram. Nenhuma mensagem, job, lead, integração, configuração da Ana ou dado comercial foi
   criado ou alterado.
+
+# 2026-09-19 — Refinamento visual da Central de Atendimento
+
+- A composição foi alinhada à referência fornecida: inbox à esquerda, conversa central com faixa
+  de ações e contexto comercial mais largo à direita. A mudança é exclusivamente de apresentação.
+- Cards de conversa, contexto do lead, orçamento e itens de conhecimento deixam de truncar o
+  conteúdo: nomes, mensagens e descrições agora quebram linha e preservam o texto disponível.
+- Catálogo, orçamento, agenda, handoff, opt-out, fila auditável e Realtime mantêm os mesmos
+  handlers e fontes operacionais. Nenhum registro ou provedor foi chamado.
+- Validação: type-check, lint, 25 arquivos/200 testes e build/artefato do Site passaram.

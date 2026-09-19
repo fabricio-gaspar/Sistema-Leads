@@ -84,6 +84,10 @@
     ,{"command":"npm run lint","status":"passed","warnings":0}
     ,{"command":"npm test","status":"passed","test_files":25,"checks":200,"note":"A asserção do diagnóstico de callback foi corrigida sem alterar runtime, integração ou fila."}
     ,{"command":"npm run build","status":"passed","note":"Artefato Sites produzido sem segredo no bundle."}
+    ,{"command":"npm run type-check","status":"passed","note":"Refinamento visual da Central e quebra de texto dos cards compilados sem erro."}
+    ,{"command":"npm run lint","status":"passed","warnings":0,"note":"Refinamento visual da Central sem avisos."}
+    ,{"command":"npm test","status":"passed","test_files":25,"checks":200,"note":"Nenhuma regressão nos contratos de Central, fila, handoff, catálogo ou backend."}
+    ,{"command":"npm run build","status":"passed","note":"Artefato Sites da Central visual foi produzido sem segredo no bundle."}
   ],
   "prior_site_artifact_validation": {
     "validated_commit": "e4b1666c878df01ac0db3d12a290531a42107446",
