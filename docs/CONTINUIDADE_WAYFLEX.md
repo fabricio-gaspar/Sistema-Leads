@@ -1,5 +1,21 @@
 # Checkpoint — WayFlex CRM
 
+## Correção do handoff da Ana — 19/09/2026
+
+- A investigação do atendimento reportado comprovou que **Retornar Ana** funcionou: o handoff foi
+  devolvido à Ana e a mensagem posterior chegou ao backend. A interrupção ocorria exclusivamente
+  ao registrar o evento `lead.handoff.requested`, pois a tabela exige `idempotency_key`.
+- `ana-run` v31 registra agora uma chave idempotente derivada da execução. A correção é limitada à
+  auditoria do handoff; não muda catálogo, política de reunião/orçamento, conteúdo, fila ou envio
+  externo.
+- A política atual continua encaminhando ao humano solicitações de reunião abertas e pedidos
+  comerciais repetidos. Portanto, uma nova mensagem desse lead ainda pode ser transferida por essa
+  regra, sem que isso represente falha do botão.
+- Validação: `npm run type-check`, `npm run type-check:edge`, `npm run lint`, `npm test` (25
+  arquivos/200 testes) e `npm run build` passaram. A mensagem já recebida não foi repetida para
+  não criar contato duplicado; uma nova homologação requer retorno explícito à Ana e nova entrada
+  controlada.
+
 ## Refinamento visual da Central de Atendimento — 19/09/2026
 
 - A Central preserva os fluxos homologados e passa a seguir a composição visual de três áreas da

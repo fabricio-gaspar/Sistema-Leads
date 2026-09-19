@@ -1,5 +1,19 @@
 # Histórico resumido de execução
 
+## 2026-09-19 — Ana: evento de handoff idempotente
+
+- A inspeção do atendimento reportado confirmou que **Retornar Ana** concluiu o handoff anterior e
+  que a nova mensagem de WhatsApp chegou ao `ana-run`. A execução foi interrompida somente ao
+  tentar auditar o handoff humano: `domain_events.idempotency_key` é obrigatório.
+- `ana-run` v31 agora grava `lead.handoff.requested` com uma chave derivada do identificador da
+  execução. A regra que protege reunião, orçamento, pedido de humano e repetição comercial não foi
+  flexibilizada; ela continua podendo devolver o lead ao atendimento humano.
+- A regressão do handler exige a chave de idempotência. Type-check frontend/Edge, lint, 25
+  arquivos/200 testes e build passaram. A função publicada foi conferida no projeto Supabase
+  oficial.
+- A mensagem real que falhou não foi reenviada nem reprocessada, para evitar contato duplicado.
+
+
 ## 2026-09-17 — Correção da reserva do teste direto Z-API
 
 - O erro `whatsapp_test_reservation_failed` foi reproduzido no banco antes de qualquer chamada

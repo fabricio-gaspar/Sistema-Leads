@@ -88,6 +88,11 @@
     ,{"command":"npm run lint","status":"passed","warnings":0,"note":"Refinamento visual da Central sem avisos."}
     ,{"command":"npm test","status":"passed","test_files":25,"checks":200,"note":"Nenhuma regressão nos contratos de Central, fila, handoff, catálogo ou backend."}
     ,{"command":"npm run build","status":"passed","note":"Artefato Sites da Central visual foi produzido sem segredo no bundle."}
+    ,{"command":"npm run type-check","status":"passed","note":"Correção da idempotência do evento de handoff da Ana compilada sem erros."}
+    ,{"command":"npm run type-check:edge","status":"passed","note":"ana-run v31 validada sem regressão de tipos."}
+    ,{"command":"npm run lint","status":"passed","warnings":0,"note":"Correção do handoff sem avisos."}
+    ,{"command":"npm test","status":"passed","test_files":25,"checks":200,"note":"Inclui contrato que exige idempotency_key em lead.handoff.requested."}
+    ,{"command":"npm run build","status":"passed","note":"Build Vite concluído; o aviso conhecido de runtime-config.js não bloqueia o artefato."}
   ],
   "prior_site_artifact_validation": {
     "validated_commit": "e4b1666c878df01ac0db3d12a290531a42107446",
