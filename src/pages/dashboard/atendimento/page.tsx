@@ -434,15 +434,14 @@ export default function Atendimento() {
   const knowledgeEventByMessage = new Map(knowledgeEvents.map((event) => [event.messageId, event]));
 
   return (
-    <div className="wf-page">
-      <div className="wf-page-header">
+    <div className="wf-page space-y-5">
+      <div className="wf-page-header border-b-0 pb-0 lg:items-center">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-primary-700">Inbox multicanal</p>
-          <h1 className="wf-page-title mt-1">
+          <h1 className="wf-page-title">
             Central de Atendimento
           </h1>
           <p className="wf-page-description">
-            Conversas, contexto comercial e ações auditáveis em uma única tela.
+            Converse, gerencie oportunidades e transforme atendimentos em grandes negócios.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
@@ -478,7 +477,7 @@ export default function Atendimento() {
         </div>
       </div>
 
-      <div className="grid min-h-[560px] grid-cols-1 gap-4 lg:h-[calc(100vh-220px)] lg:grid-cols-[minmax(280px,0.78fr)_minmax(0,1.7fr)] xl:grid-cols-[300px_minmax(0,1fr)_280px]">
+      <div className="grid min-h-[600px] grid-cols-1 gap-4 lg:h-[calc(100vh-208px)] lg:grid-cols-[minmax(280px,0.78fr)_minmax(0,1.7fr)] xl:grid-cols-[minmax(280px,300px)_minmax(0,1fr)_minmax(360px,400px)]">
         {/* Lista de conversas */}
         <div className="wf-surface flex min-h-[280px] max-h-[360px] flex-col overflow-hidden lg:max-h-none">
           <div className="border-b border-background-200/70 bg-background-50 p-4">
@@ -528,24 +527,24 @@ export default function Atendimento() {
               <button
                 key={c.id}
                 onClick={() => setSelectedId(c.id)}
-                className={`w-full flex items-start gap-3 border-b border-background-100 px-4 py-3.5 text-left transition-colors cursor-pointer ${
-                  selected.id === c.id ? 'bg-[#e8f3ec]' : 'hover:bg-background-50/50'
+                className={`w-full flex items-start gap-3 border-b border-background-100 px-4 py-4 text-left transition-colors cursor-pointer ${
+                  selected.id === c.id ? 'border-l-[3px] border-l-primary-500 bg-[#e8f7ef]' : 'border-l-[3px] border-l-transparent hover:bg-background-50/50'
                 }`}
               >
                 <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-primary-100">
                   <span className="text-sm font-bold text-primary-700">{c.contato.charAt(0)}</span>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
-                    <p className="font-medium text-foreground-900 text-sm truncate">{c.contato}</p>
-                    <span className="text-xs text-foreground-400 whitespace-nowrap">{c.hora}</span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="break-words text-sm font-semibold leading-5 text-foreground-900">{c.contato}</p>
+                    <span className="shrink-0 whitespace-nowrap text-xs text-foreground-400">{c.hora}</span>
                   </div>
-                  <p className="text-xs text-foreground-500 truncate mt-0.5">{c.ultimaMensagem}</p>
-                  <div className="flex items-center gap-2 mt-1.5">
+                  <p className="mt-1 whitespace-normal break-words text-xs leading-5 text-foreground-500">{c.ultimaMensagem}</p>
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
                     <span className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-medium ${statusCores[c.status]}`}>
                       {statusLabel[c.status]}
                     </span>
-                    <span className="text-[10px] text-foreground-400">{c.canal}</span>
+                    <span className="text-[10px] text-foreground-400"><i className={`${c.canal === 'whatsapp' ? 'ri-whatsapp-line text-emerald-600' : c.canal === 'email' ? 'ri-mail-line' : 'ri-instagram-line'} mr-1`} />{c.canal}</span>
                   </div>
                 </div>
                 {c.naoLidas > 0 && (
@@ -560,14 +559,14 @@ export default function Atendimento() {
 
         {/* Chat */}
         <div className="wf-surface flex min-w-0 flex-col overflow-hidden">
-          <div className="flex items-center justify-between border-b border-background-200/70 bg-[#f0f2f5] px-4 py-3">
+          <div className="flex items-center justify-between border-b border-background-200/70 bg-background-50 px-5 py-4">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-100">
+              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-primary-100">
                 <span className="font-bold text-primary-700">{selected.contato.charAt(0)}</span>
               </div>
               <div className="min-w-0">
-                <p className="font-semibold text-foreground-900 text-sm">{selected.contato}</p>
-                <p className="truncate text-xs text-foreground-500">
+                <p className="text-base font-bold text-foreground-900">{selected.contato}</p>
+                <p className="whitespace-normal break-words text-xs leading-5 text-foreground-500">
                   <i className={selected.canal === 'whatsapp' ? 'ri-whatsapp-line mr-1 text-emerald-600' : selected.canal === 'email' ? 'ri-mail-line mr-1' : 'ri-instagram-line mr-1'} />
                   {selected.empresa} · {statusDaAna}
                 </p>
@@ -581,29 +580,9 @@ export default function Atendimento() {
               >
                 <i className="ri-side-bar-line"></i>
               </button>
-              <button onClick={() => setOrcamentoModal(true)} className="inline-flex items-center gap-1.5 rounded-lg bg-background-50 px-2.5 py-2 text-xs font-semibold text-foreground-700 shadow-sm transition hover:bg-background-100 cursor-pointer" title="Buscar e enviar orçamento">
-                <i className="ri-file-list-3-line" />
-                <span className="hidden sm:inline">Orçamento</span>
+              <button onClick={() => setDrawerOpen(true)} className="hidden items-center gap-2 rounded-lg border border-background-200 bg-background-50 px-3 py-2 text-xs font-semibold text-foreground-700 transition hover:bg-background-100 sm:inline-flex" title="Abrir dados completos do lead">
+                Mais ações <i className="ri-arrow-down-s-line text-base" />
               </button>
-              {!responsabilidadeHumana ? (
-                <button
-                  onClick={() => void assumir()}
-                  disabled={handoffAction !== null}
-                  className="inline-flex items-center gap-2 px-3 py-2 bg-primary-500 hover:bg-primary-600 disabled:bg-primary-300 text-background-50 rounded-lg text-xs font-semibold cursor-pointer disabled:cursor-wait whitespace-nowrap"
-                >
-                  <i className="ri-user-received-line"></i>
-                  {handoffAction === 'takeover' ? 'Assumindo...' : 'Assumir'}
-                </button>
-              ) : (
-                <button
-                  onClick={() => void devolver()}
-                  disabled={handoffAction !== null}
-                  className="inline-flex items-center gap-2 px-3 py-2 bg-primary-100 hover:bg-primary-200 disabled:opacity-50 text-primary-700 rounded-lg text-xs font-semibold cursor-pointer disabled:cursor-wait whitespace-nowrap"
-                >
-                  <i className="ri-robot-line"></i>
-                  {handoffAction === 'return' ? 'Devolvendo...' : 'Devolver p/ Ana'}
-                </button>
-              )}
               <button
                 onClick={() => setOptoutConfirmar(true)}
                 className="w-9 h-9 flex items-center justify-center rounded-lg bg-background-100 hover:bg-accent-100 text-foreground-500 hover:text-accent-700 cursor-pointer transition-colors"
@@ -611,17 +590,33 @@ export default function Atendimento() {
               >
                 <i className="ri-forbid-2-line text-base"></i>
               </button>
-              {!responsabilidadeHumana && (
-                <button
-                  onClick={() => void handoff()}
-                  disabled={handoffAction !== null}
-                  className="inline-flex items-center gap-2 px-3 py-2 bg-secondary-100 hover:bg-secondary-200 disabled:opacity-50 text-secondary-800 rounded-lg text-xs font-semibold cursor-pointer disabled:cursor-wait whitespace-nowrap"
-                >
-                  <i className="ri-user-add-line"></i>
-                  {handoffAction === 'transfer' ? 'Transferindo...' : 'Transferir'}
-                </button>
-              )}
             </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2 border-b border-background-200/70 bg-background-50 px-4 py-3">
+            <button type="button" onClick={() => setKnowledgeOpen(true)} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-background-200 bg-white px-3 text-xs font-semibold text-foreground-700 transition hover:border-primary-200 hover:text-primary-700">
+              <i className="ri-book-open-line text-base" />Enviar catálogo
+            </button>
+            <button type="button" onClick={() => setOrcamentoModal(true)} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-background-200 bg-white px-3 text-xs font-semibold text-foreground-700 transition hover:border-primary-200 hover:text-primary-700">
+              <i className="ri-file-add-line text-base" />Criar orçamento
+            </button>
+            <button type="button" onClick={() => leadSelecionado && navigate(`/dashboard/agenda?leadId=${encodeURIComponent(leadSelecionado.id)}&new=1`)} disabled={!leadSelecionado} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-background-200 bg-white px-3 text-xs font-semibold text-foreground-700 transition hover:border-primary-200 hover:text-primary-700 disabled:cursor-not-allowed disabled:opacity-50">
+              <i className="ri-calendar-event-line text-base" />Agendar reunião
+            </button>
+            {!responsabilidadeHumana ? (
+              <button onClick={() => void assumir()} disabled={handoffAction !== null} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-primary-200 bg-primary-50 px-3 text-xs font-semibold text-primary-800 transition hover:bg-primary-100 disabled:cursor-wait disabled:opacity-50">
+                <i className="ri-user-received-line text-base" />{handoffAction === 'takeover' ? 'Assumindo...' : 'Assumir'}
+              </button>
+            ) : (
+              <button onClick={() => void devolver()} disabled={handoffAction !== null} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-primary-200 bg-primary-50 px-3 text-xs font-semibold text-primary-800 transition hover:bg-primary-100 disabled:cursor-wait disabled:opacity-50">
+                <i className="ri-robot-line text-base" />{handoffAction === 'return' ? 'Devolvendo...' : 'Retomar Ana'}
+              </button>
+            )}
+            {!responsabilidadeHumana && (
+              <button onClick={() => void handoff()} disabled={handoffAction !== null} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-background-200 bg-white px-3 text-xs font-semibold text-foreground-700 transition hover:border-primary-200 hover:text-primary-700 disabled:cursor-wait disabled:opacity-50">
+                <i className="ri-arrow-left-right-line text-base" />{handoffAction === 'transfer' ? 'Transferindo...' : 'Transferir'}
+              </button>
+            )}
           </div>
 
           {contatoBloqueado && (
@@ -643,7 +638,7 @@ export default function Atendimento() {
               const panel = event.currentTarget;
               shouldStickToBottomRef.current = panel.scrollHeight - panel.scrollTop - panel.clientHeight < 96;
             }}
-            className="flex-1 space-y-4 overflow-y-auto bg-[#efeae2] p-4 md:p-5"
+            className="flex-1 space-y-4 overflow-y-auto bg-[#f7f8f7] p-4 md:p-5"
             role="log"
             aria-live="polite"
             aria-label={`Mensagens de ${selected.contato}`}
@@ -731,7 +726,7 @@ export default function Atendimento() {
             })}
           </div>
 
-          <div className="border-t border-background-200/70 bg-[#f0f2f5] px-4 py-3">
+          <div className="border-t border-background-200/70 bg-background-50 px-4 py-3">
             {notaInterna && (
               <div className="mb-2 inline-flex items-center gap-2 bg-accent-100 text-accent-800 text-xs px-3 py-1.5 rounded-full">
                 <i className="ri-lock-line"></i>
@@ -743,7 +738,7 @@ export default function Atendimento() {
             )}
             {preparedKnowledge && !notaInterna && (
               <div className="mb-2 flex items-center justify-between gap-2 rounded-lg border border-primary-200 bg-primary-50 px-3 py-2 text-xs text-primary-900">
-                <span className="min-w-0 truncate"><i className="ri-bookmark-3-line mr-1.5" />Conteúdo preparado: <strong>{preparedKnowledge.item.name}</strong> · {preparedKnowledge.format === 'technical' ? 'técnico' : preparedKnowledge.format === 'commercial' ? 'comercial' : 'rápido'}</span>
+                <span className="min-w-0 whitespace-normal break-words"><i className="ri-bookmark-3-line mr-1.5" />Conteúdo preparado: <strong>{preparedKnowledge.item.name}</strong> · {preparedKnowledge.format === 'technical' ? 'técnico' : preparedKnowledge.format === 'commercial' ? 'comercial' : 'rápido'}</span>
                 <button type="button" onClick={() => setPreparedKnowledge(null)} className="shrink-0 text-primary-700 hover:text-primary-900" title="Remover vínculo do conteúdo"><i className="ri-close-line text-base" /></button>
               </div>
             )}
@@ -812,14 +807,19 @@ export default function Atendimento() {
 
         <aside className="hidden min-h-0 flex-col overflow-y-auto xl:flex">
           <section className="wf-surface overflow-hidden">
-            <div className="border-b border-background-200/70 px-4 py-3">
-              <p className="text-sm font-bold text-foreground-900">Contexto do lead</p>
-              <p className="mt-0.5 text-xs text-foreground-500">Dados operacionais vinculados à conversa</p>
+            <div className="flex border-b border-background-200/70 px-4">
+              <span className="border-b-2 border-primary-500 px-3 py-3 text-xs font-bold text-primary-700">Lead</span>
+              <button type="button" onClick={() => setOrcamentoModal(true)} className="px-3 py-3 text-xs font-semibold text-foreground-500 transition hover:text-primary-700">Orçamentos</button>
+              <button type="button" onClick={() => setKnowledgeOpen(true)} className="px-3 py-3 text-xs font-semibold text-foreground-500 transition hover:text-primary-700">Produtos</button>
+              <button type="button" onClick={() => leadSelecionado && navigate(`/dashboard/agenda?leadId=${encodeURIComponent(leadSelecionado.id)}`)} className="px-3 py-3 text-xs font-semibold text-foreground-500 transition hover:text-primary-700">Tarefas</button>
             </div>
             <div className="space-y-3 p-4">
-              <div>
-                <p className="text-sm font-semibold text-foreground-900">{leadSelecionado?.nome || selected.contato}</p>
-                <p className="truncate text-xs text-foreground-500">{leadSelecionado?.empresa || selected.empresa}</p>
+              <div className="flex items-start gap-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary-100 text-sm font-bold text-primary-700">{(leadSelecionado?.nome || selected.contato).charAt(0)}</div>
+                <div className="min-w-0">
+                  <p className="break-words text-base font-bold leading-5 text-foreground-900">{leadSelecionado?.nome || selected.contato}</p>
+                  <p className="mt-1 whitespace-normal break-words text-xs leading-5 text-foreground-500">{leadSelecionado?.empresa || selected.empresa}</p>
+                </div>
               </div>
               <dl className="grid grid-cols-2 gap-x-3 gap-y-3 border-y border-background-100 py-3 text-xs">
                 <div>
@@ -836,7 +836,7 @@ export default function Atendimento() {
                 </div>
                 <div>
                   <dt className="text-foreground-500">Contato</dt>
-                  <dd className="mt-0.5 truncate font-semibold text-foreground-800" title={contactForChannel || undefined}>{contactForChannel || 'Não informado'}</dd>
+                  <dd className="mt-0.5 break-words font-semibold leading-5 text-foreground-800" title={contactForChannel || undefined}>{contactForChannel || 'Não informado'}</dd>
                 </div>
               </dl>
               <div className="grid gap-2">
@@ -886,7 +886,7 @@ export default function Atendimento() {
                 propostasDoLead.slice(0, 2).map((proposta) => (
                   <button key={proposta.id} type="button" onClick={() => setOrcamentoModal(true)} className="w-full rounded-lg border border-background-100 bg-background-50 px-3 py-2 text-left transition hover:border-primary-200">
                     <p className="text-xs font-semibold text-foreground-800">{proposta.numero}</p>
-                    <p className="mt-0.5 truncate text-[11px] text-foreground-500">{proposta.status === 'rascunho' ? 'Rascunho' : proposta.status}</p>
+                    <p className="mt-0.5 whitespace-normal break-words text-[11px] leading-4 text-foreground-500">{proposta.status === 'rascunho' ? 'Rascunho' : proposta.status}</p>
                   </button>
                 ))
               )}
