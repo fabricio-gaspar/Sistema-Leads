@@ -520,6 +520,8 @@ describe('Ana handler safety — mocked persistence, no real providers', () => {
     expect(calls.some((q) => q.table === 'outreach_jobs' && q.operation === 'upsert')).toBe(false);
     expect(calls.find((q) => q.table === 'lead_handoffs' && q.operation === 'insert')?.value?.reason)
       .toContain('Demanda comercial ou sensível');
+    expect(calls.find((q) => q.table === 'domain_events' && q.operation === 'insert')?.value)
+      .toMatchObject({ event_name: 'lead.handoff.requested', idempotency_key: expect.stringContaining(':lead.handoff.requested') });
   });
   it('hands off a model decision below the active configuration confidence threshold without queueing it', async () => {
     override = (q) => {

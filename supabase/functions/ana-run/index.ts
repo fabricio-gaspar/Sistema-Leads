@@ -872,7 +872,8 @@ Deno.serve(async (request) => {
         if (taskError) throw taskError;
         const { error: handoffEventError } = await admin.from('domain_events').insert({
           organization_id: organizationId, event_name: 'lead.handoff.requested', entity_type: 'lead', entity_id: leadId,
-          actor_type: 'ai', actor_id: null, payload: { handoff_id: createdHandoff?.id ?? null, summary: decision.motivo || 'Revisar atendimento da Ana.', next_action: 'Assumir o atendimento', stage_limit_reached: stageLimitReached }, occurred_at: new Date().toISOString(),
+          actor_type: 'ai', actor_id: null, idempotency_key: `${runId}:lead.handoff.requested`,
+          payload: { handoff_id: createdHandoff?.id ?? null, summary: decision.motivo || 'Revisar atendimento da Ana.', next_action: 'Assumir o atendimento', stage_limit_reached: stageLimitReached }, occurred_at: new Date().toISOString(),
         });
         if (handoffEventError) throw handoffEventError;
       }
