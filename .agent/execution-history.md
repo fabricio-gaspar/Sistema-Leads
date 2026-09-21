@@ -712,3 +712,9 @@
 - `lead-workflow` v5 foi publicada com JWT obrigatório. Validação local: type-check, lint,
   build Vite e 86 testes direcionados passaram. O novo envio real ainda precisa ser verificado
   pela UI e pelo aceite do provedor; não foi declarado entregue apenas pela publicação.
+
+- Teste controlado executado para o lead de homologação autorizado: a ativação persistiu
+  `active_channel=whatsapp`, consentimento aprovado e a execução `lead.created` da Ana concluída.
+  A apresentação foi criada e enfileirada; o worker a manteve na fila por
+  `outside_business_hours`, sem chamada ao provedor. Esse bloqueio é a política publicada,
+  não uma falha de identidade de canal.

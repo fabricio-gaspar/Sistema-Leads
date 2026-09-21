@@ -140,3 +140,7 @@
 - O caminho **Ana conduz tudo** agora evita uma dependência desnecessária da RPC de handoff.
   A política antiga é removida no comando autenticado `lead-workflow.start_ai`; o teste ponta a
   ponta do aceite da Z-API continua pendente até a ação controlada no painel.
+
+- O teste controlado não alcançou a Z-API porque a configuração da Ana mantém
+  `businessHoursOnly=true` e o worker registrou `outside_business_hours`. A fila está preservada
+  para a próxima janela permitida; não foi burlada nem despachada fora da política.

@@ -994,3 +994,8 @@ webhook em ambiente controlado.
   ativação canônica para `ana-run`, com auditoria.
 - Regressão: type-check, lint, build Vite e 86 testes direcionados passaram. A prova de entrega
   continua sendo o aceite da Z-API; a função publicada não é uma alegação de mensagem entregue.
+
+- Homologação autenticada executada: a tela ativou o lead com `active_channel=whatsapp`,
+  `contact_approval_status=approved` e a Ana concluiu `lead.created`, criando o rascunho e o job
+  WhatsApp. O worker não enviou ao provedor porque registrou `outside_business_hours` conforme a
+  política `businessHoursOnly=true`. A fila permanece aguardando a próxima janela permitida.
