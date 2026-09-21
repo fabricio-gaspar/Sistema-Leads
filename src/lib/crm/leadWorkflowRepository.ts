@@ -5,6 +5,12 @@ export interface AnaLeadActivationInput {
   whatsapp: string;
   approvalReason: string;
   requestId?: string;
+  /**
+   * Used when "Ana conduz tudo" is selected. The server clears a previous
+   * transfer rule as part of the activation command, avoiding a separate
+   * browser RPC before the canonical ana-run invocation.
+   */
+  clearHandoffPolicy?: boolean;
 }
 
 interface AnaLeadActivationResponse {
@@ -40,6 +46,7 @@ export async function activateLeadWithAna(input: AnaLeadActivationInput): Promis
       approve_whatsapp_contact: true,
       approval_reason: approvalReason,
       request_id: input.requestId ?? crypto.randomUUID(),
+      clear_handoff_policy: input.clearHandoffPolicy === true,
     },
   });
   if (error) {

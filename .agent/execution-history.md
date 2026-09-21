@@ -703,3 +703,12 @@
 - Type-check frontend/Edge, lint, build Vite e 10 testes direcionados concluídos sem erro com
   `--configLoader runner`. Não publicar nem declarar homologado antes da validação autenticada da
   UI e do aceite do provedor.
+
+# 2026-09-21 — Correção do bloqueio de ativação sem transferência humana
+
+- A opção **Ana conduz tudo** não chama mais a RPC opcional de transferência humana antes de
+  `lead-workflow.start_ai`. A ativação usa diretamente o comando server-side e limpa uma regra
+  anterior de transferência no mesmo comando auditável.
+- `lead-workflow` v5 foi publicada com JWT obrigatório. Validação local: type-check, lint,
+  build Vite e 86 testes direcionados passaram. O novo envio real ainda precisa ser verificado
+  pela UI e pelo aceite do provedor; não foi declarado entregue apenas pela publicação.

@@ -895,11 +895,32 @@ describe('Lead workflow compatibility', () => {
     const response = await handler(new Request('https://example.invalid/lead-workflow', {
       method: 'POST',
       headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'start_ai', lead_id: leadId, request_id: requestId }),
+      body: JSON.stringify({
+        action: 'start_ai', lead_id: leadId, request_id: requestId,
+        whatsapp: '11999990000', approve_whatsapp_contact: true,
+        approval_reason: 'Teste autorizado.',
+      }),
     }));
     expect(await response.json()).toMatchObject({ ok: true, canonical_authority: 'ana-run' });
     const anaPayload = JSON.parse(String(fetchMock.mock.calls[0][1].body));
-    expect(anaPayload).toMatchObject({ event: 'manual.run', lead_id: leadId, request_id: requestId });
+    expect(anaPayload).toMatchObject({ event: 'lead.created', lead_id: leadId, request_id: requestId });
+  });
+
+  it('clears an old human-transfer policy in the same server activation command', async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ ok: true, run_id: 'synthetic-run' }), { status: 200 }));
+    await import('../functions/lead-workflow/index');
+    const response = await handler(new Request('https://example.invalid/lead-workflow', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'start_ai', lead_id: leadId, clear_handoff_policy: true,
+        whatsapp: '11999990000', approve_whatsapp_contact: true,
+        approval_reason: 'Teste autorizado.',
+      }),
+    }));
+    expect(await response.json()).toMatchObject({ ok: true, canonical_authority: 'ana-run' });
+    expect(calls.find((query) => query.table === 'lead_handoff_policies' && query.operation === 'delete')?.filters)
+      .toMatchObject({ organization_id: org, lead_id: leadId });
   });
 });
 

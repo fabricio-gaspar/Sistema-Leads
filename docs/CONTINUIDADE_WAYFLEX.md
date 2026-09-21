@@ -983,3 +983,14 @@ webhook em ambiente controlado.
 - Validações locais: type-check frontend e Edge, lint, build Vite e 10 testes direcionados passaram
   com `--configLoader runner`. Falta publicar a tela, testar a ação na UI e obter nova confirmação
   imediatamente antes de qualquer apresentação real ao número autorizado.
+
+## 2026-09-21 — Ativação sem handoff: correção complementar
+
+- Evidência no diálogo de Kanban: o acionamento de **Ana conduz tudo** podia aguardar a RPC de
+  política de transferência, embora não existisse etapa nem vendedor humano a configurar. O botão
+  permanecia aberto e nenhuma chamada de ativação chegava ao Supabase.
+- A tela agora só grava política quando há etapa e vendedor selecionados. Quando a Ana conduz todo
+  o funil, `lead-workflow.start_ai` v5 remove no backend uma política antiga e continua a mesma
+  ativação canônica para `ana-run`, com auditoria.
+- Regressão: type-check, lint, build Vite e 86 testes direcionados passaram. A prova de entrega
+  continua sendo o aceite da Z-API; a função publicada não é uma alegação de mensagem entregue.

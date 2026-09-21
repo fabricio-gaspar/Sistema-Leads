@@ -169,7 +169,11 @@ export default function Leads() {
       return;
     }
     const handoffMember = membros.find((member) => member.userId === handoffAssigneeId);
-    if (modo === 'IA') {
+    // A transfer policy is only persisted when the operator selected a stage
+    // and a human assignee. "Ana conduz tudo" is handled by the single
+    // activation command below, so it cannot leave the UI waiting on an
+    // unrelated browser RPC before Ana is called.
+    if (modo === 'IA' && etapaHandoff) {
       try {
         await configureLeadHandoffPolicy({
           leadIds: ids,
@@ -201,6 +205,7 @@ export default function Leads() {
           approvalReason: lead?.contactApprovalStatus === 'approved' && lead.contactApprovalReason
             ? lead.contactApprovalReason
             : aprovacaoKanban.origem,
+          clearHandoffPolicy: !etapaHandoff,
         });
       }));
       try {

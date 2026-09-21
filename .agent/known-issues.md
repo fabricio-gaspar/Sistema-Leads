@@ -134,3 +134,9 @@
 
 - Ambiente de homologação isolado e piloto controlado antes de comercializar.
 - Backup/restore ensaiado e runbook de incidentes.
+
+## 2026-09-21 — Ativação sem handoff
+
+- O caminho **Ana conduz tudo** agora evita uma dependência desnecessária da RPC de handoff.
+  A política antiga é removida no comando autenticado `lead-workflow.start_ai`; o teste ponta a
+  ponta do aceite da Z-API continua pendente até a ação controlada no painel.

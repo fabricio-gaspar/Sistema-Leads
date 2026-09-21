@@ -99,6 +99,13 @@ Deno.serve(async (request) => {
     if (needsApproval && body.approve_whatsapp_contact !== true) throw new Error('contact_approval_required');
     if (needsApproval && !approvalReason) throw new Error('contact_approval_reason_required');
     if (whatsapp.length < 10 || whatsapp.length > 15) throw new Error('invalid_whatsapp');
+    if (body.clear_handoff_policy === true) {
+      const { error: clearHandoffError } = await admin.from('lead_handoff_policies')
+        .delete()
+        .eq('organization_id', organizationId)
+        .eq('lead_id', leadId);
+      if (clearHandoffError) throw clearHandoffError;
+    }
     const approvalUpdate = needsApproval ? {
       contact_approval_reason: approvalReason,
       contact_approved_by: user.id,
@@ -151,7 +158,10 @@ Deno.serve(async (request) => {
     await admin.from('audit_logs').insert({
       organization_id: organizationId, actor_id: user.id, actor_name: profile.name, actor_type: 'user',
       action: 'lead.workflow.start_ai', detail: 'Compatibilidade encaminhada para a autoridade canônica da Ana.',
-      entity_table: 'leads', entity_id: leadId, event_data: { canonical_authority: 'ana-run', run_id: anaResult.run_id ?? null },
+      entity_table: 'leads', entity_id: leadId, event_data: {
+        canonical_authority: 'ana-run', run_id: anaResult.run_id ?? null,
+        cleared_handoff_policy: body.clear_handoff_policy === true,
+      },
     });
 
     return json({ ok: true, canonical_authority: 'ana-run', ana: anaResult }, 200, headers);
