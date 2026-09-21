@@ -694,3 +694,12 @@
 - Catálogo, orçamento, agenda, handoff, opt-out, fila auditável e Realtime mantêm os mesmos
   handlers e fontes operacionais. Nenhum registro ou provedor foi chamado.
 - Validação: type-check, lint, 25 arquivos/200 testes e build/artefato do Site passaram.
+# 2026-09-21 — Reparo pendente de publicação: ativação atômica da Ana
+
+- Reproduzido no Supabase oficial: o diálogo de Kanban não persistiu canal/consentimento do lead
+  de homologação; não houve `agent_run`, job ou mensagem.
+- Preparada uma ação server-side única em `lead-workflow`: valida consentimento explícito, fixa
+  WhatsApp, persiste a ativação e chama somente `ana-run` com o evento canônico `lead.created`.
+- Type-check frontend/Edge, lint, build Vite e 10 testes direcionados concluídos sem erro com
+  `--configLoader runner`. Não publicar nem declarar homologado antes da validação autenticada da
+  UI e do aceite do provedor.

@@ -1,16 +1,16 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { getLeadsSnapshot, useLeadsStore, waitForLeadsPersistence } from '@/hooks/useLeadsStore';
+import { refreshLeadsStore, useLeadsStore, waitForLeadsPersistence } from '@/hooks/useLeadsStore';
 import { etapasCRM, segmentos } from '@/mocks/leadsData';
 import type { Lead } from '@/mocks/leadsData';
 import { podeTransicionar } from '@/lib/automacao';
 import { useListasStore } from '@/hooks/useListasStore';
 import { useFluxoComercial } from '@/hooks/useFluxoComercial';
 import { useAuth } from '@/hooks/useAuth';
-import { runAna } from '@/lib/crm/anaRunRepository';
 import { loadTeamMembers, type TeamMember } from '@/lib/crm/teamMembersRepository';
 import { approvedAnaWhatsAppChannel, pendingManualLeadContact } from '@/lib/crm/manualLeadContact';
 import { configureLeadHandoffPolicy, handoffStages, type HandoffStage } from '@/lib/crm/handoffPolicyRepository';
+import { activateLeadWithAna } from '@/lib/crm/leadWorkflowRepository';
 
 const handoffStageLabels: Record<HandoffStage, string> = {
   novo: 'Novo', apresentado: 'Apresentado', qualificando: 'Qualificando', reuniao: 'Reunião', orcamento: 'Orçamento',
@@ -191,20 +191,56 @@ export default function Leads() {
       }
     }
     const idsSet = new Set(ids);
+    if (modo === 'IA') {
+      const result = await Promise.allSettled(ids.map((leadId) => {
+        const lead = leads.find((item) => item.id === leadId);
+        const activation = lead ? approvedAnaWhatsAppChannel(lead) : null;
+        return activateLeadWithAna({
+          leadId,
+          whatsapp: activation?.whatsapp ?? '',
+          approvalReason: lead?.contactApprovalStatus === 'approved' && lead.contactApprovalReason
+            ? lead.contactApprovalReason
+            : aprovacaoKanban.origem,
+        });
+      }));
+      try {
+        await refreshLeadsStore();
+      } catch {
+        mostrarToast('A Ana foi acionada, mas não foi possível atualizar a tela. Atualize a página para consultar o estado atual.');
+        return;
+      }
+      const processados = result.filter((item) => item.status === 'fulfilled' && item.value.ana?.ok && !item.value.ana?.skipped).length;
+      const falhas = result.filter((item) => item.status === 'rejected' || (item.status === 'fulfilled' && (!item.value.ana?.ok || item.value.ana?.skipped)));
+      if (falhas.length) {
+        const first = falhas[0];
+        const code = first.status === 'rejected' && first.reason instanceof Error ? first.reason.message : '';
+        const message = code === 'invalid_whatsapp'
+          ? 'O WhatsApp informado não é válido. A Ana não foi acionada.'
+          : code === 'contact_approval_reason_required'
+            ? 'Informe a origem da autorização antes de ativar a Ana.'
+            : 'O lead foi preparado para o Kanban, mas a Ana não iniciou. Consulte o Registro do Sistema para o motivo.';
+        mostrarToast(message);
+        return;
+      }
+      listas.listas.forEach((lista) => {
+        if (lista.status === 'pendente' && lista.leadIds.length > 0 && lista.leadIds.every((lid) => idsSet.has(lid))) {
+          listas.atualizar(lista.id, { status: 'ativada' });
+        }
+      });
+      mostrarToast(`${ids.length} lead(s) enviados ao Kanban${processados ? ` · ${processados} processado(s) pela Ana` : ''}.`);
+      setSelecionados([]);
+      setEnvioAlvo(null);
+      setModoSelecionado(null);
+      setAprovacaoKanban({ confirmada: false, origem: '' });
+      return;
+    }
     setLeads((current) => current.map((lead) => {
       if (!idsSet.has(lead.id)) return lead;
-      const whatsappActivation = modo === 'IA' ? approvedAnaWhatsAppChannel(lead) : null;
       return {
         ...lead,
-        ...(whatsappActivation ?? {}),
-        contactApprovalStatus: modo === 'IA' ? 'approved' : lead.contactApprovalStatus,
-        contactApprovalReason: modo === 'IA' && (lead.contactApprovalStatus !== 'approved' || !lead.whatsapp) ? aprovacaoKanban.origem.trim() : lead.contactApprovalReason,
-        contactApprovedAt: modo === 'IA' && (lead.contactApprovalStatus !== 'approved' || !lead.whatsapp) ? new Date().toISOString() : lead.contactApprovedAt,
-        contatoPermitido: modo === 'IA' ? true : lead.contatoPermitido,
-        consentimentoWhatsApp: modo === 'IA' ? true : lead.consentimentoWhatsApp,
         aguardandoAtivacao: false, modoAtendimento: modo, responsavelId: etapaHandoff ? handoffAssigneeId : lead.responsavelId || user.id,
         responsavel: etapaHandoff ? handoffMember?.name || lead.responsavel : lead.responsavel === 'Ana (IA)' || !lead.responsavel ? 'Você' : lead.responsavel,
-        etapa: 'Novo', etapaHandoff, automacaoStatus: modo === 'HUMANO' ? 'AGUARDANDO_HUMANO' : 'ATIVA',
+        etapa: 'Novo', etapaHandoff, automacaoStatus: 'AGUARDANDO_HUMANO',
         handoffWhatsappAtivo: etapaHandoff ? handoffNotifyWhatsapp : false,
       };
     }));
@@ -214,28 +250,12 @@ export default function Leads() {
       mostrarToast('A ativação não foi gravada no servidor. A Ana não foi acionada e nenhum envio foi feito. Tente novamente ou consulte o Registro do Sistema.');
       return;
     }
-    if (modo === 'IA' && ids.some((id) => {
-      const persisted = getLeadsSnapshot().find((lead) => lead.id === id);
-      return !persisted || persisted.contactApprovalStatus !== 'approved' || !persisted.whatsapp;
-    })) {
-      mostrarToast('A ativação não foi confirmada no servidor. A Ana não foi acionada e nenhum envio foi feito.');
-      return;
-    }
-    const result = modo === 'IA'
-      ? await Promise.allSettled(ids.map((leadId) => runAna({ event: 'lead.created', leadId, modo, requestId: `lead-created:${leadId}:whatsapp` })))
-      : [];
-    const processados = result.filter((item) => item.status === 'fulfilled' && item.value.ok && !item.value.skipped).length;
-    const falhas = result.filter((item) => item.status === 'rejected' || (item.status === 'fulfilled' && (!item.value.ok || item.value.skipped)));
     listas.listas.forEach((lista) => {
       if (lista.status === 'pendente' && lista.leadIds.length > 0 && lista.leadIds.every((lid) => idsSet.has(lid))) {
         listas.atualizar(lista.id, { status: 'ativada' });
       }
     });
-    if (falhas.length) {
-      mostrarToast(`${ids.length} lead(s) enviados ao Kanban, mas a Ana não iniciou ${falhas.length} atendimento(s). Abra o Registro do Sistema para o motivo.`);
-    } else {
-      mostrarToast(`${ids.length} lead(s) enviados ao Kanban${processados ? ` · ${processados} processado(s) pela Ana` : ''}.`);
-    }
+    mostrarToast(`${ids.length} lead(s) enviados ao Kanban para atendimento humano.`);
     setSelecionados([]);
     setEnvioAlvo(null);
     setModoSelecionado(null);

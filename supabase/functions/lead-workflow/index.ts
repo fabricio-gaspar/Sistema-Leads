@@ -4,6 +4,7 @@ import { allowedCorsHeaders, hasAllowedOrigin, json, preflight, safeError } from
 const ACTIONS = new Set(['start_ai', 'assign_human', 'record_inbound']);
 const asText = (value: unknown, max = 500) => typeof value === 'string' ? value.trim().slice(0, max) : '';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const normalizeWhatsapp = (value: string) => value.replace(/\D/g, '');
 
 Deno.serve(async (request) => {
   const options = preflight(request); if (options) return options;
@@ -26,7 +27,7 @@ Deno.serve(async (request) => {
     await requireOrganizationRole(admin, user.id, organizationId, ['owner', 'admin', 'manager', 'seller', 'sdr']);
 
     const { data: lead, error: leadError } = await admin.from('leads')
-      .select('id,company,contact,opt_out,owner_id,assigned_to,modo_atendimento,ai_paused')
+      .select('id,company,contact,phone,whatsapp,opt_out,owner_id,assigned_to,modo_atendimento,ai_paused,contact_approval_status,contact_approval_reason')
       .eq('id', leadId).eq('organization_id', organizationId).maybeSingle();
     if (leadError || !lead) throw new Error('lead_not_found');
 
@@ -89,6 +90,20 @@ Deno.serve(async (request) => {
     if (lead.opt_out) throw new Error('lead_opted_out');
     const ownerId = lead.owner_id || user.id;
     const now = new Date().toISOString();
+    const requestedWhatsapp = normalizeWhatsapp(asText(body.whatsapp, 40));
+    const storedWhatsapp = normalizeWhatsapp(lead.whatsapp || '');
+    const fallbackPhone = normalizeWhatsapp(lead.phone || '');
+    const whatsapp = requestedWhatsapp || storedWhatsapp || fallbackPhone;
+    const needsApproval = lead.contact_approval_status !== 'approved' || !storedWhatsapp;
+    const approvalReason = asText(body.approval_reason, 500);
+    if (needsApproval && body.approve_whatsapp_contact !== true) throw new Error('contact_approval_required');
+    if (needsApproval && !approvalReason) throw new Error('contact_approval_reason_required');
+    if (whatsapp.length < 10 || whatsapp.length > 15) throw new Error('invalid_whatsapp');
+    const approvalUpdate = needsApproval ? {
+      contact_approval_reason: approvalReason,
+      contact_approved_by: user.id,
+      contact_approved_at: now,
+    } : {};
     const { error: modeError } = await admin.from('leads').update({
       modo_atendimento: 'ia',
       approach_type: 'ia',
@@ -99,6 +114,12 @@ Deno.serve(async (request) => {
       automation_status: 'running',
       automation_error: null,
       automation_updated_at: now,
+      whatsapp,
+      active_channel: 'whatsapp',
+      contact_approval_status: 'approved',
+      ...approvalUpdate,
+      stage: 'Prospecção',
+      ana_stage: 'novo',
       // no_reply_deadline_at is intentionally NOT set here. Only a confirmed
       // outbound dispatch may start the 48h clock.
     }).eq('id', leadId).eq('organization_id', organizationId);
@@ -114,11 +135,11 @@ Deno.serve(async (request) => {
       method: 'POST',
       headers: { Authorization: authorization, 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        event: 'manual.run',
+        event: 'lead.created',
         lead_id: leadId,
         modo: 'ia',
         request_id: requestId,
-        contexto: { source: 'lead-workflow-compat', requested_by: user.id },
+        contexto: { source: 'lead-workflow-kanban-activation', requested_by: user.id, active_channel: 'whatsapp' },
       }),
       signal: AbortSignal.timeout(45_000),
     });

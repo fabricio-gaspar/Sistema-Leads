@@ -36,6 +36,15 @@ async function hydrate(): Promise<void> {
   return hydratePromise;
 }
 
+/** Recarrega a fonte operacional depois de uma mutação transacional do backend. */
+export async function refreshLeadsStore(): Promise<void> {
+  const leads = await loadOperationalLeads();
+  state = leads.map(normalizarLead);
+  hydrated = true;
+  latestPersistenceError = null;
+  notify();
+}
+
 function updateState(updater: React.SetStateAction<Lead[]>): void {
   const previous = state;
   const candidate = typeof updater === 'function' ? updater(previous) : updater;

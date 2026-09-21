@@ -967,3 +967,19 @@ webhook em ambiente controlado.
   e build Vite também passaram. Edge Functions publicadas: `team-members` v8, `ana-run` v29 e
   `automation-worker` v28. O teste de envio real permanece pendente de confirmação específica do
   operador, pois ele geraria uma mensagem externa.
+## 2026-09-21 — Ativação da Ana no Kanban: persistência atômica
+
+- Diagnóstico reproduzido em um lead de homologação autorizado: depois de confirmar WhatsApp e
+  origem no diálogo **Enviar para o Kanban**, a linha permanecia com `active_channel=voice`,
+  `contact_approval_status=pending`, sem `agent_runs`, `outreach_jobs` ou mensagens. Portanto a
+  Ana não era chamada e nenhum envio chegava ao provedor.
+- Causa: a tela atualizava o estado local e dependia de uma segunda persistência do navegador antes
+  de chamar `ana-run`. Quando essa persistência não se confirmava, o fluxo ficava parado entre o
+  Kanban e a automação, embora os controles do modal estivessem preenchidos.
+- Correção preparada: `lead-workflow.start_ai` passa a validar a autorização explícita, normalizar
+  o WhatsApp, gravar canal, consentimento, dono, modo e etapa **Novo** no servidor e só então
+  delegar a execução canônica `lead.created` para `ana-run`. A tela usa esse único comando e relê
+  a fonte operacional; não há inferência de consentimento nem automação paralela.
+- Validações locais: type-check frontend e Edge, lint, build Vite e 10 testes direcionados passaram
+  com `--configLoader runner`. Falta publicar a tela, testar a ação na UI e obter nova confirmação
+  imediatamente antes de qualquer apresentação real ao número autorizado.
