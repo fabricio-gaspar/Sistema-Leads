@@ -1063,3 +1063,23 @@ webhook em ambiente controlado.
   Sites aprovados. Nenhuma credencial, configuração, lead, fila, execução da Ana ou mensagem foi
   alterada por este lote. A versão publicada e a inspeção autenticada devem ser anexadas após o
   deploy oficial.
+
+## 2026-09-22 — Estados de canais, APIs e fontes sem informação histórica enganosa
+
+- A camada visual passou a usar a mesma janela de validação de 24 horas do diagnóstico server-side.
+  Uma credencial persistida não é mais chamada de válida apenas porque houve um teste antigo.
+- No momento da auditoria: saída WhatsApp e Apify tinham **validação vencida**; IA da Ana estava
+  **validada**; Google Places estava **não configurada**; a entrada Z-API estava **pendente** porque
+  recebeu callback sem encontrar um WhatsApp cadastrado (`lead_not_matched`). Esses estados foram
+  lidos; nenhum provedor foi chamado para confirmá-los novamente.
+- Dashboard mostra somente caminhos atuais: WhatsApp saída/entrada, IA, Apify, Google Places,
+  Apify como fonte, cadastro manual e CSV. Linhas legadas continuam preservadas no banco sem
+  aparecer como integração ou fonte operacional ativa.
+- Canais ganhou leitura específica de entrada Z-API; APIs mantém editar, testar e ativar/pausar
+  somente onde existe operação server-side. Não foi adicionado botão de exclusão para credenciais
+  pois não há endpoint de ciclo de vida seguro nem confirmação explícita do operador.
+- A descrição dos cartões agora respeita o selo factual. Por exemplo, um retorno antigo de teste
+  Z-API não pode dizer que o canal está validado quando a validação já venceu.
+- Verificação concluída: type-check frontend/Edge, lint, Vitest completo (28 arquivos/211 testes),
+  build/artefato Sites, Dashboard/Canais/APIs em desktop e mobile e console sem warnings/errors.
+  Nenhum lead, mensagem, fila, credencial, configuração remota ou execução da Ana foi modificado.

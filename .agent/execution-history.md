@@ -763,3 +763,20 @@
 - Publicação concluída no Site oficial como versão 103, a partir do commit
   `ed5632b2a64e8e154b99f0e9f09063d7f1532681`. A validação autenticada confirmou a ausência do
   menu Fontes, o cartão único de Apify com a busca ativa e a compatibilidade de `?tab=fontes`.
+
+## Delta de estado factual de integrações — 22/09/2026
+
+- A inspeção autenticada do Site oficial confirmou a separação entre configuração persistida,
+  validação recente, uso operacional e diagnóstico de entrada. WhatsApp de saída e Apify estavam
+  com validação vencida; IA estava validada; Google Places não estava configurado; a entrada Z-API
+  estava pendente por `lead_not_matched`.
+- O Dashboard apresenta apenas os caminhos realmente disponíveis no CRM atual. Canais mostra
+  saída e entrada WhatsApp; APIs mostra IA, Apify e Google Places; Fontes de busca mostra Apify,
+  cadastro manual e CSV. Conectores legados não foram apagados do banco, apenas deixaram de ser
+  mostrados como caminho operacional atual.
+- A leitura de um detalhe histórico de sucesso agora respeita o estado factual: quando a validação
+  vence, o cartão informa que nova validação é necessária, em vez de afirmar que a integração está
+  validada no presente.
+- A validação visual cobriu Dashboard, Canais e APIs em desktop e mobile. Não houve overflow de
+  página no breakpoint móvel e o console do navegador não registrou warning ou error. Nenhum
+  teste de provedor, envio, lead, mensagem, fila ou configuração remota foi acionado.

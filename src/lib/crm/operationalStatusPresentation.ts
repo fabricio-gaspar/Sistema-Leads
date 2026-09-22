@@ -76,6 +76,26 @@ export function presentIntegrationStatus(input: IntegrationStatusInput, now = Da
   return { status, ...integrationCopy[status] };
 }
 
+/**
+ * Evita que um texto histórico do provedor contradiga o selo operacional.
+ * Por exemplo, uma mensagem de sucesso gravada no último teste não deve
+ * apresentar a integração como atual quando essa validação já venceu.
+ */
+export function integrationStatusDetail(input: IntegrationStatusInput, fallback: string, now = Date.now()): string {
+  switch (integrationDisplayStatus(input, now)) {
+    case 'validation_due':
+      return 'A configuração está salva, mas a validação venceu. Execute um novo teste antes de considerar esta integração disponível.';
+    case 'inactive':
+      return 'A configuração está salva, porém o uso operacional desta integração está desativado.';
+    case 'paused':
+      return 'A configuração está salva, porém esta integração está pausada.';
+    case 'not_configured':
+      return 'Esta integração ainda não possui uma configuração validada.';
+    default:
+      return fallback;
+  }
+}
+
 export function sourceDisplayStatus(input: SourceStatusInput): SourceDisplayStatus {
   if (input.lastError || input.connectionStatus === 'error') return 'error';
   if (input.connectionStatus !== 'connected') return 'not_configured';

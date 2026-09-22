@@ -2,17 +2,17 @@
   "schema_version": 1,
   "baseline_version": 4,
   "baseline_commit": "1dc6275b8c7d70de953b66397a8c89f5e97bc15b",
-  "last_audited_commit": "cf64e971c48b8346b0cfc0060cbb115add82afcf",
-  "current_head_at_update": "cdccad27ee9940a7e99a829ac38e87652c2ee693",
-  "working_tree_status": "operational_status_presentation_prepared_for_site_publish",
+  "last_audited_commit": "39ddce90d8acdeb057c3433a6dcceac744c87a03",
+  "current_head_at_update": "39ddce90d8acdeb057c3433a6dcceac744c87a03",
+  "working_tree_status": "status_detail_copy_corrected_pending_site_publish",
   "last_site_publication": {
-    "commit": "cdccad27ee9940a7e99a829ac38e87652c2ee693",
-    "site_version": 104,
-    "validated_at": "2026-09-22T11:48:39-03:00",
-    "working_tree_status": "ana_automatic_routing_and_validation_published"
+    "commit": "39ddce90d8acdeb057c3433a6dcceac744c87a03",
+    "site_version": 105,
+    "validated_at": "2026-09-22T15:06:00-03:00",
+    "working_tree_status": "operational_status_presentation_published"
   },
   "full_audit_required": false,
   "baseline_status": "validated_with_external_homologation_pending",
-  "updated_at": "2026-09-22T12:26:35-03:00",
-  "next_action": "Publicar e verificar visualmente a apresentação de estado operacional. Manter a operação automática em rascunho enquanto a entrada `zapi_webhook` estiver pendente; um novo teste do provedor só deve ocorrer por ação explícita no módulo Canais."
+  "updated_at": "2026-09-22T15:13:16-03:00",
+  "next_action": "Publicar a correção de texto de estado para que uma validação histórica não contradiga o selo operacional. Manter a operação automática em rascunho enquanto a entrada `zapi_webhook` estiver pendente; um novo teste do provedor só deve ocorrer por ação explícita no módulo Canais."
 }

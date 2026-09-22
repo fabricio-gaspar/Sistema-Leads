@@ -2,7 +2,7 @@ import { useEffect, useMemo, useSyncExternalStore } from 'react';
 import { integracoes as integrationDescriptors } from '@/mocks/businessData';
 import type { Integracao } from '@/mocks/businessData';
 import { supabase } from '@/lib/supabase';
-import { integrationDisplayStatus, type IntegrationDisplayStatus } from '@/lib/crm/operationalStatusPresentation';
+import { integrationDisplayStatus, integrationStatusDetail, type IntegrationDisplayStatus } from '@/lib/crm/operationalStatusPresentation';
 
 export type OperationalIntegration = Omit<Integracao, 'status'> & {
   status: IntegrationDisplayStatus;
@@ -131,22 +131,23 @@ async function hydrateFromBackend(force = false): Promise<void> {
     const descriptor = descriptorByKey[key];
     const remote = byKey.get(key);
     if (!remote) return pendingDescriptor(key);
+    const statusInput = {
+      key,
+      connected: Boolean(remote.connected),
+      enabled: Boolean(remote.enabled),
+      paused: Boolean(remote.paused),
+      lastError: remote.last_error ?? null,
+      lastTestedAt: remote.last_tested_at ?? null,
+    };
     return {
       ...descriptor,
       remoteKey: key,
       operationalCategory: (remote.category === 'prospecting' || remote.category === 'communication' || remote.category === 'intelligence' || remote.category === 'scheduling' || remote.category === 'system')
         ? remote.category
         : (key === 'whatsapp' ? 'communication' : key === 'ai' ? 'intelligence' : 'prospecting'),
-      status: integrationDisplayStatus({
-        key,
-        connected: Boolean(remote.connected),
-        enabled: Boolean(remote.enabled),
-        paused: Boolean(remote.paused),
-        lastError: remote.last_error ?? null,
-        lastTestedAt: remote.last_tested_at ?? null,
-      }),
+      status: integrationDisplayStatus(statusInput),
       ultimoTeste: remote.last_tested_at ? new Date(remote.last_tested_at).toLocaleString('pt-BR') : 'Nunca testada',
-      descricao: remote.status_detail || descriptor.descricao,
+      descricao: integrationStatusDetail(statusInput, remote.status_detail || descriptor.descricao),
       connected: Boolean(remote.connected),
       enabled: Boolean(remote.enabled),
       paused: Boolean(remote.paused),

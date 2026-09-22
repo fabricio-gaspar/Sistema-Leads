@@ -104,6 +104,12 @@
     ,{"command":"eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0","status":"passed","warnings":0}
     ,{"command":"vitest run --configLoader runner","status":"passed","test_files":28,"checks":210,"note":"Inclui regressão de validade de 24 horas, callback Z-API sem lead e seleção de caminhos reais no Dashboard."}
     ,{"command":"vite build --configLoader runner && node scripts/build-sites-artifact.mjs","status":"passed","note":"Artefato Sites produzido sem segredo no bundle."}
+    ,{"command":"tsc --noEmit --project tsconfig.app.json","status":"passed","note":"Texto de estado não contradiz mais uma validação vencida."}
+    ,{"command":"tsc --project tsconfig.edge.json","status":"passed","note":"Sem alteração de Edge Function neste ajuste de apresentação."}
+    ,{"command":"eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0","status":"passed","warnings":0}
+    ,{"command":"vitest run --configLoader runner","status":"passed","test_files":28,"checks":211,"note":"Inclui regressão que impede uma descrição histórica de sucesso de contradizer uma validação vencida."}
+    ,{"command":"vite build --configLoader runner && node scripts/build-sites-artifact.mjs","status":"passed","note":"Artefato Sites produzido sem segredo no bundle; aviso runtime-config.js é conhecido e não bloqueia a compilação."}
+    ,{"command":"Computer Use autenticado no Site oficial, versão 105","status":"passed","note":"Dashboard, Canais e APIs exibiram estados factuais; a checagem desktop/mobile não encontrou overflow de página e o console não registrou warnings ou errors. Não houve teste externo nem escrita operacional."}
   ],
   "prior_site_artifact_validation": {
     "validated_commit": "e4b1666c878df01ac0db3d12a290531a42107446",
@@ -119,5 +125,5 @@
   },
   "covered": ["frontend_typecheck","lint","edge_typecheck","unit_and_contract_tests","production_build"],
   "not_covered": ["authenticated_e2e","login_como_novo_membro","real_whatsapp","real_claude","cross_organization_rls","database_concurrency","provider_receipt_race","mobile_authenticated_qa"],
-  "working_tree_validation": "A apresentação de estado operacional foi unificada: Canais, APIs e Dashboard distinguem validação fresca, vencida, pendência de entrada, pausa, erro e ausência de configuração. O Dashboard expõe somente caminhos disponíveis no CRM atual; nenhum conector legado é apresentado como fonte operacional. Type-check frontend/Edge, lint, 28 arquivos/210 testes e build/artefato Sites passaram. Nenhum WhatsApp, job, lead, credencial, integração remota ou execução da Ana foi modificado."
+  "working_tree_validation": "A apresentação de estado operacional foi unificada: Canais, APIs e Dashboard distinguem validação fresca, vencida, pendência de entrada, pausa, erro e ausência de configuração. A descrição histórica de sucesso agora é substituída quando a validação vence, evitando informação contraditória. O Dashboard expõe somente caminhos disponíveis no CRM atual; nenhum conector legado é apresentado como fonte operacional. Type-check frontend/Edge, lint, 28 arquivos/211 testes e build/artefato Sites passaram. Computer Use confirmou Desktop/Mobile e console limpo. Nenhum WhatsApp, job, lead, credencial, integração remota ou execução da Ana foi modificado."
 }
