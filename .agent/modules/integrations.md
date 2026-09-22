@@ -5,8 +5,12 @@
 - `connected` só pode significar teste válido do adaptador; configurar credencial não basta.
 - O painel distingue conexão validada de uso operacional: uma integração conectada porém
   desabilitada aparece como **Configurada · inativa**, nunca como offline nem ativa.
-- Configurações usa três blocos sem sobreposição: **Canais** para conversas e Z-API,
-  **APIs** para IA/prospecção e **Fontes** para ativar ou pausar origens na Busca de Leads.
+- Configurações usa dois blocos de integração sem repetição visual: **Canais** para conversas e
+  Z-API, e **APIs** para IA e provedores de busca. Para Apify e Google Places, o mesmo cartão
+  configura, testa e ativa/pausa o uso na Busca de Leads.
+- `lead_source_configs` continua sendo a guarda operacional no backend: `prospectar-leads`
+  exige tanto a integração validada quanto a fonte ativa. A tabela não é uma segunda credencial
+  e não possui uma tela de configuração separada.
 - O teste direto e a validação da Z-API aparecem somente em Canais > WhatsApp.
 - Integração sem adaptador ou sem teste deve aparecer como não configurada, pendente, offline
   ou não verificada — nunca online por preset.

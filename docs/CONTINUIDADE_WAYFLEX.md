@@ -999,3 +999,17 @@ webhook em ambiente controlado.
   `contact_approval_status=approved` e a Ana concluiu `lead.created`, criando o rascunho e o job
   WhatsApp. O worker não enviou ao provedor porque registrou `outside_business_hours` conforme a
   política `businessHoursOnly=true`. A fila permanece aguardando a próxima janela permitida.
+
+## 2026-09-22 — Provedores da Busca de Leads sem duplicidade visual
+
+- A repetição de **Apify — Google Maps** e **Google Places** em **APIs** e **Fontes** não era
+  duplicidade de dados: `integrations` registra credencial, teste e disponibilidade do provedor;
+  `lead_source_configs` é a trava operacional adicional que `prospectar-leads` exige antes de
+  consultar uma fonte. Remover a segunda guarda do banco enfraqueceria a proteção da busca.
+- A duplicidade de interface foi removida. **Configurações > APIs > IA e provedores de busca** é
+  agora o único local para configurar, testar e ativar/pausar cada provedor na Busca de Leads.
+  O item de menu **Fontes** foi retirado; `?tab=fontes` continua abrindo APIs para preservar links
+  existentes. O card **Fontes** do Dashboard é apenas leitura de status e aponta para APIs.
+- Nenhuma credencial, configuração remota, regra de busca, Edge Function, lead, mensagem ou fila
+  foi alterada. Validação local: type-check frontend/Edge, lint, suíte Vitest completa (26
+  arquivos/203 testes) e build/artefato Sites aprovados. Publicação do Site oficial pendente.

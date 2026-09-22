@@ -31,7 +31,6 @@ const groups: MenuGroup[] = [
     items: [
       { id: 'canais', label: 'Canais', icon: 'ri-message-3-line' },
       { id: 'apis', label: 'APIs', icon: 'ri-code-s-slash-line' },
-      { id: 'fontes', label: 'Fontes', icon: 'ri-radar-line' },
     ],
   },
   {
@@ -61,6 +60,7 @@ const legacyTabMap: Record<string, string> = {
   empresa: 'empresa',
   conexoes: 'canais',
   integracoes: 'apis',
+  fontes: 'apis',
   'integracoes-operacao': 'canais',
   equipe: 'usuarios',
   ambiente: 'operacao',
@@ -163,7 +163,6 @@ export default function DashboardConfiguracoes() {
           {tab === 'produtos' && <CommercialCatalogTab />}
           {tab === 'canais' && <IntegracoesOperacaoTab section="channels" />}
           {tab === 'apis' && <IntegracoesOperacaoTab section="apis" />}
-          {tab === 'fontes' && <IntegracoesOperacaoTab section="sources" />}
           {tab === 'registro' && <DiagnosticsTab />}
           {tab === 'supressao' && <SuppressionTab />}
         </main>

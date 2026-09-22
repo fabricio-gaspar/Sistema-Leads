@@ -718,3 +718,14 @@
   A apresentação foi criada e enfileirada; o worker a manteve na fila por
   `outside_business_hours`, sem chamada ao provedor. Esse bloqueio é a política publicada,
   não uma falha de identidade de canal.
+
+# 2026-09-22 — Consolidação dos provedores da Busca de Leads
+
+- A repetição visual de Apify — Google Maps e Google Places em **APIs** e **Fontes** foi
+  analisada. Não havia duas integrações equivalentes: `integrations` guarda conexão/teste e
+  `lead_source_configs` é a permissão operacional que `prospectar-leads` exige no servidor.
+- A tela **Fontes** foi removida da navegação. Em **Configurações > APIs**, cada provedor agora
+  reúne configurar, testar conexão e ativar/pausar na Busca de Leads. A URL legada
+  `?tab=fontes` é redirecionada para APIs; o Dashboard continua somente como resumo de status.
+- Type-check frontend/Edge, lint, 26 arquivos/203 testes e build/artefato Sites passaram. Não
+  houve escrita no Supabase, envio de mensagem, execução de busca nem acesso a segredo.

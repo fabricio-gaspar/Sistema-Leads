@@ -4,7 +4,7 @@
   "baseline_commit": "1dc6275b8c7d70de953b66397a8c89f5e97bc15b",
   "last_audited_commit": "cf64e971c48b8346b0cfc0060cbb115add82afcf",
   "current_head_at_update": "cf64e971c48b8346b0cfc0060cbb115add82afcf",
-  "working_tree_status": "ana_handoff_event_idempotency_fixed_edge_v31_pending_site_publication",
+  "working_tree_status": "prospecting_provider_configuration_consolidated_local_validation_passed_pending_site_publication",
   "last_site_publication": {
     "commit": "d5ddf1a9f49124eb7d9b87c2f8b9bae0ddad6a9f",
     "site_version": 95,
@@ -13,6 +13,6 @@
   },
   "full_audit_required": false,
   "baseline_status": "validated_with_external_homologation_pending",
-  "updated_at": "2026-09-19T09:00:00-03:00",
-  "next_action": "Publicar o checkpoint cf64e971c48b8346b0cfc0060cbb115add82afcf no Site oficial, preservando a audiência pública já existente. A mensagem recebida que falhou não deve ser reprocessada automaticamente; um novo teste exige retorno explícito à Ana e nova entrada controlada."
+  "updated_at": "2026-09-22T00:00:00-03:00",
+  "next_action": "Publicar o commit de consolidação dos provedores de busca no Site oficial, preservando a audiência pública existente. Apify e Google Places devem ser configurados, testados e ativados em Configurações > APIs; a guarda lead_source_configs continua obrigatória apenas no backend."
 }

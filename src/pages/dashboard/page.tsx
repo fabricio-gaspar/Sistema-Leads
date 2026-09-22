@@ -218,7 +218,7 @@ export default function Dashboard() {
     <section className="grid items-start gap-4 lg:grid-cols-3">
       <ConnectionOverview title="Canais" link="/dashboard/configuracoes?tab=canais" items={channels} empty={diagnosticError ? 'Não foi possível consultar os canais.' : operacao ? 'Nenhum canal cadastrado.' : 'Consultando canais…'} />
       <ConnectionOverview title="APIs" link="/dashboard/configuracoes?tab=apis" items={apis} empty={diagnosticError ? 'Não foi possível consultar as APIs.' : operacao ? 'Nenhuma API cadastrada.' : 'Consultando APIs…'} />
-      <ConnectionOverview title="Fontes" link="/dashboard/configuracoes?tab=fontes" items={sources} empty={diagnosticError ? 'Não foi possível consultar as fontes.' : operacao ? 'Nenhuma fonte cadastrada.' : 'Consultando fontes…'} />
+      <ConnectionOverview title="Fontes" link="/dashboard/configuracoes?tab=apis" items={sources} empty={diagnosticError ? 'Não foi possível consultar as fontes.' : operacao ? 'Nenhuma fonte cadastrada.' : 'Consultando fontes…'} />
     </section>
 
     <section className="grid items-start gap-4 lg:grid-cols-2">

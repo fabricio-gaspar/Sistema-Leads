@@ -108,5 +108,5 @@
   },
   "covered": ["frontend_typecheck","lint","edge_typecheck","unit_and_contract_tests","production_build"],
   "not_covered": ["authenticated_e2e","login_como_novo_membro","real_whatsapp","real_claude","cross_organization_rls","database_concurrency","provider_receipt_race","mobile_authenticated_qa"],
-  "working_tree_validation": "A Central em três áreas e a base comercial estruturada foram reaproveitadas da versão oficial atual. Type-check frontend/Edge, lint, 25 arquivos/200 testes e build passaram. A correção limitou-se à asserção do contrato de diagnóstico; nenhum WhatsApp, job, lead, integração ou execução da Ana foi modificado."
+  "working_tree_validation": "A configuração visual dos provedores de busca foi consolidada: APIs é a única tela para configurar, testar e ativar/pausar Apify e Google Places, mantendo lead_source_configs como guarda server-side. Type-check frontend/Edge, lint, 26 arquivos/203 testes e build/artefato Sites passaram. Nenhum WhatsApp, job, lead, credencial, integração remota ou execução da Ana foi modificado."
 }

@@ -1,5 +1,4 @@
 import IntegracoesTab from './IntegracoesTab';
-import FontesTab from './FontesTab';
 import WhatsAppSiteEntry from './WhatsAppSiteEntry';
 
 function SectionHeading({ icon, eyebrow, title, description }: { icon: string; eyebrow: string; title: string; description: string }) {
@@ -13,7 +12,7 @@ function SectionHeading({ icon, eyebrow, title, description }: { icon: string; e
   </div>;
 }
 
-export type IntegrationOperationSection = 'channels' | 'apis' | 'sources';
+export type IntegrationOperationSection = 'channels' | 'apis';
 
 const sectionCopy: Record<IntegrationOperationSection, { eyebrow: string; title: string; description: string }> = {
   channels: {
@@ -23,20 +22,14 @@ const sectionCopy: Record<IntegrationOperationSection, { eyebrow: string; title:
   },
   apis: {
     eyebrow: 'APIs',
-    title: 'APIs e inteligência',
-    description: 'Configure os provedores que validam, enriquecem e processam informações no servidor.',
-  },
-  sources: {
-    eyebrow: 'Fontes',
-    title: 'Fontes de prospecção',
-    description: 'Defina quais origens validadas podem disponibilizar empresas para a Busca de Leads.',
+    title: 'IA e provedores de busca',
+    description: 'Configure, valide e libere os provedores que a Ana e a Busca de Leads usam no servidor.',
   },
 };
 
 export default function IntegracoesOperacaoTab({ section }: { section?: IntegrationOperationSection }) {
   const showChannels = !section || section === 'channels';
   const showApis = !section || section === 'apis';
-  const showSources = !section || section === 'sources';
   const copy = section ? sectionCopy[section] : null;
 
   return <div className="space-y-8">
@@ -64,17 +57,12 @@ export default function IntegracoesOperacaoTab({ section }: { section?: Integrat
         </div>
         <div>
           <div className="mb-3 rounded-xl border border-background-200 bg-background-100 px-4 py-3">
-            <h4 className="text-sm font-semibold text-foreground-900">APIs para encontrar leads</h4>
-            <p className="mt-1 text-xs leading-5 text-foreground-500">Configura as credenciais e valida a conexão. Ativar ou pausar a fonte acontece no próximo bloco.</p>
+            <h4 className="text-sm font-semibold text-foreground-900">Provedores da Busca de Leads</h4>
+            <p className="mt-1 text-xs leading-5 text-foreground-500">Configure a credencial, teste a conexão e ative ou pause o uso de cada provedor na Busca de Leads aqui.</p>
           </div>
           <IntegracoesTab category="prospecting" />
         </div>
       </div>
-    </section>}
-
-    {showSources && <section className="wf-settings-section">
-      <SectionHeading icon="ri-radar-line" eyebrow="Fontes" title="Fontes da Busca de Leads" description="Depois que a API estiver validada, defina quais origens realmente podem criar oportunidades na Busca de Leads." />
-      <FontesTab />
     </section>}
   </div>;
 }

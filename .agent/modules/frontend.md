@@ -76,3 +76,12 @@
   textual antes de uma exclusão definitiva.
 - Configurações > Canais > WhatsApp inclui a entrada do site, com link copiável e status real da
   configuração. Equipe ganhou editor de permissões por membro; nenhuma dessas telas exibe segredo.
+
+## Provedores da Busca de Leads — 22/09/2026
+
+- **APIs** é o único ponto visual para Apify — Google Maps e Google Places: cada cartão mostra
+  conexão validada, disponibilidade do provedor e o estado real de uso na Busca de Leads, com a
+  ação de ativar ou pausar.
+- O item de navegação **Fontes** foi removido para evitar os mesmos provedores em duas telas. A
+  URL legada `?tab=fontes` continua compatível e abre **APIs**; o Dashboard mantém apenas o
+  resumo de status e também aponta para essa tela única.
