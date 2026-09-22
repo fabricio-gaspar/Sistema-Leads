@@ -729,3 +729,7 @@
   `?tab=fontes` é redirecionada para APIs; o Dashboard continua somente como resumo de status.
 - Type-check frontend/Edge, lint, 26 arquivos/203 testes e build/artefato Sites passaram. Não
   houve escrita no Supabase, envio de mensagem, execução de busca nem acesso a segredo.
+
+- Publicação concluída no Site oficial como versão 103, a partir do commit
+  `ed5632b2a64e8e154b99f0e9f09063d7f1532681`. A validação autenticada confirmou a ausência do
+  menu Fontes, o cartão único de Apify com a busca ativa e a compatibilidade de `?tab=fontes`.

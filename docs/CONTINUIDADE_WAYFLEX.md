@@ -1012,4 +1012,6 @@ webhook em ambiente controlado.
   existentes. O card **Fontes** do Dashboard é apenas leitura de status e aponta para APIs.
 - Nenhuma credencial, configuração remota, regra de busca, Edge Function, lead, mensagem ou fila
   foi alterada. Validação local: type-check frontend/Edge, lint, suíte Vitest completa (26
-  arquivos/203 testes) e build/artefato Sites aprovados. Publicação do Site oficial pendente.
+  arquivos/203 testes) e build/artefato Sites aprovados. **Publicado** no Site oficial como
+  versão 103, commit `ed5632b2a64e8e154b99f0e9f09063d7f1532681`; a inspeção autenticada
+  confirmou o menu consolidado, o estado ativo da Apify e a compatibilidade de `?tab=fontes`.

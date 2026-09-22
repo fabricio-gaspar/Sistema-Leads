@@ -3,16 +3,16 @@
   "baseline_version": 4,
   "baseline_commit": "1dc6275b8c7d70de953b66397a8c89f5e97bc15b",
   "last_audited_commit": "cf64e971c48b8346b0cfc0060cbb115add82afcf",
-  "current_head_at_update": "cf64e971c48b8346b0cfc0060cbb115add82afcf",
-  "working_tree_status": "prospecting_provider_configuration_consolidated_local_validation_passed_pending_site_publication",
+  "current_head_at_update": "ed5632b2a64e8e154b99f0e9f09063d7f1532681",
+  "working_tree_status": "prospecting_provider_configuration_consolidated_and_published_site_v103",
   "last_site_publication": {
-    "commit": "d5ddf1a9f49124eb7d9b87c2f8b9bae0ddad6a9f",
-    "site_version": 95,
-    "validated_at": "2026-09-18T20:41:55Z",
-    "working_tree_status": "commercial_knowledge_catalog_published"
+    "commit": "ed5632b2a64e8e154b99f0e9f09063d7f1532681",
+    "site_version": 103,
+    "validated_at": "2026-09-22T10:11:00-03:00",
+    "working_tree_status": "prospecting_provider_configuration_consolidated_and_published"
   },
   "full_audit_required": false,
   "baseline_status": "validated_with_external_homologation_pending",
-  "updated_at": "2026-09-22T00:00:00-03:00",
-  "next_action": "Publicar o commit de consolidação dos provedores de busca no Site oficial, preservando a audiência pública existente. Apify e Google Places devem ser configurados, testados e ativados em Configurações > APIs; a guarda lead_source_configs continua obrigatória apenas no backend."
+  "updated_at": "2026-09-22T10:11:00-03:00",
+  "next_action": "Manter Apify e Google Places configurados, testados e ativados apenas em Configurações > APIs; a guarda lead_source_configs continua obrigatória apenas no backend. A próxima alteração funcional deve começar deste checkpoint publicado."
 }
