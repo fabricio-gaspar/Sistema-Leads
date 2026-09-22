@@ -63,16 +63,20 @@ diário em concorrência; recibos antecipados ainda dependem de nova reconcilia�
 ## Operação automática e alertas comerciais
 
 1. Configurações chama `ana-operations`, que grava `company_settings`, `prospecting_schedules` e
-   `notification_preferences` sem expor credenciais.
+   `notification_preferences` sem expor credenciais. A agenda guarda a rota inicial explícita:
+   Ana, um vendedor ativo ou rodízio exclusivamente dos usuários selecionados.
 2. O cron existente chama `automation-worker`; o worker cria/retoma
    `prospecting_schedule_runs`, aplica limites e usa `prospectar-leads` para o Apify.
-3. Leads aceitos entram em `leads` com origem, identidade e deduplicação. `ana-run` permanece a
-   única autoridade para decidir mensagem, estágio, reunião, orçamento ou handoff.
+3. Leads aceitos entram em `leads` com origem, identidade e deduplicação. No modo Ana, o worker
+   aplica opcionalmente a mesma `lead_handoff_policies` já usada pelo Kanban; nos modos humanos,
+   pausa a Ana e cria tarefa ao responsável. `ana-run` permanece a única autoridade para decidir
+   mensagem, estágio, reunião, orçamento ou handoff.
 4. `lead_qualifications` registra score, interesse, intenção, próxima ação e evidência. Eventos em
    `domain_events` roteiam notificações por responsável; `notifications` alimenta sino e Dashboard
    por Realtime. O worker cria o resumo diário restrito à carteira de cada vendedor.
 5. Simulação não chama provedores; supervisão exige aprovação; automático exige prontidão completa,
-   autorização do Apify, canal comprovado, score mínimo, limites e kill switch desligado.
+   autorização do Apify, canal comprovado, score mínimo, limites, destinatários aptos e kill switch
+   desligado. A simulação gera somente uma execução/auditoria interna, sem Apify, IA ou WhatsApp.
 
 ## Governança da base e entrada do site
 

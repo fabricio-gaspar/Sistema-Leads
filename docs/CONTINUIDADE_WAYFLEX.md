@@ -1015,3 +1015,28 @@ webhook em ambiente controlado.
   arquivos/203 testes) e build/artefato Sites aprovados. **Publicado** no Site oficial como
   versão 103, commit `ed5632b2a64e8e154b99f0e9f09063d7f1532681`; a inspeção autenticada
   confirmou o menu consolidado, o estado ativo da Apify e a compatibilidade de `?tab=fontes`.
+
+## 2026-09-22 — Operação automática da Ana: agenda, destino e validação
+
+- **Configurações > Ana > Operação automática** passou a explicitar o destino de cada lead
+  encontrado: a própria Ana, um vendedor humano específico ou rodízio apenas entre usuários ativos
+  selecionados. A distribuição genérica pela organização não é mais usada pela rotina nova.
+- No modo Ana, o administrador pode escolher a etapa canônica de transferência e o vendedor que
+  assumirá. O worker cria a mesma política de handoff por lead que o Kanban já utiliza; o aviso por
+  WhatsApp só é permitido quando o número do usuário já estiver configurado e habilitado.
+- A ativação valida agenda, limites, autorização do Apify, usuários e transferência antes de
+  enviar a configuração. O backend repete essas validações e a checagem de permissões: o frontend
+  não é a fonte de autoridade.
+- O indicador de entrada foi corrigido para consultar a integração operacional `zapi_webhook`.
+  Portanto, a tela não vai mais mostrar WhatsApp de entrada saudável com base no identificador
+  legado. Se ele permanecer pendente, o modo Automático fica bloqueado de forma segura.
+- A ação **Simular sem enviar** registra apenas uma execução/auditoria interna: não consulta Apify,
+  não chama IA e não envia WhatsApp. Ela serve para validar a agenda e a trilha de execução antes
+  da ativação externa.
+- Migrations oficiais `20260922113000_ana_automatic_routing_and_validation` e
+  `20260922120000_prospecting_schedule_assignment_fk_indexes` adicionaram os campos de rota e
+  handoff a `prospecting_schedules` e os índices completos de suas chaves estrangeiras, sem tabela
+  pública nova. Funções publicadas: `ana-operations` v2 e `automation-worker` v29.
+- Validações locais aprovadas: type-check frontend/Edge, lint, 27 arquivos/206 testes Vitest,
+  build Vite e artefato Sites. A publicação e a inspeção visual autenticada são registradas após a
+  versão do Site ser criada; nenhum provedor externo foi chamado nesta implementação.

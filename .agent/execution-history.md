@@ -1,5 +1,17 @@
 # Histórico resumido de execução
 
+## 2026-09-22 — Operação automática da Ana com roteamento explícito
+
+- A agenda agora permite escolher Ana, vendedor específico ou equipe selecionada. A validação
+  aponta o campo ausente antes da ativação e o `ana-operations` repete a autorização no servidor.
+- As migrations `20260922113000_ana_automatic_routing_and_validation` e
+  `20260922120000_prospecting_schedule_assignment_fk_indexes` foram aplicadas no Supabase
+  oficial. `ana-operations` v2 e `automation-worker` v29 preservam o Kanban manual e só usam
+  `ana-run` para decisões automáticas; a simulação não chama fornecedor nem canal externo.
+- Type-check frontend/Edge, lint, 27 arquivos/206 testes e build/artefato Sites passaram. A
+  homologação visual publicada será anotada separadamente; nenhum lead, mensagem ou busca real
+  foi criada por este trabalho.
+
 ## 2026-09-19 — Ana: evento de handoff idempotente
 
 - A inspeção do atendimento reportado confirmou que **Retornar Ana** concluiu o handoff anterior e

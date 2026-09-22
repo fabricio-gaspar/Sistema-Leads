@@ -1,6 +1,8 @@
 import { supabase } from '@/lib/supabase';
 
 export type AnaOperationMode = 'simulation' | 'supervised' | 'automatic';
+export type AnaInitialAssignmentMode = 'ana' | 'human' | 'team';
+export type AnaHandoffStage = 'novo' | 'apresentado' | 'qualificando' | 'reuniao' | 'orcamento';
 
 export interface AnaOperationSettings {
   enabled: boolean;
@@ -14,6 +16,12 @@ export interface AnaOperationSettings {
   monthlyCap: number;
   minimumFitScore: number;
   assignmentStrategy: 'owner' | 'round_robin' | 'existing_owner';
+  initialAssignmentMode: AnaInitialAssignmentMode;
+  initialAssigneeUserId: string | null;
+  teamMemberIds: string[];
+  handoffStage: AnaHandoffStage | null;
+  handoffAssigneeUserId: string | null;
+  handoffNotifyWhatsapp: boolean;
   regions: string[];
   segments: string[];
   keywords: string[];
@@ -61,5 +69,6 @@ async function invoke<T>(action: string, payload: Record<string, unknown> = {}):
 export const loadAnaOperation = () => invoke<AnaOperationSnapshot & { ok: true }>('get');
 export const saveAnaOperation = (settings: AnaOperationSettings) => invoke<AnaOperationSnapshot & { ok: true }>('save', { settings });
 export const runAnaOperationNow = () => invoke<{ ok: true; run: AnaOperationRun }>('run_now');
+export const simulateAnaOperation = () => invoke<{ ok: true; run: AnaOperationRun }>('simulate');
 export const approveAnaOperationRun = (runId: string) => invoke<{ ok: true; run: AnaOperationRun }>('approve_run', { runId });
 

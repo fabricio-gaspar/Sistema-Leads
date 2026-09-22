@@ -1320,6 +1320,22 @@ async function processHandoffWhatsappNotifications(admin: Admin, organizationId:
   return { status: sent > 0 ? 'sent' : 'idle', queued: deliveries!.length, sent, failed, reconciliationRequired };
 }
 
+async function resolveOperationAssignees(admin: Admin, organizationId: string, schedule: Record<string, unknown>) {
+  const mode = ['ana', 'human', 'team'].includes(asText(schedule.initial_assignment_mode, 20))
+    ? asText(schedule.initial_assignment_mode, 20)
+    : 'ana';
+  const configured = mode === 'team'
+    ? [...new Set((Array.isArray(schedule.team_member_ids) ? schedule.team_member_ids : []).map((item) => asText(item, 80)).filter(isUuid))]
+    : [asText(mode === 'human' ? schedule.initial_assignee_user_id : schedule.handoff_assignee_user_id || schedule.owner_id, 80)].filter(isUuid);
+  if (!configured.length) return { mode, users: [], error: 'operation_assignee_not_configured' };
+  const { data: members, error } = await admin.from('organization_members').select('user_id')
+    .eq('organization_id', organizationId).eq('status', 'active').in('user_id', configured);
+  if (error) throw new Error('operation_assignee_read_failed');
+  const active = new Set((members ?? []).map((member) => asText(member.user_id, 80)));
+  const users = configured.filter((userId) => active.has(userId));
+  return { mode, users, error: users.length ? null : 'operation_assignee_unavailable' };
+}
+
 async function processAnaOperations(admin: Admin, organizationId: string, schedulerToken: string) {
   const now = new Date();
   const [{ data: company }, { data: runtime }] = await Promise.all([
@@ -1366,6 +1382,11 @@ async function processAnaOperations(admin: Admin, organizationId: string, schedu
     await admin.from('prospecting_schedule_runs').update({ status: 'cancelled', error_code: 'prospecting_cap_reached', completed_at: now.toISOString(), result: { daily_used: dailyUsed, monthly_used: monthlyUsed } }).eq('id', run.id).eq('organization_id', organizationId);
     return { status: 'cap_reached', digest_created: digestCreated };
   }
+  const routing = await resolveOperationAssignees(admin, organizationId, schedule);
+  if (routing.error) {
+    await admin.from('prospecting_schedule_runs').update({ status: 'failed', error_code: routing.error, error_message: 'A rota de atendimento configurada não possui um usuário ativo.', completed_at: now.toISOString(), locked_at: null, locked_by: null }).eq('id', run.id).eq('organization_id', organizationId);
+    return { status: 'failed', error: routing.error, digest_created: digestCreated };
+  }
   const lockId = crypto.randomUUID();
   const { data: claimed, error: claimError } = await admin.from('prospecting_schedule_runs').update({ status: 'running', locked_at: now.toISOString(), locked_by: `automation-worker:${lockId}`, started_at: run.started_at || now.toISOString() }).eq('organization_id', organizationId).eq('id', run.id).in('status', ['queued','running']).select('id').maybeSingle();
   if (claimError || !claimed) return { status: 'contended', digest_created: digestCreated };
@@ -1384,23 +1405,35 @@ async function processAnaOperations(admin: Admin, organizationId: string, schedu
   }
   let imported = 0, approved = 0, rejected = 0;
   const minimum = boundedInteger(schedule.auto_approve_min_score, 70, 0, 100);
-  let assignmentUsers = [asText(schedule.owner_id, 80)].filter(isUuid);
-  if (schedule.assignment_strategy === 'round_robin') {
-    const { data: members } = await admin.from('organization_members').select('user_id').eq('organization_id', organizationId).eq('status', 'active').in('role', ['vendedor','sdr']).order('created_at', { ascending: true });
-    const available = (members ?? []).map((member) => asText(member.user_id, 80)).filter(isUuid);
-    if (available.length) assignmentUsers = available;
-  }
   for (const raw of result.leads.slice(0, remaining).map(asObject)) {
     const score = boundedInteger(raw.score, 0, 0, 100), whatsapp = asText(raw.whatsapp, 80), email = asText(raw.email, 300);
     if (score < minimum) { rejected += 1; continue; }
     const contactApproved = Boolean(whatsapp) && asText(asObject(raw.channel_verification).whatsapp, 40) === 'source_reported';
     const sourceRecordId = asText(raw.source_record_id, 300) || crypto.randomUUID();
-    const assignedTo = assignmentUsers.length ? assignmentUsers[imported % assignmentUsers.length] : null;
-    const { data: inserted, error: insertError } = await admin.from('leads').upsert({ organization_id: organizationId, company: asText(raw.razao_social, 500) || asText(raw.nome_fantasia, 500) || 'Empresa prospectada', phone: asText(raw.telefone, 80) || null, whatsapp: whatsapp || null, email: email || null, segment: asText(raw.cnae_descricao, 300) || null, uf: asText(raw.uf, 2) || null, city: asText(raw.municipio, 160) || null, score, temp: score >= 80 ? 'hot' : score >= 55 ? 'warm' : 'cold', stage: 'Prospecção', origin: 'Apify · operação automática', owner_id: assignedTo, assigned_to: assignedTo, owner: 'ia', active_channel: whatsapp ? 'whatsapp' : email ? 'email' : null, modo_atendimento: assignedTo ? 'ia' : 'humano', ai_paused: !assignedTo, contact_approval_status: contactApproved && assignedTo ? 'approved' : 'pending', contact_approval_reason: contactApproved && assignedTo ? 'Canal informado explicitamente pela fonte e fit acima do limite configurado.' : 'Canal ou responsável requer validação humana.', contact_approved_at: contactApproved && assignedTo ? new Date().toISOString() : null, contact_approved_by: contactApproved && assignedTo ? assignedTo : null, automation_status: contactApproved && assignedTo ? 'running' : 'pending_approval', source_record_id: sourceRecordId, source_url: asText(raw.source_url, 1000) || null, source_metadata: { prospecting_run_id: result.runId, schedule_run_id: run.id, score_reason: raw.score_reason }, deduplication_key: `apify:${sourceRecordId}` }, { onConflict: 'organization_id,deduplication_key', ignoreDuplicates: true }).select('id').maybeSingle();
+    const assignedTo = routing.users[imported % routing.users.length];
+    const anaOwnsLead = routing.mode === 'ana';
+    const contactIsApproved = contactApproved && Boolean(assignedTo);
+    const { data: inserted, error: insertError } = await admin.from('leads').upsert({ organization_id: organizationId, company: asText(raw.razao_social, 500) || asText(raw.nome_fantasia, 500) || 'Empresa prospectada', phone: asText(raw.telefone, 80) || null, whatsapp: whatsapp || null, email: email || null, segment: asText(raw.cnae_descricao, 300) || null, uf: asText(raw.uf, 2) || null, city: asText(raw.municipio, 160) || null, score, temp: score >= 80 ? 'hot' : score >= 55 ? 'warm' : 'cold', stage: 'Prospecção', origin: 'Apify · operação automática', owner_id: assignedTo, assigned_to: assignedTo, owner: anaOwnsLead ? 'ia' : 'humano', active_channel: whatsapp ? 'whatsapp' : email ? 'email' : null, modo_atendimento: anaOwnsLead ? 'ia' : 'humano', ai_paused: !anaOwnsLead, contact_approval_status: contactIsApproved ? 'approved' : 'pending', contact_approval_reason: contactIsApproved ? 'Canal informado explicitamente pela fonte e fit acima do limite configurado.' : 'Canal ou responsável requer validação humana.', contact_approved_at: contactIsApproved ? new Date().toISOString() : null, contact_approved_by: contactIsApproved ? assignedTo : null, automation_status: anaOwnsLead ? (contactIsApproved ? 'running' : 'pending_approval') : 'human', source_record_id: sourceRecordId, source_url: asText(raw.source_url, 1000) || null, source_metadata: { prospecting_run_id: result.runId, schedule_run_id: run.id, score_reason: raw.score_reason, initial_assignment_mode: routing.mode }, deduplication_key: `apify:${sourceRecordId}` }, { onConflict: 'organization_id,deduplication_key', ignoreDuplicates: true }).select('id').maybeSingle();
     if (insertError) throw new Error('ana_lead_import_failed');
     if (!inserted?.id) continue;
     imported += 1;
-    if (contactApproved && assignedTo) {
+    if (anaOwnsLead && schedule.handoff_stage && isUuid(schedule.handoff_assignee_user_id)) {
+      const { error: policyError } = await admin.from('lead_handoff_policies').upsert({
+        organization_id: organizationId, lead_id: inserted.id, assignee_user_id: schedule.handoff_assignee_user_id,
+        handoff_stage: schedule.handoff_stage, notify_whatsapp: schedule.handoff_notify_whatsapp === true,
+        created_by: isUuid(schedule.updated_by) ? schedule.updated_by : null, updated_at: new Date().toISOString(),
+      }, { onConflict: 'organization_id,lead_id' });
+      if (policyError) throw new Error('operation_handoff_policy_not_saved');
+    }
+    if (!anaOwnsLead) {
+      const { error: taskError } = await admin.from('lead_tasks').insert({
+        organization_id: organizationId, lead_id: inserted.id, owner_id: assignedTo, owner_label: 'Responsável',
+        text: 'Assumir lead encaminhado pela operação automática.', due_at: new Date().toISOString(), completed: false,
+        metadata: { schedule_run_id: run.id, initial_assignment_mode: routing.mode },
+      });
+      if (taskError) throw new Error('operation_human_task_not_created');
+    }
+    if (anaOwnsLead && contactIsApproved) {
       approved += 1;
       const internalCredential = Deno.env.get('WHATSAPP_WEBHOOK_SHARED_SECRET');
       if (internalCredential) await fetch(`${baseUrl}/functions/v1/ana-run`, { method: 'POST', headers: { Authorization: `Bearer ${serviceJwt}`, 'Content-Type': 'application/json', 'x-internal-worker-secret': internalCredential }, body: JSON.stringify({ event: 'lead.created', lead_id: inserted.id, modo: 'ia', organization_id: organizationId, request_id: `operation:${run.id}:${inserted.id}` }), signal: AbortSignal.timeout(45_000) }).catch(() => undefined);

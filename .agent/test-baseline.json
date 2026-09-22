@@ -93,6 +93,11 @@
     ,{"command":"npm run lint","status":"passed","warnings":0,"note":"Correção do handoff sem avisos."}
     ,{"command":"npm test","status":"passed","test_files":25,"checks":200,"note":"Inclui contrato que exige idempotency_key em lead.handoff.requested."}
     ,{"command":"npm run build","status":"passed","note":"Build Vite concluído; o aviso conhecido de runtime-config.js não bloqueia o artefato."}
+    ,{"command":"tsc --noEmit --project tsconfig.app.json","status":"passed","note":"Painel de Operação automática com validação de agenda, roteamento e handoff."}
+    ,{"command":"tsc --project tsconfig.edge.json","status":"passed","note":"ana-operations v2 e automation-worker v29 incluídos na validação Edge."}
+    ,{"command":"eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0","status":"passed","warnings":0}
+    ,{"command":"vitest run --configLoader runner","status":"passed","test_files":27,"checks":206,"note":"Inclui regressão da validação de ativação por rota e handoff."}
+    ,{"command":"vite build --configLoader runner && node scripts/build-sites-artifact.mjs","status":"passed","note":"Artefato Sites produzido após a operação automática, sem segredo no bundle."}
   ],
   "prior_site_artifact_validation": {
     "validated_commit": "e4b1666c878df01ac0db3d12a290531a42107446",

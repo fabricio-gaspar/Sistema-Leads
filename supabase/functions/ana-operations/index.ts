@@ -2,7 +2,9 @@ import { createAdminClient, requireOrganizationRole, requireUser } from '../_sha
 import { allowedCorsHeaders, hasAllowedOrigin, json, preflight, safeError } from '../_shared/http.ts';
 
 type OperationMode = 'simulation' | 'supervised' | 'automatic';
-const ACTIONS = new Set(['get', 'save', 'run_now', 'approve_run']);
+type InitialAssignmentMode = 'ana' | 'human' | 'team';
+const ACTIONS = new Set(['get', 'save', 'simulate', 'run_now', 'approve_run']);
+const HANDOFF_STAGES = new Set(['novo', 'apresentado', 'qualificando', 'reuniao', 'orcamento']);
 const asObject = (value: unknown): Record<string, unknown> => value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
 const asText = (value: unknown, max = 1_000) => typeof value === 'string' ? value.trim().slice(0, max) : '';
 const bounded = (value: unknown, fallback: number, min: number, max: number) => {
@@ -13,6 +15,9 @@ const list = (value: unknown, max = 30) => Array.isArray(value)
   ? [...new Set(value.filter((item): item is string => typeof item === 'string').map((item) => item.trim()).filter(Boolean))].slice(0, max)
   : [];
 const isUuid = (value: unknown): value is string => typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+const uuidList = (value: unknown, max = 30) => Array.isArray(value)
+  ? [...new Set(value.filter(isUuid))].slice(0, max)
+  : [];
 
 function validTimezone(value: unknown): string {
   const timezone = asText(value, 80) || 'America/Sao_Paulo';
@@ -76,6 +81,11 @@ function normalizeSettings(value: unknown) {
   const quantity = bounded(input.dailyLeadLimit, 20, 1, 100);
   const dailyCap = bounded(input.dailyCap, quantity, quantity, 500);
   const monthlyCap = bounded(input.monthlyCap, Math.max(dailyCap, 500), dailyCap, 10_000);
+  const initialAssignmentMode = ['ana', 'human', 'team'].includes(asText(input.initialAssignmentMode, 20))
+    ? asText(input.initialAssignmentMode, 20) as InitialAssignmentMode
+    : 'ana';
+  const handoffStage = asText(input.handoffStage, 40).toLowerCase() || null;
+  if (handoffStage && !HANDOFF_STAGES.has(handoffStage)) throw new Error('operation_handoff_stage_invalid');
   return {
     mode,
     enabled: input.enabled === true,
@@ -84,7 +94,13 @@ function normalizeSettings(value: unknown) {
       weekdays: scheduledDays, run_time: runTime, next_run_at: nextRunAt(timezone, runTime, scheduledDays),
       quantity, daily_cap: dailyCap, monthly_cap: monthlyCap,
       auto_approve_min_score: bounded(input.minimumFitScore, 70, 0, 100),
-      assignment_strategy: ['owner', 'round_robin', 'existing_owner'].includes(asText(input.assignmentStrategy, 30)) ? asText(input.assignmentStrategy, 30) : 'owner',
+      assignment_strategy: initialAssignmentMode === 'team' ? 'round_robin' : initialAssignmentMode === 'human' ? 'manual' : 'owner',
+      initial_assignment_mode: initialAssignmentMode,
+      initial_assignee_user_id: isUuid(input.initialAssigneeUserId) ? input.initialAssigneeUserId : null,
+      team_member_ids: uuidList(input.teamMemberIds),
+      handoff_stage: initialAssignmentMode === 'ana' ? handoffStage : null,
+      handoff_assignee_user_id: initialAssignmentMode === 'ana' && isUuid(input.handoffAssigneeUserId) ? input.handoffAssigneeUserId : null,
+      handoff_notify_whatsapp: initialAssignmentMode === 'ana' && handoffStage && input.handoffNotifyWhatsapp === true,
       paid_prospecting_approved: input.paidProspectingApproved === true,
       notify_immediate: input.notifyImmediate !== false,
       notify_progress: input.notifyProgress !== false,
@@ -103,7 +119,7 @@ function normalizeSettings(value: unknown) {
 async function readiness(admin: ReturnType<typeof createAdminClient>, organizationId: string) {
   const [{ data: company }, { data: integrations }, { data: runtime }, { data: agent }] = await Promise.all([
     admin.from('company_settings').select('active,sandbox_mode,can_use_ia,ai_actions_enabled').eq('organization_id', organizationId).maybeSingle(),
-    admin.from('integrations').select('key,connected,enabled,paused').eq('organization_id', organizationId).in('key', ['ai','apify','scheduler','whatsapp','whatsapp_webhook']),
+    admin.from('integrations').select('key,connected,enabled,paused').eq('organization_id', organizationId).in('key', ['ai','apify','scheduler','whatsapp','zapi_webhook']),
     admin.from('organization_module_data').select('data').eq('organization_id', organizationId).eq('module_key', 'configuracao_runtime').maybeSingle(),
     admin.from('ai_agents').select('active_version_id').eq('organization_id', organizationId).eq('key', 'ana').maybeSingle(),
   ]);
@@ -116,10 +132,59 @@ async function readiness(admin: ReturnType<typeof createAdminClient>, organizati
     apify: available.get('apify') === true,
     scheduler: available.get('scheduler') === true,
     whatsappOutbound: available.get('whatsapp') === true,
-    whatsappInbound: available.get('whatsapp_webhook') === true,
+    whatsappInbound: available.get('zapi_webhook') === true,
     killSwitchOff: asObject(runtime?.data).killSwitchGlobal === false,
   };
   return { checks, automaticReady: Object.values(checks).every(Boolean) };
+}
+
+async function assertConversationRecipient(
+  admin: ReturnType<typeof createAdminClient>,
+  organizationId: string,
+  userId: string,
+  requiredCode: string,
+) {
+  const [{ data: member, error: memberError }, { data: overrides, error: overridesError }] = await Promise.all([
+    admin.from('organization_members').select('role,status').eq('organization_id', organizationId).eq('user_id', userId).maybeSingle(),
+    admin.from('team_member_permissions').select('permission,allowed').eq('organization_id', organizationId).eq('user_id', userId)
+      .in('permission', ['conversations.reply_all', 'conversations.reply_assigned']),
+  ]);
+  if (memberError || overridesError) throw new Error('operation_recipient_read_failed');
+  if (!member || member.status !== 'active') throw new Error(requiredCode);
+  const configured = new Map((overrides ?? []).map((item) => [item.permission, item.allowed === true]));
+  const defaultReplyAll = member.role === 'administrador' || member.role === 'sdr' || member.role === 'cx';
+  const defaultReplyAssigned = member.role === 'administrador' || member.role === 'vendedor';
+  const canReply = (configured.get('conversations.reply_all') ?? defaultReplyAll)
+    || (configured.get('conversations.reply_assigned') ?? defaultReplyAssigned);
+  if (!canReply) throw new Error('operation_assignment_member_cannot_reply');
+}
+
+async function validateActivatedRouting(
+  admin: ReturnType<typeof createAdminClient>, organizationId: string, schedule: Record<string, unknown>,
+) {
+  const mode = schedule.initial_assignment_mode as InitialAssignmentMode;
+  if (mode === 'human') {
+    if (!isUuid(schedule.initial_assignee_user_id)) throw new Error('operation_assignment_member_required');
+    await assertConversationRecipient(admin, organizationId, schedule.initial_assignee_user_id, 'operation_assignment_member_required');
+  }
+  if (mode === 'team') {
+    const selected = uuidList(schedule.team_member_ids);
+    if (!selected.length) throw new Error('operation_assignment_member_required');
+    for (const userId of selected) await assertConversationRecipient(admin, organizationId, userId, 'operation_assignment_member_required');
+  }
+  if (mode === 'ana' && schedule.handoff_stage) {
+    if (!isUuid(schedule.handoff_assignee_user_id)) throw new Error('operation_handoff_recipient_required');
+    await assertConversationRecipient(admin, organizationId, schedule.handoff_assignee_user_id, 'operation_handoff_recipient_required');
+    if (schedule.handoff_notify_whatsapp === true) {
+      const { data: preference, error } = await admin.from('notification_preferences')
+        .select('handoff_whatsapp_enabled,handoff_whatsapp_phone').eq('organization_id', organizationId)
+        .eq('user_id', schedule.handoff_assignee_user_id).maybeSingle();
+      if (error) throw new Error('operation_handoff_notification_read_failed');
+      if (preference?.handoff_whatsapp_enabled !== true || !/^[1-9][0-9]{7,14}$/.test(asText(preference.handoff_whatsapp_phone, 20))) {
+        throw new Error('operation_handoff_whatsapp_not_configured');
+      }
+    }
+  }
 }
 
 Deno.serve(async (request) => {
@@ -153,6 +218,7 @@ Deno.serve(async (request) => {
     if (action === 'save') {
       const normalized = normalizeSettings(body.settings);
       const operationReadiness = await readiness(admin, organizationId);
+      if (normalized.enabled) await validateActivatedRouting(admin, organizationId, normalized.schedule);
       if (normalized.enabled && normalized.mode === 'automatic' && (!normalized.schedule.paid_prospecting_approved || !operationReadiness.automaticReady)) {
         throw new Error(!normalized.schedule.paid_prospecting_approved ? 'paid_prospecting_approval_required' : 'automatic_mode_not_ready');
       }
@@ -177,6 +243,21 @@ Deno.serve(async (request) => {
     if (companyError || !company) throw new Error('operation_configuration_missing');
     const { data: schedule, error: scheduleError } = await admin.from('prospecting_schedules').select('*').eq('organization_id', organizationId).order('created_at', { ascending: false }).limit(1).maybeSingle();
     if (scheduleError || !schedule) throw new Error('operation_schedule_missing');
+
+    if (action === 'simulate') {
+      const now = new Date();
+      const local = localParts(now, schedule.timezone);
+      const localDate = `${local.year}-${String(local.month).padStart(2,'0')}-${String(local.day).padStart(2,'0')}`;
+      const { data: run, error: runError } = await admin.from('prospecting_schedule_runs').insert({
+        organization_id: organizationId, schedule_id: schedule.id, operation_mode: 'simulation',
+        idempotency_key: `simulation:${schedule.id}:${crypto.randomUUID()}`, scheduled_local_date: localDate,
+        status: 'simulated', requested_by: user.id, completed_at: now.toISOString(),
+        result: { simulated: true, source: 'apify', filters: schedule.filters, quantity: schedule.quantity, external_calls: 0 },
+      }).select('*').single();
+      if (runError || !run) throw runError ?? new Error('operation_simulation_not_created');
+      await admin.from('audit_logs').insert({ organization_id: organizationId, actor_id: user.id, actor_name: profile.name, actor_type: 'user', action: 'ana.operation_simulated', detail: 'Simulação da operação automática registrada sem chamadas externas.', entity_table: 'prospecting_schedule_runs', entity_id: run.id, event_data: { schedule_id: schedule.id } });
+      return json({ ok: true, run }, 200, headers);
+    }
 
     if (action === 'run_now') {
       const mode = company.ana_operation_mode as OperationMode;

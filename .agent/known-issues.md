@@ -2,10 +2,6 @@
 
 ## Crítico
 
-- A ativação da Ana pelo diálogo de Kanban está em correção: o fluxo cliente pode deixar o lead
-  com canal `voice` e autorização pendente sem chamar a Ana. A correção transacional está pronta,
-  mas ainda requer publicação e validação autenticada antes de este item ser marcado como resolvido.
-
 - O fluxo real WhatsApp → Ana → resposta ainda precisa de uma mensagem nova, individual, enviada
   do número final `1875` após o recadastro da entrada Z-API. A Z-API já comprovou alcance do
   WayFlex por callbacks de outros números, mas não entregou callback desse lead; a mensagem
@@ -19,6 +15,11 @@
   confiável antes de uma homologação específica.
 
 ## Alto
+
+- A operação automática só pode ser ativada quando o diagnóstico confirmar a entrada operacional
+  `zapi_webhook`. O painel agora consulta esse identificador real, não o rótulo legado
+  `whatsapp_webhook`; enquanto a entrada estiver pendente, o bloqueio é intencional e não deve ser
+  contornado.
 
 - Base multimídia registra arquivos, mas não extrai de forma completa PDF/DOCX/PPTX/XLSX,
   OCR de imagem, áudio ou vídeo.
