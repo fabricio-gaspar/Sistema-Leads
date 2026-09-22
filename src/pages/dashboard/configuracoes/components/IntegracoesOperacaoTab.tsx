@@ -1,5 +1,75 @@
+import { useCallback, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import IntegracoesTab from './IntegracoesTab';
 import WhatsAppSiteEntry from './WhatsAppSiteEntry';
+import { loadOperationalStatus, type OperationalStatus } from '@/lib/crm/operationalDiagnosticsRepository';
+import { operationalIcon, operationalIconTone, presentIntegrationStatus } from '@/lib/crm/operationalStatusPresentation';
+
+const inboundStatusClass = {
+  positive: 'bg-[#34C759]/10 text-[#237A3B]',
+  attention: 'bg-[#FF9500]/10 text-[#8A5200]',
+  critical: 'bg-[#FF3B30]/10 text-[#D92D27]',
+  neutral: 'bg-background-100 text-foreground-600',
+} as const;
+
+function formatDate(value: string | null | undefined): string {
+  if (!value) return 'Ainda não recebido';
+  const date = new Date(value);
+  return Number.isFinite(date.getTime())
+    ? date.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' })
+    : 'Data indisponível';
+}
+
+function WhatsAppInboundStatus() {
+  const [status, setStatus] = useState<OperationalStatus | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    setError(false);
+    try {
+      setStatus(await loadOperationalStatus());
+    } catch {
+      setError(true);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => { void refresh(); }, [refresh]);
+
+  const webhook = status?.integrations.find((item) => item.key === 'zapi_webhook');
+  const presentation = webhook
+    ? presentIntegrationStatus(webhook)
+    : { label: loading ? 'Consultando' : 'Não configurada', tone: 'neutral' as const };
+  const detail = error
+    ? 'Não foi possível consultar o estado de entrada agora. Nenhuma configuração foi modificada.'
+    : status?.webhookDiagnostic.detail || 'Aguardando o diagnóstico do callback da Z-API.';
+
+  return <section className="mt-5 rounded-xl border border-background-200 bg-gradient-to-br from-white to-[#F7F9FC] p-5 shadow-[0_10px_24px_rgba(29,29,31,0.035)]">
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex items-start gap-3">
+        <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${operationalIconTone('zapi_webhook')}`}><i className={operationalIcon('zapi_webhook')} aria-hidden="true" /></span>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[.12em] text-primary-700">Entrada WhatsApp</p>
+          <h4 className="mt-1 text-base font-semibold text-foreground-950">Recebimento pela Z-API</h4>
+          <p className="mt-1 max-w-3xl text-sm leading-6 text-foreground-500">Mostra se a Z-API já entregou callbacks ao Wayflex. Este cartão não testa, recadastra nem envia mensagens.</p>
+        </div>
+      </div>
+      <span className={`inline-flex w-fit shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${inboundStatusClass[presentation.tone]}`}>{presentation.label}</span>
+    </div>
+    <p className="mt-4 rounded-xl border border-background-200/80 bg-white/80 px-3.5 py-3 text-sm leading-6 text-foreground-700">{detail}</p>
+    <dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2">
+      <div className="rounded-xl border border-background-200/80 bg-white/70 px-3.5 py-3"><dt className="text-xs text-foreground-500">Entrada cadastrada</dt><dd className="mt-1 font-semibold text-foreground-900">{formatDate(status?.webhookDiagnostic.registeredAt)}</dd></div>
+      <div className="rounded-xl border border-background-200/80 bg-white/70 px-3.5 py-3"><dt className="text-xs text-foreground-500">Último callback</dt><dd className="mt-1 font-semibold text-foreground-900">{formatDate(status?.webhookDiagnostic.lastEventAt)}</dd></div>
+    </dl>
+    <div className="mt-4 flex flex-wrap items-center justify-end gap-2">
+      <Link to="/dashboard/configuracoes?tab=operacao&setup=whatsapp-webhook" className="wf-btn-secondary text-xs"><i className="ri-pulse-line" />Abrir diagnóstico</Link>
+      <button type="button" className="wf-btn-secondary text-xs disabled:opacity-60" disabled={loading} onClick={() => void refresh()}><i className={loading ? 'ri-loader-4-line animate-spin' : 'ri-refresh-line'} />{loading ? 'Atualizando…' : 'Atualizar status'}</button>
+    </div>
+  </section>;
+}
 
 function SectionHeading({ icon, eyebrow, title, description }: { icon: string; eyebrow: string; title: string; description: string }) {
   return <div className="mb-4 flex items-start gap-3">
@@ -42,6 +112,7 @@ export default function IntegracoesOperacaoTab({ section }: { section?: Integrat
     {showChannels && <section className="wf-settings-section">
       <SectionHeading icon="ri-message-3-line" eyebrow="Canais" title="WhatsApp e atendimento" description="Instância Z-API, conexão do WhatsApp e teste de envio para a Central e a Ana." />
       <IntegracoesTab category="communication" />
+      <WhatsAppInboundStatus />
       <WhatsAppSiteEntry />
     </section>}
 

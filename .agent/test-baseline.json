@@ -99,6 +99,11 @@
     ,{"command":"vitest run --configLoader runner","status":"passed","test_files":27,"checks":206,"note":"Inclui regressão da validação de ativação por rota e handoff."}
     ,{"command":"vite build --configLoader runner && node scripts/build-sites-artifact.mjs","status":"passed","note":"Artefato Sites produzido após a operação automática, sem segredo no bundle."}
     ,{"command":"Computer Use autenticado no Site oficial, versão 104: Simular sem enviar","status":"passed","note":"A tela exibiu agenda, rota explícita, handoff, validação por pré-requisito e a execução simulated com zero candidatos/importações. Console sem erros; Apify, IA e WhatsApp não foram chamados."}
+    ,{"command":"tsc --noEmit --project tsconfig.app.json","status":"passed","note":"Cartões de status operacional, diagnóstico de entrada WhatsApp e gráfico de conversas."}
+    ,{"command":"tsc --project tsconfig.edge.json","status":"passed","note":"Sem alteração de Edge Function neste lote visual."}
+    ,{"command":"eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0","status":"passed","warnings":0}
+    ,{"command":"vitest run --configLoader runner","status":"passed","test_files":28,"checks":210,"note":"Inclui regressão de validade de 24 horas, callback Z-API sem lead e seleção de caminhos reais no Dashboard."}
+    ,{"command":"vite build --configLoader runner && node scripts/build-sites-artifact.mjs","status":"passed","note":"Artefato Sites produzido sem segredo no bundle."}
   ],
   "prior_site_artifact_validation": {
     "validated_commit": "e4b1666c878df01ac0db3d12a290531a42107446",
@@ -114,5 +119,5 @@
   },
   "covered": ["frontend_typecheck","lint","edge_typecheck","unit_and_contract_tests","production_build"],
   "not_covered": ["authenticated_e2e","login_como_novo_membro","real_whatsapp","real_claude","cross_organization_rls","database_concurrency","provider_receipt_race","mobile_authenticated_qa"],
-  "working_tree_validation": "A configuração visual dos provedores de busca foi consolidada: APIs é a única tela para configurar, testar e ativar/pausar Apify e Google Places, mantendo lead_source_configs como guarda server-side. Type-check frontend/Edge, lint, 26 arquivos/203 testes e build/artefato Sites passaram. Nenhum WhatsApp, job, lead, credencial, integração remota ou execução da Ana foi modificado."
+  "working_tree_validation": "A apresentação de estado operacional foi unificada: Canais, APIs e Dashboard distinguem validação fresca, vencida, pendência de entrada, pausa, erro e ausência de configuração. O Dashboard expõe somente caminhos disponíveis no CRM atual; nenhum conector legado é apresentado como fonte operacional. Type-check frontend/Edge, lint, 28 arquivos/210 testes e build/artefato Sites passaram. Nenhum WhatsApp, job, lead, credencial, integração remota ou execução da Ana foi modificado."
 }

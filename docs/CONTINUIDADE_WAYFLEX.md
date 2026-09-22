@@ -1042,3 +1042,24 @@ webhook em ambiente controlado.
   `cdccad27ee9940a7e99a829ac38e87652c2ee693`. A inspeção autenticada confirmou agenda, roteamento,
   transferência, estados reais dos pré-requisitos e uma execução `simulated` com zero candidatos e
   zero importados. Nenhum provedor externo foi chamado nesta implementação.
+
+## 2026-09-22 — Estado factual de Canais, APIs e Fontes de busca
+
+- O diagnóstico do Supabase confirmou estados distintos que a interface resumida antes misturava:
+  saída WhatsApp e Apify possuem configuração salva, mas a validação de 24 horas venceu; a IA da
+  Ana e o agendador possuem confirmação recente; Google Places não está configurado; a entrada
+  Z-API recebeu callback, porém sem lead WhatsApp correspondente (`lead_not_matched`).
+- O frontend agora reaproveita a regra de frescor de 24 horas já usada por
+  `operational-diagnostics`. Dashboard e Configurações exibem **Validada**, **Validação vencida**,
+  **Entrada pendente**, **Pausada**, **Erro de conexão** ou **Não configurada**, sem reduzir tudo
+  para “Conectado/Desconectado”.
+- O resumo do Dashboard é filtrado pelos únicos caminhos disponíveis no CRM atual: saída e entrada
+  WhatsApp; IA, Apify e Google Places; Apify, cadastro manual e CSV. Linhas legadas preservadas no
+  banco não aparecem como integrações operacionais ou fontes utilizáveis.
+- Em **Configurações > Canais**, o novo cartão de entrada Z-API é somente leitura e aponta para o
+  diagnóstico completo. O teste real continua exclusivamente no cartão de saída WhatsApp, portanto
+  esta melhoria não faz chamada ao provedor, não recadastra webhook e não envia mensagem.
+- Validação local: type-check frontend/Edge, lint, 28 arquivos/210 testes Vitest e build/artefato
+  Sites aprovados. Nenhuma credencial, configuração, lead, fila, execução da Ana ou mensagem foi
+  alterada por este lote. A versão publicada e a inspeção autenticada devem ser anexadas após o
+  deploy oficial.

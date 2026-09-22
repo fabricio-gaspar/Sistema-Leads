@@ -1,19 +1,21 @@
 import { Link } from 'react-router-dom';
-import { useIntegracoesStore } from '@/hooks/useIntegracoesStore';
-import type { Integracao } from '@/mocks/businessData';
+import { useIntegracoesStore, type OperationalIntegration } from '@/hooks/useIntegracoesStore';
 
-const STATUS: Record<Integracao['status'], { dot: string; title: string }> = {
-  conectado: { dot: 'bg-emerald-500', title: 'Conectado' },
-  sandbox: { dot: 'bg-emerald-400', title: 'Sandbox' },
-  pendente: { dot: 'bg-rose-500', title: 'Não conectado' },
-  erro: { dot: 'bg-rose-500', title: 'Erro' },
+const STATUS: Record<OperationalIntegration['status'], { dot: string; title: string }> = {
+  validated: { dot: 'bg-emerald-500', title: 'Validada nas últimas 24 horas' },
+  validation_due: { dot: 'bg-amber-500', title: 'Validação vencida' },
+  inactive: { dot: 'bg-slate-400', title: 'Configurada, mas inativa' },
+  paused: { dot: 'bg-amber-500', title: 'Pausada' },
+  pending: { dot: 'bg-amber-500', title: 'Entrada pendente' },
+  error: { dot: 'bg-rose-500', title: 'Erro de conexão' },
+  not_configured: { dot: 'bg-slate-300', title: 'Não configurada' },
 };
 
 export default function IntegracoesStatus() {
   const { integracoes } = useIntegracoesStore();
 
-  const conectados = integracoes.filter((i) => i.status === 'conectado').length;
-  const erros = integracoes.filter((i) => i.status === 'erro');
+  const validated = integracoes.filter((i) => i.status === 'validated').length;
+  const erros = integracoes.filter((i) => i.status === 'error');
 
   return (
     <div className="bg-background-50 border border-background-200/60 rounded-xl p-4 h-full flex flex-col">
@@ -25,7 +27,7 @@ export default function IntegracoesStatus() {
           <div>
             <h3 className="text-sm font-bold text-foreground-800">Integrações</h3>
             <p className="text-[10px] text-foreground-400">
-              {conectados} de {integracoes.length} conectadas
+              {validated} de {integracoes.length} validadas
             </p>
           </div>
         </div>
@@ -40,11 +42,13 @@ export default function IntegracoesStatus() {
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 flex-1">
         {integracoes.map((i) => {
           const s = STATUS[i.status];
-          const conectado = i.status === 'conectado' || i.status === 'sandbox';
+          const destination = i.operationalCategory === 'communication'
+            ? '/dashboard/configuracoes?tab=canais'
+            : '/dashboard/configuracoes?tab=apis';
           return (
             <Link
               key={i.id}
-              to="/dashboard/configuracoes?tab=conexoes"
+              to={destination}
               title={s.title}
               className="group relative flex flex-col items-center justify-center gap-1.5 rounded-lg border border-background-200/60 bg-background-50 hover:border-background-200 hover:bg-background-100/60 transition-colors cursor-pointer p-3"
             >

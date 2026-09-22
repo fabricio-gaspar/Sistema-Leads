@@ -1,5 +1,21 @@
 # Histórico resumido de execução
 
+## 2026-09-22 — Estados operacionais coerentes em Canais, APIs e Dashboard
+
+- A auditoria do projeto oficial confirmou que a saída WhatsApp e a Apify tinham credenciais
+  registradas, porém validações com mais de 24 horas. A entrada Z-API tinha callback recebido sem
+  lead correspondente. Esses fatos passaram a ser exibidos como **Validação vencida** e
+  **Entrada pendente**, sem chamar provedor, reenviar mensagem ou alterar a configuração remota.
+- O Dashboard não apresenta mais e-mail, calendário, webhooks legados, CNPJ, Instagram, LinkedIn
+  ou fontes parceiras como integrações vivas. Ele mostra somente os caminhos existentes no CRM:
+  saída/entrada WhatsApp, IA/Apify/Google Places e Apify/cadastro manual/CSV.
+- Canais ganhou um diagnóstico de entrada Z-API somente-leitura; APIs e Canais ganharam leitura
+  segura de status e rótulo **Editar configuração** para conexões já salvas. Não foi criada ação
+  de exclusão ou pausa direta para canal produtivo sem um endpoint server-side e confirmação
+  explícita.
+- Type-check frontend/Edge, lint, 28 arquivos/210 testes Vitest e build/artefato Sites passaram.
+  A publicação e a inspeção visual autenticada ficam registradas ao final deste lote.
+
 ## 2026-09-22 — Operação automática da Ana com roteamento explícito
 
 - A agenda agora permite escolher Ana, vendedor específico ou equipe selecionada. A validação

@@ -7,6 +7,16 @@ import { loadOperationalDiagnostics, type OperationalDiagnostics } from '@/lib/c
 import { ACTIVE_PIPELINE_STAGES, PIPELINE_STAGE_LABEL, stageFromLegacy } from '@/domain/pipeline';
 import { resolveOrganizationSession } from '@/lib/organizationSession';
 import { supabase } from '@/lib/supabase';
+import {
+  DASHBOARD_API_KEYS,
+  DASHBOARD_CHANNEL_KEYS,
+  DASHBOARD_SOURCE_KEYS,
+  operationalIcon,
+  operationalIconTone,
+  presentIntegrationStatus,
+  presentSourceStatus,
+  type StatusTone,
+} from '@/lib/crm/operationalStatusPresentation';
 import ConversationActivityChart from './components/ConversationActivityChart';
 import type { ConversationRealtimeState } from './components/conversationActivity';
 import SellerAttentionPanel from './components/SellerAttentionPanel';
@@ -19,10 +29,28 @@ function Status({ good, label, neutral = false }: { good: boolean; label: string
 type ConnectionOverviewItem = {
   id: string;
   label: string;
-  connected: boolean;
+  icon: string;
+  iconTone: string;
+  status: string;
+  tone: StatusTone;
+  detail: string | null;
   creditsRemaining?: number | null;
   expiresAt?: string | null;
 };
+
+const statusClass: Record<StatusTone, string> = {
+  positive: 'bg-[#34C759]/10 text-[#237A3B]',
+  attention: 'bg-[#FF9500]/10 text-[#8A5200]',
+  critical: 'bg-[#FF3B30]/10 text-[#D92D27]',
+  neutral: 'bg-background-100 text-foreground-600',
+};
+
+function formatOperationalDate(value: string | null): string | null {
+  if (!value) return null;
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return null;
+  return date.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+}
 
 function providerTelemetry(item: ConnectionOverviewItem): string | null {
   if (typeof item.creditsRemaining === 'number') return `Créditos informados: ${item.creditsRemaining.toLocaleString('pt-BR')}`;
@@ -34,14 +62,15 @@ function providerTelemetry(item: ConnectionOverviewItem): string | null {
 }
 
 function ConnectionOverview({ title, link, items, empty }: { title: string; link: string; items: ConnectionOverviewItem[]; empty: string }) {
-  return <article className="wf-surface overflow-hidden">
-    <div className="wf-overview-heading border-b border-background-200 px-4 py-3"><h2>{title}</h2><Link to={link} className="wf-overview-link">Configurar ↗</Link></div>
+  return <article className="wf-surface overflow-hidden shadow-[0_12px_30px_rgba(29,29,31,0.04)]">
+    <div className="wf-overview-heading border-b border-background-200/80 px-4 py-3"><h2>{title}</h2><Link to={link} className="wf-overview-link">Gerenciar ↗</Link></div>
     <div className="divide-y divide-background-100">
       {items.map((item) => {
         const telemetry = providerTelemetry(item);
-        return <div key={item.id} className="flex items-center justify-between gap-3 px-4 py-3">
-          <div className="min-w-0"><p className="truncate text-sm font-semibold text-foreground-800">{item.label}</p>{telemetry && <p className="mt-0.5 truncate text-xs text-foreground-500">{telemetry}</p>}</div>
-          <span className={`shrink-0 rounded-md px-2 py-1 text-xs font-semibold ${item.connected ? 'bg-emerald-50 text-emerald-800' : 'bg-rose-50 text-rose-700'}`}>{item.connected ? 'Conectado' : 'Desconectado'}</span>
+        return <div key={item.id} className="flex items-center justify-between gap-3 px-4 py-3 transition-colors hover:bg-background-50">
+          <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] ${item.iconTone}`} aria-hidden="true"><i className={`${item.icon} text-base`} /></span>
+          <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-foreground-800">{item.label}</p><p className="mt-0.5 truncate text-xs text-foreground-500">{item.detail || telemetry || 'Sem detalhes operacionais adicionais.'}</p></div>
+          <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ${statusClass[item.tone]}`}>{item.status}</span>
         </div>;
       })}
       {!items.length && <p className="px-4 py-5 text-sm text-foreground-500">{empty}</p>}
@@ -115,26 +144,73 @@ export default function Dashboard() {
   }, [leads, propostas]);
 
   const maxCount = Math.max(1, ...data.stages.map((item) => item.count));
-  const integrations = operacao?.status.integrations ?? [];
-  const channels = integrations.filter((item) => item.category === 'communication').map((item) => ({
-    id: item.key,
-    label: item.label,
-    connected: item.health === 'online',
-    creditsRemaining: item.telemetry.creditsRemaining,
-    expiresAt: item.telemetry.expiresAt,
-  }));
-  const apis = integrations.filter((item) => item.category === 'intelligence').map((item) => ({
-    id: item.key,
-    label: item.label,
-    connected: item.health === 'online',
-    creditsRemaining: item.telemetry.creditsRemaining,
-    expiresAt: item.telemetry.expiresAt,
-  }));
-  const sources = (operacao?.status.sources ?? []).map((source) => ({
-    id: source.key,
-    label: source.label,
-    connected: source.connectionStatus === 'connected' && !source.lastError,
-  }));
+  const integrationsByKey = new Map((operacao?.status.integrations ?? []).map((item) => [item.key, item]));
+  const sourcesByKey = new Map((operacao?.status.sources ?? []).map((item) => [item.key, item]));
+  const webhookDetail = operacao?.status.webhookDiagnostic.detail ?? null;
+  const channels = DASHBOARD_CHANNEL_KEYS.flatMap((key) => {
+    const item = integrationsByKey.get(key);
+    if (!item) return [];
+    const presentation = presentIntegrationStatus(item);
+    const lastValidation = formatOperationalDate(item.lastTestedAt);
+    const detail = presentation.status === 'pending'
+      ? webhookDetail || item.detail
+      : presentation.status === 'validation_due'
+        ? lastValidation ? `Última validação: ${lastValidation}.` : 'Teste de conexão necessário.'
+        : presentation.status === 'error'
+          ? item.detail || item.lastError
+          : item.detail;
+    return [{
+      id: item.key,
+      label: item.key === 'whatsapp' ? 'WhatsApp · saída' : 'WhatsApp · entrada',
+      icon: operationalIcon(item.key),
+      iconTone: operationalIconTone(item.key),
+      status: presentation.label,
+      tone: presentation.tone,
+      detail,
+      creditsRemaining: item.telemetry.creditsRemaining,
+      expiresAt: item.telemetry.expiresAt,
+    }];
+  });
+  const apis = DASHBOARD_API_KEYS.flatMap((key) => {
+    const item = integrationsByKey.get(key);
+    if (!item) return [];
+    const presentation = presentIntegrationStatus(item);
+    const lastValidation = formatOperationalDate(item.lastTestedAt);
+    const detail = presentation.status === 'validation_due'
+      ? lastValidation ? `Última validação: ${lastValidation}.` : 'Teste de conexão necessário.'
+      : presentation.status === 'error'
+        ? item.detail || item.lastError
+        : item.detail;
+    return [{
+      id: item.key,
+      label: item.key === 'ai' ? 'IA da Ana' : item.label,
+      icon: operationalIcon(item.key),
+      iconTone: operationalIconTone(item.key),
+      status: presentation.label,
+      tone: presentation.tone,
+      detail,
+      creditsRemaining: item.telemetry.creditsRemaining,
+      expiresAt: item.telemetry.expiresAt,
+    }];
+  });
+  const sources = DASHBOARD_SOURCE_KEYS.flatMap((key) => {
+    const source = sourcesByKey.get(key);
+    if (!source) return [];
+    const presentation = presentSourceStatus(source);
+    const lastSuccess = formatOperationalDate(source.lastSuccessAt);
+    const detail = presentation.status === 'error'
+      ? source.lastError
+      : lastSuccess ? `Última atividade: ${lastSuccess}.` : source.mode ? `Modo: ${source.mode}.` : null;
+    return [{
+      id: source.key,
+      label: source.label,
+      icon: operationalIcon(source.key),
+      iconTone: operationalIconTone(source.key),
+      status: presentation.label,
+      tone: presentation.tone,
+      detail,
+    }];
+  });
   const whatsappMonitoring = operacao?.status.whatsappMonitoring;
   const scheduler = operacao?.status.checks.find((item) => item.id === 'scheduler');
   const metrics = [
@@ -216,9 +292,9 @@ export default function Dashboard() {
     </section>
 
     <section className="grid items-start gap-4 lg:grid-cols-3">
-      <ConnectionOverview title="Canais" link="/dashboard/configuracoes?tab=canais" items={channels} empty={diagnosticError ? 'Não foi possível consultar os canais.' : operacao ? 'Nenhum canal cadastrado.' : 'Consultando canais…'} />
-      <ConnectionOverview title="APIs" link="/dashboard/configuracoes?tab=apis" items={apis} empty={diagnosticError ? 'Não foi possível consultar as APIs.' : operacao ? 'Nenhuma API cadastrada.' : 'Consultando APIs…'} />
-      <ConnectionOverview title="Fontes" link="/dashboard/configuracoes?tab=apis" items={sources} empty={diagnosticError ? 'Não foi possível consultar as fontes.' : operacao ? 'Nenhuma fonte cadastrada.' : 'Consultando fontes…'} />
+      <ConnectionOverview title="Canais" link="/dashboard/configuracoes?tab=canais" items={channels} empty={diagnosticError ? 'Não foi possível consultar os canais.' : operacao ? 'Nenhum canal operacional cadastrado.' : 'Consultando canais…'} />
+      <ConnectionOverview title="APIs" link="/dashboard/configuracoes?tab=apis" items={apis} empty={diagnosticError ? 'Não foi possível consultar as APIs.' : operacao ? 'Nenhuma API operacional cadastrada.' : 'Consultando APIs…'} />
+      <ConnectionOverview title="Fontes de busca" link="/dashboard/configuracoes?tab=apis" items={sources} empty={diagnosticError ? 'Não foi possível consultar as fontes.' : operacao ? 'Nenhuma fonte disponível na Busca de Leads.' : 'Consultando fontes…'} />
     </section>
 
     <section className="grid items-start gap-4 lg:grid-cols-2">

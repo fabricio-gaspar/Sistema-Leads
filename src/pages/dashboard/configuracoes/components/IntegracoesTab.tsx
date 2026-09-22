@@ -6,10 +6,13 @@ import { supabase } from '@/lib/supabase';
 import { detalheDoErroDeFuncao } from '@/lib/transportador';
 
 const statusMeta = {
-  conectado: { label: 'Ativa', className: 'border-emerald-200 bg-emerald-50 text-emerald-700' },
-  pendente: { label: 'Não configurada', className: 'border-background-200 bg-background-100 text-foreground-600' },
-  erro: { label: 'Offline · erro', className: 'border-[#FF3B30]/25 bg-[#FF3B30]/10 text-[#D92D27]' },
-  sandbox: { label: 'Configurada · inativa', className: 'border-[#FF9500]/25 bg-[#FF9500]/10 text-[#8A5200]' },
+  validated: { label: 'Validada', className: 'border-[#34C759]/25 bg-[#34C759]/10 text-[#237A3B]' },
+  validation_due: { label: 'Validação vencida', className: 'border-[#FF9500]/25 bg-[#FF9500]/10 text-[#8A5200]' },
+  inactive: { label: 'Configurada · inativa', className: 'border-background-200 bg-background-100 text-foreground-600' },
+  paused: { label: 'Pausada', className: 'border-[#FF9500]/25 bg-[#FF9500]/10 text-[#8A5200]' },
+  pending: { label: 'Entrada pendente', className: 'border-[#FF9500]/25 bg-[#FF9500]/10 text-[#8A5200]' },
+  error: { label: 'Erro de conexão', className: 'border-[#FF3B30]/25 bg-[#FF3B30]/10 text-[#D92D27]' },
+  not_configured: { label: 'Não configurada', className: 'border-background-200 bg-background-100 text-foreground-600' },
 };
 
 function errorMessage(code: string, name: string) {
@@ -146,9 +149,23 @@ export default function IntegracoesTab({ category }: { category?: OperationalInt
   const [testing, setTesting] = useState<OperationalIntegration['remoteKey'] | null>(null);
   const [repairingApify, setRepairingApify] = useState(false);
   const [togglingSource, setTogglingSource] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   const [notice, setNotice] = useState('');
 
   const refresh = async () => { await Promise.all([recarregar(), recarregarFontes()]); };
+  const refreshStatus = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    setNotice('');
+    try {
+      await refresh();
+      setNotice('Status atualizado com a leitura operacional mais recente.');
+    } catch {
+      setNotice('Não foi possível atualizar o status agora. Nenhuma configuração foi alterada.');
+    } finally {
+      setRefreshing(false);
+    }
+  };
   const test = async (integration: OperationalIntegration) => {
     setTesting(integration.remoteKey); setNotice('');
     try {
@@ -202,6 +219,11 @@ export default function IntegracoesTab({ category }: { category?: OperationalInt
 
   return <div className="space-y-4">
     {notice && <div className="rounded-xl border border-primary-200 bg-primary-50 px-4 py-3 text-sm text-primary-800">{notice}</div>}
+    <div className="flex justify-end">
+      <button type="button" className="wf-btn-secondary text-xs" disabled={refreshing} onClick={() => void refreshStatus()}>
+        <i className={refreshing ? 'ri-loader-4-line animate-spin' : 'ri-refresh-line'} />{refreshing ? 'Atualizando…' : 'Atualizar status'}
+      </button>
+    </div>
     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
       {visibleIntegrations.map((integration) => {
         const meta = statusMeta[integration.status];
@@ -220,8 +242,8 @@ export default function IntegracoesTab({ category }: { category?: OperationalInt
           <h3 className="mt-3 text-sm font-semibold text-foreground-950">{integration.nome}</h3>
           <p className="mt-1 line-clamp-3 text-xs leading-5 text-foreground-500">{integration.descricao}</p>
           <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1.5 rounded-lg bg-background-100 p-3 text-[11px]">
-            <div><dt className="text-foreground-400">Conexão</dt><dd className="mt-0.5 font-semibold text-foreground-700">{integration.connected ? 'Validada' : 'Não validada'}</dd></div>
-            <div><dt className="text-foreground-400">Provedor</dt><dd className="mt-0.5 font-semibold text-foreground-700">{integration.enabled && !integration.paused ? 'Disponível' : 'Inativo'}</dd></div>
+            <div><dt className="text-foreground-400">Validação</dt><dd className="mt-0.5 font-semibold text-foreground-700">{integration.status === 'validated' ? 'Confirmada' : integration.status === 'validation_due' ? 'Vencida' : integration.connected ? 'Credencial salva' : 'Não validada'}</dd></div>
+            <div><dt className="text-foreground-400">Uso operacional</dt><dd className="mt-0.5 font-semibold text-foreground-700">{integration.paused ? 'Pausado' : integration.enabled ? 'Habilitado' : 'Inativo'}</dd></div>
             {source && <div className="col-span-2"><dt className="text-foreground-400">Busca de Leads</dt><dd className="mt-0.5 font-semibold text-foreground-700">{source.status === 'ativo' ? 'Ativa' : source.status === 'inativo' ? 'Pausada' : 'Aguardando validação'}</dd></div>}
           </dl>
           <div className="mt-3 space-y-1 text-[11px] text-foreground-400">
@@ -234,7 +256,7 @@ export default function IntegracoesTab({ category }: { category?: OperationalInt
             {integration.lastError && <p className="line-clamp-2 text-[#D92D27]">{integration.lastError}</p>}
             {!integration.lastError && sourceError && <p className="line-clamp-2 text-[#D92D27]">Busca: {sourceError}</p>}
           </div>
-          <div className="mt-auto grid grid-cols-2 gap-2 pt-3"><button type="button" onClick={() => setConfiguring(integration)} className="wf-btn-secondary justify-center text-xs">Configurar</button><button type="button" disabled={testing === integration.remoteKey || (integration.remoteKey === 'apify' && repairingApify)} onClick={() => integration.remoteKey === 'whatsapp' ? setWhatsappTest(integration) : void test(integration)} className="wf-btn-primary justify-center text-xs disabled:opacity-60">{testing === integration.remoteKey ? 'Validando…' : integration.remoteKey === 'whatsapp' ? 'Testar envio' : 'Testar conexão'}</button>{source && <button type="button" disabled={togglingSource === source.id || source.connectionStatus !== 'connected'} onClick={() => void toggleProspectingSource(source)} className="col-span-2 wf-btn-secondary justify-center text-xs disabled:cursor-not-allowed disabled:opacity-60" title={source.connectionStatus === 'connected' ? undefined : 'Configure e valide a conexão antes de ativar a Busca de Leads.'}><i className={togglingSource === source.id ? 'ri-loader-4-line animate-spin' : source.status === 'ativo' ? 'ri-pause-circle-line' : 'ri-play-circle-line'} />{togglingSource === source.id ? 'Salvando uso…' : source.status === 'ativo' ? 'Pausar na Busca de Leads' : 'Ativar na Busca de Leads'}</button>}{canRepairApifyActor && <button type="button" disabled={repairingApify} onClick={() => void repairApifyGoogleMapsActor(integration)} className="col-span-2 wf-btn-secondary justify-center text-xs text-primary-700 disabled:opacity-60"><i className={repairingApify ? 'ri-loader-4-line animate-spin' : 'ri-map-pin-line'} />{repairingApify ? 'Corrigindo Actor…' : 'Corrigir Actor Google Maps'}</button>}</div>
+          <div className="mt-auto grid grid-cols-2 gap-2 pt-3"><button type="button" onClick={() => setConfiguring(integration)} className="wf-btn-secondary justify-center text-xs">{integration.connected || integration.enabled ? 'Editar configuração' : 'Configurar'}</button><button type="button" disabled={testing === integration.remoteKey || (integration.remoteKey === 'apify' && repairingApify)} onClick={() => integration.remoteKey === 'whatsapp' ? setWhatsappTest(integration) : void test(integration)} className="wf-btn-primary justify-center text-xs disabled:opacity-60">{testing === integration.remoteKey ? 'Validando…' : integration.remoteKey === 'whatsapp' ? 'Testar envio' : 'Testar conexão'}</button>{source && <button type="button" disabled={togglingSource === source.id || source.connectionStatus !== 'connected'} onClick={() => void toggleProspectingSource(source)} className="col-span-2 wf-btn-secondary justify-center text-xs disabled:cursor-not-allowed disabled:opacity-60" title={source.connectionStatus === 'connected' ? undefined : 'Configure e valide a conexão antes de ativar a Busca de Leads.'}><i className={togglingSource === source.id ? 'ri-loader-4-line animate-spin' : source.status === 'ativo' ? 'ri-pause-circle-line' : 'ri-play-circle-line'} />{togglingSource === source.id ? 'Salvando uso…' : source.status === 'ativo' ? 'Pausar na Busca de Leads' : 'Ativar na Busca de Leads'}</button>}{canRepairApifyActor && <button type="button" disabled={repairingApify} onClick={() => void repairApifyGoogleMapsActor(integration)} className="col-span-2 wf-btn-secondary justify-center text-xs text-primary-700 disabled:opacity-60"><i className={repairingApify ? 'ri-loader-4-line animate-spin' : 'ri-map-pin-line'} />{repairingApify ? 'Corrigindo Actor…' : 'Corrigir Actor Google Maps'}</button>}</div>
         </article>;
       })}
     </div>

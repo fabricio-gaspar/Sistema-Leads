@@ -2,8 +2,10 @@ import { useEffect, useMemo, useSyncExternalStore } from 'react';
 import { integracoes as integrationDescriptors } from '@/mocks/businessData';
 import type { Integracao } from '@/mocks/businessData';
 import { supabase } from '@/lib/supabase';
+import { integrationDisplayStatus, type IntegrationDisplayStatus } from '@/lib/crm/operationalStatusPresentation';
 
-export type OperationalIntegration = Integracao & {
+export type OperationalIntegration = Omit<Integracao, 'status'> & {
+  status: IntegrationDisplayStatus;
   remoteKey: 'whatsapp' | 'ai' | 'apify' | 'google_places';
   operationalCategory: 'prospecting' | 'communication' | 'intelligence' | 'scheduling' | 'system';
   connected: boolean;
@@ -46,7 +48,7 @@ function pendingDescriptor(key: SupportedKey): OperationalIntegration {
   const descriptor = descriptorByKey[key];
   return {
     ...descriptor,
-    status: 'pendente',
+    status: 'not_configured',
     ultimoTeste: 'Nunca testada',
     remoteKey: key,
     operationalCategory: key === 'whatsapp' ? 'communication' : key === 'ai' ? 'intelligence' : 'prospecting',
@@ -97,12 +99,7 @@ function anaProviderConfiguration(value: unknown): AnaProviderConfiguration | nu
   };
 }
 
-export function integrationDisplayStatus(remote: { connected: boolean; enabled: boolean; paused: boolean; last_error: string | null }) {
-  if (remote.last_error || remote.paused) return 'erro' as const;
-  if (remote.connected && remote.enabled) return 'conectado' as const;
-  if (remote.connected) return 'sandbox' as const;
-  return 'pendente' as const;
-}
+export { integrationDisplayStatus };
 
 async function hydrateFromBackend(force = false): Promise<void> {
   const { data: auth } = await supabase.auth.getUser();
@@ -140,7 +137,14 @@ async function hydrateFromBackend(force = false): Promise<void> {
       operationalCategory: (remote.category === 'prospecting' || remote.category === 'communication' || remote.category === 'intelligence' || remote.category === 'scheduling' || remote.category === 'system')
         ? remote.category
         : (key === 'whatsapp' ? 'communication' : key === 'ai' ? 'intelligence' : 'prospecting'),
-      status: integrationDisplayStatus(remote),
+      status: integrationDisplayStatus({
+        key,
+        connected: Boolean(remote.connected),
+        enabled: Boolean(remote.enabled),
+        paused: Boolean(remote.paused),
+        lastError: remote.last_error ?? null,
+        lastTestedAt: remote.last_tested_at ?? null,
+      }),
       ultimoTeste: remote.last_tested_at ? new Date(remote.last_tested_at).toLocaleString('pt-BR') : 'Nunca testada',
       descricao: remote.status_detail || descriptor.descricao,
       connected: Boolean(remote.connected),
