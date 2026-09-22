@@ -3,16 +3,16 @@
   "baseline_version": 4,
   "baseline_commit": "1dc6275b8c7d70de953b66397a8c89f5e97bc15b",
   "last_audited_commit": "cf64e971c48b8346b0cfc0060cbb115add82afcf",
-  "current_head_at_update": "ed5632b2a64e8e154b99f0e9f09063d7f1532681",
-  "working_tree_status": "ana_automatic_routing_and_validation_ready_for_site_publication",
+  "current_head_at_update": "cdccad27ee9940a7e99a829ac38e87652c2ee693",
+  "working_tree_status": "ana_automatic_routing_and_validation_published_site_v104",
   "last_site_publication": {
-    "commit": "ed5632b2a64e8e154b99f0e9f09063d7f1532681",
-    "site_version": 103,
-    "validated_at": "2026-09-22T10:11:00-03:00",
-    "working_tree_status": "prospecting_provider_configuration_consolidated_and_published"
+    "commit": "cdccad27ee9940a7e99a829ac38e87652c2ee693",
+    "site_version": 104,
+    "validated_at": "2026-09-22T11:48:39-03:00",
+    "working_tree_status": "ana_automatic_routing_and_validation_published"
   },
   "full_audit_required": false,
   "baseline_status": "validated_with_external_homologation_pending",
-  "updated_at": "2026-09-22T12:20:00-03:00",
-  "next_action": "Publicar a agenda automática da Ana após o commit: ela usa rota explícita, validação por campo e `zapi_webhook` para entrada. O modo Automático deve continuar bloqueado até a entrada WhatsApp real voltar a saudável."
+  "updated_at": "2026-09-22T11:48:39-03:00",
+  "next_action": "Manter a operação automática em rascunho enquanto a entrada `zapi_webhook` estiver pendente. Quando a integração ficar saudável, preencher a rota escolhida, validar no próprio painel e ativar conscientemente o modo Automatico."
 }

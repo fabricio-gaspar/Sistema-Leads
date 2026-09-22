@@ -8,8 +8,10 @@
   `20260922120000_prospecting_schedule_assignment_fk_indexes` foram aplicadas no Supabase
   oficial. `ana-operations` v2 e `automation-worker` v29 preservam o Kanban manual e só usam
   `ana-run` para decisões automáticas; a simulação não chama fornecedor nem canal externo.
-- Type-check frontend/Edge, lint, 27 arquivos/206 testes e build/artefato Sites passaram. A
-  homologação visual publicada será anotada separadamente; nenhum lead, mensagem ou busca real
+- Type-check frontend/Edge, lint, 27 arquivos/206 testes e build/artefato Sites passaram. A versão
+  104 foi publicada a partir de `cdccad27ee9940a7e99a829ac38e87652c2ee693`; a inspeção autenticada
+  confirmou todos os campos, a entrada `zapi_webhook` corretamente pendente e uma simulação
+  `simulated` com zero candidatos/importações. Nenhum lead, mensagem, busca Apify ou chamada de IA
   foi criada por este trabalho.
 
 ## 2026-09-19 — Ana: evento de handoff idempotente

@@ -98,6 +98,7 @@
     ,{"command":"eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0","status":"passed","warnings":0}
     ,{"command":"vitest run --configLoader runner","status":"passed","test_files":27,"checks":206,"note":"Inclui regressão da validação de ativação por rota e handoff."}
     ,{"command":"vite build --configLoader runner && node scripts/build-sites-artifact.mjs","status":"passed","note":"Artefato Sites produzido após a operação automática, sem segredo no bundle."}
+    ,{"command":"Computer Use autenticado no Site oficial, versão 104: Simular sem enviar","status":"passed","note":"A tela exibiu agenda, rota explícita, handoff, validação por pré-requisito e a execução simulated com zero candidatos/importações. Console sem erros; Apify, IA e WhatsApp não foram chamados."}
   ],
   "prior_site_artifact_validation": {
     "validated_commit": "e4b1666c878df01ac0db3d12a290531a42107446",

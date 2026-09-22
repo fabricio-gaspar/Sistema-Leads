@@ -1038,5 +1038,7 @@ webhook em ambiente controlado.
   handoff a `prospecting_schedules` e os índices completos de suas chaves estrangeiras, sem tabela
   pública nova. Funções publicadas: `ana-operations` v2 e `automation-worker` v29.
 - Validações locais aprovadas: type-check frontend/Edge, lint, 27 arquivos/206 testes Vitest,
-  build Vite e artefato Sites. A publicação e a inspeção visual autenticada são registradas após a
-  versão do Site ser criada; nenhum provedor externo foi chamado nesta implementação.
+  build Vite e artefato Sites. **Publicado** no Site oficial como versão 104, commit
+  `cdccad27ee9940a7e99a829ac38e87652c2ee693`. A inspeção autenticada confirmou agenda, roteamento,
+  transferência, estados reais dos pré-requisitos e uma execução `simulated` com zero candidatos e
+  zero importados. Nenhum provedor externo foi chamado nesta implementação.
