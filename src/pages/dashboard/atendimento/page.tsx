@@ -377,7 +377,9 @@ export default function Atendimento() {
     }
     if (teamLoading) { setErroIA('Carregando os responsáveis ativos. Tente novamente em instantes.'); return; }
     if (!teamMembers.length) { setErroIA('Não há responsável ativo com permissão de atendimento para receber esta transferência.'); return; }
-    setTransferTargetId(lead.responsavelId || '');
+    // Transferência nunca herda o responsável atual: o operador precisa escolher
+    // explicitamente quem receberá o atendimento antes de pausar a Ana.
+    setTransferTargetId('');
     setTransferOpen(true);
   };
 
