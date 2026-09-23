@@ -484,13 +484,6 @@ export default function Atendimento() {
             <i className="ri-refresh-line" />
             Atualizar
           </button>
-          <button
-            onClick={() => openSidePanel('lead')}
-            className="wf-btn-secondary cursor-pointer whitespace-nowrap xl:hidden"
-          >
-            <i className="ri-side-bar-line"></i>
-            Painel do lead
-          </button>
         </div>
       </div>
 

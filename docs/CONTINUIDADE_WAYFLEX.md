@@ -1180,5 +1180,6 @@ webhook em ambiente controlado.
   Se o usuário alternar de mobile para desktop com Histórico selecionado, o painel desktop volta ao
   resumo do lead para não exibir uma área vazia.
 - Validações locais: type-check frontend, lint da Central, Vitest completo (29 arquivos/222
-  testes), build Vite e artefato Sites aprovados. Falta validar visualmente a versão publicada;
-  nenhum envio ou alteração operacional foi feito para este lote.
+  testes), build Vite e artefato Sites aprovados. A validação publicada confirmou o drawer
+  responsivo com as abas e o carregamento do conhecimento comercial real, sem envio ou alteração
+  operacional para este lote.

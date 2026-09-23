@@ -855,5 +855,6 @@
   **Orçamentos** e **Agenda**. Em telas menores, o drawer apresenta as mesmas abas e adiciona o
   histórico da conversa; a área principal do chat permanece disponível sem painel lateral fixo.
 - Type-check frontend, lint da Central, testes direcionados, Vitest completo (29 arquivos/222
-  testes), build Vite e artefato Sites passaram. Não houve escrita operacional, envio de mensagem,
-  alteração de lead ou chamada a provedor. Falta somente a inspeção visual na versão publicada.
+  testes), build Vite e artefato Sites passaram. A inspeção publicada confirmou o drawer responsivo
+  com as cinco abas e o carregamento da base real de conhecimento, sem escrita operacional, envio
+  de mensagem, alteração de lead ou chamada a provedor.
