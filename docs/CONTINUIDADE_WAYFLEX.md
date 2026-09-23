@@ -1148,3 +1148,21 @@ webhook em ambiente controlado.
   de permissão conhecida do Windows no cache `.vite-temp`; o runner resolveu sem alterar código.
   Nenhum WhatsApp de mídia foi enviado. Falta a homologação controlada para comprovar aceite,
   entrega e leitura no provedor.
+
+## 2026-09-23 — Correção da seleção condicional de imagem pela Ana
+
+- Fato comprovado: depois de habilitar imagens na versão publicada da Ana, uma pergunta explícita
+  sobre **Fita PTFE expandido auto-adesivo** produziu resposta textual, mas não produziu anexo ou
+  job de mídia. O item estava ativo, com imagem HTTPS pública, rastreabilidade e aprovação da Ana;
+  não houve requisição de mídia à Z-API para ela aceitar ou rejeitar.
+- `ana-run` v34 mantém a política conservadora e acrescenta somente uma contingência para encontrar
+  pelo nome explícito o mesmo item já aprovado no catálogo. O candidato ainda precisa passar pela
+  seleção determinística existente. A imagem não é enviada em toda resposta e continua bloqueada
+  em saudação, ambiguidade, orçamento, handoff humano, canal fora do WhatsApp ou URL insegura.
+- Cada execução passa a gravar `result.catalog_media` com a elegibilidade, seleção e origem
+  (`context` ou `exact_name_fallback`), permitindo diferenciar ausência de correspondência de
+  falha posterior de fila/provedor sem registrar mensagem do cliente ou URL de mídia no log.
+- Validações aprovadas: type-check frontend/Edge, lint, Vitest completo (29 arquivos/222 testes),
+  build Vite e artefato Sites. Nenhuma mensagem, callback, job ou lead existente foi reprocessado.
+  Próxima homologação: enviar uma nova pergunta explícita, confirmar o anexo e o aceite da Z-API;
+  entrega/leitura só devem ser afirmadas se o provedor devolver esses eventos.

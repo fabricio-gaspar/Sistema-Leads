@@ -186,6 +186,56 @@ function mergeKnowledge(semantic: ReturnType<typeof relevantKnowledge>, lexical:
     return true;
   }).slice(0, 8);
 }
+
+type CatalogMediaSelectionInput = {
+  enabled: boolean;
+  channel: string;
+  event: string;
+  intent: string;
+  question: unknown;
+};
+
+function asCatalogImageCandidate(value: unknown): CatalogImageCandidate {
+  const item = asObject(value);
+  return {
+    id: asText(item.id, 80),
+    itemType: asText(item.item_type, 20) as CatalogImageCandidate['itemType'],
+    name: asText(item.name, 240),
+    shortDescription: asText(item.short_description, 2_000) || null,
+    technicalDescription: asText(item.technical_description, 4_000) || null,
+    category: asText(item.category, 240) || null,
+    material: asText(item.material, 240) || null,
+    applications: item.applications,
+    keywords: item.keywords,
+    imageUrl: asText(item.image_url, 2_000) || null,
+  };
+}
+
+async function exactCatalogImageFallback(
+  admin: ReturnType<typeof createAdminClient>,
+  organizationId: string,
+  selection: CatalogMediaSelectionInput,
+): Promise<CatalogImageCandidate | null> {
+  const ignored = new Set([...SEARCH_STOP_WORDS, 'queria', 'saber', 'trabalha', 'trabalham', 'possui', 'possuem']);
+  const terms = [...new Set(normalizeForSearch(selection.question)
+    .split(' ')
+    .filter((term) => term.length >= 4 && !ignored.has(term)))]
+    .slice(0, 8);
+  if (!terms.length) return null;
+
+  const filter = terms.map((term) => `name.ilike.%${term}%`).join(',');
+  const { data, error } = await admin.from('knowledge_catalog_items')
+    .select('id,item_type,name,short_description,technical_description,category,material,applications,keywords,image_url')
+    .eq('organization_id', organizationId)
+    .eq('status', 'active')
+    .eq('ana_enabled', true)
+    .not('image_url', 'is', null)
+    .or(filter)
+    .limit(40);
+  if (error || !Array.isArray(data)) return null;
+  return selectCatalogImageCandidate({ ...selection, candidates: data.map(asCatalogImageCandidate) });
+}
+
 function approvedCompanyContext(value: unknown): Record<string, unknown> {
   const company = asObject(value);
   return {
@@ -791,30 +841,29 @@ Deno.serve(async (request) => {
       && modo !== 'humano'
       && !requiresHumanReview(decision.mensagem_sugerida);
     const channelConnected = !dryRun && Boolean(channel?.connected && channel?.enabled && !channel?.paused);
-    const catalogImageCandidate = channelConnected
+    const catalogMediaSelection: CatalogMediaSelectionInput = {
+      enabled: agentConfiguration.catalogMediaImagesEnabled === true,
+      channel: activeChannel || '',
+      event,
+      intent,
+      question: latestInboundMessage?.text,
+    };
+    const canSelectCatalogMedia = channelConnected
       && !needsHuman
       && !meetingAcknowledgement
-      && Boolean(decision.mensagem_sugerida)
+      && Boolean(decision.mensagem_sugerida);
+    let catalogMediaSource: 'context' | 'exact_name_fallback' | null = null;
+    let catalogImageCandidate = canSelectCatalogMedia
       ? selectCatalogImageCandidate({
-        enabled: agentConfiguration.catalogMediaImagesEnabled === true,
-        channel: activeChannel || '',
-        event,
-        intent,
-        question: latestInboundMessage?.text,
-        candidates: (catalogItems ?? []).map((item): CatalogImageCandidate => ({
-          id: asText(item.id, 80),
-          itemType: asText(item.item_type, 20) as CatalogImageCandidate['itemType'],
-          name: asText(item.name, 240),
-          shortDescription: asText(item.short_description, 2_000) || null,
-          technicalDescription: asText(item.technical_description, 4_000) || null,
-          category: asText(item.category, 240) || null,
-          material: asText(item.material, 240) || null,
-          applications: item.applications,
-          keywords: item.keywords,
-          imageUrl: asText(item.image_url, 2_000) || null,
-        })),
+        ...catalogMediaSelection,
+        candidates: (catalogItems ?? []).map(asCatalogImageCandidate),
       })
       : null;
+    if (catalogImageCandidate) catalogMediaSource = 'context';
+    if (canSelectCatalogMedia && !catalogImageCandidate) {
+      catalogImageCandidate = await exactCatalogImageFallback(admin, organizationId, catalogMediaSelection);
+      if (catalogImageCandidate) catalogMediaSource = 'exact_name_fallback';
+    }
     if (dryRun) {
       const result = { ...decision, dry_run: true, acoes_aplicadas: [], status_canal: 'simulacao_sem_alteracoes', provedor_ia: aiProvider };
       const { error } = await admin.from('agent_runs').update({ status: 'completed', result, completed_at: new Date().toISOString() }).eq('id', runId).eq('organization_id', organizationId);
@@ -981,6 +1030,12 @@ Deno.serve(async (request) => {
       provedor_ia: aiProvider,
       fontes_consultadas: matchedKnowledge.map((item) => item.source),
       status_canal: needsHuman ? 'atendimento_humano' : appliedActions.some((action) => action.status === 'enfileirado') ? 'enfileirado' : 'sem_envio',
+      catalog_media: {
+        enabled: catalogMediaSelection.enabled,
+        eligible: canSelectCatalogMedia,
+        selected: Boolean(catalogImageCandidate),
+        source: catalogMediaSource,
+      },
     };
     const { error: completedError } = await admin.from('agent_runs').update({ status: 'completed', result, completed_at: new Date().toISOString() }).eq('id', runId).eq('organization_id', organizationId);
     if (completedError) throw completedError;

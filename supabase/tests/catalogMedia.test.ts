@@ -33,4 +33,22 @@ describe('catalog media safety', () => {
     expect(selectCatalogImageCandidate({ enabled: true, channel: 'whatsapp', event: 'message.received', intent: 'geral', question: 'Olá, tudo bem?', candidates: [product] })).toBeNull();
     expect(selectCatalogImageCandidate({ enabled: false, channel: 'whatsapp', event: 'message.received', intent: 'produto', question: 'Preciso de vedação para junta.', candidates: [product] })).toBeNull();
   });
+
+  it('selects the official PTFE image for an explicit product request', () => {
+    const ptfe = {
+      ...product,
+      id: '609cfc12-b59e-4db1-86ea-d2664df18040',
+      name: 'Fita PTFE expandido auto-adesivo',
+      imageUrl: 'https://wayflex.ind.br/assets/fita-ptfe-expandido-auto-adesivo.jpg',
+    };
+
+    expect(selectCatalogImageCandidate({
+      enabled: true,
+      channel: 'whatsapp',
+      event: 'message.received',
+      intent: 'produto',
+      question: 'Queria saber se trabalha com Fita PTFE expandido auto-adesivo',
+      candidates: [ptfe],
+    })).toMatchObject({ id: ptfe.id });
+  });
 });

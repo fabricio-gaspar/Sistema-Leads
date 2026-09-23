@@ -830,3 +830,18 @@
   (29 arquivos/221 testes), build Vite com `--configLoader runner` e artefato Sites. Não houve
   mensagem real, job de teste, alteração de lead ou chamada à Z-API. A homologação externa de
   imagem permanece obrigatória antes de declarar aceite/entrega.
+
+# 2026-09-23 — Seleção de imagem oficial da Ana
+
+- Uma execução posterior à publicação da configuração de mídia foi auditada: a Ana respondeu à
+  pergunta explícita sobre **Fita PTFE expandido auto-adesivo**, porém não criou anexo nem job de
+  mídia. O item ativo, aprovado para a Ana e com imagem HTTPS pública já existia; a configuração
+  publicada de mídia estava habilitada. Portanto, não foi falha ou rejeição da Z-API.
+- `ana-run` v34 preserva a seleção contextual existente e adiciona uma busca de contingência,
+  limitada a termos explícitos do nome do produto e submetida à mesma pontuação determinística.
+  Ela não se aplica a saudações, intenção ambígua, orçamento, handoff humano ou item sem imagem
+  segura. A execução passa a registrar apenas os metadados `catalog_media` (habilitada, elegível,
+  selecionada e origem), sem texto do cliente nem URL.
+- Type-check frontend/Edge, lint, Vitest completo (29 arquivos/222 testes), build Vite e artefato
+  Sites passaram. Nenhuma mensagem foi repetida, nenhum job foi criado e nenhum provedor foi
+  chamado. A nova pergunta controlada continua necessária para confirmar aceite do provedor.
