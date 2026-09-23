@@ -130,5 +130,5 @@
   },
   "covered": ["frontend_typecheck","lint","edge_typecheck","unit_and_contract_tests","production_build"],
   "not_covered": ["authenticated_e2e","login_como_novo_membro","real_whatsapp","real_whatsapp_media_delivery","real_claude","cross_organization_rls","database_concurrency","provider_receipt_race","mobile_authenticated_qa"],
-  "working_tree_validation": "Após uma execução real com a configuração de mídia habilitada que não enfileirou anexo, ana-run v34 ganhou fallback restrito por nome explícito e diagnóstico catalog_media no resultado da execução. Type-check frontend/Edge, lint, 29 arquivos/222 testes Vitest e build/artefato Sites passaram. Nenhum WhatsApp, job de teste, fila, lead, credencial ou teste de provedor foi criado; aceite, entrega e leitura de mídia ainda dependem de homologação externa controlada."
+  "working_tree_validation": "A Central foi consolidada em um painel contextual único com abas para Lead, Conhecimento, Orçamentos e Agenda; o drawer responsivo oferece as mesmas áreas mais Histórico. Type-check frontend, lint da Central, Vitest completo (29 arquivos/222 testes) e build/artefato Sites passaram. Nenhum WhatsApp, job, fila, lead, credencial ou teste de provedor foi criado; a inspeção visual publicada ainda é necessária."
 }

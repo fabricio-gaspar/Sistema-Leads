@@ -40,6 +40,7 @@ const deliveryLabel: Record<NonNullable<Mensagem['statusEnvio']>, string> = {
 
 type ConversationRealtimeState = 'connecting' | 'live' | 'unavailable';
 type InboxFilter = 'all' | 'waiting' | 'human' | 'ana';
+type SidePanelTab = 'lead' | 'knowledge' | 'quotes' | 'agenda' | 'history';
 
 const inboxFilters: { id: InboxFilter; label: string }[] = [
   { id: 'all', label: 'Todas' },
@@ -53,6 +54,13 @@ const realtimeCopy: Record<ConversationRealtimeState, string> = {
   live: 'Atualização ao vivo',
   unavailable: 'Atualização automática',
 };
+
+const sidePanelTabs: Array<{ id: Exclude<SidePanelTab, 'history'>; label: string; icon: string }> = [
+  { id: 'lead', label: 'Lead', icon: 'ri-user-3-line' },
+  { id: 'knowledge', label: 'Conhecimento', icon: 'ri-book-open-line' },
+  { id: 'quotes', label: 'Orçamentos', icon: 'ri-file-list-3-line' },
+  { id: 'agenda', label: 'Agenda', icon: 'ri-calendar-event-line' },
+];
 
 function formatTraceDate(value?: string | null): string {
   return value ? new Date(value).toLocaleString('pt-BR') : 'não informado';
@@ -73,6 +81,7 @@ export default function Atendimento() {
   const [busca, setBusca] = useState('');
   const [inboxFilter, setInboxFilter] = useState<InboxFilter>('all');
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [sidePanelTab, setSidePanelTab] = useState<SidePanelTab>('lead');
   const [optoutConfirmar, setOptoutConfirmar] = useState(false);
   const [erroIA, setErroIA] = useState('');
   const [enviando, setEnviando] = useState(false);
@@ -80,7 +89,6 @@ export default function Atendimento() {
   const [protectedContacts, setProtectedContacts] = useState<ContactSuppression[]>([]);
   const [conversationRealtime, setConversationRealtime] = useState<ConversationRealtimeState>('connecting');
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
-  const [knowledgeOpen, setKnowledgeOpen] = useState(false);
   const [preparedKnowledge, setPreparedKnowledge] = useState<PreparedKnowledgeContent | null>(null);
   const [knowledgeEvents, setKnowledgeEvents] = useState<ConversationKnowledgeEvent[]>([]);
   // Mantém a mesma chave idempotente enquanto uma mensagem está na fila ou em
@@ -101,6 +109,11 @@ export default function Atendimento() {
     setTexto(content.text);
     setNotaInterna(false);
     setErroIA(`Conteúdo “${content.item.name}” preparado${content.sendImage ? ' com imagem oficial' : ''}. Revise o texto antes de enviar pela fila segura.`);
+  };
+
+  const openSidePanel = (tab: Exclude<SidePanelTab, 'history'>) => {
+    setSidePanelTab(tab);
+    if (typeof window !== 'undefined' && !window.matchMedia('(min-width: 1280px)').matches) setDrawerOpen(true);
   };
 
   // A store é hidratada de forma assíncrona. Sem uma conversa selecionada, a
@@ -472,7 +485,7 @@ export default function Atendimento() {
             Atualizar
           </button>
           <button
-            onClick={() => setDrawerOpen(true)}
+            onClick={() => openSidePanel('lead')}
             className="wf-btn-secondary cursor-pointer whitespace-nowrap xl:hidden"
           >
             <i className="ri-side-bar-line"></i>
@@ -481,7 +494,7 @@ export default function Atendimento() {
         </div>
       </div>
 
-      <div className="grid min-h-[600px] grid-cols-1 gap-4 lg:h-[calc(100vh-208px)] lg:grid-cols-[minmax(280px,0.78fr)_minmax(0,1.7fr)] xl:grid-cols-[minmax(280px,300px)_minmax(0,1fr)_minmax(360px,400px)]">
+      <div className="grid min-h-[600px] grid-cols-1 gap-4 lg:h-[calc(100vh-208px)] lg:grid-cols-[minmax(280px,0.78fr)_minmax(0,1.7fr)] xl:grid-cols-[minmax(260px,300px)_minmax(0,1fr)_minmax(300px,340px)]">
         {/* Lista de conversas */}
         <div className="wf-surface flex min-h-[280px] max-h-[360px] flex-col overflow-hidden lg:max-h-none">
           <div className="border-b border-background-200/70 bg-background-50 p-4">
@@ -578,14 +591,14 @@ export default function Atendimento() {
             </div>
             <div className="flex items-center gap-1.5">
               <button
-                onClick={() => setDrawerOpen(true)}
+                onClick={() => openSidePanel('lead')}
                 className="w-9 h-9 flex items-center justify-center rounded-lg bg-background-100 hover:bg-background-200 text-foreground-500 cursor-pointer transition-colors lg:hidden"
                 title="Painel do lead"
               >
                 <i className="ri-side-bar-line"></i>
               </button>
-              <button onClick={() => setDrawerOpen(true)} className="hidden items-center gap-2 rounded-lg border border-background-200 bg-background-50 px-3 py-2 text-xs font-semibold text-foreground-700 transition hover:bg-background-100 sm:inline-flex" title="Abrir dados completos do lead">
-                Mais ações <i className="ri-arrow-down-s-line text-base" />
+              <button onClick={() => openSidePanel('lead')} className="hidden items-center gap-2 rounded-lg border border-background-200 bg-background-50 px-3 py-2 text-xs font-semibold text-foreground-700 transition hover:bg-background-100 sm:inline-flex" title="Abrir dados completos do lead">
+                Painel <i className="ri-side-bar-line text-base" />
               </button>
               <button
                 onClick={() => setOptoutConfirmar(true)}
@@ -598,15 +611,7 @@ export default function Atendimento() {
           </div>
 
           <div className="flex flex-wrap gap-2 border-b border-background-200/70 bg-background-50 px-4 py-3">
-            <button type="button" onClick={() => setKnowledgeOpen(true)} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-background-200 bg-white px-3 text-xs font-semibold text-foreground-700 transition hover:border-primary-200 hover:text-primary-700">
-              <i className="ri-book-open-line text-base" />Enviar catálogo
-            </button>
-            <button type="button" onClick={() => setOrcamentoModal(true)} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-background-200 bg-white px-3 text-xs font-semibold text-foreground-700 transition hover:border-primary-200 hover:text-primary-700">
-              <i className="ri-file-add-line text-base" />Criar orçamento
-            </button>
-            <button type="button" onClick={() => leadSelecionado && navigate(`/dashboard/agenda?leadId=${encodeURIComponent(leadSelecionado.id)}&new=1`)} disabled={!leadSelecionado} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-background-200 bg-white px-3 text-xs font-semibold text-foreground-700 transition hover:border-primary-200 hover:text-primary-700 disabled:cursor-not-allowed disabled:opacity-50">
-              <i className="ri-calendar-event-line text-base" />Agendar reunião
-            </button>
+            <span className="mr-1 inline-flex items-center text-[11px] font-semibold uppercase tracking-wide text-foreground-400">Atendimento</span>
             {!responsabilidadeHumana ? (
               <button onClick={() => void assumir()} disabled={handoffAction !== null} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-primary-200 bg-primary-50 px-3 text-xs font-semibold text-primary-800 transition hover:bg-primary-100 disabled:cursor-wait disabled:opacity-50">
                 <i className="ri-user-received-line text-base" />{handoffAction === 'takeover' ? 'Assumindo...' : 'Assumir'}
@@ -773,12 +778,12 @@ export default function Atendimento() {
               {!notaInterna && (
                 <button
                   type="button"
-                  onClick={() => setKnowledgeOpen(true)}
+                  onClick={() => openSidePanel('knowledge')}
                   className="inline-flex h-10 items-center gap-1.5 rounded-lg bg-background-100 px-2.5 text-xs font-semibold text-foreground-600 transition hover:bg-primary-100 hover:text-primary-800"
                   title="Buscar produtos, serviços e catálogos"
                 >
                   <i className="ri-book-open-line text-base" />
-                  <span className="hidden sm:inline">Produtos</span>
+                  <span className="hidden sm:inline">Conhecimento</span>
                 </button>
               )}
               <div className="relative flex-1">
@@ -809,109 +814,41 @@ export default function Atendimento() {
           </div>
         </div>
 
-        <aside className="hidden min-h-0 flex-col overflow-y-auto xl:flex">
-          <section className="wf-surface overflow-hidden">
-            <div className="flex border-b border-background-200/70 px-4">
-              <span className="border-b-2 border-primary-500 px-3 py-3 text-xs font-bold text-primary-700">Lead</span>
-              <button type="button" onClick={() => setOrcamentoModal(true)} className="px-3 py-3 text-xs font-semibold text-foreground-500 transition hover:text-primary-700">Orçamentos</button>
-              <button type="button" onClick={() => setKnowledgeOpen(true)} className="px-3 py-3 text-xs font-semibold text-foreground-500 transition hover:text-primary-700">Produtos</button>
-              <button type="button" onClick={() => leadSelecionado && navigate(`/dashboard/agenda?leadId=${encodeURIComponent(leadSelecionado.id)}`)} className="px-3 py-3 text-xs font-semibold text-foreground-500 transition hover:text-primary-700">Tarefas</button>
-            </div>
-            <div className="space-y-3 p-4">
-              <div className="flex items-start gap-3">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary-100 text-sm font-bold text-primary-700">{(leadSelecionado?.nome || selected.contato).charAt(0)}</div>
-                <div className="min-w-0">
-                  <p className="break-words text-base font-bold leading-5 text-foreground-900">{leadSelecionado?.nome || selected.contato}</p>
-                  <p className="mt-1 whitespace-normal break-words text-xs leading-5 text-foreground-500">{leadSelecionado?.empresa || selected.empresa}</p>
-                </div>
-              </div>
-              <dl className="grid grid-cols-2 gap-x-3 gap-y-3 border-y border-background-100 py-3 text-xs">
-                <div>
-                  <dt className="text-foreground-500">Etapa</dt>
-                  <dd className="mt-0.5 font-semibold text-foreground-800">{leadSelecionado?.etapa || selected.fila}</dd>
-                </div>
-                <div>
-                  <dt className="text-foreground-500">Responsável</dt>
-                  <dd className="mt-0.5 font-semibold text-foreground-800">{responsabilidadeHumana ? 'Você' : 'Ana (IA)'}</dd>
-                </div>
-                <div>
-                  <dt className="text-foreground-500">Canal</dt>
-                  <dd className="mt-0.5 font-semibold capitalize text-foreground-800">{selected.canal}</dd>
-                </div>
-                <div>
-                  <dt className="text-foreground-500">Contato</dt>
-                  <dd className="mt-0.5 break-words font-semibold leading-5 text-foreground-800" title={contactForChannel || undefined}>{contactForChannel || 'Não informado'}</dd>
-                </div>
-              </dl>
-              <div className="grid gap-2">
+        <aside className="hidden min-h-0 xl:flex">
+          <section className="wf-surface flex min-h-0 flex-1 flex-col overflow-hidden">
+            <nav className="flex shrink-0 gap-1 overflow-x-auto border-b border-background-200/70 bg-background-50 p-2" aria-label="Painel comercial">
+              {sidePanelTabs.map((tab) => (
                 <button
+                  key={tab.id}
                   type="button"
-                  onClick={() => leadSelecionado && navigate(`/dashboard/agenda?leadId=${encodeURIComponent(leadSelecionado.id)}&new=1`)}
-                  disabled={!leadSelecionado}
-                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-background-200 bg-background-50 px-3 py-2.5 text-xs font-semibold text-foreground-700 transition hover:border-primary-200 hover:text-primary-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  onClick={() => setSidePanelTab(tab.id)}
+                  aria-selected={sidePanelTab === tab.id}
+                  className={`inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-2 text-[11px] font-semibold transition ${sidePanelTab === tab.id ? 'bg-primary-500 text-background-50 shadow-sm' : 'text-foreground-500 hover:bg-background-100 hover:text-foreground-800'}`}
                 >
-                  <i className="ri-calendar-event-line" />
-                  Agendar compromisso
+                  <i className={tab.icon} />{tab.label}
                 </button>
-                <button
-                  type="button"
-                  onClick={() => leadSelecionado && navigate(`/dashboard/orcamentos?leadId=${encodeURIComponent(leadSelecionado.id)}&new=1`)}
-                  disabled={!leadSelecionado}
-                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary-500 px-3 py-2.5 text-xs font-semibold text-background-50 transition hover:bg-primary-600 disabled:cursor-not-allowed disabled:bg-primary-300"
-                >
-                  <i className="ri-file-add-line" />
-                  Criar orçamento
-                </button>
-                <button
-                  type="button"
-                  onClick={() => leadSelecionado && navigate(`/dashboard/kanban?leadId=${encodeURIComponent(leadSelecionado.id)}`)}
-                  disabled={!leadSelecionado}
-                  className="inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold text-foreground-600 transition hover:bg-background-100 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <i className="ri-layout-column-line" />
-                  Ver no Kanban
-                </button>
-              </div>
+              ))}
+            </nav>
+            <div className="min-h-0 flex-1 overflow-y-auto p-4">
+              {(sidePanelTab === 'lead' || sidePanelTab === 'history') && <div className="space-y-4">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary-100 text-sm font-bold text-primary-700">{(leadSelecionado?.nome || selected.contato).charAt(0)}</div>
+                  <div className="min-w-0"><p className="break-words text-base font-bold leading-5 text-foreground-900">{leadSelecionado?.nome || selected.contato}</p><p className="mt-1 whitespace-normal break-words text-xs leading-5 text-foreground-500">{leadSelecionado?.empresa || selected.empresa}</p></div>
+                </div>
+                <dl className="grid grid-cols-2 gap-x-3 gap-y-3 border-y border-background-100 py-3 text-xs">
+                  <div><dt className="text-foreground-500">Etapa</dt><dd className="mt-0.5 font-semibold text-foreground-800">{leadSelecionado?.etapa || selected.fila}</dd></div>
+                  <div><dt className="text-foreground-500">Responsável</dt><dd className="mt-0.5 font-semibold text-foreground-800">{responsabilidadeHumana ? 'Você' : 'Ana (IA)'}</dd></div>
+                  <div><dt className="text-foreground-500">Canal</dt><dd className="mt-0.5 font-semibold capitalize text-foreground-800">{selected.canal}</dd></div>
+                  <div><dt className="text-foreground-500">Contato</dt><dd className="mt-0.5 break-words font-semibold leading-5 text-foreground-800" title={contactForChannel || undefined}>{contactForChannel || 'Não informado'}</dd></div>
+                </dl>
+                <div className="rounded-lg border border-primary-100 bg-primary-50 px-3 py-3"><div className="flex items-start gap-2.5"><i className="ri-robot-line mt-0.5 text-primary-700" /><div><p className="text-xs font-bold text-primary-900">Ana</p><p className="mt-0.5 text-xs leading-5 text-primary-800">{statusDaAna}</p></div></div></div>
+                <button type="button" onClick={() => leadSelecionado && navigate(`/dashboard/kanban?leadId=${encodeURIComponent(leadSelecionado.id)}`)} disabled={!leadSelecionado} className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-background-200 bg-background-50 px-3 py-2.5 text-xs font-semibold text-foreground-700 transition hover:border-primary-200 hover:text-primary-700 disabled:cursor-not-allowed disabled:opacity-50"><i className="ri-layout-column-line" />Ver no Kanban</button>
+              </div>}
+              {sidePanelTab === 'knowledge' && <ConversationKnowledgePanel context={selected.mensagens.slice().reverse().find((message) => message.autor === 'cliente')?.texto || selected.ultimaMensagem} onPrepare={prepareKnowledge} />}
+              {sidePanelTab === 'quotes' && <div className="space-y-3"><div className="flex items-start justify-between gap-3"><div><p className="text-sm font-bold text-foreground-900">Orçamentos</p><p className="mt-1 text-xs leading-5 text-foreground-500">{propostasDoLead.length} vínculo(s) deste lead.</p></div><button type="button" onClick={() => setOrcamentoModal(true)} className="shrink-0 text-xs font-semibold text-primary-700 hover:text-primary-800">Abrir</button></div><button type="button" onClick={() => setOrcamentoModal(true)} disabled={!leadSelecionado} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary-500 px-3 py-2.5 text-xs font-semibold text-background-50 transition hover:bg-primary-600 disabled:cursor-not-allowed disabled:bg-primary-300"><i className="ri-file-add-line" />Criar orçamento</button>{propostasDoLead.length === 0 ? <p className="rounded-lg border border-dashed border-background-300 px-3 py-4 text-xs leading-5 text-foreground-500">Nenhuma proposta vinculada a este lead.</p> : <div className="space-y-2">{propostasDoLead.slice(0, 3).map((proposta) => <button key={proposta.id} type="button" onClick={() => setOrcamentoModal(true)} className="w-full rounded-lg border border-background-100 bg-background-50 px-3 py-2.5 text-left transition hover:border-primary-200"><p className="text-xs font-semibold text-foreground-800">{proposta.numero}</p><p className="mt-0.5 text-[11px] text-foreground-500">{proposta.status === 'rascunho' ? 'Rascunho' : proposta.status}</p></button>)}</div>}</div>}
+              {sidePanelTab === 'agenda' && <div className="space-y-3"><div className="flex h-11 w-11 items-center justify-center rounded-lg bg-primary-100 text-primary-700"><i className="ri-calendar-event-line text-xl" /></div><div><p className="text-sm font-bold text-foreground-900">Agenda do lead</p><p className="mt-1 text-xs leading-5 text-foreground-500">Consulte a disponibilidade ou crie um compromisso mantendo este lead vinculado.</p></div><button type="button" onClick={() => leadSelecionado && navigate(`/dashboard/agenda?leadId=${encodeURIComponent(leadSelecionado.id)}&new=1`)} disabled={!leadSelecionado} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary-500 px-3 py-2.5 text-xs font-semibold text-background-50 transition hover:bg-primary-600 disabled:cursor-not-allowed disabled:bg-primary-300"><i className="ri-calendar-event-line" />Agendar reunião</button><button type="button" onClick={() => leadSelecionado && navigate(`/dashboard/agenda?leadId=${encodeURIComponent(leadSelecionado.id)}`)} disabled={!leadSelecionado} className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-background-200 bg-background-50 px-3 py-2.5 text-xs font-semibold text-foreground-700 transition hover:border-primary-200 hover:text-primary-700 disabled:cursor-not-allowed disabled:opacity-50"><i className="ri-calendar-line" />Abrir agenda</button></div>}
             </div>
           </section>
-
-          <section className="mt-4 wf-surface overflow-hidden">
-            <div className="flex items-center justify-between border-b border-background-200/70 px-4 py-3">
-              <div>
-                <p className="text-sm font-bold text-foreground-900">Orçamentos</p>
-                <p className="mt-0.5 text-xs text-foreground-500">{propostasDoLead.length} vínculo(s) deste lead</p>
-              </div>
-              <button type="button" onClick={() => setOrcamentoModal(true)} className="text-xs font-semibold text-primary-700 hover:text-primary-800">Abrir</button>
-            </div>
-            <div className="space-y-2 p-3">
-              {propostasDoLead.length === 0 ? (
-                <p className="px-1 py-2 text-xs leading-5 text-foreground-500">Ainda não há proposta. Crie uma a partir deste lead para retornar ao chat com o texto preparado.</p>
-              ) : (
-                propostasDoLead.slice(0, 2).map((proposta) => (
-                  <button key={proposta.id} type="button" onClick={() => setOrcamentoModal(true)} className="w-full rounded-lg border border-background-100 bg-background-50 px-3 py-2 text-left transition hover:border-primary-200">
-                    <p className="text-xs font-semibold text-foreground-800">{proposta.numero}</p>
-                    <p className="mt-0.5 whitespace-normal break-words text-[11px] leading-4 text-foreground-500">{proposta.status === 'rascunho' ? 'Rascunho' : proposta.status}</p>
-                  </button>
-                ))
-              )}
-            </div>
-          </section>
-
-          <section className="mt-4 rounded-xl border border-primary-100 bg-primary-50 px-4 py-3">
-            <div className="flex items-start gap-2.5">
-              <i className="ri-robot-line mt-0.5 text-primary-700" />
-              <div>
-                <p className="text-xs font-bold text-primary-900">Ana</p>
-                <p className="mt-0.5 text-xs leading-5 text-primary-800">{statusDaAna}. Assumir ou devolver nesta conversa registra a transição no backend.</p>
-              </div>
-            </div>
-          </section>
-
-          <ConversationKnowledgePanel
-            context={selected.mensagens.slice().reverse().find((message) => message.autor === 'cliente')?.texto || selected.ultimaMensagem}
-            onPrepare={prepareKnowledge}
-            className="mt-4"
-          />
         </aside>
       </div>
 
@@ -1029,24 +966,16 @@ export default function Atendimento() {
         <ConversaDrawer
           conversa={selected}
           lead={leadSelecionado}
+          activeTab={sidePanelTab}
+          quoteCount={propostasDoLead.length}
+          anaStatus={statusDaAna}
+          knowledgePanel={<ConversationKnowledgePanel context={selected.mensagens.slice().reverse().find((message) => message.autor === 'cliente')?.texto || selected.ultimaMensagem} onPrepare={(content) => { prepareKnowledge(content); setDrawerOpen(false); }} />}
           onClose={() => setDrawerOpen(false)}
+          onTabChange={setSidePanelTab}
+          onOpenQuotes={() => { setDrawerOpen(false); setOrcamentoModal(true); }}
+          onOpenAgenda={(create) => leadSelecionado && navigate(`/dashboard/agenda?leadId=${encodeURIComponent(leadSelecionado.id)}${create ? '&new=1' : ''}`)}
+          onOpenKanban={() => leadSelecionado && navigate(`/dashboard/kanban?leadId=${encodeURIComponent(leadSelecionado.id)}`)}
         />
-      )}
-      {knowledgeOpen && (
-        <div className="fixed inset-0 z-50 flex justify-end bg-foreground-950/50" onClick={() => setKnowledgeOpen(false)}>
-          <aside className="flex h-full w-full max-w-md flex-col overflow-y-auto bg-background-50 shadow-xl" onClick={(event) => event.stopPropagation()}>
-            <header className="flex items-center justify-between border-b border-background-200/70 px-5 py-4">
-              <div><h3 className="font-heading text-base font-bold text-foreground-950">Produtos, serviços e catálogos</h3><p className="mt-0.5 text-xs text-foreground-500">Conteúdo rastreável da empresa</p></div>
-              <button type="button" onClick={() => setKnowledgeOpen(false)} className="rounded-lg p-1.5 hover:bg-background-100" aria-label="Fechar conteúdo"><i className="ri-close-line text-lg" /></button>
-            </header>
-            <div className="p-4">
-              <ConversationKnowledgePanel
-                context={selected.mensagens.slice().reverse().find((message) => message.autor === 'cliente')?.texto || selected.ultimaMensagem}
-                onPrepare={(content) => { prepareKnowledge(content); setKnowledgeOpen(false); }}
-              />
-            </div>
-          </aside>
-        </div>
       )}
     </div>
   );

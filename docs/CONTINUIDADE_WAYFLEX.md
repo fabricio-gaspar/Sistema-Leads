@@ -1166,3 +1166,19 @@ webhook em ambiente controlado.
   build Vite e artefato Sites. Nenhuma mensagem, callback, job ou lead existente foi reprocessado.
   Próxima homologação: enviar uma nova pergunta explícita, confirmar o anexo e o aceite da Z-API;
   entrega/leitura só devem ser afirmadas se o provedor devolver esses eventos.
+
+## 2026-09-23 — Consolidação visual da Central de Atendimento
+
+- A Central deixou de manter o mesmo contexto comercial em vários cards e botões. O desktop usa
+  um painel direito único, com abas **Lead**, **Conhecimento**, **Orçamentos** e **Agenda**; o chat
+  ficou mais largo e a barra superior conserva apenas ações da conversa (assumir/devolver Ana e
+  transferir).
+- Conhecimento, orçamento e agenda continuam usando exatamente os mesmos handlers: o catálogo
+  somente prepara conteúdo revisável para a fila, orçamento mantém o modal existente e agenda
+  abre a rota do lead selecionado. Não houve mudança em Supabase, Ana, mensagens, fila ou regras.
+- Em tablet/mobile, o painel é aberto como drawer e inclui as mesmas abas mais **Histórico**.
+  Se o usuário alternar de mobile para desktop com Histórico selecionado, o painel desktop volta ao
+  resumo do lead para não exibir uma área vazia.
+- Validações locais: type-check frontend, lint da Central, Vitest completo (29 arquivos/222
+  testes), build Vite e artefato Sites aprovados. Falta validar visualmente a versão publicada;
+  nenhum envio ou alteração operacional foi feito para este lote.

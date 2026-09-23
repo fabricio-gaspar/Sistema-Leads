@@ -845,3 +845,15 @@
 - Type-check frontend/Edge, lint, Vitest completo (29 arquivos/222 testes), build Vite e artefato
   Sites passaram. Nenhuma mensagem foi repetida, nenhum job foi criado e nenhum provedor foi
   chamado. A nova pergunta controlada continua necessária para confirmar aceite do provedor.
+
+# 2026-09-23 — Central com painel contextual único
+
+- A Central mantinha dados do lead, produtos, orçamentos e agenda simultaneamente no chat, no
+  painel lateral, em cards empilhados e em drawers. A consolidação preserva os handlers existentes,
+  mas remove os atalhos comerciais duplicados da barra do chat.
+- O painel direito desktop agora usa uma única superfície com abas **Lead**, **Conhecimento**,
+  **Orçamentos** e **Agenda**. Em telas menores, o drawer apresenta as mesmas abas e adiciona o
+  histórico da conversa; a área principal do chat permanece disponível sem painel lateral fixo.
+- Type-check frontend, lint da Central, testes direcionados, Vitest completo (29 arquivos/222
+  testes), build Vite e artefato Sites passaram. Não houve escrita operacional, envio de mensagem,
+  alteração de lead ou chamada a provedor. Falta somente a inspeção visual na versão publicada.

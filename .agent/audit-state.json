@@ -4,7 +4,7 @@
   "baseline_commit": "1dc6275b8c7d70de953b66397a8c89f5e97bc15b",
   "last_audited_commit": "b2ca952e012db3aa7584733ebddc435631ac1d28",
   "current_head_at_update": "b2ca952e012db3aa7584733ebddc435631ac1d28",
-  "working_tree_status": "catalog_media_exact_match_fallback_validated_pending_homologation",
+  "working_tree_status": "central_context_tabs_validated_pending_site_visual_check",
   "last_site_publication": {
     "commit": "39ddce90d8acdeb057c3433a6dcceac744c87a03",
     "site_version": 105,
@@ -13,6 +13,6 @@
   },
   "full_audit_required": false,
   "baseline_status": "validated_with_external_homologation_pending",
-  "updated_at": "2026-09-23T12:45:00-03:00",
-  "next_action": "Homologar uma nova pergunta explícita sobre um produto com imagem oficial. Confirmar no agent_runs.result.catalog_media que a seleção ocorreu e, depois, no histórico, o aceite do provedor; não reprocessar callbacks ou mensagens antigas."
+  "updated_at": "2026-09-23T16:35:00-03:00",
+  "next_action": "Publicar e validar visualmente a Central com painel contextual único em abas. Depois, homologar uma nova pergunta explícita sobre produto com imagem oficial; não reprocessar mensagens ou callbacks antigos."
 }
