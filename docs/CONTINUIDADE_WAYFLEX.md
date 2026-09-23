@@ -1207,3 +1207,8 @@ webhook em ambiente controlado.
   testes), Vite build com `--configLoader runner` e artefato Sites. A build padrão permanece
   limitada apenas pela permissão conhecida do Windows em `.vite-temp`. Nenhum WhatsApp, lead,
   handoff, transferência, orçamento ou opt-out foi disparado nesta correção.
+- Publicação oficial: versão **113** do Site. A validação visual autenticada confirmou o envio
+  desabilitado sem texto, o painel de conhecimento carregando 56 itens reais sem sugestões
+  genéricas e a transferência com destinatário vazio por padrão e confirmação desabilitada até a
+  escolha explícita. O console da Central não registrou erros. Essa validação não enviou mensagem,
+  não transferiu atendimento e não alterou dados operacionais.
