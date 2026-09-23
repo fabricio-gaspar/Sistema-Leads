@@ -70,6 +70,7 @@ export interface ConversationKnowledgeEvent {
   itemId: string;
   eventType: 'queued' | 'sent' | 'opened' | 'suggested';
   presentationFormat: KnowledgePresentationFormat;
+  mediaQueued: boolean;
   createdAt: string;
   item: Pick<KnowledgeCatalogItem, 'id' | 'name' | 'type' | 'imageUrl' | 'attachmentUrl' | 'sourceUrl'> | null;
 }
@@ -221,14 +222,17 @@ export async function loadRelatedKnowledgeItems(itemId: string, includeInactive 
 export async function loadConversationKnowledgeEvents(leadId: string): Promise<ConversationKnowledgeEvent[]> {
   const session = await resolveOrganizationSession();
   const { data, error } = await supabase.from('conversation_knowledge_events')
-    .select('message_id,item_id,event_type,presentation_format,created_at,knowledge_catalog_items(id,name,item_type,image_url,attachment_url,source_url)')
+    .select('message_id,item_id,event_type,presentation_format,metadata,created_at,knowledge_catalog_items(id,name,item_type,image_url,attachment_url,source_url)')
     .eq('organization_id', session.organizationId).eq('lead_id', leadId).order('created_at', { ascending: true });
   if (error) throw error;
   return (data ?? []).map((row) => {
     const linked = row.knowledge_catalog_items as unknown as Record<string, unknown> | null;
+    const metadata = row.metadata && typeof row.metadata === 'object' && !Array.isArray(row.metadata)
+      ? row.metadata as Record<string, unknown>
+      : {};
     return {
       messageId: String(row.message_id), itemId: String(row.item_id), eventType: row.event_type as ConversationKnowledgeEvent['eventType'],
-      presentationFormat: row.presentation_format as KnowledgePresentationFormat, createdAt: String(row.created_at),
+      presentationFormat: row.presentation_format as KnowledgePresentationFormat, mediaQueued: metadata.media_queued === true, createdAt: String(row.created_at),
       item: linked ? {
         id: String(linked.id), name: String(linked.name || 'Conteúdo'), type: linked.item_type as KnowledgeCatalogItemType,
         imageUrl: typeof linked.image_url === 'string' ? linked.image_url : null,

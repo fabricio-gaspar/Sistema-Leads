@@ -11,6 +11,7 @@ export interface HumanMessageResult {
 export interface HumanMessageKnowledgeContent {
   itemId: string;
   presentationFormat: 'quick' | 'commercial' | 'technical' | 'link' | 'document';
+  sendImage: boolean;
 }
 
 /**
@@ -32,7 +33,11 @@ export async function queueHumanMessage(input: {
   const { data, error } = await supabase.functions.invoke('enviar-whatsapp', {
     body: {
       leadId: input.leadId, para: input.recipient, texto: input.text, request_id: input.requestId, modo: 'humano', provedor: 'central_atendimento',
-      ...(input.knowledgeContent ? { content_item_id: input.knowledgeContent.itemId, content_presentation_format: input.knowledgeContent.presentationFormat } : {}),
+      ...(input.knowledgeContent ? {
+        content_item_id: input.knowledgeContent.itemId,
+        content_presentation_format: input.knowledgeContent.presentationFormat,
+        content_send_image: input.knowledgeContent.sendImage,
+      } : {}),
     },
   });
   if (error || !data?.ok) {
@@ -83,6 +88,9 @@ export async function queueHumanMessage(input: {
       channel_not_ready: 'A Z-API não está pronta para envio. Valide o canal em Configurações.',
       provider_http_400: 'A Z-API recusou a mensagem. Confira o número do lead e tente novamente.',
       contact_suppressed: 'Este contato está protegido por opt-out. Nenhuma mensagem foi enviada.',
+      catalog_media_not_available: 'A imagem deste conteúdo não está mais disponível. Revise o item antes de enviar novamente.',
+      catalog_media_changed_before_dispatch: 'A imagem do conteúdo mudou antes do envio. Revise o item e prepare a mensagem novamente.',
+      catalog_media_url_not_allowed: 'A imagem cadastrada não é uma URL pública segura. Corrija o conteúdo antes de enviar.',
     };
     return { queued: false, delivery: 'failed', detail: messages[code] || `A mensagem foi registrada e falhou antes de confirmação do provedor: ${code}.`, messageId };
   }

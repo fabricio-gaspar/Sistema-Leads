@@ -72,6 +72,9 @@ function normalizeConfiguration(value: unknown): Record<string, unknown> {
     },
     // Empty is deliberately safe: a configuration must explicitly permit a channel.
     allowedChannels: normalizedChannels,
+    // Media is an explicit opt-in because a catalog image is an external
+    // WhatsApp delivery, not a cosmetic change in the CRM.
+    catalogMediaImagesEnabled: bool(configuration.catalogMediaImagesEnabled, false),
     riskPolicy: {
       requireConsent: bool(risk.requireConsent, true),
       stopOnOptOut: bool(risk.stopOnOptOut, true),

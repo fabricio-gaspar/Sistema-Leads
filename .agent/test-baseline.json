@@ -129,6 +129,6 @@
     ]
   },
   "covered": ["frontend_typecheck","lint","edge_typecheck","unit_and_contract_tests","production_build"],
-  "not_covered": ["authenticated_e2e","login_como_novo_membro","real_whatsapp","real_claude","cross_organization_rls","database_concurrency","provider_receipt_race","mobile_authenticated_qa"],
-  "working_tree_validation": "O catálogo estruturado foi atualizado sem alterar o fluxo operacional: o frontend passou por type-check, lint, 28 arquivos/214 testes Vitest e build/artefato Sites. catalog-knowledge v6 sincronizou 18 produtos, 18 segmentos e 17 catálogos rastreáveis, gerando 56 documentos/chunks ativos para a Ana. Nenhum WhatsApp, job, fila, lead, credencial ou teste de provedor foi criado; a única escrita oficial foi a base de conhecimento solicitada."
+  "not_covered": ["authenticated_e2e","login_como_novo_membro","real_whatsapp","real_whatsapp_media_delivery","real_claude","cross_organization_rls","database_concurrency","provider_receipt_race","mobile_authenticated_qa"],
+  "working_tree_validation": "A mídia de catálogo foi adicionada ao mesmo fluxo de fila existente: type-check frontend/Edge, lint, 29 arquivos/221 testes Vitest e build/artefato Sites passaram. A migration oficial referencia somente itens ativos e um anexo por mensagem; ana-run v33 e automation-worker v31 mantêm mídia automática desligada por padrão e revalidam a URL pública antes do provedor. Nenhum WhatsApp, job de teste, fila, lead, credencial ou teste de provedor foi criado; aceite, entrega e leitura de mídia ainda dependem de homologação externa controlada."
 }

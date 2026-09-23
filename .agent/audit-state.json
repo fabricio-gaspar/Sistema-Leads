@@ -4,7 +4,7 @@
   "baseline_commit": "1dc6275b8c7d70de953b66397a8c89f5e97bc15b",
   "last_audited_commit": "b2ca952e012db3aa7584733ebddc435631ac1d28",
   "current_head_at_update": "b2ca952e012db3aa7584733ebddc435631ac1d28",
-  "working_tree_status": "wayflex_catalog_cards_validated_pending_site_publish",
+  "working_tree_status": "catalog_media_queue_validated_pending_site_publish",
   "last_site_publication": {
     "commit": "39ddce90d8acdeb057c3433a6dcceac744c87a03",
     "site_version": 105,
@@ -13,6 +13,6 @@
   },
   "full_audit_required": false,
   "baseline_status": "validated_with_external_homologation_pending",
-  "updated_at": "2026-09-23T11:20:00-03:00",
-  "next_action": "Publicar somente no Site oficial os cards visuais de produtos, segmentos e catálogos já sincronizados. Depois, validar a renderização autenticada sem enviar WhatsApp nem alterar filas, canal ou regras da Ana."
+  "updated_at": "2026-09-23T12:05:00-03:00",
+  "next_action": "Publicar somente no Site oficial a Central e Configurar a Ana com a mídia de catálogo desligada por padrão. Depois, validar a renderização autenticada sem enviar WhatsApp nem criar jobs; a homologação externa de mídia exige confirmação específica do operador."
 }

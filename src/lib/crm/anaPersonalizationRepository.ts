@@ -28,6 +28,11 @@ export interface AnaPersonalization {
     lowConfidenceThreshold: number;
   };
   allowedChannels?: string[];
+  /**
+   * Opt-in only. When false, Ana remains text-only even when an approved
+   * catalog item has an image.
+   */
+  catalogMediaImagesEnabled?: boolean;
   riskPolicy?: {
     requireConsent: boolean;
     stopOnOptOut: boolean;

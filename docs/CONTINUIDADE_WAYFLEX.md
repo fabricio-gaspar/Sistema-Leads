@@ -1124,3 +1124,27 @@ webhook em ambiente controlado.
 - Validação: type-check frontend/Edge, lint sem warnings, Vitest completo (28 arquivos/214
   testes), build Vite e artefato Sites aprovados. Não foram enviados WhatsApps, nem alterados
   leads, filas, canais, credenciais ou regras operacionais de automação.
+
+## 2026-09-23 — Imagem oficial de catálogo pela Z-API
+
+- O envio de mídia foi incorporado ao caminho já homologado de texto, sem atalho no frontend:
+  **Central → enviar-whatsapp → outreach_jobs → automation-worker → Z-API**. A UI só envia o ID
+  do item e a escolha explícita; o worker consulta novamente a base de conhecimento no momento do
+  despacho.
+- A migration `20260923133000_catalog_media_whatsapp_queue` foi aplicada no projeto oficial
+  `thgzrkppouoevapjquyu`. Ela registra a imagem no anexo da mensagem, preserva a rastreabilidade e
+  impede anexo duplicado para a mesma mensagem. Não alterou leads, filas existentes ou credenciais.
+- A Central permite incluir imagem de produto, serviço ou catálogo ao preparar a mensagem. A Ana
+  só pode anexar uma imagem em resposta recebida via WhatsApp quando houver correspondência lexical
+  forte, item ativo aprovado, ausência de orçamento/handoff/risco e a nova opção estiver habilitada
+  em **Configurar a Ana**. A opção nasce desabilitada; a apresentação institucional inicial segue
+  texto.
+- `ana-ia` v10, `enviar-whatsapp` v8, `ana-run` v33 e `automation-worker` v31 estão ativos. O
+  worker usa o endpoint oficial `send-image` somente após revalidar canal, aprovação, item, anexo
+  e URL HTTPS pública. Se a imagem mudou ou não for segura, o job falha antes do provedor; ele não
+  troca a mídia nem a envia como texto sem revisão.
+- Validação local: type-check frontend/Edge, lint, 29 arquivos/221 testes Vitest, build Vite com
+  `--configLoader runner` e artefato Sites aprovados. A build padrão encontrou apenas a limitação
+  de permissão conhecida do Windows no cache `.vite-temp`; o runner resolveu sem alterar código.
+  Nenhum WhatsApp de mídia foi enviado. Falta a homologação controlada para comprovar aceite,
+  entrega e leitura no provedor.

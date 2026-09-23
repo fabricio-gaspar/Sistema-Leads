@@ -22,6 +22,7 @@ Deno.serve(async (request) => {
     const requestId = text(body.request_id, 80);
     const catalogItemId = text(body.content_item_id, 64);
     const catalogPresentationFormat = text(body.content_presentation_format, 24).toLowerCase();
+    const catalogSendImage = body.content_send_image === true;
     const controlledTestRequested = body.teste_controlado === true;
     if (!isUuid(leadId) || !/^\+?\d{10,15}$/.test(recipient) || !message) throw new Error('lead_recipient_and_message_required');
     if (!isUuid(requestId)) throw new Error('message_request_id_required');
@@ -29,6 +30,8 @@ Deno.serve(async (request) => {
       throw new Error('catalog_content_input_required');
     }
     if (!catalogItemId && catalogPresentationFormat) throw new Error('catalog_content_input_required');
+    if (body.content_send_image !== undefined && typeof body.content_send_image !== 'boolean') throw new Error('catalog_media_input_required');
+    if (catalogSendImage && !catalogItemId) throw new Error('catalog_media_input_required');
     const { user } = await requireUser(request);
     const admin = createAdminClient();
     const { data: profile, error: profileError } = await admin.from('profiles').select('active_organization_id,name').eq('id', user.id).maybeSingle();
@@ -54,6 +57,7 @@ Deno.serve(async (request) => {
         || payload.request_id !== requestId
         || text(payload.catalog_item_id, 64) !== catalogItemId
         || text(payload.catalog_presentation_format, 24) !== catalogPresentationFormat
+        || (payload.catalog_send_image === true) !== catalogSendImage
         || (payload.controlled_test === true) !== controlledTestRequested
         || String(existingJob.status ?? '') === '') throw new Error('idempotency_payload_mismatch');
       return json({
@@ -101,7 +105,7 @@ Deno.serve(async (request) => {
     const { data: queuedRows, error: queueError } = await admin.rpc(
       catalogItemId ? 'queue_human_whatsapp_catalog_message' : 'queue_human_whatsapp_message',
       catalogItemId
-        ? { ...queueInput, p_item_id: catalogItemId, p_presentation_format: catalogPresentationFormat }
+        ? { ...queueInput, p_item_id: catalogItemId, p_presentation_format: catalogPresentationFormat, p_send_image: catalogSendImage }
         : queueInput,
     );
     const queued = firstRow(queuedRows);
@@ -113,7 +117,7 @@ Deno.serve(async (request) => {
         action: controlledSandboxTest ? 'outreach.whatsapp_controlled_test_queued' : 'outreach.whatsapp_queued',
         detail: controlledSandboxTest ? 'Teste controlado colocado na fila segura.' : 'Mensagem colocada na fila segura.',
         entity_table: 'outreach_jobs', entity_id: queued.job_id,
-        event_data: { lead_id: lead.id, integration_id: integration.id, request_id: requestId, controlled_test: controlledSandboxTest, catalog_item_id: catalogItemId || null, catalog_presentation_format: catalogPresentationFormat || null },
+        event_data: { lead_id: lead.id, integration_id: integration.id, request_id: requestId, controlled_test: controlledSandboxTest, catalog_item_id: catalogItemId || null, catalog_presentation_format: catalogPresentationFormat || null, catalog_send_image: catalogSendImage },
       });
     }
     return json({

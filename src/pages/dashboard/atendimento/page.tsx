@@ -100,7 +100,7 @@ export default function Atendimento() {
     setPreparedKnowledge(content);
     setTexto(content.text);
     setNotaInterna(false);
-    setErroIA(`Conteúdo “${content.item.name}” preparado. Revise o texto antes de enviar pela fila segura.`);
+    setErroIA(`Conteúdo “${content.item.name}” preparado${content.sendImage ? ' com imagem oficial' : ''}. Revise o texto antes de enviar pela fila segura.`);
   };
 
   // A store é hidratada de forma assíncrona. Sem uma conversa selecionada, a
@@ -258,7 +258,7 @@ export default function Atendimento() {
         setEnviando(true);
         const messageText = texto.trim();
         const recipient = selected.canal === 'whatsapp' ? leadSelecionado.whatsapp : leadSelecionado.email;
-        const knowledgeFingerprint = preparedKnowledge ? `${preparedKnowledge.item.id}:${preparedKnowledge.format}` : 'text';
+        const knowledgeFingerprint = preparedKnowledge ? `${preparedKnowledge.item.id}:${preparedKnowledge.format}:${preparedKnowledge.sendImage ? 'image' : 'text'}` : 'text';
         const fingerprint = `${leadSelecionado.id}:${selected.canal}:${recipient}:${messageText}:${knowledgeFingerprint}`;
         let requestId = pendingMessageRequests.current.get(fingerprint);
         if (!requestId) {
@@ -271,7 +271,11 @@ export default function Atendimento() {
           recipient,
           text: messageText,
           requestId,
-          knowledgeContent: preparedKnowledge ? { itemId: preparedKnowledge.item.id, presentationFormat: preparedKnowledge.format } : null,
+          knowledgeContent: preparedKnowledge ? {
+            itemId: preparedKnowledge.item.id,
+            presentationFormat: preparedKnowledge.format,
+            sendImage: preparedKnowledge.sendImage,
+          } : null,
         });
         if (!['queued', 'reconciliation'].includes(result.delivery)) {
           pendingMessageRequests.current.delete(fingerprint);
@@ -672,7 +676,7 @@ export default function Atendimento() {
                           <span className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-md bg-primary-100 text-primary-700">
                             {knowledgeEventByMessage.get(m.id)?.item?.imageUrl ? <img src={knowledgeEventByMessage.get(m.id)?.item?.imageUrl || ''} alt="" className="h-full w-full object-cover" /> : <i className="ri-bookmark-3-line text-xs" />}
                           </span>
-                          <span className="min-w-0"><span className="block truncate text-[11px] font-bold text-primary-900">Conteúdo enviado · {knowledgeEventByMessage.get(m.id)?.item?.name}</span><span className="block text-[10px] text-primary-700">{knowledgeEventByMessage.get(m.id)?.presentationFormat === 'technical' ? 'Formato técnico' : knowledgeEventByMessage.get(m.id)?.presentationFormat === 'commercial' ? 'Formato comercial' : 'Conteúdo rastreável'}</span></span>
+                          <span className="min-w-0"><span className="block truncate text-[11px] font-bold text-primary-900">{knowledgeEventByMessage.get(m.id)?.mediaQueued ? 'Imagem e conteúdo vinculados' : 'Conteúdo vinculado'} · {knowledgeEventByMessage.get(m.id)?.item?.name}</span><span className="block text-[10px] text-primary-700">{knowledgeEventByMessage.get(m.id)?.presentationFormat === 'technical' ? 'Formato técnico' : knowledgeEventByMessage.get(m.id)?.presentationFormat === 'commercial' ? 'Formato comercial' : 'Conteúdo rastreável'}{knowledgeEventByMessage.get(m.id)?.mediaQueued ? ' · mídia na fila' : ''}</span></span>
                         </div>
                       )}
                       {(m.correlationId || m.providerMessageId || m.historicoStatus?.length) && (

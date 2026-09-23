@@ -60,6 +60,7 @@ export default function PersonalizacaoAna({ embedded = false }: { embedded?: boo
   const [timeoutHours, setTimeoutHours] = useState(120);
   const [businessHoursOnly, setBusinessHoursOnly] = useState(true);
   const [allowedChannels, setAllowedChannels] = useState({ whatsapp: false, email: false });
+  const [catalogMediaImagesEnabled, setCatalogMediaImagesEnabled] = useState(false);
   const [lowConfidenceThreshold, setLowConfidenceThreshold] = useState(70);
   const [publishedVersion, setPublishedVersion] = useState<number | null>(null);
   const [loadingConfiguration, setLoadingConfiguration] = useState(true);
@@ -102,6 +103,7 @@ export default function PersonalizacaoAna({ embedded = false }: { embedded?: boo
           setLowConfidenceThreshold(configuration.handoffPolicy?.lowConfidenceThreshold ?? 70);
           const enabled = new Set(configuration.allowedChannels || []);
           setAllowedChannels({ whatsapp: enabled.has('whatsapp'), email: enabled.has('email') });
+          setCatalogMediaImagesEnabled(configuration.catalogMediaImagesEnabled === true);
         }
         setPublishedVersion(version?.number ?? null);
         setLoadSucceeded(true);
@@ -154,6 +156,7 @@ export default function PersonalizacaoAna({ embedded = false }: { embedded?: boo
         cadencePolicy: { firstFollowUpHours, secondFollowUpHours, timeoutHours, businessHoursOnly },
         handoffPolicy: { requireSummary: true, pauseAnaUntilReturn: true, lowConfidenceThreshold },
         allowedChannels: channelList,
+        catalogMediaImagesEnabled,
         riskPolicy: { requireConsent: true, stopOnOptOut: true, pauseOnHighRisk: true },
       });
       setPublishedVersion(result.version.number);
@@ -255,6 +258,23 @@ export default function PersonalizacaoAna({ embedded = false }: { embedded?: boo
       {supportedChannels.map((channel) => (
         <label key={channel.id} className="mt flex items-center gap-2"><input type="checkbox" checked={allowedChannels[channel.id]} onChange={(event) => { markDirty(); setAllowedChannels((current) => ({ ...current, [channel.id]: event.target.checked })); }} /> {channel.label}</label>
       ))}
+      <div className="mt rounded-lg border border-background-200 bg-background-100/40 p-4">
+        <label className="flex items-start gap-3">
+          <input
+            type="checkbox"
+            checked={catalogMediaImagesEnabled}
+            disabled={!allowedChannels.whatsapp}
+            onChange={(event) => { markDirty(); setCatalogMediaImagesEnabled(event.target.checked); }}
+            className="mt-0.5"
+          />
+          <span>
+            <span className="block text-sm font-semibold text-foreground-900"><i className="ri-image-line mr-1.5 text-primary-700" />Enviar imagem oficial quando houver correspondência confiável</span>
+            <span className="mt-1 block text-xs leading-5 text-foreground-600">A Ana pode incluir uma única imagem pública de produto, serviço ou catálogo aprovado, com a própria legenda da resposta. Não envia imagem na apresentação inicial, em orçamento ou quando faltar correspondência confiável.</span>
+          </span>
+        </label>
+        {!allowedChannels.whatsapp && <p className="mt-2 text-xs text-foreground-500">Ative o canal WhatsApp para liberar esta opção.</p>}
+        {allowedChannels.whatsapp && !catalogMediaImagesEnabled && <p className="mt-2 text-xs text-foreground-500">Desligado por padrão até a homologação controlada do envio de mídia.</p>}
+      </div>
       <label className="mt">Limite diário de mensagens por lead</label>
       <input type="number" min="1" max="20" value={limit} onChange={(event) => { markDirty(); setLimit(Number(event.target.value)); }} />
       <div className="review">
@@ -262,8 +282,9 @@ export default function PersonalizacaoAna({ embedded = false }: { embedded?: boo
         <span>{business || 'Oferta a configurar'}</span>
         <span>{splitPlaybookLines(valueProposition).length} ofertas aprovadas · {splitPlaybookLines(handoffTriggers).length} gatilhos de handoff</span>
         <span>{Object.values(allowedChannels).filter(Boolean).length} canais permitidos · limite de {limit} mensagens/dia</span>
+        <span>{catalogMediaImagesEnabled ? 'Imagem oficial habilitada para correspondências confiáveis' : 'Imagem oficial da Ana desabilitada'}</span>
       </div>
-      <p className="hint">Consentimento, opt-out e pausa por risco alto são proteções obrigatórias. Publicar não liga nenhum canal real.</p>
+      <p className="hint">Consentimento, opt-out e pausa por risco alto são proteções obrigatórias. Publicar não liga nenhum canal real nem testa o envio de mídia.</p>
     </>,
   ][step];
 

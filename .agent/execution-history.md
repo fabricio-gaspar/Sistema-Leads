@@ -813,3 +813,20 @@
 - Validação local aprovada: type-check frontend/Edge, lint sem warnings, Vitest 28 arquivos/214
   testes, build Vite e artefato Sites. Não houve envio WhatsApp, chamada ao provedor, alteração de
   lead, fila, canal ou execução operacional da Ana.
+
+# 2026-09-23 — Mídia de catálogo pela fila WhatsApp existente
+
+- A necessidade foi limitada ao envio de uma imagem oficial com a legenda já revisada, sem criar
+  outro bot, fila ou integração. A Central agora permite selecionar **Incluir imagem oficial** ao
+  preparar um item; sem essa seleção, o comportamento continua texto/link.
+- A migration oficial `20260923133000_catalog_media_whatsapp_queue` foi aplicada após confirmar
+  que não havia anexos duplicados. Ela adiciona o marcador idempotente de mídia, registra o anexo
+  em `message_attachments` e vincula o evento de conhecimento ao mesmo `lead_message`.
+- Funções publicadas: `ana-ia` v10, `enviar-whatsapp` v8, `ana-run` v33 e
+  `automation-worker` v31. A configuração de imagens automáticas começa desativada; se ela for
+  desligada depois de um job da Ana entrar na fila, o worker bloqueia o despacho. Nenhuma função
+  nova foi criada e nenhum segredo foi exposto ao navegador.
+- Validação local aprovada: type-check frontend/Edge, lint sem warnings, Vitest completo
+  (29 arquivos/221 testes), build Vite com `--configLoader runner` e artefato Sites. Não houve
+  mensagem real, job de teste, alteração de lead ou chamada à Z-API. A homologação externa de
+  imagem permanece obrigatória antes de declarar aceite/entrega.

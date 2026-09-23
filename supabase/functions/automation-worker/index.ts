@@ -16,6 +16,10 @@ import {
   zapiBaseUrl,
 } from "../_shared/runtimeSafety.ts";
 import {
+  readCatalogImageMedia,
+  safePublicImageUrl,
+} from "../_shared/catalogMedia.ts";
+import {
   suppressionHashes,
   suppressionOrFilter,
 } from "../_shared/contactSuppression.ts";
@@ -85,6 +89,7 @@ type AnaPolicy = {
   secondFollowUpHours: number;
   timeoutHours: number;
   businessHoursOnly: boolean;
+  catalogMediaImagesEnabled: boolean;
 };
 
 type BusinessHoursDecision = {
@@ -148,6 +153,7 @@ function parseAnaPolicy(
     ),
     timeoutHours: boundedInteger(cadence.timeoutHours, 120, 24, 24 * 90),
     businessHoursOnly: asBoolean(cadence.businessHoursOnly, true),
+    catalogMediaImagesEnabled: asBoolean(source.catalogMediaImagesEnabled, false),
   };
 }
 
@@ -997,6 +1003,88 @@ async function sendWhatsapp(
   if (typeof receipt.messageId !== "string" || !receipt.messageId)
     throw new Error("provider_receipt_missing");
   return { provider: "zapi", messageId: receipt.messageId };
+}
+
+async function sendWhatsappImage(
+  credentials: Record<string, unknown>,
+  recipient: string,
+  image: string,
+  caption: string,
+) {
+  const id = asText(credentials.instancia_id, 300),
+    token = asText(credentials.token, 500),
+    client = asText(credentials.client_token, 500);
+  if (!id || !token || !client)
+    throw new Error("channel_credentials_incomplete");
+  const r = await fetch(
+    `${zapiBaseUrl(credentials.url_base)}/instances/${encodeURIComponent(id)}/token/${encodeURIComponent(token)}/send-image`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "Client-Token": client },
+      body: JSON.stringify({ phone: recipient, image, caption }),
+      signal: AbortSignal.timeout(20000),
+      redirect: "error",
+    },
+  );
+  if (!r.ok) throw new Error(`provider_http_${r.status}`);
+  const receipt = (await r.json()) as { messageId?: unknown };
+  if (typeof receipt.messageId !== "string" || !receipt.messageId)
+    throw new Error("provider_receipt_missing");
+  return { provider: "zapi", messageId: receipt.messageId };
+}
+
+type ResolvedCatalogImageMedia = {
+  catalogItemId: string;
+  itemName: string;
+  imageUrl: string;
+};
+
+async function resolveCatalogImageMedia(
+  admin: Admin,
+  input: {
+    organizationId: string;
+    leadId: string;
+    messageId: string;
+    channel: string;
+    payload: Record<string, unknown>;
+    manual: boolean;
+    anaPolicy: AnaPolicy | null;
+  },
+): Promise<ResolvedCatalogImageMedia | null> {
+  const request = readCatalogImageMedia(input.payload.media);
+  if (!request) return null;
+  if (input.channel !== "whatsapp") throw new Error("catalog_media_channel_not_supported");
+  if (!input.manual && !input.anaPolicy?.catalogMediaImagesEnabled)
+    throw new Error("catalog_media_disabled_by_ana_configuration");
+
+  const { data: item, error: itemError } = await admin
+    .from("knowledge_catalog_items")
+    .select("id,name,status,ana_enabled,image_url")
+    .eq("organization_id", input.organizationId)
+    .eq("id", request.catalogItemId)
+    .maybeSingle();
+  if (itemError) throw new Error("catalog_media_read_failed");
+  if (!item || item.status !== "active") throw new Error("catalog_media_not_available");
+  if (!input.manual && item.ana_enabled !== true)
+    throw new Error("catalog_media_not_enabled_for_ana");
+  const imageUrl = safePublicImageUrl(item.image_url);
+  if (!imageUrl) throw new Error("catalog_media_url_not_allowed");
+
+  const { data: attachment, error: attachmentError } = await admin
+    .from("message_attachments")
+    .select("external_url")
+    .eq("organization_id", input.organizationId)
+    .eq("lead_id", input.leadId)
+    .eq("message_id", input.messageId)
+    .eq("media_type", "image")
+    .limit(1)
+    .maybeSingle();
+  if (attachmentError) throw new Error("catalog_media_attachment_read_failed");
+  if (!attachment) throw new Error("catalog_media_attachment_missing");
+  if (safePublicImageUrl(attachment.external_url) !== imageUrl)
+    throw new Error("catalog_media_changed_before_dispatch");
+
+  return { catalogItemId: item.id, itemName: asText(item.name, 240), imageUrl };
 }
 async function sendEmail(
   credentials: Record<string, unknown>,
@@ -2122,6 +2210,15 @@ Deno.serve(async (request) => {
             draft.text !== message
           )
             throw new Error("outbound_message_mismatch");
+          const catalogImageMedia = await resolveCatalogImageMedia(admin, {
+            organizationId: orgId,
+            leadId: job.lead_id,
+            messageId: draft.id,
+            channel,
+            payload,
+            manual,
+            anaPolicy,
+          });
           const provider = channel === "whatsapp" ? "zapi" : "resend";
           const { error: pe } = await admin
             .from("lead_outreach")
@@ -2141,6 +2238,13 @@ Deno.serve(async (request) => {
                   subject:
                     channel === "email" ? asText(payload.subject, 300) : null,
                   controlled_test: controlledSandboxTest,
+                  catalog_media: catalogImageMedia
+                    ? {
+                      type: "image",
+                      catalog_item_id: catalogImageMedia.catalogItemId,
+                      item_name: catalogImageMedia.itemName,
+                    }
+                    : null,
                 },
               },
               { onConflict: "id", ignoreDuplicates: true },
@@ -2192,7 +2296,14 @@ Deno.serve(async (request) => {
           dispatchStarted = true;
           const receipt =
             channel === "whatsapp"
-              ? await sendWhatsapp(asObject(credentials), recipient, message)
+              ? catalogImageMedia
+                ? await sendWhatsappImage(
+                  asObject(credentials),
+                  recipient,
+                  catalogImageMedia.imageUrl,
+                  message,
+                )
+                : await sendWhatsapp(asObject(credentials), recipient, message)
               : await sendEmail(
                   asObject(credentials),
                   asObject(integration.configuration),

@@ -14,9 +14,9 @@
   Visão geral, Produtos, Serviços, Catálogos, Documentos, Fontes e Configurações da Ana.
 - `catalog-knowledge` é o único adaptador inicial de importação; aceita somente as três páginas
   HTTPS oficiais Wayflex. Cada nova fonte futura precisa de adaptador próprio, não de URL livre.
-- A Central apenas prepara conteúdo. O envio continua em `enviar-whatsapp` → fila existente →
-  `automation-worker`; PDF/imagem é compartilhado como link rastreável até existir um pipeline de
-  mídia homologado.
+- A Central prepara texto e, quando o atendente marca explicitamente **Incluir imagem oficial**,
+  uma referência ao item aprovado. O envio continua exclusivamente em `enviar-whatsapp` → fila
+  existente → `automation-worker`; o navegador nunca recebe credenciais nem envia ao provedor.
 - `ana-run` consulta os chunks derivados pela recuperação atual e recebe a intenção comercial
   classificada. Ele não recebe uma rota automática paralela nem confirma fatos ausentes.
 
@@ -27,6 +27,9 @@
 - Fontes e URLs são rastreáveis. A sincronização falha de forma explícita em `last_error` e no
   histórico de importações; não cria dados de fallback inventados.
 - Nenhuma chave privada ou envio externo é feito pelo frontend.
+- A imagem de saída só pode referenciar um item ativo. O worker relê o item, exige URL HTTPS pública
+  sem credenciais/host local, confirma o anexo auditável e interrompe o job se o item ou a imagem
+  mudarem antes do despacho.
 
 ## Validação de 18/09/2026
 
@@ -55,10 +58,26 @@
   perder rastreabilidade.
 - Configurações apresenta os itens como cards responsivos com imagem, categoria, estado da Ana e
   origem. A Central mantém a pré-visualização e os formatos rápido/comercial/técnico, agora com
-  nome e resumo antes do link. Arquivos e imagens continuam sendo enviados como links oficiais até
-  uma pipeline de mídia ser homologada.
+  nome e resumo antes do link. Arquivos seguem como links oficiais; imagem pode usar a fila Z-API,
+  mas a opção automática da Ana nasce desligada até homologação controlada.
 - `ana-run` v32 mantém a mesma autoridade e as mesmas guardas de canal/funil, mas trata plurais
   na busca lexical e orienta a resposta a citar até três conteúdos concretos antes da URL. Quando
   os dados não bastarem, continua perguntando ou transferindo, sem inventar especificações.
 - Limitação conhecida: nenhum PDF foi publicado nas páginas atuais e o snapshot de segmentos deve
   ser trocado por uma fonte estruturada/aprovada quando a Wayflex a disponibilizar.
+
+## Delta de 23/09/2026 — mídia de catálogo na fila WhatsApp
+
+- A migration `20260923133000_catalog_media_whatsapp_queue` acrescenta a referência de mídia ao
+  job de catálogo já existente e cria unicidade por mensagem/anexo. Não há tabela paralela, URL de
+  imagem no payload de saída ou alteração de dados de lead.
+- `enviar-whatsapp` v8 aceita apenas `content_send_image` booleano associado a um item do catálogo.
+  `automation-worker` v31 usa `send-image` da Z-API somente depois de revalidar item, anexo,
+  política, canal, aprovação e URL pública. Falhas seguras não trocam mídia nem fazem downgrade
+  silencioso para outro conteúdo.
+- `ana-run` v33 só seleciona uma imagem em resposta recebida via WhatsApp quando a configuração
+  publicada habilita mídia, não há handoff/risco/orçamento e a correspondência lexical é forte. A
+  apresentação inicial permanece texto; a Ana não decide anexos pelo modelo.
+- A Central oferece a seleção manual por item e indica que imagem e texto estão vinculados à fila.
+  Ainda não houve envio externo de mídia: aceite, entrega e leitura continuam pendentes de
+  homologação controlada.
