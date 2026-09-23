@@ -8,7 +8,8 @@ export const teamPermissions = [
   'leads.edit_assigned', 'leads.delete', 'conversations.read_all',
   'conversations.reply_all', 'conversations.reply_assigned', 'messages.delete',
   'prospecting.manage', 'proposals.manage', 'configuration.manage',
-  'website_entry.manage', 'team.manage', 'audit.view',
+  'website_entry.manage', 'team.manage', 'audit.view', 'channels.view_own',
+  'channels.connect_own', 'channels.manage_all',
 ] as const;
 export type TeamPermission = typeof teamPermissions[number];
 
@@ -29,6 +30,9 @@ export const teamPermissionLabel: Record<TeamPermission, string> = {
   'website_entry.manage': 'Configurar entrada da Ana pelo site',
   'team.manage': 'Gerenciar equipe e permissões',
   'audit.view': 'Consultar Registro do Sistema',
+  'channels.view_own': 'Ver o próprio WhatsApp operacional',
+  'channels.connect_own': 'Conectar o próprio WhatsApp por QR Code',
+  'channels.manage_all': 'Gerenciar os WhatsApps de todos os usuários',
 };
 
 export interface TeamMember {

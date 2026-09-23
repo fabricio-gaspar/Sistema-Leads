@@ -201,3 +201,21 @@ Detalhes de continuidade e releases ficam em `docs/CONTINUIDADE_WAYFLEX.md`.
 - Migrations, RLS e índices de FKs foram aplicados no projeto oficial. `catalog-knowledge` v3,
   `enviar-whatsapp` v7 e `ana-run` v30 estão ativos e exigem JWT. Nenhuma mensagem ou lead foi
   criado como parte desta implementação.
+
+## Delta de WhatsApp por vendedor — 23/09/2026
+
+- A operação corporativa existente foi preservada como conta padrão e fallback. A nova tabela
+  `whatsapp_accounts` não armazena credenciais; ela relaciona vendedor, integração e estado dentro
+  da organização. As seis entidades de mensageria passaram a registrar a conta utilizada.
+- Administradores podem configurar uma instância Z-API existente para um usuário e acompanhar
+  todas as contas. Vendedores com permissão usam **Meu WhatsApp** para conectar apenas sua conta
+  por QR/telefone usando o SDK oficial e um token de uso único gerado no backend.
+- A resolução do número ocorre no backend. Matching de entrada e despacho de saída são isolados por
+  conta, e uma conversa já vinculada não migra silenciosamente para outro remetente.
+- Migrations `20260923193000_multi_whatsapp_seller_accounts` e
+  `20260923214500_multi_whatsapp_fk_indexes` foram aplicadas no projeto oficial. Funções ativas:
+  `whatsapp-accounts` v1, `team-members` v9, `enviar-whatsapp` v9, `ana-run` v35,
+  `automation-worker` v32 e `webhook-whatsapp` v18.
+- Validação local aprovada: type-check frontend/Edge, lint, build/artefato Sites e Vitest completo
+  com 31 arquivos e 227 testes. Não houve criação de plano/instância, envio de mensagem ou leitura
+  de segredo. Ainda não existe vendedor nem instância individual no estado real auditado.

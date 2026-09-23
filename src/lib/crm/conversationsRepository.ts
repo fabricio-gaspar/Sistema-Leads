@@ -13,6 +13,13 @@ interface LeadRow {
   modo_atendimento: string | null;
   last_contact: string | null;
   updated_at: string;
+  whatsapp_account_id: string | null;
+}
+
+interface WhatsappAccountRow {
+  id: string;
+  label: string;
+  connected_phone_suffix: string | null;
 }
 
 interface MessageRow {
@@ -146,14 +153,15 @@ export function planOperationalConversationPersistence(previous: Conversa[], nex
 export async function loadOperationalConversations(): Promise<Conversa[]> {
   const session = await resolveOrganizationSession();
   const { data: leads, error: leadsError } = await supabase.from('leads')
-    .select('id, company, contact, active_channel, ai_paused, automation_status, modo_atendimento, last_contact, updated_at')
+    .select('id, company, contact, active_channel, ai_paused, automation_status, modo_atendimento, last_contact, updated_at, whatsapp_account_id')
     .eq('organization_id', session.organizationId).order('updated_at', { ascending: false });
   if (leadsError) throw leadsError;
   const rows = (leads ?? []) as LeadRow[];
   if (!rows.length) return [];
 
   const leadIds = rows.map((lead) => lead.id);
-  const [messageRead, outreachRead] = await Promise.all([
+  const accountIds = [...new Set(rows.map((lead) => lead.whatsapp_account_id).filter((id): id is string => Boolean(id)))];
+  const [messageRead, outreachRead, accountRead] = await Promise.all([
     supabase.from('lead_messages')
       .select('id, lead_id, sender, sender_name, type, text, sent_at, created_at, provider_message_id')
       .eq('organization_id', session.organizationId).in('lead_id', leadIds)
@@ -162,9 +170,16 @@ export async function loadOperationalConversations(): Promise<Conversa[]> {
       .select('id, lead_id, status, provider_message_id, error, attempt, sent_at, delivered_at, read_at, failed_at, created_at, updated_at, metadata')
       .eq('organization_id', session.organizationId).in('lead_id', leadIds)
       .order('updated_at', { ascending: false }),
+    accountIds.length
+      ? supabase.from('whatsapp_accounts').select('id,label,connected_phone_suffix')
+        .eq('organization_id', session.organizationId).in('id', accountIds)
+      : Promise.resolve({ data: [] as WhatsappAccountRow[], error: null }),
   ]);
   if (messageRead.error) throw messageRead.error;
   if (outreachRead.error) throw outreachRead.error;
+  if (accountRead.error) throw accountRead.error;
+
+  const accountsById = new Map(((accountRead.data ?? []) as WhatsappAccountRow[]).map((account) => [account.id, account]));
 
   const outreachByMessage = new Map<string, OutreachRow>();
   for (const outreach of (outreachRead.data ?? []) as OutreachRow[]) {
@@ -182,6 +197,7 @@ export async function loadOperationalConversations(): Promise<Conversa[]> {
     const conversationMessages = messagesByLead.get(lead.id) ?? [];
     const latest = conversationMessages.at(-1);
     const human = lead.ai_paused || lead.modo_atendimento === 'humano' || lead.automation_status === 'human';
+    const account = lead.whatsapp_account_id ? accountsById.get(lead.whatsapp_account_id) : undefined;
     return {
       id: lead.id,
       leadId: lead.id,
@@ -196,6 +212,9 @@ export async function loadOperationalConversations(): Promise<Conversa[]> {
       hora: latest?.hora ?? new Date(lead.last_contact ?? lead.updated_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
       naoLidas: latest?.autor === 'cliente' ? 1 : 0,
       mensagens: conversationMessages,
+      whatsappAccountId: lead.whatsapp_account_id,
+      whatsappAccountLabel: account?.label ?? null,
+      whatsappPhoneSuffix: account?.connected_phone_suffix ?? null,
     } satisfies Conversa;
   });
 }

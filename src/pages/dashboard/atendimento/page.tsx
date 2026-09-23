@@ -609,6 +609,7 @@ export default function Atendimento() {
                       {statusLabel[c.status]}
                     </span>
                     <span className="text-[10px] text-foreground-400"><i className={`${c.canal === 'whatsapp' ? 'ri-whatsapp-line text-emerald-600' : c.canal === 'email' ? 'ri-mail-line' : 'ri-instagram-line'} mr-1`} />{c.canal}</span>
+                    {c.canal === 'whatsapp' && c.whatsappAccountLabel && <span className="max-w-full truncate rounded-md bg-background-100 px-2 py-0.5 text-[10px] text-foreground-500" title={c.whatsappAccountLabel}><i className="ri-base-station-line mr-1" />{c.whatsappAccountLabel}</span>}
                   </div>
                 </div>
                 {c.naoLidas > 0 && (
@@ -633,6 +634,9 @@ export default function Atendimento() {
                 <p className="whitespace-normal break-words text-xs leading-5 text-foreground-500">
                   <i className={selected.canal === 'whatsapp' ? 'ri-whatsapp-line mr-1 text-emerald-600' : selected.canal === 'email' ? 'ri-mail-line mr-1' : 'ri-instagram-line mr-1'} />
                   {selected.empresa} · {statusDaAna}
+                  {selected.canal === 'whatsapp' && selected.whatsappAccountLabel
+                    ? ` · via ${selected.whatsappAccountLabel}${selected.whatsappPhoneSuffix ? ` (final ${selected.whatsappPhoneSuffix})` : ''}`
+                    : ''}
                 </p>
               </div>
             </div>

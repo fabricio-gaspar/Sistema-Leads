@@ -35,6 +35,7 @@ function messageWithoutSiteEntryCode(message: string): string {
 async function createLeadFromWebsiteEntry(
   admin: Admin,
   organizationId: string,
+  whatsappAccountId: string,
   phone: string,
   message: string,
 ): Promise<Row | null> {
@@ -60,6 +61,7 @@ async function createLeadFromWebsiteEntry(
     owner: 'ia',
     origin: entry.source_label,
     active_channel: 'whatsapp',
+    whatsapp_account_id: whatsappAccountId,
     contact_approval_status: 'approved',
     contact_approval_reason: 'Contato iniciou conversa pelo botão do site.',
     contact_approved_at: now,
@@ -86,7 +88,7 @@ async function createLeadFromWebsiteEntry(
     detail: 'Lead criado a partir da entrada de WhatsApp do site.',
     entity_table: 'leads',
     entity_id: lead.id,
-    event_data: { source: 'website_whatsapp', phone_suffix: phone.slice(-4) },
+    event_data: { source: 'website_whatsapp', phone_suffix: phone.slice(-4), whatsapp_account_id: whatsappAccountId },
   });
   return lead as Row;
 }
@@ -98,10 +100,11 @@ function firstRow(value: unknown): Row | null {
 
 async function persistWebhookEvent(
   admin: Admin,
-  input: { organizationId: string; provider: string; externalId: string; eventType: string; payloadSha: string; payload: Row; strictPayload: boolean },
+  input: { organizationId: string; whatsappAccountId: string; provider: string; externalId: string; eventType: string; payloadSha: string; payload: Row; strictPayload: boolean },
 ): Promise<{ event: Row | null; duplicate: boolean }> {
   const { data, error } = await admin.from('webhook_events').upsert({
     organization_id: input.organizationId,
+    whatsapp_account_id: input.whatsappAccountId,
     provider: input.provider,
     external_id: input.externalId,
     event_type: input.eventType,
@@ -113,13 +116,13 @@ async function persistWebhookEvent(
   }, {
     onConflict: 'organization_id,provider,external_id',
     ignoreDuplicates: true,
-  }).select('id,status,error,lead_id,outreach_id,payload_sha').maybeSingle();
+  }).select('id,status,error,lead_id,outreach_id,payload_sha,whatsapp_account_id').maybeSingle();
   if (error) throw new Error('event_persist_failed');
   const inserted = firstRow(data);
   if (inserted) return { event: inserted, duplicate: false };
 
   const { data: prior, error: priorError } = await admin.from('webhook_events')
-    .select('id,status,error,lead_id,outreach_id,payload_sha')
+    .select('id,status,error,lead_id,outreach_id,payload_sha,whatsapp_account_id')
     .eq('organization_id', input.organizationId)
     .eq('provider', input.provider)
     .eq('external_id', input.externalId)
@@ -131,8 +134,9 @@ async function persistWebhookEvent(
 
   const { data: claimed, error: claimError } = await admin.from('webhook_events').update({
     status: 'received', error: null, processed_at: null, payload_sha: input.payloadSha, payload: input.payload,
+    whatsapp_account_id: input.whatsappAccountId,
   }).eq('id', previous.id).eq('organization_id', input.organizationId).eq('status', 'failed')
-    .select('id,status,error,lead_id,outreach_id,payload_sha').maybeSingle();
+    .select('id,status,error,lead_id,outreach_id,payload_sha,whatsapp_account_id').maybeSingle();
   if (claimError) throw new Error('event_reconciliation_claim_failed');
   return { event: firstRow(claimed), duplicate: !claimed };
 }
@@ -232,6 +236,10 @@ Deno.serve(async (request) => {
       .select('id,organization_id,provider,connected,enabled,paused').eq('id', integrationId).maybeSingle();
     if (integrationError || !integration) return json({ error: 'integration_not_ready' }, 409);
     if (!['zapi', 'z-api'].includes(String(integration.provider).toLowerCase())) return json({ error: 'unsupported_provider' }, 409);
+    const { data: whatsappAccount, error: accountError } = await admin.from('whatsapp_accounts')
+      .select('id,is_default,owner_user_id').eq('organization_id', integration.organization_id)
+      .eq('integration_id', integration.id).is('archived_at', null).maybeSingle();
+    if (accountError || !whatsappAccount) return json({ error: 'whatsapp_account_not_ready' }, 409);
 
     authenticatedAdmin = admin;
     eventOrg = integration.organization_id;
@@ -245,6 +253,7 @@ Deno.serve(async (request) => {
     const eventType = text(payload.type, 120) || 'message';
     const persisted = await persistWebhookEvent(admin, {
       organizationId: integration.organization_id,
+      whatsappAccountId: whatsappAccount.id,
       provider: integration.provider || 'whatsapp',
       externalId,
       eventType,
@@ -267,8 +276,9 @@ Deno.serve(async (request) => {
 
     const { phone, text: rawMessage } = normalized;
     const message = messageWithoutSiteEntryCode(rawMessage) || rawMessage;
-    const { data: resolutionRows, error: resolutionError } = await admin.rpc('resolve_whatsapp_lead', {
+    const { data: resolutionRows, error: resolutionError } = await admin.rpc('resolve_whatsapp_lead_for_account', {
       p_organization_id: integration.organization_id,
+      p_account_id: whatsappAccount.id,
       p_phone: phone,
     });
     if (resolutionError) throw new Error('lead_resolution_failed');
@@ -277,7 +287,7 @@ Deno.serve(async (request) => {
     let resolutionReason = text(resolution?.reason, 120) || 'not_found';
 
     if (!resolvedLeadId && resolutionReason !== 'ambiguous_identity') {
-      const websiteLead = await createLeadFromWebsiteEntry(admin, integration.organization_id, phone, rawMessage);
+      const websiteLead = await createLeadFromWebsiteEntry(admin, integration.organization_id, whatsappAccount.id, phone, rawMessage);
       if (websiteLead) {
         resolvedLeadId = text(websiteLead.id, 80);
         resolutionReason = 'site_entry_created';
@@ -298,18 +308,19 @@ Deno.serve(async (request) => {
           : 'Mensagem recebida sem lead correspondente.',
         entity_table: 'webhook_events',
         entity_id: event.id,
-        event_data: { provider: integration.provider, phone_suffix: phone.slice(-4), resolution: resolutionReason },
+        event_data: { provider: integration.provider, phone_suffix: phone.slice(-4), resolution: resolutionReason, whatsapp_account_id: whatsappAccount.id },
       });
       return acceptedWebhook({ accepted: true, matched: false, resolution: resolutionReason });
     }
 
     const { data: lead, error: leadError } = await admin.from('leads')
-      .select('id,modo_atendimento,ai_paused,automation_status,owner_id,first_inbound_at')
+      .select('id,modo_atendimento,ai_paused,automation_status,owner_id,first_inbound_at,whatsapp_account_id')
       .eq('organization_id', integration.organization_id).eq('id', resolvedLeadId).maybeSingle();
     if (leadError || !lead) throw new Error('resolved_lead_not_found');
 
     const { data: insertedInbound, error: inboundError } = await admin.from('channel_inbound_events').upsert({
       organization_id: integration.organization_id,
+      whatsapp_account_id: whatsappAccount.id,
       provider: integration.provider,
       event_type: eventType,
       external_id: externalId,
@@ -347,6 +358,7 @@ Deno.serve(async (request) => {
       }
       const { data: claimedInbound, error: claimInboundError } = await admin.from('channel_inbound_events').update({
         status: 'received', error: null, processed_at: null, payload, lead_id: lead.id,
+        whatsapp_account_id: whatsappAccount.id,
       }).eq('id', previousInbound.id).eq('organization_id', integration.organization_id)
         .eq('status', 'failed').select('id,status,error').maybeSingle();
       if (claimInboundError) throw new Error('inbound_reconciliation_claim_failed');
@@ -359,6 +371,7 @@ Deno.serve(async (request) => {
     const { data: insertedMessage, error: messageError } = await admin.from('lead_messages').insert({
       organization_id: integration.organization_id,
       lead_id: lead.id,
+      whatsapp_account_id: whatsappAccount.id,
       sender: 'lead',
       sender_name: 'Lead',
       type: 'received',
@@ -392,6 +405,7 @@ Deno.serve(async (request) => {
 
     const { data: latestOutreach, error: outreachError } = await admin.from('lead_outreach')
       .select('id').eq('organization_id', integration.organization_id).eq('lead_id', lead.id)
+      .eq('whatsapp_account_id', whatsappAccount.id)
       .in('status', ['sent', 'delivered', 'read']).order('sent_at', { ascending: false }).limit(1).maybeSingle();
     if (outreachError) throw new Error('inbound_outreach_read_failed');
     if (latestOutreach) {
@@ -408,6 +422,7 @@ Deno.serve(async (request) => {
       contact_approval_status: 'approved',
       contact_approval_reason: 'Contato iniciou uma conversa individual no WhatsApp.',
       contact_approved_at: receivedAt,
+      whatsapp_account_id: whatsappAccount.id,
     }).eq('organization_id', integration.organization_id).eq('id', lead.id);
     if (leadUpdateError) throw new Error('inbound_lead_update_failed');
 
@@ -463,7 +478,7 @@ Deno.serve(async (request) => {
         : succeeded
           ? 'Resposta recebida, vinculada ao lead e processada pela Ana.'
           : 'Resposta recebida, mas o processamento da Ana precisa de reconciliação.';
-    const { error: webhookHealthError } = await admin.from('integrations').update({
+    const { error: accountIntegrationHealthError } = await admin.from('integrations').update({
       connected: true,
       enabled: true,
       paused: false,
@@ -472,8 +487,28 @@ Deno.serve(async (request) => {
       last_error: stateError,
       status_detail: healthDetail,
       updated_at: receivedAt,
-    }).eq('organization_id', eventOrg).eq('key', 'zapi_webhook');
-    if (webhookHealthError) throw new Error('webhook_health_persist_failed');
+    }).eq('id', integration.id).eq('organization_id', eventOrg);
+    const { error: accountHealthError } = await admin.from('whatsapp_accounts').update({
+      enabled: true,
+      connection_status: 'connected',
+      connected_at: receivedAt,
+      status_checked_at: receivedAt,
+      webhook_registered_at: receivedAt,
+      last_error_code: stateError,
+      updated_at: receivedAt,
+    }).eq('id', whatsappAccount.id).eq('organization_id', eventOrg);
+    if (accountIntegrationHealthError || accountHealthError) throw new Error('whatsapp_account_health_persist_failed');
+    const webhookHealth = whatsappAccount.is_default ? await admin.from('integrations').update({
+      connected: true,
+      enabled: true,
+      paused: false,
+      last_tested_at: receivedAt,
+      last_success_at: receivedAt,
+      last_error: stateError,
+      status_detail: healthDetail,
+      updated_at: receivedAt,
+    }).eq('organization_id', eventOrg).eq('key', 'zapi_webhook') : { error: null };
+    if (webhookHealth.error) throw new Error('webhook_health_persist_failed');
 
     await admin.from('audit_logs').insert({
       organization_id: integration.organization_id,
@@ -489,6 +524,7 @@ Deno.serve(async (request) => {
         skip_reason: skipReason,
         cancelled_automatic_jobs: automatedJobIds.length,
         lead_resolution: resolutionReason,
+        whatsapp_account_id: whatsappAccount.id,
       },
     });
     return acceptedWebhook({ accepted: true, matched: true, processed: succeeded, skipped, skip_reason: skipReason, resolution: resolutionReason });

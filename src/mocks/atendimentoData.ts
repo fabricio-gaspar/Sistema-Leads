@@ -33,6 +33,9 @@ export interface Conversa {
   naoLidas: number;
   mensagens: Mensagem[];
   leadId?: string;
+  whatsappAccountId?: string | null;
+  whatsappAccountLabel?: string | null;
+  whatsappPhoneSuffix?: string | null;
 }
 
 export const respostasRapidas = [

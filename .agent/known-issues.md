@@ -155,3 +155,14 @@
 - O teste controlado não alcançou a Z-API porque a configuração da Ana mantém
   `businessHoursOnly=true` e o worker registrou `outside_business_hours`. A fila está preservada
   para a próxima janela permitida; não foi burlada nem despachada fora da política.
+
+## 2026-09-23 — Homologação pendente de WhatsApp individual
+
+- O suporte técnico para conta Z-API por vendedor está publicado no backend e coberto por testes,
+  mas o estado real auditado possui dois administradores e nenhum usuário vendedor. Portanto, não
+  foi possível comprovar uma conexão individual por QR, envio, recebimento ou recibo de entrega.
+- A primeira homologação exige um vendedor ativo, uma instância Z-API já contratada e as credenciais
+  registradas pelo administrador no Vault. O próprio vendedor precisa concluir o QR/telefone no
+  conector oficial. Essa pendência não afeta a conta corporativa existente nem o fluxo atual da Ana.
+- Os avisos de performance remanescentes do advisor são anteriores e não pertencem às novas chaves
+  de conta WhatsApp; os índices introduzidos nesta mudança eliminaram os avisos das novas FKs.

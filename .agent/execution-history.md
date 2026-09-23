@@ -858,3 +858,22 @@
   testes), build Vite e artefato Sites passaram. A inspeção publicada confirmou o drawer responsivo
   com as cinco abas e o carregamento da base real de conhecimento, sem escrita operacional, envio
   de mensagem, alteração de lead ou chamada a provedor.
+
+# 2026-09-23 — Contas WhatsApp operacionais por vendedor
+
+- O número corporativo foi preservado como padrão. Foi adicionada uma camada de metadados por conta
+  e vínculo explícito em leads, mensagens, fila, outreach e webhooks, sem armazenar segredo fora do
+  Vault e sem criar instância ou plano Z-API.
+- O administrador recebeu visão global e configuração por usuário em **Usuários**; o vendedor recebe
+  **Meu WhatsApp**, somente com suas permissões e sua conta. A conexão usa o SDK oficial Z-API com
+  token descartável gerado no Edge Function `whatsapp-accounts`.
+- Entrada e saída foram isoladas por conta. `ana-run` continua sendo a autoridade automática;
+  `automation-worker` e `webhook-whatsapp` revalidam organização, integração e conta para impedir
+  cruzamento entre vendedores.
+- Projeto oficial atualizado: migrations `20260923193000_multi_whatsapp_seller_accounts` e
+  `20260923214500_multi_whatsapp_fk_indexes`; Edge Functions `whatsapp-accounts` v1,
+  `team-members` v9, `enviar-whatsapp` v9, `ana-run` v35, `automation-worker` v32 e
+  `webhook-whatsapp` v18.
+- Type-check frontend/Edge, lint, build, artefato Sites e 31 arquivos/227 testes passaram. O advisor
+  confirmou cobertura das novas FKs. Nenhuma mensagem foi enviada e a conexão QR individual segue
+  pendente porque não há vendedor/instância individual no estado real auditado.

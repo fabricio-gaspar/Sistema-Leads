@@ -120,3 +120,24 @@ diário em concorrência; recibos antecipados ainda dependem de nova reconcilia�
 - O item persiste a página canônica em `website_url` e o payload de origem; `source_url` recebe
   um fragmento determinístico por card apenas para o trigger de `documents` manter um documento
   exclusivo. `knowledge_chunks` continua sendo a única fonte recuperada pela Ana.
+
+## Contas WhatsApp por vendedor
+
+1. `whatsapp_accounts` guarda somente metadados operacionais por organização: conta corporativa
+   padrão ou conta de vendedor, proprietário, integração vinculada, estado e sufixo do telefone.
+   Instance ID, token e client-token permanecem exclusivamente no Vault pela integração associada.
+2. O número corporativo existente continua sendo o fallback e a conta padrão. Um lead novo pode
+   resolver a conta do vendedor responsável; depois de vinculado, não troca silenciosamente de
+   número em uma reatribuição.
+3. Toda mensagem, job, outreach e evento de webhook registra `whatsapp_account_id`. O webhook
+   procura identidade dentro da conta receptora, impedindo que o mesmo telefone em contas distintas
+   seja associado por engano.
+4. `ana-run` continua sendo a única autoridade automática. Ela resolve e fixa a conta imediatamente
+   antes de uma operação real; simulações e bloqueios não alteram o vínculo. O worker revalida a
+   relação conta/integração/organização antes de chamar a Z-API.
+5. O administrador usa **Usuários > WhatsApp operacional** para cadastrar uma instância Z-API já
+   existente. O vendedor usa **Meu WhatsApp** para abrir o conector oficial por QR ou telefone com
+   token descartável; nenhum segredo permanente chega ao navegador.
+6. `current_user_access` e as permissões `channels.view_own`, `channels.connect_own` e
+   `channels.manage_all` filtram rotas e navegação. O administrador mantém a visão global; o
+   vendedor vê somente módulos permitidos e sua própria conta operacional.

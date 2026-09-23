@@ -18,7 +18,9 @@ const Agenda = lazy(() => import('../pages/dashboard/agenda/page'));
 const Orcamentos = lazy(() => import('../pages/dashboard/orcamentos/page'));
 const RegistroSistema = lazy(() => import('../pages/dashboard/registro-sistema/page'));
 const Equipe = lazy(() => import('../pages/dashboard/equipe/page'));
+const MeuWhatsapp = lazy(() => import('../pages/dashboard/meu-whatsapp/page'));
 const DashboardLayout = lazy(() => import('../components/feature/DashboardLayout'));
+const PermissionRoute = lazy(() => import('../components/feature/PermissionRoute'));
 
 const routes: RouteObject[] = [
   {
@@ -55,27 +57,27 @@ const routes: RouteObject[] = [
       },
       {
         path: "busca-leads",
-        element: <BuscaLeads />,
+        element: <PermissionRoute anyOf={['prospecting.manage']}><BuscaLeads /></PermissionRoute>,
       },
       {
         path: "atendimento",
-        element: <Atendimento />,
+        element: <PermissionRoute anyOf={['conversations.read_all', 'conversations.reply_all', 'conversations.reply_assigned']}><Atendimento /></PermissionRoute>,
       },
       {
         path: "leads",
-        element: <Leads />,
+        element: <PermissionRoute anyOf={['leads.read_all', 'leads.read_assigned', 'leads.create']}><Leads /></PermissionRoute>,
       },
       {
         path: "kanban",
-        element: <KanbanCRM />,
+        element: <PermissionRoute anyOf={['leads.read_all', 'leads.read_assigned']}><KanbanCRM /></PermissionRoute>,
       },
       {
         path: "funil",
-        element: <FunilConversao />,
+        element: <PermissionRoute anyOf={['leads.read_all', 'leads.read_assigned']}><FunilConversao /></PermissionRoute>,
       },
       {
         path: "equipe",
-        element: <Equipe />,
+        element: <PermissionRoute anyOf={['team.manage']}><Equipe /></PermissionRoute>,
       },
       {
         path: "midia-drive",
@@ -83,23 +85,27 @@ const routes: RouteObject[] = [
       },
       {
         path: "relatorios",
-        element: <Relatorios />,
+        element: <PermissionRoute anyOf={['leads.read_all', 'leads.read_assigned']}><Relatorios /></PermissionRoute>,
       },
       {
         path: "agenda",
-        element: <Agenda />,
+        element: <PermissionRoute anyOf={['conversations.read_all', 'conversations.reply_all', 'conversations.reply_assigned']}><Agenda /></PermissionRoute>,
       },
       {
         path: "orcamentos",
-        element: <Orcamentos />,
+        element: <PermissionRoute anyOf={['proposals.manage']}><Orcamentos /></PermissionRoute>,
       },
       {
         path: "registro-sistema",
-        element: <RegistroSistema />,
+        element: <PermissionRoute anyOf={['audit.view']}><RegistroSistema /></PermissionRoute>,
       },
       {
         path: "configuracoes",
-        element: <DashboardConfiguracoes />,
+        element: <PermissionRoute anyOf={['configuration.manage']}><DashboardConfiguracoes /></PermissionRoute>,
+      },
+      {
+        path: "meu-whatsapp",
+        element: <PermissionRoute anyOf={['channels.view_own', 'channels.manage_all', 'configuration.manage']}><MeuWhatsapp /></PermissionRoute>,
       },
       { path: "personalizacao-ana", element: <Navigate to="/dashboard/configuracoes?tab=ana" replace /> },
     ],

@@ -1,0 +1,431 @@
+import {
+  createAdminClient,
+  hasOrganizationPermission,
+  requireOrganizationPermission,
+  requireUser,
+} from '../_shared/auth.ts';
+import { allowedCorsHeaders, hasAllowedOrigin, json, preflight, safeError } from '../_shared/http.ts';
+import { zapiBaseUrl } from '../_shared/runtimeSafety.ts';
+
+type Admin = ReturnType<typeof createAdminClient>;
+type Row = Record<string, unknown>;
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const WEBHOOK_ENDPOINTS = [
+  'update-webhook-received',
+  'update-webhook-delivery',
+  'update-webhook-message-status',
+] as const;
+
+function asObject(value: unknown): Row {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Row : {};
+}
+
+function asText(value: unknown, maximum = 1_000): string {
+  return typeof value === 'string' ? value.trim().slice(0, maximum) : '';
+}
+
+function asUuid(value: unknown): string {
+  const candidate = asText(value, 80);
+  return UUID.test(candidate) ? candidate : '';
+}
+
+function phoneSuffix(value: unknown): string | null {
+  const digits = asText(value, 120).replace(/\D/g, '');
+  return digits.length >= 4 ? digits.slice(-4) : null;
+}
+
+function providerCode(status: number): string {
+  if (status === 400) return 'zapi_credentials_rejected';
+  if (status === 401 || status === 403) return 'zapi_client_token_rejected';
+  if (status === 404) return 'zapi_instance_not_found';
+  if (status === 429) return 'zapi_rate_limited';
+  return `zapi_http_${status}`;
+}
+
+async function organizationContext(admin: Admin, userId: string) {
+  const { data: profile, error } = await admin.from('profiles')
+    .select('active_organization_id,name').eq('id', userId).maybeSingle();
+  if (error || !profile?.active_organization_id) throw new Error('organization_context_required');
+  const organizationId = profile.active_organization_id as string;
+  const { data: membership, error: membershipError } = await admin.from('organization_members')
+    .select('role,status').eq('organization_id', organizationId).eq('user_id', userId).maybeSingle();
+  if (membershipError || !membership || membership.status !== 'active') throw new Error('organization_access_denied');
+  return { organizationId, actorName: asText(profile.name, 160) || 'Usuário', role: asText(membership.role, 40) };
+}
+
+async function canManageAccounts(admin: Admin, organizationId: string, userId: string): Promise<boolean> {
+  return await hasOrganizationPermission(admin, organizationId, userId, 'channels.manage_all')
+    || await hasOrganizationPermission(admin, organizationId, userId, 'configuration.manage');
+}
+
+async function accountForAction(
+  admin: Admin,
+  organizationId: string,
+  userId: string,
+  accountId: string,
+  manage: boolean,
+) {
+  if (!accountId) throw new Error('whatsapp_account_required');
+  const { data: account, error } = await admin.from('whatsapp_accounts')
+    .select('id,organization_id,integration_id,owner_user_id,label,account_type,is_default,enabled,connection_status,archived_at')
+    .eq('id', accountId).eq('organization_id', organizationId).maybeSingle();
+  if (error || !account || account.archived_at) throw new Error('whatsapp_account_not_found');
+  if (!manage) {
+    if (account.owner_user_id !== userId) throw new Error('whatsapp_account_access_denied');
+    await requireOrganizationPermission(admin, organizationId, userId, 'channels.connect_own');
+  }
+  return account;
+}
+
+async function accountSecret(admin: Admin, integrationId: string) {
+  const { data, error } = await admin.rpc('read_integration_secret', { p_integration: integrationId });
+  if (error) throw new Error('whatsapp_credentials_read_failed');
+  return asObject(data);
+}
+
+async function providerStatus(credentials: Row) {
+  const instanceId = asText(credentials.instancia_id, 300);
+  const instanceToken = asText(credentials.token, 500);
+  const clientToken = asText(credentials.client_token, 500);
+  if (!instanceId || !instanceToken || !clientToken) throw new Error('zapi_credentials_incomplete');
+  const response = await fetch(
+    `${zapiBaseUrl(credentials.url_base)}/instances/${encodeURIComponent(instanceId)}/token/${encodeURIComponent(instanceToken)}/status`,
+    {
+      headers: { 'Content-Type': 'application/json', 'Client-Token': clientToken },
+      signal: AbortSignal.timeout(20_000),
+      redirect: 'error',
+    },
+  );
+  const payload = await response.json().catch(() => null) as Row | null;
+  if (!response.ok) throw new Error(providerCode(response.status));
+  if (!payload) throw new Error('zapi_invalid_response');
+  return payload;
+}
+
+async function registerWebhooks(integrationId: string, credentials: Row): Promise<void> {
+  const instanceId = asText(credentials.instancia_id, 300);
+  const instanceToken = asText(credentials.token, 500);
+  const clientToken = asText(credentials.client_token, 500);
+  const webhookToken = asText(credentials.webhook_token, 1_000);
+  if (!instanceId || !instanceToken || !clientToken || !webhookToken) throw new Error('zapi_webhook_credentials_incomplete');
+  const callbackUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/webhook-whatsapp?integration_id=${encodeURIComponent(integrationId)}&token=${encodeURIComponent(webhookToken)}`;
+  for (const endpoint of WEBHOOK_ENDPOINTS) {
+    const response = await fetch(
+      `${zapiBaseUrl(credentials.url_base)}/instances/${encodeURIComponent(instanceId)}/token/${encodeURIComponent(instanceToken)}/${endpoint}`,
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'Client-Token': clientToken },
+        body: JSON.stringify({ value: callbackUrl }),
+        signal: AbortSignal.timeout(20_000),
+        redirect: 'error',
+      },
+    );
+    const payload = await response.json().catch(() => null) as Row | null;
+    if (!response.ok || payload?.value === false) throw new Error(`zapi_webhook_setup_${endpoint}_${response.status}`);
+  }
+}
+
+async function listAccounts(admin: Admin, organizationId: string, userId: string, manage: boolean) {
+  let query = admin.from('whatsapp_accounts')
+    .select('id,integration_id,owner_user_id,label,account_type,is_default,enabled,connection_status,connected_phone_suffix,connected_at,status_checked_at,webhook_registered_at,expires_at,last_error_code,created_at,updated_at')
+    .eq('organization_id', organizationId).is('archived_at', null).order('is_default', { ascending: false }).order('label');
+  if (!manage) query = query.eq('owner_user_id', userId);
+  const { data: accounts, error } = await query;
+  if (error) throw new Error('whatsapp_accounts_read_failed');
+  const integrationIds = (accounts ?? []).map((account) => account.integration_id);
+  const ownerIds = [...new Set((accounts ?? []).map((account) => account.owner_user_id).filter(Boolean))];
+  const [integrationsRead, profilesRead] = await Promise.all([
+    integrationIds.length
+      ? admin.from('integrations').select('id,connected,enabled,paused,configuration,last_tested_at,last_success_at').in('id', integrationIds)
+      : Promise.resolve({ data: [], error: null }),
+    ownerIds.length
+      ? admin.from('profiles').select('id,name,email').in('id', ownerIds)
+      : Promise.resolve({ data: [], error: null }),
+  ]);
+  if (integrationsRead.error || profilesRead.error) throw new Error('whatsapp_accounts_context_read_failed');
+  const integrationById = new Map((integrationsRead.data ?? []).map((item) => [item.id, item]));
+  const profileById = new Map((profilesRead.data ?? []).map((item) => [item.id, item]));
+  return (accounts ?? []).map((account) => {
+    const integration = integrationById.get(account.integration_id);
+    const owner = account.owner_user_id ? profileById.get(account.owner_user_id) : null;
+    return {
+      id: account.id,
+      ownerUserId: account.owner_user_id,
+      ownerName: owner?.name ?? null,
+      ownerEmail: owner?.email ?? null,
+      label: account.label,
+      accountType: account.account_type,
+      isDefault: account.is_default,
+      enabled: account.enabled,
+      connectionStatus: account.connection_status,
+      connectedPhoneSuffix: account.connected_phone_suffix,
+      connectedAt: account.connected_at,
+      statusCheckedAt: account.status_checked_at,
+      webhookRegisteredAt: account.webhook_registered_at,
+      expiresAt: account.expires_at,
+      lastErrorCode: account.last_error_code,
+      configured: asObject(integration?.configuration).configured === true,
+      connected: integration?.connected === true && integration?.enabled === true && integration?.paused !== true,
+      paused: integration?.paused === true,
+      updatedAt: account.updated_at,
+    };
+  });
+}
+
+Deno.serve(async (request) => {
+  const options = preflight(request); if (options) return options;
+  if (!hasAllowedOrigin(request)) return json({ ok: false, erro: 'origin_not_allowed' }, 403);
+  const headers = allowedCorsHeaders(request);
+  if (request.method !== 'POST') return json({ ok: false, erro: 'method_not_allowed' }, 405, headers);
+  try {
+    const body = await request.json().catch(() => ({})) as Row;
+    const action = asText(body.action, 60);
+    const { user } = await requireUser(request);
+    const admin = createAdminClient();
+    const { organizationId, actorName } = await organizationContext(admin, user.id);
+    const manage = await canManageAccounts(admin, organizationId, user.id);
+
+    if (action === 'list') {
+      if (!manage) await requireOrganizationPermission(admin, organizationId, user.id, 'channels.view_own');
+      return json({ ok: true, accounts: await listAccounts(admin, organizationId, user.id, manage), canManage: manage }, 200, headers);
+    }
+
+    if (action === 'configure') {
+      if (!manage) throw new Error('permission_denied');
+      const accountIdInput = asUuid(body.account_id);
+      const ownerUserId = asUuid(body.owner_user_id);
+      const label = asText(body.label, 120);
+      if (!ownerUserId) throw new Error('whatsapp_account_owner_required');
+      if (!label) throw new Error('whatsapp_account_label_required');
+      const { data: member, error: memberError } = await admin.from('organization_members')
+        .select('status').eq('organization_id', organizationId).eq('user_id', ownerUserId).maybeSingle();
+      if (memberError || !member || member.status !== 'active') throw new Error('whatsapp_account_owner_inactive');
+
+      let accountId = accountIdInput;
+      let integrationId = '';
+      let previousSecret: Row = {};
+      if (accountId) {
+        const { data: existing, error } = await admin.from('whatsapp_accounts')
+          .select('id,integration_id,account_type').eq('id', accountId).eq('organization_id', organizationId).is('archived_at', null).maybeSingle();
+        if (error || !existing || existing.account_type !== 'seller') throw new Error('whatsapp_account_not_found');
+        integrationId = existing.integration_id;
+        previousSecret = await accountSecret(admin, integrationId);
+      } else {
+        accountId = crypto.randomUUID();
+        const { data: integration, error: integrationError } = await admin.from('integrations').insert({
+          organization_id: organizationId,
+          key: `whatsapp_account:${accountId}`,
+          label,
+          provider: 'Z-API',
+          category: 'communication',
+          connected: false,
+          enabled: false,
+          paused: false,
+          mode: 'real',
+          status_detail: 'Conta do usuário criada; aguardando credenciais e conexão.',
+          configuration: {},
+        }).select('id').single();
+        if (integrationError || !integration) throw new Error('whatsapp_account_integration_create_failed');
+        integrationId = integration.id;
+        const { error: accountError } = await admin.from('whatsapp_accounts').insert({
+          id: accountId,
+          organization_id: organizationId,
+          integration_id: integrationId,
+          owner_user_id: ownerUserId,
+          label,
+          account_type: 'seller',
+          is_default: false,
+          enabled: false,
+          connection_status: 'unconfigured',
+          created_by: user.id,
+        });
+        if (accountError) {
+          await admin.from('integrations').delete().eq('id', integrationId).eq('organization_id', organizationId);
+          if (accountError.code === '23505') throw new Error('whatsapp_account_owner_already_assigned');
+          throw new Error('whatsapp_account_create_failed');
+        }
+      }
+
+      const instanceId = asText(body.instance_id, 300) || asText(previousSecret.instancia_id, 300);
+      const instanceToken = asText(body.instance_token, 500) || asText(previousSecret.token, 500);
+      const clientToken = asText(body.client_token, 500) || asText(previousSecret.client_token, 500);
+      if (!instanceId || !instanceToken || !clientToken) throw new Error('zapi_credentials_required');
+      const credentials = {
+        instancia_id: instanceId,
+        token: instanceToken,
+        client_token: clientToken,
+        url_base: zapiBaseUrl(body.url_base || previousSecret.url_base),
+        webhook_token: asText(previousSecret.webhook_token, 1_000) || crypto.randomUUID().replace(/-/g, ''),
+      };
+      const { error: secretError } = await admin.rpc('store_integration_secret', {
+        p_integration: integrationId,
+        p_secret: credentials,
+      });
+      if (secretError) throw new Error('whatsapp_credentials_save_failed');
+      const now = new Date().toISOString();
+      const { error: accountUpdateError } = await admin.from('whatsapp_accounts').update({
+        owner_user_id: ownerUserId,
+        label,
+        enabled: false,
+        connection_status: 'configured',
+        status_checked_at: null,
+        webhook_registered_at: null,
+        last_error_code: null,
+        updated_at: now,
+      }).eq('id', accountId).eq('organization_id', organizationId);
+      const { error: integrationUpdateError } = await admin.from('integrations').update({
+        label,
+        connected: false,
+        enabled: false,
+        paused: false,
+        last_error: null,
+        last_error_at: null,
+        status_detail: 'Credenciais guardadas no cofre; aguardando conexão por QR Code ou telefone.',
+        updated_at: now,
+      }).eq('id', integrationId).eq('organization_id', organizationId);
+      if (accountUpdateError || integrationUpdateError) throw new Error('whatsapp_account_state_save_failed');
+      await admin.from('audit_logs').insert({
+        organization_id: organizationId,
+        actor_id: user.id,
+        actor_name: actorName,
+        actor_type: 'user',
+        action: 'whatsapp_account.configured',
+        detail: 'Conta operacional de WhatsApp configurada para um usuário; credenciais mantidas no cofre.',
+        entity_table: 'whatsapp_accounts',
+        entity_id: accountId,
+        event_data: { owner_user_id: ownerUserId, provider: 'Z-API' },
+      });
+      return json({ ok: true, accountId }, 200, headers);
+    }
+
+    if (action === 'connector_token') {
+      const account = await accountForAction(admin, organizationId, user.id, asUuid(body.account_id), manage);
+      const credentials = await accountSecret(admin, account.integration_id);
+      const instanceId = asText(credentials.instancia_id, 300);
+      const instanceToken = asText(credentials.token, 500);
+      const clientToken = asText(credentials.client_token, 500);
+      if (!instanceId || !instanceToken || !clientToken) throw new Error('zapi_credentials_incomplete');
+      const response = await fetch(
+        `${zapiBaseUrl(credentials.url_base)}/instances/${encodeURIComponent(instanceId)}/token/${encodeURIComponent(instanceToken)}/sdk-connector-token`,
+        {
+          headers: { 'Client-Token': clientToken },
+          signal: AbortSignal.timeout(20_000),
+          redirect: 'error',
+        },
+      );
+      const payload = await response.json().catch(() => null) as Row | null;
+      if (!response.ok) throw new Error(providerCode(response.status));
+      const token = asText(payload?.token, 8_000);
+      if (!token) throw new Error('zapi_connector_token_missing');
+      await admin.from('whatsapp_accounts').update({
+        connection_status: 'qr', status_checked_at: new Date().toISOString(), last_error_code: null,
+      }).eq('id', account.id).eq('organization_id', organizationId);
+      return json({ ok: true, token }, 200, headers);
+    }
+
+    if (action === 'refresh_status') {
+      const account = await accountForAction(admin, organizationId, user.id, asUuid(body.account_id), manage);
+      const credentials = await accountSecret(admin, account.integration_id);
+      let status: Row;
+      try {
+        status = await providerStatus(credentials);
+      } catch (error) {
+        const code = safeError(error).slice(0, 160);
+        await admin.from('whatsapp_accounts').update({
+          connection_status: 'error', status_checked_at: new Date().toISOString(), last_error_code: code,
+        }).eq('id', account.id).eq('organization_id', organizationId);
+        await admin.from('integrations').update({
+          connected: false, enabled: true, paused: false, last_error: code,
+          last_error_at: new Date().toISOString(), status_detail: 'Não foi possível validar a conta Z-API.',
+        }).eq('id', account.integration_id).eq('organization_id', organizationId);
+        throw error;
+      }
+      const connected = status.connected === true && status.smartphoneConnected === true;
+      const now = new Date().toISOString();
+      let webhookRegisteredAt: string | null = null;
+      if (connected) {
+        await registerWebhooks(account.integration_id, credentials);
+        webhookRegisteredAt = now;
+      }
+      const connectionStatus = connected
+        ? 'connected'
+        : status.connected === true
+          ? 'disconnected'
+          : asText(status.status, 40).toLowerCase() === 'expired'
+            ? 'expired'
+            : 'disconnected';
+      const suffix = phoneSuffix(status.phone ?? status.phoneNumber ?? status.connectedPhone ?? status.wid);
+      const routingEnabled = connected || account.enabled === true;
+      const { error: integrationError } = await admin.from('integrations').update({
+        connected,
+        enabled: routingEnabled,
+        paused: false,
+        last_tested_at: now,
+        last_success_at: connected ? now : null,
+        last_error: connected ? null : 'zapi_instance_not_connected',
+        last_error_at: connected ? null : now,
+        status_detail: connected
+          ? 'Conta Z-API conectada e callbacks registrados.'
+          : 'Credenciais válidas; aguardando conexão do WhatsApp.',
+        updated_at: now,
+      }).eq('id', account.integration_id).eq('organization_id', organizationId);
+      const { error: accountError } = await admin.from('whatsapp_accounts').update({
+        enabled: routingEnabled,
+        connection_status: connectionStatus,
+        connected_phone_suffix: suffix,
+        connected_at: connected ? now : null,
+        status_checked_at: now,
+        webhook_registered_at: webhookRegisteredAt,
+        last_error_code: connected ? null : 'zapi_instance_not_connected',
+        updated_at: now,
+      }).eq('id', account.id).eq('organization_id', organizationId);
+      if (integrationError || accountError) throw new Error('whatsapp_account_status_save_failed');
+      await admin.from('audit_logs').insert({
+        organization_id: organizationId,
+        actor_id: user.id,
+        actor_name: actorName,
+        actor_type: 'user',
+        action: connected ? 'whatsapp_account.connected' : 'whatsapp_account.connection_pending',
+        detail: connected
+          ? 'Conta operacional conectada e preparada para entrada e saída.'
+          : 'Conta operacional validada, mas ainda sem sessão WhatsApp conectada.',
+        entity_table: 'whatsapp_accounts',
+        entity_id: account.id,
+        event_data: { owner_user_id: account.owner_user_id, phone_suffix: suffix, webhooks_registered: connected },
+      });
+      return json({ ok: true, connected, connectionStatus, connectedPhoneSuffix: suffix }, 200, headers);
+    }
+
+    if (action === 'set_enabled') {
+      const account = await accountForAction(admin, organizationId, user.id, asUuid(body.account_id), manage);
+      const enabled = body.enabled === true;
+      if (account.is_default && !enabled) throw new Error('corporate_whatsapp_account_protected');
+      const now = new Date().toISOString();
+      const { error: integrationError } = await admin.from('integrations').update({
+        enabled,
+        status_detail: enabled ? 'Conta operacional habilitada.' : 'Conta operacional desativada pelo usuário.',
+        updated_at: now,
+      }).eq('id', account.integration_id).eq('organization_id', organizationId);
+      const { error: accountError } = await admin.from('whatsapp_accounts').update({ enabled, updated_at: now })
+        .eq('id', account.id).eq('organization_id', organizationId);
+      if (integrationError || accountError) throw new Error('whatsapp_account_toggle_failed');
+      await admin.from('audit_logs').insert({
+        organization_id: organizationId,
+        actor_id: user.id,
+        actor_name: actorName,
+        actor_type: 'user',
+        action: enabled ? 'whatsapp_account.enabled' : 'whatsapp_account.disabled',
+        detail: enabled ? 'Conta operacional habilitada.' : 'Conta operacional desativada sem remover o histórico.',
+        entity_table: 'whatsapp_accounts',
+        entity_id: account.id,
+        event_data: { owner_user_id: account.owner_user_id },
+      });
+      return json({ ok: true, enabled }, 200, headers);
+    }
+
+    throw new Error('unsupported_action');
+  } catch (error) {
+    return json({ ok: false, erro: safeError(error) }, 400, headers);
+  }
+});

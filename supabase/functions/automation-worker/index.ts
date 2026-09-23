@@ -1899,6 +1899,25 @@ Deno.serve(async (request) => {
         try {
           if (!["whatsapp", "email"].includes(channel))
             throw new Error("channel_not_supported");
+          const requestedIntegrationId = channel === "whatsapp"
+            ? asText(payload.integration_id, 80)
+            : "";
+          if (channel === "whatsapp" && requestedIntegrationId && !isUuid(requestedIntegrationId)) {
+            throw new Error("whatsapp_integration_id_invalid");
+          }
+          const channelIntegrationRead = requestedIntegrationId
+            ? admin
+              .from("integrations")
+              .select("id,provider,connected,enabled,paused,configuration")
+              .eq("organization_id", orgId)
+              .eq("id", requestedIntegrationId)
+              .maybeSingle()
+            : admin
+              .from("integrations")
+              .select("id,provider,connected,enabled,paused,configuration")
+              .eq("organization_id", orgId)
+              .eq("key", channel)
+              .maybeSingle();
           const initial = await Promise.all([
             admin
               .from("leads")
@@ -1925,12 +1944,7 @@ Deno.serve(async (request) => {
               .eq("organization_id", orgId)
               .eq("module_key", "configuracao_runtime")
               .maybeSingle(),
-            admin
-              .from("integrations")
-              .select("id,provider,connected,enabled,paused,configuration")
-              .eq("organization_id", orgId)
-              .eq("key", channel)
-              .maybeSingle(),
+            channelIntegrationRead,
           ]);
           if (initial.some((x) => x.error))
             throw new Error("dispatch_safety_read_failed");
@@ -1941,6 +1955,19 @@ Deno.serve(async (request) => {
             { data: runtime },
             { data: integration },
           ] = initial;
+          if (channel === "whatsapp" && requestedIntegrationId) {
+            const requestedAccountId = asText(payload.whatsapp_account_id, 80);
+            if (!isUuid(requestedAccountId)) throw new Error("whatsapp_account_id_invalid");
+            const { data: account, error: accountError } = await admin
+              .from("whatsapp_accounts")
+              .select("id")
+              .eq("id", requestedAccountId)
+              .eq("organization_id", orgId)
+              .eq("integration_id", requestedIntegrationId)
+              .is("archived_at", null)
+              .maybeSingle();
+            if (accountError || !account) throw new Error("whatsapp_account_integration_mismatch");
+          }
           const controlledSandboxTest =
             manual &&
             company?.sandbox_mode === true &&
@@ -2229,6 +2256,9 @@ Deno.serve(async (request) => {
                 lead_id: job.lead_id,
                 owner_id: lead.owner_id,
                 channel,
+                whatsapp_account_id: channel === "whatsapp"
+                  ? asText(payload.whatsapp_account_id, 80) || null
+                  : null,
                 status: "pending",
                 provider,
                 content: message,

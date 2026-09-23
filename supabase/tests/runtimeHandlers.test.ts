@@ -17,10 +17,11 @@ vi.mock('../functions/_shared/auth.ts', () => ({
 const org = 'a1111111-1111-4111-8111-111111111111';
 const leadId = 'b1111111-1111-4111-8111-111111111111';
 const integrationId = 'c1111111-1111-4111-8111-111111111111';
+const whatsappAccountId = 'e2222222-2222-4222-8222-222222222222';
 const anaConfigurationVersionId = 'd1111111-1111-4111-8111-111111111111';
 const readyCompany = { active: true, sandbox_mode: false, can_use_ia: true, ai_actions_enabled: true };
 const readyIntegration = { id: integrationId, organization_id: org, provider: 'zapi', enabled: true, connected: true, paused: false };
-const readyLead = { id: leadId, organization_id: org, owner_id: 'owner', assigned_to: 'owner', modo_atendimento: 'ia', ai_paused: false, opt_out: false, contact_approval_status: 'approved', ana_stage: 'novo', score: 0, active_channel: 'whatsapp', phone: '(11) 99999-0000', first_inbound_at: null };
+const readyLead = { id: leadId, organization_id: org, owner_id: 'owner', assigned_to: 'owner', modo_atendimento: 'ia', ai_paused: false, opt_out: false, contact_approval_status: 'approved', ana_stage: 'novo', score: 0, active_channel: 'whatsapp', phone: '(11) 99999-0000', first_inbound_at: null, whatsapp_account_id: whatsappAccountId };
 const readyAnaConfiguration = {
   dailyMessageLimit: 5,
   allowedChannels: ['whatsapp', 'email'],
@@ -52,7 +53,8 @@ function execute(query: Query): Result {
   const overridden = override?.(query);
   if (overridden) return overridden;
   if (query.operation === 'rpc') {
-    if (query.table === 'resolve_whatsapp_lead') return ok([{ lead_id: leadId, reason: 'unique_phone_identity' }]);
+    if (query.table === 'resolve_whatsapp_lead_for_account') return ok([{ lead_id: leadId, reason: 'account_identity' }]);
+    if (query.table === 'resolve_lead_whatsapp_account') return ok([{ account_id: whatsappAccountId, integration_id: integrationId, owner_user_id: null, is_default: true, connection_status: 'connected' }]);
     if (query.table === 'reserve_ana_outbound_policy') return ok([{ allowed: true, reason: 'ana_policy_reserved', used_count: 1 }]);
     if (query.table === 'record_outreach_provider_acceptance') {
       acceptedLeadState = {
@@ -75,6 +77,9 @@ function execute(query: Query): Result {
     }
     case 'lead_handoffs': return ok(null);
     case 'integrations': return ok(readyIntegration);
+    case 'whatsapp_accounts': return 'owner_user_id' in query.filters
+      ? ok([])
+      : ok({ id: whatsappAccountId, integration_id: integrationId, owner_user_id: null, is_default: true, enabled: true, connection_status: 'connected', archived_at: null });
     case 'agent_runs': return ok(null);
     case 'lead_messages': return ok([{ sender: 'lead', type: 'received', text: 'Qual o valor?', sent_at: '2026-09-08T00:00:00Z' }]);
     case 'ai_agents': return ok({ active_version_id: anaConfigurationVersionId });
@@ -173,6 +178,9 @@ describe('Team member identity deletion', () => {
       'website_entry.manage': false,
       'team.manage': false,
       'audit.view': false,
+      'channels.view_own': true,
+      'channels.connect_own': true,
+      'channels.manage_all': false,
     };
 
     await import('../functions/team-members/index');
@@ -672,14 +680,14 @@ describe('Webhook handler contract — synthetic callbacks', () => {
     expect(calls.find((q) => q.table === 'channel_inbound_events' && q.operation === 'update')?.value?.status).toBe('failed');
   });
   it('does not pick one of two leads sharing a phone number', async () => {
-    override = (q) => q.table === 'resolve_whatsapp_lead' ? ok([{ lead_id: null, reason: 'ambiguous_identity' }]) : undefined;
+    override = (q) => q.table === 'resolve_whatsapp_lead_for_account' ? ok([{ lead_id: null, reason: 'ambiguous_identity' }]) : undefined;
     await import('../functions/webhook-whatsapp/index');
     expect(await (await handler(webhookRequest())).json()).toMatchObject({ accepted: true, matched: false, resolution: 'ambiguous_identity' });
     expect(calls.find((q) => q.table === 'webhook_events' && q.operation === 'update')?.value).toMatchObject({ status: 'failed', error: 'lead_identity_ambiguous' });
     expect(fetchMock).not.toHaveBeenCalled();
   });
   it('records unmatched without the invalid unmatched status', async () => {
-    override = (q) => q.table === 'resolve_whatsapp_lead' ? ok([{ lead_id: null, reason: 'not_found' }]) : undefined;
+    override = (q) => q.table === 'resolve_whatsapp_lead_for_account' ? ok([{ lead_id: null, reason: 'not_found' }]) : undefined;
     await import('../functions/webhook-whatsapp/index');
     expect(await (await handler(webhookRequest())).json()).toMatchObject({ matched: false });
     expect(calls.find((q) => q.table === 'webhook_events' && q.operation === 'update')?.value).toMatchObject({ status: 'failed', error: 'lead_not_matched' });
@@ -687,7 +695,7 @@ describe('Webhook handler contract — synthetic callbacks', () => {
   });
   it('creates a lead only for a matching active site-entry marker and hides the marker from the conversation', async () => {
     override = (q) => {
-      if (q.table === 'resolve_whatsapp_lead') return ok([{ lead_id: null, reason: 'not_found' }]);
+      if (q.table === 'resolve_whatsapp_lead_for_account') return ok([{ lead_id: null, reason: 'not_found' }]);
       if (q.table === 'whatsapp_site_entries') return ok({ id: 'site-entry-1', source_label: 'Formulário institucional' });
       return undefined;
     };
@@ -878,7 +886,7 @@ describe('Central manual WhatsApp gateway', () => {
     const response = await handler(manualWhatsAppRequest({ teste_controlado: true }));
     expect(response.status).toBe(202);
     expect(await response.json()).toMatchObject({ ok: true, teste_controlado: true });
-    expect(calls.find((q) => q.table === 'integrations' && q.operation === 'select')?.filters).toMatchObject({ key: 'whatsapp' });
+    expect(calls.find((q) => q.table === 'integrations' && q.operation === 'select')?.filters).toMatchObject({ id: integrationId });
     expect(calls.find((q) => q.table === 'queue_human_whatsapp_message' && q.operation === 'rpc')?.value).toMatchObject({
       p_controlled_test: true,
       p_organization_id: org,

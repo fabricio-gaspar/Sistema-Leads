@@ -263,8 +263,9 @@ Deno.serve(async (request) => {
       const requested = body.permissions;
       if (!requested || typeof requested !== 'object' || Array.isArray(requested)) throw new Error('permissions_required');
       const permissionMap = requested as Record<string, unknown>;
+      const defaults = defaultPermissionsForRole(current.role);
       const values = organizationPermissions.map((permission) => {
-        const allowed = permissionMap[permission];
+        const allowed = permissionMap[permission] ?? defaults[permission];
         if (typeof allowed !== 'boolean') throw new Error('invalid_permission_value');
         return { organization_id: organizationId, user_id: targetUserId, permission, allowed, updated_at: new Date().toISOString() };
       });
@@ -376,9 +377,41 @@ Deno.serve(async (request) => {
     if (otherOrganizationError) throw otherOrganizationError;
     if ((otherOrganizationCount ?? 0) > 0) throw new Error('member_linked_to_another_organization');
 
+    // A conta operacional pertence à identidade do vendedor. Arquivá-la antes
+    // da remoção evita que uma sessão antiga seja roteada para um usuário
+    // recriado com o mesmo e-mail, sem apagar o histórico das conversas.
+    const { data: ownedWhatsappAccounts, error: ownedAccountsError } = await admin.from('whatsapp_accounts')
+      .select('id,integration_id,enabled,archived_at')
+      .eq('organization_id', organizationId).eq('owner_user_id', targetUserId).is('archived_at', null);
+    if (ownedAccountsError) throw new Error('member_whatsapp_accounts_read_failed');
+    const integrationIds = (ownedWhatsappAccounts ?? []).map((account) => account.integration_id);
+    const archivedAt = new Date().toISOString();
+    if (integrationIds.length) {
+      const { error: integrationsDisableError } = await admin.from('integrations').update({
+        enabled: false, paused: true,
+        status_detail: 'Conta arquivada após remoção definitiva do usuário.',
+        updated_at: archivedAt,
+      }).eq('organization_id', organizationId).in('id', integrationIds);
+      if (integrationsDisableError) throw new Error('member_whatsapp_accounts_archive_failed');
+      const { error: accountsArchiveError } = await admin.from('whatsapp_accounts').update({
+        enabled: false, archived_at: archivedAt, updated_at: archivedAt,
+      }).eq('organization_id', organizationId).eq('owner_user_id', targetUserId).is('archived_at', null);
+      if (accountsArchiveError) throw new Error('member_whatsapp_accounts_archive_failed');
+    }
+
     const { error: deleteUserError } = await admin.auth.admin.deleteUser(targetUserId);
-    if (deleteUserError) throw new Error('member_identity_deletion_failed');
-    await admin.from('audit_logs').insert({ organization_id: organizationId, actor_id: user.id, actor_name: profile.name, actor_type: 'user', action: 'team.member_deleted', detail: 'Identidade do membro removida definitivamente.', entity_table: 'organization_members', event_data: { user_id: targetUserId } });
+    if (deleteUserError) {
+      if ((ownedWhatsappAccounts ?? []).length) {
+        await Promise.all((ownedWhatsappAccounts ?? []).map(async (account) => {
+          await admin.from('whatsapp_accounts').update({ enabled: account.enabled, archived_at: account.archived_at })
+            .eq('id', account.id).eq('organization_id', organizationId);
+          await admin.from('integrations').update({ enabled: account.enabled, paused: false })
+            .eq('id', account.integration_id).eq('organization_id', organizationId);
+        }));
+      }
+      throw new Error('member_identity_deletion_failed');
+    }
+    await admin.from('audit_logs').insert({ organization_id: organizationId, actor_id: user.id, actor_name: profile.name, actor_type: 'user', action: 'team.member_deleted', detail: 'Identidade do membro removida definitivamente; contas operacionais foram arquivadas.', entity_table: 'organization_members', event_data: { user_id: targetUserId, whatsapp_accounts_archived: (ownedWhatsappAccounts ?? []).length } });
     return json({ ok: true, deleted_identity: true }, 200, headers);
   } catch (error) {
     return json({ ok: false, erro: safeError(error) }, 400, headers);

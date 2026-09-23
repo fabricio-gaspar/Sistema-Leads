@@ -7,11 +7,15 @@ import { useSaudeWhatsapp } from '@/hooks/useSaudeWhatsapp';
 import { useOperationalMode } from '@/hooks/useOperationalMode';
 import SaudeWhatsappIndicator from '@/components/feature/SaudeWhatsappIndicator';
 import ModoExecucaoToggle from '@/components/feature/ModoExecucaoToggle';
+import { useCurrentAccess } from '@/hooks/useCurrentAccess';
+import { hasAnyPermission } from '@/lib/crm/currentAccessRepository';
+import { roleLabel, type TeamPermission } from '@/lib/crm/teamMembersRepository';
 
 interface NavItem {
   label: string;
   path: string;
   icon: string;
+  anyOf?: TeamPermission[];
 }
 
 interface NavSection {
@@ -27,30 +31,31 @@ const navSections: NavSection[] = [
   {
     title: 'Prospecção',
     items: [
-      { label: 'Busca de Leads', path: '/dashboard/busca-leads', icon: 'ri-search-eye-line' },
-      { label: 'Leads', path: '/dashboard/leads', icon: 'ri-user-search-line' },
+      { label: 'Busca de Leads', path: '/dashboard/busca-leads', icon: 'ri-search-eye-line', anyOf: ['prospecting.manage'] },
+      { label: 'Leads', path: '/dashboard/leads', icon: 'ri-user-search-line', anyOf: ['leads.read_all', 'leads.read_assigned', 'leads.create'] },
     ],
   },
   {
     title: 'Atendimento',
     items: [
-      { label: 'Kanban', path: '/dashboard/kanban', icon: 'ri-layout-masonry-line' },
-      { label: 'Central de Atendimento', path: '/dashboard/atendimento', icon: 'ri-customer-service-2-line' },
-      { label: 'Agenda', path: '/dashboard/agenda', icon: 'ri-calendar-event-line' },
+      { label: 'Kanban', path: '/dashboard/kanban', icon: 'ri-layout-masonry-line', anyOf: ['leads.read_all', 'leads.read_assigned'] },
+      { label: 'Central de Atendimento', path: '/dashboard/atendimento', icon: 'ri-customer-service-2-line', anyOf: ['conversations.read_all', 'conversations.reply_all', 'conversations.reply_assigned'] },
+      { label: 'Meu WhatsApp', path: '/dashboard/meu-whatsapp', icon: 'ri-whatsapp-line', anyOf: ['channels.view_own', 'channels.manage_all', 'configuration.manage'] },
+      { label: 'Agenda', path: '/dashboard/agenda', icon: 'ri-calendar-event-line', anyOf: ['conversations.read_all', 'conversations.reply_all', 'conversations.reply_assigned'] },
     ],
   },
   {
     title: 'Comercial',
     items: [
-      { label: 'Orçamentos', path: '/dashboard/orcamentos', icon: 'ri-file-list-3-line' },
-      { label: 'Funil', path: '/dashboard/funil', icon: 'ri-filter-3-line' },
-      { label: 'Relatórios', path: '/dashboard/relatorios', icon: 'ri-bar-chart-line' },
+      { label: 'Orçamentos', path: '/dashboard/orcamentos', icon: 'ri-file-list-3-line', anyOf: ['proposals.manage'] },
+      { label: 'Funil', path: '/dashboard/funil', icon: 'ri-filter-3-line', anyOf: ['leads.read_all', 'leads.read_assigned'] },
+      { label: 'Relatórios', path: '/dashboard/relatorios', icon: 'ri-bar-chart-line', anyOf: ['leads.read_all', 'leads.read_assigned'] },
     ],
   },
   {
     title: 'Administração',
     items: [
-      { label: 'Configurações', path: '/dashboard/configuracoes', icon: 'ri-settings-4-line' },
+      { label: 'Configurações', path: '/dashboard/configuracoes', icon: 'ri-settings-4-line', anyOf: ['configuration.manage'] },
     ],
   },
 ];
@@ -88,15 +93,21 @@ export default function DashboardLayout() {
   const { user, loading, logout } = useAuth();
   const notif = useNotificacoesStore();
   const tarefas = useTarefasStore();
+  const { access } = useCurrentAccess();
   const saude = useSaudeWhatsapp();
   const { mode: operationalMode } = useOperationalMode();
   const filteredSections = useMemo(() => {
     const query = navQuery.trim().toLocaleLowerCase('pt-BR');
-    if (!query) return navSections;
     return navSections
-      .map((section) => ({ ...section, items: section.items.filter((item) => item.label.toLocaleLowerCase('pt-BR').includes(query)) }))
+      .map((section) => ({
+        ...section,
+        items: section.items.filter((item) => {
+          const allowed = !item.anyOf || hasAnyPermission(access, item.anyOf);
+          return allowed && (!query || item.label.toLocaleLowerCase('pt-BR').includes(query));
+        }),
+      }))
       .filter((section) => section.items.length > 0);
-  }, [navQuery]);
+  }, [access, navQuery]);
 
   if (loading) {
     return (
@@ -118,7 +129,9 @@ export default function DashboardLayout() {
   const naoLidas = notif.naoLidas;
   const tarefasPendentes = tarefas.tarefas.filter((t) => !t.concluida).length;
   const badgeAtencao = naoLidas + tarefasPendentes;
-  const currentPage = navItems.find((item) => item.path === location.pathname) ?? navItems[0];
+  const allowedItems = filteredSections.flatMap((section) => section.items);
+  const currentPage = allowedItems.find((item) => item.path === location.pathname) ?? navItems[0];
+  const canConfigure = hasAnyPermission(access, ['configuration.manage']);
 
   return (
     <div className="flex h-screen bg-background-100">
@@ -213,7 +226,7 @@ export default function DashboardLayout() {
             {sidebarOpen && (
               <div className="flex-1 min-w-0 text-left">
                 <p className="text-foreground-900 text-sm font-medium truncate">{user.name}</p>
-                <p className="text-foreground-400 text-xs truncate">{user.role}</p>
+                <p className="text-foreground-400 text-xs truncate">{access ? roleLabel[access.role] : user.role}</p>
               </div>
             )}
             {sidebarOpen && (
@@ -260,9 +273,9 @@ export default function DashboardLayout() {
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
-            <ModoExecucaoToggle />
+            {canConfigure && <ModoExecucaoToggle />}
 
-            <SaudeWhatsappIndicator />
+            {canConfigure && <SaudeWhatsappIndicator />}
 
             {/* Notificações */}
             <div className="relative">
@@ -394,9 +407,9 @@ export default function DashboardLayout() {
               )}
             </div>
 
-            <Link to="/dashboard/configuracoes" aria-label="Abrir configurações" className="hidden sm:flex w-9 h-9 items-center justify-center rounded-lg bg-background-100 hover:bg-background-200 cursor-pointer transition-colors">
+            {canConfigure && <Link to="/dashboard/configuracoes" aria-label="Abrir configurações" className="hidden sm:flex w-9 h-9 items-center justify-center rounded-lg bg-background-100 hover:bg-background-200 cursor-pointer transition-colors">
               <i className="ri-question-line text-foreground-600 text-lg"></i>
-            </Link>
+            </Link>}
           </div>
         </header>
 
@@ -405,7 +418,7 @@ export default function DashboardLayout() {
           <div className="flex flex-shrink-0 flex-wrap items-center gap-2 bg-[#FF9500] px-4 py-2 text-xs font-medium text-white sm:px-6">
             <i className="ri-shield-check-line" />
             <span className="leading-5">AMBIENTE REAL EM PREPARAÇÃO — saídas automáticas permanecem bloqueadas até as verificações do backend serem concluídas.</span>
-            <Link to="/dashboard/configuracoes?tab=operacao" className="ml-auto cursor-pointer whitespace-nowrap underline underline-offset-2 hover:opacity-80">Ver status operacional</Link>
+            {canConfigure && <Link to="/dashboard/configuracoes?tab=operacao" className="ml-auto cursor-pointer whitespace-nowrap underline underline-offset-2 hover:opacity-80">Ver status operacional</Link>}
           </div>
         )}
 

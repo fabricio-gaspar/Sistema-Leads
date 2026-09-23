@@ -39,7 +39,7 @@ Deno.serve(async (request) => {
     const organizationId = profile.active_organization_id as string;
     const { data: membership } = await admin.from('organization_members').select('role,status').eq('organization_id', organizationId).eq('user_id', user.id).maybeSingle();
     if (!membership || membership.status !== 'active') throw new Error('organization_access_denied');
-    const { data: lead } = await admin.from('leads').select('id,opt_out,last_contact,owner_id,assigned_to').eq('id', leadId).eq('organization_id', organizationId).maybeSingle();
+    const { data: lead } = await admin.from('leads').select('id,opt_out,last_contact,owner_id,assigned_to,whatsapp_account_id').eq('id', leadId).eq('organization_id', organizationId).maybeSingle();
     if (!lead) throw new Error('lead_not_found');
     const elevated = ['owner', 'admin', 'administrador', 'manager', 'gerente', 'sdr', 'cx'].includes(String(membership.role));
     if (!elevated && lead.owner_id !== user.id && lead.assigned_to !== user.id) throw new Error('lead_access_denied');
@@ -79,8 +79,14 @@ Deno.serve(async (request) => {
     const controlledSandboxTest = company.sandbox_mode === true && controlledTestRequested;
     if (company.sandbox_mode !== false && !controlledSandboxTest) throw new Error('operational_mode_protected');
     if (controlledSandboxTest) await requireOrganizationRole(admin, user.id, organizationId, ['owner', 'admin', 'manager']);
+    const { data: accountRows, error: accountError } = await admin.rpc('resolve_lead_whatsapp_account', {
+      p_organization_id: organizationId,
+      p_lead_id: lead.id,
+    });
+    const account = firstRow(accountRows);
+    if (accountError || !account?.integration_id || !account?.account_id) throw new Error('whatsapp_account_not_configured');
     const { data: integration } = await admin.from('integrations').select('id,key,provider,connected,enabled,paused')
-      .eq('organization_id', organizationId).eq('key', 'whatsapp').maybeSingle();
+      .eq('organization_id', organizationId).eq('id', account.integration_id).maybeSingle();
     if (!integration?.connected || !integration.enabled || integration.paused) throw new Error('whatsapp_integration_not_ready');
     const { data: blockingPolicy } = await admin.from('channel_policy_events')
       .select('id,risk_level,action').eq('organization_id', organizationId).eq('channel', 'whatsapp')
@@ -117,7 +123,7 @@ Deno.serve(async (request) => {
         action: controlledSandboxTest ? 'outreach.whatsapp_controlled_test_queued' : 'outreach.whatsapp_queued',
         detail: controlledSandboxTest ? 'Teste controlado colocado na fila segura.' : 'Mensagem colocada na fila segura.',
         entity_table: 'outreach_jobs', entity_id: queued.job_id,
-        event_data: { lead_id: lead.id, integration_id: integration.id, request_id: requestId, controlled_test: controlledSandboxTest, catalog_item_id: catalogItemId || null, catalog_presentation_format: catalogPresentationFormat || null, catalog_send_image: catalogSendImage },
+        event_data: { lead_id: lead.id, integration_id: integration.id, whatsapp_account_id: account.account_id, request_id: requestId, controlled_test: controlledSandboxTest, catalog_item_id: catalogItemId || null, catalog_presentation_format: catalogPresentationFormat || null, catalog_send_image: catalogSendImage },
       });
     }
     return json({

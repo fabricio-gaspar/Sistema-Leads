@@ -1212,3 +1212,24 @@ webhook em ambiente controlado.
   genéricas e a transferência com destinatário vazio por padrão e confirmação desabilitada até a
   escolha explícita. O console da Central não registrou erros. Essa validação não enviou mensagem,
   não transferiu atendimento e não alterou dados operacionais.
+
+## 2026-09-23 — WhatsApp corporativo e contas operacionais por vendedor
+
+- A conta Z-API corporativa existente permanece padrão e fallback; nenhum fluxo homologado foi
+  substituído. `whatsapp_accounts` guarda apenas metadados e referencia a integração cujos segredos
+  continuam no Vault. Leads e todos os registros do ciclo de mensagem carregam a conta usada.
+- O administrador configura uma instância Z-API já existente em **Configurações > Usuários >
+  WhatsApp operacional** e mantém visão global. O vendedor com permissões explícitas acessa **Meu
+  WhatsApp** para conectar apenas sua conta com o SDK oficial, QR/telefone e token descartável.
+- A resolução de conta é server-side: responsável com conta saudável, senão corporativa. Depois do
+  primeiro vínculo, a conversa não troca de remetente silenciosamente. Entrada usa matching limitado
+  à conta receptora e bloqueia ambiguidade; saída valida conta, integração e organização no worker.
+- `ana-run` permanece a única autoridade automática. Simulação ou bloqueio não fixa conta; uma
+  execução real fixa a conta imediatamente antes da mutação e a inclui na fila auditável.
+- Produção Supabase: migrations `20260923193000_multi_whatsapp_seller_accounts` e
+  `20260923214500_multi_whatsapp_fk_indexes`; versões `whatsapp-accounts` v1, `team-members` v9,
+  `enviar-whatsapp` v9, `ana-run` v35, `automation-worker` v32 e `webhook-whatsapp` v18.
+- Verificação aprovada: type-check frontend/Edge, lint, build Vite, artefato Sites e Vitest completo
+  (31 arquivos/227 testes). Não houve envio, webhook artificial, alteração de lead nem criação de
+  instância/plano. O estado auditado não possui vendedor ou instância individual; a primeira conexão
+  QR e o fluxo ponta a ponta individual continuam como homologação externa obrigatória.

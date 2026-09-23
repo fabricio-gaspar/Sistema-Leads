@@ -61,6 +61,10 @@ const asObject = (value: unknown): Record<string, unknown> => value && typeof va
 const asText = (value: unknown, max = 4_000) => typeof value === 'string' ? value.trim().slice(0, max) : '';
 const asScore = (value: unknown) => typeof value === 'number' && Number.isFinite(value) ? Math.max(0, Math.min(100, Math.round(value))) : 0;
 const isUuid = (value: string) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+const firstRow = (value: unknown): Record<string, unknown> | null => {
+  const candidate = Array.isArray(value) ? value[0] : value;
+  return candidate && typeof candidate === 'object' ? candidate as Record<string, unknown> : null;
+};
 const sameInstant = (left: unknown, right: unknown) => {
   const leftTime = Date.parse(asText(left, 64));
   const rightTime = Date.parse(asText(right, 64));
@@ -266,8 +270,14 @@ async function isAuthenticatedInternalRequest(
   const integrationId = asText(body.source_integration_id, 80);
   if (!supplied || !isUuid(organizationId) || !isUuid(integrationId)) return false;
   const { data: integration, error: integrationError } = await admin.from('integrations')
-    .select('id').eq('id', integrationId).eq('organization_id', organizationId).eq('key', 'whatsapp').maybeSingle();
+    .select('id,key').eq('id', integrationId).eq('organization_id', organizationId).maybeSingle();
   if (integrationError || !integration) return false;
+  if (integration.key !== 'whatsapp') {
+    const { data: account, error: accountError } = await admin.from('whatsapp_accounts')
+      .select('id').eq('organization_id', organizationId).eq('integration_id', integration.id)
+      .is('archived_at', null).maybeSingle();
+    if (accountError || !account) return false;
+  }
   const { data: storedSecret, error: secretError } = await admin.rpc('read_integration_secret', { p_integration: integration.id });
   if (secretError) return false;
   return secureEqual(supplied, asText(asObject(storedSecret).webhook_token, 1_000));
@@ -578,7 +588,7 @@ Deno.serve(async (request) => {
     }
 
     const { data: lead, error: leadError } = await admin.from('leads')
-      .select('id,organization_id,company,contact,segment,email,phone,whatsapp,score,stage,ana_stage,ana_outcome,modo_atendimento,owner_id,assigned_to,active_channel,ai_paused,opt_out,contact_approval_status,last_contact,no_reply_deadline_at')
+      .select('id,organization_id,company,contact,segment,email,phone,whatsapp,score,stage,ana_stage,ana_outcome,modo_atendimento,owner_id,assigned_to,active_channel,whatsapp_account_id,ai_paused,opt_out,contact_approval_status,last_contact,no_reply_deadline_at')
       .eq('id', leadId).eq('organization_id', organizationId).maybeSingle();
     if (leadError || !lead) throw new Error('lead_not_found');
     const { data: handoffPolicy, error: handoffPolicyError } = await admin.from('lead_handoff_policies')
@@ -632,10 +642,51 @@ Deno.serve(async (request) => {
     }
 
     const activeChannel = canonicalChannel(lead.active_channel);
+    let whatsappAccount: Record<string, unknown> | null = null;
+    if (activeChannel === 'whatsapp') {
+      let selectedAccount: Record<string, unknown> | null = null;
+      if (lead.whatsapp_account_id) {
+        const { data: account, error: accountError } = await admin.from('whatsapp_accounts')
+          .select('id,integration_id,connection_status').eq('organization_id', organizationId)
+          .eq('id', lead.whatsapp_account_id).is('archived_at', null).maybeSingle();
+        if (accountError) throw new Error('whatsapp_account_read_failed');
+        selectedAccount = account as Record<string, unknown> | null;
+      } else {
+        const responsibleIds = [...new Set([lead.assigned_to, lead.owner_id].filter((id) => isUuid(asText(id, 80))))];
+        if (responsibleIds.length) {
+          const { data: sellerAccounts, error: sellerError } = await admin.from('whatsapp_accounts')
+            .select('id,integration_id,owner_user_id,connection_status,updated_at')
+            .eq('organization_id', organizationId).eq('account_type', 'seller').eq('enabled', true)
+            .is('archived_at', null).in('owner_user_id', responsibleIds).order('updated_at', { ascending: false });
+          if (sellerError) throw new Error('whatsapp_account_read_failed');
+          const candidates = (sellerAccounts ?? []) as Record<string, unknown>[];
+          selectedAccount = candidates.find((account) => account.owner_user_id === lead.assigned_to)
+            ?? candidates.find((account) => account.owner_user_id === lead.owner_id)
+            ?? null;
+        }
+        if (!selectedAccount) {
+          const { data: corporateAccount, error: corporateError } = await admin.from('whatsapp_accounts')
+            .select('id,integration_id,connection_status').eq('organization_id', organizationId)
+            .eq('is_default', true).is('archived_at', null).maybeSingle();
+          if (corporateError) throw new Error('whatsapp_account_read_failed');
+          selectedAccount = corporateAccount as Record<string, unknown> | null;
+        }
+      }
+      whatsappAccount = selectedAccount?.id
+        ? { ...selectedAccount, account_id: selectedAccount.id }
+        : null;
+    }
+    const channelRead = !activeChannel
+      ? Promise.resolve({ data: null, error: null })
+      : activeChannel === 'whatsapp' && whatsappAccount?.integration_id
+        ? admin.from('integrations').select('id,connected,enabled,paused')
+          .eq('organization_id', organizationId).eq('id', whatsappAccount.integration_id).maybeSingle()
+        : admin.from('integrations').select('id,connected,enabled,paused')
+          .eq('organization_id', organizationId).eq('key', activeChannel).maybeSingle();
     const contextReads = await Promise.all([
       admin.from('company_settings').select('name,description,segment,website,phone,email,active,sandbox_mode,can_use_ia,ai_actions_enabled,ana_operation_enabled,ana_operation_mode').eq('organization_id', organizationId).maybeSingle(),
       admin.from('lead_messages').select('id,sender,sender_name,type,text,sent_at').eq('organization_id', organizationId).eq('lead_id', leadId).order('sent_at', { ascending: false }).limit(20),
-      activeChannel ? admin.from('integrations').select('connected,enabled,paused').eq('organization_id', organizationId).eq('key', activeChannel).maybeSingle() : Promise.resolve({ data: null, error: null }),
+      channelRead,
       admin.from('ai_agents').select('active_version_id').eq('organization_id', organizationId).eq('key', 'ana').maybeSingle(),
       admin.from('services').select('id,name,category,description,price,unit,term,max_discount').eq('organization_id', organizationId).eq('active', true).limit(50),
       admin.from('knowledge_catalog_items').select('id,item_type,name,short_description,technical_description,category,material,applications,keywords,image_url').eq('organization_id', organizationId).eq('status', 'active').eq('ana_enabled', true).not('image_url', 'is', null).limit(80),
@@ -647,7 +698,8 @@ Deno.serve(async (request) => {
       admin.from('organization_module_data').select('data').eq('organization_id', organizationId).eq('module_key', 'configuracao_runtime').maybeSingle(),
     ]);
     for (const read of contextReads) if (read.error) throw new Error('ana_context_read_failed');
-    const [{ data: company }, { data: messages }, { data: channel }, { data: agent }, { data: catalog }, { data: catalogItems }, { data: knowledge }, { data: appointments }, { data: suppressions }, { data: aiIntegration }, { data: runtime }] = contextReads;
+    const [{ data: company }, { data: messages }, { data: initialChannel }, { data: agent }, { data: catalog }, { data: catalogItems }, { data: knowledge }, { data: appointments }, { data: suppressions }, { data: aiIntegration }, { data: runtime }] = contextReads;
+    let channel = initialChannel;
     const operationMode = company?.ana_operation_enabled === true ? asText(company.ana_operation_mode, 20) : 'automatic';
     const supervised = operationMode === 'supervised';
     const dryRun = requestedDryRun || operationMode === 'simulation';
@@ -840,6 +892,24 @@ Deno.serve(async (request) => {
       && !policyHandoffReason
       && modo !== 'humano'
       && !requiresHumanReview(decision.mensagem_sugerida);
+    if (activeChannel === 'whatsapp' && !dryRun && !supervised) {
+      const { data: accountRows, error: accountError } = await admin.rpc('resolve_lead_whatsapp_account', {
+        p_organization_id: organizationId,
+        p_lead_id: leadId,
+      });
+      const resolvedAccount = firstRow(accountRows);
+      if (accountError || !resolvedAccount?.integration_id || !resolvedAccount?.account_id) {
+        throw new Error('whatsapp_account_not_configured');
+      }
+      if (resolvedAccount.integration_id !== whatsappAccount?.integration_id) {
+        const { data: resolvedChannel, error: resolvedChannelError } = await admin.from('integrations')
+          .select('id,connected,enabled,paused').eq('organization_id', organizationId)
+          .eq('id', resolvedAccount.integration_id).maybeSingle();
+        if (resolvedChannelError) throw new Error('whatsapp_account_read_failed');
+        channel = resolvedChannel;
+      }
+      whatsappAccount = resolvedAccount;
+    }
     const channelConnected = !dryRun && Boolean(channel?.connected && channel?.enabled && !channel?.paused);
     const catalogMediaSelection: CatalogMediaSelectionInput = {
       enabled: agentConfiguration.catalogMediaImagesEnabled === true,
@@ -910,6 +980,9 @@ Deno.serve(async (request) => {
       const { data: message, error: messageError } = await admin.from('lead_messages').insert({
         organization_id: organizationId, lead_id: leadId, sender: 'ana', sender_name: 'Ana',
         type: channelConnected ? 'draft' : 'pending_channel', text: decision.mensagem_sugerida, sent_at: null,
+        ...(activeChannel === 'whatsapp' && whatsappAccount?.account_id
+          ? { whatsapp_account_id: whatsappAccount.account_id }
+          : {}),
       }).select('id').single();
       if (messageError || !message) throw messageError ?? new Error('message_not_created');
       let catalogImageMedia: { catalogItemId: string; itemName: string; presentationFormat: 'commercial' | 'technical' | 'document' } | null = null;
@@ -967,6 +1040,9 @@ Deno.serve(async (request) => {
           : null;
         const { error: queueError } = await admin.from('outreach_jobs').upsert({
           organization_id: organizationId, lead_id: leadId, channel: activeChannel,
+          ...(activeChannel === 'whatsapp' && whatsappAccount?.account_id
+            ? { whatsapp_account_id: whatsappAccount.account_id }
+            : {}),
           run_at: new Date().toISOString(), status: 'queued', attempt: 0,
           idempotency_key: `${runId}:message`, payload: {
             text: decision.mensagem_sugerida,
@@ -974,6 +1050,10 @@ Deno.serve(async (request) => {
             message_id: message.id,
             context_last_contact: update.last_contact,
             configuration_version_id: configurationVersionId,
+            ...(activeChannel === 'whatsapp' && whatsappAccount?.integration_id && whatsappAccount?.account_id ? {
+              integration_id: whatsappAccount.integration_id,
+              whatsapp_account_id: whatsappAccount.account_id,
+            } : {}),
             ...(catalogImageMedia ? {
               media: { type: 'image', catalog_item_id: catalogImageMedia.catalogItemId },
               catalog_item_id: catalogImageMedia.catalogItemId,
