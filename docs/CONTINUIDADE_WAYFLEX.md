@@ -1083,3 +1083,22 @@ webhook em ambiente controlado.
 - Verificação concluída: type-check frontend/Edge, lint, Vitest completo (28 arquivos/211 testes),
   build/artefato Sites, Dashboard/Canais/APIs em desktop e mobile e console sem warnings/errors.
   Nenhum lead, mensagem, fila, credencial, configuração remota ou execução da Ana foi modificado.
+
+## 2026-09-23 — Reparo do despachante server-side de apresentações da Ana
+
+- A causa da apresentação permanecer em fila foi comprovada no banco: o cron era disparado a
+  cada minuto, mas a requisição HTTP recebia `401 UNAUTHORIZED_NO_AUTH_HEADER` antes de entrar
+  em `automation-worker`. O cron não possui sessão de usuário; a versão publicada mantinha a
+  checagem de JWT do gateway ligada, apesar de o handler já validar o token rotativo por
+  organização guardado no Vault.
+- `automation-worker` foi republicada como v30 com `verify_jwt=false`, conforme
+  `supabase/config.toml`. A função não se tornou pública: chamadas do cron continuam exigindo o
+  token rotativo do Vault, e chamadas manuais continuam exigindo sessão autenticada e papel
+  administrativo no próprio handler.
+- Homologação controlada: o job WhatsApp pendente foi consumido uma única vez; a Z-API aceitou
+  a mensagem, o histórico foi marcado como enviado e o lead foi associado ao estágio canônico
+  **Apresentado**. Não houve evidência de callback de entrega/leitura neste teste, portanto o
+  aceite do provedor não é apresentado como confirmação de entrega.
+- Validações locais: type-check frontend/Edge, lint, Vitest completo (28 arquivos/211 testes)
+  e build/artefato Sites aprovados. O carregador padrão de Vite/Vitest encontrou limitação de
+  permissões do Windows neste checkout; a execução com `--configLoader runner` foi aprovada.

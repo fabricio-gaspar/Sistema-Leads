@@ -780,3 +780,19 @@
 - A validação visual cobriu Dashboard, Canais e APIs em desktop e mobile. Não houve overflow de
   página no breakpoint móvel e o console do navegador não registrou warning ou error. Nenhum
   teste de provedor, envio, lead, mensagem, fila ou configuração remota foi acionado.
+
+# 2026-09-23 — Reparo da fila WhatsApp da Ana
+
+- Diagnóstico do envio pendente: o lead estava aprovado, em canal `whatsapp`, a Ana havia
+  concluído o evento canônico e o job permanecia `queued` sem tentativa. O `pg_cron` executava,
+  porém cada chamada de `pg_net` ao worker era bloqueada pelo gateway com 401 por ausência de
+  cabeçalho de autorização.
+- A configuração local já declarava `automation-worker` sem verificação de JWT no gateway porque
+  o endpoint aceita cron sem sessão e verifica um token rotativo mantido no Vault. A versão
+  remota estava divergente. Foi publicada `automation-worker` v30 com essa configuração; a
+  autenticação customizada do cron e a autenticação de usuários do painel permanecem no handler.
+- Verificação pós-publicação: o próximo cron retornou 200, consumiu um único job, recebeu aceite
+  do provedor, gravou o identificador do provedor no histórico e colocou o lead em
+  `ana_stage=apresentado`. Nenhuma credencial foi lida, gravada ou exposta.
+- Regressão: type-check frontend/Edge, lint, Vitest completo (28 arquivos/211 testes) e build
+  com artefato Sites passaram usando `--configLoader runner` no Windows.
