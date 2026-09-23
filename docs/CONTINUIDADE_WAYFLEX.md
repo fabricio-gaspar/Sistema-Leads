@@ -1102,3 +1102,25 @@ webhook em ambiente controlado.
 - Validações locais: type-check frontend/Edge, lint, Vitest completo (28 arquivos/211 testes)
   e build/artefato Sites aprovados. O carregador padrão de Vite/Vitest encontrou limitação de
   permissões do Windows neste checkout; a execução com `--configLoader runner` foi aprovada.
+
+## 2026-09-23 — Catálogo visual de produtos, segmentos e catálogos
+
+- As três fontes públicas oficiais foram tratadas separadamente. A página de acessórios forneceu
+  18 produtos e a de catálogos forneceu 17 cards visuais pelos módulos publicados da SPA. A página
+  de serviços é apresentada pela origem como segmentos/aplicações e seus 18 cards foram
+  registrados como snapshot público rastreável, pois não há feed estruturado publicado para a
+  atualização automática desses cards.
+- `catalog-knowledge` v6 preserva a URL canônica, imagem e payload de origem em cada item e usa
+  uma referência derivada determinística por card para que o trigger gere documentos/chunks sem
+  conflitar com a unicidade de `documents.source_url`. A sincronização oficial concluiu com 56
+  documentos/chunks ativos para a Ana.
+- O painel Empresa e conhecimento agora exibe cards responsivos com imagem, categoria, origem e
+  estado da Ana; a Central continua preparando conteúdo pela fila homologada e mostra a mesma
+  imagem/categoria. Formatos rápido, comercial e técnico passam a incluir nome e resumo antes do
+  link oficial. `ana-run` v32 usa a mesma política/autoridade, com recuperação lexical de plurais
+  e orientação para citar até três exemplos verificáveis antes de uma URL.
+- Não existem PDFs individuais publicados nas páginas atuais. Imagens e catálogos permanecem
+  links rastreáveis à origem; não foi criada uma cópia de mídia nem prometido envio de anexo.
+- Validação: type-check frontend/Edge, lint sem warnings, Vitest completo (28 arquivos/214
+  testes), build Vite e artefato Sites aprovados. Não foram enviados WhatsApps, nem alterados
+  leads, filas, canais, credenciais ou regras operacionais de automação.

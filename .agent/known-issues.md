@@ -136,6 +136,16 @@
 - Ambiente de homologação isolado e piloto controlado antes de comercializar.
 - Backup/restore ensaiado e runbook de incidentes.
 
+## Limitações conhecidas em 23/09/2026 — conhecimento comercial
+
+- A página pública de **Segmentos e aplicações** carrega os cards de forma dinâmica e não oferece
+  ainda uma fonte estruturada estável para reimportação pelo Edge Runtime. O sistema registra um
+  snapshot público datado e rastreável, em vez de inventar campos; quando a origem oferecer API,
+  feed ou marcação estável, o adaptador deve ser substituído.
+- As páginas públicas atuais não oferecem PDFs individuais para os 17 catálogos visuais. As imagens
+  e links permanecem referenciados à origem oficial; não há cópia de mídia no Storage nem alegação
+  de arquivo anexado. O envio segue como texto/link até a homologação de mídia.
+
 ## 2026-09-21 — Ativação sem handoff
 
 - O caminho **Ana conduz tudo** agora evita uma dependência desnecessária da RPC de handoff.

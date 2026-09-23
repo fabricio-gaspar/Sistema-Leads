@@ -111,3 +111,12 @@ diário em concorrência; recibos antecipados ainda dependem de nova reconcilia�
 4. PDF/imagem não abre rota própria de envio: enquanto mídia não for homologada, o conteúdo sai
    como URL rastreável via texto. A Ana recebe intenção comercial e chunks aprovados, nunca uma
    permissão adicional de despacho.
+
+### Atualização de 23/09/2026
+
+- O adaptador `catalog-knowledge` v6 tem três formas explícitas de extração: `spa_bundle` para
+  Produtos e Catálogos, `public_snapshot` para Segmentos e `html_card/page_fallback` somente como
+  contingência verificável. Nenhuma delas cria conteúdo quando a origem falha.
+- O item persiste a página canônica em `website_url` e o payload de origem; `source_url` recebe
+  um fragmento determinístico por card apenas para o trigger de `documents` manter um documento
+  exclusivo. `knowledge_chunks` continua sendo a única fonte recuperada pela Ana.

@@ -796,3 +796,20 @@
   `ana_stage=apresentado`. Nenhuma credencial foi lida, gravada ou exposta.
 - Regressão: type-check frontend/Edge, lint, Vitest completo (28 arquivos/211 testes) e build
   com artefato Sites passaram usando `--configLoader runner` no Windows.
+
+# 2026-09-23 — Catálogo visual rastreável da Wayflex
+
+- Confirmado que `/acessorios`, `/servicos` e `/catalogos` são páginas SPA. O adaptador passou a
+  ler apenas os módulos públicos publicados para produtos e catálogos e usa snapshot público
+  explícito para segmentos carregados dinamicamente; não houve scraping de dado privado nem
+  criação de conteúdo ausente.
+- A sincronização autenticada oficial concluiu sem erro: 18 produtos, 18 segmentos e 17 catálogos
+  visuais. A primeira tentativa revelou a restrição única de `documents.source_url`; o reparo usa
+  um fragmento determinístico por card e preserva a página canônica no payload/website. Há 56
+  documentos e chunks ativos aprovados para a Ana.
+- `catalog-knowledge` v6 e `ana-run` v32 foram publicados no Supabase. A Ana mantém as mesmas
+  guardas, mas pode reconhecer plurais e citar conteúdo concreto antes do link; Central e Empresa
+  exibem imagem, categoria e resumo sem novo caminho de envio.
+- Validação local aprovada: type-check frontend/Edge, lint sem warnings, Vitest 28 arquivos/214
+  testes, build Vite e artefato Sites. Não houve envio WhatsApp, chamada ao provedor, alteração de
+  lead, fila, canal ou execução operacional da Ana.

@@ -42,3 +42,23 @@
   fontes saudáveis e três itens ativos para a Ana e a Central. A origem retornou somente as três
   páginas resumidas, sem cards/PDFs individuais no HTML; portanto nada adicional foi criado.
   Um envio externo de conteúdo ainda depende da autorização própria para a mensagem.
+
+## Delta de 23/09/2026 — cards publicados da Wayflex
+
+- `catalog-knowledge` v6 reconhece que as páginas públicas são uma SPA: produtos e catálogos
+  são extraídos dos módulos publicados, sem simular DOM no Edge Runtime. A fonte de serviços é
+  apresentada como **Segmentos e aplicações**; como seus cards são carregados dinamicamente fora
+  do bundle disponível, o adaptador registra um snapshot público explícito, datado e rastreável.
+- A sincronização oficial confirmou 18 produtos, 18 segmentos e 17 catálogos visuais. Cada item
+  preserva a página canônica, a URL de imagem oficial, payload de origem e uma URL derivada única
+  para o documento/chunk gerado; isso evita colisão na unicidade de `documents.source_url` sem
+  perder rastreabilidade.
+- Configurações apresenta os itens como cards responsivos com imagem, categoria, estado da Ana e
+  origem. A Central mantém a pré-visualização e os formatos rápido/comercial/técnico, agora com
+  nome e resumo antes do link. Arquivos e imagens continuam sendo enviados como links oficiais até
+  uma pipeline de mídia ser homologada.
+- `ana-run` v32 mantém a mesma autoridade e as mesmas guardas de canal/funil, mas trata plurais
+  na busca lexical e orienta a resposta a citar até três conteúdos concretos antes da URL. Quando
+  os dados não bastarem, continua perguntando ou transferindo, sem inventar especificações.
+- Limitação conhecida: nenhum PDF foi publicado nas páginas atuais e o snapshot de segmentos deve
+  ser trocado por uma fonte estruturada/aprovada quando a Wayflex a disponibilizar.

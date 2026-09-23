@@ -320,7 +320,7 @@ export async function syncKnowledgeSource(sourceUrl: string): Promise<{ upserted
 export function formatKnowledgeMessage(item: KnowledgeCatalogItem, format: KnowledgePresentationFormat): string {
   const link = item.attachmentUrl || item.websiteUrl || item.sourceUrl;
   const summary = item.shortDescription || item.technicalDescription || '';
-  if (format === 'quick') return [item.name, summary, link ? `Mais informações: ${link}` : ''].filter(Boolean).join('\n');
+  if (format === 'quick') return [`Opção disponível: ${item.name}.`, summary, link ? `Mais informações: ${link}` : ''].filter(Boolean).join('\n');
   if (format === 'commercial') return [
     `Olá! Separei uma opção que pode atender sua necessidade: ${item.name}.`, summary,
     item.applications.length ? `Aplicações informadas: ${item.applications.join(', ')}.` : '',
@@ -335,7 +335,7 @@ export function formatKnowledgeMessage(item: KnowledgeCatalogItem, format: Knowl
     link ? `Fonte técnica: ${link}` : '',
     'Para confirmar compatibilidade, preciso da aplicação, medida e condição de uso.',
   ].filter(Boolean).join('\n\n');
-  return [`Segue ${item.type === 'catalog' ? 'o catálogo' : 'o conteúdo'} ${item.name}.`, link || 'A fonte não possui link público para envio.'].filter(Boolean).join('\n\n');
+  return [`Segue ${item.type === 'catalog' ? 'o catálogo' : 'o conteúdo'} ${item.name}.`, summary, link || 'A fonte não possui link público para envio.'].filter(Boolean).join('\n\n');
 }
 
 export const catalogTypeLabel: Record<KnowledgeCatalogItemType, string> = {
