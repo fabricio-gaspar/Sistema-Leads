@@ -6,9 +6,11 @@ import { refreshConversasStore, useConversasStore } from '@/hooks/useConversasSt
 import { useLeadsStore } from '@/hooks/useLeadsStore';
 import { usePropostasStore } from '@/hooks/usePropostasStore';
 import type { Proposta } from '@/mocks/propostasData';
-import { requestHumanHandoff, returnConversationToAna } from '@/lib/crm/handoffsRepository';
+import { assignHumanHandoff, returnConversationToAna } from '@/lib/crm/handoffsRepository';
 import { addContactSuppression, loadContactSuppressions, type ContactSuppression } from '@/lib/crm/suppressionRepository';
 import { queueHumanMessage } from '@/lib/crm/humanMessageRepository';
+import { validateHumanMessage } from '@/lib/crm/humanMessageValidation';
+import { loadTeamMembers, type TeamMember } from '@/lib/crm/teamMembersRepository';
 import { resolveOrganizationSession } from '@/lib/organizationSession';
 import { supabase } from '@/lib/supabase';
 import { loadConversationKnowledgeEvents, type ConversationKnowledgeEvent } from '@/lib/crm/catalogKnowledgeRepository';
@@ -45,7 +47,7 @@ type SidePanelTab = 'lead' | 'knowledge' | 'quotes' | 'agenda' | 'history';
 const inboxFilters: { id: InboxFilter; label: string }[] = [
   { id: 'all', label: 'Todas' },
   { id: 'waiting', label: 'Aguardando' },
-  { id: 'human', label: 'Com você' },
+  { id: 'human', label: 'Humano' },
   { id: 'ana', label: 'Ana' },
 ];
 
@@ -84,8 +86,14 @@ export default function Atendimento() {
   const [sidePanelTab, setSidePanelTab] = useState<SidePanelTab>('lead');
   const [optoutConfirmar, setOptoutConfirmar] = useState(false);
   const [erroIA, setErroIA] = useState('');
+  const [messageFeedback, setMessageFeedback] = useState<{ tone: 'success' | 'warning' | 'error'; text: string } | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [handoffAction, setHandoffAction] = useState<'transfer' | 'takeover' | 'return' | null>(null);
+  const [transferOpen, setTransferOpen] = useState(false);
+  const [transferTargetId, setTransferTargetId] = useState('');
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [teamLoading, setTeamLoading] = useState(true);
+  const [teamError, setTeamError] = useState('');
   const [protectedContacts, setProtectedContacts] = useState<ContactSuppression[]>([]);
   const [conversationRealtime, setConversationRealtime] = useState<ConversationRealtimeState>('connecting');
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
@@ -134,6 +142,15 @@ export default function Atendimento() {
 
   useEffect(() => {
     void loadContactSuppressions().then(setProtectedContacts).catch(() => undefined);
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    void loadTeamMembers()
+      .then((members) => { if (active) { setTeamMembers(members.filter((member) => member.status === 'active')); setTeamError(''); } })
+      .catch(() => { if (active) setTeamError('Não foi possível carregar os responsáveis ativos agora.'); })
+      .finally(() => { if (active) setTeamLoading(false); });
+    return () => { active = false; };
   }, []);
 
   useEffect(() => {
@@ -260,17 +277,27 @@ export default function Atendimento() {
     new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
 
   const enviar = async () => {
-    if (!texto.trim() || enviando) return;
+    if (enviando) return;
+    const recipient = selected.canal === 'whatsapp' ? leadSelecionado?.whatsapp : leadSelecionado?.email;
+    const validation = validateHumanMessage({
+      text: texto,
+      isInternalNote: notaInterna,
+      hasLead: Boolean(leadSelecionado),
+      channel: selected.canal,
+      recipient,
+    });
+    if ('message' in validation) {
+      setMessageFeedback({ tone: 'error', text: validation.message });
+      return;
+    }
     setErroIA('');
+    setMessageFeedback(null);
     if (!notaInterna) {
-      if (!leadSelecionado) {
-        setErroIA('Este registro não possui um lead operacional vinculado. A mensagem não foi enviada.');
-        return;
-      }
+      if (!leadSelecionado || !recipient) return;
       try {
         setEnviando(true);
+        setMessageFeedback({ tone: 'warning', text: 'Registrando a mensagem na fila segura…' });
         const messageText = texto.trim();
-        const recipient = selected.canal === 'whatsapp' ? leadSelecionado.whatsapp : leadSelecionado.email;
         const knowledgeFingerprint = preparedKnowledge ? `${preparedKnowledge.item.id}:${preparedKnowledge.format}:${preparedKnowledge.sendImage ? 'image' : 'text'}` : 'text';
         const fingerprint = `${leadSelecionado.id}:${selected.canal}:${recipient}:${messageText}:${knowledgeFingerprint}`;
         let requestId = pendingMessageRequests.current.get(fingerprint);
@@ -295,9 +322,12 @@ export default function Atendimento() {
         }
         if (result.delivery !== 'failed') { setTexto(''); setPreparedKnowledge(null); }
         await refreshConversasStore();
-        setErroIA(result.detail);
+        setMessageFeedback({
+          tone: result.delivery === 'accepted' ? 'success' : result.delivery === 'failed' ? 'error' : 'warning',
+          text: result.detail,
+        });
       } catch (error) {
-        setErroIA(error instanceof Error ? error.message : 'A mensagem não foi enfileirada.');
+        setMessageFeedback({ tone: 'error', text: error instanceof Error ? error.message : 'A mensagem não foi enfileirada.' });
       } finally {
         setEnviando(false);
       }
@@ -314,22 +344,25 @@ export default function Atendimento() {
     adicionarMensagem(selected.id, nova);
     setTexto('');
     setNotaInterna(false);
+    setMessageFeedback({ tone: 'success', text: 'Nota interna registrada no histórico da conversa.' });
   };
 
   const runHandoffAction = async (
     action: NonNullable<typeof handoffAction>,
     operation: () => Promise<void>,
     fallbackError: string,
-  ): Promise<void> => {
-    if (handoffActionLock.current) return;
+  ): Promise<boolean> => {
+    if (handoffActionLock.current) return false;
     handoffActionLock.current = true;
     setHandoffAction(action);
     setErroIA('');
     try {
       await operation();
       await refreshConversasStore();
+      return true;
     } catch {
       setErroIA(fallbackError);
+      return false;
     } finally {
       handoffActionLock.current = false;
       setHandoffAction(null);
@@ -342,11 +375,10 @@ export default function Atendimento() {
       setErroIA('Este registro não possui um lead operacional vinculado. A transferência não foi registrada.');
       return;
     }
-    await runHandoffAction(
-      'transfer',
-      () => requestHumanHandoff(lead.id, 'Transferência manual solicitada pelo operador'),
-      'Não foi possível registrar a transferência agora. Tente novamente.',
-    );
+    if (teamLoading) { setErroIA('Carregando os responsáveis ativos. Tente novamente em instantes.'); return; }
+    if (!teamMembers.length) { setErroIA('Não há responsável ativo com permissão de atendimento para receber esta transferência.'); return; }
+    setTransferTargetId(lead.responsavelId || '');
+    setTransferOpen(true);
   };
 
   // O humano assume a conversa a qualquer momento: pausa a Ana (se estiver ativa)
@@ -357,11 +389,31 @@ export default function Atendimento() {
       setErroIA('Este registro não possui um lead operacional vinculado. O atendimento não foi assumido.');
       return;
     }
-    await runHandoffAction(
+    const completed = await runHandoffAction(
       'takeover',
-      () => requestHumanHandoff(lead.id, 'Atendimento assumido manualmente pelo operador', 'takeover'),
+      () => assignHumanHandoff({ leadId: lead.id, reason: 'Atendimento assumido manualmente pelo operador', category: 'operator_takeover' }),
       'Não foi possível assumir o atendimento agora. Tente novamente.',
     );
+    if (completed) setErroIA('Atendimento assumido por você. A Ana foi pausada e o histórico foi preservado.');
+  };
+
+  const confirmarTransferencia = async () => {
+    const lead = leadSelecionado;
+    const target = teamMembers.find((member) => member.userId === transferTargetId);
+    if (!lead || !target) {
+      setErroIA('Selecione um responsável ativo antes de transferir.');
+      return;
+    }
+    const completed = await runHandoffAction(
+      'transfer',
+      () => assignHumanHandoff({ leadId: lead.id, reason: `Transferência manual para ${target.name}`, category: 'operator_transfer', targetUserId: target.userId }),
+      'Não foi possível transferir o atendimento agora. Tente novamente.',
+    );
+    if (completed) {
+      setTransferOpen(false);
+      setTransferTargetId('');
+      setErroIA(`Atendimento transferido para ${target.name}. A Ana foi pausada e o histórico foi preservado.`);
+    }
   };
 
   // Devolve o atendimento para a Ana (reverte o "assumir").
@@ -760,8 +812,9 @@ export default function Atendimento() {
                 ))}
               </div>
             )}
-            <div className="flex items-end gap-2">
+            <form className="flex items-end gap-2" onSubmit={(event) => { event.preventDefault(); void enviar(); }}>
               <button
+                type="button"
                 onClick={() => setNotaInterna(!notaInterna)}
                 className={`w-10 h-10 flex items-center justify-center rounded-lg cursor-pointer transition-colors ${notaInterna ? 'bg-accent-500 text-background-50' : 'bg-background-100 text-foreground-500 hover:bg-background-200'}`}
                 title="Nota interna"
@@ -783,26 +836,21 @@ export default function Atendimento() {
                 <textarea
                   value={texto}
                   onChange={(e) => { setTexto(e.target.value); if (preparedKnowledge && e.target.value !== preparedKnowledge.text) setPreparedKnowledge(null); }}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey) {
-                      e.preventDefault();
-                      void enviar();
-                    }
-                  }}
                   placeholder={notaInterna ? 'Digite uma nota interna...' : 'Digite uma mensagem para a fila segura...'}
                   rows={1}
                   className="max-h-28 min-h-10 w-full resize-y rounded-xl border border-background-200/70 bg-background-50 px-4 py-2.5 text-sm text-foreground-800 placeholder-foreground-400 focus:border-primary-400 focus:outline-none"
                 />
               </div>
               <button
-                onClick={() => void enviar()}
-                disabled={enviando}
+                type="submit"
+                disabled={enviando || !texto.trim()}
                 className="w-10 h-10 bg-primary-500 hover:bg-primary-600 disabled:bg-primary-300 text-background-50 rounded-lg flex items-center justify-center cursor-pointer disabled:cursor-wait transition-colors"
-                title={enviando ? 'Registrando mensagem...' : 'Enviar mensagem'}
+                title={enviando ? 'Registrando mensagem...' : !texto.trim() ? 'Digite uma mensagem para enviar' : 'Enviar mensagem'}
               >
                 <i className={enviando ? 'ri-loader-4-line animate-spin text-base' : 'ri-send-plane-fill text-base'}></i>
               </button>
-            </div>
+            </form>
+            {messageFeedback && <p role={messageFeedback.tone === 'error' ? 'alert' : 'status'} aria-live="polite" className={`mt-2 rounded-lg px-3 py-2 text-xs leading-5 ${messageFeedback.tone === 'success' ? 'bg-primary-50 text-primary-900' : messageFeedback.tone === 'warning' ? 'bg-accent-50 text-accent-800' : 'bg-accent-100 text-accent-800'}`}><i className={`${messageFeedback.tone === 'success' ? 'ri-checkbox-circle-line' : messageFeedback.tone === 'warning' ? 'ri-time-line' : 'ri-error-warning-line'} mr-1.5`} />{messageFeedback.text}</p>}
             {erroIA && <p className="mt-1.5 text-xs text-foreground-500">{erroIA}</p>}
           </div>
         </div>
@@ -830,20 +878,36 @@ export default function Atendimento() {
                 </div>
                 <dl className="grid grid-cols-2 gap-x-3 gap-y-3 border-y border-background-100 py-3 text-xs">
                   <div><dt className="text-foreground-500">Etapa</dt><dd className="mt-0.5 font-semibold text-foreground-800">{leadSelecionado?.etapa || selected.fila}</dd></div>
-                  <div><dt className="text-foreground-500">Responsável</dt><dd className="mt-0.5 font-semibold text-foreground-800">{responsabilidadeHumana ? 'Você' : 'Ana (IA)'}</dd></div>
+                  <div><dt className="text-foreground-500">Responsável</dt><dd className="mt-0.5 font-semibold text-foreground-800">{responsabilidadeHumana ? leadSelecionado?.responsavel || 'Atendimento humano' : 'Ana (IA)'}</dd></div>
                   <div><dt className="text-foreground-500">Canal</dt><dd className="mt-0.5 font-semibold capitalize text-foreground-800">{selected.canal}</dd></div>
                   <div><dt className="text-foreground-500">Contato</dt><dd className="mt-0.5 break-words font-semibold leading-5 text-foreground-800" title={contactForChannel || undefined}>{contactForChannel || 'Não informado'}</dd></div>
                 </dl>
                 <div className="rounded-lg border border-primary-100 bg-primary-50 px-3 py-3"><div className="flex items-start gap-2.5"><i className="ri-robot-line mt-0.5 text-primary-700" /><div><p className="text-xs font-bold text-primary-900">Ana</p><p className="mt-0.5 text-xs leading-5 text-primary-800">{statusDaAna}</p></div></div></div>
                 <button type="button" onClick={() => leadSelecionado && navigate(`/dashboard/kanban?leadId=${encodeURIComponent(leadSelecionado.id)}`)} disabled={!leadSelecionado} className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-background-200 bg-background-50 px-3 py-2.5 text-xs font-semibold text-foreground-700 transition hover:border-primary-200 hover:text-primary-700 disabled:cursor-not-allowed disabled:opacity-50"><i className="ri-layout-column-line" />Ver no Kanban</button>
               </div>}
-              {sidePanelTab === 'knowledge' && <ConversationKnowledgePanel context={selected.mensagens.slice().reverse().find((message) => message.autor === 'cliente')?.texto || selected.ultimaMensagem} onPrepare={prepareKnowledge} />}
+              {sidePanelTab === 'knowledge' && <ConversationKnowledgePanel context={selected.mensagens.slice().reverse().find((message) => message.autor === 'cliente')?.texto || ''} onPrepare={prepareKnowledge} />}
               {sidePanelTab === 'quotes' && <div className="space-y-3"><div className="flex items-start justify-between gap-3"><div><p className="text-sm font-bold text-foreground-900">Orçamentos</p><p className="mt-1 text-xs leading-5 text-foreground-500">{propostasDoLead.length} vínculo(s) deste lead.</p></div><button type="button" onClick={() => setOrcamentoModal(true)} className="shrink-0 text-xs font-semibold text-primary-700 hover:text-primary-800">Abrir</button></div><button type="button" onClick={() => setOrcamentoModal(true)} disabled={!leadSelecionado} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary-500 px-3 py-2.5 text-xs font-semibold text-background-50 transition hover:bg-primary-600 disabled:cursor-not-allowed disabled:bg-primary-300"><i className="ri-file-add-line" />Criar orçamento</button>{propostasDoLead.length === 0 ? <p className="rounded-lg border border-dashed border-background-300 px-3 py-4 text-xs leading-5 text-foreground-500">Nenhuma proposta vinculada a este lead.</p> : <div className="space-y-2">{propostasDoLead.slice(0, 3).map((proposta) => <button key={proposta.id} type="button" onClick={() => setOrcamentoModal(true)} className="w-full rounded-lg border border-background-100 bg-background-50 px-3 py-2.5 text-left transition hover:border-primary-200"><p className="text-xs font-semibold text-foreground-800">{proposta.numero}</p><p className="mt-0.5 text-[11px] text-foreground-500">{proposta.status === 'rascunho' ? 'Rascunho' : proposta.status}</p></button>)}</div>}</div>}
               {sidePanelTab === 'agenda' && <div className="space-y-3"><div className="flex h-11 w-11 items-center justify-center rounded-lg bg-primary-100 text-primary-700"><i className="ri-calendar-event-line text-xl" /></div><div><p className="text-sm font-bold text-foreground-900">Agenda do lead</p><p className="mt-1 text-xs leading-5 text-foreground-500">Consulte a disponibilidade ou crie um compromisso mantendo este lead vinculado.</p></div><button type="button" onClick={() => leadSelecionado && navigate(`/dashboard/agenda?leadId=${encodeURIComponent(leadSelecionado.id)}&new=1`)} disabled={!leadSelecionado} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary-500 px-3 py-2.5 text-xs font-semibold text-background-50 transition hover:bg-primary-600 disabled:cursor-not-allowed disabled:bg-primary-300"><i className="ri-calendar-event-line" />Agendar reunião</button><button type="button" onClick={() => leadSelecionado && navigate(`/dashboard/agenda?leadId=${encodeURIComponent(leadSelecionado.id)}`)} disabled={!leadSelecionado} className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-background-200 bg-background-50 px-3 py-2.5 text-xs font-semibold text-foreground-700 transition hover:border-primary-200 hover:text-primary-700 disabled:cursor-not-allowed disabled:opacity-50"><i className="ri-calendar-line" />Abrir agenda</button></div>}
             </div>
           </section>
         </aside>
       </div>
+
+      {transferOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground-950/50 p-4" onClick={() => setTransferOpen(false)}>
+          <section className="w-full max-w-md rounded-xl bg-background-50 shadow-xl" onClick={(event) => event.stopPropagation()} aria-labelledby="transfer-title">
+            <header className="flex items-center justify-between border-b border-background-200/70 px-5 py-4">
+              <div><h3 id="transfer-title" className="font-heading font-bold text-foreground-950">Transferir atendimento</h3><p className="mt-0.5 text-xs text-foreground-500">A Ana será pausada e o histórico permanecerá vinculado ao lead.</p></div>
+              <button type="button" onClick={() => setTransferOpen(false)} className="rounded-lg p-2 text-foreground-500 hover:bg-background-100" aria-label="Fechar transferência"><i className="ri-close-line" /></button>
+            </header>
+            <div className="space-y-3 p-5">
+              <label className="block text-sm font-semibold text-foreground-800">Responsável que receberá<select value={transferTargetId} onChange={(event) => setTransferTargetId(event.target.value)} className="mt-1.5 w-full rounded-lg border border-background-300 bg-background-50 px-3 py-2.5 text-sm text-foreground-900"><option value="">Selecione um responsável ativo</option>{teamMembers.map((member) => <option key={member.userId} value={member.userId}>{member.name} · {member.role}</option>)}</select></label>
+              {teamError && <p role="alert" className="text-xs text-accent-700"><i className="ri-error-warning-line mr-1" />{teamError}</p>}
+            </div>
+            <footer className="flex justify-end gap-2 border-t border-background-200/70 px-5 py-4"><button type="button" onClick={() => setTransferOpen(false)} className="wf-btn-secondary">Cancelar</button><button type="button" disabled={!transferTargetId || handoffAction !== null} onClick={() => void confirmarTransferencia()} className="wf-btn-primary disabled:cursor-not-allowed disabled:opacity-50">{handoffAction === 'transfer' ? 'Transferindo…' : 'Confirmar transferência'}</button></footer>
+          </section>
+        </div>
+      )}
 
       {optoutConfirmar && (
         <div className="fixed inset-0 z-50 bg-foreground-950/50 flex items-center justify-center p-4" onClick={() => setOptoutConfirmar(false)}>
@@ -962,7 +1026,7 @@ export default function Atendimento() {
           activeTab={sidePanelTab}
           quoteCount={propostasDoLead.length}
           anaStatus={statusDaAna}
-          knowledgePanel={<ConversationKnowledgePanel context={selected.mensagens.slice().reverse().find((message) => message.autor === 'cliente')?.texto || selected.ultimaMensagem} onPrepare={(content) => { prepareKnowledge(content); setDrawerOpen(false); }} />}
+          knowledgePanel={<ConversationKnowledgePanel context={selected.mensagens.slice().reverse().find((message) => message.autor === 'cliente')?.texto || ''} onPrepare={(content) => { prepareKnowledge(content); setDrawerOpen(false); }} />}
           onClose={() => setDrawerOpen(false)}
           onTabChange={setSidePanelTab}
           onOpenQuotes={() => { setDrawerOpen(false); setOrcamentoModal(true); }}

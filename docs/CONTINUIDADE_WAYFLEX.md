@@ -1183,3 +1183,27 @@ webhook em ambiente controlado.
   testes), build Vite e artefato Sites aprovados. A validação publicada confirmou o drawer
   responsivo com as abas e o carregamento do conhecimento comercial real, sem envio ou alteração
   operacional para este lote.
+
+## 2026-09-23 — Confiabilidade operacional da Central de Atendimento
+
+- O compositor passou a validar explicitamente mensagem vazia, ausência de lead, canal diferente
+  de WhatsApp e destinatário inválido antes de acionar `enviar-whatsapp`. O botão permanece
+  desabilitado sem texto e a interface informa se a mensagem foi aceita, enfileirada para
+  reconciliação ou rejeitada. O caminho operacional não mudou: **Central → fila auditável → worker
+  → Z-API**.
+- `Assumir` deixou de reutilizar um destino implícito do lead. A migration
+  `20260923170000_explicit_central_handoff_assignee` acrescenta a RPC
+  `assign_human_handoff`, que usa o usuário autenticado para assumir e exige a escolha explícita
+  de um membro ativo com permissão de responder para transferir. Ela preserva o handoff canônico,
+  pausa a Ana e mantém o histórico do lead; não altera leads ou filas existentes até uma ação do
+  operador. Foi confirmada no projeto `thgzrkppouoevapjquyu` como `SECURITY DEFINER`, sem execução
+  para `anon` e com execução somente para `authenticated`.
+- O painel lateral foi simplificado para **Conhecimento da empresa**: abas horizontais compactas,
+  detalhe na própria coluna, formatos rápido/comercial/técnico de produto e preparação revisável.
+  Sugestões automáticas usam somente a última pergunta recebida do cliente, requerem
+  correspondência verificável e não apresentam páginas institucionais genéricas como recomendação.
+  Arquivos só aparecem quando houver documentos reais.
+- Validações locais aprovadas: type-check frontend e Edge, lint, Vitest completo (30 arquivos/225
+  testes), Vite build com `--configLoader runner` e artefato Sites. A build padrão permanece
+  limitada apenas pela permissão conhecida do Windows em `.vite-temp`. Nenhum WhatsApp, lead,
+  handoff, transferência, orçamento ou opt-out foi disparado nesta correção.
