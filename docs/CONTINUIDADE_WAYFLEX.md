@@ -1233,3 +1233,9 @@ webhook em ambiente controlado.
   (31 arquivos/227 testes). Não houve envio, webhook artificial, alteração de lead nem criação de
   instância/plano. O estado auditado não possui vendedor ou instância individual; a primeira conexão
   QR e o fluxo ponta a ponta individual continuam como homologação externa obrigatória.
+- Publicado no Site oficial como versão **115**, commit
+  `a5f2dcf04d72ba2fe26ff7812650dd0dc672b6fc`. A inspeção autenticada validou a conta corporativa
+  conectada, o acesso administrativo global, **Meu WhatsApp**, o cadastro por usuário, o formulário
+  sem criação de plano/envio e a Central identificando o canal corporativo. Em largura móvel, a
+  tabela permanece contida por rolagem horizontal sem overflow global. Console sem warning/error.
+  Nenhuma configuração foi salva, QR aberto, mensagem enviada ou dado operacional alterado.

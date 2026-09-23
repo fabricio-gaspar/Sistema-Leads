@@ -2,17 +2,17 @@
   "schema_version": 1,
   "baseline_version": 4,
   "baseline_commit": "1dc6275b8c7d70de953b66397a8c89f5e97bc15b",
-  "last_audited_commit": "5bad26d27165d90064a953e4e0a5d79fbecfd41f",
-  "current_head_at_update": "5bad26d27165d90064a953e4e0a5d79fbecfd41f",
-  "working_tree_status": "central_message_handoff_and_knowledge_repair_published_and_visually_validated",
+  "last_audited_commit": "a5f2dcf04d72ba2fe26ff7812650dd0dc672b6fc",
+  "current_head_at_update": "a5f2dcf04d72ba2fe26ff7812650dd0dc672b6fc",
+  "working_tree_status": "multi_whatsapp_seller_access_published_and_visually_validated",
   "last_site_publication": {
-    "commit": "5bad26d27165d90064a953e4e0a5d79fbecfd41f",
-    "site_version": 113,
-    "validated_at": "2026-09-23T17:12:00-03:00",
-    "working_tree_status": "central_message_handoff_and_knowledge_repair_published_and_visually_validated"
+    "commit": "a5f2dcf04d72ba2fe26ff7812650dd0dc672b6fc",
+    "site_version": 115,
+    "validated_at": "2026-09-23T19:11:26-03:00",
+    "working_tree_status": "multi_whatsapp_seller_access_published_and_visually_validated"
   },
   "full_audit_required": false,
-  "baseline_status": "validated_with_external_homologation_pending",
-  "updated_at": "2026-09-23T17:12:00-03:00",
-  "next_action": "Homologar uma resposta humana controlada pela Central: confirmar criação da mensagem, job na fila, aceite ou rejeição do provedor e atualização do histórico. Depois, homologar uma nova pergunta explícita sobre produto com imagem oficial; confirmar no agent_runs.result.catalog_media a seleção e, no histórico, o aceite do provedor sem reprocessar mensagens ou callbacks antigos."
+  "baseline_status": "validated_with_seller_qr_homologation_pending",
+  "updated_at": "2026-09-23T19:11:26-03:00",
+  "next_action": "Para homologar o canal individual, atribuir uma instância Z-API já existente a um usuário vendedor, concluir QR ou telefone pelo conector oficial e executar um envio e uma entrada controlados. Confirmar conta na mensagem, fila, worker, aceite/rejeição e callback sem alterar a conta corporativa padrão."
 }

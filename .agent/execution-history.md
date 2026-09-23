@@ -877,3 +877,8 @@
 - Type-check frontend/Edge, lint, build, artefato Sites e 31 arquivos/227 testes passaram. O advisor
   confirmou cobertura das novas FKs. Nenhuma mensagem foi enviada e a conexão QR individual segue
   pendente porque não há vendedor/instância individual no estado real auditado.
+- Commit `a5f2dcf04d72ba2fe26ff7812650dd0dc672b6fc` foi enviado à `main` oficial e publicado no Site
+  existente como versão 115. A inspeção autenticada confirmou Dashboard, **Meu WhatsApp**,
+  **Usuários > WhatsApp operacional**, formulário de instância existente, layout móvel sem overflow
+  global e identificação da conta corporativa na Central. Console sem warnings/errors; nenhum botão
+  de validação, salvamento, conexão, envio ou alteração operacional foi acionado.
