@@ -11,3 +11,13 @@ verify_jwt = false
 # painel continuam exigindo sessão e papel administrativo.
 [functions.automation-worker]
 verify_jwt = false
+
+# A Meta assina o corpo bruto com X-Hub-Signature-256 e não envia JWT do
+# Supabase. O handler também valida o token do desafio GET.
+[functions.webhook-meta-whatsapp]
+verify_jwt = false
+
+# O worker não é exposto ao navegador. Ele exige META_WORKER_TOKEN no próprio
+# handler e permanece sem trabalho enquanto os gates Meta estiverem desligados.
+[functions.meta-whatsapp-worker]
+verify_jwt = false

@@ -25,11 +25,48 @@ export async function queueHumanMessage(input: {
   recipient: string;
   text: string;
   requestId: string;
+  provider?: 'zapi' | 'meta_cloud' | null;
   knowledgeContent?: HumanMessageKnowledgeContent | null;
 }): Promise<HumanMessageResult> {
   if (input.channel !== 'whatsapp') {
     throw new Error('Este canal ainda não possui uma fila de saída homologada. A mensagem não foi registrada como enviada.');
   }
+  if (input.provider === 'meta_cloud') {
+    if (input.knowledgeContent) {
+      throw new Error('O conteúdo comercial ainda não foi sincronizado para esta conta Meta. Envie o texto ou use a conta Z-API homologada.');
+    }
+    const { data, error } = await supabase.functions.invoke('meta-whatsapp-messages', {
+      body: {
+        lead_id: input.leadId,
+        recipient: input.recipient,
+        text: input.text,
+        request_id: input.requestId,
+        message_kind: 'text',
+      },
+    });
+    if (error || !data?.ok) {
+      const detail = data?.erro || await detalheDoErroDeFuncao(error);
+      const messages: Record<string, string> = {
+        meta_coexistence_feature_disabled: 'A integração Meta está instalada, mas continua desligada até a homologação.',
+        meta_send_disabled: 'O envio pela Meta ainda está bloqueado pelo gate de segurança.',
+        meta_template_required_outside_service_window: 'A janela de atendimento de 24 horas encerrou. Selecione um template Meta aprovado.',
+        meta_template_not_approved: 'O template informado não está aprovado ou sincronizado para este número.',
+        meta_account_not_ready: 'A conta Meta ainda não está pronta para envio.',
+        recipient_mismatch: 'O destinatário não corresponde ao WhatsApp registrado neste lead.',
+      };
+      throw new Error(messages[detail] || `A mensagem Meta não foi enfileirada: ${detail || 'falha de validação'}.`);
+    }
+    const immediateResults = Array.isArray(data.immediate?.results) ? data.immediate.results : [];
+    const immediate = immediateResults.find((item: { id?: unknown }) => item.id === data.id) as { status?: unknown; error?: unknown } | undefined;
+    if (immediate?.status === 'sent') {
+      return { queued: true, delivery: 'accepted', detail: 'Mensagem aceita pela Meta. Entrega e leitura aguardam o webhook oficial.', messageId: data.message_id };
+    }
+    if (immediate?.status === 'dead_letter') {
+      return { queued: false, delivery: 'failed', detail: `A Meta não aceitou a mensagem: ${String(immediate.error || 'dispatch_failed')}.`, messageId: data.message_id };
+    }
+    return { queued: true, delivery: 'queued', detail: 'Mensagem registrada na fila Meta segura.', messageId: data.message_id };
+  }
+
   const { data, error } = await supabase.functions.invoke('enviar-whatsapp', {
     body: {
       leadId: input.leadId, para: input.recipient, texto: input.text, request_id: input.requestId, modo: 'humano', provedor: 'central_atendimento',

@@ -163,7 +163,7 @@ export default function Register() {
             <div className="w-9 h-9 bg-primary-500 rounded-lg flex items-center justify-center">
               <i className="ri-flashlight-line text-background-50 text-base"></i>
             </div>
-            <span className="font-heading font-bold text-xl text-foreground-900">LeadAI</span>
+            <span className="font-heading font-bold text-xl text-foreground-900">Sistema de Leads</span>
           </Link>
 
           {/* Progress Steps */}
@@ -199,7 +199,7 @@ export default function Register() {
                     Cadastre sua empresa
                   </h1>
                   <p className="text-foreground-600 text-sm">
-                    Preencha os dados da sua empresa para começar a usar o LeadAI.
+                    Preencha os dados da sua empresa para começar a usar o Sistema de Leads.
                   </p>
                 </div>
 

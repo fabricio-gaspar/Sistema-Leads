@@ -68,7 +68,7 @@ async function accountForAction(
 ) {
   if (!accountId) throw new Error('whatsapp_account_required');
   const { data: account, error } = await admin.from('whatsapp_accounts')
-    .select('id,organization_id,integration_id,owner_user_id,label,account_type,is_default,enabled,connection_status,archived_at')
+    .select('id,organization_id,integration_id,owner_user_id,label,provider,account_type,is_default,enabled,connection_status,archived_at')
     .eq('id', accountId).eq('organization_id', organizationId).maybeSingle();
   if (error || !account || account.archived_at) throw new Error('whatsapp_account_not_found');
   if (!manage) {
@@ -128,12 +128,12 @@ async function registerWebhooks(integrationId: string, credentials: Row): Promis
 
 async function listAccounts(admin: Admin, organizationId: string, userId: string, manage: boolean) {
   let query = admin.from('whatsapp_accounts')
-    .select('id,integration_id,owner_user_id,label,account_type,is_default,enabled,connection_status,connected_phone_suffix,connected_at,status_checked_at,webhook_registered_at,expires_at,last_error_code,created_at,updated_at')
+    .select('id,integration_id,owner_user_id,label,provider,account_type,is_default,enabled,connection_status,connected_phone_suffix,connected_at,status_checked_at,webhook_registered_at,expires_at,last_error_code,onboarding_status,sync_status,messaging_mode,daily_message_goal,verified_name,quality_rating,created_at,updated_at')
     .eq('organization_id', organizationId).is('archived_at', null).order('is_default', { ascending: false }).order('label');
   if (!manage) query = query.eq('owner_user_id', userId);
   const { data: accounts, error } = await query;
   if (error) throw new Error('whatsapp_accounts_read_failed');
-  const integrationIds = (accounts ?? []).map((account) => account.integration_id);
+  const integrationIds = (accounts ?? []).map((account) => account.integration_id).filter(Boolean);
   const ownerIds = [...new Set((accounts ?? []).map((account) => account.owner_user_id).filter(Boolean))];
   const [integrationsRead, profilesRead] = await Promise.all([
     integrationIds.length
@@ -155,6 +155,7 @@ async function listAccounts(admin: Admin, organizationId: string, userId: string
       ownerName: owner?.name ?? null,
       ownerEmail: owner?.email ?? null,
       label: account.label,
+      provider: account.provider,
       accountType: account.account_type,
       isDefault: account.is_default,
       enabled: account.enabled,
@@ -165,9 +166,19 @@ async function listAccounts(admin: Admin, organizationId: string, userId: string
       webhookRegisteredAt: account.webhook_registered_at,
       expiresAt: account.expires_at,
       lastErrorCode: account.last_error_code,
-      configured: asObject(integration?.configuration).configured === true,
-      connected: integration?.connected === true && integration?.enabled === true && integration?.paused !== true,
+      configured: account.provider === 'meta_cloud'
+        ? account.onboarding_status === 'connected'
+        : asObject(integration?.configuration).configured === true,
+      connected: account.provider === 'meta_cloud'
+        ? account.connection_status === 'connected'
+        : integration?.connected === true && integration?.enabled === true && integration?.paused !== true,
       paused: integration?.paused === true,
+      onboardingStatus: account.onboarding_status,
+      syncStatus: account.sync_status,
+      messagingMode: account.messaging_mode,
+      dailyMessageGoal: account.daily_message_goal,
+      verifiedName: account.verified_name,
+      qualityRating: account.quality_rating,
       updatedAt: account.updated_at,
     };
   });
@@ -207,8 +218,8 @@ Deno.serve(async (request) => {
       let previousSecret: Row = {};
       if (accountId) {
         const { data: existing, error } = await admin.from('whatsapp_accounts')
-          .select('id,integration_id,account_type').eq('id', accountId).eq('organization_id', organizationId).is('archived_at', null).maybeSingle();
-        if (error || !existing || existing.account_type !== 'seller') throw new Error('whatsapp_account_not_found');
+          .select('id,integration_id,provider,account_type').eq('id', accountId).eq('organization_id', organizationId).is('archived_at', null).maybeSingle();
+        if (error || !existing || existing.account_type !== 'seller' || existing.provider !== 'zapi') throw new Error('whatsapp_account_not_found');
         integrationId = existing.integration_id;
         previousSecret = await accountSecret(admin, integrationId);
       } else {
@@ -301,6 +312,7 @@ Deno.serve(async (request) => {
 
     if (action === 'connector_token') {
       const account = await accountForAction(admin, organizationId, user.id, asUuid(body.account_id), manage);
+      if (account.provider !== 'zapi') throw new Error('zapi_action_not_available_for_provider');
       const credentials = await accountSecret(admin, account.integration_id);
       const instanceId = asText(credentials.instancia_id, 300);
       const instanceToken = asText(credentials.token, 500);
@@ -326,6 +338,7 @@ Deno.serve(async (request) => {
 
     if (action === 'refresh_status') {
       const account = await accountForAction(admin, organizationId, user.id, asUuid(body.account_id), manage);
+      if (account.provider !== 'zapi') throw new Error('zapi_action_not_available_for_provider');
       const credentials = await accountSecret(admin, account.integration_id);
       let status: Row;
       try {
@@ -399,6 +412,7 @@ Deno.serve(async (request) => {
 
     if (action === 'set_enabled') {
       const account = await accountForAction(admin, organizationId, user.id, asUuid(body.account_id), manage);
+      if (account.provider !== 'zapi') throw new Error('meta_account_requires_rollout_gate');
       const enabled = body.enabled === true;
       if (account.is_default && !enabled) throw new Error('corporate_whatsapp_account_protected');
       const now = new Date().toISOString();

@@ -28,7 +28,7 @@ export function AppRoutes() {
       fallback: createElement(
         'main',
         { className: 'flex min-h-screen items-center justify-center bg-background-50 px-6', 'aria-busy': true },
-        createElement('p', { className: 'text-sm font-medium text-foreground-600' }, 'Carregando LeadAI CRM...'),
+        createElement('p', { className: 'text-sm font-medium text-foreground-600' }, 'Carregando Sistema de Leads...'),
       ),
     },
     element,

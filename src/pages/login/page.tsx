@@ -60,7 +60,7 @@ export default function Login() {
       {/* Left - Form */}
       <div className="flex-1 flex items-center justify-center px-6 py-12 md:px-12 lg:py-16">
         <div className="w-full max-w-md">
-          <Link to="/" className="inline-flex items-center gap-3 mb-14 cursor-pointer" aria-label="WayFlex CRM — início">
+          <Link to="/" className="inline-flex items-center gap-3 mb-14 cursor-pointer" aria-label="Sistema de Leads — início">
             <div className="w-10 h-10 bg-primary-700 rounded-xl flex items-center justify-center">
               <span className="text-white text-lg font-semibold" aria-hidden="true">W</span>
             </div>
@@ -170,7 +170,7 @@ export default function Login() {
               Cadastre sua empresa
             </Link>
           </p>
-          <p className="mt-12 border-t border-background-200 pt-5 text-xs leading-5 text-foreground-400">WayFlex CRM · Relacionamentos que geram oportunidades.</p>
+          <p className="mt-12 border-t border-background-200 pt-5 text-xs leading-5 text-foreground-400">Sistema de Leads · Relacionamentos que geram oportunidades.</p>
         </div>
       </div>
 
@@ -194,7 +194,7 @@ export default function Login() {
             ))}
           </div>
         </div>
-        <p className="relative z-10 text-xs text-white/40">WayFlex CRM <span className="mx-2 text-white/20">/</span> Gestão comercial</p>
+        <p className="relative z-10 text-xs text-white/40">Sistema de Leads <span className="mx-2 text-white/20">/</span> Gestão comercial</p>
       </aside>
 
       {/* Modal Esqueceu a senha */}

@@ -10,6 +10,7 @@ import {
   type WhatsappConnectionStatus,
 } from '@/lib/crm/whatsappAccountsRepository';
 import { openZapiConnector } from '@/lib/zapiConnector';
+import MetaCoexistencePanel from '@/components/feature/MetaCoexistencePanel';
 
 const statusCopy: Record<WhatsappConnectionStatus, { label: string; tone: string; icon: string }> = {
   unconfigured: { label: 'Não configurado', tone: 'bg-background-100 text-foreground-600', icon: 'ri-settings-4-line' },
@@ -75,9 +76,8 @@ export default function WhatsappAccountPanel({ member }: { member?: TeamMember }
 
   useEffect(() => { void refresh(); }, [refresh]);
 
-  const visibleAccounts = useMemo(() => member
-    ? accounts.filter((account) => account.ownerUserId === member.userId)
-    : accounts, [accounts, member]);
+  const visibleAccounts = useMemo(() => accounts.filter((account) => account.provider === 'zapi'
+    && (!member || account.ownerUserId === member.userId)), [accounts, member]);
   const memberAccount = member ? visibleAccounts[0] : undefined;
 
   const startEditing = () => {
@@ -176,6 +176,8 @@ export default function WhatsappAccountPanel({ member }: { member?: TeamMember }
         <i className={memberAccount ? 'ri-edit-line' : 'ri-add-line'} />{memberAccount ? 'Editar instância' : 'Configurar instância'}
       </button>}
     </div>
+
+    <MetaCoexistencePanel member={member} accounts={accounts} canManage={canManage} onConnected={refresh} />
 
     {error && <div role="alert" className="rounded-xl border border-accent-200 bg-accent-50 px-4 py-3 text-sm text-accent-800">{error}</div>}
     {notice && <div role="status" className="rounded-xl border border-primary-200 bg-primary-50 px-4 py-3 text-sm text-primary-800">{notice}</div>}

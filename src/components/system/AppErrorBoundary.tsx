@@ -18,7 +18,7 @@ export class AppErrorBoundary extends Component<AppErrorBoundaryProps, AppErrorB
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     // Mantém detalhes técnicos no console para diagnóstico sem expô-los na interface.
-    console.error('Erro não tratado na interface do LeadAI CRM.', error, errorInfo);
+    console.error('Erro não tratado na interface do Sistema de Leads.', error, errorInfo);
   }
 
   private reloadApplication = () => {
@@ -30,7 +30,7 @@ export class AppErrorBoundary extends Component<AppErrorBoundaryProps, AppErrorB
       return (
         <main className="flex min-h-screen items-center justify-center bg-[oklch(var(--background-50))] px-6">
           <section aria-live="assertive" className="w-full max-w-lg rounded-2xl border border-[oklch(var(--secondary-200))] bg-white p-8 shadow-sm">
-            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[oklch(var(--primary-700))]">LeadAI CRM</p>
+            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-[oklch(var(--primary-700))]">Sistema de Leads</p>
             <h1 className="mt-3 text-2xl font-bold text-[oklch(var(--foreground-900))]">Não foi possível carregar esta tela</h1>
             <p className="mt-3 text-sm leading-6 text-[oklch(var(--foreground-600))]">
               A falha foi isolada para que ela não apareça como uma tela em branco. Atualize a aplicação para tentar novamente.

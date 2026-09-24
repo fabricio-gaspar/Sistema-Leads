@@ -36,6 +36,7 @@ export interface Conversa {
   whatsappAccountId?: string | null;
   whatsappAccountLabel?: string | null;
   whatsappPhoneSuffix?: string | null;
+  whatsappProvider?: 'zapi' | 'meta_cloud' | null;
 }
 
 export const respostasRapidas = [

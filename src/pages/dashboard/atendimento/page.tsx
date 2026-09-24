@@ -311,6 +311,7 @@ export default function Atendimento() {
           recipient,
           text: messageText,
           requestId,
+          provider: selected.whatsappProvider,
           knowledgeContent: preparedKnowledge ? {
             itemId: preparedKnowledge.item.id,
             presentationFormat: preparedKnowledge.format,

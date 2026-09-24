@@ -20,6 +20,7 @@ interface WhatsappAccountRow {
   id: string;
   label: string;
   connected_phone_suffix: string | null;
+  provider: 'zapi' | 'meta_cloud';
 }
 
 interface MessageRow {
@@ -171,7 +172,7 @@ export async function loadOperationalConversations(): Promise<Conversa[]> {
       .eq('organization_id', session.organizationId).in('lead_id', leadIds)
       .order('updated_at', { ascending: false }),
     accountIds.length
-      ? supabase.from('whatsapp_accounts').select('id,label,connected_phone_suffix')
+      ? supabase.from('whatsapp_accounts').select('id,label,connected_phone_suffix,provider')
         .eq('organization_id', session.organizationId).in('id', accountIds)
       : Promise.resolve({ data: [] as WhatsappAccountRow[], error: null }),
   ]);
@@ -215,6 +216,7 @@ export async function loadOperationalConversations(): Promise<Conversa[]> {
       whatsappAccountId: lead.whatsapp_account_id,
       whatsappAccountLabel: account?.label ?? null,
       whatsappPhoneSuffix: account?.connected_phone_suffix ?? null,
+      whatsappProvider: account?.provider ?? null,
     } satisfies Conversa;
   });
 }

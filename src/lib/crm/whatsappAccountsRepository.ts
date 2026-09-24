@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { detalheDoErroDeFuncao } from '@/lib/transportador';
+import { resolveOrganizationSession } from '@/lib/organizationSession';
 
 export type WhatsappConnectionStatus =
   | 'unconfigured'
@@ -12,6 +13,7 @@ export type WhatsappConnectionStatus =
 
 export interface WhatsappAccount {
   id: string;
+  provider: 'zapi' | 'meta_cloud';
   ownerUserId: string | null;
   ownerName: string | null;
   ownerEmail: string | null;
@@ -29,6 +31,12 @@ export interface WhatsappAccount {
   configured: boolean;
   connected: boolean;
   paused: boolean;
+  onboardingStatus: 'not_started' | 'pending' | 'connected' | 'failed' | 'revoked';
+  syncStatus: 'not_started' | 'pending' | 'running' | 'complete' | 'partial' | 'failed';
+  messagingMode: 'suggestion' | 'assisted' | 'automatic';
+  dailyMessageGoal: number;
+  verifiedName: string | null;
+  qualityRating: string | null;
   updatedAt: string;
 }
 
@@ -89,4 +97,55 @@ export function refreshWhatsappAccount(accountId: string): Promise<{
 
 export async function setWhatsappAccountEnabled(accountId: string, enabled: boolean): Promise<void> {
   await invoke({ action: 'set_enabled', account_id: accountId, enabled });
+}
+
+export interface MetaSignupBootstrap {
+  sessionId: string;
+  state: string;
+  expiresAt: string;
+  appId: string;
+  configurationId: string;
+  redirectUri: string;
+  graphApiVersion: string;
+}
+
+export async function metaCoexistenceFeatureEnabled(): Promise<boolean> {
+  const session = await resolveOrganizationSession();
+  const { data, error } = await supabase.from('organization_feature_flags')
+    .select('enabled').eq('organization_id', session.organizationId)
+    .eq('flag_key', 'meta_coexistence').maybeSingle();
+  if (error) throw error;
+  return data?.enabled === true;
+}
+
+export function bootstrapMetaSignup(ownerUserId?: string): Promise<MetaSignupBootstrap> {
+  return supabase.functions.invoke('meta-whatsapp-onboarding', {
+    body: { action: 'bootstrap', owner_user_id: ownerUserId },
+  }).then(async ({ data, error }) => {
+    if (error || !data?.ok) throw new Error(data?.erro || await detalheDoErroDeFuncao(error));
+    return data as MetaSignupBootstrap;
+  });
+}
+
+export async function completeMetaSignup(input: {
+  sessionId: string;
+  state: string;
+  code: string;
+  businessAccountId: string;
+  phoneNumberId: string;
+  label: string;
+}): Promise<string> {
+  const { data, error } = await supabase.functions.invoke('meta-whatsapp-onboarding', {
+    body: {
+      action: 'complete',
+      session_id: input.sessionId,
+      state: input.state,
+      code: input.code,
+      business_account_id: input.businessAccountId,
+      phone_number_id: input.phoneNumberId,
+      label: input.label,
+    },
+  });
+  if (error || !data?.ok) throw new Error(data?.erro || await detalheDoErroDeFuncao(error));
+  return data.accountId as string;
 }

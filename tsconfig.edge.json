@@ -18,6 +18,12 @@
     "supabase/functions/automation-worker/index.ts",
     "supabase/functions/configurar-integracao/index.ts",
     "supabase/functions/prospectar-leads/index.ts",
-    "supabase/functions/webhook-whatsapp/index.ts"
+    "supabase/functions/webhook-whatsapp/index.ts",
+    "supabase/functions/whatsapp-accounts/index.ts",
+    "supabase/functions/webhook-meta-whatsapp/index.ts",
+    "supabase/functions/meta-whatsapp-onboarding/index.ts",
+    "supabase/functions/meta-whatsapp-messages/index.ts",
+    "supabase/functions/meta-whatsapp-worker/index.ts",
+    "supabase/functions/_shared/messaging/*.ts"
   ]
 }

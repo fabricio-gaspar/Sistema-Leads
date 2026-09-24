@@ -43,7 +43,7 @@ export default function Landing() {
               <i className="ri-flashlight-line text-background-50 text-base"></i>
             </div>
             <span className={`font-heading font-bold text-xl ${scrolled ? 'text-foreground-900' : 'text-background-50'}`}>
-              LeadAI
+              Sistema de Leads
             </span>
           </Link>
 
@@ -319,7 +319,7 @@ export default function Landing() {
               {
                 nome: 'Ricardo Almeida',
                 cargo: 'CEO - TechVision',
-                texto: 'Depois que implementamos o LeadAI, nosso time comercial triplicou a produtividade. A IA encontra leads que nem sabíamos que existiam.',
+                texto: 'Depois que implementamos o Sistema de Leads, nosso time comercial triplicou a produtividade. A IA encontra leads que nem sabíamos que existiam.',
                 avatar: 'RA',
               },
               {
@@ -377,7 +377,7 @@ export default function Landing() {
           <div className="space-y-4">
             {[
               { q: 'Como a IA encontra os leads?', a: 'Nossa IA utiliza APIs públicas, bases de dados governamentais e fontes abertas para identificar empresas que correspondem ao perfil configurado. O processo é 100% automatizado e respeita todas as normas de coleta de dados.' },
-              { q: 'Preciso de conhecimento técnico para usar?', a: 'Não! O LeadAI foi projetado para ser intuitivo. Basta cadastrar sua empresa, configurar seu perfil de cliente ideal e o sistema faz todo o trabalho pesado automaticamente.' },
+              { q: 'Preciso de conhecimento técnico para usar?', a: 'Não! O Sistema de Leads foi projetado para ser intuitivo. Basta cadastrar sua empresa, configurar seu perfil de cliente ideal e o sistema faz todo o trabalho pesado automaticamente.' },
               { q: 'As mensagens enviadas são personalizadas?', a: 'Sim! Você define os templates e a IA adapta cada mensagem ao contexto do lead, incluindo nome da empresa, segmento e outros dados relevantes para maximizar a taxa de resposta.' },
               { q: 'Meus dados estão seguros?', a: 'Totalmente. Utilizamos criptografia de ponta a ponta e seguimos rigorosamente a LGPD. Seus dados e os dados dos seus leads são tratados com máxima segurança e confidencialidade.' },
             ].map((faq, i) => (
@@ -497,7 +497,7 @@ export default function Landing() {
                 <div className="w-8 h-8 bg-primary-500 rounded-lg flex items-center justify-center">
                   <i className="ri-flashlight-line text-background-50 text-sm"></i>
                 </div>
-                <span className="font-heading font-bold text-xl text-background-50">LeadAI</span>
+                <span className="font-heading font-bold text-xl text-background-50">Sistema de Leads</span>
               </div>
               <p className="text-background-400 text-sm leading-relaxed max-w-xs">
                 Plataforma de prospecção inteligente que automatiza o processo comercial com Inteligência Artificial.
@@ -530,7 +530,7 @@ export default function Landing() {
 
           <div className="flex flex-col sm:flex-row items-center justify-between pt-8 border-t border-background-800/50 gap-4">
             <p className="text-background-500 text-xs">
-              &copy; 2026 LeadAI. Todos os direitos reservados.
+              &copy; 2026 Sistema de Leads. Todos os direitos reservados.
             </p>
             <div className="flex items-center gap-4">
               {['ri-linkedin-fill', 'ri-instagram-line', 'ri-twitter-x-line', 'ri-youtube-line'].map((icon, i) => (
