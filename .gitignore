@@ -17,3 +17,8 @@ supabase/functions/.env
 .DS_Store
 *.log
 .eslintcache
+
+# Local Sites publication artifacts
+.sites-runtime/
+git-noop-editor.cmd
+wayflex-site-*.tar.gz
