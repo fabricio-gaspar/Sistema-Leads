@@ -900,3 +900,6 @@
   os três controles mantêm entrada/saída/automação desligadas com kill switch ligado.
 - Type-check frontend/Edge, lint sem warnings, 35 arquivos/237 testes, build Vite e artefato Sites
   passaram. Nenhuma mensagem, lead, fila Z-API ou credencial operacional foi alterada.
+- O commit de publicação `cdc7317afca23dbdd7d941fab5f82ac8cc60dcbe` foi salvo no Site oficial
+  existente como versão **116** e o deploy concluiu com `succeeded`. O título do projeto Sites foi
+  normalizado para **Sistema de Leads**; audiência pública e URL existente foram preservadas.

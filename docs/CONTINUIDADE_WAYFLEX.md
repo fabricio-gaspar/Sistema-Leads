@@ -1263,3 +1263,6 @@ webhook em ambiente controlado.
   entrada, saída, status e templates. Nenhuma mensagem real foi enviada nesta etapa.
 - A sincronização para a branch remota `sync/site-production-2026-09-24` ainda depende de autenticar
   o GitHub neste host. A branch local foi preservada e `main` não sofreu reset, rollback ou troca.
+- Publicação oficial concluída: commit `cdc7317afca23dbdd7d941fab5f82ac8cc60dcbe`, Site versão
+  **116**, deploy `succeeded` no projeto existente `appgprj_6a905559159c8191a61fb776b9a4c531`.
+  A URL pública foi preservada e o título do projeto passou a **Sistema de Leads**.

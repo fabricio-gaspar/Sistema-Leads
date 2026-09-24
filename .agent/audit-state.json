@@ -2,17 +2,17 @@
   "schema_version": 1,
   "baseline_version": 4,
   "baseline_commit": "1dc6275b8c7d70de953b66397a8c89f5e97bc15b",
-  "last_audited_commit": "02052abc235ef211787f713a5185d4203fe7a491",
-  "current_head_at_update": "02052abc235ef211787f713a5185d4203fe7a491",
-  "working_tree_status": "meta_coexistence_gate_1_validated_publication_pending",
+  "last_audited_commit": "cdc7317afca23dbdd7d941fab5f82ac8cc60dcbe",
+  "current_head_at_update": "cdc7317afca23dbdd7d941fab5f82ac8cc60dcbe",
+  "working_tree_status": "meta_coexistence_foundation_published_all_gates_closed",
   "last_site_publication": {
-    "commit": "a5f2dcf04d72ba2fe26ff7812650dd0dc672b6fc",
-    "site_version": 115,
-    "validated_at": "2026-09-23T19:11:26-03:00",
-    "working_tree_status": "multi_whatsapp_seller_access_published_and_visually_validated"
+    "commit": "cdc7317afca23dbdd7d941fab5f82ac8cc60dcbe",
+    "site_version": 116,
+    "validated_at": "2026-09-24T18:12:43-03:00",
+    "working_tree_status": "meta_coexistence_foundation_published_all_gates_closed"
   },
   "full_audit_required": false,
-  "baseline_status": "meta_coexistence_foundation_validated_with_all_gates_closed",
-  "updated_at": "2026-09-24T18:06:00-03:00",
-  "next_action": "Publicar o commit validado no Site oficial existente. Depois, para Gate 3, configurar App/WABA oficial em staging, conectar um único número autorizado via Embedded Signup e homologar histórico, eco do app, entrada, saída, status e templates antes de liberar qualquer organização real."
+  "baseline_status": "meta_coexistence_foundation_published_with_all_gates_closed",
+  "updated_at": "2026-09-24T18:12:43-03:00",
+  "next_action": "Para Gate 3, configurar App/WABA oficial em staging, conectar um único número autorizado via Embedded Signup e homologar histórico, eco do app, entrada, saída, status e templates antes de liberar qualquer organização real."
 }

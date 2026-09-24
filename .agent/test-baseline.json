@@ -137,5 +137,5 @@
   },
   "covered": ["frontend_typecheck","lint","edge_typecheck","unit_and_contract_tests","production_build"],
   "not_covered": ["authenticated_e2e","login_como_novo_membro","real_whatsapp","real_whatsapp_media_delivery","real_claude","cross_organization_rls","database_concurrency","provider_receipt_race","mobile_authenticated_qa","real_meta_coexistence","meta_embedded_signup","meta_history_sync","meta_template_delivery"],
-  "working_tree_validation": "A fundação Meta Coexistence passou em type-check frontend/Edge, lint sem warnings, 35 arquivos/237 testes, build Vite e artefato Sites. O projeto oficial mantém duas contas Z-API conectadas e nenhum estado Meta operacional; feature flag, entrada, saída e automação Meta estão desligadas com kill switch ligado. Nenhuma mensagem, lead, fila Z-API ou segredo foi alterado."
+  "working_tree_validation": "A fundação Meta Coexistence passou em type-check frontend/Edge, lint sem warnings, 35 arquivos/237 testes, build Vite e artefato Sites. O projeto oficial mantém duas contas Z-API conectadas e nenhum estado Meta operacional; feature flag, entrada, saída e automação Meta estão desligadas com kill switch ligado. Nenhuma mensagem, lead, fila Z-API ou segredo foi alterado. O commit cdc7317afca23dbdd7d941fab5f82ac8cc60dcbe foi publicado no Site oficial como versão 116 com deploy succeeded."
 }
