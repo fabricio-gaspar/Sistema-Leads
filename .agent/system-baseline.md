@@ -219,3 +219,17 @@ Detalhes de continuidade e releases ficam em `docs/CONTINUIDADE_WAYFLEX.md`.
 - Validação local aprovada: type-check frontend/Edge, lint, build/artefato Sites e Vitest completo
   com 31 arquivos e 227 testes. Não houve criação de plano/instância, envio de mensagem ou leitura
   de segredo. Ainda não existe vendedor nem instância individual no estado real auditado.
+
+## Delta de Meta WhatsApp Coexistence — 24/09/2026
+
+- A operação continua em Z-API. `meta_cloud` é uma fundação paralela protegida por flag, controles
+  independentes de entrada/saída/automação e kill switch; todos começam fechados.
+- Tokens e app secret Meta ficam no Vault/backend. O navegador recebe apenas IDs públicos para o
+  Embedded Signup oficial; o webhook exige assinatura HMAC e persiste somente hash/metadados
+  sanitizados.
+- `ana-run` continua sendo a única autoridade automática. Um inbound Meta só pode acioná-la depois
+  de conta, organização, feature flag, controle de automação, identidade do lead e elegibilidade
+  serem comprovados.
+- O projeto oficial está saudável com duas contas Z-API conectadas e nenhuma conta/evento/fila Meta.
+  Gate 3 só pode começar com configuração oficial da Meta e número de teste explicitamente
+  autorizado; até lá, nenhuma tela ou processo Meta fica operacional.

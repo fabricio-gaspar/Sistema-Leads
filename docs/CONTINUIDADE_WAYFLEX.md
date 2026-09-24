@@ -1239,3 +1239,27 @@ webhook em ambiente controlado.
   sem criação de plano/envio e a Central identificando o canal corporativo. Em largura móvel, a
   tabela permanece contida por rolagem horizontal sem overflow global. Console sem warning/error.
   Nenhuma configuração foi salva, QR aberto, mensagem enviada ou dado operacional alterado.
+
+## 2026-09-24 — Fundação Meta WhatsApp Coexistence com rollout fechado
+
+- O fluxo em produção continua nas duas contas Z-API conectadas. A nova integração Meta Cloud foi
+  adicionada por `MessagingProvider`, sem substituir fila, webhook, worker ou credenciais Z-API.
+- Banco oficial: migrations `20260924160000_meta_coexistence_foundation`,
+  `20260924161500_meta_coexistence_hardening` e
+  `20260924163000_meta_coexistence_message_integrity`. Elas criam onboarding, conversas, ledger
+  sanitizado, recibos fora de ordem, outbox idempotente, sincronização, templates, rate cards,
+  roteamento e gates independentes por organização/provedor.
+- Edge Functions ativas: `webhook-meta-whatsapp` v2, `meta-whatsapp-onboarding` v1,
+  `meta-whatsapp-messages` v1, `meta-whatsapp-worker` v2 e `whatsapp-accounts` v2. O webhook exige
+  HMAC; onboarding/mensagens exigem JWT; worker exige token interno. Segredos ficam no Vault.
+- Estado comprovado após a implantação: projeto `thgzrkppouoevapjquyu` ativo e saudável, duas
+  contas Z-API conectadas, zero conta Meta, zero onboarding, zero evento Meta, zero outbox; três
+  flags Meta desligadas e três controles com entrada/saída/automação desligadas e kill switch ligado.
+- Validação local aprovada no commit `02052abc235ef211787f713a5185d4203fe7a491`: type-check
+  frontend/Edge, lint sem warnings, Vitest 35 arquivos/237 testes, build Vite e artefato Sites.
+  Probes públicos recusaram webhook sem assinatura, rotas sem JWT e worker sem token.
+- Próximo gate: configurar Meta App/WABA em ambiente de teste, escolher um número autorizado que
+  não seja simultaneamente remetente/destinatário, homologar Embedded Signup, histórico, eco do app,
+  entrada, saída, status e templates. Nenhuma mensagem real foi enviada nesta etapa.
+- A sincronização para a branch remota `sync/site-production-2026-09-24` ainda depende de autenticar
+  o GitHub neste host. A branch local foi preservada e `main` não sofreu reset, rollback ou troca.

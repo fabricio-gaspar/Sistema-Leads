@@ -882,3 +882,21 @@
   **Usuários > WhatsApp operacional**, formulário de instância existente, layout móvel sem overflow
   global e identificação da conta corporativa na Central. Console sem warnings/errors; nenhum botão
   de validação, salvamento, conexão, envio ou alteração operacional foi acionado.
+
+# 2026-09-24 — Fundação protegida para Meta WhatsApp Coexistence
+
+- O fluxo Z-API homologado foi preservado. A nova abstração `MessagingProvider` acrescenta o
+  provedor `meta_cloud` sem mudar a resolução, fila ou worker usados pelas duas contas Z-API atuais.
+- Três migrations criaram gates por organização/provedor, onboarding, conversas, ledger sanitizado
+  de webhook, recibos fora de ordem, outbox idempotente, sincronização, templates, rate cards e
+  roteamento. Todas foram aplicadas no projeto oficial `thgzrkppouoevapjquyu` com RLS e índices.
+- Foram publicadas `webhook-meta-whatsapp` v2, `meta-whatsapp-onboarding` v1,
+  `meta-whatsapp-messages` v1, `meta-whatsapp-worker` v2 e `whatsapp-accounts` v2. Assinatura HMAC,
+  JWT/token interno, idempotência, retry/DLQ e ausência de payload integral são obrigatórios.
+- O painel de Embedded Signup usa somente o SDK oficial da Meta e fica invisível enquanto a flag
+  `meta_coexistence` estiver desligada. Não existe QR próprio nem segredo Meta no navegador.
+- Verificação final: projeto oficial ativo, duas contas Z-API conectadas, zero conta Meta, zero
+  sessão de onboarding, zero evento Meta e zero item no outbox. Os três flags estão desligados e
+  os três controles mantêm entrada/saída/automação desligadas com kill switch ligado.
+- Type-check frontend/Edge, lint sem warnings, 35 arquivos/237 testes, build Vite e artefato Sites
+  passaram. Nenhuma mensagem, lead, fila Z-API ou credencial operacional foi alterada.

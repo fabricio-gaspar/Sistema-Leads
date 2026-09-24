@@ -141,3 +141,16 @@ diário em concorrência; recibos antecipados ainda dependem de nova reconcilia�
 6. `current_user_access` e as permissões `channels.view_own`, `channels.connect_own` e
    `channels.manage_all` filtram rotas e navegação. O administrador mantém a visão global; o
    vendedor vê somente módulos permitidos e sua própria conta operacional.
+
+## Meta WhatsApp Coexistence por gates
+
+1. `MessagingProvider` separa o contrato do provedor; a implementação Meta não substitui Z-API.
+2. Embedded Signup troca o código somente no backend, grava o token no Vault e persiste na conta
+   apenas WABA ID, phone number ID, nome/número exibido e metadados não secretos.
+3. `webhook-meta-whatsapp` valida HMAC antes de parsear, deduplica por evento externo e reconhece
+   mensagem, status, eco do aplicativo, histórico e sincronização sem guardar o payload integral.
+4. Entrada resolve conta e lead dentro da organização; ambiguidade falha fechada. Saída entra no
+   `messaging_outbox` transacional e o worker reconcilia aceite, entrega, leitura, falha e eventos
+   fora de ordem sem reenvio cego.
+5. Feature flag, controles de entrada/saída/automação e kill switch são revalidados no backend.
+   Todos permanecem desligados até a homologação staged; `ana-run` continua a única autoridade.

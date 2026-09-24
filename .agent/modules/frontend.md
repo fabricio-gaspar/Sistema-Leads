@@ -85,3 +85,14 @@
 - O item de navegação **Fontes** foi removido para evitar os mesmos provedores em duas telas. A
   URL legada `?tab=fontes` continua compatível e abre **APIs**; o Dashboard mantém apenas o
   resumo de status e também aponta para essa tela única.
+
+## Meta Coexistence — 24/09/2026
+
+- **Canais > WhatsApp** reutiliza o painel existente e pode exibir o Embedded Signup oficial da
+  Meta somente quando `meta_coexistence` estiver habilitado para a organização. Com a flag atual
+  desligada, o usuário não vê uma integração ainda não homologada.
+- A Central carrega o provedor da conta da conversa. Mensagem humana Meta usa o endpoint Meta; a
+  conta Z-API continua no caminho atual. Mídia comercial Meta falha de forma explícita enquanto a
+  sincronização/homologação própria não existir, evitando promessa silenciosa.
+- O nome visível do produto foi normalizado para **Sistema de Leads** sem renomear tabelas, chaves,
+  classes internas ou identificadores compatíveis.

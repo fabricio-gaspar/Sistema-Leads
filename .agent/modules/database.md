@@ -14,3 +14,15 @@
   `team_member_permissions` e `whatsapp_site_entries`, a matriz privada `has_org_permission`,
   e limita Leads, mensagens e integrações às permissões verificadas. As RPCs administrativas
   continuam somente para service_role; o navegador não pode chamar o purge diretamente.
+
+## Meta Coexistence — 24/09/2026
+
+- Migrations aplicadas: `20260924160000_meta_coexistence_foundation`,
+  `20260924161500_meta_coexistence_hardening` e
+  `20260924163000_meta_coexistence_message_integrity`.
+- Novas tabelas: flags, controles de provedor, sessões de onboarding, conversas, eventos de
+  webhook/status, outbox, sync state, templates, rate cards e perfis de roteamento. Tabelas de
+  serviço negam acesso direto; leituras administrativas usam RLS por organização/permissão.
+- `queue_meta_whatsapp_message` cria mensagem e job atomicamente e por idempotência;
+  `apply_meta_message_status` mantém o evento original e só avança o estado materializado quando o
+  timestamp/precedência permitir.

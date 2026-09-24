@@ -166,3 +166,16 @@
   conector oficial. Essa pendência não afeta a conta corporativa existente nem o fluxo atual da Ana.
 - Os avisos de performance remanescentes do advisor são anteriores e não pertencem às novas chaves
   de conta WhatsApp; os índices introduzidos nesta mudança eliminaram os avisos das novas FKs.
+
+## 2026-09-24 — Gates externos pendentes para Meta Coexistence
+
+- A fundação Meta está implantada, mas propositalmente inativa: não há Meta App/WABA/número
+  conectado, credenciais oficiais configuradas, sincronização de histórico nem teste real de
+  template, envio, recebimento ou recibo. Nada disso deve ser declarado homologado antes do Gate 3.
+- A criação da branch remota `sync/site-production-2026-09-24` no GitHub continua pendente porque
+  este host não possui credencial GitHub. A branch local
+  `feat/meta-coexistence-foundation-2026-09-24` e seus commits foram preservados; `main` não foi
+  alterada e não houve reset, rollback ou force push.
+- O advisor ainda lista sete FKs antigas sem índice e achados antigos de segurança; nenhuma FK nova
+  da fundação Meta aparece nesse grupo. A correção do legado deve ocorrer em lote próprio para não
+  misturar risco com a integração.

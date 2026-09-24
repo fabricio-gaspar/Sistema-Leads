@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "validated_commit": "b2ca952e012db3aa7584733ebddc435631ac1d28",
-  "last_validated_at": "2026-09-23T11:20:00-03:00",
+  "validated_commit": "02052abc235ef211787f713a5185d4203fe7a491",
+  "last_validated_at": "2026-09-24T18:06:00-03:00",
   "commands": [
     {"command":"npm run type-check","status":"passed"},
     {"command":"npm run lint","status":"passed","warnings":0},
@@ -115,6 +115,13 @@
     ,{"command":"eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0","status":"passed","warnings":0}
     ,{"command":"vitest run --configLoader runner","status":"passed","test_files":28,"checks":214,"note":"Inclui cinco regressões do parser: SPA, snapshot de segmentos e URL de rastreio única por card."}
     ,{"command":"vite build --configLoader runner && node scripts/build-sites-artifact.mjs","status":"passed","note":"Artefato do Site foi produzido; o aviso conhecido de runtime-config.js não bloqueia a compilação."}
+    ,{"command":"tsc --noEmit --project tsconfig.app.json","status":"passed","note":"Frontend com painel Meta protegido por feature flag e roteamento de provedor compilado sem erros."}
+    ,{"command":"tsc --project tsconfig.edge.json","status":"passed","note":"Webhook, onboarding, mensagens, worker e contrato MessagingProvider compilados sem erros."}
+    ,{"command":"eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0","status":"passed","warnings":0}
+    ,{"command":"vitest run --configLoader runner","status":"passed","test_files":35,"checks":237,"note":"Inclui assinatura Meta, parser de webhook/eco/status, contrato do provedor e janela de 24 horas."}
+    ,{"command":"vite build --configLoader runner && node scripts/build-sites-artifact.mjs","status":"passed","note":"1173 módulos transformados e artefato Sites reconstruído; runtime-config.js permanece aviso conhecido."}
+    ,{"command":"Supabase read-only Meta gate snapshot","status":"passed","note":"Projeto oficial saudável; 2 Z-API conectadas, 0 Meta, 0 onboarding, 0 eventos e 0 outbox; flags e controles fechados com kill switch ligado."}
+    ,{"command":"Public barrier probes","status":"passed","note":"Webhook sem assinatura, onboarding/mensagens sem JWT e worker sem token foram recusados com 401/403; nenhum registro Meta foi criado."}
   ],
   "prior_site_artifact_validation": {
     "validated_commit": "e4b1666c878df01ac0db3d12a290531a42107446",
@@ -129,6 +136,6 @@
     ]
   },
   "covered": ["frontend_typecheck","lint","edge_typecheck","unit_and_contract_tests","production_build"],
-  "not_covered": ["authenticated_e2e","login_como_novo_membro","real_whatsapp","real_whatsapp_media_delivery","real_claude","cross_organization_rls","database_concurrency","provider_receipt_race","mobile_authenticated_qa"],
-  "working_tree_validation": "A Central foi consolidada em um painel contextual único com abas para Lead, Conhecimento, Orçamentos e Agenda; o drawer responsivo oferece as mesmas áreas mais Histórico. Type-check frontend, lint da Central, Vitest completo (29 arquivos/222 testes) e build/artefato Sites passaram. A inspeção publicada confirmou as abas e o carregamento da base real de conhecimento sem acionar envio, fila, lead, credencial ou teste de provedor."
+  "not_covered": ["authenticated_e2e","login_como_novo_membro","real_whatsapp","real_whatsapp_media_delivery","real_claude","cross_organization_rls","database_concurrency","provider_receipt_race","mobile_authenticated_qa","real_meta_coexistence","meta_embedded_signup","meta_history_sync","meta_template_delivery"],
+  "working_tree_validation": "A fundação Meta Coexistence passou em type-check frontend/Edge, lint sem warnings, 35 arquivos/237 testes, build Vite e artefato Sites. O projeto oficial mantém duas contas Z-API conectadas e nenhum estado Meta operacional; feature flag, entrada, saída e automação Meta estão desligadas com kill switch ligado. Nenhuma mensagem, lead, fila Z-API ou segredo foi alterado."
 }

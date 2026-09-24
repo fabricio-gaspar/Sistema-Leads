@@ -15,3 +15,14 @@
   de limpeza do grafo operacional.
 - `site-whatsapp-entry` salva somente configuração pública do link do site. `webhook-whatsapp`
   preserva matching ambíguo bloqueado e só cria um novo lead a partir de marcador ativo.
+
+## Meta Coexistence — 24/09/2026
+
+- `webhook-meta-whatsapp` v2: verificação GET, HMAC POST, ledger idempotente, parser de mensagens,
+  status, eco e sincronização; retry é auditável e não persiste payload integral.
+- `meta-whatsapp-onboarding` v1 e `meta-whatsapp-messages` v1 exigem JWT; o primeiro grava segredo
+  no Vault e o segundo somente reserva a outbox transacional depois de revalidar permissões/gates.
+- `meta-whatsapp-worker` v2 exige token interno, faz claim atômico, aplica retry/DLQ e não repete
+  automaticamente um envio aceito pelo provedor quando a gravação local ficou ambígua.
+- `whatsapp-accounts` v2 preserva ações Z-API e rejeita mistura de provedor. `ana-run` não foi
+  substituída nem duplicada.

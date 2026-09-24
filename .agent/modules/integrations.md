@@ -32,3 +32,12 @@
   fonte desativada/configurada até uma validação real. Nenhum token transita pelo navegador.
 - Registros legados sem identificador remoto e vencidos são falha de execução, não resultado
   vazio; só os dois registros confirmados da organização ativa foram marcados como expirados.
+
+## Meta WhatsApp Coexistence — 24/09/2026
+
+- `whatsapp_accounts.provider` aceita `zapi` e `meta_cloud`; Z-API continua exigindo a integração
+  atual, e ações Z-API rejeitam explicitamente contas Meta.
+- O onboarding Meta usa Embedded Signup oficial. A UI é condicionada à flag por organização; não
+  cria QR próprio e não recebe token permanente nem app secret.
+- Webhook, envio e automação têm controles separados e kill switch. O estado real auditado é:
+  duas contas Z-API conectadas, nenhuma conta Meta e todos os controles Meta fechados.
