@@ -1,5 +1,14 @@
 # Histórico resumido de execução
 
+## 2026-09-25 — Homologação autenticada Busca → Leads
+
+- Usuário autenticou a aba oficial. A revisão exibiu cinco resultados e cinco marcadores; um lead
+  foi importado para a lista de homologação e continuou visível após recarregar. Banco: um membro
+  na lista de teste, zero mensagens e zero jobs. Não houve nova execução paga da Apify.
+- Encontrados e corrigidos localmente defaults indevidos de segmento/porte, fonte da lista ao
+  retomar, UF legada truncada e contagem histórica de lista vazia. Type-check, lint, 249 testes e
+  build passaram. Publicação e repetição autenticada das correções ainda em andamento.
+
 ## 2026-09-22 — Estados operacionais coerentes em Canais, APIs e Dashboard
 
 - A auditoria do projeto oficial confirmou que a saída WhatsApp e a Apify tinham credenciais

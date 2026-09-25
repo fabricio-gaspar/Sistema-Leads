@@ -16,6 +16,7 @@ import CsvImportModal from '@/components/feature/CsvImportModal';
 import type { CampoImportacao, ResultadoImportacao } from '@/components/feature/CsvImportModal';
 import { useOperationalMode } from '@/hooks/useOperationalMode';
 import { supabase } from '@/lib/supabase';
+import { prospectingImportDetails } from '@/lib/crm/prospectingImportDetails';
 
 const estados = ['SP', 'RJ', 'MG', 'PR', 'SC', 'RS', 'BA', 'PE', 'GO', 'DF'];
 const atividades = ['Tecnologia', 'Saúde', 'Educação', 'Varejo', 'Indústria', 'Logística', 'Marketing', 'Consultoria', 'Financeiro', 'Imobiliário'];
@@ -54,6 +55,8 @@ interface ProspectingLeadResponse {
   estado?: string;
   state?: string;
   uf?: string;
+  logradouro?: string;
+  cnae_descricao?: string;
   cargo?: string;
   segmento?: string;
   porte?: string;
@@ -96,8 +99,7 @@ function prospectingLeadToPreview(lead: ProspectingLeadResponse, fonte: string, 
   const email = lead.email || '';
   const site = lead.site || lead.website || '';
   const score = typeof lead.score === 'number' ? Math.max(0, Math.min(100, Math.round(lead.score))) : 60;
-  const cidadeReal = lead.cidade || lead.city || lead.municipio || '';
-  const estadoReal = lead.estado || lead.state || lead.uf || '';
+  const details = prospectingImportDetails(lead);
   const latitudeValue = lead.latitude ?? lead.lat;
   const longitudeValue = lead.longitude ?? lead.lng;
   const latitude = latitudeValue == null ? NaN : Number(latitudeValue);
@@ -111,7 +113,8 @@ function prospectingLeadToPreview(lead: ProspectingLeadResponse, fonte: string, 
     telefone,
     whatsapp,
     email,
-    localidade: [cidadeReal, estadoReal].filter(Boolean).join(' - ') || '—',
+    ...details,
+    localidade: [details.cidade, details.estado].filter(Boolean).join(' - ') || '—',
     fonte,
     validacao: email && !validarEmailReal(email) ? 'revisar' : 'ok',
     duplicado: false,
@@ -259,10 +262,10 @@ export default function BuscaLeads() {
     email: dados.email || '',
     telefone: dados.telefone || '',
     whatsapp: dados.whatsapp || '',
-    segmento: dados.segmento || (atividadesSel[0] || 'Tecnologia'),
+    segmento: dados.segmento || '',
     cidade: dados.cidade || '',
     estado: dados.estado || '',
-    porte: dados.porte || 'Pequeno',
+    porte: dados.porte || '',
     score: dados.score ?? 60,
     temperatura: dados.temperatura || (dados.score !== undefined && dados.score >= 80 ? 'Quente' : dados.score !== undefined && dados.score >= 60 ? 'Morno' : 'Frio'),
     etapa: dados.etapa || 'Novo',
@@ -329,6 +332,7 @@ export default function BuscaLeads() {
 
   const retomarExecucao = async (run: ProspectingRunSummary) => {
     const fonte = fontesProspecao.find((item) => item.sourceKey === 'apify');
+    if (fonte) setFonteSelecionada(fonte.id);
     setBuscando(true);
     setExecucaoAtual(run.id);
     setErroBusca(null);
@@ -510,7 +514,6 @@ export default function BuscaLeads() {
       return;
     }
     const fonte = fontes.find((f) => f.id === fonteSelecionada);
-    const nomeFinal = nomeLista.trim() || `Prospecção ${cidade} · ${new Date().toLocaleDateString('pt-BR')}`;
     const selecionadosLeads = preview
       .filter((l) => !l.duplicado && selecionados.includes(l.id))
       .map((l) => {
@@ -522,9 +525,10 @@ export default function BuscaLeads() {
           email: l.email,
           telefone: l.telefone,
           whatsapp: l.whatsapp || '',
-          segmento: atividadesSel[0] || segs[0] || 'Tecnologia',
-          cidade: l.localidade.split(' - ')[0] || cidade,
-          estado: l.localidade.split(' - ')[1] || estado,
+          segmento: l.segmento || '',
+          porte: l.porte || '',
+          cidade: l.cidade || '',
+          estado: l.estado || '',
           score: l.score,
           origem: l.fonte,
           tags: fonte?.tagsPadrao,
@@ -542,6 +546,8 @@ export default function BuscaLeads() {
       setErroImportacao('Selecione pelo menos um lead válido antes de enviar para o módulo Leads.');
       return;
     }
+    const cidadesSelecionadas = [...new Set(selecionadosLeads.map((lead) => lead.cidade).filter(Boolean))].join(', ');
+    const nomeFinal = nomeLista.trim() || `Prospecção ${cidadesSelecionadas || 'Apify'} · ${new Date().toLocaleDateString('pt-BR')}`;
     setImportando(true);
     setErroImportacao(null);
     setResultado(null);
@@ -554,11 +560,11 @@ export default function BuscaLeads() {
       fasePersistencia = 'lista';
       const lista = listas.criar({
         nome: nomeFinal,
-        segmento: atividadesSel[0] || segs[0] || 'Tecnologia',
-        cidade,
-        estado,
+        segmento: [...new Set(selecionadosLeads.map((lead) => lead.segmento).filter(Boolean))].join(', '),
+        cidade: cidadesSelecionadas,
+        estado: [...new Set(selecionadosLeads.map((lead) => lead.estado).filter(Boolean))].join(', '),
         total: selecionadosLeads.length,
-        fonte: fonte?.nome || 'Busca manual',
+        fonte: [...new Set(selecionadosLeads.map((lead) => lead.origem).filter(Boolean))].join(', ') || fonte?.nome || 'Busca manual',
         leadIds: selecionadosLeads.map((l) => l.id),
         status: 'pendente',
       });

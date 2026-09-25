@@ -1,5 +1,20 @@
 # Checkpoint — WayFlex CRM
 
+## 25/09/2026 — Homologação autenticada da Busca (fechamento da etapa 2 original)
+
+- O teste autenticado abriu os cinco resultados da busca de 23/09, exibiu cinco marcadores e
+  importou um único resultado para uma lista nomeada de homologação. Lead e vínculo persistiram
+  após recarga. Supabase confirmou um lead, um membro na lista, zero mensagens e zero jobs.
+- O teste revelou classificação e porte derivados de defaults do formulário, fonte incorreta da
+  lista reaberta, UF legada truncada e contagem histórica em lista sem membros. Correção local:
+  metadados passam a vir do resultado da fonte; UF só é normalizada de estado/endereço explícito;
+  listas contam vínculos reais e listas vazias não habilitam envio ao Kanban.
+- Type-check frontend/Edge, lint, 37 arquivos/249 testes e build/artefato passaram. Publicação e
+  repetição do teste após estas correções estão em andamento; não declarar conclusão antes disso.
+- Numeração: o checkpoint anterior chamado etapa 3 é complemento da Busca. A etapa 3 do plano
+  original é Usuários e responsáveis e ainda não foi executada. O seletor desta importação ainda
+  contém responsáveis de exemplo; sua substituição pertence à próxima etapa já planejada.
+
 ## 25/09/2026 — Etapa 3: confirmação da importação Busca → Leads
 
 - Causa no caminho de falha: a Busca aguardava a gravação dos leads, mas a fila de listas

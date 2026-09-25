@@ -92,7 +92,7 @@ function rowToList(row: ListRow, leadIds: string[]): ListaDeLeads {
     segmento: stringValue(row.criteria.segmento),
     cidade: stringValue(row.criteria.cidade),
     estado: stringValue(row.criteria.estado),
-    total: numberValue(row.criteria.total, leadIds.length),
+    total: leadIds.length,
     fonte: stringValue(row.criteria.fonte, 'Busca manual'),
     leadIds,
     status: listStatusFromDb[row.status],

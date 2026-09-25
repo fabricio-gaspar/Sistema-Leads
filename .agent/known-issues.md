@@ -1,5 +1,14 @@
 # Problemas conhecidos
 
+## Homologação da Busca — 25/09/2026
+
+- Primeiro teste autenticado passou: revisão recuperada, mapa, importação de um lead, lista e
+  vínculo persistidos após recarga, zero mensagens/jobs. Antes da correção, defaults de segmento/
+  porte contaminavam o cadastro; a lista perdia a fonte ao retomar e contava total histórico.
+- Correção de metadados e contagem validada localmente com 249 testes; repetição publicada pendente.
+- Próxima etapa ORIGINAL: Usuários e responsáveis. O seletor da Busca usa mockUsers (u-2 etc.);
+  não homologar atribuição humana/distribuição até trocar por membros reais e validar UUID/RBAC.
+
 ## Importação Busca → Leads — etapa 3, 25/09/2026
 
 - Corrigido: erro ao persistir `lead_lists`/`lead_list_members` não é mais engolido pela

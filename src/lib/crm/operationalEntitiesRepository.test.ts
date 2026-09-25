@@ -40,4 +40,14 @@ describe('operationalEntityMappers', () => {
     expect(flow.ativo).toBe(true);
     expect(flow.passos[0].mensagem).toContain('{nome}');
   });
+
+  it('counts actual list members instead of a historical prospecting total', () => {
+    const row = {
+      id: '11111111-1111-4111-8111-111111111111',
+      name: 'Lista antiga', status: 'pending' as const,
+      criteria: { total: 5 }, created_at: '2026-09-23T12:00:00.000Z',
+    };
+    expect(mappers.rowToList(row, []).total).toBe(0);
+    expect(mappers.rowToList(row, ['22222222-2222-4222-8222-222222222222']).total).toBe(1);
+  });
 });

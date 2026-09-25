@@ -13,6 +13,10 @@ export interface PreviewLead {
   whatsapp?: string;
   email: string;
   localidade: string;
+  cidade?: string;
+  estado?: string;
+  segmento?: string;
+  porte?: string;
   fonte: string;
   validacao: 'ok' | 'revisar';
   duplicado: boolean;

@@ -446,10 +446,11 @@ export default function Leads() {
                 <p className="text-xs text-foreground-400 mb-3">Fonte: {lista.fonte}</p>
                 <button
                   onClick={() => setEnvioAlvo(lista.leadIds)}
-                  className="w-full inline-flex items-center justify-center gap-2 bg-primary-500 hover:bg-primary-600 text-background-50 px-4 py-2 rounded-lg text-xs font-bold cursor-pointer whitespace-nowrap"
+                  disabled={lista.leadIds.length === 0}
+                  className="w-full inline-flex items-center justify-center gap-2 bg-primary-500 hover:bg-primary-600 text-background-50 px-4 py-2 rounded-lg text-xs font-bold cursor-pointer whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <i className="ri-send-plane-2-line"></i>
-                  Enviar para o Kanban
+                  {lista.leadIds.length ? 'Enviar para o Kanban' : 'Lista sem leads vinculados'}
                 </button>
               </div>
             ))}
