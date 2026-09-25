@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "validated_commit": "398de4c883273def0635c4fc7301ef25799cac2d",
-  "last_validated_at": "2026-09-25T10:40:59-03:00",
+  "validated_commit": "a55a0a21c4c1f09cd9b7672f3cf7576ce56bbee2",
+  "last_validated_at": "2026-09-25T11:38:43-03:00",
   "commands": [
     {"command":"npm run type-check","status":"passed"},
     {"command":"npm run lint","status":"passed","warnings":0},
@@ -122,6 +122,13 @@
     ,{"command":"vite build --configLoader runner && node scripts/build-sites-artifact.mjs","status":"passed","note":"1173 módulos transformados e artefato Sites reconstruído; runtime-config.js permanece aviso conhecido."}
     ,{"command":"Supabase read-only Meta gate snapshot","status":"passed","note":"Projeto oficial saudável; 2 Z-API conectadas, 0 Meta, 0 onboarding, 0 eventos e 0 outbox; flags e controles fechados com kill switch ligado."}
     ,{"command":"Public barrier probes","status":"passed","note":"Webhook sem assinatura, onboarding/mensagens sem JWT e worker sem token foram recusados com 401/403; nenhum registro Meta foi criado."}
+    ,{"command":"tsc --noEmit --project tsconfig.app.json","status":"passed","note":"Cards paralelos e leitura real de Z-API/Meta no Dashboard compilados sem erro."}
+    ,{"command":"tsc --project tsconfig.edge.json","status":"passed","note":"Controles server-side de provedor, webhook e diagnósticos compilados sem erro."}
+    ,{"command":"eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0","status":"passed","warnings":0}
+    ,{"command":"vitest run","status":"passed","test_files":35,"checks":238,"note":"Inclui regressão do teste direto que recusa chamar Z-API quando o controle do provedor está desativado."}
+    ,{"command":"vite build --configLoader runner && node scripts/build-sites-artifact.mjs","status":"passed","note":"Artefato do Site produzido sem segredo no bundle; runtime-config.js permanece aviso conhecido e não bloqueante."}
+    ,{"command":"Supabase read-only provider state","status":"passed","note":"Z-API e Meta permanecem com entrada, saída e Ana bloqueadas; as integrações Z-API estão pausadas e há zero jobs de outreach pendentes."}
+    ,{"command":"Sites publish version 118","status":"passed","note":"Commit a55a0a21c4c1f09cd9b7672f3cf7576ce56bbee2 salvo com arquivo e publicado no Site oficial existente."}
   ],
   "prior_site_artifact_validation": {
     "validated_commit": "e4b1666c878df01ac0db3d12a290531a42107446",
@@ -137,5 +144,5 @@
   },
   "covered": ["frontend_typecheck","lint","edge_typecheck","unit_and_contract_tests","production_build"],
   "not_covered": ["authenticated_e2e","login_como_novo_membro","real_whatsapp","real_whatsapp_media_delivery","real_claude","cross_organization_rls","database_concurrency","provider_receipt_race","mobile_authenticated_qa","real_meta_coexistence","meta_embedded_signup","meta_history_sync","meta_template_delivery"],
-  "working_tree_validation": "A configuração Meta foi corrigida para aparecer em Configurações > Canais > WhatsApp e atendimento, por meio do modo reutilizável meta do painel de contas. Type-check frontend, lint sem warnings, Vitest 35/237, build Vite e artefato Sites passaram. A Z-API permanece intacta; WayFlex tem somente a flag de configuração Meta ligada, sem conta Meta, entrada, saída ou automação liberadas."
+  "working_tree_validation": "Z-API e Meta WhatsApp Cloud API agora possuem controles administrativos paralelos em Configurações > Canais > WhatsApp e leituras factuais no Dashboard. A ativação é mutuamente exclusiva e pausa o outro caminho corporativo. Type-check frontend/Edge, lint, Vitest 35/238, build e Site v118 passaram. Z-API foi desativada somente no WayFlex; Meta ainda não possui conta conectada nem controles operacionais liberados."
 }

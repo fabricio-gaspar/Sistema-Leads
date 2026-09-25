@@ -2,17 +2,17 @@
   "schema_version": 1,
   "baseline_version": 4,
   "baseline_commit": "1dc6275b8c7d70de953b66397a8c89f5e97bc15b",
-  "last_audited_commit": "398de4c883273def0635c4fc7301ef25799cac2d",
-  "current_head_at_update": "398de4c883273def0635c4fc7301ef25799cac2d",
-  "working_tree_status": "meta_channel_surface_validated_publication_pending",
+  "last_audited_commit": "a55a0a21c4c1f09cd9b7672f3cf7576ce56bbee2",
+  "current_head_at_update": "a55a0a21c4c1f09cd9b7672f3cf7576ce56bbee2",
+  "working_tree_status": "whatsapp_provider_switch_published_v118",
   "last_site_publication": {
-    "commit": "cdc7317afca23dbdd7d941fab5f82ac8cc60dcbe",
-    "site_version": 116,
-    "validated_at": "2026-09-24T18:12:43-03:00",
-    "working_tree_status": "meta_coexistence_foundation_published_all_gates_closed"
+    "commit": "a55a0a21c4c1f09cd9b7672f3cf7576ce56bbee2",
+    "site_version": 118,
+    "validated_at": "2026-09-25T11:38:43-03:00",
+    "working_tree_status": "whatsapp_provider_switch_published"
   },
   "full_audit_required": false,
-  "baseline_status": "meta_channel_surface_validated_publication_pending",
-  "updated_at": "2026-09-25T10:40:59-03:00",
-  "next_action": "Publicar a correção visual no Site oficial existente. Depois, concluir o Embedded Signup oficial da Meta no painel WayFlex com App/WABA/número autorizado e homologar um único número em staging antes de liberar entrada, saída ou automação."
+  "baseline_status": "whatsapp_provider_switch_published",
+  "updated_at": "2026-09-25T11:38:43-03:00",
+  "next_action": "Concluir o Embedded Signup oficial da Meta no painel WayFlex com App, WABA e número empresarial autorizados. Em seguida, homologar entrada e saída em um único número de teste antes de ativar os três controles Meta."
 }
