@@ -3,17 +3,17 @@
   "validated_commit": "5ac4a6bc15b69dd5ef7c0b67ddc70af416303a61",
   "last_validated_at": "2026-09-25",
   "current_validation": {
-    "stage": 3,
+    "stage": 4,
     "evidence": "docs/CONTINUIDADE_WAYFLEX.md",
     "frontend_typecheck": "passed",
     "edge_typecheck": "passed",
     "lint": "passed_without_warnings",
-    "test_files": 39,
-    "tests_passed": 253,
+    "test_files": 40,
+    "tests_passed": 255,
     "production_build": "passed",
     "sites_artifact": "passed",
-    "external_end_to_end": "published_v123_real_assignee_selector_and_missing_selection_blocked_no_new_lead_or_message",
-    "note": "Stage 3: real active organization members replace mockUsers in human import; database trigger enforces same-organization active assignee and edit_all for cross-user assignment. Transaction rollback validated denial/acceptance with no persistent data change. 39 files/253 tests, typechecks, lint and production artifact passed. Site v123 published; after reload browser showed three real members and blocked submission without one. New lead human import not executed. Previous Stage 2 browser import remains verified separately; commands below are historical."
+    "external_end_to_end": "human_import_deferred_by_operator_no_new_lead_or_message",
+    "note": "Stage 4: official RPC applied; rollback transactions verified atomic success, idempotent retry, duplicate failure rollback and seller RBAC. No synthetic rows remained. 40 files/255 tests, frontend/Edge typechecks, lint and production artifact passed. Site publication pending. Human import with a new lead was deferred by operator. Historical commands below belong to earlier stages."
   },
   "commands": [
     {"command":"node node_modules/typescript/bin/tsc --noEmit --project tsconfig.app.json","status":"passed","note":"Etapa 3: página de importação e fila de listas."},

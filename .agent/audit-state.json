@@ -4,7 +4,7 @@
   "baseline_commit": "1dc6275b8c7d70de953b66397a8c89f5e97bc15b",
   "last_audited_commit": "5ac4a6bc15b69dd5ef7c0b67ddc70af416303a61",
   "current_head_at_update": "5ac4a6bc15b69dd5ef7c0b67ddc70af416303a61",
-  "working_tree_status": "stage_3_published_verified_closure_documentation_pending_commit",
+  "working_tree_status": "stage_4_atomic_import_verified_pending_site_publication",
   "stage_1_baseline": ".agent/baselines/2026-09-25-stage-1.json",
   "recovery_tag": "baseline-wayflex-stage1-20260925",
   "work_branch": "chore/wayflex-stage-1-baseline-2026-09-25",
@@ -16,7 +16,7 @@
     "working_tree_status": "published_real_assignees_and_empty_selection_retest_passed"
   },
   "full_audit_required": false,
-  "baseline_status": "original_stage_3_real_assignees_rbac_validated_locally",
+  "baseline_status": "stage_4_atomic_import_rpc_applied_transactionally_validated",
   "updated_at": "2026-09-25T19:25:00Z",
-  "next_action": "Etapa 3 original concluída no escopo de usuários reais e guarda de atribuição. Importação humana de novo lead não foi executada; requer dado/controlado e autorização separada para prospecção. Não ativar Ana/canais nem chamar provedores. Nova busca paga e atomicidade de lote continuam não homologadas."
+  "next_action": "Publicar etapa 4 somente no Site oficial e conferir deploy. Importação humana de novo lead foi adiada pelo operador; não executar agora. Não ativar Ana/canais nem chamar provedores ou busca paga."
 }

@@ -1,5 +1,9 @@
 # Histórico resumido de execução
 
+## 2026-09-25 — Etapa 4, lote atômico
+
+- Substituídas gravações sequenciais da revisão por uma RPC invocadora; adicionado retry idempotente e reconciliação dos stores. Aplicada migration oficial. Transações revertidas comprovaram lote único, deduplicação, rollback total e RBAC. Zero leads/mensagens de teste persistidos. Type-check frontend/Edge, lint, 255 testes e build/artefato aprovados.
+
 ## 2026-09-25 — Usuários e responsáveis, etapa 3 original
 
 - Substituído `mockUsers` da revisão/importação por `organization_members` ativos; seleção

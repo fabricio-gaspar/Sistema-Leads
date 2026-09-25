@@ -1,5 +1,9 @@
 # Mapa de arquitetura
 
+## Busca → Leads (etapa 4)
+
+Revisão selecionada → `prospectingBatchRepository` → RPC `import_prospecting_batch` (SECURITY INVOKER/RLS) → `leads` + `lead_lists` + `lead_list_members` na mesma transação. O mesmo ID/payload pode ser repetido após resposta incerta. A navegação só ocorre após confirmação e atualização dos stores.
+
 ## Fluxo comercial crítico
 
 1. Canal/formulário/importação cria ou identifica `leads`.

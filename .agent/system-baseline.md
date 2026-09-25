@@ -1,5 +1,10 @@
 # Baseline do sistema
 
+## Etapa 4 — importação em lote atômica, 25/09/2026
+
+- `import_prospecting_batch` é o único caminho da revisão Busca → Leads/lista: uma transação, mesma organização, permissão de criação e atribuição validada. Retry com mesmo ID e conteúdo não duplica; conteúdo divergente com mesmo ID falha. Lista e membros não permanecem em falha.
+- Migration aplicada ao Supabase oficial; transações de sucesso, rollback e RBAC passaram sem dados de teste persistidos. 255 testes, type-check, lint e build passaram. A validação humana ponta a ponta foi adiada pelo operador.
+
 ## Etapa 3 original — Usuários e responsáveis, 25/09/2026
 
 - A Busca usa a equipe ativa real da organização para atribuição humana, exige um responsável

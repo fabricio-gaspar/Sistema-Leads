@@ -1,5 +1,9 @@
 # Problemas conhecidos
 
+## Importação em lote — 25/09/2026
+
+- A falta de atomicidade da revisão foi corrigida com RPC transacional e retry idempotente; sucesso e rollback foram comprovados em transações revertidas. A importação humana ponta a ponta no navegador permanece adiada a pedido do operador.
+
 ## Usuários e responsáveis — 25/09/2026
 
 - Resolvido e publicado v123: a importação humana não escolhe mais `u-2` fictício. Recarrega membros

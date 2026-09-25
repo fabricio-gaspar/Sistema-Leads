@@ -1,5 +1,7 @@
 # Frontend
 
+- Busca de Leads, etapa 4 (25/09): a revisão importa seleção, lista e vínculos por uma RPC atômica. Em resposta incerta, preserva ID e payload para confirmar o mesmo lote sem duplicar. Após sucesso confirmado, relê leads e listas do servidor. Nenhuma alteração nos caminhos CSV, Ana, canais ou envio.
+
 - Busca de Leads, etapa 3 (25/09): **Adicionar aos Leads** aguarda a persistência dos leads,
   da lista e do vínculo final antes de navegar. Falha aparece em alerta, bloqueia reenvio
   cego e oferece acesso a Leads para verificar possível gravação parcial. O fluxo de sucesso

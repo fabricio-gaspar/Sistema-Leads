@@ -44,6 +44,15 @@ async function hydrate(): Promise<void> {
   return hydratePromise;
 }
 
+/** Recarrega listas após uma importação transacional feita pelo backend. */
+export async function refreshListsStore(): Promise<void> {
+  const lists = await loadOperationalLists();
+  state = lists;
+  hydrated = true;
+  latestPersistenceError = null;
+  notify();
+}
+
 function updateState(updater: (previous: ListaDeLeads[]) => ListaDeLeads[]): void {
   const previous = state;
   const next = updater(previous);

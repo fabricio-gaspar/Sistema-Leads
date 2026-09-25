@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { segmentos } from '@/mocks/leadsData';
 import type { Lead } from '@/mocks/leadsData';
-import { refreshLeadsStore, useLeadsStore, waitForLeadsPersistence } from '@/hooks/useLeadsStore';
-import { useListasStore, waitForListsPersistence } from '@/hooks/useListasStore';
+import { refreshLeadsStore, useLeadsStore } from '@/hooks/useLeadsStore';
+import { refreshListsStore } from '@/hooks/useListasStore';
 import { fontesAtivas, useFontesStore } from '@/hooks/useFontesStore';
 import { templatesMensagem } from '@/mocks/templatesData';
 import { useAuth } from '@/hooks/useAuth';
@@ -19,6 +19,7 @@ import type { CampoImportacao, ResultadoImportacao } from '@/components/feature/
 import { useOperationalMode } from '@/hooks/useOperationalMode';
 import { supabase } from '@/lib/supabase';
 import { prospectingImportDetails } from '@/lib/crm/prospectingImportDetails';
+import { importProspectingBatch, type ProspectingBatchInput } from '@/lib/crm/prospectingBatchRepository';
 
 const estados = ['SP', 'RJ', 'MG', 'PR', 'SC', 'RS', 'BA', 'PE', 'GO', 'DF'];
 const atividades = ['Tecnologia', 'Saúde', 'Educação', 'Varejo', 'Indústria', 'Logística', 'Marketing', 'Consultoria', 'Financeiro', 'Imobiliário'];
@@ -171,6 +172,7 @@ export default function BuscaLeads() {
   const [erroImportacao, setErroImportacao] = useState<string | null>(null);
   const [importando, setImportando] = useState(false);
   const [importacaoPendenteVerificacao, setImportacaoPendenteVerificacao] = useState(false);
+  const lotePendente = useRef<ProspectingBatchInput | null>(null);
   const [erroBusca, setErroBusca] = useState<string | null>(null);
   const [preview, setPreview] = useState<PreviewLead[]>([]);
   const [selecionados, setSelecionados] = useState<string[]>([]);
@@ -194,7 +196,6 @@ export default function BuscaLeads() {
   const [origemAutorizacao, setOrigemAutorizacao] = useState('');
 
   const [leads, setLeads] = useLeadsStore();
-  const listas = useListasStore();
   const { fontes } = useFontesStore();
   const { mode: operationalMode } = useOperationalMode();
   const { user } = useAuth();
@@ -527,8 +528,40 @@ export default function BuscaLeads() {
     if (etapa > 1) setEtapa(etapa - 1);
   };
 
+  const confirmarLote = async (input: ProspectingBatchInput) => {
+    let loteConfirmado = false;
+    try {
+      await importProspectingBatch(input);
+      loteConfirmado = true;
+      await Promise.all([refreshLeadsStore(), refreshListsStore()]);
+      lotePendente.current = null;
+      setImportacaoPendenteVerificacao(false);
+      navigate('/dashboard/leads');
+    } catch (error) {
+      const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : '';
+      const rejeicaoConfirmada = ['23505', '22023', '42501', '23514'].includes(code);
+      if (rejeicaoConfirmada) lotePendente.current = null;
+      setImportacaoPendenteVerificacao(loteConfirmado || !rejeicaoConfirmada);
+      setErroImportacao(loteConfirmado
+        ? 'O lote foi salvo, mas a tela não conseguiu atualizar. Tente confirmar novamente ou abra Leads.'
+        : rejeicaoConfirmada
+          ? code === '23505'
+            ? 'Um lead ou esta lista já existe. Atualize a revisão antes de tentar novamente.'
+            : 'O banco recusou o lote. Nenhum lead ou lista deste lote foi gravado; revise os dados e suas permissões.'
+          : 'Não foi possível confirmar a resposta do banco. O lote nunca é gravado pela metade. Confirme o lote original ou confira em Leads.');
+    } finally {
+      setImportando(false);
+    }
+  };
+
   const concluir = async () => {
-    if (importando || importacaoPendenteVerificacao) return;
+    if (importando) return;
+    if (importacaoPendenteVerificacao && lotePendente.current) {
+      setImportando(true);
+      setErroImportacao(null);
+      await confirmarLote(lotePendente.current);
+      return;
+    }
     if (!user?.id) {
       setErroImportacao('Sua sessão não está disponível. Entre novamente antes de importar.');
       return;
@@ -597,42 +630,19 @@ export default function BuscaLeads() {
     const nomeFinal = nomeLista.trim() || `Prospecção ${cidadesSelecionadas || 'Apify'} · ${new Date().toLocaleDateString('pt-BR')}`;
     setErroImportacao(null);
     setResultado(null);
-    let fasePersistencia: 'leads' | 'lista' | 'atualizacao' = 'leads';
-    try {
-      // Primeiro persiste os leads para respeitar a chave estrangeira da lista.
-      // A criação continua sem qualquer disparo da Ana ou provedor externo.
-      setLeads((prev) => [...selecionadosLeads, ...prev]);
-      await waitForLeadsPersistence();
-      fasePersistencia = 'lista';
-      const lista = listas.criar({
-        nome: nomeFinal,
+    const input: ProspectingBatchInput = {
+      batchId: crypto.randomUUID(),
+      leads: selecionadosLeads,
+      listName: nomeFinal,
+      listCriteria: {
         segmento: [...new Set(selecionadosLeads.map((lead) => lead.segmento).filter(Boolean))].join(', '),
         cidade: cidadesSelecionadas,
         estado: [...new Set(selecionadosLeads.map((lead) => lead.estado).filter(Boolean))].join(', '),
-        total: selecionadosLeads.length,
         fonte: [...new Set(selecionadosLeads.map((lead) => lead.origem).filter(Boolean))].join(', ') || fonte?.nome || 'Busca manual',
-        leadIds: selecionadosLeads.map((l) => l.id),
-        status: 'pendente',
-      });
-      await waitForListsPersistence();
-      fasePersistencia = 'atualizacao';
-      const leadIds = new Set(selecionadosLeads.map((lead) => lead.id));
-      setLeads((prev) => prev.map((lead) => leadIds.has(lead.id) ? { ...lead, listaId: lista.id } : lead));
-      await waitForLeadsPersistence();
-      navigate('/dashboard/leads');
-    } catch {
-      // Uma gravação em lote pode ter sido parcial. Reconcilie a tela com o
-      // banco e impeça repetir a importação sem conferir os leads existentes.
-      try { await refreshLeadsStore(); } catch { /* a falha principal permanece visível */ }
-      setImportacaoPendenteVerificacao(true);
-      setErroImportacao(fasePersistencia === 'leads'
-        ? 'Não foi possível concluir a importação. Alguns leads podem ter sido salvos. Confira em Leads antes de repetir.'
-        : fasePersistencia === 'lista'
-          ? 'Os leads foram salvos, mas não foi possível confirmar a lista. Confira em Leads antes de repetir.'
-          : 'Os leads e a lista podem ter sido salvos, mas a atualização final falhou. Confira em Leads antes de repetir.');
-    } finally {
-      setImportando(false);
-    }
+      },
+    };
+    lotePendente.current = input;
+    await confirmarLote(input);
   };
 
   const importarLeads = (linhas: Record<string, string>[]): ResultadoImportacao => {
@@ -1246,9 +1256,9 @@ export default function BuscaLeads() {
                 <button onClick={voltar} className="px-6 py-2.5 border border-background-300 text-foreground-700 rounded-lg text-sm font-semibold hover:bg-background-100 cursor-pointer whitespace-nowrap">
                   Voltar
                 </button>
-                <button onClick={() => void concluir()} disabled={importando || importacaoPendenteVerificacao} className="inline-flex items-center gap-2 bg-primary-500 hover:bg-primary-600 text-background-50 px-8 py-3 rounded-lg font-heading font-bold text-sm transition-all cursor-pointer whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50">
+                <button onClick={() => void concluir()} disabled={importando} className="inline-flex items-center gap-2 bg-primary-500 hover:bg-primary-600 text-background-50 px-8 py-3 rounded-lg font-heading font-bold text-sm transition-all cursor-pointer whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50">
                   <i className="ri-check-line"></i>
-                  {importando ? 'Salvando...' : 'Adicionar aos Leads'}
+                  {importando ? 'Salvando...' : importacaoPendenteVerificacao ? 'Confirmar lote original' : 'Adicionar aos Leads'}
                 </button>
               </div>
             </div>

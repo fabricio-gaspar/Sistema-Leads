@@ -1,5 +1,7 @@
 # Banco de dados
 
+- `20260925194854_import_prospecting_batch_atomic`: RPC SECURITY INVOKER, apenas `authenticated`, com validação de organização/permissão, lista, leads e membros em transação única e identidade de lote idempotente. Testes SQL em transação revertida confirmaram sucesso, rollback e recusa RBAC sem dados persistidos.
+
 - Postgres/Supabase é a fonte da verdade.
 - Todas as tabelas públicas precisam de RLS e índices nos filtros/relacionamentos usados.
 - Registros operacionais principais: leads, mensagens, execuções, filas, integrações,

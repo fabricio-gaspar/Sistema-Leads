@@ -1,5 +1,11 @@
 # Checkpoint — WayFlex CRM
 
+## 25/09/2026 — Etapa 4: importação em lote atômica
+
+- A revisão da Busca agora envia o lote selecionado em uma única RPC `import_prospecting_batch`. A função, com permissões de invocador, valida organização e `leads.create`, insere leads, lista e vínculos na mesma transação e rejeita atribuição humana inválida pelas regras existentes. O identificador e o payload do lote são preservados na página para repetição idempotente após resposta incerta; nenhuma gravação parcial é aceita.
+- Migration oficial `20260925194854_import_prospecting_batch_atomic` aplicada ao projeto `thgzrkppouoevapjquyu`. Provas em transações revertidas: dois leads e dois vínculos inseridos uma vez mesmo com repetição; falha de identidade duplicada deixou zero lead, lista e membro; vendedor sem permissão de atribuir ao admin foi recusado sem gravação. Estado após os testes: dois leads e três listas anteriores, zero mensagens e zero lead sintético persistido.
+- Type-check frontend/Edge, lint sem alertas, 40 arquivos/255 testes e build/artefato Sites aprovados. Não houve busca paga, envio de WhatsApp ou ativação da Ana. A importação humana ponta a ponta com lead novo foi adiada pelo operador e continua pendente.
+
 ## 25/09/2026 — Usuários e responsáveis (etapa 3 original)
 
 - A Busca oferecia `mockUsers` (`u-2`) como responsáveis. A importação descartava esse ID
