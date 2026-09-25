@@ -2,20 +2,20 @@
   "schema_version": 1,
   "baseline_version": 5,
   "baseline_commit": "1dc6275b8c7d70de953b66397a8c89f5e97bc15b",
-  "last_audited_commit": "8b78bc4af0efcd5300da493a1f4f687da4c2a3ef",
-  "current_head_at_update": "8b78bc4af0efcd5300da493a1f4f687da4c2a3ef",
-  "working_tree_status": "stage_3_import_feedback_validated_pending_commit_and_publication",
+  "last_audited_commit": "5e5d57c6d86070463d8b58ca4e116e70ba532892",
+  "current_head_at_update": "5e5d57c6d86070463d8b58ca4e116e70ba532892",
+  "working_tree_status": "authenticated_import_validated_map_geometry_fix_pending_publication",
   "stage_1_baseline": ".agent/baselines/2026-09-25-stage-1.json",
   "recovery_tag": "baseline-wayflex-stage1-20260925",
   "work_branch": "chore/wayflex-stage-1-baseline-2026-09-25",
   "last_site_publication": {
-    "commit": "8b78bc4af0efcd5300da493a1f4f687da4c2a3ef",
-    "site_version": 119,
-    "validated_at": "2026-09-25T18:18:54Z",
-    "working_tree_status": "apify_review_published"
+    "commit": "5e5d57c6d86070463d8b58ca4e116e70ba532892",
+    "site_version": 121,
+    "validated_at": "2026-09-25T18:47:36Z",
+    "working_tree_status": "import_metadata_published_and_authenticated_retest_passed"
   },
   "full_audit_required": false,
-  "baseline_status": "stage_3_local_import_failure_regression_validated",
-  "updated_at": "2026-09-25T18:18:54Z",
-  "next_action": "Publicar a correção limitada de importação no Site oficial, confirmar o deploy e manter o acesso público existente. Depois, pedir validação autenticada da revisão/importação; não criar lead nem acionar provedores para simular homologação. Preservar GitHub main e Site como histórias distintas."
+  "baseline_status": "original_stage_2_recovered_import_authenticated_validated",
+  "updated_at": "2026-09-25T18:57:00Z",
+  "next_action": "Publicar e repetir clique no mapa após corrigir o zoom. Encerrar recuperação/revisão/importação da etapa 2 original. Próxima etapa ORIGINAL é Usuários e responsáveis, GPT-6 Sol High, somente após troca manual e confirmação. Substituir mockUsers por membros reais e validar RBAC/carteira sem ativar Ana ou canais. Preservar GitHub main e Site como histórias distintas."
 }

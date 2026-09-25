@@ -1,6 +1,21 @@
 # Baseline do sistema
 
-## Delta atual — etapa 3, importação da revisão para Leads
+## Estado atual — fechamento da Busca, etapa 2 original, 25/09/2026
+
+- Site v121 (`5e5d57c`): duas importações autenticadas conferidas após recarga e no Supabase.
+  Dois leads de homologação, duas listas com um membro cada e uma lista antiga sem membros.
+  Fonte, categoria e UF são dados da resposta; porte ausente permanece nulo. Dois duplicados
+  desabilitados na revisão. Nenhuma mensagem/job ou execução paga criada.
+- Cinco buscas concluídas e cinco falhas históricas; não há as cinco buscas running do snapshot
+  antigo. Z-API/Meta continuam com entrada, saída e automação desligadas/kill switch ativo.
+- Geometria do mapa corrigida localmente após clique revelar marcadores sobrepostos por zoom
+  incorreto. 38 arquivos/252 testes, frontend/Edge typecheck, lint e build aprovados; publicar
+  esse último delta e repetir clique antes de declarar mapa validado.
+- Próxima etapa ORIGINAL: Usuários e responsáveis, GPT-6 Sol High, após confirmação do operador.
+  O seletor da importação ainda usa mockUsers; não homologar atribuição humana/distribuição.
+- Relatório: `docs/HOMOLOGACAO_BUSCA_2026-09-25.md`. Histórico abaixo não substitui este estado.
+
+## Histórico — correção complementar de importação (antes denominada etapa 3)
 
 - A importação manual de resultados da Apify mantém a seleção explícita, a criação de leads
   sem envio externo e a navegação para Leads no sucesso. Agora aguarda também a persistência
@@ -11,7 +26,7 @@
 - Type-check frontend/Edge, lint, 36 arquivos/245 testes e build/artefato passaram. Não houve
   importação real para homologação: a leitura do projeto oficial apontou zero leads.
 
-## Referência atual — etapa 1 de 25/09/2026
+## Referência histórica — etapa 1 de 25/09/2026
 
 Código `9bdd136eaa9c03a2eb1eca91f67e57d3dac88579`, tag
 `baseline-wayflex-stage1-20260925`, com runtime idêntico ao Site v118 (`a55a0a2`).
@@ -19,14 +34,14 @@ Type-check frontend/Edge, lint, 35 arquivos/238 testes e build/artefato Sites ap
 Inventário sanitizado: `.agent/baselines/2026-09-25-stage-1.json`;
 procedimento e limites: `docs/BASELINE_ETAPA_1_2026-09-25.md`.
 
-O estado atual prevalece sobre snapshots históricos abaixo: Ana em modo automatic com
+Na captura da etapa 1 (estado histórico, não atual): Ana em modo automatic com
 rotina desativada; Z-API e Meta com entrada/saída/automação desligadas; nenhuma conta Meta;
 uma conta Z-API não arquivada e desabilitada; zero leads/mensagens/filas na Wayflex.
 Cinco buscas Apify permanecem running. Nenhum estado remoto foi alterado nesta etapa.
 GitHub main e repositório do Site têm raízes distintas; não sincronizar por substituição.
 
-O operador exige troca manual de modelo e confirmação entre etapas. A próxima é a etapa 2,
-Apify, com GPT-6 Sol Extra High. Não executar a próxima etapa automaticamente.
+O operador exige troca manual de modelo e confirmação entre etapas. Na captura da etapa 1,
+a próxima era Busca/Apify. Usar a próxima ação do estado atual acima; não avançar automaticamente.
 
 Base validada: `4d072280a09b3b8462f5bf0dfa701b314eca31bb`.
 

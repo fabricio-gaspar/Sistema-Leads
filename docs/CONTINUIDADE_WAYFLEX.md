@@ -9,11 +9,18 @@
   lista reaberta, UF legada truncada e contagem histórica em lista sem membros. Correção local:
   metadados passam a vir do resultado da fonte; UF só é normalizada de estado/endereço explícito;
   listas contam vínculos reais e listas vazias não habilitam envio ao Kanban.
-- Type-check frontend/Edge, lint, 37 arquivos/249 testes e build/artefato passaram. Publicação e
-  repetição do teste após estas correções estão em andamento; não declarar conclusão antes disso.
+- Correção publicada v121 (`5e5d57c`) e segundo lead importado com categoria/fonte/SP corretos,
+  porte nulo e persistência após recarga. Dois duplicados bloqueados; lista antiga vazia mostra
+  zero e não permite envio ao Kanban. Estado vazio e viewport estreito conferidos.
+- Último clique no mapa revelou zoom vertical incorreto (fator de tile duplicado); corrigido
+  com helper geométrico e três regressões. Type-check frontend/Edge, lint, 38 arquivos/252 testes
+  e build/artefato passaram. Falta publicar e repetir o clique desse último delta.
 - Numeração: o checkpoint anterior chamado etapa 3 é complemento da Busca. A etapa 3 do plano
   original é Usuários e responsáveis e ainda não foi executada. O seletor desta importação ainda
   contém responsáveis de exemplo; sua substituição pertence à próxima etapa já planejada.
+- Relatório reproduzível e limites: `docs/HOMOLOGACAO_BUSCA_2026-09-25.md`. Duas importações de
+  homologação permanecem na base, sem autorização de contato, mensagens ou jobs. Nenhuma nova
+  busca paga, ativação de canal ou Ana foi feita. Próxima etapa: GPT-6 Sol High, após confirmação.
 
 ## 25/09/2026 — Etapa 3: confirmação da importação Busca → Leads
 

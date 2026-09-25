@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { fitProspectingMap, projectMapPoint as project } from './prospectingMapGeometry';
 
 export interface ProspectingMapLead {
   id: string;
@@ -19,36 +20,10 @@ interface ProspectingMapProps {
 
 const TILE_SIZE = 256;
 const MAP_HEIGHT = 360;
-const MAP_PADDING = 48;
 
 function hasCoordinates(lead: ProspectingMapLead): lead is ProspectingMapLead & { latitude: number; longitude: number } {
   return Number.isFinite(lead.latitude) && Number.isFinite(lead.longitude)
     && Math.abs(Number(lead.latitude)) <= 85 && Math.abs(Number(lead.longitude)) <= 180;
-}
-
-function project(latitude: number, longitude: number, zoom: number) {
-  const scale = TILE_SIZE * 2 ** zoom;
-  const latitudeRadians = (Math.max(-85, Math.min(85, latitude)) * Math.PI) / 180;
-  return {
-    x: ((longitude + 180) / 360) * scale,
-    y: (0.5 - Math.log((1 + Math.sin(latitudeRadians)) / (1 - Math.sin(latitudeRadians))) / (4 * Math.PI)) * scale,
-  };
-}
-
-function zoomFor(points: Array<{ latitude: number; longitude: number }>, width: number) {
-  if (points.length < 2) return 12;
-  const latitudes = points.map((point) => point.latitude);
-  const longitudes = points.map((point) => point.longitude);
-  const minLatitude = Math.min(...latitudes);
-  const maxLatitude = Math.max(...latitudes);
-  const minLongitude = Math.min(...longitudes);
-  const maxLongitude = Math.max(...longitudes);
-  const longitudeSpan = Math.max(0.01, maxLongitude - minLongitude);
-  const yAtZero = (latitude: number) => project(latitude, 0, 0).y;
-  const latitudeSpan = Math.max(0.00005, Math.abs(yAtZero(maxLatitude) - yAtZero(minLatitude)));
-  const zoomX = Math.log2(Math.max(1, width - MAP_PADDING * 2) / (TILE_SIZE * (longitudeSpan / 360)));
-  const zoomY = Math.log2(Math.max(1, MAP_HEIGHT - MAP_PADDING * 2) / (TILE_SIZE * latitudeSpan));
-  return Math.max(3, Math.min(15, Math.floor(Math.min(zoomX, zoomY))));
 }
 
 export default function ProspectingMap({ leads, selectedIds, onSelect }: ProspectingMapProps) {
@@ -64,21 +39,18 @@ export default function ProspectingMap({ leads, selectedIds, onSelect }: Prospec
     const observer = new ResizeObserver(updateWidth);
     observer.observe(container);
     return () => observer.disconnect();
-  }, []);
+  }, [points.length]);
 
   const map = useMemo(() => {
     if (!points.length) return null;
-    const zoom = zoomFor(points, mapWidth);
-    const center = {
-      latitude: points.reduce((sum, point) => sum + point.latitude, 0) / points.length,
-      longitude: points.reduce((sum, point) => sum + point.longitude, 0) / points.length,
-    };
-    const centerPixel = project(center.latitude, center.longitude, zoom);
+    const { zoom, centerPixel } = fitProspectingMap(points, mapWidth, MAP_HEIGHT)!;
     const firstTileX = Math.floor((centerPixel.x - mapWidth / 2) / TILE_SIZE);
     const firstTileY = Math.floor((centerPixel.y - MAP_HEIGHT / 2) / TILE_SIZE);
-    const tiles = Array.from({ length: 16 }, (_, index) => {
-      const column = index % 4;
-      const row = Math.floor(index / 4);
+    const columns = Math.ceil(mapWidth / TILE_SIZE) + 1;
+    const rows = Math.ceil(MAP_HEIGHT / TILE_SIZE) + 1;
+    const tiles = Array.from({ length: columns * rows }, (_, index) => {
+      const column = index % columns;
+      const row = Math.floor(index / columns);
       const x = firstTileX + column;
       const y = firstTileY + row;
       const world = 2 ** zoom;

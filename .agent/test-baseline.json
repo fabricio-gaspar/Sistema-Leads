@@ -1,19 +1,19 @@
 {
   "schema_version": 1,
-  "validated_commit": "8b78bc4af0efcd5300da493a1f4f687da4c2a3ef",
+  "validated_commit": "5e5d57c6d86070463d8b58ca4e116e70ba532892",
   "last_validated_at": "2026-09-25",
   "current_validation": {
-    "stage": 3,
-    "evidence": "docs/CONTINUIDADE_WAYFLEX.md",
+    "stage": 2,
+    "evidence": "docs/HOMOLOGACAO_BUSCA_2026-09-25.md",
     "frontend_typecheck": "passed",
     "edge_typecheck": "passed",
     "lint": "passed_without_warnings",
-    "test_files": 36,
-    "tests_passed": 245,
+    "test_files": 38,
+    "tests_passed": 252,
     "production_build": "passed",
     "sites_artifact": "passed",
-    "external_end_to_end": "not_executed",
-    "note": "Stage 3: the existing Busca-to-Leads success path is preserved; failures in lead/list persistence are visible and uncertain results cannot be resubmitted blindly. One regression test covers list write failure, server reconciliation and subsequent success. No lead import, paid provider call, message, Ana execution or authenticated visual review was performed. The historical commands below remain historical evidence."
+    "external_end_to_end": "authenticated_cache_review_to_leads_and_lists_passed_no_paid_search_or_message",
+    "note": "Original Stage 2 closure: two controlled imports persisted after reload; source metadata, duplicates, actual list count and empty result verified in published v121. Desktop and narrow viewport checked, not an exhaustive physical-device audit. Map click exposed overzoom-out geometry; local regression passed, publication retest pending. 38 files/252 tests, typechecks, lint and production artifact passed. The commands below are historical, not all executed in this closure."
   },
   "commands": [
     {"command":"node node_modules/typescript/bin/tsc --noEmit --project tsconfig.app.json","status":"passed","note":"Etapa 3: página de importação e fila de listas."},

@@ -7,7 +7,12 @@
   na lista de teste, zero mensagens e zero jobs. Não houve nova execução paga da Apify.
 - Encontrados e corrigidos localmente defaults indevidos de segmento/porte, fonte da lista ao
   retomar, UF legada truncada e contagem histórica de lista vazia. Type-check, lint, 249 testes e
-  build passaram. Publicação e repetição autenticada das correções ainda em andamento.
+  build passaram. Publicado v121 (`5e5d57c`) e repetido com segundo lead: categoria/fonte/SP
+  corretos, porte nulo, lista persistida, dois duplicados bloqueados e estado vazio funcional.
+- Verificação de clique no mapa revelou zoom incorreto; geometria extraída e corrigida com três
+  regressões. Novo total 252 testes. Publicação e clique final desse delta em andamento.
+- O fechamento é da etapa 2 original, Busca; a próxima é Usuários e responsáveis (etapa 3
+  original), após confirmação e troca manual para GPT-6 Sol High. Não ativar Ana/WhatsApp.
 
 ## 2026-09-22 — Estados operacionais coerentes em Canais, APIs e Dashboard
 

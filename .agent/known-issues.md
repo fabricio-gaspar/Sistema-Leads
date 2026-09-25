@@ -5,7 +5,12 @@
 - Primeiro teste autenticado passou: revisão recuperada, mapa, importação de um lead, lista e
   vínculo persistidos após recarga, zero mensagens/jobs. Antes da correção, defaults de segmento/
   porte contaminavam o cadastro; a lista perdia a fonte ao retomar e contava total histórico.
-- Correção de metadados e contagem validada localmente com 249 testes; repetição publicada pendente.
+- Correção de metadados e contagem publicada v121 e repetida com segundo lead: fonte Apify,
+  categoria real, SP e porte nulo persistidos. Dois duplicados bloqueados, lista antiga vazia com
+  total zero e envio ao Kanban desabilitado. Estados vazios conferidos. Zero mensagens/jobs.
+- Clique no mapa revelou zoom vertical calculado com unidade duplicada (pixels multiplicados
+  novamente por tile size); marcadores ficavam sobrepostos. Correção local e regressão prontas,
+  252 testes aprovados; repetição publicada desse último delta pendente.
 - Próxima etapa ORIGINAL: Usuários e responsáveis. O seletor da Busca usa mockUsers (u-2 etc.);
   não homologar atribuição humana/distribuição até trocar por membros reais e validar UUID/RBAC.
 
@@ -17,8 +22,8 @@
 - Pendente: inserir vários leads e seus vínculos de lista ainda envolve operações separadas,
   não uma transação única. Após falha, conferir Leads antes de repetir. Não criar uma RPC de
   importação ampla sem especificar idempotência, permissões e preservação das regras atuais.
-- Pendente: inspeção autenticada da tela e importação controlada. O projeto oficial tinha zero
-  leads na leitura desta etapa; nenhum registro foi criado apenas para provar o fluxo.
+- Inspeção autenticada e importação controlada concluídas posteriormente nesta data; ver seção
+  de homologação acima. A leitura anterior com zero leads é histórica.
 
 ## Busca Apify — etapa 2, 25/09/2026
 
@@ -30,8 +35,8 @@
 - Raio exato, porte e cargo não são filtros comprovados do Actor Google Maps atual. Permanecem
   fora do formulário em vez de sugerir filtragem inexistente. Implementá-los exige geolocalização
   e dados empresariais verificáveis, sem inventar atributos.
-- Prova visual pendente: usuário autenticado abrir uma revisão recuperada e conferir a lista/mapa.
-  Nenhuma busca paga, importação ou envio foi feito nesta etapa.
+- Revisão autenticada recuperada e duas importações conferidas posteriormente nesta data.
+  Nova busca paga continua não executada; não confundir recuperação com ponta a ponta do Actor.
 
 ## Baseline factual — 25/09/2026, etapa 1
 
