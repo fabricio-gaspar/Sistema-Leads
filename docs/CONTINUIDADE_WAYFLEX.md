@@ -1,6 +1,40 @@
 # Checkpoint — WayFlex CRM
 
-## Próxima retomada — etapa 1 concluída, 25/09/2026
+## 25/09/2026 — Etapa 2: retomada e revisão da Busca Apify
+
+- Causa raiz comprovada: o navegador só acompanhava a execução por cerca de dois minutos e perdia
+  seu ID após recarga. Mais importante, a proteção `private.protect_prospecting_run` recusava
+  `result_cache_id` em buscas sem cotação; a função antiga ignorava o erro da atualização. Havia
+  cinco caches correspondentes aos cinco runs `running`, apesar de `result_cache_id` vazio.
+- A Busca manual agora lista as execuções do usuário autenticado. **Retomar busca** consulta o
+  mesmo ID no provedor; **Abrir revisão** lê apenas o cache de uma execução concluída. Nenhuma
+  dessas ações inicia um novo Actor. Resultados continuam exigindo seleção explícita antes de
+  entrar em Leads. As cinco execuções antigas não foram reprocessadas automaticamente.
+- Migrations `20260925160000_prospecting_resume_atomic_results` e
+  `20260925162000_prospecting_cache_transition_recovery` criam finalização atômica e idempotente,
+  exclusiva do `service_role`, e permitem apenas o vínculo inicial do cache próprio na transição
+  `running` → `completed`. Os cinco vínculos antigos foram recuperados por correspondência única
+  de organização, usuário, filtros, fonte e horário. Resultado verificado: **5 runs concluídos,
+  45 leads em revisão e zero leads importados**. Outros dois caches históricos com **10 resultados**
+  não tinham vínculo inequívoco; aparecem separadamente sem alterar runs falhos.
+- A função `prospectar-leads` v15 expõe listagem e abertura autenticada desses resultados,
+  mostrando toda a organização para administrador e somente resultados próprios para vendedor,
+  autenticada e preserva a execução em erros transitórios de consulta, sem derrubar a conexão
+  da fonte. Falha terminal do Actor é registrada na execução.
+- O limite solicitado é repartido entre termos, pois `maxCrawledPlacesPerSearch` da Apify é
+  **por termo**. Cidade/UF e termos vão à fonte; site, WhatsApp explicitamente informado e e-mail
+  são filtrados após retorno. Raio preciso, porte e cargo foram retirados do formulário enquanto
+  não forem comprovadamente suportados. Nome, local, categoria e coordenadas ausentes não são
+  fabricados. Telefone comum não é tratado como WhatsApp verificado.
+- Validação: type-check frontend/Edge, lint sem warnings, 35 arquivos/244 testes, build Vite e
+  artefato Sites aprovados. As migrations foram aplicadas no Supabase oficial, com `EXECUTE` negado a
+  `anon`/`authenticated` e permitido somente a `service_role`. Não houve busca paga nova,
+  importação de lead, envio de mensagem nem ativação de Z-API/Meta/Ana/rotina diária.
+- Homologação visual pendente: usuário autenticado deve abrir Busca manual, clicar **Abrir revisão**
+  em uma execução concluída ou resultado histórico e confirmar a lista e o mapa. O vínculo no
+  banco está comprovado; testes locais não comprovam uma nova execução Apify nem importação.
+
+## Checkpoint histórico — etapa 1 concluída, 25/09/2026
 
 - Baseline de código: `9bdd136eaa9c03a2eb1eca91f67e57d3dac88579`, tag
   `baseline-wayflex-stage1-20260925`. Branch isolada:
@@ -12,9 +46,9 @@
   não confundir o remote local `official` (Site) com GitHub nem fazer substituição integral.
 - Documento de retomada: `docs/BASELINE_ETAPA_1_2026-09-25.md`; inventário sanitizado de
   25 funções/133 migrations e estado operacional em `.agent/baselines/2026-09-25-stage-1.json`.
-- Próxima etapa é **2 — Busca Apify**, somente depois de o usuário confirmar a troca para
-  **GPT-6 Sol · Extra High**, conforme sua preferência explícita. Cinco buscas permanecem running;
-  revalidar causa e contratos antes de corrigir. Z-API, Meta e rotina diária permanecem desativadas.
+- Na época, a próxima etapa prevista era **2 — Busca Apify**, condicionada à confirmação da troca
+  de agente. O usuário confirmou e a etapa 2 está documentada acima. Z-API, Meta e rotina diária
+  permaneceram desativadas.
 - Os checkpoints seguintes são históricos; utilizar o manifesto mais recente para estado atual.
 
 ## Correção do handoff da Ana — 19/09/2026

@@ -948,3 +948,20 @@
   lint, 35 arquivos/238 testes, build e artefato Sites passaram. GitHub main e Site possuem
   raízes distintas; nenhuma main foi substituída. Relatório em
   `docs/BASELINE_ETAPA_1_2026-09-25.md`. Aguardar troca manual para Sol Extra High antes de Apify.
+
+## 2026-09-25 — Etapa 2: Busca Apify retomável
+
+- Causa reproduzida no código e banco: polling só no navegador por aproximadamente dois minutos;
+  a proteção de `result_cache_id` recusava a finalização sem cotação e o erro era ignorado.
+  Cinco execuções tinham cache real não vinculado. A tela não listava nem retomava após recarga.
+- A UI lista apenas execuções do usuário autenticado, retoma pelo mesmo ID e abre o cache de uma
+  execução já concluída. Não lança automaticamente buscas antigas ou importa resultados.
+- `prospectar-leads` v15 mantém falha transitória recuperável, grava resultado/cache na RPC
+  atômica restrita a `service_role` e não desliga a integração por falha de uma busca. Contratos
+  de identidade, coordenadas, limite por termo e filtros foram corrigidos sem tocar em canais.
+- Migrations `20260925160000_prospecting_resume_atomic_results` e
+  `20260925162000_prospecting_cache_transition_recovery` aplicadas no projeto oficial.
+  Cinco runs vinculados a caches existentes: 45 resultados, zero leads importados. Dois caches
+  históricos com dez resultados adicionais são exibidos sem associação arriscada a runs falhos.
+  Type-check frontend/Edge, lint, 35 arquivos/244 testes, build e artefato Sites aprovados.
+  Homologação visual da revisão ainda depende de usuário autenticado.

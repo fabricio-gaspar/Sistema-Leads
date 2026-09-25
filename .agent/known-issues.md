@@ -1,12 +1,25 @@
 # Problemas conhecidos
 
+## Busca Apify — etapa 2, 25/09/2026
+
+- A perda do ID da busca ao recarregar e o encerramento do polling após dois minutos foram
+  corrigidos por histórico autenticado e retomada explícita. A proteção do banco que impedia
+  `running` → `completed` com cache foi corrigida cirurgicamente. Cinco execuções antigas estão
+  concluídas e ligadas a 45 resultados já existentes. Dois caches sem vínculo seguro contêm mais
+  dez resultados e são apresentados como histórico, sem alterar runs falhos.
+- Raio exato, porte e cargo não são filtros comprovados do Actor Google Maps atual. Permanecem
+  fora do formulário em vez de sugerir filtragem inexistente. Implementá-los exige geolocalização
+  e dados empresariais verificáveis, sem inventar atributos.
+- Prova visual pendente: usuário autenticado abrir uma revisão recuperada e conferir a lista/mapa.
+  Nenhuma busca paga, importação ou envio foi feito nesta etapa.
+
 ## Baseline factual — 25/09/2026, etapa 1
 
 - GitHub `main` (`c4733b6`) e histórico do Site (`9bdd136`) não possuem ancestral comum
   em um clone não shallow; 604 arquivos diferem. O remote local chamado `official` é do
   Site, não do GitHub. Preservar ambos até reconciliação seletiva revisada.
-- Cinco buscas Apify da Wayflex estão `running` com ID do provedor desde setembro.
-  Esse estado foi confirmado por leitura; a causa e a recuperação serão tratadas na etapa 2.
+- Cinco buscas Apify da Wayflex estavam `running` com ID do provedor no baseline. A etapa 2
+  encontrou os caches correspondentes e concluiu os cinco registros sem chamar a Apify.
 - Z-API e Meta estão explicitamente desativadas. A rotina diária também está desativada.
   Esse estado é intencional e não deve ser interpretado como falha a reparar por ativação.
 - Não houve homologação externa nesta etapa. Os 238 testes aprovados cobrem contratos locais.

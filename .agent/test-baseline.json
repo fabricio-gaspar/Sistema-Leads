@@ -1,19 +1,19 @@
 {
   "schema_version": 1,
   "validated_commit": "9bdd136eaa9c03a2eb1eca91f67e57d3dac88579",
-  "last_validated_at": "2026-09-25T12:37:10-03:00",
+  "last_validated_at": "2026-09-25",
   "current_validation": {
-    "stage": 1,
-    "evidence": ".agent/baselines/2026-09-25-stage-1.json",
+    "stage": 2,
+    "evidence": "docs/CONTINUIDADE_WAYFLEX.md",
     "frontend_typecheck": "passed",
     "edge_typecheck": "passed",
     "lint": "passed_without_warnings",
     "test_files": 35,
-    "tests_passed": 238,
+    "tests_passed": 244,
     "production_build": "passed",
     "sites_artifact": "passed",
     "external_end_to_end": "not_executed",
-    "note": "Commands below retain historical evidence; the referenced stage-1 manifest is the current reproducible run. No dependency installation or runtime change."
+    "note": "Stage 2: validated Apify resume, cache finalization, admin/team scope and source-data honesty with 244 local tests. Two migrations and Edge v15 applied; five old runs safely linked to 45 saved results. No paid provider run, lead import or authenticated visual review was executed. The historical commands below remain historical evidence."
   },
   "commands": [
     {"command":"npm run type-check","status":"passed"},

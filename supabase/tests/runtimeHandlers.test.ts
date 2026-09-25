@@ -214,12 +214,18 @@ describe('Prospecting handler persistence contract', () => {
       if (q.table === 'read_integration_secret' && q.operation === 'rpc') {
         return ok({ api_token: 'synthetic-apify-token', actor_id: 'synthetic-google-maps-actor' });
       }
+      if (q.table === 'finalize_prospecting_run' && q.operation === 'rpc') return ok([{ cache_id: 'result-cache', newly_completed: true }]);
       return undefined;
     };
     fetchMock
       .mockResolvedValueOnce(new Response(JSON.stringify({ data: { id: 'provider-run', status: 'SUCCEEDED', defaultDatasetId: 'dataset-id' } }), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify([{
         title: 'Borracharia de teste',
+        placeId: 'maps-place-1',
+        categoryName: 'Borracharia',
+        city: 'São Paulo',
+        state: 'São Paulo',
+        emails: ['contato@example.invalid'],
         location: { lat: '-23.5505', lng: '-46.6333' },
       }]), { status: 200 }));
 
@@ -234,7 +240,7 @@ describe('Prospecting handler persistence contract', () => {
     expect(await response.json()).toMatchObject({
       ok: true,
       sourceKey: 'apify',
-      leads: [{ razao_social: 'Borracharia de teste', latitude: -23.5505, longitude: -46.6333, whatsapp: null, contact_approval_status: 'pending' }],
+      leads: [{ razao_social: 'Borracharia de teste', latitude: -23.5505, longitude: -46.6333, uf: 'SP', email: 'contato@example.invalid', whatsapp: null, contact_approval_status: 'pending' }],
     });
     expect(calls.find((q) => q.table === 'prospecting_runs' && q.operation === 'insert')?.value).toMatchObject({
       requested_quantity: 30,
@@ -243,6 +249,9 @@ describe('Prospecting handler persistence contract', () => {
       requires_confirmation: false,
     });
     expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(JSON.parse((fetchMock.mock.calls[0]?.[1] as RequestInit).body as string)).toMatchObject({ maxCrawledPlacesPerSearch: 15 });
+    expect(calls.find((q) => q.table === 'finalize_prospecting_run' && q.operation === 'rpc')?.value)
+      .toMatchObject({ p_run_id: 'prospecting_runs-id', p_results: [{ source_record_id: 'maps-place-1' }] });
   });
 
   it('keeps a long-running Apify execution resumable instead of holding the browser request open', async () => {
@@ -273,12 +282,13 @@ describe('Prospecting handler persistence contract', () => {
       if (q.table === 'lead_source_configs' && q.operation === 'select') return ok({ id: 'source-config', enabled: true, mode: 'production', connection_status: 'connected' });
       if (q.table === 'integrations' && q.operation === 'select') return ok({ id: integrationId, provider: 'Apify', enabled: true, connected: true, paused: false });
       if (q.table === 'read_integration_secret' && q.operation === 'rpc') return ok({ api_token: 'synthetic-apify-token', actor_id: 'synthetic-google-maps-actor' });
-      if (q.table === 'prospecting_runs' && q.operation === 'select') return ok({ id: 'existing-run', source_key: 'apify', source_config_id: 'source-config', status: 'running', filters: { cidade: 'São Paulo', estado: 'SP', volumeMaximo: 5 }, provider_run_id: 'provider-run' });
+      if (q.table === 'prospecting_runs' && q.operation === 'select') return ok({ id: 'existing-run', source_key: 'apify', source_config_id: 'source-config', status: 'running', filters: { cidade: 'São Paulo', estado: 'SP', volumeMaximo: 5 }, provider_run_id: 'provider-run', requested_by: 'owner' });
+      if (q.table === 'finalize_prospecting_run' && q.operation === 'rpc') return ok([{ cache_id: 'result-cache', newly_completed: true }]);
       return undefined;
     };
     fetchMock
       .mockResolvedValueOnce(new Response(JSON.stringify({ data: { id: 'provider-run', status: 'SUCCEEDED', defaultDatasetId: 'dataset-id' } }), { status: 200 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify([{ title: 'Empresa concluída', location: { lat: -23.5, lng: -46.6 } }]), { status: 200 }));
+      .mockResolvedValueOnce(new Response(JSON.stringify([{ title: 'Empresa concluída', placeId: 'maps-place-2', location: { lat: -23.5, lng: -46.6 } }]), { status: 200 }));
 
     await import('../functions/prospectar-leads/index');
     const response = await handler(new Request('https://example.invalid/prospectar-leads', {
@@ -290,7 +300,138 @@ describe('Prospecting handler persistence contract', () => {
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ ok: true, pending: false, runId: 'existing-run', leads: [{ razao_social: 'Empresa concluída' }] });
     expect(calls.some((q) => q.table === 'prospecting_runs' && q.operation === 'insert')).toBe(false);
-    expect(calls.find((q) => q.table === 'prospecting_runs' && q.operation === 'update')?.value).toMatchObject({ status: 'completed', provider_run_id: 'provider-run' });
+    expect(calls.find((q) => q.table === 'finalize_prospecting_run' && q.operation === 'rpc')?.value).toMatchObject({ p_run_id: 'existing-run', p_provider_run_id: 'provider-run' });
+    expect(calls.some((q) => q.table === 'prospecting_cache' && q.operation === 'insert')).toBe(false);
+  });
+
+  it('lists only the signed-in user’s runs without contacting the provider', async () => {
+    override = (q) => {
+      if (q.table === 'organization_members' && q.operation === 'select') return ok({ role: 'seller', status: 'active' });
+      if (q.table === 'prospecting_runs' && q.operation === 'select') return ok([{ id: 'existing-run', status: 'running', source_key: 'apify', started_at: '2026-09-23T18:22:53Z', result_count: 0, result_cache_id: null, provider_run_id: 'provider-run', last_error: null, filters: { cidade: 'São Paulo', estado: 'SP' } }]);
+      return undefined;
+    };
+    await import('../functions/prospectar-leads/index');
+    const response = await handler(new Request('https://example.invalid/prospectar-leads', {
+      method: 'POST', headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'list_runs', sourceKey: 'apify', mode: 'production' }),
+    }));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ ok: true, runs: [{ id: 'existing-run', status: 'running', hasProvider: true, location: 'São Paulo, SP, Brasil' }] });
+    expect(calls.find((q) => q.table === 'prospecting_runs' && q.operation === 'select')?.filters).toMatchObject({ organization_id: org, requested_by: 'owner', source_key: 'apify' });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(calls.some((q) => q.table === 'read_integration_secret')).toBe(false);
+  });
+
+  it('lets an organization administrator see team results without crossing organizations', async () => {
+    override = (q) => {
+      if (q.table === 'prospecting_runs' && q.operation === 'select') return ok([{ id: 'team-run', status: 'completed', source_key: 'apify', started_at: '2026-09-23T18:22:53Z', result_count: 5, result_cache_id: 'team-cache', provider_run_id: 'provider-run', last_error: null, filters: { cidade: 'São Paulo', estado: 'SP' }, requested_by: 'teammate' }]);
+      if (q.table === 'prospecting_cache' && q.operation === 'select' && q.filters.id === 'team-cache') return ok({ results: [{ razao_social: 'Empresa da equipe' }] });
+      if (q.table === 'prospecting_cache' && q.operation === 'select') return ok([{ id: 'team-cache', total_found: 5, created_at: '2026-09-23T18:23:16Z', filters: { municipio: 'São Paulo' }, user_id: 'teammate' }]);
+      return undefined;
+    };
+    await import('../functions/prospectar-leads/index');
+    const list = await handler(new Request('https://example.invalid/prospectar-leads', {
+      method: 'POST', headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'list_runs', sourceKey: 'apify', mode: 'production' }),
+    }));
+    expect(list.status).toBe(200);
+    expect(await list.json()).toMatchObject({ runs: [{ id: 'team-run', fromTeam: true, resultCount: 5 }] });
+    const runQuery = calls.find((q) => q.table === 'prospecting_runs' && q.operation === 'select');
+    expect(runQuery?.filters).toMatchObject({ organization_id: org, source_key: 'apify' });
+    expect(runQuery?.filters).not.toHaveProperty('requested_by');
+    const open = await handler(new Request('https://example.invalid/prospectar-leads', {
+      method: 'POST', headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'open_cache', sourceKey: 'apify', mode: 'production', cacheId: 'team-cache' }),
+    }));
+    expect(open.status).toBe(200);
+    expect(await open.json()).toMatchObject({ leads: [{ razao_social: 'Empresa da equipe' }] });
+    expect(calls.find((q) => q.table === 'prospecting_cache' && q.operation === 'select' && q.filters.id === 'team-cache')?.filters).not.toHaveProperty('user_id');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('opens a completed run from the saved cache without starting or polling Apify again', async () => {
+    override = (q) => {
+      if (q.table === 'prospecting_runs' && q.operation === 'select') return ok({ id: 'existing-run', source_key: 'apify', source_config_id: 'source-config', status: 'completed', filters: {}, provider_run_id: 'provider-run', result_cache_id: 'cached-results' });
+      if (q.table === 'prospecting_cache' && q.operation === 'select') return ok({ results: [{ razao_social: 'Empresa salva' }] });
+      return undefined;
+    };
+    await import('../functions/prospectar-leads/index');
+    const response = await handler(new Request('https://example.invalid/prospectar-leads', {
+      method: 'POST', headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sourceKey: 'apify', mode: 'production', runId: 'existing-run' }),
+    }));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ ok: true, cacheId: 'cached-results', leads: [{ razao_social: 'Empresa salva' }] });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(calls.some((q) => q.table === 'prospecting_runs' && q.operation === 'update')).toBe(false);
+  });
+
+  it('surfaces an unlinked historical cache separately and opens it without mutating a failed run', async () => {
+    override = (q) => {
+      if (q.table === 'organization_members' && q.operation === 'select') return ok({ role: 'seller', status: 'active' });
+      if (q.table === 'prospecting_runs' && q.operation === 'select') return ok([]);
+      if (q.table === 'prospecting_cache' && q.operation === 'select' && q.filters.id === 'historical-cache') return ok({ results: [{ razao_social: 'Empresa anterior' }] });
+      if (q.table === 'prospecting_cache' && q.operation === 'select') return ok([{ id: 'historical-cache', total_found: 1, created_at: '2026-09-11T18:37:10Z', filters: { municipio: 'São Paulo', uf: 'SP' }, user_id: 'owner' }]);
+      return undefined;
+    };
+    await import('../functions/prospectar-leads/index');
+    const list = await handler(new Request('https://example.invalid/prospectar-leads', {
+      method: 'POST', headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'list_runs', sourceKey: 'apify', mode: 'production' }),
+    }));
+    expect(list.status).toBe(200);
+    expect(await list.json()).toMatchObject({ runs: [{ id: 'historical-cache', status: 'cached', resultCount: 1, location: 'São Paulo, SP, Brasil' }] });
+    const open = await handler(new Request('https://example.invalid/prospectar-leads', {
+      method: 'POST', headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'open_cache', sourceKey: 'apify', mode: 'production', cacheId: 'historical-cache' }),
+    }));
+    expect(open.status).toBe(200);
+    expect(await open.json()).toMatchObject({ ok: true, cacheId: 'historical-cache', leads: [{ razao_social: 'Empresa anterior' }] });
+    expect(calls.find((q) => q.table === 'prospecting_cache' && q.operation === 'select' && q.filters.id === 'historical-cache')?.filters)
+      .toMatchObject({ organization_id: org, user_id: 'owner', source: 'apify' });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(calls.some((q) => q.operation === 'update' || q.operation === 'insert')).toBe(false);
+  });
+
+  it('keeps a recoverable provider error pending and leaves integration connectivity untouched', async () => {
+    override = (q) => {
+      if (q.table === 'lead_source_configs' && q.operation === 'select') return ok({ id: 'source-config', enabled: true, mode: 'production', connection_status: 'connected' });
+      if (q.table === 'integrations' && q.operation === 'select') return ok({ id: integrationId, provider: 'Apify', enabled: true, connected: true, paused: false });
+      if (q.table === 'read_integration_secret' && q.operation === 'rpc') return ok({ api_token: 'synthetic-apify-token' });
+      if (q.table === 'prospecting_runs' && q.operation === 'select') return ok({ id: 'existing-run', source_key: 'apify', source_config_id: 'source-config', status: 'running', filters: { volumeMaximo: 5 }, provider_run_id: 'provider-run', requested_by: 'owner' });
+      return undefined;
+    };
+    fetchMock.mockResolvedValueOnce(new Response('{}', { status: 429 }));
+    await import('../functions/prospectar-leads/index');
+    const response = await handler(new Request('https://example.invalid/prospectar-leads', {
+      method: 'POST', headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sourceKey: 'apify', mode: 'production', runId: 'existing-run' }),
+    }));
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ ok: false, error: 'apify_rate_limited', recoverable: true, runId: 'existing-run' });
+    expect(calls.some((q) => q.table === 'prospecting_runs' && q.operation === 'update')).toBe(false);
+    expect(calls.some((q) => q.table === 'integrations' && q.operation === 'update')).toBe(false);
+    expect(calls.some((q) => q.table === 'lead_source_configs' && q.operation === 'update')).toBe(false);
+  });
+
+  it('does not fabricate source identity or geographic coordinates for incomplete records', async () => {
+    override = (q) => {
+      if (q.table === 'lead_source_configs' && q.operation === 'select') return ok({ id: 'source-config', enabled: true, mode: 'production', connection_status: 'connected' });
+      if (q.table === 'integrations' && q.operation === 'select') return ok({ id: integrationId, provider: 'Apify', enabled: true, connected: true, paused: false });
+      if (q.table === 'read_integration_secret' && q.operation === 'rpc') return ok({ api_token: 'synthetic-apify-token', actor_id: 'synthetic-google-maps-actor' });
+      if (q.table === 'finalize_prospecting_run' && q.operation === 'rpc') return ok([{ cache_id: 'result-cache', newly_completed: true }]);
+      return undefined;
+    };
+    fetchMock
+      .mockResolvedValueOnce(new Response(JSON.stringify({ data: { id: 'provider-run', status: 'SUCCEEDED', defaultDatasetId: 'dataset-id' } }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify([{ title: 'Sem identificação' }, { title: 'Empresa com ID', placeId: 'maps-place-3' }]), { status: 200 }));
+    await import('../functions/prospectar-leads/index');
+    const response = await handler(new Request('https://example.invalid/prospectar-leads', {
+      method: 'POST', headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sourceKey: 'apify', mode: 'production', filters: { cidade: 'São Paulo', estado: 'SP', segmentos: ['Indústria'], volumeMaximo: 4 } }),
+    }));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ leads: [{ razao_social: 'Empresa com ID', municipio: null, uf: null, latitude: null, longitude: null, cnae_descricao: null }] });
   });
 });
 

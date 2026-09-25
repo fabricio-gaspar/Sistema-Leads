@@ -8,7 +8,7 @@ type Filters = {
 };
 type SourceRow = { id: string; enabled: boolean; mode: string; connection_status: string };
 type IntegrationRow = { id: string; provider: string; enabled: boolean; connected: boolean; paused: boolean };
-type ProspectingRun = { id: string; source_key: 'apify' | 'google_places'; source_config_id: string; status: string; filters: unknown; provider_run_id: string | null };
+type ProspectingRun = { id: string; source_key: 'apify' | 'google_places'; source_config_id: string; status: string; filters: unknown; provider_run_id: string | null; result_cache_id: string | null; requested_by: string | null };
 
 const text = (value: unknown, maximum = 500): string => typeof value === 'string' ? value.trim().slice(0, maximum) : '';
 const list = (value: unknown, maximum = 20): string[] => Array.isArray(value)
@@ -32,7 +32,21 @@ function normalizeFilters(value: unknown): Filters {
 function locationQuery(filters: Filters) { return [filters.cidade, filters.estado, filters.pais || 'Brasil'].filter(Boolean).join(', '); }
 function terms(filters: Filters) { const values = [...(filters.atividades ?? []), ...(filters.segmentos ?? [])]; return values.length ? values.slice(0, 10) : ['indústria', 'empresa']; }
 function stringFrom(record: Record<string, unknown>, keys: string[]): string { for (const key of keys) { const value = record[key]; if (typeof value === 'string' && value.trim()) return value.trim().slice(0, 1_000); } return ''; }
-function coordinate(value: unknown, limit: number): number | null { const parsed = typeof value === 'number' ? value : Number(value); return Number.isFinite(parsed) && Math.abs(parsed) <= limit ? parsed : null; }
+function firstString(record: Record<string, unknown>, keys: string[]): string {
+  const direct = stringFrom(record, keys);
+  if (direct) return direct;
+  for (const key of keys) {
+    const value = record[key];
+    if (Array.isArray(value) && typeof value[0] === 'string' && value[0].trim()) return value[0].trim().slice(0, 1_000);
+  }
+  return '';
+}
+function coordinate(value: unknown, limit: number): number | null { if (value == null || value === '') return null; const parsed = typeof value === 'number' ? value : Number(value); return Number.isFinite(parsed) && Math.abs(parsed) <= limit ? parsed : null; }
+const brazilianStates: Record<string, string> = { acre: 'AC', alagoas: 'AL', amapa: 'AP', amazonas: 'AM', bahia: 'BA', ceara: 'CE', distritofederal: 'DF', espiritosanto: 'ES', goias: 'GO', maranhao: 'MA', matogrosso: 'MT', matogrossodosul: 'MS', minasgerais: 'MG', para: 'PA', paraiba: 'PB', parana: 'PR', pernambuco: 'PE', piaui: 'PI', riodejaneiro: 'RJ', riograndedonorte: 'RN', riograndedosul: 'RS', rondonia: 'RO', roraima: 'RR', santacatarina: 'SC', saopaulo: 'SP', sergipe: 'SE', tocantins: 'TO' };
+function stateCode(value: string): string {
+  const clean = value.trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z]/g, '').toLowerCase();
+  return clean.length === 2 ? clean.toUpperCase() : brazilianStates[clean] || '';
+}
 
 type RawProspect = { id: string; name: string; phone: string; whatsapp: string; email: string; website: string; sourceUrl: string; cnpj: string; city: string; uf: string; segment: string; address: string; latitude?: number | null; longitude?: number | null };
 
@@ -40,7 +54,7 @@ function score(raw: RawProspect, filters: Filters) {
   const reasons: string[] = [];
   const requestedTerms = terms(filters).map((item) => item.toLocaleLowerCase('pt-BR'));
   const segment = raw.segment.toLocaleLowerCase('pt-BR');
-  const segmentMatch = requestedTerms.some((term) => segment.includes(term) || term.includes(segment));
+  const segmentMatch = Boolean(segment) && requestedTerms.some((term) => segment.includes(term) || term.includes(segment));
   let fit = raw.name ? 20 : 0;
   if (segmentMatch) { fit += 40; reasons.push('atividade compatível com o filtro'); }
   else if (raw.segment) { fit += 20; reasons.push('atividade empresarial identificada'); }
@@ -65,9 +79,9 @@ function external(source: 'apify' | 'google_places', raw: RawProspect, filters: 
   const telefone = raw.phone || null, whatsapp = raw.whatsapp || null, website = raw.website || null;
   const scored = score(raw, filters);
   return {
-    cnpj: raw.cnpj || null, razao_social: raw.name, nome_fantasia: raw.name || null, cnae_principal: null, cnae_descricao: raw.segment || terms(filters)[0] || null,
-    porte: null, capital_social: null, situacao: 'Fonte externa validada', data_abertura: null, telefone, whatsapp, email: raw.email || null,
-    logradouro: raw.address || null, numero: null, bairro: null, municipio: raw.city || filters.cidade || null, uf: (raw.uf || filters.estado || '').slice(0, 2).toUpperCase() || null,
+    cnpj: raw.cnpj || null, razao_social: raw.name, nome_fantasia: raw.name || null, cnae_principal: null, cnae_descricao: raw.segment || null,
+    porte: null, capital_social: null, situacao: null, data_abertura: null, telefone, whatsapp, email: raw.email || null,
+    logradouro: raw.address || null, numero: null, bairro: null, municipio: raw.city || null, uf: stateCode(raw.uf) || null,
     cep: null, website, latitude: raw.latitude ?? null, longitude: raw.longitude ?? null, distance_km: null,
     deterministic_score: scored.overall, score: scored.overall, fit_score: scored.fit, contactability_score: scored.contactability, engagement_score: scored.engagement,
     score_reason: scored.reason, source, source_record_id: raw.id, source_url: raw.sourceUrl || null,
@@ -76,34 +90,40 @@ function external(source: 'apify' | 'google_places', raw: RawProspect, filters: 
   };
 }
 
-function normalizeApify(item: unknown, index: number, filters: Filters) {
+function normalizeApify(item: unknown, filters: Filters) {
   const record = object(item), address = object(record.address), location = object(record.location);
   const phone = stringFrom(record, ['phone', 'phoneNumber', 'telephone', 'contactPhone']);
   const whatsapp = stringFrom(record, ['whatsapp', 'whatsappNumber']);
   const website = stringFrom(record, ['website', 'websiteUrl', 'companyWebsite']);
-  const name = stringFrom(record, ['title', 'name', 'businessName', 'companyName']) || `Empresa ${index + 1}`;
-  const id = stringFrom(record, ['placeId', 'place_id', 'cid', 'id']) || `apify-${crypto.randomUUID()}`;
+  const name = stringFrom(record, ['title', 'name', 'businessName', 'companyName']);
+  const sourceUrl = stringFrom(record, ['url', 'googleMapsUrl', 'placeUrl']);
+  const id = stringFrom(record, ['placeId', 'place_id', 'cid', 'id']) || sourceUrl;
+  if (!name || !id) return null;
   return external('apify', {
-    id, name, phone, whatsapp, email: stringFrom(record, ['email', 'emailAddress']), website, sourceUrl: stringFrom(record, ['url', 'googleMapsUrl', 'placeUrl']), cnpj: stringFrom(record, ['cnpj', 'taxId']), city: stringFrom(record, ['city', 'municipality']) || stringFrom(address, ['city']),
+    id, name, phone, whatsapp, email: firstString(record, ['email', 'emailAddress', 'emails']), website, sourceUrl, cnpj: stringFrom(record, ['cnpj', 'taxId']), city: stringFrom(record, ['city', 'municipality']) || stringFrom(address, ['city']),
     uf: stringFrom(record, ['state', 'stateCode', 'region']) || stringFrom(address, ['state']), segment: stringFrom(record, ['categoryName', 'category', 'industry']),
     address: stringFrom(record, ['address', 'streetAddress', 'fullAddress']) || stringFrom(address, ['full', 'label', 'address']),
     latitude: coordinate(record.latitude ?? record.lat ?? location.lat ?? location.latitude, 85), longitude: coordinate(record.longitude ?? record.lng ?? location.lng ?? location.longitude, 180),
   }, filters);
 }
 
-function normalizeGoogle(item: unknown, index: number, filters: Filters) {
+function normalizeGoogle(item: unknown, filters: Filters) {
   const record = object(item), display = object(record.displayName), location = object(record.location);
-  const name = text(display.text, 1_000) || `Empresa ${index + 1}`;
+  const name = text(display.text, 1_000);
+  if (!name || !text(record.id, 300)) return null;
   const phone = text(record.internationalPhoneNumber || record.nationalPhoneNumber, 100);
   const types = Array.isArray(record.types) ? record.types.filter((item): item is string => typeof item === 'string').join(', ') : '';
-  return external('google_places', { id: text(record.id, 300) || `google-${crypto.randomUUID()}`, name, phone, whatsapp: '', email: '', website: text(record.websiteUri, 1_000), sourceUrl: text(record.googleMapsUri, 1_000), cnpj: '', city: filters.cidade || '', uf: filters.estado || '', segment: types, address: text(record.formattedAddress, 1_000), latitude: coordinate(location.latitude, 85), longitude: coordinate(location.longitude, 180) }, filters);
+  return external('google_places', { id: text(record.id, 300), name, phone, whatsapp: '', email: '', website: text(record.websiteUri, 1_000), sourceUrl: text(record.googleMapsUri, 1_000), cnpj: '', city: '', uf: '', segment: types, address: text(record.formattedAddress, 1_000), latitude: coordinate(location.latitude, 85), longitude: coordinate(location.longitude, 180) }, filters);
 }
 
 function apifyInput(credentials: Record<string, unknown>, filters: Filters) {
   let configured: Record<string, unknown> = {};
   const inputJson = text(credentials.input_json, 20_000);
   if (inputJson) { try { configured = object(JSON.parse(inputJson)); } catch { throw new Error('source_input_invalid'); } }
-  return { ...configured, searchStringsArray: terms(filters), locationQuery: locationQuery(filters), maxCrawledPlacesPerSearch: filters.volumeMaximo };
+  const volume = filters.volumeMaximo ?? 30;
+  const searchStringsArray = terms(filters).slice(0, volume);
+  // The Actor's limit is per search term, not per run. Keep the requested budget bounded.
+  return { ...configured, searchStringsArray, locationQuery: locationQuery(filters), maxCrawledPlacesPerSearch: Math.max(1, Math.floor(volume / searchStringsArray.length)) };
 }
 
 function apifyToken(credentials: Record<string, unknown>) { return text(credentials.api_token || credentials.token, 500); }
@@ -141,7 +161,7 @@ async function apifyItems(credentials: Record<string, unknown>, datasetId: strin
   if (!response.ok) throw new Error(`apify_dataset_${response.status}`);
   const items: unknown = await response.json();
   if (!Array.isArray(items)) throw new Error('provider_invalid_response');
-  return items.slice(0, filters.volumeMaximo).map((item, index) => normalizeApify(item, index, filters));
+  return items.slice(0, filters.volumeMaximo).map((item) => normalizeApify(item, filters)).filter((item): item is NonNullable<typeof item> => item !== null);
 }
 
 async function callGoogle(credentials: Record<string, unknown>, filters: Filters) {
@@ -159,7 +179,7 @@ async function callGoogle(credentials: Record<string, unknown>, filters: Filters
     const body = object(await response.json()), page = Array.isArray(body.places) ? body.places : [];
     results.push(...page.slice(0, limit - results.length)); pageToken = text(body.nextPageToken, 1_000); if (!pageToken || !page.length) break;
   }
-  return { providerRunId: `google-${crypto.randomUUID()}`, leads: results.slice(0, limit).map((item, index) => normalizeGoogle(item, index, filters)) };
+  return { providerRunId: `google-${crypto.randomUUID()}`, leads: results.slice(0, limit).map((item) => normalizeGoogle(item, filters)).filter((item): item is NonNullable<typeof item> => item !== null) };
 }
 
 async function hash(value: string) { const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value)); return Array.from(new Uint8Array(digest)).map((item) => item.toString(16).padStart(2, '0')).join(''); }
@@ -168,15 +188,17 @@ Deno.serve(async (request) => {
   const options = preflight(request); if (options) return options;
   if (!hasAllowedOrigin(request)) return json({ ok: false, error: 'origin_not_allowed' }, 403);
   const headers = allowedCorsHeaders(request); if (request.method !== 'POST') return json({ ok: false, error: 'method_not_allowed' }, 405, headers);
-  let runId: string | null = null, admin: ReturnType<typeof createAdminClient> | null = null, sourceId: string | null = null, integrationId: string | null = null;
+  let runId: string | null = null, admin: ReturnType<typeof createAdminClient> | null = null, sourceId: string | null = null;
+  let failRunOnError = false;
   try {
     const body = await readJson(request), sourceKey = requiredString(body.sourceKey, 'source_key', 80) as 'apify' | 'google_places';
     if (!['apify', 'google_places'].includes(sourceKey)) throw new Error('source_not_supported');
+    if (body.action != null && !['list_runs', 'open_cache'].includes(String(body.action))) throw new Error('prospecting_action_not_allowed');
     if (body.mode !== 'production') throw new Error('production_mode_required');
     const requestedRunId = text(body.runId, 80);
     admin = createAdminClient();
     const schedulerToken = request.headers.get('x-leadai-scheduler-token');
-    let organizationId = '', requestedBy = '', actorName = 'Ana · operação automática', actorType = 'user';
+    let organizationId = '', requestedBy = '', actorName = 'Ana · operação automática', actorType = 'user', canReadAll = false;
     if (schedulerToken) {
       organizationId = text(body.organization_id, 80);
       const scheduleRunId = text(body.schedule_run_id, 80);
@@ -196,26 +218,94 @@ Deno.serve(async (request) => {
       if (profileError || !profile?.active_organization_id) throw new Error('organization_context_required');
       organizationId = profile.active_organization_id as string; requestedBy = user.id; actorName = profile.name || 'Usuário';
       await requireOrganizationRole(admin, user.id, organizationId, ['owner', 'admin', 'manager', 'seller', 'sdr']);
+      const { data: membership, error: membershipError } = await admin.from('organization_members')
+        .select('role,status').eq('organization_id', organizationId).eq('user_id', user.id).maybeSingle();
+      if (membershipError || !membership || membership.status !== 'active') throw new Error('organization_access_denied');
+      canReadAll = ['owner', 'admin', 'administrador'].includes(membership.role);
+    }
+    if (body.action === 'list_runs') {
+      if (schedulerToken || sourceKey !== 'apify') throw new Error('prospecting_action_not_allowed');
+      let runQuery = admin.from('prospecting_runs')
+        .select('id,status,source_key,started_at,result_count,result_cache_id,provider_run_id,last_error,filters,requested_by')
+        .eq('organization_id', organizationId).eq('source_key', sourceKey);
+      let cacheQuery = admin.from('prospecting_cache')
+        .select('id,total_found,created_at,filters,user_id')
+        .eq('organization_id', organizationId).eq('source', 'apify')
+        .gt('expires_at', new Date().toISOString());
+      if (!canReadAll) {
+        runQuery = runQuery.eq('requested_by', requestedBy);
+        cacheQuery = cacheQuery.eq('user_id', requestedBy);
+      }
+      const [{ data: runs, error: listError }, { data: caches, error: cachesError }] = await Promise.all([
+        runQuery.order('started_at', { ascending: false }).limit(20),
+        cacheQuery.order('created_at', { ascending: false }).limit(20),
+      ]);
+      if (listError || cachesError) throw new Error('prospecting_runs_unavailable');
+      const cacheIds = (caches ?? []).map((cache) => cache.id as string);
+      const { data: linked, error: linkedError } = cacheIds.length
+        ? await admin.from('prospecting_runs').select('result_cache_id').eq('organization_id', organizationId).in('result_cache_id', cacheIds)
+        : { data: [], error: null };
+      if (linkedError) throw new Error('prospecting_runs_unavailable');
+      const linkedIds = new Set((linked ?? []).map((run) => run.result_cache_id));
+      const runRows = (runs ?? []).map((run) => ({
+        id: run.id, status: run.status, startedAt: run.started_at, resultCount: run.result_count,
+        hasProvider: Boolean(run.provider_run_id), hasResults: Boolean(run.result_cache_id),
+        lastError: run.last_error, location: locationQuery(normalizeFilters(run.filters)),
+        fromTeam: run.requested_by !== requestedBy,
+      }));
+      const historicalCaches = (caches ?? []).filter((cache) => !linkedIds.has(cache.id)).map((cache) => ({
+        id: cache.id, status: 'cached', startedAt: cache.created_at, resultCount: cache.total_found,
+        hasProvider: false, hasResults: true, lastError: null, fromTeam: cache.user_id !== requestedBy,
+        location: [text(object(cache.filters).municipio, 120), text(object(cache.filters).uf, 2), 'Brasil'].filter(Boolean).join(', '),
+      }));
+      return json({ ok: true, runs: [...runRows, ...historicalCaches].sort((left, right) => String(right.startedAt).localeCompare(String(left.startedAt))) }, 200, headers);
+    }
+    if (body.action === 'open_cache') {
+      if (schedulerToken || sourceKey !== 'apify') throw new Error('prospecting_action_not_allowed');
+      const cacheId = text(body.cacheId, 80);
+      if (!cacheId) throw new Error('prospecting_results_unavailable');
+      let cacheQuery = admin.from('prospecting_cache').select('results').eq('id', cacheId)
+        .eq('organization_id', organizationId).eq('source', 'apify').gt('expires_at', new Date().toISOString());
+      if (!canReadAll) cacheQuery = cacheQuery.eq('user_id', requestedBy);
+      const { data: cache, error: cacheError } = await cacheQuery.maybeSingle();
+      if (cacheError || !cache || !Array.isArray(cache.results)) throw new Error('prospecting_results_unavailable');
+      return json({ ok: true, pending: false, cacheId, sourceKey, leads: cache.results }, 200, headers);
+    }
+    let existingRun: ProspectingRun | null = null;
+    if (requestedRunId) {
+      let existingQuery = admin.from('prospecting_runs')
+        .select('id,source_key,source_config_id,status,filters,provider_run_id,result_cache_id,requested_by')
+        .eq('id', requestedRunId).eq('organization_id', organizationId);
+      if (!canReadAll) existingQuery = existingQuery.eq('requested_by', requestedBy);
+      const { data: run, error: runError } = await existingQuery.maybeSingle() as { data: ProspectingRun | null; error: unknown };
+      if (runError || !run || run.source_key !== sourceKey) throw new Error('prospecting_run_not_found');
+      existingRun = run;
+      runId = run.id;
+      if (run.status === 'completed') {
+        if (!run.result_cache_id) throw new Error('prospecting_results_unavailable');
+        const { data: cache, error: cacheError } = await admin.from('prospecting_cache')
+          .select('results').eq('id', run.result_cache_id).eq('organization_id', organizationId).maybeSingle();
+        if (cacheError || !cache || !Array.isArray(cache.results)) throw new Error('prospecting_results_unavailable');
+        return json({ ok: true, pending: false, runId, cacheId: run.result_cache_id, sourceKey, leads: cache.results }, 200, headers);
+      }
+      if (run.status !== 'running' || !run.provider_run_id || !run.requested_by || sourceKey !== 'apify') throw new Error('prospecting_run_not_pending');
     }
     const { data: source, error: sourceError } = await admin.from('lead_source_configs').select('id,enabled,mode,connection_status').eq('organization_id', organizationId).eq('source_key', sourceKey).maybeSingle() as { data: SourceRow | null; error: unknown };
     if (sourceError || !source) throw new Error('source_not_configured'); sourceId = source.id;
+    if (existingRun && existingRun.source_config_id !== source.id) throw new Error('prospecting_run_not_found');
     if (!source.enabled || source.connection_status !== 'connected') throw new Error('source_disabled');
     const { data: integration, error: integrationError } = await admin.from('integrations').select('id,provider,enabled,connected,paused').eq('organization_id', organizationId).eq('key', sourceKey).maybeSingle() as { data: IntegrationRow | null; error: unknown };
-    if (integrationError || !integration) throw new Error('source_not_configured'); integrationId = integration.id;
+    if (integrationError || !integration) throw new Error('source_not_configured');
     if (!integration.enabled || !integration.connected || integration.paused) throw new Error('source_disabled');
     const { data: credentials, error: credentialsError } = await admin.rpc('read_integration_secret', { p_integration: integration.id });
     if (credentialsError || !credentials) throw new Error('source_credentials_missing');
 
     let filters: Filters, providerRunId = '', datasetId = '';
-    if (requestedRunId) {
-      const { data: run, error: runError } = await admin.from('prospecting_runs').select('id,source_key,source_config_id,status,filters,provider_run_id').eq('id', requestedRunId).eq('organization_id', organizationId).eq('requested_by', requestedBy).maybeSingle() as { data: ProspectingRun | null; error: unknown };
-      if (runError || !run || run.source_key !== sourceKey || run.source_config_id !== source.id) throw new Error('prospecting_run_not_found');
-      if (run.status !== 'running' || !run.provider_run_id) throw new Error('prospecting_run_not_pending');
-      runId = run.id; filters = normalizeFilters(run.filters); providerRunId = run.provider_run_id;
-      if (sourceKey !== 'apify') throw new Error('prospecting_run_not_pending');
+    if (existingRun?.provider_run_id) {
+      filters = normalizeFilters(existingRun.filters); providerRunId = existingRun.provider_run_id;
       const provider = await apifyRun(credentials as Record<string, unknown>, providerRunId);
       if (provider.status !== 'SUCCEEDED') {
-        if (['FAILED', 'ABORTED', 'TIMED-OUT', 'TIMED_OUT'].includes(provider.status)) throw new Error(apifyFailure(provider.status));
+        if (['FAILED', 'ABORTED', 'TIMED-OUT', 'TIMED_OUT'].includes(provider.status)) { failRunOnError = true; throw new Error(apifyFailure(provider.status)); }
         return json({ ok: true, pending: true, runId, sourceKey, message: 'A fonte ainda está processando a busca.' }, 202, headers);
       }
       datasetId = provider.datasetId;
@@ -223,12 +313,14 @@ Deno.serve(async (request) => {
       filters = normalizeFilters(body.filters);
       const filtersJson = JSON.parse(JSON.stringify(filters)), filtersHash = await hash(`${sourceKey}:${JSON.stringify(filtersJson)}`), startedAt = new Date().toISOString();
       const { data: run, error: runError } = await admin.from('prospecting_runs').insert({ organization_id: organizationId, source_config_id: source.id, source_key: sourceKey, mode: 'production', status: 'running', filters: filtersJson, filters_hash: filtersHash, requested_quantity: filters.volumeMaximo, estimated_records: filters.volumeMaximo, quote_expires_at: startedAt, requested_by: requestedBy, cost_known: false, requires_confirmation: false, estimate_basis: 'provider_actual', started_at: startedAt }).select('id').single();
-      if (runError || !run) throw runError ?? new Error('prospecting_run_not_created'); runId = run.id as string;
+      if (runError || !run) throw runError ?? new Error('prospecting_run_not_created'); runId = run.id as string; failRunOnError = true;
       if (sourceKey === 'apify') {
         const provider = await startApify(credentials as Record<string, unknown>, filters); providerRunId = provider.providerRunId; datasetId = provider.datasetId;
-        await admin.from('prospecting_runs').update({ provider_run_id: providerRunId, updated_at: new Date().toISOString() }).eq('id', runId);
+        const { error: updateError } = await admin.from('prospecting_runs').update({ provider_run_id: providerRunId, updated_at: new Date().toISOString() }).eq('id', runId);
+        if (updateError) throw new Error('prospecting_provider_id_not_saved');
+        failRunOnError = false;
         if (provider.status !== 'SUCCEEDED') {
-          if (['FAILED', 'ABORTED', 'TIMED-OUT', 'TIMED_OUT'].includes(provider.status)) throw new Error(apifyFailure(provider.status));
+          if (['FAILED', 'ABORTED', 'TIMED-OUT', 'TIMED_OUT'].includes(provider.status)) { failRunOnError = true; throw new Error(apifyFailure(provider.status)); }
           return json({ ok: true, pending: true, runId, sourceKey, message: 'A fonte iniciou a busca. Aguardando os resultados.' }, 202, headers);
         }
       }
@@ -238,19 +330,35 @@ Deno.serve(async (request) => {
       ? { providerRunId, leads: await apifyItems(credentials as Record<string, unknown>, datasetId, filters) }
       : await callGoogle(credentials as Record<string, unknown>, filters);
     const leads = result.leads.filter((lead) => (!filters.exigeWhatsApp || Boolean(lead.whatsapp)) && (!filters.exigeEmail || Boolean(lead.email)) && (!filters.exigeSite || Boolean(lead.website))).slice(0, filters.volumeMaximo);
-    const filtersHash = await hash(`${sourceKey}:${JSON.stringify(filters)}`);
-    const { data: cache, error: cacheError } = await admin.from('prospecting_cache').insert({ organization_id: organizationId, user_id: requestedBy, filters_hash: filtersHash, filters: { source: sourceKey, uf: filters.estado || null, municipio: filters.cidade || null, keyword: terms(filters).join(' '), radius_km: filters.raio || null, limit: filters.volumeMaximo }, results: leads, total_found: leads.length, scored: true, name: `${sourceKey} · ${filters.cidade || filters.estado || 'Brasil'} · ${new Date().toLocaleDateString('pt-BR')}`, saved: true, expires_at: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), source: sourceKey }).select('id').single();
-    if (cacheError || !cache) throw cacheError ?? new Error('prospecting_cache_not_created');
-    const now = new Date().toISOString();
-    await admin.from('prospecting_runs').update({ status: 'completed', provider_run_id: result.providerRunId, result_cache_id: cache.id, result_count: leads.length, completed_at: now, updated_at: now, last_error: null }).eq('id', runId);
-    await admin.from('lead_source_configs').update({ last_success_at: now, last_error: null, last_error_at: null }).eq('id', source.id);
-    await admin.from('audit_logs').insert({ organization_id: organizationId, actor_id: actorType === 'user' ? requestedBy : null, actor_name: actorName, actor_type: actorType, action: 'prospecting.completed', detail: `Busca real concluída via ${sourceKey}.`, entity_table: 'prospecting_runs', entity_id: runId, event_data: { sourceKey, resultCount: leads.length, requestedQuantity: filters.volumeMaximo, cacheId: cache.id } });
-    return json({ ok: true, pending: false, runId, cacheId: cache.id, sourceKey, leads }, 200, headers);
+    const { data: finalized, error: finalizeError } = await admin.rpc('finalize_prospecting_run', {
+      p_run_id: runId, p_organization_id: organizationId, p_requested_by: existingRun?.requested_by || requestedBy,
+      p_provider_run_id: result.providerRunId,
+      p_cache_filters: { source: sourceKey, uf: filters.estado || null, municipio: filters.cidade || null, keyword: terms(filters).join(' '), limit: filters.volumeMaximo },
+      p_results: leads,
+      p_name: `${sourceKey} · ${filters.cidade || filters.estado || 'Brasil'} · ${new Date().toLocaleDateString('pt-BR')}`,
+    });
+    if (finalizeError || !Array.isArray(finalized) || !finalized[0]?.cache_id) throw new Error('prospecting_result_not_saved');
+    const cacheId = finalized[0].cache_id as string;
+    let finalLeads = leads;
+    if (!finalized[0].newly_completed) {
+      const { data: savedCache, error: cacheError } = await admin.from('prospecting_cache').select('results').eq('id', cacheId).eq('organization_id', organizationId).maybeSingle();
+      if (cacheError || !savedCache || !Array.isArray(savedCache.results)) throw new Error('prospecting_results_unavailable');
+      finalLeads = savedCache.results;
+    } else {
+      const now = new Date().toISOString();
+      const [{ error: sourceUpdateError }, { error: auditError }] = await Promise.all([
+        admin.from('lead_source_configs').update({ last_success_at: now, last_error: null, last_error_at: null }).eq('id', source.id),
+        admin.from('audit_logs').insert({ organization_id: organizationId, actor_id: actorType === 'user' ? requestedBy : null, actor_name: actorName, actor_type: actorType, action: 'prospecting.completed', detail: `Busca real concluída via ${sourceKey}.`, entity_table: 'prospecting_runs', entity_id: runId, event_data: { sourceKey, resultCount: leads.length, requestedQuantity: filters.volumeMaximo, cacheId } }),
+      ]);
+      if (sourceUpdateError || auditError) console.error('prospecting_completion_metadata_failed', { sourceUpdateFailed: Boolean(sourceUpdateError), auditFailed: Boolean(auditError), runId });
+    }
+    return json({ ok: true, pending: false, runId, cacheId, sourceKey, leads: finalLeads }, 200, headers);
   } catch (error) {
     const message = safeError(error), now = new Date().toISOString();
-    if (admin && runId) await admin.from('prospecting_runs').update({ status: 'failed', last_error: message, completed_at: now, updated_at: now }).eq('id', runId);
-    if (admin && runId && sourceId) await admin.from('lead_source_configs').update({ connection_status: 'error', last_error: message, last_error_at: now, updated_at: now }).eq('id', sourceId);
-    if (admin && runId && integrationId) await admin.from('integrations').update({ connected: false, status_detail: 'Falha na última busca real. Teste a conexão e consulte o erro específico.', last_error: message, last_error_at: now }).eq('id', integrationId);
-    return json({ ok: false, error: message, runId }, 400, headers);
+    if (admin && runId && failRunOnError) {
+      await admin.from('prospecting_runs').update({ status: 'failed', last_error: message, completed_at: now, updated_at: now }).eq('id', runId).eq('status', 'running');
+      if (sourceId) await admin.from('lead_source_configs').update({ last_error: message, last_error_at: now, updated_at: now }).eq('id', sourceId);
+    }
+    return json({ ok: false, error: message, runId, recoverable: Boolean(runId && !failRunOnError) }, 400, headers);
   }
 });

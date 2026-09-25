@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { segmentos, portes } from '@/mocks/leadsData';
+import { segmentos } from '@/mocks/leadsData';
 import type { Lead } from '@/mocks/leadsData';
 import { useLeadsStore, waitForLeadsPersistence } from '@/hooks/useLeadsStore';
 import { useListasStore } from '@/hooks/useListasStore';
@@ -19,9 +19,19 @@ import { supabase } from '@/lib/supabase';
 
 const estados = ['SP', 'RJ', 'MG', 'PR', 'SC', 'RS', 'BA', 'PE', 'GO', 'DF'];
 const atividades = ['Tecnologia', 'Saúde', 'Educação', 'Varejo', 'Indústria', 'Logística', 'Marketing', 'Consultoria', 'Financeiro', 'Imobiliário'];
-const cargos = ['CEO', 'Diretor', 'Gerente', 'Coordenador', 'Analista', 'Proprietário'];
-
 const fasesBusca = ['Iniciando a busca', 'Aguardando resposta da fonte', 'Preparando a revisão'];
+
+interface ProspectingRunSummary {
+  id: string;
+  status: string;
+  startedAt: string | null;
+  resultCount: number;
+  hasProvider: boolean;
+  hasResults: boolean;
+  lastError: string | null;
+  location: string;
+  fromTeam?: boolean;
+}
 
 interface ProspectingLeadResponse {
   id?: string;
@@ -70,6 +80,14 @@ interface ProspectingResponse {
   leads?: ProspectingLeadResponse[];
 }
 
+async function listarExecucoesApify(): Promise<ProspectingRunSummary[]> {
+  const { data, error } = await supabase.functions.invoke('prospectar-leads', {
+    body: { action: 'list_runs', sourceKey: 'apify', mode: 'production' },
+  });
+  if (error) throw error;
+  return Array.isArray(data?.runs) ? data.runs as ProspectingRunSummary[] : [];
+}
+
 function prospectingLeadToPreview(lead: ProspectingLeadResponse, fonte: string, index: number): PreviewLead {
   const nome = lead.nome || lead.name || lead.nome_fantasia || lead.razao_social || 'Contato sem nome';
   const empresa = lead.empresa || lead.company || lead.razao_social || lead.nome_fantasia || nome;
@@ -80,8 +98,10 @@ function prospectingLeadToPreview(lead: ProspectingLeadResponse, fonte: string, 
   const score = typeof lead.score === 'number' ? Math.max(0, Math.min(100, Math.round(lead.score))) : 60;
   const cidadeReal = lead.cidade || lead.city || lead.municipio || '';
   const estadoReal = lead.estado || lead.state || lead.uf || '';
-  const latitude = Number(lead.latitude ?? lead.lat);
-  const longitude = Number(lead.longitude ?? lead.lng);
+  const latitudeValue = lead.latitude ?? lead.lat;
+  const longitudeValue = lead.longitude ?? lead.lng;
+  const latitude = latitudeValue == null ? NaN : Number(latitudeValue);
+  const longitude = longitudeValue == null ? NaN : Number(longitudeValue);
   return {
     id: lead.id || lead.externalId || `real-${index}-${Date.now()}`,
     nome,
@@ -135,12 +155,9 @@ export default function BuscaLeads() {
   const [cidade, setCidade] = useState('São Paulo');
   const [estado, setEstado] = useState('SP');
   const [pais, setPais] = useState('Brasil');
-  const [raio, setRaio] = useState(50);
   const [segs, setSegs] = useState<string[]>(['Tecnologia', 'Varejo']);
-  const [portesSel, setPortesSel] = useState<string[]>(['Pequeno', 'Médio']);
   const [leadsDia, setLeadsDia] = useState(30);
   const [atividadesSel, setAtividadesSel] = useState<string[]>([]);
-  const [cargoDecisor, setCargoDecisor] = useState('');
   const [temSite, setTemSite] = useState<boolean | null>(null);
   const [temWhatsApp, setTemWhatsApp] = useState<boolean | null>(null);
   const [temEmail, setTemEmail] = useState<boolean | null>(null);
@@ -150,6 +167,10 @@ export default function BuscaLeads() {
   const [preview, setPreview] = useState<PreviewLead[]>([]);
   const [selecionados, setSelecionados] = useState<string[]>([]);
   const [faseBusca, setFaseBusca] = useState('');
+  const [execucoes, setExecucoes] = useState<ProspectingRunSummary[]>([]);
+  const [carregandoExecucoes, setCarregandoExecucoes] = useState(false);
+  const [erroExecucoes, setErroExecucoes] = useState(false);
+  const [execucaoAtual, setExecucaoAtual] = useState<string | null>(null);
   const [leadAberto, setLeadAberto] = useState<PreviewLead | null>(null);
   const [feedbackAna, setFeedbackAna] = useState('');
   const [nomeLista, setNomeLista] = useState('');
@@ -177,6 +198,24 @@ export default function BuscaLeads() {
       setEtapa(1);
     }
   }, [fonteSelecionada, fontesProspecao]);
+
+  useEffect(() => {
+    if (aba !== 'busca') return;
+    let mounted = true;
+    setCarregandoExecucoes(true);
+    listarExecucoesApify()
+      .then((runs) => { if (mounted) { setExecucoes(runs); setErroExecucoes(false); } })
+      .catch(() => { if (mounted) setErroExecucoes(true); })
+      .finally(() => { if (mounted) setCarregandoExecucoes(false); });
+    return () => { mounted = false; };
+  }, [aba]);
+
+  const atualizarExecucoes = async () => {
+    setCarregandoExecucoes(true);
+    try { setExecucoes(await listarExecucoesApify()); setErroExecucoes(false); }
+    catch { setErroExecucoes(true); }
+    finally { setCarregandoExecucoes(false); }
+  };
 
   const responsavelNome =
     modoAtendimento === 'IA' ? 'Ana (IA)' : mockUsers.find((u) => u.id === responsavel)?.name || 'Selecionar responsável';
@@ -285,6 +324,33 @@ export default function BuscaLeads() {
     throw new Error('apify_processing_timeout');
   };
 
+  const retomarExecucao = async (run: ProspectingRunSummary) => {
+    const fonte = fontesProspecao.find((item) => item.sourceKey === 'apify');
+    setBuscando(true);
+    setExecucaoAtual(run.id);
+    setErroBusca(null);
+    setResultado(null);
+    setFaseBusca(fasesBusca[1]);
+    setAba('busca');
+    try {
+      const { data, error } = await supabase.functions.invoke('prospectar-leads', {
+        body: { sourceKey: 'apify', mode: 'production', ...(run.status === 'cached' ? { action: 'open_cache', cacheId: run.id } : { runId: run.id }) },
+      });
+      if (error) throw new Error(await detalheDoErroBusca(error));
+      let response = data as ProspectingResponse;
+      if (response?.pending) response = await aguardarResultadoApify('apify', run.id);
+      setFaseBusca(fasesBusca[2]);
+      aplicarResultadoDaBusca(response, fonte?.nome || 'Apify — Google Maps');
+    } catch (error) {
+      setErroBusca(mensagemBuscaReal(error instanceof Error ? error.message : 'prospecting_failed', fonte?.nome || 'Apify'));
+    } finally {
+      setBuscando(false);
+      setExecucaoAtual(null);
+      setFaseBusca('');
+      void atualizarExecucoes();
+    }
+  };
+
   const aplicarResultadoDaBusca = (data: ProspectingResponse, fonteNome: string) => {
     if (!data?.leads || !Array.isArray(data.leads)) throw new Error(data?.error || 'prospecting_empty_response');
     const encontrados = data.leads.map((lead, index) => prospectingLeadToPreview(lead, fonteNome, index));
@@ -329,11 +395,8 @@ export default function BuscaLeads() {
             pais,
             estado,
             cidade,
-            raio,
             atividades: atividadesSel,
             segmentos: segs,
-            portes: portesSel,
-            cargo: cargoDecisor,
             exigeSite: temSite === true,
             exigeWhatsApp: temWhatsApp === true,
             exigeEmail: temEmail === true,
@@ -345,6 +408,8 @@ export default function BuscaLeads() {
       let response = data as ProspectingResponse;
       if (response?.pending) {
         if (!response.runId) throw new Error('prospecting_run_not_started');
+        setExecucaoAtual(response.runId);
+        void atualizarExecucoes();
         setFaseBusca(fasesBusca[1]);
         response = await aguardarResultadoApify(sourceKey, response.runId);
       }
@@ -357,7 +422,9 @@ export default function BuscaLeads() {
       setErroBusca(mensagemBuscaReal(message, fonteNome));
     } finally {
       setBuscando(false);
+      setExecucaoAtual(null);
       setFaseBusca('');
+      void atualizarExecucoes();
     }
   };
 
@@ -564,6 +631,39 @@ export default function BuscaLeads() {
 
       {aba === 'busca' && (
         <>
+          <section className="mb-6 rounded-xl border border-background-200/70 bg-background-50 p-4" aria-label="Execuções anteriores da Apify">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <h2 className="text-sm font-heading font-bold text-foreground-900">Buscas anteriores da Apify</h2>
+                <p className="text-xs text-foreground-500">Retome uma execução existente ou abra seus resultados sem iniciar outra busca paga.</p>
+              </div>
+              <button type="button" onClick={() => void atualizarExecucoes()} disabled={carregandoExecucoes || buscando} className="rounded-lg border border-background-300 px-3 py-1.5 text-xs font-semibold text-foreground-700 hover:bg-background-100 disabled:opacity-50">
+                <i className="ri-refresh-line mr-1" aria-hidden="true"></i>Atualizar
+              </button>
+            </div>
+            {carregandoExecucoes && <p className="mt-3 text-xs text-foreground-500">Carregando execuções...</p>}
+            {erroExecucoes && <p role="alert" className="mt-3 text-xs text-secondary-700">Não foi possível carregar o histórico. Tente atualizar.</p>}
+            {!carregandoExecucoes && !erroExecucoes && execucoes.length === 0 && <p className="mt-3 text-xs text-foreground-500">Nenhuma busca disponível.</p>}
+            {execucoes.length > 0 && <div className="mt-3 max-h-44 space-y-2 overflow-y-auto pr-1">
+              {execucoes.map((run) => (
+                <div key={run.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-background-200/70 px-3 py-2 text-xs">
+                  <div className="min-w-0">
+                    <span className="font-semibold text-foreground-800">{run.location || 'Local não informado'}</span>
+                    <span className="ml-2 text-foreground-500">{run.startedAt ? new Date(run.startedAt).toLocaleString('pt-BR') : 'Data indisponível'}</span>
+                    {run.fromTeam && <span className="ml-2 rounded-full bg-background-100 px-2 py-0.5 text-foreground-600">Equipe</span>}
+                    <span className="ml-2 text-foreground-600">{run.status === 'completed' ? `${run.resultCount} encontrado(s)` : run.status === 'cached' ? `${run.resultCount} resultado(s) salvos` : run.status === 'running' ? 'Em andamento' : run.status === 'failed' ? 'Falha' : 'Não concluída'}</span>
+                    {run.status === 'failed' && run.lastError && <span className="ml-2 text-secondary-700">{run.lastError}</span>}
+                    {run.status === 'running' && !run.hasProvider && <span className="ml-2 text-secondary-700">Início não confirmado pelo provedor; consulte o Registro do Sistema.</span>}
+                  </div>
+                  {((run.status === 'running' && run.hasProvider) || ((run.status === 'completed' || run.status === 'cached') && run.hasResults)) &&
+                    <button type="button" onClick={() => void retomarExecucao(run)} disabled={buscando} className="rounded-lg border border-primary-300 px-3 py-1.5 font-semibold text-primary-700 hover:bg-primary-50 disabled:opacity-50">
+                      {buscando && execucaoAtual === run.id ? 'Consultando...' : run.status === 'completed' || run.status === 'cached' ? 'Abrir revisão' : 'Retomar busca'}
+                    </button>}
+                </div>
+              ))}
+            </div>}
+            {erroBusca && etapa !== 2 && <p role="alert" className="mt-3 text-xs text-secondary-700">{erroBusca}</p>}
+          </section>
           {/* Faixa de estatísticas da prospecção */}
           <div className="mb-6 grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="bg-background-50 border border-background-200/70 rounded-xl p-4">
@@ -708,13 +808,7 @@ export default function BuscaLeads() {
                         <input type="text" value={cidade} onChange={(e) => setCidade(e.target.value)} className="w-full px-4 py-2.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-900" />
                       </div>
                     </div>
-                    <div className="mt-5">
-                      <div className="flex items-center justify-between mb-2">
-                        <label className="text-sm font-medium text-foreground-800">Raio de atuação</label>
-                        <span className="text-sm font-bold text-primary-600">{raio} km</span>
-                      </div>
-                      <input type="range" min={10} max={200} step={5} value={raio} onChange={(e) => setRaio(Number(e.target.value))} className="w-full accent-[oklch(var(--primary-500))] cursor-pointer" />
-                    </div>
+                    <p className="mt-4 text-xs text-foreground-500">A fonte aplica cidade e estado como área de busca. Raio em quilômetros não é suportado nesta configuração; nenhum limite de distância será simulado.</p>
                   </section>
 
                   <section className="bg-background-50 border border-background-200/70 rounded-xl p-6">
@@ -740,14 +834,7 @@ export default function BuscaLeads() {
                         </button>
                       ))}
                     </div>
-                    <label className="block text-sm font-medium text-foreground-800 mb-2">Porte da empresa</label>
-                    <div className="flex flex-wrap gap-2">
-                      {portes.map((p) => (
-                        <button key={p} onClick={() => toggle(portesSel, setPortesSel, p)} className={`px-3 py-1.5 rounded-full text-sm font-medium transition-all cursor-pointer whitespace-nowrap ${portesSel.includes(p) ? 'bg-secondary-500 text-background-50' : 'bg-background-100 text-foreground-600 hover:bg-background-200'}`}>
-                          {p}
-                        </button>
-                      ))}
-                    </div>
+                    <p className="text-xs text-foreground-500">Porte da empresa não é fornecido com confiabilidade pelo Google Maps; não será usado para filtrar nem preenchido por suposição.</p>
                   </section>
 
                   <section className="bg-background-50 border border-background-200/70 rounded-xl p-6">
@@ -759,17 +846,11 @@ export default function BuscaLeads() {
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div>
-                        <label className="block text-sm font-medium text-foreground-800 mb-1.5">Cargo do decisor</label>
-                        <select value={cargoDecisor} onChange={(e) => setCargoDecisor(e.target.value)} className="w-full px-4 py-2.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-900 cursor-pointer">
-                          <option value="">Qualquer</option>
-                          {cargos.map((c) => <option key={c} value={c}>{c}</option>)}
-                        </select>
-                      </div>
-                      <div>
                         <label className="block text-sm font-medium text-foreground-800 mb-1.5">Volume máximo</label>
                         <input type="number" min={1} max={100} value={leadsDia} onChange={(e) => setLeadsDia(Math.max(1, Math.min(100, Number(e.target.value))))} className="w-full px-4 py-2.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-900" />
                       </div>
                     </div>
+                    <p className="mt-3 text-xs text-foreground-500">O volume é dividido entre os termos pesquisados. Cargo do decisor não é informado por esta fonte.</p>
                     <div className="mt-4 flex flex-wrap gap-4">
                       <label className="flex items-center gap-2 text-sm text-foreground-700 cursor-pointer">
                         <input type="checkbox" checked={temSite === true} onChange={() => setTemSite(temSite === true ? null : true)} className="cursor-pointer" />
@@ -793,9 +874,8 @@ export default function BuscaLeads() {
                     <div className="space-y-3 text-sm">
                       <div className="flex justify-between"><span className="text-background-400">Fonte</span><span className="font-medium">{fontes.find((f) => f.id === fonteSelecionada)?.nome || '—'}</span></div>
                       <div className="flex justify-between"><span className="text-background-400">Local</span><span className="font-medium">{cidade} - {estado}</span></div>
-                      <div className="flex justify-between"><span className="text-background-400">Raio</span><span className="font-medium">{raio} km</span></div>
+                      <div className="flex justify-between"><span className="text-background-400">Cobertura</span><span className="font-medium text-right">Cidade/UF · sem raio preciso</span></div>
                       <div className="flex justify-between"><span className="text-background-400">Tipo / nicho</span><span className="font-medium text-right">{atividadesSel.length + segs.length} selecionados</span></div>
-                      <div className="flex justify-between"><span className="text-background-400">Porte</span><span className="font-medium">{portesSel.length} selecionados</span></div>
                       <div className="flex justify-between border-t border-background-800 pt-3"><span className="text-background-400">Volume máximo</span><span className="font-bold">{leadsDia} leads</span></div>
                     </div>
                   </div>
