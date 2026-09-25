@@ -1,5 +1,13 @@
 # Problemas conhecidos
 
+## Usuários e responsáveis — 25/09/2026
+
+- Resolvido localmente: a importação humana não escolhe mais `u-2` fictício. Recarrega membros
+  ativos e permissão de criação antes de gravar; o banco rejeita owner fora da organização,
+  inativo ou atribuição cruzada sem permissão. Publicação/validação visual pendentes.
+- Ainda não homologado: fluxo completo de atribuição humana em navegador com importação de novo
+  lead (não criamos outro cadastro de teste). A importação em lote segue não atômica.
+
 ## Homologação da Busca — 25/09/2026
 
 - Primeiro teste autenticado passou: revisão recuperada, mapa, importação de um lead, lista e

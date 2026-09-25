@@ -1,5 +1,22 @@
 # Checkpoint — WayFlex CRM
 
+## 25/09/2026 — Usuários e responsáveis (etapa 3 original)
+
+- A Busca oferecia `mockUsers` (`u-2`) como responsáveis. A importação descartava esse ID
+  inválido e podia criar o lead sem o vendedor escolhido. O seletor agora carrega os membros
+  ativos reais da organização, exige seleção explícita e reconfirma permissão/equipe antes de
+  importar. CSV continua no modo Ana, sem herdar a seleção do formulário manual.
+- No Supabase oficial, três membros estão ativos: dois administradores e um vendedor. A RLS
+  existente limitava leitura/carteira, mas não impedia integralmente que um vendedor gravasse
+  outro `owner_id` ao manter `assigned_to` próprio. Trigger privado agora exige responsável
+  ativo da mesma organização e permissão `leads.edit_all` para atribuir outra pessoa. O teste
+  transacional com rollback rejeitou atribuição cruzada e ID inválido; admin pôde selecionar
+  membro ativo. Nenhum lead permaneceu alterado, e não houve mensagem ou chamada a provedor.
+- Checagens locais: type-check frontend e Edge, lint sem alertas, 39 arquivos/253 testes e
+  build/artefato aprovados. Publicação e validação visual serão registradas após o deploy.
+- Não alteramos Ana, WhatsApp, canais nem o fluxo funcional de prospecção da etapa 2. A
+  importação em lote continua sem atomicidade única e não foi executada nova busca paga.
+
 ## 25/09/2026 — Homologação autenticada da Busca (fechamento da etapa 2 original)
 
 - O teste autenticado abriu os cinco resultados da busca de 23/09, exibiu cinco marcadores e

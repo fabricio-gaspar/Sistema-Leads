@@ -45,6 +45,13 @@ export interface TeamMember {
   updatedAt: string | null;
 }
 
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export function findActiveAssignee(members: TeamMember[], userId: string): TeamMember | null {
+  if (!uuidPattern.test(userId)) return null;
+  return members.find((member) => member.userId === userId && member.status === 'active') ?? null;
+}
+
 const roleLabel: Record<TeamRole, string> = {
   administrador: 'Administrador', vendedor: 'Vendedor', sdr: 'SDR', cx: 'Atendimento',
 };

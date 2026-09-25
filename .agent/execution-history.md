@@ -1,5 +1,14 @@
 # Histórico resumido de execução
 
+## 2026-09-25 — Usuários e responsáveis, etapa 3 original
+
+- Substituído `mockUsers` da revisão/importação por `organization_members` ativos; seleção
+  humana agora é explícita e validada novamente antes da gravação. CSV permanece atribuído à
+  Ana. Removido fixture sem uso.
+- Atribuição validada também no banco por trigger privado. Transações com rollback confirmaram
+  rejeição de owner inválido e de reatribuição por vendedor sem `leads.edit_all`, sem persistir
+  mudanças. 253 testes, type-check frontend/Edge, lint e build passaram.
+
 ## 2026-09-25 — Homologação autenticada Busca → Leads
 
 - Usuário autenticou a aba oficial. A revisão exibiu cinco resultados e cinco marcadores; um lead

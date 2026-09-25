@@ -1,5 +1,14 @@
 # Baseline do sistema
 
+## Etapa 3 original — Usuários e responsáveis, 25/09/2026
+
+- A Busca usa a equipe ativa real da organização para atribuição humana, exige um responsável
+  explícito e reconfirma acesso antes de importar. O Supabase valida membro ativo e permissão
+  de atribuição também no banco. CSV não herda o modo humano.
+- Três membros ativos foram confirmados; teste de RBAC em transação revertida, sem alterar leads.
+  Ana, canais e buscas pagas não foram acionados. 39 arquivos/253 testes, type-check, lint e
+  build passaram. A publicação do Site será registrada após concluída.
+
 ## Estado atual — fechamento da Busca, etapa 2 original, 25/09/2026
 
 - Site v121 (`5e5d57c`): duas importações autenticadas conferidas após recarga e no Supabase.

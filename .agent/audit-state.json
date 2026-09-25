@@ -4,7 +4,7 @@
   "baseline_commit": "1dc6275b8c7d70de953b66397a8c89f5e97bc15b",
   "last_audited_commit": "03b7c7cd79f2fab8f5b4afbec3c960538145a783",
   "current_head_at_update": "03b7c7cd79f2fab8f5b4afbec3c960538145a783",
-  "working_tree_status": "runtime_committed_published_verified_closure_documentation_pending_commit",
+  "working_tree_status": "stage_3_validated_locally_pending_publication",
   "stage_1_baseline": ".agent/baselines/2026-09-25-stage-1.json",
   "recovery_tag": "baseline-wayflex-stage1-20260925",
   "work_branch": "chore/wayflex-stage-1-baseline-2026-09-25",
@@ -16,7 +16,7 @@
     "working_tree_status": "published_map_mouse_retest_passed"
   },
   "full_audit_required": false,
-  "baseline_status": "original_stage_2_recovered_import_authenticated_validated",
-  "updated_at": "2026-09-25T19:03:00Z",
-  "next_action": "Recuperação/revisão/importação da etapa 2 original encerrada no escopo testado. Próxima etapa ORIGINAL é Usuários e responsáveis, GPT-6 Sol High, somente após troca manual e confirmação. Substituir mockUsers por membros reais e validar RBAC/carteira sem ativar Ana ou canais. Nova busca paga e atomicidade de lote continuam não homologadas. Preservar GitHub main e Site como histórias distintas."
+  "baseline_status": "original_stage_3_real_assignees_rbac_validated_locally",
+  "updated_at": "2026-09-25T19:25:00Z",
+  "next_action": "Publicar a etapa 3 no Site existente e conferir visualmente a seleção humana autenticada. Não criar outro Site, ativar Ana/canais nem chamar provedores. Nova busca paga e atomicidade de lote continuam não homologadas."
 }

@@ -6,7 +6,9 @@ import { refreshLeadsStore, useLeadsStore, waitForLeadsPersistence } from '@/hoo
 import { useListasStore, waitForListsPersistence } from '@/hooks/useListasStore';
 import { fontesAtivas, useFontesStore } from '@/hooks/useFontesStore';
 import { templatesMensagem } from '@/mocks/templatesData';
-import { mockUsers } from '@/mocks/users';
+import { useAuth } from '@/hooks/useAuth';
+import { loadCurrentAccess } from '@/lib/crm/currentAccessRepository';
+import { findActiveAssignee, loadTeamMembers, roleLabel, type TeamMember } from '@/lib/crm/teamMembersRepository';
 import { temperaturaDe, tempBadge, tempLabel } from '@/mocks/enriquecimentoData';
 import type { PreviewLead } from '@/mocks/enriquecimentoData';
 import PromptAgent from '@/pages/dashboard/busca-leads/components/PromptAgent';
@@ -181,7 +183,10 @@ export default function BuscaLeads() {
   const [feedbackAna, setFeedbackAna] = useState('');
   const [nomeLista, setNomeLista] = useState('');
   const [modoAtendimento, setModoAtendimento] = useState<'IA' | 'HUMANO'>('IA');
-  const [responsavel, setResponsavel] = useState('u-2');
+  const [responsavel, setResponsavel] = useState('');
+  const [membros, setMembros] = useState<TeamMember[]>([]);
+  const [carregandoMembros, setCarregandoMembros] = useState(false);
+  const [erroMembros, setErroMembros] = useState(false);
   const [canal, setCanal] = useState('WhatsApp');
   const [template, setTemplate] = useState('tm-1');
   const [tags, setTags] = useState('');
@@ -192,7 +197,20 @@ export default function BuscaLeads() {
   const listas = useListasStore();
   const { fontes } = useFontesStore();
   const { mode: operationalMode } = useOperationalMode();
+  const { user } = useAuth();
   const [csvModal, setCsvModal] = useState(false);
+  const membrosAtivos = membros.filter((member) => member.status === 'active');
+
+  useEffect(() => {
+    if (aba !== 'busca' || etapa !== 4) return;
+    let mounted = true;
+    setCarregandoMembros(true);
+    loadTeamMembers()
+      .then((members) => { if (mounted) { setMembros(members); setErroMembros(false); } })
+      .catch(() => { if (mounted) { setMembros([]); setErroMembros(true); } })
+      .finally(() => { if (mounted) setCarregandoMembros(false); });
+    return () => { mounted = false; };
+  }, [aba, etapa]);
   // O fluxo oficial atual usa Apify; integrações legadas permanecem preservadas,
   // porém fora da captura principal até homologação explícita.
   const fontesProspecao = fontes.filter((fonte) => fonte.sourceKey === 'apify');
@@ -223,8 +241,9 @@ export default function BuscaLeads() {
     finally { setCarregandoExecucoes(false); }
   };
 
-  const responsavelNome =
-    modoAtendimento === 'IA' ? 'Ana (IA)' : mockUsers.find((u) => u.id === responsavel)?.name || 'Selecionar responsável';
+  const responsavelNome = modoAtendimento === 'IA'
+    ? 'Ana (IA)'
+    : findActiveAssignee(membrosAtivos, responsavel)?.name || 'Selecione um usuário ativo';
 
   const normalizar = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
 
@@ -254,6 +273,7 @@ export default function BuscaLeads() {
 
   const mapearNovoLead = (dados: Partial<Lead> & { nome: string; empresa: string }): Lead => {
     const contatoAprovado = dados.contactApprovalStatus === 'approved';
+    const modo = dados.modoAtendimento || modoAtendimento;
     return ({
     id: crypto.randomUUID(),
     nome: dados.nome,
@@ -271,9 +291,9 @@ export default function BuscaLeads() {
     etapa: dados.etapa || 'Novo',
     origem: dados.origem || 'Importação',
     responsavel: dados.responsavel || responsavelNome,
-    responsavelId: modoAtendimento === 'IA' ? '' : responsavel,
-    modoAtendimento,
-    automacaoStatus: contatoAprovado && modoAtendimento === 'IA' ? 'ATIVA' : 'PAUSADA',
+    responsavelId: modo === 'IA' ? '' : responsavel,
+    modoAtendimento: modo,
+    automacaoStatus: contatoAprovado && modo === 'IA' ? 'ATIVA' : 'PAUSADA',
     canalPreferencial: canal,
     templateId: template,
     tags: dados.tags || (tags ? tags.split(',').map((t) => t.trim()).filter(Boolean) : []),
@@ -509,8 +529,33 @@ export default function BuscaLeads() {
 
   const concluir = async () => {
     if (importando || importacaoPendenteVerificacao) return;
-    if (modoAtendimento === 'HUMANO' && !responsavel) {
-      setErroImportacao('Selecione um responsável para o modo de atendimento humano.');
+    if (!user?.id) {
+      setErroImportacao('Sua sessão não está disponível. Entre novamente antes de importar.');
+      return;
+    }
+    setImportando(true);
+    let responsavelAtual: TeamMember | null = null;
+    try {
+      const access = await loadCurrentAccess(user.id, true);
+      if (access.permissions['leads.create'] !== true) {
+        setErroImportacao('Seu usuário não tem permissão para criar leads. Peça acesso em Configurações → Usuários.');
+        setImportando(false);
+        return;
+      }
+      if (modoAtendimento === 'HUMANO') {
+        const members = await loadTeamMembers();
+        setMembros(members);
+        setErroMembros(false);
+        responsavelAtual = findActiveAssignee(members, responsavel);
+        if (!responsavelAtual) {
+          setErroImportacao('Selecione um usuário ativo da Wayflex. A equipe foi atualizada; confira o responsável antes de importar.');
+          setImportando(false);
+          return;
+        }
+      }
+    } catch {
+      setErroImportacao('Não foi possível confirmar suas permissões e a equipe ativa. Tente novamente antes de importar.');
+      setImportando(false);
       return;
     }
     const fonte = fontes.find((f) => f.id === fonteSelecionada);
@@ -531,6 +576,7 @@ export default function BuscaLeads() {
           estado: l.estado || '',
           score: l.score,
           origem: l.fonte,
+          responsavel: responsavelAtual?.name || 'Ana (IA)',
           tags: fonte?.tagsPadrao,
           contactApprovalStatus: contatoAprovado ? 'approved' : 'pending',
           contactApprovalReason: contatoAprovado ? origemAutorizacao.trim() : canalComprovado ? 'Aguardando registro de autorização para contato.' : 'Canal preferencial ainda não comprovado.',
@@ -544,11 +590,11 @@ export default function BuscaLeads() {
       });
     if (!selecionadosLeads.length) {
       setErroImportacao('Selecione pelo menos um lead válido antes de enviar para o módulo Leads.');
+      setImportando(false);
       return;
     }
     const cidadesSelecionadas = [...new Set(selecionadosLeads.map((lead) => lead.cidade).filter(Boolean))].join(', ');
     const nomeFinal = nomeLista.trim() || `Prospecção ${cidadesSelecionadas || 'Apify'} · ${new Date().toLocaleDateString('pt-BR')}`;
-    setImportando(true);
     setErroImportacao(null);
     setResultado(null);
     let fasePersistencia: 'leads' | 'lista' | 'atualizacao' = 'leads';
@@ -601,6 +647,8 @@ export default function BuscaLeads() {
           segmento: (l.segmento || '').trim() || segs[0] || 'Tecnologia',
           cidade: (l.cidade || '').trim(),
           estado: (l.estado || '').trim(),
+          modoAtendimento: 'IA',
+          responsavel: 'Ana (IA)',
         })
       );
     const exclusivos = novos.filter((l) => {
@@ -1128,22 +1176,26 @@ export default function BuscaLeads() {
                       <div>
                         <label className="block text-sm font-medium text-foreground-800 mb-1.5">Modo de atendimento</label>
                         <div className="flex gap-2">
-                          <button onClick={() => setModoAtendimento('IA')} className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium cursor-pointer whitespace-nowrap ${modoAtendimento === 'IA' ? 'bg-primary-500 text-background-50' : 'bg-background-100 text-foreground-600 hover:bg-background-200'}`}>
+                          <button disabled={importando} onClick={() => setModoAtendimento('IA')} className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium cursor-pointer whitespace-nowrap disabled:opacity-60 ${modoAtendimento === 'IA' ? 'bg-primary-500 text-background-50' : 'bg-background-100 text-foreground-600 hover:bg-background-200'}`}>
                             <i className="ri-robot-line mr-1"></i> Ana (IA)
                           </button>
-                          <button onClick={() => setModoAtendimento('HUMANO')} className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium cursor-pointer whitespace-nowrap ${modoAtendimento === 'HUMANO' ? 'bg-primary-500 text-background-50' : 'bg-background-100 text-foreground-600 hover:bg-background-200'}`}>
+                          <button disabled={importando} onClick={() => setModoAtendimento('HUMANO')} className={`flex-1 px-4 py-2.5 rounded-lg text-sm font-medium cursor-pointer whitespace-nowrap disabled:opacity-60 ${modoAtendimento === 'HUMANO' ? 'bg-primary-500 text-background-50' : 'bg-background-100 text-foreground-600 hover:bg-background-200'}`}>
                             <i className="ri-user-line mr-1"></i> Humano
                           </button>
                         </div>
                       </div>
-                      <div>
+                      {modoAtendimento === 'HUMANO' && <div>
                         <label className="block text-sm font-medium text-foreground-800 mb-1.5">Responsável</label>
-                        <select value={responsavel} onChange={(e) => setResponsavel(e.target.value)} className="w-full px-4 py-2.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-900 cursor-pointer">
-                          {mockUsers.map((u) => (
-                            <option key={u.id} value={u.id}>{u.name}</option>
+                        <select value={findActiveAssignee(membrosAtivos, responsavel)?.userId || ''} onChange={(e) => setResponsavel(e.target.value)} disabled={importando || carregandoMembros || erroMembros || membrosAtivos.length === 0} className="w-full px-4 py-2.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-900 cursor-pointer disabled:opacity-60">
+                          <option value="">Selecione um usuário ativo</option>
+                          {membrosAtivos.map((member) => (
+                            <option key={member.userId} value={member.userId}>{member.name} · {roleLabel[member.role]}</option>
                           ))}
                         </select>
-                      </div>
+                        {carregandoMembros && <p className="mt-1 text-xs text-foreground-500">Carregando equipe...</p>}
+                        {erroMembros && <p role="alert" className="mt-1 text-xs text-red-700">Não foi possível carregar a equipe. Volte à revisão e abra esta etapa novamente.</p>}
+                        {!carregandoMembros && !erroMembros && membrosAtivos.length === 0 && <p role="alert" className="mt-1 text-xs text-foreground-500">Nenhum usuário ativo disponível para atribuição.</p>}
+                      </div>}
                       <div>
                         <label className="block text-sm font-medium text-foreground-800 mb-1.5">Canal preferencial</label>
                         <select value={canal} onChange={(e) => setCanal(e.target.value)} className="w-full px-4 py-2.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-900 cursor-pointer">

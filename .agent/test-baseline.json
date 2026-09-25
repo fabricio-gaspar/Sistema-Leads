@@ -3,17 +3,17 @@
   "validated_commit": "03b7c7cd79f2fab8f5b4afbec3c960538145a783",
   "last_validated_at": "2026-09-25",
   "current_validation": {
-    "stage": 2,
-    "evidence": "docs/HOMOLOGACAO_BUSCA_2026-09-25.md",
+    "stage": 3,
+    "evidence": "docs/CONTINUIDADE_WAYFLEX.md",
     "frontend_typecheck": "passed",
     "edge_typecheck": "passed",
     "lint": "passed_without_warnings",
-    "test_files": 38,
-    "tests_passed": 252,
+    "test_files": 39,
+    "tests_passed": 253,
     "production_build": "passed",
     "sites_artifact": "passed",
-    "external_end_to_end": "authenticated_cache_review_to_leads_and_lists_passed_no_paid_search_or_message",
-    "note": "Original Stage 2 closure: two controlled imports persisted after reload; source metadata, duplicates, actual list count and empty result verified in published v121. Desktop and narrow viewport checked, not an exhaustive physical-device audit. Map zoom corrected and published v122: mouse clicks for Via Varejo and Galpão each opened the correct drawer. 38 files/252 tests, typechecks, lint and production artifact passed. The commands below are historical, not all executed in this closure."
+    "external_end_to_end": "pending_visual_validation_of_real_assignee_no_new_lead_or_message",
+    "note": "Stage 3: real active organization members replace mockUsers in human import; database trigger enforces same-organization active assignee and edit_all for cross-user assignment. Transaction rollback validated denial/acceptance with no persistent data change. 39 files/253 tests, typechecks, lint and production artifact passed. Previous Stage 2 browser import remains verified separately; commands below are historical."
   },
   "commands": [
     {"command":"node node_modules/typescript/bin/tsc --noEmit --project tsconfig.app.json","status":"passed","note":"Etapa 3: página de importação e fila de listas."},
