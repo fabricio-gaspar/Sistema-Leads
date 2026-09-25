@@ -2,21 +2,21 @@
   "schema_version": 1,
   "baseline_version": 5,
   "baseline_commit": "1dc6275b8c7d70de953b66397a8c89f5e97bc15b",
-  "last_audited_commit": "03b7c7cd79f2fab8f5b4afbec3c960538145a783",
-  "current_head_at_update": "03b7c7cd79f2fab8f5b4afbec3c960538145a783",
-  "working_tree_status": "stage_3_validated_locally_pending_publication",
+  "last_audited_commit": "5ac4a6bc15b69dd5ef7c0b67ddc70af416303a61",
+  "current_head_at_update": "5ac4a6bc15b69dd5ef7c0b67ddc70af416303a61",
+  "working_tree_status": "stage_3_published_verified_closure_documentation_pending_commit",
   "stage_1_baseline": ".agent/baselines/2026-09-25-stage-1.json",
   "recovery_tag": "baseline-wayflex-stage1-20260925",
   "work_branch": "chore/wayflex-stage-1-baseline-2026-09-25",
   "last_site_publication": {
-    "commit": "03b7c7cd79f2fab8f5b4afbec3c960538145a783",
-    "site_version": 122,
-    "deployment_id": "appgdep_6ab6c5033f1c819187fdd3ca5ebe206c",
-    "validated_at": "2026-09-25T19:01:49Z",
-    "working_tree_status": "published_map_mouse_retest_passed"
+    "commit": "5ac4a6bc15b69dd5ef7c0b67ddc70af416303a61",
+    "site_version": 123,
+    "deployment_id": "appgdep_6ab6cba8891c819185dbc3afe57887e1",
+    "validated_at": "2026-09-25T19:30:04Z",
+    "working_tree_status": "published_real_assignees_and_empty_selection_retest_passed"
   },
   "full_audit_required": false,
   "baseline_status": "original_stage_3_real_assignees_rbac_validated_locally",
   "updated_at": "2026-09-25T19:25:00Z",
-  "next_action": "Publicar a etapa 3 no Site existente e conferir visualmente a seleção humana autenticada. Não criar outro Site, ativar Ana/canais nem chamar provedores. Nova busca paga e atomicidade de lote continuam não homologadas."
+  "next_action": "Etapa 3 original concluída no escopo de usuários reais e guarda de atribuição. Importação humana de novo lead não foi executada; requer dado/controlado e autorização separada para prospecção. Não ativar Ana/canais nem chamar provedores. Nova busca paga e atomicidade de lote continuam não homologadas."
 }

@@ -13,7 +13,10 @@
   transacional com rollback rejeitou atribuição cruzada e ID inválido; admin pôde selecionar
   membro ativo. Nenhum lead permaneceu alterado, e não houve mensagem ou chamada a provedor.
 - Checagens locais: type-check frontend e Edge, lint sem alertas, 39 arquivos/253 testes e
-  build/artefato aprovados. Publicação e validação visual serão registradas após o deploy.
+  build/artefato aprovados. Site oficial publicado como v123 (`5ac4a6b`) em 19:30:04Z.
+  Após recarga, a revisão autenticada exibiu Flavio, Juca e fabricio como membros reais;
+  sem selecionar responsável, **Adicionar aos Leads** foi bloqueado com erro explícito.
+  Console sem erros. Nenhum terceiro lead foi criado nesta etapa.
 - Não alteramos Ana, WhatsApp, canais nem o fluxo funcional de prospecção da etapa 2. A
   importação em lote continua sem atomicidade única e não foi executada nova busca paga.
 

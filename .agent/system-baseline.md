@@ -7,7 +7,8 @@
   de atribuição também no banco. CSV não herda o modo humano.
 - Três membros ativos foram confirmados; teste de RBAC em transação revertida, sem alterar leads.
   Ana, canais e buscas pagas não foram acionados. 39 arquivos/253 testes, type-check, lint e
-  build passaram. A publicação do Site será registrada após concluída.
+  build passaram. Site v123 (`5ac4a6b`) publicado e seletor real validado após recarga;
+  submissão sem responsável foi bloqueada antes de criar lead.
 
 ## Estado atual — fechamento da Busca, etapa 2 original, 25/09/2026
 

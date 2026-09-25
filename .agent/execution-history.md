@@ -8,6 +8,9 @@
 - Atribuição validada também no banco por trigger privado. Transações com rollback confirmaram
   rejeição de owner inválido e de reatribuição por vendedor sem `leads.edit_all`, sem persistir
   mudanças. 253 testes, type-check frontend/Edge, lint e build passaram.
+- Publicado Site v123 (`5ac4a6b`), deploy concluído em 19:30:04Z. Após recarga, modo Humano
+  mostrou Flavio, Juca e fabricio; tentativa sem selecionar responsável ficou bloqueada e
+  mostrou erro, com console limpo. Não foi importado lead novo nem enviada mensagem.
 
 ## 2026-09-25 — Homologação autenticada Busca → Leads
 
