@@ -1,5 +1,18 @@
 # Problemas conhecidos
 
+## Baseline factual — 25/09/2026, etapa 1
+
+- GitHub `main` (`c4733b6`) e histórico do Site (`9bdd136`) não possuem ancestral comum
+  em um clone não shallow; 604 arquivos diferem. O remote local chamado `official` é do
+  Site, não do GitHub. Preservar ambos até reconciliação seletiva revisada.
+- Cinco buscas Apify da Wayflex estão `running` com ID do provedor desde setembro.
+  Esse estado foi confirmado por leitura; a causa e a recuperação serão tratadas na etapa 2.
+- Z-API e Meta estão explicitamente desativadas. A rotina diária também está desativada.
+  Esse estado é intencional e não deve ser interpretado como falha a reparar por ativação.
+- Não houve homologação externa nesta etapa. Os 238 testes aprovados cobrem contratos locais.
+- Os itens abaixo são históricos e precisam ser confrontados com o manifesto atual antes de
+  agir. Referência: `docs/BASELINE_ETAPA_1_2026-09-25.md`.
+
 ## Crítico
 
 - O fluxo real WhatsApp → Ana → resposta ainda precisa de uma mensagem nova, individual, enviada

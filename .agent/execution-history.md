@@ -940,3 +940,11 @@
   ainda não existe conta conectada, entrada, saída ou automação Meta.
 - Verificado localmente: type-check frontend/Edge, lint, 35 arquivos/238 testes Vitest, build Vite
   e artefato Sites. Nenhum provedor recebeu mensagem durante a implementação.
+## 2026-09-25 — Etapa 1: proteção e baseline
+
+- Código `9bdd136` preservado na tag
+  `baseline-wayflex-stage1-20260925` e branch `chore/wayflex-stage-1-baseline-2026-09-25`.
+  Site v118 confirmado; Supabase oficial consultado sem escrita. Type-check frontend/Edge,
+  lint, 35 arquivos/238 testes, build e artefato Sites passaram. GitHub main e Site possuem
+  raízes distintas; nenhuma main foi substituída. Relatório em
+  `docs/BASELINE_ETAPA_1_2026-09-25.md`. Aguardar troca manual para Sol Extra High antes de Apify.

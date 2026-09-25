@@ -1,5 +1,22 @@
 # Baseline do sistema
 
+## Referência atual — etapa 1 de 25/09/2026
+
+Código `9bdd136eaa9c03a2eb1eca91f67e57d3dac88579`, tag
+`baseline-wayflex-stage1-20260925`, com runtime idêntico ao Site v118 (`a55a0a2`).
+Type-check frontend/Edge, lint, 35 arquivos/238 testes e build/artefato Sites aprovados.
+Inventário sanitizado: `.agent/baselines/2026-09-25-stage-1.json`;
+procedimento e limites: `docs/BASELINE_ETAPA_1_2026-09-25.md`.
+
+O estado atual prevalece sobre snapshots históricos abaixo: Ana em modo automatic com
+rotina desativada; Z-API e Meta com entrada/saída/automação desligadas; nenhuma conta Meta;
+uma conta Z-API não arquivada e desabilitada; zero leads/mensagens/filas na Wayflex.
+Cinco buscas Apify permanecem running. Nenhum estado remoto foi alterado nesta etapa.
+GitHub main e repositório do Site têm raízes distintas; não sincronizar por substituição.
+
+O operador exige troca manual de modelo e confirmação entre etapas. A próxima é a etapa 2,
+Apify, com GPT-6 Sol Extra High. Não executar a próxima etapa automaticamente.
+
 Base validada: `4d072280a09b3b8462f5bf0dfa701b314eca31bb`.
 
 ## Produto

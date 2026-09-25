@@ -1,5 +1,22 @@
 # Checkpoint — WayFlex CRM
 
+## Próxima retomada — etapa 1 concluída, 25/09/2026
+
+- Baseline de código: `9bdd136eaa9c03a2eb1eca91f67e57d3dac88579`, tag
+  `baseline-wayflex-stage1-20260925`. Branch isolada:
+  `chore/wayflex-stage-1-baseline-2026-09-25`. Runtime idêntico à versão 118 publicada.
+- Site oficial v118 com deploy succeeded e projeto Supabase `thgzrkppouoevapjquyu` saudável
+  confirmados pelos conectores oficiais. Nenhuma nova publicação, migration ou mutação operacional.
+- Type-check frontend/Edge, lint, 35 arquivos/238 testes, build e artefato Sites aprovados.
+- A main do GitHub `c4733b6` e o histórico do Site não têm ancestral comum. Preservar ambos;
+  não confundir o remote local `official` (Site) com GitHub nem fazer substituição integral.
+- Documento de retomada: `docs/BASELINE_ETAPA_1_2026-09-25.md`; inventário sanitizado de
+  25 funções/133 migrations e estado operacional em `.agent/baselines/2026-09-25-stage-1.json`.
+- Próxima etapa é **2 — Busca Apify**, somente depois de o usuário confirmar a troca para
+  **GPT-6 Sol · Extra High**, conforme sua preferência explícita. Cinco buscas permanecem running;
+  revalidar causa e contratos antes de corrigir. Z-API, Meta e rotina diária permanecem desativadas.
+- Os checkpoints seguintes são históricos; utilizar o manifesto mais recente para estado atual.
+
 ## Correção do handoff da Ana — 19/09/2026
 
 - A investigação do atendimento reportado comprovou que **Retornar Ana** funcionou: o handoff foi

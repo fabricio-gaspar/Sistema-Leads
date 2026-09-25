@@ -1,7 +1,20 @@
 {
   "schema_version": 1,
-  "validated_commit": "a55a0a21c4c1f09cd9b7672f3cf7576ce56bbee2",
-  "last_validated_at": "2026-09-25T11:38:43-03:00",
+  "validated_commit": "9bdd136eaa9c03a2eb1eca91f67e57d3dac88579",
+  "last_validated_at": "2026-09-25T12:37:10-03:00",
+  "current_validation": {
+    "stage": 1,
+    "evidence": ".agent/baselines/2026-09-25-stage-1.json",
+    "frontend_typecheck": "passed",
+    "edge_typecheck": "passed",
+    "lint": "passed_without_warnings",
+    "test_files": 35,
+    "tests_passed": 238,
+    "production_build": "passed",
+    "sites_artifact": "passed",
+    "external_end_to_end": "not_executed",
+    "note": "Commands below retain historical evidence; the referenced stage-1 manifest is the current reproducible run. No dependency installation or runtime change."
+  },
   "commands": [
     {"command":"npm run type-check","status":"passed"},
     {"command":"npm run lint","status":"passed","warnings":0},
