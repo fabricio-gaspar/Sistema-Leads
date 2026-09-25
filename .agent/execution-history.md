@@ -10,7 +10,8 @@
   build passaram. Publicado v121 (`5e5d57c`) e repetido com segundo lead: categoria/fonte/SP
   corretos, porte nulo, lista persistida, dois duplicados bloqueados e estado vazio funcional.
 - Verificação de clique no mapa revelou zoom incorreto; geometria extraída e corrigida com três
-  regressões. Novo total 252 testes. Publicação e clique final desse delta em andamento.
+  regressões. Novo total 252 testes. Publicado v122 (`03b7c7c`), deploy succeeded em 19:01:49Z;
+  cliques com mouse em Via Varejo e Galpão abriram os nomes correspondentes após reload.
 - O fechamento é da etapa 2 original, Busca; a próxima é Usuários e responsáveis (etapa 3
   original), após confirmação e troca manual para GPT-6 Sol High. Não ativar Ana/WhatsApp.
 

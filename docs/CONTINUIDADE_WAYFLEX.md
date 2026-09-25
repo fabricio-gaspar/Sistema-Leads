@@ -14,7 +14,8 @@
   zero e não permite envio ao Kanban. Estado vazio e viewport estreito conferidos.
 - Último clique no mapa revelou zoom vertical incorreto (fator de tile duplicado); corrigido
   com helper geométrico e três regressões. Type-check frontend/Edge, lint, 38 arquivos/252 testes
-  e build/artefato passaram. Falta publicar e repetir o clique desse último delta.
+  e build/artefato passaram. Publicado v122 (`03b7c7c`), deploy concluído em 19:01:49Z;
+  reteste com mouse abriu corretamente Via Varejo e Galpão a partir dos respectivos marcadores.
 - Numeração: o checkpoint anterior chamado etapa 3 é complemento da Busca. A etapa 3 do plano
   original é Usuários e responsáveis e ainda não foi executada. O seletor desta importação ainda
   contém responsáveis de exemplo; sua substituição pertence à próxima etapa já planejada.

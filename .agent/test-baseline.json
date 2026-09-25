@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "validated_commit": "5e5d57c6d86070463d8b58ca4e116e70ba532892",
+  "validated_commit": "03b7c7cd79f2fab8f5b4afbec3c960538145a783",
   "last_validated_at": "2026-09-25",
   "current_validation": {
     "stage": 2,
@@ -13,7 +13,7 @@
     "production_build": "passed",
     "sites_artifact": "passed",
     "external_end_to_end": "authenticated_cache_review_to_leads_and_lists_passed_no_paid_search_or_message",
-    "note": "Original Stage 2 closure: two controlled imports persisted after reload; source metadata, duplicates, actual list count and empty result verified in published v121. Desktop and narrow viewport checked, not an exhaustive physical-device audit. Map click exposed overzoom-out geometry; local regression passed, publication retest pending. 38 files/252 tests, typechecks, lint and production artifact passed. The commands below are historical, not all executed in this closure."
+    "note": "Original Stage 2 closure: two controlled imports persisted after reload; source metadata, duplicates, actual list count and empty result verified in published v121. Desktop and narrow viewport checked, not an exhaustive physical-device audit. Map zoom corrected and published v122: mouse clicks for Via Varejo and Galpão each opened the correct drawer. 38 files/252 tests, typechecks, lint and production artifact passed. The commands below are historical, not all executed in this closure."
   },
   "commands": [
     {"command":"node node_modules/typescript/bin/tsc --noEmit --project tsconfig.app.json","status":"passed","note":"Etapa 3: página de importação e fila de listas."},

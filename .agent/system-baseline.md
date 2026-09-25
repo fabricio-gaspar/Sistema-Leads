@@ -8,9 +8,9 @@
   desabilitados na revisão. Nenhuma mensagem/job ou execução paga criada.
 - Cinco buscas concluídas e cinco falhas históricas; não há as cinco buscas running do snapshot
   antigo. Z-API/Meta continuam com entrada, saída e automação desligadas/kill switch ativo.
-- Geometria do mapa corrigida localmente após clique revelar marcadores sobrepostos por zoom
-  incorreto. 38 arquivos/252 testes, frontend/Edge typecheck, lint e build aprovados; publicar
-  esse último delta e repetir clique antes de declarar mapa validado.
+- Geometria do mapa publicada v122 (`03b7c7c`) após clique revelar marcadores sobrepostos por
+  zoom incorreto. Reteste com mouse abriu corretamente Via Varejo e Galpão nos respectivos
+  marcadores. 38 arquivos/252 testes, frontend/Edge typecheck, lint e build aprovados.
 - Próxima etapa ORIGINAL: Usuários e responsáveis, GPT-6 Sol High, após confirmação do operador.
   O seletor da importação ainda usa mockUsers; não homologar atribuição humana/distribuição.
 - Relatório: `docs/HOMOLOGACAO_BUSCA_2026-09-25.md`. Histórico abaixo não substitui este estado.

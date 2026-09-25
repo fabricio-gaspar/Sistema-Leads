@@ -2,20 +2,21 @@
   "schema_version": 1,
   "baseline_version": 5,
   "baseline_commit": "1dc6275b8c7d70de953b66397a8c89f5e97bc15b",
-  "last_audited_commit": "5e5d57c6d86070463d8b58ca4e116e70ba532892",
-  "current_head_at_update": "5e5d57c6d86070463d8b58ca4e116e70ba532892",
-  "working_tree_status": "authenticated_import_validated_map_geometry_fix_pending_publication",
+  "last_audited_commit": "03b7c7cd79f2fab8f5b4afbec3c960538145a783",
+  "current_head_at_update": "03b7c7cd79f2fab8f5b4afbec3c960538145a783",
+  "working_tree_status": "runtime_committed_published_verified_closure_documentation_pending_commit",
   "stage_1_baseline": ".agent/baselines/2026-09-25-stage-1.json",
   "recovery_tag": "baseline-wayflex-stage1-20260925",
   "work_branch": "chore/wayflex-stage-1-baseline-2026-09-25",
   "last_site_publication": {
-    "commit": "5e5d57c6d86070463d8b58ca4e116e70ba532892",
-    "site_version": 121,
-    "validated_at": "2026-09-25T18:47:36Z",
-    "working_tree_status": "import_metadata_published_and_authenticated_retest_passed"
+    "commit": "03b7c7cd79f2fab8f5b4afbec3c960538145a783",
+    "site_version": 122,
+    "deployment_id": "appgdep_6ab6c5033f1c819187fdd3ca5ebe206c",
+    "validated_at": "2026-09-25T19:01:49Z",
+    "working_tree_status": "published_map_mouse_retest_passed"
   },
   "full_audit_required": false,
   "baseline_status": "original_stage_2_recovered_import_authenticated_validated",
-  "updated_at": "2026-09-25T18:57:00Z",
-  "next_action": "Publicar e repetir clique no mapa após corrigir o zoom. Encerrar recuperação/revisão/importação da etapa 2 original. Próxima etapa ORIGINAL é Usuários e responsáveis, GPT-6 Sol High, somente após troca manual e confirmação. Substituir mockUsers por membros reais e validar RBAC/carteira sem ativar Ana ou canais. Preservar GitHub main e Site como histórias distintas."
+  "updated_at": "2026-09-25T19:03:00Z",
+  "next_action": "Recuperação/revisão/importação da etapa 2 original encerrada no escopo testado. Próxima etapa ORIGINAL é Usuários e responsáveis, GPT-6 Sol High, somente após troca manual e confirmação. Substituir mockUsers por membros reais e validar RBAC/carteira sem ativar Ana ou canais. Nova busca paga e atomicidade de lote continuam não homologadas. Preservar GitHub main e Site como histórias distintas."
 }

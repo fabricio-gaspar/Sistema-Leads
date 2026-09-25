@@ -9,8 +9,8 @@
   categoria real, SP e porte nulo persistidos. Dois duplicados bloqueados, lista antiga vazia com
   total zero e envio ao Kanban desabilitado. Estados vazios conferidos. Zero mensagens/jobs.
 - Clique no mapa revelou zoom vertical calculado com unidade duplicada (pixels multiplicados
-  novamente por tile size); marcadores ficavam sobrepostos. Correção local e regressão prontas,
-  252 testes aprovados; repetição publicada desse último delta pendente.
+  novamente por tile size); marcadores ficavam sobrepostos. Correção publicada v122 e retestada:
+  mouse abriu o lead correto para Via Varejo e Galpão. 252 testes aprovados.
 - Próxima etapa ORIGINAL: Usuários e responsáveis. O seletor da Busca usa mockUsers (u-2 etc.);
   não homologar atribuição humana/distribuição até trocar por membros reais e validar UUID/RBAC.
 

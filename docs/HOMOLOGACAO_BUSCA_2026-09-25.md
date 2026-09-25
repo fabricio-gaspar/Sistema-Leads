@@ -6,7 +6,8 @@ Etapa 2 do plano original: recuperar resultados existentes, revisar e importar c
 para Leads/listas. Não corresponde à etapa 3 original (Usuários e responsáveis).
 Site oficial existente, Supabase `thgzrkppouoevapjquyu`, organização WayFlex.
 v121 / `5e5d57c`: metadados e contagens publicados e testados com sessão autenticada do admin.
-Delta final de geometria do mapa validado localmente, aguardando publicação/reteste.
+Delta final de geometria publicado v122 / `03b7c7c`, deploy concluído em 19:01:49Z.
+Reteste com mouse após reload abriu Via Varejo e Galpão nos marcadores correspondentes.
 
 ## Evidências
 
@@ -20,7 +21,7 @@ Delta final de geometria do mapa validado localmente, aguardando publicação/re
 | Revisão vazia de 16/09/2026 17:31:24 | Aviso claro, mapa vazio, importação sem seleção desabilitada |
 | Desktop e viewport estreito | Sem overflow horizontal de página; cards empilhados e menu móvel fechável |
 | Console autenticado | Sem novos erros durante importações/reloads; dois authentication_required anteriores ao login |
-| Mouse no mapa v121 | Reproduzida sobreposição por zoom; teclado abriu lead correto. Delta final em validação |
+| Mouse no mapa | Falha de sobreposição reproduzida v121; corrigida v122, dois marcadores abriram os respectivos leads |
 | Type-check frontend e Edge; lint; build Sites | Aprovados |
 | Vitest | 38 arquivos, 252 testes aprovados |
 
