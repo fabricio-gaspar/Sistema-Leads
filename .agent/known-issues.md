@@ -1,5 +1,16 @@
 # Problemas conhecidos
 
+## Importação Busca → Leads — etapa 3, 25/09/2026
+
+- Corrigido: erro ao persistir `lead_lists`/`lead_list_members` não é mais engolido pela
+  fila local nem tratado como importação concluída. A tela mostra falha e impede uma nova
+  submissão cega quando o resultado no banco pode ser parcial.
+- Pendente: inserir vários leads e seus vínculos de lista ainda envolve operações separadas,
+  não uma transação única. Após falha, conferir Leads antes de repetir. Não criar uma RPC de
+  importação ampla sem especificar idempotência, permissões e preservação das regras atuais.
+- Pendente: inspeção autenticada da tela e importação controlada. O projeto oficial tinha zero
+  leads na leitura desta etapa; nenhum registro foi criado apenas para provar o fluxo.
+
 ## Busca Apify — etapa 2, 25/09/2026
 
 - A perda do ID da busca ao recarregar e o encerramento do polling após dois minutos foram

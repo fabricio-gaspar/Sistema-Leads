@@ -1,21 +1,27 @@
 {
   "schema_version": 1,
-  "validated_commit": "9bdd136eaa9c03a2eb1eca91f67e57d3dac88579",
+  "validated_commit": "8b78bc4af0efcd5300da493a1f4f687da4c2a3ef",
   "last_validated_at": "2026-09-25",
   "current_validation": {
-    "stage": 2,
+    "stage": 3,
     "evidence": "docs/CONTINUIDADE_WAYFLEX.md",
     "frontend_typecheck": "passed",
     "edge_typecheck": "passed",
     "lint": "passed_without_warnings",
-    "test_files": 35,
-    "tests_passed": 244,
+    "test_files": 36,
+    "tests_passed": 245,
     "production_build": "passed",
     "sites_artifact": "passed",
     "external_end_to_end": "not_executed",
-    "note": "Stage 2: validated Apify resume, cache finalization, admin/team scope and source-data honesty with 244 local tests. Two migrations and Edge v15 applied; five old runs safely linked to 45 saved results. No paid provider run, lead import or authenticated visual review was executed. The historical commands below remain historical evidence."
+    "note": "Stage 3: the existing Busca-to-Leads success path is preserved; failures in lead/list persistence are visible and uncertain results cannot be resubmitted blindly. One regression test covers list write failure, server reconciliation and subsequent success. No lead import, paid provider call, message, Ana execution or authenticated visual review was performed. The historical commands below remain historical evidence."
   },
   "commands": [
+    {"command":"node node_modules/typescript/bin/tsc --noEmit --project tsconfig.app.json","status":"passed","note":"Etapa 3: página de importação e fila de listas."},
+    {"command":"node node_modules/typescript/bin/tsc --project tsconfig.edge.json","status":"passed","note":"Etapa 3: sem alterações nas Edge Functions."},
+    {"command":"node node_modules/eslint/bin/eslint.js src --ext ts,tsx --report-unused-disable-directives --max-warnings 0","status":"passed","warnings":0},
+    {"command":"node node_modules/vitest/vitest.mjs run --configLoader runner","status":"passed","files":36,"checks":245},
+    {"command":"node node_modules/vite/bin/vite.js build --configLoader runner; node scripts/build-sites-artifact.mjs","status":"passed","note":"Build Vite e artefato Sites da etapa 3."},
+    {"command":"Supabase read-only lead/list/prospecting counts","status":"passed","note":"Zero leads, uma lista pendente sem membros, cinco buscas concluídas e cinco falhas históricas; nenhuma mutação de dados."},
     {"command":"npm run type-check","status":"passed"},
     {"command":"npm run lint","status":"passed","warnings":0},
     {"command":"npm run type-check:edge","status":"passed"},

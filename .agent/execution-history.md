@@ -965,3 +965,16 @@
   históricos com dez resultados adicionais são exibidos sem associação arriscada a runs falhos.
   Type-check frontend/Edge, lint, 35 arquivos/244 testes, build e artefato Sites aprovados.
   Homologação visual da revisão ainda depende de usuário autenticado.
+
+## 2026-09-25 — Etapa 3: erro de persistência visível na importação
+
+- Na Busca, o erro de gravação de leads não tinha tratamento na ação final; a fila de listas
+  engolia o erro e permitia navegação antes de confirmar `lead_lists` e seus membros.
+- O caminho de sucesso foi preservado. A ação aguarda as filas, informa falha parcial/ambígua,
+  reconcilia a lista com o Supabase e não permite importar novamente sem conferir Leads.
+- Regressão simulou falha e recuperação da lista. Type-check frontend/Edge, lint, 36 arquivos/
+  245 testes, build Vite e artefato Sites aprovados. Leitura remota: zero leads, uma lista
+  pendente sem membros, cinco runs concluídos e cinco falhos. Nenhum dado foi importado e
+  nenhum provedor ou Ana foi acionado nesta etapa.
+- Pendem validação visual autenticada e teste controlado de importação. Escritas de lote e
+  vínculos não são transacionais; uma falha parcial exige conferência humana antes de repetir.

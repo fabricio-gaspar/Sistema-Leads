@@ -24,6 +24,7 @@ let state: ListaDeLeads[] = [];
 let hydrated = false;
 let hydratePromise: Promise<void> | null = null;
 let writeQueue = Promise.resolve();
+let latestPersistenceError: unknown = null;
 const listeners = new Set<() => void>();
 
 const notify = () => listeners.forEach((listener) => listener());
@@ -49,8 +50,28 @@ function updateState(updater: (previous: ListaDeLeads[]) => ListaDeLeads[]): voi
   state = next;
   notify();
   writeQueue = writeQueue
-    .then(async () => { state = await persistOperationalLists(previous, next); notify(); })
-    .catch((error) => { console.error('[crm-lists] falha ao salvar fonte operacional', error); void hydrate(); });
+    .then(async () => {
+      state = await persistOperationalLists(previous, next);
+      latestPersistenceError = null;
+      notify();
+    })
+    .catch(async (error) => {
+      console.error('[crm-lists] falha ao salvar fonte operacional', error);
+      latestPersistenceError = error;
+      // A lista pode ter sido gravada parcialmente. Releia o servidor antes de
+      // permitir que a interface considere a importação concluída.
+      hydrated = false;
+      await hydrate();
+    });
+}
+
+export async function waitForListsPersistence(): Promise<void> {
+  await writeQueue;
+  if (latestPersistenceError) {
+    const error = latestPersistenceError;
+    latestPersistenceError = null;
+    throw error;
+  }
 }
 
 export function useListasStore(): {

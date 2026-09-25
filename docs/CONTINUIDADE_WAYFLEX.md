@@ -1,5 +1,23 @@
 # Checkpoint — WayFlex CRM
 
+## 25/09/2026 — Etapa 3: confirmação da importação Busca → Leads
+
+- Causa no caminho de falha: a Busca aguardava a gravação dos leads, mas a fila de listas
+  engolia erros de `lead_lists`/`lead_list_members`; a tela navegava para Leads mesmo sem
+  comprovar a lista. Uma rejeição na gravação dos leads também não era apresentada ao usuário.
+- A Busca agora só navega após confirmar leads, lista e atualização final. Enquanto salva, o
+  botão fica desabilitado. Se qualquer etapa falhar, informa o resultado incerto, bloqueia
+  repetição cega e oferece **Ver Leads** para conferência. O estado de listas é reconciliado
+  com o servidor após falha. O caminho bem-sucedido de seleção → Leads permanece igual.
+- Regressão local simula falha de lista, confirma o erro e a releitura do servidor, e valida
+  uma gravação posterior. Type-check frontend/Edge, lint, 36 arquivos/245 testes, build Vite
+  e artefato Sites aprovados. Nenhuma busca Apify, lead, lista, mensagem, Ana ou canal foi
+  acionado para esta correção. No projeto oficial, a leitura mostrou zero leads, uma lista
+  pendente sem membros, cinco buscas concluídas e cinco falhas históricas.
+- Limite: gravações de múltiplos leads e vínculos de lista ainda não são uma transação única.
+  Em falha parcial, conferir o módulo Leads antes de repetir. A validação visual autenticada
+  e uma importação controlada continuam pendentes; teste local não as substitui.
+
 ## 25/09/2026 — Etapa 2: retomada e revisão da Busca Apify
 
 - Causa raiz comprovada: o navegador só acompanhava a execução por cerca de dois minutos e perdia

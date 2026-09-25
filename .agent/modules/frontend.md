@@ -1,5 +1,9 @@
 # Frontend
 
+- Busca de Leads, etapa 3 (25/09): **Adicionar aos Leads** aguarda a persistência dos leads,
+  da lista e do vínculo final antes de navegar. Falha aparece em alerta, bloqueia reenvio
+  cego e oferece acesso a Leads para verificar possível gravação parcial. O fluxo de sucesso
+  e a seleção explícita não mudaram.
 - Dashboard: o gráfico de conversas usa somente o histórico operacional carregado da Central e
   mostra as últimas 24 horas em faixa horizontal rolável. Notas internas não entram na métrica;
   nenhuma mensagem no período produz estado vazio, nunca valores ou conteúdo simulados.

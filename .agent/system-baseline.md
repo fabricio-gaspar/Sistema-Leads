@@ -1,5 +1,16 @@
 # Baseline do sistema
 
+## Delta atual — etapa 3, importação da revisão para Leads
+
+- A importação manual de resultados da Apify mantém a seleção explícita, a criação de leads
+  sem envio externo e a navegação para Leads no sucesso. Agora aguarda também a persistência
+  da lista e da atualização final antes de navegar.
+- Falhas de gravação não são mais ocultadas: a lista é recarregada do Supabase, a tela mostra
+  uma mensagem de resultado incerto e bloqueia nova submissão até o operador conferir Leads.
+  Não há mudança em schema, RLS, Ana, Kanban, mensagens ou provedores.
+- Type-check frontend/Edge, lint, 36 arquivos/245 testes e build/artefato passaram. Não houve
+  importação real para homologação: a leitura do projeto oficial apontou zero leads.
+
 ## Referência atual — etapa 1 de 25/09/2026
 
 Código `9bdd136eaa9c03a2eb1eca91f67e57d3dac88579`, tag

@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { segmentos } from '@/mocks/leadsData';
 import type { Lead } from '@/mocks/leadsData';
-import { useLeadsStore, waitForLeadsPersistence } from '@/hooks/useLeadsStore';
-import { useListasStore } from '@/hooks/useListasStore';
+import { refreshLeadsStore, useLeadsStore, waitForLeadsPersistence } from '@/hooks/useLeadsStore';
+import { useListasStore, waitForListsPersistence } from '@/hooks/useListasStore';
 import { fontesAtivas, useFontesStore } from '@/hooks/useFontesStore';
 import { templatesMensagem } from '@/mocks/templatesData';
 import { mockUsers } from '@/mocks/users';
@@ -163,6 +163,9 @@ export default function BuscaLeads() {
   const [temEmail, setTemEmail] = useState<boolean | null>(null);
   const [buscando, setBuscando] = useState(false);
   const [resultado, setResultado] = useState<string | null>(null);
+  const [erroImportacao, setErroImportacao] = useState<string | null>(null);
+  const [importando, setImportando] = useState(false);
+  const [importacaoPendenteVerificacao, setImportacaoPendenteVerificacao] = useState(false);
   const [erroBusca, setErroBusca] = useState<string | null>(null);
   const [preview, setPreview] = useState<PreviewLead[]>([]);
   const [selecionados, setSelecionados] = useState<string[]>([]);
@@ -501,8 +504,9 @@ export default function BuscaLeads() {
   };
 
   const concluir = async () => {
+    if (importando || importacaoPendenteVerificacao) return;
     if (modoAtendimento === 'HUMANO' && !responsavel) {
-      setResultado('Selecione um responsável para o modo de atendimento humano.');
+      setErroImportacao('Selecione um responsável para o modo de atendimento humano.');
       return;
     }
     const fonte = fontes.find((f) => f.id === fonteSelecionada);
@@ -535,26 +539,48 @@ export default function BuscaLeads() {
         })
       });
     if (!selecionadosLeads.length) {
-      setResultado('Selecione pelo menos um lead válido antes de enviar para o módulo Leads.');
+      setErroImportacao('Selecione pelo menos um lead válido antes de enviar para o módulo Leads.');
       return;
     }
-    // Primeiro persiste os leads para respeitar a chave estrangeira da lista.
-    // A criação continua sem qualquer disparo da Ana ou provedor externo.
-    setLeads((prev) => [...selecionadosLeads, ...prev]);
-    await waitForLeadsPersistence();
-    const lista = listas.criar({
-      nome: nomeFinal,
-      segmento: atividadesSel[0] || segs[0] || 'Tecnologia',
-      cidade,
-      estado,
-      total: selecionadosLeads.length,
-      fonte: fonte?.nome || 'Busca manual',
-      leadIds: selecionadosLeads.map((l) => l.id),
-      status: 'pendente',
-    });
-    const leadIds = new Set(selecionadosLeads.map((lead) => lead.id));
-    setLeads((prev) => prev.map((lead) => leadIds.has(lead.id) ? { ...lead, listaId: lista.id } : lead));
-    navigate('/dashboard/leads');
+    setImportando(true);
+    setErroImportacao(null);
+    setResultado(null);
+    let fasePersistencia: 'leads' | 'lista' | 'atualizacao' = 'leads';
+    try {
+      // Primeiro persiste os leads para respeitar a chave estrangeira da lista.
+      // A criação continua sem qualquer disparo da Ana ou provedor externo.
+      setLeads((prev) => [...selecionadosLeads, ...prev]);
+      await waitForLeadsPersistence();
+      fasePersistencia = 'lista';
+      const lista = listas.criar({
+        nome: nomeFinal,
+        segmento: atividadesSel[0] || segs[0] || 'Tecnologia',
+        cidade,
+        estado,
+        total: selecionadosLeads.length,
+        fonte: fonte?.nome || 'Busca manual',
+        leadIds: selecionadosLeads.map((l) => l.id),
+        status: 'pendente',
+      });
+      await waitForListsPersistence();
+      fasePersistencia = 'atualizacao';
+      const leadIds = new Set(selecionadosLeads.map((lead) => lead.id));
+      setLeads((prev) => prev.map((lead) => leadIds.has(lead.id) ? { ...lead, listaId: lista.id } : lead));
+      await waitForLeadsPersistence();
+      navigate('/dashboard/leads');
+    } catch {
+      // Uma gravação em lote pode ter sido parcial. Reconcilie a tela com o
+      // banco e impeça repetir a importação sem conferir os leads existentes.
+      try { await refreshLeadsStore(); } catch { /* a falha principal permanece visível */ }
+      setImportacaoPendenteVerificacao(true);
+      setErroImportacao(fasePersistencia === 'leads'
+        ? 'Não foi possível concluir a importação. Alguns leads podem ter sido salvos. Confira em Leads antes de repetir.'
+        : fasePersistencia === 'lista'
+          ? 'Os leads foram salvos, mas não foi possível confirmar a lista. Confira em Leads antes de repetir.'
+          : 'Os leads e a lista podem ter sido salvos, mas a atualização final falhou. Confira em Leads antes de repetir.');
+    } finally {
+      setImportando(false);
+    }
   };
 
   const importarLeads = (linhas: Record<string, string>[]): ResultadoImportacao => {
@@ -1162,11 +1188,18 @@ export default function BuscaLeads() {
                 <button onClick={voltar} className="px-6 py-2.5 border border-background-300 text-foreground-700 rounded-lg text-sm font-semibold hover:bg-background-100 cursor-pointer whitespace-nowrap">
                   Voltar
                 </button>
-                <button onClick={concluir} className="inline-flex items-center gap-2 bg-primary-500 hover:bg-primary-600 text-background-50 px-8 py-3 rounded-lg font-heading font-bold text-sm transition-all cursor-pointer whitespace-nowrap">
+                <button onClick={() => void concluir()} disabled={importando || importacaoPendenteVerificacao} className="inline-flex items-center gap-2 bg-primary-500 hover:bg-primary-600 text-background-50 px-8 py-3 rounded-lg font-heading font-bold text-sm transition-all cursor-pointer whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50">
                   <i className="ri-check-line"></i>
-                  Adicionar aos Leads
+                  {importando ? 'Salvando...' : 'Adicionar aos Leads'}
                 </button>
               </div>
+            </div>
+          )}
+
+          {erroImportacao && (
+            <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+              <span>{erroImportacao}</span>
+              {importacaoPendenteVerificacao && <button type="button" onClick={() => navigate('/dashboard/leads')} className="font-semibold underline underline-offset-2">Ver Leads</button>}
             </div>
           )}
 
