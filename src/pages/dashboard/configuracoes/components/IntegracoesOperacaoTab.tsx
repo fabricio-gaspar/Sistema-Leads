@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import IntegracoesTab from './IntegracoesTab';
 import WhatsAppSiteEntry from './WhatsAppSiteEntry';
+import WhatsappAccountPanel from '@/components/feature/WhatsappAccountPanel';
 import { loadOperationalStatus, type OperationalStatus } from '@/lib/crm/operationalDiagnosticsRepository';
 import { operationalIcon, operationalIconTone, presentIntegrationStatus } from '@/lib/crm/operationalStatusPresentation';
 
@@ -112,6 +113,7 @@ export default function IntegracoesOperacaoTab({ section }: { section?: Integrat
     {showChannels && <section className="wf-settings-section">
       <SectionHeading icon="ri-message-3-line" eyebrow="Canais" title="WhatsApp e atendimento" description="Instância Z-API, conexão do WhatsApp e teste de envio para a Central e a Ana." />
       <IntegracoesTab category="communication" />
+      <WhatsappAccountPanel mode="meta" />
       <WhatsAppInboundStatus />
       <WhatsAppSiteEntry />
     </section>}

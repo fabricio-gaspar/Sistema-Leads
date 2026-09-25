@@ -50,7 +50,13 @@ function dateTime(value: string | null): string {
   return Number.isNaN(date.getTime()) ? 'Ainda não confirmado' : date.toLocaleString('pt-BR');
 }
 
-export default function WhatsappAccountPanel({ member }: { member?: TeamMember }) {
+export default function WhatsappAccountPanel({
+  member,
+  mode = 'full',
+}: {
+  member?: TeamMember;
+  mode?: 'full' | 'meta';
+}) {
   const [accounts, setAccounts] = useState<WhatsappAccount[]>([]);
   const [canManage, setCanManage] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -162,7 +168,7 @@ export default function WhatsappAccountPanel({ member }: { member?: TeamMember }
   };
 
   return <div className="space-y-4">
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    {mode === 'full' && <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
       <div>
         <p className="text-xs font-semibold uppercase tracking-[.12em] text-primary-700">Canal operacional</p>
         <h2 className="mt-1 font-heading text-xl font-bold text-foreground-950">{member ? `WhatsApp de ${member.name}` : 'WhatsApps da empresa'}</h2>
@@ -175,14 +181,14 @@ export default function WhatsappAccountPanel({ member }: { member?: TeamMember }
       {member && canManage && !editing && <button type="button" onClick={startEditing} className="wf-btn-secondary whitespace-nowrap">
         <i className={memberAccount ? 'ri-edit-line' : 'ri-add-line'} />{memberAccount ? 'Editar instância' : 'Configurar instância'}
       </button>}
-    </div>
+    </div>}
 
     <MetaCoexistencePanel member={member} accounts={accounts} canManage={canManage} onConnected={refresh} />
 
     {error && <div role="alert" className="rounded-xl border border-accent-200 bg-accent-50 px-4 py-3 text-sm text-accent-800">{error}</div>}
     {notice && <div role="status" className="rounded-xl border border-primary-200 bg-primary-50 px-4 py-3 text-sm text-primary-800">{notice}</div>}
 
-    {editing && member && <section className="rounded-2xl border border-background-200 bg-background-100/60 p-4">
+    {mode === 'full' && <>{editing && member && <section className="rounded-2xl border border-background-200 bg-background-100/60 p-4">
       <div className="mb-4 flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">
         <i className="ri-lock-2-line mt-0.5 text-base" />
         <span>Use uma instância já criada na Z-API. Salvar não cria plano, não faz cobrança e não envia mensagens. Em uma edição, deixe os segredos vazios para preservá-los.</span>
@@ -230,7 +236,7 @@ export default function WhatsappAccountPanel({ member }: { member?: TeamMember }
               {!account.isDefault && canManage && <button type="button" disabled={busy === account.id} onClick={() => void toggle(account)} className="wf-btn-secondary text-xs disabled:opacity-60"><i className={account.enabled ? 'ri-pause-circle-line' : 'ri-play-circle-line'} />{account.enabled ? 'Desativar' : 'Ativar'}</button>}
             </div>
           </article>;
-        })}</div>}
+        })}</div>}</>}
   </div>;
 }
 
