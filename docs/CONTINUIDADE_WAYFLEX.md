@@ -1266,3 +1266,14 @@ webhook em ambiente controlado.
 - Publicação oficial concluída: commit `cdc7317afca23dbdd7d941fab5f82ac8cc60dcbe`, Site versão
   **116**, deploy `succeeded` no projeto existente `appgprj_6a905559159c8191a61fb776b9a4c531`.
   A URL pública foi preservada e o título do projeto passou a **Sistema de Leads**.
+
+## 2026-09-25 — Exposição segura da configuração Meta
+
+- A organização **WayFlex** recebeu `meta_coexistence=true` exclusivamente para mostrar o painel
+  de cadastro oficial da Meta em **Configurações > Canais > WhatsApp**.
+- Comprovação posterior: `meta_accounts=0`, `inbound_enabled=false`, `send_enabled=false`,
+  `automation_enabled=false` e `kill_switch=true`. Não houve envio, entrada, execução da Ana,
+  alteração de conta Z-API ou exposição de segredo.
+- Para o teste real, o administrador deve concluir o Embedded Signup no painel com App Meta, WABA
+  e número empresarial autorizado. Depois será necessária homologação controlada antes de liberar
+  qualquer um dos três controles operacionais.

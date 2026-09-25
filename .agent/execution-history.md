@@ -903,3 +903,12 @@
 - O commit de publicação `cdc7317afca23dbdd7d941fab5f82ac8cc60dcbe` foi salvo no Site oficial
   existente como versão **116** e o deploy concluiu com `succeeded`. O título do projeto Sites foi
   normalizado para **Sistema de Leads**; audiência pública e URL existente foram preservadas.
+
+# 2026-09-25 — Liberação controlada do cadastro Meta para WayFlex
+
+- A flag `meta_coexistence` foi habilitada somente para a organização **WayFlex**, liberando a
+  superfície de Embedded Signup em **Configurações > Canais > WhatsApp**.
+- O teste posterior confirmou zero conta Meta conectada e manteve entrada, saída e automação
+  desligadas, com kill switch ligado. A Z-API e suas duas contas conectadas não foram alteradas.
+- Esta mudança não habilita mensagens reais: a conexão oficial do App/WABA/número e a homologação
+  staged continuam obrigatórias antes de abrir qualquer controle operacional.
