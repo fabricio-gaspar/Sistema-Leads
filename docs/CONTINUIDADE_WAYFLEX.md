@@ -1277,3 +1277,14 @@ webhook em ambiente controlado.
 - Para o teste real, o administrador deve concluir o Embedded Signup no painel com App Meta, WABA
   e número empresarial autorizado. Depois será necessária homologação controlada antes de liberar
   qualquer um dos três controles operacionais.
+
+## 2026-09-25 — Painel Meta no módulo correto
+
+- Causa confirmada para o painel invisível: `MetaCoexistencePanel` existia, mas era renderizado
+  somente em **Meu WhatsApp** e no modal de usuário. **Canais > WhatsApp** não o montava.
+- Correção publicada em preparação: `IntegracoesOperacaoTab` reutiliza
+  `WhatsappAccountPanel mode="meta"`, exibindo a configuração corporativa Meta em
+  **Configurações > Canais > WhatsApp e atendimento**. As telas de usuário conservam o painel
+  completo, sem duplicar Z-API ou criar nova rota.
+- Validações: type-check frontend, lint sem warnings, Vitest 35/237, build Vite e artefato Sites.
+  A configuração Meta permanece sem conta conectada e com controles operacionais fechados.

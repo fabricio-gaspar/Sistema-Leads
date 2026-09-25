@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "validated_commit": "02052abc235ef211787f713a5185d4203fe7a491",
-  "last_validated_at": "2026-09-24T18:06:00-03:00",
+  "validated_commit": "398de4c883273def0635c4fc7301ef25799cac2d",
+  "last_validated_at": "2026-09-25T10:40:59-03:00",
   "commands": [
     {"command":"npm run type-check","status":"passed"},
     {"command":"npm run lint","status":"passed","warnings":0},
@@ -137,5 +137,5 @@
   },
   "covered": ["frontend_typecheck","lint","edge_typecheck","unit_and_contract_tests","production_build"],
   "not_covered": ["authenticated_e2e","login_como_novo_membro","real_whatsapp","real_whatsapp_media_delivery","real_claude","cross_organization_rls","database_concurrency","provider_receipt_race","mobile_authenticated_qa","real_meta_coexistence","meta_embedded_signup","meta_history_sync","meta_template_delivery"],
-  "working_tree_validation": "A fundação Meta Coexistence passou em type-check frontend/Edge, lint sem warnings, 35 arquivos/237 testes, build Vite e artefato Sites. O projeto oficial mantém duas contas Z-API conectadas e nenhum estado Meta operacional; feature flag, entrada, saída e automação Meta estão desligadas com kill switch ligado. Nenhuma mensagem, lead, fila Z-API ou segredo foi alterado. O commit cdc7317afca23dbdd7d941fab5f82ac8cc60dcbe foi publicado no Site oficial como versão 116 com deploy succeeded."
+  "working_tree_validation": "A configuração Meta foi corrigida para aparecer em Configurações > Canais > WhatsApp e atendimento, por meio do modo reutilizável meta do painel de contas. Type-check frontend, lint sem warnings, Vitest 35/237, build Vite e artefato Sites passaram. A Z-API permanece intacta; WayFlex tem somente a flag de configuração Meta ligada, sem conta Meta, entrada, saída ou automação liberadas."
 }

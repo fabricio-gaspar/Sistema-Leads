@@ -2,9 +2,9 @@
   "schema_version": 1,
   "baseline_version": 4,
   "baseline_commit": "1dc6275b8c7d70de953b66397a8c89f5e97bc15b",
-  "last_audited_commit": "cdc7317afca23dbdd7d941fab5f82ac8cc60dcbe",
-  "current_head_at_update": "cdc7317afca23dbdd7d941fab5f82ac8cc60dcbe",
-  "working_tree_status": "meta_signup_configuration_enabled_for_wayflex_operational_gates_closed",
+  "last_audited_commit": "398de4c883273def0635c4fc7301ef25799cac2d",
+  "current_head_at_update": "398de4c883273def0635c4fc7301ef25799cac2d",
+  "working_tree_status": "meta_channel_surface_validated_publication_pending",
   "last_site_publication": {
     "commit": "cdc7317afca23dbdd7d941fab5f82ac8cc60dcbe",
     "site_version": 116,
@@ -12,7 +12,7 @@
     "working_tree_status": "meta_coexistence_foundation_published_all_gates_closed"
   },
   "full_audit_required": false,
-  "baseline_status": "meta_signup_configuration_enabled_for_wayflex_operational_gates_closed",
-  "updated_at": "2026-09-25T10:33:28-03:00",
-  "next_action": "Concluir o Embedded Signup oficial da Meta no painel WayFlex com App/WABA/número autorizado. Depois, homologar um único número em staging antes de liberar entrada, saída ou automação."
+  "baseline_status": "meta_channel_surface_validated_publication_pending",
+  "updated_at": "2026-09-25T10:40:59-03:00",
+  "next_action": "Publicar a correção visual no Site oficial existente. Depois, concluir o Embedded Signup oficial da Meta no painel WayFlex com App/WABA/número autorizado e homologar um único número em staging antes de liberar entrada, saída ou automação."
 }

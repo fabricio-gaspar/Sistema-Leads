@@ -912,3 +912,15 @@
   desligadas, com kill switch ligado. A Z-API e suas duas contas conectadas não foram alteradas.
 - Esta mudança não habilita mensagens reais: a conexão oficial do App/WABA/número e a homologação
   staged continuam obrigatórias antes de abrir qualquer controle operacional.
+
+# 2026-09-25 — Correção da superfície Meta em Canais
+
+- A flag estava correta, mas o painel `MetaCoexistencePanel` só era montado em **Meu WhatsApp** e no
+  modal de **Usuários**. Por isso ele não aparecia em **Configurações > Canais**, que é o local
+  administrativo correto para uma conta corporativa Meta.
+- `WhatsappAccountPanel` ganhou o modo reutilizável `meta`, que conserva o painel completo nas
+  telas antigas e mostra somente a configuração Meta em **Canais > WhatsApp e atendimento**. Não
+  houve segundo conector, duplicação de dados ou alteração no cartão/fluxo Z-API.
+- Type-check, lint, Vitest completo (35 arquivos/237 testes), build Vite e artefato Sites passaram.
+  O gate Meta de WayFlex permanece liberado apenas para configuração; entrada, saída e Ana seguem
+  bloqueadas até a conexão e homologação oficial.
