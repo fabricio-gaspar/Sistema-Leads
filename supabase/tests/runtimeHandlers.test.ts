@@ -1574,6 +1574,20 @@ describe('Z-API direct test message contract', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it('does not contact Z-API when the administrator disabled its provider control', async () => {
+    override = (q) => {
+      if (q.table === 'messaging_provider_controls' && q.operation === 'select') {
+        return ok({ send_enabled: false, kill_switch: true });
+      }
+      return undefined;
+    };
+    await import('../functions/enviar-teste-whatsapp/index');
+    const response = await handler(directTestRequest());
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ ok: false, erro: 'whatsapp_provider_disabled' });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it.each([
     [{ request_id: undefined }],
     [{ request_id: 'not-a-uuid' }],

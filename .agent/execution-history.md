@@ -924,3 +924,19 @@
 - Type-check, lint, Vitest completo (35 arquivos/237 testes), build Vite e artefato Sites passaram.
   O gate Meta de WayFlex permanece liberado apenas para configuração; entrada, saída e Ana seguem
   bloqueadas até a conexão e homologação oficial.
+
+# 2026-09-25 — Escolha auditável do provedor corporativo
+
+- Z-API e Meta WhatsApp Cloud API ganharam cartões paralelos em **Configurações > Canais**, com
+  estado calculado no backend, configuração no próprio bloco e alternância administrativa
+  reversível. O Dashboard passou a mostrar uma linha factual para cada provedor.
+- A migration `20260925150000_whatsapp_provider_activation_controls` impede que o resolvedor de
+  saída escolha uma conta/provedor desligado. O webhook Z-API e os testes mantêm a desativação em
+  vez de reativar a integração por efeito colateral.
+- A alternância também pausa as contas e integrações corporativas do outro provedor. Assim, a
+  próxima ativação Meta ou Z-API não pode manter um segundo caminho de envio concorrente.
+- O administrador autorizou desligar Z-API no WayFlex. A operação preservou sessão externa,
+  cofre e histórico, encontrou zero jobs pendentes e registrou auditoria. Meta não foi ativada:
+  ainda não existe conta conectada, entrada, saída ou automação Meta.
+- Verificado localmente: type-check frontend/Edge, lint, 35 arquivos/238 testes Vitest, build Vite
+  e artefato Sites. Nenhum provedor recebeu mensagem durante a implementação.

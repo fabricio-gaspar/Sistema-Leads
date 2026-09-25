@@ -100,9 +100,11 @@ async function operationalStatus(admin: ReturnType<typeof createAdminClient>, or
     deliveredDayRead,
     failedDayRead,
     policyRead,
+    whatsappAccountsRead,
+    providerControlsRead,
   ] = await Promise.all([
     admin.from('company_settings').select('active,sandbox_mode,can_use_ia,ai_actions_enabled,updated_at').eq('organization_id', organizationId).maybeSingle(),
-    admin.from('integrations').select('key,label,category,provider,connected,enabled,paused,last_tested_at,last_success_at,last_error,status_detail,configuration').eq('organization_id', organizationId).order('label'),
+    admin.from('integrations').select('id,key,label,category,provider,connected,enabled,paused,last_tested_at,last_success_at,last_error,status_detail,configuration').eq('organization_id', organizationId).order('label'),
     admin.from('organization_module_data').select('data,updated_at').eq('organization_id', organizationId).eq('module_key', 'configuracao_runtime').maybeSingle(),
     admin.from('lead_source_configs').select('source_key,label,enabled,mode,connection_status,last_success_at,last_error').eq('organization_id', organizationId).order('label'),
     admin.from('outreach_jobs').select('*', { count: 'exact', head: true }).eq('organization_id', organizationId).eq('channel', 'whatsapp').eq('status', 'processed').gte('processed_at', oneHourAgo),
@@ -114,6 +116,10 @@ async function operationalStatus(admin: ReturnType<typeof createAdminClient>, or
     admin.from('lead_outreach').select('*', { count: 'exact', head: true }).eq('organization_id', organizationId).eq('channel', 'whatsapp').not('delivered_at', 'is', null).gte('delivered_at', oneDayAgo),
     admin.from('outreach_jobs').select('*', { count: 'exact', head: true }).eq('organization_id', organizationId).eq('channel', 'whatsapp').eq('status', 'failed').gte('run_at', oneDayAgo),
     admin.from('channel_policy_events').select('id,risk_level,action,reason,created_at').eq('organization_id', organizationId).eq('channel', 'whatsapp').is('resolved_at', null).order('created_at', { ascending: false }).limit(20),
+    admin.from('whatsapp_accounts').select('id,integration_id,provider,account_type,is_default,enabled,connection_status,status_checked_at,updated_at,verified_name,label')
+      .eq('organization_id', organizationId).is('archived_at', null),
+    admin.from('messaging_provider_controls').select('provider,inbound_enabled,send_enabled,automation_enabled,kill_switch,reason,updated_at')
+      .eq('organization_id', organizationId).in('provider', ['zapi', 'meta_cloud']),
   ]);
   if ([
     companyRead,
@@ -129,11 +135,15 @@ async function operationalStatus(admin: ReturnType<typeof createAdminClient>, or
     deliveredDayRead,
     failedDayRead,
     policyRead,
+    whatsappAccountsRead,
+    providerControlsRead,
   ].some((read) => read.error)) throw new Error('operational_status_read_failed');
 
   const company = companyRead.data;
   const runtime = asObject(runtimeRead.data?.data);
-  const integrations = integrationsRead.data ?? [];
+  const integrations = Array.isArray(integrationsRead.data) ? integrationsRead.data : [];
+  const whatsappAccounts = Array.isArray(whatsappAccountsRead.data) ? whatsappAccountsRead.data : [];
+  const providerControls = Array.isArray(providerControlsRead.data) ? providerControlsRead.data : [];
   const integration = (key: string) => integrations.find((item) => item.key === key) ?? null;
   const ai = integration('ai');
   const whatsapp = integration('whatsapp');
@@ -145,6 +155,50 @@ async function operationalStatus(admin: ReturnType<typeof createAdminClient>, or
     return Number.isFinite(testedAt) && Date.now() - testedAt <= 24 * 60 * 60 * 1000;
   };
   const isOnline = (item: typeof ai) => Boolean(item?.connected && item?.enabled && !item?.paused && !item?.last_error && isFresh(item?.last_tested_at));
+  const accountForProvider = (provider: 'zapi' | 'meta_cloud') => whatsappAccounts.find((account) => account.provider === provider && account.is_default)
+    ?? whatsappAccounts.find((account) => account.provider === provider && account.account_type === 'corporate')
+    ?? whatsappAccounts.find((account) => account.provider === provider)
+    ?? null;
+  const controlForProvider = (provider: 'zapi' | 'meta_cloud') => providerControls.find((control) => control.provider === provider) ?? null;
+  const providerActive = (provider: 'zapi' | 'meta_cloud') => {
+    const control = controlForProvider(provider);
+    if (control) return control.inbound_enabled === true && control.send_enabled === true
+      && control.automation_enabled === true && control.kill_switch !== true;
+    // Organizações anteriores aos controles explícitos continuam operando pela
+    // integração já homologada até que um administrador faça a escolha.
+    const account = accountForProvider(provider);
+    const backing = account?.integration_id ? integrations.find((item) => item.id === account.integration_id) : integration('whatsapp');
+    return provider === 'zapi' && (account ? account.enabled === true : true) && backing?.enabled === true && backing?.paused !== true;
+  };
+  const providerIntegration = (provider: 'zapi' | 'meta_cloud') => {
+    const account = accountForProvider(provider);
+    const backing = account?.integration_id ? integrations.find((item) => item.id === account.integration_id) : provider === 'zapi' ? integration('whatsapp') : null;
+    const active = providerActive(provider);
+    const connected = account ? account.connection_status === 'connected' && backing?.connected === true : backing?.connected === true;
+    const name = provider === 'zapi' ? 'Z-API' : 'Meta WhatsApp Cloud API';
+    const control = controlForProvider(provider);
+    return {
+      key: provider === 'zapi' ? 'whatsapp_zapi' : 'whatsapp_meta',
+      label: name,
+      category: 'communication',
+      provider: name,
+      connected,
+      enabled: active,
+      paused: false,
+      last_tested_at: account?.status_checked_at ?? backing?.last_tested_at ?? account?.updated_at ?? null,
+      last_success_at: backing?.last_success_at ?? null,
+      last_error: active ? (backing?.last_error ?? null) : null,
+      status_detail: active
+        ? `Ativo no WayFlex para entrada, saída e automações da Ana.${control?.reason ? ` ${control.reason}` : ''}`
+        : account
+          ? `Desativado no WayFlex. ${control?.reason || 'A configuração e a sessão remota foram preservadas.'}`
+          : 'Nenhuma conta conectada para este provedor.',
+      configuration: backing?.configuration ?? {},
+    };
+  };
+  const zapiProvider = providerIntegration('zapi');
+  const metaProvider = providerIntegration('meta_cloud');
+  const activeProvider = [zapiProvider, metaProvider].find((item) => item.enabled) ?? null;
   const activeWhatsappPolicies = policyRead.data ?? [];
   const sentLastHour = (sentHourRead.count ?? 0) + (dailyReportHourRead.count ?? 0);
   const sentLast24Hours = (sentDayRead.count ?? 0) + (dailyReportDayRead.count ?? 0);
@@ -153,9 +207,10 @@ async function operationalStatus(admin: ReturnType<typeof createAdminClient>, or
   const deliveredLast24Hours = deliveredDayRead.count ?? 0;
   const failedLast24Hours = failedDayRead.count ?? 0;
   const pausedByPolicy = activeWhatsappPolicies.some((event) => event.action === 'pause');
-  const whatsappMonitoringState = whatsapp?.paused || pausedByPolicy
+  const activeMessagingOnline = Boolean(activeProvider?.connected && activeProvider.enabled && !activeProvider.paused && !activeProvider.last_error);
+  const whatsappMonitoringState = pausedByPolicy
     ? 'paused'
-    : !whatsapp?.connected || !whatsapp?.enabled
+    : !activeMessagingOnline
       ? 'unavailable'
       : activeWhatsappPolicies.length > 0 || failedLast24Hours > 0
         ? 'attention'
@@ -163,7 +218,9 @@ async function operationalStatus(admin: ReturnType<typeof createAdminClient>, or
   const whatsappMonitoringDetail = whatsappMonitoringState === 'paused'
     ? 'Envios estão pausados por uma política de risco ativa.'
     : whatsappMonitoringState === 'unavailable'
-      ? 'O canal não está conectado e habilitado para enviar mensagens.'
+      ? activeProvider
+        ? `${activeProvider.label} não está conectado e habilitado para enviar mensagens.`
+        : 'Nenhum provedor corporativo do WhatsApp está ativo.'
       : whatsappMonitoringState === 'attention'
         ? 'Há falha recente ou evento de risco aberto; consulte os detalhes antes de aumentar o volume.'
         : 'Sem evento de risco aberto na leitura atual.';
@@ -266,12 +323,23 @@ async function operationalStatus(admin: ReturnType<typeof createAdminClient>, or
     { id: 'ia_empresa', label: 'Ações da Ana autorizadas', ok: company?.can_use_ia === true && company?.ai_actions_enabled === true, detail: company?.can_use_ia === true && company?.ai_actions_enabled === true ? 'Ações de IA permitidas.' : 'Ações de IA ainda bloqueadas pela empresa.' },
     { id: 'kill_switch', label: 'Pausa global desligada', ok: killSwitch === false, detail: killSwitch ? 'A automação está pausada pelo kill switch.' : 'Automação liberada por esta regra.' },
     { id: 'ia', label: 'IA online e validada', ok: isOnline(ai), detail: isOnline(ai) ? (ai?.status_detail || 'Provedor validado nas últimas 24 horas.') : 'Configure ou teste novamente o provedor de IA.' },
-    { id: 'whatsapp', label: 'WhatsApp online e validado', ok: isOnline(whatsapp), detail: isOnline(whatsapp) ? (whatsapp?.status_detail || 'Canal validado nas últimas 24 horas.') : 'Configure ou teste novamente o canal de saída.' },
+    {
+      id: 'whatsapp',
+      label: 'WhatsApp online e validado',
+      ok: isOnline(activeProvider),
+      detail: isOnline(activeProvider)
+        ? (activeProvider?.status_detail || 'Canal validado nas últimas 24 horas.')
+        : activeProvider
+          ? `${activeProvider.label} precisa de uma validação recente.`
+          : 'Ative e valide Z-API ou Meta WhatsApp Cloud API antes de liberar mensagens.',
+    },
     {
       id: 'whatsapp_webhook',
-      label: 'Respostas do WhatsApp homologadas',
-      ok: isOnline(whatsappWebhook),
-      detail: webhookDiagnostic.detail,
+      label: activeProvider?.key === 'whatsapp_meta' ? 'Respostas da Meta homologadas' : 'Respostas do WhatsApp homologadas',
+      ok: activeProvider?.key === 'whatsapp_meta' ? false : isOnline(whatsappWebhook),
+      detail: activeProvider?.key === 'whatsapp_meta'
+        ? 'A Meta está ativa, mas a entrada ainda precisa ser homologada com um callback real antes de liberar a Ana automaticamente.'
+        : webhookDiagnostic.detail,
     },
     {
       id: 'scheduler',
@@ -294,7 +362,7 @@ async function operationalStatus(admin: ReturnType<typeof createAdminClient>, or
     productionReady: checks.every((check) => check.ok),
     checks,
     webhookDiagnostic,
-    integrations: integrations.map((item) => ({
+    integrations: [...integrations, zapiProvider, metaProvider].map((item) => ({
       key: item.key, label: item.label, category: item.category, provider: item.provider, connected: item.connected === true,
       enabled: item.enabled === true, paused: item.paused === true, lastTestedAt: item.last_tested_at,
       lastSuccessAt: item.last_success_at, lastError: item.last_error, detail: item.status_detail,

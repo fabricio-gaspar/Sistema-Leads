@@ -135,18 +135,22 @@ async function listAccounts(admin: Admin, organizationId: string, userId: string
   if (error) throw new Error('whatsapp_accounts_read_failed');
   const integrationIds = (accounts ?? []).map((account) => account.integration_id).filter(Boolean);
   const ownerIds = [...new Set((accounts ?? []).map((account) => account.owner_user_id).filter(Boolean))];
-  const [integrationsRead, profilesRead] = await Promise.all([
+  const [integrationsRead, profilesRead, controlsRead] = await Promise.all([
     integrationIds.length
       ? admin.from('integrations').select('id,connected,enabled,paused,configuration,last_tested_at,last_success_at').in('id', integrationIds)
       : Promise.resolve({ data: [], error: null }),
     ownerIds.length
       ? admin.from('profiles').select('id,name,email').in('id', ownerIds)
       : Promise.resolve({ data: [], error: null }),
+    manage
+      ? admin.from('messaging_provider_controls').select('provider,inbound_enabled,send_enabled,automation_enabled,kill_switch,reason,updated_at')
+        .eq('organization_id', organizationId).in('provider', ['zapi', 'meta_cloud'])
+      : Promise.resolve({ data: [], error: null }),
   ]);
-  if (integrationsRead.error || profilesRead.error) throw new Error('whatsapp_accounts_context_read_failed');
+  if (integrationsRead.error || profilesRead.error || controlsRead.error) throw new Error('whatsapp_accounts_context_read_failed');
   const integrationById = new Map((integrationsRead.data ?? []).map((item) => [item.id, item]));
   const profileById = new Map((profilesRead.data ?? []).map((item) => [item.id, item]));
-  return (accounts ?? []).map((account) => {
+  const presentedAccounts = (accounts ?? []).map((account) => {
     const integration = integrationById.get(account.integration_id);
     const owner = account.owner_user_id ? profileById.get(account.owner_user_id) : null;
     return {
@@ -182,6 +186,26 @@ async function listAccounts(admin: Admin, organizationId: string, userId: string
       updatedAt: account.updated_at,
     };
   });
+  const savedControls = new Map((controlsRead.data ?? []).map((control) => [control.provider, control]));
+  const providerControls = (['zapi', 'meta_cloud'] as const).map((provider) => {
+    const control = savedControls.get(provider);
+    const fallbackActive = provider === 'zapi' && presentedAccounts.some((account) => account.provider === provider && account.enabled && account.connected);
+    const inboundEnabled = control?.inbound_enabled === true || (!control && fallbackActive);
+    const sendEnabled = control?.send_enabled === true || (!control && fallbackActive);
+    const automationEnabled = control?.automation_enabled === true || (!control && fallbackActive);
+    const killSwitch = control?.kill_switch === true || (!control && !fallbackActive);
+    return {
+      provider,
+      inboundEnabled,
+      sendEnabled,
+      automationEnabled,
+      killSwitch,
+      active: inboundEnabled && sendEnabled && automationEnabled && !killSwitch,
+      reason: typeof control?.reason === 'string' ? control.reason : null,
+      updatedAt: typeof control?.updated_at === 'string' ? control.updated_at : null,
+    };
+  });
+  return { accounts: presentedAccounts, providerControls };
 }
 
 Deno.serve(async (request) => {
@@ -199,7 +223,7 @@ Deno.serve(async (request) => {
 
     if (action === 'list') {
       if (!manage) await requireOrganizationPermission(admin, organizationId, user.id, 'channels.view_own');
-      return json({ ok: true, accounts: await listAccounts(admin, organizationId, user.id, manage), canManage: manage }, 200, headers);
+      return json({ ok: true, ...(await listAccounts(admin, organizationId, user.id, manage)), canManage: manage }, 200, headers);
     }
 
     if (action === 'configure') {
@@ -356,8 +380,16 @@ Deno.serve(async (request) => {
       }
       const connected = status.connected === true && status.smartphoneConnected === true;
       const now = new Date().toISOString();
+      const { data: providerControl, error: providerControlError } = await admin.from('messaging_provider_controls')
+        .select('inbound_enabled,send_enabled,automation_enabled,kill_switch')
+        .eq('organization_id', organizationId).eq('provider', 'zapi').maybeSingle();
+      if (providerControlError) throw new Error('provider_control_read_failed');
+      const providerEnabled = !providerControl || (providerControl.inbound_enabled === true
+        && providerControl.send_enabled === true
+        && providerControl.automation_enabled === true
+        && providerControl.kill_switch !== true);
       let webhookRegisteredAt: string | null = null;
-      if (connected) {
+      if (connected && providerEnabled) {
         await registerWebhooks(account.integration_id, credentials);
         webhookRegisteredAt = now;
       }
@@ -369,16 +401,18 @@ Deno.serve(async (request) => {
             ? 'expired'
             : 'disconnected';
       const suffix = phoneSuffix(status.phone ?? status.phoneNumber ?? status.connectedPhone ?? status.wid);
-      const routingEnabled = connected || account.enabled === true;
+      const routingEnabled = providerEnabled && (connected || account.enabled === true);
       const { error: integrationError } = await admin.from('integrations').update({
         connected,
         enabled: routingEnabled,
-        paused: false,
+        paused: !providerEnabled,
         last_tested_at: now,
         last_success_at: connected ? now : null,
         last_error: connected ? null : 'zapi_instance_not_connected',
         last_error_at: connected ? null : now,
-        status_detail: connected
+        status_detail: !providerEnabled
+          ? 'A instância continua válida, mas a Z-API está desativada no WayFlex.'
+          : connected
           ? 'Conta Z-API conectada e callbacks registrados.'
           : 'Credenciais válidas; aguardando conexão do WhatsApp.',
         updated_at: now,
@@ -400,7 +434,9 @@ Deno.serve(async (request) => {
         actor_name: actorName,
         actor_type: 'user',
         action: connected ? 'whatsapp_account.connected' : 'whatsapp_account.connection_pending',
-        detail: connected
+        detail: !providerEnabled
+          ? 'Status consultado sem reativar a Z-API no WayFlex.'
+          : connected
           ? 'Conta operacional conectada e preparada para entrada e saída.'
           : 'Conta operacional validada, mas ainda sem sessão WhatsApp conectada.',
         entity_table: 'whatsapp_accounts',
@@ -408,6 +444,141 @@ Deno.serve(async (request) => {
         event_data: { owner_user_id: account.owner_user_id, phone_suffix: suffix, webhooks_registered: connected },
       });
       return json({ ok: true, connected, connectionStatus, connectedPhoneSuffix: suffix }, 200, headers);
+    }
+
+    if (action === 'set_provider_enabled') {
+      if (!manage) throw new Error('provider_activation_permission_denied');
+      const provider = asText(body.provider, 40);
+      if (provider !== 'zapi' && provider !== 'meta_cloud') throw new Error('provider_not_supported');
+      const enabled = body.enabled === true;
+      const now = new Date().toISOString();
+      const requestedAccountId = asUuid(body.account_id);
+      let accountQuery = admin.from('whatsapp_accounts')
+        .select('id,integration_id,provider,account_type,connection_status,is_default')
+        .eq('organization_id', organizationId).eq('provider', provider).is('archived_at', null);
+      if (requestedAccountId) accountQuery = accountQuery.eq('id', requestedAccountId);
+      else accountQuery = accountQuery.eq('account_type', 'corporate').order('is_default', { ascending: false }).limit(1);
+      const { data: targetAccount, error: targetAccountError } = await accountQuery.maybeSingle();
+      if (targetAccountError || !targetAccount) throw new Error('provider_account_not_found');
+
+      const { data: targetIntegration, error: targetIntegrationError } = await admin.from('integrations')
+        .select('id,connected,enabled,paused').eq('id', targetAccount.integration_id).eq('organization_id', organizationId).maybeSingle();
+      if (targetIntegrationError || !targetIntegration) throw new Error('provider_account_not_ready');
+      if (enabled && (targetAccount.connection_status !== 'connected' || targetIntegration.connected !== true)) {
+        throw new Error('provider_account_not_ready');
+      }
+
+      const { data: providerAccounts, error: providerAccountsError } = await admin.from('whatsapp_accounts')
+        .select('id,integration_id').eq('organization_id', organizationId).eq('provider', provider).is('archived_at', null);
+      if (providerAccountsError) throw new Error('provider_account_read_failed');
+      const accountIds = (providerAccounts ?? []).map((account) => account.id);
+      const integrationIds = (providerAccounts ?? []).map((account) => account.integration_id).filter(Boolean);
+      const otherProvider = provider === 'zapi' ? 'meta_cloud' : 'zapi';
+      const { data: otherProviderAccounts, error: otherProviderAccountsError } = await admin.from('whatsapp_accounts')
+        .select('id,integration_id').eq('organization_id', organizationId).eq('provider', otherProvider).is('archived_at', null);
+      if (otherProviderAccountsError) throw new Error('provider_account_read_failed');
+      const otherAccountIds = (otherProviderAccounts ?? []).map((account) => account.id);
+      const otherIntegrationIds = (otherProviderAccounts ?? []).map((account) => account.integration_id).filter(Boolean);
+
+      if (enabled) {
+        const { error: otherControlError } = await admin.from('messaging_provider_controls').upsert({
+          organization_id: organizationId,
+          provider: otherProvider,
+          inbound_enabled: false,
+          send_enabled: false,
+          automation_enabled: false,
+          kill_switch: true,
+          reason: `Desativado ao ativar ${provider === 'zapi' ? 'Z-API' : 'Meta WhatsApp Cloud API'}.`,
+          changed_by: user.id,
+          updated_at: now,
+        }, { onConflict: 'organization_id,provider' });
+        if (otherControlError) throw new Error('provider_control_save_failed');
+        const { error: otherAccountDisableError } = otherAccountIds.length
+          ? await admin.from('whatsapp_accounts').update({ enabled: false, is_default: false, updated_at: now })
+            .in('id', otherAccountIds).eq('organization_id', organizationId)
+          : { error: null };
+        const { error: otherIntegrationDisableError } = otherIntegrationIds.length
+          ? await admin.from('integrations').update({
+            enabled: false,
+            paused: true,
+            status_detail: `Canal ${otherProvider === 'zapi' ? 'Z-API' : 'Meta WhatsApp Cloud API'} desativado ao ativar o outro provedor corporativo.`,
+            updated_at: now,
+          }).in('id', otherIntegrationIds).eq('organization_id', organizationId)
+          : { error: null };
+        const { error: otherWebhookDisableError } = otherProvider === 'zapi'
+          ? await admin.from('integrations').update({
+            enabled: false,
+            paused: true,
+            status_detail: 'Entrada Z-API desativada ao ativar Meta WhatsApp Cloud API.',
+            updated_at: now,
+          }).eq('organization_id', organizationId).eq('provider', 'zapi').eq('key', 'zapi_webhook')
+          : { error: null };
+        if (otherAccountDisableError || otherIntegrationDisableError || otherWebhookDisableError) {
+          throw new Error('other_provider_deactivation_save_failed');
+        }
+        const { error: defaultsError } = await admin.from('whatsapp_accounts').update({ is_default: false, updated_at: now })
+          .eq('organization_id', organizationId).is('archived_at', null).eq('account_type', 'corporate');
+        if (defaultsError) throw new Error('provider_default_save_failed');
+        const { error: accountEnableError } = await admin.from('whatsapp_accounts').update({ enabled: true, is_default: true, updated_at: now })
+          .eq('id', targetAccount.id).eq('organization_id', organizationId);
+        const { error: integrationEnableError } = await admin.from('integrations').update({
+          enabled: true,
+          paused: false,
+          status_detail: `Canal ${provider === 'zapi' ? 'Z-API' : 'Meta WhatsApp Cloud API'} habilitado pelo administrador.`,
+          updated_at: now,
+        }).eq('id', targetAccount.integration_id).eq('organization_id', organizationId);
+        const { error: zapiWebhookEnableError } = provider === 'zapi'
+          ? await admin.from('integrations').update({
+            enabled: true,
+            paused: false,
+            status_detail: 'Entrada Z-API retomada pelo administrador; confirme um callback real antes de considerá-la homologada.',
+            updated_at: now,
+          }).eq('organization_id', organizationId).eq('provider', 'zapi').eq('key', 'zapi_webhook')
+          : { error: null };
+        if (accountEnableError || integrationEnableError || zapiWebhookEnableError) throw new Error('provider_activation_save_failed');
+      } else {
+        const { error: accountDisableError } = accountIds.length
+          ? await admin.from('whatsapp_accounts').update({ enabled: false, updated_at: now }).in('id', accountIds).eq('organization_id', organizationId)
+          : { error: null };
+        const { error: integrationDisableError } = integrationIds.length
+          ? await admin.from('integrations').update({
+            enabled: false,
+            paused: true,
+            status_detail: `Canal ${provider === 'zapi' ? 'Z-API' : 'Meta WhatsApp Cloud API'} desativado pelo administrador no WayFlex.`,
+            updated_at: now,
+          }).in('id', integrationIds).eq('organization_id', organizationId)
+          : { error: null };
+        if (accountDisableError || integrationDisableError) throw new Error('provider_deactivation_save_failed');
+      }
+
+      const { error: controlError } = await admin.from('messaging_provider_controls').upsert({
+        organization_id: organizationId,
+        provider,
+        inbound_enabled: enabled,
+        send_enabled: enabled,
+        automation_enabled: enabled,
+        kill_switch: !enabled,
+        reason: enabled
+          ? `Ativado pelo administrador para entrada, saída e automações da Ana.`
+          : `Desativado pelo administrador. A configuração e o histórico foram preservados.`,
+        changed_by: user.id,
+        updated_at: now,
+      }, { onConflict: 'organization_id,provider' });
+      if (controlError) throw new Error('provider_control_save_failed');
+      await admin.from('audit_logs').insert({
+        organization_id: organizationId,
+        actor_id: user.id,
+        actor_name: actorName,
+        actor_type: 'user',
+        action: enabled ? 'whatsapp_provider.enabled' : 'whatsapp_provider.disabled',
+        detail: enabled
+          ? `${provider === 'zapi' ? 'Z-API' : 'Meta WhatsApp Cloud API'} ativada como canal corporativo.`
+          : `${provider === 'zapi' ? 'Z-API' : 'Meta WhatsApp Cloud API'} desativada no WayFlex sem remover sessão nem histórico.`,
+        entity_table: 'whatsapp_accounts',
+        entity_id: targetAccount.id,
+        event_data: { provider, enabled, account_id: targetAccount.id },
+      });
+      return json({ ok: true, provider, enabled }, 200, headers);
     }
 
     if (action === 'set_enabled') {

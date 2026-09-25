@@ -161,7 +161,7 @@ export default function Dashboard() {
           : item.detail;
     return [{
       id: item.key,
-      label: item.key === 'whatsapp' ? 'WhatsApp · saída' : 'WhatsApp · entrada',
+      label: item.key === 'whatsapp_zapi' ? 'Z-API' : 'Meta WhatsApp',
       icon: operationalIcon(item.key),
       iconTone: operationalIconTone(item.key),
       status: presentation.label,

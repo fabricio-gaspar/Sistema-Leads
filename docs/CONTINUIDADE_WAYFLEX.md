@@ -1288,3 +1288,28 @@ webhook em ambiente controlado.
   completo, sem duplicar Z-API ou criar nova rota.
 - Validações: type-check frontend, lint sem warnings, Vitest 35/237, build Vite e artefato Sites.
   A configuração Meta permanece sem conta conectada e com controles operacionais fechados.
+
+## 2026-09-25 — Alternância explícita Z-API / Meta no WayFlex
+
+- **Configurações > Canais > WhatsApp e atendimento** passou a exibir **Z-API** e **Meta WhatsApp
+  Cloud API** lado a lado, cada qual com status, caminho de configuração e ação administrativa de
+  ativar/desativar. Apenas um provedor corporativo pode ficar operacional por vez para não haver
+  roteamento ambíguo.
+- A decisão é server-side: `messaging_provider_controls` bloqueia entrada, saída e Ana; a RPC
+  `resolve_lead_whatsapp_account` agora recusa contas e provedores desligados. O webhook Z-API
+  confirma callbacks desativados sem gravar, encaminhar ou reativar a conta. Teste direto e teste
+  de conexão preservam o estado desativado.
+- Por solicitação explícita do administrador, a **Z-API foi desativada somente no WayFlex**: uma
+  conta corporativa, a integração de saída e a integração de webhook foram pausadas; não havia
+  jobs pendentes. Instância remota, credenciais Vault e histórico foram preservados. Meta continua
+  sem conta conectada e com seus controles fechados; o próximo passo é concluir Embedded Signup e
+  homologar entrada antes de ativá-la.
+- Supabase oficial: migration `20260925150000_whatsapp_provider_activation_controls`; funções
+  `whatsapp-accounts` v4, `webhook-whatsapp` v19, `enviar-teste-whatsapp` v3,
+  `testar-integracao` v15 e `operational-diagnostics` v18. Nenhuma mensagem foi enviada.
+- A ativação de um provedor também desativa e pausa as contas e integrações corporativas do outro;
+  a troca não deixa dois canais de saída concorrentes. Ao reativar Z-API, o webhook interno é
+  retomado sem considerar a entrada homologada até um callback real.
+- Validações locais: type-check frontend/Edge, lint sem warnings, Vitest completo **35 arquivos /
+  238 testes**, build Vite e artefato Sites. Inclui regressão que garante que o teste direto não
+  chama a Z-API quando o administrador a desativa.

@@ -40,9 +40,21 @@ export interface WhatsappAccount {
   updatedAt: string;
 }
 
-interface AccountsResponse {
+export interface WhatsappProviderControl {
+  provider: 'zapi' | 'meta_cloud';
+  inboundEnabled: boolean;
+  sendEnabled: boolean;
+  automationEnabled: boolean;
+  killSwitch: boolean;
+  active: boolean;
+  reason: string | null;
+  updatedAt: string | null;
+}
+
+export interface AccountsResponse {
   accounts: WhatsappAccount[];
   canManage: boolean;
+  providerControls: WhatsappProviderControl[];
 }
 
 async function invoke<T extends Record<string, unknown>>(body: Record<string, unknown>): Promise<T> {
@@ -97,6 +109,23 @@ export function refreshWhatsappAccount(accountId: string): Promise<{
 
 export async function setWhatsappAccountEnabled(accountId: string, enabled: boolean): Promise<void> {
   await invoke({ action: 'set_enabled', account_id: accountId, enabled });
+}
+
+/**
+ * Habilita um único provedor corporativo por vez. A operação é feita somente
+ * no backend: não expõe credenciais e não remove a sessão remota do provedor.
+ */
+export async function setWhatsappProviderEnabled(
+  provider: 'zapi' | 'meta_cloud',
+  enabled: boolean,
+  accountId?: string,
+): Promise<void> {
+  await invoke({
+    action: 'set_provider_enabled',
+    provider,
+    enabled,
+    account_id: accountId,
+  });
 }
 
 export interface MetaSignupBootstrap {

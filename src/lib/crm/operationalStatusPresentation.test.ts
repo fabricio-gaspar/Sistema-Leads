@@ -40,7 +40,7 @@ describe('operational status presentation', () => {
   });
 
   it('mostra no Dashboard somente os caminhos que existem no CRM atual', () => {
-    expect(DASHBOARD_CHANNEL_KEYS).toEqual(['whatsapp', 'zapi_webhook']);
+    expect(DASHBOARD_CHANNEL_KEYS).toEqual(['whatsapp_zapi', 'whatsapp_meta']);
     expect(DASHBOARD_API_KEYS).toEqual(['ai', 'apify', 'google_places']);
     expect(DASHBOARD_SOURCE_KEYS).toEqual(['apify', 'manual', 'csv']);
   });

@@ -110,6 +110,8 @@ export function presentSourceStatus(input: SourceStatusInput): StatusPresentatio
 export function operationalIcon(key: string): string {
   const icons: Record<string, string> = {
     whatsapp: 'ri-whatsapp-line',
+    whatsapp_zapi: 'ri-whatsapp-line',
+    whatsapp_meta: 'ri-meta-line',
     zapi_webhook: 'ri-chat-check-line',
     ai: 'ri-brain-line',
     apify: 'ri-map-pin-search-line',
@@ -123,6 +125,8 @@ export function operationalIcon(key: string): string {
 export function operationalIconTone(key: string): string {
   const tones: Record<string, string> = {
     whatsapp: 'bg-[#25D366]/10 text-[#128C3E]',
+    whatsapp_zapi: 'bg-[#25D366]/10 text-[#128C3E]',
+    whatsapp_meta: 'bg-[#0866FF]/10 text-[#0866FF]',
     zapi_webhook: 'bg-[#25D366]/10 text-[#128C3E]',
     ai: 'bg-[#5856D6]/10 text-[#5856D6]',
     apify: 'bg-[#FF6B35]/10 text-[#C2410C]',
@@ -134,6 +138,6 @@ export function operationalIconTone(key: string): string {
 }
 
 /** Somente caminhos que têm uma tela operacional disponível no CRM atual. */
-export const DASHBOARD_CHANNEL_KEYS = ['whatsapp', 'zapi_webhook'] as const;
+export const DASHBOARD_CHANNEL_KEYS = ['whatsapp_zapi', 'whatsapp_meta'] as const;
 export const DASHBOARD_API_KEYS = ['ai', 'apify', 'google_places'] as const;
 export const DASHBOARD_SOURCE_KEYS = ['apify', 'manual', 'csv'] as const;

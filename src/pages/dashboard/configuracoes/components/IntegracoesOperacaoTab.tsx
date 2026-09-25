@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import IntegracoesTab from './IntegracoesTab';
 import WhatsAppSiteEntry from './WhatsAppSiteEntry';
 import WhatsappAccountPanel from '@/components/feature/WhatsappAccountPanel';
+import WhatsappProviderControlPanel from '@/components/feature/WhatsappProviderControlPanel';
 import { loadOperationalStatus, type OperationalStatus } from '@/lib/crm/operationalDiagnosticsRepository';
 import { operationalIcon, operationalIconTone, presentIntegrationStatus } from '@/lib/crm/operationalStatusPresentation';
 
@@ -41,12 +42,17 @@ function WhatsAppInboundStatus() {
   useEffect(() => { void refresh(); }, [refresh]);
 
   const webhook = status?.integrations.find((item) => item.key === 'zapi_webhook');
+  const zapi = status?.integrations.find((item) => item.key === 'whatsapp_zapi');
   const presentation = webhook
-    ? presentIntegrationStatus(webhook)
+    ? zapi?.enabled === false
+      ? presentIntegrationStatus(zapi)
+      : presentIntegrationStatus(webhook)
     : { label: loading ? 'Consultando' : 'Não configurada', tone: 'neutral' as const };
   const detail = error
     ? 'Não foi possível consultar o estado de entrada agora. Nenhuma configuração foi modificada.'
-    : status?.webhookDiagnostic.detail || 'Aguardando o diagnóstico do callback da Z-API.';
+    : zapi?.enabled === false
+      ? zapi.detail || 'A Z-API está desativada no WayFlex.'
+      : status?.webhookDiagnostic.detail || 'Aguardando o diagnóstico do callback da Z-API.';
 
   return <section className="mt-5 rounded-xl border border-background-200 bg-gradient-to-br from-white to-[#F7F9FC] p-5 shadow-[0_10px_24px_rgba(29,29,31,0.035)]">
     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -111,9 +117,20 @@ export default function IntegracoesOperacaoTab({ section }: { section?: Integrat
     </header>
 
     {showChannels && <section className="wf-settings-section">
-      <SectionHeading icon="ri-message-3-line" eyebrow="Canais" title="WhatsApp e atendimento" description="Instância Z-API, conexão do WhatsApp e teste de envio para a Central e a Ana." />
-      <IntegracoesTab category="communication" />
-      <WhatsappAccountPanel mode="meta" />
+      <SectionHeading icon="ri-message-3-line" eyebrow="Canais" title="WhatsApp e atendimento" description="Escolha o provedor corporativo, configure-o no próprio cartão e acompanhe o estado operacional real." />
+      <WhatsappProviderControlPanel />
+      <div className="mt-5 grid gap-5 xl:grid-cols-2">
+        <div id="zapi-configuration" className="scroll-mt-24 rounded-2xl border border-background-200 bg-background-50/60 p-4">
+          <p className="text-xs font-semibold uppercase tracking-[.12em] text-[#128C3E]">Z-API</p>
+          <p className="mt-1 text-sm text-foreground-600">Credenciais protegidas, validação da instância e teste de saída controlado.</p>
+          <div className="mt-4"><IntegracoesTab category="communication" /></div>
+        </div>
+        <div id="meta-connection" className="scroll-mt-24 rounded-2xl border border-[#cbd9ff] bg-[#f7f9ff] p-4">
+          <p className="text-xs font-semibold uppercase tracking-[.12em] text-[#0866ff]">Meta WhatsApp Cloud API</p>
+          <p className="mt-1 text-sm text-foreground-600">Conexão oficial pela Meta. A ativação só aparece depois que a conta estiver conectada.</p>
+          <div className="mt-4"><WhatsappAccountPanel mode="meta" /></div>
+        </div>
+      </div>
       <WhatsAppInboundStatus />
       <WhatsAppSiteEntry />
     </section>}

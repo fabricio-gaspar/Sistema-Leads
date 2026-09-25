@@ -20,6 +20,24 @@
   **Desconectado**. O primeiro só é emitido pelo diagnóstico com `connected`, `enabled`, sem
   pausa/erro e teste fresco; os demais casos não recebem rótulo positivo.
 
+## Seleção do provedor corporativo — 2026-09-25
+
+- **Configurações > Canais > WhatsApp** apresenta Z-API e Meta WhatsApp Cloud API lado a lado.
+  O administrador configura cada uma no próprio bloco e ativa somente um provedor corporativo por
+  vez, evitando uma rota de saída ambígua.
+- Desativar é reversível: bloqueia entrada, saída e automações da Ana no WayFlex, pausa as
+  integrações daquela conta e registra auditoria; não apaga a sessão remota, o Vault nem o
+  histórico. Um webhook de Z-API desativada recebe confirmação sem persistir, rotear ou reativar o
+  canal.
+- A decisão operacional está em `messaging_provider_controls`; o resolvedor server-side de conta
+  também recusa provedor explicitamente desligado. A ausência de controle Z-API em organizações
+  legadas mantém a compatibilidade até uma escolha explícita do administrador.
+- Ativar uma conta corporativa também pausa as contas e integrações corporativas do outro
+  provedor; a troca nunca deixa dois caminhos de saída ativos. Ao voltar à Z-API, o webhook interno
+  é retomado, mas continua exigindo um callback real para que a entrada seja considerada homologada.
+- O Dashboard usa as entradas sintéticas `whatsapp_zapi` e `whatsapp_meta`, calculadas no
+  diagnóstico a partir de conta, integração e controle. Ele não deduz estado por texto histórico.
+
 ## 2026-09-11 — Apify Google Maps retomável
 
 - `prospectar-leads` v8 não mantém a requisição do navegador aguardando o término do Actor.

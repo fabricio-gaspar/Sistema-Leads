@@ -141,7 +141,24 @@ Deno.serve(async (request) => {
     );
     const credentials = obj(secret);
     let response: Response | null = null;
+    let whatsappOperational = true;
     if (canal === "whatsapp") {
+      const { data: providerControl, error: providerControlError } = await admin
+        .from("messaging_provider_controls")
+        .select("inbound_enabled,send_enabled,automation_enabled,kill_switch")
+        .eq("organization_id", org)
+        .eq("provider", "zapi")
+        .maybeSingle();
+      if (providerControlError) throw new Error("provider_control_read_failed");
+      const hasExplicitProviderControl = providerControl
+        && typeof providerControl.inbound_enabled === "boolean"
+        && typeof providerControl.send_enabled === "boolean"
+        && typeof providerControl.automation_enabled === "boolean"
+        && typeof providerControl.kill_switch === "boolean";
+      whatsappOperational = !hasExplicitProviderControl || (providerControl.inbound_enabled === true
+        && providerControl.send_enabled === true
+        && providerControl.automation_enabled === true
+        && providerControl.kill_switch !== true);
       const instance = txt(credentials.instancia_id, 300),
         token = txt(credentials.token, 500),
         client = txt(credentials.client_token, 500),
@@ -286,7 +303,9 @@ Deno.serve(async (request) => {
       : null;
     const detail =
       canal === "whatsapp"
-        ? "Conexão Z-API validada. O canal está conectado; esta verificação não envia mensagens nem ativa o Ambiente Real."
+        ? whatsappOperational
+          ? "Conexão Z-API validada. O canal está conectado; esta verificação não envia mensagens nem ativa o Ambiente Real."
+          : "Conexão Z-API validada, mas o provedor permanece desativado no WayFlex. Esta verificação não enviou mensagens."
         : canal === "ai"
           ? "Credencial do provedor principal da Ana validada sem gerar mensagem."
           : canal === "email"
@@ -298,8 +317,8 @@ Deno.serve(async (request) => {
       .from("integrations")
       .update({
         connected: true,
-        enabled: true,
-        paused: false,
+        enabled: canal === "whatsapp" ? whatsappOperational : true,
+        paused: canal === "whatsapp" ? !whatsappOperational : false,
         status_detail: detail,
         last_tested_at: now,
         last_success_at: now,

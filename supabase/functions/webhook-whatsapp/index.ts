@@ -237,9 +237,21 @@ Deno.serve(async (request) => {
     if (integrationError || !integration) return json({ error: 'integration_not_ready' }, 409);
     if (!['zapi', 'z-api'].includes(String(integration.provider).toLowerCase())) return json({ error: 'unsupported_provider' }, 409);
     const { data: whatsappAccount, error: accountError } = await admin.from('whatsapp_accounts')
-      .select('id,is_default,owner_user_id').eq('organization_id', integration.organization_id)
+      .select('id,is_default,owner_user_id,enabled').eq('organization_id', integration.organization_id)
       .eq('integration_id', integration.id).is('archived_at', null).maybeSingle();
     if (accountError || !whatsappAccount) return json({ error: 'whatsapp_account_not_ready' }, 409);
+
+    const { data: providerControl, error: providerControlError } = await admin.from('messaging_provider_controls')
+      .select('inbound_enabled,kill_switch').eq('organization_id', integration.organization_id).eq('provider', 'zapi').maybeSingle();
+    if (providerControlError) throw new Error('provider_control_read_failed');
+    const hasExplicitProviderControl = providerControl
+      && typeof providerControl.inbound_enabled === 'boolean'
+      && typeof providerControl.kill_switch === 'boolean';
+    if (hasExplicitProviderControl && (providerControl.inbound_enabled !== true || providerControl.kill_switch === true)) {
+      // Confirmamos o callback para que o provedor não repita tentativas, porém
+      // não persistimos nem roteamos a mensagem e jamais reativamos a conta.
+      return acceptedWebhook({ accepted: true, ignored: true, reason: 'whatsapp_provider_disabled' });
+    }
 
     authenticatedAdmin = admin;
     eventOrg = integration.organization_id;
@@ -480,8 +492,8 @@ Deno.serve(async (request) => {
           : 'Resposta recebida, mas o processamento da Ana precisa de reconciliação.';
     const { error: accountIntegrationHealthError } = await admin.from('integrations').update({
       connected: true,
-      enabled: true,
-      paused: false,
+      enabled: integration.enabled === true,
+      paused: integration.paused === true,
       last_tested_at: receivedAt,
       last_success_at: receivedAt,
       last_error: stateError,
@@ -489,7 +501,7 @@ Deno.serve(async (request) => {
       updated_at: receivedAt,
     }).eq('id', integration.id).eq('organization_id', eventOrg);
     const { error: accountHealthError } = await admin.from('whatsapp_accounts').update({
-      enabled: true,
+      enabled: whatsappAccount.enabled === true,
       connection_status: 'connected',
       connected_at: receivedAt,
       status_checked_at: receivedAt,
@@ -500,8 +512,8 @@ Deno.serve(async (request) => {
     if (accountIntegrationHealthError || accountHealthError) throw new Error('whatsapp_account_health_persist_failed');
     const webhookHealth = whatsappAccount.is_default ? await admin.from('integrations').update({
       connected: true,
-      enabled: true,
-      paused: false,
+      enabled: integration.enabled === true,
+      paused: integration.paused === true,
       last_tested_at: receivedAt,
       last_success_at: receivedAt,
       last_error: stateError,

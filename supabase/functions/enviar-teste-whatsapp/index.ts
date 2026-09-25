@@ -72,6 +72,16 @@ Deno.serve(async (request) => {
     const organizationId = profile.active_organization_id;
     await requireOrganizationRole(admin, user.id, organizationId, ['owner', 'admin', 'manager']);
 
+    const { data: providerControl, error: providerControlError } = await admin.from('messaging_provider_controls')
+      .select('send_enabled,kill_switch').eq('organization_id', organizationId).eq('provider', 'zapi').maybeSingle();
+    if (providerControlError) throw new Error('provider_control_read_failed');
+    const hasExplicitProviderControl = providerControl
+      && typeof providerControl.send_enabled === 'boolean'
+      && typeof providerControl.kill_switch === 'boolean';
+    if (hasExplicitProviderControl && (providerControl.send_enabled !== true || providerControl.kill_switch === true)) {
+      throw new Error('whatsapp_provider_disabled');
+    }
+
     const { data: integration, error: integrationError } = await admin.from('integrations')
       .select('id,provider,paused').eq('organization_id', organizationId).eq('key', 'whatsapp').maybeSingle();
     if (integrationError || !integration) throw new Error('whatsapp_integration_not_configured');
