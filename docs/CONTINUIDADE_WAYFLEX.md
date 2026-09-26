@@ -1,5 +1,18 @@
 # Checkpoint — WayFlex CRM
 
+## 26/09/2026 — Plano comercial, etapa 5: prospecção diária auditada
+
+- A implementação existente de **Configurações > Ana > Operação automática** já cobre agenda,
+  dias/fuso, ICP, regiões, segmentos, palavras-chave, critérios de contato, cotas, distribuição
+  Ana/vendedor/rodízio, handoff, alertas, resumo diário e pausa global.
+- Os três modos são distintos no servidor: simulação não chama Apify/IA/canais; supervisionado
+  cria execução auditável para aprovação; automático exige pré-requisitos reais e autorização
+  explícita de uso do Apify. O worker usa idempotência por agenda/data e respeita cotas.
+- Não foi criada outra agenda ou fonte de busca e não foi executada busca paga, simulação nem
+  ativação. A validação local da etapa 4 (41 arquivos/258 testes, type-check, lint e build) ainda
+  cobre os contratos consultados; a homologação operacional dessa rotina permanece para a etapa 10.
+- Próxima etapa: **Motor crítico da Ana**, requer Sol High.
+
 ## 26/09/2026 — Plano comercial, etapa 4: dossiê e qualificação
 
 - O dossiê usa a própria `lead_qualifications`: necessidade, aplicação/equipamento, medida ou

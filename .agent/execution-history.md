@@ -1,5 +1,13 @@
 # Histórico resumido de execução
 
+## 2026-09-26 — Etapa 5, prospecção diária auditada
+
+- Confirmado que `ana-operations`, `prospecting_schedules`, `prospecting_schedule_runs` e
+  `automation-worker` já formam uma única rotina diária: ICP, cotas, modos, aprovações,
+  atribuição, handoff, alertas, resumo e pausa global. Nenhuma duplicação foi introduzida.
+- Não foi executada busca paga, simulação, fila operacional ou ativação. A próxima etapa requer
+  Sol High para revisar o motor crítico da Ana.
+
 ## 2026-09-26 — Etapa 4, dossiê e qualificação
 
 - Extendida a qualificação existente com contexto técnico estruturado e campos faltantes. A Ana
