@@ -1,5 +1,13 @@
 # Histórico resumido de execução
 
+## 2026-09-26 — Etapa 7, WhatsApp e recebimentos
+
+- Fechada a corrida de recibo antecipado: depois do aceite do provedor, o worker reutiliza o
+  parser Z-API e a RPC canônica para reconciliar callbacks ainda sem correspondência, sem novo
+  envio. Lotes parciais permanecem pendentes e a trilha é auditável.
+- Type-check frontend/Edge, lint, 41 arquivos/260 testes e build/artefato Sites passaram. Não houve
+  chamada real, ativação, publicação de função ou alteração de segredo.
+
 ## 2026-09-26 — Etapa 6, motor crítico da Ana
 
 - Corrigida a corrida de idempotência de `agent_runs`: colisão única agora é reconciliada como

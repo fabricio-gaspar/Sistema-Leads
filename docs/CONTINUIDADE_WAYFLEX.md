@@ -1,5 +1,20 @@
 # Checkpoint — WayFlex CRM
 
+## 26/09/2026 — Plano comercial, etapa 7: WhatsApp e recebimentos
+
+- O worker agora reconcilia recibos Z-API que chegaram antes da persistência do ID aceito pelo
+  provedor. Após registrar o aceite, ele procura somente callbacks falhos dos últimos sete dias,
+  normaliza o payload pelo mesmo parser do webhook e reaplica a RPC canônica de recibos.
+- A reconciliação não reenvia a mensagem, não consulta credenciais e preserva lotes parciais como
+  pendentes. Sucesso e falha ficam em auditoria; uma falha nessa rotina não apaga o aceite já
+  confirmado pelo provedor.
+- Entrada idempotente, bloqueio de matching ambíguo, cancelamento da cadência por resposta humana,
+  aceite atômico e progressão monotônica enviado/entregue/lido continuam no mesmo fluxo existente.
+- Type-check frontend/Edge, lint, Vitest completo **41 arquivos / 260 testes** e build/artefato
+  Sites passaram. Nenhuma função foi publicada, nenhum canal foi ativado e nenhuma mensagem real
+  foi enviada. O E2E externo controlado permanece reservado à homologação.
+- Próxima etapa: **Alertas e Dashboard**, requer Terra High.
+
 ## 26/09/2026 — Plano comercial, etapa 6: motor crítico da Ana
 
 - `ana-run` reconcilia colisões de criação pela chave idempotente: uma segunda chamada recebe a

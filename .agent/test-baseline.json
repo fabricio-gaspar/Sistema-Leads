@@ -3,17 +3,17 @@
   "validated_commit": "c76381ba4533ea7bbd3277065f20f91748a86a6d",
   "last_validated_at": "2026-09-26",
   "current_validation": {
-    "stage": "commercial-plan-6",
+    "stage": "commercial-plan-7",
     "evidence": "docs/CONTINUIDADE_WAYFLEX.md",
     "frontend_typecheck": "passed",
     "edge_typecheck": "passed",
     "lint": "passed_without_warnings",
     "test_files": 41,
-    "tests_passed": 259,
+    "tests_passed": 260,
     "production_build": "passed",
     "sites_artifact": "passed",
     "external_end_to_end": "not_applicable_no_remote_mutation_or_provider_call",
-    "note": "Commercial plan stage 6: Ana concurrency and idempotency hardening. 41 files/259 tests, frontend/Edge typechecks, lint and production artifact passed. Concurrent agent-run inserts reconcile without a second execution; prospecting schedule runs only reclaim free or stale locks. No provider, channel or operational setting was changed. Historical commands below belong to earlier stages."
+    "note": "Commercial plan stage 7: early WhatsApp receipt reconciliation without resend. 41 files/260 tests, frontend/Edge typechecks, lint and production artifact passed. Provider acceptance remains authoritative and pending callbacks are reconciled through the canonical parser/RPC. No provider, channel or operational setting was changed. Historical commands below belong to earlier stages."
   },
   "commands": [
     {"command":"node node_modules/typescript/bin/tsc --noEmit --project tsconfig.app.json","status":"passed","note":"Etapa 3: página de importação e fila de listas."},

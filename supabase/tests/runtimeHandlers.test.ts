@@ -1150,6 +1150,30 @@ describe('Worker safety handler', () => {
     expect(cadenceJobs).toHaveLength(1);
     expect(cadenceJobs[0].value?.payload).toMatchObject({ kind: 'ana_cadence', step: 'first' });
   });
+  it('reconciles an early WhatsApp receipt after provider acceptance without resending', async () => {
+    const earlyReceipt = {
+      id: 'early-receipt-event',
+      payload: { type: 'MessageStatusCallback', status: 'READ', ids: ['synthetic-receipt'], momment: 1_772_494_009_341 },
+    };
+    setupQueue((q) => {
+      if (q.table === 'webhook_events' && q.operation === 'select') return ok([earlyReceipt]);
+      if (q.table === 'reconcile_whatsapp_receipt' && q.operation === 'rpc') {
+        return ok([{ outreach_id: 'synthetic-job', lead_id: leadId, current_status: 'read', changed: true }]);
+      }
+      return undefined;
+    });
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ messageId: 'synthetic-receipt' }), { status: 200 }));
+    await import('../functions/automation-worker/index');
+    expect(await (await handler(workerRequest())).json()).toMatchObject({ ok: true, sent_jobs: 1 });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(calls.find((q) => q.table === 'reconcile_whatsapp_receipt' && q.operation === 'rpc')?.value).toMatchObject({
+      p_provider_message_ids: ['synthetic-receipt'], p_status: 'read',
+    });
+    expect(calls.find((q) => q.table === 'webhook_events' && q.operation === 'update')?.value).toMatchObject({
+      status: 'processed', lead_id: leadId, outreach_id: 'synthetic-job',
+    });
+    expect(calls.find((q) => q.table === 'audit_logs' && q.operation === 'insert' && q.value?.action === 'whatsapp.early_receipt_reconciled')).toBeTruthy();
+  });
   it('does not schedule a cadence job if a human handoff opens after provider acceptance', async () => {
     let providerAcceptanceRecorded = false;
     setupQueue((q) => {

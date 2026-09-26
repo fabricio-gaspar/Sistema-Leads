@@ -31,6 +31,7 @@ import {
   validDailyReportTime,
   type DailyLeadReportStage,
 } from "../_shared/dailyLeadReport.ts";
+import { parseZapiEvent } from "../_shared/zapiInbound.ts";
 
 function secureEqual(actual: string | null, expected: string): boolean {
   if (!actual || !expected || actual.length !== expected.length) return false;
@@ -80,6 +81,65 @@ function activeControlledSandboxTest(
   return Number.isFinite(expiresAt) && expiresAt > now;
 }
 type Admin = ReturnType<typeof createAdminClient>;
+
+async function reconcileEarlyWhatsappReceipts(
+  admin: Admin,
+  organizationId: string,
+  providerMessageId: string,
+): Promise<{ matched: number; processed: number }> {
+  const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1_000).toISOString();
+  const { data, error } = await admin
+    .from("webhook_events")
+    .select("id,payload")
+    .eq("organization_id", organizationId)
+    .in("provider", ["zapi", "z-api"])
+    .eq("status", "failed")
+    .in("error", ["outbound_message_not_matched", "receipt_targets_pending"])
+    .gte("created_at", since)
+    .order("created_at", { ascending: true })
+    .limit(100);
+  if (error) throw new Error("early_receipt_lookup_failed");
+
+  let matched = 0;
+  let processed = 0;
+  for (const candidate of Array.isArray(data) ? data : []) {
+    const event = asObject(candidate);
+    const eventId = asText(event.id, 80);
+    const receipt = parseZapiEvent(event.payload);
+    if (!eventId || receipt.kind !== "receipt" || !receipt.providerMessageIds.includes(providerMessageId)) continue;
+    matched += 1;
+    const { data: reconciledData, error: reconciliationError } = await admin.rpc(
+      "reconcile_whatsapp_receipt",
+      {
+        p_organization_id: organizationId,
+        p_provider_message_ids: receipt.providerMessageIds,
+        p_expected_message_count: receipt.expectedMessageCount,
+        p_status: receipt.status,
+        p_occurred_at: receipt.occurredAt,
+      },
+    );
+    if (reconciliationError) throw new Error("early_receipt_reconciliation_failed");
+    const reconciledRows = (Array.isArray(reconciledData)
+      ? reconciledData
+      : reconciledData
+        ? [reconciledData]
+        : []).map(asObject).filter((row) => Object.keys(row).length > 0);
+    if (!reconciledRows.length) continue;
+    const partial = reconciledRows.length < receipt.expectedMessageCount;
+    const changed = reconciledRows.some((row) => row.changed === true);
+    const first = reconciledRows[0];
+    const { error: updateError } = await admin.from("webhook_events").update({
+      status: partial ? "failed" : "processed",
+      error: partial ? "receipt_targets_pending" : changed ? null : "receipt_already_reconciled",
+      processed_at: new Date().toISOString(),
+      lead_id: first.lead_id ?? null,
+      outreach_id: first.outreach_id ?? null,
+    }).eq("id", eventId).eq("organization_id", organizationId).eq("status", "failed");
+    if (updateError) throw new Error("early_receipt_state_persist_failed");
+    if (!partial) processed += 1;
+  }
+  return { matched, processed };
+}
 
 type AnaPolicy = {
   configurationVersionId: string;
@@ -2371,6 +2431,34 @@ Deno.serve(async (request) => {
             },
           );
           if (acceptanceError) throw acceptanceError;
+          if (channel === "whatsapp" && receipt.messageId) {
+            try {
+              const earlyReceipts = await reconcileEarlyWhatsappReceipts(admin, orgId, receipt.messageId);
+              if (earlyReceipts.matched > 0) {
+                await admin.from("audit_logs").insert({
+                  organization_id: orgId,
+                  actor_name: "Sistema",
+                  actor_type: "system",
+                  action: "whatsapp.early_receipt_reconciled",
+                  detail: "Recibo antecipado do WhatsApp reconciliado após a confirmação do provedor.",
+                  entity_table: "outreach_jobs",
+                  entity_id: job.id,
+                  event_data: earlyReceipts,
+                });
+              }
+            } catch (earlyReceiptError) {
+              await admin.from("audit_logs").insert({
+                organization_id: orgId,
+                actor_name: "Sistema",
+                actor_type: "system",
+                action: "whatsapp.early_receipt_reconciliation_failed",
+                detail: "A confirmação do envio foi preservada, mas um recibo antecipado exige nova reconciliação.",
+                entity_table: "outreach_jobs",
+                entity_id: job.id,
+                event_data: { reason: safeError(earlyReceiptError).slice(0, 160) },
+              });
+            }
+          }
           let cadence: { scheduled: number; error: string | null } = {
             scheduled: 0,
             error: null,
