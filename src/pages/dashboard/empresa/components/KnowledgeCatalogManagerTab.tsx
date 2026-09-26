@@ -4,6 +4,7 @@ import {
   loadRelatedKnowledgeItems, saveKnowledgeCatalogItem, saveKnowledgeRelation, setKnowledgeCatalogItemStatus,
   type KnowledgeCatalogDraft, type KnowledgeCatalogItem, type KnowledgeCatalogItemType, type KnowledgeSource,
 } from '@/lib/crm/catalogKnowledgeRepository';
+import './knowledge-catalog.css';
 
 interface Props { itemType: KnowledgeCatalogItemType; }
 
@@ -66,6 +67,11 @@ export default function KnowledgeCatalogManagerTab({ itemType }: Props) {
     setSelected(item); setRelated([]);
     try { setRelated(await loadRelatedKnowledgeItems(item.id, true)); } catch { setError('Não foi possível carregar os relacionamentos deste item.'); }
   };
+  const editItem = (item: KnowledgeCatalogItem) => {
+    setEditor(draftFrom(item));
+    setEditingId(item.id);
+    setSelected(null);
+  };
   const openNew = () => {
     const source = availableSources[0];
     setEditingId(undefined);
@@ -104,22 +110,36 @@ export default function KnowledgeCatalogManagerTab({ itemType }: Props) {
     catch { setError('Não foi possível relacionar os conteúdos.'); }
   };
 
-  return <div className="space-y-4">
+  return <div className="wf-knowledge-catalog space-y-4">
     {notice && <div className="rounded-lg border border-secondary-200 bg-secondary-50 px-4 py-3 text-sm text-secondary-900"><i className="ri-checkbox-circle-line mr-2" />{notice}</div>}
     {error && <div className="rounded-lg border border-accent-200 bg-accent-50 px-4 py-3 text-sm text-accent-800"><i className="ri-error-warning-line mr-2" />{error}</div>}
-    <section className="rounded-xl border border-background-200/70 bg-background-50 p-5"><div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between"><div><p className="text-xs font-semibold uppercase tracking-[.12em] text-primary-700">Base estruturada</p><h2 className="mt-1 flex items-center gap-2 font-heading text-xl font-bold text-foreground-950"><i className={iconByType[itemType]} />{title}</h2><p className="mt-2 max-w-2xl text-sm leading-6 text-foreground-600">Cada item guarda o conteúdo exibido, a URL de origem e o status de aprovação. Não há preço, prazo ou especificação inventada pela interface.</p></div><button type="button" onClick={openNew} className="inline-flex w-fit items-center gap-2 rounded-lg bg-primary-500 px-3.5 py-2.5 text-xs font-semibold text-background-50 hover:bg-primary-600"><i className="ri-add-line" />Novo {catalogTypeLabel[itemType].toLowerCase()}</button></div><div className="mt-4 flex flex-col gap-2 sm:flex-row"><div className="relative flex-1"><i className="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-foreground-400" /><input value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void refresh(); }} placeholder="Buscar por nome, código, material, aplicação ou palavra-chave" className="w-full rounded-lg border border-background-300 py-2.5 pl-9 pr-3 text-sm" /></div><button type="button" onClick={() => void refresh()} className="rounded-lg border border-background-300 px-3 py-2 text-xs font-semibold text-foreground-700 hover:bg-background-100"><i className="ri-refresh-line mr-1.5" />Atualizar</button></div></section>
+    <section className="wf-knowledge-toolbar">
+      <div className="wf-knowledge-toolbar-top">
+        <div><p className="wf-knowledge-kicker">Base estruturada</p><h2><i className={iconByType[itemType]} aria-hidden="true" />{title}</h2><p>Conteúdo, origem e aprovação reunidos no catálogo operacional.</p></div>
+        <button type="button" onClick={openNew} className="wf-knowledge-primary"><i className="ri-add-line" aria-hidden="true" />Novo {catalogTypeLabel[itemType].toLowerCase()}</button>
+      </div>
+      <div className="wf-knowledge-search"><label><span className="sr-only">Buscar no catálogo</span><i className="ri-search-line" aria-hidden="true" /><input value={query} onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void refresh(); }} placeholder="Buscar por nome, código, material, aplicação ou palavra-chave" /></label><button type="button" onClick={() => void refresh()}><i className="ri-refresh-line" aria-hidden="true" />Atualizar</button></div>
+    </section>
     {!loading && availableSources.length === 0 && <div className="rounded-xl border border-primary-200 bg-primary-50 p-4 text-sm text-primary-900"><i className="ri-information-line mr-2" />Cadastre ou sincronize uma fonte em <strong>Fontes de conhecimento</strong> antes de criar itens neste grupo.</div>}
-    <section className="overflow-hidden rounded-xl border border-background-200/70 bg-background-50"><div className="flex items-center justify-between border-b border-background-200/70 px-5 py-3"><h3 className="text-sm font-bold text-foreground-900">{title}</h3><span className="text-xs text-foreground-500">{loading ? 'Carregando…' : `${items.length} item(ns)`}</span></div>{loading ? <div className="px-5 py-12 text-center text-sm text-foreground-500"><i className="ri-loader-4-line mb-2 block animate-spin text-2xl" />Carregando conteúdo operacional…</div> : items.length === 0 ? <div className="px-5 py-12 text-center text-sm text-foreground-500"><i className={`${iconByType[itemType]} mb-2 block text-3xl`} />Nenhum item disponível. Sincronize uma fonte ou cadastre o primeiro conteúdo.</div> : <div className="grid gap-4 p-4 sm:grid-cols-2 xl:grid-cols-3">{items.map((item) => <CatalogItemCard key={item.id} item={item} onOpen={() => void openItem(item)} />)}</div>}</section>
-    {selected && <ItemDrawer item={selected} sources={sources} related={related} candidates={relationshipCandidates.filter((item) => item.id !== selected.id)} onClose={() => setSelected(null)} onEdit={() => { setEditor(draftFrom(selected)); setEditingId(selected.id); setSelected(null); }} onToggleAna={() => void toggleAna(selected)} onDelete={() => void deleteItem(selected)} onRelate={(targetId) => void relate(targetId)} />}
+    <section className="wf-knowledge-results"><div className="wf-knowledge-results-heading"><div><p className="wf-knowledge-kicker">Itens cadastrados</p><h3>{title}</h3></div><span>{loading ? 'Carregando…' : `${items.length} ${items.length === 1 ? 'item' : 'itens'}`}</span></div>{loading ? <div className="px-5 py-12 text-center text-sm text-foreground-500" role="status"><i className="ri-loader-4-line mb-2 block animate-spin text-2xl" />Carregando conteúdo operacional…</div> : items.length === 0 ? <div className="px-5 py-12 text-center text-sm text-foreground-500"><i className={`${iconByType[itemType]} mb-2 block text-3xl`} />Nenhum item disponível. Sincronize uma fonte ou cadastre o primeiro conteúdo.</div> : <div className="wf-knowledge-grid">{items.map((item) => <CatalogItemCard key={item.id} item={item} onOpen={() => void openItem(item)} onEdit={() => editItem(item)} />)}</div>}</section>
+    {selected && <ItemDrawer item={selected} sources={sources} related={related} candidates={relationshipCandidates.filter((item) => item.id !== selected.id)} onClose={() => setSelected(null)} onEdit={() => editItem(selected)} onToggleAna={() => void toggleAna(selected)} onDelete={() => void deleteItem(selected)} onRelate={(targetId) => void relate(targetId)} />}
     {editor && <ItemEditor draft={editor} sources={availableSources} itemType={itemType} saving={saving} onChange={setEditor} onClose={() => { setEditor(null); setEditingId(undefined); }} onSave={() => void save()} />}
   </div>;
 }
 
-function CatalogItemCard({ item, onOpen }: { item: KnowledgeCatalogItem; onOpen: () => void }) {
+function CatalogItemCard({ item, onOpen, onEdit }: { item: KnowledgeCatalogItem; onOpen: () => void; onEdit: () => void }) {
   const active = item.status === 'active' && item.anaEnabled;
-  const statusClass = active ? 'bg-secondary-100 text-secondary-800' : item.status === 'archived' ? 'bg-background-200 text-foreground-600' : 'bg-accent-100 text-accent-800';
-  const statusLabel = active ? 'Ana ativa' : item.status === 'archived' ? 'Arquivado' : 'Rascunho';
-  return <button type="button" onClick={onOpen} className="group overflow-hidden rounded-xl border border-background-200/80 bg-background-50 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-primary-200 hover:shadow-md focus:outline-none focus:ring-2 focus:ring-primary-200"><span className="relative block aspect-[4/3] overflow-hidden bg-primary-100"><span className="absolute left-3 top-3 z-10 rounded-full bg-background-50/95 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-primary-800 shadow-sm">{item.category || catalogTypeLabel[item.type]}</span><span className={`absolute right-3 top-3 z-10 rounded-full px-2.5 py-1 text-[10px] font-bold shadow-sm ${statusClass}`}>{statusLabel}</span>{item.imageUrl ? <img src={item.imageUrl} alt={`Imagem de ${item.name}`} className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.03]" /> : <span className="flex h-full w-full items-center justify-center text-primary-700"><i className={`${iconByType[item.type]} text-4xl`} /></span>}<span className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-foreground-950/30 to-transparent" /></span><span className="block p-4"><span className="block min-h-11 text-sm font-bold leading-5 text-foreground-950">{item.name}</span><span className="mt-2 block h-10 overflow-hidden text-xs leading-5 text-foreground-600">{item.shortDescription || item.technicalDescription || 'Conteúdo publicado sem resumo adicional.'}</span><span className="mt-3 flex items-center justify-between border-t border-background-100 pt-3 text-[11px] font-semibold text-primary-700"><span className="truncate pr-2">{item.sourceLabel || 'Fonte rastreável'}</span><span className="shrink-0">Ver <i className="ri-arrow-right-up-line" /></span></span></span></button>;
+  const statusLabel = active ? 'Disponível para Ana' : item.status === 'archived' ? 'Arquivado' : item.status === 'active' ? 'Fora da Ana' : 'Em revisão';
+  return <article className="wf-knowledge-card">
+    <div className="wf-knowledge-card-media">{item.imageUrl ? <img src={item.imageUrl} alt={`Imagem de ${item.name}`} /> : <i className={iconByType[item.type]} aria-hidden="true" />}</div>
+    <div className="wf-knowledge-card-content">
+      <div className="wf-knowledge-card-meta"><span>{catalogTypeLabel[item.type]}</span><span className={`wf-knowledge-state ${active ? 'is-active' : item.status === 'archived' ? 'is-archived' : 'is-pending'}`}><i className="ri-circle-fill" aria-hidden="true" />{statusLabel}</span></div>
+      <h4>{item.name}</h4>
+      {item.category && <p className="wf-knowledge-category">{item.category}</p>}
+      <p className="wf-knowledge-summary">{item.shortDescription || item.technicalDescription || 'Sem resumo publicado.'}</p>
+      <div className="wf-knowledge-card-foot"><span title={item.sourceLabel || 'Fonte não identificada'}><i className="ri-links-line" aria-hidden="true" />{item.sourceLabel || 'Fonte não identificada'}</span><div><button type="button" onClick={onOpen}>Detalhes</button><button type="button" onClick={onEdit} className="wf-knowledge-edit"><i className="ri-edit-line" aria-hidden="true" />Editar</button></div></div>
+    </div>
+  </article>;
 }
 
 function ItemDrawer({ item, sources, related, candidates, onClose, onEdit, onToggleAna, onDelete, onRelate }: { item: KnowledgeCatalogItem; sources: KnowledgeSource[]; related: KnowledgeCatalogItem[]; candidates: KnowledgeCatalogItem[]; onClose: () => void; onEdit: () => void; onToggleAna: () => void; onDelete: () => void; onRelate: (id: string) => void; }) {
