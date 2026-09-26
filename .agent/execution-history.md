@@ -1,5 +1,13 @@
 # Histórico resumido de execução
 
+## 2026-09-26 — Etapa 4, dossiê e qualificação
+
+- Extendida a qualificação existente com contexto técnico estruturado e campos faltantes. A Ana
+  recebe schema estrito opcional e só persiste informação declarada; simulação, apresentação e
+  handoff usam o dossiê vazio. A migration foi aplicada e as duas colunas foram verificadas.
+- Central e Kanban passaram a mostrar o mesmo dossiê somente leitura. Type-check frontend/Edge,
+  lint, 41 arquivos/258 testes e build/artefato Sites passaram; nenhum provedor ou canal foi usado.
+
 ## 2026-09-26 — Etapa 3, catálogo Wayflex rastreável
 
 - Adicionada a curadoria de perguntas internas por item na base canônica, com editor, busca e

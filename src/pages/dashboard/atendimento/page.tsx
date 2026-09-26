@@ -16,6 +16,7 @@ import { supabase } from '@/lib/supabase';
 import { loadConversationKnowledgeEvents, type ConversationKnowledgeEvent } from '@/lib/crm/catalogKnowledgeRepository';
 import ConversaDrawer from './components/ConversaDrawer';
 import ConversationKnowledgePanel, { type PreparedKnowledgeContent } from './components/ConversationKnowledgePanel';
+import QualificationDossier from '@/components/crm/QualificationDossier';
 
 const statusCores: Record<string, string> = {
   ativo: 'bg-primary-100 text-primary-700',
@@ -890,6 +891,7 @@ export default function Atendimento() {
                   <div><dt className="text-foreground-500">Contato</dt><dd className="mt-0.5 break-words font-semibold leading-5 text-foreground-800" title={contactForChannel || undefined}>{contactForChannel || 'Não informado'}</dd></div>
                 </dl>
                 <div className="rounded-lg border border-primary-100 bg-primary-50 px-3 py-3"><div className="flex items-start gap-2.5"><i className="ri-robot-line mt-0.5 text-primary-700" /><div><p className="text-xs font-bold text-primary-900">Ana</p><p className="mt-0.5 text-xs leading-5 text-primary-800">{statusDaAna}</p></div></div></div>
+                <QualificationDossier leadId={leadSelecionado?.id} compact />
                 <button type="button" onClick={() => leadSelecionado && navigate(`/dashboard/kanban?leadId=${encodeURIComponent(leadSelecionado.id)}`)} disabled={!leadSelecionado} className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-background-200 bg-background-50 px-3 py-2.5 text-xs font-semibold text-foreground-700 transition hover:border-primary-200 hover:text-primary-700 disabled:cursor-not-allowed disabled:opacity-50"><i className="ri-layout-column-line" />Ver no Kanban</button>
               </div>}
               {sidePanelTab === 'knowledge' && <ConversationKnowledgePanel context={selected.mensagens.slice().reverse().find((message) => message.autor === 'cliente')?.texto || ''} onPrepare={prepareKnowledge} />}

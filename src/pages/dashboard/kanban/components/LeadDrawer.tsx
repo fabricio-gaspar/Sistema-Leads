@@ -4,6 +4,7 @@ import type { Lead } from '@/mocks/leadsData';
 import { useFluxoComercial } from '@/hooks/useFluxoComercial';
 import { useTarefasStore } from '@/hooks/useTarefasStore';
 import { loadAgentRuns, type AgentRunTimelineItem } from '@/lib/crm/anaRunRepository';
+import QualificationDossier from '@/components/crm/QualificationDossier';
 
 interface LeadDrawerProps {
   lead: Lead;
@@ -299,6 +300,8 @@ export default function LeadDrawer({ lead, onClose, onMudarEtapa, onAbrirConvers
                   )}
                 </div>
               )}
+
+              <QualificationDossier leadId={lead.id} />
 
               {/* Cadência */}
               {(lead.nextFollowUpAt || lead.timeoutAt) && (

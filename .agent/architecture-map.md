@@ -139,6 +139,16 @@ diário em concorrência; recibos antecipados ainda dependem de nova reconcilia�
   a descoberta como orientação de conversa e não como fato publicado. Não há segundo índice,
   motor de decisão ou caminho de envio.
 
+## Dossiê técnico de qualificação
+
+1. `lead_qualifications` é o dossiê único por lead. `technical_context` contém somente
+   necessidade, aplicação, medida/desenho, material/condição, quantidade e prazo; `missing_fields`
+   torna a ausência explícita.
+2. `ana-run` é a única autoridade que atualiza o dossiê por IA. Política, apresentação e
+   simulação registram objeto vazio; nenhuma delas deduz especificação ou compromisso comercial.
+3. Central e Kanban leem a mesma linha sob a RLS existente. Esses painéis não gravam dossiê nem
+   criam mensagens, jobs, handoffs ou novas fontes de verdade.
+
 ## Contas WhatsApp por vendedor
 
 1. `whatsapp_accounts` guarda somente metadados operacionais por organização: conta corporativa

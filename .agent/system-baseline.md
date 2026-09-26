@@ -1,5 +1,17 @@
 # Baseline do sistema
 
+## Etapa 4 do plano comercial — dossiê técnico de qualificação, 26/09/2026
+
+- `lead_qualifications` permanece o único registro de qualificação. `technical_context` e
+  `missing_fields` guardam o dossiê estruturado sem criar outra conversa, fila ou agregado.
+- A Ana só preenche valores explicitamente informados pelo lead; campos ausentes ficam nulos e
+  aparecem como confirmação pendente. Caminhos de política não inferem contexto técnico.
+- Central e Kanban leem o mesmo registro com RLS existente, exibindo prontidão, interesse,
+  encaminhamento, dados técnicos e próxima ação. O vendedor não ganha uma rota de envio nova.
+- Migration oficial `20260926123000_lead_technical_dossier` e sua estrutura foram verificadas.
+  Type-check frontend/Edge, lint, 41 arquivos/258 testes e build passaram; provedores e canais
+  permaneceram inalterados.
+
 ## Etapa 3 do plano comercial — catálogo Wayflex rastreável, 26/09/2026
 
 - `knowledge_catalog_items.qualification_questions` guarda de uma a oito perguntas internas por

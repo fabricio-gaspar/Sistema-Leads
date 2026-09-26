@@ -54,6 +54,21 @@ const ANA_DECISION_SCHEMA = {
     },
     mensagem_sugerida: { type: 'string' }, score: { type: 'integer', minimum: 0, maximum: 100 },
     motivo: { type: 'string' }, precisa_humano: { type: 'boolean' },
+    qualification: {
+      type: 'object', additionalProperties: false,
+      required: ['application', 'measurement_or_drawing', 'material_or_condition', 'quantity', 'deadline', 'need', 'decision_maker', 'objections', 'missing_fields'],
+      properties: {
+        application: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+        measurement_or_drawing: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+        material_or_condition: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+        quantity: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+        deadline: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+        need: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+        decision_maker: { anyOf: [{ type: 'string' }, { type: 'null' }] },
+        objections: { type: 'array', maxItems: 8, items: { type: 'string' } },
+        missing_fields: { type: 'array', maxItems: 8, items: { type: 'string' } },
+      },
+    },
   },
 };
 
@@ -308,6 +323,12 @@ function transitionAllowed(current: AnaStage, next: AnaStage, outcome?: string):
   return STAGES.indexOf(next) === STAGES.indexOf(current) + 1;
 }
 
+const emptyQualification = () => ({
+  application: null, measurement_or_drawing: null, material_or_condition: null,
+  quantity: null, deadline: null, need: null, decision_maker: null,
+  objections: [] as string[], missing_fields: [] as string[],
+});
+
 function parseDecision(raw: unknown, current: AnaStage) {
   const value = asObject(raw);
   const next = asText(value.proximo_estagio, 40).toLowerCase() as AnaStage;
@@ -320,6 +341,11 @@ function parseDecision(raw: unknown, current: AnaStage) {
   if (!transitionAllowed(current, next, outcome)) throw new Error('ana_stage_jump_rejected');
   if (next === 'fechado' && !['ganho', 'perdido'].includes(outcome)) throw new Error('ana_invalid_outcome');
   if (outcome === 'ganho') throw new Error('ana_gain_requires_human');
+  const rawQualification = asObject(value.qualification);
+  const qualificationText = (key: string) => asText(rawQualification[key], 600) || null;
+  const qualificationList = (key: string) => Array.isArray(rawQualification[key])
+    ? rawQualification[key].map((entry) => asText(entry, 160)).filter(Boolean).slice(0, 8)
+    : [];
   return {
     proximo_estagio: next,
     outcome: next === 'fechado' ? outcome : null,
@@ -328,6 +354,12 @@ function parseDecision(raw: unknown, current: AnaStage) {
     score: asScore(value.score),
     motivo: asText(value.motivo, 1_000),
     precisa_humano: value.precisa_humano === true,
+    qualification: {
+      application: qualificationText('application'), measurement_or_drawing: qualificationText('measurement_or_drawing'),
+      material_or_condition: qualificationText('material_or_condition'), quantity: qualificationText('quantity'),
+      deadline: qualificationText('deadline'), need: qualificationText('need'), decision_maker: qualificationText('decision_maker'),
+      objections: qualificationList('objections'), missing_fields: qualificationList('missing_fields'),
+    },
   };
 }
 
@@ -347,10 +379,18 @@ async function persistCommercialQualification(
     : decision.proximo_estagio !== 'novo' ? 'follow_up' : 'none';
   const interestLevel = decision.score >= 80 ? 'hot' : decision.score >= 55 ? 'positive' : decision.score < 20 ? 'negative' : 'neutral';
   const evidence = messageId ? [{ message_id: messageId, excerpt: asText(latestInbound?.text, 240) }] : [];
+  const qualification = decision.qualification;
   const { error: qualificationError } = await admin.from('lead_qualifications').upsert({
     organization_id: organizationId, lead_id: leadId, source_agent_run_id: runId, source_message_id: isUuid(messageId || '') ? messageId : null,
     intent: requestedAction === 'none' ? null : requestedAction, sentiment: interestLevel, next_action: decision.motivo || null,
     summary: decision.motivo || 'Qualificação comercial atualizada pela Ana.', evidence, readiness_score: decision.score,
+    service_interest: qualification.need, pain: qualification.application, urgency: qualification.deadline,
+    decision_maker: qualification.decision_maker, objections: qualification.objections,
+    technical_context: {
+      application: qualification.application, measurement_or_drawing: qualification.measurement_or_drawing,
+      material_or_condition: qualification.material_or_condition, quantity: qualification.quantity,
+      deadline: qualification.deadline, need: qualification.need,
+    }, missing_fields: qualification.missing_fields,
     interest_level: interestLevel, requested_action: requestedAction, confidence: decision.score, updated_by: 'ia', updated_at: new Date().toISOString(),
   }, { onConflict: 'lead_id' });
   if (qualificationError) throw qualificationError;
@@ -373,7 +413,7 @@ async function persistCommercialQualification(
 }
 
 const ANA_REQUEST = (context: Record<string, unknown>) =>
-  `Analise este contexto e retorne somente JSON com: proximo_estagio, outcome (ganho|perdido|null), acoes [{tipo,payload}], mensagem_sugerida, score (0-100), motivo, precisa_humano.\n${JSON.stringify(context)}`;
+  `Analise este contexto e retorne somente JSON com: proximo_estagio, outcome (ganho|perdido|null), acoes [{tipo,payload}], mensagem_sugerida, score (0-100), motivo, precisa_humano e, quando houver contexto de conversa, qualification. Em qualification, registre apenas fatos explicitamente ditos pelo lead em application, measurement_or_drawing, material_or_condition, quantity, deadline, need, decision_maker, objections e missing_fields. Use null ou liste o campo em missing_fields quando não houver evidência; nunca deduza medida, material, compatibilidade, preço, prazo ou disponibilidade.\n${JSON.stringify(context)}`;
 
 async function callOpenAI(apiKey: string, system: string, context: Record<string, unknown>, model?: string) {
   let response: Response;
@@ -796,6 +836,7 @@ Deno.serve(async (request) => {
         motivo: 'Simulação local: nenhum provedor de IA ou canal foi chamado.',
         precisa_humano: false,
         acoes: [],
+        qualification: emptyQualification(),
       };
     } else if (initialPresentation) {
       decision = {
@@ -803,6 +844,7 @@ Deno.serve(async (request) => {
         score: Math.max(Number(lead.score ?? 0), lowConfidenceThreshold),
         motivo: 'Apresentação institucional inicial da Wayflex.', precisa_humano: false,
         acoes: [{ tipo: 'atualizar_lead', payload: { ana_stage: 'apresentado' } }, { tipo: 'enviar_mensagem', payload: { channel: activeChannel } }],
+        qualification: emptyQualification(),
       };
     } else if (modo === 'humano' || timeout || Boolean(applicableSuppressions.length) || sensitiveInbound || configurationTrigger || missingTechnicalKnowledge) {
       decision = {
@@ -820,6 +862,7 @@ Deno.serve(async (request) => {
                   : 'Lead em modo humano: Ana não envia mensagens.',
         precisa_humano: true,
         acoes: [{ tipo: 'handoff', payload: { reason: timeout ? 'timeout_48h' : applicableSuppressions.length ? 'opt_out' : sensitiveInbound ? 'human_review_required' : configurationTrigger ? 'configured_handoff_trigger' : missingTechnicalKnowledge ? 'knowledge_not_found' : 'modo_humano' } }],
+        qualification: emptyQualification(),
       };
     } else {
       const ai = await callAi(

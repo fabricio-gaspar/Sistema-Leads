@@ -1,5 +1,22 @@
 # Checkpoint — WayFlex CRM
 
+## 26/09/2026 — Plano comercial, etapa 4: dossiê e qualificação
+
+- O dossiê usa a própria `lead_qualifications`: necessidade, aplicação/equipamento, medida ou
+  desenho, material/condição, quantidade, prazo, decisor, objeções e dados ainda faltantes.
+  Não foi criada uma conversa, fila, lead ou CRM paralelo.
+- A Ana recebe um contrato de resposta opcional e estrito: só registra fato declarado pelo lead;
+  quando não há evidência, mantém `null` e lista a confirmação pendente. Os caminhos de
+  simulação, apresentação e handoff gravam dossiê vazio e não inferem dados.
+- Central e Kanban exibem o mesmo dossiê somente leitura, com prontidão, encaminhamento e a
+  próxima ação. A edição comercial/negociação permanece humana e os controles de Ana existentes
+  não foram alterados.
+- A migration `20260926123000_lead_technical_dossier` foi aplicada ao projeto oficial e as duas
+  novas colunas foram verificadas. Type-check frontend/Edge, lint, Vitest completo **41 arquivos /
+  258 testes** e build/artefato Sites passaram. Não houve envio, ativação de canal ou chamada de
+  provedor. A publicação do Site segue reservada à etapa 11.
+- Próxima etapa: **Prospecção diária**, ainda com Terra High.
+
 ## 26/09/2026 — Plano comercial, etapa 3: catálogo Wayflex rastreável
 
 - A base canônica recebeu perguntas internas de qualificação por item, visíveis e editáveis em
