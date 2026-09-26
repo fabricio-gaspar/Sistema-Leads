@@ -2,21 +2,21 @@
   "schema_version": 1,
   "baseline_version": 5,
   "baseline_commit": "1dc6275b8c7d70de953b66397a8c89f5e97bc15b",
-  "last_audited_commit": "77b564cf44f651a2a56e8314226f78d4e9b99f89",
-  "current_head_at_update": "77b564cf44f651a2a56e8314226f78d4e9b99f89",
-  "working_tree_status": "commercial_plan_stage_10_security_homologated_pending_checkpoint",
+  "last_audited_commit": "23fbb4b3a9adb1402dbc68a9c29f8379c8550de3",
+  "current_head_at_update": "23fbb4b3a9adb1402dbc68a9c29f8379c8550de3",
+  "working_tree_status": "commercial_plan_stage_11_published_pending_checkpoint",
   "stage_1_baseline": ".agent/baselines/2026-09-25-stage-1.json",
   "recovery_tag": "baseline-wayflex-stage1-20260925",
   "work_branch": "chore/wayflex-stage-1-baseline-2026-09-25",
   "last_site_publication": {
-    "commit": "5ac4a6bc15b69dd5ef7c0b67ddc70af416303a61",
-    "site_version": 123,
-    "deployment_id": "appgdep_6ab6cba8891c819185dbc3afe57887e1",
-    "validated_at": "2026-09-25T19:30:04Z",
-    "working_tree_status": "published_real_assignees_and_empty_selection_retest_passed"
+    "commit": "23fbb4b3a9adb1402dbc68a9c29f8379c8550de3",
+    "site_version": 125,
+    "deployment_id": "appgdep_6ab7c0e0c3f8819188bbe8dd2fd6c7ec",
+    "validated_at": "2026-09-26T12:56:22Z",
+    "working_tree_status": "published_official_site_stage_11"
   },
   "full_audit_required": false,
-  "baseline_status": "commercial_plan_stage_10_security_homologated_with_auth_pending",
-  "updated_at": "2026-09-26T10:05:00-03:00",
-  "next_action": "Trocar para Terra High e executar a etapa 11 Acabamento e publicação no Site oficial existente. Preservar a pendência de Leaked Password Protection para o gate da etapa 12."
+  "baseline_status": "commercial_plan_stage_11_official_site_published_with_auth_pending",
+  "updated_at": "2026-09-26T09:57:00-03:00",
+  "next_action": "Trocar para Sol XHigh e executar a etapa 12 Liberação comercial: revalidar Auth Leaked Password Protection, revisar aceite e decidir sobre Automático."
 }

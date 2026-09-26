@@ -1,5 +1,11 @@
 # Histórico resumido de execução
 
+## 2026-09-26 — Etapa 11, acabamento e publicação
+
+- Site oficial existente publicado com sucesso como versão 125, commit `23fbb4b`, no endereço
+  público preservado. O fluxo oficial recompilou e empacotou o artefato; nenhum projeto/site novo
+  foi criado e nenhuma integração operacional foi ativada.
+
 ## 2026-09-26 — Etapa 10, segurança e homologação
 
 - MCP confirmou projeto oficial saudável. RLS foi exercitado como administrador e vendedor;

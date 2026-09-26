@@ -1,5 +1,17 @@
 # Checkpoint — WayFlex CRM
 
+## 26/09/2026 — Plano comercial, etapa 11: acabamento e publicação
+
+- Publicado exclusivamente no Site oficial existente, versão **125**, a partir do commit
+  `23fbb4b3a9adb1402dbc68a9c29f8379c8550de3`. URL preservada:
+  `https://leadai-crm-preview.fabricio926564.chatgpt.site`.
+- O artefato de produção foi reconstruído no fluxo oficial antes do deploy. A versão inclui os
+  ajustes de atenção do vendedor, recebimentos antecipados e toda a documentação de homologação
+  anterior; não criou Site, domínio, projeto ou canal novo.
+- Nenhuma Edge Function, configuração Supabase, canal, mensagem ou execução da Ana foi publicada
+  ou ativada. A pendência de proteção de senhas vazadas continua sendo gate da etapa 12.
+- Próxima etapa: **Liberação comercial**, requer Sol XHigh.
+
 ## 26/09/2026 — Plano comercial, etapa 10: segurança e homologação
 
 - Supabase oficial saudável e isolamento RLS comprovado com sessões `authenticated`: administrador
