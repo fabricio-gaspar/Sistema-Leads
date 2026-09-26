@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import type { Notificacao } from '@/lib/tipos';
 import type { Lead } from '@/mocks/leadsData';
 import { buildSellerAttentionGroups } from './sellerAttention';
+import InfoTooltip from '@/components/feature/InfoTooltip';
 
 export default function SellerAttentionPanel({ notifications, leads }: { notifications: Notificacao[]; leads: Lead[] }) {
   const groups = buildSellerAttentionGroups(notifications, leads);
@@ -13,10 +14,10 @@ export default function SellerAttentionPanel({ notifications, leads }: { notific
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="text-base font-semibold text-foreground-900">Atenção do vendedor</h2>
+          <InfoTooltip text="Ações objetivas registradas nas conversas e na carteira que precisam de acompanhamento humano." label="Sobre a atenção do vendedor" align="start" />
           {total > 0 && <span className="inline-flex items-center gap-1 rounded-full bg-foreground-900 px-2 py-0.5 text-xs font-semibold text-white"><i className="ri-notification-3-line" aria-hidden="true" />{total} {total === 1 ? 'ação' : 'ações'}</span>}
           {respondNow.length > 0 && <span className="inline-flex items-center gap-1 rounded-full bg-rose-50 px-2 py-0.5 text-xs font-semibold text-rose-700"><i className="ri-alarm-warning-line" aria-hidden="true" />{respondNow.length} urgente{respondNow.length === 1 ? '' : 's'}</span>}
         </div>
-        <p className="mt-1 text-sm text-foreground-500">Ações reais que precisam da sua atenção.</p>
       </div>
       <Link to="/dashboard/atendimento" className="inline-flex shrink-0 items-center gap-1 text-sm font-semibold text-primary-700 hover:text-primary-800">Abrir Central <i className="ri-arrow-right-up-line" aria-hidden="true" /></Link>
     </div>
@@ -26,7 +27,7 @@ export default function SellerAttentionPanel({ notifications, leads }: { notific
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2">
             <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${group.tone}`} title={group.title}><i className={`${group.icon} text-base`} aria-hidden="true" /></span>
-            <div className="min-w-0"><h3 className="truncate text-sm font-semibold text-foreground-900">{group.title}</h3><p className="truncate text-xs text-foreground-500">{group.description}</p></div>
+            <div className="flex min-w-0 items-center gap-1.5"><h3 className="truncate text-sm font-semibold text-foreground-900">{group.title}</h3><InfoTooltip text={group.description} label={`Sobre ${group.title}`} /></div>
           </div>
           <span className="rounded-full bg-background-100 px-2 py-0.5 text-xs font-semibold text-foreground-600" aria-label={`${group.items.length} item(ns)`}>{group.items.length}</span>
         </div>

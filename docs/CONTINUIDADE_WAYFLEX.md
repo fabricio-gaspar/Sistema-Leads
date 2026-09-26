@@ -1,5 +1,18 @@
 # Checkpoint — WayFlex CRM
 
+## 26/09/2026 — WayFlex Command Center: redesign visual do CRM
+
+- O shell global adotou a linguagem visual da referência: marca WayFlex CRM, navegação principal
+  em cápsula, superfícies amplas, cartões com hierarquia, fundo luminoso e coral restrito a
+  prioridade. Formulários, tabelas, botões, menus e módulos existentes herdam os mesmos tokens.
+- O Dashboard foi reorganizado como centro de comando usando somente dados operacionais reais:
+  KPIs, atenção comercial, pipeline, orçamentos abertos, prioridade, atividade das conversas,
+  WhatsApp, serviços, canais, APIs e fontes. Nenhum valor demonstrativo ou integração foi criado.
+- Explicações do novo painel aparecem em balões acessíveis por mouse e teclado. Estados online só
+  usam Realtime ou diagnóstico do backend; pendente, bloqueado e indisponível permanecem explícitos.
+- Type-check frontend/Edge, lint sem warnings, **42 arquivos / 262 testes** e build/artefato Sites
+  passaram. A lógica comercial, Supabase, Ana, WhatsApp, filas e rotas não foram alterados.
+
 ## 26/09/2026 — Plano comercial, etapa 12: liberação comercial
 
 - Homologação final local aprovada: type-check frontend e Edge Functions, lint sem warnings,

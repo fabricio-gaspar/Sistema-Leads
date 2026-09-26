@@ -1,5 +1,11 @@
 # Histórico resumido de execução
 
+## 2026-09-26 — WayFlex Command Center
+
+- Redesenhado o shell e o Dashboard a partir da referência, preservando domínio, rotas e efeitos.
+- Criado tooltip acessível reutilizável; indicadores e monitoramento exibem somente dados reais.
+- Type-check frontend/Edge, lint, 42 arquivos/262 testes e build/artefato Sites aprovados.
+
 ## 2026-09-26 — Etapa 11, acabamento e publicação
 
 - Site oficial existente publicado com sucesso como versão 125, commit `23fbb4b`, no endereço

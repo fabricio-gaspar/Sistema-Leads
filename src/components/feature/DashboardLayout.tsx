@@ -62,6 +62,13 @@ const navSections: NavSection[] = [
 
 const navItems = navSections.flatMap((section) => section.items);
 
+const quickNavItems = [
+  { label: 'Visão geral', path: '/dashboard' },
+  { label: 'Atividades', path: '/dashboard/atendimento' },
+  { label: 'Indicadores', path: '/dashboard/kanban' },
+  { label: 'Relatórios', path: '/dashboard/relatorios' },
+];
+
 const tipoIcone: Record<string, string> = {
   lead: 'ri-user-search-line text-primary-600',
   proposta: 'ri-file-list-3-line text-accent-600',
@@ -143,14 +150,14 @@ export default function DashboardLayout() {
         } wf-sidebar transition-all duration-300 flex flex-col fixed lg:relative z-30 h-full`}
       >
         {/* Logo */}
-        <div className="flex min-h-[68px] items-center justify-between border-b border-background-200/80 px-4 py-3.5">
+        <div className="flex min-h-[76px] items-center justify-between border-b border-background-200/80 px-4 py-3.5">
           {sidebarOpen ? (
-            <Link to="/dashboard" className="wf-brand-copy min-w-0 px-1">
-              <strong className="font-heading tracking-[0.08em]">WAYFLEX</strong>
-              <small>Sistema de Leads</small>
+            <Link to="/dashboard" className="wf-brand-copy flex min-w-0 items-center gap-3 px-1">
+              <span className="wf-brand-mark" aria-hidden="true">W</span>
+              <span className="min-w-0"><strong className="font-heading">WayFlex</strong><small>CRM</small></span>
             </Link>
           ) : (
-            <Link to="/dashboard" className="mx-auto font-heading text-sm font-extrabold tracking-[0.12em] text-foreground-950" aria-label="WayFlex">
+            <Link to="/dashboard" className="wf-brand-mark mx-auto" aria-label="WayFlex CRM">
               W
             </Link>
           )}
@@ -257,7 +264,7 @@ export default function DashboardLayout() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top Header */}
-        <header className="wf-topbar bg-background-50 border-b border-background-200/70 px-6 py-3 flex items-center justify-between flex-shrink-0">
+        <header className="wf-topbar bg-background-50 border-b border-background-200/70 px-4 py-3 xl:px-6 flex items-center justify-between gap-4 flex-shrink-0">
           <div className="flex items-center gap-4">
             <button
               className="lg:hidden w-9 h-9 flex items-center justify-center rounded-lg bg-background-100 hover:bg-background-200 cursor-pointer transition-colors"
@@ -271,6 +278,13 @@ export default function DashboardLayout() {
               <span className="font-semibold text-foreground-800">{currentPage.label}</span>
             </nav>
           </div>
+
+          <nav className="wf-quick-nav hidden xl:flex" aria-label="Atalhos principais">
+            {quickNavItems.map((item) => {
+              const active = location.pathname === item.path;
+              return <Link key={item.path} to={item.path} className={active ? 'is-active' : ''} aria-current={active ? 'page' : undefined}>{item.label}</Link>;
+            })}
+          </nav>
 
           <div className="flex items-center gap-2 sm:gap-3">
             {canConfigure && <ModoExecucaoToggle />}
