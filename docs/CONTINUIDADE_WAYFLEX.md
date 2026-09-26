@@ -1658,4 +1658,8 @@ webhook em ambiente controlado.
 - Validação local aprovada: type-check frontend/Edge, lint sem warnings, Vitest completo
   **44 arquivos / 278 testes**, build Vite e artefato Sites. Não foram executadas busca Apify,
   importação CSV, criação de lead, automação Ana ou mensagem WhatsApp durante esta etapa.
-- Publicação do Site oficial será registrada após o deploy da versão correspondente.
+- Publicação oficial concluída no Site existente: versão **132**, commit
+  `5fe475de2c6cb1eb34cf581fddee5a0364f0ecdb`, deploy `succeeded`. A verificação autenticada
+  confirmou a tela publicada com fonte conectada, localidade, termos vazios por padrão e botão de
+  busca bloqueado até critérios mínimos; o console não apresentou warning ou erro. Nenhuma ação
+  operacional foi executada nessa validação.

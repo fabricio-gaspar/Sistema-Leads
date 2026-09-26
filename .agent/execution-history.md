@@ -1147,3 +1147,6 @@
 - Verificado: `npm run type-check`, `npm run type-check:edge`, `npm run lint`, `npm test`
   (44 arquivos/278 testes), `npm run build` e `git diff --check` passaram. Nenhuma busca externa,
   importação, criação de lead, automação ou envio foi disparado.
+- Publicação oficial: Site v132, commit `5fe475de2c6cb1eb34cf581fddee5a0364f0ecdb`, deploy
+  concluído. A verificação autenticada da página publicada não acionou fluxo operacional e não
+  encontrou warning ou erro de console.
