@@ -434,7 +434,7 @@ export default function Leads() {
               <div key={lista.id} className="rounded-xl border border-background-200/70 bg-background-100/40 p-4">
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <div className="min-w-0">
-                    <p className="font-medium text-foreground-900 text-sm truncate">{lista.nome}</p>
+                    <p className="font-medium text-foreground-900 text-sm break-words">{lista.nome}</p>
                     <p className="text-xs text-foreground-500">{lista.cidade} - {lista.estado} · {lista.segmento}</p>
                   </div>
                   <span className="px-2 py-1 rounded-full text-[10px] font-semibold bg-accent-100 text-accent-700 whitespace-nowrap flex-shrink-0">
