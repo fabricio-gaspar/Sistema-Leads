@@ -63,6 +63,17 @@ function execute(query: Query): Result {
       };
       return ok({});
     }
+    if (query.table === 'reserve_prospecting_run') {
+      return ok([{
+        run_id: 'reserved-run',
+        run_status: 'running',
+        provider_run_id: null,
+        result_cache_id: null,
+        provider_start_state: 'attempting',
+        reused: false,
+        start_claimed: true,
+      }]);
+    }
     return ok({});
   }
   if (query.operation !== 'select') return ok({ id: `${query.table}-id` });
@@ -233,7 +244,7 @@ describe('Prospecting handler persistence contract', () => {
     const response = await handler(new Request('https://example.invalid/prospectar-leads', {
       method: 'POST',
       headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sourceKey: 'apify', mode: 'production', filters: { cidade: 'São Paulo', estado: 'SP', volumeMaximo: 30 } }),
+      body: JSON.stringify({ sourceKey: 'apify', mode: 'production', idempotencyKey: '11111111-1111-4111-8111-111111111111', filters: { cidade: 'São Paulo', estado: 'SP', atividades: ['Indústria'], volumeMaximo: 30 } }),
     }));
 
     expect(response.status).toBe(200);
@@ -242,16 +253,15 @@ describe('Prospecting handler persistence contract', () => {
       sourceKey: 'apify',
       leads: [{ razao_social: 'Borracharia de teste', latitude: -23.5505, longitude: -46.6333, uf: 'SP', email: 'contato@example.invalid', whatsapp: null, contact_approval_status: 'pending' }],
     });
-    expect(calls.find((q) => q.table === 'prospecting_runs' && q.operation === 'insert')?.value).toMatchObject({
-      requested_quantity: 30,
-      estimated_records: 30,
-      quote_expires_at: expect.any(String),
-      requires_confirmation: false,
+    expect(calls.find((q) => q.table === 'reserve_prospecting_run' && q.operation === 'rpc')?.value).toMatchObject({
+      p_requested_quantity: 30,
+      p_mode: 'production',
+      p_idempotency_key: 'manual:owner:11111111-1111-4111-8111-111111111111',
     });
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(JSON.parse((fetchMock.mock.calls[0]?.[1] as RequestInit).body as string)).toMatchObject({ maxCrawledPlacesPerSearch: 15 });
+    expect(JSON.parse((fetchMock.mock.calls[0]?.[1] as RequestInit).body as string)).toMatchObject({ searchStringsArray: ['Indústria'], maxCrawledPlacesPerSearch: 30 });
     expect(calls.find((q) => q.table === 'finalize_prospecting_run' && q.operation === 'rpc')?.value)
-      .toMatchObject({ p_run_id: 'prospecting_runs-id', p_results: [{ source_record_id: 'maps-place-1' }] });
+      .toMatchObject({ p_run_id: 'reserved-run', p_results: [{ source_record_id: 'maps-place-1' }] });
   });
 
   it('keeps a long-running Apify execution resumable instead of holding the browser request open', async () => {
@@ -267,7 +277,7 @@ describe('Prospecting handler persistence contract', () => {
     const response = await handler(new Request('https://example.invalid/prospectar-leads', {
       method: 'POST',
       headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sourceKey: 'apify', mode: 'production', filters: { cidade: 'São Paulo', estado: 'SP', volumeMaximo: 5 } }),
+      body: JSON.stringify({ sourceKey: 'apify', mode: 'production', idempotencyKey: '22222222-2222-4222-8222-222222222222', filters: { cidade: 'São Paulo', estado: 'SP', atividades: ['Indústria'], volumeMaximo: 5 } }),
     }));
 
     expect(response.status).toBe(202);
@@ -275,6 +285,194 @@ describe('Prospecting handler persistence contract', () => {
     expect(calls.find((q) => q.table === 'prospecting_runs' && q.operation === 'update')?.value).toMatchObject({ provider_run_id: 'provider-run' });
     expect(calls.some((q) => q.table === 'prospecting_cache' && q.operation === 'insert')).toBe(false);
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects an unbounded fresh search before reserving or calling Apify', async () => {
+    override = (q) => {
+      if (q.table === 'lead_source_configs' && q.operation === 'select') return ok({ id: 'source-config', enabled: true, mode: 'production', connection_status: 'connected' });
+      if (q.table === 'integrations' && q.operation === 'select') return ok({ id: integrationId, provider: 'Apify', enabled: true, connected: true, paused: false });
+      if (q.table === 'read_integration_secret' && q.operation === 'rpc') return ok({ api_token: 'synthetic-apify-token', actor_id: 'synthetic-google-maps-actor' });
+      return undefined;
+    };
+
+    await import('../functions/prospectar-leads/index');
+    const response = await handler(new Request('https://example.invalid/prospectar-leads', {
+      method: 'POST', headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sourceKey: 'apify', mode: 'production', idempotencyKey: '77777777-7777-4777-8777-777777777777', filters: { cidade: 'São Paulo', estado: 'SP' } }),
+    }));
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ ok: false, error: 'prospecting_terms_required' });
+    expect(calls.some((q) => q.table === 'reserve_prospecting_run')).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('reuses a reserved equivalent run without posting another paid Apify start', async () => {
+    override = (q) => {
+      if (q.table === 'lead_source_configs' && q.operation === 'select') return ok({ id: 'source-config', enabled: true, mode: 'production', connection_status: 'connected' });
+      if (q.table === 'integrations' && q.operation === 'select') return ok({ id: integrationId, provider: 'Apify', enabled: true, connected: true, paused: false });
+      if (q.table === 'read_integration_secret' && q.operation === 'rpc') return ok({ api_token: 'synthetic-apify-token', actor_id: 'synthetic-google-maps-actor' });
+      if (q.table === 'reserve_prospecting_run' && q.operation === 'rpc') return ok([{
+        run_id: 'already-running', run_status: 'running', provider_run_id: 'provider-run', result_cache_id: null,
+        provider_start_state: 'accepted', reused: true, start_claimed: false,
+      }]);
+      return undefined;
+    };
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ data: { id: 'provider-run', status: 'RUNNING', defaultDatasetId: 'dataset-id' } }), { status: 200 }));
+
+    await import('../functions/prospectar-leads/index');
+    const response = await handler(new Request('https://example.invalid/prospectar-leads', {
+      method: 'POST', headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sourceKey: 'apify', mode: 'production', idempotencyKey: '44444444-4444-4444-8444-444444444444', filters: { cidade: 'São Paulo', estado: 'SP', atividades: ['Indústria'] } }),
+    }));
+
+    expect(response.status).toBe(202);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('/v2/actor-runs/provider-run');
+    expect((fetchMock.mock.calls[0]?.[1] as RequestInit | undefined)?.method).not.toBe('POST');
+  });
+
+  it('recovers a proved legacy provider run without starting another actor', async () => {
+    override = (q) => {
+      if (q.table === 'lead_source_configs' && q.operation === 'select') return ok({ id: 'source-config', enabled: true, mode: 'production', connection_status: 'connected' });
+      if (q.table === 'integrations' && q.operation === 'select') return ok({ id: integrationId, provider: 'Apify', enabled: true, connected: true, paused: false });
+      if (q.table === 'read_integration_secret' && q.operation === 'rpc') return ok({ api_token: 'synthetic-apify-token', actor_id: 'synthetic-google-maps-actor' });
+      if (q.table === 'reserve_prospecting_run' && q.operation === 'rpc') return ok([{
+        run_id: 'legacy-provider-run', run_status: 'running', provider_run_id: 'provider-run', result_cache_id: null,
+        provider_start_state: 'ready', reused: true, start_claimed: false,
+      }]);
+      return undefined;
+    };
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ data: { id: 'provider-run', status: 'RUNNING', defaultDatasetId: 'dataset-id' } }), { status: 200 }));
+
+    await import('../functions/prospectar-leads/index');
+    const response = await handler(new Request('https://example.invalid/prospectar-leads', {
+      method: 'POST', headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sourceKey: 'apify', mode: 'production', idempotencyKey: '99999999-9999-4999-8999-999999999999', filters: { cidade: 'São Paulo', estado: 'SP', atividades: ['Indústria'] } }),
+    }));
+
+    expect(response.status).toBe(202);
+    expect(calls.find((q) => q.table === 'prospecting_runs' && q.operation === 'update')?.value)
+      .toMatchObject({ provider_start_state: 'accepted' });
+    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('/v2/actor-runs/provider-run');
+    expect((fetchMock.mock.calls[0]?.[1] as RequestInit | undefined)?.method).not.toBe('POST');
+  });
+
+  it('does not call Apify again when the provider start is unconfirmed', async () => {
+    override = (q) => {
+      if (q.table === 'lead_source_configs' && q.operation === 'select') return ok({ id: 'source-config', enabled: true, mode: 'production', connection_status: 'connected' });
+      if (q.table === 'integrations' && q.operation === 'select') return ok({ id: integrationId, provider: 'Apify', enabled: true, connected: true, paused: false });
+      if (q.table === 'read_integration_secret' && q.operation === 'rpc') return ok({ api_token: 'synthetic-apify-token', actor_id: 'synthetic-google-maps-actor' });
+      if (q.table === 'reserve_prospecting_run' && q.operation === 'rpc') return ok([{
+        run_id: 'uncertain-start', run_status: 'running', provider_run_id: null, result_cache_id: null,
+        provider_start_state: 'unknown', reused: true, start_claimed: false,
+      }]);
+      return undefined;
+    };
+
+    await import('../functions/prospectar-leads/index');
+    const response = await handler(new Request('https://example.invalid/prospectar-leads', {
+      method: 'POST', headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sourceKey: 'apify', mode: 'production', idempotencyKey: '55555555-5555-4555-8555-555555555555', filters: { cidade: 'São Paulo', estado: 'SP', atividades: ['Indústria'] } }),
+    }));
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ ok: false, error: 'prospecting_start_unconfirmed', runId: 'uncertain-start' });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('marks a malformed start response as unknown instead of assuming no paid run exists', async () => {
+    override = (q) => {
+      if (q.table === 'lead_source_configs' && q.operation === 'select') return ok({ id: 'source-config', enabled: true, mode: 'production', connection_status: 'connected' });
+      if (q.table === 'integrations' && q.operation === 'select') return ok({ id: integrationId, provider: 'Apify', enabled: true, connected: true, paused: false });
+      if (q.table === 'read_integration_secret' && q.operation === 'rpc') return ok({ api_token: 'synthetic-apify-token', actor_id: 'synthetic-google-maps-actor' });
+      return undefined;
+    };
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ data: { status: 'RUNNING' } }), { status: 200 }));
+
+    await import('../functions/prospectar-leads/index');
+    const response = await handler(new Request('https://example.invalid/prospectar-leads', {
+      method: 'POST', headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sourceKey: 'apify', mode: 'production', idempotencyKey: '66666666-6666-4666-8666-666666666666', filters: { cidade: 'São Paulo', estado: 'SP', atividades: ['Indústria'] } }),
+    }));
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ ok: false, error: 'provider_invalid_response', runId: 'reserved-run', recoverable: true });
+    expect(calls.find((q) => q.table === 'prospecting_runs' && q.operation === 'update')?.value)
+      .toMatchObject({ provider_start_state: 'unknown', last_error: 'provider_invalid_response' });
+    expect(calls.find((q) => q.table === 'prospecting_runs' && q.operation === 'update')?.value)
+      .not.toHaveProperty('status');
+  });
+
+  it('treats a non-auth provider HTTP error after a start attempt as ambiguous', async () => {
+    override = (q) => {
+      if (q.table === 'lead_source_configs' && q.operation === 'select') return ok({ id: 'source-config', enabled: true, mode: 'production', connection_status: 'connected' });
+      if (q.table === 'integrations' && q.operation === 'select') return ok({ id: integrationId, provider: 'Apify', enabled: true, connected: true, paused: false });
+      if (q.table === 'read_integration_secret' && q.operation === 'rpc') return ok({ api_token: 'synthetic-apify-token', actor_id: 'synthetic-google-maps-actor' });
+      return undefined;
+    };
+    fetchMock.mockResolvedValueOnce(new Response('{}', { status: 400 }));
+
+    await import('../functions/prospectar-leads/index');
+    const response = await handler(new Request('https://example.invalid/prospectar-leads', {
+      method: 'POST', headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sourceKey: 'apify', mode: 'production', idempotencyKey: '88888888-8888-4888-8888-888888888888', filters: { cidade: 'São Paulo', estado: 'SP', atividades: ['Indústria'] } }),
+    }));
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ ok: false, error: 'apify_http_400', runId: 'reserved-run', recoverable: true });
+    expect(calls.find((q) => q.table === 'prospecting_runs' && q.operation === 'update')?.value)
+      .toMatchObject({ provider_start_state: 'unknown', last_error: 'apify_http_400' });
+  });
+
+  it('does not treat a zero-row provider-id persistence update as confirmed', async () => {
+    override = (q) => {
+      if (q.table === 'lead_source_configs' && q.operation === 'select') return ok({ id: 'source-config', enabled: true, mode: 'production', connection_status: 'connected' });
+      if (q.table === 'integrations' && q.operation === 'select') return ok({ id: integrationId, provider: 'Apify', enabled: true, connected: true, paused: false });
+      if (q.table === 'read_integration_secret' && q.operation === 'rpc') return ok({ api_token: 'synthetic-apify-token', actor_id: 'synthetic-google-maps-actor' });
+      if (q.table === 'prospecting_runs' && q.operation === 'update') return ok(null);
+      return undefined;
+    };
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ data: { id: 'provider-run', status: 'RUNNING', defaultDatasetId: 'dataset-id' } }), { status: 200 }));
+
+    await import('../functions/prospectar-leads/index');
+    const response = await handler(new Request('https://example.invalid/prospectar-leads', {
+      method: 'POST', headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sourceKey: 'apify', mode: 'production', idempotencyKey: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', filters: { cidade: 'São Paulo', estado: 'SP', atividades: ['Indústria'] } }),
+    }));
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ ok: false, error: 'prospecting_provider_id_not_saved', runId: 'reserved-run', recoverable: true });
+    const updates = calls.filter((q) => q.table === 'prospecting_runs' && q.operation === 'update');
+    expect(updates[0]?.value).toMatchObject({ provider_start_state: 'accepted', provider_run_id: 'provider-run' });
+    expect(updates[updates.length - 1]?.value).toMatchObject({ provider_start_state: 'unknown', last_error: 'prospecting_provider_id_not_saved' });
+  });
+
+  it('uses the same reservation hash when search terms arrive in a different order', async () => {
+    override = (q) => {
+      if (q.table === 'lead_source_configs' && q.operation === 'select') return ok({ id: 'source-config', enabled: true, mode: 'production', connection_status: 'connected' });
+      if (q.table === 'integrations' && q.operation === 'select') return ok({ id: integrationId, provider: 'Apify', enabled: true, connected: true, paused: false });
+      if (q.table === 'read_integration_secret' && q.operation === 'rpc') return ok({ api_token: 'synthetic-apify-token', actor_id: 'synthetic-google-maps-actor' });
+      if (q.table === 'reserve_prospecting_run' && q.operation === 'rpc') return ok([{
+        run_id: 'same-filters', run_status: 'running', provider_run_id: null, result_cache_id: null,
+        provider_start_state: 'unknown', reused: true, start_claimed: false,
+      }]);
+      return undefined;
+    };
+
+    await import('../functions/prospectar-leads/index');
+    for (const [idempotencyKey, atividades] of [
+      ['bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', ['Vedação', 'Indústria']],
+      ['cccccccc-cccc-4ccc-8ccc-cccccccccccc', ['industria', 'vedação']],
+    ] as const) {
+      await handler(new Request('https://example.invalid/prospectar-leads', {
+        method: 'POST', headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sourceKey: 'apify', mode: 'production', idempotencyKey, filters: { cidade: 'São Paulo', estado: 'SP', atividades } }),
+      }));
+    }
+    const hashes = calls.filter((q) => q.table === 'reserve_prospecting_run').map((q) => q.value?.p_filters_hash);
+    expect(hashes).toEqual([hashes[0], hashes[0]]);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('finalizes a pending Apify run only after the provider reports completion', async () => {
@@ -428,7 +626,7 @@ describe('Prospecting handler persistence contract', () => {
     await import('../functions/prospectar-leads/index');
     const response = await handler(new Request('https://example.invalid/prospectar-leads', {
       method: 'POST', headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sourceKey: 'apify', mode: 'production', filters: { cidade: 'São Paulo', estado: 'SP', segmentos: ['Indústria'], volumeMaximo: 4 } }),
+      body: JSON.stringify({ sourceKey: 'apify', mode: 'production', idempotencyKey: '33333333-3333-4333-8333-333333333333', filters: { cidade: 'São Paulo', estado: 'SP', segmentos: ['Indústria'], volumeMaximo: 4 } }),
     }));
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ leads: [{ razao_social: 'Empresa com ID', municipio: null, uf: null, latitude: null, longitude: null, cnae_descricao: null }] });

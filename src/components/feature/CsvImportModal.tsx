@@ -11,13 +11,17 @@ export interface CampoImportacao {
 export interface ResultadoImportacao {
   importados: number;
   duplicados: number;
+  invalidos?: number;
 }
 
 interface CsvImportModalProps {
   titulo: string;
   subtitulo: string;
+  aviso?: string;
+  confirmarLotePendente?: boolean;
+  onConfirmarLotePendente?: () => ResultadoImportacao | Promise<ResultadoImportacao>;
   campos: CampoImportacao[];
-  onImportar: (linhas: Record<string, string>[]) => ResultadoImportacao;
+  onImportar: (linhas: Record<string, string>[]) => ResultadoImportacao | Promise<ResultadoImportacao>;
   onClose: () => void;
 }
 
@@ -27,6 +31,9 @@ interface CsvImportModalProps {
 export default function CsvImportModal({
   titulo,
   subtitulo,
+  aviso,
+  confirmarLotePendente = false,
+  onConfirmarLotePendente,
   campos,
   onImportar,
   onClose,
@@ -38,8 +45,11 @@ export default function CsvImportModal({
   const [mapeamento, setMapeamento] = useState<Record<string, number>>({});
   const [erro, setErro] = useState('');
   const [resultado, setResultado] = useState<ResultadoImportacao | null>(null);
+  const [importando, setImportando] = useState(false);
+  const alteracoesBloqueadas = importando || confirmarLotePendente;
 
   const aoSelecionar = (arquivo: File) => {
+    if (alteracoesBloqueadas) return;
     setErro('');
     setResultado(null);
     const leitor = new FileReader();
@@ -77,17 +87,41 @@ export default function CsvImportModal({
     (c) => c.obrigatorio && mapeamento[c.chave] === undefined
   );
 
-  const importar = () => {
+  const importar = async () => {
+    if (importando) return;
     if (obrigatoriasFaltando.length > 0) {
       setErro(`Mapeie as colunas obrigatórias: ${obrigatoriasFaltando.map((c) => c.rotulo).join(', ')}.`);
       return;
     }
     setErro('');
-    const r = onImportar(linhasMapeadas);
-    setResultado(r);
+    setImportando(true);
+    try {
+      const result = await onImportar(linhasMapeadas);
+      setResultado(result);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Não foi possível confirmar a importação.';
+      setErro(message || 'Não foi possível confirmar a importação.');
+    } finally {
+      setImportando(false);
+    }
+  };
+
+  const confirmarPendente = async () => {
+    if (importando || !onConfirmarLotePendente) return;
+    setErro('');
+    setImportando(true);
+    try {
+      setResultado(await onConfirmarLotePendente());
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Não foi possível confirmar a importação.';
+      setErro(message || 'Não foi possível confirmar a importação.');
+    } finally {
+      setImportando(false);
+    }
   };
 
   const reiniciar = () => {
+    if (alteracoesBloqueadas) return;
     setArquivoNome('');
     setCabecalho([]);
     setLinhas([]);
@@ -97,20 +131,48 @@ export default function CsvImportModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-foreground-950/50 flex items-center justify-center p-4" onClick={onClose}>
+    <div className="fixed inset-0 z-50 bg-foreground-950/50 flex items-center justify-center p-4" onClick={() => { if (!importando) onClose(); }}>
       <div className="bg-background-50 rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="px-6 py-4 border-b border-background-200/70 flex items-center justify-between sticky top-0 bg-background-50 z-10">
           <div>
             <h3 className="font-heading font-bold text-foreground-950">{titulo}</h3>
             <p className="text-xs text-foreground-500">{subtitulo}</p>
           </div>
-          <button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-background-100 cursor-pointer">
+          <button onClick={onClose} disabled={importando} aria-label="Fechar importação" className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-background-100 cursor-pointer disabled:cursor-not-allowed disabled:opacity-50">
             <i className="ri-close-line text-lg"></i>
           </button>
         </div>
 
         <div className="p-6 space-y-5">
-          {!cabecalho.length && (
+          {aviso && (
+            <div className="flex items-start gap-2 rounded-lg border border-primary-200 bg-primary-50 px-3 py-2.5 text-xs text-primary-800">
+              <i className="ri-shield-check-line mt-0.5" aria-hidden="true" />
+              <span>{aviso}</span>
+            </div>
+          )}
+          {confirmarLotePendente && !resultado && (
+            <div className="flex items-start gap-2 rounded-lg border border-accent-200 bg-accent-50 px-3 py-2.5 text-xs text-accent-800">
+              <i className="ri-time-line mt-0.5" aria-hidden="true" />
+              <span>Há um lote sem confirmação. Este botão reenviará exatamente o lote original, sem criar outro.</span>
+            </div>
+          )}
+          {!cabecalho.length && confirmarLotePendente && onConfirmarLotePendente ? (
+            <div className="text-center py-8">
+              <div className="w-14 h-14 bg-accent-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                <i className="ri-time-line text-accent-700 text-2xl" aria-hidden="true"></i>
+              </div>
+              <p className="text-sm text-foreground-700 mb-2">Há um lote CSV aguardando confirmação.</p>
+              <p className="text-xs text-foreground-500 mb-4">A confirmação usa exatamente o lote já preparado nesta página; nenhum novo arquivo ou lote será criado.</p>
+              <button
+                onClick={confirmarPendente}
+                disabled={importando}
+                className="px-6 py-3 bg-primary-500 hover:bg-primary-600 text-background-50 rounded-lg text-sm font-bold cursor-pointer whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {importando ? <i className="ri-loader-4-line mr-1.5 animate-spin" /> : <i className="ri-shield-check-line mr-1.5" />}
+                {importando ? 'Confirmando no banco...' : 'Confirmar lote original'}
+              </button>
+            </div>
+          ) : !cabecalho.length && (
             <div className="text-center py-8">
               <div className="w-14 h-14 bg-background-100 rounded-full flex items-center justify-center mx-auto mb-3">
                 <i className="ri-file-upload-line text-foreground-400 text-2xl"></i>
@@ -131,7 +193,8 @@ export default function CsvImportModal({
               />
               <button
                 onClick={() => fileRef.current?.click()}
-                className="px-6 py-3 bg-primary-500 hover:bg-primary-600 text-background-50 rounded-lg text-sm font-bold cursor-pointer whitespace-nowrap"
+                disabled={alteracoesBloqueadas}
+                className="px-6 py-3 bg-primary-500 hover:bg-primary-600 text-background-50 rounded-lg text-sm font-bold cursor-pointer whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <i className="ri-file-upload-line mr-2"></i>
                 Selecionar arquivo CSV
@@ -146,7 +209,7 @@ export default function CsvImportModal({
                   <i className="ri-file-list-3-line text-primary-600"></i>
                   {arquivoNome}
                 </span>
-                <button onClick={reiniciar} className="text-xs font-medium text-foreground-500 hover:text-foreground-700 cursor-pointer whitespace-nowrap">
+                <button onClick={reiniciar} disabled={alteracoesBloqueadas} className="text-xs font-medium text-foreground-500 hover:text-foreground-700 cursor-pointer whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50">
                   <i className="ri-refresh-line mr-1"></i>Trocar arquivo
                 </button>
               </div>
@@ -168,6 +231,7 @@ export default function CsvImportModal({
                             [c.chave]: e.target.value === '' ? undefined : Number(e.target.value),
                           }))
                         }
+                        disabled={alteracoesBloqueadas}
                         className={`flex-1 px-3 py-2 bg-background-50 border rounded-lg text-sm cursor-pointer ${
                           c.obrigatorio && mapeamento[c.chave] === undefined
                             ? 'border-accent-400'
@@ -229,13 +293,14 @@ export default function CsvImportModal({
                   : 'Nada foi importado'}
               </p>
               <p className="text-sm text-foreground-500 mt-1">
-                {resultado.duplicados > 0 ? `${resultado.duplicados} duplicado(s) ignorado(s).` : 'Nenhum duplicado encontrado.'}
+                {resultado.duplicados > 0 ? `${resultado.duplicados} duplicado(s) não foram enviados.` : 'Nenhum duplicado encontrado.'}
+                {resultado.invalidos ? ` ${resultado.invalidos} linha(s) inválida(s) não foram enviadas.` : ''}
               </p>
               <div className="mt-5 flex justify-center gap-2">
-                <button onClick={reiniciar} className="px-4 py-2.5 border border-background-300 text-foreground-700 rounded-lg text-sm font-semibold hover:bg-background-100 cursor-pointer whitespace-nowrap">
+                <button onClick={reiniciar} disabled={importando} className="px-4 py-2.5 border border-background-300 text-foreground-700 rounded-lg text-sm font-semibold hover:bg-background-100 cursor-pointer whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50">
                   Importar outro
                 </button>
-                <button onClick={onClose} className="px-5 py-2.5 bg-primary-500 hover:bg-primary-600 text-background-50 rounded-lg text-sm font-bold cursor-pointer whitespace-nowrap">
+                <button onClick={onClose} disabled={importando} className="px-5 py-2.5 bg-primary-500 hover:bg-primary-600 text-background-50 rounded-lg text-sm font-bold cursor-pointer whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50">
                   Concluir
                 </button>
               </div>
@@ -252,16 +317,16 @@ export default function CsvImportModal({
 
         {cabecalho.length > 0 && !resultado && (
           <div className="px-6 py-4 border-t border-background-200/70 flex justify-end gap-2">
-            <button onClick={onClose} className="px-4 py-2.5 border border-background-300 text-foreground-700 rounded-lg text-sm font-semibold hover:bg-background-100 cursor-pointer whitespace-nowrap">
+            <button onClick={onClose} disabled={importando} className="px-4 py-2.5 border border-background-300 text-foreground-700 rounded-lg text-sm font-semibold hover:bg-background-100 cursor-pointer whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50">
               Cancelar
             </button>
             <button
               onClick={importar}
-              disabled={linhas.length === 0}
+              disabled={linhas.length === 0 || importando}
               className="px-5 py-2.5 bg-primary-500 hover:bg-primary-600 disabled:bg-primary-300 text-background-50 rounded-lg text-sm font-bold cursor-pointer whitespace-nowrap"
             >
-              <i className="ri-download-2-line mr-1.5"></i>
-              Importar {linhas.length} linha(s)
+              {importando ? <i className="ri-loader-4-line mr-1.5 animate-spin"></i> : <i className="ri-download-2-line mr-1.5"></i>}
+              {importando ? 'Confirmando no banco...' : confirmarLotePendente ? 'Confirmar lote original' : `Importar ${linhas.length} linha(s)`}
             </button>
           </div>
         )}

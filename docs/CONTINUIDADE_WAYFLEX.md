@@ -1632,3 +1632,30 @@ webhook em ambiente controlado.
 - Estados de carga/erro impedem que zeros e selos positivos sejam mostrados como dados confirmados antes de consultar a fonte; detalhes ficam em ícones de informação acessíveis por teclado e toque. O Catálogo usa itens reais, com edição existente e rótulo Rascunho para item ainda não ativo.
 - Sem alteração de regras de negócio, rotas, integrações, dados remotos, automação ou envio. Type-check frontend/Edge e build/Sites passaram. Oito asserções relevantes apareceram como aprovadas, mas o Vitest não encerrou; o processo foi interrompido, sem afirmar aprovação da suíte completa. Inspeção visual autenticada depende da versão publicada e da sessão do cliente.
 - Checkpoint de código `2e8452ea7d021a83faa8bf45284963d3eaeb54d9`; publicação pendente no momento deste registro.
+
+## 2026-09-26 — Busca de Leads: revisão compacta e proteção de repetição
+
+- A tela **Busca de Leads** foi compactada para o fluxo direto: fonte Apify ativa, localidade,
+  termos explícitos, volume, revisão por filtros e importação. Não foram alteradas rotas, regras
+  de pipeline, autoridade da Ana, canais ou automações. Um rascunho de prompt permanece somente
+  rascunho e não inicia busca.
+- A busca nova exige cidade e ao menos um termo, limita termos únicos a dez e normaliza a chave de
+  filtros. Antes de chamar o provedor, a função reserva uma execução por organização, fonte,
+  modo, escopo e idempotência. Estados ambíguos permanecem como não confirmados e nunca autorizam
+  um segundo POST ao Apify.
+- Banco oficial: migrations `20260926130000_prospecting_run_idempotency` e
+  `20260926131000_prospecting_legacy_recovery` aplicadas. A Edge Function
+  `prospectar-leads` está na versão **16**, ativa e com JWT obrigatório. A leitura imediatamente
+  anterior à publicação encontrou zero execução Apify em andamento.
+- O CSV usa a RPC atômica já existente. Linhas inválidas interrompem o lote; contatos entram com
+  aprovação pendente, sem inferir WhatsApp e sem iniciar a Ana. Dados de contato do CSV não são
+  mantidos em `sessionStorage`: uma resposta incerta pode ser confirmada pelo mesmo payload
+  enquanto a página estiver aberta; após recarga, o mesmo arquivo gera a mesma chave do lote e
+  bloqueia uma segunda gravação automática se houver divergência, exigindo reconciliação.
+- A revisão visual ficou mais objetiva e acessível: seletor em lote respeita o filtro visível,
+  telefone não é apresentado como WhatsApp, o drawer tem Escape, foco inicial e contenção de Tab,
+  e os textos descrevem somente evidências efetivamente retornadas pela fonte.
+- Validação local aprovada: type-check frontend/Edge, lint sem warnings, Vitest completo
+  **44 arquivos / 278 testes**, build Vite e artefato Sites. Não foram executadas busca Apify,
+  importação CSV, criação de lead, automação Ana ou mensagem WhatsApp durante esta etapa.
+- Publicação do Site oficial será registrada após o deploy da versão correspondente.

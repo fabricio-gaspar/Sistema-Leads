@@ -1131,3 +1131,19 @@
 - Base remota abba1ed reconciliada com documentação local sem perder histórico.
 - Refinamento visual compartilhado e balões explicativos; nenhuma mutação de dados operacionais.
 - Type-check, lint, 42 arquivos / 262 testes e build passaram. Site v130 publicado (563d00a); revisão visual amostrada desktop/móvel e tooltip confirmado. Nenhum envio ou alteração operacional.
+
+## 2026-09-26 — Busca de Leads: idempotência e revisão compacta
+
+- Aplicadas as migrations `20260926130000_prospecting_run_idempotency` e
+  `20260926131000_prospecting_legacy_recovery` no Supabase oficial. A função
+  `prospectar-leads` foi atualizada para v16 com JWT obrigatório; zero execução Apify estava em
+  andamento na checagem pré-deploy.
+- A interface passou a exigir filtros delimitados para uma busca nova, apresenta revisão compacta
+  e não trata telefone como WhatsApp validado. Não houve alteração de rota, pipeline, Ana,
+  WhatsApp ou execução de provedor.
+- CSV continua atômico. A recuperação em memória permite repetir o lote original na mesma página,
+  enquanto o navegador não persiste PII do arquivo. O arquivo canônico recebe uma chave estável
+  por organização para impedir lote duplicado após recarga.
+- Verificado: `npm run type-check`, `npm run type-check:edge`, `npm run lint`, `npm test`
+  (44 arquivos/278 testes), `npm run build` e `git diff --check` passaram. Nenhuma busca externa,
+  importação, criação de lead, automação ou envio foi disparado.

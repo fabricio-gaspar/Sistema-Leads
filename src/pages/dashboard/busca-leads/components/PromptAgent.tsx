@@ -156,7 +156,7 @@ export default function PromptAgent() {
               Descreva o que quer prospectar, escolha os campos e gere um prompt pronto para usar em qualquer ferramenta de busca.
             </p>
           </div>
-          <span className="inline-flex items-center gap-1.5 shrink-0 rounded-full bg-primary-50 px-3 py-1.5 text-xs font-semibold text-primary-700"><i className="ri-brain-line"></i> OpenAI no backend</span>
+          <span className="inline-flex items-center gap-1.5 shrink-0 rounded-full bg-background-100 px-3 py-1.5 text-xs font-semibold text-foreground-700"><i className="ri-draft-line"></i> Rascunho — não executa busca</span>
         </div>
       </div>
 

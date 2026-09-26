@@ -8,11 +8,30 @@ type Filters = {
 };
 type SourceRow = { id: string; enabled: boolean; mode: string; connection_status: string };
 type IntegrationRow = { id: string; provider: string; enabled: boolean; connected: boolean; paused: boolean };
-type ProspectingRun = { id: string; source_key: 'apify' | 'google_places'; source_config_id: string; status: string; filters: unknown; provider_run_id: string | null; result_cache_id: string | null; requested_by: string | null };
+type ProspectingRun = {
+  id: string;
+  source_key: 'apify' | 'google_places';
+  source_config_id: string;
+  status: string;
+  filters: unknown;
+  provider_run_id: string | null;
+  result_cache_id: string | null;
+  requested_by: string | null;
+  provider_start_state: 'ready' | 'attempting' | 'accepted' | 'unknown' | 'rejected';
+};
+type ReservedProspectingRun = {
+  run_id: string;
+  run_status: string;
+  provider_run_id: string | null;
+  result_cache_id: string | null;
+  provider_start_state: ProspectingRun['provider_start_state'];
+  reused: boolean;
+  start_claimed: boolean;
+};
 
 const text = (value: unknown, maximum = 500): string => typeof value === 'string' ? value.trim().slice(0, maximum) : '';
 const list = (value: unknown, maximum = 20): string[] => Array.isArray(value)
-  ? value.filter((item): item is string => typeof item === 'string').map((item) => item.trim()).filter(Boolean).slice(0, maximum)
+  ? value.filter((item): item is string => typeof item === 'string').map((item) => text(item, 80)).filter(Boolean).slice(0, maximum)
   : [];
 const object = (value: unknown): Record<string, unknown> => value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
 function secureEqual(actual: string | null, expected: string): boolean { if (!actual || !expected || actual.length !== expected.length) return false; let difference = 0; for (let i = 0; i < actual.length; i += 1) difference |= actual.charCodeAt(i) ^ expected.charCodeAt(i); return difference === 0; }
@@ -30,7 +49,25 @@ function normalizeFilters(value: unknown): Filters {
 }
 
 function locationQuery(filters: Filters) { return [filters.cidade, filters.estado, filters.pais || 'Brasil'].filter(Boolean).join(', '); }
-function terms(filters: Filters) { const values = [...(filters.atividades ?? []), ...(filters.segmentos ?? [])]; return values.length ? values.slice(0, 10) : ['indústria', 'empresa']; }
+function terms(filters: Filters) {
+  const seen = new Set<string>();
+  const values = [...(filters.atividades ?? []), ...(filters.segmentos ?? [])]
+    .map((value) => value.trim().replace(/\s+/g, ' '))
+    .filter((value) => {
+      const key = value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR');
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 10);
+  return values;
+}
+function canonicalFilterHashPayload(filters: Filters) {
+  const normalize = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR');
+  const canonicalTerms = terms(filters).map(normalize).sort((left, right) => left.localeCompare(right, 'pt-BR'));
+  const canonicalPorte = [...new Set((filters.portes ?? []).map(normalize))].sort((left, right) => left.localeCompare(right, 'pt-BR'));
+  return JSON.stringify({ ...filters, atividades: canonicalTerms, segmentos: [], portes: canonicalPorte });
+}
 function stringFrom(record: Record<string, unknown>, keys: string[]): string { for (const key of keys) { const value = record[key]; if (typeof value === 'string' && value.trim()) return value.trim().slice(0, 1_000); } return ''; }
 function firstString(record: Record<string, unknown>, keys: string[]): string {
   const direct = stringFrom(record, keys);
@@ -128,6 +165,11 @@ function apifyInput(credentials: Record<string, unknown>, filters: Filters) {
 
 function apifyToken(credentials: Record<string, unknown>) { return text(credentials.api_token || credentials.token, 500); }
 function apifyFailure(status: string) { return `apify_run_${status.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`; }
+function providerStartWasRejected(message: string) {
+  // Uma resposta de start sem identificador pode representar um POST aceito
+  // cujo retorno foi corrompido. Ela é ambígua e jamais autoriza um novo POST.
+  return /^(apify_auth_rejected|apify_actor_not_found|source_credentials_missing|source_input_invalid)$/.test(message);
+}
 
 async function apifyResponse(url: string, token: string, init?: RequestInit) {
   const response = await fetch(`${url}${url.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}`, { ...init, signal: AbortSignal.timeout(25_000) });
@@ -189,16 +231,18 @@ Deno.serve(async (request) => {
   if (!hasAllowedOrigin(request)) return json({ ok: false, error: 'origin_not_allowed' }, 403);
   const headers = allowedCorsHeaders(request); if (request.method !== 'POST') return json({ ok: false, error: 'method_not_allowed' }, 405, headers);
   let runId: string | null = null, admin: ReturnType<typeof createAdminClient> | null = null, sourceId: string | null = null;
-  let failRunOnError = false;
+  let failRunOnError = false, providerStartInFlight = false;
   try {
     const body = await readJson(request), sourceKey = requiredString(body.sourceKey, 'source_key', 80) as 'apify' | 'google_places';
     if (!['apify', 'google_places'].includes(sourceKey)) throw new Error('source_not_supported');
     if (body.action != null && !['list_runs', 'open_cache'].includes(String(body.action))) throw new Error('prospecting_action_not_allowed');
     if (body.mode !== 'production') throw new Error('production_mode_required');
     const requestedRunId = text(body.runId, 80);
+    const requestedIdempotencyKey = text(body.idempotencyKey, 120);
     admin = createAdminClient();
     const schedulerToken = request.headers.get('x-leadai-scheduler-token');
     let organizationId = '', requestedBy = '', actorName = 'Ana · operação automática', actorType = 'user', canReadAll = false;
+    let idempotencyKey = '', executionScopeKey = '';
     if (schedulerToken) {
       organizationId = text(body.organization_id, 80);
       const scheduleRunId = text(body.schedule_run_id, 80);
@@ -212,6 +256,8 @@ Deno.serve(async (request) => {
       const expected = text(object(secret).scheduler_token, 1_000);
       if (secretError || expected.length < 48 || !secureEqual(schedulerToken, expected)) throw new Error('scheduler_authentication_failed');
       requestedBy = scheduleRun.requested_by; actorType = 'system';
+      idempotencyKey = `schedule:${scheduleRunId}`;
+      executionScopeKey = `schedule:${scheduleRunId}`;
     } else {
       const { user } = await requireUser(request);
       const { data: profile, error: profileError } = await admin.from('profiles').select('active_organization_id,name').eq('id', user.id).maybeSingle();
@@ -222,11 +268,15 @@ Deno.serve(async (request) => {
         .select('role,status').eq('organization_id', organizationId).eq('user_id', user.id).maybeSingle();
       if (membershipError || !membership || membership.status !== 'active') throw new Error('organization_access_denied');
       canReadAll = ['owner', 'admin', 'administrador'].includes(membership.role);
+      if (!requestedRunId && !body.action && !requestedIdempotencyKey) throw new Error('prospecting_request_key_required');
+      if (requestedIdempotencyKey && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestedIdempotencyKey)) throw new Error('prospecting_request_key_required');
+      idempotencyKey = requestedIdempotencyKey ? `manual:${requestedBy}:${requestedIdempotencyKey}` : '';
+      executionScopeKey = `manual:${requestedBy}`;
     }
     if (body.action === 'list_runs') {
       if (schedulerToken || sourceKey !== 'apify') throw new Error('prospecting_action_not_allowed');
       let runQuery = admin.from('prospecting_runs')
-        .select('id,status,source_key,started_at,result_count,result_cache_id,provider_run_id,last_error,filters,requested_by')
+        .select('id,status,source_key,started_at,result_count,result_cache_id,provider_run_id,provider_start_state,last_error,filters,requested_by')
         .eq('organization_id', organizationId).eq('source_key', sourceKey);
       let cacheQuery = admin.from('prospecting_cache')
         .select('id,total_found,created_at,filters,user_id')
@@ -250,6 +300,7 @@ Deno.serve(async (request) => {
       const runRows = (runs ?? []).map((run) => ({
         id: run.id, status: run.status, startedAt: run.started_at, resultCount: run.result_count,
         hasProvider: Boolean(run.provider_run_id), hasResults: Boolean(run.result_cache_id),
+        providerStartState: run.provider_start_state,
         lastError: run.last_error, location: locationQuery(normalizeFilters(run.filters)),
         fromTeam: run.requested_by !== requestedBy,
       }));
@@ -272,9 +323,10 @@ Deno.serve(async (request) => {
       return json({ ok: true, pending: false, cacheId, sourceKey, leads: cache.results }, 200, headers);
     }
     let existingRun: ProspectingRun | null = null;
+    let providerStartClaimed = false;
     if (requestedRunId) {
       let existingQuery = admin.from('prospecting_runs')
-        .select('id,source_key,source_config_id,status,filters,provider_run_id,result_cache_id,requested_by')
+        .select('id,source_key,source_config_id,status,filters,provider_run_id,result_cache_id,requested_by,provider_start_state')
         .eq('id', requestedRunId).eq('organization_id', organizationId);
       if (!canReadAll) existingQuery = existingQuery.eq('requested_by', requestedBy);
       const { data: run, error: runError } = await existingQuery.maybeSingle() as { data: ProspectingRun | null; error: unknown };
@@ -288,7 +340,6 @@ Deno.serve(async (request) => {
         if (cacheError || !cache || !Array.isArray(cache.results)) throw new Error('prospecting_results_unavailable');
         return json({ ok: true, pending: false, runId, cacheId: run.result_cache_id, sourceKey, leads: cache.results }, 200, headers);
       }
-      if (run.status !== 'running' || !run.provider_run_id || !run.requested_by || sourceKey !== 'apify') throw new Error('prospecting_run_not_pending');
     }
     const { data: source, error: sourceError } = await admin.from('lead_source_configs').select('id,enabled,mode,connection_status').eq('organization_id', organizationId).eq('source_key', sourceKey).maybeSingle() as { data: SourceRow | null; error: unknown };
     if (sourceError || !source) throw new Error('source_not_configured'); sourceId = source.id;
@@ -301,29 +352,108 @@ Deno.serve(async (request) => {
     if (credentialsError || !credentials) throw new Error('source_credentials_missing');
 
     let filters: Filters, providerRunId = '', datasetId = '';
-    if (existingRun?.provider_run_id) {
-      filters = normalizeFilters(existingRun.filters); providerRunId = existingRun.provider_run_id;
+    if (!existingRun) {
+      filters = normalizeFilters(body.filters);
+      if (!filters.cidade?.trim()) throw new Error('prospecting_city_required');
+      if (!terms(filters).length) throw new Error('prospecting_terms_required');
+      const filtersJson = JSON.parse(JSON.stringify(filters));
+      const filtersHash = await hash(`${sourceKey}:${canonicalFilterHashPayload(filters)}`);
+      const { data: reserved, error: reserveError } = await admin.rpc('reserve_prospecting_run', {
+        p_organization_id: organizationId,
+        p_source_config_id: source.id,
+        p_source_key: sourceKey,
+        p_mode: 'production',
+        p_filters: filtersJson,
+        p_filters_hash: filtersHash,
+        p_requested_quantity: filters.volumeMaximo,
+        p_requested_by: requestedBy,
+        p_idempotency_key: idempotencyKey,
+        p_execution_scope_key: executionScopeKey,
+      });
+      const reservation = Array.isArray(reserved) ? reserved[0] as ReservedProspectingRun | undefined : undefined;
+      if (reserveError || !reservation?.run_id) throw new Error('prospecting_run_reservation_failed');
+      runId = reservation.run_id;
+      providerStartClaimed = reservation.start_claimed === true;
+      existingRun = {
+        id: reservation.run_id,
+        source_key: sourceKey,
+        source_config_id: source.id,
+        status: reservation.run_status,
+        filters: filtersJson,
+        provider_run_id: reservation.provider_run_id,
+        result_cache_id: reservation.result_cache_id,
+        requested_by: requestedBy,
+        provider_start_state: reservation.provider_start_state,
+      };
+    } else {
+      filters = normalizeFilters(existingRun.filters);
+    }
+
+    if (existingRun.status === 'completed') {
+      if (!existingRun.result_cache_id) throw new Error('prospecting_results_unavailable');
+      const { data: cache, error: cacheError } = await admin.from('prospecting_cache')
+        .select('results').eq('id', existingRun.result_cache_id).eq('organization_id', organizationId).maybeSingle();
+      if (cacheError || !cache || !Array.isArray(cache.results)) throw new Error('prospecting_results_unavailable');
+      return json({ ok: true, pending: false, runId, cacheId: existingRun.result_cache_id, sourceKey, leads: cache.results }, 200, headers);
+    }
+    if (existingRun.status !== 'running' || !existingRun.requested_by) throw new Error('prospecting_run_not_pending');
+
+    let providerState = existingRun.provider_start_state || (existingRun.provider_run_id ? 'accepted' : 'unknown');
+    // Recupera com prova uma execução iniciada pela versão anterior durante a
+    // troca: existe provider_run_id, mas o novo estado ainda não foi gravado.
+    if (sourceKey === 'apify' && existingRun.provider_run_id && providerState === 'ready') {
+      const { data: recovered, error: recoveryError } = await admin.from('prospecting_runs').update({
+        provider_start_state: 'accepted',
+        provider_start_confirmed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }).eq('id', runId).eq('status', 'running').eq('provider_start_state', 'ready').select('id').maybeSingle();
+      if (recoveryError || !recovered) throw new Error('prospecting_start_recovery_unconfirmed');
+      providerState = 'accepted';
+      existingRun.provider_start_state = 'accepted';
+    }
+    if (sourceKey === 'apify' && providerState === 'unknown') throw new Error('prospecting_start_unconfirmed');
+    if (sourceKey === 'apify' && providerState === 'rejected') throw new Error('prospecting_run_not_pending');
+    if (sourceKey === 'apify' && providerState === 'attempting' && !providerStartClaimed) {
+      return json({ ok: true, pending: true, runId, sourceKey, message: 'O início da busca está sendo confirmado; nenhum novo pedido foi enviado.' }, 202, headers);
+    }
+
+    if (existingRun.provider_run_id) {
+      if (sourceKey !== 'apify') throw new Error('prospecting_run_not_pending');
+      providerRunId = existingRun.provider_run_id;
       const provider = await apifyRun(credentials as Record<string, unknown>, providerRunId);
       if (provider.status !== 'SUCCEEDED') {
         if (['FAILED', 'ABORTED', 'TIMED-OUT', 'TIMED_OUT'].includes(provider.status)) { failRunOnError = true; throw new Error(apifyFailure(provider.status)); }
         return json({ ok: true, pending: true, runId, sourceKey, message: 'A fonte ainda está processando a busca.' }, 202, headers);
       }
       datasetId = provider.datasetId;
-    } else {
-      filters = normalizeFilters(body.filters);
-      const filtersJson = JSON.parse(JSON.stringify(filters)), filtersHash = await hash(`${sourceKey}:${JSON.stringify(filtersJson)}`), startedAt = new Date().toISOString();
-      const { data: run, error: runError } = await admin.from('prospecting_runs').insert({ organization_id: organizationId, source_config_id: source.id, source_key: sourceKey, mode: 'production', status: 'running', filters: filtersJson, filters_hash: filtersHash, requested_quantity: filters.volumeMaximo, estimated_records: filters.volumeMaximo, quote_expires_at: startedAt, requested_by: requestedBy, cost_known: false, requires_confirmation: false, estimate_basis: 'provider_actual', started_at: startedAt }).select('id').single();
-      if (runError || !run) throw runError ?? new Error('prospecting_run_not_created'); runId = run.id as string; failRunOnError = true;
-      if (sourceKey === 'apify') {
-        const provider = await startApify(credentials as Record<string, unknown>, filters); providerRunId = provider.providerRunId; datasetId = provider.datasetId;
-        const { error: updateError } = await admin.from('prospecting_runs').update({ provider_run_id: providerRunId, updated_at: new Date().toISOString() }).eq('id', runId);
-        if (updateError) throw new Error('prospecting_provider_id_not_saved');
-        failRunOnError = false;
-        if (provider.status !== 'SUCCEEDED') {
-          if (['FAILED', 'ABORTED', 'TIMED-OUT', 'TIMED_OUT'].includes(provider.status)) { failRunOnError = true; throw new Error(apifyFailure(provider.status)); }
-          return json({ ok: true, pending: true, runId, sourceKey, message: 'A fonte iniciou a busca. Aguardando os resultados.' }, 202, headers);
-        }
+    } else if (sourceKey === 'apify') {
+      if (!providerStartClaimed || providerState !== 'attempting') throw new Error('prospecting_start_unconfirmed');
+      providerStartInFlight = true;
+      const provider = await startApify(credentials as Record<string, unknown>, filters);
+      providerRunId = provider.providerRunId;
+      datasetId = provider.datasetId;
+      const { data: savedProviderRun, error: updateError } = await admin.from('prospecting_runs').update({
+        provider_run_id: providerRunId,
+        provider_start_state: 'accepted',
+        provider_start_confirmed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }).eq('id', runId).eq('status', 'running').eq('provider_start_state', 'attempting').select('id').maybeSingle();
+      if (updateError || !savedProviderRun) throw new Error('prospecting_provider_id_not_saved');
+      providerStartInFlight = false;
+      if (provider.status !== 'SUCCEEDED') {
+        if (['FAILED', 'ABORTED', 'TIMED-OUT', 'TIMED_OUT'].includes(provider.status)) { failRunOnError = true; throw new Error(apifyFailure(provider.status)); }
+        return json({ ok: true, pending: true, runId, sourceKey, message: 'A fonte iniciou a busca. Aguardando os resultados.' }, 202, headers);
       }
+    } else {
+      if (!providerStartClaimed) throw new Error('prospecting_start_unconfirmed');
+      providerRunId = `google-${crypto.randomUUID()}`;
+      const { data: savedProviderRun, error: updateError } = await admin.from('prospecting_runs').update({
+        provider_run_id: providerRunId,
+        provider_start_state: 'accepted',
+        provider_start_confirmed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }).eq('id', runId).eq('status', 'running').eq('provider_start_state', 'attempting').select('id').maybeSingle();
+      if (updateError || !savedProviderRun) throw new Error('prospecting_provider_id_not_saved');
     }
 
     const result = sourceKey === 'apify'
@@ -355,6 +485,19 @@ Deno.serve(async (request) => {
     return json({ ok: true, pending: false, runId, cacheId, sourceKey, leads: finalLeads }, 200, headers);
   } catch (error) {
     const message = safeError(error), now = new Date().toISOString();
+    if (admin && runId && providerStartInFlight) {
+      const rejected = providerStartWasRejected(message);
+      await admin.from('prospecting_runs').update({
+        provider_start_state: rejected ? 'rejected' : 'unknown',
+        ...(rejected ? { status: 'failed', completed_at: now } : {}),
+        last_error: message,
+        updated_at: now,
+      }).eq('id', runId).eq('status', 'running').eq('provider_start_state', 'attempting');
+      if (rejected && sourceId) {
+        await admin.from('lead_source_configs').update({ last_error: message, last_error_at: now, updated_at: now }).eq('id', sourceId);
+      }
+      failRunOnError = false;
+    }
     if (admin && runId && failRunOnError) {
       await admin.from('prospecting_runs').update({ status: 'failed', last_error: message, completed_at: now, updated_at: now }).eq('id', runId).eq('status', 'running');
       if (sourceId) await admin.from('lead_source_configs').update({ last_error: message, last_error_at: now, updated_at: now }).eq('id', sourceId);
