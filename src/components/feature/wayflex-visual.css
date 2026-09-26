@@ -50,6 +50,39 @@
 .wf-app .wf-pipeline-card { min-height: 0; }
 .wf-app .wf-pipeline-card > div[role='img'] { margin-top: 1.15rem; }
 .wf-app .wf-pipeline-card > div[role='img'] > div + div { margin-top: .85rem; }
+.wf-app .wf-commercial-dashboard { max-width: 1500px; }
+.wf-app .wf-dashboard-updated { border: 1px solid var(--wf-line); border-radius: 999px; background: rgb(255 255 255 / .8); padding: .45rem .7rem; color: #69717d; font-size: .75rem; font-weight: 600; }
+.wf-app .wf-decision-alert { display: flex; align-items: center; gap: .8rem; border: 1px solid #f0c8a5; border-radius: 1rem; background: #fff5eb; padding: .75rem .9rem; color: #6e431d; }
+.wf-app .wf-decision-alert__icon { display: inline-flex; width: 2rem; height: 2rem; flex: 0 0 auto; align-items: center; justify-content: center; border-radius: .7rem; background: #ffe3c3; color: #a45315; }
+.wf-app .wf-decision-alert strong { display: block; color: #5e3717; font-size: .875rem; font-weight: 750; }
+.wf-app .wf-decision-alert p { margin-top: .15rem; color: #7c5633; font-size: .8125rem; line-height: 1.35; }
+.wf-app .wf-decision-alert__action { display: inline-flex; min-height: 2.25rem; flex: 0 0 auto; align-items: center; gap: .35rem; border-radius: 999px; background: #17191f; padding: 0 .8rem; color: white; font-size: .8125rem; font-weight: 700; }
+.wf-app .wf-decision-alert__action:hover { background: #30333a; }
+.wf-app .wf-command-kpis--compact { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.wf-app .wf-command-kpis--compact .wf-overview-metric { min-height: 6.25rem; padding: .85rem .95rem; }
+.wf-app .wf-command-kpis--compact .wf-overview-metric p.tabular-nums { margin-top: 0; }
+.wf-app .wf-metric-value { margin-top: .55rem; color: #111318; font-size: 1.85rem; font-weight: 760; line-height: 1; letter-spacing: -.05em; }
+.wf-app .wf-metric-meta { margin-top: .35rem; overflow: hidden; color: #66707c; font-size: .75rem; font-weight: 600; line-height: 1.25; text-overflow: ellipsis; white-space: nowrap; }
+.wf-app .wf-dashboard-primary { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(20rem, .85fr); align-items: start; gap: 1rem; }
+.wf-app .wf-dashboard-primary .wf-next-actions { min-height: 0; }
+.wf-app .wf-decision-row { min-height: 4.6rem; padding: .65rem 1rem; }
+.wf-app .wf-decision-kind { display: inline-flex; max-width: 9.5rem; flex: 0 0 auto; overflow: hidden; border-radius: 999px; background: #eef1f4; padding: .16rem .42rem; color: #54606d; font-size: .6875rem; font-weight: 750; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
+.wf-app .wf-decision-detail { display: block; overflow: hidden; margin-top: .25rem; color: #69737e; font-size: .75rem; line-height: 1.3; text-overflow: ellipsis; white-space: nowrap; }
+.wf-app .wf-pipeline-card--compact { min-height: 0; }
+.wf-app .wf-dashboard-operations { display: grid; grid-template-columns: minmax(20rem, .92fr) minmax(0, 1.08fr); align-items: stretch; gap: 1rem; }
+.wf-app .wf-contact-activity { overflow: hidden; }
+.wf-app .wf-contact-activity__grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.wf-app .wf-contact-activity__grid > div { min-width: 0; padding: .95rem 1rem; border-right: 1px solid var(--wf-line); }
+.wf-app .wf-contact-activity__grid > div:last-child { border-right: 0; }
+.wf-app .wf-contact-activity__grid dt { color: #69737e; font-size: .75rem; font-weight: 650; line-height: 1.3; }
+.wf-app .wf-contact-activity__grid dd { margin-top: .4rem; color: #14151a; font-size: 1.4rem; font-weight: 760; line-height: 1; letter-spacing: -.04em; }
+.wf-app .wf-health-panel--compact { overflow: visible; }
+.wf-app .wf-health-grid--compact { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.wf-app .wf-health-grid--compact .wf-health-item { min-height: 6.7rem; padding: .8rem .9rem; border-right: 1px solid var(--wf-line); border-bottom: 0; }
+.wf-app .wf-health-grid--compact .wf-health-item:nth-child(3) { border-right: 1px solid var(--wf-line); }
+.wf-app .wf-health-grid--compact .wf-health-item:last-child { border-right: 0; }
+.wf-app .wf-health-grid--compact .wf-health-item h3 { font-size: .8125rem; }
+.wf-app .wf-health-grid--compact .wf-health-value { margin-top: .2rem; font-size: .8125rem; line-height: 1.25; }
 .wf-app .wf-value-card { background: #ffe5d8; border-color: #f4d8ca; }
 .wf-app .wf-value-card .wf-inset-stat { background: rgb(255 255 255 / .6); border-color: rgb(255 255 255 / .8); }
 .wf-app .wf-health-item { padding: .85rem 1rem; gap: .5rem; }
@@ -97,6 +130,21 @@
 }
 @media (max-width: 767px) {
   .wf-app .wf-page { padding: 1rem; }
+  .wf-app .wf-dashboard-updated { display: none; }
+  .wf-app .wf-decision-alert { align-items: flex-start; flex-wrap: wrap; }
+  .wf-app .wf-decision-alert__action { margin-left: 2.8rem; }
+  .wf-app .wf-command-kpis--compact { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .wf-app .wf-command-kpis--compact .wf-overview-metric { min-height: 6.55rem; }
+  .wf-app .wf-dashboard-primary,
+  .wf-app .wf-dashboard-operations { grid-template-columns: 1fr; }
+  .wf-app .wf-contact-activity__grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .wf-app .wf-contact-activity__grid > div:nth-child(2) { border-right: 0; }
+  .wf-app .wf-contact-activity__grid > div:nth-child(-n + 2) { border-bottom: 1px solid var(--wf-line); }
+  .wf-app .wf-contact-activity__grid > div:nth-child(3) { border-right: 1px solid var(--wf-line); }
+  .wf-app .wf-health-grid--compact { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .wf-app .wf-health-grid--compact .wf-health-item:nth-child(2) { border-right: 0; }
+  .wf-app .wf-health-grid--compact .wf-health-item:nth-child(-n + 2) { border-bottom: 1px solid var(--wf-line); }
+  .wf-app .wf-health-grid--compact .wf-health-item:nth-child(3) { border-right: 1px solid var(--wf-line); }
   .wf-app .wf-action-spotlight { flex-wrap: wrap; }
   .wf-app .wf-topbar { min-height: 3.8rem; }
   .wf-app .wf-overview-metric { padding: .8rem; }

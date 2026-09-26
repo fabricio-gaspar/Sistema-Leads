@@ -1,8 +1,7 @@
 import { Link } from 'react-router-dom';
 import type { Notificacao } from '@/lib/tipos';
 import type { Lead } from '@/mocks/leadsData';
-import { PIPELINE_STAGE_LABEL, stageFromLegacy } from '@/domain/pipeline';
-import { buildSellerAttentionGroups } from './sellerAttention';
+import { buildDashboardDecisionQueue } from './dashboardDecisionQueue';
 import InfoTooltip from '@/components/feature/InfoTooltip';
 
 type LoadState = 'loading' | 'ready' | 'error';
@@ -12,16 +11,14 @@ export default function SellerAttentionPanel({ notifications, leads, loadState =
   leads: Lead[];
   loadState?: LoadState;
 }) {
-  const groups = buildSellerAttentionGroups(notifications, leads);
-  const total = groups.reduce((count, group) => count + group.items.length, 0);
-  const items = groups.flatMap((group) => group.items.map((item) => ({ ...item, group: group.title }))).slice(0, 5);
+  const items = buildDashboardDecisionQueue(notifications, leads);
 
-  return <section className="wf-surface wf-next-actions overflow-hidden" aria-label="Próximas ações">
+  return <section className="wf-surface wf-next-actions overflow-hidden" aria-label="Ações agora">
     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-background-200 px-5 py-4">
       <div className="flex items-center gap-2">
-        <h2 className="text-base font-semibold text-foreground-900">Próximas ações</h2>
-        <InfoTooltip text="Até cinco ações comerciais priorizadas a partir das notificações e da carteira. Abra a Central para consultar todas." label="Sobre as próximas ações" align="start" />
-        {loadState === 'ready' && total > 0 && <span className="wf-count-pill">{total}</span>}
+        <h2 className="text-base font-semibold text-foreground-900">Ações agora</h2>
+        <InfoTooltip text="Até cinco decisões comerciais priorizadas. A fila une notificações abertas, acompanhamentos e transferências para atendimento humano sem criar tarefas ou alterar o lead." label="Sobre as ações agora" align="start" />
+        {loadState === 'ready' && items.length > 0 && <span className="wf-count-pill">{items.length}</span>}
       </div>
       <Link to="/dashboard/atendimento" className="wf-overview-link">Ver Central<i className="ri-arrow-right-up-line" aria-hidden="true" /></Link>
     </div>
@@ -31,12 +28,11 @@ export default function SellerAttentionPanel({ notifications, leads, loadState =
     {loadState !== 'loading' && items.length === 0 && <p className="px-5 py-6 text-sm text-foreground-500">Nenhuma ação comercial pendente na carteira carregada.</p>}
     {loadState !== 'loading' && items.length > 0 && <div className="divide-y divide-background-100">
       {items.map((item) => {
-        const lead = leads.find((candidate) => candidate.id === item.leadId);
-        const stage = lead ? PIPELINE_STAGE_LABEL[stageFromLegacy(lead.etapa)] : item.group;
-        return <Link key={`${item.group}-${item.id}`} to={item.to} className="wf-next-action-row">
+        return <Link key={item.id} to={item.to} className="wf-next-action-row wf-decision-row" aria-label={`${item.title}. ${item.group}. ${item.detail}. Etapa ${item.stage}. Próxima ação: ${item.action}.`}>
           <div className="min-w-0 flex-1">
-            <strong className="block break-words text-sm text-foreground-900">{lead?.empresa || item.title}</strong>
-            <span className="mt-0.5 block break-words text-xs text-foreground-500">{stage} · {item.action}</span>
+            <div className="flex min-w-0 items-center gap-2"><span className="wf-decision-kind">{item.group}</span><strong className="min-w-0 truncate text-sm text-foreground-900">{item.title}</strong></div>
+            <span className="wf-decision-detail" title={item.detail}>{item.detail}</span>
+            <span className="mt-1 block text-xs font-medium text-foreground-500">{item.stage} · {item.action}</span>
           </div>
           <span className="wf-next-action-open">Abrir<i className="ri-arrow-right-line" aria-hidden="true" /></span>
         </Link>;
