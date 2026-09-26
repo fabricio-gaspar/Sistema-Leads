@@ -2,9 +2,9 @@
   "schema_version": 1,
   "baseline_version": 5,
   "baseline_commit": "1dc6275b8c7d70de953b66397a8c89f5e97bc15b",
-  "last_audited_commit": "e82a2d352be088efa14aae362040df68402caf55",
-  "current_head_at_update": "e82a2d352be088efa14aae362040df68402caf55",
-  "working_tree_status": "commercial_plan_stage_2_validated_checkpointed",
+  "last_audited_commit": "7e6911a397afa501be6d37583dc090537465f73e",
+  "current_head_at_update": "7e6911a397afa501be6d37583dc090537465f73e",
+  "working_tree_status": "commercial_plan_stage_3_validated_checkpointed",
   "stage_1_baseline": ".agent/baselines/2026-09-25-stage-1.json",
   "recovery_tag": "baseline-wayflex-stage1-20260925",
   "work_branch": "chore/wayflex-stage-1-baseline-2026-09-25",
@@ -16,7 +16,7 @@
     "working_tree_status": "published_real_assignees_and_empty_selection_retest_passed"
   },
   "full_audit_required": false,
-  "baseline_status": "commercial_plan_stage_2_architecture_contract_validated",
-  "updated_at": "2026-09-26T11:55:00Z",
-  "next_action": "Trocar para Terra High e executar a etapa 3 Catálogo Wayflex. Não ativar Ana/canais nem chamar provedores ou inventar especificações."
+  "baseline_status": "commercial_plan_stage_3_catalog_qualification_guides_validated",
+  "updated_at": "2026-09-26T12:10:00Z",
+  "next_action": "Executar a etapa 4 Dossiê e qualificação com Terra High. Reaproveitar leads, lead_qualifications, Central e Kanban; não criar uma segunda conversa, não ativar Ana/canais nem chamar provedores."
 }
