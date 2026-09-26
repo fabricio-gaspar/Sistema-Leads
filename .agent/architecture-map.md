@@ -1,5 +1,12 @@
 # Mapa de arquitetura
 
+## Contrato final — 26/09/2026
+
+O detalhamento normativo está em `docs/ARQUITETURA_FINAL_WAYFLEX.md`. O runtime oficial continua
+em `leads`/`lead_messages`/`agent_runs`/`outreach_jobs`; estruturas `crm_*` antigas não recebem
+novos consumidores. Etapa comercial, estado operacional e responsabilidade são dimensões
+independentes. Automações avançam uma etapa por vez e não reabrem estados terminais.
+
 ## Busca → Leads (etapa 4)
 
 Revisão selecionada → `prospectingBatchRepository` → RPC `import_prospecting_batch` (SECURITY INVOKER/RLS) → `leads` + `lead_lists` + `lead_list_members` na mesma transação. O mesmo ID/payload pode ser repetido após resposta incerta. A navegação só ocorre após confirmação e atualização dos stores.

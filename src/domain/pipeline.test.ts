@@ -45,4 +45,22 @@ describe('pipeline comercial simplificado', () => {
       from: 'quote_preparation', to: 'quote_sent', source: 'human', evidence: { hasSentQuote: true },
     }).ok).toBe(true);
   });
+
+  it('impede salto automático de etapas, mas preserva avanço humano comprovado', () => {
+    expect(canTransitionOpportunity({
+      from: 'entered', to: 'qualified', source: 'ai_suggestion', evidence: { isQualified: true },
+    })).toEqual({ ok: false, reason: 'Automações avançam somente uma etapa por vez.' });
+    expect(canTransitionOpportunity({
+      from: 'entered', to: 'qualified', source: 'human', evidence: { isQualified: true },
+    }).ok).toBe(true);
+  });
+
+  it('mantém Ganho e Perdido como estados terminais', () => {
+    expect(canTransitionOpportunity({
+      from: 'won', to: 'lost', source: 'human', evidence: { confirmedByHuman: true },
+    })).toEqual({ ok: false, reason: 'Ganho e Perdido são estados terminais e não podem ser reabertos por transição comum.' });
+    expect(canTransitionOpportunity({
+      from: 'lost', to: 'won', source: 'human', evidence: { confirmedByHuman: true },
+    })).toEqual({ ok: false, reason: 'Ganho e Perdido são estados terminais e não podem ser reabertos por transição comum.' });
+  });
 });

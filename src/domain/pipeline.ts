@@ -93,9 +93,16 @@ export function canTransitionOpportunity(input: {
   }
   if (from === to) return { ok: true };
 
+  if (from === 'won' || from === 'lost') {
+    return { ok: false, reason: 'Ganho e Perdido são estados terminais e não podem ser reabertos por transição comum.' };
+  }
+
   const order = ACTIVE_PIPELINE_STAGES.indexOf(from);
   const target = ACTIVE_PIPELINE_STAGES.indexOf(to);
   if (target < order) return { ok: false, reason: 'O Kanban não permite regressão automática de etapa.' };
+  if (source !== 'human' && target > order + 1 && to !== 'lost') {
+    return { ok: false, reason: 'Automações avançam somente uma etapa por vez.' };
+  }
 
   if (to === 'engaging' && !evidence.hasPersistedMessage) {
     return { ok: false, reason: 'É necessário ao menos um evento de mensagem persistido.' };

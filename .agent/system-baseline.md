@@ -1,5 +1,16 @@
 # Baseline do sistema
 
+## Etapa 2 do plano comercial — arquitetura final, 26/09/2026
+
+- O contrato final está em `docs/ARQUITETURA_FINAL_WAYFLEX.md`: `leads` continua como agregado
+  operacional, `lead_messages` como histórico e `ana-run` como única autoridade automática.
+- As tabelas `crm_*` antigas permanecem apenas por compatibilidade. Não foi criado um segundo CRM,
+  fila ou motor, nem executada migração destrutiva.
+- A máquina compartilhada bloqueia salto automático de etapas e transições comuns para fora de
+  Ganho/Perdido. Ganho exige humano; Perdido automático continua restrito a opt-out inequívoco.
+- Validação local: type-check frontend/Edge, lint, 40 arquivos/257 testes e build aprovados.
+  Nenhum banco, lead, canal, provedor ou configuração operacional foi alterado.
+
 ## Etapa 4 — importação em lote atômica, 25/09/2026
 
 - `import_prospecting_batch` é o único caminho da revisão Busca → Leads/lista: uma transação, mesma organização, permissão de criação e atribuição validada. Retry com mesmo ID e conteúdo não duplica; conteúdo divergente com mesmo ID falha. Lista e membros não permanecem em falha.

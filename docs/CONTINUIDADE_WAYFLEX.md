@@ -1,5 +1,19 @@
 # Checkpoint — WayFlex CRM
 
+## 26/09/2026 — Plano comercial, etapa 2: arquitetura final
+
+- A versão 124 foi auditada contra o plano final. `leads`, `lead_messages`, `agent_runs` e
+  `outreach_jobs` permanecem como runtime oficial; `ana-run` continua a única autoridade
+  automática. O modelo `crm_*` antigo não foi promovido a segunda fonte nem removido.
+- `docs/ARQUITETURA_FINAL_WAYFLEX.md` fixa entidades, etapas comerciais, estados operacionais,
+  responsabilidade, RLS, concorrência, filas, idempotência e limites comerciais.
+- O contrato de pipeline agora recusa saltos de mais de uma etapa por automação e recusa a
+  reabertura comum de Ganho/Perdido. Ganho segue humano; Perdido automático exige opt-out objetivo.
+- Aprovaram: type-check frontend e Edge, lint sem warnings, Vitest completo **40 arquivos / 257
+  testes** e build/artefato Sites. Não houve escrita remota nem envio externo.
+- Próxima etapa: **Catálogo Wayflex**, com Terra High. Completar apenas dados comprováveis,
+  aplicações, campanhas, perguntas, anexos/fontes e edição, sem inventar especificações.
+
 ## 25/09/2026 — Etapa 4: importação em lote atômica
 
 - A revisão da Busca agora envia o lote selecionado em uma única RPC `import_prospecting_batch`. A função, com permissões de invocador, valida organização e `leads.create`, insere leads, lista e vínculos na mesma transação e rejeita atribuição humana inválida pelas regras existentes. O identificador e o payload do lote são preservados na página para repetição idempotente após resposta incerta; nenhuma gravação parcial é aceita.

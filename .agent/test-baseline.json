@@ -1,19 +1,19 @@
 {
   "schema_version": 1,
-  "validated_commit": "5ac4a6bc15b69dd5ef7c0b67ddc70af416303a61",
-  "last_validated_at": "2026-09-25",
+  "validated_commit": "c364d048043337e71b1edc36dabf11ea8e38d170+stage2-working-tree",
+  "last_validated_at": "2026-09-26",
   "current_validation": {
-    "stage": 4,
+    "stage": "commercial-plan-2",
     "evidence": "docs/CONTINUIDADE_WAYFLEX.md",
     "frontend_typecheck": "passed",
     "edge_typecheck": "passed",
     "lint": "passed_without_warnings",
     "test_files": 40,
-    "tests_passed": 255,
+    "tests_passed": 257,
     "production_build": "passed",
     "sites_artifact": "passed",
-    "external_end_to_end": "human_import_deferred_by_operator_no_new_lead_or_message",
-    "note": "Stage 4: official RPC applied; rollback transactions verified atomic success, idempotent retry, duplicate failure rollback and seller RBAC. No synthetic rows remained. 40 files/255 tests, frontend/Edge typechecks, lint and production artifact passed. Site publication pending. Human import with a new lead was deferred by operator. Historical commands below belong to earlier stages."
+    "external_end_to_end": "not_applicable_no_remote_mutation_or_provider_call",
+    "note": "Commercial plan stage 2: final architecture contract and state-machine hardening. 40 files/257 tests, frontend/Edge typechecks, lint and production artifact passed. No remote data, provider, channel or operation setting was changed. Historical commands below belong to earlier stages."
   },
   "commands": [
     {"command":"node node_modules/typescript/bin/tsc --noEmit --project tsconfig.app.json","status":"passed","note":"Etapa 3: página de importação e fila de listas."},

@@ -1009,3 +1009,12 @@
   nenhum provedor ou Ana foi acionado nesta etapa.
 - Pendem validação visual autenticada e teste controlado de importação. Escritas de lote e
   vínculos não são transacionais; uma falha parcial exige conferência humana antes de repetir.
+## 2026-09-26 — Plano comercial, etapa 2: arquitetura final
+
+- Auditadas as fontes operacionais, migrations, autoridade da Ana, RLS, idempotência, filas e
+  modelo `crm_*` legado. Foi confirmado que o fluxo atual usa `leads`; nenhuma consolidação
+  destrutiva ou segundo motor foi criada.
+- Criado `docs/ARQUITETURA_FINAL_WAYFLEX.md` e endurecido o contrato de pipeline: automação não
+  salta etapas e transições comuns não reabrem Ganho/Perdido.
+- Aprovaram: contrato específico 6/6, type-check frontend/Edge, lint, Vitest 40 arquivos/257 testes
+  e build. Nenhum provedor, banco remoto, canal, lead ou configuração foi acionado.
