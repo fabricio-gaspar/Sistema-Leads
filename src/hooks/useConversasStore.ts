@@ -6,11 +6,13 @@ import { persistentLeadId } from '@/lib/crm/leadMapper';
 
 let state: Conversa[] = [];
 let hydrated = false;
+let loadStatus: 'loading' | 'ready' | 'error' = 'loading';
 let hydratePromise: Promise<void> | null = null;
 let writeQueue = Promise.resolve();
 const listeners = new Set<() => void>();
 
 const notify = () => listeners.forEach((listener) => listener());
+const getLoadStatus = () => loadStatus;
 const subscribe = (listener: () => void) => {
   listeners.add(listener);
   return () => listeners.delete(listener);
@@ -19,14 +21,19 @@ const subscribe = (listener: () => void) => {
 async function hydrate(): Promise<void> {
   if (hydrated) return;
   if (hydratePromise) return hydratePromise;
+  loadStatus = 'loading';
+  notify();
   hydratePromise = loadOperationalConversations()
     .then((conversations) => {
       state = conversations;
       hydrated = true;
+      loadStatus = 'ready';
       notify();
     })
     .catch((error) => {
       console.error('[crm-conversations] falha ao carregar fonte operacional', error);
+      loadStatus = 'error';
+      notify();
     })
     .finally(() => {
       hydratePromise = null;
@@ -118,6 +125,12 @@ export function useConversasStore(): {
 
 export function getConversasSnapshot(): Conversa[] {
   return state;
+}
+
+export function useConversasLoadStatus(): 'loading' | 'ready' | 'error' {
+  const status = useSyncExternalStore(subscribe, getLoadStatus, getLoadStatus);
+  useEffect(() => { void hydrate(); }, []);
+  return status;
 }
 
 export async function refreshConversasStore(): Promise<void> {

@@ -6,6 +6,7 @@ import { persistentLeadId } from '@/lib/crm/leadMapper';
 
 let state: Lead[] = [];
 let hydrated = false;
+let loadStatus: 'loading' | 'ready' | 'error' = 'loading';
 let hydratePromise: Promise<void> | null = null;
 let writeQueue: Promise<void> = Promise.resolve();
 let latestPersistenceError: unknown = null;
@@ -13,6 +14,7 @@ const listeners = new Set<() => void>();
 
 const notify = () => listeners.forEach((listener) => listener());
 const getSnapshot = () => state;
+const getLoadStatus = () => loadStatus;
 const subscribe = (listener: () => void) => {
   listeners.add(listener);
   return () => listeners.delete(listener);
@@ -21,14 +23,19 @@ const subscribe = (listener: () => void) => {
 async function hydrate(): Promise<void> {
   if (hydrated) return;
   if (hydratePromise) return hydratePromise;
+  loadStatus = 'loading';
+  notify();
   hydratePromise = loadOperationalLeads()
     .then((leads) => {
       state = leads.map(normalizarLead);
       hydrated = true;
+      loadStatus = 'ready';
       notify();
     })
     .catch((error) => {
       console.error('[crm-leads] falha ao carregar fonte operacional', error);
+      loadStatus = 'error';
+      notify();
     })
     .finally(() => {
       hydratePromise = null;
@@ -38,11 +45,18 @@ async function hydrate(): Promise<void> {
 
 /** Recarrega a fonte operacional depois de uma mutação transacional do backend. */
 export async function refreshLeadsStore(): Promise<void> {
-  const leads = await loadOperationalLeads();
-  state = leads.map(normalizarLead);
-  hydrated = true;
-  latestPersistenceError = null;
-  notify();
+  try {
+    const leads = await loadOperationalLeads();
+    state = leads.map(normalizarLead);
+    hydrated = true;
+    loadStatus = 'ready';
+    latestPersistenceError = null;
+    notify();
+  } catch (error) {
+    loadStatus = 'error';
+    notify();
+    throw error;
+  }
 }
 
 function updateState(updater: React.SetStateAction<Lead[]>): void {
@@ -76,6 +90,12 @@ export function useLeadsStore(): [Lead[], React.Dispatch<React.SetStateAction<Le
   const setLeads: React.Dispatch<React.SetStateAction<Lead[]>> = updateState;
 
   return [leads, setLeads];
+}
+
+export function useLeadsLoadStatus(): 'loading' | 'ready' | 'error' {
+  const status = useSyncExternalStore(subscribe, getLoadStatus, getLoadStatus);
+  useEffect(() => { void hydrate(); }, []);
+  return status;
 }
 
 // Acesso imperativo (para orquestradores/handlers sem hook).

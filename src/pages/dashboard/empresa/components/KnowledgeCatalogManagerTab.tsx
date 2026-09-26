@@ -129,7 +129,7 @@ export default function KnowledgeCatalogManagerTab({ itemType }: Props) {
 
 function CatalogItemCard({ item, onOpen, onEdit }: { item: KnowledgeCatalogItem; onOpen: () => void; onEdit: () => void }) {
   const active = item.status === 'active' && item.anaEnabled;
-  const statusLabel = active ? 'Disponível para Ana' : item.status === 'archived' ? 'Arquivado' : item.status === 'active' ? 'Fora da Ana' : 'Em revisão';
+  const statusLabel = active ? 'Disponível para Ana' : item.status === 'archived' ? 'Arquivado' : item.status === 'active' ? 'Fora da Ana' : 'Rascunho';
   return <article className="wf-knowledge-card">
     <div className="wf-knowledge-card-media">{item.imageUrl ? <img src={item.imageUrl} alt={`Imagem de ${item.name}`} /> : <i className={iconByType[item.type]} aria-hidden="true" />}</div>
     <div className="wf-knowledge-card-content">

@@ -4,12 +4,14 @@ import type { Proposta } from '@/mocks/propostasData';
 
 let state: Proposta[] = [];
 let hydrated = false;
+let loadStatus: 'loading' | 'ready' | 'error' = 'loading';
 let hydratePromise: Promise<void> | null = null;
 let writeQueue = Promise.resolve();
 const listeners = new Set<() => void>();
 
 const notify = () => listeners.forEach((listener) => listener());
 const getSnapshot = () => state;
+const getLoadStatus = () => loadStatus;
 const subscribe = (listener: () => void) => {
   listeners.add(listener);
   return () => listeners.delete(listener);
@@ -18,9 +20,11 @@ const subscribe = (listener: () => void) => {
 async function hydrate(): Promise<void> {
   if (hydrated) return;
   if (hydratePromise) return hydratePromise;
+  loadStatus = 'loading';
+  notify();
   hydratePromise = loadOperationalProposals()
-    .then((proposals) => { state = proposals; hydrated = true; notify(); })
-    .catch((error) => console.error('[crm-proposals] falha ao carregar fonte operacional', error))
+    .then((proposals) => { state = proposals; hydrated = true; loadStatus = 'ready'; notify(); })
+    .catch((error) => { console.error('[crm-proposals] falha ao carregar fonte operacional', error); loadStatus = 'error'; notify(); })
     .finally(() => { hydratePromise = null; });
   return hydratePromise;
 }
@@ -65,6 +69,12 @@ export function usePropostasStore(): PropostasStore {
   };
 
   return { propostas, atualizar, confirmarAceiteLocal, criar, excluir };
+}
+
+export function usePropostasLoadStatus(): 'loading' | 'ready' | 'error' {
+  const status = useSyncExternalStore(subscribe, getLoadStatus, getLoadStatus);
+  useEffect(() => { void hydrate(); }, []);
+  return status;
 }
 
 // Acesso imperativo (para orquestradores/handlers sem hook).
