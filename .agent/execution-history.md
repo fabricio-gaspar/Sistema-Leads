@@ -1119,4 +1119,4 @@
 
 - Base remota abba1ed reconciliada com documentação local sem perder histórico.
 - Refinamento visual compartilhado e balões explicativos; nenhuma mutação de dados operacionais.
-- Type-check, lint, 42 arquivos / 262 testes e build passaram; publicação e inspeção visual a seguir.
+- Type-check, lint, 42 arquivos / 262 testes e build passaram. Site v130 publicado (563d00a); revisão visual amostrada desktop/móvel e tooltip confirmado. Nenhum envio ou alteração operacional.

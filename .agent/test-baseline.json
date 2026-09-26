@@ -1,167 +1,770 @@
 {
   "schema_version": 1,
-  "validated_commit": "2e8452ea7d021a83faa8bf45284963d3eaeb54d9",
+  "validated_commit": "563d00a0d502c09eb9abd1a28b6e5db38f164fd0",
   "last_validated_at": "2026-09-26",
   "current_validation": {
-    "stage": "wayflex-command-center-multiscreen-application",
-    "evidence": "docs/CONTINUIDADE_WAYFLEX.md",
+    "stage": "graphite_lime_visual_guide",
     "frontend_typecheck": "passed",
-    "edge_typecheck": "passed",
-    "lint": "targeted_four_pages_passed; full_lint_not_run",
-    "targeted_tests": "8 assertions displayed as passed; Vitest process did not exit and was stopped",
-    "full_tests": "assertions ran but runner did not exit; no full-suite pass claimed",
+    "lint": "passed",
+    "test_files": 42,
+    "tests_passed": 262,
     "production_build": "passed",
     "sites_artifact": "passed",
-    "external_end_to_end": "not_run; authenticated browser preview unavailable in this environment",
-    "note": "Dashboard and operational modules use concise cards, real pipeline and diagnostics, and explicit loading/error states. No operational action or provider was triggered."
+    "visual_review": "Dashboard, Leads, Busca, Kanban, Central e Ana no desktop; Dashboard e Ana em 390x844. Tooltip corrigido e confirmado no Kanban v130. Console observado sem errors/warnings.",
+    "external_end_to_end": "not_run; visual-only task, no messages or operational writes"
   },
   "commands": [
-    {"command":"node node_modules/typescript/bin/tsc --noEmit --project tsconfig.app.json","status":"passed","note":"Etapa 3: página de importação e fila de listas."},
-    {"command":"node node_modules/typescript/bin/tsc --project tsconfig.edge.json","status":"passed","note":"Etapa 3: sem alterações nas Edge Functions."},
-    {"command":"node node_modules/eslint/bin/eslint.js src --ext ts,tsx --report-unused-disable-directives --max-warnings 0","status":"passed","warnings":0},
-    {"command":"node node_modules/vitest/vitest.mjs run --configLoader runner","status":"passed","files":36,"checks":245},
-    {"command":"node node_modules/vite/bin/vite.js build --configLoader runner; node scripts/build-sites-artifact.mjs","status":"passed","note":"Build Vite e artefato Sites da etapa 3."},
-    {"command":"Supabase read-only lead/list/prospecting counts","status":"passed","note":"Zero leads, uma lista pendente sem membros, cinco buscas concluídas e cinco falhas históricas; nenhuma mutação de dados."},
-    {"command":"npm run type-check","status":"passed"},
-    {"command":"npm run lint","status":"passed","warnings":0},
-    {"command":"npm run type-check:edge","status":"passed"},
-    {"command":"npm test","status":"passed","files":16,"checks":172},
-    {"command":"npm run build","status":"passed"},
-    {"command":"Supabase transaction rollback: queue_human_whatsapp_message repetida","status":"passed","note":"A segunda chamada reutilizou o mesmo job por idempotência; toda a transação foi revertida e nenhum envio externo ocorreu."},
-    {"command":"Supabase transaction rollback: provider acceptance + delivered receipt","status":"passed","note":"Fila, lead_outreach, mensagem, aceite e entrega foram validados atomicamente e revertidos sem chamar a Z-API."},
-    {"command":"Supabase transaction rollback: request_human_handoff + return_handoff_to_ana","status":"passed","note":"Handoff e retorno concluíram para lead autorizado; toda alteração foi revertida."},
-    {"command":"runtime Worker smoke test com valores públicos simulados","status":"passed","note":"/runtime-config.js retorna no-store e entrega URL/chave somente em runtime; o bundle não contém os valores reais."},
-    {"command":"Supabase transaction rollback: domain_events para notifications","status":"passed","note":"O primeiro teste detectou enum app_role incorreto; após correção, evento de interesse gerou notificação do responsável e toda a transação foi revertida."},
-    {"command":"Edge Functions sem autenticação","status":"passed","note":"ana-operations recusou sem JWT (401) e automation-worker recusou sem sessão/token interno (400); nenhum provedor foi chamado."},
-    {"command":"tsc --noEmit --project tsconfig.app.json","status":"passed","note":"Validação do painel de base, configuração do link de site e permissões."},
-    {"command":"tsc --project tsconfig.edge.json","status":"passed","note":"Validação de team-members v6, lead-governance v1, site-whatsapp-entry v1 e webhook-whatsapp v17."},
-    {"command":"eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0","status":"passed","warnings":0},
-    {"command":"vite build && node scripts/build-sites-artifact.mjs","status":"passed","note":"Artefato oficial produzido sem segredo no bundle."},
-    {"command":"vitest run supabase/tests/runtimeHandlers.test.ts --config vitest.config.ts","status":"blocked","note":"O esbuild não consegue ler a pasta compartilhada alvo da junção de node_modules; nenhum teste iniciou."},
-    {"command":"Supabase read-only governance snapshot","status":"passed","note":"A consulta retornou zero fora do contexto service_role e duas linhas para a organização mais ativa no contexto de backend; nenhum lead foi alterado."}
-    ,{"command":"team-members create com Auth simulado","status":"passed","note":"Confirmou preparação do vínculo organizacional antes da criação do usuário e restauração do convite em e-mail já existente."},
-    {"command":"Supabase + inspeção autenticada de Equipe e Acessos","status":"passed","note":"Juca aparece uma única vez, confirmado, ativo e como administrador da organização WayFlex; a organização pessoal indevida ficou sem membro e sem acesso."},
-    {"command":"LeadBaseManager: reprodução autenticada do botão Excluir selecionados","status":"passed","note":"A versão publicada foi reproduzida sem confirmar exclusão: o navegador registrou prompt() is not supported antes de qualquer chamada ao backend. A correção substitui essa dependência por diálogo React."},
-    {"command":"tsc --noEmit --project tsconfig.app.json","status":"passed","note":"Diálogo React de confirmação da exclusão definitiva."},
-    {"command":"eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0","status":"passed","warnings":0},
-    {"command":"node --input-type=module -e leadPurgeConfirmation","status":"passed","note":"Cobriu a frase exata e recusou variações de caixa e quantidade."},
-    {"command":"vite build && node scripts/build-sites-artifact.mjs","status":"passed","note":"Artefato oficial produzido após a substituição de window.prompt."},
-    {"command":"vitest run src/pages/dashboard/leads/components/leadPurgeConfirmation.test.ts","status":"blocked","note":"O esbuild não inicia neste worktree porque node_modules é uma junção para diretório compartilhado sem permissão; nenhum teste Vitest iniciou."},
-    {"command":"Computer Use autenticado no Site oficial, versão 82","status":"passed","note":"Com um lead selecionado, o diálogo React abriu, exibiu a frase EXCLUIR 1 LEADS e manteve a ação definitiva desabilitada. O diálogo foi cancelado; nenhum registro foi excluído."},
-    {"command":"Supabase transaction rollback: reserve_whatsapp_direct_test","status":"passed","note":"Como service_role e com actor_name em branco, a reserva retornou reserved. A transação foi revertida; a consulta posterior encontrou zero auditorias para o request_id de prova e nenhuma chamada à Z-API foi feita."},
-    {"command":"Supabase function definition and privileges: reserve_whatsapp_direct_test","status":"passed","note":"A definição usa coalesce/nullif não qualificados; service_role mantém EXECUTE e authenticated continua sem EXECUTE."},
-    {"command":"migration special-form contract smoke","status":"passed","note":"O arquivo 20260917150914 exige coalesce/nullif como formas especiais e rejeita as grafias pg_catalog inválidas."},
-    {"command":"tsc --noEmit --project tsconfig.app.json","status":"passed","note":"Validado após a correção da migration e contrato de regressão."},
-    {"command":"tsc --project tsconfig.edge.json","status":"passed","note":"Validado após a correção da migration e contrato de regressão."},
-    {"command":"eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0","status":"passed","warnings":0},
-    {"command":"vitest run supabase/tests/runtimeSafety.test.ts","status":"blocked","note":"O esbuild não inicia porque a junção local de node_modules aponta para diretório sem permissão de leitura; nenhum caso de teste Vitest iniciou."},
-    {"command":"vite build && node scripts/build-sites-artifact.mjs","status":"passed","note":"Artefato oficial produzido após a correção, sem segredo no bundle."},
-    {"command":"node --experimental-strip-types manualLeadContact contract smoke","status":"passed","note":"Telefone manual permaneceu sem WhatsApp e sem consentimento; e-mail é o único canal declarado quando informado."},
-    {"command":"tsc --noEmit --project tsconfig.app.json","status":"passed","note":"Validado após retirar a trava visual do cadastro manual e persistir contato pendente."},
-    {"command":"tsc --project tsconfig.edge.json","status":"passed","note":"Sem regressão no contrato das Edge Functions."},
-    {"command":"eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0","status":"passed","warnings":0},
-    {"command":"vite build && node scripts/build-sites-artifact.mjs","status":"passed","note":"Build do Site concluído; a mensagem runtime-config.js é aviso conhecido do Vite e não interrompe o artefato."},
-    {"command":"vitest run src/lib/crm/manualLeadContact.test.ts","status":"blocked","note":"O esbuild não iniciou porque a junção local de node_modules aponta para diretório sem permissão de leitura; nenhum caso Vitest foi executado."},
-    {"command":"Computer Use autenticado no Site oficial, versão 84","status":"passed","note":"Novo Lead exibiu somente o aviso de contato pendente, sem caixas de confirmação ou campo de origem. O diálogo foi cancelado sem criar lead."},
-    {"command":"Supabase: inspeção do lead manual relatado e da trigger normalize_lead_zapi_phone","status":"passed","note":"O lead estava pending_approval, com zero mensagens, jobs e execuções; a migration removeu WhatsApp derivado somente do cadastro manual pendente exato e a função passou a preservar WhatsApp apenas quando explicitamente informado."},
-    {"command":"node --experimental-strip-types contracts: kanbanLeadVisibility e manualLeadPhoneNormalization","status":"passed","note":"Cobriu visibilidade de lead Ana pendente, ausência de workflow e a proibição de derivar WhatsApp de telefone genérico."},
-    {"command":"tsc --noEmit --project tsconfig.app.json","status":"passed","note":"Validado após visibilidade de contato pendente no Kanban."},
-    {"command":"tsc --project tsconfig.edge.json","status":"passed","note":"Sem regressão nas Edge Functions após a migration de identidade de contato."},
-    {"command":"eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0","status":"passed","warnings":0},
-    {"command":"vite build && node scripts/build-sites-artifact.mjs","status":"passed","note":"Artefato oficial produzido após a correção; o aviso conhecido de runtime-config.js não interrompe o build."},
-    {"command":"vitest run src/lib/crm/kanbanLeadVisibility.test.ts src/lib/crm/leadMapper.test.ts supabase/tests/manualLeadPhoneNormalization.test.ts","status":"blocked","note":"O esbuild não conseguiu acessar o destino da junção local de node_modules; nenhum caso Vitest iniciou."},
-    {"command":"Computer Use autenticado no Site oficial, versão 85","status":"passed","note":"Após recarregar o bundle publicado, Kanban exibiu Fabricio Gaspar / WF Digital em Novo, com modo IA, responsável Você, selo Autorização pendente e o aviso de que a Ana não iniciará mensagem antes de comprovação. Nenhuma ação da Ana foi acionada."},
-    {"command":"tsc --noEmit --project tsconfig.app.json","status":"passed","note":"Ativação de Ana grava WhatsApp como canal operacional e expõe erro de execução em vez de ocultá-lo."},
-    {"command":"tsc --project tsconfig.edge.json","status":"passed","note":"ana-run v25 com apresentação canônica e transição Novo → Apresentado."},
-    {"command":"eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0","status":"passed","warnings":0},
-    {"command":"vite build && node scripts/build-sites-artifact.mjs","status":"passed","note":"Artefato oficial produzido e publicado na versão 86."},
-    {"command":"vitest run src/lib/crm/manualLeadContact.test.ts supabase/tests/runtimeHandlers.test.ts","status":"blocked","note":"O esbuild não consegue ler o destino da junção local de node_modules; nenhum caso iniciou. O novo contrato cobre a ativação WhatsApp e a apresentação inicial sem chamada ao modelo."},
-    {"command":"Supabase read-only + reparo limitado do lead relatado","status":"passed","note":"O único lead analisado tinha uma execução Ana skipped por channel_not_allowed_by_ana_configuration, active_channel=email, e-mail desconectado e WhatsApp permitido. Após publicar, somente active_channel foi ajustado para whatsapp; não foi criada mensagem, fila ou chamada ao provedor."},
-    {"command":"Computer Use no Site oficial, versão 86","status":"passed","note":"Kanban carregou e o drawer do lead confirmou canal preferencial WhatsApp, automação ativa e o botão Rodar Ana disponível. O botão não foi acionado; a mensagem externa aguarda confirmação pontual do operador."}
-    ,{"command":"tsc --noEmit --project tsconfig.app.json","status":"passed","note":"Validado após a guarda de persistência e a abertura direta do diálogo de ativação da Ana."}
-    ,{"command":"tsc --project tsconfig.edge.json","status":"passed","note":"Sem regressão nas Edge Functions."}
-    ,{"command":"eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0","status":"passed","warnings":0}
-    ,{"command":"vite build && node scripts/build-sites-artifact.mjs","status":"passed","note":"Artefato do Site produzido após a correção; nenhum segredo foi incluído."}
-    ,{"command":"vitest run src/lib/crm/leadsRepository.test.ts","status":"blocked","note":"O esbuild não iniciou porque a junção local de node_modules aponta para diretório sem permissão de leitura; nenhum caso Vitest foi executado."}
-    ,{"command":"tsc --noEmit --project tsconfig.app.json","status":"passed","note":"Central de Atendimento com Realtime e atalhos de Agenda/Orçamentos."}
-    ,{"command":"tsc --project tsconfig.edge.json","status":"passed","note":"Sem regressão em Edge Functions."}
-    ,{"command":"eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0","status":"passed","warnings":0,"note":"Central de Atendimento, Agenda e Orçamentos sem avisos."}
-    ,{"command":"vitest run --configLoader runner","status":"partial","test_files":22,"checks":194,"passed":193,"failed":1,"note":"O runner contorna a limitação da junção local. A única falha pré-existente é Operational mode authority > requires a fresh callback registration after the Z-API callback route changes."}
-    ,{"command":"vite build --configLoader runner && node scripts/build-sites-artifact.mjs","status":"passed","note":"Artefato oficial da Central produzido sem segredo no bundle."}
-    ,{"command":"Computer Use autenticado no Site oficial, versão 91","status":"passed","note":"Central exibiu Atualização ao vivo, conversa operacional, trilhas de mensagem, atalhos e compositor. Nenhuma mensagem foi enviada e nenhum registro foi modificado."}
-    ,{"command":"tsc --noEmit --project tsconfig.app.json","status":"passed","note":"Catálogo comercial, abas Empresa e painel de conhecimento da Central."}
-    ,{"command":"tsc --project tsconfig.edge.json","status":"passed","note":"catalog-knowledge v3, enviar-whatsapp v7 e ana-run v30."}
-    ,{"command":"eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0","status":"passed","warnings":0}
-    ,{"command":"vitest run --configLoader runner","status":"partial","test_files":24,"checks":198,"passed":197,"failed":1,"note":"Os dois testes de formatação do catálogo passaram. A única falha pré-existente continua em Operational mode authority > requires a fresh callback registration after the Z-API callback route changes."}
-    ,{"command":"vite build --configLoader runner && node scripts/build-sites-artifact.mjs","status":"passed","note":"Artefato Sites do catálogo comercial produzido sem segredo no bundle; aviso runtime-config.js é conhecido e não bloqueia a compilação."}
-    ,{"command":"vitest run --configLoader runner supabase/tests/catalogKnowledgeParser.test.ts","status":"passed","test_files":1,"checks":2,"note":"Regressão do parser portátil: importação de produto e PDF de catálogo sem DOMParser no runtime Edge."}
-    ,{"command":"Computer Use autenticado: Fontes de conhecimento","status":"passed","note":"A primeira sincronização expôs DOMParser is not defined em catalog-knowledge v3; após v4, /acessorios, /servicos e /catalogos ficaram Sincronizada. A visão geral confirmou 3 fontes saudáveis e 3 itens ativos para Ana."}
-    ,{"command":"vitest run --configLoader runner","status":"partial","test_files":25,"checks":200,"passed":199,"failed":1,"note":"O parser de catálogo e as alterações existentes passaram. A única falha continua pré-existente em Operational mode authority > requires a fresh callback registration after the Z-API callback route changes."}
-    ,{"command":"vite build --configLoader runner && node scripts/build-sites-artifact.mjs","status":"passed","note":"Artefato Sites reconstruído após catalog-knowledge v4; aviso runtime-config.js é conhecido e não bloqueia a compilação."}
-    ,{"command":"npm run type-check","status":"passed","note":"Central, catálogo comercial e estado de diagnóstico compilam sem erros."}
-    ,{"command":"npm run type-check:edge","status":"passed","note":"Sem regressão nas Edge Functions."}
-    ,{"command":"npm run lint","status":"passed","warnings":0}
-    ,{"command":"npm test","status":"passed","test_files":25,"checks":200,"note":"A asserção do diagnóstico de callback foi corrigida sem alterar runtime, integração ou fila."}
-    ,{"command":"npm run build","status":"passed","note":"Artefato Sites produzido sem segredo no bundle."}
-    ,{"command":"npm run type-check","status":"passed","note":"Refinamento visual da Central e quebra de texto dos cards compilados sem erro."}
-    ,{"command":"npm run lint","status":"passed","warnings":0,"note":"Refinamento visual da Central sem avisos."}
-    ,{"command":"npm test","status":"passed","test_files":25,"checks":200,"note":"Nenhuma regressão nos contratos de Central, fila, handoff, catálogo ou backend."}
-    ,{"command":"npm run build","status":"passed","note":"Artefato Sites da Central visual foi produzido sem segredo no bundle."}
-    ,{"command":"npm run type-check","status":"passed","note":"Correção da idempotência do evento de handoff da Ana compilada sem erros."}
-    ,{"command":"npm run type-check:edge","status":"passed","note":"ana-run v31 validada sem regressão de tipos."}
-    ,{"command":"npm run lint","status":"passed","warnings":0,"note":"Correção do handoff sem avisos."}
-    ,{"command":"npm test","status":"passed","test_files":25,"checks":200,"note":"Inclui contrato que exige idempotency_key em lead.handoff.requested."}
-    ,{"command":"npm run build","status":"passed","note":"Build Vite concluído; o aviso conhecido de runtime-config.js não bloqueia o artefato."}
-    ,{"command":"tsc --noEmit --project tsconfig.app.json","status":"passed","note":"Painel de Operação automática com validação de agenda, roteamento e handoff."}
-    ,{"command":"tsc --project tsconfig.edge.json","status":"passed","note":"ana-operations v2 e automation-worker v29 incluídos na validação Edge."}
-    ,{"command":"eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0","status":"passed","warnings":0}
-    ,{"command":"vitest run --configLoader runner","status":"passed","test_files":27,"checks":206,"note":"Inclui regressão da validação de ativação por rota e handoff."}
-    ,{"command":"vite build --configLoader runner && node scripts/build-sites-artifact.mjs","status":"passed","note":"Artefato Sites produzido após a operação automática, sem segredo no bundle."}
-    ,{"command":"Computer Use autenticado no Site oficial, versão 104: Simular sem enviar","status":"passed","note":"A tela exibiu agenda, rota explícita, handoff, validação por pré-requisito e a execução simulated com zero candidatos/importações. Console sem erros; Apify, IA e WhatsApp não foram chamados."}
-    ,{"command":"tsc --noEmit --project tsconfig.app.json","status":"passed","note":"Cartões de status operacional, diagnóstico de entrada WhatsApp e gráfico de conversas."}
-    ,{"command":"tsc --project tsconfig.edge.json","status":"passed","note":"Sem alteração de Edge Function neste lote visual."}
-    ,{"command":"eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0","status":"passed","warnings":0}
-    ,{"command":"vitest run --configLoader runner","status":"passed","test_files":28,"checks":210,"note":"Inclui regressão de validade de 24 horas, callback Z-API sem lead e seleção de caminhos reais no Dashboard."}
-    ,{"command":"vite build --configLoader runner && node scripts/build-sites-artifact.mjs","status":"passed","note":"Artefato Sites produzido sem segredo no bundle."}
-    ,{"command":"tsc --noEmit --project tsconfig.app.json","status":"passed","note":"Texto de estado não contradiz mais uma validação vencida."}
-    ,{"command":"tsc --project tsconfig.edge.json","status":"passed","note":"Sem alteração de Edge Function neste ajuste de apresentação."}
-    ,{"command":"eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0","status":"passed","warnings":0}
-    ,{"command":"vitest run --configLoader runner","status":"passed","test_files":28,"checks":211,"note":"Inclui regressão que impede uma descrição histórica de sucesso de contradizer uma validação vencida."}
-    ,{"command":"vite build --configLoader runner && node scripts/build-sites-artifact.mjs","status":"passed","note":"Artefato Sites produzido sem segredo no bundle; aviso runtime-config.js é conhecido e não bloqueia a compilação."}
-    ,{"command":"Computer Use autenticado no Site oficial, versão 105","status":"passed","note":"Dashboard, Canais e APIs exibiram estados factuais; a checagem desktop/mobile não encontrou overflow de página e o console não registrou warnings ou errors. Não houve teste externo nem escrita operacional."}
-    ,{"command":"tsc --noEmit --project tsconfig.app.json","status":"passed","note":"Cards responsivos de produtos, segmentos e catálogos compilados sem erros."}
-    ,{"command":"tsc --noEmit --project tsconfig.edge.json","status":"passed","note":"catalog-knowledge v6 e ana-run v32 compilados sem regressão de tipos."}
-    ,{"command":"eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0","status":"passed","warnings":0}
-    ,{"command":"vitest run --configLoader runner","status":"passed","test_files":28,"checks":214,"note":"Inclui cinco regressões do parser: SPA, snapshot de segmentos e URL de rastreio única por card."}
-    ,{"command":"vite build --configLoader runner && node scripts/build-sites-artifact.mjs","status":"passed","note":"Artefato do Site foi produzido; o aviso conhecido de runtime-config.js não bloqueia a compilação."}
-    ,{"command":"tsc --noEmit --project tsconfig.app.json","status":"passed","note":"Frontend com painel Meta protegido por feature flag e roteamento de provedor compilado sem erros."}
-    ,{"command":"tsc --project tsconfig.edge.json","status":"passed","note":"Webhook, onboarding, mensagens, worker e contrato MessagingProvider compilados sem erros."}
-    ,{"command":"eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0","status":"passed","warnings":0}
-    ,{"command":"vitest run --configLoader runner","status":"passed","test_files":35,"checks":237,"note":"Inclui assinatura Meta, parser de webhook/eco/status, contrato do provedor e janela de 24 horas."}
-    ,{"command":"vite build --configLoader runner && node scripts/build-sites-artifact.mjs","status":"passed","note":"1173 módulos transformados e artefato Sites reconstruído; runtime-config.js permanece aviso conhecido."}
-    ,{"command":"Supabase read-only Meta gate snapshot","status":"passed","note":"Projeto oficial saudável; 2 Z-API conectadas, 0 Meta, 0 onboarding, 0 eventos e 0 outbox; flags e controles fechados com kill switch ligado."}
-    ,{"command":"Public barrier probes","status":"passed","note":"Webhook sem assinatura, onboarding/mensagens sem JWT e worker sem token foram recusados com 401/403; nenhum registro Meta foi criado."}
-    ,{"command":"tsc --noEmit --project tsconfig.app.json","status":"passed","note":"Cards paralelos e leitura real de Z-API/Meta no Dashboard compilados sem erro."}
-    ,{"command":"tsc --project tsconfig.edge.json","status":"passed","note":"Controles server-side de provedor, webhook e diagnósticos compilados sem erro."}
-    ,{"command":"eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0","status":"passed","warnings":0}
-    ,{"command":"vitest run","status":"passed","test_files":35,"checks":238,"note":"Inclui regressão do teste direto que recusa chamar Z-API quando o controle do provedor está desativado."}
-    ,{"command":"vite build --configLoader runner && node scripts/build-sites-artifact.mjs","status":"passed","note":"Artefato do Site produzido sem segredo no bundle; runtime-config.js permanece aviso conhecido e não bloqueante."}
-    ,{"command":"Supabase read-only provider state","status":"passed","note":"Z-API e Meta permanecem com entrada, saída e Ana bloqueadas; as integrações Z-API estão pausadas e há zero jobs de outreach pendentes."}
-    ,{"command":"Sites publish version 118","status":"passed","note":"Commit a55a0a21c4c1f09cd9b7672f3cf7576ce56bbee2 salvo com arquivo e publicado no Site oficial existente."}
+    {
+      "command": "node node_modules/typescript/bin/tsc --noEmit --project tsconfig.app.json",
+      "status": "passed",
+      "note": "Etapa 3: página de importação e fila de listas."
+    },
+    {
+      "command": "node node_modules/typescript/bin/tsc --project tsconfig.edge.json",
+      "status": "passed",
+      "note": "Etapa 3: sem alterações nas Edge Functions."
+    },
+    {
+      "command": "node node_modules/eslint/bin/eslint.js src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+      "status": "passed",
+      "warnings": 0
+    },
+    {
+      "command": "node node_modules/vitest/vitest.mjs run --configLoader runner",
+      "status": "passed",
+      "files": 36,
+      "checks": 245
+    },
+    {
+      "command": "node node_modules/vite/bin/vite.js build --configLoader runner; node scripts/build-sites-artifact.mjs",
+      "status": "passed",
+      "note": "Build Vite e artefato Sites da etapa 3."
+    },
+    {
+      "command": "Supabase read-only lead/list/prospecting counts",
+      "status": "passed",
+      "note": "Zero leads, uma lista pendente sem membros, cinco buscas concluídas e cinco falhas históricas; nenhuma mutação de dados."
+    },
+    {
+      "command": "npm run type-check",
+      "status": "passed"
+    },
+    {
+      "command": "npm run lint",
+      "status": "passed",
+      "warnings": 0
+    },
+    {
+      "command": "npm run type-check:edge",
+      "status": "passed"
+    },
+    {
+      "command": "npm test",
+      "status": "passed",
+      "files": 16,
+      "checks": 172
+    },
+    {
+      "command": "npm run build",
+      "status": "passed"
+    },
+    {
+      "command": "Supabase transaction rollback: queue_human_whatsapp_message repetida",
+      "status": "passed",
+      "note": "A segunda chamada reutilizou o mesmo job por idempotência; toda a transação foi revertida e nenhum envio externo ocorreu."
+    },
+    {
+      "command": "Supabase transaction rollback: provider acceptance + delivered receipt",
+      "status": "passed",
+      "note": "Fila, lead_outreach, mensagem, aceite e entrega foram validados atomicamente e revertidos sem chamar a Z-API."
+    },
+    {
+      "command": "Supabase transaction rollback: request_human_handoff + return_handoff_to_ana",
+      "status": "passed",
+      "note": "Handoff e retorno concluíram para lead autorizado; toda alteração foi revertida."
+    },
+    {
+      "command": "runtime Worker smoke test com valores públicos simulados",
+      "status": "passed",
+      "note": "/runtime-config.js retorna no-store e entrega URL/chave somente em runtime; o bundle não contém os valores reais."
+    },
+    {
+      "command": "Supabase transaction rollback: domain_events para notifications",
+      "status": "passed",
+      "note": "O primeiro teste detectou enum app_role incorreto; após correção, evento de interesse gerou notificação do responsável e toda a transação foi revertida."
+    },
+    {
+      "command": "Edge Functions sem autenticação",
+      "status": "passed",
+      "note": "ana-operations recusou sem JWT (401) e automation-worker recusou sem sessão/token interno (400); nenhum provedor foi chamado."
+    },
+    {
+      "command": "tsc --noEmit --project tsconfig.app.json",
+      "status": "passed",
+      "note": "Validação do painel de base, configuração do link de site e permissões."
+    },
+    {
+      "command": "tsc --project tsconfig.edge.json",
+      "status": "passed",
+      "note": "Validação de team-members v6, lead-governance v1, site-whatsapp-entry v1 e webhook-whatsapp v17."
+    },
+    {
+      "command": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+      "status": "passed",
+      "warnings": 0
+    },
+    {
+      "command": "vite build && node scripts/build-sites-artifact.mjs",
+      "status": "passed",
+      "note": "Artefato oficial produzido sem segredo no bundle."
+    },
+    {
+      "command": "vitest run supabase/tests/runtimeHandlers.test.ts --config vitest.config.ts",
+      "status": "blocked",
+      "note": "O esbuild não consegue ler a pasta compartilhada alvo da junção de node_modules; nenhum teste iniciou."
+    },
+    {
+      "command": "Supabase read-only governance snapshot",
+      "status": "passed",
+      "note": "A consulta retornou zero fora do contexto service_role e duas linhas para a organização mais ativa no contexto de backend; nenhum lead foi alterado."
+    },
+    {
+      "command": "team-members create com Auth simulado",
+      "status": "passed",
+      "note": "Confirmou preparação do vínculo organizacional antes da criação do usuário e restauração do convite em e-mail já existente."
+    },
+    {
+      "command": "Supabase + inspeção autenticada de Equipe e Acessos",
+      "status": "passed",
+      "note": "Juca aparece uma única vez, confirmado, ativo e como administrador da organização WayFlex; a organização pessoal indevida ficou sem membro e sem acesso."
+    },
+    {
+      "command": "LeadBaseManager: reprodução autenticada do botão Excluir selecionados",
+      "status": "passed",
+      "note": "A versão publicada foi reproduzida sem confirmar exclusão: o navegador registrou prompt() is not supported antes de qualquer chamada ao backend. A correção substitui essa dependência por diálogo React."
+    },
+    {
+      "command": "tsc --noEmit --project tsconfig.app.json",
+      "status": "passed",
+      "note": "Diálogo React de confirmação da exclusão definitiva."
+    },
+    {
+      "command": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+      "status": "passed",
+      "warnings": 0
+    },
+    {
+      "command": "node --input-type=module -e leadPurgeConfirmation",
+      "status": "passed",
+      "note": "Cobriu a frase exata e recusou variações de caixa e quantidade."
+    },
+    {
+      "command": "vite build && node scripts/build-sites-artifact.mjs",
+      "status": "passed",
+      "note": "Artefato oficial produzido após a substituição de window.prompt."
+    },
+    {
+      "command": "vitest run src/pages/dashboard/leads/components/leadPurgeConfirmation.test.ts",
+      "status": "blocked",
+      "note": "O esbuild não inicia neste worktree porque node_modules é uma junção para diretório compartilhado sem permissão; nenhum teste Vitest iniciou."
+    },
+    {
+      "command": "Computer Use autenticado no Site oficial, versão 82",
+      "status": "passed",
+      "note": "Com um lead selecionado, o diálogo React abriu, exibiu a frase EXCLUIR 1 LEADS e manteve a ação definitiva desabilitada. O diálogo foi cancelado; nenhum registro foi excluído."
+    },
+    {
+      "command": "Supabase transaction rollback: reserve_whatsapp_direct_test",
+      "status": "passed",
+      "note": "Como service_role e com actor_name em branco, a reserva retornou reserved. A transação foi revertida; a consulta posterior encontrou zero auditorias para o request_id de prova e nenhuma chamada à Z-API foi feita."
+    },
+    {
+      "command": "Supabase function definition and privileges: reserve_whatsapp_direct_test",
+      "status": "passed",
+      "note": "A definição usa coalesce/nullif não qualificados; service_role mantém EXECUTE e authenticated continua sem EXECUTE."
+    },
+    {
+      "command": "migration special-form contract smoke",
+      "status": "passed",
+      "note": "O arquivo 20260917150914 exige coalesce/nullif como formas especiais e rejeita as grafias pg_catalog inválidas."
+    },
+    {
+      "command": "tsc --noEmit --project tsconfig.app.json",
+      "status": "passed",
+      "note": "Validado após a correção da migration e contrato de regressão."
+    },
+    {
+      "command": "tsc --project tsconfig.edge.json",
+      "status": "passed",
+      "note": "Validado após a correção da migration e contrato de regressão."
+    },
+    {
+      "command": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+      "status": "passed",
+      "warnings": 0
+    },
+    {
+      "command": "vitest run supabase/tests/runtimeSafety.test.ts",
+      "status": "blocked",
+      "note": "O esbuild não inicia porque a junção local de node_modules aponta para diretório sem permissão de leitura; nenhum caso de teste Vitest iniciou."
+    },
+    {
+      "command": "vite build && node scripts/build-sites-artifact.mjs",
+      "status": "passed",
+      "note": "Artefato oficial produzido após a correção, sem segredo no bundle."
+    },
+    {
+      "command": "node --experimental-strip-types manualLeadContact contract smoke",
+      "status": "passed",
+      "note": "Telefone manual permaneceu sem WhatsApp e sem consentimento; e-mail é o único canal declarado quando informado."
+    },
+    {
+      "command": "tsc --noEmit --project tsconfig.app.json",
+      "status": "passed",
+      "note": "Validado após retirar a trava visual do cadastro manual e persistir contato pendente."
+    },
+    {
+      "command": "tsc --project tsconfig.edge.json",
+      "status": "passed",
+      "note": "Sem regressão no contrato das Edge Functions."
+    },
+    {
+      "command": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+      "status": "passed",
+      "warnings": 0
+    },
+    {
+      "command": "vite build && node scripts/build-sites-artifact.mjs",
+      "status": "passed",
+      "note": "Build do Site concluído; a mensagem runtime-config.js é aviso conhecido do Vite e não interrompe o artefato."
+    },
+    {
+      "command": "vitest run src/lib/crm/manualLeadContact.test.ts",
+      "status": "blocked",
+      "note": "O esbuild não iniciou porque a junção local de node_modules aponta para diretório sem permissão de leitura; nenhum caso Vitest foi executado."
+    },
+    {
+      "command": "Computer Use autenticado no Site oficial, versão 84",
+      "status": "passed",
+      "note": "Novo Lead exibiu somente o aviso de contato pendente, sem caixas de confirmação ou campo de origem. O diálogo foi cancelado sem criar lead."
+    },
+    {
+      "command": "Supabase: inspeção do lead manual relatado e da trigger normalize_lead_zapi_phone",
+      "status": "passed",
+      "note": "O lead estava pending_approval, com zero mensagens, jobs e execuções; a migration removeu WhatsApp derivado somente do cadastro manual pendente exato e a função passou a preservar WhatsApp apenas quando explicitamente informado."
+    },
+    {
+      "command": "node --experimental-strip-types contracts: kanbanLeadVisibility e manualLeadPhoneNormalization",
+      "status": "passed",
+      "note": "Cobriu visibilidade de lead Ana pendente, ausência de workflow e a proibição de derivar WhatsApp de telefone genérico."
+    },
+    {
+      "command": "tsc --noEmit --project tsconfig.app.json",
+      "status": "passed",
+      "note": "Validado após visibilidade de contato pendente no Kanban."
+    },
+    {
+      "command": "tsc --project tsconfig.edge.json",
+      "status": "passed",
+      "note": "Sem regressão nas Edge Functions após a migration de identidade de contato."
+    },
+    {
+      "command": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+      "status": "passed",
+      "warnings": 0
+    },
+    {
+      "command": "vite build && node scripts/build-sites-artifact.mjs",
+      "status": "passed",
+      "note": "Artefato oficial produzido após a correção; o aviso conhecido de runtime-config.js não interrompe o build."
+    },
+    {
+      "command": "vitest run src/lib/crm/kanbanLeadVisibility.test.ts src/lib/crm/leadMapper.test.ts supabase/tests/manualLeadPhoneNormalization.test.ts",
+      "status": "blocked",
+      "note": "O esbuild não conseguiu acessar o destino da junção local de node_modules; nenhum caso Vitest iniciou."
+    },
+    {
+      "command": "Computer Use autenticado no Site oficial, versão 85",
+      "status": "passed",
+      "note": "Após recarregar o bundle publicado, Kanban exibiu Fabricio Gaspar / WF Digital em Novo, com modo IA, responsável Você, selo Autorização pendente e o aviso de que a Ana não iniciará mensagem antes de comprovação. Nenhuma ação da Ana foi acionada."
+    },
+    {
+      "command": "tsc --noEmit --project tsconfig.app.json",
+      "status": "passed",
+      "note": "Ativação de Ana grava WhatsApp como canal operacional e expõe erro de execução em vez de ocultá-lo."
+    },
+    {
+      "command": "tsc --project tsconfig.edge.json",
+      "status": "passed",
+      "note": "ana-run v25 com apresentação canônica e transição Novo → Apresentado."
+    },
+    {
+      "command": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+      "status": "passed",
+      "warnings": 0
+    },
+    {
+      "command": "vite build && node scripts/build-sites-artifact.mjs",
+      "status": "passed",
+      "note": "Artefato oficial produzido e publicado na versão 86."
+    },
+    {
+      "command": "vitest run src/lib/crm/manualLeadContact.test.ts supabase/tests/runtimeHandlers.test.ts",
+      "status": "blocked",
+      "note": "O esbuild não consegue ler o destino da junção local de node_modules; nenhum caso iniciou. O novo contrato cobre a ativação WhatsApp e a apresentação inicial sem chamada ao modelo."
+    },
+    {
+      "command": "Supabase read-only + reparo limitado do lead relatado",
+      "status": "passed",
+      "note": "O único lead analisado tinha uma execução Ana skipped por channel_not_allowed_by_ana_configuration, active_channel=email, e-mail desconectado e WhatsApp permitido. Após publicar, somente active_channel foi ajustado para whatsapp; não foi criada mensagem, fila ou chamada ao provedor."
+    },
+    {
+      "command": "Computer Use no Site oficial, versão 86",
+      "status": "passed",
+      "note": "Kanban carregou e o drawer do lead confirmou canal preferencial WhatsApp, automação ativa e o botão Rodar Ana disponível. O botão não foi acionado; a mensagem externa aguarda confirmação pontual do operador."
+    },
+    {
+      "command": "tsc --noEmit --project tsconfig.app.json",
+      "status": "passed",
+      "note": "Validado após a guarda de persistência e a abertura direta do diálogo de ativação da Ana."
+    },
+    {
+      "command": "tsc --project tsconfig.edge.json",
+      "status": "passed",
+      "note": "Sem regressão nas Edge Functions."
+    },
+    {
+      "command": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+      "status": "passed",
+      "warnings": 0
+    },
+    {
+      "command": "vite build && node scripts/build-sites-artifact.mjs",
+      "status": "passed",
+      "note": "Artefato do Site produzido após a correção; nenhum segredo foi incluído."
+    },
+    {
+      "command": "vitest run src/lib/crm/leadsRepository.test.ts",
+      "status": "blocked",
+      "note": "O esbuild não iniciou porque a junção local de node_modules aponta para diretório sem permissão de leitura; nenhum caso Vitest foi executado."
+    },
+    {
+      "command": "tsc --noEmit --project tsconfig.app.json",
+      "status": "passed",
+      "note": "Central de Atendimento com Realtime e atalhos de Agenda/Orçamentos."
+    },
+    {
+      "command": "tsc --project tsconfig.edge.json",
+      "status": "passed",
+      "note": "Sem regressão em Edge Functions."
+    },
+    {
+      "command": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+      "status": "passed",
+      "warnings": 0,
+      "note": "Central de Atendimento, Agenda e Orçamentos sem avisos."
+    },
+    {
+      "command": "vitest run --configLoader runner",
+      "status": "partial",
+      "test_files": 22,
+      "checks": 194,
+      "passed": 193,
+      "failed": 1,
+      "note": "O runner contorna a limitação da junção local. A única falha pré-existente é Operational mode authority > requires a fresh callback registration after the Z-API callback route changes."
+    },
+    {
+      "command": "vite build --configLoader runner && node scripts/build-sites-artifact.mjs",
+      "status": "passed",
+      "note": "Artefato oficial da Central produzido sem segredo no bundle."
+    },
+    {
+      "command": "Computer Use autenticado no Site oficial, versão 91",
+      "status": "passed",
+      "note": "Central exibiu Atualização ao vivo, conversa operacional, trilhas de mensagem, atalhos e compositor. Nenhuma mensagem foi enviada e nenhum registro foi modificado."
+    },
+    {
+      "command": "tsc --noEmit --project tsconfig.app.json",
+      "status": "passed",
+      "note": "Catálogo comercial, abas Empresa e painel de conhecimento da Central."
+    },
+    {
+      "command": "tsc --project tsconfig.edge.json",
+      "status": "passed",
+      "note": "catalog-knowledge v3, enviar-whatsapp v7 e ana-run v30."
+    },
+    {
+      "command": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+      "status": "passed",
+      "warnings": 0
+    },
+    {
+      "command": "vitest run --configLoader runner",
+      "status": "partial",
+      "test_files": 24,
+      "checks": 198,
+      "passed": 197,
+      "failed": 1,
+      "note": "Os dois testes de formatação do catálogo passaram. A única falha pré-existente continua em Operational mode authority > requires a fresh callback registration after the Z-API callback route changes."
+    },
+    {
+      "command": "vite build --configLoader runner && node scripts/build-sites-artifact.mjs",
+      "status": "passed",
+      "note": "Artefato Sites do catálogo comercial produzido sem segredo no bundle; aviso runtime-config.js é conhecido e não bloqueia a compilação."
+    },
+    {
+      "command": "vitest run --configLoader runner supabase/tests/catalogKnowledgeParser.test.ts",
+      "status": "passed",
+      "test_files": 1,
+      "checks": 2,
+      "note": "Regressão do parser portátil: importação de produto e PDF de catálogo sem DOMParser no runtime Edge."
+    },
+    {
+      "command": "Computer Use autenticado: Fontes de conhecimento",
+      "status": "passed",
+      "note": "A primeira sincronização expôs DOMParser is not defined em catalog-knowledge v3; após v4, /acessorios, /servicos e /catalogos ficaram Sincronizada. A visão geral confirmou 3 fontes saudáveis e 3 itens ativos para Ana."
+    },
+    {
+      "command": "vitest run --configLoader runner",
+      "status": "partial",
+      "test_files": 25,
+      "checks": 200,
+      "passed": 199,
+      "failed": 1,
+      "note": "O parser de catálogo e as alterações existentes passaram. A única falha continua pré-existente em Operational mode authority > requires a fresh callback registration after the Z-API callback route changes."
+    },
+    {
+      "command": "vite build --configLoader runner && node scripts/build-sites-artifact.mjs",
+      "status": "passed",
+      "note": "Artefato Sites reconstruído após catalog-knowledge v4; aviso runtime-config.js é conhecido e não bloqueia a compilação."
+    },
+    {
+      "command": "npm run type-check",
+      "status": "passed",
+      "note": "Central, catálogo comercial e estado de diagnóstico compilam sem erros."
+    },
+    {
+      "command": "npm run type-check:edge",
+      "status": "passed",
+      "note": "Sem regressão nas Edge Functions."
+    },
+    {
+      "command": "npm run lint",
+      "status": "passed",
+      "warnings": 0
+    },
+    {
+      "command": "npm test",
+      "status": "passed",
+      "test_files": 25,
+      "checks": 200,
+      "note": "A asserção do diagnóstico de callback foi corrigida sem alterar runtime, integração ou fila."
+    },
+    {
+      "command": "npm run build",
+      "status": "passed",
+      "note": "Artefato Sites produzido sem segredo no bundle."
+    },
+    {
+      "command": "npm run type-check",
+      "status": "passed",
+      "note": "Refinamento visual da Central e quebra de texto dos cards compilados sem erro."
+    },
+    {
+      "command": "npm run lint",
+      "status": "passed",
+      "warnings": 0,
+      "note": "Refinamento visual da Central sem avisos."
+    },
+    {
+      "command": "npm test",
+      "status": "passed",
+      "test_files": 25,
+      "checks": 200,
+      "note": "Nenhuma regressão nos contratos de Central, fila, handoff, catálogo ou backend."
+    },
+    {
+      "command": "npm run build",
+      "status": "passed",
+      "note": "Artefato Sites da Central visual foi produzido sem segredo no bundle."
+    },
+    {
+      "command": "npm run type-check",
+      "status": "passed",
+      "note": "Correção da idempotência do evento de handoff da Ana compilada sem erros."
+    },
+    {
+      "command": "npm run type-check:edge",
+      "status": "passed",
+      "note": "ana-run v31 validada sem regressão de tipos."
+    },
+    {
+      "command": "npm run lint",
+      "status": "passed",
+      "warnings": 0,
+      "note": "Correção do handoff sem avisos."
+    },
+    {
+      "command": "npm test",
+      "status": "passed",
+      "test_files": 25,
+      "checks": 200,
+      "note": "Inclui contrato que exige idempotency_key em lead.handoff.requested."
+    },
+    {
+      "command": "npm run build",
+      "status": "passed",
+      "note": "Build Vite concluído; o aviso conhecido de runtime-config.js não bloqueia o artefato."
+    },
+    {
+      "command": "tsc --noEmit --project tsconfig.app.json",
+      "status": "passed",
+      "note": "Painel de Operação automática com validação de agenda, roteamento e handoff."
+    },
+    {
+      "command": "tsc --project tsconfig.edge.json",
+      "status": "passed",
+      "note": "ana-operations v2 e automation-worker v29 incluídos na validação Edge."
+    },
+    {
+      "command": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+      "status": "passed",
+      "warnings": 0
+    },
+    {
+      "command": "vitest run --configLoader runner",
+      "status": "passed",
+      "test_files": 27,
+      "checks": 206,
+      "note": "Inclui regressão da validação de ativação por rota e handoff."
+    },
+    {
+      "command": "vite build --configLoader runner && node scripts/build-sites-artifact.mjs",
+      "status": "passed",
+      "note": "Artefato Sites produzido após a operação automática, sem segredo no bundle."
+    },
+    {
+      "command": "Computer Use autenticado no Site oficial, versão 104: Simular sem enviar",
+      "status": "passed",
+      "note": "A tela exibiu agenda, rota explícita, handoff, validação por pré-requisito e a execução simulated com zero candidatos/importações. Console sem erros; Apify, IA e WhatsApp não foram chamados."
+    },
+    {
+      "command": "tsc --noEmit --project tsconfig.app.json",
+      "status": "passed",
+      "note": "Cartões de status operacional, diagnóstico de entrada WhatsApp e gráfico de conversas."
+    },
+    {
+      "command": "tsc --project tsconfig.edge.json",
+      "status": "passed",
+      "note": "Sem alteração de Edge Function neste lote visual."
+    },
+    {
+      "command": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+      "status": "passed",
+      "warnings": 0
+    },
+    {
+      "command": "vitest run --configLoader runner",
+      "status": "passed",
+      "test_files": 28,
+      "checks": 210,
+      "note": "Inclui regressão de validade de 24 horas, callback Z-API sem lead e seleção de caminhos reais no Dashboard."
+    },
+    {
+      "command": "vite build --configLoader runner && node scripts/build-sites-artifact.mjs",
+      "status": "passed",
+      "note": "Artefato Sites produzido sem segredo no bundle."
+    },
+    {
+      "command": "tsc --noEmit --project tsconfig.app.json",
+      "status": "passed",
+      "note": "Texto de estado não contradiz mais uma validação vencida."
+    },
+    {
+      "command": "tsc --project tsconfig.edge.json",
+      "status": "passed",
+      "note": "Sem alteração de Edge Function neste ajuste de apresentação."
+    },
+    {
+      "command": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+      "status": "passed",
+      "warnings": 0
+    },
+    {
+      "command": "vitest run --configLoader runner",
+      "status": "passed",
+      "test_files": 28,
+      "checks": 211,
+      "note": "Inclui regressão que impede uma descrição histórica de sucesso de contradizer uma validação vencida."
+    },
+    {
+      "command": "vite build --configLoader runner && node scripts/build-sites-artifact.mjs",
+      "status": "passed",
+      "note": "Artefato Sites produzido sem segredo no bundle; aviso runtime-config.js é conhecido e não bloqueia a compilação."
+    },
+    {
+      "command": "Computer Use autenticado no Site oficial, versão 105",
+      "status": "passed",
+      "note": "Dashboard, Canais e APIs exibiram estados factuais; a checagem desktop/mobile não encontrou overflow de página e o console não registrou warnings ou errors. Não houve teste externo nem escrita operacional."
+    },
+    {
+      "command": "tsc --noEmit --project tsconfig.app.json",
+      "status": "passed",
+      "note": "Cards responsivos de produtos, segmentos e catálogos compilados sem erros."
+    },
+    {
+      "command": "tsc --noEmit --project tsconfig.edge.json",
+      "status": "passed",
+      "note": "catalog-knowledge v6 e ana-run v32 compilados sem regressão de tipos."
+    },
+    {
+      "command": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+      "status": "passed",
+      "warnings": 0
+    },
+    {
+      "command": "vitest run --configLoader runner",
+      "status": "passed",
+      "test_files": 28,
+      "checks": 214,
+      "note": "Inclui cinco regressões do parser: SPA, snapshot de segmentos e URL de rastreio única por card."
+    },
+    {
+      "command": "vite build --configLoader runner && node scripts/build-sites-artifact.mjs",
+      "status": "passed",
+      "note": "Artefato do Site foi produzido; o aviso conhecido de runtime-config.js não bloqueia a compilação."
+    },
+    {
+      "command": "tsc --noEmit --project tsconfig.app.json",
+      "status": "passed",
+      "note": "Frontend com painel Meta protegido por feature flag e roteamento de provedor compilado sem erros."
+    },
+    {
+      "command": "tsc --project tsconfig.edge.json",
+      "status": "passed",
+      "note": "Webhook, onboarding, mensagens, worker e contrato MessagingProvider compilados sem erros."
+    },
+    {
+      "command": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+      "status": "passed",
+      "warnings": 0
+    },
+    {
+      "command": "vitest run --configLoader runner",
+      "status": "passed",
+      "test_files": 35,
+      "checks": 237,
+      "note": "Inclui assinatura Meta, parser de webhook/eco/status, contrato do provedor e janela de 24 horas."
+    },
+    {
+      "command": "vite build --configLoader runner && node scripts/build-sites-artifact.mjs",
+      "status": "passed",
+      "note": "1173 módulos transformados e artefato Sites reconstruído; runtime-config.js permanece aviso conhecido."
+    },
+    {
+      "command": "Supabase read-only Meta gate snapshot",
+      "status": "passed",
+      "note": "Projeto oficial saudável; 2 Z-API conectadas, 0 Meta, 0 onboarding, 0 eventos e 0 outbox; flags e controles fechados com kill switch ligado."
+    },
+    {
+      "command": "Public barrier probes",
+      "status": "passed",
+      "note": "Webhook sem assinatura, onboarding/mensagens sem JWT e worker sem token foram recusados com 401/403; nenhum registro Meta foi criado."
+    },
+    {
+      "command": "tsc --noEmit --project tsconfig.app.json",
+      "status": "passed",
+      "note": "Cards paralelos e leitura real de Z-API/Meta no Dashboard compilados sem erro."
+    },
+    {
+      "command": "tsc --project tsconfig.edge.json",
+      "status": "passed",
+      "note": "Controles server-side de provedor, webhook e diagnósticos compilados sem erro."
+    },
+    {
+      "command": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+      "status": "passed",
+      "warnings": 0
+    },
+    {
+      "command": "vitest run",
+      "status": "passed",
+      "test_files": 35,
+      "checks": 238,
+      "note": "Inclui regressão do teste direto que recusa chamar Z-API quando o controle do provedor está desativado."
+    },
+    {
+      "command": "vite build --configLoader runner && node scripts/build-sites-artifact.mjs",
+      "status": "passed",
+      "note": "Artefato do Site produzido sem segredo no bundle; runtime-config.js permanece aviso conhecido e não bloqueante."
+    },
+    {
+      "command": "Supabase read-only provider state",
+      "status": "passed",
+      "note": "Z-API e Meta permanecem com entrada, saída e Ana bloqueadas; as integrações Z-API estão pausadas e há zero jobs de outreach pendentes."
+    },
+    {
+      "command": "Sites publish version 118",
+      "status": "passed",
+      "note": "Commit a55a0a21c4c1f09cd9b7672f3cf7576ce56bbee2 salvo com arquivo e publicado no Site oficial existente."
+    }
   ],
   "prior_site_artifact_validation": {
     "validated_commit": "e4b1666c878df01ac0db3d12a290531a42107446",
     "last_validated_at": "2026-09-10T20:42:46Z",
     "commands": [
-      {"command":"tsc --noEmit --project tsconfig.app.json","status":"passed"},
-      {"command":"eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0","status":"passed","warnings":0},
-      {"command":"tsc --project tsconfig.edge.json","status":"passed"},
-      {"command":"vitest run --configLoader runner","status":"passed","test_files":14,"checks":127,"note":"O config foi tornado ESM-safe para o loader runner; todos os testes encerraram normalmente."},
-      {"command":"vite build com VITE_PUBLIC_SUPABASE_URL e VITE_PUBLIC_SUPABASE_PUBLISHABLE_KEY do ambiente do Site","status":"passed","note":"Artefato contém exatamente uma ocorrência da URL pública e uma da chave publicável; nenhum segredo foi gravado no Git."},
-      {"command":"node scripts/build-sites-artifact.mjs","status":"passed"}
+      {
+        "command": "tsc --noEmit --project tsconfig.app.json",
+        "status": "passed"
+      },
+      {
+        "command": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+        "status": "passed",
+        "warnings": 0
+      },
+      {
+        "command": "tsc --project tsconfig.edge.json",
+        "status": "passed"
+      },
+      {
+        "command": "vitest run --configLoader runner",
+        "status": "passed",
+        "test_files": 14,
+        "checks": 127,
+        "note": "O config foi tornado ESM-safe para o loader runner; todos os testes encerraram normalmente."
+      },
+      {
+        "command": "vite build com VITE_PUBLIC_SUPABASE_URL e VITE_PUBLIC_SUPABASE_PUBLISHABLE_KEY do ambiente do Site",
+        "status": "passed",
+        "note": "Artefato contém exatamente uma ocorrência da URL pública e uma da chave publicável; nenhum segredo foi gravado no Git."
+      },
+      {
+        "command": "node scripts/build-sites-artifact.mjs",
+        "status": "passed"
+      }
     ]
   },
-  "covered": ["frontend_typecheck","lint","edge_typecheck","unit_and_contract_tests","production_build"],
-  "not_covered": ["authenticated_e2e","login_como_novo_membro","real_whatsapp","real_whatsapp_media_delivery","real_claude","cross_organization_rls","database_concurrency","provider_receipt_race","mobile_authenticated_qa","real_meta_coexistence","meta_embedded_signup","meta_history_sync","meta_template_delivery"],
+  "covered": [
+    "frontend_typecheck",
+    "lint",
+    "edge_typecheck",
+    "unit_and_contract_tests",
+    "production_build"
+  ],
+  "not_covered": [
+    "authenticated_e2e",
+    "login_como_novo_membro",
+    "real_whatsapp",
+    "real_whatsapp_media_delivery",
+    "real_claude",
+    "cross_organization_rls",
+    "database_concurrency",
+    "provider_receipt_race",
+    "mobile_authenticated_qa",
+    "real_meta_coexistence",
+    "meta_embedded_signup",
+    "meta_history_sync",
+    "meta_template_delivery"
+  ],
   "working_tree_validation": "Z-API e Meta WhatsApp Cloud API agora possuem controles administrativos paralelos em Configurações > Canais > WhatsApp e leituras factuais no Dashboard. A ativação é mutuamente exclusiva e pausa o outro caminho corporativo. Type-check frontend/Edge, lint, Vitest 35/238, build e Site v118 passaram. Z-API foi desativada somente no WayFlex; Meta ainda não possui conta conectada nem controles operacionais liberados."
 }
