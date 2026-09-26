@@ -1,5 +1,13 @@
 # Histórico resumido de execução
 
+## 2026-09-26 — Etapa 9, testes e correções comuns
+
+- Consolidada a validação pós-etapas 6–8: frontend/Edge type-safe, lint sem warnings, 42 arquivos/
+  262 testes e build/artefato Sites aprovados. A composição responsiva dos cards foi revisada com
+  texto integral e sem nova rota, fonte de dados ou efeito externo.
+- A próxima etapa é segurança e homologação com Sol XHigh. Site, Edge Functions e canais não foram
+  publicados/ativados nesta etapa.
+
 ## 2026-09-26 — Etapa 8, alertas e Dashboard
 
 - Corrigida a distribuição semântica dos cinco grupos de atenção: eventos de reunião/orçamento e

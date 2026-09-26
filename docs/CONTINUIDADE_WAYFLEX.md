@@ -1,5 +1,17 @@
 # Checkpoint — WayFlex CRM
 
+## 26/09/2026 — Plano comercial, etapa 9: testes e correções comuns
+
+- A validação consolidada cobriu TypeScript do frontend e de todas as Edge Functions, lint sem
+  warnings, **42 arquivos / 262 testes**, build Vite e geração do artefato Sites.
+- A regressão nova cobre classificação semântica e deduplicação dos cards; o layout usa quebra de
+  texto, limites responsivos e links para a Central sem alterar rotas ou estado operacional.
+- O aviso conhecido do Vite sobre `runtime-config.js` permanece informativo: o script público é
+  carregado em runtime pelo Site e deliberadamente não entra no bundle com segredos.
+- Nenhum erro de código ficou aberto nesta etapa. Validação visual autenticada, segurança remota e
+  E2E real controlado pertencem à etapa 10; publicação permanece na etapa 11.
+- Próxima etapa: **Segurança e homologação**, requer Sol XHigh.
+
 ## 26/09/2026 — Plano comercial, etapa 8: alertas e Dashboard
 
 - Corrigida a classificação da área **Atenção do vendedor**: reunião, orçamento e lead quente
