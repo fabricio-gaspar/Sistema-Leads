@@ -3,17 +3,17 @@
   "validated_commit": "4120bf2811b9493ecf8d09696b4b28913ec1c8d5",
   "last_validated_at": "2026-09-26",
   "current_validation": {
-    "stage": "commercial-plan-7",
+    "stage": "commercial-plan-8",
     "evidence": "docs/CONTINUIDADE_WAYFLEX.md",
     "frontend_typecheck": "passed",
     "edge_typecheck": "passed",
     "lint": "passed_without_warnings",
-    "test_files": 41,
-    "tests_passed": 260,
+    "test_files": 42,
+    "tests_passed": 262,
     "production_build": "passed",
     "sites_artifact": "passed",
     "external_end_to_end": "not_applicable_no_remote_mutation_or_provider_call",
-    "note": "Commercial plan stage 7: early WhatsApp receipt reconciliation without resend. 41 files/260 tests, frontend/Edge typechecks, lint and production artifact passed. Provider acceptance remains authoritative and pending callbacks are reconciled through the canonical parser/RPC. No provider, channel or operational setting was changed. Historical commands below belong to earlier stages."
+    "note": "Commercial plan stage 8: seller attention semantic lanes and cross-lane deduplication. 42 files/262 tests, frontend/Edge typechecks, lint and production artifact passed. Existing event routing, Realtime bell and idempotent daily summaries were preserved. No external alert was sent. Historical commands below belong to earlier stages."
   },
   "commands": [
     {"command":"node node_modules/typescript/bin/tsc --noEmit --project tsconfig.app.json","status":"passed","note":"Etapa 3: página de importação e fila de listas."},

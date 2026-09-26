@@ -1,5 +1,19 @@
 # Checkpoint — WayFlex CRM
 
+## 26/09/2026 — Plano comercial, etapa 8: alertas e Dashboard
+
+- Corrigida a classificação da área **Atenção do vendedor**: reunião, orçamento e lead quente
+  permanecem em seus grupos sem serem absorvidos pela marca genérica de ação necessária.
+- Um lead com notificação aberta não reaparece simultaneamente em acompanhamento ou sem resposta;
+  acompanhamento do dia também prevalece sobre atraso. Os cards passaram a mostrar título, resumo
+  e próxima ação sem truncar o conteúdo principal.
+- A infraestrutura existente foi preservada: eventos objetivos geram notificações por responsável,
+  sino usa Realtime, resumo diário é idempotente e restrito à carteira, e WhatsApp do resumo segue
+  opt-in individual com ledger próprio.
+- Type-check frontend/Edge, lint, Vitest completo **42 arquivos / 262 testes** e build/artefato
+  Sites passaram. Nenhum alerta externo foi enviado e o Site não foi publicado.
+- Próxima etapa: **Testes e correções comuns**, ainda com Terra High.
+
 ## 26/09/2026 — Plano comercial, etapa 7: WhatsApp e recebimentos
 
 - O worker agora reconcilia recibos Z-API que chegaram antes da persistência do ID aceito pelo

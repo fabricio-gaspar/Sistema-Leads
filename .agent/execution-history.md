@@ -1,5 +1,13 @@
 # Histórico resumido de execução
 
+## 2026-09-26 — Etapa 8, alertas e Dashboard
+
+- Corrigida a distribuição semântica dos cinco grupos de atenção: eventos de reunião/orçamento e
+  leads quentes não caem mais em Responder agora só por exigirem ação. Leads notificados não se
+  repetem nas listas derivadas de acompanhamento/atraso e os textos dos cards ficaram integrais.
+- Duas regressões novas cobrem classificação e deduplicação. Type-check frontend/Edge, lint,
+  42 arquivos/262 testes e build/artefato Sites passaram; nenhum aviso externo foi disparado.
+
 ## 2026-09-26 — Etapa 7, WhatsApp e recebimentos
 
 - Fechada a corrida de recibo antecipado: depois do aceite do provedor, o worker reutiliza o
