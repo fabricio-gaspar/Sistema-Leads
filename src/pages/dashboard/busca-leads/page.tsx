@@ -686,18 +686,20 @@ export default function BuscaLeads() {
   const etapaLabel = ['Fonte', 'Filtros', 'Revisão', 'Importação'];
 
   return (
-    <div className="wf-page !max-w-7xl">
-      <div className="mb-6">
-        <h1 className="text-2xl md:text-3xl font-heading font-extrabold text-foreground-950 mb-2">
-          Busca de Leads
-        </h1>
-        <p className="text-foreground-600 text-sm">
-          Escolha a fonte, defina o perfil de empresa e revise os resultados antes de adicioná-los ao módulo Leads.
-        </p>
-      </div>
+    <div className="wf-page">
+      <header className="wf-page-header">
+        <div>
+          <p className="wf-eyebrow">Prospecção</p>
+          <h1 className="wf-page-title mt-1">Busca de Leads</h1>
+          <p className="wf-page-description">Defina a fonte e os filtros. Revise cada resultado antes de importar.</p>
+        </div>
+        <span className="inline-flex w-fit items-center gap-2 rounded-full border border-background-200 bg-white px-3 py-2 text-xs font-semibold text-foreground-600">
+          <i className="ri-shield-check-line text-primary-700" aria-hidden="true" /> Importação sob revisão
+        </span>
+      </header>
 
       {/* Abas */}
-      <div className="mb-6 flex flex-wrap gap-1 bg-background-100 rounded-xl p-1">
+      <div className="wf-tabs w-fit" aria-label="Modo de prospecção">
         {(
           [
             { id: 'agente', label: 'Agente de Prompt (IA)' },
@@ -708,8 +710,9 @@ export default function BuscaLeads() {
           <button
             key={t.id}
             onClick={() => setAba(t.id)}
-            className={`inline-flex flex-1 sm:flex-none items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer whitespace-nowrap ${
-              aba === t.id ? 'bg-background-50 text-foreground-900 shadow-sm' : 'text-foreground-500 hover:text-foreground-700'
+            aria-pressed={aba === t.id}
+            className={`inline-flex min-h-9 flex-1 items-center justify-center gap-2 whitespace-nowrap rounded-full px-4 text-xs font-semibold transition-all cursor-pointer sm:flex-none ${
+              aba === t.id ? 'active text-white shadow-sm' : 'text-foreground-600 hover:bg-white hover:text-foreground-900'
             }`}
           >
             {t.label}
@@ -755,48 +758,48 @@ export default function BuscaLeads() {
             {erroBusca && etapa !== 2 && <p role="alert" className="mt-3 text-xs text-secondary-700">{erroBusca}</p>}
           </section>
           {/* Faixa de estatísticas da prospecção */}
-          <div className="mb-6 grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="bg-background-50 border border-background-200/70 rounded-xl p-4">
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3" aria-label="Resumo da carteira">
+            <div className="wf-surface flex items-center justify-between gap-3 p-4">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-primary-100 rounded-lg flex items-center justify-center">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary-100">
                   <i className="ri-database-2-line text-primary-600"></i>
                 </div>
                 <div>
-                  <p className="text-2xl font-heading font-bold text-foreground-950">{leads.length}</p>
-                  <p className="text-xs text-foreground-500">Leads no funil</p>
+                  <p className="text-xs font-semibold text-foreground-500">Leads no funil</p>
+                  <p className="mt-1 text-2xl font-heading font-bold tabular-nums text-foreground-950">{leads.length}</p>
                 </div>
               </div>
             </div>
-            <div className="bg-background-50 border border-background-200/70 rounded-xl p-4">
+            <div className="wf-surface p-4">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-accent-100 rounded-lg flex items-center justify-center">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-accent-100">
                   <i className="ri-fire-fill text-accent-600"></i>
                 </div>
                 <div>
-                  <p className="text-2xl font-heading font-bold text-foreground-950">{leadsQuentes}</p>
-                  <p className="text-xs text-foreground-500">Leads quentes</p>
+                  <p className="text-xs font-semibold text-foreground-500">Leads quentes</p>
+                  <p className="mt-1 text-2xl font-heading font-bold tabular-nums text-foreground-950">{leadsQuentes}</p>
                 </div>
               </div>
             </div>
-            <div className="bg-background-50 border border-background-200/70 rounded-xl p-4">
+            <div className="wf-surface p-4">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-secondary-100 rounded-lg flex items-center justify-center">
+                <div className="flex h-9 w-9 items-center justify-center rounded-full bg-background-100">
                   <i className="ri-line-chart-line text-secondary-600"></i>
                 </div>
                 <div>
-                  <p className="text-2xl font-heading font-bold text-foreground-950">{taxaQualificacao}%</p>
-                  <p className="text-xs text-foreground-500">Taxa de qualificação</p>
+                  <p className="text-xs font-semibold text-foreground-500">Taxa de qualificação</p>
+                  <p className="mt-1 text-2xl font-heading font-bold tabular-nums text-foreground-950">{taxaQualificacao}%</p>
                 </div>
               </div>
             </div>
           </div>
 
           {/* Wizard steps */}
-          <div className="mb-6 flex items-center gap-2">
+          <nav className="wf-surface flex items-center gap-2 overflow-x-auto p-3 sm:p-4" aria-label="Etapas da busca">
             {etapaLabel.map((e, i) => (
               <div key={i} className="flex items-center gap-2">
                 <div
-                  className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
+                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
                     etapa > i + 1
                       ? 'bg-primary-500 text-background-50'
                       : etapa === i + 1
@@ -807,18 +810,19 @@ export default function BuscaLeads() {
                   {etapa > i + 1 ? <i className="ri-check-line"></i> : i + 1}
                 </div>
                 <span
-                  className={`text-xs font-medium whitespace-nowrap ${
+                  aria-current={etapa === i + 1 ? 'step' : undefined}
+                  className={`whitespace-nowrap text-xs font-semibold ${
                     etapa >= i + 1 ? 'text-foreground-900' : 'text-foreground-400'
                   }`}
                 >
                   {e}
                 </span>
                 {i < etapaLabel.length - 1 && (
-                  <div className={`w-8 h-0.5 ${etapa > i + 1 ? 'bg-primary-500' : 'bg-background-200'}`}></div>
+                  <div className={`h-px w-3 sm:w-8 ${etapa > i + 1 ? 'bg-primary-500' : 'bg-background-200'}`}></div>
                 )}
               </div>
             ))}
-          </div>
+          </nav>
 
           {/* ETAPA 1: Fonte */}
           {etapa === 1 && (
