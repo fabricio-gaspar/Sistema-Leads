@@ -1,5 +1,22 @@
 # Checkpoint — WayFlex CRM
 
+## 26/09/2026 — Plano comercial, etapa 3: catálogo Wayflex rastreável
+
+- A base canônica recebeu perguntas internas de qualificação por item, visíveis e editáveis em
+  **Configurações > Empresa e conhecimento**. Elas orientam a conversa sem serem apresentadas
+  como especificação, preço, compatibilidade ou promessa comercial.
+- A migration `20260926085704_catalog_qualification_guides` foi aplicada ao projeto oficial:
+  os 56 itens ativos da Wayflex (19 produtos, 19 serviços e 18 catálogos) têm de uma a oito
+  perguntas internas. A atualização recompôs os documentos/chunks derivados usados pela
+  recuperação existente da Ana, sem criar uma nova fonte de conhecimento ou uma nova fila.
+- O editor, a busca e os formatos de catálogo preservam as fontes, URLs e imagens oficiais;
+  anexos/PDFs continuam somente como links oficiais enquanto não houver arquivo publicado e
+  aprovado. Não foram inventadas aplicações, dados técnicos ou campanhas.
+- Aprovaram: type-check frontend e Edge, lint sem warnings, Vitest completo **40 arquivos / 257
+  testes**, build/artefato Sites e conferência SQL do banco. Não houve envio, chamada a provedor,
+  ativação da Ana ou mudança de canal. A publicação do Site fica para a etapa 11.
+- Próxima etapa: **Dossiê e qualificação**, ainda com Terra High.
+
 ## 26/09/2026 — Plano comercial, etapa 2: arquitetura final
 
 - A versão 124 foi auditada contra o plano final. `leads`, `lead_messages`, `agent_runs` e

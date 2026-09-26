@@ -4,7 +4,8 @@
 
 - `knowledge_sources` registra origem, escopo, estado e erro de sincronização.
 - `knowledge_catalog_items` separa produto, serviço, catálogo e documento, preservando URL e
-  payload de origem. Itens ativos aprovados geram `documents` e `knowledge_chunks` derivados.
+  payload de origem. `qualification_questions` armazena até oito guias internos de descoberta;
+  itens ativos aprovados geram `documents` e `knowledge_chunks` derivados.
 - `knowledge_item_relations` relaciona os quatro tipos sem cruzar organizações.
 - `conversation_knowledge_events` liga conteúdo preparado à mensagem humana auditável.
 
@@ -27,6 +28,8 @@
 - Fontes e URLs são rastreáveis. A sincronização falha de forma explícita em `last_error` e no
   histórico de importações; não cria dados de fallback inventados.
 - Nenhuma chave privada ou envio externo é feito pelo frontend.
+- Perguntas de qualificação não são fatos de produto, nem podem afirmar compatibilidade, preço,
+  prazo, disponibilidade ou aplicação sem fonte oficial. O editor restringe a oito por item.
 - A imagem de saída só pode referenciar um item ativo. O worker relê o item, exige URL HTTPS pública
   sem credenciais/host local, confirma o anexo auditável e interrompe o job se o item ou a imagem
   mudarem antes do despacho.

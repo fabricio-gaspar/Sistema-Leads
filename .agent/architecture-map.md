@@ -132,6 +132,13 @@ diário em concorrência; recibos antecipados ainda dependem de nova reconcilia�
   um fragmento determinístico por card apenas para o trigger de `documents` manter um documento
   exclusivo. `knowledge_chunks` continua sendo a única fonte recuperada pela Ana.
 
+### Atualização de 26/09/2026
+
+- `knowledge_catalog_items.qualification_questions` guarda até oito perguntas internas por item.
+  A coluna participa do documento/chunk derivado, para que a recuperação existente da Ana trate
+  a descoberta como orientação de conversa e não como fato publicado. Não há segundo índice,
+  motor de decisão ou caminho de envio.
+
 ## Contas WhatsApp por vendedor
 
 1. `whatsapp_accounts` guarda somente metadados operacionais por organização: conta corporativa

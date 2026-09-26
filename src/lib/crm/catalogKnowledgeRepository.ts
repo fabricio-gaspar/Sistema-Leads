@@ -34,6 +34,7 @@ export interface KnowledgeCatalogItem {
   category: string | null;
   material: string | null;
   applications: string[];
+  qualificationQuestions: string[];
   keywords: string[];
   imageUrl: string | null;
   attachmentUrl: string | null;
@@ -57,6 +58,7 @@ export interface KnowledgeCatalogDraft {
   category?: string;
   material?: string;
   applications?: string[];
+  qualificationQuestions?: string[];
   keywords?: string[];
   imageUrl?: string;
   attachmentUrl?: string;
@@ -89,6 +91,7 @@ type CatalogItemRow = {
   category: string | null;
   material: string | null;
   applications: string[] | null;
+  qualification_questions?: string[] | null;
   keywords: string[] | null;
   image_url: string | null;
   attachment_url: string | null;
@@ -133,6 +136,7 @@ function mapItem(row: CatalogItemRow): KnowledgeCatalogItem {
     category: row.category,
     material: row.material,
     applications: list(row.applications),
+    qualificationQuestions: list(row.qualification_questions),
     keywords: list(row.keywords),
     imageUrl: row.image_url,
     attachmentUrl: row.attachment_url,
@@ -181,7 +185,7 @@ export async function loadKnowledgeCatalogItems(input: {
 } = {}): Promise<KnowledgeCatalogItem[]> {
   const session = await resolveOrganizationSession();
   let request = supabase.from('knowledge_catalog_items')
-    .select('id,source_id,item_type,external_key,status,ana_enabled,name,code,short_description,technical_description,category,material,applications,keywords,image_url,attachment_url,website_url,source_url,source_label,imported_at,updated_at')
+    .select('id,source_id,item_type,external_key,status,ana_enabled,name,code,short_description,technical_description,category,material,applications,qualification_questions,keywords,image_url,attachment_url,website_url,source_url,source_label,imported_at,updated_at')
     .eq('organization_id', session.organizationId)
     .order('updated_at', { ascending: false })
     .limit(input.limit ?? 120);
@@ -196,7 +200,7 @@ export async function loadKnowledgeCatalogItems(input: {
   return rows.filter((item) => {
     const searchable = normalizeText([
       item.name, item.code, item.category, item.material, item.shortDescription, item.technicalDescription,
-      item.applications.join(' '), item.keywords.join(' '), item.sourceLabel,
+      item.applications.join(' '), item.qualificationQuestions.join(' '), item.keywords.join(' '), item.sourceLabel,
     ].filter(Boolean).join(' '));
     return terms.every((term) => searchable.includes(term));
   });
@@ -211,7 +215,7 @@ export async function loadRelatedKnowledgeItems(itemId: string, includeInactive 
   const ids = [...new Set((relations ?? []).flatMap((row) => [row.source_item_id, row.target_item_id]).filter((id) => id !== itemId))];
   if (!ids.length) return [];
   let itemsQuery = supabase.from('knowledge_catalog_items')
-    .select('id,source_id,item_type,external_key,status,ana_enabled,name,code,short_description,technical_description,category,material,applications,keywords,image_url,attachment_url,website_url,source_url,source_label,imported_at,updated_at')
+    .select('id,source_id,item_type,external_key,status,ana_enabled,name,code,short_description,technical_description,category,material,applications,qualification_questions,keywords,image_url,attachment_url,website_url,source_url,source_label,imported_at,updated_at')
     .eq('organization_id', session.organizationId).in('id', ids);
   if (!includeInactive) itemsQuery = itemsQuery.eq('status', 'active');
   const { data, error: itemsError } = await itemsQuery;
@@ -278,6 +282,7 @@ export async function saveKnowledgeCatalogItem(draft: KnowledgeCatalogDraft, id?
     category: draft.category?.trim() || null,
     material: draft.material?.trim() || null,
     applications: (draft.applications ?? []).map((value) => value.trim()).filter(Boolean).slice(0, 40),
+    qualification_questions: (draft.qualificationQuestions ?? []).map((value) => value.trim()).filter(Boolean).slice(0, 8),
     keywords: (draft.keywords ?? []).map((value) => value.trim()).filter(Boolean).slice(0, 60),
     image_url: cleanUrl(draft.imageUrl), attachment_url: cleanUrl(draft.attachmentUrl), website_url: cleanUrl(draft.websiteUrl),
     source_url: sourceUrl, source_label: draft.sourceLabel?.trim() || null, created_by: session.userId, updated_at: new Date().toISOString(),
@@ -286,7 +291,7 @@ export async function saveKnowledgeCatalogItem(draft: KnowledgeCatalogDraft, id?
     ? supabase.from('knowledge_catalog_items').update(values).eq('id', id).eq('organization_id', session.organizationId)
     : supabase.from('knowledge_catalog_items').insert(values);
   const { data, error } = await request
-    .select('id,source_id,item_type,external_key,status,ana_enabled,name,code,short_description,technical_description,category,material,applications,keywords,image_url,attachment_url,website_url,source_url,source_label,imported_at,updated_at')
+    .select('id,source_id,item_type,external_key,status,ana_enabled,name,code,short_description,technical_description,category,material,applications,qualification_questions,keywords,image_url,attachment_url,website_url,source_url,source_label,imported_at,updated_at')
     .single();
   if (error || !data) throw error ?? new Error('knowledge_item_not_saved');
   return mapItem(data as CatalogItemRow);
@@ -328,6 +333,7 @@ export function formatKnowledgeMessage(item: KnowledgeCatalogItem, format: Knowl
   if (format === 'commercial') return [
     `Olá! Separei uma opção que pode atender sua necessidade: ${item.name}.`, summary,
     item.applications.length ? `Aplicações informadas: ${item.applications.join(', ')}.` : '',
+    item.qualificationQuestions.length ? `Para direcionar corretamente: ${item.qualificationQuestions[0]}` : '',
     link ? `Confira os detalhes: ${link}` : '',
     'Se me disser a aplicação, medida ou equipamento, preparo o próximo direcionamento com precisão.',
   ].filter(Boolean).join('\n\n');
@@ -336,6 +342,7 @@ export function formatKnowledgeMessage(item: KnowledgeCatalogItem, format: Knowl
     item.technicalDescription || item.shortDescription || 'A fonte não disponibiliza ficha técnica detalhada para este item.',
     item.material ? `Material informado: ${item.material}.` : '',
     item.applications.length ? `Aplicações informadas: ${item.applications.join(', ')}.` : '',
+    item.qualificationQuestions.length ? `Para qualificar sem assumir compatibilidade: ${item.qualificationQuestions.join(' ')}` : '',
     link ? `Fonte técnica: ${link}` : '',
     'Para confirmar compatibilidade, preciso da aplicação, medida e condição de uso.',
   ].filter(Boolean).join('\n\n');

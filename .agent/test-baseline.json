@@ -3,7 +3,7 @@
   "validated_commit": "e82a2d352be088efa14aae362040df68402caf55",
   "last_validated_at": "2026-09-26",
   "current_validation": {
-    "stage": "commercial-plan-2",
+    "stage": "commercial-plan-3",
     "evidence": "docs/CONTINUIDADE_WAYFLEX.md",
     "frontend_typecheck": "passed",
     "edge_typecheck": "passed",
@@ -13,7 +13,7 @@
     "production_build": "passed",
     "sites_artifact": "passed",
     "external_end_to_end": "not_applicable_no_remote_mutation_or_provider_call",
-    "note": "Commercial plan stage 2: final architecture contract and state-machine hardening. 40 files/257 tests, frontend/Edge typechecks, lint and production artifact passed. No remote data, provider, channel or operation setting was changed. Historical commands below belong to earlier stages."
+    "note": "Commercial plan stage 3: catalog qualification guides. 40 files/257 tests, frontend/Edge typechecks, lint and production artifact passed. Supabase SQL confirmed 56/56 active Wayflex items have one to eight internal qualification guides. No provider, channel or operational setting was changed. Historical commands below belong to earlier stages."
   },
   "commands": [
     {"command":"node node_modules/typescript/bin/tsc --noEmit --project tsconfig.app.json","status":"passed","note":"Etapa 3: página de importação e fila de listas."},

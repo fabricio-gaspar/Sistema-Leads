@@ -1,5 +1,15 @@
 # Histórico resumido de execução
 
+## 2026-09-26 — Etapa 3, catálogo Wayflex rastreável
+
+- Adicionada a curadoria de perguntas internas por item na base canônica, com editor, busca e
+  formatos comerciais/técnicos. A migration aplicada ao projeto oficial atualizou 56 itens ativos
+  da Wayflex e recompôs os documentos/chunks existentes; nenhuma aplicação ou especificação foi
+  inventada e nenhum anexo foi fabricado.
+- Conferência SQL confirmou 19 produtos, 19 serviços e 18 catálogos com perguntas dentro do
+  limite. Type-check frontend/Edge, lint, 40 arquivos/257 testes e build/artefato Sites passaram.
+  Não houve mensagem externa, chamada a provedor ou ativação operacional.
+
 ## 2026-09-25 — Etapa 4, lote atômico
 
 - Substituídas gravações sequenciais da revisão por uma RPC invocadora; adicionado retry idempotente e reconciliação dos stores. Aplicada migration oficial. Transações revertidas comprovaram lote único, deduplicação, rollback total e RBAC. Zero leads/mensagens de teste persistidos. Type-check frontend/Edge, lint, 255 testes e build/artefato aprovados.

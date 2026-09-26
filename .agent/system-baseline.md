@@ -1,5 +1,20 @@
 # Baseline do sistema
 
+## Etapa 3 do plano comercial — catálogo Wayflex rastreável, 26/09/2026
+
+- `knowledge_catalog_items.qualification_questions` guarda de uma a oito perguntas internas por
+  item. Elas são guias de descoberta comercial, não fatos técnicos e não substituem uma fonte
+  oficial da Wayflex.
+- A migration oficial `20260926085704_catalog_qualification_guides` preencheu 56 itens ativos
+  da organização Wayflex (19 produtos, 19 serviços e 18 catálogos) e recompôs documentos/chunks
+  derivados pelo trigger existente. Não houve nova tabela, integração ou caminho de despacho.
+- A interface de Empresa e conhecimento permite revisar, editar e pesquisar as perguntas; os
+  formatos comercial/técnico as identificam como orientação de qualificação. Dados de aplicação,
+  anexos e especificações continuam condicionados à fonte publicada.
+- Validação local: type-check frontend/Edge, lint, 40 arquivos/257 testes e build aprovados.
+  Verificação SQL confirmou 56/56 itens com perguntas dentro do limite; nenhum provedor, lead ou
+  configuração operacional foi alterado.
+
 ## Etapa 2 do plano comercial — arquitetura final, 26/09/2026
 
 - O contrato final está em `docs/ARQUITETURA_FINAL_WAYFLEX.md`: `leads` continua como agregado
