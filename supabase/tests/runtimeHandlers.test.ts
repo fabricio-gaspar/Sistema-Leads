@@ -594,6 +594,22 @@ describe('Ana handler safety — mocked persistence, no real providers', () => {
     expect(await response.json()).toMatchObject({ ok: true, dry_run: true, acoes_aplicadas: [], status_canal: 'simulacao_sem_alteracoes' });
     expectNoBusinessWrites();
   });
+  it('reconciles a concurrent idempotency insert instead of starting a second Ana execution', async () => {
+    let runReads = 0;
+    override = (q) => {
+      if (q.table === 'agent_runs' && q.operation === 'select') {
+        runReads += 1;
+        return runReads === 1 ? ok(null) : ok({ id: 'a1111111-1111-4111-8111-111111111111', status: 'running', result: {}, error_code: null, error_message: null });
+      }
+      if (q.table === 'agent_runs' && q.operation === 'insert') return { data: null, error: { code: '23505', message: 'synthetic idempotency collision' } };
+      return undefined;
+    };
+    await import('../functions/ana-run/index');
+    const response = await handler(anaRequest({ event: 'manual.run', request_id: 'same-request' }));
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ ok: false, duplicate: true, in_progress: true });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
   it('enforces the published operation simulation mode even without a dry-run flag', async () => {
     override = (q) => q.table === 'company_settings' && q.operation === 'select'
       ? ok({ ...readyCompany, ana_operation_enabled: true, ana_operation_mode: 'simulation' })

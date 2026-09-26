@@ -3,17 +3,17 @@
   "validated_commit": "c76381ba4533ea7bbd3277065f20f91748a86a6d",
   "last_validated_at": "2026-09-26",
   "current_validation": {
-    "stage": "commercial-plan-4",
+    "stage": "commercial-plan-6",
     "evidence": "docs/CONTINUIDADE_WAYFLEX.md",
     "frontend_typecheck": "passed",
     "edge_typecheck": "passed",
     "lint": "passed_without_warnings",
     "test_files": 41,
-    "tests_passed": 258,
+    "tests_passed": 259,
     "production_build": "passed",
     "sites_artifact": "passed",
     "external_end_to_end": "not_applicable_no_remote_mutation_or_provider_call",
-    "note": "Commercial plan stage 4: technical qualification dossier. 41 files/258 tests, frontend/Edge typechecks, lint and production artifact passed. Supabase SQL confirmed technical_context and missing_fields on the existing lead_qualifications table. No provider, channel or operational setting was changed. Historical commands below belong to earlier stages."
+    "note": "Commercial plan stage 6: Ana concurrency and idempotency hardening. 41 files/259 tests, frontend/Edge typechecks, lint and production artifact passed. Concurrent agent-run inserts reconcile without a second execution; prospecting schedule runs only reclaim free or stale locks. No provider, channel or operational setting was changed. Historical commands below belong to earlier stages."
   },
   "commands": [
     {"command":"node node_modules/typescript/bin/tsc --noEmit --project tsconfig.app.json","status":"passed","note":"Etapa 3: página de importação e fila de listas."},

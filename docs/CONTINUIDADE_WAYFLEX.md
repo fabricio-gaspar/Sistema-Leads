@@ -1,5 +1,19 @@
 # Checkpoint — WayFlex CRM
 
+## 26/09/2026 — Plano comercial, etapa 6: motor crítico da Ana
+
+- `ana-run` reconcilia colisões de criação pela chave idempotente: uma segunda chamada recebe a
+  execução já existente e não inicia outro processamento, modelo ou efeito comercial.
+- O worker da prospecção deixou de reivindicar indiscriminadamente qualquer execução `running`.
+  A reivindicação agora é atômica por estado e lock: fila nova, polling sem lock ou recuperação
+  de lock vencido há dez minutos. Locks ativos não podem chamar o provedor em concorrência.
+- As guardas existentes permanecem obrigatórias antes da saída: empresa/ambiente, kill switch,
+  versão publicada, canal/conta, opt-out/supressão, autorização, modo humano, handoff e limites.
+- Type-check frontend/Edge, lint, Vitest completo **41 arquivos / 259 testes** e build/artefato
+  Sites passaram. Nenhuma função foi publicada, nenhum provedor foi chamado e nenhuma automação
+  foi ativada; publicação e E2E ficam para as etapas finais.
+- Próxima etapa: **WhatsApp e recebimentos**, ainda com Sol High.
+
 ## 26/09/2026 — Plano comercial, etapa 5: prospecção diária auditada
 
 - A implementação existente de **Configurações > Ana > Operação automática** já cobre agenda,

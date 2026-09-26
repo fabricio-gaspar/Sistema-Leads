@@ -677,6 +677,14 @@ Deno.serve(async (request) => {
         organization_id: organizationId, lead_id: leadId, actor_id: actorId, event, modo, status: 'running',
         input_context: executionContext, idempotency_key: idempotencyKey,
       }).select('id').single();
+      if (runError?.code === '23505') {
+        const { data: concurrentRun, error: concurrentError } = await admin.from('agent_runs')
+          .select('id,status,result,error_code,error_message')
+          .eq('organization_id', organizationId).eq('idempotency_key', idempotencyKey).maybeSingle();
+        if (concurrentError || !concurrentRun) throw concurrentError ?? new Error('agent_run_reconciliation_failed');
+        const settled = ['completed', 'skipped'].includes(concurrentRun.status);
+        return json({ ok: settled, duplicate: true, in_progress: !settled, run: concurrentRun }, settled ? 200 : 409, headers);
+      }
       if (runError || !run) throw runError ?? new Error('agent_run_not_created');
       runId = run.id as string;
     }

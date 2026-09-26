@@ -1,5 +1,13 @@
 # Histórico resumido de execução
 
+## 2026-09-26 — Etapa 6, motor crítico da Ana
+
+- Corrigida a corrida de idempotência de `agent_runs`: colisão única agora é reconciliada como
+  execução duplicada/em andamento, sem segundo processamento. Regressão específica adicionada.
+- Corrigido o claim de `prospecting_schedule_runs`: `running` com lock ativo não é retomado; o
+  worker só reivindica fila, polling liberado ou lock vencido em dez minutos, antes de calcular
+  cotas e chamar a fonte. 259 testes, type-check frontend/Edge, lint e build passaram.
+
 ## 2026-09-26 — Etapa 5, prospecção diária auditada
 
 - Confirmado que `ana-operations`, `prospecting_schedules`, `prospecting_schedule_runs` e

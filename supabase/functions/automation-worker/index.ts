@@ -1446,7 +1446,11 @@ async function processAnaOperations(admin: Admin, organizationId: string, schedu
     if (scheduleError) throw new Error('ana_schedule_advance_failed');
   }
 
-  const { data: run, error: runReadError } = await admin.from('prospecting_schedule_runs').select('*,prospecting_schedules(*)').eq('organization_id', organizationId).in('status', ['queued','running']).lte('next_run_at', now.toISOString()).order('created_at', { ascending: true }).limit(1).maybeSingle();
+  const staleLockBefore = new Date(now.getTime() - 10 * 60 * 1000).toISOString();
+  const { data: run, error: runReadError } = await admin.from('prospecting_schedule_runs').select('*,prospecting_schedules(*)')
+    .eq('organization_id', organizationId).in('status', ['queued','running']).lte('next_run_at', now.toISOString())
+    .or(`status.eq.queued,locked_at.is.null,locked_at.lt.${staleLockBefore}`)
+    .order('created_at', { ascending: true }).limit(1).maybeSingle();
   if (runReadError) throw new Error('ana_operation_queue_read_failed');
   if (!run) return { status: 'idle', digest_created: digestCreated };
   const schedule = asObject(run.prospecting_schedules);
@@ -1454,6 +1458,18 @@ async function processAnaOperations(admin: Admin, organizationId: string, schedu
     ? schedule.paid_prospecting_approved === true
     : run.operation_mode === 'supervised' && isUuid(run.approved_by);
   if (!executionAuthorized) return { status: 'approval_required', digest_created: digestCreated };
+  const lockId = crypto.randomUUID();
+  let claim = admin.from('prospecting_schedule_runs').update({
+    status: 'running', locked_at: now.toISOString(), locked_by: `automation-worker:${lockId}`,
+    started_at: run.started_at || now.toISOString(),
+  }).eq('organization_id', organizationId).eq('id', run.id).eq('status', run.status);
+  claim = run.status === 'queued'
+    ? claim
+    : run.locked_at
+      ? claim.lt('locked_at', staleLockBefore)
+      : claim.is('locked_at', null);
+  const { data: claimed, error: claimError } = await claim.select('id').maybeSingle();
+  if (claimError || !claimed) return { status: 'contended', digest_created: digestCreated };
   const timeZone = validTimeZone(schedule.timezone) ?? 'America/Sao_Paulo';
   const localDate = localDayKey(localDateTime(now, timeZone));
   const monthStart = `${localDate.slice(0, 7)}-01`;
@@ -1475,9 +1491,6 @@ async function processAnaOperations(admin: Admin, organizationId: string, schedu
     await admin.from('prospecting_schedule_runs').update({ status: 'failed', error_code: routing.error, error_message: 'A rota de atendimento configurada não possui um usuário ativo.', completed_at: now.toISOString(), locked_at: null, locked_by: null }).eq('id', run.id).eq('organization_id', organizationId);
     return { status: 'failed', error: routing.error, digest_created: digestCreated };
   }
-  const lockId = crypto.randomUUID();
-  const { data: claimed, error: claimError } = await admin.from('prospecting_schedule_runs').update({ status: 'running', locked_at: now.toISOString(), locked_by: `automation-worker:${lockId}`, started_at: run.started_at || now.toISOString() }).eq('organization_id', organizationId).eq('id', run.id).in('status', ['queued','running']).select('id').maybeSingle();
-  if (claimError || !claimed) return { status: 'contended', digest_created: digestCreated };
   const baseUrl = Deno.env.get('SUPABASE_URL'), serviceJwt = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
   if (!baseUrl || !serviceJwt) throw new Error('ana_operation_internal_auth_missing');
   const response = await fetch(`${baseUrl}/functions/v1/prospectar-leads`, { method: 'POST', headers: { Authorization: `Bearer ${serviceJwt}`, 'Content-Type': 'application/json', 'x-leadai-scheduler-token': schedulerToken }, body: JSON.stringify({ sourceKey: 'apify', mode: 'production', source: 'server_scheduler', organization_id: organizationId, schedule_run_id: run.id, filters: { ...asObject(schedule.filters), volumeMaximo: remaining }, ...(run.prospecting_run_id ? { runId: run.prospecting_run_id } : {}) }), signal: AbortSignal.timeout(45_000) });
