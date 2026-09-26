@@ -268,15 +268,11 @@ export default function KanbanCRM() {
 
   return (
     <div className="wf-page">
-      <div className="wf-page-header">
+      <header className="wf-page-header">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-primary-700">Pipeline comercial</p>
-          <h1 className="wf-page-title mt-1">
-            Kanban
-          </h1>
-          <p className="wf-page-description">
-            Arraste os leads entre as colunas para atualizar a etapa do funil. Alterações são salvas automaticamente.
-          </p>
+          <p className="wf-eyebrow">Pipeline comercial</p>
+          <h1 className="wf-page-title mt-1">Kanban</h1>
+          <p className="wf-page-description">Acompanhe as etapas da carteira e abra cada lead para decidir o próximo passo.</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           {hasFiltros && (
@@ -285,7 +281,7 @@ export default function KanbanCRM() {
               {leadsFiltrados.length} resultados
             </span>
           )}
-          <span className="text-sm text-foreground-500 whitespace-nowrap">
+          <span className="rounded-full border border-background-200 bg-white px-3 py-2 text-xs font-semibold tabular-nums text-foreground-600 whitespace-nowrap">
             {leadsFiltrados.length} leads no funil
           </span>
           <button
@@ -296,21 +292,22 @@ export default function KanbanCRM() {
             Executar automações
           </button>
         </div>
-      </div>
+      </header>
 
       {/* Filtros */}
-      <div className="mb-6 bg-background-50 border border-background-200/70 rounded-xl p-4">
-        <div className="flex flex-col md:flex-row gap-3 mb-3">
-          <div className="relative flex-1">
+      <div className="wf-toolbar !block">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center">
+          <label className="relative min-w-0 flex-1">
+            <span className="sr-only">Buscar lead por nome ou empresa</span>
             <i className="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-foreground-400 text-sm"></i>
             <input
               type="text"
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
               placeholder="Buscar por nome ou empresa..."
-              className="w-full pl-9 pr-4 py-2.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-900"
+              className="w-full bg-background-50 py-2 pl-9 pr-4 text-sm text-foreground-900"
             />
-          </div>
+          </label>
           <SavedViewsControl
             views={views}
             onLoad={aplicarFiltros}
@@ -318,13 +315,13 @@ export default function KanbanCRM() {
             onRename={renomear}
             onDelete={excluir}
           />
-          <button onClick={() => setFiltrosAbertos((aberto) => !aberto)} className="wf-btn-secondary !min-h-[42px] whitespace-nowrap">
+          <button onClick={() => setFiltrosAbertos((aberto) => !aberto)} aria-expanded={filtrosAbertos} className="wf-btn-secondary whitespace-nowrap">
             <i className="ri-filter-3-line"></i>
             Filtros
             {chips.length > 0 && <span className="min-w-5 h-5 px-1 rounded-full bg-primary-100 text-primary-700 text-[10px] inline-flex items-center justify-center">{chips.length}</span>}
           </button>
         </div>
-        {filtrosAbertos && <div className="flex flex-col lg:flex-row lg:items-end gap-3 flex-wrap border-t border-background-200 pt-3">
+        {filtrosAbertos && <div className="mt-3 flex flex-col flex-wrap gap-3 border-t border-background-200 pt-3 lg:flex-row lg:items-end">
           <div className="flex-1 min-w-[180px]">
             <label className="block text-xs font-medium text-foreground-600 mb-1.5">Responsável</label>
             <select
@@ -442,33 +439,33 @@ export default function KanbanCRM() {
         </div>
       )}
 
-      <div className="flex gap-4 overflow-x-auto pb-4 min-h-[calc(100vh-240px)] snap-x snap-mandatory">
+      <div className="flex min-h-[calc(100vh-240px)] gap-3 overflow-x-auto pb-4 snap-x snap-mandatory" aria-label="Etapas do pipeline">
         {ACTIVE_PIPELINE_STAGES.map((etapa) => {
           const lista = leadsPorEtapa(etapa);
           return (
             <div
               key={etapa}
-              className={`flex-shrink-0 w-[17.5rem] max-w-[calc(100vw-2rem)] rounded-xl border ${etapaCores[etapa]} flex flex-col max-h-[calc(100vh-240px)] snap-start`}
+              className={`flex max-h-[calc(100vh-240px)] w-[17rem] max-w-[calc(100vw-2rem)] flex-shrink-0 flex-col rounded-[1.25rem] border ${etapaCores[etapa]} snap-start`}
               onDragOver={handleDragOver}
               onDrop={() => handleDrop(etapa)}
             >
-              <div className="px-4 py-3 border-b border-background-200/70">
+              <div className="border-b border-background-200/70 px-4 py-3.5">
                 <div className="flex items-center justify-between mb-1">
                   <h3 className="font-heading font-semibold text-foreground-900 text-sm flex items-center gap-2"><span className={`w-2 h-2 rounded-full ${etapaIndicador[etapa]}`}></span>{PIPELINE_STAGE_LABEL[etapa]}</h3>
-                  <span className="text-xs font-medium text-foreground-500 bg-white border border-background-200 px-2 py-0.5 rounded-md">
+                  <span className="min-w-6 rounded-full border border-background-200 bg-white px-2 py-0.5 text-center text-xs font-semibold tabular-nums text-foreground-500">
                     {lista.length}
                   </span>
                 </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-3 space-y-3">
+              <div className="flex-1 space-y-2.5 overflow-y-auto p-2.5">
                 {lista.map((lead) => (
                   <div
                     key={lead.id}
                     draggable
                     onDragStart={() => setDragId(lead.id)}
                     onClick={() => setDetalheId(lead.id)}
-                    className={`group bg-white rounded-lg p-3.5 border border-background-200 cursor-grab active:cursor-grabbing hover:border-background-300 hover:shadow-[0_4px_12px_rgba(15,23,42,0.06)] transition-all ${
+                    className={`group cursor-grab rounded-xl border border-background-200 bg-white p-3.5 shadow-sm transition-all hover:border-background-300 hover:shadow-[0_8px_22px_rgba(15,23,42,0.08)] active:cursor-grabbing ${
                       dragId === lead.id ? 'opacity-50' : ''
                     }`}
                   >
@@ -482,7 +479,7 @@ export default function KanbanCRM() {
                             setDeleteAlvo(lead);
                           }}
                           title="Excluir lead"
-                          className="w-6 h-6 flex items-center justify-center rounded-md text-foreground-400 hover:text-accent-600 hover:bg-accent-50 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                          className="flex h-6 w-6 items-center justify-center rounded-md text-foreground-400 opacity-100 transition-opacity hover:bg-accent-50 hover:text-accent-600 focus-visible:opacity-100 cursor-pointer sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
                         >
                           <i className="ri-delete-bin-line text-sm"></i>
                         </button>
@@ -494,7 +491,7 @@ export default function KanbanCRM() {
                         <i className={`${(lead.modoAtendimento ?? 'IA') === 'IA' ? 'ri-robot-line' : 'ri-user-line'} text-[10px]`}></i>
                         {(lead.modoAtendimento ?? 'IA') === 'IA' ? 'IA' : 'Humano'}
                       </span>
-                      <span className="text-[9px] text-foreground-400 truncate">{lead.responsavel}</span>
+                      <span className="truncate text-[11px] text-foreground-500">{lead.responsavel}</span>
                       {isContactActivationPending(lead) && (
                         <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-semibold bg-accent-100 text-accent-800">
                           <i className="ri-shield-check-line text-[10px]"></i>
@@ -503,7 +500,7 @@ export default function KanbanCRM() {
                       )}
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="inline-block px-2 py-0.5 rounded-md text-[10px] font-medium bg-background-100 text-foreground-600 border border-background-200">
+                      <span className="inline-block rounded-full border border-background-200 bg-background-100 px-2 py-0.5 text-[11px] font-semibold text-foreground-600">
                         Score {lead.score}
                       </span>
                       <span className="text-[10px] text-foreground-400">{lead.ultimaInteracao}</span>
@@ -514,9 +511,9 @@ export default function KanbanCRM() {
                   </div>
                 ))}
                 {lista.length === 0 && (
-                  <div className="text-center py-6 text-foreground-400 text-xs">
-                    <i className="ri-inbox-line text-lg mb-1 block"></i>
-                    Nenhum lead
+                  <div className="rounded-xl border border-dashed border-background-300 bg-white/50 px-3 py-8 text-center text-xs text-foreground-500">
+                    <i className="ri-inbox-line mb-1 block text-xl text-foreground-400" aria-hidden="true"></i>
+                    Nenhum lead nesta etapa
                   </div>
                 )}
               </div>

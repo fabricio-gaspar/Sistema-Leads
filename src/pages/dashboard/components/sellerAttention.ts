@@ -1,7 +1,7 @@
 import type { Notificacao } from '@/lib/tipos';
 import type { Lead } from '@/mocks/leadsData';
 
-export type AttentionItem = { id: string; title: string; detail: string; action: string; to: string };
+export type AttentionItem = { id: string; title: string; detail: string; action: string; to: string; leadId?: string };
 export type AttentionGroup = { id: string; title: string; description: string; icon: string; tone: string; items: AttentionItem[] };
 
 const notificationItem = (item: Notificacao): AttentionItem => ({
@@ -10,6 +10,7 @@ const notificationItem = (item: Notificacao): AttentionItem => ({
   detail: item.descricao,
   action: item.acaoRecomendada || 'Abrir conversa',
   to: item.link || `/dashboard/atendimento?leadId=${item.leadId}`,
+  leadId: item.leadId,
 });
 
 const leadItem = (lead: Lead, action: string): AttentionItem => ({
@@ -18,6 +19,7 @@ const leadItem = (lead: Lead, action: string): AttentionItem => ({
   detail: lead.empresa && lead.nome ? lead.empresa : 'Lead em acompanhamento',
   action,
   to: `/dashboard/atendimento?leadId=${lead.id}`,
+  leadId: lead.id,
 });
 
 export function buildSellerAttentionGroups(notifications: Notificacao[], leads: Lead[], now = new Date()): AttentionGroup[] {

@@ -17,10 +17,12 @@ export function useNotificacoesStore(): {
   marcarTodasLidas: () => void;
   naoLidas: number;
   loading: boolean;
+  error: boolean;
 } {
   const locais = store.useStore();
   const [remotas, setRemotas] = useState<Notificacao[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -28,6 +30,9 @@ export function useNotificacoesStore(): {
       const { data, error } = await supabase.from('notifications').select('id,title,description,kind,read,link,lead_id,priority,action_required,recommended_action,status,created_at').eq('organization_id', organizationId).order('created_at', { ascending: false }).limit(100);
       if (error) throw error;
       setRemotas(((data || []) as NotificationRow[]).map(mapRow));
+      setError(false);
+    } catch {
+      setError(true);
     } finally { setLoading(false); }
   }, []);
 
@@ -81,6 +86,7 @@ export function useNotificacoesStore(): {
     marcarTodasLidas,
     naoLidas: notificacoes.filter((n) => !n.lida).length,
     loading,
+    error,
   };
 }
 

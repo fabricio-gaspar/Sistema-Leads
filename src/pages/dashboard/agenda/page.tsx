@@ -8,6 +8,7 @@ import SavedViewsControl from '@/components/feature/SavedViewsControl';
 import { useCompromissosStore } from '@/hooks/useCompromissosStore';
 import { useLeadsStore } from '@/hooks/useLeadsStore';
 import type { Compromisso } from '@/mocks/frontendAdvancedData';
+import '../command-secondary.css';
 
 const formatarData = (d: Date): string => {
   const y = d.getFullYear();
@@ -271,13 +272,14 @@ export default function Agenda() {
   };
 
   return (
-    <div className="wf-page">
-      <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div className="wf-page wf-secondary-page wf-secondary-page--agenda">
+      <div className="wf-secondary-header mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl md:text-3xl font-heading font-extrabold text-foreground-950 mb-2">
+          <p className="wf-secondary-eyebrow">Planejamento comercial</p>
+          <h1 className="wf-page-title mb-2">
             Agenda
           </h1>
-          <p className="text-foreground-600 text-sm">
+          <p className="wf-secondary-description text-foreground-600 text-sm">
             Reuniões e compromissos agendados — incluindo os que a Ana marca sozinha no funil.
           </p>
         </div>
@@ -290,7 +292,7 @@ export default function Agenda() {
           )}
           <button
             onClick={() => setNovoModal(true)}
-            className="inline-flex items-center gap-2 bg-primary-500 hover:bg-primary-600 text-background-50 px-5 py-2.5 rounded-lg text-sm font-bold cursor-pointer whitespace-nowrap"
+            className="wf-secondary-action inline-flex items-center gap-2 bg-primary-500 hover:bg-primary-600 text-background-50 px-5 py-2.5 rounded-lg text-sm font-bold cursor-pointer whitespace-nowrap"
           >
             <i className="ri-add-line"></i>
             Novo compromisso
@@ -306,9 +308,9 @@ export default function Agenda() {
       )}
 
       {/* KPIs */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="wf-secondary-kpis grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {kpis.map((kpi, i) => (
-          <div key={i} className="bg-background-50 border border-background-200/70 rounded-xl p-5">
+          <div key={i} className="wf-secondary-kpi bg-background-50 border border-background-200/70 rounded-xl p-5">
             <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-4 ${kpi.color}`}>
               <i className={`${kpi.icon} text-lg`}></i>
             </div>
@@ -320,7 +322,7 @@ export default function Agenda() {
 
       {/* Reuniões agendadas pela Ana */}
       {leadsReuniao.length > 0 && (
-        <div className="mb-6 bg-background-50 border border-background-200/70 rounded-xl p-5">
+        <div className="wf-secondary-panel mb-6 bg-background-50 border border-background-200/70 rounded-xl p-5">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2.5">
               <div className="w-9 h-9 rounded-lg bg-secondary-100 flex items-center justify-center">
@@ -375,7 +377,7 @@ export default function Agenda() {
       )}
 
       {/* Filtros */}
-      <div className="mb-6 bg-background-50 border border-background-200/70 rounded-xl p-4">
+      <div className="wf-secondary-filter mb-6 bg-background-50 border border-background-200/70 rounded-xl p-4">
         <div className="flex flex-col md:flex-row gap-3 mb-3">
           <div className="relative flex-1">
             <i className="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-foreground-400 text-sm"></i>
@@ -474,7 +476,7 @@ export default function Agenda() {
         <FilterChips chips={chips} />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="wf-secondary-grid grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Calendário semanal */}
         <div className="lg:col-span-2 space-y-6">
           {/* Seletor de dia */}
@@ -500,7 +502,7 @@ export default function Agenda() {
           </div>
 
           {/* Timeline do dia */}
-          <div className="bg-background-50 border border-background-200/70 rounded-xl p-5">
+          <div className="wf-secondary-panel bg-background-50 border border-background-200/70 rounded-xl p-5">
             <div className="flex items-center justify-between mb-4">
               <h3 className="font-heading font-bold text-foreground-900 text-sm">
                 {new Date(dataSelecionada + 'T00:00:00').toLocaleDateString('pt-BR', {

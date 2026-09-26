@@ -7,6 +7,7 @@ import SavedViewsControl from '@/components/feature/SavedViewsControl';
 import { useLeadsStore } from '@/hooks/useLeadsStore';
 import { usePropostasStore } from '@/hooks/usePropostasStore';
 import { periodoDesde, maxDataString, dentroDoPeriodo } from '@/lib/periodo';
+import '../command-secondary.css';
 
 const periodos = [
   { label: 'Últimos 7 dias', valor: '7d' },
@@ -150,14 +151,14 @@ export default function Relatorios() {
   }).filter((r) => r.quantidade > 0);
 
   return (
-    <div className="wf-page">
-      <div className="wf-page-header">
+    <div className="wf-page wf-secondary-page wf-secondary-page--reports">
+      <div className="wf-page-header wf-secondary-header">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-primary-700">Inteligência comercial</p>
+          <p className="wf-secondary-eyebrow">Inteligência comercial</p>
           <h1 className="wf-page-title mt-1">
             Relatórios
           </h1>
-          <p className="wf-page-description">
+          <p className="wf-page-description wf-secondary-description">
             Análise detalhada de performance, leads e equipe por período.
           </p>
         </div>
@@ -180,7 +181,7 @@ export default function Relatorios() {
           <button
             onClick={exportar}
             disabled={exportando}
-            className="inline-flex items-center gap-2 px-4 py-2.5 bg-secondary-500 hover:bg-secondary-600 disabled:bg-secondary-300 text-background-50 rounded-lg text-sm font-bold cursor-pointer whitespace-nowrap"
+            className="wf-secondary-action inline-flex items-center gap-2 px-4 py-2.5 bg-secondary-500 hover:bg-secondary-600 disabled:bg-secondary-300 text-background-50 rounded-lg text-sm font-bold cursor-pointer whitespace-nowrap"
           >
             {exportando ? (
               <>
@@ -198,7 +199,7 @@ export default function Relatorios() {
       </div>
 
       {/* Filtros */}
-      <div className="mb-6 bg-background-50 border border-background-200/70 rounded-xl p-4">
+      <div className="wf-secondary-filter mb-6 bg-background-50 border border-background-200/70 rounded-xl p-4">
         <div className="flex items-center justify-end mb-3">
           <SavedViewsControl
             views={views}
@@ -257,7 +258,7 @@ export default function Relatorios() {
       )}
 
       {/* Abas */}
-      <div className="mb-6 flex flex-wrap gap-1 bg-background-100 rounded-xl p-1">
+      <div className="wf-secondary-tabs mb-6 flex flex-wrap gap-1 bg-background-100 rounded-xl p-1">
         {(
           [
             { id: 'geral', label: 'Visão Geral' },
@@ -270,7 +271,7 @@ export default function Relatorios() {
             onClick={() => setAba(t.id)}
             className={`inline-flex flex-1 sm:flex-none items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all cursor-pointer whitespace-nowrap ${
               aba === t.id
-                ? 'bg-background-50 text-foreground-900 shadow-sm'
+                ? 'wf-secondary-tab-active bg-background-50 text-foreground-900 shadow-sm'
                 : 'text-foreground-500 hover:text-foreground-700'
             }`}
           >
@@ -283,14 +284,14 @@ export default function Relatorios() {
       {aba === 'geral' && (
         <div className="space-y-6">
           {/* KPIs */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="wf-secondary-kpis grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {[
               { label: 'Leads no funil', value: leadsFiltrados.length.toLocaleString(), icon: 'ri-user-search-line', color: 'bg-primary-100 text-primary-600' },
               { label: 'Valor em orçamentos aceitos', value: orcamentosAceitos.reduce((total, proposal) => total + proposal.valor, 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }), icon: 'ri-file-check-line', color: 'bg-accent-100 text-accent-600' },
               { label: 'Pipeline aberto', value: pipelineAberto.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }), icon: 'ri-line-chart-line', color: 'bg-primary-500/20 text-primary-600' },
               { label: 'Taxa de fechamento', value: `${leadsFiltrados.length ? Math.round((leadsFiltrados.filter((l) => l.etapa === 'Fechado — Ganho').length / leadsFiltrados.length) * 100) : 0}%`, icon: 'ri-trophy-line', color: 'bg-secondary-100 text-secondary-600' },
             ].map((kpi, i) => (
-              <div key={i} className="bg-background-50 border border-background-200/70 rounded-xl p-5">
+              <div key={i} className="wf-secondary-kpi bg-background-50 border border-background-200/70 rounded-xl p-5">
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-4 ${kpi.color}`}>
                   <i className={`${kpi.icon} text-lg`}></i>
                 </div>
@@ -301,8 +302,8 @@ export default function Relatorios() {
           </div>
 
           {/* Gráfico evolução + Pipeline */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="bg-background-50 border border-background-200/70 rounded-xl p-6">
+          <div className="wf-secondary-grid grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="wf-secondary-panel bg-background-50 border border-background-200/70 rounded-xl p-6">
               <h3 className="font-heading font-bold text-foreground-900 text-sm mb-5">
                 Evolução de leads
               </h3>
@@ -340,7 +341,7 @@ export default function Relatorios() {
               </div>
             </div>
 
-            <div className="bg-background-50 border border-background-200/70 rounded-xl p-6">
+            <div className="wf-secondary-panel bg-background-50 border border-background-200/70 rounded-xl p-6">
               <h3 className="font-heading font-bold text-foreground-900 text-sm mb-5">
                 Leads por segmento
               </h3>
@@ -369,7 +370,7 @@ export default function Relatorios() {
 
       {/* === ABA LEADS === */}
       {aba === 'leads' && (
-        <div className="bg-background-50 border border-background-200/70 rounded-xl overflow-hidden">
+        <div className="wf-secondary-panel wf-secondary-table bg-background-50 border border-background-200/70 rounded-xl overflow-hidden">
           <div className="px-6 py-4 border-b border-background-200/70 flex items-center justify-between">
             <h3 className="font-heading font-bold text-foreground-900 text-sm">
               Detalhamento de leads
@@ -412,7 +413,7 @@ export default function Relatorios() {
 
       {/* === ABA EQUIPE === */}
       {aba === 'equipe' && (
-        <div className="bg-background-50 border border-background-200/70 rounded-xl overflow-hidden">
+        <div className="wf-secondary-panel wf-secondary-table bg-background-50 border border-background-200/70 rounded-xl overflow-hidden">
           <div className="px-6 py-4 border-b border-background-200/70">
             <h3 className="font-heading font-bold text-foreground-900 text-sm">
               Performance por responsável

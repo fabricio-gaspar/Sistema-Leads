@@ -2,21 +2,21 @@
   "schema_version": 1,
   "baseline_version": 5,
   "baseline_commit": "1dc6275b8c7d70de953b66397a8c89f5e97bc15b",
-  "last_audited_commit": "8848a5dae7006bf5182a75b661dedbd2e504db50",
-  "current_head_at_update": "8848a5dae7006bf5182a75b661dedbd2e504db50",
-  "working_tree_status": "wayflex_command_center_published_pending_documentation_checkpoint",
+  "last_audited_commit": "2e8452ea7d021a83faa8bf45284963d3eaeb54d9",
+  "current_head_at_update": "2e8452ea7d021a83faa8bf45284963d3eaeb54d9",
+  "working_tree_status": "wayflex_command_center_validated_pending_site_publish",
   "stage_1_baseline": ".agent/baselines/2026-09-25-stage-1.json",
   "recovery_tag": "baseline-wayflex-stage1-20260925",
   "work_branch": "chore/wayflex-stage-1-baseline-2026-09-25",
   "last_site_publication": {
-    "commit": "8848a5dae7006bf5182a75b661dedbd2e504db50",
-    "site_version": 127,
-    "deployment_id": "appgdep_6ab82793cdb8819182c3b1f83d836db2",
-    "validated_at": "2026-09-26T20:14:32Z",
-    "working_tree_status": "published_and_visually_validated"
+    "commit": "23fbb4b3a9adb1402dbc68a9c29f8379c8550de3",
+    "site_version": 125,
+    "deployment_id": "appgdep_6ab7c0e0c3f8819188bbe8dd2fd6c7ec",
+    "validated_at": "2026-09-26T12:56:22Z",
+    "working_tree_status": "published_official_site_stage_11"
   },
   "full_audit_required": false,
-  "baseline_status": "command_center_visual_redesign_published_and_validated",
-  "updated_at": "2026-09-26T17:16:00-03:00",
-  "next_action": "Preservar o redesign e os gates operacionais; qualquer evolução deve partir da versão 127 sem reativar Automático ou canais não homologados."
+  "baseline_status": "command_center_multiscreen_visual_redesign_validated_locally",
+  "updated_at": "2026-09-26T21:12:37Z",
+  "next_action": "Publicar o código validado no Site oficial, confirmar o deploy e revisar a interface autenticada com o usuário; manter as proteções da Ana e dos canais."
 }

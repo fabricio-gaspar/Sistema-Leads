@@ -508,17 +508,16 @@ export default function Atendimento() {
 
   return (
     <div className="wf-page space-y-5">
-      <div className="wf-page-header border-b-0 pb-0 lg:items-center">
+      <header className="wf-page-header lg:items-center">
         <div>
-          <h1 className="wf-page-title">
-            Central de Atendimento
-          </h1>
-          <p className="wf-page-description">
-            Converse, gerencie oportunidades e transforme atendimentos em grandes negócios.
-          </p>
+          <p className="wf-eyebrow">Atendimento</p>
+          <h1 className="wf-page-title mt-1">Central de Atendimento</h1>
+          <p className="wf-page-description">Histórico, conversa e contexto comercial do lead em um só lugar.</p>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <span
+            role="status"
+            aria-live="polite"
             className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-semibold ${
               conversationRealtime === 'live'
                 ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
@@ -531,6 +530,7 @@ export default function Atendimento() {
             <i className={conversationRealtime === 'connecting' ? 'ri-loader-4-line animate-spin' : 'ri-broadcast-line'} />
             {realtimeCopy[conversationRealtime]}
           </span>
+          {shortSyncTime !== '—' && <span className="hidden text-xs tabular-nums text-foreground-500 sm:inline">Atualizado às {shortSyncTime}</span>}
           <button
             type="button"
             onClick={() => void refreshInbox()}
@@ -541,9 +541,9 @@ export default function Atendimento() {
             Atualizar
           </button>
         </div>
-      </div>
+      </header>
 
-      <div className="grid min-h-[600px] grid-cols-1 gap-4 lg:h-[calc(100vh-208px)] lg:grid-cols-[minmax(280px,0.78fr)_minmax(0,1.7fr)] xl:grid-cols-[minmax(260px,300px)_minmax(0,1fr)_minmax(300px,340px)]">
+      <div className="grid min-h-[600px] grid-cols-1 gap-3 lg:h-[calc(100vh-208px)] lg:grid-cols-[minmax(280px,0.78fr)_minmax(0,1.7fr)] xl:grid-cols-[minmax(260px,300px)_minmax(0,1fr)_minmax(300px,340px)]" aria-label="Área de atendimento">
         {/* Lista de conversas */}
         <div className="wf-surface flex min-h-[280px] max-h-[360px] flex-col overflow-hidden lg:max-h-none">
           <div className="border-b border-background-200/70 bg-background-50 p-4">
@@ -552,11 +552,12 @@ export default function Atendimento() {
                 <p className="text-sm font-bold text-foreground-900">Conversas</p>
                 <p className="text-xs text-foreground-500">{filtradas.length} na caixa atual</p>
               </div>
-              <span className="rounded-full bg-background-100 px-2.5 py-1 text-[11px] font-semibold text-foreground-600">
+              <span className="rounded-full bg-background-100 px-2.5 py-1 text-[11px] font-semibold tabular-nums text-foreground-600">
                 {conversas.reduce((total, conversa) => total + conversa.naoLidas, 0)} novas
               </span>
             </div>
-            <div className="relative">
+            <label className="relative block">
+              <span className="sr-only">Buscar conversa</span>
               <i className="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-foreground-400 text-sm"></i>
               <input
                 type="text"
@@ -565,16 +566,17 @@ export default function Atendimento() {
                 placeholder="Buscar conversa..."
                 className="w-full pl-9 pr-4 py-2 bg-background-100 border border-background-200/70 rounded-lg text-sm text-foreground-800 placeholder-foreground-400 focus:outline-none focus:border-primary-400"
               />
-            </div>
+            </label>
             <div className="mt-3 flex gap-1 overflow-x-auto pb-0.5" aria-label="Filtrar conversas">
               {inboxFilters.map((filter) => (
                 <button
                   key={filter.id}
                   type="button"
                   onClick={() => setInboxFilter(filter.id)}
+                  aria-pressed={inboxFilter === filter.id}
                   className={`whitespace-nowrap rounded-full px-2.5 py-1.5 text-[11px] font-semibold transition ${
                     inboxFilter === filter.id
-                      ? 'bg-primary-500 text-background-50'
+                      ? 'bg-foreground-950 text-white'
                       : 'bg-background-100 text-foreground-600 hover:bg-background-200'
                   }`}
                 >
@@ -586,6 +588,7 @@ export default function Atendimento() {
           <div className="flex-1 overflow-y-auto">
             {filtradas.length === 0 && (
               <div className="px-5 py-10 text-center text-sm text-foreground-500">
+                <i className="ri-chat-off-line mb-2 block text-2xl text-foreground-400" aria-hidden="true" />
                 Nenhuma conversa neste filtro.
               </div>
             )}
@@ -593,8 +596,9 @@ export default function Atendimento() {
               <button
                 key={c.id}
                 onClick={() => setSelectedId(c.id)}
-                className={`w-full flex items-start gap-3 border-b border-background-100 px-4 py-4 text-left transition-colors cursor-pointer ${
-                  selected.id === c.id ? 'border-l-[3px] border-l-primary-500 bg-[#e8f7ef]' : 'border-l-[3px] border-l-transparent hover:bg-background-50/50'
+                aria-current={selected.id === c.id ? 'true' : undefined}
+                className={`w-full flex items-start gap-3 border-b border-background-100 px-4 py-3.5 text-left transition-colors cursor-pointer ${
+                  selected.id === c.id ? 'border-l-[3px] border-l-primary-500 bg-primary-50/70' : 'border-l-[3px] border-l-transparent hover:bg-background-50/50'
                 }`}
               >
                 <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-primary-100">

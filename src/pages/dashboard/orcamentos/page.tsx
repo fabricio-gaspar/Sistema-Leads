@@ -16,6 +16,7 @@ import { montarValoresVariaveis, resolverVariaveis } from '@/lib/variaveis';
 import { useCatalogoStore } from '@/hooks/useCatalogoStore';
 import { newProposalNumber } from '@/lib/crm/proposalsRepository';
 import { useAuth } from '@/hooks/useAuth';
+import '../command-secondary.css';
 
 const statusLabel: Record<string, string> = {
   rascunho: 'Rascunho',
@@ -426,19 +427,20 @@ export default function Orcamentos() {
   const totalEdit = subtotalEdit * (1 - editDesconto / 100);
 
   return (
-    <div className="wf-page">
-      <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+    <div className="wf-page wf-secondary-page wf-secondary-page--quotes">
+      <div className="wf-secondary-header mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-2xl md:text-3xl font-heading font-extrabold text-foreground-950 mb-2">
+          <p className="wf-secondary-eyebrow">Operação comercial</p>
+          <h1 className="wf-page-title mb-2">
             Orçamentos
           </h1>
-          <p className="text-foreground-600 text-sm">
+          <p className="wf-secondary-description text-foreground-600 text-sm">
             Crie, revise, envie e acompanhe orçamentos. O aceite conclui a oportunidade, sem cobrança ou checkout no sistema.
           </p>
         </div>
         <button
           onClick={() => setNovoModal(true)}
-          className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary-500 hover:bg-primary-600 text-background-50 rounded-lg text-sm font-bold cursor-pointer whitespace-nowrap"
+          className="wf-secondary-action inline-flex items-center gap-2 px-5 py-2.5 bg-primary-500 hover:bg-primary-600 text-background-50 rounded-lg text-sm font-bold cursor-pointer whitespace-nowrap"
         >
           <i className="ri-add-line"></i>
           Nova proposta
@@ -453,14 +455,14 @@ export default function Orcamentos() {
       )}
 
       {/* KPIs */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="wf-secondary-kpis grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         {[
           { label: 'Propostas em aberto', value: String(propostas.filter((p) => p.status === 'enviada' || p.status === 'visualizada').length), icon: 'ri-file-list-3-line', color: 'bg-primary-100 text-primary-600' },
           { label: 'Propostas aceitas', value: String(propostas.filter((p) => p.status === 'aceita').length), icon: 'ri-check-double-line', color: 'bg-secondary-100 text-secondary-600' },
           { label: 'Taxa de aceite', value: `${propostas.length ? Math.round((propostas.filter((p) => p.status === 'aceita').length / propostas.length) * 100) : 0}%`, icon: 'ri-percent-line', color: 'bg-accent-100 text-accent-600' },
           { label: 'Aguardando aprovação', value: String(propostas.filter((p) => p.status === 'aguardando_aprovacao').length), icon: 'ri-time-line', color: 'bg-primary-500/20 text-primary-600' },
         ].map((kpi, i) => (
-          <div key={i} className="bg-background-50 border border-background-200/70 rounded-xl p-5">
+          <div key={i} className="wf-secondary-kpi bg-background-50 border border-background-200/70 rounded-xl p-5">
             <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-4 ${kpi.color}`}>
               <i className={`${kpi.icon} text-lg`}></i>
             </div>
@@ -470,7 +472,11 @@ export default function Orcamentos() {
         ))}
       </div>
 
-      <div className="bg-background-50 border border-background-200/70 rounded-xl overflow-hidden">
+      <div className="wf-secondary-panel wf-secondary-table bg-background-50 border border-background-200/70 rounded-xl overflow-hidden">
+          <div className="wf-secondary-panel-heading">
+            <div><p className="wf-secondary-eyebrow">Carteira de propostas</p><h2>Orçamentos cadastrados</h2></div>
+            <span className="wf-secondary-count">{propostas.length} {propostas.length === 1 ? 'registro' : 'registros'}</span>
+          </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>

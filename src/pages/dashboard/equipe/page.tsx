@@ -13,6 +13,7 @@ import {
 } from '@/pages/dashboard/equipe/equipeUtils';
 import type { UsuarioMetricas } from '@/pages/dashboard/equipe/equipeUtils';
 import { loadTeamMembers, type TeamMember } from '@/lib/crm/teamMembersRepository';
+import '../command-secondary.css';
 
 const periodos = ['7 DIAS', '15 DIAS', 'ESTE MÊS', 'MÊS PASSADO', 'TUDO'];
 
@@ -43,12 +44,13 @@ export default function EquipePage() {
   const totalInteracoes = conversas.reduce((s, c) => s + c.mensagens.length, 0);
 
   return (
-    <div className="wf-page">
+    <div className="wf-page wf-secondary-page wf-secondary-page--team">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
+      <div className="wf-secondary-header flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
         <div>
-          <h1 className="text-xl font-heading font-bold text-foreground-800">Equipe</h1>
-          <p className="text-sm text-foreground-500 mt-1">
+          <p className="wf-secondary-eyebrow">Pessoas e resultados</p>
+          <h1 className="wf-page-title">Equipe</h1>
+          <p className="wf-secondary-description text-sm text-foreground-500 mt-1">
             Métricas detalhadas de performance da equipe
           </p>
         </div>
@@ -98,8 +100,8 @@ export default function EquipePage() {
       </div>
 
       {/* Analytics da Equipe */}
-      <div>
-        <h2 className="text-sm font-bold text-foreground-800">Analytics da Equipe</h2>
+      <div className="wf-secondary-section-title">
+        <h2 className="text-sm font-bold text-foreground-800">Resultados por canal e responsável</h2>
         <p className="text-[11px] text-foreground-400 mt-0.5">
           Métricas detalhadas de performance por usuário e instância
         </p>
@@ -108,9 +110,9 @@ export default function EquipePage() {
       {teamError && <div className="rounded-xl border border-[#FF3B30]/25 bg-[#FF3B30]/10 px-4 py-3 text-xs text-[#FF3B30]">{teamError}</div>}
 
       {/* Grid principal */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="wf-secondary-grid grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Conversas por Instância */}
-        <div className="bg-background-50 border border-background-200/70 rounded-xl p-5">
+        <div className="wf-secondary-panel bg-background-50 border border-background-200/70 rounded-xl p-5">
           <div className="flex items-start justify-between mb-4">
             <div>
               <h3 className="text-sm font-bold text-foreground-800">Conversas por Instância</h3>
@@ -199,7 +201,7 @@ export default function EquipePage() {
         </div>
 
         {/* Conversas por Usuário */}
-        <div className="bg-background-50 border border-background-200/70 rounded-xl p-5">
+        <div className="wf-secondary-panel bg-background-50 border border-background-200/70 rounded-xl p-5">
           <div className="flex items-start justify-between mb-4">
             <div>
               <h3 className="text-sm font-bold text-foreground-800">Conversas por Usuário</h3>
@@ -248,9 +250,9 @@ export default function EquipePage() {
       </div>
 
       {/* Grid inferior */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="wf-secondary-grid grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Tempo de Resposta */}
-        <div className="bg-background-50 border border-background-200/70 rounded-xl p-5">
+        <div className="wf-secondary-panel bg-background-50 border border-background-200/70 rounded-xl p-5">
           <div className="mb-4">
             <h3 className="text-sm font-bold text-foreground-800">Tempo de Resposta</h3>
             <p className="text-[10px] text-foreground-400 uppercase tracking-wider mt-0.5">
@@ -282,7 +284,7 @@ export default function EquipePage() {
         </div>
 
         {/* Conversas → Leads */}
-        <div className="bg-background-50 border border-background-200/70 rounded-xl p-5">
+        <div className="wf-secondary-panel bg-background-50 border border-background-200/70 rounded-xl p-5">
           <div className="mb-4">
             <h3 className="text-sm font-bold text-foreground-800">Conversas → Leads</h3>
             <p className="text-[10px] text-foreground-400 uppercase tracking-wider mt-0.5">
@@ -345,7 +347,7 @@ export default function EquipePage() {
         </div>
 
         {/* Performance de Orçamentos */}
-        <div className="bg-background-50 border border-background-200/70 rounded-xl p-5">
+        <div className="wf-secondary-panel bg-background-50 border border-background-200/70 rounded-xl p-5">
           <div className="mb-4">
             <h3 className="text-sm font-bold text-foreground-800">Performance de Orçamentos</h3>
             <p className="text-[10px] text-foreground-400 uppercase tracking-wider mt-0.5">

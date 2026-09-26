@@ -395,24 +395,23 @@ export default function Leads() {
 
   return (
     <div className="wf-page">
-      <div className="wf-page-header">
+      <header className="wf-page-header">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-primary-700">CRM</p>
-          <h1 className="wf-page-title mt-1">
-            Leads
-          </h1>
-          <p className="wf-page-description">
-            {leads.length} leads no funil · CRM completo com score, tags e responsáveis.
-          </p>
+          <p className="wf-eyebrow">Carteira comercial</p>
+          <h1 className="wf-page-title mt-1">Leads</h1>
+          <p className="wf-page-description">Consulte a carteira, acompanhe a etapa e abra o próximo atendimento.</p>
         </div>
-        <button
-          onClick={() => setNovoModal(true)}
-          className="wf-btn-primary cursor-pointer whitespace-nowrap"
-        >
-          <i className="ri-add-line"></i>
-          Novo Lead
-        </button>
-      </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <span className="rounded-full border border-background-200 bg-white px-3 py-2 text-xs font-semibold tabular-nums text-foreground-600">{filtrados.length} exibidos · {leads.length} na carteira</span>
+          <button
+            onClick={() => setNovoModal(true)}
+            className="wf-btn-primary cursor-pointer whitespace-nowrap"
+          >
+            <i className="ri-add-line" aria-hidden="true"></i>
+            Novo Lead
+          </button>
+        </div>
+      </header>
 
       {toast && (
         <div className="mb-4 bg-primary-100 border border-primary-200 text-primary-800 px-4 py-3 rounded-lg text-sm flex items-center gap-2">
@@ -423,17 +422,17 @@ export default function Leads() {
 
       {/* Listas recebidas da Busca de Leads (aguardando aprovação) */}
       {listas.listas.filter((l) => l.status === 'pendente').length > 0 && (
-        <div className="mb-5 bg-background-50 border border-background-200/70 rounded-xl p-5">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
+        <section className="wf-surface p-4 sm:p-5" aria-label="Listas aguardando revisão">
+          <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-2">
               <i className="ri-list-check-3 text-primary-600 text-lg"></i>
               <h3 className="font-heading font-bold text-foreground-900 text-sm">Listas recebidas da Busca de Leads</h3>
             </div>
-            <span className="text-xs text-foreground-500">Aprove para disparar a Ana no primeiro contato</span>
+            <span className="text-xs text-foreground-500">Revise as listas antes de avançar para o Kanban.</span>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {listas.listas.filter((l) => l.status === 'pendente').map((lista) => (
-              <div key={lista.id} className="border border-background-200/70 rounded-lg p-4">
+              <div key={lista.id} className="rounded-xl border border-background-200/70 bg-background-100/40 p-4">
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <div className="min-w-0">
                     <p className="font-medium text-foreground-900 text-sm truncate">{lista.nome}</p>
@@ -447,7 +446,7 @@ export default function Leads() {
                 <button
                   onClick={() => setEnvioAlvo(lista.leadIds)}
                   disabled={lista.leadIds.length === 0}
-                  className="w-full inline-flex items-center justify-center gap-2 bg-primary-500 hover:bg-primary-600 text-background-50 px-4 py-2 rounded-lg text-xs font-bold cursor-pointer whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
+                  className="inline-flex min-h-9 w-full items-center justify-center gap-2 rounded-lg bg-foreground-950 px-4 py-2 text-xs font-bold text-white hover:bg-foreground-800 cursor-pointer whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <i className="ri-send-plane-2-line"></i>
                   {lista.leadIds.length ? 'Enviar para o Kanban' : 'Lista sem leads vinculados'}
@@ -455,12 +454,13 @@ export default function Leads() {
               </div>
             ))}
           </div>
-        </div>
+        </section>
       )}
 
       {/* Filtros */}
-      <div className="wf-toolbar mb-5">
-        <div className="relative flex-1">
+      <div className="wf-toolbar">
+        <label className="relative min-w-0 flex-1">
+          <span className="sr-only">Buscar leads por nome, empresa ou segmento</span>
           <i className="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-foreground-400 text-sm"></i>
           <input
             type="text"
@@ -469,11 +469,12 @@ export default function Leads() {
             placeholder="Buscar por nome, empresa ou segmento..."
             className="w-full pl-9 pr-4 py-2.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-800 placeholder-foreground-400 focus:outline-none focus:border-primary-400"
           />
-        </div>
+        </label>
         <select
+          aria-label="Filtrar por etapa"
           value={etapaFiltro}
           onChange={(e) => setEtapaFiltro(e.target.value)}
-          className="px-4 py-2.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-700 cursor-pointer"
+          className="w-full bg-background-50 px-3 py-2 text-sm text-foreground-700 cursor-pointer lg:w-auto"
         >
           <option value="Todas">Todas as etapas</option>
           {etapasCRM.map((e) => (
@@ -481,9 +482,10 @@ export default function Leads() {
           ))}
         </select>
         <select
+          aria-label="Filtrar por segmento"
           value={segmentoFiltro}
           onChange={(e) => setSegmentoFiltro(e.target.value)}
-          className="px-4 py-2.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-700 cursor-pointer"
+          className="w-full bg-background-50 px-3 py-2 text-sm text-foreground-700 cursor-pointer lg:w-auto"
         >
           <option value="Todos">Todos os segmentos</option>
           {segmentos.map((s) => (
@@ -492,7 +494,8 @@ export default function Leads() {
         </select>
         <button
           onClick={() => setMostrarArquivados(!mostrarArquivados)}
-          className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-semibold cursor-pointer whitespace-nowrap border ${
+          aria-pressed={mostrarArquivados}
+          className={`inline-flex min-h-10 items-center justify-center gap-2 px-4 py-2 rounded-full text-sm font-semibold cursor-pointer whitespace-nowrap border ${
             mostrarArquivados
               ? 'bg-accent-100 border-accent-300 text-accent-800'
               : 'bg-background-50 border-background-300 text-foreground-600 hover:bg-background-100'
@@ -537,7 +540,7 @@ export default function Leads() {
       )}
 
       {/* Tabela */}
-      <div className="wf-surface overflow-hidden">
+      <div className="wf-table-shell">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -615,6 +618,7 @@ export default function Leads() {
               {filtrados.length === 0 && (
                 <tr>
                   <td colSpan={7} className="px-4 py-12 text-center text-foreground-500">
+                    <i className="ri-search-line mb-2 block text-2xl text-foreground-400" aria-hidden="true"></i>
                     Nenhum lead encontrado com os filtros selecionados.
                   </td>
                 </tr>

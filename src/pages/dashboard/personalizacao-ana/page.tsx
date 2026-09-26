@@ -9,6 +9,7 @@ import {
   splitPlaybookLines,
 } from '@/lib/anaCommercialPlaybook';
 import AnaAutomaticOperation from './AnaAutomaticOperation';
+import './command-center.css';
 
 const steps = [
   { title: 'Empresa e público', description: 'O contexto que a Ana usa para se apresentar.' },
@@ -289,18 +290,28 @@ export default function PersonalizacaoAna({ embedded = false }: { embedded?: boo
   ][step];
 
   return (
-    <div className={`ana-config ${embedded ? 'w-full' : 'wf-page'} mx-auto`}>
-      <header>
-        <p className="eyebrow">Configurações · Ana</p>
-        <h1>Configure a Ana</h1>
-        <p>Em seis passos, defina como ela apresenta sua empresa, qualifica o lead e sugere o próximo passo com controle humano.</p>
-        {loadingConfiguration ? <p className="hint mt-2">Carregando a configuração publicada…</p> : publishedVersion ? <p className="hint mt-2">Versão publicada em uso pela Ana: v{publishedVersion}.</p> : <p className="hint mt-2">Ainda não há uma versão publicada; salvar não ativa canais nem automações.</p>}
+    <div className={`ana-config ana-cc ${embedded ? 'w-full' : 'wf-page'} mx-auto`}>
+      <header className="ana-cc-header">
+        <div>
+          <p className="eyebrow">WayFlex / Inteligência comercial</p>
+          <h1>Ana</h1>
+          <p>Defina o conhecimento, a conversa e os limites antes de publicar uma nova versão.</p>
+        </div>
+        <span className={`ana-cc-version ${loadFailed ? 'is-error' : isDirty ? 'is-dirty' : loadSucceeded && publishedVersion ? 'is-published' : ''}`} role="status">
+          <i className={loadFailed ? 'ri-error-warning-line' : isDirty ? 'ri-edit-circle-line' : loadSucceeded && publishedVersion ? 'ri-checkbox-circle-line' : 'ri-time-line'} aria-hidden="true" />
+          {loadingConfiguration ? 'Conferindo versão' : loadFailed ? 'Falha na leitura' : isDirty ? 'Alterações não publicadas' : publishedVersion ? `Versão publicada · v${publishedVersion}` : 'Sem versão publicada'}
+        </span>
       </header>
-      <nav className="mb-5 mt-4 flex flex-wrap gap-2" aria-label="Áreas da configuração da Ana">
-        <button type="button" onClick={() => setSection('behavior')} className={`rounded-lg border px-4 py-2 text-sm font-semibold ${section === 'behavior' ? 'border-primary-500 bg-primary-50 text-primary-800' : 'border-background-200 bg-white text-foreground-600'}`}><i className="ri-message-3-line mr-2" />Comportamento e conhecimento</button>
-        <button type="button" onClick={() => setSection('operation')} className={`rounded-lg border px-4 py-2 text-sm font-semibold ${section === 'operation' ? 'border-primary-500 bg-primary-50 text-primary-800' : 'border-background-200 bg-white text-foreground-600'}`}><i className="ri-robot-2-line mr-2" />Operação automática</button>
+      <div className="ana-cc-summary" aria-label="Resumo da política da Ana">
+        <div><span>Política publicada</span><strong>{loadingConfiguration ? 'Carregando' : loadFailed ? 'Indisponível' : publishedVersion ? `v${publishedVersion}` : 'Pendente'}</strong></div>
+        <div><span>Canais permitidos</span><strong>{loadSucceeded ? Object.values(allowedChannels).filter(Boolean).length : '—'}</strong></div>
+        <div><span>Limite por lead</span><strong>{loadSucceeded ? `${limit} / dia` : '—'}</strong></div>
+      </div>
+      <nav className="ana-cc-switch" aria-label="Áreas da configuração da Ana">
+        <button type="button" onClick={() => setSection('behavior')} aria-current={section === 'behavior' ? 'page' : undefined} className={section === 'behavior' ? 'active' : ''}><i className="ri-message-3-line" aria-hidden="true" /> Comportamento e conhecimento</button>
+        <button type="button" onClick={() => setSection('operation')} aria-current={section === 'operation' ? 'page' : undefined} className={section === 'operation' ? 'active' : ''}><i className="ri-robot-2-line" aria-hidden="true" /> Operação automática</button>
       </nav>
-      {section === 'operation' ? <AnaAutomaticOperation /> : <>
+      {section === 'operation' ? <div className="ana-cc-operation"><AnaAutomaticOperation /></div> : <div className="ana-cc-workspace">
       <nav className="steps" aria-label="Etapas da configuração da Ana">
         {steps.map((item, index) => (
           <button key={item.title} type="button" title={`${index + 1}. ${item.title}`} aria-current={index === step ? 'step' : undefined} onClick={() => setStep(index)} className={index === step ? 'active' : index < step ? 'done' : ''}>
@@ -340,7 +351,7 @@ export default function PersonalizacaoAna({ embedded = false }: { embedded?: boo
           </div>
         </footer>
       </section>
-      </>}
+      </div>}
     </div>
   );
 }
