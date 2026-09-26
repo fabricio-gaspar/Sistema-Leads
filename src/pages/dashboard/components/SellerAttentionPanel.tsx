@@ -27,7 +27,7 @@ export default function SellerAttentionPanel({ notifications, leads }: { notific
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 items-center gap-2">
             <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${group.tone}`} title={group.title}><i className={`${group.icon} text-base`} aria-hidden="true" /></span>
-            <div className="flex min-w-0 items-center gap-1.5"><h3 className="truncate text-sm font-semibold text-foreground-900">{group.title}</h3><InfoTooltip text={group.description} label={`Sobre ${group.title}`} /></div>
+            <div className="flex min-w-0 items-start gap-1.5"><h3 className="break-words text-sm font-semibold leading-5 text-foreground-900">{group.title}</h3><InfoTooltip text={group.description} label={`Sobre ${group.title}`} /></div>
           </div>
           <span className="rounded-full bg-background-100 px-2 py-0.5 text-xs font-semibold text-foreground-600" aria-label={`${group.items.length} item(ns)`}>{group.items.length}</span>
         </div>

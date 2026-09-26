@@ -77,7 +77,7 @@ function ConnectionOverview({ title, link, items, empty, help }: { title: string
         const telemetry = providerTelemetry(item);
         return <div key={item.id} className="flex items-center justify-between gap-3 px-4 py-3 transition-colors hover:bg-background-50">
           <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] ${item.iconTone}`} aria-hidden="true"><i className={`${item.icon} text-base`} /></span>
-          <div className="min-w-0 flex-1"><div className="flex min-w-0 items-center gap-1.5"><p className="truncate text-sm font-semibold text-foreground-800">{item.label}</p><InfoTooltip text={item.detail || telemetry || 'Sem detalhes operacionais adicionais.'} label={`Detalhes de ${item.label}`} /></div></div>
+          <div className="min-w-0 flex-1"><div className="flex min-w-0 items-center gap-1.5"><p className="break-words text-sm font-semibold leading-5 text-foreground-800">{item.label}</p><InfoTooltip text={item.detail || telemetry || 'Sem detalhes operacionais adicionais.'} label={`Detalhes de ${item.label}`} /></div></div>
           <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-semibold ${statusClass[item.tone]}`}>{item.status}</span>
         </div>;
       })}
@@ -245,7 +245,7 @@ export default function Dashboard() {
 
     <section className="wf-command-kpis" aria-label="Indicadores da carteira">
       {metrics.map((item) => <article key={item.label} className={`wf-overview-metric wf-overview-metric--${item.tone}`}>
-        <div className="flex items-center justify-between gap-3"><div className="flex min-w-0 items-center gap-1.5"><p className="truncate text-sm font-semibold text-foreground-700">{item.label}</p><InfoTooltip text={item.detail} label={`Como calculamos ${item.label}`} /></div><span className="wf-metric-icon"><i className={`${item.icon} text-lg`} aria-hidden="true" /></span></div>
+        <div className="flex items-start justify-between gap-3"><div className="flex min-w-0 items-start gap-1.5"><p className="break-words text-sm font-semibold leading-5 text-foreground-700">{item.label}</p><InfoTooltip text={item.detail} label={`Como calculamos ${item.label}`} /></div><span className="wf-metric-icon"><i className={`${item.icon} text-lg`} aria-hidden="true" /></span></div>
         <p className="mt-5 text-[2.35rem] font-semibold leading-none tracking-[-.05em] text-foreground-950 tabular-nums">{item.value}</p>
       </article>)}
       <article className={`wf-action-spotlight ${urgentAttention === 0 ? 'is-calm' : ''}`}>
@@ -287,7 +287,7 @@ export default function Dashboard() {
       <aside className="wf-online-grid" aria-label="Resumo online">
         <article className="wf-online-card"><div className="flex items-center justify-between"><span>Ambiente</span><i className="ri-shield-check-line" /></div><strong>{operacao?.status.mode === 'real' ? 'Real' : operacao ? 'Preparação' : '—'}</strong><Status neutral={!operacao} good={operacao?.status.mode === 'real'} label={!operacao ? diagnosticError ? 'Indisponível' : 'Consultando' : operacao.status.mode === 'real' ? 'Ativo' : 'Pendente'} /></article>
         <article className="wf-online-card"><div className="flex items-center justify-between"><span>Processamento</span><i className="ri-pulse-line" /></div><strong>{scheduler?.ok ? 'Online' : operacao ? 'Atenção' : '—'}</strong><Status neutral={!operacao} good={Boolean(scheduler?.ok)} label={!operacao ? 'Consultando' : scheduler?.ok ? 'Ativo' : 'Pendente'} /></article>
-        <article className="wf-online-card"><div className="flex items-center justify-between"><span>Próxima prioridade</span><i className="ri-focus-3-line" /></div><strong className="truncate">{hottestLead?.empresa || hottestLead?.nome || 'Sem lead'}</strong><span className="text-xs text-foreground-500">{hottestLead ? `Score ${hottestLead.score}` : 'Carteira vazia'}</span></article>
+        <article className="wf-online-card"><div className="flex items-center justify-between"><span>Próxima prioridade</span><i className="ri-focus-3-line" /></div><strong className="break-words text-base leading-5">{hottestLead?.empresa || hottestLead?.nome || 'Sem lead'}</strong><span className="text-xs text-foreground-500">{hottestLead ? `Score ${hottestLead.score}` : 'Carteira vazia'}</span></article>
         <article className="wf-online-card is-dark"><div className="flex items-center justify-between"><span>Ana automática</span><i className="ri-robot-2-line" /></div><strong>{operacao?.status.productionReady ? 'Pronta' : 'Bloqueada'}</strong><span className="text-xs text-white/60">{operacao?.status.productionReady ? 'Pré-requisitos confirmados' : 'Proteções operacionais ativas'}</span></article>
       </aside>
     </section>
