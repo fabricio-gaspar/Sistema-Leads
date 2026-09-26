@@ -1,10 +1,10 @@
 {
   "schema_version": 1,
-  "validated_commit": "77b564cf44f651a2a56e8314226f78d4e9b99f89",
+  "validated_commit": "a9c40a0",
   "last_validated_at": "2026-09-26",
   "current_validation": {
-    "stage": "commercial-plan-9",
-    "evidence": "docs/CONTINUIDADE_WAYFLEX.md",
+    "stage": "commercial-plan-12",
+    "evidence": "docs/RELATORIO_LIBERACAO_COMERCIAL_2026-09-26.md",
     "frontend_typecheck": "passed",
     "edge_typecheck": "passed",
     "lint": "passed_without_warnings",
@@ -12,8 +12,8 @@
     "tests_passed": 262,
     "production_build": "passed",
     "sites_artifact": "passed",
-    "external_end_to_end": "not_applicable_no_remote_mutation_or_provider_call",
-    "note": "Commercial plan stage 9: consolidated common validation. 42 files/262 tests, frontend/Edge typechecks, lint without warnings and production/Sites artifact passed. Responsive seller-attention cards preserve full text and canonical routes. Remote security and controlled E2E remain stage 10; no deployment or external effect occurred. Historical commands below belong to earlier stages."
+    "external_end_to_end": "blocked_whatsapp_disabled_no_meta_account",
+    "note": "Commercial plan stage 12: final local validation passed with 42 files/262 tests, frontend/Edge typechecks, lint without warnings and production/Sites artifact. ana-run v36 and automation-worker v33 were deployed; unauthenticated probes were rejected. Automatic mode remains blocked until Auth protection and controlled WhatsApp E2E are proven."
   },
   "commands": [
     {"command":"node node_modules/typescript/bin/tsc --noEmit --project tsconfig.app.json","status":"passed","note":"Etapa 3: página de importação e fila de listas."},

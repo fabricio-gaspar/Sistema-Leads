@@ -1,5 +1,20 @@
 # Checkpoint — WayFlex CRM
 
+## 26/09/2026 — Plano comercial, etapa 12: liberação comercial
+
+- Homologação final local aprovada: type-check frontend e Edge Functions, lint sem warnings,
+  **42 arquivos / 262 testes** e build/artefato Sites. O Site oficial permanece na versão **125**:
+  `https://leadai-crm-preview.fabricio926564.chatgpt.site`.
+- As alterações do motor crítico foram publicadas no Supabase oficial: `ana-run` **v36** e
+  `automation-worker` **v33**. Probes sem credenciais foram recusados (`401` e `400`), sem chamada
+  a provedor, mensagem ou execução comercial.
+- Parecer: o CRM está liberado para **uso comercial supervisionado/piloto**. A operação 100%
+  automática da Ana **não está liberada**: Z-API está pausada/desativada, não há conta Meta nem
+  agenda automática ativa, e falta homologação externa ponta a ponta com número autorizado.
+- Antes do Automático, também é obrigatório habilitar **Leaked Password Protection** no Auth,
+  validar saída, entrada, recibos, resposta da Ana e handoff e iniciar uma agenda em modo
+  Supervisionado. Relatório: `docs/RELATORIO_LIBERACAO_COMERCIAL_2026-09-26.md`.
+
 ## 26/09/2026 — Plano comercial, etapa 11: acabamento e publicação
 
 - Publicado exclusivamente no Site oficial existente, versão **125**, a partir do commit

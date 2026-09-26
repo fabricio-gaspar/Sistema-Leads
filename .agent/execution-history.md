@@ -1091,3 +1091,12 @@
   salta etapas e transições comuns não reabrem Ganho/Perdido.
 - Aprovaram: contrato específico 6/6, type-check frontend/Edge, lint, Vitest 40 arquivos/257 testes
   e build. Nenhum provedor, banco remoto, canal, lead ou configuração foi acionado.
+
+## 2026-09-26 — Plano comercial, etapa 12
+
+- Publicados no Supabase oficial `ana-run` v36 e `automation-worker` v33.
+- Probes sem credencial recusados com HTTP 401/400; nenhum provedor foi chamado.
+- Gate operacional: IA e Apify conectadas; Z-API pausada/desativada; zero conta Meta, zero agenda
+  ativa e zero job pendente. Leaked Password Protection continua desativada.
+- Validação final: frontend/Edge type-check, lint, 42 arquivos/262 testes e build aprovados.
+- Decisão: liberar CRM somente para uso supervisionado/piloto; não ativar Automático sem E2E real.
