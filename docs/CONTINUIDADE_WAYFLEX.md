@@ -2,6 +2,9 @@
 
 ## 26/09/2026 — WayFlex Command Center: redesign visual do CRM
 
+- Publicado no Site oficial como versão **127**, commit `8848a5d`, preservando o endereço
+  `https://leadai-crm-preview.fabricio926564.chatgpt.site`. Revisão autenticada aprovada em
+  desktop, menu expandido e viewport móvel; console sem erros ou warnings.
 - O shell global adotou a linguagem visual da referência: marca WayFlex CRM, navegação principal
   em cápsula, superfícies amplas, cartões com hierarquia, fundo luminoso e coral restrito a
   prioridade. Formulários, tabelas, botões, menus e módulos existentes herdam os mesmos tokens.

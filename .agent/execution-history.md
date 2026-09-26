@@ -5,6 +5,8 @@
 - Redesenhado o shell e o Dashboard a partir da referência, preservando domínio, rotas e efeitos.
 - Criado tooltip acessível reutilizável; indicadores e monitoramento exibem somente dados reais.
 - Type-check frontend/Edge, lint, 42 arquivos/262 testes e build/artefato Sites aprovados.
+- Site oficial v127 publicado e revisado em desktop e celular; ajuste final removeu truncamento dos
+  títulos dos cartões. Console sem erros ou warnings.
 
 ## 2026-09-26 — Etapa 11, acabamento e publicação
 

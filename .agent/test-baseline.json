@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "validated_commit": "1c28140962aa9be61bc9607041c4220b48c77d31",
+  "validated_commit": "8848a5dae7006bf5182a75b661dedbd2e504db50",
   "last_validated_at": "2026-09-26",
   "current_validation": {
     "stage": "wayflex-command-center-redesign",
@@ -13,7 +13,7 @@
     "production_build": "passed",
     "sites_artifact": "passed",
     "external_end_to_end": "not_applicable_visual_only_no_provider_effect",
-    "note": "WayFlex Command Center redesign: shell, dashboard, cards, charts and accessible information tooltips changed without touching business logic. 42 files/262 tests, frontend/Edge typechecks, lint without warnings and production/Sites artifact passed."
+    "note": "WayFlex Command Center redesign: shell, dashboard, cards, charts and accessible information tooltips changed without touching business logic. 42 files/262 tests, frontend/Edge typechecks, lint without warnings and production/Sites artifact passed. Site v127 visually validated on desktop and mobile with no console errors."
   },
   "commands": [
     {"command":"node node_modules/typescript/bin/tsc --noEmit --project tsconfig.app.json","status":"passed","note":"Etapa 3: página de importação e fila de listas."},
