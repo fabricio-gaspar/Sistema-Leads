@@ -1,16 +1,16 @@
 {
   "schema_version": 1,
-  "validated_commit": "563d00a0d502c09eb9abd1a28b6e5db38f164fd0",
+  "validated_commit": "a3d29da79620139f121cf0368bfff479bddb3fee",
   "last_validated_at": "2026-09-26",
   "current_validation": {
-    "stage": "graphite_lime_visual_guide",
+    "stage": "compact_commercial_dashboard",
     "frontend_typecheck": "passed",
     "lint": "passed",
-    "test_files": 42,
-    "tests_passed": 262,
+    "test_files": 43,
+    "tests_passed": 265,
     "production_build": "passed",
     "sites_artifact": "passed",
-    "visual_review": "Dashboard, Leads, Busca, Kanban, Central e Ana no desktop; Dashboard e Ana em 390x844. Tooltip corrigido e confirmado no Kanban v130. Console observado sem errors/warnings.",
+    "visual_review": "Dashboard v131 em desktop e 390x844: quatro cards compactos, fila de decisões, pipeline, atividade e saúde sem transbordamento. Console observado sem errors/warnings.",
     "external_end_to_end": "not_run; visual-only task, no messages or operational writes"
   },
   "commands": [

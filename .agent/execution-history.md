@@ -1,5 +1,16 @@
 # Histórico resumido de execução
 
+## 2026-09-26 — Dashboard comercial compacta
+
+- Consolidada a leitura da Dashboard em quatro indicadores, Ações agora, pipeline canônico,
+  atividade de contato e saúde operacional. Cartões duplicados de conexão, WhatsApp, fontes,
+  fila, valor e temperatura saíram somente desta visão; seus módulos de origem foram preservados.
+- A lista de decisões reúne eventos abertos e handoffs humanos sem notificação, deduplica por lead
+  e não produz efeito operacional. Três regressões novas cobrem prioridade, deduplicação e limite.
+- Type-check, lint, 43 arquivos/265 testes e build passaram. Site oficial v131 (a3d29da) foi
+  revisado em desktop e 390×844; console sem erros ou warnings. Nenhuma rota, regra, automação,
+  dado remoto ou mensagem foi modificada.
+
 ## 2026-09-26 — WayFlex Command Center
 
 - Redesenhado o shell e o Dashboard a partir da referência, preservando domínio, rotas e efeitos.

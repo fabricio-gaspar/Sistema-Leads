@@ -1,5 +1,19 @@
 # Checkpoint — WayFlex CRM
 
+## 26/09/2026 — Dashboard comercial compacta
+
+- A Dashboard foi reduzida à leitura necessária para decisão rápida: quatro indicadores compactos,
+  uma única fila Ações agora, pipeline canônico, atividade de contato e saúde operacional.
+- A fila combina notificações abertas e transferências para humano que ainda não tinham notificação,
+  deduplica por lead e mostra no máximo cinco decisões. É apenas uma seleção visual: não cria
+  tarefa, mensagem, lead, alteração de etapa ou efeito em automação.
+- Foram removidas da página as repetições de cartões de WhatsApp, conexões, fontes, fila, valor e
+  temperatura. Os detalhes continuam nos módulos originais de Central, Configurações e Registros.
+- Type-check, lint, 43 arquivos / 265 testes e build aprovaram. Publicado no Site oficial como
+  versão 131, commit a3d29da, deploy appgdep_6ab842c3d2188191b755513ce09cc832. Revisão visual
+  em desktop e 390×844 confirmou os cards compactos, as quebras de texto e o console sem avisos.
+  Nenhuma regra, rota, automação, dado Supabase ou mensagem externa foi alterada.
+
 ## 26/09/2026 — Guia visual grafite/lima
 
 - Reconciliado o código remoto da versão 128 com o checkpoint local da versão 127, preservando os dois históricos no commit 44a11a8.

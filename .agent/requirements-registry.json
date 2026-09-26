@@ -2,6 +2,14 @@
   "schema_version": 1,
   "requirements": [
     {
+      "id": "REQ-052",
+      "description": "Consolidar a Dashboard em uma visão comercial compacta sem duplicar a operação",
+      "module": "dashboard",
+      "status": "confirmed",
+      "evidence": "Site v131, commit a3d29da; quatro KPIs compactos, até cinco decisões deduplicadas, pipeline canônico, atividade e saúde factual. Type-check, lint, 43 arquivos/265 testes, build e revisão desktop/móvel passaram. Sem mudança de rotas, dados, regras, automações ou mensagens.",
+      "last_validation": "2026-09-26"
+    },
+    {
       "id": "REQ-051",
       "description": "Aplicar guia visual grafite/lima com densidade compacta e explicações em balões preservando operação",
       "module": "frontend",
