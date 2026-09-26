@@ -1,5 +1,13 @@
 # Checkpoint — WayFlex CRM
 
+## 26/09/2026 — Guia visual grafite/lima
+
+- Reconciliado o código remoto da versão 128 com o checkpoint local da versão 127, preservando os dois históricos no commit 44a11a8.
+- Aplicado o guia aprovado: trilho grafite recolhido por padrão, seleção lima, superfícies frias, cartões compactos e hierarquia de prioridade. Refinados Dashboard, telas operacionais, Ana, Configurações, Catálogo e Equipe por CSS limitado ao shell do CRM.
+- Descrições de Busca, Leads, Kanban e Central foram movidas para balões acessíveis. Dados, rotas, contratos, permissões e automações existentes permanecem preservados.
+- Type-check, lint, 42 arquivos / 262 testes e build aprovados. Publicação e revisão visual desta alteração ainda pendentes neste checkpoint.
+
+
 ## 26/09/2026 — WayFlex Command Center: redesign visual do CRM
 
 - Publicado no Site oficial como versão **127**, commit `8848a5d`, preservando o endereço

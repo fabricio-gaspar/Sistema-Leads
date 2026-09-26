@@ -10,6 +10,7 @@ import ModoExecucaoToggle from '@/components/feature/ModoExecucaoToggle';
 import { useCurrentAccess } from '@/hooks/useCurrentAccess';
 import { hasAnyPermission } from '@/lib/crm/currentAccessRepository';
 import { roleLabel, type TeamPermission } from '@/lib/crm/teamMembersRepository';
+import './wayflex-visual.css';
 
 interface NavItem {
   label: string;
@@ -90,7 +91,7 @@ const formatarDataNotif = (iso: string) => {
 };
 
 export default function DashboardLayout() {
-  const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth >= 1024);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [navQuery, setNavQuery] = useState('');
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -141,7 +142,7 @@ export default function DashboardLayout() {
   const canConfigure = hasAnyPermission(access, ['configuration.manage']);
 
   return (
-    <div className="flex h-screen bg-background-100">
+    <div className="wf-app flex h-screen bg-background-100">
       {sidebarOpen && <button aria-label="Fechar menu" onClick={() => setSidebarOpen(false)} className="fixed inset-0 z-20 bg-foreground-950/20 backdrop-blur-[1px] lg:hidden" />}
       {/* Sidebar */}
       <aside
@@ -200,6 +201,7 @@ export default function DashboardLayout() {
                         <Link
                           to={item.path}
                           title={!sidebarOpen ? item.label : undefined}
+                          aria-label={item.label}
                           aria-current={isActive ? 'page' : undefined}
                           onClick={() => { if (window.innerWidth < 1024) setSidebarOpen(false); }}
                           className={`wf-nav-item ${isActive ? 'is-active' : ''} group flex cursor-pointer items-center gap-3 whitespace-nowrap rounded-lg px-3 py-2.5`}
@@ -224,6 +226,7 @@ export default function DashboardLayout() {
         {/* User */}
         <div className="border-t border-background-200/80 p-3 relative">
           <button
+            aria-label="Abrir menu do usuário"
             onClick={() => setUserMenuOpen(!userMenuOpen)}
             className="w-full flex items-center gap-3 cursor-pointer rounded-lg p-1 hover:bg-background-800/30 transition-colors"
           >
@@ -232,7 +235,7 @@ export default function DashboardLayout() {
             </div>
             {sidebarOpen && (
               <div className="flex-1 min-w-0 text-left">
-                <p className="text-foreground-900 text-sm font-medium truncate">{user.name}</p>
+                <p className="wf-sidebar-user-name text-sm font-medium truncate">{user.name}</p>
                 <p className="text-foreground-400 text-xs truncate">{access ? roleLabel[access.role] : user.role}</p>
               </div>
             )}

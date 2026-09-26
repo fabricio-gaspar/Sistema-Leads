@@ -690,8 +690,7 @@ export default function BuscaLeads() {
       <header className="wf-page-header">
         <div>
           <p className="wf-eyebrow">Prospecção</p>
-          <h1 className="wf-page-title mt-1">Busca de Leads</h1>
-          <p className="wf-page-description">Defina a fonte e os filtros. Revise cada resultado antes de importar.</p>
+          <div className="mt-1 flex items-center gap-2"><h1 className="wf-page-title">Busca de Leads</h1><InfoTooltip text="Defina a fonte e os filtros. Revise cada resultado antes de importar." label="Sobre Busca de Leads" align="start" /></div>
         </div>
         <span className="inline-flex w-fit items-center gap-2 rounded-full border border-background-200 bg-white px-3 py-2 text-xs font-semibold text-foreground-600">
           <i className="ri-shield-check-line text-primary-700" aria-hidden="true" /> Importação sob revisão
@@ -1325,3 +1324,4 @@ export default function BuscaLeads() {
     </div>
   );
 }
+import InfoTooltip from '@/components/feature/InfoTooltip';

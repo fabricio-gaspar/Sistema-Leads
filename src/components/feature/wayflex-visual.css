@@ -1,0 +1,110 @@
+/* Approved WayFlex visual guide. Presentation only; operational semantics stay local. */
+.wf-app {
+  --wf-ink: #14151a;
+  --wf-canvas: #f2f4f8;
+  --wf-line: #e3e7ed;
+  --wf-lime: #d9f66d;
+  --wf-green: #168654;
+  color: var(--wf-ink);
+}
+.wf-app .wf-main { background: var(--wf-canvas); }
+.wf-app .wf-page { padding: 1.25rem; }
+.wf-app .wf-page-header { border: 0; padding-bottom: .25rem; gap: .75rem; }
+.wf-app .wf-page-title { font-size: clamp(1.5rem, 2vw, 1.85rem); line-height: 1.2; letter-spacing: -.035em; }
+.wf-app .wf-sidebar { background: #101115 !important; border: 0; }
+.wf-app .wf-sidebar > div { border-color: #2b2d34; }
+.wf-app .wf-sidebar .wf-brand-mark { background: var(--wf-lime); color: #101115; border-radius: .9rem; width: 2.4rem; height: 2.4rem; }
+.wf-app .wf-sidebar .wf-brand-copy strong,
+.wf-app .wf-sidebar-user-name { color: #f5f6f8; }
+.wf-app .wf-sidebar .wf-brand-copy small { color: #a2a8b4; }
+.wf-app .wf-sidebar .wf-icon-button { color: #cbd0da; }
+.wf-app .wf-sidebar .wf-icon-button:hover { color: #101115; }
+.wf-app .wf-sidebar-search { background: #1c1e25; border-color: #343742; color: #fff; }
+.wf-app .wf-sidebar-search::placeholder { color: #a8aebb; }
+.wf-app .wf-nav-section-label { color: #a8aebb; font-size: .75rem; }
+.wf-app .wf-nav-item { color: #bec4cf !important; min-height: 2.75rem; border-radius: .85rem; }
+.wf-app .wf-nav-item:hover { background: #292c34 !important; color: white !important; }
+.wf-app .wf-nav-item.is-active { background: var(--wf-lime) !important; color: #14151a !important; box-shadow: none; }
+.wf-app .wf-sidebar a:focus-visible,
+.wf-app .wf-sidebar button:focus-visible { outline: 2px solid var(--wf-lime); outline-offset: 3px; }
+.wf-app .wf-topbar { min-height: 4.25rem; background: var(--wf-canvas) !important; border-bottom-color: transparent !important; }
+.wf-app .wf-quick-nav { background: white; border-color: transparent; }
+.wf-app .wf-quick-nav a { font-size: .875rem; }
+.wf-app :is(.wf-surface, .wf-card, .wf-settings-section, .wf-toolbar, .wf-table-shell) {
+  border-radius: 1.1rem;
+  border-color: var(--wf-line);
+  box-shadow: 0 2px 7px rgb(20 21 26 / .025);
+}
+.wf-app .wf-card-interactive:hover { transform: none; box-shadow: 0 5px 18px rgb(20 21 26 / .06); }
+.wf-app .wf-command-kpis { gap: 1rem; }
+.wf-app .wf-overview-metric { min-height: 7rem; padding: 1rem; border-radius: 1.1rem; box-shadow: none; }
+.wf-app .wf-overview-metric p.tabular-nums { margin-top: .7rem; font-size: 2rem; }
+.wf-app .wf-overview-metric--green { background: var(--wf-lime); border-color: var(--wf-lime); }
+.wf-app .wf-overview-metric--green .wf-metric-icon { background: rgb(255 255 255 / .5); color: var(--wf-ink); }
+.wf-app .wf-action-spotlight { min-height: 6rem; border-radius: 1.5rem; padding: 1.15rem 1.4rem; background: #bd3d32; box-shadow: none; }
+.wf-app .wf-action-spotlight.is-calm { background: #191b21; box-shadow: none; }
+.wf-app .wf-action-spotlight h2 { font-size: 1.4rem; }
+.wf-app .wf-action-spotlight .wf-spotlight-button { background: var(--wf-lime); color: #14151a; }
+.wf-app .wf-dashboard-core { gap: 1rem; }
+.wf-app .wf-pipeline-card { min-height: 0; }
+.wf-app .wf-pipeline-card > div[role='img'] { margin-top: 1.15rem; }
+.wf-app .wf-pipeline-card > div[role='img'] > div + div { margin-top: .85rem; }
+.wf-app .wf-value-card { background: #ffe5d8; border-color: #f4d8ca; }
+.wf-app .wf-value-card .wf-inset-stat { background: rgb(255 255 255 / .6); border-color: rgb(255 255 255 / .8); }
+.wf-app .wf-health-item { padding: .85rem 1rem; gap: .5rem; }
+.wf-app .wf-health-heading { padding: .8rem 1rem; }
+.wf-app .wf-health-panel { overflow: visible; }
+.wf-app .wf-health-grid { border-radius: 0 0 1.1rem 1.1rem; }
+.wf-app .wf-overview-link,
+.wf-app .wf-next-action-open { font-size: .875rem; }
+.wf-app .wf-info-tooltip__trigger { min-width: 1.5rem; min-height: 1.5rem; }
+.wf-app .wf-info-tooltip__bubble { font-size: .875rem; }
+.wf-app .wf-secondary-kpi { min-height: 7.2rem; padding: 1rem; border-radius: 1.1rem; box-shadow: none; }
+.wf-app .wf-secondary-kpi > p:last-child { font-size: .875rem; }
+.wf-app .wf-secondary-panel,
+.wf-app .wf-secondary-filter { border-radius: 1.1rem; box-shadow: none; }
+.wf-app .wf-secondary-header .wf-page-title { font-size: clamp(1.5rem, 2vw, 1.85rem); }
+.wf-app .wf-secondary-table th { font-size: .875rem; }
+.wf-app .cc-settings .cc-settings-nav { width: 13rem; background: white; border-color: var(--wf-line); padding: .65rem; box-shadow: none; }
+.wf-app .cc-settings .cc-settings-nav > div > p { color: #69717d; }
+.wf-app .cc-settings .cc-settings-nav .cc-settings-nav-item { color: #535c69; font-size: .875rem; }
+.wf-app .cc-settings .cc-settings-nav .cc-settings-nav-item i { color: #69717d; }
+.wf-app .cc-settings .cc-settings-nav .cc-settings-nav-item:hover { background: #f2f4f8; color: #14151a; }
+.wf-app .cc-settings .cc-settings-nav .cc-settings-nav-item[aria-current='page'] { background: var(--wf-lime); color: #14151a; box-shadow: none; }
+.wf-app .cc-settings .cc-settings-nav .cc-settings-nav-item[aria-current='page'] i { color: #14151a; }
+.wf-app .ana-config.ana-cc > .ana-cc-header { min-height: 0; padding: 1.25rem; border-radius: 1.5rem; }
+.wf-app .ana-config.ana-cc > .ana-cc-header h1 { font-size: 1.7rem; }
+.wf-app .ana-config.ana-cc > .ana-cc-header .eyebrow { color: var(--wf-lime); }
+.wf-app .ana-config.ana-cc .steps button.active { background: var(--wf-lime); color: #14151a; border-color: transparent; }
+.wf-app .ana-config.ana-cc .steps button.active span { background: #14151a; }
+.wf-app .ana-config.ana-cc .steps button.active .step-description { color: #394518; }
+.wf-app .ana-config.ana-cc .steps button b { font-size: .875rem; }
+.wf-app .ana-config.ana-cc .card { min-height: 25rem; }
+.wf-app .wf-knowledge-card-content { min-height: 11.5rem; padding: .9rem; }
+.wf-app .wf-knowledge-card-media { height: 7rem; background: #f2f4f8; }
+.wf-app .wf-knowledge-card-media img { object-fit: contain; padding: .5rem; }
+.wf-app .wf-knowledge-card-foot { margin-top: .8rem; }
+.wf-app .wf-knowledge-card-foot button { min-height: 2.3rem; font-size: .875rem; }
+.wf-app .wf-knowledge-edit { background: var(--wf-lime); color: #14151a; }
+.wf-app .cc-catalog-entry { min-height: 12rem; padding: 1.2rem; border-radius: 1.1rem; }
+.wf-app .cc-team-person-name h3,
+.wf-app .cc-team-person-name p { overflow-wrap: anywhere; white-space: normal; }
+@media (min-width: 1500px) {
+  .wf-app .wf-command-kpis { grid-template-columns: repeat(4, minmax(0, 1fr)) minmax(17rem, 1.7fr); }
+  .wf-app .wf-action-spotlight { grid-column: auto; flex-wrap: wrap; gap: .7rem; }
+  .wf-app .wf-action-spotlight h2 { font-size: 1.2rem; }
+}
+@media (max-width: 767px) {
+  .wf-app .wf-page { padding: 1rem; }
+  .wf-app .wf-action-spotlight { flex-wrap: wrap; }
+  .wf-app .wf-topbar { min-height: 3.8rem; }
+  .wf-app .wf-overview-metric { padding: .8rem; }
+  .wf-app .wf-overview-metric .wf-metric-icon { display: none; }
+  .wf-app .wf-secondary-kpi { min-height: 7.2rem; }
+  .wf-app .ana-config.ana-cc .card { min-height: 0; }
+  .wf-app .wf-knowledge-grid { grid-template-columns: 1fr; }
+  .wf-app .wf-knowledge-card { display: grid; grid-template-columns: 5.5rem minmax(0, 1fr); }
+  .wf-app .wf-knowledge-card-media { height: 100%; min-height: 7rem; }
+  .wf-app .wf-knowledge-card-content { min-height: 0; }
+  .wf-app .wf-knowledge-card-foot { flex-wrap: wrap; }
+}

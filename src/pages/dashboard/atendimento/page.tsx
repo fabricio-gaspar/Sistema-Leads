@@ -511,8 +511,7 @@ export default function Atendimento() {
       <header className="wf-page-header lg:items-center">
         <div>
           <p className="wf-eyebrow">Atendimento</p>
-          <h1 className="wf-page-title mt-1">Central de Atendimento</h1>
-          <p className="wf-page-description">Histórico, conversa e contexto comercial do lead em um só lugar.</p>
+          <div className="mt-1 flex items-center gap-2"><h1 className="wf-page-title">Central de Atendimento</h1><InfoTooltip text="Histórico, conversa e contexto comercial do lead em um só lugar." label="Sobre Central de Atendimento" align="start" /></div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <span
@@ -1050,3 +1049,4 @@ export default function Atendimento() {
     </div>
   );
 }
+import InfoTooltip from '@/components/feature/InfoTooltip';

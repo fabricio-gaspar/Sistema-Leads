@@ -398,8 +398,7 @@ export default function Leads() {
       <header className="wf-page-header">
         <div>
           <p className="wf-eyebrow">Carteira comercial</p>
-          <h1 className="wf-page-title mt-1">Leads</h1>
-          <p className="wf-page-description">Consulte a carteira, acompanhe a etapa e abra o próximo atendimento.</p>
+          <div className="mt-1 flex items-center gap-2"><h1 className="wf-page-title">Leads</h1><InfoTooltip text="Consulte a carteira, acompanhe a etapa e abra o próximo atendimento." label="Sobre Leads" align="start" /></div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           <span className="rounded-full border border-background-200 bg-white px-3 py-2 text-xs font-semibold tabular-nums text-foreground-600">{filtrados.length} exibidos · {leads.length} na carteira</span>
@@ -954,3 +953,4 @@ export default function Leads() {
     </div>
   );
 }
+import InfoTooltip from '@/components/feature/InfoTooltip';

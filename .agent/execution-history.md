@@ -1115,3 +1115,8 @@
 - Estados de carga/erro impedem que zeros e selos positivos sejam mostrados como dados confirmados antes de consultar a fonte; detalhes ficam em ícones de informação acessíveis por teclado e toque. O Catálogo usa itens reais, com edição existente e rótulo Rascunho para item ainda não ativo.
 - Sem alteração de regras de negócio, rotas, integrações, dados remotos, automação ou envio. Type-check frontend/Edge e build/Sites passaram. Oito asserções relevantes apareceram como aprovadas, mas o Vitest não encerrou; o processo foi interrompido, sem afirmar aprovação da suíte completa. Inspeção visual autenticada depende da versão publicada e da sessão do cliente.
 - Checkpoint de código `2e8452ea7d021a83faa8bf45284963d3eaeb54d9`; publicação pendente no momento deste registro.
+## 2026-09-26 — Guia visual grafite/lima
+
+- Base remota abba1ed reconciliada com documentação local sem perder histórico.
+- Refinamento visual compartilhado e balões explicativos; nenhuma mutação de dados operacionais.
+- Type-check, lint, 42 arquivos / 262 testes e build passaram; publicação e inspeção visual a seguir.

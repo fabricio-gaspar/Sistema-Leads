@@ -271,8 +271,7 @@ export default function KanbanCRM() {
       <header className="wf-page-header">
         <div>
           <p className="wf-eyebrow">Pipeline comercial</p>
-          <h1 className="wf-page-title mt-1">Kanban</h1>
-          <p className="wf-page-description">Acompanhe as etapas da carteira e abra cada lead para decidir o próximo passo.</p>
+          <div className="mt-1 flex items-center gap-2"><h1 className="wf-page-title">Kanban</h1><InfoTooltip text="Acompanhe as etapas da carteira e abra cada lead para decidir o próximo passo." label="Sobre Kanban" align="start" /></div>
         </div>
         <div className="flex flex-wrap items-center gap-3">
           {hasFiltros && (
@@ -601,3 +600,4 @@ export default function KanbanCRM() {
     </div>
   );
 }
+import InfoTooltip from '@/components/feature/InfoTooltip';
