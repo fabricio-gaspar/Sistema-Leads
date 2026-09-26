@@ -4,7 +4,7 @@
   "baseline_commit": "1dc6275b8c7d70de953b66397a8c89f5e97bc15b",
   "last_audited_commit": "77b564cf44f651a2a56e8314226f78d4e9b99f89",
   "current_head_at_update": "77b564cf44f651a2a56e8314226f78d4e9b99f89",
-  "working_tree_status": "commercial_plan_stage_9_validated_pending_checkpoint",
+  "working_tree_status": "commercial_plan_stage_10_security_homologated_pending_checkpoint",
   "stage_1_baseline": ".agent/baselines/2026-09-25-stage-1.json",
   "recovery_tag": "baseline-wayflex-stage1-20260925",
   "work_branch": "chore/wayflex-stage-1-baseline-2026-09-25",
@@ -16,7 +16,7 @@
     "working_tree_status": "published_real_assignees_and_empty_selection_retest_passed"
   },
   "full_audit_required": false,
-  "baseline_status": "commercial_plan_stage_9_common_validation_complete",
-  "updated_at": "2026-09-26T09:52:00-03:00",
-  "next_action": "Trocar para Sol XHigh e executar a etapa 10 Segurança e homologação: RLS, isolamento, concorrência, E2E controlado e auditoria comercial. Não publicar o Site antes da etapa 11."
+  "baseline_status": "commercial_plan_stage_10_security_homologated_with_auth_pending",
+  "updated_at": "2026-09-26T10:05:00-03:00",
+  "next_action": "Trocar para Terra High e executar a etapa 11 Acabamento e publicação no Site oficial existente. Preservar a pendência de Leaked Password Protection para o gate da etapa 12."
 }

@@ -1,5 +1,18 @@
 # Checkpoint — WayFlex CRM
 
+## 26/09/2026 — Plano comercial, etapa 10: segurança e homologação
+
+- Supabase oficial saudável e isolamento RLS comprovado com sessões `authenticated`: administrador
+  viu somente WayFlex; vendedor sem carteira viu zero leads/notificações; tabelas internas recusaram
+  leitura. Handoff transacional foi executado e revertido, com zero resíduos confirmados.
+- Advisors foram classificados: tabelas sem policy estão fechadas a `anon/authenticated`; cinco
+  RPCs privilegiadas possuem validações explícitas; avisos de índices não justificam remoção cega.
+- Varredura do Git não encontrou chave privada. Nenhum provedor, worker, automação ou publicação foi
+  acionado. Evidências: `docs/HOMOLOGACAO_SEGURANCA_ETAPA_10_2026-09-26.md`.
+- Pendência administrativa real: **Leaked Password Protection** está desativada no Auth e precisa
+  ser habilitada no painel antes da liberação comercial; o MCP disponível não altera esse controle.
+- Próxima etapa: **Acabamento e publicação**, requer Terra High.
+
 ## 26/09/2026 — Plano comercial, etapa 9: testes e correções comuns
 
 - A validação consolidada cobriu TypeScript do frontend e de todas as Edge Functions, lint sem

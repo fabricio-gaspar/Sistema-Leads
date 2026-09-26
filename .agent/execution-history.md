@@ -1,5 +1,14 @@
 # Histórico resumido de execução
 
+## 2026-09-26 — Etapa 10, segurança e homologação
+
+- MCP confirmou projeto oficial saudável. RLS foi exercitado como administrador e vendedor;
+  organização estrangeira ficou invisível e tabelas internas recusaram acesso autenticado.
+  Handoff foi executado em transação, revertido e conferido sem resíduos.
+- Advisors e funções `SECURITY DEFINER` foram revisados individualmente. Nenhuma chave privada foi
+  encontrada no Git. Pendência para a etapa 12: habilitar proteção de senhas vazadas no Auth e
+  repetir o advisor. Nenhum provedor, automação ou deploy foi acionado.
+
 ## 2026-09-26 — Etapa 9, testes e correções comuns
 
 - Consolidada a validação pós-etapas 6–8: frontend/Edge type-safe, lint sem warnings, 42 arquivos/
