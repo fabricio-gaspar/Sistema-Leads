@@ -1,19 +1,19 @@
 {
   "schema_version": 1,
-  "validated_commit": "1c28140962aa9be61bc9607041c4220b48c77d31",
+  "validated_commit": "2e8452ea7d021a83faa8bf45284963d3eaeb54d9",
   "last_validated_at": "2026-09-26",
   "current_validation": {
-    "stage": "wayflex-command-center-redesign",
+    "stage": "wayflex-command-center-multiscreen-application",
     "evidence": "docs/CONTINUIDADE_WAYFLEX.md",
     "frontend_typecheck": "passed",
     "edge_typecheck": "passed",
-    "lint": "passed_without_warnings",
-    "test_files": 42,
-    "tests_passed": 262,
+    "lint": "targeted_four_pages_passed; full_lint_not_run",
+    "targeted_tests": "8 assertions displayed as passed; Vitest process did not exit and was stopped",
+    "full_tests": "assertions ran but runner did not exit; no full-suite pass claimed",
     "production_build": "passed",
     "sites_artifact": "passed",
-    "external_end_to_end": "not_applicable_visual_only_no_provider_effect",
-    "note": "WayFlex Command Center redesign: shell, dashboard, cards, charts and accessible information tooltips changed without touching business logic. 42 files/262 tests, frontend/Edge typechecks, lint without warnings and production/Sites artifact passed."
+    "external_end_to_end": "not_run; authenticated browser preview unavailable in this environment",
+    "note": "Dashboard and operational modules use concise cards, real pipeline and diagnostics, and explicit loading/error states. No operational action or provider was triggered."
   },
   "commands": [
     {"command":"node node_modules/typescript/bin/tsc --noEmit --project tsconfig.app.json","status":"passed","note":"Etapa 3: página de importação e fila de listas."},

@@ -1106,3 +1106,10 @@
   ativa e zero job pendente. Leaked Password Protection continua desativada.
 - Validação final: frontend/Edge type-check, lint, 42 arquivos/262 testes e build aprovados.
 - Decisão: liberar CRM somente para uso supervisionado/piloto; não ativar Automático sem E2E real.
+
+## 2026-09-26 — WayFlex Command Center multitelas
+
+- Aplicada hierarquia visual consistente a Dashboard, Busca, Leads, Kanban, Central, Catálogo, Ana, Configurações, Orçamentos, Agenda, Relatórios e Equipe. O Dashboard apresenta quatro KPIs, prioridade comercial sem somar duas vezes o mesmo lead, sete etapas do pipeline, até cinco próximas ações e seis leituras operacionais.
+- Estados de carga/erro impedem que zeros e selos positivos sejam mostrados como dados confirmados antes de consultar a fonte; detalhes ficam em ícones de informação acessíveis por teclado e toque. O Catálogo usa itens reais, com edição existente e rótulo Rascunho para item ainda não ativo.
+- Sem alteração de regras de negócio, rotas, integrações, dados remotos, automação ou envio. Type-check frontend/Edge e build/Sites passaram. Oito asserções relevantes apareceram como aprovadas, mas o Vitest não encerrou; o processo foi interrompido, sem afirmar aprovação da suíte completa. Inspeção visual autenticada depende da versão publicada e da sessão do cliente.
+- Checkpoint de código `2e8452ea7d021a83faa8bf45284963d3eaeb54d9`; publicação pendente no momento deste registro.
