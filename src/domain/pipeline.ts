@@ -40,6 +40,12 @@ const legacyStageMap: Record<string, PipelineStageCode> = {
   'Pausado': 'engaging',
   'Fechado — Ganho': 'won',
   'Fechado — Perdido': 'lost',
+  'Prospecção': 'entered',
+  'Qualificado': 'qualified',
+  'Proposta': 'quote_sent',
+  'Pedido': 'quote_sent',
+  'Fechado': 'won',
+  'Contatos Perdidos': 'lost',
 };
 
 export function stageFromLegacy(stage: string): PipelineStageCode {

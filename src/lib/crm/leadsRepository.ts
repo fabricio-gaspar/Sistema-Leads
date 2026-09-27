@@ -52,6 +52,10 @@ export async function persistOperationalLeads(previous: Lead[], next: Lead[]): P
     const row = leadToCrmRow(lead, session.organizationId);
     if (previousLead) {
       const patch = changedOperationalLeadFields(previousLead, lead, session.organizationId);
+      if (previousLead.arquivado !== lead.arquivado) {
+        patch.archived_at = lead.arquivado ? new Date().toISOString() : null;
+        patch.archived_by = lead.arquivado ? session.userId : null;
+      }
       if (previousLead.contactApprovalStatus !== 'approved' && lead.contactApprovalStatus === 'approved') {
         patch.contact_approved_by = session.userId;
         patch.contact_approved_at = lead.contactApprovedAt || new Date().toISOString();

@@ -1,17 +1,17 @@
 {
   "schema_version": 1,
   "validated_commit": "a3d29da79620139f121cf0368bfff479bddb3fee",
-  "last_validated_at": "2026-09-26",
+  "last_validated_at": "2026-09-27",
   "current_validation": {
-    "stage": "compact_commercial_dashboard",
+    "stage": "commercial_flow_homologation",
     "frontend_typecheck": "passed",
     "lint": "passed",
-    "test_files": 43,
-    "tests_passed": 265,
+    "test_files": 46,
+    "tests_passed": 281,
     "production_build": "passed",
     "sites_artifact": "passed",
-    "visual_review": "Dashboard v131 em desktop e 390x844: quatro cards compactos, fila de decisões, pipeline, atividade e saúde sem transbordamento. Console observado sem errors/warnings.",
-    "external_end_to_end": "not_run; visual-only task, no messages or operational writes"
+    "visual_review": "Não executada nesta alteração operacional; nenhuma rota, card ou layout foi redesenhado sem revisão específica.",
+    "external_end_to_end": "not_run; Z-API está desconectada/bloqueada. Não houve chamada a provedor, mensagem, job ou execução comercial."
   },
   "commands": [
     {

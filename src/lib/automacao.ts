@@ -13,7 +13,7 @@ export const transicoesPermitidas: Record<string, string[]> = {
   'Reunião': ['Orçamento'],
   'Orçamento': ['Ganho', 'Perdido'],
   Ganho: [],
-  Perdido: ['Novo'],
+  Perdido: [],
 };
 
 export function podeTransicionar(de: string, para: string): { ok: boolean; motivo?: string } {

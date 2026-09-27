@@ -42,6 +42,8 @@ export interface CrmLeadRow {
   updated_at: string;
   next_action_at?: string | null;
   no_reply_deadline_at?: string | null;
+  archived_at?: string | null;
+  archived_by?: string | null;
 }
 
 export type LeadHandoffPolicyRow = {
@@ -227,7 +229,7 @@ export function crmRowToLead(row: CrmLeadRow, handoffPolicy?: LeadHandoffPolicyR
     sourceRecordId: row.source_record_id ?? undefined, sourceUrl: row.source_url ?? undefined, deduplicationKey: row.deduplication_key ?? undefined,
     fitScore: typeof scoreSnapshot.fit === 'number' ? scoreSnapshot.fit : score, contactabilityScore: typeof scoreSnapshot.contactability === 'number' ? scoreSnapshot.contactability : 0,
     engagementScore: typeof scoreSnapshot.engagement === 'number' ? scoreSnapshot.engagement : 0, scoreExplanation: row.score_explanation ?? '', scoreVerifiedAt: row.score_verified_at ?? null,
-    primeiroContatoEnviadoEm: null, aguardandoAtivacao: approvalStatus !== 'approved', noShows: 0, fluxosProgramados: [], arquivado: false,
+    primeiroContatoEnviadoEm: null, aguardandoAtivacao: approvalStatus !== 'approved', noShows: 0, fluxosProgramados: [], arquivado: Boolean(row.archived_at),
     etapaHandoff: handoffPolicy?.handoff_stage, handoffWhatsappAtivo: handoffPolicy?.notify_whatsapp === true,
   };
 }

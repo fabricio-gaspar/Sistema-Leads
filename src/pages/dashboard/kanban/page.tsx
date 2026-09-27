@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useLeadsStore } from '@/hooks/useLeadsStore';
+import { refreshLeadsStore, useLeadsStore, waitForLeadsPersistence } from '@/hooks/useLeadsStore';
 import { useFluxoComercial } from '@/hooks/useFluxoComercial';
 import { useLocalStorageState } from '@/hooks/useLocalStorageState';
 import { useSavedViews } from '@/hooks/useSavedViews';
@@ -13,6 +13,7 @@ import LeadDrawer from './components/LeadDrawer';
 import { runAna } from '@/lib/crm/anaRunRepository';
 import { isContactActivationPending, shouldDisplayInKanban } from '@/lib/crm/kanbanLeadVisibility';
 import { runOperationalAutomations } from '@/lib/crm/automationRepository';
+import { canonicalStageKeyFromLabel, CommercialTransitionError, transitionOperationalLeadStage } from '@/lib/crm/leadStageRepository';
 
 const formatarData = (d: Date): string => {
   const y = d.getFullYear();
@@ -51,8 +52,9 @@ export default function KanbanCRM() {
   const [dragId, setDragId] = useState<string | null>(null);
   const [detalheId, setDetalheId] = useState<string | null>(null);
   const [toast, setToast] = useState('');
-  const [motivoModal, setMotivoModal] = useState<{ id: string; etapa: string; nome: string; tipo: 'perda' | 'reativacao' } | null>(null);
+  const [motivoModal, setMotivoModal] = useState<{ id: string; etapa: string; nome: string; tipo: 'perda' | 'ganho' } | null>(null);
   const [motivoTexto, setMotivoTexto] = useState('');
+  const [stageChangePending, setStageChangePending] = useState<string | null>(null);
   const [deleteAlvo, setDeleteAlvo] = useState<Lead | null>(null);
   const [filtroResponsavel, setFiltroResponsavel] = useLocalStorageState('kanban-filtro-responsavel', '');
   const [filtroSegmento, setFiltroSegmento] = useLocalStorageState('kanban-filtro-segmento', '');
@@ -69,17 +71,22 @@ export default function KanbanCRM() {
     setTimeout(() => setToast(''), 3000);
   };
 
-  const excluirLead = (lead: Lead) => {
-    setLeads((prev) => prev.filter((l) => l.id !== lead.id));
-    setDetalheId(null);
-    setDeleteAlvo(null);
-    fluxo.registrarAuditoria({
-      evento: 'LEAD_DELETED',
-      ator: 'Usuário',
-      alvo: lead.nome,
-      detalhes: 'Lead excluído manualmente do Kanban',
-    });
-    mostrarToast(`${lead.nome} foi excluído do Kanban.`);
+  const excluirLead = async (lead: Lead) => {
+    setLeads((prev) => prev.map((item) => item.id === lead.id ? { ...item, arquivado: true } : item));
+    try {
+      await waitForLeadsPersistence();
+      setDetalheId(null);
+      setDeleteAlvo(null);
+      fluxo.registrarAuditoria({
+        evento: 'LEAD_ARCHIVED',
+        ator: 'Usuário',
+        alvo: lead.nome,
+        detalhes: 'Lead arquivado pelo Kanban; histórico comercial preservado',
+      });
+      mostrarToast(`${lead.nome} foi arquivado do Kanban. O histórico foi preservado.`);
+    } catch {
+      mostrarToast('Não foi possível arquivar o lead. A tela foi reconciliada com o servidor.');
+    }
   };
 
   const responsaveis = Array.from(new Set(leads.map((l) => l.responsavel).filter(Boolean))).sort();
@@ -182,53 +189,50 @@ export default function KanbanCRM() {
   };
 
   const mudarEtapa = (id: string, etapa: string) => {
-    executarMudanca(id, etapa);
+    void executarMudanca(id, etapa);
   };
 
-  const aplicarMudanca = (id: string, etapa: string, motivo?: string) => {
+  const aplicarMudanca = async (id: string, etapa: string, motivo?: string) => {
     const lead = leads.find((l) => l.id === id);
     if (!lead) return;
-    const ehFinal = ['Ganho', 'Perdido'].includes(etapa);
-    const reativando = lead.etapa === 'Perdido' && etapa !== lead.etapa;
-    setLeads((prev) =>
-      prev.map((l) =>
-        l.id === id
-          ? {
-              ...l,
-              etapa,
-              motivoPerda: etapa === 'Perdido' ? (motivo || l.motivoPerda || '') : reativando ? '' : l.motivoPerda,
-              automacaoStatus: ehFinal ? 'CONCLUIDA' : l.automacaoStatus,
-              nextFollowUpAt: ehFinal ? null : l.nextFollowUpAt,
-              timeoutAt: ehFinal ? null : l.timeoutAt,
-              historico: [
-                { id: `h-${Date.now()}`, tipo: reativando ? 'REATIVACAO' : 'STAGE_CHANGED', descricao: reativando ? `Lead reativado em "${etapa}"${motivo ? ` — ${motivo}` : ''}` : `Movido de "${lead.etapa}" para "${etapa}"`, ator: 'Usuário', data: new Date().toISOString() },
-                ...(l.historico || []),
-              ],
-            }
-          : l
-      )
-    );
-    fluxo.registrarAuditoria({
-      evento: 'STAGE_CHANGED',
-      ator: 'Usuário',
-      alvo: lead.nome,
-      detalhes: reativando ? `Reativado em "${etapa}"` : `Movido de "${lead.etapa}" para "${etapa}"`,
-    });
-    mostrarToast(`${lead.nome} movido para "${etapa}"`);
+    const stage = canonicalStageKeyFromLabel(etapa);
+    if (!stage) {
+      mostrarToast('Etapa comercial inválida.');
+      return;
+    }
+    setStageChangePending(id);
+    try {
+      await transitionOperationalLeadStage({ leadId: id, stage, reason: motivo });
+      await refreshLeadsStore();
+      fluxo.registrarAuditoria({ evento: 'STAGE_CHANGED', ator: 'Usuário', alvo: lead.nome, detalhes: `Movido de "${lead.etapa}" para "${etapa}"` });
+      mostrarToast(`${lead.nome} movido para "${etapa}".`);
+    } catch (error) {
+      mostrarToast(error instanceof CommercialTransitionError ? error.message : 'Não foi possível confirmar a mudança de etapa.');
+    } finally {
+      setStageChangePending(null);
+    }
   };
 
-  const executarMudanca = (id: string, etapa: string) => {
+  const executarMudanca = async (id: string, etapa: string) => {
+    if (stageChangePending) {
+      mostrarToast('Aguarde a confirmação da alteração anterior.');
+      return;
+    }
     const lead = leads.find((l) => l.id === id);
     if (!lead || lead.etapa === etapa) return;
     if (etapa === 'Perdido') {
       setMotivoModal({ id, etapa, nome: lead.nome, tipo: 'perda' });
       return;
     }
-    if (lead.etapa === 'Perdido') {
-      setMotivoModal({ id, etapa, nome: lead.nome, tipo: 'reativacao' });
+    if (etapa === 'Ganho') {
+      setMotivoModal({ id, etapa, nome: lead.nome, tipo: 'ganho' });
       return;
     }
-    aplicarMudanca(id, etapa);
+    if (['Ganho', 'Perdido'].includes(lead.etapa)) {
+      mostrarToast('Ganho e Perdido são estados finais; a reativação exige um processo de governança.');
+      return;
+    }
+    await aplicarMudanca(id, etapa);
   };
 
   const confirmarMotivo = () => {
@@ -237,7 +241,7 @@ export default function KanbanCRM() {
       mostrarToast('Informe o motivo.');
       return;
     }
-    aplicarMudanca(motivoModal.id, motivoModal.etapa, motivoTexto.trim());
+    void aplicarMudanca(motivoModal.id, motivoModal.etapa, motivoTexto.trim());
     setMotivoModal(null);
     setMotivoTexto('');
   };
@@ -254,15 +258,7 @@ export default function KanbanCRM() {
   const rodarAna = async (lead: Lead) => {
     const result = await runAna({ event: 'manual.run', leadId: lead.id, modo: lead.modoAtendimento ?? 'IA' });
     if (!result.ok) throw new Error(result.erro || 'ana_run_failed');
-    const etapa = result.proximo_estagio === 'Ganho / Perdido'
-      ? result.outcome === 'perdido' ? 'Perdido' : 'Ganho'
-      : result.proximo_estagio;
-    setLeads((current) => current.map((item) => item.id === lead.id ? {
-      ...item, etapa: etapa || item.etapa, score: result.score ?? item.score,
-      automacaoStatus: result.precisa_humano ? 'AGUARDANDO_HUMANO' : item.automacaoStatus,
-      motivoTransferencia: result.motivo || item.motivoTransferencia,
-      anaOutcome: result.outcome ?? null,
-    } : item));
+    await refreshLeadsStore();
     mostrarToast(result.status_canal === 'pendente_canal' ? 'Ana gerou um rascunho. O canal ainda não está conectado.' : 'Ana gerou um rascunho para revisão.');
   };
 
@@ -477,7 +473,7 @@ export default function KanbanCRM() {
                             e.stopPropagation();
                             setDeleteAlvo(lead);
                           }}
-                          title="Excluir lead"
+                          title="Arquivar lead"
                           className="flex h-6 w-6 items-center justify-center rounded-md text-foreground-400 opacity-100 transition-opacity hover:bg-accent-50 hover:text-accent-600 focus-visible:opacity-100 cursor-pointer sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100"
                         >
                           <i className="ri-delete-bin-line text-sm"></i>
@@ -540,27 +536,27 @@ export default function KanbanCRM() {
           <div className="bg-background-50 rounded-xl max-w-md w-full" onClick={(e) => e.stopPropagation()}>
             <div className="px-6 py-4 border-b border-background-200/70 flex items-center justify-between">
               <h3 className="font-heading font-bold text-foreground-950">
-                {motivoModal.tipo === 'perda' ? 'Registrar perda' : 'Reativar lead'}
+                {motivoModal.tipo === 'perda' ? 'Registrar perda' : 'Confirmar ganho'}
               </h3>
               <button onClick={() => setMotivoModal(null)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-background-100 cursor-pointer">
                 <i className="ri-close-line text-lg"></i>
               </button>
             </div>
             <div className="p-6">
-              {motivoModal.tipo === 'perda' && (
+              {(motivoModal.tipo === 'perda' || motivoModal.tipo === 'ganho') && (
                 <div className="mb-3 flex items-center gap-2 text-xs text-accent-700 bg-accent-50 border border-accent-200 rounded-lg px-3 py-2">
                   <i className="ri-alarm-warning-line"></i>
-                  Ação irreversível — o lead será marcado como perdido.
+                  Ação final — o resultado será registrado no histórico comercial.
                 </div>
               )}
               <p className="text-sm text-foreground-600 mb-4">
-                <b>{motivoModal.nome}</b> será {motivoModal.tipo === 'perda' ? 'movido para Perdido' : 'reativado'}. Informe o motivo (obrigatório).
+                <b>{motivoModal.nome}</b> será {motivoModal.tipo === 'perda' ? 'movido para Perdido' : 'marcado como Ganho'}. Informe o motivo (obrigatório).
               </p>
               <textarea
                 value={motivoTexto}
                 onChange={(e) => setMotivoTexto(e.target.value)}
                 maxLength={300}
-                placeholder={motivoModal.tipo === 'perda' ? 'Ex: Preço acima do esperado...' : 'Ex: Lead retomou contato...'}
+                placeholder={motivoModal.tipo === 'perda' ? 'Ex: Preço acima do esperado...' : 'Ex: Aceite comercial confirmado pelo cliente...'}
                 className="w-full px-4 py-2.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-900 min-h-[80px]"
               />
             </div>
@@ -576,7 +572,7 @@ export default function KanbanCRM() {
         <div className="fixed inset-0 z-[60] bg-foreground-950/50 flex items-center justify-center p-4" onClick={() => setDeleteAlvo(null)}>
           <div className="bg-background-50 rounded-xl max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
             <div className="px-6 py-4 border-b border-background-200/70 flex items-center justify-between">
-              <h3 className="font-heading font-bold text-foreground-950">Excluir lead</h3>
+              <h3 className="font-heading font-bold text-foreground-950">Arquivar lead</h3>
               <button onClick={() => setDeleteAlvo(null)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-background-100 cursor-pointer">
                 <i className="ri-close-line text-lg"></i>
               </button>
@@ -584,15 +580,15 @@ export default function KanbanCRM() {
             <div className="p-6">
               <div className="mb-3 flex items-center gap-2 text-xs text-accent-700 bg-accent-50 border border-accent-200 rounded-lg px-3 py-2">
                 <i className="ri-alarm-warning-line"></i>
-                Ação irreversível — o lead e todo o seu histórico serão removidos.
+                O lead sairá do funil ativo, mas o histórico comercial será preservado.
               </div>
               <p className="text-sm text-foreground-600">
-                Tem certeza que deseja excluir <b>{deleteAlvo.nome}</b> ({deleteAlvo.empresa}) do Kanban? Essa ação não pode ser desfeita.
+                Deseja arquivar <b>{deleteAlvo.nome}</b> ({deleteAlvo.empresa}) do Kanban? Você poderá restaurá-lo em Leads.
               </p>
             </div>
             <div className="px-6 py-4 border-t border-background-200/70 flex justify-end gap-2">
               <button onClick={() => setDeleteAlvo(null)} className="px-4 py-2.5 border border-background-300 text-foreground-700 rounded-lg text-sm font-semibold hover:bg-background-100 cursor-pointer whitespace-nowrap">Cancelar</button>
-              <button onClick={() => excluirLead(deleteAlvo)} className="px-5 py-2.5 bg-accent-500 hover:bg-accent-600 text-background-50 rounded-lg text-sm font-bold cursor-pointer whitespace-nowrap">Excluir</button>
+              <button onClick={() => void excluirLead(deleteAlvo)} className="px-5 py-2.5 bg-accent-500 hover:bg-accent-600 text-background-50 rounded-lg text-sm font-bold cursor-pointer whitespace-nowrap">Arquivar</button>
             </div>
           </div>
         </div>

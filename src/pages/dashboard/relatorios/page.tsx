@@ -6,7 +6,8 @@ import type { FilterChip } from '@/components/feature/FilterChips';
 import SavedViewsControl from '@/components/feature/SavedViewsControl';
 import { useLeadsStore } from '@/hooks/useLeadsStore';
 import { usePropostasStore } from '@/hooks/usePropostasStore';
-import { periodoDesde, maxDataString, dentroDoPeriodo } from '@/lib/periodo';
+import { periodoDesde, dentroDoPeriodo } from '@/lib/periodo';
+import { stageFromLegacy } from '@/domain/pipeline';
 import '../command-secondary.css';
 
 const periodos = [
@@ -39,7 +40,7 @@ export default function Relatorios() {
 
   const exportar = () => {
     setExportando(true);
-    setTimeout(() => {
+    try {
       setExportando(false);
       const cabecalho = ['Nome', 'Empresa', 'Segmento', 'Etapa', 'Score', 'Responsável'];
       const linhas = leadsFiltrados.map((l) => [
@@ -62,8 +63,11 @@ export default function Relatorios() {
       a.click();
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
-      mostrarToast('Relatório exportado em CSV!');
-    }, 800);
+      mostrarToast('CSV de leads filtrados exportado.');
+    } catch {
+      setExportando(false);
+      mostrarToast('Não foi possível gerar o CSV. Tente novamente.');
+    }
   };
 
   const responsaveis = Array.from(new Set(leads.map((l) => l.responsavel))).sort();
@@ -95,10 +99,7 @@ export default function Relatorios() {
     filtroSegmento ? { label: 'Segmento', value: filtroSegmento, onRemove: () => setFiltroSegmento('') } : null,
   ].filter((c): c is FilterChip => c !== null);
 
-  const refDate = maxDataString([
-    ...leads.map((lead) => lead.criadoEm),
-    ...propostas.map((proposal) => proposal.data),
-  ]);
+  const refDate = new Date().toISOString().slice(0, 10);
   const desde = periodoDesde(periodo, refDate);
 
   const leadsFiltrados = leads.filter((l) => {
@@ -108,7 +109,11 @@ export default function Relatorios() {
     return true;
   });
 
-  const propostasFiltradas = propostas.filter((proposal) => dentroDoPeriodo(proposal.data, desde));
+  const leadIdsFiltrados = new Set(leadsFiltrados.map((lead) => lead.id));
+  const propostasFiltradas = propostas.filter((proposal) =>
+    dentroDoPeriodo(proposal.data, desde)
+    && ((!filtroResponsavel && !filtroSegmento) || Boolean(proposal.leadId && leadIdsFiltrados.has(proposal.leadId)))
+  );
   const orcamentosAceitos = propostasFiltradas.filter((proposal) => proposal.status === 'aceita');
   const pipelineAberto = propostasFiltradas
     .filter((proposal) => ['rascunho', 'aguardando_aprovacao', 'enviada', 'visualizada'].includes(proposal.status))
@@ -120,7 +125,7 @@ export default function Relatorios() {
       const chave = lead.criadoEm.slice(0, 7);
       const atual = agrupado.get(chave) ?? { encontrados: 0, convertidos: 0 };
       atual.encontrados += 1;
-      if (lead.etapa === 'Fechado — Ganho') atual.convertidos += 1;
+      if (stageFromLegacy(lead.etapa) === 'won') atual.convertidos += 1;
       agrupado.set(chave, atual);
     }
     return [...agrupado.entries()]
@@ -141,12 +146,12 @@ export default function Relatorios() {
 
   const porResponsavel = responsaveis.map((nome) => {
     const responsavelLeads = leadsFiltrados.filter((lead) => lead.responsavel === nome);
-    const nomesLeads = new Set(responsavelLeads.map((lead) => lead.nome));
+    const idsLeads = new Set(responsavelLeads.map((lead) => lead.id));
     return {
       nome,
       quantidade: responsavelLeads.length,
-      convertidos: responsavelLeads.filter((lead) => lead.etapa === 'Fechado — Ganho').length,
-      valorOrcado: propostasFiltradas.filter((proposal) => proposal.status === 'aceita' && nomesLeads.has(proposal.lead)).reduce((total, proposal) => total + proposal.valor, 0),
+      convertidos: responsavelLeads.filter((lead) => stageFromLegacy(lead.etapa) === 'won').length,
+      valorOrcado: propostasFiltradas.filter((proposal) => proposal.status === 'aceita' && proposal.leadId && idsLeads.has(proposal.leadId)).reduce((total, proposal) => total + proposal.valor * (1 - proposal.descontoPct / 100), 0),
     };
   }).filter((r) => r.quantidade > 0);
 
@@ -287,9 +292,9 @@ export default function Relatorios() {
           <div className="wf-secondary-kpis grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {[
               { label: 'Leads no funil', value: leadsFiltrados.length.toLocaleString(), icon: 'ri-user-search-line', color: 'bg-primary-100 text-primary-600' },
-              { label: 'Valor em orçamentos aceitos', value: orcamentosAceitos.reduce((total, proposal) => total + proposal.valor, 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }), icon: 'ri-file-check-line', color: 'bg-accent-100 text-accent-600' },
+              { label: 'Valor em orçamentos aceitos', value: orcamentosAceitos.reduce((total, proposal) => total + proposal.valor * (1 - proposal.descontoPct / 100), 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }), icon: 'ri-file-check-line', color: 'bg-accent-100 text-accent-600' },
               { label: 'Pipeline aberto', value: pipelineAberto.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }), icon: 'ri-line-chart-line', color: 'bg-primary-500/20 text-primary-600' },
-              { label: 'Taxa de fechamento', value: `${leadsFiltrados.length ? Math.round((leadsFiltrados.filter((l) => l.etapa === 'Fechado — Ganho').length / leadsFiltrados.length) * 100) : 0}%`, icon: 'ri-trophy-line', color: 'bg-secondary-100 text-secondary-600' },
+              { label: 'Taxa de fechamento', value: `${leadsFiltrados.length ? Math.round((leadsFiltrados.filter((lead) => stageFromLegacy(lead.etapa) === 'won').length / leadsFiltrados.length) * 100) : 0}%`, icon: 'ri-trophy-line', color: 'bg-secondary-100 text-secondary-600' },
             ].map((kpi, i) => (
               <div key={i} className="wf-secondary-kpi bg-background-50 border border-background-200/70 rounded-xl p-5">
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-4 ${kpi.color}`}>
@@ -305,7 +310,7 @@ export default function Relatorios() {
           <div className="wf-secondary-grid grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="wf-secondary-panel bg-background-50 border border-background-200/70 rounded-xl p-6">
               <h3 className="font-heading font-bold text-foreground-900 text-sm mb-5">
-                Evolução de leads
+                Leads criados no período
               </h3>
               <div className="space-y-4">
                 {evolucaoLeads.map((item, i) => {
@@ -333,10 +338,6 @@ export default function Relatorios() {
                 <span className="text-xs text-foreground-500 flex items-center gap-1.5">
                   <span className="w-2.5 h-2.5 rounded bg-primary-500/80"></span>
                   Encontrados
-                </span>
-                <span className="text-xs text-foreground-500 flex items-center gap-1.5">
-                  <span className="w-2.5 h-2.5 rounded bg-accent-400/80"></span>
-                  Convertidos
                 </span>
               </div>
             </div>

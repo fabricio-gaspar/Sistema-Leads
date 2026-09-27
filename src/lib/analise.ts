@@ -33,7 +33,7 @@ export function analisarMensagemLead(mensagem: string): AnaliseMensagem {
       scoreInteresse: 0,
       confianca: 100,
       proximaAcao: 'ENCERRAR',
-      etapaSugerida: 'Fechado — Perdido',
+      etapaSugerida: 'Perdido',
       motivoTransferencia: 'Lead solicitou opt-out',
     };
   }
@@ -46,13 +46,14 @@ export function analisarMensagemLead(mensagem: string): AnaliseMensagem {
     motivoTransferencia = 'Reclamação / insatisfação';
   }
 
-  // Agendamento / reunião — a Ana agenda sozinha e move para "Reunião Agendada".
+  // Agendamento / reunião. A sugestão nunca muda o funil por conta própria:
+  // a transição operacional continua exigindo evidência e autorização no backend.
   if (contem(m, ['reuniao', 'ligar', 'agenda', 'call', 'conversa ao vivo', 'encontro', 'agendar', 'liga para mim'])) {
     intencao = intencao === 'NEUTRO' ? 'AGENDAMENTO' : intencao;
     delta += 25;
     confianca = 95;
     proximaAcao = 'AGENDAR';
-    etapaSugerida = 'Reunião Agendada';
+    etapaSugerida = 'Reunião';
   }
 
   // Desconto / negociação
@@ -69,7 +70,7 @@ export function analisarMensagemLead(mensagem: string): AnaliseMensagem {
     if (intencao === 'NEUTRO') intencao = 'ORCAMENTO';
     delta += 20;
     proximaAcao = 'CRIAR_ORCAMENTO';
-    etapaSugerida = 'Proposta em Preparação';
+    etapaSugerida = 'Orçamento';
   }
 
   // Interesse
@@ -78,7 +79,7 @@ export function analisarMensagemLead(mensagem: string): AnaliseMensagem {
     delta += 20;
     sentimento = 'POSITIVO';
     proximaAcao = 'QUALIFICAR';
-    etapaSugerida = 'Em Qualificação';
+    etapaSugerida = 'Qualificando';
   }
 
   // Dúvida

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useLeadsStore } from '@/hooks/useLeadsStore';
 import { usePropostasStore } from '@/hooks/usePropostasStore';
 import { useTarefasStore } from '@/hooks/useTarefasStore';
+import { stageFromLegacy } from '@/domain/pipeline';
 
 interface Pendencia {
   id: string;
@@ -32,9 +33,9 @@ export default function CentralPendencias() {
           (l.timeoutAt && new Date(l.timeoutAt).getTime() > agora))
     ).length;
 
-    const travados = leads.filter((l) => {
-      if (['Fechado — Ganho', 'Fechado — Perdido', 'Novo', 'Pausado'].includes(l.etapa)) return false;
-      return /(dia|dias|semana)/i.test(l.ultimaInteracao);
+    const travados = leads.filter((lead) => {
+      if (['entered', 'won', 'lost'].includes(stageFromLegacy(lead.etapa))) return false;
+      return /(dia|dias|semana)/i.test(lead.ultimaInteracao);
     }).length;
 
     const orcamentosSemResposta = propostas.filter((p) =>

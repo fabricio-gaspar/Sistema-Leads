@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { Proposta, ItemProposta } from '@/mocks/propostasData';
-import { useLeadsStore } from '@/hooks/useLeadsStore';
-import { usePropostasStore } from '@/hooks/usePropostasStore';
+import { refreshLeadsStore, useLeadsStore } from '@/hooks/useLeadsStore';
+import { refreshPropostasStore, usePropostasStore } from '@/hooks/usePropostasStore';
 import { useConfiguracaoStore } from '@/hooks/useConfiguracaoStore';
 import { useTarefasStore } from '@/hooks/useTarefasStore';
 import { useNotificacoesStore } from '@/hooks/useNotificacoesStore';
@@ -16,6 +16,8 @@ import { montarValoresVariaveis, resolverVariaveis } from '@/lib/variaveis';
 import { useCatalogoStore } from '@/hooks/useCatalogoStore';
 import { newProposalNumber } from '@/lib/crm/proposalsRepository';
 import { useAuth } from '@/hooks/useAuth';
+import { CommercialTransitionError, resolveOperationalProposalOutcome } from '@/lib/crm/leadStageRepository';
+import { stageFromLegacy } from '@/domain/pipeline';
 import '../command-secondary.css';
 
 const statusLabel: Record<string, string> = {
@@ -56,7 +58,7 @@ export default function Orcamentos() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
-  const { propostas, atualizar, confirmarAceiteLocal, criar, excluir } = usePropostasStore();
+  const { propostas, atualizar, criar, excluir } = usePropostasStore();
   const [selecionada, setSelecionada] = useState<Proposta | null>(null);
   const [toast, setToast] = useState('');
   const [novoModal, setNovoModal] = useState(false);
@@ -74,7 +76,7 @@ export default function Orcamentos() {
   const [editItens, setEditItens] = useState<Record<string, number>>({});
   const [editDesconto, setEditDesconto] = useState(0);
 
-  const [leads, setLeads] = useLeadsStore();
+  const [leads] = useLeadsStore();
   const { config } = useConfiguracaoStore();
   const tarefas = useTarefasStore();
   const notif = useNotificacoesStore();
@@ -110,20 +112,6 @@ export default function Orcamentos() {
     setTimeout(() => setToast(''), 3500);
   };
 
-  const moverLead = (proposta: Proposta, etapa: string) => {
-    setLeads((prev) =>
-      prev.map((l) =>
-        (proposta.leadId ? l.id === proposta.leadId : l.nome === proposta.lead)
-          ? {
-              ...l,
-              etapa,
-              automacaoStatus: ['Fechado — Ganho', 'Fechado — Perdido'].includes(etapa) ? 'CONCLUIDA' : l.automacaoStatus,
-            }
-          : l
-      )
-    );
-  };
-
   const enviar = (id: string) => {
     const p = propostas.find((x) => x.id === id);
     if (!p) return;
@@ -135,7 +123,7 @@ export default function Orcamentos() {
       mostrarToast('A proposta não possui um lead operacional vinculado. O envio não foi iniciado.');
       return;
     }
-    navigate(`/dashboard/atendimento?leadId=${p.leadId}`);
+    navigate(`/dashboard/atendimento?leadId=${p.leadId}&proposalId=${p.id}`);
   };
 
   const aceitar = async (id: string) => {
@@ -146,13 +134,17 @@ export default function Orcamentos() {
       return;
     }
     try {
-      confirmarAceiteLocal(id);
-      moverLead(p, 'Fechado — Ganho');
+      await resolveOperationalProposalOutcome({
+        proposalId: p.id,
+        outcome: 'accepted',
+        reason: 'Aceite comercial confirmado por usuário autorizado.',
+      });
+      await Promise.all([refreshPropostasStore(), refreshLeadsStore()]);
       fluxo.registrarAuditoria({ evento: 'PROPOSAL_ACCEPTED', ator: 'Usuário', alvo: p.empresa, detalhes: `Proposta ${p.numero} aceita` });
       mostrarToast(`${p.numero} aceita. O orçamento foi concluído e o funil atualizado.`);
     } catch (error) {
       console.error('[crm-proposals] falha ao aceitar proposta', error);
-      mostrarToast('Não foi possível aceitar a proposta. Verifique as permissões e tente novamente.');
+      mostrarToast(error instanceof CommercialTransitionError ? error.message : 'Não foi possível aceitar a proposta. Verifique as permissões e tente novamente.');
     }
   };
 
@@ -164,18 +156,22 @@ export default function Orcamentos() {
     setPerdaModal(p);
   };
 
-  const confirmarRecusa = () => {
+  const confirmarRecusa = async () => {
     if (!perdaModal) return;
     const motivo = perdaMotivo === 'Outro motivo' ? perdaOutro : perdaMotivo;
     if (!motivo.trim()) {
       mostrarToast('Informe o motivo da perda.');
       return;
     }
-    atualizar(perdaModal.id, { status: 'recusada', motivoPerda: motivo.trim() });
-    moverLead(perdaModal, 'Fechado — Perdido');
-    fluxo.registrarAuditoria({ evento: 'PROPOSAL_REJECTED', ator: 'Usuário', alvo: perdaModal.empresa, detalhes: `Proposta ${perdaModal.numero} recusada — ${motivo.trim()}` });
-    setPerdaModal(null);
-    mostrarToast(`${perdaModal.numero} recusada. Motivo registrado e lead movido para perdido.`);
+    try {
+      await resolveOperationalProposalOutcome({ proposalId: perdaModal.id, outcome: 'rejected', reason: motivo.trim() });
+      await Promise.all([refreshPropostasStore(), refreshLeadsStore()]);
+      fluxo.registrarAuditoria({ evento: 'PROPOSAL_REJECTED', ator: 'Usuário', alvo: perdaModal.empresa, detalhes: `Proposta ${perdaModal.numero} recusada — ${motivo.trim()}` });
+      setPerdaModal(null);
+      mostrarToast(`${perdaModal.numero} recusada. Motivo registrado e lead movido para Perdido.`);
+    } catch (error) {
+      mostrarToast(error instanceof CommercialTransitionError ? error.message : 'Não foi possível concluir a recusa do orçamento.');
+    }
   };
 
   const aprovarDesconto = (id: string) => {
@@ -304,10 +300,7 @@ export default function Orcamentos() {
   };
 
   const leadsCandidatos = useMemo(
-    () =>
-      leads.filter(
-        (l) => l.etapa !== 'Fechado — Ganho' && l.etapa !== 'Fechado — Perdido' && l.etapa !== 'Pausado'
-      ),
+    () => leads.filter((lead) => !['won', 'lost'].includes(stageFromLegacy(lead.etapa))),
     [leads]
   );
 
@@ -409,7 +402,20 @@ export default function Orcamentos() {
       return;
     }
     const valor = itens.reduce((acc, i) => acc + i.preco * i.quantidade, 0);
-    atualizar(editarProposta.id, { itens, valor, descontoPct: editDesconto });
+    const requiresApproval = editDesconto > config.descontoExigeAprovacaoAcima;
+    const retainsApproval = requiresApproval
+      && editDesconto === editarProposta.descontoPct
+      && editarProposta.descontoAprovado === true;
+    atualizar(editarProposta.id, {
+      itens,
+      valor,
+      descontoPct: editDesconto,
+      descontoAprovado: !requiresApproval || retainsApproval,
+      bloqueadaEnvio: requiresApproval && !retainsApproval,
+      status: requiresApproval && !retainsApproval
+        ? 'aguardando_aprovacao'
+        : editarProposta.status === 'aguardando_aprovacao' ? 'rascunho' : editarProposta.status,
+    });
     setEditarProposta(null);
     mostrarToast(`Proposta ${editarProposta.numero} atualizada.`);
   };
@@ -581,7 +587,7 @@ export default function Orcamentos() {
                         <button
                           onClick={() => baixarPDF(p)}
                           className="px-2.5 py-1.5 bg-background-100 hover:bg-background-200 text-foreground-600 rounded-md text-xs cursor-pointer whitespace-nowrap"
-                          title="Baixar PDF"
+                          title="Abrir para impressão"
                         >
                           <i className="ri-file-pdf-line"></i>
                         </button>
@@ -689,7 +695,7 @@ export default function Orcamentos() {
                 className="w-full px-4 py-2.5 bg-background-100 hover:bg-background-200 text-foreground-700 rounded-lg text-sm font-semibold cursor-pointer whitespace-nowrap"
               >
                 <i className="ri-file-pdf-line mr-2"></i>
-                Baixar PDF
+                Imprimir proposta
               </button>
               <button
                 onClick={() => abrirGerarDoc(selecionada)}

@@ -11,7 +11,7 @@ interface LeadDrawerProps {
   onClose: () => void;
   onMudarEtapa: (id: string, etapa: string) => void;
   onAbrirConversa: (lead: Lead) => void;
-  onExcluir: (lead: Lead) => void;
+  onExcluir: (lead: Lead) => void | Promise<void>;
   onRodarAna: (lead: Lead) => Promise<void>;
 }
 
@@ -411,7 +411,7 @@ export default function LeadDrawer({ lead, onClose, onMudarEtapa, onAbrirConvers
                   className="mt-2 w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 border border-accent-300 text-accent-700 hover:bg-accent-50 rounded-lg text-sm font-semibold cursor-pointer whitespace-nowrap"
                 >
                   <i className="ri-delete-bin-line"></i>
-                  Excluir lead
+                  Arquivar lead
                 </button>
               </div>
             </>
@@ -507,7 +507,7 @@ export default function LeadDrawer({ lead, onClose, onMudarEtapa, onAbrirConvers
         <div className="fixed inset-0 z-[60] bg-foreground-950/50 flex items-center justify-center p-4" onClick={() => setConfirmandoExclusao(false)}>
           <div className="bg-background-50 rounded-xl max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
             <div className="px-6 py-4 border-b border-background-200/70 flex items-center justify-between">
-              <h3 className="font-heading font-bold text-foreground-950">Excluir lead</h3>
+              <h3 className="font-heading font-bold text-foreground-950">Arquivar lead</h3>
               <button onClick={() => setConfirmandoExclusao(false)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-background-100 cursor-pointer">
                 <i className="ri-close-line text-lg"></i>
               </button>
@@ -518,12 +518,12 @@ export default function LeadDrawer({ lead, onClose, onMudarEtapa, onAbrirConvers
                 Ação irreversível — o lead e todo o seu histórico serão removidos.
               </div>
               <p className="text-sm text-foreground-600">
-                Tem certeza que deseja excluir <b>{lead.nome}</b> ({lead.empresa}) do Kanban? Essa ação não pode ser desfeita.
+                Deseja arquivar <b>{lead.nome}</b> ({lead.empresa}) do Kanban? O histórico será preservado e a restauração ficará disponível em Leads.
               </p>
             </div>
             <div className="px-6 py-4 border-t border-background-200/70 flex justify-end gap-2">
               <button onClick={() => setConfirmandoExclusao(false)} className="px-4 py-2.5 border border-background-300 text-foreground-700 rounded-lg text-sm font-semibold hover:bg-background-100 cursor-pointer whitespace-nowrap">Cancelar</button>
-              <button onClick={() => { onExcluir(lead); setConfirmandoExclusao(false); }} className="px-5 py-2.5 bg-accent-500 hover:bg-accent-600 text-background-50 rounded-lg text-sm font-bold cursor-pointer whitespace-nowrap">Excluir</button>
+              <button onClick={() => { void onExcluir(lead); setConfirmandoExclusao(false); }} className="px-5 py-2.5 bg-accent-500 hover:bg-accent-600 text-background-50 rounded-lg text-sm font-bold cursor-pointer whitespace-nowrap">Arquivar</button>
             </div>
           </div>
         </div>

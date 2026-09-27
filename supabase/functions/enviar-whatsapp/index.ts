@@ -20,18 +20,21 @@ Deno.serve(async (request) => {
     const recipient = text(body.para, 80).replace(/[^0-9+]/g, '');
     const message = text(body.texto, 4_096);
     const requestId = text(body.request_id, 80);
+    const proposalId = text(body.proposal_id, 64);
     const catalogItemId = text(body.content_item_id, 64);
     const catalogPresentationFormat = text(body.content_presentation_format, 24).toLowerCase();
     const catalogSendImage = body.content_send_image === true;
     const controlledTestRequested = body.teste_controlado === true;
     if (!isUuid(leadId) || !/^\+?\d{10,15}$/.test(recipient) || !message) throw new Error('lead_recipient_and_message_required');
     if (!isUuid(requestId)) throw new Error('message_request_id_required');
+    if (proposalId && !isUuid(proposalId)) throw new Error('proposal_id_invalid');
     if (catalogItemId && (!isUuid(catalogItemId) || !['quick', 'commercial', 'technical', 'link', 'document'].includes(catalogPresentationFormat))) {
       throw new Error('catalog_content_input_required');
     }
     if (!catalogItemId && catalogPresentationFormat) throw new Error('catalog_content_input_required');
     if (body.content_send_image !== undefined && typeof body.content_send_image !== 'boolean') throw new Error('catalog_media_input_required');
     if (catalogSendImage && !catalogItemId) throw new Error('catalog_media_input_required');
+    if (proposalId && catalogItemId) throw new Error('proposal_catalog_combination_not_supported');
     const { user } = await requireUser(request);
     const admin = createAdminClient();
     const { data: profile, error: profileError } = await admin.from('profiles').select('active_organization_id,name').eq('id', user.id).maybeSingle();
@@ -58,6 +61,7 @@ Deno.serve(async (request) => {
         || text(payload.catalog_item_id, 64) !== catalogItemId
         || text(payload.catalog_presentation_format, 24) !== catalogPresentationFormat
         || (payload.catalog_send_image === true) !== catalogSendImage
+        || text(payload.proposal_id, 64) !== proposalId
         || (payload.controlled_test === true) !== controlledTestRequested
         || String(existingJob.status ?? '') === '') throw new Error('idempotency_payload_mismatch');
       return json({
@@ -69,6 +73,15 @@ Deno.serve(async (request) => {
         job_status: existingJob.status,
         detalhe: 'existing_request_reused',
       }, 200, headers);
+    }
+    if (proposalId) {
+      const { data: proposal } = await admin.from('proposals')
+        .select('id,status,need_approval,lead_id')
+        .eq('id', proposalId).eq('organization_id', organizationId).maybeSingle();
+      if (!proposal || proposal.lead_id !== lead.id) throw new Error('proposal_not_found_or_unlinked');
+      if (!['draft', 'pending', 'rascunho'].includes(String(proposal.status)) || proposal.need_approval) {
+        throw new Error('proposal_not_ready_for_delivery');
+      }
     }
     if (lead.opt_out) throw new Error('lead_opted_out');
     // O modo humano pausa somente a Ana. Ele jamais pode impedir que o
@@ -109,10 +122,16 @@ Deno.serve(async (request) => {
       p_controlled_test_expires_at: controlledTestExpiresAt,
     };
     const { data: queuedRows, error: queueError } = await admin.rpc(
-      catalogItemId ? 'queue_human_whatsapp_catalog_message' : 'queue_human_whatsapp_message',
-      catalogItemId
-        ? { ...queueInput, p_item_id: catalogItemId, p_presentation_format: catalogPresentationFormat, p_send_image: catalogSendImage }
-        : queueInput,
+      proposalId
+        ? 'queue_human_whatsapp_proposal_message'
+        : catalogItemId
+          ? 'queue_human_whatsapp_catalog_message'
+          : 'queue_human_whatsapp_message',
+      proposalId
+        ? { ...queueInput, p_proposal_id: proposalId }
+        : catalogItemId
+          ? { ...queueInput, p_item_id: catalogItemId, p_presentation_format: catalogPresentationFormat, p_send_image: catalogSendImage }
+          : queueInput,
     );
     const queued = firstRow(queuedRows);
     if (queueError || !queued?.job_id) throw queueError ?? new Error('outreach_job_not_created');
@@ -123,7 +142,7 @@ Deno.serve(async (request) => {
         action: controlledSandboxTest ? 'outreach.whatsapp_controlled_test_queued' : 'outreach.whatsapp_queued',
         detail: controlledSandboxTest ? 'Teste controlado colocado na fila segura.' : 'Mensagem colocada na fila segura.',
         entity_table: 'outreach_jobs', entity_id: queued.job_id,
-        event_data: { lead_id: lead.id, integration_id: integration.id, whatsapp_account_id: account.account_id, request_id: requestId, controlled_test: controlledSandboxTest, catalog_item_id: catalogItemId || null, catalog_presentation_format: catalogPresentationFormat || null, catalog_send_image: catalogSendImage },
+        event_data: { lead_id: lead.id, integration_id: integration.id, whatsapp_account_id: account.account_id, request_id: requestId, controlled_test: controlledSandboxTest, proposal_id: proposalId || null, catalog_item_id: catalogItemId || null, catalog_presentation_format: catalogPresentationFormat || null, catalog_send_image: catalogSendImage },
       });
     }
     return json({

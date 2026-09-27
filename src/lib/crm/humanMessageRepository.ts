@@ -21,6 +21,8 @@ export interface HumanMessageKnowledgeContent {
  */
 export async function queueHumanMessage(input: {
   leadId: string;
+  /** A proposal is attached only when the operator explicitly prepared it in the Central. */
+  proposalId?: string | null;
   channel: 'whatsapp' | 'email' | 'instagram';
   recipient: string;
   text: string;
@@ -70,6 +72,7 @@ export async function queueHumanMessage(input: {
   const { data, error } = await supabase.functions.invoke('enviar-whatsapp', {
     body: {
       leadId: input.leadId, para: input.recipient, texto: input.text, request_id: input.requestId, modo: 'humano', provedor: 'central_atendimento',
+      ...(input.proposalId ? { proposal_id: input.proposalId } : {}),
       ...(input.knowledgeContent ? {
         content_item_id: input.knowledgeContent.itemId,
         content_presentation_format: input.knowledgeContent.presentationFormat,
@@ -84,6 +87,8 @@ export async function queueHumanMessage(input: {
       whatsapp_integration_not_ready: 'O WhatsApp não está validado para saída. Nenhuma mensagem foi enviada.',
       lead_opted_out: 'Este contato está bloqueado por opt-out. Nenhuma mensagem foi enviada.',
       whatsapp_paused_by_risk_policy: 'O WhatsApp foi pausado por uma política de risco. Nenhuma mensagem foi enviada.',
+      proposal_not_found_or_unlinked: 'A proposta não está vinculada a este lead. Nenhuma mensagem foi enfileirada.',
+      proposal_not_ready_for_delivery: 'A proposta ainda não está liberada para envio. Revise a aprovação antes de tentar novamente.',
     };
     throw new Error(messages[detail] || `A mensagem não foi enfileirada: ${detail || 'falha de validação'}.`);
   }

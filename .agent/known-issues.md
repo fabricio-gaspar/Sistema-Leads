@@ -66,6 +66,9 @@
 
 ## Crítico
 
+- **Homologação externa permanece bloqueada:** a Z-API não está conectada. A fila e a projeção de proposta agora são auditáveis e só marcam envio após aceite do provedor, mas isso ainda não comprova entrega, resposta da Ana ou recibos. Executar somente um teste individual autorizado depois de o canal ficar saudável.
+- **Auth:** a proteção contra senhas vazadas continua desativada no projeto Supabase e é gate para a liberação comercial automática.
+
 - O fluxo real WhatsApp → Ana → resposta ainda precisa de uma mensagem nova, individual, enviada
   do número final `1875` após o recadastro da entrada Z-API. A Z-API já comprovou alcance do
   WayFlex por callbacks de outros números, mas não entregou callback desse lead; a mensagem

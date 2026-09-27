@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { refreshLeadsStore, useLeadsStore, waitForLeadsPersistence } from '@/hooks/useLeadsStore';
 import { etapasCRM, segmentos } from '@/mocks/leadsData';
 import type { Lead } from '@/mocks/leadsData';
-import { podeTransicionar } from '@/lib/automacao';
+import { canonicalStageKeyFromLabel, CommercialTransitionError, transitionOperationalLeadStage } from '@/lib/crm/leadStageRepository';
 import { useListasStore } from '@/hooks/useListasStore';
 import { useFluxoComercial } from '@/hooks/useFluxoComercial';
 import { useAuth } from '@/hooks/useAuth';
@@ -44,8 +44,9 @@ const tempCores: Record<string, string> = {
 
 export default function Leads() {
   const [leads, setLeads] = useLeadsStore();
+  const [searchParams] = useSearchParams();
   const [busca, setBusca] = useState('');
-  const [etapaFiltro, setEtapaFiltro] = useState('Todas');
+  const [etapaFiltro, setEtapaFiltro] = useState(() => searchParams.get('etapa') || 'Todas');
   const [segmentoFiltro, setSegmentoFiltro] = useState('Todos');
   const [selecionados, setSelecionados] = useState<string[]>([]);
   const [envioAlvo, setEnvioAlvo] = useState<string[] | null>(null);
@@ -62,6 +63,7 @@ export default function Leads() {
   const [handoffNotifyWhatsapp, setHandoffNotifyWhatsapp] = useState(false);
   const [modoSelecionado, setModoSelecionado] = useState<'IA' | 'HUMANO' | null>(null);
   const [aprovacaoKanban, setAprovacaoKanban] = useState({ confirmada: false, origem: '' });
+  const [stageChangePending, setStageChangePending] = useState<string | null>(null);
   const navigate = useNavigate();
   const listas = useListasStore();
   const fluxo = useFluxoComercial();
@@ -90,7 +92,7 @@ export default function Leads() {
     });
   };
 
-  const salvarEdicao = () => {
+  const salvarEdicao = async () => {
     if (!editarModal) return;
     if (!editForm.nome.trim()) {
       mostrarToast('O nome não pode ficar vazio.');
@@ -132,20 +134,35 @@ export default function Leads() {
           : l
       )
     );
-    setEditarModal(null);
-    mostrarToast('Lead atualizado com sucesso!');
+    try {
+      await waitForLeadsPersistence();
+      setEditarModal(null);
+      mostrarToast('Lead atualizado com sucesso.');
+    } catch {
+      mostrarToast('Não foi possível gravar a edição. A tela foi reconciliada com o servidor.');
+    }
   };
 
-  const arquivarLead = (id: string) => {
+  const arquivarLead = async (id: string) => {
     setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, arquivado: true } : l)));
-    setDetalhe(null);
-    mostrarToast('Lead arquivado. Ele ficará fora do funil ativo.');
+    try {
+      await waitForLeadsPersistence();
+      setDetalhe(null);
+      mostrarToast('Lead arquivado. Ele ficou fora do funil ativo, sem apagar o histórico.');
+    } catch {
+      mostrarToast('Não foi possível arquivar o lead. A tela foi reconciliada com o servidor.');
+    }
   };
 
-  const restaurarLead = (id: string) => {
+  const restaurarLead = async (id: string) => {
     setLeads((prev) => prev.map((l) => (l.id === id ? { ...l, arquivado: false } : l)));
-    setDetalhe(null);
-    mostrarToast('Lead restaurado para o funil ativo.');
+    try {
+      await waitForLeadsPersistence();
+      setDetalhe(null);
+      mostrarToast('Lead restaurado para o funil ativo.');
+    } catch {
+      mostrarToast('Não foi possível restaurar o lead. A tela foi reconciliada com o servidor.');
+    }
   };
 
   // Aprova os leads selecionados e persiste modo + responsável antes de
@@ -355,42 +372,52 @@ export default function Leads() {
     }
   };
 
-  const mudarEtapa = (id: string, etapa: string) => {
+  const mudarEtapa = async (id: string, etapa: string) => {
     const lead = leads.find((l) => l.id === id);
     if (!lead || lead.etapa === etapa) return;
-    const check = podeTransicionar(lead.etapa, etapa);
-    if (!check.ok) {
-      mostrarToast(check.motivo || 'Transição não permitida.');
+    const stage = canonicalStageKeyFromLabel(etapa);
+    if (!stage) {
+      mostrarToast('Esta etapa não pertence ao pipeline comercial canônico.');
       return;
     }
-    setLeads((prev) =>
-      prev.map((l) =>
-        l.id === id
-          ? {
-              ...l,
-              etapa,
-              motivoPerda: etapa === 'Perdido' ? (l.motivoPerda || 'Sem resposta') : l.motivoPerda,
-              automacaoStatus: ['Ganho', 'Perdido'].includes(etapa) ? 'CONCLUIDA' : l.automacaoStatus,
-            }
-          : l
-      )
-    );
+    if (stage === 'ganho' || stage === 'perdido') {
+      mostrarToast('Conclua Ganho ou Perdido pelo orçamento para registrar o motivo e manter o histórico consistente.');
+      return;
+    }
+    setStageChangePending(id);
+    try {
+      await transitionOperationalLeadStage({ leadId: id, stage });
+      await refreshLeadsStore();
+      mostrarToast(`${lead.nome} movido para “${etapa}”.`);
+    } catch (error) {
+      mostrarToast(error instanceof CommercialTransitionError ? error.message : 'Não foi possível confirmar a mudança de etapa.');
+    } finally {
+      setStageChangePending(null);
+    }
   };
 
-  const mudarEtapaEmMassa = (etapa: string) => {
-    setLeads((prev) =>
-      prev.map((l) =>
-        selecionados.includes(l.id)
-          ? {
-              ...l,
-              etapa,
-              automacaoStatus: ['Ganho', 'Perdido'].includes(etapa) ? 'CONCLUIDA' : l.automacaoStatus,
-            }
-          : l
-      )
-    );
-    mostrarToast(`${selecionados.length} leads atualizados para "${etapa}"`);
+  const mudarEtapaEmMassa = async (etapa: string) => {
+    const stage = canonicalStageKeyFromLabel(etapa);
+    if (!stage || stage === 'ganho' || stage === 'perdido') {
+      mostrarToast('Resultados finais devem ser concluídos individualmente pelo orçamento.');
+      return;
+    }
+    const targets = leads.filter((lead) => selecionados.includes(lead.id) && lead.etapa !== etapa);
+    if (!targets.length) return;
+    setStageChangePending('bulk');
+    const results = await Promise.allSettled(targets.map((lead) => transitionOperationalLeadStage({ leadId: lead.id, stage })));
+    try {
+      await refreshLeadsStore();
+    } catch {
+      mostrarToast('As alterações foram processadas, mas a tela não pôde ser atualizada. Recarregue para consultar o estado atual.');
+      setStageChangePending(null);
+      return;
+    }
+    const completed = results.filter((result) => result.status === 'fulfilled').length;
+    const failed = results.length - completed;
+    mostrarToast(failed ? `${completed} lead(s) atualizados; ${failed} bloqueado(s) pelas regras do funil.` : `${completed} lead(s) atualizados para “${etapa}”.`);
     setSelecionados([]);
+    setStageChangePending(null);
   };
 
   return (
@@ -513,12 +540,13 @@ export default function Leads() {
         <div className="mb-4 bg-primary-50 border border-primary-200 rounded-lg px-4 py-3 flex items-center gap-3 flex-wrap">
           <span className="text-sm font-medium text-primary-800">{selecionados.length} selecionados</span>
           <select
-            onChange={(e) => e.target.value && mudarEtapaEmMassa(e.target.value)}
+            disabled={stageChangePending === 'bulk'}
+            onChange={(e) => e.target.value && void mudarEtapaEmMassa(e.target.value)}
             defaultValue=""
             className="px-3 py-1.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-700 cursor-pointer"
           >
             <option value="" disabled>Mover para etapa...</option>
-            {etapasCRM.map((e) => (
+            {etapasCRM.filter((e) => !['Ganho', 'Perdido'].includes(e)).map((e) => (
               <option key={e} value={e}>{e}</option>
             ))}
           </select>
@@ -595,7 +623,8 @@ export default function Leads() {
                   <td className="px-4 py-3.5">
                     <select
                       value={lead.etapa}
-                      onChange={(e) => mudarEtapa(lead.id, e.target.value)}
+                      onChange={(e) => void mudarEtapa(lead.id, e.target.value)}
+                      disabled={stageChangePending === lead.id}
                       className={`px-2.5 py-1.5 rounded-md text-xs font-medium cursor-pointer border-0 focus:outline-none ${etapaCores[lead.etapa]}`}
                     >
                       {etapasCRM.map((e) => (

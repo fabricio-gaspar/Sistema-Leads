@@ -3,8 +3,8 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { respostasRapidas, type Conversa, type Mensagem } from '@/mocks/atendimentoData';
 import type { Lead } from '@/mocks/leadsData';
 import { refreshConversasStore, useConversasStore } from '@/hooks/useConversasStore';
-import { useLeadsStore } from '@/hooks/useLeadsStore';
-import { usePropostasStore } from '@/hooks/usePropostasStore';
+import { refreshLeadsStore, useLeadsStore } from '@/hooks/useLeadsStore';
+import { refreshPropostasStore, usePropostasStore } from '@/hooks/usePropostasStore';
 import type { Proposta } from '@/mocks/propostasData';
 import { assignHumanHandoff, returnConversationToAna } from '@/lib/crm/handoffsRepository';
 import { addContactSuppression, loadContactSuppressions, type ContactSuppression } from '@/lib/crm/suppressionRepository';
@@ -44,6 +44,7 @@ const deliveryLabel: Record<NonNullable<Mensagem['statusEnvio']>, string> = {
 type ConversationRealtimeState = 'connecting' | 'live' | 'unavailable';
 type InboxFilter = 'all' | 'waiting' | 'human' | 'ana';
 type SidePanelTab = 'lead' | 'knowledge' | 'quotes' | 'agenda' | 'history';
+type PreparedProposal = { id: string; number: string; text: string };
 
 const inboxFilters: { id: InboxFilter; label: string }[] = [
   { id: 'all', label: 'Todas' },
@@ -77,6 +78,7 @@ export default function Atendimento() {
   const [orcamentoModal, setOrcamentoModal] = useState(false);
   const [searchParams] = useSearchParams();
   const leadIdParam = searchParams.get('leadId');
+  const proposalIdParam = searchParams.get('proposalId');
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [texto, setTexto] = useState('');
@@ -99,6 +101,7 @@ export default function Atendimento() {
   const [conversationRealtime, setConversationRealtime] = useState<ConversationRealtimeState>('connecting');
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
   const [preparedKnowledge, setPreparedKnowledge] = useState<PreparedKnowledgeContent | null>(null);
+  const [preparedProposal, setPreparedProposal] = useState<PreparedProposal | null>(null);
   const [knowledgeEvents, setKnowledgeEvents] = useState<ConversationKnowledgeEvent[]>([]);
   // Mantém a mesma chave idempotente enquanto uma mensagem está na fila ou em
   // reconciliação. Se o operador repetir o mesmo texto nesse intervalo, o
@@ -108,6 +111,7 @@ export default function Atendimento() {
   const messagesPanelRef = useRef<HTMLDivElement>(null);
   const shouldStickToBottomRef = useRef(true);
   const previousConversationRef = useRef<string | null>(null);
+  const handledProposalParamRef = useRef<string | null>(null);
 
   const selected = conversas.find((c) => c.id === selectedId) || conversas[0];
   const selectedConversationId = selected?.id ?? null;
@@ -115,6 +119,7 @@ export default function Atendimento() {
 
   const prepareKnowledge = (content: PreparedKnowledgeContent) => {
     setPreparedKnowledge(content);
+    setPreparedProposal(null);
     setTexto(content.text);
     setNotaInterna(false);
     setErroIA(`Conteúdo “${content.item.name}” preparado${content.sendImage ? ' com imagem oficial' : ''}. Revise o texto antes de enviar pela fila segura.`);
@@ -238,6 +243,13 @@ export default function Atendimento() {
 
   const normalizeContact = (contact: string) => contact.includes('@') ? contact.trim().toLowerCase().replace(/\s+/g, '') : contact.replace(/\D/g, '');
   const contactForChannel = selected?.canal === 'email' ? leadSelecionado?.email : leadSelecionado?.whatsapp || leadSelecionado?.telefone;
+  const externalRecipient = selected?.canal === 'whatsapp' ? leadSelecionado?.whatsapp : leadSelecionado?.email;
+  const externalDispatchReady = Boolean(
+    leadSelecionado
+    && selected?.canal === 'whatsapp'
+    && (externalRecipient ?? '').replace(/\D/g, '').length >= 10
+    && (externalRecipient ?? '').replace(/\D/g, '').length <= 15
+  );
   const contatoBloqueado = selected ? protectedContacts.some((item) => {
     const channel = item.channel.toLowerCase();
     return Boolean(contactForChannel) && normalizeContact(item.contact) === normalizeContact(contactForChannel) && (channel === 'all' || channel === selected.canal.toLowerCase());
@@ -257,6 +269,17 @@ export default function Atendimento() {
     setSelectedId(conv.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [leadIdParam]);
+
+  // The quote screen can direct the operator to the exact proposal, without
+  // attaching it to a message until the operator explicitly prepares it.
+  useEffect(() => {
+    if (!proposalIdParam || handledProposalParamRef.current === proposalIdParam || !leadSelecionado) return;
+    const proposal = propostas.find((item) => item.id === proposalIdParam && item.leadId === leadSelecionado.id);
+    if (!proposal) return;
+    handledProposalParamRef.current = proposalIdParam;
+    setSidePanelTab('quotes');
+    setOrcamentoModal(true);
+  }, [leadSelecionado, proposalIdParam, propostas]);
 
   if (!selected) {
     return (
@@ -279,7 +302,7 @@ export default function Atendimento() {
 
   const enviar = async () => {
     if (enviando) return;
-    const recipient = selected.canal === 'whatsapp' ? leadSelecionado?.whatsapp : leadSelecionado?.email;
+    const recipient = externalRecipient;
     const validation = validateHumanMessage({
       text: texto,
       isInternalNote: notaInterna,
@@ -300,7 +323,8 @@ export default function Atendimento() {
         setMessageFeedback({ tone: 'warning', text: 'Registrando a mensagem na fila segura…' });
         const messageText = texto.trim();
         const knowledgeFingerprint = preparedKnowledge ? `${preparedKnowledge.item.id}:${preparedKnowledge.format}:${preparedKnowledge.sendImage ? 'image' : 'text'}` : 'text';
-        const fingerprint = `${leadSelecionado.id}:${selected.canal}:${recipient}:${messageText}:${knowledgeFingerprint}`;
+        const proposalFingerprint = preparedProposal?.id ?? 'no-proposal';
+        const fingerprint = `${leadSelecionado.id}:${selected.canal}:${recipient}:${messageText}:${knowledgeFingerprint}:${proposalFingerprint}`;
         let requestId = pendingMessageRequests.current.get(fingerprint);
         if (!requestId) {
           requestId = crypto.randomUUID();
@@ -308,6 +332,7 @@ export default function Atendimento() {
         }
         const result = await queueHumanMessage({
           leadId: leadSelecionado.id,
+          proposalId: preparedProposal?.id ?? null,
           channel: selected.canal,
           recipient,
           text: messageText,
@@ -324,6 +349,12 @@ export default function Atendimento() {
         }
         if (result.delivery !== 'failed') { setTexto(''); setPreparedKnowledge(null); }
         await refreshConversasStore();
+        if (preparedProposal && result.delivery === 'accepted') {
+          // The server projects the proposal to sent only once the provider
+          // acceptance is persisted. Queue/reconciliation preserve draft.
+          await Promise.all([refreshPropostasStore(), refreshLeadsStore()]);
+        }
+        if (result.delivery !== 'failed') setPreparedProposal(null);
         setMessageFeedback({
           tone: result.delivery === 'accepted' ? 'success' : result.delivery === 'failed' ? 'error' : 'warning',
           text: result.detail,
@@ -441,6 +472,14 @@ export default function Atendimento() {
     : [];
 
   const prepararOrcamento = (p: Proposta) => {
+    if (p.bloqueadaEnvio || p.status === 'aguardando_aprovacao') {
+      setErroIA('A proposta aguarda aprovação de desconto e não pode ser preparada para envio.');
+      return;
+    }
+    if (p.status !== 'rascunho') {
+      setErroIA('Esta proposta já não está em rascunho. Revise o histórico antes de enviar uma nova versão.');
+      return;
+    }
     const total = p.valor * (1 - (p.descontoPct || 0) / 100);
     const textoOrcamento = [
       `Segue o orçamento ${p.numero}:`,
@@ -450,9 +489,11 @@ export default function Atendimento() {
       `Validade: ${new Date(p.validade + 'T00:00:00').toLocaleDateString('pt-BR')}`,
     ].filter(Boolean).join('\n');
     setTexto(textoOrcamento);
+    setPreparedKnowledge(null);
+    setPreparedProposal({ id: p.id, number: p.numero, text: textoOrcamento });
     setNotaInterna(false);
     setOrcamentoModal(false);
-    setErroIA('Orçamento preparado no campo de mensagem. Revise e clique em enviar para usar a fila real do canal.');
+    setErroIA(`Orçamento ${p.numero} preparado. Ele só será marcado como enviado após o aceite comprovado do canal.`);
   };
 
   const registrarOptout = async () => {
@@ -807,6 +848,12 @@ export default function Atendimento() {
                 <button type="button" onClick={() => setPreparedKnowledge(null)} className="shrink-0 text-primary-700 hover:text-primary-900" title="Remover vínculo do conteúdo"><i className="ri-close-line text-base" /></button>
               </div>
             )}
+            {preparedProposal && !notaInterna && (
+              <div className="mb-2 flex items-center justify-between gap-2 rounded-lg border border-secondary-200 bg-secondary-50 px-3 py-2 text-xs text-secondary-900">
+                <span className="min-w-0 whitespace-normal break-words"><i className="ri-file-list-3-line mr-1.5" />Proposta vinculada: <strong>{preparedProposal.number}</strong> · será marcada como enviada somente após aceite do canal.</span>
+                <button type="button" onClick={() => setPreparedProposal(null)} className="shrink-0 text-secondary-700 hover:text-secondary-900" title="Remover vínculo da proposta"><i className="ri-close-line text-base" /></button>
+              </div>
+            )}
             {!notaInterna && (
               <div className="mb-2 flex items-center gap-1.5 overflow-x-auto pb-0.5">
                 <span className="shrink-0 text-[11px] font-semibold text-foreground-500">Atalhos:</span>
@@ -846,7 +893,11 @@ export default function Atendimento() {
               <div className="relative flex-1">
                 <textarea
                   value={texto}
-                  onChange={(e) => { setTexto(e.target.value); if (preparedKnowledge && e.target.value !== preparedKnowledge.text) setPreparedKnowledge(null); }}
+                  onChange={(e) => {
+                    setTexto(e.target.value);
+                    if (preparedKnowledge && e.target.value !== preparedKnowledge.text) setPreparedKnowledge(null);
+                    if (preparedProposal && e.target.value !== preparedProposal.text) setPreparedProposal(null);
+                  }}
                   placeholder={notaInterna ? 'Digite uma nota interna...' : 'Digite uma mensagem para a fila segura...'}
                   rows={1}
                   className="max-h-28 min-h-10 w-full resize-y rounded-xl border border-background-200/70 bg-background-50 px-4 py-2.5 text-sm text-foreground-800 placeholder-foreground-400 focus:border-primary-400 focus:outline-none"
@@ -854,9 +905,9 @@ export default function Atendimento() {
               </div>
               <button
                 type="submit"
-                disabled={enviando || !texto.trim()}
+                disabled={enviando || !texto.trim() || (!notaInterna && !externalDispatchReady)}
                 className="w-10 h-10 bg-primary-500 hover:bg-primary-600 disabled:bg-primary-300 text-background-50 rounded-lg flex items-center justify-center cursor-pointer disabled:cursor-wait transition-colors"
-                title={enviando ? 'Registrando mensagem...' : !texto.trim() ? 'Digite uma mensagem para enviar' : 'Enviar mensagem'}
+                title={enviando ? 'Registrando mensagem...' : !texto.trim() ? 'Digite uma mensagem para enviar' : notaInterna ? 'Registrar nota interna' : !externalDispatchReady ? 'Disponível somente para conversa WhatsApp com contato validado' : 'Enviar mensagem'}
               >
                 <i className={enviando ? 'ri-loader-4-line animate-spin text-base' : 'ri-send-plane-fill text-base'}></i>
               </button>

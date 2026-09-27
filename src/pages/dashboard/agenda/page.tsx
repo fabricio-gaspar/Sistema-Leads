@@ -7,6 +7,7 @@ import type { FilterChip } from '@/components/feature/FilterChips';
 import SavedViewsControl from '@/components/feature/SavedViewsControl';
 import { useCompromissosStore } from '@/hooks/useCompromissosStore';
 import { useLeadsStore } from '@/hooks/useLeadsStore';
+import { stageFromLegacy } from '@/domain/pipeline';
 import type { Compromisso } from '@/mocks/frontendAdvancedData';
 import '../command-secondary.css';
 
@@ -119,8 +120,9 @@ export default function Agenda() {
   const segmentoPorLead = new Map(leads.map((l) => [l.nome, l.segmento]));
   const compromissoPorLeadId = new Map(comps.filter((c) => c.leadId).map((c) => [c.leadId as string, c]));
 
-  // Leads na etapa "Reunião Agendada" (consumo direto do funil).
-  const leadsReuniao = leads.filter((l) => l.etapa === 'Reunião Agendada');
+  // Consumo da etapa canônica de reunião, incluindo registros legados apenas
+  // como compatibilidade de leitura.
+  const leadsReuniao = leads.filter((l) => stageFromLegacy(l.etapa) === 'quote_preparation');
   const reunioesAna = comps.filter((c) => c.origem === 'ana' || c.responsavel === 'Ana (IA)');
 
   const responsaveis = Array.from(new Set(comps.map((c) => c.responsavel))).sort();
@@ -205,7 +207,7 @@ export default function Agenda() {
     { label: 'Reuniões agendadas', value: String(comps.filter((c) => c.status === 'agendado').length), icon: 'ri-calendar-event-line', color: 'bg-primary-100 text-primary-600' },
     { label: 'Hoje', value: String(comps.filter((c) => c.status === 'agendado' && c.data === hojeStr).length), icon: 'ri-calendar-check-line', color: 'bg-accent-100 text-accent-600' },
     { label: 'Agendadas pela Ana', value: String(reunioesAna.filter((c) => c.status === 'agendado').length), icon: 'ri-robot-line', color: 'bg-secondary-100 text-secondary-600' },
-    { label: 'Leads em "Reunião Agendada"', value: String(leadsReuniao.length), icon: 'ri-user-heart-line', color: 'bg-primary-500/20 text-primary-600' },
+    { label: 'Leads em reunião', value: String(leadsReuniao.length), icon: 'ri-user-heart-line', color: 'bg-primary-500/20 text-primary-600' },
   ];
 
   const confirmarNovo = () => {
@@ -330,7 +332,7 @@ export default function Agenda() {
               </div>
               <div>
                 <h3 className="font-heading font-bold text-foreground-900 text-sm">Reuniões agendadas pela Ana</h3>
-                <p className="text-xs text-foreground-500">Leads na etapa "Reunião Agendada" do funil</p>
+                <p className="text-xs text-foreground-500">Leads na etapa Reunião do funil</p>
               </div>
             </div>
             <span className="px-3 py-1.5 bg-secondary-100 text-secondary-800 rounded-full text-xs font-semibold whitespace-nowrap">

@@ -4,7 +4,7 @@
   "baseline_commit": "1dc6275b8c7d70de953b66397a8c89f5e97bc15b",
   "last_audited_commit": "a3d29da79620139f121cf0368bfff479bddb3fee",
   "current_head_at_update": "a3d29da79620139f121cf0368bfff479bddb3fee",
-  "working_tree_status": "dashboard_compact_published_v131",
+  "working_tree_status": "commercial_flow_homologation_validated_pending_publication",
   "stage_1_baseline": ".agent/baselines/2026-09-25-stage-1.json",
   "recovery_tag": "baseline-wayflex-stage1-20260925",
   "work_branch": "main",
@@ -16,7 +16,7 @@
     "working_tree_status": "published"
   },
   "full_audit_required": false,
-  "baseline_status": "dashboard_compact_published",
-  "updated_at": "2026-09-26T22:12:09Z",
-  "next_action": "Dashboard v131 publicada. Preservar regras, rotas e automações; revisão futura deve partir deste checkpoint."
+  "baseline_status": "commercial_flow_homologation_validated",
+  "updated_at": "2026-09-27T12:49:00Z",
+  "next_action": "Publicar somente o Site oficial após registrar o commit desta homologação. O E2E externo segue bloqueado até Z-API conectada e teste individual autorizado."
 }

@@ -84,7 +84,7 @@ export default function AutomacoesTab() {
             [
               { chave: 'primeiroFollowup', label: 'Primeiro follow-up', desc: 'Enviado quando o lead não responde ao primeiro contato.' },
               { chave: 'segundoFollowup', label: 'Segundo follow-up', desc: 'Última tentativa antes do timeout.' },
-              { chave: 'timeout', label: 'Timeout sem resposta', desc: 'Após a cadência final, move para Fechado — Perdido.' },
+              { chave: 'timeout', label: 'Timeout sem resposta', desc: 'Após a cadência final, solicita a conclusão como Perdido com motivo auditável.' },
             ] as const
           ).map((item) => (
             <div key={item.chave} className="bg-background-100 rounded-xl p-5">

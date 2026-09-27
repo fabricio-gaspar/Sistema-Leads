@@ -3,6 +3,7 @@ import { useLeadsStore } from '@/hooks/useLeadsStore';
 import { useConversasStore } from '@/hooks/useConversasStore';
 import { usePropostasStore } from '@/hooks/usePropostasStore';
 import { useCompromissosStore } from '@/hooks/useCompromissosStore';
+import { stageFromLegacy } from '@/domain/pipeline';
 
 export default function TelemetriaAna() {
   const [leads] = useLeadsStore();
@@ -15,7 +16,10 @@ export default function TelemetriaAna() {
       (s, c) => s + c.mensagens.filter((m) => m.autor === 'ana').length,
       0
     );
-    const qualificados = leads.filter((l) => !['Novo', 'Fechado — Perdido', 'Fechado — Ganho'].includes(l.etapa)).length;
+    const qualificados = leads.filter((lead) => {
+      const stage = stageFromLegacy(lead.etapa);
+      return !['entered', 'won', 'lost'].includes(stage);
+    }).length;
     const reunioes = compromissos.filter((c) => c.origem === 'ana' || c.responsavel === 'Ana (IA)').length;
     const handoffs = leads.filter((l) => l.automacaoStatus === 'AGUARDANDO_HUMANO').length;
     const optOuts = leads.filter((l) => l.bloqueado).length;

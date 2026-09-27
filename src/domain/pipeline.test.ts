@@ -11,6 +11,8 @@ describe('pipeline comercial simplificado', () => {
     expect(legacyStageForPipeline('won')).toBe('Ganho');
     expect(legacyStageForPipeline('lost')).toBe('Perdido');
     expect(outcomeFromLegacy('Fechado — Ganho')).toBe('won');
+    expect(stageFromLegacy('Prospecção')).toBe('entered');
+    expect(stageFromLegacy('Fechado')).toBe('won');
   });
 
   it('impede fechamento ganho pela Ana', () => {

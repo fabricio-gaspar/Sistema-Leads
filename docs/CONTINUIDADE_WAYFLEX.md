@@ -1,5 +1,15 @@
 # Checkpoint — WayFlex CRM
 
+## 27/09/2026 — Homologação dos fluxos comerciais operacionais
+
+- O pipeline passou a usar a sequência canônica **Novo → Apresentado → Qualificando → Reunião → Orçamento → Ganho → Perdido** em Leads, Kanban, Agenda, Funil, Relatórios e indicadores. Valores legados permanecem somente como leitura de compatibilidade; Ganho e Perdido não podem ser reabertos pelo navegador.
+- A mudança de etapa deixou de ser êxito visual: a RPC `transition_lead_stage` valida sessão, carteira, permissão, ordem, mensagem persistida, qualificação, orçamento enviado e motivo de resultado. Cada mudança confirmada grava `lead_stage_history`.
+- Orçamentos agora concluem Ganho/Perdido em uma única operação do servidor. A Central vincula uma proposta somente quando o operador a prepara; ela fica **Enviada** e avança para Orçamento somente depois de aceite comprovado pelo provedor. Fila, falha e reconciliação não são exibidas como envio.
+- Arquivamento de lead é reversível e preserva o histórico. A tela não exclui lead comercial pelo Kanban. A Central bloqueia saída externa sem conversa WhatsApp e contato válido.
+- Homologação técnica aprovada: type-check frontend/Edge, lint sem warnings, **46 arquivos / 281 testes**, build e artefato Sites. Migrações de transição/histórico, arquivamento, projeção de proposta e índice foram aplicadas no Supabase oficial; `enviar-whatsapp` foi publicado na versão 10 com JWT obrigatório.
+- Provas remotas sem disparo externo: zero mensagens, jobs WhatsApp, histórico de estágio ou leads arquivados adicionados; a fila vinculada à proposta é exclusiva do backend (`authenticated=false`, `service_role=true`).
+- Limite de homologação: **não houve E2E externo**. A Z-API continua desconectada/bloqueada, portanto não declarar WhatsApp, Ana ou a projeção pós-provedor como comprovados até executar um teste individual autorizado. A proteção de senhas vazadas do Auth também continua pendente.
+
 ## 26/09/2026 — Dashboard comercial compacta
 
 - A Dashboard foi reduzida à leitura necessária para decisão rápida: quatro indicadores compactos,

@@ -1,5 +1,6 @@
 import type { Notificacao } from '@/lib/tipos';
 import type { Lead } from '@/mocks/leadsData';
+import { stageFromLegacy } from '@/domain/pipeline';
 
 export type AttentionItem = { id: string; title: string; detail: string; action: string; to: string; leadId?: string };
 export type AttentionGroup = { id: string; title: string; description: string; icon: string; tone: string; items: AttentionItem[] };
@@ -26,7 +27,11 @@ export function buildSellerAttentionGroups(notifications: Notificacao[], leads: 
   const open = notifications.filter((item) => item.leadId && item.status !== 'resolved');
   const today = now.toLocaleDateString('en-CA');
   const followUps = leads.filter((lead) => lead.nextFollowUpAt && new Date(lead.nextFollowUpAt).toLocaleDateString('en-CA') === today);
-  const stale = leads.filter((lead) => lead.timeoutAt && Date.parse(lead.timeoutAt) <= now.getTime() && !['Ganho', 'Perdido'].includes(lead.etapa));
+  const stale = leads.filter((lead) =>
+    lead.timeoutAt
+    && Date.parse(lead.timeoutAt) <= now.getTime()
+    && !['won', 'lost'].includes(stageFromLegacy(lead.etapa))
+  );
 
   // The event meaning wins over the generic action-required flag. Otherwise every
   // hot/meeting/quote event collapses into "Responder agora" and its own lane is empty.

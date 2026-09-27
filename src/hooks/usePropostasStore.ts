@@ -7,6 +7,7 @@ let hydrated = false;
 let loadStatus: 'loading' | 'ready' | 'error' = 'loading';
 let hydratePromise: Promise<void> | null = null;
 let writeQueue = Promise.resolve();
+let latestPersistenceError: unknown = null;
 const listeners = new Set<() => void>();
 
 const notify = () => listeners.forEach((listener) => listener());
@@ -35,8 +36,32 @@ function updateState(updater: (previous: Proposta[]) => Proposta[]): void {
   state = next;
   notify();
   writeQueue = writeQueue
-    .then(async () => { state = await persistOperationalProposals(previous, next); notify(); })
-    .catch((error) => { console.error('[crm-proposals] falha ao salvar fonte operacional', error); void hydrate(); });
+    .then(async () => {
+      state = await persistOperationalProposals(previous, next);
+      latestPersistenceError = null;
+      notify();
+    })
+    .catch((error) => {
+      console.error('[crm-proposals] falha ao salvar fonte operacional', error);
+      latestPersistenceError = error;
+      hydrated = false;
+      void hydrate();
+    });
+}
+
+/** Recarrega a fonte operacional após uma mutação transacional do backend. */
+export async function refreshPropostasStore(): Promise<void> {
+  try {
+    state = await loadOperationalProposals();
+    hydrated = true;
+    loadStatus = 'ready';
+    latestPersistenceError = null;
+    notify();
+  } catch (error) {
+    loadStatus = 'error';
+    notify();
+    throw error;
+  }
 }
 
 export interface PropostasStore {
@@ -80,4 +105,13 @@ export function usePropostasLoadStatus(): 'loading' | 'ready' | 'error' {
 // Acesso imperativo (para orquestradores/handlers sem hook).
 export function getPropostasSnapshot(): Proposta[] {
   return state;
+}
+
+export async function waitForPropostasPersistence(): Promise<void> {
+  await writeQueue;
+  if (latestPersistenceError) {
+    const error = latestPersistenceError;
+    latestPersistenceError = null;
+    throw error;
+  }
 }
