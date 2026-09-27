@@ -1,32 +1,49 @@
 {
   "schema_version": 1,
-  "validated_commit": "dcc2fead0ae5c7de0b2445349e54cf05d4e0bbba",
+  "validated_commit": "75ea569e53bcbc1f75b3f50d89fdcbc96f573a8c",
   "last_validated_at": "2026-09-27",
   "current_validation": {
-    "stage": "zapi_connection_state_and_provider_activation",
+    "stage": "ana_automatic_operation_save",
     "frontend_typecheck": "passed",
     "edge_typecheck": "passed",
     "lint": "passed",
     "production_build": "passed",
-    "sites_artifact": "passed; official_site_v138_deployed",
+    "sites_artifact": "passed; official_site_v139_deployed",
     "deterministic_smoke_checks": 17,
-    "vitest": "passed; 49 files; 306 tests",
-    "visual_review": "authenticated_channels_page_passed; connected; ready_to_activate; paused; no_console_errors",
-    "external_end_to_end": "not_executed; provider_not_activated; no_message_sent"
+    "vitest": "passed; 50 files; 308 tests",
+    "visual_review": "authenticated_ana_operation_page_passed; nine_readiness_checks_ok; no_console_errors",
+    "external_end_to_end": "not_executed; ana_operation_and_schedule_remain_disabled; no_message_or_prospecting_run"
   },
   "previous_validation": {
-    "stage": "wayflex_commercial_redesign",
+    "stage": "zapi_connection_state_and_provider_activation",
     "frontend_typecheck": "passed",
     "edge_typecheck": "passed",
     "lint": "passed",
     "production_build": "passed",
     "sites_artifact": "passed",
     "deterministic_smoke_checks": 17,
-    "vitest": "incomplete_process_did_not_exit",
-    "visual_review": "independent_static_only",
-    "external_end_to_end": "not_executed; no_operational_writes"
+    "vitest": "passed; 49 files; 306 tests",
+    "visual_review": "authenticated_channels_page_passed",
+    "external_end_to_end": "not_executed; no_message_sent"
   },
   "commands": [
+    {
+      "command": "npm run type-check && npm run type-check:edge && npm run lint",
+      "status": "passed",
+      "note": "Correção do booleano obrigatório na gravação da Operação automática."
+    },
+    {
+      "command": "npm test",
+      "status": "passed",
+      "files": 50,
+      "checks": 308
+    },
+    {
+      "command": "npm run build && node scripts/check-commercial-analytics.mjs",
+      "status": "passed",
+      "checks": 17,
+      "note": "Artefato Sites v139 e smoke comercial determinístico."
+    },
     {
       "command": "node node_modules/typescript/bin/tsc --noEmit --project tsconfig.app.json",
       "status": "passed",

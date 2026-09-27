@@ -2,21 +2,21 @@
   "schema_version": 1,
   "baseline_version": 5,
   "baseline_commit": "1dc6275b8c7d70de953b66397a8c89f5e97bc15b",
-  "last_audited_commit": "dcc2fead0ae5c7de0b2445349e54cf05d4e0bbba",
-  "current_head_at_update": "dcc2fead0ae5c7de0b2445349e54cf05d4e0bbba",
-  "working_tree_status": "zapi_activation_path_published_v138_documentation_checkpoint",
+  "last_audited_commit": "75ea569e53bcbc1f75b3f50d89fdcbc96f573a8c",
+  "current_head_at_update": "75ea569e53bcbc1f75b3f50d89fdcbc96f573a8c",
+  "working_tree_status": "ana_operation_save_fix_published_v139_documentation_checkpoint",
   "stage_1_baseline": ".agent/baselines/2026-09-25-stage-1.json",
   "recovery_tag": "baseline-wayflex-stage1-20260925",
   "work_branch": "main",
   "last_site_publication": {
-    "commit": "dcc2fead0ae5c7de0b2445349e54cf05d4e0bbba",
-    "site_version": 138,
-    "deployment_id": "appgdep_6ab95cdb9e2081919066cb38e9eedca4",
-    "validated_at": "2026-09-27T18:14:09Z",
+    "commit": "75ea569e53bcbc1f75b3f50d89fdcbc96f573a8c",
+    "site_version": 139,
+    "deployment_id": "appgdep_6ab960d08f5c8191b3ebde0460d4cf99",
+    "validated_at": "2026-09-27T18:31:02Z",
     "working_tree_status": "published"
   },
   "full_audit_required": false,
-  "baseline_status": "zapi_activation_path_repaired_published_pending_real_e2e",
-  "updated_at": "2026-09-27T18:16:00Z",
-  "next_action": "Administrador deve clicar Ativar no cartão Z-API e autorizar um único teste real; depois comprovar saída, callback de entrada e recibos. Não ativar a Ana antes desse E2E."
+  "baseline_status": "ana_operation_save_repaired_published_pending_operator_activation",
+  "updated_at": "2026-09-27T18:32:00Z",
+  "next_action": "O administrador pode repetir Ativar Automático. Depois confirmar ana_operation_enabled=true e schedule.active=true antes de qualquer execução; homologar busca e mensagens com um lote controlado."
 }

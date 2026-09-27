@@ -1194,3 +1194,10 @@
 - Mensagens assinam Realtime confirmado; carteira/propostas consultam a cada 60 s. Paginação, timestamps originais, contexto de organização e erro explícito. Nenhuma alteração em configuração/banco remoto, ativação ou envio.
 - Type-check frontend/Edge, lint e build passaram. Smoke determinístico 17/17. Vitest emitiu passes, mas não encerrou; suíte completa NÃO aprovada. Revisão independente estática de UX, design e dados realizada e principais achados corrigidos. QA visual autenticada NÃO realizada.
 - Especificação: `docs/REDESIGN_WAYFLEX_2026-09-27.md`. Próxima ação: confirmar deploy, depois homologação autenticada a 1440/1024/390 px e regressão CI sem executar provedores reais.
+
+## 2026-09-27 — Correção da gravação da Operação automática
+
+- A tentativa real foi localizada nos logs às 18:23 UTC: todos os checks estavam prontos, mas o update de `prospecting_schedules` tentou gravar `handoff_notify_whatsapp=null` quando não havia transferência por etapa; o banco recusou com `23502`.
+- A normalização foi fechada em booleano, ganhou teste unitário e falhas futuras de gravação usam o código seguro `schedule_not_saved`. `ana-operations` v5 publicada com JWT obrigatório.
+- Type-check frontend/Edge, lint, 50 arquivos/308 testes, build e smoke 17/17 passaram. Site v139 publicado pelo commit `75ea569`, deploy `appgdep_6ab960d08f5c8191b3ebde0460d4cf99`; tela autenticada mostrou nove checks OK e console limpo.
+- A operação permaneceu inativa; nenhuma busca, mensagem, fila, lead ou execução da Ana foi disparada.

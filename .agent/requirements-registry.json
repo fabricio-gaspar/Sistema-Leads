@@ -448,6 +448,14 @@
       "status": "partial",
       "evidence": "MessagingProvider, Embedded Signup oficial, webhook HMAC/idempotente, outbox, status fora de ordem, RLS, retry/DLQ e gates foram implantados no projeto oficial. Duas contas Z-API continuam conectadas; Meta possui zero conta/evento/fila e todos os gates permanecem fechados. Gate 3 real depende de App/WABA/número de teste autorizado.",
       "last_validation": "2026-09-24"
+    },
+    {
+      "id": "REQ-038",
+      "description": "Permitir salvar e ativar a Operação automática da Ana sem exigir transferência programada por etapa",
+      "module": "ana",
+      "status": "implemented_pending_operator_activation",
+      "evidence": "O log real confirmou handoff_notify_whatsapp=null como causa do 23502. ana-operations v5 normaliza sempre para booleano; teste dedicado, suíte 50/308, build, Site v139 e tela autenticada com nove checks OK foram aprovados. A operação permaneceu inativa durante a correção.",
+      "last_validation": "2026-09-27"
     }
   ]
 }

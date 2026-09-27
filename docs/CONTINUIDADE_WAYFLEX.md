@@ -1,5 +1,13 @@
 # Checkpoint — WayFlex CRM
 
+## 27/09/2026 — Gravação da Operação automática da Ana
+
+- O `POST /ana-operations` das 15:23 retornou 400 porque a ausência de transferência programada produzia `handoff_notify_whatsapp=null`; a coluna de `prospecting_schedules` é booleana e `NOT NULL`.
+- A normalização agora sempre grava `true` ou `false`. Sem etapa de transferência, grava `false`; o servidor também converte falhas futuras de persistência para `schedule_not_saved`, sem devolver detalhes internos do banco à interface.
+- `ana-operations` v5 foi publicada com JWT obrigatório. O Site oficial v139 foi publicado pelo commit `75ea569`, deploy `appgdep_6ab960d08f5c8191b3ebde0460d4cf99`.
+- Verificação: todos os nove pré-requisitos aparecem como **OK**; type-check frontend/Edge, lint, **50 arquivos / 308 testes**, 17 smoke checks e build passaram; tela autenticada sem erros no console.
+- Segurança: a Ana e a agenda continuam inativas (`ana_operation_enabled=false`, `schedule.active=false`). Não houve busca, envio, lead, job ou execução. Próxima ação: o administrador pode repetir **Ativar Automático**; essa ação real não foi executada durante a correção.
+
 ## 27/09/2026 — Correção do bloqueio `whatsapp_provider_disabled`
 
 - Diagnóstico no projeto oficial: a consulta real da Z-API confirmou a instância conectada, mas o controle administrativo permanecia desativado desde 25/09. O teste validava a sessão e depois era recusado corretamente pelo gate de envio.

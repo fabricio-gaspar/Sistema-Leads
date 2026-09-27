@@ -1,8 +1,15 @@
 # Baseline do sistema
 
+## Gravação da Operação automática — 27/09/2026
+
+- Confirmado em logs do Supabase: a tentativa real falhou antes de ativar porque `handoff_notify_whatsapp` recebeu `null` quando a transferência por etapa estava vazia, violando o `NOT NULL` de `prospecting_schedules`.
+- `ana-operations` v5 normaliza esse campo como booleano total e responde `schedule_not_saved` para falhas futuras de persistência. Site v139 publicado pelo commit `75ea569`.
+- Os nove checks de prontidão estão verdadeiros, mas a operação e a agenda permanecem inativas. Type-check frontend/Edge, lint, 50 arquivos/308 testes, smoke 17/17, build e inspeção autenticada sem console errors aprovados.
+- A ativação real e qualquer execução externa não foram usadas como teste. O administrador deve repetir **Ativar Automático** conscientemente.
+
 ## Estado físico e ativação da Z-API — 27/09/2026
 
-- A validação real de status confirmou a sessão corporativa da Z-API conectada, sem enviar mensagem. O provedor continua administrativamente desativado: entrada, saída e automações estão desligadas e o `kill_switch` permanece ligado.
+- A validação real de status confirmou a sessão corporativa da Z-API conectada. Depois da ação administrativa do operador, `whatsapp` e `zapi_webhook` aparecem conectados, habilitados e não pausados; o `killSwitchGlobal` está desligado. Isso satisfaz a prontidão, mas ainda não comprova o E2E de mensagem.
 - Corrigida a mistura entre sessão remota e uso operacional. Uma integração pausada não transforma mais a conta conectada em `error`; o cartão passa a mostrar **Pronto para ativar** e mantém a ativação como ação explícita do administrador.
 - O teste de saída não tenta enviar enquanto o provedor estiver desativado e apresenta orientação legível em vez de `whatsapp_provider_disabled`. O backend continua bloqueando qualquer envio fora desse gate.
 - Migration `20260927160000_preserve_whatsapp_connection_state_when_provider_paused` aplicada. `testar-integracao` v16 e `whatsapp-accounts` v5 publicados. Nenhuma mensagem, callback, job ou execução da Ana foi criada nesta correção.

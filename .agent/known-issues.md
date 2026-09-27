@@ -1,9 +1,14 @@
 # Problemas conhecidos
 
+## Operação automática não salvava sem transferência por etapa — 27/09/2026
+
+- Resolvido em `ana-operations` v5 e Site v139: o campo obrigatório `handoff_notify_whatsapp` não recebe mais `null` quando a etapa de transferência está vazia.
+- A regressão cobre ausência de etapa, aviso explícito, modo humano e falso. A persistência real que ativa a agenda não foi repetida pelo agente, pois também libera a operação automática; o operador deve confirmar essa ação no botão **Ativar Automático**.
+
 ## Z-API desativada com sessão conectada — 27/09/2026
 
 - Resolvido o falso estado `error`: a pausa administrativa não é mais tratada como desconexão da instância. A conta corporativa está fisicamente conectada e agora pode ser apresentada como **Pronto para ativar**.
-- O provedor continua intencionalmente desligado (`inbound/send/automation=false`, `kill_switch=true`). Isso não é falha de credencial; o administrador precisa usar **Ativar** antes do teste real de saída.
+- O bloqueio administrativo foi removido posteriormente pelo operador: saída e entrada aparecem prontas para a operação automática. A ausência de E2E real continua sendo a limitação, não a conexão ou a ativação do provedor.
 - Ainda pendente: comprovar envio, callback individual de entrada, entrega/leitura e resposta da Ana depois da ativação autorizada. Não declarar o WhatsApp homologado apenas pela consulta de status.
 
 ## Redesign 27/09 — limitações abertas
