@@ -1,5 +1,13 @@
 # Baseline do sistema
 
+## Estado físico e ativação da Z-API — 27/09/2026
+
+- A validação real de status confirmou a sessão corporativa da Z-API conectada, sem enviar mensagem. O provedor continua administrativamente desativado: entrada, saída e automações estão desligadas e o `kill_switch` permanece ligado.
+- Corrigida a mistura entre sessão remota e uso operacional. Uma integração pausada não transforma mais a conta conectada em `error`; o cartão passa a mostrar **Pronto para ativar** e mantém a ativação como ação explícita do administrador.
+- O teste de saída não tenta enviar enquanto o provedor estiver desativado e apresenta orientação legível em vez de `whatsapp_provider_disabled`. O backend continua bloqueando qualquer envio fora desse gate.
+- Migration `20260927160000_preserve_whatsapp_connection_state_when_provider_paused` aplicada. `testar-integracao` v16 e `whatsapp-accounts` v5 publicados. Nenhuma mensagem, callback, job ou execução da Ana foi criada nesta correção.
+- Validação local: type-check frontend/Edge, lint, 46 arquivos/284 testes e build aprovados. A homologação externa ainda exige ativação consciente, teste individual autorizado e comprovação de entrada/recibos.
+
 ## Orientação de pendências da Ana automática — 27/09/2026
 
 - O painel de Operação automática apresenta a prontidão devolvida por `ana-operations` como itens acionáveis: requisito, motivo da pendência e destino exato para correção.

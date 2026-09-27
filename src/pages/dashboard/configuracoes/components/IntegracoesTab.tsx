@@ -39,6 +39,7 @@ function errorMessage(code: string, name: string) {
     zapi_credentials_rejected: 'A Z-API recusou as credenciais. Salve e valide novamente.',
     zapi_instance_not_connected: 'A instância existe, mas o WhatsApp ainda não está conectado.',
     zapi_phone_offline: 'O celular vinculado à instância está offline.',
+    whatsapp_provider_disabled: 'A conexão com a Z-API foi validada, mas o provedor está desativado no WayFlex. Use “Ativar” no cartão Z-API acima antes de enviar uma mensagem de teste.',
     whatsapp_paused_by_risk_policy: 'O canal está pausado por uma política de risco. Consulte o Status operacional.',
   };
   return messages[code] || `Não foi possível validar ${name}. ${code || 'Tente novamente.'}`;
@@ -108,6 +109,7 @@ function WhatsAppTestModal({ integration, onClose, onCompleted }: { integration:
     try {
       const validation = await supabase.functions.invoke('testar-integracao', { body: { canal: 'whatsapp' } });
       if (validation.error || !validation.data?.pronto) throw new Error(validation.error ? await detalheDoErroDeFuncao(validation.error) : validation.data?.erro || validation.data?.detalhe);
+      if (validation.data?.canalPronto === false) throw new Error(validation.data?.bloqueioOperacional || 'whatsapp_provider_disabled');
       const directTest = await supabase.functions.invoke('enviar-teste-whatsapp', {
         body: { phone, message, request_id: requestIdRef.current, confirmation: 'SEND_REAL_WHATSAPP_TEST' },
       });
@@ -234,6 +236,11 @@ export default function IntegracoesTab({ category }: { category?: OperationalInt
         const sourceError = source?.lastError ?? null;
         const canRepairApifyActor = integration.remoteKey === 'apify'
           && (integration.lastError === 'apify_http_400' || sourceError === 'apify_http_400');
+        const whatsappNeedsActivation = integration.remoteKey === 'whatsapp'
+          && integration.connected
+          && (integration.paused || !integration.enabled);
+        const focusWhatsappActivation = () => document.getElementById('whatsapp-provider-zapi')
+          ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
         return <article key={integration.remoteKey} className="flex min-h-[250px] flex-col rounded-xl border border-background-200 bg-white p-4 shadow-2xs">
           <div className="flex items-start justify-between gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-50 text-primary-700"><i className={`${integration.icone} text-base`} /></div>
@@ -256,7 +263,7 @@ export default function IntegracoesTab({ category }: { category?: OperationalInt
             {integration.lastError && <p className="line-clamp-2 text-[#A52F27]">{integration.lastError}</p>}
             {!integration.lastError && sourceError && <p className="line-clamp-2 text-[#A52F27]">Busca: {sourceError}</p>}
           </div>
-          <div className="mt-auto grid grid-cols-2 gap-2 pt-3"><button type="button" onClick={() => setConfiguring(integration)} className="wf-btn-secondary justify-center text-xs">{integration.connected || integration.enabled ? 'Editar configuração' : 'Configurar'}</button><button type="button" disabled={testing === integration.remoteKey || (integration.remoteKey === 'apify' && repairingApify)} onClick={() => integration.remoteKey === 'whatsapp' ? setWhatsappTest(integration) : void test(integration)} className="wf-btn-primary justify-center text-xs disabled:opacity-60">{testing === integration.remoteKey ? 'Validando…' : integration.remoteKey === 'whatsapp' ? 'Testar envio' : 'Testar conexão'}</button>{source && <button type="button" disabled={togglingSource === source.id || source.connectionStatus !== 'connected'} onClick={() => void toggleProspectingSource(source)} className="col-span-2 wf-btn-secondary justify-center text-xs disabled:cursor-not-allowed disabled:opacity-60" title={source.connectionStatus === 'connected' ? undefined : 'Configure e valide a conexão antes de ativar a Busca de Leads.'}><i className={togglingSource === source.id ? 'ri-loader-4-line animate-spin' : source.status === 'ativo' ? 'ri-pause-circle-line' : 'ri-play-circle-line'} />{togglingSource === source.id ? 'Salvando uso…' : source.status === 'ativo' ? 'Pausar na Busca de Leads' : 'Ativar na Busca de Leads'}</button>}{canRepairApifyActor && <button type="button" disabled={repairingApify} onClick={() => void repairApifyGoogleMapsActor(integration)} className="col-span-2 wf-btn-secondary justify-center text-xs text-primary-700 disabled:opacity-60"><i className={repairingApify ? 'ri-loader-4-line animate-spin' : 'ri-map-pin-line'} />{repairingApify ? 'Corrigindo Actor…' : 'Corrigir Actor Google Maps'}</button>}</div>
+          <div className="mt-auto grid grid-cols-2 gap-2 pt-3"><button type="button" onClick={() => setConfiguring(integration)} className="wf-btn-secondary justify-center text-xs">{integration.connected || integration.enabled ? 'Editar configuração' : 'Configurar'}</button><button type="button" disabled={testing === integration.remoteKey || (integration.remoteKey === 'apify' && repairingApify)} onClick={() => whatsappNeedsActivation ? focusWhatsappActivation() : integration.remoteKey === 'whatsapp' ? integration.connected ? setWhatsappTest(integration) : void test(integration) : void test(integration)} className="wf-btn-primary justify-center text-xs disabled:opacity-60">{testing === integration.remoteKey ? 'Validando…' : whatsappNeedsActivation ? 'Ativar Z-API acima' : integration.remoteKey === 'whatsapp' ? integration.connected ? 'Testar envio' : 'Validar conexão' : 'Testar conexão'}</button>{source && <button type="button" disabled={togglingSource === source.id || source.connectionStatus !== 'connected'} onClick={() => void toggleProspectingSource(source)} className="col-span-2 wf-btn-secondary justify-center text-xs disabled:cursor-not-allowed disabled:opacity-60" title={source.connectionStatus === 'connected' ? undefined : 'Configure e valide a conexão antes de ativar a Busca de Leads.'}><i className={togglingSource === source.id ? 'ri-loader-4-line animate-spin' : source.status === 'ativo' ? 'ri-pause-circle-line' : 'ri-play-circle-line'} />{togglingSource === source.id ? 'Salvando uso…' : source.status === 'ativo' ? 'Pausar na Busca de Leads' : 'Ativar na Busca de Leads'}</button>}{canRepairApifyActor && <button type="button" disabled={repairingApify} onClick={() => void repairApifyGoogleMapsActor(integration)} className="col-span-2 wf-btn-secondary justify-center text-xs text-primary-700 disabled:opacity-60"><i className={repairingApify ? 'ri-loader-4-line animate-spin' : 'ri-map-pin-line'} />{repairingApify ? 'Corrigindo Actor…' : 'Corrigir Actor Google Maps'}</button>}</div>
         </article>;
       })}
     </div>

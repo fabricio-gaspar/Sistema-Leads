@@ -124,3 +124,17 @@ describe('Ana automatic dashboard control migration', () => {
     expect(migration).toContain('from public, anon, authenticated');
   });
 });
+
+describe('WhatsApp provider connection-state migration', () => {
+  it('does not turn an intentionally paused provider into a false connection error', () => {
+    const migration = readFileSync(
+      new URL('../migrations/20260927160000_preserve_whatsapp_connection_state_when_provider_paused.sql', import.meta.url),
+      'utf8',
+    );
+
+    expect(migration).toContain("when new.connected then 'connected'");
+    expect(migration).toContain("when new.last_error is not null then 'error'");
+    expect(migration).not.toContain("when new.paused then 'error'");
+    expect(migration).toContain("where a.integration_id = i.id");
+  });
+});

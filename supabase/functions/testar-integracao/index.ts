@@ -365,7 +365,10 @@ Deno.serve(async (request) => {
         pronto: true,
         provedor: provider,
         detalhe: detail,
-        canalPronto: canal === "whatsapp",
+        canalPronto: canal === "whatsapp" ? whatsappOperational : true,
+        bloqueioOperacional: canal === "whatsapp" && !whatsappOperational
+          ? "whatsapp_provider_disabled"
+          : null,
         ambienteRealAtivo,
         ambienteRealMensagem,
       },

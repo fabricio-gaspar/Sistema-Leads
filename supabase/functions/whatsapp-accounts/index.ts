@@ -175,7 +175,7 @@ async function listAccounts(admin: Admin, organizationId: string, userId: string
         : asObject(integration?.configuration).configured === true,
       connected: account.provider === 'meta_cloud'
         ? account.connection_status === 'connected'
-        : integration?.connected === true && integration?.enabled === true && integration?.paused !== true,
+        : integration?.connected === true,
       paused: integration?.paused === true,
       onboardingStatus: account.onboarding_status,
       syncStatus: account.sync_status,

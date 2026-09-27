@@ -1,5 +1,14 @@
 # Checkpoint — WayFlex CRM
 
+## 27/09/2026 — Correção do bloqueio `whatsapp_provider_disabled`
+
+- Diagnóstico no projeto oficial: a consulta real da Z-API confirmou a instância conectada, mas o controle administrativo permanecia desativado desde 25/09. O teste validava a sessão e depois era recusado corretamente pelo gate de envio.
+- Havia um segundo defeito: o gatilho de sincronização confundia `paused` com erro de conexão. Assim, a conta aparecia como `error` e o cartão não oferecia **Ativar**, embora `integrations.connected=true`.
+- A migration `20260927160000_preserve_whatsapp_connection_state_when_provider_paused` separa conexão física de habilitação operacional e reconciliou a conta como `connected`, ainda `enabled=false`.
+- `testar-integracao` v16 devolve o bloqueio operacional de forma explícita; `whatsapp-accounts` v5 apresenta a conexão física sem transformar canal desativado em desconectado. A interface orienta para **Ativar Z-API acima** e não tenta o envio quando o gate está fechado.
+- Segurança preservada: entrada, saída e automações permanecem desligadas, `kill_switch=true`; não houve mensagem, callback, job, lead ou execução da Ana. Type-check frontend/Edge, lint, **46 arquivos / 284 testes** e build passaram.
+- Próximo teste permitido: o administrador deve clicar **Ativar** no cartão Z-API e autorizar um único envio real. A homologação só pode ser concluída depois de comprovar saída, entrada individual e recibos.
+
 ## 27/09/2026 — Pendências explícitas na ativação automática da Ana
 
 - **Configurações > Ana > Operação automática** deixou de responder apenas com a mensagem genérica de pré-requisitos. A tela agora conta as pendências, identifica cada requisito por nome, explica o que falta e oferece um atalho para o campo ou módulo responsável.

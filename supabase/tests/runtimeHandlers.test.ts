@@ -1824,6 +1824,36 @@ describe('Z-API status validation contract', () => {
     expect(fetchMock.mock.calls[0][1].headers).not.toHaveProperty('Accept');
     expect(calls.some((q) => q.table === 'company_settings' && q.operation === 'update')).toBe(false);
   });
+
+  it('keeps a valid remote session separate from an administratively disabled provider', async () => {
+    override = (q) => {
+      if (q.table === 'read_integration_secret') return ok({
+        instancia_id: 'synthetic-instance', token: 'synthetic-instance-token', client_token: 'synthetic-client-token', url_base: 'https://api.z-api.io',
+      });
+      if (q.table === 'messaging_provider_controls' && q.operation === 'select') {
+        return ok({ inbound_enabled: false, send_enabled: false, automation_enabled: false, kill_switch: true });
+      }
+      return undefined;
+    };
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ connected: true, smartphoneConnected: true }), { status: 200 }));
+    await import('../functions/testar-integracao/index');
+    const response = await handler(new Request('https://example.invalid/testar-integracao', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ canal: 'whatsapp' }),
+    }));
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      ok: true,
+      pronto: true,
+      canalPronto: false,
+      bloqueioOperacional: 'whatsapp_provider_disabled',
+    });
+    expect(calls.find((q) => q.table === 'integrations' && q.operation === 'update')?.value)
+      .toMatchObject({ connected: true, enabled: false, paused: true });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('Z-API direct test message contract', () => {

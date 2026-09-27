@@ -1,5 +1,11 @@
 # Problemas conhecidos
 
+## Z-API desativada com sessão conectada — 27/09/2026
+
+- Resolvido o falso estado `error`: a pausa administrativa não é mais tratada como desconexão da instância. A conta corporativa está fisicamente conectada e agora pode ser apresentada como **Pronto para ativar**.
+- O provedor continua intencionalmente desligado (`inbound/send/automation=false`, `kill_switch=true`). Isso não é falha de credencial; o administrador precisa usar **Ativar** antes do teste real de saída.
+- Ainda pendente: comprovar envio, callback individual de entrada, entrega/leitura e resposta da Ana depois da ativação autorizada. Não declarar o WhatsApp homologado apenas pela consulta de status.
+
 ## Paleta global — 27/09/2026
 
 - Nenhum defeito funcional novo foi encontrado. Temas de documentos continuam configuráveis pelo usuário e ícones de WhatsApp, Meta, Apify e Google preservam a identidade do provedor; essas exceções são deliberadas e não quebram a paleta do produto.
@@ -70,7 +76,7 @@
 
 ## Crítico
 
-- **Homologação externa permanece bloqueada:** a Z-API não está conectada. A fila e a projeção de proposta agora são auditáveis e só marcam envio após aceite do provedor, mas isso ainda não comprova entrega, resposta da Ana ou recibos. Executar somente um teste individual autorizado depois de o canal ficar saudável.
+- **Homologação externa permanece bloqueada:** a sessão Z-API responde como conectada, mas o provedor continua administrativamente desativado e a entrada está pausada. A fila e a projeção de proposta são auditáveis, mas isso não comprova envio, entrega, resposta da Ana ou recibos. Ativar conscientemente e executar somente um teste individual autorizado antes de qualquer liberação automática.
 - **Auth:** a proteção contra senhas vazadas continua desativada no projeto Supabase e é gate para a liberação comercial automática.
 
 - O fluxo real WhatsApp → Ana → resposta ainda precisa de uma mensagem nova, individual, enviada

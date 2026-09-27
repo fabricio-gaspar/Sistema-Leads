@@ -91,7 +91,7 @@ function ProviderCard({
   const enable = () => void onChange(provider, true, account?.id);
   const disable = () => void onChange(provider, false, account?.id);
 
-  return <article className="flex min-h-[240px] flex-col rounded-2xl border border-background-200 bg-white p-5 shadow-[0_10px_24px_rgba(29,29,31,0.035)]">
+  return <article id={`whatsapp-provider-${provider}`} className="flex min-h-[240px] scroll-mt-24 flex-col rounded-2xl border border-background-200 bg-white p-5 shadow-[0_10px_24px_rgba(29,29,31,0.035)]">
     <div className="flex items-start justify-between gap-3">
       <div className="flex min-w-0 items-start gap-3">
         <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-xl ${copy.iconClass}`}><i className={copy.icon} aria-hidden="true" /></span>

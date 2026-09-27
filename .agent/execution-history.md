@@ -1170,3 +1170,17 @@
 - Publicação oficial: Site v132, commit `5fe475de2c6cb1eb34cf581fddee5a0364f0ecdb`, deploy
   concluído. A verificação autenticada da página publicada não acionou fluxo operacional e não
   encontrou warning ou erro de console.
+
+## 2026-09-27 — Estado conectado da Z-API separado da ativação
+
+- O erro `whatsapp_provider_disabled` foi reproduzido nos logs: `testar-integracao` v15 confirmou
+  a instância com HTTP 200 e, em seguida, `enviar-teste-whatsapp` v3 recusou o envio com HTTP 400
+  porque o administrador havia desativado o provedor.
+- Um gatilho antigo convertia qualquer integração pausada em `connection_status=error`, ocultando
+  o botão de ativação apesar da sessão válida. A migration
+  `20260927160000_preserve_whatsapp_connection_state_when_provider_paused` passou a manter
+  `connected` separado de `enabled/paused` e reconciliou a conta oficial sem ligar o canal.
+- Publicados `testar-integracao` v16 e `whatsapp-accounts` v5. A interface passa a orientar a
+  ativação antes do teste e traduz o código técnico. O bloqueio server-side de envio permanece.
+- Type-check frontend/Edge, lint, 46 arquivos/284 testes e build passaram. Nenhuma mensagem,
+  callback, job, lead, ativação da Ana ou chamada de envio foi criada.
