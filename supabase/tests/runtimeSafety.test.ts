@@ -138,3 +138,21 @@ describe('WhatsApp provider connection-state migration', () => {
     expect(migration).toContain("where a.integration_id = i.id");
   });
 });
+
+describe('WhatsApp account resolver migration', () => {
+  it('qualifies resolver columns that collide with RETURNS TABLE output names', () => {
+    const migration = readFileSync(
+      new URL('../migrations/20260927193046_fix_whatsapp_account_resolver_ambiguity.sql', import.meta.url),
+      'utf8',
+    );
+
+    expect(migration).toContain('wa.owner_user_id in (v_lead.assigned_to, v_lead.owner_id)');
+    expect(migration).toContain("case when wa.connection_status = 'connected'");
+    expect(migration).toContain('and wa.is_default');
+    expect(migration).not.toMatch(/^\s+and owner_user_id is not null/m);
+    expect(migration).not.toMatch(/^\s+case when connection_status =/m);
+    expect(migration).not.toMatch(/^\s+and is_default\b/m);
+    expect(migration).toContain('from public, anon, authenticated');
+    expect(migration).toContain('to service_role');
+  });
+});
