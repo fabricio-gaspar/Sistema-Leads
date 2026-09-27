@@ -1,8 +1,20 @@
 {
   "schema_version": 1,
-  "validated_commit": "2ef48dd0b38c33fe9249adcee5c22bfe077aef14",
+  "validated_commit": "4fd878f77b3b687856281ace8e84bf419ec7b912",
   "last_validated_at": "2026-09-27",
   "current_validation": {
+    "stage": "kanban_ana_presentation_flow_restored",
+    "frontend_typecheck": "passed",
+    "edge_typecheck": "passed",
+    "lint": "passed",
+    "production_build": "passed",
+    "sites_artifact": "not_required; no_frontend_change; official_site_v140_preserved",
+    "deterministic_smoke_checks": 17,
+    "vitest": "passed; 51 files; 310 tests",
+    "visual_review": "not_required; database resolver correction only",
+    "external_end_to_end": "not_executed; transactional resolver probe passed and rolled back with zero synthetic residues"
+  },
+  "previous_validation": {
     "stage": "lead_base_management_restored_in_funnel",
     "frontend_typecheck": "passed",
     "edge_typecheck": "passed",
@@ -14,19 +26,22 @@
     "visual_review": "authenticated_funnel_passed; management shortcut, filters, table and disabled delete without selection confirmed",
     "external_end_to_end": "not_executed; no lead selected or deleted"
   },
-  "previous_validation": {
-    "stage": "ana_automatic_operation_save",
-    "frontend_typecheck": "passed",
-    "edge_typecheck": "passed",
-    "lint": "passed",
-    "production_build": "passed",
-    "sites_artifact": "passed; official_site_v139_deployed",
-    "deterministic_smoke_checks": 17,
-    "vitest": "passed; 50 files; 308 tests",
-    "visual_review": "authenticated_ana_operation_page_passed; nine_readiness_checks_ok; no_console_errors",
-    "external_end_to_end": "not_executed; ana_operation_and_schedule remained disabled"
-  },
   "commands": [
+    {
+      "command": "npm run type-check && npm run type-check:edge && npm run lint && npm test && npm run build && node scripts/check-commercial-analytics.mjs && git diff --check",
+      "status": "passed",
+      "note": "Correção do resolvedor de conta WhatsApp: 51 arquivos/310 testes e 17 verificações determinísticas."
+    },
+    {
+      "command": "Supabase apply migration fix_whatsapp_account_resolver_ambiguity",
+      "status": "passed",
+      "note": "Migration oficial registrada como 20260927193211 no projeto thgzrkppouoevapjquyu."
+    },
+    {
+      "command": "Supabase transactional synthetic lead resolver probe",
+      "status": "passed",
+      "note": "Conta e integração corporativa resolvidas; transação revertida e conferidos zero leads, mensagens e jobs sintéticos. Nenhuma chamada externa."
+    },
     {
       "command": "npm run type-check && npm run type-check:edge && npm run lint && git diff --check",
       "status": "passed",

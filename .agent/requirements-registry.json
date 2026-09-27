@@ -2,6 +2,14 @@
   "schema_version": 1,
   "requirements": [
     {
+      "id": "REQ-057",
+      "description": "Restaurar o fluxo Leads → Kanban → apresentação inicial da Ana quando a conta WhatsApp está configurada",
+      "module": "ana",
+      "status": "implemented_validated_pending_real_e2e",
+      "evidence": "Logs do Supabase comprovaram ambiguidade owner_user_id em resolve_lead_whatsapp_account. Migration 20260927193046 aplicada no projeto oficial como 20260927193211; teste transacional resolveu conta e integração e foi revertido com zero resíduos. Type-check frontend/Edge, lint, 51 arquivos/310 testes, build e 17 smoke checks passaram. Commit 4fd878f. E2E externo com novo lead não executado.",
+      "last_validation": "2026-09-27"
+    },
+    {
       "id": "REQ-056",
       "description": "Redesenhar as 11 telas do WayFlex com métricas auditáveis, design consistente e execução navegável",
       "module": "frontend",

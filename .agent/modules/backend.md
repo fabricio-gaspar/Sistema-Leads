@@ -1,5 +1,7 @@
 # Backend
 
+- O caminho canônico `ana-run` → `resolve_lead_whatsapp_account` voltou a obter a conta/integração corporativa depois da correção SQL de ambiguidade. Nenhuma Edge Function foi substituída ou publicada nesta correção; `ana-run` continua sendo a única autoridade automática e a fila existente continua sendo a única via de saída.
+
 - `ana-operations` v4 expõe `set_automatic` para sessão administrativa. A ação reutiliza a agenda existente, revalida readiness e roteamento e delega a persistência atômica à RPC exclusiva de `service_role`; não chama Apify, IA ou WhatsApp.
 
 - Edge Functions em `supabase/functions/`.

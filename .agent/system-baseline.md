@@ -1,5 +1,12 @@
 # Baseline do sistema
 
+## Fluxo da Ana no Kanban restaurado — 27/09/2026
+
+- Logs do projeto oficial localizaram a interrupção na RPC `resolve_lead_whatsapp_account`: nomes de saída de `RETURNS TABLE` colidiam com colunas não qualificadas e produziam `owner_user_id is ambiguous` antes da apresentação.
+- A migration `20260927193046_fix_whatsapp_account_resolver_ambiguity` foi aplicada no Supabase oficial (registro remoto `20260927193211`) e preserva seleção de conta, controles do provedor, `SECURITY DEFINER` com `search_path` fixo e `EXECUTE` somente para `service_role`.
+- Prova transacional com lead sintético aprovado resolveu a conta corporativa e foi revertida; zero resíduos em leads, mensagens e jobs e nenhuma chamada externa. Type-check frontend/Edge, lint, 51 arquivos/310 testes, build e 17 smoke checks passaram.
+- Código no commit `4fd878f`; Site v140 permanece vigente porque não houve alteração de frontend. O E2E externo com um novo lead controlado continua necessário para comprovar mensagem recebida e transição real para **Apresentado**.
+
 ## Gestão definitiva da base no Funil — 27/09/2026
 
 - `LeadBaseManager` voltou a ser montado em **Funil → Gerenciar base**. O redesenho anterior havia preservado o componente e o backend, mas removido seu único ponto de acesso.

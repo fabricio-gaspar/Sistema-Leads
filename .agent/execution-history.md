@@ -1,5 +1,12 @@
 # Histórico resumido de execução
 
+## 2026-09-27 — Fluxo Novo → Apresentado restaurado
+
+- Logs do Supabase mostraram que o Kanban persistia o lead, mas `resolve_lead_whatsapp_account` falhava por ambiguidade de `owner_user_id`, impedindo a primeira execução da Ana.
+- Aplicada a migration `20260927193046_fix_whatsapp_account_resolver_ambiguity` no projeto oficial, qualificando também `connection_status` e `is_default` sem alterar o pipeline ou criar motor paralelo.
+- Teste transacional resolveu a conta/integração corporativa e foi integralmente revertido: zero lead, mensagem ou job de prova. Type-check frontend/Edge, lint, 51 arquivos/310 testes, build e 17 smoke checks passaram.
+- Commit de código `4fd878f`. Sem publicação de Site e sem mensagem real; o E2E controlado depende de um novo lead, pois a base estava vazia após a exclusão do registro afetado.
+
 ## 2026-09-27 — Gestão da base restaurada no Funil
 
 - Restaurado o consumidor de `LeadBaseManager` em **Funil → Gerenciar base**, com atalho no cabeçalho e sem duplicar a superfície em Leads.

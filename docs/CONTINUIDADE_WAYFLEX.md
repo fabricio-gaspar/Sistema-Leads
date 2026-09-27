@@ -1,5 +1,14 @@
 # Checkpoint — WayFlex CRM
 
+## 27/09/2026 — Fluxo Leads → Kanban → apresentação da Ana restaurado
+
+- O diagnóstico em logs do Supabase oficial comprovou que o lead entrava no Kanban, mas a execução da Ana falhava antes da primeira mensagem. A RPC `resolve_lead_whatsapp_account` abortava com `column reference "owner_user_id" is ambiguous`; o erro era então apresentado genericamente como `whatsapp_account_not_configured`.
+- A migration `20260927193046_fix_whatsapp_account_resolver_ambiguity` qualifica `owner_user_id`, `connection_status` e `is_default` com o alias da conta, preserva a seleção canônica vendedor → conta padrão, mantém o gate do provedor e restringe a execução a `service_role`. Aplicação confirmada no projeto oficial como migration remota `20260927193211`.
+- O resolvedor foi exercitado dentro de uma transação com lead sintético aprovado e encontrou a conta/integração corporativa; a transação foi revertida. Conferência posterior: zero lead, mensagem ou job sintético. Nenhuma chamada externa ou mensagem real foi enviada.
+- Type-check frontend/Edge, lint, **51 arquivos / 310 testes**, build, 17 smoke checks e `git diff --check` passaram. O Supabase Advisor não atribuiu novo alerta a esta migration.
+- O lead originalmente afetado já havia sido removido e a organização estava sem leads no momento da correção. A comprovação externa final exige criar um novo lead controlado e observar **Novo → Apresentado** e o recebimento da mensagem; isso não foi simulado nem declarado como homologado.
+- Código registrado no commit `4fd878f`. Não houve mudança de frontend nem nova publicação do Site; a versão oficial 140 foi preservada.
+
 ## 27/09/2026 — Gestão e exclusão definitiva de leads restaurada no Funil
 
 - O backend seguro já existia, mas `LeadBaseManager` ficou sem consumidor após o redesenho do Funil. O componente foi restaurado em **Funil → Gerenciar base**, sem criar outra rotina de exclusão.

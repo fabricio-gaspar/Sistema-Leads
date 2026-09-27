@@ -1,5 +1,10 @@
 # Problemas conhecidos
 
+## Resolvedor da conta WhatsApp bloqueava Novo → Apresentado — resolvido em 27/09/2026
+
+- Resolvido pela migration `20260927193046_fix_whatsapp_account_resolver_ambiguity`, aplicada no projeto oficial. A função qualificou os campos que colidiam com os nomes de saída de `RETURNS TABLE` e voltou a resolver a conta corporativa em teste transacional.
+- A prova foi revertida e deixou zero resíduos; não houve envio externo. Como o lead afetado já havia sido excluído e a base estava vazia, ainda falta homologar com um novo lead controlado a transição real, o recebimento, os recibos e a resposta da Ana.
+
 ## Operação automática não salvava sem transferência por etapa — 27/09/2026
 
 - Resolvido em `ana-operations` v5 e Site v139: o campo obrigatório `handoff_notify_whatsapp` não recebe mais `null` quando a etapa de transferência está vazia.
