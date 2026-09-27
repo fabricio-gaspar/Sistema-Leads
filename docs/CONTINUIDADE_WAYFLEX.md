@@ -5,7 +5,8 @@
 - **Configurações > APIs** continua sendo o único local de configuração, teste e ativação. Ao abrir **Busca de Leads**, a tela relê `lead_source_configs` e apresenta um seletor com as APIs de prospecção conectadas e ativas.
 - O backend já suporta `apify` e `google_places`; somente esses dois adaptadores entram no seletor. Apify permanece pré-selecionada quando for a única opção, mas o controle não é mais escondido por um selo fixo. Ao ativar e validar Google Places, ela passa a aparecer sem alteração manual de código.
 - A busca, idempotência, revisão e importação continuam nos contratos existentes. Nenhuma credencial, banco, função, lead, mensagem ou automação foi alterada ou acionada.
-- Validação local aprovada: type-check frontend/Edge, lint, **52 arquivos / 313 testes**, build/artefato Sites, 17 verificações determinísticas e `git diff --check`. Publicação e inspeção visual do Site oficial são o próximo passo deste checkpoint.
+- Validação aprovada: type-check frontend/Edge, lint, **52 arquivos / 313 testes**, build/artefato Sites, 17 verificações determinísticas e `git diff --check`. Publicado no Site oficial como versão **141**, commit `0841dcc`, deploy `appgdep_6ab9807bd10881919c17c9078d40842a`.
+- Inspeção autenticada confirmou **API da busca → Apify — Google Maps**, botão **Buscar em Apify — Google Maps** e console sem warning/error. Nenhum termo foi informado e o botão continuou desabilitado; nenhuma busca externa ocorreu.
 
 ## 27/09/2026 — Apresentação real enviada e reconciliação do provedor corrigida
 

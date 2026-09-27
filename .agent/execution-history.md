@@ -5,6 +5,7 @@
 - Removido o rótulo fixo do Apify em **Busca de Leads**. O seletor agora é alimentado pelas fontes de prospecção conectadas e ativas em Configurações e identifica a API escolhida também no botão de busca.
 - A interface recarrega `lead_source_configs` ao montar e ao recuperar o foco. Somente adaptadores reais do backend (`apify` e `google_places`) são exibidos; IA, CSV e integrações sem executor não aparecem como opção falsa.
 - Type-check frontend/Edge, lint, 52 arquivos/313 testes, build e 17 smoke checks passaram. Nenhuma busca paga, integração, segredo, lead ou automação foi acionada.
+- Publicado no Site oficial como versão 141, commit `0841dcc`, deploy `appgdep_6ab9807bd10881919c17c9078d40842a`. A inspeção autenticada mostrou **API da busca → Apify — Google Maps**, botão coerente e console sem warning/error; o botão de busca permaneceu desabilitado e nenhuma consulta foi iniciada.
 
 ## 2026-09-27 — Teste real da apresentação e reconciliação Z-API
 

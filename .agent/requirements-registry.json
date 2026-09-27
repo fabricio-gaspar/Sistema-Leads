@@ -5,8 +5,8 @@
       "id": "REQ-059",
       "description": "Exibir na Busca de Leads um seletor alimentado pelas APIs de prospecção ativadas em Configurações",
       "module": "prospeccao",
-      "status": "implemented_validated_pending_site_publish",
-      "evidence": "A Busca recarrega lead_source_configs ao abrir e ao retomar a aba, filtra somente os adaptadores reais apify/google_places e mostra apenas fontes conectadas e ativas. O seletor permanece visível mesmo com uma única API e o botão usa o provedor escolhido. Type-check frontend/Edge, lint, 52 arquivos/313 testes, build e 17 verificações determinísticas passaram; nenhuma API externa foi chamada.",
+      "status": "confirmed",
+      "evidence": "A Busca recarrega lead_source_configs ao abrir e ao retomar a aba, filtra somente os adaptadores reais apify/google_places e mostra apenas fontes conectadas e ativas. O seletor permanece visível mesmo com uma única API e o botão usa o provedor escolhido. Type-check frontend/Edge, lint, 52 arquivos/313 testes, build e 17 verificações determinísticas passaram. Site oficial v141 confirmou Apify no seletor, botão coerente e console limpo; nenhuma API externa foi chamada.",
       "last_validation": "2026-09-27"
     },
     {

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "validated_commit": "working_tree_after_3643a44d4dda8cbf2d19e54bffb71aabe028f6d4",
+  "validated_commit": "0841dcc364a911f419e16ecdfb5704a6aa44e53d",
   "last_validated_at": "2026-09-27",
   "current_validation": {
     "stage": "lead_search_dynamic_api_selector",
@@ -8,10 +8,10 @@
     "edge_typecheck": "passed",
     "lint": "passed",
     "production_build": "passed",
-    "sites_artifact": "passed_build; publication_pending",
+    "sites_artifact": "passed_build; official Site v141 published",
     "deterministic_smoke_checks": 17,
     "vitest": "passed; 52 files; 313 tests",
-    "visual_review": "pending official Site publication; static selector contract passed",
+    "visual_review": "passed on official Site v141; selector showed Apify — Google Maps and button label matched; browser console had no warnings or errors",
     "external_end_to_end": "not_executed; no paid search or provider call was required for this UI/state integration"
   },
   "previous_validation": {
