@@ -35,6 +35,25 @@ const FIELD_LABEL: Record<AnaOperationField, string> = {
   runTime: 'Horário diário', timezone: 'Fuso horário', weekdays: 'Dias da semana', dailyLeadLimit: 'Leads por busca', dailyCap: 'Limite diário', monthlyCap: 'Limite mensal',
   paidProspectingApproved: 'Autorização de uso do Apify', initialAssigneeUserId: 'Vendedor responsável', teamMemberIds: 'Equipe do rodízio', handoffAssigneeUserId: 'Vendedor da transferência',
 };
+type ReadinessKey = 'company' | 'realEnvironment' | 'anaConfiguration' | 'ai' | 'apify' | 'scheduler' | 'whatsappOutbound' | 'whatsappInbound' | 'killSwitchOff';
+interface ReadinessItem {
+  key: ReadinessKey;
+  label: string;
+  pendingDetail: string;
+  actionLabel: string;
+  href?: string;
+}
+const READINESS_ITEMS: ReadinessItem[] = [
+  { key: 'company', label: 'Empresa ativa', pendingDetail: 'O cadastro operacional da empresa ainda não está ativo.', actionLabel: 'Revisar empresa', href: '/dashboard/configuracoes?tab=operacao#real-environment' },
+  { key: 'realEnvironment', label: 'Ambiente real', pendingDetail: 'A preparação segura do Ambiente Real ainda não foi concluída.', actionLabel: 'Preparar ambiente', href: '/dashboard/configuracoes?tab=operacao#real-environment' },
+  { key: 'anaConfiguration', label: 'Configuração publicada', pendingDetail: 'Publique a política da Ana na etapa Canais e publicar.', actionLabel: 'Publicar configuração', href: '/dashboard/configuracoes?tab=ana&section=behavior&step=5' },
+  { key: 'ai', label: 'IA', pendingDetail: 'A IA precisa estar configurada, validada e ativa.', actionLabel: 'Configurar IA', href: '/dashboard/configuracoes?tab=apis#ai-configuration' },
+  { key: 'apify', label: 'Apify', pendingDetail: 'O Apify precisa estar configurado, validado e ativo para a busca.', actionLabel: 'Configurar Apify', href: '/dashboard/configuracoes?tab=apis#prospecting-providers' },
+  { key: 'scheduler', label: 'Agendador', pendingDetail: 'O worker 24/7 ainda não confirmou o processamento das rotinas.', actionLabel: 'Preparar worker', href: '/dashboard/configuracoes?tab=operacao&setup=worker#scheduler-setup' },
+  { key: 'whatsappOutbound', label: 'WhatsApp de saída', pendingDetail: 'Valide e ative o provedor corporativo usado para enviar mensagens.', actionLabel: 'Validar WhatsApp', href: '/dashboard/configuracoes?tab=canais#zapi-configuration' },
+  { key: 'whatsappInbound', label: 'WhatsApp de entrada', pendingDetail: 'Cadastre a entrada e confirme um callback real de um lead conhecido.', actionLabel: 'Concluir entrada', href: '/dashboard/configuracoes?tab=operacao&setup=whatsapp-webhook#whatsapp-inbound' },
+  { key: 'killSwitchOff', label: 'Pausa global desligada', pendingDetail: 'A pausa global está ligada e bloqueia todas as automações.', actionLabel: 'Retomar automações' },
+];
 const textList = (value: unknown) => Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
 const split = (value: string) => [...new Set(value.split(/[,\n]/).map((item) => item.trim()).filter(Boolean))];
 const clock = (value: unknown, fallback: string) => typeof value === 'string' ? value.slice(0, 5) : fallback;
@@ -89,10 +108,11 @@ export default function AnaAutomaticOperation() {
   };
   useEffect(() => { void hydrate(); }, []);
 
-  const readinessItems = useMemo(() => [
-    ['company', 'Empresa ativa'], ['realEnvironment', 'Ambiente real'], ['anaConfiguration', 'Configuração publicada'], ['ai', 'IA'], ['apify', 'Apify'],
-    ['scheduler', 'Agendador'], ['whatsappOutbound', 'WhatsApp de saída'], ['whatsappInbound', 'WhatsApp de entrada'], ['killSwitchOff', 'Pausa global desligada'],
-  ] as const, []);
+  const readinessItems = useMemo(() => READINESS_ITEMS, []);
+  const pendingReadiness = useMemo(() => readinessItems.filter((item) => checks[item.key] !== true), [checks, readinessItems]);
+  const focusReadiness = (key: ReadinessKey) => {
+    window.requestAnimationFrame(() => document.getElementById(`ana-readiness-${key}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }));
+  };
   const update = <K extends keyof AnaOperationSettings>(key: K, value: AnaOperationSettings[K]) => {
     setFieldErrors((current) => ({ ...current, [key]: undefined }));
     setSettings((current) => ({ ...current, [key]: value }));
@@ -115,7 +135,9 @@ export default function AnaAutomaticOperation() {
         return;
       }
       if (candidate.mode === 'automatic' && !automaticReady) {
-        setError('O modo automático ainda depende dos pré-requisitos operacionais indicados nesta tela.');
+        const firstPending = pendingReadiness[0];
+        setError(`Não foi possível ativar: ${pendingReadiness.length} ${pendingReadiness.length === 1 ? 'pré-requisito está pendente' : 'pré-requisitos estão pendentes'}${firstPending ? `. Comece por “${firstPending.label}”` : ''}.`);
+        if (firstPending) focusReadiness(firstPending.key);
         return;
       }
     }
@@ -157,7 +179,17 @@ export default function AnaAutomaticOperation() {
   };
   const pauseAll = async () => {
     setBusy('pause'); setError('');
-    try { const status = await setOperationalKillSwitch(!killSwitch); setKillSwitch(Boolean(status.killSwitch)); setMessage(status.killSwitch ? 'Toda automação foi pausada.' : 'Pausa global removida.'); }
+    try {
+      const status = await setOperationalKillSwitch(!killSwitch);
+      const nextKillSwitch = Boolean(status.killSwitch);
+      setKillSwitch(nextKillSwitch);
+      setChecks((current) => {
+        const next = { ...current, killSwitchOff: !nextKillSwitch };
+        setAutomaticReady(Object.values(next).every(Boolean));
+        return next;
+      });
+      setMessage(nextKillSwitch ? 'Toda automação foi pausada.' : 'Pausa global removida.');
+    }
     catch { setError('Não foi possível alterar a pausa global.'); }
     finally { setBusy(''); }
   };
@@ -168,7 +200,7 @@ export default function AnaAutomaticOperation() {
       <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="wf-eyebrow">Configurações · Ana</p><h2 className="mt-1 text-xl font-semibold text-foreground-950">Operação automática</h2><p className="mt-1 max-w-3xl text-sm text-foreground-500">Uma agenda única busca, qualifica e encaminha leads. O destino de cada lead fica explícito antes da ativação.</p></div><button type="button" onClick={pauseAll} disabled={Boolean(busy)} className={`rounded-lg px-4 py-2 text-sm font-semibold ${killSwitch ? 'bg-primary-600 text-white' : 'border border-accent-300 bg-accent-50 text-accent-700'}`}><i className={`${killSwitch ? 'ri-play-line' : 'ri-stop-circle-line'} mr-2`} />{killSwitch ? 'Retomar automações' : 'Pausar tudo'}</button></div>
       <div className="mt-5 grid gap-3 lg:grid-cols-3">{(Object.keys(MODE_COPY) as AnaOperationMode[]).map((mode) => <button type="button" key={mode} onClick={() => update('mode', mode)} className={`rounded-xl border p-4 text-left ${settings.mode === mode ? 'border-primary-500 bg-primary-50 ring-1 ring-primary-500' : 'border-background-200 bg-white'}`}><i className={`${MODE_COPY[mode].icon} text-xl text-primary-600`} /><strong className="ml-2 text-foreground-900">{MODE_COPY[mode].title}</strong><p className="mt-2 text-sm leading-5 text-foreground-500">{MODE_COPY[mode].text}</p></button>)}</div>
       <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 rounded-lg bg-background-100 p-3 text-sm text-foreground-600"><span><i className="ri-time-line mr-1 text-primary-600" />Próxima: {formatDate(scheduleTimes.nextRunAt)}</span><span><i className="ri-history-line mr-1 text-primary-600" />Última: {formatDate(scheduleTimes.lastRunAt)}</span><span className={settings.enabled ? 'text-primary-700' : 'text-foreground-600'}><i className={`${settings.enabled ? 'ri-checkbox-circle-fill' : 'ri-draft-line'} mr-1`} />{settings.enabled ? 'Rotina ativa' : 'Rascunho inativo'}</span></div>
-      {settings.mode === 'automatic' && !automaticReady && <p className="mt-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">O modo automático só será ativado depois de todos os pré-requisitos abaixo estarem comprovados.</p>}
+      {settings.mode === 'automatic' && !automaticReady && <div className="mt-4 flex flex-col gap-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 sm:flex-row sm:items-center sm:justify-between"><div><strong className="block">{pendingReadiness.length} {pendingReadiness.length === 1 ? 'pendência impede' : 'pendências impedem'} a ativação</strong><span className="mt-0.5 block text-xs leading-5 text-amber-800">{pendingReadiness.map((item) => item.label).join(' · ')}</span></div>{pendingReadiness[0] && <button type="button" onClick={() => focusReadiness(pendingReadiness[0].key)} className="shrink-0 rounded-lg border border-amber-400 bg-white px-3 py-2 text-xs font-semibold text-amber-900">Ver o que falta</button>}</div>}
     </section>
 
     <section className="grid gap-5 xl:grid-cols-[1.35fr_.65fr]">
@@ -194,7 +226,13 @@ export default function AnaAutomaticOperation() {
           {settings.initialAssignmentMode === 'ana' && <div className="mt-4 rounded-xl border border-background-200 bg-background-100/50 p-4"><h4 className="text-sm font-semibold text-foreground-900">Transferência programada da Ana</h4><p className="mt-1 text-xs text-foreground-500">Opcional. Sem uma etapa, a Ana segue apenas as regras e gatilhos já publicados.</p><div className="mt-3 grid gap-3 md:grid-cols-2"><label className="text-sm">Até qual etapa a Ana atende?<select className="mt-1 w-full" value={settings.handoffStage || ''} onChange={(event) => update('handoffStage', event.target.value ? event.target.value as AnaHandoffStage : null)}><option value="">Sem transferência por etapa</option>{HANDOFF_STAGES.map((stage) => <option key={stage.id} value={stage.id}>{stage.label}</option>)}</select></label>{settings.handoffStage && <label className="text-sm">Vendedor que assumirá<select className="mt-1 w-full" value={settings.handoffAssigneeUserId || ''} onChange={(event) => update('handoffAssigneeUserId', event.target.value || null)}><option value="">Selecione um usuário ativo</option>{members.map((member) => <option key={member.userId} value={member.userId}>{member.name} · {member.role}</option>)}</select>{showFieldError('handoffAssigneeUserId')}</label>}</div>{settings.handoffStage && <label className="mt-3 flex items-start gap-2 text-sm text-foreground-700"><input className="mt-0.5" type="checkbox" checked={settings.handoffNotifyWhatsapp} onChange={(event) => update('handoffNotifyWhatsapp', event.target.checked)} /><span><strong>Avisar o vendedor por WhatsApp</strong><span className="mt-0.5 block text-xs text-foreground-500">Exige o telefone de aviso configurado em Usuários. O aviso é uma fila interna auditável.</span></span></label>}</div>}
         </section>
       </div>
-      <aside className="space-y-5"><div className="wf-surface p-5"><h3 className="font-semibold text-foreground-900">Pré-requisitos</h3><div className="mt-3 space-y-2">{readinessItems.map(([key, label]) => <div key={key} className="flex items-center justify-between gap-2 text-sm"><span>{label}</span><span className={checks[key] ? 'text-primary-700' : 'text-amber-700'}><i className={`${checks[key] ? 'ri-checkbox-circle-fill' : 'ri-alert-fill'} mr-1`} />{checks[key] ? 'OK' : 'Pendente'}</span></div>)}</div></div>
+      <aside className="space-y-5"><div id="ana-readiness" className="wf-surface p-5"><div className="flex items-start justify-between gap-3"><div><h3 className="font-semibold text-foreground-900">Pré-requisitos</h3><p className="mt-1 text-xs leading-5 text-foreground-500">Cada pendência informa exatamente onde corrigir.</p></div><span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${pendingReadiness.length ? 'bg-amber-100 text-amber-900' : 'bg-primary-50 text-primary-800'}`}>{pendingReadiness.length ? `${pendingReadiness.length} pendente${pendingReadiness.length > 1 ? 's' : ''}` : 'Tudo pronto'}</span></div><div className="mt-4 space-y-2.5">{readinessItems.map((item) => {
+        const ready = checks[item.key] === true;
+        return <div id={`ana-readiness-${item.key}`} key={item.key} className={`scroll-mt-24 rounded-xl border p-3 ${ready ? 'border-primary-100 bg-primary-50/50' : 'border-amber-300 bg-amber-50 ring-1 ring-amber-200'}`}>
+          <div className="flex items-center justify-between gap-2 text-sm"><span className="font-medium text-foreground-900">{item.label}</span><span className={ready ? 'text-primary-700' : 'text-amber-800'}><i className={`${ready ? 'ri-checkbox-circle-fill' : 'ri-alert-fill'} mr-1`} />{ready ? 'OK' : 'Pendente'}</span></div>
+          {!ready && <><p className="mt-2 text-xs leading-5 text-amber-900">{item.pendingDetail}</p>{item.href ? <a href={item.href} className="mt-2 inline-flex items-center text-xs font-semibold text-amber-950 underline decoration-amber-400 underline-offset-4">{item.actionLabel}<i className="ri-arrow-right-line ml-1" /></a> : <button type="button" onClick={pauseAll} disabled={Boolean(busy)} className="mt-2 inline-flex items-center text-xs font-semibold text-amber-950 underline decoration-amber-400 underline-offset-4 disabled:opacity-60">{busy === 'pause' ? 'Atualizando…' : item.actionLabel}<i className="ri-arrow-right-line ml-1" /></button>}</>}
+        </div>;
+      })}</div></div>
         <div className="wf-surface p-5"><h3 className="font-semibold text-foreground-900">Canais e proteções publicadas</h3><p className="mt-2 text-sm leading-5 text-foreground-500">Canais permitidos, consentimento, janela comercial, cadência e limite por contato continuam sendo uma única política publicada da Ana.</p><a className="mt-3 inline-flex text-sm font-semibold text-primary-700 hover:text-primary-800" href="/dashboard/configuracoes?tab=ana">Revisar política da Ana <i className="ri-arrow-right-line ml-1" /></a></div>
         <div className="wf-surface p-5"><h3 className="font-semibold text-foreground-900">Alertas comerciais</h3><div className="mt-3 space-y-3">{([['notifyImmediate', 'Avisos imediatos'], ['notifyProgress', 'Avisos de progresso'], ['digestEnabled', 'Resumo diário']] as const).map(([key, label]) => <label key={key} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={settings[key]} onChange={(event) => update(key, event.target.checked)} />{label}</label>)}<label className="block text-sm">Horário do resumo<input className="mt-1 w-full" type="time" value={settings.digestTime} onChange={(event) => update('digestTime', event.target.value)} /></label></div></div>
       </aside>

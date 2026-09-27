@@ -34,9 +34,11 @@ const WAYFLEX_OFFICIAL_KNOWLEDGE = [
 ];
 
 export default function PersonalizacaoAna({ embedded = false }: { embedded?: boolean }) {
-  const [section, setSection] = useState<'behavior' | 'operation'>('behavior');
+  const initialParams = new URLSearchParams(window.location.search);
+  const [section, setSection] = useState<'behavior' | 'operation'>(initialParams.get('section') === 'operation' ? 'operation' : 'behavior');
   const { settings } = useEmpresaSettingsStore();
-  const [step, setStep] = useState(0);
+  const requestedStep = Number(initialParams.get('step'));
+  const [step, setStep] = useState(Number.isInteger(requestedStep) && requestedStep >= 0 && requestedStep < steps.length ? requestedStep : 0);
   const [saved, setSaved] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState('');
@@ -75,6 +77,21 @@ export default function PersonalizacaoAna({ embedded = false }: { embedded?: boo
     dirtyRef.current = true;
     setIsDirty(true);
     setSaved(false);
+  };
+
+  const chooseSection = (nextSection: 'behavior' | 'operation') => {
+    setSection(nextSection);
+    const url = new URL(window.location.href);
+    url.searchParams.set('section', nextSection);
+    window.history.replaceState(null, '', url.toString());
+  };
+
+  const chooseStep = (nextStep: number) => {
+    setStep(nextStep);
+    const url = new URL(window.location.href);
+    url.searchParams.set('section', 'behavior');
+    url.searchParams.set('step', String(nextStep));
+    window.history.replaceState(null, '', url.toString());
   };
 
   useEffect(() => {
@@ -308,13 +325,13 @@ export default function PersonalizacaoAna({ embedded = false }: { embedded?: boo
         <div><span>Limite por lead</span><strong>{loadSucceeded ? `${limit} / dia` : '—'}</strong></div>
       </div>
       <nav className="ana-cc-switch" aria-label="Áreas da configuração da Ana">
-        <button type="button" onClick={() => setSection('behavior')} aria-current={section === 'behavior' ? 'page' : undefined} className={section === 'behavior' ? 'active' : ''}><i className="ri-message-3-line" aria-hidden="true" /> Comportamento e conhecimento</button>
-        <button type="button" onClick={() => setSection('operation')} aria-current={section === 'operation' ? 'page' : undefined} className={section === 'operation' ? 'active' : ''}><i className="ri-robot-2-line" aria-hidden="true" /> Operação automática</button>
+        <button type="button" onClick={() => chooseSection('behavior')} aria-current={section === 'behavior' ? 'page' : undefined} className={section === 'behavior' ? 'active' : ''}><i className="ri-message-3-line" aria-hidden="true" /> Comportamento e conhecimento</button>
+        <button type="button" onClick={() => chooseSection('operation')} aria-current={section === 'operation' ? 'page' : undefined} className={section === 'operation' ? 'active' : ''}><i className="ri-robot-2-line" aria-hidden="true" /> Operação automática</button>
       </nav>
       {section === 'operation' ? <div className="ana-cc-operation"><AnaAutomaticOperation /></div> : <div className="ana-cc-workspace">
       <nav className="steps" aria-label="Etapas da configuração da Ana">
         {steps.map((item, index) => (
-          <button key={item.title} type="button" title={`${index + 1}. ${item.title}`} aria-current={index === step ? 'step' : undefined} onClick={() => setStep(index)} className={index === step ? 'active' : index < step ? 'done' : ''}>
+          <button key={item.title} type="button" title={`${index + 1}. ${item.title}`} aria-current={index === step ? 'step' : undefined} onClick={() => chooseStep(index)} className={index === step ? 'active' : index < step ? 'done' : ''}>
             <span>{index + 1}</span>
             <b>{item.title}</b>
             <small className="step-description">{item.description}</small>

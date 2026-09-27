@@ -138,14 +138,14 @@ export default function IntegracoesOperacaoTab({ section }: { section?: Integrat
     {showApis && <section className="wf-settings-section">
       <SectionHeading icon="ri-code-s-slash-line" eyebrow="APIs" title="Inteligência e prospecção" description="Provedor de IA para a Ana e serviços de pesquisa de empresas e contatos." />
       <div className="space-y-7">
-        <div>
+        <div id="ai-configuration" className="scroll-mt-24">
           <div className="mb-3 rounded-xl border border-background-200 bg-background-100 px-4 py-3">
             <h4 className="text-sm font-semibold text-foreground-900">IA da Ana</h4>
             <p className="mt-1 text-xs leading-5 text-foreground-500">Configura o provedor que interpreta mensagens e prepara respostas. Não altera o canal do WhatsApp.</p>
           </div>
           <IntegracoesTab category="intelligence" />
         </div>
-        <div>
+        <div id="prospecting-providers" className="scroll-mt-24">
           <div className="mb-3 rounded-xl border border-background-200 bg-background-100 px-4 py-3">
             <h4 className="text-sm font-semibold text-foreground-900">Provedores da Busca de Leads</h4>
             <p className="mt-1 text-xs leading-5 text-foreground-500">Configure a credencial, teste a conexão e ative ou pause o uso de cada provedor na Busca de Leads aqui.</p>

@@ -96,7 +96,7 @@ export default function OperationalStatusTab() {
           <p className="mt-1 max-w-3xl text-sm leading-relaxed text-foreground-500">A validação da instância Z-API e a entrada das respostas são etapas diferentes. O assistente registra o que é seguro no backend e só pede uma ação externa quando ela for indispensável.</p>
         </div>
         <div className="grid gap-3 p-5 lg:grid-cols-2 md:p-6">
-          <article className={`rounded-2xl border p-4 ${requestedSetup === 'whatsapp-webhook' ? 'border-primary-300 bg-primary-50' : 'border-background-200 bg-background-50/60'}`}>
+          <article id="whatsapp-inbound" className={`scroll-mt-24 rounded-2xl border p-4 ${requestedSetup === 'whatsapp-webhook' ? 'border-primary-300 bg-primary-50' : 'border-background-200 bg-background-50/60'}`}>
             <div className="flex items-start justify-between gap-3"><div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary-100 text-primary-700"><i className="ri-chat-check-line text-lg" /></div><span className={`rounded-full border px-2.5 py-1 font-mono text-[10px] font-semibold ${webhookCheck?.ok ? 'border-[#168654]/25 bg-[#168654]/10 text-[#116B43]' : 'border-[#BC8B42]/25 bg-[#BC8B42]/10 text-[#8C651D]'}`}>{webhookCheck?.ok ? 'HOMOLOGADO' : 'PENDENTE'}</span></div>
             <h3 className="mt-3 text-sm font-bold text-foreground-950">1. Receber respostas do WhatsApp</h3>
             <p className="mt-1 text-xs leading-relaxed text-foreground-500">{inbound.detail}</p>
@@ -107,7 +107,7 @@ export default function OperationalStatusTab() {
             <ol className="mt-3 space-y-1.5 text-xs leading-relaxed text-foreground-600"><li><strong>1.</strong> {whatsappCheck?.ok ? 'A instância Z-API já está validada para saída.' : 'Valide primeiro a instância Z-API no módulo de Canais.'}</li><li><strong>2.</strong> {inbound.state === 'not_configured' ? 'Cadastre a entrada abaixo; nenhum token ou URL ficará exposto.' : inbound.state === 'credentials_changed' ? 'As credenciais foram atualizadas; recadastre a entrada abaixo antes do próximo teste.' : `A entrada foi cadastrada em ${formatDate(inbound.registeredAt)}.`}</li><li><strong>3.</strong> Envie uma mensagem de texto direta de um <Link to="/dashboard/leads" className="font-semibold text-primary-700 hover:underline">lead cadastrado</Link> para o WhatsApp conectado à Z-API. A Ana registra e analisa a entrada quando o fluxo estiver homologado.</li></ol>
             <div className="mt-4 flex flex-wrap gap-2"><button type="button" onClick={() => void setupWhatsAppInbound()} disabled={settingUp === 'whatsapp' || !whatsappCheck?.ok || webhookCheck?.ok} className="wf-btn-primary text-xs disabled:cursor-not-allowed disabled:opacity-60"><i className="ri-link" />{settingUp === 'whatsapp' ? 'Cadastrando…' : !whatsappCheck?.ok ? 'Valide o WhatsApp primeiro' : inboundActionLabel(inbound.state)}</button><button type="button" onClick={() => void refresh()} className="wf-btn-secondary text-xs"><i className="ri-refresh-line" />Atualizar diagnóstico</button><Link to="/dashboard/configuracoes?tab=conexoes" className="wf-btn-secondary text-xs">Ver canal WhatsApp</Link></div>
           </article>
-          <article className={`rounded-2xl border p-4 ${requestedSetup === 'worker' ? 'border-primary-300 bg-primary-50' : 'border-background-200 bg-background-50/60'}`}>
+          <article id="scheduler-setup" className={`scroll-mt-24 rounded-2xl border p-4 ${requestedSetup === 'worker' ? 'border-primary-300 bg-primary-50' : 'border-background-200 bg-background-50/60'}`}>
             <div className="flex items-start justify-between gap-3"><div className="flex h-9 w-9 items-center justify-center rounded-xl bg-background-100 text-foreground-700"><i className="ri-server-line text-lg" /></div><span className={`rounded-full border px-2.5 py-1 font-mono text-[10px] font-semibold ${status.checks.find((item) => item.id === 'scheduler')?.ok ? 'border-[#168654]/25 bg-[#168654]/10 text-[#116B43]' : 'border-[#BC8B42]/25 bg-[#BC8B42]/10 text-[#8C651D]'}`}>{status.checks.find((item) => item.id === 'scheduler')?.ok ? 'ATIVO' : 'PENDENTE'}</span></div>
             <h3 className="mt-3 text-sm font-bold text-foreground-950">2. Processar automações 24/7</h3>
             <p className="mt-1 text-xs leading-relaxed text-foreground-500">{status.checks.find((item) => item.id === 'scheduler')?.detail}</p>
@@ -116,7 +116,7 @@ export default function OperationalStatusTab() {
           </article>
         </div>
       </section>
-      <section className="wf-surface p-5 md:p-6">
+      <section id="real-environment" className="wf-surface scroll-mt-24 p-5 md:p-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[.12em] text-primary-700">Fonte operacional</p>
@@ -154,7 +154,7 @@ export default function OperationalStatusTab() {
 
       <TestLeadCleanupPanel />
 
-      <section className="wf-surface p-5 md:p-6">
+      <section id="automation-pause" className="wf-surface scroll-mt-24 p-5 md:p-6">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h3 className="font-heading font-bold text-foreground-950">Pausa global da automação</h3>
