@@ -1,5 +1,12 @@
 # Histórico resumido de execução
 
+## 2026-09-27 — Gestão da base restaurada no Funil
+
+- Restaurado o consumidor de `LeadBaseManager` em **Funil → Gerenciar base**, com atalho no cabeçalho e sem duplicar a superfície em Leads.
+- Visibilidade limitada a `leads.read_all`; exclusão continua dependente de `leads.delete`, seleção e frase exata, usando a Edge Function e a procedure transacional existentes.
+- Projeto Supabase e privilégios confirmados em leitura. Type-check frontend/Edge, lint, 51 arquivos/309 testes, build e 17 smoke checks passaram.
+- Site oficial v140 publicado pelo commit `2ef48dd`, deploy `appgdep_6ab96a8aa7288191966c72f5501afdd4`. A tela autenticada mostrou três registros e nenhuma seleção; nenhum lead foi excluído.
+
 ## 2026-09-27 — Pendências acionáveis da Ana automática
 
 - Substituída a resposta genérica da ativação por uma lista com contagem, requisito, explicação e atalho para o local exato da correção.

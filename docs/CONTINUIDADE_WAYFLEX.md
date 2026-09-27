@@ -1,5 +1,13 @@
 # Checkpoint — WayFlex CRM
 
+## 27/09/2026 — Gestão e exclusão definitiva de leads restaurada no Funil
+
+- O backend seguro já existia, mas `LeadBaseManager` ficou sem consumidor após o redesenho do Funil. O componente foi restaurado em **Funil → Gerenciar base**, sem criar outra rotina de exclusão.
+- A lista reúne todos os leads da organização por ciclo de atividade. Somente usuários com `leads.read_all` visualizam a gestão; a exclusão permanece condicionada a `leads.delete`, seleção explícita e à frase `EXCLUIR N LEADS`.
+- A Edge Function `lead-governance` v1 continua ativa com JWT obrigatório. As RPCs de snapshot e purge permanecem exclusivas de `service_role`; o navegador não pode executar a procedure diretamente.
+- Type-check frontend/Edge, lint, **51 arquivos / 309 testes**, 17 smoke checks e build passaram. A inspeção autenticada da versão publicada confirmou o atalho, a tabela com três leads e o botão definitivo desabilitado sem seleção. Nenhum lead foi excluído.
+- Publicado no Site oficial como versão **140**, commit `2ef48dd`, deploy `appgdep_6ab96a8aa7288191966c72f5501afdd4`, preservando a URL oficial.
+
 ## 27/09/2026 — Gravação da Operação automática da Ana
 
 - O `POST /ana-operations` das 15:23 retornou 400 porque a ausência de transferência programada produzia `handoff_notify_whatsapp=null`; a coluna de `prospecting_schedules` é booleana e `NOT NULL`.

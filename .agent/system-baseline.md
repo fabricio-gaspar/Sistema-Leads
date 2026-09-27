@@ -1,5 +1,12 @@
 # Baseline do sistema
 
+## Gestão definitiva da base no Funil — 27/09/2026
+
+- `LeadBaseManager` voltou a ser montado em **Funil → Gerenciar base**. O redesenho anterior havia preservado o componente e o backend, mas removido seu único ponto de acesso.
+- A superfície só aparece para `leads.read_all`; a ação definitiva exige também `leads.delete`, seleção explícita e confirmação textual. O purge transacional e auditável continua exclusivamente no backend.
+- Supabase oficial saudável: `lead-governance` v1 ativa com JWT; `lead_governance_snapshot` e `purge_selected_operational_leads` executáveis por `service_role` e negadas a `authenticated`.
+- Site v140 publicado pelo commit `2ef48dd`. Type-check frontend/Edge, lint, 51 arquivos/309 testes, build e 17 smoke checks passaram; inspeção autenticada confirmou a gestão sem executar exclusão.
+
 ## Gravação da Operação automática — 27/09/2026
 
 - Confirmado em logs do Supabase: a tentativa real falhou antes de ativar porque `handoff_notify_whatsapp` recebeu `null` quando a transferência por etapa estava vazia, violando o `NOT NULL` de `prospecting_schedules`.

@@ -406,8 +406,8 @@
       "description": "Administrar a base de leads por status e excluir somente registros selecionados com todos os vínculos operacionais",
       "module": "leads",
       "status": "confirmed",
-      "evidence": "A falha publicada foi reproduzida: window.prompt é bloqueado pelo Site antes da chamada ao backend. LeadBaseManager agora usa diálogo React com a frase EXCLUIR N LEADS, validada também pelo backend; a procedure transacional continua removendo o grafo operacional completo somente após confirmação explícita. A versão 82 foi validada visualmente sem confirmar exclusão.",
-      "last_validation": "2026-09-17"
+      "evidence": "Site v140: LeadBaseManager está novamente acessível em Funil > Gerenciar base, somente para leads.read_all; excluir exige leads.delete, seleção e frase EXCLUIR N LEADS. lead-governance v1 e as RPCs exclusivas de service_role foram confirmadas. Type-check, lint, 51 arquivos/309 testes, build e inspeção autenticada passaram sem excluir registros.",
+      "last_validation": "2026-09-27"
     },
     {
       "id": "REQ-033",

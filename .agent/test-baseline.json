@@ -1,8 +1,20 @@
 {
   "schema_version": 1,
-  "validated_commit": "75ea569e53bcbc1f75b3f50d89fdcbc96f573a8c",
+  "validated_commit": "2ef48dd0b38c33fe9249adcee5c22bfe077aef14",
   "last_validated_at": "2026-09-27",
   "current_validation": {
+    "stage": "lead_base_management_restored_in_funnel",
+    "frontend_typecheck": "passed",
+    "edge_typecheck": "passed",
+    "lint": "passed",
+    "production_build": "passed",
+    "sites_artifact": "passed; official_site_v140_deployed",
+    "deterministic_smoke_checks": 17,
+    "vitest": "passed; 51 files; 309 tests",
+    "visual_review": "authenticated_funnel_passed; management shortcut, filters, table and disabled delete without selection confirmed",
+    "external_end_to_end": "not_executed; no lead selected or deleted"
+  },
+  "previous_validation": {
     "stage": "ana_automatic_operation_save",
     "frontend_typecheck": "passed",
     "edge_typecheck": "passed",
@@ -12,21 +24,36 @@
     "deterministic_smoke_checks": 17,
     "vitest": "passed; 50 files; 308 tests",
     "visual_review": "authenticated_ana_operation_page_passed; nine_readiness_checks_ok; no_console_errors",
-    "external_end_to_end": "not_executed; ana_operation_and_schedule_remain_disabled; no_message_or_prospecting_run"
-  },
-  "previous_validation": {
-    "stage": "zapi_connection_state_and_provider_activation",
-    "frontend_typecheck": "passed",
-    "edge_typecheck": "passed",
-    "lint": "passed",
-    "production_build": "passed",
-    "sites_artifact": "passed",
-    "deterministic_smoke_checks": 17,
-    "vitest": "passed; 49 files; 306 tests",
-    "visual_review": "authenticated_channels_page_passed",
-    "external_end_to_end": "not_executed; no_message_sent"
+    "external_end_to_end": "not_executed; ana_operation_and_schedule remained disabled"
   },
   "commands": [
+    {
+      "command": "npm run type-check && npm run type-check:edge && npm run lint && git diff --check",
+      "status": "passed",
+      "note": "Restauração da gestão da base no Funil com visibilidade por leads.read_all."
+    },
+    {
+      "command": "npm test",
+      "status": "passed",
+      "files": 51,
+      "checks": 309
+    },
+    {
+      "command": "npm run build && node scripts/check-commercial-analytics.mjs",
+      "status": "passed",
+      "checks": 17,
+      "note": "Artefato Sites v140 e smoke comercial determinístico."
+    },
+    {
+      "command": "Supabase read-only project/function/privilege checks",
+      "status": "passed",
+      "note": "Projeto thgzrkppouoevapjquyu saudável; lead-governance v1 ativa com JWT; RPCs de snapshot e purge somente para service_role."
+    },
+    {
+      "command": "Inspeção autenticada do Funil no Site v140",
+      "status": "passed",
+      "note": "Atalho Gerenciar base, filtros, três registros e Excluir selecionados desabilitado sem seleção. Nenhum lead foi excluído."
+    },
     {
       "command": "npm run type-check && npm run type-check:edge && npm run lint",
       "status": "passed",

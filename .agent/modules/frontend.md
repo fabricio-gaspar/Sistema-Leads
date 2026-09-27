@@ -1,5 +1,7 @@
 # Frontend
 
+- Funil (27/09, Site v140): **Gerenciar base** volta a montar `LeadBaseManager` depois da análise comercial. Somente `leads.read_all` vê a superfície; a ação definitiva continua desabilitada sem seleção e sem `leads.delete`. Um teste de posicionamento impede que o componente fique órfão ou seja duplicado em Leads.
+
 - Redesign 27/09: `CommercialAnalytics` e `commercialAnalytics.ts` centralizam coortes, valores líquidos, histórico observado e atualização transparente. `DataReadNotice`, `AccessibleDialog` e `wayflex-redesign.css` refinam estados e composição. Detalhes em `docs/REDESIGN_WAYFLEX_2026-09-27.md`; observações históricas abaixo não substituem este checkpoint atual.
 
 - Operação automática (27/09): pré-requisitos pendentes mostram motivo e ação no módulo exato; a ativação rola até a primeira pendência. Links profundos abrem Configuração publicada, IA, Apify, worker, WhatsApp e Ambiente Real sem modificar os gates server-side.
