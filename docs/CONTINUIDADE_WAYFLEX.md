@@ -1,5 +1,12 @@
 # Checkpoint — WayFlex CRM
 
+## 27/09/2026 — Redesign comercial (checkpoint anterior à publicação)
+
+- Nova análise comum a Dashboard/Funil/Relatórios e refinamento das 11 rotas. Carteira separada de consentimento, percentuais sem base indisponíveis, propostas líquidas e preços confirmados por humano.
+- Type-check frontend/Edge, lint, build e 17 smoke checks passaram. Vitest emitiu passes, mas não encerrou; suíte completa não aprovada. Revisão independente estática realizada; QA visual autenticada não realizada.
+- Mensagens usam eventos reais; demais indicadores consultam a cada 60 s. Nenhuma escrita operacional remota, mensagem, busca paga ou ativação.
+- Especificação: `docs/REDESIGN_WAYFLEX_2026-09-27.md`. Próximo: confirmar deploy e homologar com sessão real em desktop/tablet/mobile, sem acionar provedores apenas para QA visual.
+
 ## 27/09/2026 — Pendências explícitas na ativação automática da Ana
 
 - **Configurações > Ana > Operação automática** deixou de responder apenas com a mensagem genérica de pré-requisitos. A tela agora conta as pendências, identifica cada requisito por nome, explica o que falta e oferece um atalho para o campo ou módulo responsável.

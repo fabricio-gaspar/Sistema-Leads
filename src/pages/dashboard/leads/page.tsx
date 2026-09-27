@@ -1,3 +1,4 @@
+import AccessibleDialog from '@/components/feature/AccessibleDialog';
 import { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { refreshLeadsStore, useLeadsStore, waitForLeadsPersistence } from '@/hooks/useLeadsStore';
@@ -11,6 +12,8 @@ import { loadTeamMembers, type TeamMember } from '@/lib/crm/teamMembersRepositor
 import { approvedAnaWhatsAppChannel, pendingManualLeadContact } from '@/lib/crm/manualLeadContact';
 import { configureLeadHandoffPolicy, handoffStages, type HandoffStage } from '@/lib/crm/handoffPolicyRepository';
 import { activateLeadWithAna } from '@/lib/crm/leadWorkflowRepository';
+import { useLeadsLoadStatus } from '@/hooks/useLeadsStore';
+import DataReadNotice from '@/components/feature/DataReadNotice';
 
 const handoffStageLabels: Record<HandoffStage, string> = {
   novo: 'Novo', apresentado: 'Apresentado', qualificando: 'Qualificando', reuniao: 'Reunião', orcamento: 'Orçamento',
@@ -43,6 +46,7 @@ const tempCores: Record<string, string> = {
 };
 
 export default function Leads() {
+  const loadStatus = useLeadsLoadStatus();
   const [leads, setLeads] = useLeadsStore();
   const [searchParams] = useSearchParams();
   const [busca, setBusca] = useState('');
@@ -56,7 +60,7 @@ export default function Leads() {
   const [novoLead, setNovoLead] = useState({ nome: '', empresa: '', email: '', telefone: '', segmento: 'Tecnologia', cidade: '', estado: '', modo: 'IA' as 'IA' | 'HUMANO' });
   const [mostrarArquivados, setMostrarArquivados] = useState(false);
   const [editarModal, setEditarModal] = useState<Lead | null>(null);
-  const [editForm, setEditForm] = useState({ nome: '', email: '', telefone: '', responsavel: '', responsavelId: '', tags: '' });
+  const [editForm, setEditForm] = useState({ nome: '', empresa: '', cidade: '', estado: '', email: '', telefone: '', responsavel: '', responsavelId: '', tags: '' });
   const [membros, setMembros] = useState<TeamMember[]>([]);
   const [handoffEtapa, setHandoffEtapa] = useState('');
   const [handoffAssigneeId, setHandoffAssigneeId] = useState('');
@@ -84,10 +88,13 @@ export default function Leads() {
     setEditarModal(lead);
     setEditForm({
       nome: lead.nome,
+      empresa: lead.empresa,
+      cidade: lead.cidade,
+      estado: lead.estado,
       email: lead.email,
       telefone: lead.telefone,
       responsavel: lead.responsavel,
-      responsavelId: lead.responsavelId,
+      responsavelId: lead.responsavelId ?? '',
       tags: lead.tags.join(', '),
     });
   };
@@ -117,6 +124,9 @@ export default function Leads() {
           ? {
               ...l,
               nome: editForm.nome.trim(),
+              empresa: editForm.empresa.trim(),
+              cidade: editForm.cidade.trim(),
+              estado: editForm.estado.trim().toUpperCase(),
               email: editForm.email.trim(),
               telefone: editForm.telefone.trim(),
               whatsapp: telefoneAlterado ? '' : l.whatsapp,
@@ -421,7 +431,8 @@ export default function Leads() {
   };
 
   return (
-    <div className="wf-page">
+    <div className="wf-page wf-page--leads">
+      <DataReadNotice status={loadStatus} onRetry={() => { void refreshLeadsStore().catch(() => undefined); }} />
       <header className="wf-page-header">
         <div>
           <p className="wf-eyebrow">Carteira comercial</p>
@@ -658,7 +669,7 @@ export default function Leads() {
 
       {/* Modal de escolha de modo (Ana ou Humano) ao enviar para o Kanban */}
       {envioAlvo && (
-        <div className="fixed inset-0 z-50 bg-foreground-950/50 flex items-center justify-center p-4" onClick={() => { setEnvioAlvo(null); setModoSelecionado(null); setAprovacaoKanban({ confirmada: false, origem: '' }); setHandoffEtapa(''); setHandoffAssigneeId(''); setHandoffNotifyWhatsapp(false); }}>
+        <AccessibleDialog title="Encaminhar leads" className="fixed inset-0 z-50 bg-foreground-950/50 flex items-center justify-center p-4" onClose={() => { setEnvioAlvo(null); setModoSelecionado(null); setAprovacaoKanban({ confirmada: false, origem: '' }); setHandoffEtapa(''); setHandoffAssigneeId(''); setHandoffNotifyWhatsapp(false); }}>
           <div className="bg-background-50 rounded-xl max-w-lg w-full" onClick={(e) => e.stopPropagation()}>
             <div className="px-6 py-4 border-b border-background-200/70 flex items-center justify-between">
               <div>
@@ -749,12 +760,12 @@ export default function Leads() {
               </button>
             </div>
           </div>
-        </div>
+        </AccessibleDialog>
       )}
 
       {/* Modal de detalhes */}
       {detalhe && (
-        <div className="fixed inset-0 z-50 bg-foreground-950/50 flex items-center justify-center p-4" onClick={() => setDetalhe(null)}>
+        <AccessibleDialog title="Detalhes do registro" className="fixed inset-0 z-50 bg-foreground-950/50 flex items-center justify-center p-4" onClose={() => setDetalhe(null)}>
           <div
             className="bg-background-50 rounded-xl max-w-lg w-full max-h-[85vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
@@ -764,7 +775,7 @@ export default function Leads() {
                 <h3 className="font-heading font-bold text-foreground-950">{detalhe.nome}</h3>
                 <p className="text-sm text-foreground-500">{detalhe.empresa}</p>
               </div>
-              <button onClick={() => setDetalhe(null)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-background-100 cursor-pointer">
+              <button aria-label="Fechar detalhes" onClick={() => setDetalhe(null)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-background-100 cursor-pointer">
                 <i className="ri-close-line text-lg"></i>
               </button>
             </div>
@@ -860,16 +871,16 @@ export default function Leads() {
               </div>
             </div>
           </div>
-        </div>
+        </AccessibleDialog>
       )}
 
       {/* Modal Novo Lead */}
       {novoModal && (
-        <div className="fixed inset-0 z-50 bg-foreground-950/50 flex items-center justify-center p-4" onClick={() => setNovoModal(false)}>
+        <AccessibleDialog title="Novo registro" className="fixed inset-0 z-50 bg-foreground-950/50 flex items-center justify-center p-4" onClose={() => setNovoModal(false)}>
           <div className="bg-background-50 rounded-xl max-w-lg w-full max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="px-6 py-4 border-b border-background-200/70 flex items-center justify-between">
               <h3 className="font-heading font-bold text-foreground-950">Novo Lead</h3>
-              <button onClick={() => setNovoModal(false)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-background-100 cursor-pointer">
+              <button aria-label="Fechar formulário" onClick={() => setNovoModal(false)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-background-100 cursor-pointer">
                 <i className="ri-close-line text-lg"></i>
               </button>
             </div>
@@ -922,16 +933,16 @@ export default function Leads() {
               </div>
             </div>
             <div className="px-6 py-4 border-t border-background-200/70 flex justify-end gap-2">
-              <button onClick={() => setNovoModal(false)} className="px-4 py-2.5 border border-background-300 text-foreground-700 rounded-lg text-sm font-semibold hover:bg-background-100 cursor-pointer whitespace-nowrap">Cancelar</button>
+              <button aria-label="Fechar formulário" onClick={() => setNovoModal(false)} className="px-4 py-2.5 border border-background-300 text-foreground-700 rounded-lg text-sm font-semibold hover:bg-background-100 cursor-pointer whitespace-nowrap">Cancelar</button>
               <button onClick={criarLead} className="px-5 py-2.5 bg-primary-500 hover:bg-primary-600 text-background-50 rounded-lg text-sm font-bold cursor-pointer whitespace-nowrap">Criar lead</button>
             </div>
           </div>
-        </div>
+        </AccessibleDialog>
       )}
 
       {/* Modal Editar Lead */}
       {editarModal && (
-        <div className="fixed inset-0 z-50 bg-foreground-950/50 flex items-center justify-center p-4" onClick={() => setEditarModal(null)}>
+        <AccessibleDialog title="Editar lead" className="fixed inset-0 z-50 bg-foreground-950/50 flex items-center justify-center p-4" onClose={() => setEditarModal(null)}>
           <div className="bg-background-50 rounded-xl max-w-lg w-full max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="px-6 py-4 border-b border-background-200/70 flex items-center justify-between">
               <div>
@@ -946,6 +957,11 @@ export default function Leads() {
               <div>
                 <label className="block text-sm font-medium text-foreground-800 mb-1.5">Nome <span className="text-accent-600">*</span></label>
                 <input type="text" value={editForm.nome} onChange={(e) => setEditForm({ ...editForm, nome: e.target.value })} className="w-full px-4 py-2.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-900" />
+              </div>
+              <label className="block text-sm font-medium text-foreground-800">Empresa<input value={editForm.empresa} onChange={(e) => setEditForm({ ...editForm, empresa: e.target.value })} className="mt-1.5 w-full rounded-lg border border-background-300 px-4 py-2.5" /></label>
+              <div className="grid grid-cols-[1fr_5rem] gap-3">
+                <label className="block text-sm font-medium text-foreground-800">Cidade<input value={editForm.cidade} onChange={(e) => setEditForm({ ...editForm, cidade: e.target.value })} className="mt-1.5 w-full rounded-lg border border-background-300 px-4 py-2.5" /></label>
+                <label className="block text-sm font-medium text-foreground-800">UF<input maxLength={2} value={editForm.estado} onChange={(e) => setEditForm({ ...editForm, estado: e.target.value.toUpperCase() })} className="mt-1.5 w-full rounded-lg border border-background-300 px-3 py-2.5" /></label>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
@@ -977,7 +993,7 @@ export default function Leads() {
               <button onClick={salvarEdicao} className="px-5 py-2.5 bg-primary-500 hover:bg-primary-600 text-background-50 rounded-lg text-sm font-bold cursor-pointer whitespace-nowrap">Salvar alterações</button>
             </div>
           </div>
-        </div>
+        </AccessibleDialog>
       )}
     </div>
   );

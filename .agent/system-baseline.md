@@ -1,5 +1,11 @@
 # Baseline do sistema
 
+## Redesign comercial — 27/09/2026
+
+- Fonte única `commercialAnalytics.ts` para Dashboard, Funil, Relatórios e predicado do Kanban. Atribuição comercial não é autorização de contato. Carteira/propostas paginadas, timestamps preservados, valores líquidos e estados sem base explícitos.
+- Shell responsivo, composição analítica, diálogos nativos, fontes operacionais preservadas. Nenhuma nova tabela, migração, Edge Function ou alteração de configuração remota.
+- Type-check frontend/Edge, lint, build e smoke determinístico 17/17 aprovados. Suíte Vitest completa não encerrou; QA visual autenticada não executada. Especificação e limites em `docs/REDESIGN_WAYFLEX_2026-09-27.md`.
+
 ## Orientação de pendências da Ana automática — 27/09/2026
 
 - O painel de Operação automática apresenta a prontidão devolvida por `ana-operations` como itens acionáveis: requisito, motivo da pendência e destino exato para correção.

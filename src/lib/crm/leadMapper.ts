@@ -217,7 +217,7 @@ export function crmRowToLead(row: CrmLeadRow, handoffPolicy?: LeadHandoffPolicyR
     score, temperatura: temperature(row.temp, score), etapa: etapaAna, origem: row.origin ?? '',
     responsavel: row.owner === 'ia' || !row.owner ? 'Ana (IA)' : row.owner,
     tags: Array.isArray(meta.tags) ? meta.tags.filter((tag): tag is string => typeof tag === 'string') : [],
-    ultimaInteracao: row.updated_at ? new Date(row.updated_at).toLocaleDateString('pt-BR') : '—', criadoEm: row.created_at.slice(0, 10),
+    ultimaInteracao: row.updated_at ? new Date(row.updated_at).toLocaleDateString('pt-BR') : '—', criadoEm: row.created_at.slice(0, 10), createdAt: row.created_at,
     cargo: typeof meta.cargo === 'string' ? meta.cargo : undefined, campanha: typeof meta.campanha === 'string' ? meta.campanha : undefined,
     modoAtendimento: isHuman ? 'HUMANO' : 'IA', automacaoStatus: isHuman ? 'AGUARDANDO_HUMANO' : row.automation_status === 'running' && approvalStatus === 'approved' ? 'ATIVA' : 'PAUSADA',
     responsavelId: row.owner_id ?? row.assigned_to ?? undefined, canalPreferencial: leadChannelLabel(row.active_channel),

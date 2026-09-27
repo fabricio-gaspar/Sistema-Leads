@@ -11,6 +11,8 @@ let state: Compromisso[] = [];
 let hydrated = false;
 let hydratePromise: Promise<void> | null = null;
 let writeQueue = Promise.resolve();
+let loadStatus: 'loading' | 'ready' | 'error' = 'loading';
+let latestPersistenceError: unknown = null;
 const listeners = new Set<() => void>();
 
 const notify = () => listeners.forEach((listener) => listener());
@@ -22,21 +24,24 @@ const subscribe = (listener: () => void) => {
 async function hydrate(): Promise<void> {
   if (hydrated) return;
   if (hydratePromise) return hydratePromise;
+  loadStatus = 'loading'; notify();
   hydratePromise = loadOperationalAppointments()
     .then((appointments) => {
       state = appointments;
       hydrated = true;
+      loadStatus = 'ready';
       notify();
     })
-    .catch((error) => console.error('[appointments] falha ao carregar agenda operacional', error))
+    .catch((error) => { console.error('[appointments] falha ao carregar agenda operacional', error); loadStatus = 'error'; notify(); })
     .finally(() => { hydratePromise = null; });
   return hydratePromise;
 }
 
-function retryLoadAfterFailure(error: unknown) {
+async function retryLoadAfterFailure(error: unknown) {
   console.error('[appointments] falha ao persistir agenda operacional', error);
   hydrated = false;
-  void hydrate();
+  latestPersistenceError = error;
+  await hydrate();
 }
 
 function enqueue(operation: () => Promise<void>) {
@@ -93,3 +98,12 @@ export function useCompromissosStore(): CompromissosStore {
 export function getCompromissosSnapshot(): Compromisso[] {
   return state;
 }
+
+export function useCompromissosLoadStatus() {
+  return useSyncExternalStore(subscribe, () => loadStatus, () => loadStatus);
+}
+export async function waitForCompromissosPersistence(): Promise<void> {
+  await writeQueue;
+  if (latestPersistenceError) { const error = latestPersistenceError; latestPersistenceError = null; throw error; }
+}
+export async function refreshCompromissosStore(): Promise<void> { hydrated = false; await hydrate(); }

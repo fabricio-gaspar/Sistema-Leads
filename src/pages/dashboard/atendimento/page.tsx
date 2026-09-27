@@ -14,6 +14,8 @@ import { loadTeamMembers, type TeamMember } from '@/lib/crm/teamMembersRepositor
 import { resolveOrganizationSession } from '@/lib/organizationSession';
 import { supabase } from '@/lib/supabase';
 import { loadConversationKnowledgeEvents, type ConversationKnowledgeEvent } from '@/lib/crm/catalogKnowledgeRepository';
+import { hasUnconfirmedPrices } from '@/domain/proposalPricing';
+import { proposalNet } from '@/domain/commercialAnalytics';
 import ConversaDrawer from './components/ConversaDrawer';
 import ConversationKnowledgePanel, { type PreparedKnowledgeContent } from './components/ConversationKnowledgePanel';
 import QualificationDossier from '@/components/crm/QualificationDossier';
@@ -472,6 +474,7 @@ export default function Atendimento() {
     : [];
 
   const prepararOrcamento = (p: Proposta) => {
+    if (hasUnconfirmedPrices(p)) { setErroIA('Confirme os preços unitários em Orçamentos antes de preparar esta proposta.'); return; }
     if (p.bloqueadaEnvio || p.status === 'aguardando_aprovacao') {
       setErroIA('A proposta aguarda aprovação de desconto e não pode ser preparada para envio.');
       return;
@@ -480,7 +483,7 @@ export default function Atendimento() {
       setErroIA('Esta proposta já não está em rascunho. Revise o histórico antes de enviar uma nova versão.');
       return;
     }
-    const total = p.valor * (1 - (p.descontoPct || 0) / 100);
+    const total = proposalNet(p);
     const textoOrcamento = [
       `Segue o orçamento ${p.numero}:`,
       ...p.itens.map((i) => `• ${i.nome} (${i.quantidade}x) — ${i.preco.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`),
@@ -548,7 +551,7 @@ export default function Atendimento() {
   const knowledgeEventByMessage = new Map(knowledgeEvents.map((event) => [event.messageId, event]));
 
   return (
-    <div className="wf-page space-y-5">
+    <div className="wf-page wf-page--inbox space-y-5">
       <header className="wf-page-header lg:items-center">
         <div>
           <p className="wf-eyebrow">Atendimento</p>
@@ -652,7 +655,7 @@ export default function Atendimento() {
                   <p className="mt-1 whitespace-normal break-words text-xs leading-5 text-foreground-500">{c.ultimaMensagem}</p>
                   <div className="mt-2 flex flex-wrap items-center gap-1.5">
                     <span className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-medium ${statusCores[c.status]}`}>
-                      {statusLabel[c.status]}
+                      {c.mensagens.length === 0 ? 'Sem mensagens' : statusLabel[c.status]}
                     </span>
                     <span className="text-[10px] text-foreground-400"><i className={`${c.canal === 'whatsapp' ? 'ri-whatsapp-line text-primary-600' : c.canal === 'email' ? 'ri-mail-line' : 'ri-instagram-line'} mr-1`} />{c.canal}</span>
                     {c.canal === 'whatsapp' && c.whatsappAccountLabel && <span className="max-w-full truncate rounded-md bg-background-100 px-2 py-0.5 text-[10px] text-foreground-500" title={c.whatsappAccountLabel}><i className="ri-base-station-line mr-1" />{c.whatsappAccountLabel}</span>}
