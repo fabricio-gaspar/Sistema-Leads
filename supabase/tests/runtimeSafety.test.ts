@@ -105,3 +105,22 @@ describe('Z-API direct-test reservation migration', () => {
     expect(migration).not.toContain('pg_catalog.nullif(');
   });
 });
+
+describe('Ana automatic dashboard control migration', () => {
+  it('keeps the one-click control atomic, server-only and fail-closed', () => {
+    const migration = readFileSync(
+      new URL('../migrations/20260927130054_dashboard_ana_automatic_control.sql', import.meta.url),
+      'utf8',
+    );
+
+    expect(migration).toContain('security invoker');
+    expect(migration).toContain("integration.key in ('ai', 'apify', 'scheduler', 'whatsapp', 'zapi_webhook')");
+    expect(migration).toContain("agent.active_version_id is not null");
+    expect(migration).toContain("runtime.data -> 'killSwitchGlobal' = 'false'::jsonb");
+    expect(migration).toContain("run.status in ('queued', 'running', 'awaiting_approval')");
+    expect(migration).toContain("run.status in ('queued', 'awaiting_approval')");
+    expect(migration).toContain('grant execute on function public.set_ana_automatic_operation');
+    expect(migration).toContain('to service_role');
+    expect(migration).toContain('from public, anon, authenticated');
+  });
+});

@@ -3,15 +3,15 @@
   "validated_commit": "a7e7fae710b018043840f22cc28ce795f22d3e70",
   "last_validated_at": "2026-09-27",
   "current_validation": {
-    "stage": "commercial_flow_homologation",
+    "stage": "dashboard_ana_automatic_control",
     "frontend_typecheck": "passed",
     "lint": "passed",
     "test_files": 46,
-    "tests_passed": 281,
+    "tests_passed": 282,
     "production_build": "passed",
     "sites_artifact": "passed",
-    "visual_review": "Não executada nesta alteração operacional; nenhuma rota, card ou layout foi redesenhado sem revisão específica.",
-    "external_end_to_end": "not_run; Z-API está desconectada/bloqueada. Não houve chamada a provedor, mensagem, job ou execução comercial."
+    "visual_review": "Controle compacto aplicado à Dashboard usando o design existente; QA visual de navegador não solicitada.",
+    "external_end_to_end": "not_run; WhatsApp e zapi_webhook estão pausados. A ativação permanece bloqueada e nenhuma busca, mensagem ou execução comercial foi iniciada."
   },
   "commands": [
     {

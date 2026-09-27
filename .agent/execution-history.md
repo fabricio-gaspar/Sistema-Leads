@@ -1,5 +1,12 @@
 # Histórico resumido de execução
 
+## 2026-09-27 — Controle da Ana automática na Dashboard
+
+- Adicionado controle compacto para ativar/pausar a configuração operacional já salva, sem criar motor ou agenda paralela.
+- O backend revalida prontidão, permissão, rota, autorização paga e concorrência; a transação persiste agenda, modo e auditoria em conjunto. Pausa cancela apenas filas ainda não iniciadas.
+- Migration aplicada no projeto oficial; `ana-operations` v4 publicada com JWT obrigatório. A permissão direta segue negada a usuários autenticados.
+- Type-check frontend/Edge, lint, 46 arquivos/282 testes e build passaram. Nenhuma automação, busca ou mensagem foi executada; o estado continua bloqueado por WhatsApp/Z-API pausados.
+
 ## 2026-09-26 — Dashboard comercial compacta
 
 - Consolidada a leitura da Dashboard em quatro indicadores, Ações agora, pipeline canônico,

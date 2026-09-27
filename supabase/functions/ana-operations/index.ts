@@ -1,9 +1,9 @@
-import { createAdminClient, requireOrganizationRole, requireUser } from '../_shared/auth.ts';
+import { createAdminClient, requireOrganizationPermission, requireOrganizationRole, requireUser } from '../_shared/auth.ts';
 import { allowedCorsHeaders, hasAllowedOrigin, json, preflight, safeError } from '../_shared/http.ts';
 
 type OperationMode = 'simulation' | 'supervised' | 'automatic';
 type InitialAssignmentMode = 'ana' | 'human' | 'team';
-const ACTIONS = new Set(['get', 'save', 'simulate', 'run_now', 'approve_run']);
+const ACTIONS = new Set(['get', 'save', 'set_automatic', 'simulate', 'run_now', 'approve_run']);
 const HANDOFF_STAGES = new Set(['novo', 'apresentado', 'qualificando', 'reuniao', 'orcamento']);
 const asObject = (value: unknown): Record<string, unknown> => value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
 const asText = (value: unknown, max = 1_000) => typeof value === 'string' ? value.trim().slice(0, max) : '';
@@ -214,7 +214,32 @@ Deno.serve(async (request) => {
       return json({ ok: true, company, schedule, runs: runs ?? [], preference, readiness: operationReadiness }, 200, headers);
     }
 
-    await requireOrganizationRole(admin, user.id, organizationId, ['owner','admin','manager']);
+    await requireOrganizationPermission(admin, organizationId, user.id, 'configuration.manage');
+    if (action === 'set_automatic') {
+      const enabled = body.enabled === true;
+      const [{ data: schedule, error: scheduleError }, operationReadiness] = await Promise.all([
+        admin.from('prospecting_schedules').select('*').eq('organization_id', organizationId).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+        readiness(admin, organizationId),
+      ]);
+      if (scheduleError || !schedule) throw new Error('operation_schedule_missing');
+      if (enabled) {
+        if (schedule.paid_prospecting_approved !== true) throw new Error('paid_prospecting_approval_required');
+        if (!operationReadiness.automaticReady) throw new Error('automatic_mode_not_ready');
+        await validateActivatedRouting(admin, organizationId, schedule);
+      }
+      const nextRun = enabled
+        ? nextRunAt(validTimezone(schedule.timezone), validClock(schedule.run_time), weekdays(schedule.weekdays))
+        : null;
+      const { data: result, error: toggleError } = await admin.rpc('set_ana_automatic_operation', {
+        p_organization_id: organizationId,
+        p_actor_id: user.id,
+        p_enabled: enabled,
+        p_next_run_at: nextRun,
+      });
+      const state = Array.isArray(result) ? result[0] : result;
+      if (toggleError || !state) throw toggleError ?? new Error('ana_automatic_state_not_saved');
+      return json({ ok: true, state, readiness: operationReadiness }, 200, headers);
+    }
     if (action === 'save') {
       const normalized = normalizeSettings(body.settings);
       const operationReadiness = await readiness(admin, organizationId);

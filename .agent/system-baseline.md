@@ -1,5 +1,12 @@
 # Baseline do sistema
 
+## Controle da Ana automática na Dashboard — 27/09/2026
+
+- A Dashboard reutiliza `ana-operations`, `company_settings` e o último `prospecting_schedules`; não cria fonte de configuração paralela.
+- A ação de ativar/pausar é atômica no banco, exclusiva do backend, auditada e condicionada aos mesmos gates da operação automática. `ana-run` continua sendo a única autoridade de conversa e decisão da Ana.
+- A instalação oficial está configurada para modo automático, porém desativada. IA, Apify e agendador estão disponíveis; WhatsApp de saída e `zapi_webhook` permanecem pausados, então a ativação continua bloqueada por segurança.
+- Validação local: type-check frontend/Edge, lint, 46 arquivos/282 testes e build aprovados. Migration aplicada e Edge Function `ana-operations` v4 publicada; frontend ainda aguarda publicação no Site oficial.
+
 ## Etapa 4 do plano comercial — dossiê técnico de qualificação, 26/09/2026
 
 - `lead_qualifications` permanece o único registro de qualificação. `technical_context` e

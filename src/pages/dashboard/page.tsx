@@ -8,6 +8,7 @@ import { presentIntegrationStatus, type StatusTone } from '@/lib/crm/operational
 import SellerAttentionPanel from './components/SellerAttentionPanel';
 import { useNotificacoesStore } from '@/hooks/useNotificacoesStore';
 import InfoTooltip from '@/components/feature/InfoTooltip';
+import AnaAutomaticControl from './components/AnaAutomaticControl';
 
 function PanelHeading({ title, help, link, linkLabel = 'Abrir' }: { title: string; help: string; link?: string; linkLabel?: string }) {
   return <div className="wf-overview-heading">
@@ -126,6 +127,8 @@ export default function Dashboard() {
       <div><p className="wf-eyebrow">Visão comercial</p><div className="mt-1 flex items-center gap-2"><h1 className="wf-page-title">WayFlex CRM</h1><InfoTooltip text="Leitura rápida da carteira: decisões comerciais, pipeline e condições reais para a operação da Ana." label="Sobre a Dashboard" align="start" /></div></div>
       {diagnosticTime && <p className="wf-dashboard-updated">Atualizado {diagnosticTime}</p>}
     </header>
+
+    <AnaAutomaticControl />
 
     {operationalAlert && <section className="wf-decision-alert" aria-label="Alerta operacional">
       <span className="wf-decision-alert__icon" aria-hidden="true"><i className={operationalAlert.icon} /></span>

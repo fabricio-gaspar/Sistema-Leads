@@ -4,7 +4,7 @@
   "baseline_commit": "1dc6275b8c7d70de953b66397a8c89f5e97bc15b",
   "last_audited_commit": "a7e7fae710b018043840f22cc28ce795f22d3e70",
   "current_head_at_update": "a7e7fae710b018043840f22cc28ce795f22d3e70",
-  "working_tree_status": "commercial_flow_homologation_published_v133",
+  "working_tree_status": "dashboard_ana_automatic_control_validated_pending_publication",
   "stage_1_baseline": ".agent/baselines/2026-09-25-stage-1.json",
   "recovery_tag": "baseline-wayflex-stage1-20260925",
   "work_branch": "main",
@@ -16,7 +16,7 @@
     "working_tree_status": "published"
   },
   "full_audit_required": false,
-  "baseline_status": "commercial_flow_homologation_published",
-  "updated_at": "2026-09-27T12:51:41Z",
-  "next_action": "Executar um E2E externo individual somente após a Z-API ficar conectada e mediante autorização. Não liberar automação comercial até concluir essa prova e habilitar proteção contra senhas vazadas."
+  "baseline_status": "dashboard_ana_automatic_control_validated",
+  "updated_at": "2026-09-27T13:05:52Z",
+  "next_action": "Publicar o frontend no Site oficial. A ativação automática deve continuar bloqueada até WhatsApp e zapi_webhook ficarem saudáveis e o E2E individual ser autorizado."
 }

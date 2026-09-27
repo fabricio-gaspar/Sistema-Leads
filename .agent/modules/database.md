@@ -1,5 +1,7 @@
 # Banco de dados
 
+- `20260927130054_dashboard_ana_automatic_control`: função `SECURITY INVOKER` exclusiva de `service_role` ativa/pausa `company_settings` e a agenda na mesma transação, revalida gates, registra auditoria e cancela apenas runs `queued`/`awaiting_approval` ao pausar.
+
 - `20260925194854_import_prospecting_batch_atomic`: RPC SECURITY INVOKER, apenas `authenticated`, com validação de organização/permissão, lista, leads e membros em transação única e identidade de lote idempotente. Testes SQL em transação revertida confirmaram sucesso, rollback e recusa RBAC sem dados persistidos.
 
 - Postgres/Supabase é a fonte da verdade.

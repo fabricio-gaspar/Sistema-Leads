@@ -1,5 +1,7 @@
 # Backend
 
+- `ana-operations` v4 expõe `set_automatic` para sessão administrativa. A ação reutiliza a agenda existente, revalida readiness e roteamento e delega a persistência atômica à RPC exclusiva de `service_role`; não chama Apify, IA ou WhatsApp.
+
 - Edge Functions em `supabase/functions/`.
 - `ana-run` é a única autoridade automática da Ana.
 - A Base aprovada da Ana é consultada por organização em `documents`/`knowledge_chunks`; cada

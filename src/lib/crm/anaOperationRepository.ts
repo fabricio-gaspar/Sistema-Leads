@@ -60,6 +60,14 @@ export interface AnaOperationSnapshot {
   readiness: AnaOperationReadiness;
 }
 
+export interface AnaAutomaticToggleResult {
+  enabled: boolean;
+  mode: 'automatic';
+  schedule_id: string;
+  next_run_at: string | null;
+  cancelled_runs: number;
+}
+
 async function invoke<T>(action: string, payload: Record<string, unknown> = {}): Promise<T> {
   const { data, error } = await supabase.functions.invoke('ana-operations', { body: { action, ...payload } });
   if (error || !data?.ok) throw new Error(data?.error || error?.message || 'ana_operation_request_failed');
@@ -68,7 +76,7 @@ async function invoke<T>(action: string, payload: Record<string, unknown> = {}):
 
 export const loadAnaOperation = () => invoke<AnaOperationSnapshot & { ok: true }>('get');
 export const saveAnaOperation = (settings: AnaOperationSettings) => invoke<AnaOperationSnapshot & { ok: true }>('save', { settings });
+export const setAnaAutomaticOperation = (enabled: boolean) => invoke<{ ok: true; state: AnaAutomaticToggleResult; readiness: AnaOperationReadiness }>('set_automatic', { enabled });
 export const runAnaOperationNow = () => invoke<{ ok: true; run: AnaOperationRun }>('run_now');
 export const simulateAnaOperation = () => invoke<{ ok: true; run: AnaOperationRun }>('simulate');
 export const approveAnaOperationRun = (runId: string) => invoke<{ ok: true; run: AnaOperationRun }>('approve_run', { runId });
-

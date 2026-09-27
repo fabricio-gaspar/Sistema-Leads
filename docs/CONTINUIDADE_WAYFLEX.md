@@ -1,5 +1,14 @@
 # Checkpoint — WayFlex CRM
 
+## 27/09/2026 — Controle compacto da Ana automática na Dashboard
+
+- A Dashboard recebeu um único controle **Ana automática**. Ele usa a configuração existente da operação diária e permite ativar ou pausar sem duplicar agenda, motor, fila ou política.
+- A ativação passa por `ana-operations` e por uma operação transacional exclusiva do backend. O servidor revalida organização, permissão, configuração publicada, IA, Apify, agendador, WhatsApp de entrada/saída, pausa global, autorização paga, rota de atendimento e execução concorrente antes de gravar.
+- Pausar desativa a agenda e cancela somente execuções ainda não iniciadas. A configuração permanece salva e auditável; uma execução externa já iniciada não é declarada cancelada de forma falsa.
+- Migration `20260927130054_dashboard_ana_automatic_control` aplicada no Supabase oficial e `ana-operations` publicada na versão 3 com JWT obrigatório. A RPC não pode ser chamada por `authenticated`; somente `service_role` possui `EXECUTE`.
+- Type-check frontend/Edge, lint, **46 arquivos / 282 testes**, build e artefato Sites aprovados. O estado remoto permaneceu desativado: WhatsApp e entrada Z-API estão pausados, portanto o controle deve mostrar **Preparação necessária** e não ativa a Ana.
+- Limite: não houve envio, busca paga nem E2E externo. A publicação do frontend no Site oficial ainda está pendente neste checkpoint.
+
 ## 27/09/2026 — Homologação dos fluxos comerciais operacionais
 
 - O pipeline passou a usar a sequência canônica **Novo → Apresentado → Qualificando → Reunião → Orçamento → Ganho → Perdido** em Leads, Kanban, Agenda, Funil, Relatórios e indicadores. Valores legados permanecem somente como leitura de compatibilidade; Ganho e Perdido não podem ser reabertos pelo navegador.

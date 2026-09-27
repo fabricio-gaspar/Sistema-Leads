@@ -83,6 +83,8 @@
 
 ## Alto
 
+- O controle compacto da Dashboard está implantado, mas a ativação automática permanece intencionalmente bloqueada enquanto `whatsapp` e `zapi_webhook` estiverem pausados. Não contornar o gate; preparar o canal e executar homologação individual antes de ativar.
+
 - A operação automática só pode ser ativada quando o diagnóstico confirmar a entrada operacional
   `zapi_webhook`. O painel agora consulta esse identificador real, não o rótulo legado
   `whatsapp_webhook`; enquanto a entrada estiver pendente, o bloqueio é intencional e não deve ser
