@@ -1,5 +1,7 @@
 # Frontend
 
+- Busca de Leads (27/09): o cabeçalho **Fonte e local** mantém um seletor de API visível, alimentado por `lead_source_configs`. Somente Apify e Google Places conectados e ativos são opções; uma única fonte é pré-selecionada sem esconder o controle. A tela recarrega o estado ao montar e ao retomar o foco.
+
 - Funil (27/09, Site v140): **Gerenciar base** volta a montar `LeadBaseManager` depois da análise comercial. Somente `leads.read_all` vê a superfície; a ação definitiva continua desabilitada sem seleção e sem `leads.delete`. Um teste de posicionamento impede que o componente fique órfão ou seja duplicado em Leads.
 
 - Redesign 27/09: `CommercialAnalytics` e `commercialAnalytics.ts` centralizam coortes, valores líquidos, histórico observado e atualização transparente. `DataReadNotice`, `AccessibleDialog` e `wayflex-redesign.css` refinam estados e composição. Detalhes em `docs/REDESIGN_WAYFLEX_2026-09-27.md`; observações históricas abaixo não substituem este checkpoint atual.

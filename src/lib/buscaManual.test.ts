@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { limitarBuscaManual } from './buscaManual';
 import { leadsPreviewInicial } from '@/mocks/enriquecimentoData';
-import { fontesAtivas, normalizarMetricasPorFonte } from '@/hooks/useFontesStore';
+import { fontesApiProspeccao, fontesAtivas, normalizarMetricasPorFonte } from '@/hooks/useFontesStore';
 import { fontesLeads } from '@/mocks/fontesData';
 
 describe('limitarBuscaManual', () => {
@@ -29,5 +29,14 @@ describe('limitarBuscaManual', () => {
     fontes[2] = { ...fontes[2], status: 'ativo', connectionStatus: 'connected' };
 
     expect(fontesAtivas(fontes).map((fonte) => fonte.sourceKey)).toEqual(['apify']);
+  });
+
+  it('expõe no seletor somente APIs de prospecção suportadas e ativas', () => {
+    const fontes = fontesLeads.map((fonte) => ({ ...fonte, status: 'ativo', connectionStatus: 'connected' }));
+    const disponiveis = fontesAtivas(fontesApiProspeccao(fontes));
+
+    expect(disponiveis.map((fonte) => fonte.sourceKey)).toEqual(['google_places', 'apify']);
+    expect(disponiveis.map((fonte) => fonte.sourceKey)).not.toContain('ai');
+    expect(disponiveis.map((fonte) => fonte.sourceKey)).not.toContain('csv');
   });
 });

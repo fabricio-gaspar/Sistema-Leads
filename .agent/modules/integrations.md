@@ -1,5 +1,7 @@
 # Integrações
 
+- A Busca de Leads deriva o seletor das guardas já existentes: `integrations` confirma disponibilidade/credencial e `lead_source_configs` confirma o uso operacional. A interface não exibe IA ou fonte sem adaptador; hoje os adaptadores manuais permitidos são `apify` e `google_places`.
+
 - Fonte de status: tabela `integrations`; segredo: cofre acessado por RPC no backend.
 - Adaptadores implementados no painel: Z-API/WhatsApp, Claude/OpenAI da Ana, Apify e Google Places.
 - `connected` só pode significar teste válido do adaptador; configurar credencial não basta.

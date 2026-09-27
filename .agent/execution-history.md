@@ -1,5 +1,11 @@
 # Histórico resumido de execução
 
+## 2026-09-27 — Seletor dinâmico das APIs de prospecção
+
+- Removido o rótulo fixo do Apify em **Busca de Leads**. O seletor agora é alimentado pelas fontes de prospecção conectadas e ativas em Configurações e identifica a API escolhida também no botão de busca.
+- A interface recarrega `lead_source_configs` ao montar e ao recuperar o foco. Somente adaptadores reais do backend (`apify` e `google_places`) são exibidos; IA, CSV e integrações sem executor não aparecem como opção falsa.
+- Type-check frontend/Edge, lint, 52 arquivos/313 testes, build e 17 smoke checks passaram. Nenhuma busca paga, integração, segredo, lead ou automação foi acionada.
+
 ## 2026-09-27 — Teste real da apresentação e reconciliação Z-API
 
 - Confirmado que o envio original estava apenas adiado para segunda-feira por horário comercial. O administrador autorizou um único teste fora do horário; só havia esse job na fila e a política foi restaurada imediatamente depois.

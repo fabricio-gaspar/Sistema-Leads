@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import type { Lead } from '@/mocks/leadsData';
 import { refreshLeadsStore, useLeadsStore } from '@/hooks/useLeadsStore';
 import { refreshListsStore } from '@/hooks/useListasStore';
-import { fontesAtivas, useFontesStore } from '@/hooks/useFontesStore';
+import { fontesApiProspeccao, fontesAtivas, useFontesStore } from '@/hooks/useFontesStore';
 import { templatesMensagem } from '@/mocks/templatesData';
 import { useAuth } from '@/hooks/useAuth';
 import { loadCurrentAccess } from '@/lib/crm/currentAccessRepository';
@@ -224,12 +224,19 @@ export default function BuscaLeads() {
   const [origemAutorizacao, setOrigemAutorizacao] = useState('');
 
   const [leads] = useLeadsStore();
-  const { fontes } = useFontesStore();
+  const { fontes, recarregar: recarregarFontes } = useFontesStore();
   const { mode: operationalMode } = useOperationalMode();
   const { user } = useAuth();
   const [csvModal, setCsvModal] = useState(false);
   const [csvConfirmacaoPendente, setCsvConfirmacaoPendente] = useState(false);
   const membrosAtivos = membros.filter((member) => member.status === 'active');
+
+  useEffect(() => {
+    void recarregarFontes();
+    const atualizarAoRetomar = () => { void recarregarFontes(); };
+    window.addEventListener('focus', atualizarAoRetomar);
+    return () => window.removeEventListener('focus', atualizarAoRetomar);
+  }, [recarregarFontes]);
 
   useEffect(() => {
     if (aba !== 'busca' || etapa !== 4) return;
@@ -241,11 +248,11 @@ export default function BuscaLeads() {
       .finally(() => { if (mounted) setCarregandoMembros(false); });
     return () => { mounted = false; };
   }, [aba, etapa]);
-  // O fluxo oficial atual usa Apify; integrações legadas permanecem preservadas,
-  // porém fora da captura principal até homologação explícita.
-  const fontesProspecao = useMemo(() => fontes.filter((fonte) => fonte.sourceKey === 'apify'), [fontes]);
+  // A busca manual expõe somente provedores que o backend realmente executa.
+  const fontesProspecao = useMemo(() => fontesApiProspeccao(fontes), [fontes]);
   const fontesDisponiveis = useMemo(() => fontesAtivas(fontesProspecao), [fontesProspecao]);
   const fonteUnicaAtiva = fontesDisponiveis.length === 1 ? fontesDisponiveis[0] : null;
+  const fonteAtivaSelecionada = fontesDisponiveis.find((fonte) => fonte.id === fonteSelecionada) || null;
 
   useEffect(() => {
     if (fonteSelecionada && !fontesDisponiveis.some((fonte) => fonte.id === fonteSelecionada)) {
@@ -1024,7 +1031,22 @@ export default function BuscaLeads() {
                         <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-100 text-primary-700"><i className="ri-cloud-line" aria-hidden="true" /></span>
                         <div><h3 className="text-sm font-heading font-bold text-foreground-900">Fonte e local</h3><p className="text-xs text-foreground-500">A área é aplicada por cidade e UF.</p></div>
                       </div>
-                      {fontesDisponiveis.some((fonte) => fonte.id === fonteSelecionada) ? <span className="rounded-full bg-primary-50 px-2.5 py-1 text-[11px] font-semibold text-primary-700">Apify · fonte habilitada</span> : fontesDisponiveis.length > 1 ? <select value={fonteSelecionada} onChange={(event) => setFonteSelecionada(event.target.value)} className="rounded-full border border-background-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-foreground-700"><option value="">Escolha a fonte</option>{fontesDisponiveis.map((fonte) => <option key={fonte.id} value={fonte.id}>{fonte.nome}</option>)}</select> : <button type="button" onClick={() => navigate('/dashboard/configuracoes?tab=canais')} className="rounded-full border border-secondary-200 px-2.5 py-1 text-[11px] font-semibold text-secondary-700">Apify não configurado</button>}
+                      {fontesDisponiveis.length > 0 ? (
+                        <label className="flex items-center gap-2 text-[11px] font-semibold text-foreground-600">
+                          <span>API da busca</span>
+                          <select
+                            aria-label="API da busca"
+                            value={fonteSelecionada}
+                            onChange={(event) => setFonteSelecionada(event.target.value)}
+                            className="max-w-[220px] rounded-full border border-background-300 bg-white px-3 py-1.5 text-[11px] font-semibold text-foreground-800"
+                          >
+                            {fontesDisponiveis.length > 1 && <option value="">Escolha a API</option>}
+                            {fontesDisponiveis.map((fonte) => <option key={fonte.id} value={fonte.id}>{fonte.nome}</option>)}
+                          </select>
+                        </label>
+                      ) : (
+                        <button type="button" onClick={() => navigate('/dashboard/configuracoes?tab=apis')} className="rounded-full border border-secondary-200 px-2.5 py-1 text-[11px] font-semibold text-secondary-700">Configurar API de busca</button>
+                      )}
                     </div>
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                       <label className="text-xs font-semibold text-foreground-700">Cidade
@@ -1104,7 +1126,7 @@ export default function BuscaLeads() {
                   ) : (
                     <>
                       <i className="ri-search-eye-line"></i>
-                      Buscar no Apify
+                      Buscar em {fonteAtivaSelecionada?.nome || 'API selecionada'}
                     </>
                   )}
                 </button>

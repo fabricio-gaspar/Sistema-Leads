@@ -1,5 +1,10 @@
 # Problemas conhecidos
 
+## API ativa não aparecia como seletor na Busca — resolvido em 27/09/2026
+
+- A tela filtrava explicitamente somente `apify` e substituía o seletor por um selo quando havia uma fonte ativa. Agora Apify e Google Places são derivados das configurações operacionais, o seletor permanece visível e a leitura é atualizada ao abrir/retomar a tela.
+- Google Places continua ausente enquanto não estiver conectado e ativo; isso é um gate correto, não falha visual. Nenhum teste de provedor foi disparado para validar o layout.
+
 ## Cumprimento simples transferido ao humano — 27/09/2026
 
 - Depois do E2E real, a entrada **“Boa tarde”** foi recebida e processada, mas a decisão da Ana marcou confiança de 15%, abaixo do mínimo publicado de 20%, e abriu handoff humano sem resposta automática.

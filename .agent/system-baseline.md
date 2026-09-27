@@ -1,5 +1,11 @@
 # Baseline do sistema
 
+## Seletor dinâmico de APIs na Busca de Leads — 27/09/2026
+
+- **Busca de Leads** consulta novamente as fontes operacionais ao abrir e quando a aba do navegador volta ao foco. O seletor mostra somente APIs com adaptador real no backend, conexão validada e uso ativado em Configurações.
+- Apify — Google Maps e Google Places compartilham o mesmo contrato `prospectar-leads`; IA, CSV e integrações sem adaptador não entram falsamente no seletor. Mesmo com uma única API ativa, o controle continua visível e o botão identifica a fonte escolhida.
+- Nenhuma tabela, credencial, Edge Function ou regra da busca foi alterada. Type-check frontend/Edge, lint, 52 arquivos/313 testes, build e 17 verificações determinísticas passaram sem chamar provedor externo.
+
 ## Envio real e reconciliação do aceite Z-API — 27/09/2026
 
 - O primeiro contato ficou em fila por `outside_business_hours`, comportamento coerente com domingo inativo e `businessHoursOnly=true`. Com autorização explícita, somente esse job foi liberado; a política foi restaurada imediatamente e a exceção auditada.

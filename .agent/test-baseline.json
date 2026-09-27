@@ -1,18 +1,18 @@
 {
   "schema_version": 1,
-  "validated_commit": "fdc3d7434fb37be8bd9705a51f2da4df652417ac",
+  "validated_commit": "working_tree_after_3643a44d4dda8cbf2d19e54bffb71aabe028f6d4",
   "last_validated_at": "2026-09-27",
   "current_validation": {
-    "stage": "ana_presentation_real_e2e_and_provider_reconciliation",
+    "stage": "lead_search_dynamic_api_selector",
     "frontend_typecheck": "passed",
     "edge_typecheck": "passed",
     "lint": "passed",
     "production_build": "passed",
-    "sites_artifact": "passed_build; no_frontend_change; official_site_v140_preserved",
+    "sites_artifact": "passed_build; publication_pending",
     "deterministic_smoke_checks": 17,
-    "vitest": "passed; 51 files; 311 tests",
-    "visual_review": "not_required; database trigger correction and controlled operational test",
-    "external_end_to_end": "passed; one authorized Z-API presentation accepted; inbound Boa tarde received; no duplicate send; subsequent Ana reply handed to human by confidence policy"
+    "vitest": "passed; 52 files; 313 tests",
+    "visual_review": "pending official Site publication; static selector contract passed",
+    "external_end_to_end": "not_executed; no paid search or provider call was required for this UI/state integration"
   },
   "previous_validation": {
     "stage": "kanban_ana_presentation_flow_restored",
@@ -27,6 +27,11 @@
     "external_end_to_end": "not_executed; transactional resolver probe passed and rolled back with zero synthetic residues"
   },
   "commands": [
+    {
+      "command": "npm run type-check && npm run type-check:edge && npm run lint && npm test && npm run build && node scripts/check-commercial-analytics.mjs && git diff --check",
+      "status": "passed",
+      "note": "Seletor dinâmico da Busca: 52 arquivos/313 testes e 17 verificações determinísticas; nenhuma busca externa executada."
+    },
     {
       "command": "npm run type-check && npm run type-check:edge && npm run lint && npm test && npm run build && node scripts/check-commercial-analytics.mjs && git diff --check",
       "status": "passed",

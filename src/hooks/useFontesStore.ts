@@ -1,4 +1,4 @@
-import { useEffect, useSyncExternalStore } from 'react';
+import { useCallback, useEffect, useSyncExternalStore } from 'react';
 import { supabase } from '@/lib/supabase';
 import { fontesLeads } from '@/mocks/fontesData';
 
@@ -72,6 +72,12 @@ export function fontesAtivas(fontes: FonteLead[]): FonteLead[] {
   return fontes.filter((fonte) => fonte.status === 'ativo' && fonte.connectionStatus === 'connected');
 }
 
+const PROSPECTING_API_KEYS = new Set(['apify', 'google_places']);
+
+export function fontesApiProspeccao(fontes: FonteLead[]): FonteLead[] {
+  return fontes.filter((fonte) => fonte.sourceKey && PROSPECTING_API_KEYS.has(fonte.sourceKey));
+}
+
 // Mantido como função pura para preservar o comportamento de normalização da busca manual e seus testes.
 export function normalizarMetricasPorFonte(fontes: FonteLead[]): FonteLead[] {
   const metricasPadrao = new Map(fontesLeads.map((fonte) => [fonte.id, fonte]));
@@ -102,14 +108,16 @@ export function useFontesStore(): FontesStore {
     return () => subscription.subscription.unsubscribe();
   }, []);
 
-  const definirAtivacao = async (id: string, enabled: boolean) => {
+  const definirAtivacao = useCallback(async (id: string, enabled: boolean) => {
     const source = state.find((item) => item.id === id);
     if (!source?.remoteId) throw new Error('source_not_configured');
     if (enabled && source.connectionStatus !== 'connected') throw new Error('source_not_validated');
     const { error } = await supabase.from('lead_source_configs').update({ enabled }).eq('id', source.remoteId);
     if (error) throw error;
     await hydrateFromBackend(true);
-  };
+  }, []);
 
-  return { fontes, definirAtivacao, recarregar: () => hydrateFromBackend(true) };
+  const recarregar = useCallback(() => hydrateFromBackend(true), []);
+
+  return { fontes, definirAtivacao, recarregar };
 }
