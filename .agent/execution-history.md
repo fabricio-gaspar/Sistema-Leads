@@ -1181,8 +1181,12 @@
   `connected` separado de `enabled/paused` e reconciliou a conta oficial sem ligar o canal.
 - Publicados `testar-integracao` v16 e `whatsapp-accounts` v5. A interface passa a orientar a
   ativação antes do teste e traduz o código técnico. O bloqueio server-side de envio permanece.
-- Type-check frontend/Edge, lint, 46 arquivos/284 testes e build passaram. Nenhuma mensagem,
+- Type-check frontend/Edge, lint, 49 arquivos/306 testes, smoke determinístico 17/17 e build passaram. Nenhuma mensagem,
   callback, job, lead, ativação da Ana ou chamada de envio foi criada.
+- Publicado no Site oficial v138 pelo commit `dcc2fea`, deploy
+  `appgdep_6ab95cdb9e2081919066cb38e9eedca4`. A inspeção autenticada confirmou a sessão
+  **Conectada**, o provedor **Pronto para ativar**, o botão **Ativar**, a integração ainda
+  **Pausada** e ausência de erros/warnings no console.
 
 ## Redesign comercial — 27/09/2026 (checkpoint anterior à publicação)
 

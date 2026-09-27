@@ -9,7 +9,7 @@
 ## Redesign 27/09 — limitações abertas
 
 - QA visual autenticada das 11 telas, responsividade e WCAG integral não homologadas. Build não é prova visual.
-- Vitest emite passes mas não encerra neste runtime; suíte completa não aprovada. Smoke determinístico de domínio 17/17 passou.
+- A suíte Vitest integrada mais recente encerrou normalmente: 49 arquivos/306 testes aprovados, além do smoke determinístico 17/17. A execução anterior do checkpoint visual que não encerrou foi superada por essa validação.
 - Conversão histórica completa precisa de snapshots/entrada inicial; a UI só mostra avanço observado. Leitura multi-tabela não é transacional; carteira/propostas usam polling 60 s. Agregação remota necessária para volume acima de 50 mil linhas.
 - Agenda mantém fuso local legado; analítico São Paulo. Migração de fuso organizacional não executada. Nenhum gate externo foi liberado.
 

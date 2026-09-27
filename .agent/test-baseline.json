@@ -1,8 +1,20 @@
 {
   "schema_version": 1,
-  "validated_commit": "e19a3570143f55976e3f080efa2c43f9e916d2ea",
+  "validated_commit": "dcc2fead0ae5c7de0b2445349e54cf05d4e0bbba",
   "last_validated_at": "2026-09-27",
   "current_validation": {
+    "stage": "zapi_connection_state_and_provider_activation",
+    "frontend_typecheck": "passed",
+    "edge_typecheck": "passed",
+    "lint": "passed",
+    "production_build": "passed",
+    "sites_artifact": "passed; official_site_v138_deployed",
+    "deterministic_smoke_checks": 17,
+    "vitest": "passed; 49 files; 306 tests",
+    "visual_review": "authenticated_channels_page_passed; connected; ready_to_activate; paused; no_console_errors",
+    "external_end_to_end": "not_executed; provider_not_activated; no_message_sent"
+  },
+  "previous_validation": {
     "stage": "wayflex_commercial_redesign",
     "frontend_typecheck": "passed",
     "edge_typecheck": "passed",
@@ -11,19 +23,8 @@
     "sites_artifact": "passed",
     "deterministic_smoke_checks": 17,
     "vitest": "incomplete_process_did_not_exit",
-    "visual_review": "independent_static_only; authenticated_browser_not_available",
+    "visual_review": "independent_static_only",
     "external_end_to_end": "not_executed; no_operational_writes"
-  },
-  "previous_validation": {
-    "stage": "ana_activation_prerequisite_guidance",
-    "frontend_typecheck": "passed",
-    "lint": "passed",
-    "test_files": 46,
-    "tests_passed": 282,
-    "production_build": "passed",
-    "sites_artifact": "passed",
-    "visual_review": "Operação automática apresenta contagem, destaque, explicação e destino de correção para cada pré-requisito pendente; a ativação leva à primeira pendência.",
-    "external_end_to_end": "not_applicable; mudança de orientação e navegação no frontend, sem chamada a provedor, busca, mensagem ou automação."
   },
   "commands": [
     {

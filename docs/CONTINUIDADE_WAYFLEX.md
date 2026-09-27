@@ -6,7 +6,8 @@
 - Havia um segundo defeito: o gatilho de sincronização confundia `paused` com erro de conexão. Assim, a conta aparecia como `error` e o cartão não oferecia **Ativar**, embora `integrations.connected=true`.
 - A migration `20260927160000_preserve_whatsapp_connection_state_when_provider_paused` separa conexão física de habilitação operacional e reconciliou a conta como `connected`, ainda `enabled=false`.
 - `testar-integracao` v16 devolve o bloqueio operacional de forma explícita; `whatsapp-accounts` v5 apresenta a conexão física sem transformar canal desativado em desconectado. A interface orienta para **Ativar Z-API acima** e não tenta o envio quando o gate está fechado.
-- Segurança preservada: entrada, saída e automações permanecem desligadas, `kill_switch=true`; não houve mensagem, callback, job, lead ou execução da Ana. Type-check frontend/Edge, lint, **46 arquivos / 284 testes** e build passaram.
+- Segurança preservada: entrada, saída e automações permanecem desligadas, `kill_switch=true`; não houve mensagem, callback, job, lead ou execução da Ana. Type-check frontend/Edge, lint, **49 arquivos / 306 testes**, 17 smoke checks e build passaram.
+- Publicado no Site oficial como versão **138**, commit `dcc2fea`, deploy `appgdep_6ab95cdb9e2081919066cb38e9eedca4`. A inspeção autenticada confirmou **Conectada**, **Pronto para ativar**, botão **Ativar**, integração ainda **Pausada** e console sem erros.
 - Próximo teste permitido: o administrador deve clicar **Ativar** no cartão Z-API e autorizar um único envio real. A homologação só pode ser concluída depois de comprovar saída, entrada individual e recibos.
 
 ## Redesign publicado — 27/09/2026

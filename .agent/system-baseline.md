@@ -6,13 +6,13 @@
 - Corrigida a mistura entre sessão remota e uso operacional. Uma integração pausada não transforma mais a conta conectada em `error`; o cartão passa a mostrar **Pronto para ativar** e mantém a ativação como ação explícita do administrador.
 - O teste de saída não tenta enviar enquanto o provedor estiver desativado e apresenta orientação legível em vez de `whatsapp_provider_disabled`. O backend continua bloqueando qualquer envio fora desse gate.
 - Migration `20260927160000_preserve_whatsapp_connection_state_when_provider_paused` aplicada. `testar-integracao` v16 e `whatsapp-accounts` v5 publicados. Nenhuma mensagem, callback, job ou execução da Ana foi criada nesta correção.
-- Validação local: type-check frontend/Edge, lint, 46 arquivos/284 testes e build aprovados. A homologação externa ainda exige ativação consciente, teste individual autorizado e comprovação de entrada/recibos.
+- Validação integrada: type-check frontend/Edge, lint, 49 arquivos/306 testes, 17 smoke checks e build aprovados. Site oficial v138 publicado pelo commit `dcc2fea`; inspeção autenticada confirmou **Conectada**, **Pronto para ativar**, botão **Ativar**, estado **Pausada** e console sem erros. A homologação externa ainda exige ativação consciente, teste individual autorizado e comprovação de entrada/recibos.
 
 ## Redesign comercial — 27/09/2026
 
 - Fonte única `commercialAnalytics.ts` para Dashboard, Funil, Relatórios e predicado do Kanban. Atribuição comercial não é autorização de contato. Carteira/propostas paginadas, timestamps preservados, valores líquidos e estados sem base explícitos.
 - Shell responsivo, composição analítica, diálogos nativos, fontes operacionais preservadas. Nenhuma nova tabela, migração, Edge Function ou alteração de configuração remota.
-- Type-check frontend/Edge, lint, build e smoke determinístico 17/17 aprovados. Suíte Vitest completa não encerrou; QA visual autenticada não executada. Especificação e limites em `docs/REDESIGN_WAYFLEX_2026-09-27.md`.
+- Type-check frontend/Edge, lint, build, smoke determinístico 17/17 e suíte Vitest integrada 49 arquivos/306 testes aprovados. A tela de Canais foi validada autenticada após v138; a homologação visual completa das demais rotas e breakpoints continua pendente. Especificação e limites em `docs/REDESIGN_WAYFLEX_2026-09-27.md`.
 
 ## Orientação de pendências da Ana automática — 27/09/2026
 
