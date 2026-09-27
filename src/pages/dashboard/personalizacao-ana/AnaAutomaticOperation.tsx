@@ -155,6 +155,7 @@ export default function AnaAutomaticOperation() {
         operation_assignment_member_cannot_reply: 'O usuário selecionado não possui permissão para atender conversas.',
         operation_handoff_recipient_required: 'Selecione quem assumirá a transferência da Ana.',
         operation_handoff_whatsapp_not_configured: 'O aviso por WhatsApp exige que o número do usuário esteja configurado em Usuários.',
+        schedule_not_saved: 'Não foi possível gravar a agenda da Ana. A configuração anterior foi preservada.',
       };
       setError(serverMessage[code] || 'Não foi possível salvar a operação. Os dados atuais não foram ativados.');
     } finally { setBusy(''); }

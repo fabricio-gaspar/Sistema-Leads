@@ -1,5 +1,6 @@
 import { createAdminClient, requireOrganizationPermission, requireOrganizationRole, requireUser } from '../_shared/auth.ts';
 import { allowedCorsHeaders, hasAllowedOrigin, json, preflight, safeError } from '../_shared/http.ts';
+import { normalizeHandoffWhatsappNotification } from './settings.ts';
 
 type OperationMode = 'simulation' | 'supervised' | 'automatic';
 type InitialAssignmentMode = 'ana' | 'human' | 'team';
@@ -100,7 +101,7 @@ function normalizeSettings(value: unknown) {
       team_member_ids: uuidList(input.teamMemberIds),
       handoff_stage: initialAssignmentMode === 'ana' ? handoffStage : null,
       handoff_assignee_user_id: initialAssignmentMode === 'ana' && isUuid(input.handoffAssigneeUserId) ? input.handoffAssigneeUserId : null,
-      handoff_notify_whatsapp: initialAssignmentMode === 'ana' && handoffStage && input.handoffNotifyWhatsapp === true,
+      handoff_notify_whatsapp: normalizeHandoffWhatsappNotification(initialAssignmentMode, handoffStage, input.handoffNotifyWhatsapp),
       paid_prospecting_approved: input.paidProspectingApproved === true,
       notify_immediate: input.notifyImmediate !== false,
       notify_progress: input.notifyProgress !== false,
@@ -252,7 +253,10 @@ Deno.serve(async (request) => {
       const write = existing?.id
         ? await admin.from('prospecting_schedules').update(schedulePayload).eq('id', existing.id).eq('organization_id', organizationId).select('*').single()
         : await admin.from('prospecting_schedules').insert(schedulePayload).select('*').single();
-      if (write.error || !write.data) throw write.error ?? new Error('schedule_not_saved');
+      if (write.error || !write.data) {
+        console.error('ana_operation_schedule_write_failed', { code: write.error?.code ?? null, message: write.error?.message ?? null });
+        throw new Error('schedule_not_saved');
+      }
       const { error: companyError } = await admin.from('company_settings').update({ ana_operation_enabled: normalized.enabled, ana_operation_mode: normalized.mode, updated_at: new Date().toISOString() }).eq('organization_id', organizationId);
       if (companyError) throw companyError;
       await admin.from('notification_preferences').upsert({
