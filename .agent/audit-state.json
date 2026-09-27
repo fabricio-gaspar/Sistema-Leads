@@ -2,21 +2,21 @@
   "schema_version": 1,
   "baseline_version": 5,
   "baseline_commit": "1dc6275b8c7d70de953b66397a8c89f5e97bc15b",
-  "last_audited_commit": "2b6cb645b867e1f9e6c1e13a3757d2d0d27d1089",
-  "current_head_at_update": "2b6cb645b867e1f9e6c1e13a3757d2d0d27d1089",
-  "working_tree_status": "dashboard_palette_unification_validated_pending_publication",
+  "last_audited_commit": "8a48ea4cad1d8c0ce2feb5c3f37928cd36b73c3f",
+  "current_head_at_update": "8a48ea4cad1d8c0ce2feb5c3f37928cd36b73c3f",
+  "working_tree_status": "dashboard_palette_unification_published_v135",
   "stage_1_baseline": ".agent/baselines/2026-09-25-stage-1.json",
   "recovery_tag": "baseline-wayflex-stage1-20260925",
   "work_branch": "main",
   "last_site_publication": {
-    "commit": "2b6cb645b867e1f9e6c1e13a3757d2d0d27d1089",
-    "site_version": 134,
-    "deployment_id": "appgdep_6ab9161b2234819199337ff87272565c",
-    "validated_at": "2026-09-27T13:12:33Z",
+    "commit": "8a48ea4cad1d8c0ce2feb5c3f37928cd36b73c3f",
+    "site_version": 135,
+    "deployment_id": "appgdep_6ab9381b70f4819191c320dd3baff9aa",
+    "validated_at": "2026-09-27T15:37:33Z",
     "working_tree_status": "published"
   },
   "full_audit_required": false,
-  "baseline_status": "dashboard_palette_unification_validated",
-  "updated_at": "2026-09-27T15:35:42Z",
-  "next_action": "Publicar a paleta unificada no Site oficial e registrar a versão; WhatsApp e zapi_webhook continuam como pendências operacionais separadas."
+  "baseline_status": "dashboard_palette_unification_published",
+  "updated_at": "2026-09-27T15:37:33Z",
+  "next_action": "Restabelecer WhatsApp e zapi_webhook e executar E2E individual autorizado antes de liberar a ativação automática."
 }

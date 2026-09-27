@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "validated_commit": "2b6cb645b867e1f9e6c1e13a3757d2d0d27d1089",
+  "validated_commit": "8a48ea4cad1d8c0ce2feb5c3f37928cd36b73c3f",
   "last_validated_at": "2026-09-27",
   "current_validation": {
     "stage": "dashboard_palette_unification",

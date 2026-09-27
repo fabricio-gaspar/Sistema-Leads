@@ -4,7 +4,7 @@
 
 - Consolidada a paleta da Dashboard nos tokens globais, componentes compartilhados e exceções das telas operacionais e administrativas.
 - Preservadas as distinções de sucesso, atenção e falha e mantidas cores proprietárias somente em ícones de provedores. Nenhuma regra, rota, persistência ou automação foi alterada.
-- Type-check, lint, 46 arquivos/282 testes e build/artefato Sites passaram. Publicação ainda pendente neste registro.
+- Type-check, lint, 46 arquivos/282 testes e build/artefato Sites passaram. Publicado no Site oficial v135 pelo commit `8a48ea4`.
 
 ## 2026-09-27 — Controle da Ana automática na Dashboard
 

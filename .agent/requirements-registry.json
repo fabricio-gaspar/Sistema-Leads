@@ -5,8 +5,8 @@
       "id": "REQ-054",
       "description": "Aplicar em todo o CRM a mesma paleta visual da Dashboard sem alterar a operação",
       "module": "frontend",
-      "status": "implemented_validated_pending_site_publish",
-      "evidence": "Paleta centralizada no shell e nos tokens globais; telas operacionais, administrativas, estados e gráficos harmonizados. Cores de marca limitadas aos ícones externos. Type-check, lint, 46 arquivos/282 testes e build/artefato Sites aprovados; nenhuma regra, rota, integração ou persistência alterada.",
+      "status": "confirmed",
+      "evidence": "Site oficial v135, commit 8a48ea4. Paleta centralizada no shell e nos tokens globais; telas operacionais, administrativas, estados e gráficos harmonizados. Cores de marca limitadas aos ícones externos. Type-check, lint, 46 arquivos/282 testes e build/artefato Sites aprovados; nenhuma regra, rota, integração ou persistência alterada.",
       "last_validation": "2026-09-27"
     },
     {

@@ -4,7 +4,7 @@
 
 - O shell `wf-app` concentra a paleta oficial e os tokens Tailwind de background, foreground, primary, secondary e accent. Telas operacionais e administrativas reutilizam esses valores em vez das antigas paletas teal, Apple e Tailwind padrão.
 - Estados continuam semanticamente distintos: verde para sucesso, âmbar para atenção e coral para erro/urgência. Grafite e lima permanecem ações e seleção; cores proprietárias ficam restritas aos ícones de provedores.
-- Alteração exclusivamente visual, sem impacto em rotas, domínio, Supabase, Ana, filas ou integrações. Type-check, lint, 46 arquivos/282 testes e build aprovados; publicação do Site pendente.
+- Alteração exclusivamente visual, sem impacto em rotas, domínio, Supabase, Ana, filas ou integrações. Type-check, lint, 46 arquivos/282 testes e build aprovados; Site oficial v135 publicado pelo commit `8a48ea4`.
 
 ## Controle da Ana automática na Dashboard — 27/09/2026
 
