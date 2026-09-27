@@ -5,8 +5,8 @@
       "id": "REQ-053",
       "description": "Ativar ou pausar a operação automática da Ana por um controle compacto na Dashboard",
       "module": "dashboard",
-      "status": "implemented_validated_pending_site_publish",
-      "evidence": "Controle reutiliza a configuração existente e chama ana-operations; RPC transacional exclusiva do backend revalida prontidão, permissão, rota, autorização e concorrência antes de gravar. Migration oficial aplicada, ana-operations v4 publicada, authenticated sem EXECUTE. Type-check frontend/Edge, lint, 46 arquivos/282 testes e build passaram. Estado oficial permaneceu desativado porque WhatsApp e zapi_webhook estão pausados; nenhum provedor foi chamado.",
+      "status": "confirmed",
+      "evidence": "Site oficial v134, commit 2b6cb64. Controle reutiliza a configuração existente e chama ana-operations; RPC transacional exclusiva do backend revalida prontidão, permissão, rota, autorização e concorrência antes de gravar. Migration oficial aplicada, ana-operations v4 publicada, authenticated sem EXECUTE. Type-check frontend/Edge, lint, 46 arquivos/282 testes e build passaram. Estado oficial permaneceu desativado porque WhatsApp e zapi_webhook estão pausados; nenhum provedor foi chamado.",
       "last_validation": "2026-09-27"
     },
     {
