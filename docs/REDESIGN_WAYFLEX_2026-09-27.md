@@ -2,6 +2,8 @@
 
 Data: 27/09/2026. Base: Site existente, versão 136; checkout inicial `527d2ca14b1732aad4953b8fc06f7f98f3d76954`.
 
+**Publicação confirmada:** versão 137, código `e19a3570143f55976e3f080efa2c43f9e916d2ea`, deploy `appgdep_6ab948949864819190d1f63be2a0d5a2` em estado `succeeded`. Endereço: https://leadai-crm-preview.fabricio926564.chatgpt.site. Esta confirmação é de publicação, não de homologação visual autenticada.
+
 ## Resultado e limite desta entrega
 
 Implementação no React/TypeScript existente, sem segundo CRM, troca de stack ou alteração de credenciais. As 11 rotas foram preservadas. Dashboard, Funil e Relatórios receberam uma estrutura analítica nova; as demais telas receberam refinamentos compartilhados e correções dirigidas de fluxo e estados. O layout entregue é código executável, não uma imagem com números demonstrativos.
@@ -154,7 +156,7 @@ A execução Vitest mostrou asserções aprovadas, mas não encerrou; tentativas
 | P1 — arquitetura, componentes e fórmulas | CONCLUÍDO | Documentação e domínio central neste repositório |
 | P1 — implementação nas 11 rotas | CONCLUÍDO | Publicação pelo fluxo do Site existente |
 | P1 — alta fidelidade das 11 telas e responsividade homologadas | PARCIAL | Código responsivo implementado; falta revisão visual autenticada completa |
-| P1 — executável navegável | PARCIAL até confirmação do deploy | Confirmar publicação e avaliar com a sessão real |
+| P1 — executável navegável publicado | CONCLUÍDO | Site v137 confirmado; avaliar a interface com a sessão real |
 | P1 — revisão independente estática | CONCLUÍDO | Achados prioritários corrigidos; não equivale a revisão visual |
 | P1 — suíte completa de regressão | BLOQUEADO neste runtime | Executar Vitest em CI/runtime onde o processo encerre normalmente |
 | P2 — atualização automática com infraestrutura atual | CONCLUÍDO | Mensagens por evento, demais indicadores por consulta explícita |

@@ -2,21 +2,21 @@
   "schema_version": 1,
   "baseline_version": 5,
   "baseline_commit": "1dc6275b8c7d70de953b66397a8c89f5e97bc15b",
-  "last_audited_commit": "527d2ca14b1732aad4953b8fc06f7f98f3d76954",
-  "current_head_at_update": "527d2ca14b1732aad4953b8fc06f7f98f3d76954",
-  "working_tree_status": "commercial_redesign_applied_pending_publication",
+  "last_audited_commit": "e19a3570143f55976e3f080efa2c43f9e916d2ea",
+  "current_head_at_update": "e19a3570143f55976e3f080efa2c43f9e916d2ea",
+  "working_tree_status": "commercial_redesign_published_v137_documentation_checkpoint",
   "stage_1_baseline": ".agent/baselines/2026-09-25-stage-1.json",
   "recovery_tag": "baseline-wayflex-stage1-20260925",
   "work_branch": "main",
   "last_site_publication": {
-    "commit": "de6d902b0179f137454e70cbcb70c3f6e9c88d74",
-    "site_version": 136,
-    "deployment_id": "appgdep_6ab93acb92208191a9c9603c7a2be576",
-    "validated_at": "2026-09-27T15:48:50Z",
+    "commit": "e19a3570143f55976e3f080efa2c43f9e916d2ea",
+    "site_version": 137,
+    "deployment_id": "appgdep_6ab948949864819190d1f63be2a0d5a2",
+    "validated_at": "2026-09-27T16:47:42Z",
     "working_tree_status": "published"
   },
   "full_audit_required": false,
   "baseline_status": "commercial_redesign_partial_pending_visual_qa",
-  "updated_at": "2026-09-27T16:44:00Z",
-  "next_action": "Confirmar publicação pelo fluxo Sites; homologar 11 telas autenticadas em desktop/tablet/mobile e executar Vitest em CI. Não ativar Ana nem enviar mensagens para QA visual."
+  "updated_at": "2026-09-27T16:47:42Z",
+  "next_action": "Homologar 11 telas autenticadas em desktop/tablet/mobile e executar Vitest em CI. Não ativar Ana nem enviar mensagens para QA visual. v137 publicado com sucesso."
 }

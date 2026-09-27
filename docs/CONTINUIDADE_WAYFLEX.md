@@ -1,5 +1,10 @@
 # Checkpoint — WayFlex CRM
 
+## Redesign publicado — 27/09/2026
+
+- Site v137, commit `e19a3570143f55976e3f080efa2c43f9e916d2ea`, deploy `appgdep_6ab948949864819190d1f63be2a0d5a2` concluído em `succeeded`. URL preservada. Type-check, lint, build e 17 smoke checks passaram; nenhuma operação comercial foi disparada.
+- Próxima ação exata: homologar visualmente as 11 rotas autenticadas em 1440/1024/390 px, validar teclado/diálogos e executar a suíte Vitest em CI que encerre normalmente. Não reauditar todo o histórico nem ativar provedores para testar aparência. Especificação em `docs/REDESIGN_WAYFLEX_2026-09-27.md`.
+
 ## 27/09/2026 — Redesign comercial (checkpoint anterior à publicação)
 
 - Nova análise comum a Dashboard/Funil/Relatórios e refinamento das 11 rotas. Carteira separada de consentimento, percentuais sem base indisponíveis, propostas líquidas e preços confirmados por humano.
