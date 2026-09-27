@@ -15,7 +15,7 @@ import MetaCoexistencePanel from '@/components/feature/MetaCoexistencePanel';
 const statusCopy: Record<WhatsappConnectionStatus, { label: string; tone: string; icon: string }> = {
   unconfigured: { label: 'Não configurado', tone: 'bg-background-100 text-foreground-600', icon: 'ri-settings-4-line' },
   configured: { label: 'Aguardando conexão', tone: 'bg-amber-50 text-amber-800', icon: 'ri-time-line' },
-  qr: { label: 'QR Code aberto', tone: 'bg-blue-50 text-blue-800', icon: 'ri-qr-code-line' },
+  qr: { label: 'QR Code aberto', tone: 'bg-primary-50 text-primary-800', icon: 'ri-qr-code-line' },
   connected: { label: 'Conectado', tone: 'bg-primary-50 text-primary-800', icon: 'ri-checkbox-circle-line' },
   disconnected: { label: 'Desconectado', tone: 'bg-amber-50 text-amber-800', icon: 'ri-link-unlink-m' },
   expired: { label: 'Instância expirada', tone: 'bg-accent-50 text-accent-800', icon: 'ri-error-warning-line' },

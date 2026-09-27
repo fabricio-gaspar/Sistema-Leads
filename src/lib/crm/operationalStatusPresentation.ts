@@ -128,7 +128,7 @@ export function operationalIconTone(key: string): string {
     whatsapp_zapi: 'bg-[#25D366]/10 text-[#128C3E]',
     whatsapp_meta: 'bg-[#0866FF]/10 text-[#0866FF]',
     zapi_webhook: 'bg-[#25D366]/10 text-[#128C3E]',
-    ai: 'bg-[#5856D6]/10 text-[#5856D6]',
+    ai: 'bg-primary-50 text-primary-700',
     apify: 'bg-[#FF6B35]/10 text-[#C2410C]',
     google_places: 'bg-[#4285F4]/10 text-[#2563EB]',
     csv: 'bg-primary-50 text-primary-700',

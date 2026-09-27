@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useTarefasStore } from '@/hooks/useTarefasStore';
 
 const PRIORIDADE: Record<string, { label: string; chip: string }> = {
-  ALTA: { label: 'Alta', chip: 'bg-rose-100 text-rose-700' },
+  ALTA: { label: 'Alta', chip: 'bg-accent-100 text-accent-700' },
   MEDIA: { label: 'Média', chip: 'bg-amber-100 text-amber-700' },
   BAIXA: { label: 'Baixa', chip: 'bg-secondary-100 text-secondary-700' },
 };
@@ -46,7 +46,7 @@ export default function FilaTarefas() {
             <p className="text-[10px] text-foreground-400">Atividades abertas para a equipe</p>
           </div>
         </div>
-        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 text-[10px] font-semibold">
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-accent-100 text-accent-700 text-[10px] font-semibold">
           {vencidas} vencida(s)
         </span>
       </div>
@@ -62,12 +62,12 @@ export default function FilaTarefas() {
               <div
                 key={t.id}
                 className={`flex items-center gap-2.5 rounded-lg px-2 py-2 -mx-1 border ${
-                  vencida ? 'border-rose-200 bg-rose-50/50' : 'border-transparent hover:border-background-200 hover:bg-background-100/60'
+                  vencida ? 'border-accent-200 bg-accent-50' : 'border-transparent hover:border-background-200 hover:bg-background-100/60'
                 } transition-colors`}
               >
                 <div
                   className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
-                    vencida ? 'bg-rose-100 text-rose-600' : 'bg-background-100 text-foreground-500'
+                    vencida ? 'bg-accent-100 text-accent-600' : 'bg-background-100 text-foreground-500'
                   }`}
                 >
                   <i className={`${vencida ? 'ri-alert-line' : 'ri-task-line'} text-sm`}></i>

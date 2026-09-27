@@ -3,15 +3,15 @@
   "validated_commit": "2b6cb645b867e1f9e6c1e13a3757d2d0d27d1089",
   "last_validated_at": "2026-09-27",
   "current_validation": {
-    "stage": "dashboard_ana_automatic_control",
+    "stage": "dashboard_palette_unification",
     "frontend_typecheck": "passed",
     "lint": "passed",
     "test_files": 46,
     "tests_passed": 282,
     "production_build": "passed",
     "sites_artifact": "passed",
-    "visual_review": "Controle compacto aplicado à Dashboard usando o design existente; QA visual de navegador não solicitada.",
-    "external_end_to_end": "not_run; WhatsApp e zapi_webhook estão pausados. A ativação permanece bloqueada e nenhuma busca, mensagem ou execução comercial foi iniciada."
+    "visual_review": "Paleta da Dashboard aplicada por tokens e estilos compartilhados a todos os módulos; cores de marca preservadas somente nos ícones de provedores. QA visual de navegador não exigida para a publicação.",
+    "external_end_to_end": "not_applicable; mudança exclusivamente visual, sem chamada a Supabase, provedor, busca, mensagem ou automação."
   },
   "commands": [
     {

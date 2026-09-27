@@ -14,9 +14,9 @@ interface FormState {
 const formVazio = (): FormState => ({
   nome: '',
   descricao: '',
-  primaria: '#0F766E',
-  secundaria: '#14B8A6',
-  texto: '#111827',
+  primaria: '#168654',
+  secundaria: '#14151A',
+  texto: '#14151A',
   assinatura: 'Equipe Wayflex',
   padrao: false,
 });

@@ -2,13 +2,13 @@ import { Link } from 'react-router-dom';
 import { useIntegracoesStore, type OperationalIntegration } from '@/hooks/useIntegracoesStore';
 
 const STATUS: Record<OperationalIntegration['status'], { dot: string; title: string }> = {
-  validated: { dot: 'bg-emerald-500', title: 'Validada nas últimas 24 horas' },
+  validated: { dot: 'bg-primary-500', title: 'Validada nas últimas 24 horas' },
   validation_due: { dot: 'bg-amber-500', title: 'Validação vencida' },
-  inactive: { dot: 'bg-slate-400', title: 'Configurada, mas inativa' },
+  inactive: { dot: 'bg-background-400', title: 'Configurada, mas inativa' },
   paused: { dot: 'bg-amber-500', title: 'Pausada' },
   pending: { dot: 'bg-amber-500', title: 'Entrada pendente' },
-  error: { dot: 'bg-rose-500', title: 'Erro de conexão' },
-  not_configured: { dot: 'bg-slate-300', title: 'Não configurada' },
+  error: { dot: 'bg-accent-500', title: 'Erro de conexão' },
+  not_configured: { dot: 'bg-background-300', title: 'Não configurada' },
 };
 
 export default function IntegracoesStatus() {
@@ -32,7 +32,7 @@ export default function IntegracoesStatus() {
           </div>
         </div>
         {erros.length > 0 && (
-          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 text-[10px] font-semibold">
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-accent-100 text-accent-700 text-[10px] font-semibold">
             <i className="ri-alert-line"></i>
             {erros.length} erro(s)
           </span>

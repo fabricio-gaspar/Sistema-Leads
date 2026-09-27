@@ -30,9 +30,9 @@ export default function TelemetriaAna() {
   const itens = [
     { label: 'Mensagens enviadas', valor: stats.mensagens, icon: 'ri-send-plane-line', cor: 'text-primary-600' },
     { label: 'Leads qualificados', valor: stats.qualificados, icon: 'ri-user-star-line', cor: 'text-accent-600' },
-    { label: 'Reuniões agendadas', valor: stats.reunioes, icon: 'ri-calendar-check-line', cor: 'text-emerald-500' },
+    { label: 'Reuniões agendadas', valor: stats.reunioes, icon: 'ri-calendar-check-line', cor: 'text-primary-500' },
     { label: 'Handoffs p/ humano', valor: stats.handoffs, icon: 'ri-user-heart-line', cor: 'text-amber-500' },
-    { label: 'Opt-outs', valor: stats.optOuts, icon: 'ri-forbid-line', cor: 'text-rose-500' },
+    { label: 'Opt-outs', valor: stats.optOuts, icon: 'ri-forbid-line', cor: 'text-accent-500' },
     { label: 'Orçamentos em preparo', valor: stats.orcamentos, icon: 'ri-file-list-3-line', cor: 'text-secondary-600' },
   ];
 

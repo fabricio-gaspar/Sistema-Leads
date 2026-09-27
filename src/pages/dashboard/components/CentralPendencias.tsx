@@ -54,7 +54,7 @@ export default function CentralPendencias() {
         valor: aguardandoHumano,
         descricao: 'leads transferidos pela Ana',
         icon: 'ri-user-heart-line',
-        cor: 'bg-rose-100 text-rose-600',
+        cor: 'bg-accent-100 text-accent-600',
         to: '/dashboard/atendimento',
       },
       {
@@ -72,7 +72,7 @@ export default function CentralPendencias() {
         valor: travados,
         descricao: 'sem avançar há dias',
         icon: 'ri-git-commit-line',
-        cor: 'bg-orange-100 text-orange-600',
+        cor: 'bg-amber-100 text-amber-700',
         to: '/dashboard/kanban',
       },
       {
@@ -81,7 +81,7 @@ export default function CentralPendencias() {
         valor: orcamentosSemResposta,
         descricao: 'enviados aguardando retorno',
         icon: 'ri-file-list-3-line',
-        cor: 'bg-sky-100 text-sky-600',
+        cor: 'bg-primary-100 text-primary-700',
         to: '/dashboard/orcamentos',
       },
       {
@@ -90,7 +90,7 @@ export default function CentralPendencias() {
         valor: tarefasAbertas,
         descricao: `${tarefasVencidas} vencida(s)`,
         icon: 'ri-task-line',
-        cor: 'bg-violet-100 text-violet-600',
+        cor: 'bg-background-100 text-foreground-700',
         to: '/dashboard/agenda',
       },
     ];

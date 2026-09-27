@@ -65,20 +65,20 @@ export default function DadosTab() {
         </div>
       </section>
 
-      <section className="bg-white border border-[#E5E5EA] rounded-2xl p-6 shadow-xs">
+      <section className="bg-white border border-[#E3E7ED] rounded-2xl p-6 shadow-xs">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           <div className="flex items-center gap-3">
           <div className="w-9 h-9 bg-primary-100 rounded-xl flex items-center justify-center">
             <i className="ri-box-3-line text-primary-700"></i>
             </div>
             <div>
-              <h3 className="font-heading font-bold text-[#1D1D1F]">Produtos e modelos de orçamento</h3>
-              <p className="text-sm text-[#6E6E73]">O catálogo oficial é a única fonte usada nesta configuração; nenhum produto é criado por dados de demonstração.</p>
+              <h3 className="font-heading font-bold text-[#14151A]">Produtos e modelos de orçamento</h3>
+              <p className="text-sm text-[#69717D]">O catálogo oficial é a única fonte usada nesta configuração; nenhum produto é criado por dados de demonstração.</p>
             </div>
           </div>
           <Link
             to="/dashboard/configuracoes?tab=produtos"
-            className="inline-flex items-center justify-center gap-2 bg-[#F2F2F7] hover:bg-[#E5E5EA] text-[#1D1D1F] border border-[#E5E5EA] rounded-xl px-3 py-2 text-xs font-semibold transition"
+            className="inline-flex items-center justify-center gap-2 bg-[#F2F4F8] hover:bg-[#E3E7ED] text-[#14151A] border border-[#E3E7ED] rounded-xl px-3 py-2 text-xs font-semibold transition"
           >
             Abrir catálogo oficial
             <i className="ri-arrow-right-line"></i>
@@ -153,7 +153,7 @@ export default function DadosTab() {
 
       <div className="flex items-center justify-end gap-3">
         {error && (
-          <span className="inline-flex items-center gap-2 text-[#FF3B30] text-sm font-medium">
+          <span className="inline-flex items-center gap-2 text-[#BD3D32] text-sm font-medium">
             <i className="ri-error-warning-line"></i>
             {error}
           </span>

@@ -1,10 +1,10 @@
 /* Command Center language for operational pages. Scoped to the page root so
    dialogs and the shared navigation keep their existing behavior. */
 .wf-secondary-page {
-  --wf-command-ink: #171a1f;
-  --wf-command-green: #168654;
-  --wf-command-coral: #e35a4f;
-  --wf-command-line: #e4e9ed;
+  --wf-command-ink: var(--wf-ink, #14151a);
+  --wf-command-green: var(--wf-green, #168654);
+  --wf-command-coral: var(--wf-coral, #bd3d32);
+  --wf-command-line: var(--wf-line, #e3e7ed);
   gap: 1.15rem;
 }
 
@@ -145,7 +145,7 @@
 }
 
 .wf-secondary-table th {
-  background: #f8f9fa;
+  background: #F7F8FA;
   color: #66717b;
   font-size: .72rem;
   font-weight: 650;

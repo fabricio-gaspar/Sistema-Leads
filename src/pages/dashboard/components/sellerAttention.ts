@@ -44,10 +44,10 @@ export function buildSellerAttentionGroups(notifications: Notificacao[], leads: 
   const followUpIds = new Set(followUpItems.map((lead) => lead.id));
   const staleItems = stale.filter((lead) => !notifiedLeadIds.has(lead.id) && !followUpIds.has(lead.id));
   return [
-    { id: 'now', title: 'Responder agora', description: 'Contato aguardando ação humana', icon: 'ri-reply-line', tone: 'bg-rose-50 text-rose-700', items: respondNow.map(notificationItem) },
-    { id: 'hot', title: 'Leads quentes', description: 'Interesse comercial identificado', icon: 'ri-fire-line', tone: 'bg-orange-50 text-orange-700', items: hot.map(notificationItem) },
+    { id: 'now', title: 'Responder agora', description: 'Contato aguardando ação humana', icon: 'ri-reply-line', tone: 'bg-accent-50 text-accent-700', items: respondNow.map(notificationItem) },
+    { id: 'hot', title: 'Leads quentes', description: 'Interesse comercial identificado', icon: 'ri-fire-line', tone: 'bg-amber-50 text-amber-700', items: hot.map(notificationItem) },
     { id: 'commercial', title: 'Reuniões e orçamentos', description: 'Próxima ação comercial', icon: 'ri-calendar-check-line', tone: 'bg-primary-50 text-primary-700', items: commercial.map(notificationItem) },
-    { id: 'follow-up', title: 'Acompanhamentos de hoje', description: 'Retornos planejados para hoje', icon: 'ri-calendar-todo-line', tone: 'bg-emerald-50 text-emerald-700', items: followUpItems.map((lead) => leadItem(lead, 'Realizar acompanhamento')) },
+    { id: 'follow-up', title: 'Acompanhamentos de hoje', description: 'Retornos planejados para hoje', icon: 'ri-calendar-todo-line', tone: 'bg-primary-50 text-primary-700', items: followUpItems.map((lead) => leadItem(lead, 'Realizar acompanhamento')) },
     { id: 'stale', title: 'Sem resposta há muito tempo', description: 'Revisar contato ou cadência', icon: 'ri-timer-flash-line', tone: 'bg-amber-50 text-amber-800', items: staleItems.map((lead) => leadItem(lead, 'Revisar contato')) },
   ].filter((group) => group.items.length > 0);
 }

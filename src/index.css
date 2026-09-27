@@ -112,16 +112,16 @@
 .ana-config > header { max-width: 56rem; }
 .ana-config > header h1 { margin-top: .25rem; font-size: clamp(1.4rem, 2vw, 1.75rem); font-weight: 700; letter-spacing: -.035em; color: #17201f; }
 .ana-config > header > p:last-child { margin-top: .35rem; color: #66706e; font-size: .9rem; line-height: 1.55; }
-.ana-config .eyebrow { font-size: 0.68rem; font-weight: 750; letter-spacing: .1em; text-transform: uppercase; color: #197166; }
+.ana-config .eyebrow { font-size: 0.68rem; font-weight: 750; letter-spacing: .1em; text-transform: uppercase; color: #168654; }
 .ana-config .steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .5rem; margin: 1.25rem 0; }
 .ana-config .steps button { min-width: 0; display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; column-gap: .45rem; border: 1px solid #e1e7e5; border-radius: .65rem; padding: .7rem; color: #65706e; background: #fff; text-align: left; }
 .ana-config .steps button b { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .78rem; font-weight: 650; }
 .ana-config .step-description { grid-column: 2; min-width: 0; margin-top: .15rem; color: #7c8785; font-size: .68rem; line-height: 1.35; }
 .ana-config .steps button span { display: inline-flex; flex: 0 0 auto; align-items: center; justify-content: center; width: 1.35rem; height: 1.35rem; border-radius: 999px; background: #edf1f0; font-size: .7rem; font-weight: 750; }
 .ana-config .steps button:hover { border-color: #cdd7d4; background: #fafcfb; color: #35413f; }
-.ana-config .steps button.active { border-color: #1d9b8b; color: #12695f; background: #effbf9; box-shadow: 0 0 0 2px rgb(29 155 139 / .08); }
+.ana-config .steps button.active { border-color: #168654; color: #116b43; background: #e9f8ef; box-shadow: 0 0 0 2px rgb(22 134 84 / .08); }
 .ana-config .steps button.active span,
-.ana-config .steps button.done span { background: #1d9b8b; color: white; }
+.ana-config .steps button.done span { background: #168654; color: white; }
 .ana-config .card { display: flex; min-height: 28rem; flex-direction: column; background: #fff; border: 1px solid #e1e7e5; border-radius: .9rem; padding: 1.35rem; box-shadow: 0 1px 2px rgb(15 23 42 / .025); }
 .ana-config .card-head,
 .ana-config .card footer { display:flex; align-items:center; justify-content:space-between; gap:1rem; }
@@ -140,10 +140,10 @@
 .ana-config .review { display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap:.55rem; background:#f5f8f7; padding:1rem; border-radius:.65rem; color:#46514f; }
 .ana-config .review > * { min-width: 0; padding: .55rem .7rem; border: 1px solid #e7ecea; border-radius: .5rem; background: rgb(255 255 255 / .72); overflow-wrap: anywhere; }
 .ana-config .review strong { grid-column: 1 / -1; color: #26312f; }
-.ana-config .saved { color:#197166; font-size:.8rem; font-weight:600; }
+.ana-config .saved { color:#168654; font-size:.8rem; font-weight:600; }
 .ana-config .primary,
 .ana-config .secondary { min-height: 2.5rem; border-radius:.55rem; padding:.65rem .9rem; font-size:.84rem; font-weight:600; cursor:pointer; }
-.ana-config .primary { background:#1d9b8b; color:white; margin-left:.5rem; }
+.ana-config .primary { background:#14151a; color:white; margin-left:.5rem; }
 .ana-config .secondary { background:#f2f5f4; color:#3d4946; }
 .ana-config .secondary:disabled { opacity:.45; cursor:not-allowed; }
 .ana-config .card footer { position: sticky; bottom: 0; z-index: 2; margin: auto -1.35rem -1.35rem; padding: .9rem 1.35rem; border-top: 1px solid #e7ecea; border-radius: 0 0 .9rem .9rem; background: rgb(255 255 255 / .96); backdrop-filter: blur(10px); }
@@ -176,70 +176,70 @@
   --font-body: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Plus Jakarta Sans', sans-serif;
   --font-label: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Plus Jakarta Sans', sans-serif;
 
-  /* Background — branco e cinza neutro para alta densidade de operação. */
-  --background-50: 1 0 0;
-  --background-100: 0.967 0.002 270;
-  --background-200: 0.93 0.004 270;
-  --background-300: 0.885 0.006 270;
-  --background-400: 0.72 0.008 270;
-  --background-500: 0.61 0.009 270;
-  --background-600: 0.51 0.010 270;
-  --background-700: 0.42 0.010 270;
-  --background-800: 0.31 0.009 270;
-  --background-900: 0.22 0.008 270;
-  --background-950: 0.14 0.007 270;
+  /* Dashboard WayFlex: branco e cinza frio para superfícies operacionais. */
+  --background-50: 1 0 89.88;
+  --background-100: 0.9668 0.0058 264.53;
+  --background-200: 0.9266 0.0092 258.34;
+  --background-300: 0.8584 0.0129 255.51;
+  --background-400: 0.7305 0.0111 261.78;
+  --background-500: 0.5909 0.0187 259.42;
+  --background-600: 0.5054 0.0190 262.69;
+  --background-700: 0.4153 0.0164 262.31;
+  --background-800: 0.3210 0.0131 267.13;
+  --background-900: 0.2620 0.0134 253.06;
+  --background-950: 0.1969 0.0101 276.49;
 
-  /* Primary — verde Wayflex da referência. */
-  --primary-50: 0.975 0.018 154;
-  --primary-100: 0.945 0.045 154;
-  --primary-200: 0.89 0.085 154;
-  --primary-300: 0.81 0.125 154;
-  --primary-400: 0.72 0.155 154;
-  --primary-500: 0.64 0.16 154;
-  --primary-600: 0.555 0.15 154;
-  --primary-700: 0.47 0.13 154;
-  --primary-800: 0.39 0.105 154;
-  --primary-900: 0.32 0.085 154;
-  --primary-950: 0.23 0.06 154;
+  /* Primary — verde Wayflex da Dashboard. */
+  --primary-50: 0.9817 0.0091 161.36;
+  --primary-100: 0.9655 0.0198 159.76;
+  --primary-200: 0.9212 0.0422 157.19;
+  --primary-300: 0.8445 0.0833 157.58;
+  --primary-400: 0.7253 0.1241 154.68;
+  --primary-500: 0.6111 0.1375 155.24;
+  --primary-600: 0.5488 0.1228 157.53;
+  --primary-700: 0.4676 0.1032 157.89;
+  --primary-800: 0.3962 0.0839 159.32;
+  --primary-900: 0.3038 0.0614 160.31;
+  --primary-950: 0.2440 0.0460 160;
 
-  /* Accent — macOS orange */
-  --accent-50: 0.98 0.02 80;
-  --accent-100: 0.95 0.05 78;
-  --accent-200: 0.90 0.09 75;
-  --accent-300: 0.84 0.13 73;
-  --accent-400: 0.78 0.16 72;
-  --accent-500: 0.72 0.17 70;
-  --accent-600: 0.64 0.16 68;
-  --accent-700: 0.55 0.14 65;
-  --accent-800: 0.46 0.12 62;
-  --accent-900: 0.37 0.10 58;
-  --accent-950: 0.28 0.08 55;
+  /* Accent — coral reservado a urgência e falha. */
+  --accent-50: 0.9818 0.0090 34.30;
+  --accent-100: 0.9639 0.0179 30.27;
+  --accent-200: 0.9137 0.0443 26.58;
+  --accent-300: 0.8070 0.0885 25.22;
+  --accent-400: 0.6791 0.1351 26.73;
+  --accent-500: 0.5434 0.1660 28.65;
+  --accent-600: 0.4853 0.1556 28.21;
+  --accent-700: 0.4139 0.1307 27.88;
+  --accent-800: 0.3531 0.1066 27.09;
+  --accent-900: 0.2786 0.0789 27.78;
+  --accent-950: 0.2300 0.0600 28;
 
-  /* Secondary – warm stone gray */
-  --secondary-50: 0.97 0.005 85;
-  --secondary-100: 0.93 0.008 85;
-  --secondary-200: 0.87 0.012 84;
-  --secondary-300: 0.78 0.015 83;
-  --secondary-400: 0.68 0.018 82;
-  --secondary-500: 0.58 0.020 80;
-  --secondary-600: 0.50 0.018 78;
-  --secondary-700: 0.42 0.016 76;
-  --secondary-800: 0.34 0.014 74;
-  --secondary-900: 0.26 0.012 72;
-  --secondary-950: 0.18 0.010 70;
+  /* Secondary — grafite frio da Dashboard. */
+  --secondary-50: 0.9789 0.0029 264.54;
+  --secondary-100: 0.9567 0.0052 247.88;
+  --secondary-200: 0.9165 0.0087 247.92;
+  --secondary-300: 0.8584 0.0129 255.51;
+  --secondary-400: 0.7305 0.0111 261.78;
+  --secondary-500: 0.6007 0.0173 257.23;
+  --secondary-600: 0.5054 0.0190 262.69;
+  --secondary-700: 0.4153 0.0164 262.31;
+  --secondary-800: 0.3210 0.0131 267.13;
+  --secondary-900: 0.2620 0.0134 253.06;
+  --secondary-950: 0.1969 0.0101 276.49;
 
-  /* Foreground – warm dark */
-  --foreground-50: 0.96 0.005 85;
-  --foreground-100: 0.90 0.008 82;
-  --foreground-200: 0.80 0.010 80;
-  --foreground-300: 0.68 0.012 78;
-  --foreground-400: 0.56 0.012 76;
-  --foreground-500: 0.46 0.011 74;
-  --foreground-600: 0.38 0.010 72;
-  --foreground-700: 0.30 0.009 70;
-  --foreground-800: 0.24 0.008 68;
-  --foreground-900: 0.18 0.007 66;
-  --foreground-950: 0.13 0.006 65;
+  /* Foreground — grafite da Dashboard. */
+  --foreground-50: 0.9729 0.0029 264.54;
+  --foreground-100: 0.9266 0.0092 258.34;
+  --foreground-200: 0.8567 0.0149 264.49;
+  --foreground-300: 0.7501 0.0198 265.94;
+  --foreground-400: 0.6876 0.0175 245.19;
+  --foreground-500: 0.5460 0.0211 258.37;
+  --foreground-600: 0.4717 0.0239 257.51;
+  --foreground-700: 0.3690 0.0196 257.26;
+  --foreground-800: 0.2935 0.0152 269.16;
+  --foreground-900: 0.2360 0.0138 272.74;
+  --foreground-950: 0.1969 0.0101 276.49;
 }
 
 body {
@@ -291,9 +291,9 @@ input:not([type='checkbox']):not([type='radio']),
 select,
 textarea {
   min-height: 2.625rem;
-  border-color: #e5e5ea;
-  background: #f2f2f7;
-  color: #1d1d1f;
+  border-color: #E3E7ED;
+  background: #F2F4F8;
+  color: #14151A;
   border-radius: .75rem;
   box-shadow: none;
   transition: border-color 150ms ease, background-color 150ms ease, box-shadow 150ms ease;
@@ -320,7 +320,7 @@ table {
 }
 
 thead th {
-  color: #86868b;
+  color: #777E89;
   font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: .6875rem;
   font-weight: 650;
@@ -338,9 +338,9 @@ tbody tr:hover {
 
 /* Wayflex Executive Light aplicado também às telas legadas. */
 .wf-page { max-width: 1680px; padding: 1.5rem; }
-.wf-page-header { border-color: #e5e5ea; padding-bottom: 1.25rem; }
-.wf-page-title, main h1, main h2, main h3 { color: #1d1d1f; font-weight: 650; }
-.wf-page-description, .wf-section-description { color: #6e6e73; }
+.wf-page-header { border-color: #E3E7ED; padding-bottom: 1.25rem; }
+.wf-page-title, main h1, main h2, main h3 { color: #14151A; font-weight: 650; }
+.wf-page-description, .wf-section-description { color: #69717D; }
 .wf-surface, .wf-card, .wf-table-shell { border-color: #e3e8e5; border-radius: .75rem; box-shadow: 0 1px 2px rgb(23 33 29 / .045); }
 .wf-toolbar { border-color: #e3e8e5; border-radius: .75rem; background: white; box-shadow: 0 1px 2px rgb(23 33 29 / .035); }
 .wf-btn-primary { border-radius: .55rem; background: #169b62; box-shadow: 0 1px 2px rgb(22 155 98 / .20); }
@@ -356,14 +356,14 @@ tbody tr:hover {
 .wf-tabs > button[aria-selected='true'], .wf-tabs > button.active { border-radius: .55rem; background: #169b62; color: white; box-shadow: 0 1px 2px rgb(22 155 98 / .18); }
 .wf-control { border-color: #e3e8e5; border-radius: .6rem; background: #f5f7f6; color: #17211d; box-shadow: none; }
 .wf-control:focus { border-color: #169b62; background: white; box-shadow: 0 0 0 3px rgb(22 155 98 / .14); }
-.wf-card-interactive:hover { border-color: #d1d1d6; box-shadow: 0 8px 20px rgb(29 29 31 / .08); }
-.wf-button-danger { border-color: rgb(255 59 48 / .25); border-radius: .75rem; background: rgb(255 59 48 / .10); color: #ff3b30; }
-.wf-button-danger:hover { background: rgb(255 59 48 / .16); }
-.wf-login-story { background: #ebecef; color: #1d1d1f; }
+.wf-card-interactive:hover { border-color: #CBD1D9; box-shadow: 0 8px 20px rgb(29 29 31 / .08); }
+.wf-button-danger { border-color: rgb(189 61 50 / .25); border-radius: .75rem; background: rgb(189 61 50 / .10); color: #bd3d32; }
+.wf-button-danger:hover { background: rgb(189 61 50 / .16); }
+.wf-login-story { background: #EEF1F4; color: #14151A; }
 .wf-login-story::before { border-color: rgb(22 155 98 / .10); box-shadow: 0 0 0 5rem rgb(22 155 98 / .04), 0 0 0 10rem rgb(22 155 98 / .025); }
-.wf-login-story .text-white, .wf-login-story .text-white\/90 { color: #1d1d1f !important; }
-.wf-login-story .text-white\/65, .wf-login-story .text-white\/55, .wf-login-story .text-white\/50, .wf-login-story .text-white\/40 { color: #6e6e73 !important; }
-.wf-login-story .border-white\/15 { border-color: #d1d1d6 !important; }
+.wf-login-story .text-white, .wf-login-story .text-white\/90 { color: #14151A !important; }
+.wf-login-story .text-white\/65, .wf-login-story .text-white\/55, .wf-login-story .text-white\/50, .wf-login-story .text-white\/40 { color: #69717D !important; }
+.wf-login-story .border-white\/15 { border-color: #CBD1D9 !important; }
 .wf-login-story .text-emerald-200 { color: #169b62 !important; }
 .wf-login .bg-primary-700 { background: #169b62 !important; }
 .wf-login .hover\:bg-primary-800:hover { background: #128452 !important; }

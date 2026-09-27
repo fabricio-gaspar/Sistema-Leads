@@ -107,7 +107,7 @@ export default function EquipePage() {
         </p>
       </div>
 
-      {teamError && <div className="rounded-xl border border-[#FF3B30]/25 bg-[#FF3B30]/10 px-4 py-3 text-xs text-[#FF3B30]">{teamError}</div>}
+      {teamError && <div className="rounded-xl border border-[#BD3D32]/25 bg-[#BD3D32]/10 px-4 py-3 text-xs text-[#BD3D32]">{teamError}</div>}
 
       {/* Grid principal */}
       <div className="wf-secondary-grid grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -122,11 +122,11 @@ export default function EquipePage() {
             </div>
             <div className="flex items-center gap-3 text-[10px]">
               <span className="inline-flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                <span className="w-2 h-2 rounded-full bg-primary-500"></span>
                 WhatsApp
               </span>
               <span className="inline-flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-rose-500"></span>
+                <span className="w-2 h-2 rounded-full bg-accent-500"></span>
                 Instagram
               </span>
             </div>
@@ -151,7 +151,7 @@ export default function EquipePage() {
               </div>
               <div className="h-3 bg-background-100 rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-emerald-500 rounded-full transition-all"
+                  className="h-full bg-primary-500 rounded-full transition-all"
                   style={{
                     width: `${(metricas.whatsAppConversas / Math.max(metricas.totalConversas, 1)) * 100}%`,
                   }}
@@ -164,7 +164,7 @@ export default function EquipePage() {
               </div>
               <div className="h-3 bg-background-100 rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-rose-500 rounded-full transition-all"
+                  className="h-full bg-accent-500 rounded-full transition-all"
                   style={{
                     width: `${(metricas.instagramConversas / Math.max(metricas.totalConversas, 1)) * 100}%`,
                   }}
@@ -177,7 +177,7 @@ export default function EquipePage() {
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
+                <span className="w-2 h-2 rounded-full bg-primary-500"></span>
                 <span className="text-xs text-foreground-700">WhatsApp</span>
               </div>
               <div className="flex items-center gap-2 text-xs">
@@ -189,7 +189,7 @@ export default function EquipePage() {
             </div>
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-rose-500"></span>
+                <span className="w-2 h-2 rounded-full bg-accent-500"></span>
                 <span className="text-xs text-foreground-700">Instagram</span>
               </div>
               <div className="flex items-center gap-2 text-xs">
@@ -215,7 +215,7 @@ export default function EquipePage() {
             <span className="px-2.5 py-1 rounded-full bg-background-100 text-[11px] text-foreground-600 font-medium">
               Total: {metricas.totalConversas}
             </span>
-            <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-[11px] text-emerald-700 font-medium">
+            <span className="px-2.5 py-1 rounded-full bg-primary-50 text-[11px] text-primary-700 font-medium">
               Ativas: {conversas.filter((c) => c.status === 'ativo').length}
             </span>
             <span className="px-2.5 py-1 rounded-full bg-accent-50 text-[11px] text-accent-700 font-medium">
@@ -271,14 +271,14 @@ export default function EquipePage() {
               <p className="text-lg font-bold text-primary-600 mt-1">0,0</p>
               <p className="text-[9px] text-primary-500">min médio</p>
             </div>
-            <div className="bg-emerald-50/60 rounded-lg p-3 text-center">
-              <p className="text-[9px] text-emerald-700 uppercase tracking-wider font-medium">Interações</p>
-              <p className="text-lg font-bold text-emerald-600 mt-1">{totalInteracoes}</p>
-              <p className="text-[9px] text-emerald-500">total</p>
+            <div className="bg-primary-50 rounded-lg p-3 text-center">
+              <p className="text-[9px] text-primary-700 uppercase tracking-wider font-medium">Interações</p>
+              <p className="text-lg font-bold text-primary-600 mt-1">{totalInteracoes}</p>
+              <p className="text-[9px] text-primary-500">total</p>
             </div>
           </div>
 
-          <div className="rounded-xl border border-[#E5E5EA] bg-[#F8F9FA] p-4 text-xs text-[#6E6E73]">
+          <div className="rounded-xl border border-[#E3E7ED] bg-[#F7F8FA] p-4 text-xs text-[#69717D]">
             Distribuição por hora e tempo médio não são exibidos até que o sistema tenha timestamps suficientes para calcular essas métricas sem estimativas.
           </div>
         </div>
@@ -356,9 +356,9 @@ export default function EquipePage() {
           </div>
 
           <div className="grid grid-cols-3 gap-2 mb-5">
-            <div className="bg-emerald-50/60 rounded-lg p-3 text-center">
-              <p className="text-[9px] text-emerald-700 uppercase tracking-wider font-medium">Valor orçado</p>
-              <p className="text-base font-bold text-emerald-600 mt-1">{fmtMoney(metricas.totalValorOrcado)}</p>
+            <div className="bg-primary-50 rounded-lg p-3 text-center">
+              <p className="text-[9px] text-primary-700 uppercase tracking-wider font-medium">Valor orçado</p>
+              <p className="text-base font-bold text-primary-600 mt-1">{fmtMoney(metricas.totalValorOrcado)}</p>
             </div>
             <div className="bg-background-100/60 rounded-lg p-3 text-center">
               <p className="text-[9px] text-foreground-500 uppercase tracking-wider font-medium">Orçamentos aceitos</p>

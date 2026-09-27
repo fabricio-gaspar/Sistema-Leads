@@ -1310,7 +1310,7 @@ export default function BuscaLeads() {
                           ))}
                         </select>
                         {carregandoMembros && <p className="mt-1 text-xs text-foreground-500">Carregando equipe...</p>}
-                        {erroMembros && <p role="alert" className="mt-1 text-xs text-red-700">Não foi possível carregar a equipe. Volte à revisão e abra esta etapa novamente.</p>}
+                        {erroMembros && <p role="alert" className="mt-1 text-xs text-accent-700">Não foi possível carregar a equipe. Volte à revisão e abra esta etapa novamente.</p>}
                         {!carregandoMembros && !erroMembros && membrosAtivos.length === 0 && <p role="alert" className="mt-1 text-xs text-foreground-500">Nenhum usuário ativo disponível para atribuição.</p>}
                       </div>}
                       <div>
@@ -1377,7 +1377,7 @@ export default function BuscaLeads() {
           )}
 
           {erroImportacao && (
-            <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+            <div role="alert" className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-accent-200 bg-accent-50 px-4 py-3 text-sm text-accent-800">
               <span>{erroImportacao}</span>
               {importacaoPendenteVerificacao && <button type="button" onClick={() => navigate('/dashboard/leads')} className="font-semibold underline underline-offset-2">Ver Leads</button>}
             </div>

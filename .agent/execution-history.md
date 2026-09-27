@@ -1,5 +1,11 @@
 # Histórico resumido de execução
 
+## 2026-09-27 — Paleta única do CRM
+
+- Consolidada a paleta da Dashboard nos tokens globais, componentes compartilhados e exceções das telas operacionais e administrativas.
+- Preservadas as distinções de sucesso, atenção e falha e mantidas cores proprietárias somente em ícones de provedores. Nenhuma regra, rota, persistência ou automação foi alterada.
+- Type-check, lint, 46 arquivos/282 testes e build/artefato Sites passaram. Publicação ainda pendente neste registro.
+
 ## 2026-09-27 — Controle da Ana automática na Dashboard
 
 - Adicionado controle compacto para ativar/pausar a configuração operacional já salva, sem criar motor ou agenda paralela.

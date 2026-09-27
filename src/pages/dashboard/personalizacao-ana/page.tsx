@@ -336,7 +336,7 @@ export default function PersonalizacaoAna({ embedded = false }: { embedded?: boo
             A versão v{publishedVersion ?? 'atual'} já está publicada. Altere algum campo para criar e publicar uma nova versão.
           </p>
         )}
-        {saveError && <div className="mx-6 mb-4 rounded-xl border border-[#FF3B30]/25 bg-[#FF3B30]/10 px-4 py-3 text-sm text-[#D92D27]"><i className="ri-error-warning-line mr-2" />{saveError}{loadFailed && <button type="button" className="ml-2 font-semibold underline" onClick={() => setLoadAttempt((current) => current + 1)}>Tentar carregar novamente</button>}</div>}
+        {saveError && <div className="mx-6 mb-4 rounded-xl border border-[#BD3D32]/25 bg-[#BD3D32]/10 px-4 py-3 text-sm text-[#A52F27]"><i className="ri-error-warning-line mr-2" />{saveError}{loadFailed && <button type="button" className="ml-2 font-semibold underline" onClick={() => setLoadAttempt((current) => current + 1)}>Tentar carregar novamente</button>}</div>}
         <footer>
           <button className="secondary" disabled={step === 0 || saving || loadingConfiguration} onClick={() => setStep((current) => current - 1)}>Voltar</button>
           <div className="form-actions">

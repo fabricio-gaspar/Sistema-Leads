@@ -27,7 +27,7 @@ const etapaCores: Record<string, string> = {
 };
 
 const etapaIndicador: Record<string, string> = {
-  entered: 'bg-foreground-300', engaging: 'bg-primary-400', qualified: 'bg-primary-600', quote_preparation: 'bg-secondary-500', quote_sent: 'bg-accent-500', won: 'bg-[#34C759]', lost: 'bg-[#FF3B30]',
+  entered: 'bg-foreground-300', engaging: 'bg-primary-400', qualified: 'bg-primary-600', quote_preparation: 'bg-secondary-500', quote_sent: 'bg-accent-500', won: 'bg-[#168654]', lost: 'bg-[#BD3D32]',
 };
 
 const tempCores: Record<string, string> = {

@@ -3,12 +3,22 @@
 .wf-app {
   --wf-ink: #14151a;
   --wf-canvas: #f2f4f8;
+  --wf-surface: #ffffff;
   --wf-line: #e3e7ed;
   --wf-lime: #d9f66d;
   --wf-green: #168654;
+  --wf-green-strong: #116b43;
+  --wf-green-soft: #e9f8ef;
+  --wf-coral: #bd3d32;
+  --wf-coral-strong: #84251f;
+  --wf-coral-soft: #fff0ee;
+  --wf-amber: #8c651d;
+  --wf-amber-soft: #fff5eb;
+  --wf-muted: #69717d;
+  --wf-muted-soft: #eef1f4;
   color: var(--wf-ink);
 }
-.wf-app .wf-main { background: var(--wf-canvas); }
+.wf-app .wf-main { background: var(--wf-canvas) !important; }
 .wf-app .wf-page { padding: 1.25rem; }
 .wf-app .wf-page-header { border: 0; padding-bottom: .25rem; gap: .75rem; }
 .wf-app .wf-page-title { font-size: clamp(1.5rem, 2vw, 1.85rem); line-height: 1.2; letter-spacing: -.035em; }
@@ -29,7 +39,7 @@
 .wf-app .wf-sidebar a:focus-visible,
 .wf-app .wf-sidebar button:focus-visible { outline: 2px solid var(--wf-lime); outline-offset: 3px; }
 .wf-app .wf-topbar { min-height: 4.25rem; background: var(--wf-canvas) !important; border-bottom-color: transparent !important; }
-.wf-app .wf-quick-nav { background: white; border-color: transparent; }
+.wf-app .wf-quick-nav { background: var(--wf-surface); border-color: transparent; }
 .wf-app .wf-quick-nav a { font-size: .875rem; }
 .wf-app :is(.wf-surface, .wf-card, .wf-settings-section, .wf-toolbar, .wf-table-shell) {
   border-radius: 1.1rem;
@@ -52,11 +62,11 @@
 .wf-app .wf-pipeline-card > div[role='img'] > div + div { margin-top: .85rem; }
 .wf-app .wf-commercial-dashboard { max-width: 1500px; }
 .wf-app .wf-dashboard-updated { border: 1px solid var(--wf-line); border-radius: 999px; background: rgb(255 255 255 / .8); padding: .45rem .7rem; color: #69717d; font-size: .75rem; font-weight: 600; }
-.wf-app .wf-decision-alert { display: flex; align-items: center; gap: .8rem; border: 1px solid #f0c8a5; border-radius: 1rem; background: #fff5eb; padding: .75rem .9rem; color: #6e431d; }
+.wf-app .wf-decision-alert { display: flex; align-items: center; gap: .8rem; border: 1px solid #f0c8a5; border-radius: 1rem; background: var(--wf-amber-soft); padding: .75rem .9rem; color: #6e431d; }
 .wf-app .wf-decision-alert__icon { display: inline-flex; width: 2rem; height: 2rem; flex: 0 0 auto; align-items: center; justify-content: center; border-radius: .7rem; background: #ffe3c3; color: #a45315; }
 .wf-app .wf-decision-alert strong { display: block; color: #5e3717; font-size: .875rem; font-weight: 750; }
 .wf-app .wf-decision-alert p { margin-top: .15rem; color: #7c5633; font-size: .8125rem; line-height: 1.35; }
-.wf-app .wf-decision-alert__action { display: inline-flex; min-height: 2.25rem; flex: 0 0 auto; align-items: center; gap: .35rem; border-radius: 999px; background: #17191f; padding: 0 .8rem; color: white; font-size: .8125rem; font-weight: 700; }
+.wf-app .wf-decision-alert__action { display: inline-flex; min-height: 2.25rem; flex: 0 0 auto; align-items: center; gap: .35rem; border-radius: 999px; background: var(--wf-ink); padding: 0 .8rem; color: white; font-size: .8125rem; font-weight: 700; }
 .wf-app .wf-decision-alert__action:hover { background: #30333a; }
 .wf-app .wf-command-kpis--compact { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .wf-app .wf-command-kpis--compact .wf-overview-metric { min-height: 6.25rem; padding: .85rem .95rem; }
@@ -83,7 +93,7 @@
 .wf-app .wf-health-grid--compact .wf-health-item:last-child { border-right: 0; }
 .wf-app .wf-health-grid--compact .wf-health-item h3 { font-size: .8125rem; }
 .wf-app .wf-health-grid--compact .wf-health-value { margin-top: .2rem; font-size: .8125rem; line-height: 1.25; }
-.wf-app .wf-value-card { background: #ffe5d8; border-color: #f4d8ca; }
+.wf-app .wf-value-card { background: var(--wf-coral-soft); border-color: #f4d8ca; }
 .wf-app .wf-value-card .wf-inset-stat { background: rgb(255 255 255 / .6); border-color: rgb(255 255 255 / .8); }
 .wf-app .wf-health-item { padding: .85rem 1rem; gap: .5rem; }
 .wf-app .wf-health-heading { padding: .8rem 1rem; }
@@ -119,7 +129,7 @@
 .wf-app .wf-knowledge-card-media img { object-fit: contain; padding: .5rem; }
 .wf-app .wf-knowledge-card-foot { margin-top: .8rem; }
 .wf-app .wf-knowledge-card-foot button { min-height: 2.3rem; font-size: .875rem; }
-.wf-app .wf-knowledge-edit { background: var(--wf-lime); color: #14151a; }
+.wf-app .wf-knowledge-edit { background: var(--wf-lime); color: var(--wf-ink); }
 .wf-app .cc-catalog-entry { min-height: 12rem; padding: 1.2rem; border-radius: 1.1rem; }
 .wf-app .cc-team-person-name h3,
 .wf-app .cc-team-person-name p { overflow-wrap: anywhere; white-space: normal; }

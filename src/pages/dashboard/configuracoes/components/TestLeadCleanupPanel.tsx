@@ -44,16 +44,16 @@ export default function TestLeadCleanupPanel() {
       <button type="button" onClick={() => void refresh()} disabled={loading || purging} className="wf-btn-secondary shrink-0 text-xs disabled:opacity-60"><i className="ri-refresh-line" />Atualizar lista</button>
     </div>
     <div className="space-y-3 p-5 md:p-6">
-      {error && <p className="rounded-xl border border-[#FF3B30]/25 bg-[#FF3B30]/10 px-3 py-2.5 text-xs text-[#A52620]">{error}</p>}
-      {notice && <p className="rounded-xl border border-[#34C759]/25 bg-[#34C759]/10 px-3 py-2.5 text-xs text-[#237A3B]">{notice}</p>}
-      {loading ? <p className="text-sm text-foreground-500">Identificando dados de teste…</p> : candidates.length === 0 ? <p className="rounded-xl border border-[#34C759]/25 bg-[#34C759]/10 px-3 py-3 text-sm text-[#237A3B]">Nenhum lead de teste identificado nesta empresa.</p> : <>
+      {error && <p className="rounded-xl border border-[#BD3D32]/25 bg-[#BD3D32]/10 px-3 py-2.5 text-xs text-[#84251F]">{error}</p>}
+      {notice && <p className="rounded-xl border border-[#168654]/25 bg-[#168654]/10 px-3 py-2.5 text-xs text-[#116B43]">{notice}</p>}
+      {loading ? <p className="text-sm text-foreground-500">Identificando dados de teste…</p> : candidates.length === 0 ? <p className="rounded-xl border border-[#168654]/25 bg-[#168654]/10 px-3 py-3 text-sm text-[#116B43]">Nenhum lead de teste identificado nesta empresa.</p> : <>
         <div className="space-y-2">
           {candidates.map((candidate) => <label key={candidate.id} className="flex cursor-pointer items-start gap-3 rounded-xl border border-background-200 bg-background-50/60 px-3 py-3 transition hover:bg-background-100">
             <input type="checkbox" checked={selected.includes(candidate.id)} onChange={() => toggle(candidate.id)} className="mt-0.5 h-4 w-4 rounded border-background-300 text-primary-600 focus:ring-primary-500" />
             <span className="min-w-0 flex-1"><strong className="block text-sm text-foreground-900">{candidate.contact} · {candidate.company}</strong><span className="mt-0.5 block text-xs text-foreground-500">{candidate.reason}{candidate.phoneSuffix ? ` Telefone final ${candidate.phoneSuffix}.` : ''}</span><span className="mt-1 block font-mono text-[10px] text-foreground-400">{candidate.messageCount} mensagens · {candidate.jobCount} itens de fila · {candidate.runCount} execuções da Ana</span></span>
           </label>)}
         </div>
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-[#F2F2F7] px-3 py-3"><p className="text-xs text-foreground-600">{selected.length ? `${selected.length} selecionado(s) para remoção definitiva.` : 'Selecione somente os contatos usados nos testes.'}</p><button type="button" onClick={() => void remove()} disabled={!selected.length || purging} className="wf-btn-primary bg-[#FF3B30] hover:bg-[#E6352B] text-xs disabled:opacity-60"><i className="ri-delete-bin-6-line" />{purging ? 'Removendo…' : 'Remover selecionados'}</button></div>
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl bg-[#F2F4F8] px-3 py-3"><p className="text-xs text-foreground-600">{selected.length ? `${selected.length} selecionado(s) para remoção definitiva.` : 'Selecione somente os contatos usados nos testes.'}</p><button type="button" onClick={() => void remove()} disabled={!selected.length || purging} className="wf-btn-primary bg-[#BD3D32] hover:bg-[#A52F27] text-xs disabled:opacity-60"><i className="ri-delete-bin-6-line" />{purging ? 'Removendo…' : 'Remover selecionados'}</button></div>
       </>}
     </div>
   </section>;

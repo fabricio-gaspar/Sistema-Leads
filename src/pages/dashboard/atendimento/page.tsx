@@ -560,7 +560,7 @@ export default function Atendimento() {
             aria-live="polite"
             className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-semibold ${
               conversationRealtime === 'live'
-                ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
+                ? 'border-primary-200 bg-primary-50 text-primary-800'
                 : conversationRealtime === 'connecting'
                   ? 'border-primary-200 bg-primary-50 text-primary-700'
                   : 'border-amber-200 bg-amber-50 text-amber-800'
@@ -654,7 +654,7 @@ export default function Atendimento() {
                     <span className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-medium ${statusCores[c.status]}`}>
                       {statusLabel[c.status]}
                     </span>
-                    <span className="text-[10px] text-foreground-400"><i className={`${c.canal === 'whatsapp' ? 'ri-whatsapp-line text-emerald-600' : c.canal === 'email' ? 'ri-mail-line' : 'ri-instagram-line'} mr-1`} />{c.canal}</span>
+                    <span className="text-[10px] text-foreground-400"><i className={`${c.canal === 'whatsapp' ? 'ri-whatsapp-line text-primary-600' : c.canal === 'email' ? 'ri-mail-line' : 'ri-instagram-line'} mr-1`} />{c.canal}</span>
                     {c.canal === 'whatsapp' && c.whatsappAccountLabel && <span className="max-w-full truncate rounded-md bg-background-100 px-2 py-0.5 text-[10px] text-foreground-500" title={c.whatsappAccountLabel}><i className="ri-base-station-line mr-1" />{c.whatsappAccountLabel}</span>}
                   </div>
                 </div>
@@ -678,7 +678,7 @@ export default function Atendimento() {
               <div className="min-w-0">
                 <p className="text-base font-bold text-foreground-900">{selected.contato}</p>
                 <p className="whitespace-normal break-words text-xs leading-5 text-foreground-500">
-                  <i className={selected.canal === 'whatsapp' ? 'ri-whatsapp-line mr-1 text-emerald-600' : selected.canal === 'email' ? 'ri-mail-line mr-1' : 'ri-instagram-line mr-1'} />
+                  <i className={selected.canal === 'whatsapp' ? 'ri-whatsapp-line mr-1 text-primary-600' : selected.canal === 'email' ? 'ri-mail-line mr-1' : 'ri-instagram-line mr-1'} />
                   {selected.empresa} · {statusDaAna}
                   {selected.canal === 'whatsapp' && selected.whatsappAccountLabel
                     ? ` · via ${selected.whatsappAccountLabel}${selected.whatsappPhoneSuffix ? ` (final ${selected.whatsappPhoneSuffix})` : ''}`

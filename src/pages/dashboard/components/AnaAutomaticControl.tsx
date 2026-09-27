@@ -76,10 +76,10 @@ export default function AnaAutomaticControl() {
 
   return <section className="wf-surface flex flex-col gap-3 px-4 py-3 sm:flex-row sm:items-center sm:justify-between" aria-label="Controle da Ana automática">
     <div className="flex min-w-0 items-center gap-3">
-      <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${active && ready ? 'bg-emerald-100 text-emerald-700' : 'bg-background-100 text-foreground-700'}`} aria-hidden="true"><i className="ri-robot-2-line text-lg" /></span>
+      <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-xl ${active && ready ? 'bg-primary-100 text-primary-700' : 'bg-background-100 text-foreground-700'}`} aria-hidden="true"><i className="ri-robot-2-line text-lg" /></span>
       <div className="min-w-0">
         <div className="flex items-center gap-1.5"><h2 className="text-sm font-bold text-foreground-950">Ana automática</h2><InfoTooltip text="Ativa a rotina já configurada. O servidor valida conexões, limites, permissões e proteções antes de liberar." label="Sobre a Ana automática" /></div>
-        <p className={`text-xs font-semibold ${active && ready ? 'text-emerald-700' : active || error ? 'text-amber-700' : 'text-foreground-500'}`} aria-live="polite">{error || status}</p>
+        <p className={`text-xs font-semibold ${active && ready ? 'text-primary-700' : active || error ? 'text-amber-700' : 'text-foreground-500'}`} aria-live="polite">{error || status}</p>
       </div>
     </div>
     <div className="flex shrink-0 items-center gap-2">

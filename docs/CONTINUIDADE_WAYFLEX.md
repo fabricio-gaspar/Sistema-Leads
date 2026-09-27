@@ -1,5 +1,12 @@
 # Checkpoint — WayFlex CRM
 
+## 27/09/2026 — Paleta da Dashboard aplicada ao CRM
+
+- A paleta da Dashboard passou a ser a fonte visual única do sistema: grafite para ações, cinza frio para superfícies, verde Wayflex para sucesso, lima para seleção, âmbar para atenção e coral somente para erro ou urgência.
+- Tokens globais, componentes compartilhados e exceções de Busca, Leads, Kanban, Central, Meu WhatsApp, Agenda, Orçamentos, Funil, Relatórios, Ana, Empresa, Equipe e Configurações foram harmonizados. Cores de marca permanecem apenas nos ícones dos provedores externos.
+- Não houve alteração em regra, rota, permissão, banco, automação, integração ou dado operacional. Type-check, lint, **46 arquivos / 282 testes** e build/artefato Sites passaram.
+- Estado neste checkpoint: implementação validada localmente; publicação no Site oficial ainda pendente.
+
 ## 27/09/2026 — Controle compacto da Ana automática na Dashboard
 
 - A Dashboard recebeu um único controle **Ana automática**. Ele usa a configuração existente da operação diária e permite ativar ou pausar sem duplicar agenda, motor, fila ou política.

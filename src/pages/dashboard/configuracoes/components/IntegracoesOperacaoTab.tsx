@@ -8,9 +8,9 @@ import { loadOperationalStatus, type OperationalStatus } from '@/lib/crm/operati
 import { operationalIcon, operationalIconTone, presentIntegrationStatus } from '@/lib/crm/operationalStatusPresentation';
 
 const inboundStatusClass = {
-  positive: 'bg-[#34C759]/10 text-[#237A3B]',
-  attention: 'bg-[#FF9500]/10 text-[#8A5200]',
-  critical: 'bg-[#FF3B30]/10 text-[#D92D27]',
+  positive: 'bg-[#168654]/10 text-[#116B43]',
+  attention: 'bg-[#BC8B42]/10 text-[#8C651D]',
+  critical: 'bg-[#BD3D32]/10 text-[#A52F27]',
   neutral: 'bg-background-100 text-foreground-600',
 } as const;
 
@@ -125,7 +125,7 @@ export default function IntegracoesOperacaoTab({ section }: { section?: Integrat
           <p className="mt-1 text-sm text-foreground-600">Credenciais protegidas, validação da instância e teste de saída controlado.</p>
           <div className="mt-4"><IntegracoesTab category="communication" /></div>
         </div>
-        <div id="meta-connection" className="scroll-mt-24 rounded-2xl border border-[#cbd9ff] bg-[#f7f9ff] p-4">
+        <div id="meta-connection" className="scroll-mt-24 rounded-2xl border border-background-200 bg-white p-4">
           <p className="text-xs font-semibold uppercase tracking-[.12em] text-[#0866ff]">Meta WhatsApp Cloud API</p>
           <p className="mt-1 text-sm text-foreground-600">Conexão oficial pela Meta. A ativação só aparece depois que a conta estiver conectada.</p>
           <div className="mt-4"><WhatsappAccountPanel mode="meta" /></div>

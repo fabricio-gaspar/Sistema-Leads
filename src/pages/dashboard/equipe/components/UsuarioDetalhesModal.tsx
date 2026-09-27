@@ -42,8 +42,8 @@ export default function UsuarioDetalhesModal({
   const taxaConversao = usuario.leads > 0 ? (usuario.orcamentosAceitos / usuario.leads) * 100 : 0;
 
   const canais = [
-    { nome: 'WhatsApp', valor: usuario.canalWhatsapp, cor: 'bg-emerald-500' },
-    { nome: 'Instagram', valor: usuario.canalInstagram, cor: 'bg-rose-500' },
+    { nome: 'WhatsApp', valor: usuario.canalWhatsapp, cor: 'bg-primary-500' },
+    { nome: 'Instagram', valor: usuario.canalInstagram, cor: 'bg-accent-500' },
     { nome: 'E-mail', valor: usuario.canalEmail, cor: 'bg-amber-500' },
   ];
   const totalCanal = Math.max(usuario.conversas, 1);

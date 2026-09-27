@@ -26,7 +26,7 @@ export default function PipelineTab() {
   const [form, setForm] = useState({
     nome: '',
     tipo: 'aberta' as PipelineStage['tipo'],
-    cor: '#0ea5e9',
+    cor: '#168654',
     slaHoras: 24,
     permiteAutomacao: true,
   });
@@ -53,7 +53,7 @@ export default function PipelineTab() {
 
   const abrirNovo = () => {
     setEditando(null);
-    setForm({ nome: '', tipo: 'aberta', cor: '#0ea5e9', slaHoras: 24, permiteAutomacao: true });
+    setForm({ nome: '', tipo: 'aberta', cor: '#168654', slaHoras: 24, permiteAutomacao: true });
     setModalAberto(true);
   };
 

@@ -1,5 +1,9 @@
 # Problemas conhecidos
 
+## Paleta global — 27/09/2026
+
+- Nenhum defeito funcional novo foi encontrado. Temas de documentos continuam configuráveis pelo usuário e ícones de WhatsApp, Meta, Apify e Google preservam a identidade do provedor; essas exceções são deliberadas e não quebram a paleta do produto.
+
 ## Importação em lote — 25/09/2026
 
 - A falta de atomicidade da revisão foi corrigida com RPC transacional e retry idempotente; sucesso e rollback foram comprovados em transações revertidas. A importação humana ponta a ponta no navegador permanece adiada a pedido do operador.

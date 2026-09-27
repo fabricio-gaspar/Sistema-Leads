@@ -7,13 +7,13 @@ const nivelVisual: Record<
   seguro: {
     bar: 'bg-primary-500',
     text: 'text-primary-700',
-    dot: 'bg-emerald-500',
+    dot: 'bg-primary-500',
     label: 'Conectado',
     icon: 'ri-whatsapp-line',
     card: 'bg-background-50 border-background-200/70',
   },
   sem_dados: {
-    bar: 'bg-background-300', text: 'text-foreground-600', dot: 'bg-slate-400', label: 'Sem telemetria',
+    bar: 'bg-background-300', text: 'text-foreground-600', dot: 'bg-background-400', label: 'Sem telemetria',
     icon: 'ri-information-line', card: 'bg-background-50 border-background-200/70',
   },
   atencao: {
@@ -25,13 +25,13 @@ const nivelVisual: Record<
     card: 'bg-background-50 border-background-200/70',
   },
   alto: {
-    bar: 'bg-accent-500', text: 'text-accent-700', dot: 'bg-orange-500', label: 'Risco alto',
+    bar: 'bg-accent-500', text: 'text-accent-700', dot: 'bg-amber-500', label: 'Risco alto',
     icon: 'ri-alarm-warning-line', card: 'bg-background-50 border-background-200/70',
   },
   critico: {
     bar: 'bg-accent-500',
     text: 'text-accent-700',
-    dot: 'bg-rose-500',
+    dot: 'bg-accent-500',
     label: 'Desconectado',
     icon: 'ri-alarm-warning-line',
     card: 'bg-background-50 border-background-200/70',
@@ -62,7 +62,7 @@ export default function SaudeWhatsappCard() {
       {saude.nivel === 'sem_dados' ? (
         <div className="mb-4 text-xs text-foreground-600 bg-background-100 rounded-lg px-3 py-2.5">Conecte o provedor e execute o monitor para iniciar a telemetria.</div>
       ) : saude.nivel === 'critico' && (
-        <div className="mb-4 flex items-start gap-2 text-xs text-rose-700 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2.5">
+        <div className="mb-4 flex items-start gap-2 text-xs text-accent-700 bg-accent-50 border border-accent-200 rounded-lg px-3 py-2.5">
           <i className="ri-alarm-warning-line mt-0.5"></i>
           <span>
             <b>Risco alto de bloqueio ({saude.risco}%)!</b> Você está acima do limite de {saude.limite}%. Reduza

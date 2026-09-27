@@ -1,5 +1,7 @@
 # Frontend
 
+- Paleta global (27/09): todo o CRM sob `wf-app` reutiliza as cores da Dashboard. Tokens centrais definem grafite, canvas frio, verde Wayflex, lima, âmbar e coral; telas antigas e estados visuais foram normalizados sem modificar comportamento.
+
 - Dashboard (27/09): controle compacto **Ana automática** consulta a configuração operacional real, respeita `configuration.manage` e oferece Ativar/Pausar somente quando seguro. Estado incompleto abre Configurações > Ana e nunca simula ativação local.
 
 - Busca de Leads, etapa 4 (25/09): a revisão importa seleção, lista e vínculos por uma RPC atômica. Em resposta incerta, preserva ID e payload para confirmar o mesmo lote sem duplicar. Após sucesso confirmado, relê leads e listas do servidor. Nenhuma alteração nos caminhos CSV, Ana, canais ou envio.

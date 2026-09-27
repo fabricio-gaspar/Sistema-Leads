@@ -19,11 +19,11 @@ export default function ConversationActivityChart({ conversas, realtimeState, lo
   return <article className="wf-surface wf-conversation-chart overflow-hidden" aria-label="Atividade das conversas nas últimas 24 horas">
     <div className="wf-overview-heading border-b border-background-200/80 px-4 py-3 md:px-5">
       <div>
-        <div className="flex flex-wrap items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-[9px] bg-background-100 text-foreground-700"><i className="ri-message-3-line" aria-hidden="true" /></span><h2>Conversas nas últimas 24 horas</h2><InfoTooltip text="Mensagens recebidas e enviadas por hora, com atualização pelo canal Realtime quando disponível." label="Sobre o gráfico de conversas" align="start" /><span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${realtimeState === 'live' ? 'bg-[#34C759]/10 text-[#237A3B]' : realtimeState === 'unavailable' ? 'bg-[#FF9500]/10 text-[#8A5200]' : 'bg-background-100 text-foreground-600'}`}>{realtimeLabel(realtimeState)}</span></div>
+        <div className="flex flex-wrap items-center gap-2"><span className="flex h-7 w-7 items-center justify-center rounded-[9px] bg-background-100 text-foreground-700"><i className="ri-message-3-line" aria-hidden="true" /></span><h2>Conversas nas últimas 24 horas</h2><InfoTooltip text="Mensagens recebidas e enviadas por hora, com atualização pelo canal Realtime quando disponível." label="Sobre o gráfico de conversas" align="start" /><span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${realtimeState === 'live' ? 'bg-[#168654]/10 text-[#116B43]' : realtimeState === 'unavailable' ? 'bg-[#BC8B42]/10 text-[#8C651D]' : 'bg-background-100 text-foreground-600'}`}>{realtimeLabel(realtimeState)}</span></div>
       </div>
       <div className="flex gap-3 text-xs font-medium text-foreground-600" aria-label={`${recebidas} recebidas e ${enviadas} enviadas`}>
         <span><i className="ri-arrow-down-line mr-1 text-primary-600" aria-hidden="true" />{recebidas} recebidas</span>
-        <span><i className="ri-arrow-up-line mr-1 text-emerald-600" aria-hidden="true" />{enviadas} enviadas</span>
+        <span><i className="ri-arrow-up-line mr-1 text-primary-600" aria-hidden="true" />{enviadas} enviadas</span>
       </div>
     </div>
     {loadState === 'ready' && hasActivity ? <div className="overflow-x-auto bg-white px-4 pb-3 pt-4 md:px-5" aria-label="Gráfico rolável horizontalmente">
@@ -31,9 +31,9 @@ export default function ConversationActivityChart({ conversas, realtimeState, lo
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={activity} margin={{ top: 8, right: 8, left: -18, bottom: 0 }} barCategoryGap="20%">
             <CartesianGrid vertical={false} stroke="#E9EDF3" strokeDasharray="3 4" />
-            <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: '#6b7280', fontSize: 12 }} minTickGap={16} />
-            <YAxis allowDecimals={false} tickLine={false} axisLine={false} tick={{ fill: '#6b7280', fontSize: 12 }} />
-            <Tooltip cursor={{ fill: '#F1F6FF' }} contentStyle={{ borderRadius: 14, borderColor: '#E2E8F0', boxShadow: '0 12px 28px rgba(29,29,31,0.12)' }} labelStyle={{ color: '#1D1D1F', fontWeight: 600 }} />
+            <XAxis dataKey="label" tickLine={false} axisLine={false} tick={{ fill: '#69717d', fontSize: 12 }} minTickGap={16} />
+            <YAxis allowDecimals={false} tickLine={false} axisLine={false} tick={{ fill: '#69717d', fontSize: 12 }} />
+            <Tooltip cursor={{ fill: '#F2F4F8' }} contentStyle={{ borderRadius: 14, borderColor: '#E3E7ED', boxShadow: '0 12px 28px rgba(20,21,26,0.12)' }} labelStyle={{ color: '#14151A', fontWeight: 600 }} />
             <Bar dataKey="recebidas" name="Recebidas" stackId="mensagens" fill="#111318" radius={[6, 6, 0, 0]} barSize={16} />
             <Bar dataKey="enviadas" name="Enviadas" stackId="mensagens" fill="#169b62" radius={[6, 6, 0, 0]} barSize={16} />
           </BarChart>

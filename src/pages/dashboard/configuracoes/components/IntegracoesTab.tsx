@@ -6,12 +6,12 @@ import { supabase } from '@/lib/supabase';
 import { detalheDoErroDeFuncao } from '@/lib/transportador';
 
 const statusMeta = {
-  validated: { label: 'Validada', className: 'border-[#34C759]/25 bg-[#34C759]/10 text-[#237A3B]' },
-  validation_due: { label: 'Validação vencida', className: 'border-[#FF9500]/25 bg-[#FF9500]/10 text-[#8A5200]' },
+  validated: { label: 'Validada', className: 'border-[#168654]/25 bg-[#168654]/10 text-[#116B43]' },
+  validation_due: { label: 'Validação vencida', className: 'border-[#BC8B42]/25 bg-[#BC8B42]/10 text-[#8C651D]' },
   inactive: { label: 'Configurada · inativa', className: 'border-background-200 bg-background-100 text-foreground-600' },
-  paused: { label: 'Pausada', className: 'border-[#FF9500]/25 bg-[#FF9500]/10 text-[#8A5200]' },
-  pending: { label: 'Entrada pendente', className: 'border-[#FF9500]/25 bg-[#FF9500]/10 text-[#8A5200]' },
-  error: { label: 'Erro de conexão', className: 'border-[#FF3B30]/25 bg-[#FF3B30]/10 text-[#D92D27]' },
+  paused: { label: 'Pausada', className: 'border-[#BC8B42]/25 bg-[#BC8B42]/10 text-[#8C651D]' },
+  pending: { label: 'Entrada pendente', className: 'border-[#BC8B42]/25 bg-[#BC8B42]/10 text-[#8C651D]' },
+  error: { label: 'Erro de conexão', className: 'border-[#BD3D32]/25 bg-[#BD3D32]/10 text-[#A52F27]' },
   not_configured: { label: 'Não configurada', className: 'border-background-200 bg-background-100 text-foreground-600' },
 };
 
@@ -46,7 +46,7 @@ function errorMessage(code: string, name: string) {
 
 function CredentialField({ field, value, onChange }: { field: CampoIntegracao; value: string; onChange: (value: string) => void }) {
   const inputClass = 'w-full rounded-xl border border-background-200 bg-background-100 px-3.5 py-2.5 text-sm text-foreground-950 placeholder:text-foreground-400 outline-none transition focus:border-primary-500 focus:bg-white focus:ring-2 focus:ring-primary-500/20';
-  return <label className="block text-sm font-semibold text-[#3A3A3C]"><span className="mb-1.5 block">{field.rotulo}{field.obrigatorio && <span className="ml-1 text-[#FF3B30]">*</span>}</span>{field.tipo === 'selecao' ? <select className={inputClass} value={value} onChange={(event) => onChange(event.target.value)}><option value="">Selecione…</option>{(field.opcoes || []).map((option) => <option key={option} value={option}>{option}</option>)}</select> : <input className={inputClass} type={field.tipo === 'senha' ? 'password' : 'text'} value={value} placeholder={field.placeholder} autoComplete="off" onChange={(event) => onChange(event.target.value)} />}{field.ajuda && <span className="mt-1.5 block text-xs font-normal text-[#86868B]">{field.ajuda}</span>}</label>;
+  return <label className="block text-sm font-semibold text-[#3A3A3C]"><span className="mb-1.5 block">{field.rotulo}{field.obrigatorio && <span className="ml-1 text-[#BD3D32]">*</span>}</span>{field.tipo === 'selecao' ? <select className={inputClass} value={value} onChange={(event) => onChange(event.target.value)}><option value="">Selecione…</option>{(field.opcoes || []).map((option) => <option key={option} value={option}>{option}</option>)}</select> : <input className={inputClass} type={field.tipo === 'senha' ? 'password' : 'text'} value={value} placeholder={field.placeholder} autoComplete="off" onChange={(event) => onChange(event.target.value)} />}{field.ajuda && <span className="mt-1.5 block text-xs font-normal text-[#777E89]">{field.ajuda}</span>}</label>;
 }
 
 function ConfigureModal({ integration, onClose, onSaved }: { integration: OperationalIntegration; onClose: () => void; onSaved: () => Promise<void> }) {
@@ -79,7 +79,7 @@ function ConfigureModal({ integration, onClose, onSaved }: { integration: Operat
     } catch (cause) { setError(errorMessage(cause instanceof Error ? cause.message : '', integration.nome)); }
     finally { setSaving(false); }
   };
-  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#1D1D1F]/45 p-4" onClick={onClose}><section className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-2xl border border-background-200 bg-white shadow-xl" onClick={(event) => event.stopPropagation()}><header className="flex items-start justify-between border-b border-background-200 px-5 py-4"><div><p className="text-xs font-semibold uppercase tracking-[.12em] text-primary-700">Cofre seguro</p><h3 className="mt-1 text-lg font-bold tracking-tight text-foreground-950">Configurar {integration.nome}</h3><p className="mt-1 text-xs text-foreground-500">As chaves são enviadas diretamente ao backend e não permanecem no navegador.</p></div><button type="button" onClick={onClose} className="rounded-lg p-2 text-foreground-500 hover:bg-background-100" aria-label="Fechar"><i className="ri-close-line text-lg" /></button></header><div className="space-y-4 p-5">{error && <div className="rounded-xl border border-[#FF3B30]/25 bg-[#FF3B30]/10 px-3.5 py-3 text-sm text-[#D92D27]">{error}</div>}{integration.campos.map((field) => <CredentialField key={field.id} field={field} value={values[field.id] || ''} onChange={(value) => setValues((current) => ({ ...current, [field.id]: value }))} />)}</div><footer className="flex justify-end gap-2 border-t border-background-200 px-5 py-4"><button type="button" className="wf-btn-secondary" onClick={onClose}>Cancelar</button><button type="button" className="wf-btn-primary disabled:opacity-60" disabled={saving} onClick={() => void save()}>{saving ? 'Salvando…' : 'Salvar credenciais'}</button></footer></section></div>;
+  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#14151A]/45 p-4" onClick={onClose}><section className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-2xl border border-background-200 bg-white shadow-xl" onClick={(event) => event.stopPropagation()}><header className="flex items-start justify-between border-b border-background-200 px-5 py-4"><div><p className="text-xs font-semibold uppercase tracking-[.12em] text-primary-700">Cofre seguro</p><h3 className="mt-1 text-lg font-bold tracking-tight text-foreground-950">Configurar {integration.nome}</h3><p className="mt-1 text-xs text-foreground-500">As chaves são enviadas diretamente ao backend e não permanecem no navegador.</p></div><button type="button" onClick={onClose} className="rounded-lg p-2 text-foreground-500 hover:bg-background-100" aria-label="Fechar"><i className="ri-close-line text-lg" /></button></header><div className="space-y-4 p-5">{error && <div className="rounded-xl border border-[#BD3D32]/25 bg-[#BD3D32]/10 px-3.5 py-3 text-sm text-[#A52F27]">{error}</div>}{integration.campos.map((field) => <CredentialField key={field.id} field={field} value={values[field.id] || ''} onChange={(value) => setValues((current) => ({ ...current, [field.id]: value }))} />)}</div><footer className="flex justify-end gap-2 border-t border-background-200 px-5 py-4"><button type="button" className="wf-btn-secondary" onClick={onClose}>Cancelar</button><button type="button" className="wf-btn-primary disabled:opacity-60" disabled={saving} onClick={() => void save()}>{saving ? 'Salvando…' : 'Salvar credenciais'}</button></footer></section></div>;
 }
 
 function WhatsAppTestModal({ integration, onClose, onCompleted }: { integration: OperationalIntegration; onClose: () => void; onCompleted: (environmentMessage: string | null) => Promise<void> }) {
@@ -123,18 +123,18 @@ function WhatsAppTestModal({ integration, onClose, onCompleted }: { integration:
     } finally { setSending(false); }
   };
 
-  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#1D1D1F]/45 p-4" onClick={onClose}>
+  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#14151A]/45 p-4" onClick={onClose}>
     <section className="w-full max-w-xl rounded-2xl border border-background-200 bg-white shadow-xl" onClick={(event) => event.stopPropagation()}>
       <header className="flex items-start justify-between border-b border-background-200 px-5 py-4">
         <div><p className="text-xs font-semibold uppercase tracking-[.12em] text-primary-700">Teste real do canal</p><h3 className="mt-1 text-lg font-bold tracking-tight text-foreground-950">Enviar teste pelo WhatsApp</h3><p className="mt-1 text-xs leading-relaxed text-foreground-500">Informe um número seu. O sistema valida a Z-API e envia uma única mensagem real, sem criar lead, conversa ou automação.</p></div>
         <button type="button" onClick={onClose} className="rounded-lg p-2 text-foreground-500 hover:bg-background-100" aria-label="Fechar"><i className="ri-close-line text-lg" /></button>
       </header>
       <div className="space-y-4 p-5">
-        {error && <div className="rounded-xl border border-[#FF3B30]/25 bg-[#FF3B30]/10 px-3.5 py-3 text-sm text-[#D92D27]">{error}</div>}
-        {success && <div className="rounded-xl border border-[#34C759]/25 bg-[#34C759]/10 px-3.5 py-3 text-sm text-[#237A3B]">{success}</div>}
+        {error && <div className="rounded-xl border border-[#BD3D32]/25 bg-[#BD3D32]/10 px-3.5 py-3 text-sm text-[#A52F27]">{error}</div>}
+        {success && <div className="rounded-xl border border-[#168654]/25 bg-[#168654]/10 px-3.5 py-3 text-sm text-[#116B43]">{success}</div>}
         <label className="block text-sm font-semibold text-foreground-800"><span className="mb-1.5 block">Número para teste</span><input className="w-full rounded-xl border border-background-200 bg-background-100 px-3.5 py-2.5 text-sm text-foreground-950 placeholder:text-foreground-400 outline-none transition focus:border-primary-500 focus:bg-white focus:ring-2 focus:ring-primary-500/20" inputMode="tel" autoComplete="tel" value={phone} onChange={(event) => { resetRequestForChangedInput(); setPhone(event.target.value); }} placeholder="(11) 99999-9999" /></label>
         <label className="block text-sm font-semibold text-foreground-800"><span className="mb-1.5 block">Mensagem</span><textarea className="min-h-24 w-full resize-y rounded-xl border border-background-200 bg-background-100 px-3.5 py-2.5 text-sm text-foreground-950 placeholder:text-foreground-400 outline-none transition focus:border-primary-500 focus:bg-white focus:ring-2 focus:ring-primary-500/20" maxLength={600} value={message} onChange={(event) => { resetRequestForChangedInput(); setMessage(event.target.value); }} /></label>
-        <p className="rounded-xl border border-[#FF9500]/25 bg-[#FF9500]/10 px-3 py-2.5 text-xs leading-relaxed text-[#8A5200]">Este envio é real. Use um número sob seu controle. A aceitação pela Z-API não confirma entrega, leitura, callbacks nem o acionamento da Ana.</p>
+        <p className="rounded-xl border border-[#BC8B42]/25 bg-[#BC8B42]/10 px-3 py-2.5 text-xs leading-relaxed text-[#8C651D]">Este envio é real. Use um número sob seu controle. A aceitação pela Z-API não confirma entrega, leitura, callbacks nem o acionamento da Ana.</p>
       </div>
       <footer className="flex flex-wrap justify-end gap-2 border-t border-background-200 px-5 py-4"><button type="button" className="wf-btn-secondary" onClick={onClose}>Fechar</button><button type="button" className="wf-btn-primary disabled:opacity-60" disabled={sending || !phone.trim() || !message.trim()} onClick={() => void send()}><i className={sending ? 'ri-loader-4-line animate-spin' : 'ri-send-plane-fill'} />{sending ? 'Validando e enviando…' : 'Validar e enviar teste'}</button></footer>
     </section>
@@ -251,10 +251,10 @@ export default function IntegracoesTab({ category }: { category?: OperationalInt
             {anaConfiguration && <>
               <p>Configuração salva: {anaConfiguration.provider === 'openai' ? 'OpenAI' : 'Claude'} · {anaConfiguration.model}</p>
               <p>Chaves no cofre: OpenAI {anaConfiguration.openaiConfigured ? 'configurada' : 'não configurada'} · Claude {anaConfiguration.claudeConfigured ? 'configurada' : 'não configurada'}</p>
-              <p className="text-[#8A5200]">Modelo ainda não validado por uma chamada ao modelo.</p>
+              <p className="text-[#8C651D]">Modelo ainda não validado por uma chamada ao modelo.</p>
             </>}
-            {integration.lastError && <p className="line-clamp-2 text-[#D92D27]">{integration.lastError}</p>}
-            {!integration.lastError && sourceError && <p className="line-clamp-2 text-[#D92D27]">Busca: {sourceError}</p>}
+            {integration.lastError && <p className="line-clamp-2 text-[#A52F27]">{integration.lastError}</p>}
+            {!integration.lastError && sourceError && <p className="line-clamp-2 text-[#A52F27]">Busca: {sourceError}</p>}
           </div>
           <div className="mt-auto grid grid-cols-2 gap-2 pt-3"><button type="button" onClick={() => setConfiguring(integration)} className="wf-btn-secondary justify-center text-xs">{integration.connected || integration.enabled ? 'Editar configuração' : 'Configurar'}</button><button type="button" disabled={testing === integration.remoteKey || (integration.remoteKey === 'apify' && repairingApify)} onClick={() => integration.remoteKey === 'whatsapp' ? setWhatsappTest(integration) : void test(integration)} className="wf-btn-primary justify-center text-xs disabled:opacity-60">{testing === integration.remoteKey ? 'Validando…' : integration.remoteKey === 'whatsapp' ? 'Testar envio' : 'Testar conexão'}</button>{source && <button type="button" disabled={togglingSource === source.id || source.connectionStatus !== 'connected'} onClick={() => void toggleProspectingSource(source)} className="col-span-2 wf-btn-secondary justify-center text-xs disabled:cursor-not-allowed disabled:opacity-60" title={source.connectionStatus === 'connected' ? undefined : 'Configure e valide a conexão antes de ativar a Busca de Leads.'}><i className={togglingSource === source.id ? 'ri-loader-4-line animate-spin' : source.status === 'ativo' ? 'ri-pause-circle-line' : 'ri-play-circle-line'} />{togglingSource === source.id ? 'Salvando uso…' : source.status === 'ativo' ? 'Pausar na Busca de Leads' : 'Ativar na Busca de Leads'}</button>}{canRepairApifyActor && <button type="button" disabled={repairingApify} onClick={() => void repairApifyGoogleMapsActor(integration)} className="col-span-2 wf-btn-secondary justify-center text-xs text-primary-700 disabled:opacity-60"><i className={repairingApify ? 'ri-loader-4-line animate-spin' : 'ri-map-pin-line'} />{repairingApify ? 'Corrigindo Actor…' : 'Corrigir Actor Google Maps'}</button>}</div>
         </article>;

@@ -156,7 +156,7 @@ export default function MetaCoexistencePanel({
   };
 
   if (checking || !enabled) return null;
-  return <section className="rounded-2xl border border-[#cbd9ff] bg-[#f7f9ff] p-4">
+  return <section className="rounded-2xl border border-background-200 bg-white p-4">
     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
       <div className="flex min-w-0 gap-3">
         <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#e8eeff] text-xl text-[#0866ff]"><i className="ri-meta-line" /></span>
@@ -166,7 +166,6 @@ export default function MetaCoexistencePanel({
     </div>
     {error && <p role="alert" className="mt-3 rounded-xl border border-accent-200 bg-accent-50 px-3 py-2 text-xs text-accent-800">{error}</p>}
     {notice && <p role="status" className="mt-3 rounded-xl border border-primary-200 bg-primary-50 px-3 py-2 text-xs text-primary-800">{notice}</p>}
-    {metaAccounts.length > 0 && <div className="mt-4 grid gap-2 sm:grid-cols-2">{metaAccounts.map((account) => <div key={account.id} className="rounded-xl border border-[#dce4ff] bg-white p-3 text-xs"><div className="flex items-center justify-between gap-2"><strong className="truncate text-foreground-900">{account.verifiedName || account.label}</strong><span className="rounded-full bg-amber-50 px-2 py-1 font-semibold text-amber-800">Gate de homologação</span></div><dl className="mt-3 grid grid-cols-2 gap-2 text-foreground-600"><div><dt className="text-foreground-400">Conexão</dt><dd className="mt-0.5 font-semibold">{account.connected ? 'Conectada' : 'Pendente'}</dd></div><div><dt className="text-foreground-400">Sincronização</dt><dd className="mt-0.5 font-semibold">{account.syncStatus}</dd></div><div><dt className="text-foreground-400">Modo da Ana</dt><dd className="mt-0.5 font-semibold">{account.messagingMode}</dd></div><div><dt className="text-foreground-400">Qualidade</dt><dd className="mt-0.5 font-semibold">{account.qualityRating || 'Não informada'}</dd></div></dl></div>)}</div>}
+    {metaAccounts.length > 0 && <div className="mt-4 grid gap-2 sm:grid-cols-2">{metaAccounts.map((account) => <div key={account.id} className="rounded-xl border border-background-200 bg-background-50 p-3 text-xs"><div className="flex items-center justify-between gap-2"><strong className="truncate text-foreground-900">{account.verifiedName || account.label}</strong><span className="rounded-full bg-amber-50 px-2 py-1 font-semibold text-amber-800">Gate de homologação</span></div><dl className="mt-3 grid grid-cols-2 gap-2 text-foreground-600"><div><dt className="text-foreground-400">Conexão</dt><dd className="mt-0.5 font-semibold">{account.connected ? 'Conectada' : 'Pendente'}</dd></div><div><dt className="text-foreground-400">Sincronização</dt><dd className="mt-0.5 font-semibold">{account.syncStatus}</dd></div><div><dt className="text-foreground-400">Modo da Ana</dt><dd className="mt-0.5 font-semibold">{account.messagingMode}</dd></div><div><dt className="text-foreground-400">Qualidade</dt><dd className="mt-0.5 font-semibold">{account.qualityRating || 'Não informada'}</dd></div></dl></div>)}</div>}
   </section>;
 }
-

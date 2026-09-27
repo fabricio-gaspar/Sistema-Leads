@@ -24,8 +24,8 @@ const inicial: Tema[] = [
   {
     id: 'tm-1',
     nome: 'Clássico corporativo',
-    descricao: 'Verde-escuro com tipografia sóbria, ideal para negócios B2B.',
-    cores: { primaria: '#0F766E', secundaria: '#14B8A6', texto: '#111827' },
+    descricao: 'Verde Wayflex e grafite da identidade oficial, ideal para negócios B2B.',
+    cores: { primaria: '#168654', secundaria: '#14151A', texto: '#14151A' },
     logoUrl: '',
     assinatura: 'Equipe Wayflex',
     padrao: true,

@@ -84,9 +84,9 @@ function ProviderCard({
   const connected = account?.connected === true;
   const status = control.active ? 'Ativo' : configured && connected ? 'Pronto para ativar' : configured ? 'Aguardando conexão' : 'Não configurado';
   const statusClass = control.active
-    ? 'bg-[#34C759]/10 text-[#237A3B]'
+    ? 'bg-[#168654]/10 text-[#116B43]'
     : configured && connected
-      ? 'bg-[#FF9500]/10 text-[#8A5200]'
+      ? 'bg-[#BC8B42]/10 text-[#8C651D]'
       : 'bg-background-100 text-foreground-600';
   const enable = () => void onChange(provider, true, account?.id);
   const disable = () => void onChange(provider, false, account?.id);
