@@ -1,5 +1,11 @@
 # Histórico resumido de execução
 
+## 2026-09-27 — Pendências acionáveis da Ana automática
+
+- Substituída a resposta genérica da ativação por uma lista com contagem, requisito, explicação e atalho para o local exato da correção.
+- A tentativa de ativar leva à primeira pendência; a pausa global pode ser retomada no próprio cartão e a navegação profunda abre a etapa correta da configuração da Ana.
+- Nenhum gate operacional ou backend foi alterado. Type-check, lint, 46 arquivos/282 testes e build passaram. Publicado no Site oficial v136 pelo commit `de6d902`.
+
 ## 2026-09-27 — Paleta única do CRM
 
 - Consolidada a paleta da Dashboard nos tokens globais, componentes compartilhados e exceções das telas operacionais e administrativas.

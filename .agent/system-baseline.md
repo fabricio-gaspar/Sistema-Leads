@@ -1,5 +1,11 @@
 # Baseline do sistema
 
+## Orientação de pendências da Ana automática — 27/09/2026
+
+- O painel de Operação automática apresenta a prontidão devolvida por `ana-operations` como itens acionáveis: requisito, motivo da pendência e destino exato para correção.
+- A tentativa de ativação leva ao primeiro requisito pendente; a navegação direta reconhece a área e a etapa da configuração da Ana. A pausa global continua sendo alterada pelo fluxo operacional existente.
+- Mudança somente de orientação e navegação no frontend. Nenhuma regra de prontidão, tabela, função, integração ou estado remoto foi alterado. Site oficial v136 publicado pelo commit `de6d902`; type-check, lint, 46 arquivos/282 testes e build aprovados.
+
 ## Paleta única da Dashboard — 27/09/2026
 
 - O shell `wf-app` concentra a paleta oficial e os tokens Tailwind de background, foreground, primary, secondary e accent. Telas operacionais e administrativas reutilizam esses valores em vez das antigas paletas teal, Apple e Tailwind padrão.

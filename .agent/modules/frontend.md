@@ -1,5 +1,7 @@
 # Frontend
 
+- Operação automática (27/09): pré-requisitos pendentes mostram motivo e ação no módulo exato; a ativação rola até a primeira pendência. Links profundos abrem Configuração publicada, IA, Apify, worker, WhatsApp e Ambiente Real sem modificar os gates server-side.
+
 - Paleta global (27/09): todo o CRM sob `wf-app` reutiliza as cores da Dashboard. Tokens centrais definem grafite, canvas frio, verde Wayflex, lima, âmbar e coral; telas antigas e estados visuais foram normalizados sem modificar comportamento.
 
 - Dashboard (27/09): controle compacto **Ana automática** consulta a configuração operacional real, respeita `configuration.manage` e oferece Ativar/Pausar somente quando seguro. Estado incompleto abre Configurações > Ana e nunca simula ativação local.

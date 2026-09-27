@@ -2,6 +2,14 @@
   "schema_version": 1,
   "requirements": [
     {
+      "id": "REQ-055",
+      "description": "Indicar exatamente os campos e pré-requisitos que impedem a ativação automática da Ana",
+      "module": "ana",
+      "status": "confirmed",
+      "evidence": "Site oficial v136, commit de6d902. Operação automática conta e destaca cada requisito pendente, explica a correção e navega ao módulo ou etapa correspondente; a ativação leva à primeira pendência. Type-check, lint, 46 arquivos/282 testes e build aprovados, sem alterar gates, integrações ou dados.",
+      "last_validation": "2026-09-27"
+    },
+    {
       "id": "REQ-054",
       "description": "Aplicar em todo o CRM a mesma paleta visual da Dashboard sem alterar a operação",
       "module": "frontend",

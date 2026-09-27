@@ -252,3 +252,6 @@
 - O advisor ainda lista sete FKs antigas sem índice e achados antigos de segurança; nenhuma FK nova
   da fundação Meta aparece nesse grupo. A correção do legado deve ocorrer em lote próprio para não
   misturar risco com a integração.
+# Resolvido em 27/09/2026 — orientação da Operação automática
+
+- A ativação automática retornava uma mensagem genérica mesmo quando o backend conhecia quais gates estavam pendentes. A tela agora mostra cada requisito, o motivo e o destino exato de correção, sem afrouxar o bloqueio operacional.

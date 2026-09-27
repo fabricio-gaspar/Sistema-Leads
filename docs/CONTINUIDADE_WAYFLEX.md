@@ -1,5 +1,12 @@
 # Checkpoint — WayFlex CRM
 
+## 27/09/2026 — Pendências explícitas na ativação automática da Ana
+
+- **Configurações > Ana > Operação automática** deixou de responder apenas com a mensagem genérica de pré-requisitos. A tela agora conta as pendências, identifica cada requisito por nome, explica o que falta e oferece um atalho para o campo ou módulo responsável.
+- Ao tentar ativar o modo Automático, a interface leva o operador à primeira pendência. Configuração publicada, IA, Apify, agendador, WhatsApp de saída, WhatsApp de entrada, Ambiente Real e pausa global possuem destinos específicos; a pausa pode ser removida na própria lista.
+- A regra de ativação, o cálculo server-side de prontidão, `ana-run`, as integrações e os dados operacionais não foram modificados. Type-check, lint, **46 arquivos / 282 testes** e build/artefato Sites passaram.
+- Publicado no Site oficial como versão **136**, commit `de6d902`, deploy `appgdep_6ab93acb92208191a9c9603c7a2be576`, preservando a URL oficial.
+
 ## 27/09/2026 — Paleta da Dashboard aplicada ao CRM
 
 - A paleta da Dashboard passou a ser a fonte visual única do sistema: grafite para ações, cinza frio para superfícies, verde Wayflex para sucesso, lima para seleção, âmbar para atenção e coral somente para erro ou urgência.

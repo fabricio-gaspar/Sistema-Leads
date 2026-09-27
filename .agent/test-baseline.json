@@ -1,17 +1,17 @@
 {
   "schema_version": 1,
-  "validated_commit": "8a48ea4cad1d8c0ce2feb5c3f37928cd36b73c3f",
+  "validated_commit": "de6d902b0179f137454e70cbcb70c3f6e9c88d74",
   "last_validated_at": "2026-09-27",
   "current_validation": {
-    "stage": "dashboard_palette_unification",
+    "stage": "ana_activation_prerequisite_guidance",
     "frontend_typecheck": "passed",
     "lint": "passed",
     "test_files": 46,
     "tests_passed": 282,
     "production_build": "passed",
     "sites_artifact": "passed",
-    "visual_review": "Paleta da Dashboard aplicada por tokens e estilos compartilhados a todos os módulos; cores de marca preservadas somente nos ícones de provedores. QA visual de navegador não exigida para a publicação.",
-    "external_end_to_end": "not_applicable; mudança exclusivamente visual, sem chamada a Supabase, provedor, busca, mensagem ou automação."
+    "visual_review": "Operação automática apresenta contagem, destaque, explicação e destino de correção para cada pré-requisito pendente; a ativação leva à primeira pendência.",
+    "external_end_to_end": "not_applicable; mudança de orientação e navegação no frontend, sem chamada a provedor, busca, mensagem ou automação."
   },
   "commands": [
     {
