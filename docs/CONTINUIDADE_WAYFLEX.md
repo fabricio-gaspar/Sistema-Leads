@@ -8,6 +8,7 @@
 - Arquivamento de lead é reversível e preserva o histórico. A tela não exclui lead comercial pelo Kanban. A Central bloqueia saída externa sem conversa WhatsApp e contato válido.
 - Homologação técnica aprovada: type-check frontend/Edge, lint sem warnings, **46 arquivos / 281 testes**, build e artefato Sites. Migrações de transição/histórico, arquivamento, projeção de proposta e índice foram aplicadas no Supabase oficial; `enviar-whatsapp` foi publicado na versão 10 com JWT obrigatório.
 - Provas remotas sem disparo externo: zero mensagens, jobs WhatsApp, histórico de estágio ou leads arquivados adicionados; a fila vinculada à proposta é exclusiva do backend (`authenticated=false`, `service_role=true`).
+- A versão homologada foi publicada no Site oficial na versão **133** a partir do commit `a7e7fae`.
 - Limite de homologação: **não houve E2E externo**. A Z-API continua desconectada/bloqueada, portanto não declarar WhatsApp, Ana ou a projeção pós-provedor como comprovados até executar um teste individual autorizado. A proteção de senhas vazadas do Auth também continua pendente.
 
 ## 26/09/2026 — Dashboard comercial compacta
