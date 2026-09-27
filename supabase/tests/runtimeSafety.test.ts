@@ -156,3 +156,17 @@ describe('WhatsApp account resolver migration', () => {
     expect(migration).toContain('to service_role');
   });
 });
+
+describe('Provider acceptance proposal projection migration', () => {
+  it('orders outreach records by columns that exist on outreach_jobs', () => {
+    const migration = readFileSync(
+      new URL('../migrations/20260927195156_fix_proposal_delivery_outreach_ordering.sql', import.meta.url),
+      'utf8',
+    );
+
+    expect(migration).toContain('order by j.run_at desc, j.id desc');
+    expect(migration).not.toContain('j.created_at');
+    expect(migration).toContain('if v_proposal_id is null then');
+    expect(migration).toContain('return new;');
+  });
+});
