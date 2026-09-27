@@ -1,5 +1,15 @@
 # Problemas conhecidos
 
+## Cumprimento simples transferido ao humano — 27/09/2026
+
+- Depois do E2E real, a entrada **“Boa tarde”** foi recebida e processada, mas a decisão da Ana marcou confiança de 15%, abaixo do mínimo publicado de 20%, e abriu handoff humano sem resposta automática.
+- Não é falha de WhatsApp, fila ou webhook. Ajustar essa decisão exige revisar a política de cumprimentos/baixa informação sem reduzir os gates técnicos gerais; nenhuma regra foi alterada neste teste.
+
+## Trigger de propostas interrompia aceite de mensagens comuns — resolvido em 27/09/2026
+
+- `project_proposal_delivery_after_message` usava `outreach_jobs.created_at`, coluna inexistente, ao reagir a qualquer mensagem marcada como enviada. Resolvido pela migration `20260927195156_fix_proposal_delivery_outreach_ordering`, aplicada como `20260927195241`.
+- O aceite real já confirmado foi reconciliado sem reenvio. Job, mensagem e outreach ficaram `processed/sent`; saída e entrada foram comprovadas.
+
 ## Resolvedor da conta WhatsApp bloqueava Novo → Apresentado — resolvido em 27/09/2026
 
 - Resolvido pela migration `20260927193046_fix_whatsapp_account_resolver_ambiguity`, aplicada no projeto oficial. A função qualificou os campos que colidiam com os nomes de saída de `RETURNS TABLE` e voltou a resolver a conta corporativa em teste transacional.

@@ -2,9 +2,9 @@
   "schema_version": 1,
   "baseline_version": 5,
   "baseline_commit": "1dc6275b8c7d70de953b66397a8c89f5e97bc15b",
-  "last_audited_commit": "4fd878f77b3b687856281ace8e84bf419ec7b912",
-  "current_head_at_update": "4fd878f77b3b687856281ace8e84bf419ec7b912",
-  "working_tree_status": "kanban_ana_presentation_flow_restored_documentation_checkpoint",
+  "last_audited_commit": "fdc3d7434fb37be8bd9705a51f2da4df652417ac",
+  "current_head_at_update": "fdc3d7434fb37be8bd9705a51f2da4df652417ac",
+  "working_tree_status": "ana_presentation_e2e_and_provider_reconciliation_documentation_checkpoint",
   "stage_1_baseline": ".agent/baselines/2026-09-25-stage-1.json",
   "recovery_tag": "baseline-wayflex-stage1-20260925",
   "work_branch": "main",
@@ -16,7 +16,7 @@
     "working_tree_status": "published"
   },
   "full_audit_required": false,
-  "baseline_status": "whatsapp_account_resolver_restored_without_external_send",
-  "updated_at": "2026-09-27T19:36:04Z",
-  "next_action": "Criar um novo lead controlado, enviar ao Kanban com atendimento IA e comprovar Novo → Apresentado, recebimento, recibos e resposta da Ana. O lead anterior já havia sido excluído."
+  "baseline_status": "ana_presentation_outbound_and_inbound_confirmed_without_duplicate",
+  "updated_at": "2026-09-27T19:54:56Z",
+  "next_action": "Revisar a política para cumprimentos simples: a entrada Boa tarde foi recebida, mas confiança 15% abaixo do mínimo 20% abriu atendimento humano sem resposta automática."
 }

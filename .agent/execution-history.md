@@ -1,5 +1,12 @@
 # Histórico resumido de execução
 
+## 2026-09-27 — Teste real da apresentação e reconciliação Z-API
+
+- Confirmado que o envio original estava apenas adiado para segunda-feira por horário comercial. O administrador autorizou um único teste fora do horário; só havia esse job na fila e a política foi restaurada imediatamente depois.
+- Z-API aceitou a apresentação e o webhook recebeu **“Boa tarde”**. O aceite ficou seguro em `reconciliation_required` porque um trigger usava `outreach_jobs.created_at` inexistente; não houve reenvio.
+- Migration `20260927195156_fix_proposal_delivery_outreach_ordering` aplicada como `20260927195241`. A reconciliação concluiu job, mensagem e outreach como enviados.
+- A Ana entregou a entrada ao humano por confiança 15% menor que o mínimo 20%. Type-check frontend/Edge, lint, 51 arquivos/311 testes, build e 17 smoke checks passaram. Commit `fdc3d74`; Site v140 mantido.
+
 ## 2026-09-27 — Fluxo Novo → Apresentado restaurado
 
 - Logs do Supabase mostraram que o Kanban persistia o lead, mas `resolve_lead_whatsapp_account` falhava por ambiguidade de `owner_user_id`, impedindo a primeira execução da Ana.

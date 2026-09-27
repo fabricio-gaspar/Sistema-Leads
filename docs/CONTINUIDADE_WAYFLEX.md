@@ -1,5 +1,14 @@
 # Checkpoint — WayFlex CRM
 
+## 27/09/2026 — Apresentação real enviada e reconciliação do provedor corrigida
+
+- O teste criado às 16:40 foi corretamente adiado porque a versão publicada da Ana exige horário comercial e domingo está inativo. Após autorização explícita do administrador, somente o job desse lead foi antecipado e processado; não havia outra fila vencida. `businessHoursOnly` foi restaurado imediatamente para `true` e a exceção ficou auditada.
+- A Z-API aceitou uma única apresentação às 16:49. O provedor retornou identificador e não houve repetição. A resposta real **“Boa tarde”** entrou pelo webhook às 16:51, comprovando saída e entrada para o telefone terminado em 41875.
+- O aceite expôs um defeito no gatilho de projeção de propostas: `project_proposal_delivery_after_message` ordenava `outreach_jobs` por `created_at`, coluna inexistente. O worker preservou o ID aceito como `reconciliation_required`, sem reenviar.
+- A migration `20260927195156_fix_proposal_delivery_outreach_ordering` troca a ordenação por `run_at, id` e foi aplicada no projeto oficial como `20260927195241`. A reconciliação reaproveitou o aceite existente e concluiu job, mensagem e outreach como enviados.
+- A resposta recebida foi processada pela Ana, mas a decisão teve confiança de 15%, abaixo do mínimo publicado de 20%, e abriu atendimento humano. Portanto, a resposta automática depois de **“Boa tarde”** não foi enviada; isso é uma decisão de política separada do transporte comprovado.
+- Type-check frontend/Edge, lint, **51 arquivos / 311 testes**, build, 17 smoke checks e advisors passaram sem novo alerta atribuível à migration. Código no commit `fdc3d74`; Site v140 preservado por não haver alteração de frontend.
+
 ## 27/09/2026 — Fluxo Leads → Kanban → apresentação da Ana restaurado
 
 - O diagnóstico em logs do Supabase oficial comprovou que o lead entrava no Kanban, mas a execução da Ana falhava antes da primeira mensagem. A RPC `resolve_lead_whatsapp_account` abortava com `column reference "owner_user_id" is ambiguous`; o erro era então apresentado genericamente como `whatsapp_account_not_configured`.

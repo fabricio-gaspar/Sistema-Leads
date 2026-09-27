@@ -2,6 +2,14 @@
   "schema_version": 1,
   "requirements": [
     {
+      "id": "REQ-058",
+      "description": "Comprovar a apresentação real da Ana sem duplicar envio e reconciliar o aceite do provedor",
+      "module": "mensageria",
+      "status": "confirmed",
+      "evidence": "Teste único autorizado fora do horário: Z-API aceitou a apresentação e o webhook recebeu Boa tarde. O worker preservou o ID remoto em reconciliation_required; migration 20260927195156 aplicada como 20260927195241 corrigiu o trigger que usava outreach_jobs.created_at, e a reconciliação concluiu processed/sent sem reenvio. Política businessHoursOnly restaurada. 51 arquivos/311 testes, type-checks, lint, build e 17 smoke checks passaram. Commit fdc3d74.",
+      "last_validation": "2026-09-27"
+    },
+    {
       "id": "REQ-057",
       "description": "Restaurar o fluxo Leads → Kanban → apresentação inicial da Ana quando a conta WhatsApp está configurada",
       "module": "ana",

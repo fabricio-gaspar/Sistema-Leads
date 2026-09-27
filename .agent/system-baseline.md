@@ -1,5 +1,13 @@
 # Baseline do sistema
 
+## Envio real e reconciliação do aceite Z-API — 27/09/2026
+
+- O primeiro contato ficou em fila por `outside_business_hours`, comportamento coerente com domingo inativo e `businessHoursOnly=true`. Com autorização explícita, somente esse job foi liberado; a política foi restaurada imediatamente e a exceção auditada.
+- A Z-API aceitou uma apresentação às 16:49 e o webhook registrou a resposta **“Boa tarde”** às 16:51. Saída e entrada foram comprovadas sem envio duplicado.
+- Corrigido `private.project_proposal_delivery_after_message`, que referenciava `outreach_jobs.created_at` inexistente e quebrava a persistência após o aceite externo. Migration local `20260927195156`, remota `20260927195241`; reconciliação concluída como `processed/sent`.
+- A Ana processou a entrada, mas transferiu ao humano por confiança 15% abaixo do mínimo 20%. Transporte está comprovado; continuidade automática desse cumprimento continua bloqueada pela política vigente.
+- Commit `fdc3d74`; type-check frontend/Edge, lint, 51 arquivos/311 testes, build e 17 smoke checks aprovados. Site v140 e horário comercial original preservados.
+
 ## Fluxo da Ana no Kanban restaurado — 27/09/2026
 
 - Logs do projeto oficial localizaram a interrupção na RPC `resolve_lead_whatsapp_account`: nomes de saída de `RETURNS TABLE` colidiam com colunas não qualificadas e produziam `owner_user_id is ambiguous` antes da apresentação.

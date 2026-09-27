@@ -1,8 +1,20 @@
 {
   "schema_version": 1,
-  "validated_commit": "4fd878f77b3b687856281ace8e84bf419ec7b912",
+  "validated_commit": "fdc3d7434fb37be8bd9705a51f2da4df652417ac",
   "last_validated_at": "2026-09-27",
   "current_validation": {
+    "stage": "ana_presentation_real_e2e_and_provider_reconciliation",
+    "frontend_typecheck": "passed",
+    "edge_typecheck": "passed",
+    "lint": "passed",
+    "production_build": "passed",
+    "sites_artifact": "passed_build; no_frontend_change; official_site_v140_preserved",
+    "deterministic_smoke_checks": 17,
+    "vitest": "passed; 51 files; 311 tests",
+    "visual_review": "not_required; database trigger correction and controlled operational test",
+    "external_end_to_end": "passed; one authorized Z-API presentation accepted; inbound Boa tarde received; no duplicate send; subsequent Ana reply handed to human by confidence policy"
+  },
+  "previous_validation": {
     "stage": "kanban_ana_presentation_flow_restored",
     "frontend_typecheck": "passed",
     "edge_typecheck": "passed",
@@ -14,19 +26,22 @@
     "visual_review": "not_required; database resolver correction only",
     "external_end_to_end": "not_executed; transactional resolver probe passed and rolled back with zero synthetic residues"
   },
-  "previous_validation": {
-    "stage": "lead_base_management_restored_in_funnel",
-    "frontend_typecheck": "passed",
-    "edge_typecheck": "passed",
-    "lint": "passed",
-    "production_build": "passed",
-    "sites_artifact": "passed; official_site_v140_deployed",
-    "deterministic_smoke_checks": 17,
-    "vitest": "passed; 51 files; 309 tests",
-    "visual_review": "authenticated_funnel_passed; management shortcut, filters, table and disabled delete without selection confirmed",
-    "external_end_to_end": "not_executed; no lead selected or deleted"
-  },
   "commands": [
+    {
+      "command": "npm run type-check && npm run type-check:edge && npm run lint && npm test && npm run build && node scripts/check-commercial-analytics.mjs && git diff --check",
+      "status": "passed",
+      "note": "Reconciliação pós-aceite: 51 arquivos/311 testes e 17 verificações determinísticas."
+    },
+    {
+      "command": "Supabase apply migration fix_proposal_delivery_outreach_ordering; get_advisors",
+      "status": "passed",
+      "note": "Migration registrada como 20260927195241; nenhum novo alerta atribuído à função privada corrigida."
+    },
+    {
+      "command": "Controlled Z-API presentation and inbound webhook verification",
+      "status": "passed",
+      "note": "Um envio autorizado foi aceito, reconciliado sem repetição e a resposta Boa tarde entrou pelo webhook. Horário comercial restaurado."
+    },
     {
       "command": "npm run type-check && npm run type-check:edge && npm run lint && npm test && npm run build && node scripts/check-commercial-analytics.mjs && git diff --check",
       "status": "passed",

@@ -1,5 +1,7 @@
 # Backend
 
+- O E2E controlado confirmou a proteção pós-aceite: quando a Z-API aceitou e a persistência local falhou, `automation-worker` gravou `provider_accepted_reconciliation_required` com o ID remoto e não repetiu o envio. Depois da correção do trigger, a RPC canônica reconciliou o mesmo aceite como `processed/sent`.
+
 - O caminho canônico `ana-run` → `resolve_lead_whatsapp_account` voltou a obter a conta/integração corporativa depois da correção SQL de ambiguidade. Nenhuma Edge Function foi substituída ou publicada nesta correção; `ana-run` continua sendo a única autoridade automática e a fila existente continua sendo a única via de saída.
 
 - `ana-operations` v4 expõe `set_automatic` para sessão administrativa. A ação reutiliza a agenda existente, revalida readiness e roteamento e delega a persistência atômica à RPC exclusiva de `service_role`; não chama Apify, IA ou WhatsApp.

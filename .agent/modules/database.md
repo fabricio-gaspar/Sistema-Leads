@@ -1,5 +1,7 @@
 # Banco de dados
 
+- `20260927195156_fix_proposal_delivery_outreach_ordering`: corrige o trigger de projeção de propostas para ordenar `outreach_jobs` por `run_at, id`, colunas existentes. Isso permite que mensagens comuns da Ana sejam consolidadas após o aceite do provedor sem interferir na projeção de propostas. Aplicada no projeto oficial como `20260927195241`.
+
 - `20260927193046_fix_whatsapp_account_resolver_ambiguity`: restaura `resolve_lead_whatsapp_account` qualificando campos que colidiam com as variáveis de `RETURNS TABLE`. Preserva o lock do lead, preferência por conta do responsável, fallback para conta padrão, gate do provedor e `EXECUTE` exclusivo de `service_role`. Aplicada no projeto oficial como registro remoto `20260927193211`.
 
 - `20260927130054_dashboard_ana_automatic_control`: função `SECURITY INVOKER` exclusiva de `service_role` ativa/pausa `company_settings` e a agenda na mesma transação, revalida gates, registra auditoria e cancela apenas runs `queued`/`awaiting_approval` ao pausar.
