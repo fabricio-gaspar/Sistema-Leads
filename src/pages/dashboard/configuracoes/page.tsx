@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import EmpresaTabs from '@/pages/dashboard/empresa/components/EmpresaTabs';
 import PersonalizacaoAna from '@/pages/dashboard/personalizacao-ana/page';
 import CommercialCatalogTab from './components/CommercialCatalogTab';
@@ -82,20 +82,18 @@ const legacyTabMap: Record<string, string> = {
 
 const availableTabs = new Set(groups.flatMap((group) => group.items.map((item) => item.id)));
 
-function tabFromUrl() {
-  const requested = new URLSearchParams(window.location.search).get('tab') || 'operacao';
+function tabFromUrl(params: URLSearchParams) {
+  const requested = params.get('tab') || 'operacao';
   const tab = legacyTabMap[requested] || requested;
   return availableTabs.has(tab) ? tab : 'operacao';
 }
 
 export default function DashboardConfiguracoes() {
-  const [tab, setTab] = useState(tabFromUrl);
+  const [params, setParams] = useSearchParams();
+  const tab = tabFromUrl(params);
 
   const chooseTab = (nextTab: string) => {
-    setTab(nextTab);
-    const url = new URL(window.location.href);
-    url.searchParams.set('tab', nextTab);
-    window.history.replaceState(null, '', url.toString());
+    setParams((previous) => { const next = new URLSearchParams(previous); next.set('tab', nextTab); return next; });
   };
 
   const currentItem = groups.flatMap((group) => group.items).find((item) => item.id === tab);

@@ -1,8 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
+import AccessibleDialog from '@/components/feature/AccessibleDialog';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { Proposta, ItemProposta } from '@/mocks/propostasData';
 import { refreshLeadsStore, useLeadsStore } from '@/hooks/useLeadsStore';
-import { refreshPropostasStore, usePropostasStore } from '@/hooks/usePropostasStore';
+import { refreshPropostasStore, usePropostasStore, usePropostasLoadStatus, waitForPropostasPersistence } from '@/hooks/usePropostasStore';
+import { confirmedUnitPrice, hasUnconfirmedPrices } from '@/domain/proposalPricing';
+import DataReadNotice from '@/components/feature/DataReadNotice';
+import { percentage, proposalNet } from '@/domain/commercialAnalytics';
 import { useConfiguracaoStore } from '@/hooks/useConfiguracaoStore';
 import { useTarefasStore } from '@/hooks/useTarefasStore';
 import { useNotificacoesStore } from '@/hooks/useNotificacoesStore';
@@ -51,19 +55,28 @@ const motivosPerda = [
 ];
 
 const fmt = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-const valorComDesconto = (p: Proposta) => p.valor * (1 - (p.descontoPct || 0) / 100);
+const valorComDesconto = proposalNet;
 const escapar = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
 export default function Orcamentos() {
+  const loadStatus = usePropostasLoadStatus();
+  const writing = useRef(false);
+  const [saving, setSaving] = useState(false);
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
   const { propostas, atualizar, criar, excluir } = usePropostasStore();
+  const [filtroStatus, setFiltroStatus] = useState('');
+  const [buscaProposta, setBuscaProposta] = useState('');
+  const propostasVisiveis = propostas.filter((proposal) => (!filtroStatus || proposal.status === filtroStatus) && `${proposal.numero} ${proposal.empresa} ${proposal.lead}`.toLocaleLowerCase('pt-BR').includes(buscaProposta.toLocaleLowerCase('pt-BR')));
+  const propostasDecididas = propostas.filter((proposal) => ['aceita', 'recusada'].includes(proposal.status));
+  const taxaAceite = percentage(propostasDecididas.filter((proposal) => proposal.status === 'aceita').length, propostasDecididas.length);
   const [selecionada, setSelecionada] = useState<Proposta | null>(null);
   const [toast, setToast] = useState('');
   const [novoModal, setNovoModal] = useState(false);
   const [novaLeadId, setNovaLeadId] = useState('');
   const [novaItens, setNovaItens] = useState<Record<string, number>>({});
+  const [novaPrecos, setNovaPrecos] = useState<Record<string, string>>({});
   const [novaDesconto, setNovaDesconto] = useState(0);
   const [novaTemplateId, setNovaTemplateId] = useState('');
   const [novaValidadeDias, setNovaValidadeDias] = useState(0);
@@ -74,6 +87,7 @@ export default function Orcamentos() {
   const [perdaOutro, setPerdaOutro] = useState('');
   const [editarProposta, setEditarProposta] = useState<Proposta | null>(null);
   const [editItens, setEditItens] = useState<Record<string, number>>({});
+  const [editPrecos, setEditPrecos] = useState<Record<string, string>>({});
   const [editDesconto, setEditDesconto] = useState(0);
 
   const [leads] = useLeadsStore();
@@ -115,6 +129,7 @@ export default function Orcamentos() {
   const enviar = (id: string) => {
     const p = propostas.find((x) => x.id === id);
     if (!p) return;
+    if (hasUnconfirmedPrices(p)) { mostrarToast('Confirme os preços unitários antes de preparar o envio.'); return; }
     if (p.bloqueadaEnvio || p.status === 'aguardando_aprovacao') {
       mostrarToast('Proposta aguardando aprovação de desconto. Envio bloqueado.');
       return;
@@ -129,6 +144,7 @@ export default function Orcamentos() {
   const aceitar = async (id: string) => {
     const p = propostas.find((x) => x.id === id);
     if (!p) return;
+    if (hasUnconfirmedPrices(p)) { mostrarToast('Confirme os preços unitários antes de registrar o aceite.'); return; }
     if (p.bloqueadaEnvio || p.status === 'aguardando_aprovacao') {
       mostrarToast('Aprove o desconto antes de aceitar a proposta.');
       return;
@@ -174,21 +190,31 @@ export default function Orcamentos() {
     }
   };
 
-  const aprovarDesconto = (id: string) => {
+  const confirmarGravacao = async () => {
+    try { await waitForPropostasPersistence(); return true; }
+    catch { mostrarToast('Não foi possível salvar a proposta. Os dados foram reconciliados com o servidor.'); return false; }
+    finally { writing.current = false; setSaving(false); }
+  };
+
+  const aprovarDesconto = async (id: string) => {
     const p = propostas.find((x) => x.id === id);
     atualizar(id, { status: 'rascunho', bloqueadaEnvio: false, descontoAprovado: true });
+    if (!await confirmarGravacao()) return;
     fluxo.registrarAuditoria({ evento: 'DISCOUNT_APPROVED', ator: 'Gestor', alvo: p?.empresa || id, detalhes: `Desconto da proposta ${p?.numero || ''} aprovado` });
     mostrarToast('Desconto aprovado. Proposta liberada para envio.');
   };
 
-  const reprovarDesconto = (id: string) => {
+  const reprovarDesconto = async (id: string) => {
     const p = propostas.find((x) => x.id === id);
     atualizar(id, { descontoPct: 0, status: 'rascunho', bloqueadaEnvio: false, descontoAprovado: false });
+    if (!await confirmarGravacao()) return;
     fluxo.registrarAuditoria({ evento: 'DISCOUNT_REJECTED', ator: 'Gestor', alvo: p?.empresa || id, detalhes: `Desconto da proposta ${p?.numero || ''} reprovado` });
     mostrarToast('Desconto reprovado. Proposta ajustada sem desconto.');
   };
 
-  const novaVersao = (p: Proposta) => {
+  const novaVersao = async (p: Proposta) => {
+    if (writing.current) return;
+    writing.current = true; setSaving(true);
     const nova: Proposta = {
       ...p,
       id: `pr-${Date.now()}`,
@@ -202,12 +228,14 @@ export default function Orcamentos() {
       data: new Date().toISOString().slice(0, 10),
     };
     criar(nova);
-    atualizar(p.id, { status: 'expirada' });
+    if (p.status !== 'aceita') atualizar(p.id, { status: 'expirada' });
+    if (!await confirmarGravacao()) return;
     setSelecionada(nova);
-    mostrarToast(`Nova versão ${nova.numero} criada (v${nova.versao}). Versão anterior arquivada.`);
+    mostrarToast(`Nova versão ${nova.numero} criada (v${nova.versao}). ${p.status === 'aceita' ? 'Aceite da versão anterior preservado.' : 'Versão anterior marcada como expirada.'}`);
   };
 
   const baixarPDF = (p: Proposta) => {
+    if (hasUnconfirmedPrices(p)) { mostrarToast('Confirme os preços dos itens antes de gerar o documento. Zero sem confirmação não representa gratuidade.'); return; }
     const total = valorComDesconto(p);
     const tema = temaPadrao();
     const nomeEmpresa = organizacao?.nome || 'Proposta comercial';
@@ -251,6 +279,7 @@ export default function Orcamentos() {
   };
 
   const abrirGerarDoc = (p: Proposta) => {
+    if (hasUnconfirmedPrices(p)) { mostrarToast('Confirme os preços dos itens antes de gerar o documento.'); return; }
     const ativos = templatesDocumento.filter((t) => t.ativo);
     const contrato = ativos.find((t) => t.tipo === 'contrato') || ativos[0];
     setDocModal(p);
@@ -306,21 +335,24 @@ export default function Orcamentos() {
 
   const subtotalNova = Object.entries(novaItens).reduce((acc, [catId, qtd]) => {
     const c = catalogo.find((x) => x.id === catId);
-    return c ? acc + c.preco * qtd : acc;
+    return c ? acc + (confirmedUnitPrice(c.preco, novaPrecos[catId]) ?? 0) * qtd : acc;
   }, 0);
+  const novaPrecoPendente = Object.entries(novaItens).some(([id, qtd]) => qtd > 0 && confirmedUnitPrice(catalogo.find((c) => c.id === id)?.preco ?? 0, novaPrecos[id]) === null);
   const totalNova = subtotalNova * (1 - novaDesconto / 100);
 
-  const criarProposta = () => {
+  const criarProposta = async () => {
+    if (writing.current) return;
     const lead = leads.find((l) => l.id === novaLeadId);
     if (!lead) {
       mostrarToast('Selecione um lead.');
       return;
     }
+    if (novaPrecoPendente) { mostrarToast('Defina o preço unitário dos itens selecionados. Para gratuidade intencional, informe zero explicitamente.'); return; }
     const itens: ItemProposta[] = Object.entries(novaItens)
       .filter(([, qtd]) => qtd > 0)
       .map(([catId, qtd]) => {
         const c = catalogo.find((x) => x.id === catId)!;
-        return { id: `it-${Date.now()}-${catId}`, nome: c.nome, quantidade: qtd, preco: c.preco };
+        return { id: `it-${Date.now()}-${catId}`, nome: c.nome, quantidade: qtd, preco: confirmedUnitPrice(c.preco, novaPrecos[catId])!, precoConfirmado: true };
       });
     if (itens.length === 0) {
       mostrarToast('Adicione pelo menos um item.');
@@ -343,7 +375,7 @@ export default function Orcamentos() {
       valor: itens.reduce((acc, i) => acc + i.preco * i.quantidade, 0),
       status: precisaAprovacao ? 'aguardando_aprovacao' : 'rascunho',
       validade: new Date(Date.now() + validadeDias * 86400000).toISOString().slice(0, 10),
-      responsavel: 'Ana (IA)',
+      responsavel: user?.name || 'Usuário',
       data: new Date().toISOString().slice(0, 10),
       canal: 'WhatsApp',
       itens,
@@ -357,7 +389,9 @@ export default function Orcamentos() {
       garantia: template?.garantia,
       termos: template?.termos,
     };
+    writing.current = true; setSaving(true);
     criar(nova);
+    if (!await confirmarGravacao()) return;
     if (precisaAprovacao) {
       tarefas.criar({
         titulo: `Aprovar desconto de ${novaDesconto}% na proposta ${numero}`,
@@ -372,6 +406,7 @@ export default function Orcamentos() {
     setNovoModal(false);
     setNovaLeadId('');
     setNovaItens({});
+    setNovaPrecos({});
     setNovaDesconto(0);
     setNovaTemplateId('');
     setNovaValidadeDias(0);
@@ -386,21 +421,24 @@ export default function Orcamentos() {
       if (cat) map[cat.id] = (map[cat.id] || 0) + i.quantidade;
     });
     setEditItens(map);
+    setEditPrecos(Object.fromEntries(p.itens.flatMap((item) => { const product = catalogo.find((c) => c.nome === item.nome); return product && (item.preco > 0 || item.precoConfirmado) ? [[product.id, String(item.preco)]] : []; })));
     setEditDesconto(p.descontoPct);
   };
 
-  const salvarEdicaoProposta = () => {
+  const salvarEdicaoProposta = async () => {
     if (!editarProposta) return;
+    if (Object.entries(editItens).some(([id, qtd]) => qtd > 0 && confirmedUnitPrice(catalogo.find((c) => c.id === id)?.preco ?? 0, editPrecos[id]) === null)) { mostrarToast('Confirme os preços unitários antes de salvar.'); return; }
     const itens: ItemProposta[] = Object.entries(editItens)
       .filter(([, qtd]) => qtd > 0)
       .map(([catId, qtd]) => {
         const c = catalogo.find((x) => x.id === catId)!;
-        return { id: `it-${Date.now()}-${catId}`, nome: c.nome, quantidade: qtd, preco: c.preco };
+        return { id: `it-${Date.now()}-${catId}`, nome: c.nome, quantidade: qtd, preco: confirmedUnitPrice(c.preco, editPrecos[catId])!, precoConfirmado: true };
       });
     if (itens.length === 0) {
       mostrarToast('A proposta precisa de pelo menos um item.');
       return;
     }
+    itens.push(...editarProposta.itens.filter((item) => !catalogo.some((product) => product.nome === item.nome)));
     const valor = itens.reduce((acc, i) => acc + i.preco * i.quantidade, 0);
     const requiresApproval = editDesconto > config.descontoExigeAprovacaoAcima;
     const retainsApproval = requiresApproval
@@ -416,24 +454,29 @@ export default function Orcamentos() {
         ? 'aguardando_aprovacao'
         : editarProposta.status === 'aguardando_aprovacao' ? 'rascunho' : editarProposta.status,
     });
+    if (!await confirmarGravacao()) return;
     setEditarProposta(null);
     mostrarToast(`Proposta ${editarProposta.numero} atualizada.`);
   };
 
-  const excluirProposta = (id: string) => {
+  const excluirProposta = async (id: string) => {
+    if (!window.confirm('Arquivar esta proposta? Ela sairá da lista sem apagar o histórico no servidor.')) return;
     excluir(id);
+    if (!await confirmarGravacao()) return;
     setSelecionada(null);
-    mostrarToast('Proposta excluída.');
+    mostrarToast('Proposta arquivada.');
   };
 
   const subtotalEdit = Object.entries(editItens).reduce((acc, [catId, qtd]) => {
     const c = catalogo.find((x) => x.id === catId);
-    return c ? acc + c.preco * qtd : acc;
-  }, 0);
+    return c ? acc + (confirmedUnitPrice(c.preco, editPrecos[catId]) ?? 0) * qtd : acc;
+  }, (editarProposta?.itens ?? []).filter((item) => !catalogo.some((product) => product.nome === item.nome)).reduce((sum, item) => sum + item.preco * item.quantidade, 0));
+  const editPrecoPendente = Object.entries(editItens).some(([id, qtd]) => qtd > 0 && confirmedUnitPrice(catalogo.find((c) => c.id === id)?.preco ?? 0, editPrecos[id]) === null);
   const totalEdit = subtotalEdit * (1 - editDesconto / 100);
 
   return (
     <div className="wf-page wf-secondary-page wf-secondary-page--quotes">
+      <DataReadNotice status={loadStatus} onRetry={() => { void refreshPropostasStore().catch(() => undefined); }} />
       <div className="wf-secondary-header mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <p className="wf-secondary-eyebrow">Operação comercial</p>
@@ -465,23 +508,24 @@ export default function Orcamentos() {
         {[
           { label: 'Propostas em aberto', value: String(propostas.filter((p) => p.status === 'enviada' || p.status === 'visualizada').length), icon: 'ri-file-list-3-line', color: 'bg-primary-100 text-primary-600' },
           { label: 'Propostas aceitas', value: String(propostas.filter((p) => p.status === 'aceita').length), icon: 'ri-check-double-line', color: 'bg-secondary-100 text-secondary-600' },
-          { label: 'Taxa de aceite', value: `${propostas.length ? Math.round((propostas.filter((p) => p.status === 'aceita').length / propostas.length) * 100) : 0}%`, icon: 'ri-percent-line', color: 'bg-accent-100 text-accent-600' },
+          { label: `Aceitas / decididas (${propostasDecididas.length})`, value: taxaAceite === null ? '—' : `${taxaAceite.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`, icon: 'ri-percent-line', color: 'bg-accent-100 text-accent-600' },
           { label: 'Aguardando aprovação', value: String(propostas.filter((p) => p.status === 'aguardando_aprovacao').length), icon: 'ri-time-line', color: 'bg-primary-500/20 text-primary-600' },
         ].map((kpi, i) => (
           <div key={i} className="wf-secondary-kpi bg-background-50 border border-background-200/70 rounded-xl p-5">
             <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-4 ${kpi.color}`}>
               <i className={`${kpi.icon} text-lg`}></i>
             </div>
-            <p className="text-2xl font-heading font-extrabold text-foreground-950">{kpi.value}</p>
+            <p className="text-2xl font-heading font-extrabold text-foreground-950">{loadStatus === 'ready' ? kpi.value : '—'}</p>
             <p className="text-foreground-500 text-sm mt-1">{kpi.label}</p>
           </div>
         ))}
       </div>
 
+      <div className="wf-toolbar mb-4 flex flex-wrap gap-3"><label className="min-w-0 flex-1"><span className="sr-only">Buscar proposta</span><input value={buscaProposta} onChange={(event) => setBuscaProposta(event.target.value)} placeholder="Buscar número, empresa ou contato" className="w-full rounded-lg border border-background-200 px-3" /></label><label><span className="sr-only">Situação da proposta</span><select value={filtroStatus} onChange={(event) => setFiltroStatus(event.target.value)} className="rounded-lg border border-background-200 px-3"><option value="">Todas as situações</option>{Object.entries(statusLabel).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label></div>
       <div className="wf-secondary-panel wf-secondary-table bg-background-50 border border-background-200/70 rounded-xl overflow-hidden">
           <div className="wf-secondary-panel-heading">
             <div><p className="wf-secondary-eyebrow">Carteira de propostas</p><h2>Orçamentos cadastrados</h2></div>
-            <span className="wf-secondary-count">{propostas.length} {propostas.length === 1 ? 'registro' : 'registros'}</span>
+            <span className="wf-secondary-count">{propostasVisiveis.length} de {propostas.length} registros</span>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -496,7 +540,7 @@ export default function Orcamentos() {
                 </tr>
               </thead>
               <tbody>
-                {propostas.map((p) => (
+                {propostasVisiveis.map((p) => (
                   <tr key={p.id} className="border-b border-background-100 hover:bg-background-50/50 transition-colors">
                     <td className="px-6 py-3.5">
                       <button
@@ -613,10 +657,10 @@ export default function Orcamentos() {
                     </td>
                   </tr>
                 ))}
-                {propostas.length === 0 && (
+                {loadStatus === 'ready' && propostasVisiveis.length === 0 && (
                   <tr>
                     <td colSpan={6} className="px-6 py-12 text-center text-foreground-500">
-                      Nenhuma proposta criada.
+                      {propostas.length ? 'Nenhuma proposta corresponde aos filtros.' : 'Nenhuma proposta criada. Comece vinculando um lead e os itens do catálogo.'}
                     </td>
                   </tr>
                 )}
@@ -627,7 +671,7 @@ export default function Orcamentos() {
 
       {/* Drawer de detalhe */}
       {selecionada && (
-        <div className="fixed inset-0 z-50 bg-foreground-950/50 flex justify-end" onClick={() => setSelecionada(null)}>
+        <AccessibleDialog title="Detalhes da proposta" className="fixed inset-0 z-50 bg-foreground-950/50 flex justify-end" onClose={() => setSelecionada(null)}>
           <div
             className="bg-background-50 w-full max-w-md h-full overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
@@ -664,7 +708,7 @@ export default function Orcamentos() {
                 <h4 className="text-sm font-semibold text-foreground-800 mb-3">Itens</h4>
                 <div className="space-y-2">
                   {selecionada.itens.map((i) => (
-                    <div key={i.id} className="flex items-center justify-between bg-background-100 rounded-lg px-4 py-2.5">
+                    <div key={i.id} className="flex flex-wrap items-center justify-between gap-3 bg-background-100 rounded-lg px-4 py-2.5">
                       <div>
                         <p className="text-sm text-foreground-800">{i.nome}</p>
                         <p className="text-xs text-foreground-500">{i.quantidade}x {fmt(i.preco)}</p>
@@ -747,7 +791,7 @@ export default function Orcamentos() {
               )}
               {(selecionada.status === 'enviada' || selecionada.status === 'visualizada' || selecionada.status === 'aceita' || selecionada.status === 'recusada') && (
                 <button
-                  onClick={() => novaVersao(selecionada)}
+                  disabled={saving} onClick={() => novaVersao(selecionada)}
                   className="w-full px-4 py-2.5 border border-background-300 text-foreground-700 rounded-lg text-sm font-semibold hover:bg-background-100 cursor-pointer whitespace-nowrap"
                 >
                   <i className="ri-git-branch-line mr-2"></i>
@@ -756,16 +800,16 @@ export default function Orcamentos() {
               )}
             </div>
           </div>
-        </div>
+        </AccessibleDialog>
       )}
 
       {/* Modal Nova proposta */}
       {novoModal && (
-        <div className="fixed inset-0 z-50 bg-foreground-950/50 flex items-center justify-center p-4" onClick={() => setNovoModal(false)}>
+        <AccessibleDialog title="Novo registro" className="fixed inset-0 z-50 bg-foreground-950/50 flex items-center justify-center p-4" onClose={() => setNovoModal(false)}>
           <div className="bg-background-50 rounded-xl max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="px-6 py-4 border-b border-background-200/70 flex items-center justify-between">
               <h3 className="font-heading font-bold text-foreground-950">Nova proposta</h3>
-              <button onClick={() => setNovoModal(false)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-background-100 cursor-pointer">
+              <button aria-label="Fechar formulário" onClick={() => setNovoModal(false)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-background-100 cursor-pointer">
                 <i className="ri-close-line text-lg"></i>
               </button>
             </div>
@@ -822,12 +866,13 @@ export default function Orcamentos() {
                   {catalogo.map((c) => {
                     const qtd = novaItens[c.id] || 0;
                     return (
-                      <div key={c.id} className="flex items-center justify-between bg-background-100 rounded-lg px-4 py-2.5">
+                      <div key={c.id} className="flex flex-wrap items-center justify-between gap-3 bg-background-100 rounded-lg px-4 py-2.5">
                         <div>
                           <p className="text-sm text-foreground-800">{c.nome}</p>
-                          <p className="text-xs text-foreground-500">{fmt(c.preco)} / {c.unidade}</p>
+                          <p className="text-xs text-foreground-500">{c.preco > 0 ? fmt(c.preco) : 'Preço a confirmar'} / {c.unidade}</p>
                         </div>
                         <div className="flex items-center gap-2">
+                          {qtd > 0 && <label className="text-xs">Unitário (R$)<input type="number" min="0" step="0.01" aria-label={`Preço unitário de ${c.nome}`} value={novaPrecos[c.id] ?? (c.preco > 0 ? String(c.preco) : '')} onChange={(event) => setNovaPrecos({ ...novaPrecos, [c.id]: event.target.value })} placeholder="Definir" className="ml-2 w-24 rounded border border-background-300 px-2" /></label>}
                           <button
                             onClick={() => setNovaItens({ ...novaItens, [c.id]: Math.max(0, qtd - 1) })}
                             className="w-7 h-7 flex items-center justify-center bg-background-50 border border-background-300 rounded-md text-foreground-700 cursor-pointer hover:bg-background-200"
@@ -863,20 +908,20 @@ export default function Orcamentos() {
                   {novaDesconto > 0 && <span className="block line-through">{fmt(subtotalNova)}</span>}
                   <span className="text-xs text-foreground-400">Total com desconto</span>
                 </div>
-                <span className="text-lg font-heading font-extrabold text-foreground-950">{fmt(totalNova)}</span>
+                <span className="text-lg font-heading font-extrabold text-foreground-950">{novaPrecoPendente ? 'A definir' : fmt(totalNova)}</span>
               </div>
             </div>
             <div className="px-6 py-4 border-t border-background-200/70 flex justify-end gap-2">
-              <button onClick={() => setNovoModal(false)} className="px-4 py-2.5 border border-background-300 text-foreground-700 rounded-lg text-sm font-semibold hover:bg-background-100 cursor-pointer whitespace-nowrap">Cancelar</button>
-              <button onClick={criarProposta} className="px-5 py-2.5 bg-primary-500 hover:bg-primary-600 text-background-50 rounded-lg text-sm font-bold cursor-pointer whitespace-nowrap">Criar proposta</button>
+              <button aria-label="Fechar formulário" onClick={() => setNovoModal(false)} className="px-4 py-2.5 border border-background-300 text-foreground-700 rounded-lg text-sm font-semibold hover:bg-background-100 cursor-pointer whitespace-nowrap">Cancelar</button>
+              <button disabled={saving} onClick={criarProposta} className="px-5 py-2.5 bg-primary-500 hover:bg-primary-600 text-background-50 rounded-lg text-sm font-bold cursor-pointer whitespace-nowrap">Criar proposta</button>
             </div>
           </div>
-        </div>
+        </AccessibleDialog>
       )}
 
       {/* Modal Editar proposta */}
       {editarProposta && (
-        <div className="fixed inset-0 z-50 bg-foreground-950/50 flex items-center justify-center p-4" onClick={() => setEditarProposta(null)}>
+        <AccessibleDialog title="Editar proposta" className="fixed inset-0 z-50 bg-foreground-950/50 flex items-center justify-center p-4" onClose={() => setEditarProposta(null)}>
           <div className="bg-background-50 rounded-xl max-w-lg w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="px-6 py-4 border-b border-background-200/70 flex items-center justify-between">
               <div>
@@ -894,12 +939,13 @@ export default function Orcamentos() {
                   {catalogo.map((c) => {
                     const qtd = editItens[c.id] || 0;
                     return (
-                      <div key={c.id} className="flex items-center justify-between bg-background-100 rounded-lg px-4 py-2.5">
+                      <div key={c.id} className="flex flex-wrap items-center justify-between gap-3 bg-background-100 rounded-lg px-4 py-2.5">
                         <div>
                           <p className="text-sm text-foreground-800">{c.nome}</p>
-                          <p className="text-xs text-foreground-500">{fmt(c.preco)} / {c.unidade}</p>
+                          <p className="text-xs text-foreground-500">{c.preco > 0 ? fmt(c.preco) : 'Preço a confirmar'} / {c.unidade}</p>
                         </div>
                         <div className="flex items-center gap-2">
+                          {qtd > 0 && <label className="text-xs">Unitário (R$)<input type="number" min="0" step="0.01" aria-label={`Preço unitário de ${c.nome}`} value={editPrecos[c.id] ?? (c.preco > 0 ? String(c.preco) : '')} onChange={(event) => setEditPrecos({ ...editPrecos, [c.id]: event.target.value })} placeholder="Definir" className="ml-2 w-24 rounded border border-background-300 px-2" /></label>}
                           <button
                             onClick={() => setEditItens({ ...editItens, [c.id]: Math.max(0, qtd - 1) })}
                             className="w-7 h-7 flex items-center justify-center bg-background-50 border border-background-300 rounded-md text-foreground-700 cursor-pointer hover:bg-background-200"
@@ -935,20 +981,20 @@ export default function Orcamentos() {
                   {editDesconto > 0 && <span className="block line-through">{fmt(subtotalEdit)}</span>}
                   <span className="text-xs text-foreground-400">Total com desconto</span>
                 </div>
-                <span className="text-lg font-heading font-extrabold text-foreground-950">{fmt(totalEdit)}</span>
+                <span className="text-lg font-heading font-extrabold text-foreground-950">{editPrecoPendente ? 'A definir' : fmt(totalEdit)}</span>
               </div>
             </div>
             <div className="px-6 py-4 border-t border-background-200/70 flex justify-end gap-2">
               <button onClick={() => setEditarProposta(null)} className="px-4 py-2.5 border border-background-300 text-foreground-700 rounded-lg text-sm font-semibold hover:bg-background-100 cursor-pointer whitespace-nowrap">Cancelar</button>
-              <button onClick={salvarEdicaoProposta} className="px-5 py-2.5 bg-primary-500 hover:bg-primary-600 text-background-50 rounded-lg text-sm font-bold cursor-pointer whitespace-nowrap">Salvar alterações</button>
+              <button disabled={saving} onClick={salvarEdicaoProposta} className="px-5 py-2.5 bg-primary-500 hover:bg-primary-600 text-background-50 rounded-lg text-sm font-bold cursor-pointer whitespace-nowrap">Salvar alterações</button>
             </div>
           </div>
-        </div>
+        </AccessibleDialog>
       )}
 
       {/* Modal motivo de perda */}
       {perdaModal && (
-        <div className="fixed inset-0 z-50 bg-foreground-950/50 flex items-center justify-center p-4" onClick={() => setPerdaModal(null)}>
+        <AccessibleDialog title="Registrar perda" className="fixed inset-0 z-50 bg-foreground-950/50 flex items-center justify-center p-4" onClose={() => setPerdaModal(null)}>
           <div className="bg-background-50 rounded-xl max-w-md w-full" onClick={(e) => e.stopPropagation()}>
             <div className="px-6 py-4 border-b border-background-200/70 flex items-center justify-between">
               <h3 className="font-heading font-bold text-foreground-950">Registrar perda</h3>
@@ -1005,12 +1051,12 @@ export default function Orcamentos() {
               </button>
             </div>
           </div>
-        </div>
+        </AccessibleDialog>
       )}
 
       {/* Modal gerar documento */}
       {docModal && (
-        <div className="fixed inset-0 z-50 bg-foreground-950/50 flex items-center justify-center p-4" onClick={() => setDocModal(null)}>
+        <AccessibleDialog title="Gerar documento" className="fixed inset-0 z-50 bg-foreground-950/50 flex items-center justify-center p-4" onClose={() => setDocModal(null)}>
           <div className="bg-background-50 rounded-xl max-w-md w-full" onClick={(e) => e.stopPropagation()}>
             <div className="px-6 py-4 border-b border-background-200/70 flex items-center justify-between">
               <div>
@@ -1039,7 +1085,7 @@ export default function Orcamentos() {
               <button onClick={gerarDocumento} className="px-5 py-2.5 bg-primary-500 hover:bg-primary-600 text-background-50 rounded-lg text-sm font-bold cursor-pointer whitespace-nowrap">Gerar</button>
             </div>
           </div>
-        </div>
+        </AccessibleDialog>
       )}
     </div>
   );

@@ -9,6 +9,18 @@
 - Segurança preservada: entrada, saída e automações permanecem desligadas, `kill_switch=true`; não houve mensagem, callback, job, lead ou execução da Ana. Type-check frontend/Edge, lint, **46 arquivos / 284 testes** e build passaram.
 - Próximo teste permitido: o administrador deve clicar **Ativar** no cartão Z-API e autorizar um único envio real. A homologação só pode ser concluída depois de comprovar saída, entrada individual e recibos.
 
+## Redesign publicado — 27/09/2026
+
+- Site v137, commit `e19a3570143f55976e3f080efa2c43f9e916d2ea`, deploy `appgdep_6ab948949864819190d1f63be2a0d5a2` concluído em `succeeded`. URL preservada. Type-check, lint, build e 17 smoke checks passaram; nenhuma operação comercial foi disparada.
+- Próxima ação exata: homologar visualmente as 11 rotas autenticadas em 1440/1024/390 px, validar teclado/diálogos e executar a suíte Vitest em CI que encerre normalmente. Não reauditar todo o histórico nem ativar provedores para testar aparência. Especificação em `docs/REDESIGN_WAYFLEX_2026-09-27.md`.
+
+## 27/09/2026 — Redesign comercial (checkpoint anterior à publicação)
+
+- Nova análise comum a Dashboard/Funil/Relatórios e refinamento das 11 rotas. Carteira separada de consentimento, percentuais sem base indisponíveis, propostas líquidas e preços confirmados por humano.
+- Type-check frontend/Edge, lint, build e 17 smoke checks passaram. Vitest emitiu passes, mas não encerrou; suíte completa não aprovada. Revisão independente estática realizada; QA visual autenticada não realizada.
+- Mensagens usam eventos reais; demais indicadores consultam a cada 60 s. Nenhuma escrita operacional remota, mensagem, busca paga ou ativação.
+- Especificação: `docs/REDESIGN_WAYFLEX_2026-09-27.md`. Próximo: confirmar deploy e homologar com sessão real em desktop/tablet/mobile, sem acionar provedores apenas para QA visual.
+
 ## 27/09/2026 — Pendências explícitas na ativação automática da Ana
 
 - **Configurações > Ana > Operação automática** deixou de responder apenas com a mensagem genérica de pré-requisitos. A tela agora conta as pendências, identifica cada requisito por nome, explica o que falta e oferece um atalho para o campo ou módulo responsável.

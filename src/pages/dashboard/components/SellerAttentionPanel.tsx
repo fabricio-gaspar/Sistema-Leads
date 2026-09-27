@@ -25,7 +25,7 @@ export default function SellerAttentionPanel({ notifications, leads, loadState =
 
     {loadState === 'loading' && <p className="px-5 py-6 text-sm text-foreground-500">Consultando ações comerciais…</p>}
     {loadState === 'error' && <p className="px-5 py-3 text-sm text-amber-800">Não foi possível confirmar todas as ações. Consulte a Central antes de concluir a carteira.</p>}
-    {loadState !== 'loading' && items.length === 0 && <p className="px-5 py-6 text-sm text-foreground-500">Nenhuma ação comercial pendente na carteira carregada.</p>}
+    {loadState === 'ready' && items.length === 0 && <p className="px-5 py-6 text-sm text-foreground-500">Nenhuma ação comercial pendente na carteira carregada.</p>}
     {loadState !== 'loading' && items.length > 0 && <div className="divide-y divide-background-100">
       {items.map((item) => {
         return <Link key={item.id} to={item.to} className="wf-next-action-row wf-decision-row" aria-label={`${item.title}. ${item.group}. ${item.detail}. Etapa ${item.stage}. Próxima ação: ${item.action}.`}>

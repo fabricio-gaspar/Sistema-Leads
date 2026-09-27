@@ -1170,7 +1170,6 @@
 - Publicação oficial: Site v132, commit `5fe475de2c6cb1eb34cf581fddee5a0364f0ecdb`, deploy
   concluído. A verificação autenticada da página publicada não acionou fluxo operacional e não
   encontrou warning ou erro de console.
-
 ## 2026-09-27 — Estado conectado da Z-API separado da ativação
 
 - O erro `whatsapp_provider_disabled` foi reproduzido nos logs: `testar-integracao` v15 confirmou
@@ -1184,3 +1183,10 @@
   ativação antes do teste e traduz o código técnico. O bloqueio server-side de envio permanece.
 - Type-check frontend/Edge, lint, 46 arquivos/284 testes e build passaram. Nenhuma mensagem,
   callback, job, lead, ativação da Ana ou chamada de envio foi criada.
+
+## Redesign comercial — 27/09/2026 (checkpoint anterior à publicação)
+
+- Implementado no Site existente: nova análise comum a Dashboard/Funil/Relatórios, refinamento das 11 rotas e componentes compartilhados. Carteira atribuída separada de autorização de contato; arquivados fora; percentuais sem base indisponíveis; propostas líquidas sem rascunhos; preço desconhecido exige confirmação humana.
+- Mensagens assinam Realtime confirmado; carteira/propostas consultam a cada 60 s. Paginação, timestamps originais, contexto de organização e erro explícito. Nenhuma alteração em configuração/banco remoto, ativação ou envio.
+- Type-check frontend/Edge, lint e build passaram. Smoke determinístico 17/17. Vitest emitiu passes, mas não encerrou; suíte completa NÃO aprovada. Revisão independente estática de UX, design e dados realizada e principais achados corrigidos. QA visual autenticada NÃO realizada.
+- Especificação: `docs/REDESIGN_WAYFLEX_2026-09-27.md`. Próxima ação: confirmar deploy, depois homologação autenticada a 1440/1024/390 px e regressão CI sem executar provedores reais.

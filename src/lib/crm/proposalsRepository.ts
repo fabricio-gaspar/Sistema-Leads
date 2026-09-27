@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabase';
 import { resolveOrganizationSession } from '@/lib/organizationSession';
 import { isUuid } from '@/lib/crm/leadMapper';
 import type { ItemProposta, Proposta } from '@/mocks/propostasData';
+import { readAllPages } from './paginatedRead';
 
 type JsonRecord = Record<string, unknown>;
 interface ProposalRow {
@@ -29,7 +30,7 @@ function extract(row: ProposalRow): { lines: ItemProposta[]; metadata: JsonRecor
 }
 function payload(proposal: Proposta) {
   return {
-    lines: proposal.itens.map((item) => ({ id: item.id, nome: item.nome, quantidade: item.quantidade, preco: item.preco })),
+    lines: proposal.itens.map((item) => ({ id: item.id, nome: item.nome, quantidade: item.quantidade, preco: item.preco, precoConfirmado: item.precoConfirmado === true })),
     metadata: {
       responsavel: proposal.responsavel, canal: proposal.canal, validade: proposal.validade, versao: proposal.versao,
       motivoPerda: proposal.motivoPerda ?? null, aprovador: proposal.aprovador ?? null, descontoAprovado: proposal.descontoAprovado ?? false,
@@ -49,7 +50,7 @@ function rowToProposal(row: ProposalRow, lead?: LeadRow): Proposta {
     id: row.id, numero: row.number, lead: lead?.contact || 'Contato não informado', leadId: row.lead_id ?? undefined,
     empresa: lead?.company || row.client, valor: number(row.value), status: statusFromDb[dbStatus] ?? 'rascunho',
     validade: string(metadata.validade, row.created_at.slice(0, 10)), responsavel: string(metadata.responsavel, row.creator_name || 'Usuário'),
-    data: row.created_at.slice(0, 10), canal: string(metadata.canal, 'Manual'), itens: lines, descontoPct: number(row.discount),
+    data: row.created_at.slice(0, 10), createdAt: row.created_at, canal: string(metadata.canal, 'Manual'), itens: lines, descontoPct: number(row.discount),
     versao: Math.max(1, number(metadata.versao, 1)), motivoPerda: string(metadata.motivoPerda) || undefined,
     aprovador: string(metadata.aprovador) || undefined, propostaPaiId: string(metadata.propostaPaiId) || undefined,
     descontoAprovado: metadata.descontoAprovado === true, bloqueadaEnvio: metadata.bloqueadaEnvio === true,
@@ -58,21 +59,18 @@ function rowToProposal(row: ProposalRow, lead?: LeadRow): Proposta {
   };
 }
 
-export async function loadOperationalProposals(): Promise<Proposta[]> {
-  const session = await resolveOrganizationSession();
-  const { data, error } = await supabase.from('proposals')
+export async function loadOperationalProposals(organizationId?: string): Promise<Proposta[]> {
+  const resolvedId = organizationId ?? (await resolveOrganizationSession()).organizationId;
+  const rows = await readAllPages<ProposalRow>((from, to) => supabase.from('proposals')
     .select('id, number, lead_id, client, items, value, discount, creator, creator_name, owner_id, status, need_approval, created_at, updated_at')
-    .eq('organization_id', session.organizationId).neq('status', 'archived').order('created_at', { ascending: false });
-  if (error) throw error;
-  const rows = (data ?? []) as ProposalRow[];
-  const leadIds = rows.map((row) => row.lead_id).filter((id): id is string => Boolean(id));
+    .eq('organization_id', resolvedId).neq('status', 'archived').order('id').range(from, to));
+  const leadIds = [...new Set(rows.map((row) => row.lead_id).filter((id): id is string => Boolean(id)))];
   const leadById = new Map<string, LeadRow>();
-  if (leadIds.length) {
-    const { data: leads, error: leadsError } = await supabase.from('leads').select('id, company, contact').in('id', leadIds);
-    if (leadsError) throw leadsError;
-    for (const lead of (leads ?? []) as LeadRow[]) leadById.set(lead.id, lead);
+  for (let index = 0; index < leadIds.length; index += 100) {
+    const leads = await readAllPages<LeadRow>((from, to) => supabase.from('leads').select('id, company, contact').eq('organization_id', resolvedId).in('id', leadIds.slice(index, index + 100)).order('id').range(from, to));
+    for (const lead of leads) leadById.set(lead.id, lead);
   }
-  return rows.map((row) => rowToProposal(row, row.lead_id ? leadById.get(row.lead_id) : undefined));
+  return rows.sort((a, b) => b.created_at.localeCompare(a.created_at)).map((row) => rowToProposal(row, row.lead_id ? leadById.get(row.lead_id) : undefined));
 }
 
 async function save(proposal: Proposta, isNew: boolean): Promise<void> {

@@ -8,6 +8,7 @@ export interface ItemCatalogo {
 }
 
 export interface ItemProposta {
+  precoConfirmado?: boolean;
   id: string;
   nome: string;
   quantidade: number;
@@ -15,6 +16,7 @@ export interface ItemProposta {
 }
 
 export interface Proposta {
+  createdAt?: string;
   id: string;
   numero: string;
   lead: string;

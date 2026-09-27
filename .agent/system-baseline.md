@@ -8,6 +8,12 @@
 - Migration `20260927160000_preserve_whatsapp_connection_state_when_provider_paused` aplicada. `testar-integracao` v16 e `whatsapp-accounts` v5 publicados. Nenhuma mensagem, callback, job ou execução da Ana foi criada nesta correção.
 - Validação local: type-check frontend/Edge, lint, 46 arquivos/284 testes e build aprovados. A homologação externa ainda exige ativação consciente, teste individual autorizado e comprovação de entrada/recibos.
 
+## Redesign comercial — 27/09/2026
+
+- Fonte única `commercialAnalytics.ts` para Dashboard, Funil, Relatórios e predicado do Kanban. Atribuição comercial não é autorização de contato. Carteira/propostas paginadas, timestamps preservados, valores líquidos e estados sem base explícitos.
+- Shell responsivo, composição analítica, diálogos nativos, fontes operacionais preservadas. Nenhuma nova tabela, migração, Edge Function ou alteração de configuração remota.
+- Type-check frontend/Edge, lint, build e smoke determinístico 17/17 aprovados. Suíte Vitest completa não encerrou; QA visual autenticada não executada. Especificação e limites em `docs/REDESIGN_WAYFLEX_2026-09-27.md`.
+
 ## Orientação de pendências da Ana automática — 27/09/2026
 
 - O painel de Operação automática apresenta a prontidão devolvida por `ana-operations` como itens acionáveis: requisito, motivo da pendência e destino exato para correção.

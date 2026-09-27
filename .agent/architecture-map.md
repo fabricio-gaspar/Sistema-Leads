@@ -1,5 +1,9 @@
 # Mapa de arquitetura
 
+## Análise comercial — 27/09/2026
+
+`CommercialAnalytics` → `useCommercialAnalytics` → repositories paginados/tabelas existentes. `commercialAnalytics.ts` calcula a leitura compartilhada e o predicado do Kanban; `proposalPricing.ts` valida preços humanos em Orçamentos/Central. `AccessibleDialog` compartilha comportamento de foco. Nenhuma tabela ou Edge Function nova.
+
 ## Contrato final — 26/09/2026
 
 O detalhamento normativo está em `docs/ARQUITETURA_FINAL_WAYFLEX.md`. O runtime oficial continua

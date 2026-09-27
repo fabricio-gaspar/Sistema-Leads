@@ -1,8 +1,20 @@
 {
   "schema_version": 1,
-  "validated_commit": "de6d902b0179f137454e70cbcb70c3f6e9c88d74",
+  "validated_commit": "e19a3570143f55976e3f080efa2c43f9e916d2ea",
   "last_validated_at": "2026-09-27",
   "current_validation": {
+    "stage": "wayflex_commercial_redesign",
+    "frontend_typecheck": "passed",
+    "edge_typecheck": "passed",
+    "lint": "passed",
+    "production_build": "passed",
+    "sites_artifact": "passed",
+    "deterministic_smoke_checks": 17,
+    "vitest": "incomplete_process_did_not_exit",
+    "visual_review": "independent_static_only; authenticated_browser_not_available",
+    "external_end_to_end": "not_executed; no_operational_writes"
+  },
+  "previous_validation": {
     "stage": "ana_activation_prerequisite_guidance",
     "frontend_typecheck": "passed",
     "lint": "passed",

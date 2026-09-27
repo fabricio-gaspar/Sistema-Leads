@@ -11,7 +11,10 @@ import type { Lead } from '@/mocks/leadsData';
 import { ACTIVE_PIPELINE_STAGES, PIPELINE_STAGE_LABEL, legacyStageForPipeline, stageFromLegacy } from '@/domain/pipeline';
 import LeadDrawer from './components/LeadDrawer';
 import { runAna } from '@/lib/crm/anaRunRepository';
-import { isContactActivationPending, shouldDisplayInKanban } from '@/lib/crm/kanbanLeadVisibility';
+import { isContactActivationPending } from '@/lib/crm/kanbanLeadVisibility';
+import { isCommercialLead, dateKey } from '@/domain/commercialAnalytics';
+import DataReadNotice from '@/components/feature/DataReadNotice';
+import { useLeadsLoadStatus } from '@/hooks/useLeadsStore';
 import { runOperationalAutomations } from '@/lib/crm/automationRepository';
 import { canonicalStageKeyFromLabel, CommercialTransitionError, transitionOperationalLeadStage } from '@/lib/crm/leadStageRepository';
 
@@ -47,6 +50,7 @@ interface KanbanFiltros {
 }
 
 export default function KanbanCRM() {
+  const loadStatus = useLeadsLoadStatus();
   const [leads, setLeads] = useLeadsStore();
   const fluxo = useFluxoComercial();
   const [dragId, setDragId] = useState<string | null>(null);
@@ -160,14 +164,14 @@ export default function KanbanCRM() {
   const leadsFiltrados = leads.filter((l) => {
     // O board representa a carteira atribuída. Contato pendente continua visível
     // em Novo, mas a Ana permanece bloqueada até a autorização ser registrada.
-    if (!shouldDisplayInKanban(l)) return false;
+    if (!isCommercialLead(l)) return false;
     if (termo && !l.nome.toLowerCase().includes(termo) && !l.empresa.toLowerCase().includes(termo)) return false;
     if (filtroResponsavel && l.responsavel !== filtroResponsavel) return false;
     if (filtroSegmento && l.segmento !== filtroSegmento) return false;
     if (filtroEtapa && stageFromLegacy(l.etapa) !== filtroEtapa) return false;
     if (filtroTemperatura && l.temperatura !== filtroTemperatura) return false;
-    if (dataInicio && l.criadoEm < dataInicio) return false;
-    if (dataFim && l.criadoEm > dataFim) return false;
+    if (dataInicio && dateKey(l.createdAt ?? l.criadoEm) < dataInicio) return false;
+    if (dataFim && dateKey(l.createdAt ?? l.criadoEm) > dataFim) return false;
     return true;
   });
 
@@ -263,7 +267,7 @@ export default function KanbanCRM() {
   };
 
   return (
-    <div className="wf-page">
+    <div className="wf-page wf-page--kanban">
       <header className="wf-page-header">
         <div>
           <p className="wf-eyebrow">Pipeline comercial</p>
@@ -290,6 +294,8 @@ export default function KanbanCRM() {
       </header>
 
       {/* Filtros */}
+      <DataReadNotice status={loadStatus} onRetry={() => { void refreshLeadsStore().catch(() => undefined); }} />
+      <p className="wf-page-description mb-4">Carteira atribuída · arquivados e registros ainda em revisão ficam fora. A autorização de contato permanece uma verificação independente.</p>
       <div className="wf-toolbar !block">
         <div className="flex flex-col gap-3 md:flex-row md:items-center">
           <label className="relative min-w-0 flex-1">

@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, Outlet, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useNotificacoesStore } from '@/hooks/useNotificacoesStore';
@@ -11,6 +11,7 @@ import { useCurrentAccess } from '@/hooks/useCurrentAccess';
 import { hasAnyPermission } from '@/lib/crm/currentAccessRepository';
 import { roleLabel, type TeamPermission } from '@/lib/crm/teamMembersRepository';
 import './wayflex-visual.css';
+import './wayflex-redesign.css';
 
 interface NavItem {
   label: string;
@@ -63,13 +64,6 @@ const navSections: NavSection[] = [
 
 const navItems = navSections.flatMap((section) => section.items);
 
-const quickNavItems = [
-  { label: 'Visão geral', path: '/dashboard' },
-  { label: 'Atividades', path: '/dashboard/atendimento' },
-  { label: 'Indicadores', path: '/dashboard/kanban' },
-  { label: 'Relatórios', path: '/dashboard/relatorios' },
-];
-
 const tipoIcone: Record<string, string> = {
   lead: 'ri-user-search-line text-primary-600',
   proposta: 'ri-file-list-3-line text-accent-600',
@@ -91,7 +85,32 @@ const formatarDataNotif = (iso: string) => {
 };
 
 export default function DashboardLayout() {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth >= 1280);
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 1024);
+  const sidebarRef = useRef<HTMLElement>(null);
+  const menuButtonRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 1023px)');
+    const update = () => { setIsMobile(media.matches); if (media.matches) setSidebarOpen(false); };
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
+  useEffect(() => {
+    if (!isMobile || !sidebarOpen) return;
+    const previous = document.activeElement as HTMLElement | null;
+    sidebarRef.current?.querySelector<HTMLElement>('a,button')?.focus();
+    const keydown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { setSidebarOpen(false); menuButtonRef.current?.focus(); }
+      if (event.key === 'Tab') {
+        const elements = [...(sidebarRef.current?.querySelectorAll<HTMLElement>('a,button,input') ?? [])];
+        const first = elements[0]; const last = elements.at(-1);
+        if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+      }
+    };
+    document.addEventListener('keydown', keydown);
+    return () => { document.removeEventListener('keydown', keydown); previous?.focus(); };
+  }, [isMobile, sidebarOpen]);
   const [navQuery, setNavQuery] = useState('');
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
@@ -146,6 +165,9 @@ export default function DashboardLayout() {
       {sidebarOpen && <button aria-label="Fechar menu" onClick={() => setSidebarOpen(false)} className="fixed inset-0 z-20 bg-foreground-950/20 backdrop-blur-[1px] lg:hidden" />}
       {/* Sidebar */}
       <aside
+        ref={sidebarRef}
+        inert={isMobile && !sidebarOpen}
+        aria-label="Navegação principal"
         className={`${
           sidebarOpen ? 'w-[252px] translate-x-0' : '-translate-x-full w-[252px] lg:translate-x-0 lg:w-[76px]'
         } wf-sidebar transition-all duration-300 flex flex-col fixed lg:relative z-30 h-full`}
@@ -270,6 +292,9 @@ export default function DashboardLayout() {
         <header className="wf-topbar bg-background-50 border-b border-background-200/70 px-4 py-3 xl:px-6 flex items-center justify-between gap-4 flex-shrink-0">
           <div className="flex items-center gap-4">
             <button
+              ref={menuButtonRef}
+              aria-label="Abrir navegação"
+              aria-expanded={sidebarOpen}
               className="lg:hidden w-9 h-9 flex items-center justify-center rounded-lg bg-background-100 hover:bg-background-200 cursor-pointer transition-colors"
               onClick={() => setSidebarOpen(!sidebarOpen)}
             >
@@ -282,13 +307,6 @@ export default function DashboardLayout() {
             </nav>
           </div>
 
-          <nav className="wf-quick-nav hidden xl:flex" aria-label="Atalhos principais">
-            {quickNavItems.map((item) => {
-              const active = location.pathname === item.path;
-              return <Link key={item.path} to={item.path} className={active ? 'is-active' : ''} aria-current={active ? 'page' : undefined}>{item.label}</Link>;
-            })}
-          </nav>
-
           <div className="flex items-center gap-2 sm:gap-3">
             {canConfigure && <ModoExecucaoToggle />}
 
@@ -297,6 +315,8 @@ export default function DashboardLayout() {
             {/* Notificações */}
             <div className="relative">
               <button
+                aria-label={`Notificações e tarefas, ${badgeAtencao} pendências`}
+                aria-expanded={notifOpen}
                 onClick={() => setNotifOpen(!notifOpen)}
                 className="relative w-9 h-9 flex items-center justify-center rounded-lg bg-background-100 hover:bg-background-200 cursor-pointer transition-colors"
               >

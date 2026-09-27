@@ -854,11 +854,12 @@ export default function BuscaLeads() {
   const duplicados = preview.filter((lead) => lead.duplicado);
 
   return (
-    <div className="wf-page">
+    <div className="wf-page wf-page--prospecting">
       <header className="wf-page-header">
         <div>
           <p className="wf-eyebrow">Prospecção</p>
           <div className="mt-1 flex items-center gap-2"><h1 className="wf-page-title">Busca de Leads</h1><InfoTooltip text="Defina a fonte e os filtros. Revise cada resultado antes de importar." label="Sobre Busca de Leads" align="start" /></div>
+          <p className="wf-page-description">Encontre empresas, revise a qualidade e importe com controle. Um resultado de busca ainda não é uma oportunidade no funil.</p>
         </div>
         <span className="inline-flex w-fit items-center gap-2 rounded-full border border-background-200 bg-white px-3 py-2 text-xs font-semibold text-foreground-600">
           <i className="ri-shield-check-line text-primary-700" aria-hidden="true" /> Importação sob revisão
@@ -1023,7 +1024,7 @@ export default function BuscaLeads() {
                         <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-100 text-primary-700"><i className="ri-cloud-line" aria-hidden="true" /></span>
                         <div><h3 className="text-sm font-heading font-bold text-foreground-900">Fonte e local</h3><p className="text-xs text-foreground-500">A área é aplicada por cidade e UF.</p></div>
                       </div>
-                      {fontesDisponiveis.some((fonte) => fonte.id === fonteSelecionada) ? <span className="rounded-full bg-primary-50 px-2.5 py-1 text-[11px] font-semibold text-primary-700">Apify · conectado</span> : fontesDisponiveis.length > 1 ? <select value={fonteSelecionada} onChange={(event) => setFonteSelecionada(event.target.value)} className="rounded-full border border-background-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-foreground-700"><option value="">Escolha a fonte</option>{fontesDisponiveis.map((fonte) => <option key={fonte.id} value={fonte.id}>{fonte.nome}</option>)}</select> : <button type="button" onClick={() => navigate('/dashboard/configuracoes?tab=canais')} className="rounded-full border border-secondary-200 px-2.5 py-1 text-[11px] font-semibold text-secondary-700">Apify não configurado</button>}
+                      {fontesDisponiveis.some((fonte) => fonte.id === fonteSelecionada) ? <span className="rounded-full bg-primary-50 px-2.5 py-1 text-[11px] font-semibold text-primary-700">Apify · fonte habilitada</span> : fontesDisponiveis.length > 1 ? <select value={fonteSelecionada} onChange={(event) => setFonteSelecionada(event.target.value)} className="rounded-full border border-background-300 bg-white px-2.5 py-1 text-[11px] font-semibold text-foreground-700"><option value="">Escolha a fonte</option>{fontesDisponiveis.map((fonte) => <option key={fonte.id} value={fonte.id}>{fonte.nome}</option>)}</select> : <button type="button" onClick={() => navigate('/dashboard/configuracoes?tab=canais')} className="rounded-full border border-secondary-200 px-2.5 py-1 text-[11px] font-semibold text-secondary-700">Apify não configurado</button>}
                     </div>
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                       <label className="text-xs font-semibold text-foreground-700">Cidade

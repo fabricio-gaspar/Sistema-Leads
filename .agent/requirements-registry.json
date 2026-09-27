@@ -2,6 +2,14 @@
   "schema_version": 1,
   "requirements": [
     {
+      "id": "REQ-056",
+      "description": "Redesenhar as 11 telas do WayFlex com métricas auditáveis, design consistente e execução navegável",
+      "module": "frontend",
+      "status": "partial",
+      "evidence": "Implementação e revisão independente estática concluídas. Três layouts analíticos reconstruídos e demais rotas refinadas. Type-check frontend/Edge, lint, build e 17 smoke checks passaram; Vitest não encerrou e QA visual autenticada permanece pendente. Especificação docs/REDESIGN_WAYFLEX_2026-09-27.md. Nenhuma mutação operacional remota.",
+      "last_validation": "2026-09-27"
+    },
+    {
       "id": "REQ-055",
       "description": "Indicar exatamente os campos e pré-requisitos que impedem a ativação automática da Ana",
       "module": "ana",

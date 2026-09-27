@@ -6,6 +6,13 @@
 - O provedor continua intencionalmente desligado (`inbound/send/automation=false`, `kill_switch=true`). Isso não é falha de credencial; o administrador precisa usar **Ativar** antes do teste real de saída.
 - Ainda pendente: comprovar envio, callback individual de entrada, entrega/leitura e resposta da Ana depois da ativação autorizada. Não declarar o WhatsApp homologado apenas pela consulta de status.
 
+## Redesign 27/09 — limitações abertas
+
+- QA visual autenticada das 11 telas, responsividade e WCAG integral não homologadas. Build não é prova visual.
+- Vitest emite passes mas não encerra neste runtime; suíte completa não aprovada. Smoke determinístico de domínio 17/17 passou.
+- Conversão histórica completa precisa de snapshots/entrada inicial; a UI só mostra avanço observado. Leitura multi-tabela não é transacional; carteira/propostas usam polling 60 s. Agregação remota necessária para volume acima de 50 mil linhas.
+- Agenda mantém fuso local legado; analítico São Paulo. Migração de fuso organizacional não executada. Nenhum gate externo foi liberado.
+
 ## Paleta global — 27/09/2026
 
 - Nenhum defeito funcional novo foi encontrado. Temas de documentos continuam configuráveis pelo usuário e ícones de WhatsApp, Meta, Apify e Google preservam a identidade do provedor; essas exceções são deliberadas e não quebram a paleta do produto.

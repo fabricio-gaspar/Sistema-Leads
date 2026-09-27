@@ -1,3 +1,4 @@
+import AccessibleDialog from '@/components/feature/AccessibleDialog';
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useLocalStorageState } from '@/hooks/useLocalStorageState';
@@ -5,7 +6,8 @@ import { useSavedViews } from '@/hooks/useSavedViews';
 import FilterChips from '@/components/feature/FilterChips';
 import type { FilterChip } from '@/components/feature/FilterChips';
 import SavedViewsControl from '@/components/feature/SavedViewsControl';
-import { useCompromissosStore } from '@/hooks/useCompromissosStore';
+import { useCompromissosStore, useCompromissosLoadStatus, refreshCompromissosStore, waitForCompromissosPersistence } from '@/hooks/useCompromissosStore';
+import DataReadNotice from '@/components/feature/DataReadNotice';
 import { useLeadsStore } from '@/hooks/useLeadsStore';
 import { stageFromLegacy } from '@/domain/pipeline';
 import type { Compromisso } from '@/mocks/frontendAdvancedData';
@@ -63,14 +65,16 @@ interface AgendaFiltros {
   dataFim: string;
 }
 
-const calcularHoraFim = (inicio: string): string => {
+const calcularHoraFim = (inicio: string, duracao = 60): string => {
   const [h, m] = inicio.split(':').map(Number);
   const d = new Date();
-  d.setHours(h + 1, m, 0, 0);
+  d.setHours(h, m + duracao, 0, 0);
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 };
 
 export default function Agenda() {
+  const loadStatus = useCompromissosLoadStatus();
+  const [salvando, setSalvando] = useState(false);
   const { compromissos: comps, criar, atualizar, excluir: removerCompromisso } = useCompromissosStore();
   const [leads] = useLeadsStore();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -94,11 +98,13 @@ export default function Agenda() {
   const [novoLeadId, setNovoLeadId] = useState('');
   const [novoData, setNovoData] = useState(hojeStr);
   const [novoHora, setNovoHora] = useState('14:00');
+  const [novoDuracao, setNovoDuracao] = useState(60);
   const [novoTipo, setNovoTipo] = useState<'reuniao' | 'ligacao' | 'followup' | 'proposta'>('reuniao');
   const [novoCanal, setNovoCanal] = useState<'presencial' | 'video' | 'telefone' | 'whatsapp'>('video');
   const [remarcarModal, setRemarcarModal] = useState<Compromisso | null>(null);
   const [remarcarData, setRemarcarData] = useState('');
   const [remarcarHora, setRemarcarHora] = useState('');
+  const [remarcarDuracao, setRemarcarDuracao] = useState(60);
 
   // A Central envia o lead no endereço e abre somente o formulário de
   // compromisso. A criação continua nesta tela, usando a mesma store da Agenda.
@@ -210,11 +216,22 @@ export default function Agenda() {
     { label: 'Leads em reunião', value: String(leadsReuniao.length), icon: 'ri-user-heart-line', color: 'bg-primary-500/20 text-primary-600' },
   ];
 
-  const confirmarNovo = () => {
+  const confirmarGravacao = async () => {
+    setSalvando(true);
+    try { await waitForCompromissosPersistence(); return true; }
+    catch { mostrarToast('Não foi possível salvar. A agenda foi reconciliada com o servidor; revise e tente novamente.'); return false; }
+    finally { setSalvando(false); }
+  };
+
+  const confirmarNovo = async () => {
+    if (salvando) return;
     const lead = leads.find((l) => l.id === novoLeadId);
     if (!lead) {
       mostrarToast('Selecione um lead para agendar.');
       return;
+    }
+    if (!novoData || !novoHora || calcularHoraFim(novoHora, novoDuracao) <= novoHora) {
+      mostrarToast('Informe data e horário válidos. O compromisso precisa terminar no mesmo dia.'); return;
     }
     criar({
       titulo: novoTitulo.trim() || 'Reunião',
@@ -223,7 +240,7 @@ export default function Agenda() {
       empresa: lead.empresa,
       data: novoData,
       horaInicio: novoHora,
-      horaFim: calcularHoraFim(novoHora),
+      horaFim: calcularHoraFim(novoHora, novoDuracao),
       tipo: novoTipo,
       canal: novoCanal,
       status: 'agendado',
@@ -231,11 +248,13 @@ export default function Agenda() {
       observacoes: '',
       origem: 'manual',
     });
+    if (!await confirmarGravacao()) return;
     setNovoModal(false);
     setNovoTitulo('Reunião de apresentação');
     setNovoLeadId('');
     setNovoData(hojeStr);
     setNovoHora('14:00');
+    setNovoDuracao(60);
     mostrarToast('Compromisso agendado!');
   };
 
@@ -243,38 +262,48 @@ export default function Agenda() {
     setRemarcarModal(c);
     setRemarcarData(c.data);
     setRemarcarHora(c.horaInicio);
+    const minutos = (hora: string) => Number(hora.slice(0, 2)) * 60 + Number(hora.slice(3, 5));
+    setRemarcarDuracao(Math.max(15, minutos(c.horaFim) - minutos(c.horaInicio)));
   };
 
-  const confirmarRemarcar = () => {
+  const confirmarRemarcar = async () => {
+    if (salvando) return;
     if (!remarcarModal) return;
-    if (!remarcarData || !remarcarHora) {
+    if (!remarcarData || !remarcarHora || calcularHoraFim(remarcarHora, remarcarDuracao) <= remarcarHora) {
       mostrarToast('Escolha a nova data e horário.');
       return;
     }
     atualizar(remarcarModal.id, {
       data: remarcarData,
       horaInicio: remarcarHora,
-      horaFim: calcularHoraFim(remarcarHora),
+      horaFim: calcularHoraFim(remarcarHora, remarcarDuracao),
       status: 'agendado',
     });
+    if (!await confirmarGravacao()) return;
     setRemarcarModal(null);
     mostrarToast('Compromisso remarcado!');
   };
 
-  const cancelarCompromisso = (c: Compromisso) => {
+  const cancelarCompromisso = async (c: Compromisso) => {
+    if (salvando) return;
     atualizar(c.id, { status: 'cancelado' });
+    if (!await confirmarGravacao()) return;
     setDetalhe(null);
     mostrarToast('Compromisso cancelado.');
   };
 
-  const excluirCompromisso = (c: Compromisso) => {
+  const excluirCompromisso = async (c: Compromisso) => {
+    if (salvando || !window.confirm(`Excluir o compromisso “${c.titulo}”? Esta ação não pode ser desfeita.`)) return;
     removerCompromisso(c.id);
+    if (!await confirmarGravacao()) return;
     setDetalhe(null);
     mostrarToast('Compromisso excluído definitivamente.');
   };
 
   return (
     <div className="wf-page wf-secondary-page wf-secondary-page--agenda">
+      <DataReadNotice status={loadStatus} onRetry={() => { void refreshCompromissosStore(); }} />
+      {salvando && <p role="status" className="mb-3 text-sm text-foreground-600">Salvando compromisso…</p>}
       <div className="wf-secondary-header mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <p className="wf-secondary-eyebrow">Planejamento comercial</p>
@@ -282,7 +311,7 @@ export default function Agenda() {
             Agenda
           </h1>
           <p className="wf-secondary-description text-foreground-600 text-sm">
-            Reuniões e compromissos agendados — incluindo os que a Ana marca sozinha no funil.
+            Reuniões, ligações e próximos passos. Horários em formato de 24 horas, no fuso local do dispositivo.
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -593,7 +622,7 @@ export default function Agenda() {
           {/* Resumo da semana */}
           <div className="bg-background-50 border border-background-200/70 rounded-xl p-5">
             <h3 className="font-heading font-bold text-foreground-900 text-sm mb-4">
-              Resumo da semana
+              Resumo dos filtros
             </h3>
             <div className="space-y-3">
               {[
@@ -619,11 +648,11 @@ export default function Agenda() {
 
       {/* Modal Novo Compromisso */}
       {novoModal && (
-        <div className="fixed inset-0 z-50 bg-foreground-950/50 flex items-center justify-center p-4" onClick={() => setNovoModal(false)}>
+        <AccessibleDialog title="Novo registro" className="fixed inset-0 z-50 bg-foreground-950/50 flex items-center justify-center p-4" onClose={() => setNovoModal(false)}>
           <div className="bg-background-50 rounded-xl max-w-md w-full max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="px-6 py-4 border-b border-background-200/70 flex items-center justify-between">
               <h3 className="font-heading font-bold text-foreground-950">Novo Compromisso</h3>
-              <button onClick={() => setNovoModal(false)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-background-100 cursor-pointer">
+              <button aria-label="Fechar formulário" onClick={() => setNovoModal(false)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-background-100 cursor-pointer">
                 <i className="ri-close-line text-lg"></i>
               </button>
             </div>
@@ -657,8 +686,11 @@ export default function Agenda() {
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-foreground-800 mb-1.5">Lead</label>
+                <label className="mb-4 block text-sm font-medium">Duração<select value={novoDuracao} onChange={(event) => setNovoDuracao(Number(event.target.value))} className="mt-1.5 block w-full rounded-lg border border-background-300 px-4 py-2.5">{[15, 30, 45, 60, 90, 120].map((value) => <option key={value} value={value}>{value} minutos</option>)}</select></label>
+                <p className="mb-3 text-xs text-foreground-500">{novoData.split('-').reverse().join('/')} · {novoHora}–{calcularHoraFim(novoHora, novoDuracao)}</p>
+                <label htmlFor="appointment-lead" className="block text-sm font-medium text-foreground-800 mb-1.5">Lead</label>
                 <select
+                  id="appointment-lead"
                   value={novoLeadId}
                   onChange={(e) => setNovoLeadId(e.target.value)}
                   className="w-full px-4 py-2.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-900 cursor-pointer"
@@ -699,30 +731,31 @@ export default function Agenda() {
               </div>
             </div>
             <div className="px-6 py-4 border-t border-background-200/70 flex justify-end gap-2">
-              <button onClick={() => setNovoModal(false)} className="px-4 py-2.5 border border-background-300 text-foreground-700 rounded-lg text-sm font-semibold hover:bg-background-100 cursor-pointer whitespace-nowrap">
+              <button aria-label="Fechar formulário" onClick={() => setNovoModal(false)} className="px-4 py-2.5 border border-background-300 text-foreground-700 rounded-lg text-sm font-semibold hover:bg-background-100 cursor-pointer whitespace-nowrap">
                 Cancelar
               </button>
               <button
                 onClick={confirmarNovo}
+                disabled={salvando}
                 className="px-5 py-2.5 bg-primary-500 text-background-50 rounded-lg text-sm font-bold cursor-pointer whitespace-nowrap"
               >
                 Agendar
               </button>
             </div>
           </div>
-        </div>
+        </AccessibleDialog>
       )}
 
       {/* Modal Detalhes */}
       {detalhe && (
-        <div className="fixed inset-0 z-50 bg-foreground-950/50 flex items-center justify-center p-4" onClick={() => setDetalhe(null)}>
+        <AccessibleDialog title="Detalhes do registro" className="fixed inset-0 z-50 bg-foreground-950/50 flex items-center justify-center p-4" onClose={() => setDetalhe(null)}>
           <div className="bg-background-50 rounded-xl max-w-md w-full max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="px-6 py-4 border-b border-background-200/70 flex items-center justify-between">
               <div>
                 <h3 className="font-heading font-bold text-foreground-950">{detalhe.titulo}</h3>
                 <p className="text-sm text-foreground-500">{detalhe.lead} · {detalhe.empresa}</p>
               </div>
-              <button onClick={() => setDetalhe(null)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-background-100 cursor-pointer">
+              <button aria-label="Fechar detalhes" onClick={() => setDetalhe(null)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-background-100 cursor-pointer">
                 <i className="ri-close-line text-lg"></i>
               </button>
             </div>
@@ -793,7 +826,8 @@ export default function Agenda() {
                 </button>
                 {detalhe.status !== 'realizado' && (
                   <button
-                    onClick={() => { atualizar(detalhe.id, { status: 'realizado' }); setDetalhe(null); mostrarToast('Compromisso marcado como "Realizado".'); }}
+                    disabled={salvando}
+                    onClick={async () => { atualizar(detalhe.id, { status: 'realizado' }); if (!await confirmarGravacao()) return; setDetalhe(null); mostrarToast('Compromisso marcado como "Realizado".'); }}
                     className="px-4 py-2.5 bg-primary-500 text-background-50 rounded-lg text-sm font-bold cursor-pointer whitespace-nowrap"
                   >
                     Marcar como realizado
@@ -802,12 +836,12 @@ export default function Agenda() {
               </div>
             </div>
           </div>
-        </div>
+        </AccessibleDialog>
       )}
 
       {/* Modal Remarcar */}
       {remarcarModal && (
-        <div className="fixed inset-0 z-50 bg-foreground-950/50 flex items-center justify-center p-4" onClick={() => setRemarcarModal(null)}>
+        <AccessibleDialog title="Remarcar compromisso" className="fixed inset-0 z-50 bg-foreground-950/50 flex items-center justify-center p-4" onClose={() => setRemarcarModal(null)}>
           <div className="bg-background-50 rounded-xl max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
             <div className="px-6 py-4 border-b border-background-200/70 flex items-center justify-between">
               <div>
@@ -833,7 +867,7 @@ export default function Agenda() {
               <button onClick={confirmarRemarcar} className="px-5 py-2.5 bg-primary-500 hover:bg-primary-600 text-background-50 rounded-lg text-sm font-bold cursor-pointer whitespace-nowrap">Confirmar</button>
             </div>
           </div>
-        </div>
+        </AccessibleDialog>
       )}
     </div>
   );
