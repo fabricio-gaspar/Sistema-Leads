@@ -1,5 +1,11 @@
 # Baseline do sistema
 
+## Canais de WhatsApp orientados por evidência — 28/09/2026
+
+- `/dashboard/meu-whatsapp` recebeu a superfície **Canais de WhatsApp** com abas Canais, Diagnóstico e Histórico, responsiva e acessível. O painel mantém Z-API como canal em uso e apresenta Meta somente sob seu gate de homologação; não troca provedor nem simula conexão.
+- `whatsapp-accounts` v6 deriva estado somente de conta, integração, controles, auditoria e eventos de entrada da própria organização. Credenciais não entram no contrato. Aceite, entrega, leitura e entrada são estados separados; um aceite isolado não eleva o canal a operacional.
+- Não houve migration: fontes canônicas e RLS existentes foram reutilizados. Type-check frontend/Edge, lint, `runtimeHandlers` (103 testes), build e diff check passaram. Nenhuma mensagem, teste de provedor, conexão Meta ou alteração operacional foi disparada.
+
 ## Kanban operacional — 28/09/2026
 
 - `get_kanban_portfolio` é a leitura única, `SECURITY INVOKER`, que aplica a busca e os filtros no servidor e devolve itens paginados, contagens por etapa e prioridades no mesmo contrato sob a RLS existente.

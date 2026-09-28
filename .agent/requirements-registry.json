@@ -2,6 +2,14 @@
   "schema_version": 1,
   "requirements": [
     {
+      "id": "REQ-065",
+      "description": "Reformular Meu WhatsApp como Canais de WhatsApp com configuração, diagnóstico e histórico ancorados em evidência operacional, sem expor segredos ou inferir entrega/leitura",
+      "module": "mensageria",
+      "status": "implemented_validated_site_publication_authorized",
+      "evidence": "Commit f270b05 e whatsapp-accounts v6 no projeto thgzrkppouoevapjquyu. O contrato autorizado calcula estado por organização a partir de conta, integração, controles, auditoria e eventos de entrada, sem credenciais. A UI separa aceite, entrada, entrega e leitura; Meta continua sob gate de homologação. Type-check frontend/Edge, lint, 103 testes focados, build/artefato Sites e diff check passaram; nenhum provedor externo foi acionado.",
+      "last_validation": "2026-09-28"
+    },
+    {
       "id": "REQ-064",
       "description": "Reconstruir a Central de Atendimento como inbox operacional seguro, paginado, auditável e em tempo real, preservando Ana, Kanban e filas existentes",
       "module": "atendimento",

@@ -1,5 +1,12 @@
 # Histórico resumido de execução
 
+## 2026-09-28 — Canais de WhatsApp por evidência
+
+- Reformulada a rota existente Meu WhatsApp como **Canais de WhatsApp**, com abas URL para canal, diagnóstico e histórico. A tela usa a Edge Function existente e não cria uma camada de dados ou conexão alternativa.
+- Publicada `whatsapp-accounts` v6 no Supabase oficial. A resposta é derivada server-side de `whatsapp_accounts`, `integrations`, `messaging_provider_controls`, `audit_logs` e `channel_inbound_events`, dentro da autorização organizacional existente e sem devolver segredos.
+- O contrato explicita que aceite do provedor não prova entrega, leitura ou processamento. Meta permanece desabilitada até habilitação operacional real. Nenhuma mensagem, conexão, callback ou teste externo foi executado nesta alteração.
+- Type-check frontend/Edge, lint, Vitest focado (103 testes), build/artefato Sites e diff check passaram. Commit `f270b05`; publicação da interface oficial autorizada e pendente do resultado do deploy.
+
 ## 2026-09-28 — Central de Atendimento operacional
 
 - Reconstruída a rota em três áreas responsivas: inbox com busca/filtros/paginação/totais reais,

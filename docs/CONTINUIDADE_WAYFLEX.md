@@ -1,5 +1,14 @@
 # Checkpoint — WayFlex CRM
 
+## 28/09/2026 — Canais de WhatsApp: painel operacional baseado em evidência
+
+- A rota existente **Meu WhatsApp** passou a se apresentar como **Canais de WhatsApp**, sem substituir o canal corporativo Z-API, sem alterar regras de saída e sem criar uma nova integração. A interface reúne Canais, Diagnóstico e Histórico em abas navegáveis pela URL.
+- O diagnóstico é calculado em `whatsapp-accounts` v6, com autorização e escopo organizacional já existentes. Ele lê somente metadados não secretos de conta, integração, controles operacionais, auditoria e eventos de entrada; credenciais continuam exclusivamente no Vault/backend.
+- A tela diferencia conexão, número identificado, callbacks, rota existente para a Central, aceite de teste, evento de entrada e recibos. Aceite do provedor não é apresentado como entrega ou leitura. Meta permanece em gate explícito de homologação, sem botão que simule conexão nem alteração do provedor ativo.
+- Não houve migration: `whatsapp_accounts`, `integrations`, `messaging_provider_controls`, `audit_logs` e `channel_inbound_events` já são as fontes canônicas sob RLS. A nova tela não escreve nem testa o canal ao ser aberta.
+- Validação local aprovada: type-check frontend/Edge, lint, teste de contrato da Edge Function (**103 testes**), build/artefato Sites e `git diff --check`. `whatsapp-accounts` v6 está ativa no projeto `thgzrkppouoevapjquyu`. O envio, a entrega, a leitura e uma conexão Meta reais não foram disparados nesta implantação; portanto, não são declarados homologados.
+- Código no commit `f270b05`. Publicação do Site oficial autorizada e em execução neste checkpoint; a URL do produto não será alterada.
+
 ## 28/09/2026 — Kanban operacional — publicado no banco, aguardando publicação do Site
 
 - O Kanban foi reconstruído sobre os contratos existentes: uma única RPC com RLS aplica pesquisa normalizada, filtros, paginação, contagens por etapa e contagens rápidas; a tela não cria métricas ou cartões fictícios.

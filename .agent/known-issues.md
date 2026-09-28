@@ -1,5 +1,10 @@
 # Problemas conhecidos
 
+## Canais de WhatsApp — limitações de homologação — 28/09/2026
+
+- A interface e o contrato de diagnóstico estão validados localmente e a Edge Function v6 está ativa, mas não foi feito envio externo, callback de teste, recibo de entrega/leitura ou conexão Meta durante esta alteração. Esses estados permanecem não comprovados até um teste operacional explicitamente autorizado.
+- O histórico apresentado é o recorte auditável recente (até 50 eventos), suficiente para diagnóstico imediato. Paginação operacional poderá ser adicionada somente se o volume auditado justificar a ampliação do contrato, sem inventar registros locais.
+
 ## Kanban operacional — pendências de homologação — 28/09/2026
 
 - O banco, RLS, RPCs e testes locais foram validados, mas o frontend do Kanban ainda não foi publicado porque o envio do código ao repositório de hospedagem exige autorização explícita. A versão pública continua 144.

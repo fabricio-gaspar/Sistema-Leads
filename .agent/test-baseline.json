@@ -1,18 +1,18 @@
 {
   "schema_version": 1,
-  "validated_commit": "27409340788cb53b281952e2bc1defd639534069",
+  "validated_commit": "f270b05",
   "last_validated_at": "2026-09-28",
   "current_validation": {
-    "stage": "central_atendimento_operational_inbox",
+    "stage": "whatsapp_channels_evidence_dashboard",
     "frontend_typecheck": "passed",
     "edge_typecheck": "passed",
     "lint": "passed",
     "production_build": "passed",
-    "sites_artifact": "passed_build; publication of commit 2740934 awaits explicit authorization",
+    "sites_artifact": "passed_build; publication of commit f270b05 authorized and pending deploy verification",
     "deterministic_smoke_checks": 0,
-    "vitest": "passed; 56 files; 326 tests",
-    "visual_review": "local route intentionally stopped at the missing public Supabase configuration protection; the exact frontend commit is not yet published. Static review covers the desktop three-pane and responsive sequential layouts.",
-    "external_end_to_end": "not_executed; no handoff, block, task, provider message or automation was invoked"
+    "vitest": "passed; focused runtimeHandlers suite; 103 tests",
+    "visual_review": "static review passed; official-Site inspection awaits deployment. The page exposes only states evidenced by the backend and keeps Meta gated.",
+    "external_end_to_end": "not_executed; no provider test, message, Meta connection, callback, delivery or read receipt was invoked"
   },
   "previous_validation": {
     "stage": "lead_search_dynamic_api_selector",
@@ -27,6 +27,11 @@
     "external_end_to_end": "not_executed; no paid search was required"
   },
   "commands": [
+    {
+      "command": "npm run type-check && npm run type-check:edge && npm test -- supabase/tests/runtimeHandlers.test.ts && npm run lint && npm run build && git diff --check",
+      "status": "passed",
+      "note": "Canais de WhatsApp: frontend/Edge type-check, lint, 103 testes focados, build/artefato Sites e diff check. whatsapp-accounts v6 publicada; nenhuma ação externa foi disparada."
+    },
     {
       "command": "npm run type-check; npm run type-check:edge; npm run lint; npm test -- --run; npm run build; git diff --check",
       "status": "passed",
