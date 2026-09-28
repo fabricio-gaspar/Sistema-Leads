@@ -6,6 +6,7 @@ type Result = { data: unknown; error: null | { message: string; code?: string };
 const state = vi.hoisted(() => ({ admin: {} as object, deleteUser: vi.fn() }));
 vi.mock('../functions/_shared/auth.ts', () => ({
   createAdminClient: () => state.admin,
+  hasOrganizationPermission: async () => true,
   requireUser: async (request: Request) => {
     if (!request.headers.get('Authorization')) throw new Error('authentication_required');
     return { user: { id: 'owner' } };
@@ -1699,6 +1700,72 @@ describe('Z-API credential configuration contract', () => {
       });
     expect(calls.find((q) => q.table === 'audit_logs' && q.operation === 'insert')?.value)
       .toMatchObject({ event_data: expect.objectContaining({ webhook_registration_invalidated: true }) });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('WhatsApp channel dashboard contract', () => {
+  it('keeps provider acceptance separate from delivery and a missing number incomplete', async () => {
+    override = (q) => {
+      if (q.table === 'whatsapp_accounts' && q.operation === 'select') return ok([{
+        id: whatsappAccountId,
+        integration_id: integrationId,
+        owner_user_id: null,
+        label: 'WhatsApp corporativo',
+        provider: 'zapi',
+        account_type: 'corporate',
+        is_default: true,
+        enabled: true,
+        connection_status: 'connected',
+        connected_phone_suffix: null,
+        connected_at: '2026-09-28T10:00:00.000Z',
+        status_checked_at: '2026-09-28T10:00:00.000Z',
+        webhook_registered_at: '2026-09-28T10:00:00.000Z',
+        expires_at: null,
+        last_error_code: null,
+        onboarding_status: 'not_started',
+        sync_status: 'not_started',
+        messaging_mode: 'suggestion',
+        daily_message_goal: 0,
+        verified_name: null,
+        quality_rating: null,
+        display_phone_number: null,
+        phone_number_id: null,
+        created_at: '2026-09-28T10:00:00.000Z',
+        updated_at: '2026-09-28T10:00:00.000Z',
+      }]);
+      if (q.table === 'integrations' && q.operation === 'select') return ok([{
+        id: integrationId,
+        connected: true,
+        enabled: true,
+        paused: false,
+        configuration: { configured: true },
+        last_tested_at: '2026-09-28T10:00:00.000Z',
+        last_success_at: '2026-09-28T10:00:00.000Z',
+      }]);
+      if (q.table === 'messaging_provider_controls' && q.operation === 'select') return ok([{
+        provider: 'zapi', inbound_enabled: true, send_enabled: true, automation_enabled: true, kill_switch: false,
+      }]);
+      if (q.table === 'audit_logs' && q.operation === 'select') return ok([{
+        id: 'audit-accepted', action: 'outreach.whatsapp_direct_test_provider_accepted',
+        detail: 'Mensagem de teste aceita pela Z-API; entrega e leitura não foram confirmadas.',
+        actor_name: 'Synthetic user', occurred_at: '2026-09-28T10:01:00.000Z', created_at: '2026-09-28T10:01:00.000Z',
+        entity_table: 'integrations', entity_id: integrationId, event_data: {},
+      }]);
+      if (q.table === 'channel_inbound_events' && q.operation === 'select') return ok([]);
+      return undefined;
+    };
+    await import('../functions/whatsapp-accounts/index');
+    const response = await handler(new Request('https://example.invalid/whatsapp-accounts', {
+      method: 'POST', headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'list' }),
+    }));
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    const overview = body.channelOverviews[whatsappAccountId];
+    expect(overview).toMatchObject({ state: 'configuration_incomplete', routing: { active: true, destination: 'Central de Atendimento' } });
+    expect(overview.checks.find((check: Row) => check.key === 'number')).toMatchObject({ state: 'attention' });
+    expect(overview.checks.find((check: Row) => check.key === 'send_receive')).toMatchObject({ state: 'pending' });
+    expect(JSON.stringify(overview)).toContain('entrega, leitura e evento de entrada não são presumidos');
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });

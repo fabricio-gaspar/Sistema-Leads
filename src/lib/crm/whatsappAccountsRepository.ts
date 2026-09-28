@@ -37,6 +37,8 @@ export interface WhatsappAccount {
   dailyMessageGoal: number;
   verifiedName: string | null;
   qualityRating: string | null;
+  displayPhoneNumber: string | null;
+  phoneNumberId: string | null;
   updatedAt: string;
 }
 
@@ -51,10 +53,54 @@ export interface WhatsappProviderControl {
   updatedAt: string | null;
 }
 
+export type WhatsappChannelState =
+  | 'disconnected'
+  | 'connecting'
+  | 'configuration_incomplete'
+  | 'validating'
+  | 'operational'
+  | 'requires_attention'
+  | 'reconnecting'
+  | 'authorization_revoked';
+
+export interface WhatsappChannelCheck {
+  key: 'authorization' | 'account' | 'number' | 'events' | 'routing' | 'send_receive';
+  label: string;
+  state: 'ready' | 'pending' | 'attention';
+  detail: string;
+  checkedAt: string | null;
+  action: 'none' | 'validate' | 'connect' | 'test' | 'diagnostic';
+}
+
+export interface WhatsappChannelHistoryEntry {
+  id: string;
+  action: string;
+  detail: string;
+  actorName: string | null;
+  occurredAt: string | null;
+  result: 'success' | 'pending' | 'attention';
+}
+
+export interface WhatsappChannelOverview {
+  state: WhatsappChannelState;
+  statusLabel: string;
+  statusDetail: string;
+  routing: {
+    active: boolean;
+    destination: string | null;
+    detail: string;
+  };
+  checks: WhatsappChannelCheck[];
+  lastInboundAt: string | null;
+  directTestAcceptedAt: string | null;
+}
+
 export interface AccountsResponse {
   accounts: WhatsappAccount[];
   canManage: boolean;
   providerControls: WhatsappProviderControl[];
+  channelOverviews?: Record<string, WhatsappChannelOverview>;
+  channelHistory?: WhatsappChannelHistoryEntry[];
 }
 
 async function invoke<T extends Record<string, unknown>>(body: Record<string, unknown>): Promise<T> {
