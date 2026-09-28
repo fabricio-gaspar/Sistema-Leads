@@ -25,22 +25,36 @@ import {
   MAX_PROSPECTING_TERMS,
   csvLeadIdentity,
   deterministicProspectingUuid,
-  filterProspectingReview,
   nextProspectingTerms,
   normalizeProspectingPhone,
   normalizeProspectingTerms,
   prepareCsvLeads,
-  prospectingVolumePerTerm,
   type ProspectingReviewFilter,
 } from '@/lib/crm/prospectingUi';
 import {
   PROSPECTING_TERM_SUGGESTION_GROUPS,
   findProspectingTermSuggestions,
 } from '@/lib/crm/prospectingTermSuggestions';
+import {
+  PROSPECTING_CUSTOMER_SEGMENTS,
+  PROSPECTING_TARGET_PROFILES,
+  termsFromIdealProfile,
+  type ProspectingTargetProfile,
+} from '@/lib/crm/prospectingIdealProfile';
 
 const estados = ['SP', 'RJ', 'MG', 'PR', 'SC', 'RS', 'BA', 'PE', 'GO', 'DF'];
 const fasesBusca = ['Iniciando a busca', 'Aguardando resposta da fonte', 'Preparando a revisão'];
 const PROSPECTING_REQUEST_STORAGE_KEY = 'wayflex.prospecting.pending-request.v1';
+const SAMPLE_SIZE = 10;
+
+type SampleClassification = 'adequada' | 'fora_do_perfil' | 'duplicada' | 'sem_contato_util';
+const SAMPLE_CLASSIFICATIONS: Array<{ id: SampleClassification; label: string }> = [
+  { id: 'adequada', label: 'Adequada' },
+  { id: 'fora_do_perfil', label: 'Fora do perfil' },
+  { id: 'duplicada', label: 'Duplicada' },
+  { id: 'sem_contato_util', label: 'Sem contato útil' },
+];
+const OUT_OF_PROFILE_REASONS = ['Segmento incorreto', 'Concorrente', 'Região incorreta', 'Empresa sem potencial de compra', 'Outro'];
 
 interface ProspectingRunSummary {
   id: string;
@@ -189,12 +203,15 @@ const camposLeadImport: CampoImportacao[] = [
 
 export default function BuscaLeads() {
   const navigate = useNavigate();
-  const [aba, setAba] = useState<'agente' | 'busca' | 'importar'>('busca');
+  const [aba, setAba] = useState<'agente' | 'busca' | 'importar' | 'salvas'>('busca');
   const [etapa, setEtapa] = useState(2);
   const [fonteSelecionada, setFonteSelecionada] = useState('');
   const [cidade, setCidade] = useState('São Paulo');
   const [estado, setEstado] = useState('SP');
   const [pais, setPais] = useState('Brasil');
+  const [ofertaEmpresa, setOfertaEmpresa] = useState('Peças e soluções em borracha, silicone e poliuretano');
+  const [tipoEmpresaAlvo, setTipoEmpresaAlvo] = useState<ProspectingTargetProfile>('potential_customers');
+  const [segmentosCliente, setSegmentosCliente] = useState<string[]>([]);
   const [termosBusca, setTermosBusca] = useState<string[]>([]);
   const [novoTermo, setNovoTermo] = useState('');
   const [segmentoSugestao, setSegmentoSugestao] = useState('');
@@ -222,6 +239,8 @@ export default function BuscaLeads() {
   const [execucaoAtual, setExecucaoAtual] = useState<string | null>(null);
   const [leadAberto, setLeadAberto] = useState<PreviewLead | null>(null);
   const [feedbackRevisao, setFeedbackRevisao] = useState('');
+  const [classificacoesAmostra, setClassificacoesAmostra] = useState<Record<string, SampleClassification>>({});
+  const [motivosForaPerfil, setMotivosForaPerfil] = useState<Record<string, string>>({});
   const [filtroRevisao, setFiltroRevisao] = useState<ProspectingReviewFilter>('todos');
   const [mapaAberto, setMapaAberto] = useState(false);
   const [nomeLista, setNomeLista] = useState('');
@@ -266,9 +285,17 @@ export default function BuscaLeads() {
   const fontesProspecao = useMemo(() => fontesApiProspeccao(fontes), [fontes]);
   const fontesDisponiveis = useMemo(() => fontesAtivas(fontesProspecao), [fontesProspecao]);
   const fonteUnicaAtiva = fontesDisponiveis.length === 1 ? fontesDisponiveis[0] : null;
-  const fonteAtivaSelecionada = fontesDisponiveis.find((fonte) => fonte.id === fonteSelecionada) || null;
   const gruposSugeridos = useMemo(() => findProspectingTermSuggestions(segmentoSugestao), [segmentoSugestao]);
   const termosSelecionados = useMemo(() => new Set(normalizeProspectingTerms(termosBusca).map((term) => normalizarTermoSugerido(term))), [termosBusca]);
+  const termosDoPerfil = useMemo(
+    () => termsFromIdealProfile(ofertaEmpresa, tipoEmpresaAlvo, segmentosCliente),
+    [ofertaEmpresa, tipoEmpresaAlvo, segmentosCliente],
+  );
+  // Só os termos marcados pelo usuário seguem para o provedor. O perfil ideal
+  // oferece sugestões, mas não dispara uma busca com filtros implícitos.
+  const termosAplicados = useMemo(() => normalizeProspectingTerms(termosBusca), [termosBusca]);
+  const tipoEmpresaAlvoLabel = PROSPECTING_TARGET_PROFILES.find((item) => item.id === tipoEmpresaAlvo)?.label || 'Clientes potenciais';
+  const activeSearchStage = etapa === 2 ? (buscando ? 2 : 1) : etapa === 3 ? 3 : 4;
 
   useEffect(() => {
     if (fonteSelecionada && !fontesDisponiveis.some((fonte) => fonte.id === fonteSelecionada)) {
@@ -283,7 +310,7 @@ export default function BuscaLeads() {
   }, [fonteSelecionada, fonteUnicaAtiva]);
 
   useEffect(() => {
-    if (aba !== 'busca' || !historicoAberto || historicoCarregado) return;
+    if ((aba !== 'busca' && aba !== 'salvas') || !historicoAberto || historicoCarregado) return;
     let mounted = true;
     setCarregandoExecucoes(true);
     listarExecucoesApify()
@@ -429,6 +456,41 @@ export default function BuscaLeads() {
     setErroBusca(null);
   };
 
+  const alternarSegmentoCliente = (segment: string) => {
+    setSegmentosCliente((current) => current.includes(segment)
+      ? current.filter((item) => item !== segment)
+      : [...current, segment]);
+  };
+
+  const gerarSugestoesDoPerfil = () => {
+    const suggested = termsFromIdealProfile(ofertaEmpresa, tipoEmpresaAlvo, segmentosCliente);
+    const next = normalizeProspectingTerms([...termosBusca, ...suggested]);
+    if (!suggested.length) {
+      setErroBusca('Informe a oferta da empresa ou selecione segmentos para gerar termos relacionados.');
+      return;
+    }
+    if (next.length === termosBusca.length) {
+      setErroBusca(termosBusca.length >= MAX_PROSPECTING_TERMS
+        ? `O limite é de ${MAX_PROSPECTING_TERMS} termos. Remova um termo antes de gerar outras sugestões.`
+        : 'As sugestões deste perfil já estão selecionadas.');
+      return;
+    }
+    setTermosBusca(next);
+    setErroBusca(null);
+  };
+
+  const classificacaoDaAmostra = (lead: PreviewLead): SampleClassification => {
+    if (lead.duplicado) return 'duplicada';
+    return classificacoesAmostra[lead.id] || 'adequada';
+  };
+
+  const atualizarClassificacaoAmostra = (lead: PreviewLead, classification: SampleClassification) => {
+    if (lead.duplicado && classification !== 'duplicada') return;
+    setClassificacoesAmostra((current) => ({ ...current, [lead.id]: classification }));
+    if (classification !== 'adequada') setSelecionados((current) => current.filter((id) => id !== lead.id));
+    else if (!lead.duplicado) setSelecionados((current) => current.includes(lead.id) ? current : [...current, lead.id]);
+  };
+
   const requestSignature = (sourceKey: string, filters: Record<string, unknown>) => JSON.stringify({ sourceKey, filters });
 
   const requestKeyFor = (sourceKey: string, filters: Record<string, unknown>) => {
@@ -448,7 +510,7 @@ export default function BuscaLeads() {
     try { window.sessionStorage.removeItem(PROSPECTING_REQUEST_STORAGE_KEY); } catch { /* armazenamento indisponível */ }
   };
 
-  const buscar = () => { void executarBusca(); };
+  const testarAmostra = () => { void executarBusca(SAMPLE_SIZE); };
 
   const aguardarResultadoApify = async (sourceKey: string, runId: string): Promise<ProspectingResponse> => {
     for (let attempt = 0; attempt < 30; attempt += 1) {
@@ -480,7 +542,7 @@ export default function BuscaLeads() {
       let response = data as ProspectingResponse;
       if (response?.pending) response = await aguardarResultadoApify('apify', run.id);
       setFaseBusca(fasesBusca[2]);
-      aplicarResultadoDaBusca(response, fonte?.nome || 'Apify — Google Maps');
+      aplicarResultadoDaBusca(response, fonte?.nome || 'Apify — Google Maps', run.resultCount || leadsDia);
     } catch (error) {
       setErroBusca(mensagemBuscaReal(error instanceof Error ? error.message : 'prospecting_failed', fonte?.nome || 'Apify'));
     } finally {
@@ -491,7 +553,7 @@ export default function BuscaLeads() {
     }
   };
 
-  const aplicarResultadoDaBusca = (data: ProspectingResponse, fonteNome: string) => {
+  const aplicarResultadoDaBusca = (data: ProspectingResponse, fonteNome: string, requestedVolume: number) => {
     if (!data?.leads || !Array.isArray(data.leads)) throw new Error(data?.error || 'prospecting_empty_response');
     const encontrados = data.leads.map((lead, index) => prospectingLeadToPreview(lead, fonteNome, index));
     const cruzados = cruzarPreview(encontrados);
@@ -500,19 +562,21 @@ export default function BuscaLeads() {
     setFiltroRevisao('todos');
     setMapaAberto(false);
     setFeedbackRevisao('');
+    setClassificacoesAmostra(Object.fromEntries(cruzados.map((lead) => [lead.id, lead.duplicado ? 'duplicada' : 'adequada'])));
+    setMotivosForaPerfil({});
     clearRequestKey();
     const duplicados = cruzados.filter((lead) => lead.duplicado).length;
     setResultado(
       duplicados > 0
-        ? `${cruzados.length} leads encontrados (limite: ${leadsDia}). ${duplicados} duplicado(s) já no funil e bloqueado(s).`
+        ? `${cruzados.length} leads encontrados (limite: ${requestedVolume}). ${duplicados} duplicado(s) já no funil e bloqueado(s).`
         : cruzados.length
-          ? `${cruzados.length} leads encontrados (limite: ${leadsDia}), resultado real do provedor.`
+          ? `${cruzados.length} leads encontrados (limite: ${requestedVolume}), resultado real do provedor.`
           : `${fonteNome} concluiu a busca, mas não retornou leads para estes filtros. Nenhum lead foi importado.`,
     );
     setEtapa(3);
   };
 
-  const executarBusca = async () => {
+  const executarBusca = async (requestedVolume: number) => {
     const fonte = fontes.find((item) => item.id === fonteSelecionada);
     const fonteNome = fonte?.nome || '';
     const sourceKey = fonte?.sourceKey || ({
@@ -527,7 +591,7 @@ export default function BuscaLeads() {
       if (!fontesDisponiveis.some((item) => item.id === fonteSelecionada)) throw new Error('source_disabled');
       if (!sourceKey) throw new Error('source_not_configured');
       if (!cidade.trim()) throw new Error('prospecting_city_required');
-      const terms = normalizeProspectingTerms(termosBusca);
+      const terms = termosAplicados;
       if (!terms.length) throw new Error('prospecting_terms_required');
       const filters = {
         pais,
@@ -538,7 +602,7 @@ export default function BuscaLeads() {
         exigeSite: temSite === true,
         exigeWhatsApp: temWhatsApp === true,
         exigeEmail: temEmail === true,
-        volumeMaximo: leadsDia,
+        volumeMaximo: requestedVolume,
       };
       const idempotencyKey = requestKeyFor(sourceKey, filters);
       setBuscando(true);
@@ -564,7 +628,7 @@ export default function BuscaLeads() {
         response = await aguardarResultadoApify(sourceKey, response.runId);
       }
       setFaseBusca(fasesBusca[2]);
-      aplicarResultadoDaBusca(response, fonteNome);
+      aplicarResultadoDaBusca(response, fonteNome, requestedVolume);
     } catch (error) {
       setPreview([]);
       setSelecionados([]);
@@ -619,6 +683,8 @@ export default function BuscaLeads() {
   };
 
   const toggleSelecionado = (id: string) => {
+    const lead = preview.find((item) => item.id === id);
+    if (lead?.duplicado || classificacoesAmostra[id] !== 'adequada') return;
     if (selecionados.includes(id)) {
       setSelecionados(selecionados.filter((s) => s !== id));
     } else {
@@ -627,7 +693,9 @@ export default function BuscaLeads() {
   };
 
   const selecionarTodos = () => {
-    const ids = filterProspectingReview(preview, filtroRevisao).filter((lead) => !lead.duplicado).map((lead) => lead.id);
+    const ids = leadsRevisao
+      .filter((lead) => !lead.duplicado && classificacoesAmostra[lead.id] === 'adequada')
+      .map((lead) => lead.id);
     if (!ids.length) return;
     const todosVisiveisSelecionados = ids.every((id) => selecionados.includes(id));
     setSelecionados((current) => todosVisiveisSelecionados
@@ -897,31 +965,35 @@ export default function BuscaLeads() {
     return confirmarImportacaoCsv(nextPending);
   };
 
-  const etapaLabel = ['Buscar', 'Revisar', 'Importar'];
-  const leadsRevisao = filterProspectingReview(preview, filtroRevisao);
-  const elegiveis = preview.filter((lead) => !lead.duplicado);
-  const duplicados = preview.filter((lead) => lead.duplicado);
+  const etapaLabel = ['Perfil ideal', 'Testar amostra', 'Revisar leads', 'Importar'];
+  const leadsRevisao = preview.filter((lead) => {
+    const classificacao = classificacaoDaAmostra(lead);
+    if (filtroRevisao === 'elegiveis') return !lead.duplicado && classificacao === 'adequada';
+    if (filtroRevisao === 'duplicados') return lead.duplicado || classificacao === 'duplicada';
+    return true;
+  });
+  const elegiveis = preview.filter((lead) => !lead.duplicado && classificacaoDaAmostra(lead) === 'adequada');
+  const duplicados = preview.filter((lead) => lead.duplicado || classificacaoDaAmostra(lead) === 'duplicada');
 
   return (
     <div className="wf-page wf-page--prospecting">
       <header className="wf-page-header">
         <div>
           <p className="wf-eyebrow">Prospecção</p>
-          <div className="mt-1 flex items-center gap-2"><h1 className="wf-page-title">Busca de Leads</h1><InfoTooltip text="Defina a fonte e os filtros. Revise cada resultado antes de importar." label="Sobre Busca de Leads" align="start" /></div>
-          <p className="wf-page-description">Encontre empresas, revise a qualidade e importe com controle. Um resultado de busca ainda não é uma oportunidade no funil.</p>
+          <div className="mt-1 flex items-center gap-2"><h1 className="wf-page-title">Busca de Leads</h1><InfoTooltip text="A busca usa apenas fontes configuradas. Todo resultado passa por revisão antes da importação." label="Sobre Busca de Leads" align="start" /></div>
+          <p className="wf-page-description">Defina o cliente ideal, teste uma amostra e importe apenas leads qualificados.</p>
         </div>
         <span className="inline-flex w-fit items-center gap-2 rounded-full border border-background-200 bg-white px-3 py-2 text-xs font-semibold text-foreground-600">
           <i className="ri-shield-check-line text-primary-700" aria-hidden="true" /> Importação sob revisão
         </span>
       </header>
 
-      {/* Modos de trabalho: a busca real abre primeiro; o assistente apenas rascunha texto. */}
       <div className="wf-tabs max-w-full overflow-x-auto" aria-label="Modo de prospecção">
         {(
           [
-            { id: 'busca', label: 'Buscar agora' },
+            { id: 'busca', label: 'Nova busca' },
             { id: 'importar', label: 'Importar CSV' },
-            { id: 'agente', label: 'Assistente de busca' },
+            { id: 'salvas', label: 'Buscas salvas' },
           ] as const
         ).map((t) => (
           <button
@@ -939,72 +1011,44 @@ export default function BuscaLeads() {
 
       {aba === 'agente' && <PromptAgent />}
 
+      {aba === 'salvas' && <section className="mt-5 rounded-xl border border-background-200/70 bg-white p-5" aria-label="Buscas salvas">
+        <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-base font-heading font-bold text-foreground-900">Buscas salvas e recuperação</h2><p className="mt-1 text-sm text-foreground-500">Retome uma execução real sem iniciar uma consulta duplicada.</p></div><button type="button" onClick={() => void atualizarExecucoes()} disabled={carregandoExecucoes || buscando} className="rounded-lg border border-background-300 px-3 py-2 text-xs font-semibold text-foreground-700 hover:bg-background-100 disabled:opacity-50"><i className="ri-refresh-line mr-1" aria-hidden="true" />Atualizar</button></div>
+        {carregandoExecucoes && <p className="mt-4 text-sm text-foreground-500">Carregando execuções...</p>}
+        {erroExecucoes && <p role="alert" className="mt-4 text-sm text-secondary-700">Não foi possível carregar as buscas salvas. Tente atualizar.</p>}
+        {!carregandoExecucoes && !erroExecucoes && !historicoCarregado && <button type="button" onClick={() => { setHistoricoAberto(true); void atualizarExecucoes(); }} className="mt-4 rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white">Carregar buscas salvas</button>}
+        {historicoCarregado && !carregandoExecucoes && !erroExecucoes && execucoes.length === 0 && <p className="mt-4 text-sm text-foreground-500">Nenhuma busca disponível.</p>}
+        {execucoes.length > 0 && <div className="mt-4 space-y-2">{execucoes.map((run) => <div key={run.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-background-200 px-4 py-3"><div><p className="text-sm font-semibold text-foreground-900">{run.location || 'Local não informado'}</p><p className="mt-1 text-xs text-foreground-500">{run.startedAt ? new Date(run.startedAt).toLocaleString('pt-BR') : 'Data indisponível'} · {run.status === 'completed' ? `${run.resultCount} encontrado(s)` : run.status === 'cached' ? `${run.resultCount} resultado(s) salvos` : run.status === 'running' ? 'Em andamento' : run.status === 'failed' ? 'Falha' : 'Não concluída'}</p></div>{((run.status === 'running' && run.hasProvider) || ((run.status === 'completed' || run.status === 'cached') && run.hasResults)) && <button type="button" onClick={() => void retomarExecucao(run)} disabled={buscando} className="rounded-lg border border-primary-300 px-3 py-2 text-xs font-semibold text-primary-700 hover:bg-primary-50 disabled:opacity-50">{buscando && execucaoAtual === run.id ? 'Consultando...' : run.status === 'completed' || run.status === 'cached' ? 'Abrir revisão' : 'Retomar busca'}</button>}</div>)}</div>}
+      </section>}
+
       {aba === 'busca' && (
         <>
-          <section className="mb-6 rounded-xl border border-background-200/70 bg-background-50 p-4" aria-label="Execuções anteriores da Apify">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <button type="button" onClick={() => setHistoricoAberto((open) => !open)} aria-expanded={historicoAberto} className="inline-flex items-center gap-2 text-left text-sm font-heading font-bold text-foreground-900">
-                <i className="ri-history-line text-primary-700" aria-hidden="true" />
-                Histórico e recuperação
-                <span className="text-[11px] font-medium text-foreground-500">{historicoAberto ? 'Ocultar' : 'Abrir'}</span>
-              </button>
-              {historicoAberto && <button type="button" onClick={() => void atualizarExecucoes()} disabled={carregandoExecucoes || buscando} className="rounded-lg border border-background-300 px-3 py-1.5 text-xs font-semibold text-foreground-700 hover:bg-background-100 disabled:opacity-50">
-                <i className="ri-refresh-line mr-1" aria-hidden="true"></i>Atualizar
-              </button>}
-            </div>
-            {historicoAberto && <p className="mt-1 text-xs text-foreground-500">Retome uma execução existente sem iniciar outra busca paga.</p>}
-            <div hidden={!historicoAberto}>
-              {carregandoExecucoes && <p className="mt-3 text-xs text-foreground-500">Carregando execuções...</p>}
-              {erroExecucoes && <p role="alert" className="mt-3 text-xs text-secondary-700">Não foi possível carregar o histórico. Tente atualizar.</p>}
-              {historicoCarregado && !carregandoExecucoes && !erroExecucoes && execucoes.length === 0 && <p className="mt-3 text-xs text-foreground-500">Nenhuma busca disponível.</p>}
-              {execucoes.length > 0 && <div className="mt-3 max-h-44 space-y-2 overflow-y-auto pr-1">
-              {execucoes.map((run) => (
-                <div key={run.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-background-200/70 px-3 py-2 text-xs">
-                  <div className="min-w-0">
-                    <span className="font-semibold text-foreground-800">{run.location || 'Local não informado'}</span>
-                    <span className="ml-2 text-foreground-500">{run.startedAt ? new Date(run.startedAt).toLocaleString('pt-BR') : 'Data indisponível'}</span>
-                    {run.fromTeam && <span className="ml-2 rounded-full bg-background-100 px-2 py-0.5 text-foreground-600">Equipe</span>}
-                    <span className="ml-2 text-foreground-600">{run.status === 'completed' ? `${run.resultCount} encontrado(s)` : run.status === 'cached' ? `${run.resultCount} resultado(s) salvos` : run.status === 'running' && run.providerStartState === 'unknown' ? 'Início não confirmado' : run.status === 'running' ? 'Em andamento' : run.status === 'failed' ? 'Falha' : 'Não concluída'}</span>
-                    {run.status === 'failed' && run.lastError && <span className="ml-2 text-secondary-700">{run.lastError}</span>}
-                    {run.status === 'running' && !run.hasProvider && <span className="ml-2 text-secondary-700">Início não confirmado pelo provedor; não crie nova busca automática.</span>}
-                  </div>
-                  {((run.status === 'running' && run.hasProvider) || ((run.status === 'completed' || run.status === 'cached') && run.hasResults)) &&
-                    <button type="button" onClick={() => void retomarExecucao(run)} disabled={buscando} className="rounded-lg border border-primary-300 px-3 py-1.5 font-semibold text-primary-700 hover:bg-primary-50 disabled:opacity-50">
-                      {buscando && execucaoAtual === run.id ? 'Consultando...' : run.status === 'completed' || run.status === 'cached' ? 'Abrir revisão' : 'Retomar busca'}
-                    </button>}
-                </div>
-              ))}
-              </div>}
-              {erroBusca && etapa !== 2 && <p role="alert" className="mt-3 text-xs text-secondary-700">{erroBusca}</p>}
-            </div>
-          </section>
-          <nav className="mb-4 flex items-center gap-2 overflow-x-auto rounded-xl border border-background-200/70 bg-white px-3 py-2.5" aria-label="Etapas da busca">
+          <nav className="mb-4 mt-5 flex items-center gap-2 overflow-x-auto rounded-xl border border-background-200/70 bg-white px-3 py-3" aria-label="Etapas da busca">
             {etapaLabel.map((e, i) => (
               <div key={i} className="flex items-center gap-2">
                 {(() => {
-                  const step = i + 2;
+                  const step = i + 1;
                   return <>
                 <div
                   className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-bold ${
-                    etapa > step
+                    activeSearchStage > step
                       ? 'bg-primary-500 text-background-50'
-                      : etapa === step
+                      : activeSearchStage === step
                       ? 'bg-primary-100 text-primary-700 border-2 border-primary-500'
                       : 'bg-background-200 text-foreground-400'
                   }`}
                 >
-                  {etapa > step ? <i className="ri-check-line"></i> : i + 1}
+                  {activeSearchStage > step ? <i className="ri-check-line"></i> : i + 1}
                 </div>
                 <span
-                  aria-current={etapa === step ? 'step' : undefined}
+                  aria-current={activeSearchStage === step ? 'step' : undefined}
                   className={`whitespace-nowrap text-xs font-semibold ${
-                    etapa >= step ? 'text-foreground-900' : 'text-foreground-400'
+                    activeSearchStage >= step ? 'text-foreground-900' : 'text-foreground-400'
                   }`}
                 >
                   {e}
                 </span>
                 {i < etapaLabel.length - 1 && (
-                  <div className={`h-px w-3 sm:w-8 ${etapa > step ? 'bg-primary-500' : 'bg-background-200'}`}></div>
+                  <div className={`h-px w-3 sm:w-8 ${activeSearchStage > step ? 'bg-primary-500' : 'bg-background-200'}`}></div>
                 )}
                   </>;
                 })()}
@@ -1064,33 +1108,15 @@ export default function BuscaLeads() {
 
           {/* ETAPA 2: Filtros */}
           {etapa === 2 && (
-            <div className="space-y-6">
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2 space-y-6">
-                  <section className="rounded-xl border border-background-200/70 bg-white p-4">
-                    <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-                      <div className="flex items-center gap-2">
-                        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-100 text-primary-700"><i className="ri-cloud-line" aria-hidden="true" /></span>
-                        <div><h3 className="text-sm font-heading font-bold text-foreground-900">Fonte e local</h3><p className="text-xs text-foreground-500">A área é aplicada por cidade e UF.</p></div>
-                      </div>
-                      {fontesDisponiveis.length > 0 ? (
-                        <label className="flex items-center gap-2 text-[11px] font-semibold text-foreground-600">
-                          <span>API da busca</span>
-                          <select
-                            aria-label="API da busca"
-                            value={fonteSelecionada}
-                            onChange={(event) => setFonteSelecionada(event.target.value)}
-                            className="max-w-[220px] rounded-full border border-background-300 bg-white px-3 py-1.5 text-[11px] font-semibold text-foreground-800"
-                          >
-                            {fontesDisponiveis.length > 1 && <option value="">Escolha a API</option>}
-                            {fontesDisponiveis.map((fonte) => <option key={fonte.id} value={fonte.id}>{fonte.nome}</option>)}
-                          </select>
-                        </label>
-                      ) : (
-                        <button type="button" onClick={() => navigate('/dashboard/configuracoes?tab=apis')} className="rounded-full border border-secondary-200 px-2.5 py-1 text-[11px] font-semibold text-secondary-700">Configurar API de busca</button>
-                      )}
+            <div className="space-y-5">
+              <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
+                <div className="space-y-4">
+                  <section className="rounded-2xl border border-background-200/80 bg-white p-4 shadow-sm">
+                    <div className="mb-4 flex items-start gap-3">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary-100 text-primary-700"><i className="ri-map-pin-2-line" aria-hidden="true" /></span>
+                      <div><h3 className="text-sm font-heading font-bold text-foreground-900">1. Região da busca</h3><p className="mt-0.5 text-xs text-foreground-500">Escolha onde as empresas devem atuar.</p></div>
                     </div>
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div className="grid gap-3 sm:grid-cols-3">
                       <label className="text-xs font-semibold text-foreground-700">Cidade
                         <input type="text" value={cidade} onChange={(event) => setCidade(event.target.value)} placeholder="Ex.: São Paulo" className="mt-1.5 w-full rounded-lg border border-background-300 bg-background-50 px-3 py-2 text-sm text-foreground-900" />
                       </label>
@@ -1099,137 +1125,74 @@ export default function BuscaLeads() {
                           {estados.map((uf) => <option key={uf} value={uf}>{uf}</option>)}
                         </select>
                       </label>
-                    </div>
-                    <button type="button" onClick={() => setFiltrosAvancados((visible) => !visible)} aria-expanded={filtrosAvancados} className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-foreground-600 hover:text-foreground-900">
-                      <i className={filtrosAvancados ? 'ri-arrow-up-s-line' : 'ri-equalizer-2-line'} aria-hidden="true" /> Filtros avançados
-                    </button>
-                    {filtrosAvancados && <label className="mt-3 block text-xs font-semibold text-foreground-700">País
-                      <input type="text" value={pais} onChange={(event) => setPais(event.target.value)} className="mt-1.5 w-full rounded-lg border border-background-300 bg-background-50 px-3 py-2 text-sm text-foreground-900" />
-                    </label>}
-                  </section>
-
-                  <section className="rounded-xl border border-background-200/70 bg-white p-4">
-                    <div className="mb-3 flex items-center justify-between gap-2">
-                      <div><h3 className="text-sm font-heading font-bold text-foreground-900">Termos de busca</h3><p className="text-xs text-foreground-500">Digite um termo livre ou use o assistente por segmento para marcar opções relacionadas.</p></div>
-                      <span className="rounded-full bg-background-100 px-2 py-1 text-[11px] font-semibold text-foreground-600">{termosBusca.length}/{MAX_PROSPECTING_TERMS}</span>
-                    </div>
-                    <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={novoTermo}
-                        onChange={(event) => setNovoTermo(event.target.value)}
-                        onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); adicionarTermo(); } }}
-                        maxLength={80}
-                        placeholder="Ex.: manutenção industrial"
-                        className="min-w-0 flex-1 rounded-lg border border-background-300 bg-background-50 px-3 py-2 text-sm text-foreground-900"
-                      />
-                      <button type="button" onClick={adicionarTermo} disabled={!novoTermo.trim() || termosBusca.length >= MAX_PROSPECTING_TERMS} className="rounded-lg bg-background-950 px-3 py-2 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-40">Adicionar</button>
-                    </div>
-                    {termosBusca.length > 0 && <div className="mt-3 flex flex-wrap gap-2">
-                      {termosBusca.map((term) => <span key={term} className="inline-flex items-center gap-1 rounded-full bg-primary-50 px-2.5 py-1 text-xs font-semibold text-primary-800">
-                        {term}<button type="button" onClick={() => removerTermo(term)} aria-label={`Remover ${term}`} className="rounded-full text-primary-700 hover:text-primary-950"><i className="ri-close-line" aria-hidden="true" /></button>
-                      </span>)}
-                    </div>}
-                    <div className="mt-4 border-t border-background-200 pt-4">
-                      <div className="flex items-start gap-2">
-                        <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-secondary-100 text-secondary-700"><i className="ri-magic-line" aria-hidden="true" /></span>
-                        <div>
-                          <h4 className="text-sm font-semibold text-foreground-900">Sugestões por segmento</h4>
-                          <p className="mt-0.5 text-xs leading-5 text-foreground-500">Informe o segmento da empresa, como Borracha, Silicone ou Poliuretano. Depois marque somente as opções que representam o público desejado.</p>
-                        </div>
+                      <div className="text-xs font-semibold text-foreground-700">Abrangência <InfoTooltip text="A fonte ativa recebe cidade e UF. Raio de alcance não é aplicado pelo conector atual e, por isso, não é exibido como filtro." label="Sobre a abrangência" />
+                        <div className="mt-1.5 flex h-[38px] items-center rounded-lg border border-background-200 bg-background-100 px-3 text-sm font-medium text-foreground-500">Toda a cidade</div>
                       </div>
-                      <label className="mt-3 block text-xs font-semibold text-foreground-700">Segmento da empresa
-                        <input
-                          type="text"
-                          value={segmentoSugestao}
-                          onChange={(event) => setSegmentoSugestao(event.target.value)}
-                          placeholder="Ex.: borracha, silicone ou poliuretano"
-                          className="mt-1.5 w-full rounded-lg border border-background-300 bg-background-50 px-3 py-2 text-sm text-foreground-900"
-                        />
-                      </label>
-                      <div className="mt-2 flex flex-wrap gap-1.5" aria-label="Segmentos sugeridos">
-                        {PROSPECTING_TERM_SUGGESTION_GROUPS.map((group) => (
-                          <button
-                            key={group.id}
-                            type="button"
-                            onClick={() => setSegmentoSugestao(group.label)}
-                            className={`rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors ${gruposSugeridos.some((item) => item.id === group.id) ? 'border-primary-300 bg-primary-50 text-primary-800' : 'border-background-200 bg-white text-foreground-600 hover:border-background-300'}`}
-                          >
-                            {group.label}
-                          </button>
-                        ))}
-                      </div>
-                      {segmentoSugestao.trim() && gruposSugeridos.length === 0 && (
-                        <p role="status" className="mt-3 rounded-lg border border-background-200 bg-background-100 px-3 py-2 text-xs leading-5 text-foreground-600">Ainda não há sugestões prontas para esse segmento. Continue usando o campo de termo livre acima.</p>
-                      )}
-                      {gruposSugeridos.length > 0 && <div className="mt-3 space-y-3">
-                        {gruposSugeridos.map((group) => (
-                          <div key={group.id} className="rounded-xl border border-background-200 bg-background-50/70 p-3">
-                            <div className="flex flex-wrap items-start justify-between gap-2">
-                              <div><p className="text-sm font-semibold text-foreground-900">{group.label}</p><p className="mt-0.5 text-xs text-foreground-500">{group.description}</p></div>
-                              <button type="button" onClick={() => adicionarGrupoSugerido(group.terms)} className="rounded-lg border border-primary-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-primary-800 hover:bg-primary-50">Marcar disponíveis</button>
-                            </div>
-                            <div className="mt-3 flex flex-wrap gap-2">
-                              {group.terms.map((term) => {
-                                const selected = termosSelecionados.has(normalizarTermoSugerido(term));
-                                return <button
-                                  key={term}
-                                  type="button"
-                                  aria-pressed={selected}
-                                  disabled={!selected && termosBusca.length >= MAX_PROSPECTING_TERMS}
-                                  onClick={() => alternarTermoSugerido(term)}
-                                  className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${selected ? 'border-primary-300 bg-primary-100 text-primary-900' : 'border-background-300 bg-white text-foreground-700 hover:border-primary-300 hover:text-primary-800'}`}
-                                >
-                                  <i className={selected ? 'ri-checkbox-circle-fill' : 'ri-add-circle-line'} aria-hidden="true" />{term}
-                                </button>;
-                              })}
-                            </div>
-                          </div>
-                        ))}
-                      </div>}
                     </div>
                   </section>
 
-                  <section className="rounded-xl border border-background-200/70 bg-white p-4">
-                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-[160px_1fr] sm:items-end">
-                      <label className="text-xs font-semibold text-foreground-700">Resultados máximos
-                        <input type="number" min={1} max={100} value={leadsDia} onChange={(event) => setLeadsDia(Math.max(1, Math.min(100, Number(event.target.value))))} className="mt-1.5 w-full rounded-lg border border-background-300 bg-background-50 px-3 py-2 text-sm text-foreground-900" />
-                      </label>
-                      <p className="pb-2 text-xs text-foreground-500">{termosBusca.length ? `${leadsDia} resultados / ${termosBusca.length} termo(s): até ${prospectingVolumePerTerm(leadsDia, termosBusca.length)} por termo.` : 'Adicione termos para ver a divisão real do volume.'}</p>
+                  <section className="rounded-2xl border border-background-200/80 bg-white p-4 shadow-sm">
+                    <div className="mb-4 flex items-start gap-3">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary-100 text-primary-700"><i className="ri-group-line" aria-hidden="true" /></span>
+                      <div><h3 className="text-sm font-heading font-bold text-foreground-900">2. Perfil de cliente ideal</h3><p className="mt-0.5 text-xs text-foreground-500">Conte o que sua empresa vende e quem pode comprar.</p></div>
                     </div>
-                    <div className="mt-3 flex flex-wrap gap-x-5 gap-y-2 text-xs font-medium text-foreground-700">
+                    <label className="block text-xs font-semibold text-foreground-700">O que sua empresa vende?
+                      <input value={ofertaEmpresa} onChange={(event) => setOfertaEmpresa(event.target.value)} maxLength={240} className="mt-1.5 w-full rounded-lg border border-background-300 bg-background-50 px-3 py-2 text-sm text-foreground-900" />
+                    </label>
+                    <fieldset className="mt-4"><legend className="text-xs font-semibold text-foreground-700">Quem você quer encontrar?</legend>
+                      <div className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                        {PROSPECTING_TARGET_PROFILES.map((profile) => {
+                          const selected = tipoEmpresaAlvo === profile.id;
+                          return <button key={profile.id} type="button" aria-pressed={selected} onClick={() => setTipoEmpresaAlvo(profile.id)} className={`flex min-h-10 items-center gap-2 rounded-lg border px-3 text-left text-xs font-semibold transition-colors ${selected ? 'border-primary-400 bg-primary-50 text-primary-800' : 'border-background-200 bg-white text-foreground-600 hover:border-background-300'}`}><i className={selected ? 'ri-checkbox-circle-fill text-primary-600' : 'ri-checkbox-blank-circle-line'} aria-hidden="true" />{profile.label}</button>;
+                        })}
+                      </div>
+                    </fieldset>
+                    <div className="mt-4"><p className="text-xs font-semibold text-foreground-700">Segmentos dos clientes</p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {PROSPECTING_CUSTOMER_SEGMENTS.map((segment) => {
+                          const selected = segmentosCliente.includes(segment);
+                          return <button key={segment} type="button" aria-pressed={selected} onClick={() => alternarSegmentoCliente(segment)} className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${selected ? 'border-primary-300 bg-primary-50 text-primary-800' : 'border-background-200 bg-white text-foreground-600 hover:border-primary-300'}`}>{selected && <i className="ri-check-line mr-1" aria-hidden="true" />}{segment}</button>;
+                        })}
+                      </div>
+                    </div>
+                  </section>
+
+                  <section className="rounded-2xl border border-background-200/80 bg-white p-4 shadow-sm">
+                    <div className="mb-3 flex items-start gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary-100 text-primary-700"><i className="ri-equalizer-2-line" aria-hidden="true" /></span><div><h3 className="text-sm font-heading font-bold text-foreground-900">3. Critérios de qualificação</h3><p className="mt-0.5 text-xs text-foreground-500">Defina o que precisa estar presente para entrar na amostra.</p></div></div>
+                    <div className="flex flex-wrap gap-x-5 gap-y-2 text-xs font-medium text-foreground-700">
                       <label className="inline-flex cursor-pointer items-center gap-2"><input type="checkbox" checked={temSite === true} onChange={() => setTemSite(temSite === true ? null : true)} /> Site informado</label>
-                      <div className="inline-flex items-center gap-2"><label className="inline-flex cursor-pointer items-center gap-2"><input type="checkbox" checked={temWhatsApp === true} onChange={() => setTemWhatsApp(temWhatsApp === true ? null : true)} /> WhatsApp informado pela fonte</label><InfoTooltip text="Telefone encontrado não é tratado como WhatsApp comprovado." label="Sobre a evidência de WhatsApp" /></div>
+                      <div className="inline-flex items-center gap-2"><label className="inline-flex cursor-pointer items-center gap-2"><input type="checkbox" checked={temWhatsApp === true} onChange={() => setTemWhatsApp(temWhatsApp === true ? null : true)} /> Telefone ou WhatsApp</label><InfoTooltip text="Telefone encontrado não é tratado como WhatsApp comprovado." label="Sobre a evidência de WhatsApp" /></div>
                       <label className="inline-flex cursor-pointer items-center gap-2"><input type="checkbox" checked={temEmail === true} onChange={() => setTemEmail(temEmail === true ? null : true)} /> E-mail informado</label>
+                    </div>
+                    <button type="button" onClick={() => setFiltrosAvancados((visible) => !visible)} aria-expanded={filtrosAvancados} className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold text-foreground-600 hover:text-foreground-900"><i className={filtrosAvancados ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line'} aria-hidden="true" /> Filtros avançados</button>
+                    {filtrosAvancados && <div className="mt-3 grid gap-3 border-t border-background-200 pt-3 sm:grid-cols-2">
+                      <label className="text-xs font-semibold text-foreground-700">País<input type="text" value={pais} onChange={(event) => setPais(event.target.value)} className="mt-1.5 w-full rounded-lg border border-background-300 bg-background-50 px-3 py-2 text-sm text-foreground-900" /></label>
+                      {fontesDisponiveis.length > 0 ? <label className="text-xs font-semibold text-foreground-700">API da busca
+                        <select aria-label="API da busca" value={fonteSelecionada} onChange={(event) => setFonteSelecionada(event.target.value)} className="mt-1.5 w-full rounded-lg border border-background-300 bg-background-50 px-3 py-2 text-sm text-foreground-900">
+                          {fontesDisponiveis.length > 1 && <option value="">Escolha a API</option>}
+                          {fontesDisponiveis.map((fonte) => <option key={fonte.id} value={fonte.id}>{fonte.nome}</option>)}
+                        </select>
+                      </label> : <button type="button" onClick={() => navigate('/dashboard/configuracoes?tab=apis')} className="self-end rounded-lg border border-secondary-200 px-3 py-2 text-xs font-semibold text-secondary-700">Configurar API de busca</button>}
+                    </div>}
+                    <div className="mt-4 border-t border-background-200 pt-3"><p className="text-xs font-semibold text-foreground-700">Excluir da busca</p><div className="mt-2 flex flex-wrap gap-2"><span className="rounded-full bg-background-100 px-3 py-1.5 text-xs text-foreground-600">Empresas já cadastradas no CRM</span></div><p className="mt-2 text-xs leading-5 text-foreground-500">A duplicidade é identificada na revisão por empresa, e-mail ou telefone; nenhuma lista fictícia é enviada ao provedor.</p></div>
+                  </section>
+
+                  <section className="rounded-2xl border border-background-200/80 bg-white p-4 shadow-sm">
+                    <div className="mb-3 flex flex-wrap items-start justify-between gap-2"><div className="flex items-start gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary-100 text-primary-700"><i className="ri-file-list-3-line" aria-hidden="true" /></span><div><h3 className="text-sm font-heading font-bold text-foreground-900">4. Termos sugeridos</h3><p className="mt-0.5 text-xs text-foreground-500">Revise os termos que serão enviados à fonte de dados.</p></div></div><span className="rounded-full bg-background-100 px-2 py-1 text-[11px] font-semibold text-foreground-600">{termosBusca.length}/{MAX_PROSPECTING_TERMS}</span></div>
+                    <div className="flex gap-2"><input type="text" value={novoTermo} onChange={(event) => setNovoTermo(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); adicionarTermo(); } }} maxLength={80} placeholder="Ex.: manutenção industrial" className="min-w-0 flex-1 rounded-lg border border-background-300 bg-background-50 px-3 py-2 text-sm text-foreground-900" /><button type="button" onClick={adicionarTermo} disabled={!novoTermo.trim() || termosBusca.length >= MAX_PROSPECTING_TERMS} className="rounded-lg bg-background-950 px-3 py-2 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-40">Adicionar</button></div>
+                    {termosBusca.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{termosBusca.map((term) => <span key={term} className="inline-flex items-center gap-1 rounded-full border border-primary-200 bg-primary-50 px-2.5 py-1 text-xs font-semibold text-primary-800">{term}<button type="button" onClick={() => removerTermo(term)} aria-label={`Remover ${term}`} className="rounded-full text-primary-700 hover:text-primary-950"><i className="ri-close-line" aria-hidden="true" /></button></span>)}</div>}
+                    <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-background-200 pt-3"><button type="button" onClick={gerarSugestoesDoPerfil} disabled={termosBusca.length >= MAX_PROSPECTING_TERMS} className="inline-flex items-center gap-1.5 rounded-lg border border-primary-300 px-3 py-2 text-xs font-semibold text-primary-800 hover:bg-primary-50 disabled:opacity-40"><i className="ri-refresh-line" aria-hidden="true" />Gerar novas sugestões</button><button type="button" onClick={() => setAba('agente')} className="inline-flex items-center gap-1.5 rounded-lg px-2 py-2 text-xs font-semibold text-foreground-600 hover:bg-background-100"><i className="ri-magic-line" aria-hidden="true" />Usar assistente de busca</button></div>
+                    {termosDoPerfil.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{termosDoPerfil.map((term) => { const selected = termosSelecionados.has(normalizarTermoSugerido(term)); return <button key={term} type="button" onClick={() => alternarTermoSugerido(term)} aria-pressed={selected} disabled={!selected && termosBusca.length >= MAX_PROSPECTING_TERMS} className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${selected ? 'border-primary-300 bg-primary-100 text-primary-900' : 'border-background-300 bg-white text-foreground-700 hover:border-primary-300'}`}>{selected ? <i className="ri-checkbox-circle-fill mr-1" aria-hidden="true" /> : <i className="ri-add-circle-line mr-1" aria-hidden="true" />}{term}</button>; })}</div>}
+                    <div className="mt-4 border-t border-background-200 pt-4"><label className="block text-xs font-semibold text-foreground-700">Segmento da empresa<input type="text" value={segmentoSugestao} onChange={(event) => setSegmentoSugestao(event.target.value)} placeholder="Ex.: borracha, silicone ou poliuretano" className="mt-1.5 w-full rounded-lg border border-background-300 bg-background-50 px-3 py-2 text-sm text-foreground-900" /></label><div className="mt-2 flex flex-wrap gap-1.5" aria-label="Segmentos sugeridos">{PROSPECTING_TERM_SUGGESTION_GROUPS.map((group) => <button key={group.id} type="button" onClick={() => setSegmentoSugestao(group.label)} className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${gruposSugeridos.some((item) => item.id === group.id) ? 'border-primary-300 bg-primary-50 text-primary-800' : 'border-background-200 bg-white text-foreground-600 hover:border-background-300'}`}>{group.label}</button>)}</div>
+                      {gruposSugeridos.length > 0 && <div className="mt-3 space-y-2">{gruposSugeridos.map((group) => <div key={group.id} className="rounded-xl border border-background-200 bg-background-50/70 p-3"><div className="flex flex-wrap items-start justify-between gap-2"><div><p className="text-sm font-semibold text-foreground-900">{group.label}</p><p className="mt-0.5 text-xs text-foreground-500">{group.description}</p></div><button type="button" onClick={() => adicionarGrupoSugerido(group.terms)} className="rounded-lg border border-primary-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-primary-800 hover:bg-primary-50">Marcar disponíveis</button></div></div>)}</div>}
                     </div>
                   </section>
                 </div>
 
-                <aside className="space-y-3">
-                  <div className="rounded-xl bg-background-950 p-4 text-background-50">
-                    <p className="text-xs font-semibold text-background-400">Pronto para revisar</p>
-                    <p className="mt-1 text-lg font-heading font-bold">{cidade || 'Cidade'} · {estado}</p>
-                    <div className="mt-3 flex items-center justify-between text-xs"><span className="text-background-400">Termos</span><span className="font-semibold">{termosBusca.length}</span></div>
-                    <div className="mt-1 flex items-center justify-between text-xs"><span className="text-background-400">Limite</span><span className="font-semibold">{leadsDia}</span></div>
-                  </div>
-                  <p className="px-1 text-xs leading-5 text-foreground-500">A busca não importa leads nem inicia a Ana. A revisão e a autorização continuam obrigatórias.</p>
+                <aside className="space-y-4 xl:sticky xl:top-5 xl:self-start">
+                  <section className="rounded-2xl bg-background-950 p-5 text-background-50 shadow-sm"><p className="text-xs font-semibold text-background-400">Resumo da busca</p><p className="mt-2 flex items-center gap-2 text-lg font-heading font-bold"><i className="ri-map-pin-line text-primary-300" aria-hidden="true" />{cidade || 'Cidade'} · {estado}</p><dl className="mt-4 divide-y divide-white/10 text-xs"><div className="flex justify-between py-2"><dt className="text-background-400">Perfil</dt><dd className="font-semibold">{tipoEmpresaAlvoLabel}</dd></div><div className="flex justify-between py-2"><dt className="text-background-400">Segmentos</dt><dd className="font-semibold">{segmentosCliente.length}</dd></div><div className="flex justify-between py-2"><dt className="text-background-400">Termos</dt><dd className="font-semibold">{termosAplicados.length}</dd></div><div className="flex justify-between py-2"><dt className="text-background-400">Obrigatórios</dt><dd className="font-semibold">{[temSite, temWhatsApp, temEmail].filter(Boolean).length}</dd></div><div className="flex justify-between py-2"><dt className="text-background-400">Exclusões</dt><dd className="font-semibold">1</dd></div></dl><div className="mt-4 border-t border-white/10 pt-4"><p className="flex items-center gap-2 text-xs font-semibold text-primary-200"><span className="h-2 w-2 rounded-full bg-primary-400" />Pronto para amostra</p><p className="mt-1 text-xs leading-5 text-background-300">A primeira consulta real é limitada a 10 empresas.</p></div><button type="button" onClick={testarAmostra} disabled={buscando || !fonteSelecionada || !cidade.trim() || termosAplicados.length === 0} className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-primary-500 px-3 py-2.5 text-sm font-heading font-bold text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:bg-primary-800">{buscando ? <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />Buscando...</> : <><i className="ri-search-eye-line" aria-hidden="true" />Testar com 10 empresas</>}</button><button type="button" onClick={() => { setHistoricoAberto(true); setAba('salvas'); }} className="mt-2 w-full rounded-lg border border-white/25 px-3 py-2 text-xs font-semibold text-white hover:bg-white/10">Ver buscas salvas</button></section>
+                  <section className="rounded-2xl border border-background-200 bg-white p-4"><h3 className="flex items-center gap-2 text-sm font-heading font-bold text-foreground-900"><i className="ri-lightbulb-flash-line text-primary-600" aria-hidden="true" />Como a amostra melhora a busca</h3><ol className="mt-3 space-y-3 text-xs leading-5 text-foreground-600"><li className="flex gap-2"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary-100 font-bold text-primary-700">1</span>Valide o público encontrado.</li><li className="flex gap-2"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary-100 font-bold text-primary-700">2</span>Classifique os resultados fora do perfil.</li><li className="flex gap-2"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary-100 font-bold text-primary-700">3</span>Ajuste termos antes da busca completa.</li></ol></section>
                 </aside>
-              </div>
-
-              <div className="flex items-center justify-end">
-                <button onClick={buscar} disabled={buscando || !fonteSelecionada || !cidade.trim() || termosBusca.length === 0} className="inline-flex items-center gap-2 bg-primary-500 hover:bg-primary-600 disabled:bg-primary-300 text-background-50 px-6 py-2.5 rounded-lg font-heading font-bold text-sm transition-all cursor-pointer whitespace-nowrap">
-                  {buscando ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-background-50/30 border-t-background-50 rounded-full animate-spin"></div>
-                      Buscando leads...
-                    </>
-                  ) : (
-                    <>
-                      <i className="ri-search-eye-line"></i>
-                      Buscar em {fonteAtivaSelecionada?.nome || 'API selecionada'}
-                    </>
-                  )}
-                </button>
               </div>
 
               {erroBusca && (
@@ -1289,7 +1252,7 @@ export default function BuscaLeads() {
                 <div className="border-b border-background-200/70 px-4 py-3">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div><h3 className="text-sm font-heading font-bold text-foreground-900">Revisão dos resultados</h3><p className="text-xs text-foreground-500">Somente resultados elegíveis seguem para importação.</p></div>
-                    <button type="button" onClick={selecionarTodos} disabled={leadsRevisao.every((lead) => lead.duplicado)} className="text-xs font-semibold text-primary-700 disabled:opacity-50">{leadsRevisao.filter((lead) => !lead.duplicado).every((lead) => selecionados.includes(lead.id)) && leadsRevisao.some((lead) => !lead.duplicado) ? 'Desmarcar todos' : 'Selecionar todos'}</button>
+                    <button type="button" onClick={selecionarTodos} disabled={!leadsRevisao.some((lead) => !lead.duplicado && classificacaoDaAmostra(lead) === 'adequada')} className="text-xs font-semibold text-primary-700 disabled:opacity-50">{leadsRevisao.filter((lead) => !lead.duplicado && classificacaoDaAmostra(lead) === 'adequada').every((lead) => selecionados.includes(lead.id)) && leadsRevisao.some((lead) => !lead.duplicado && classificacaoDaAmostra(lead) === 'adequada') ? 'Desmarcar todos' : 'Selecionar todos'}</button>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2">
                     {([
@@ -1313,20 +1276,21 @@ export default function BuscaLeads() {
                     <thead>
                       <tr className="border-b border-background-200/70 bg-background-100/50">
                         <th className="text-left px-4 py-3 w-10">
-                          <input type="checkbox" checked={leadsRevisao.filter((lead) => !lead.duplicado).length > 0 && leadsRevisao.filter((lead) => !lead.duplicado).every((lead) => selecionados.includes(lead.id))} onChange={selecionarTodos} disabled={leadsRevisao.every((lead) => lead.duplicado)} className="cursor-pointer disabled:cursor-not-allowed" />
+                          <input type="checkbox" checked={leadsRevisao.filter((lead) => !lead.duplicado && classificacaoDaAmostra(lead) === 'adequada').length > 0 && leadsRevisao.filter((lead) => !lead.duplicado && classificacaoDaAmostra(lead) === 'adequada').every((lead) => selecionados.includes(lead.id))} onChange={selecionarTodos} disabled={!leadsRevisao.some((lead) => !lead.duplicado && classificacaoDaAmostra(lead) === 'adequada')} className="cursor-pointer disabled:cursor-not-allowed" />
                         </th>
                         <th className="text-left px-4 py-3 text-foreground-500 font-medium text-xs">Lead</th>
                         <th className="text-left px-4 py-3 text-foreground-500 font-medium text-xs">Aderência</th>
-                        <th className="text-left px-4 py-3 text-foreground-500 font-medium text-xs hidden md:table-cell">Localidade</th>
+                        <th className="text-left px-4 py-3 text-foreground-500 font-medium text-xs hidden lg:table-cell">Classificação</th>
                         <th className="text-left px-4 py-3 text-foreground-500 font-medium text-xs">Canais</th>
                         <th className="text-left px-4 py-3 text-foreground-500 font-medium text-xs">Ações</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {leadsRevisao.map((l) => (
-                        <tr key={l.id} className={`border-b border-background-100 hover:bg-background-50/50 ${l.duplicado ? 'opacity-50' : ''}`}>
+                      {leadsRevisao.map((l) => {
+                        const classificacao = classificacaoDaAmostra(l);
+                        return <tr key={l.id} className={`border-b border-background-100 hover:bg-background-50/50 ${classificacao === 'duplicada' ? 'opacity-50' : ''}`}>
                           <td className="px-4 py-3.5">
-                            <input type="checkbox" checked={selecionados.includes(l.id)} onChange={() => toggleSelecionado(l.id)} disabled={l.duplicado} className="cursor-pointer" />
+                            <input type="checkbox" checked={selecionados.includes(l.id)} onChange={() => toggleSelecionado(l.id)} disabled={classificacao !== 'adequada'} className="cursor-pointer disabled:cursor-not-allowed" />
                           </td>
                           <td className="px-4 py-3.5 cursor-pointer" onClick={() => abrirLead(l)}>
                             <p className="font-medium text-foreground-900 flex items-center gap-1.5">
@@ -1338,7 +1302,14 @@ export default function BuscaLeads() {
                           <td className="px-4 py-3.5">
                             <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-medium ${tempBadge[l.temperatura]}`}>{l.fitScore ?? l.score}/100</span>
                           </td>
-                          <td className="px-4 py-3.5 text-foreground-600 hidden md:table-cell">{l.localidade}</td>
+                          <td className="hidden px-4 py-3.5 lg:table-cell">
+                            <label className="sr-only" htmlFor={`classificacao-${l.id}`}>Classificação de {l.nome}</label>
+                            <select id={`classificacao-${l.id}`} value={classificacao} disabled={l.duplicado} onChange={(event) => atualizarClassificacaoAmostra(l, event.target.value as SampleClassification)} className="max-w-[150px] rounded-lg border border-background-300 bg-white px-2 py-1.5 text-xs font-semibold text-foreground-700 disabled:cursor-not-allowed">
+                              {SAMPLE_CLASSIFICATIONS.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
+                            </select>
+                            {classificacao === 'fora_do_perfil' && <select aria-label={`Motivo para ${l.nome} estar fora do perfil`} value={motivosForaPerfil[l.id] || ''} onChange={(event) => setMotivosForaPerfil((current) => ({ ...current, [l.id]: event.target.value }))} className="mt-1.5 max-w-[150px] rounded-lg border border-background-300 bg-white px-2 py-1 text-[11px] text-foreground-600"><option value="">Motivo</option>{OUT_OF_PROFILE_REASONS.map((reason) => <option key={reason} value={reason}>{reason}</option>)}</select>}
+                            <p className="mt-1 text-[11px] text-foreground-500">{l.localidade}</p>
+                          </td>
                           <td className="px-4 py-3.5">
                             <div className="flex flex-wrap gap-1"><span className={`rounded-full px-2 py-1 text-[11px] font-semibold ${l.canais.site ? 'bg-primary-50 text-primary-700' : 'bg-background-100 text-foreground-500'}`}>Site</span><span className={`rounded-full px-2 py-1 text-[11px] font-semibold ${l.canais.email ? 'bg-primary-50 text-primary-700' : 'bg-background-100 text-foreground-500'}`}>E-mail</span><span className={`rounded-full px-2 py-1 text-[11px] font-semibold ${l.whatsappStatus === 'verified' ? 'bg-primary-50 text-primary-700' : 'bg-background-100 text-foreground-500'}`}>WhatsApp</span></div>
                             {l.whatsappStatus === 'unverified' && <p className="mt-1 text-[11px] text-accent-700">Telefone ≠ WhatsApp</p>}
@@ -1366,8 +1337,8 @@ export default function BuscaLeads() {
                               </button>
                             </div>
                           </td>
-                        </tr>
-                      ))}
+                        </tr>;
+                      })}
                     </tbody>
                   </table>}
                 </div>

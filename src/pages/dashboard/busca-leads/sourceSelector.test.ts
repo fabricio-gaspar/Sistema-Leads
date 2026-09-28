@@ -9,7 +9,7 @@ describe('seletor de APIs da Busca de Leads', () => {
     expect(page).toContain('void recarregarFontes()');
     expect(page).toContain('aria-label="API da busca"');
     expect(page).toContain('fontesDisponiveis.map');
-    expect(page).toContain("Buscar em {fonteAtivaSelecionada?.nome || 'API selecionada'}");
+    expect(page).toContain('Testar com 10 empresas');
     expect(page).not.toContain('Apify · fonte habilitada');
     expect(page).not.toContain('Buscar no Apify');
   });
