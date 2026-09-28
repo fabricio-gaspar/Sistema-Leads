@@ -1235,3 +1235,17 @@
 - A normalização foi fechada em booleano, ganhou teste unitário e falhas futuras de gravação usam o código seguro `schedule_not_saved`. `ana-operations` v5 publicada com JWT obrigatório.
 - Type-check frontend/Edge, lint, 50 arquivos/308 testes, build e smoke 17/17 passaram. Site v139 publicado pelo commit `75ea569`, deploy `appgdep_6ab960d08f5c8191b3ebde0460d4cf99`; tela autenticada mostrou nove checks OK e console limpo.
 - A operação permaneceu inativa; nenhuma busca, mensagem, fila, lead ou execução da Ana foi disparada.
+
+## 2026-09-28 — Redesign da Busca de Leads com amostra controlada
+
+- Implementado no Site existente o fluxo Perfil ideal → Testar amostra → Revisar leads → Importar.
+  O formulário usa somente filtros que o conector atual aplica: cidade, UF, país, termos e
+  presença de site/telefone/e-mail. Raio não foi apresentado como filtro efetivo.
+- O perfil Wayflex gera sugestões locais e editáveis; termos não são enviados automaticamente.
+  A consulta externa é feita somente por **Testar com 10 empresas**, com a fonte ativa já
+  configurada. Não houve chamada a Apify, criação de lead, importação ou automação.
+- A revisão mantém o cruzamento existente e permite classificar cada resultado; apenas
+  **Adequada** pode seguir para a importação. Resultado duplicado continua bloqueado.
+- Evidência: type-check, lint, Vitest 53 arquivos/318 testes, build e artefato Sites passaram.
+  Site oficial v143 publicado pelo commit `d86fc663bde1d68873a29e23e66c0c40fe995ae4`, deploy
+  `appgdep_6aba75ae52e48191ae129154a2876976`; inspeção desktop confirmou a tela renderizada.

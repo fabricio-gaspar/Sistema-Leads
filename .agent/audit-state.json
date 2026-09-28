@@ -2,21 +2,21 @@
   "schema_version": 1,
   "baseline_version": 6,
   "baseline_commit": "1dc6275b8c7d70de953b66397a8c89f5e97bc15b",
-  "last_audited_commit": "3643a44d4dda8cbf2d19e54bffb71aabe028f6d4",
-  "current_head_at_update": "58143d5587e1e013639c3808761dd921c8f4730e",
-  "working_tree_status": "lead_search_segment_term_suggestions_published",
+  "last_audited_commit": "d86fc663bde1d68873a29e23e66c0c40fe995ae4",
+  "current_head_at_update": "d86fc663bde1d68873a29e23e66c0c40fe995ae4",
+  "working_tree_status": "lead_search_profile_redesign_published",
   "stage_1_baseline": ".agent/baselines/2026-09-25-stage-1.json",
   "recovery_tag": "baseline-wayflex-stage1-20260925",
   "work_branch": "main",
   "last_site_publication": {
-    "commit": "58143d5587e1e013639c3808761dd921c8f4730e",
-    "site_version": 142,
-    "deployment_id": "appgdep_6aba6c17ebc48191aa5dd1a125be55bb",
-    "validated_at": "2026-09-28T13:31:26Z",
+    "commit": "d86fc663bde1d68873a29e23e66c0c40fe995ae4",
+    "site_version": 143,
+    "deployment_id": "appgdep_6aba75ae52e48191ae129154a2876976",
+    "validated_at": "2026-09-28T14:13:08Z",
     "working_tree_status": "published"
   },
   "full_audit_required": false,
-  "baseline_status": "lead_search_segment_term_suggestions_validated",
-  "updated_at": "2026-09-28T13:31:26Z",
-  "next_action": "Nenhuma ação de código pendente neste requisito. O operador pode selecionar um segmento, marcar termos e iniciar a busca explicitamente com a API ativa escolhida."
+  "baseline_status": "lead_search_profile_redesign_validated",
+  "updated_at": "2026-09-28T14:13:08Z",
+  "next_action": "O operador pode preencher o perfil, selecionar termos e iniciar explicitamente uma amostra de até 10 empresas. A homologação de consulta real continua pendente de ação explícita do operador."
 }

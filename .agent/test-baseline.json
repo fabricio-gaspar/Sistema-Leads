@@ -1,18 +1,18 @@
 {
   "schema_version": 1,
-  "validated_commit": "58143d5587e1e013639c3808761dd921c8f4730e",
+  "validated_commit": "d86fc663bde1d68873a29e23e66c0c40fe995ae4",
   "last_validated_at": "2026-09-28",
   "current_validation": {
-    "stage": "lead_search_segment_term_suggestions",
+    "stage": "lead_search_profile_redesign",
     "frontend_typecheck": "passed",
     "edge_typecheck": "passed",
     "lint": "passed",
     "production_build": "passed",
-    "sites_artifact": "passed_build; official Site v142 published",
-    "deterministic_smoke_checks": 17,
-    "vitest": "passed; 52 files; 315 tests",
-    "visual_review": "not_executed; build and local route response were verified, while no browser interaction was required for this scoped form enhancement",
-    "external_end_to_end": "not_executed; selecting suggestions does not call a paid search provider"
+    "sites_artifact": "passed_build; official Site v143 published",
+    "deterministic_smoke_checks": 0,
+    "vitest": "passed; 53 files; 318 tests",
+    "visual_review": "passed_desktop; official Site v143 rendered the complete profile form and disabled sample button before terms were selected. Mobile was reviewed statically through responsive breakpoints; interactive mobile QA was not run.",
+    "external_end_to_end": "not_executed; no paid search provider, import, lead creation or automation was invoked"
   },
   "previous_validation": {
     "stage": "lead_search_dynamic_api_selector",
@@ -27,6 +27,11 @@
     "external_end_to_end": "not_executed; no paid search was required"
   },
   "commands": [
+    {
+      "command": "npm run type-check && npm run lint && npm test && npm run build && git diff --check",
+      "status": "passed",
+      "note": "Redesign da Busca: 53 arquivos/318 testes, build oficial Sites e inspeção desktop publicada; nenhuma busca externa executada."
+    },
     {
       "command": "npm run type-check && npm run type-check:edge && npm run lint && npm test && node Sites build-site.mjs && git diff --check",
       "status": "passed",

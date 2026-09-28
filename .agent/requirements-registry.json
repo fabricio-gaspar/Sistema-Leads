@@ -2,6 +2,14 @@
   "schema_version": 1,
   "requirements": [
     {
+      "id": "REQ-061",
+      "description": "Redesenhar Busca de Leads com perfil ideal, amostra controlada e revisão classificável sem criar resultados simulados",
+      "module": "prospeccao",
+      "status": "confirmed",
+      "evidence": "Site oficial v143: a rota mantém a fonte ativa real, idempotência e importação existente; organiza região por cidade/UF, perfil de cliente, critérios realmente suportados, termos selecionáveis e amostra de 10 somente por clique. A revisão classifica adequação, fora do perfil, duplicidade ou ausência de contato e exclui itens não adequados da importação. Raio não é exibido como filtro porque o conector atual não o aplica. Type-check, lint, Vitest 53 arquivos/318 testes e build passaram. A inspeção publicada confirmou os controles renderizados, sem chamar o provedor externo.",
+      "last_validation": "2026-09-28"
+    },
+    {
       "id": "REQ-060",
       "description": "Sugerir termos de prospecção por segmento da empresa sem substituir a entrada manual",
       "module": "prospeccao",

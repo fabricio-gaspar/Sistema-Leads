@@ -1769,3 +1769,24 @@ webhook em ambiente controlado.
   confirmou a tela publicada com fonte conectada, localidade, termos vazios por padrão e botão de
   busca bloqueado até critérios mínimos; o console não apresentou warning ou erro. Nenhuma ação
   operacional foi executada nessa validação.
+
+## 2026-09-28 — Busca de Leads: perfil ideal e amostra controlada
+
+- A rota existente foi redesenhada sem trocar fonte, rota, integração, regra de importação ou
+  autoridade da Ana. O fluxo agora é **Perfil ideal → Testar amostra → Revisar leads → Importar**.
+- Região usa cidade e UF; o campo de abrangência deixa explícito que o conector atual não aplica
+  raio. Perfil de cliente, segmentos Wayflex e termos geram apenas sugestões locais: o operador
+  seleciona ou remove os termos antes de qualquer consulta.
+- O único disparo é **Testar com 10 empresas**. Ele continua chamando a fonte ativa, com os mesmos
+  filtros server-side e a mesma chave de idempotência. Não há resultados inventados, execução
+  automática, importação ou acionamento da Ana.
+- A revisão passou a registrar classificação operacional por resultado. Apenas **Adequada** pode
+  ser selecionada e importada; duplicidade segue bloqueada pelo cruzamento existente. “Fora do
+  perfil” permite motivo, sem alterar dados no provedor.
+- Validações comprovadas: type-check frontend, lint, Vitest completo **53 arquivos / 318 testes**,
+  build e artefato Sites. O Site oficial foi publicado na versão **143** a partir do commit
+  `d86fc663bde1d68873a29e23e66c0c40fe995ae4`; a inspeção desktop confirmou os campos e o botão
+  bloqueado sem termos. Não foram executados Apify, CSV, criação de lead, mensagens ou automações.
+- Pendência honesta: a interação em viewport móvel não foi executada neste lote; os breakpoints
+  responsivos foram revisados estaticamente. A homologação de uma busca real depende de ação
+  explícita do operador e deve confirmar somente o retorno do provedor, não importação automática.
