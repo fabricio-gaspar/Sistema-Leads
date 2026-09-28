@@ -2,6 +2,14 @@
   "schema_version": 1,
   "requirements": [
     {
+      "id": "REQ-064",
+      "description": "Reconstruir a Central de Atendimento como inbox operacional seguro, paginado, auditável e em tempo real, preservando Ana, Kanban e filas existentes",
+      "module": "atendimento",
+      "status": "implemented_validated_pending_site_publication",
+      "evidence": "Commit 2740934. A rota usa RPCs invocadoras sob RLS para busca normalizada, filtros, paginação, totais reais, detalhe paginado, estado de leitura por operador e resolução do provedor já vinculado ao lead. Assunção/transferência continuam no contrato atômico existente; saída humana continua na fila segura com chave idempotente. Migrations central_atendimento_inbox, central_atendimento_realtime, central_atendimento_read_state_fk_indexes, central_atendimento_channel_provider e central_atendimento_inbox_counts foram aplicadas no projeto oficial thgzrkppouoevapjquyu. Type-check frontend/Edge, lint, Vitest 56 arquivos/326 testes, build/artefato Sites e diff check passaram. Nenhuma mensagem, automação, handoff, bloqueio ou tarefa real foi executado como teste.",
+      "last_validation": "2026-09-28"
+    },
+    {
       "id": "REQ-063",
       "description": "Transformar o Kanban em uma área operacional com pesquisa, filtros, visões pessoais, lista, drawer, ações e transições auditáveis sem criar fonte paralela ou automação manual insegura",
       "module": "kanban",

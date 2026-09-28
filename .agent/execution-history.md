@@ -1,5 +1,22 @@
 # Histórico resumido de execução
 
+## 2026-09-28 — Central de Atendimento operacional
+
+- Reconstruída a rota em três áreas responsivas: inbox com busca/filtros/paginação/totais reais,
+  conversa paginada e contexto de lead, qualificação, conhecimento, orçamentos, notas, atividades
+  e próxima ação persistida.
+- Aplicadas no projeto oficial as migrations de leitura individual, contratos de inbox,
+  publicação Realtime, índices de FKs, resolução segura de provedor e totais de filtro. RLS e
+  privilégios de execução foram conferidos: `authenticated` pode executar as RPCs; `anon` não.
+- Assunção, transferência, retorno à Ana, bloqueio e saída humana reutilizam os contratos
+  existentes. A saída recebe a conta já fixada ao lead e mantém uma chave idempotente enquanto a
+  fila estiver pendente ou em reconciliação.
+- Type-check frontend/Edge, lint, Vitest 56 arquivos/326 testes, build/artefato Sites e
+  `git diff --check` passaram. O servidor local bloqueou corretamente a rota sem configuração
+  pública do Supabase. Nenhuma mensagem, tarefa, handoff, bloqueio ou automação foi disparado.
+- Commit `2740934`. A publicação permanece pendente de autorização explícita para enviar o código
+  ao repositório de hospedagem do Site oficial.
+
 ## 2026-09-28 — Kanban operacional
 
 - Reconstruído Kanban com pesquisa/filtros/contagens no servidor, quadro e lista no mesmo estado de URL, colunas canônicas, cartões com dados persistidos, drawer operacional e visões pessoais protegidas por RLS.

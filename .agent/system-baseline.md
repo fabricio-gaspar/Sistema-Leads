@@ -410,3 +410,14 @@ Detalhes de continuidade e releases ficam em `docs/CONTINUIDADE_WAYFLEX.md`.
 - O projeto oficial está saudável com duas contas Z-API conectadas e nenhuma conta/evento/fila Meta.
   Gate 3 só pode começar com configuração oficial da Meta e número de teste explicitamente
   autorizado; até lá, nenhuma tela ou processo Meta fica operacional.
+
+## Delta da Central operacional — 28/09/2026
+
+- A Central passou a ler a mesma base operacional de leads, mensagens, handoffs, tarefas,
+  qualificação, notas e auditoria por contratos RPC paginados. Não foi criada uma tabela de
+  conversa paralela nem uma segunda autoridade para a Ana.
+- `conversation_read_states` guarda somente leitura individual por organização, usuário e lead.
+  A tabela possui RLS, não recebe acesso anônimo e suas FKs têm índices de cobertura.
+- A assunção, a transferência e a devolução à Ana continuam nas operações server-side já
+  auditadas. O compositor só libera saída humana depois de `modo_atendimento=humano` confirmado
+  pelo servidor; a saída preserva a conta WhatsApp fixada ao lead e a fila idempotente existente.

@@ -190,3 +190,18 @@ diário em concorrência; recibos antecipados ainda dependem de nova reconcilia�
    fora de ordem sem reenvio cego.
 5. Feature flag, controles de entrada/saída/automação e kill switch são revalidados no backend.
    Todos permanecem desligados até a homologação staged; `ana-run` continua a única autoridade.
+
+## Central de Atendimento operacional
+
+1. `central_list_conversations` e `central_get_inbox_counts` fazem busca normalizada, filtros,
+   totais e paginação dentro do Postgres, sob sessão e RLS; a interface não calcula contagens a
+   partir de uma única página.
+2. `central_get_conversation_detail` retorna uma janela de mensagens e o contexto lateral em uma
+   única leitura: dossiê, tarefas, notas, atividades, anexos e fontes de conhecimento vinculadas.
+3. `conversation_read_states` é isolada por organização, usuário e lead. Marcar lida/não lida é
+   uma RPC invocadora que confirma acesso ao lead antes de atualizar a leitura.
+4. O Realtime escuta mensagens, leads, handoffs, tarefas e qualificação; polling de 60 s é só
+   contingência. Falha de assinatura reduz o intervalo de recuperação e deixa o status explícito.
+5. A Central só consulta `central_get_conversation_channel_provider` no instante do envio humano.
+   A função retorna `zapi` ou `meta_cloud` já fixado ao lead, nunca credenciais, e não permite
+   trocar conta pelo navegador.

@@ -1807,3 +1807,32 @@ webhook em ambiente controlado.
 - Pendência honesta: a interação em viewport móvel não foi executada neste lote; os breakpoints
   responsivos foram revisados estaticamente. A homologação de uma busca real depende de ação
   explícita do operador e deve confirmar somente o retorno do provedor, não importação automática.
+
+## 2026-09-28 — Central de Atendimento: inbox operacional seguro
+
+- A Central foi reconstruída sobre o modelo operacional existente, sem criar conversa, motor da
+  Ana, fila de envio ou regra de Kanban paralelos. A visualização é composta por lista de 320 px,
+  conversa flexível e contexto de 390 px; no celular, as áreas viram navegação sequencial.
+- A lista faz busca no servidor por contato, empresa, telefone normalizado, e-mail, protocolo e
+  conteúdo de mensagens. Há debounce, URL compartilhável, paginação, filtros e contagens reais
+  para Todas, Não lidas, Aguardando e Minhas. A prévia é limitada a duas linhas e mostra situação,
+  canal, responsável e não lidas.
+- Assumir/transferir/devolver continuam no handoff atômico já existente. O compositor fica bloqueado
+  enquanto Ana ou um atendente pendente controlam a conversa. A saída humana conserva o provedor já
+  vinculado ao lead e a mesma chave de idempotência durante fila/reconciliação; nenhuma credencial
+  é retornada ao navegador.
+- Banco oficial: migrations `20260928190000_central_atendimento_inbox`,
+  `20260928191000_central_atendimento_realtime`,
+  `20260928192000_central_atendimento_read_state_fk_indexes`,
+  `20260928192500_central_atendimento_channel_provider` e
+  `20260928193000_central_atendimento_inbox_counts` aplicadas no project ref
+  `thgzrkppouoevapjquyu`. RLS de leitura por operador e privilégios autenticados foram conferidos;
+  acesso anônimo às RPCs novas está revogado.
+- Validação aprovada: type-check frontend/Edge, lint, Vitest completo **56 arquivos / 326 testes**,
+  build e artefato Sites. Não foram executados envio WhatsApp, automação Ana, bloqueio, tarefa,
+  handoff ou mudança em lead real. O servidor local parou corretamente na barreira de configuração
+  pública do Supabase, portanto a validação visual autenticada do commit aguarda publicação
+  autorizada no Site existente.
+- Limitações deliberadas: não há contrato governado para encerrar atendimento, filtrar tags ou
+  transferir para fila genérica, por isso esses controles não foram simulados. Respostas rápidas
+  são editáveis antes do envio, mas ainda não possuem cadastro administrativo de templates.

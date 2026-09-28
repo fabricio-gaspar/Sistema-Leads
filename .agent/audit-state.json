@@ -2,9 +2,9 @@
   "schema_version": 1,
   "baseline_version": 6,
   "baseline_commit": "1dc6275b8c7d70de953b66397a8c89f5e97bc15b",
-  "last_audited_commit": "fcb2c75e0f30fc46037e4a540abeae186a3486d8",
-  "current_head_at_update": "fcb2c75e0f30fc46037e4a540abeae186a3486d8",
-  "working_tree_status": "kanban_operational_portfolio_validated_pending_site_publication",
+  "last_audited_commit": "27409340788cb53b281952e2bc1defd639534069",
+  "current_head_at_update": "27409340788cb53b281952e2bc1defd639534069",
+  "working_tree_status": "central_atendimento_operational_validated_pending_site_publication",
   "stage_1_baseline": ".agent/baselines/2026-09-25-stage-1.json",
   "recovery_tag": "baseline-wayflex-stage1-20260925",
   "work_branch": "main",
@@ -16,7 +16,7 @@
     "working_tree_status": "published"
   },
   "full_audit_required": false,
-  "baseline_status": "kanban_operational_portfolio_validated_pending_site_publication",
-  "updated_at": "2026-09-28T18:30:00Z",
-  "next_action": "Obter autorização explícita para enviar o commit fcb2c75 ao repositório do Site oficial. Depois, publicar no Site existente e homologar sem mutação a renderização; testes de drag, tarefa, atribuição ou arquivamento exigem um lead comercial autorizado."
+  "baseline_status": "central_atendimento_operational_validated_pending_site_publication",
+  "updated_at": "2026-09-28T19:25:00Z",
+  "next_action": "Obter autorização explícita para enviar o commit 2740934 ao repositório do Site oficial. Depois, publicar no Site existente e homologar sem mutação a renderização. Assunção, transferência, bloqueio, criação de tarefa e envio exigem lead comercial de teste explicitamente autorizado."
 }

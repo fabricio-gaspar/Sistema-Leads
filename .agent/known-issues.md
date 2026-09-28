@@ -299,3 +299,15 @@
 # Resolvido em 27/09/2026 — orientação da Operação automática
 
 - A ativação automática retornava uma mensagem genérica mesmo quando o backend conhecia quais gates estavam pendentes. A tela agora mostra cada requisito, o motivo e o destino exato de correção, sem afrouxar o bloqueio operacional.
+
+## 2026-09-28 — Limitações honestas da Central operacional
+
+- A implementação não expõe **Encerrar atendimento**, filtro por tags ou fila genérica: o modelo
+  atual não tem contrato único auditável para encerramento, tags de lead ou distribuição por fila.
+  Esses controles foram ocultados em vez de simular persistência.
+- As três respostas rápidas são textos editáveis antes do envio, mas ainda não existe uma tabela
+  administrativa de templates da Central. Não devem ser descritas como modelos configuráveis por
+  empresa até que essa fonte governada exista.
+- A homologação autenticada de concorrência, handoff, tarefa, bloqueio, entrega/falha de mensagem,
+  RLS cruzada e mobile exige um lead de teste e operadores explicitamente autorizados. Nenhuma
+  dessas ações foi feita sobre um lead comercial nesta etapa.

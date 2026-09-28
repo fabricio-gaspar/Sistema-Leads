@@ -1,18 +1,18 @@
 {
   "schema_version": 1,
-  "validated_commit": "fcb2c75e0f30fc46037e4a540abeae186a3486d8",
+  "validated_commit": "27409340788cb53b281952e2bc1defd639534069",
   "last_validated_at": "2026-09-28",
   "current_validation": {
-    "stage": "kanban_operational_portfolio",
+    "stage": "central_atendimento_operational_inbox",
     "frontend_typecheck": "passed",
     "edge_typecheck": "passed",
     "lint": "passed",
     "production_build": "passed",
-    "sites_artifact": "passed_build; publication of commit fcb2c75 awaits explicit authorization",
+    "sites_artifact": "passed_build; publication of commit 2740934 awaits explicit authorization",
     "deterministic_smoke_checks": 0,
-    "vitest": "passed; 55 files; 323 tests",
-    "visual_review": "not_executed for the new Kanban; the exact frontend commit is not yet published. Static review covers responsive board scrolling and accessible controls.",
-    "external_end_to_end": "not_executed; no lead create/edit, paid search, provider, message or automation was invoked"
+    "vitest": "passed; 56 files; 326 tests",
+    "visual_review": "local route intentionally stopped at the missing public Supabase configuration protection; the exact frontend commit is not yet published. Static review covers the desktop three-pane and responsive sequential layouts.",
+    "external_end_to_end": "not_executed; no handoff, block, task, provider message or automation was invoked"
   },
   "previous_validation": {
     "stage": "lead_search_dynamic_api_selector",
@@ -27,6 +27,11 @@
     "external_end_to_end": "not_executed; no paid search was required"
   },
   "commands": [
+    {
+      "command": "npm run type-check; npm run type-check:edge; npm run lint; npm test -- --run; npm run build; git diff --check",
+      "status": "passed",
+      "note": "Central operacional: 56 arquivos/326 testes, build/artefato Sites. Supabase confirmou as funções de leitura e contagem para authenticated e bloqueadas para anon; nenhuma escrita comercial ou chamada a provedor."
+    },
     {
       "command": "npm run type-check && npm run lint && npm test -- --run && npm run build && git diff --check",
       "status": "passed",
