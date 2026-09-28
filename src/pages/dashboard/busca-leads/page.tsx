@@ -33,6 +33,10 @@ import {
   prospectingVolumePerTerm,
   type ProspectingReviewFilter,
 } from '@/lib/crm/prospectingUi';
+import {
+  PROSPECTING_TERM_SUGGESTION_GROUPS,
+  findProspectingTermSuggestions,
+} from '@/lib/crm/prospectingTermSuggestions';
 
 const estados = ['SP', 'RJ', 'MG', 'PR', 'SC', 'RS', 'BA', 'PE', 'GO', 'DF'];
 const fasesBusca = ['Iniciando a busca', 'Aguardando resposta da fonte', 'Preparando a revisão'];
@@ -164,6 +168,15 @@ function validarEmailReal(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim());
 }
 
+function normalizarTermoSugerido(value: string): string {
+  return value
+    .trim()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLocaleLowerCase('pt-BR')
+    .replace(/\s+/g, ' ');
+}
+
 const camposLeadImport: CampoImportacao[] = [
   { chave: 'nome', rotulo: 'Nome', obrigatorio: true, aliases: ['contato', 'cliente'] },
   { chave: 'empresa', rotulo: 'Empresa', obrigatorio: true, aliases: ['empresa_nome', 'razao_social'] },
@@ -184,6 +197,7 @@ export default function BuscaLeads() {
   const [pais, setPais] = useState('Brasil');
   const [termosBusca, setTermosBusca] = useState<string[]>([]);
   const [novoTermo, setNovoTermo] = useState('');
+  const [segmentoSugestao, setSegmentoSugestao] = useState('');
   const [leadsDia, setLeadsDia] = useState(30);
   const [temSite, setTemSite] = useState<boolean | null>(null);
   const [temWhatsApp, setTemWhatsApp] = useState<boolean | null>(null);
@@ -253,6 +267,8 @@ export default function BuscaLeads() {
   const fontesDisponiveis = useMemo(() => fontesAtivas(fontesProspecao), [fontesProspecao]);
   const fonteUnicaAtiva = fontesDisponiveis.length === 1 ? fontesDisponiveis[0] : null;
   const fonteAtivaSelecionada = fontesDisponiveis.find((fonte) => fonte.id === fonteSelecionada) || null;
+  const gruposSugeridos = useMemo(() => findProspectingTermSuggestions(segmentoSugestao), [segmentoSugestao]);
+  const termosSelecionados = useMemo(() => new Set(normalizeProspectingTerms(termosBusca).map((term) => normalizarTermoSugerido(term))), [termosBusca]);
 
   useEffect(() => {
     if (fonteSelecionada && !fontesDisponiveis.some((fonte) => fonte.id === fonteSelecionada)) {
@@ -385,6 +401,32 @@ export default function BuscaLeads() {
   const removerTermo = (term: string) => {
     const normalized = term.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR');
     setTermosBusca((current) => current.filter((value) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR') !== normalized));
+  };
+
+  const alternarTermoSugerido = (term: string) => {
+    if (termosSelecionados.has(normalizarTermoSugerido(term))) {
+      removerTermo(term);
+      return;
+    }
+    const next = nextProspectingTerms(termosBusca, term);
+    if (next.length === termosBusca.length) {
+      setErroBusca(`O limite é de ${MAX_PROSPECTING_TERMS} termos. Remova um termo antes de marcar outra opção.`);
+      return;
+    }
+    setTermosBusca(next);
+    setErroBusca(null);
+  };
+
+  const adicionarGrupoSugerido = (terms: string[]) => {
+    const next = normalizeProspectingTerms([...termosBusca, ...terms]);
+    if (next.length === termosBusca.length) {
+      setErroBusca(termosBusca.length >= MAX_PROSPECTING_TERMS
+        ? `O limite é de ${MAX_PROSPECTING_TERMS} termos. Remova um termo antes de adicionar outras opções.`
+        : 'As opções deste segmento já estão selecionadas.');
+      return;
+    }
+    setTermosBusca(next);
+    setErroBusca(null);
   };
 
   const requestSignature = (sourceKey: string, filters: Record<string, unknown>) => JSON.stringify({ sourceKey, filters });
@@ -1068,7 +1110,7 @@ export default function BuscaLeads() {
 
                   <section className="rounded-xl border border-background-200/70 bg-white p-4">
                     <div className="mb-3 flex items-center justify-between gap-2">
-                      <div><h3 className="text-sm font-heading font-bold text-foreground-900">Termos de busca</h3><p className="text-xs text-foreground-500">Use atividades, aplicações ou segmentos reais. Não há termos pré-preenchidos.</p></div>
+                      <div><h3 className="text-sm font-heading font-bold text-foreground-900">Termos de busca</h3><p className="text-xs text-foreground-500">Digite um termo livre ou use o assistente por segmento para marcar opções relacionadas.</p></div>
                       <span className="rounded-full bg-background-100 px-2 py-1 text-[11px] font-semibold text-foreground-600">{termosBusca.length}/{MAX_PROSPECTING_TERMS}</span>
                     </div>
                     <div className="flex gap-2">
@@ -1088,6 +1130,64 @@ export default function BuscaLeads() {
                         {term}<button type="button" onClick={() => removerTermo(term)} aria-label={`Remover ${term}`} className="rounded-full text-primary-700 hover:text-primary-950"><i className="ri-close-line" aria-hidden="true" /></button>
                       </span>)}
                     </div>}
+                    <div className="mt-4 border-t border-background-200 pt-4">
+                      <div className="flex items-start gap-2">
+                        <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-secondary-100 text-secondary-700"><i className="ri-magic-line" aria-hidden="true" /></span>
+                        <div>
+                          <h4 className="text-sm font-semibold text-foreground-900">Sugestões por segmento</h4>
+                          <p className="mt-0.5 text-xs leading-5 text-foreground-500">Informe o segmento da empresa, como Borracha, Silicone ou Poliuretano. Depois marque somente as opções que representam o público desejado.</p>
+                        </div>
+                      </div>
+                      <label className="mt-3 block text-xs font-semibold text-foreground-700">Segmento da empresa
+                        <input
+                          type="text"
+                          value={segmentoSugestao}
+                          onChange={(event) => setSegmentoSugestao(event.target.value)}
+                          placeholder="Ex.: borracha, silicone ou poliuretano"
+                          className="mt-1.5 w-full rounded-lg border border-background-300 bg-background-50 px-3 py-2 text-sm text-foreground-900"
+                        />
+                      </label>
+                      <div className="mt-2 flex flex-wrap gap-1.5" aria-label="Segmentos sugeridos">
+                        {PROSPECTING_TERM_SUGGESTION_GROUPS.map((group) => (
+                          <button
+                            key={group.id}
+                            type="button"
+                            onClick={() => setSegmentoSugestao(group.label)}
+                            className={`rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors ${gruposSugeridos.some((item) => item.id === group.id) ? 'border-primary-300 bg-primary-50 text-primary-800' : 'border-background-200 bg-white text-foreground-600 hover:border-background-300'}`}
+                          >
+                            {group.label}
+                          </button>
+                        ))}
+                      </div>
+                      {segmentoSugestao.trim() && gruposSugeridos.length === 0 && (
+                        <p role="status" className="mt-3 rounded-lg border border-background-200 bg-background-100 px-3 py-2 text-xs leading-5 text-foreground-600">Ainda não há sugestões prontas para esse segmento. Continue usando o campo de termo livre acima.</p>
+                      )}
+                      {gruposSugeridos.length > 0 && <div className="mt-3 space-y-3">
+                        {gruposSugeridos.map((group) => (
+                          <div key={group.id} className="rounded-xl border border-background-200 bg-background-50/70 p-3">
+                            <div className="flex flex-wrap items-start justify-between gap-2">
+                              <div><p className="text-sm font-semibold text-foreground-900">{group.label}</p><p className="mt-0.5 text-xs text-foreground-500">{group.description}</p></div>
+                              <button type="button" onClick={() => adicionarGrupoSugerido(group.terms)} className="rounded-lg border border-primary-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-primary-800 hover:bg-primary-50">Marcar disponíveis</button>
+                            </div>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {group.terms.map((term) => {
+                                const selected = termosSelecionados.has(normalizarTermoSugerido(term));
+                                return <button
+                                  key={term}
+                                  type="button"
+                                  aria-pressed={selected}
+                                  disabled={!selected && termosBusca.length >= MAX_PROSPECTING_TERMS}
+                                  onClick={() => alternarTermoSugerido(term)}
+                                  className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1.5 text-xs font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${selected ? 'border-primary-300 bg-primary-100 text-primary-900' : 'border-background-300 bg-white text-foreground-700 hover:border-primary-300 hover:text-primary-800'}`}
+                                >
+                                  <i className={selected ? 'ri-checkbox-circle-fill' : 'ri-add-circle-line'} aria-hidden="true" />{term}
+                                </button>;
+                              })}
+                            </div>
+                          </div>
+                        ))}
+                      </div>}
+                    </div>
                   </section>
 
                   <section className="rounded-xl border border-background-200/70 bg-white p-4">

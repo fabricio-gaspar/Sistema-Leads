@@ -8,6 +8,10 @@ import {
   prepareCsvLeads,
   prospectingVolumePerTerm,
 } from '@/lib/crm/prospectingUi';
+import {
+  PROSPECTING_TERM_SUGGESTION_GROUPS,
+  findProspectingTermSuggestions,
+} from '@/lib/crm/prospectingTermSuggestions';
 
 describe('prospecting UI safeguards', () => {
   it('derives a stable UUID without persisting CSV data in the browser', async () => {
@@ -34,6 +38,18 @@ describe('prospecting UI safeguards', () => {
     expect(prospectingVolumePerTerm(30, 3)).toBe(10);
     expect(prospectingVolumePerTerm(2, 3)).toBe(1);
     expect(prospectingVolumePerTerm(30, 0)).toBe(0);
+  });
+
+  it('suggests Wayflex search terms from a typed company segment', () => {
+    expect(findProspectingTermSuggestions('borracha').map((group) => group.id)).toEqual(['borracha']);
+    expect(findProspectingTermSuggestions('Silicone, PU').map((group) => group.id)).toEqual(['silicone', 'poliuretano']);
+    expect(findProspectingTermSuggestions('vedações').map((group) => group.id)).toEqual(['vedacao']);
+    expect(findProspectingTermSuggestions('química fina')).toEqual([]);
+  });
+
+  it('keeps every suggestion group within the same manual term limit', () => {
+    expect(PROSPECTING_TERM_SUGGESTION_GROUPS.every((group) => group.terms.length <= MAX_PROSPECTING_TERMS)).toBe(true);
+    expect(PROSPECTING_TERM_SUGGESTION_GROUPS.every((group) => new Set(group.terms).size === group.terms.length)).toBe(true);
   });
 
   it('filters the review without changing the underlying list', () => {
