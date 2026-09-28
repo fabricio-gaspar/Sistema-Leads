@@ -1,5 +1,12 @@
 # Checkpoint — WayFlex CRM
 
+## 28/09/2026 — Sugestões por segmento na Busca de Leads
+
+- **Busca de Leads > Termos de busca** preserva a digitação livre e ganhou um assistente opcional por segmento. O operador pode informar ou escolher Borracha, Silicone, Poliuretano, Vedação industrial, Manutenção industrial ou Aplicações e mercados e marcar somente os termos desejados.
+- As opções são baseadas no catálogo e no conhecimento Wayflex já mantidos no projeto. A seleção respeita deduplicação e o limite existente de dez termos; segmento não reconhecido mantém o campo manual disponível e não inventa sugestões.
+- Escolher ou marcar termos não executa busca, não chama Apify/Google Places e não altera leads. O provedor continua sendo acionado apenas pelo botão explícito da busca.
+- Validação aprovada: type-check frontend/Edge, lint, **52 arquivos / 315 testes**, build/artefato Sites e `git diff --check`. Publicado no Site oficial como versão **142**, commit `58143d5`, deploy `appgdep_6aba6c17ebc48191aa5dd1a125be55bb`.
+
 ## 27/09/2026 — Seletor das APIs ativas na Busca de Leads
 
 - **Configurações > APIs** continua sendo o único local de configuração, teste e ativação. Ao abrir **Busca de Leads**, a tela relê `lead_source_configs` e apresenta um seletor com as APIs de prospecção conectadas e ativas.

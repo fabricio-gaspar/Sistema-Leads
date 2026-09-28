@@ -1,5 +1,11 @@
 # Histórico resumido de execução
 
+## 2026-09-28 — Assistente de termos por segmento
+
+- Mantida a digitação manual em **Busca de Leads** e acrescentada uma seleção assistida para Borracha, Silicone, Poliuretano, Vedação industrial, Manutenção industrial e Aplicações e mercados.
+- Os termos escolhidos alimentam o mesmo filtro existente, com remoção individual, deduplicação e máximo de dez. Nenhuma busca, integração, lead ou automação é acionada ao selecionar opções.
+- Type-check frontend/Edge, lint, 52 arquivos/315 testes, build e `git diff --check` passaram. Publicado no Site oficial v142, commit `58143d5`, deploy `appgdep_6aba6c17ebc48191aa5dd1a125be55bb`.
+
 ## 2026-09-27 — Seletor dinâmico das APIs de prospecção
 
 - Removido o rótulo fixo do Apify em **Busca de Leads**. O seletor agora é alimentado pelas fontes de prospecção conectadas e ativas em Configurações e identifica a API escolhida também no botão de busca.

@@ -2,6 +2,14 @@
   "schema_version": 1,
   "requirements": [
     {
+      "id": "REQ-060",
+      "description": "Sugerir termos de prospecção por segmento da empresa sem substituir a entrada manual",
+      "module": "prospeccao",
+      "status": "confirmed",
+      "evidence": "Busca de Leads mantém termo livre e oferece seis grupos Wayflex selecionáveis, com deduplicação, remoção e limite de dez termos. Segmento desconhecido não gera conteúdo inventado e a seleção não chama provedor externo. Type-check frontend/Edge, lint, 52 arquivos/315 testes e build passaram. Site oficial v142, commit 58143d5, deploy appgdep_6aba6c17ebc48191aa5dd1a125be55bb.",
+      "last_validation": "2026-09-28"
+    },
+    {
       "id": "REQ-059",
       "description": "Exibir na Busca de Leads um seletor alimentado pelas APIs de prospecção ativadas em Configurações",
       "module": "prospeccao",

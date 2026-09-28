@@ -1,22 +1,22 @@
 {
   "schema_version": 1,
-  "baseline_version": 5,
+  "baseline_version": 6,
   "baseline_commit": "1dc6275b8c7d70de953b66397a8c89f5e97bc15b",
   "last_audited_commit": "3643a44d4dda8cbf2d19e54bffb71aabe028f6d4",
-  "current_head_at_update": "0841dcc364a911f419e16ecdfb5704a6aa44e53d",
-  "working_tree_status": "lead_search_api_selector_published_and_visually_validated",
+  "current_head_at_update": "58143d5587e1e013639c3808761dd921c8f4730e",
+  "working_tree_status": "lead_search_segment_term_suggestions_published",
   "stage_1_baseline": ".agent/baselines/2026-09-25-stage-1.json",
   "recovery_tag": "baseline-wayflex-stage1-20260925",
   "work_branch": "main",
   "last_site_publication": {
-    "commit": "0841dcc364a911f419e16ecdfb5704a6aa44e53d",
-    "site_version": 141,
-    "deployment_id": "appgdep_6ab9807bd10881919c17c9078d40842a",
-    "validated_at": "2026-09-27T20:46:08Z",
+    "commit": "58143d5587e1e013639c3808761dd921c8f4730e",
+    "site_version": 142,
+    "deployment_id": "appgdep_6aba6c17ebc48191aa5dd1a125be55bb",
+    "validated_at": "2026-09-28T13:31:26Z",
     "working_tree_status": "published"
   },
   "full_audit_required": false,
-  "baseline_status": "lead_search_api_selector_validated",
-  "updated_at": "2026-09-27T20:47:00Z",
-  "next_action": "Nenhuma ação de código pendente neste requisito. Google Places aparecerá automaticamente no seletor quando for configurada, validada e ativada; qualquer busca real exige decisão explícita do operador."
+  "baseline_status": "lead_search_segment_term_suggestions_validated",
+  "updated_at": "2026-09-28T13:31:26Z",
+  "next_action": "Nenhuma ação de código pendente neste requisito. O operador pode selecionar um segmento, marcar termos e iniciar a busca explicitamente com a API ativa escolhida."
 }

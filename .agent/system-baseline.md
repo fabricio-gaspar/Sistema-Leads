@@ -1,5 +1,11 @@
 # Baseline do sistema
 
+## Assistente de termos por segmento — 28/09/2026
+
+- A etapa **Termos de busca** mantém entrada manual e oferece grupos selecionáveis alinhados à Wayflex: Borracha, Silicone, Poliuretano, Vedação industrial, Manutenção industrial e Aplicações e mercados.
+- As escolhas usam o mesmo estado e o mesmo limite de dez termos da busca existente. Não há segunda fonte de dados, execução automática de provedor ou preenchimento silencioso.
+- Site oficial v142, commit `58143d5`; type-check frontend/Edge, lint, 52 arquivos/315 testes e build aprovados.
+
 ## Seletor dinâmico de APIs na Busca de Leads — 27/09/2026
 
 - **Busca de Leads** consulta novamente as fontes operacionais ao abrir e quando a aba do navegador volta ao foco. O seletor mostra somente APIs com adaptador real no backend, conexão validada e uso ativado em Configurações.

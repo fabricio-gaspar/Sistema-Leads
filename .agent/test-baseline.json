@@ -1,8 +1,20 @@
 {
   "schema_version": 1,
-  "validated_commit": "0841dcc364a911f419e16ecdfb5704a6aa44e53d",
-  "last_validated_at": "2026-09-27",
+  "validated_commit": "58143d5587e1e013639c3808761dd921c8f4730e",
+  "last_validated_at": "2026-09-28",
   "current_validation": {
+    "stage": "lead_search_segment_term_suggestions",
+    "frontend_typecheck": "passed",
+    "edge_typecheck": "passed",
+    "lint": "passed",
+    "production_build": "passed",
+    "sites_artifact": "passed_build; official Site v142 published",
+    "deterministic_smoke_checks": 17,
+    "vitest": "passed; 52 files; 315 tests",
+    "visual_review": "not_executed; build and local route response were verified, while no browser interaction was required for this scoped form enhancement",
+    "external_end_to_end": "not_executed; selecting suggestions does not call a paid search provider"
+  },
+  "previous_validation": {
     "stage": "lead_search_dynamic_api_selector",
     "frontend_typecheck": "passed",
     "edge_typecheck": "passed",
@@ -11,22 +23,15 @@
     "sites_artifact": "passed_build; official Site v141 published",
     "deterministic_smoke_checks": 17,
     "vitest": "passed; 52 files; 313 tests",
-    "visual_review": "passed on official Site v141; selector showed Apify — Google Maps and button label matched; browser console had no warnings or errors",
-    "external_end_to_end": "not_executed; no paid search or provider call was required for this UI/state integration"
-  },
-  "previous_validation": {
-    "stage": "kanban_ana_presentation_flow_restored",
-    "frontend_typecheck": "passed",
-    "edge_typecheck": "passed",
-    "lint": "passed",
-    "production_build": "passed",
-    "sites_artifact": "not_required; no_frontend_change; official_site_v140_preserved",
-    "deterministic_smoke_checks": 17,
-    "vitest": "passed; 51 files; 310 tests",
-    "visual_review": "not_required; database resolver correction only",
-    "external_end_to_end": "not_executed; transactional resolver probe passed and rolled back with zero synthetic residues"
+    "visual_review": "passed on official Site v141; API selector and button label were coherent",
+    "external_end_to_end": "not_executed; no paid search was required"
   },
   "commands": [
+    {
+      "command": "npm run type-check && npm run type-check:edge && npm run lint && npm test && node Sites build-site.mjs && git diff --check",
+      "status": "passed",
+      "note": "Assistente de termos por segmento: 52 arquivos/315 testes, build oficial Sites e rota local HTTP 200; nenhuma busca externa executada."
+    },
     {
       "command": "npm run type-check && npm run type-check:edge && npm run lint && npm test && npm run build && node scripts/check-commercial-analytics.mjs && git diff --check",
       "status": "passed",
