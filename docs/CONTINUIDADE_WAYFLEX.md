@@ -1,5 +1,13 @@
 # Checkpoint — WayFlex CRM
 
+## 28/09/2026 — Carteira operacional de Leads
+
+- **Leads** foi reorganizada como uma carteira comercial operacional: cabeçalho compacto, abas rápidas para Todos / Sem contato / Sem próxima ação / Alta aderência, pesquisa por nome, empresa, telefone, e-mail e domínio de origem, filtros avançados, ordenação, colunas escolhidas pelo usuário e ações em lote.
+- A tabela usa dados já autorizados do Supabase: contatos e estágio do lead, última interação persistida, qualificações, responsável e tarefas abertas. A próxima ação cria uma `lead_task` real e só confirma após a persistência. Preferências de visualização e colunas são locais e isoladas por usuário; não criam uma fonte operacional paralela.
+- A etapa continua usando a transição canônica do servidor. Ação definitiva não foi duplicada: o menu encaminha à exclusão governada em **Funil → Gerenciar base**, que mantém permissão, seleção e confirmação textual existentes. Não houve migration, alteração de RLS, segredo, mensagem, busca externa ou ativação da Ana.
+- Validação aprovada: type-check frontend, lint sem warnings, **54 arquivos / 321 testes**, build/artefato Sites e `git diff --check`. A inspeção autenticada da rota publicada confirmou a tabela, filtros, abas, colunas, responsável e menu de ações com dados reais. Responsividade móvel foi revisada estaticamente pelos breakpoints e rolagem horizontal controlada; não houve interação móvel remota.
+- Publicado no Site oficial como versão **144**, commit `5fc98085b308372d0a9813a1c8db8cac0ed23596`, deploy `appgdep_6aba88b5e1c8819186977c232d9b2c24`, concluído com sucesso. A prova ponta a ponta de criação/alteração de lead continua dependente de uma ação operacional explícita do administrador.
+
 ## 28/09/2026 — Sugestões por segmento na Busca de Leads
 
 - **Busca de Leads > Termos de busca** preserva a digitação livre e ganhou um assistente opcional por segmento. O operador pode informar ou escolher Borracha, Silicone, Poliuretano, Vedação industrial, Manutenção industrial ou Aplicações e mercados e marcar somente os termos desejados.

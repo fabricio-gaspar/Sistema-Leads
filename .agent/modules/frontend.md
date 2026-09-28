@@ -1,5 +1,7 @@
 # Frontend
 
+- Leads (28/09, Site v144): carteira operacional com abas de prioridade, pesquisa normalizada, filtros básicos/avançados, ordenação, colunas salvas por usuário e tabela de dados autorizados. Aderência explica os critérios; próxima ação usa tarefa persistida; etapa e responsável preservam os contratos atuais. Exclusão definitiva não é duplicada: o atalho direciona à gestão governada em Funil.
+
 - Busca de Leads (28/09, Site v142): **Termos de busca** preserva a entrada livre e acrescenta um assistente por segmento com seis grupos Wayflex. O usuário marca opções relacionadas, remove-as pelo mesmo controle e pode adicionar as disponíveis em lote, sempre com deduplicação e limite de dez termos. A seleção não inicia busca externa.
 
 - Busca de Leads (27/09): o cabeçalho **Fonte e local** mantém um seletor de API visível, alimentado por `lead_source_configs`. Somente Apify e Google Places conectados e ativos são opções; uma única fonte é pré-selecionada sem esconder o controle. A tela recarrega o estado ao montar e ao retomar o foco.

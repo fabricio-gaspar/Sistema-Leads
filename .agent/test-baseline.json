@@ -1,18 +1,18 @@
 {
   "schema_version": 1,
-  "validated_commit": "d86fc663bde1d68873a29e23e66c0c40fe995ae4",
+  "validated_commit": "5fc98085b308372d0a9813a1c8db8cac0ed23596",
   "last_validated_at": "2026-09-28",
   "current_validation": {
-    "stage": "lead_search_profile_redesign",
+    "stage": "lead_portfolio_redesign",
     "frontend_typecheck": "passed",
     "edge_typecheck": "passed",
     "lint": "passed",
     "production_build": "passed",
-    "sites_artifact": "passed_build; official Site v143 published",
+    "sites_artifact": "passed_build; official Site v144 published",
     "deterministic_smoke_checks": 0,
-    "vitest": "passed; 53 files; 318 tests",
-    "visual_review": "passed_desktop; official Site v143 rendered the complete profile form and disabled sample button before terms were selected. Mobile was reviewed statically through responsive breakpoints; interactive mobile QA was not run.",
-    "external_end_to_end": "not_executed; no paid search provider, import, lead creation or automation was invoked"
+    "vitest": "passed; 54 files; 321 tests",
+    "visual_review": "passed_desktop; official Site v144 rendered the operational portfolio, filters, dynamic columns, real stage control, owner selector and action menu with authenticated data. Mobile was reviewed statically through responsive breakpoints and controlled horizontal table scrolling; interactive mobile QA was not run.",
+    "external_end_to_end": "not_executed; no lead create/edit, paid search, provider, message or automation was invoked"
   },
   "previous_validation": {
     "stage": "lead_search_dynamic_api_selector",
@@ -27,6 +27,11 @@
     "external_end_to_end": "not_executed; no paid search was required"
   },
   "commands": [
+    {
+      "command": "npm run type-check && npm run lint && npm test -- --run && npm run build && git diff --check",
+      "status": "passed",
+      "note": "Carteira operacional de Leads: 54 arquivos/321 testes, build/artefato Sites e publicação oficial v144; nenhuma ação externa disparada."
+    },
     {
       "command": "npm run type-check && npm run lint && npm test && npm run build && git diff --check",
       "status": "passed",

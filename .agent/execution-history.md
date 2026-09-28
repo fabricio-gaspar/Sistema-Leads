@@ -1,5 +1,11 @@
 # Histórico resumido de execução
 
+## 2026-09-28 — Carteira operacional de Leads
+
+- Reconstruída a tela **Leads** sobre os contratos operacionais existentes: filtro e busca completos, abas de prioridade, ordenação, colunas personalizáveis, ações em lote, etapa canônica, responsável, atividade, próxima ação e ações por registro.
+- Leituras de qualificação e tarefas respeitam a sessão/RLS já existente. Visões e colunas são preferências locais isoladas por usuário; a exclusão definitiva permanece somente no fluxo governado do Funil.
+- Type-check, lint, 54 arquivos/321 testes, build/artefato Sites e `git diff --check` passaram. Site oficial v144 publicado pelo commit `5fc98085b308372d0a9813a1c8db8cac0ed23596`, deploy `appgdep_6aba88b5e1c8819186977c232d9b2c24`; a conferência autenticada desktop não acionou nenhuma escrita ou provedor.
+
 ## 2026-09-28 — Assistente de termos por segmento
 
 - Mantida a digitação manual em **Busca de Leads** e acrescentada uma seleção assistida para Borracha, Silicone, Poliuretano, Vedação industrial, Manutenção industrial e Aplicações e mercados.

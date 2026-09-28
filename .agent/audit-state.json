@@ -2,21 +2,21 @@
   "schema_version": 1,
   "baseline_version": 6,
   "baseline_commit": "1dc6275b8c7d70de953b66397a8c89f5e97bc15b",
-  "last_audited_commit": "d86fc663bde1d68873a29e23e66c0c40fe995ae4",
-  "current_head_at_update": "d86fc663bde1d68873a29e23e66c0c40fe995ae4",
-  "working_tree_status": "lead_search_profile_redesign_published",
+  "last_audited_commit": "5fc98085b308372d0a9813a1c8db8cac0ed23596",
+  "current_head_at_update": "5fc98085b308372d0a9813a1c8db8cac0ed23596",
+  "working_tree_status": "lead_portfolio_redesign_published",
   "stage_1_baseline": ".agent/baselines/2026-09-25-stage-1.json",
   "recovery_tag": "baseline-wayflex-stage1-20260925",
   "work_branch": "main",
   "last_site_publication": {
-    "commit": "d86fc663bde1d68873a29e23e66c0c40fe995ae4",
-    "site_version": 143,
-    "deployment_id": "appgdep_6aba75ae52e48191ae129154a2876976",
-    "validated_at": "2026-09-28T14:13:08Z",
+    "commit": "5fc98085b308372d0a9813a1c8db8cac0ed23596",
+    "site_version": 144,
+    "deployment_id": "appgdep_6aba88b5e1c8819186977c232d9b2c24",
+    "validated_at": "2026-09-28T15:33:32Z",
     "working_tree_status": "published"
   },
   "full_audit_required": false,
-  "baseline_status": "lead_search_profile_redesign_validated",
-  "updated_at": "2026-09-28T14:13:08Z",
-  "next_action": "O operador pode preencher o perfil, selecionar termos e iniciar explicitamente uma amostra de até 10 empresas. A homologação de consulta real continua pendente de ação explícita do operador."
+  "baseline_status": "lead_portfolio_redesign_validated",
+  "updated_at": "2026-09-28T15:33:32Z",
+  "next_action": "O administrador pode operar a carteira publicada e, quando desejar, homologar uma criação ou alteração de lead com dados reais. Essa ação não foi executada nesta entrega."
 }

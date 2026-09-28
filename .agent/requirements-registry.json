@@ -2,6 +2,14 @@
   "schema_version": 1,
   "requirements": [
     {
+      "id": "REQ-062",
+      "description": "Transformar Leads em carteira operacional pesquisável, filtrável e auditável sem criar fonte paralela ou duplicar exclusão definitiva",
+      "module": "leads",
+      "status": "confirmed",
+      "evidence": "Site oficial v144, commit 5fc98085b308372d0a9813a1c8db8cac0ed23596. A carteira lê leads, qualificações e tarefas autorizados, exibe contatos, origem/local, aderência explicável, etapa canônica, última interação, próxima ação e responsável. Ações de etapa e atribuição preservam os contratos existentes; tarefa espera persistência; a remoção definitiva encaminha à gestão governada do Funil. Visões/colunas são preferências locais por usuário. Type-check, lint, Vitest 54 arquivos/321 testes, build e inspeção autenticada desktop aprovados; nenhum provedor ou dado operacional foi acionado.",
+      "last_validation": "2026-09-28"
+    },
+    {
       "id": "REQ-061",
       "description": "Redesenhar Busca de Leads com perfil ideal, amostra controlada e revisão classificável sem criar resultados simulados",
       "module": "prospeccao",
