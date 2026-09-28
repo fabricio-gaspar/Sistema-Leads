@@ -66,6 +66,23 @@ export async function transitionOperationalLeadStage(input: {
   if (error) throw normalizeError(error);
 }
 
+/**
+ * The database accepts an undo only for the last human transition made by the
+ * same user inside its short audit window.  It is deliberately not a generic
+ * backwards transition and cannot reopen a closed outcome.
+ */
+export async function undoRecentOperationalLeadStageTransition(input: {
+  leadId: string;
+  expectedStage: CanonicalStageKey;
+}): Promise<void> {
+  await resolveOrganizationSession();
+  const { error } = await supabase.rpc('undo_recent_lead_stage_transition', {
+    p_lead_id: input.leadId,
+    p_expected_stage: input.expectedStage,
+  });
+  if (error) throw normalizeError(error);
+}
+
 export async function resolveOperationalProposalOutcome(input: {
   proposalId: string;
   outcome: 'accepted' | 'rejected';

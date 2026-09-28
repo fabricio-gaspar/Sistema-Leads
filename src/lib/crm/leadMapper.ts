@@ -28,10 +28,12 @@ export interface CrmLeadRow {
   contact_approved_by?: string | null;
   active_channel: string | null;
   city: string | null;
+  uf?: string | null;
   size: string | null;
   source_metadata: Record<string, unknown> | null;
   source_record_id?: string | null;
   source_url?: string | null;
+  pipeline_stage_id?: string | null;
   deduplication_key?: string | null;
   prospect_identity?: string | null;
   score_snapshot?: Record<string, unknown> | null;
@@ -187,6 +189,7 @@ export function leadToCrmRow(lead: Lead, organizationId: string): Partial<CrmLea
     contact_approved_at: approvalStatus === 'approved' ? (lead.contactApprovedAt || new Date().toISOString()) : null,
     active_channel: canonicalLeadChannel(lead.canalPreferencial),
     city: lead.cidade || null,
+    uf: lead.estado || null,
     size: lead.porte || null,
     source_record_id: lead.sourceRecordId?.trim() || null,
     source_url: lead.sourceUrl?.trim() || null,
@@ -215,7 +218,7 @@ export function crmRowToLead(row: CrmLeadRow, handoffPolicy?: LeadHandoffPolicyR
   return {
     id: row.id, nome: row.contact ?? '', empresa: row.company,
     cnpj: typeof meta.cnpj === 'string' ? meta.cnpj : '—', email: row.email ?? '', telefone: row.phone ?? '', whatsapp: row.whatsapp ?? '',
-    segmento: row.segment ?? '', cidade: row.city ?? '', estado: typeof meta.estado === 'string' ? meta.estado : '', porte: row.size ?? '',
+    segmento: row.segment ?? '', cidade: row.city ?? '', estado: row.uf ?? (typeof meta.estado === 'string' ? meta.estado : ''), porte: row.size ?? '',
     score, temperatura: temperature(row.temp, score), etapa: etapaAna, origem: row.origin ?? '',
     responsavel: row.owner === 'ia' || !row.owner ? 'Ana (IA)' : row.owner,
     tags: Array.isArray(meta.tags) ? meta.tags.filter((tag): tag is string => typeof tag === 'string') : [],
