@@ -1,1106 +1,254 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { respostasRapidas, type Conversa, type Mensagem } from '@/mocks/atendimentoData';
-import type { Lead } from '@/mocks/leadsData';
-import { refreshConversasStore, useConversasStore } from '@/hooks/useConversasStore';
-import { refreshLeadsStore, useLeadsStore } from '@/hooks/useLeadsStore';
-import { refreshPropostasStore, usePropostasStore } from '@/hooks/usePropostasStore';
-import type { Proposta } from '@/mocks/propostasData';
+import { addContactSuppression } from '@/lib/crm/suppressionRepository';
 import { assignHumanHandoff, returnConversationToAna } from '@/lib/crm/handoffsRepository';
-import { addContactSuppression, loadContactSuppressions, type ContactSuppression } from '@/lib/crm/suppressionRepository';
 import { queueHumanMessage } from '@/lib/crm/humanMessageRepository';
 import { validateHumanMessage } from '@/lib/crm/humanMessageValidation';
 import { loadTeamMembers, type TeamMember } from '@/lib/crm/teamMembersRepository';
-import { resolveOrganizationSession } from '@/lib/organizationSession';
-import { supabase } from '@/lib/supabase';
-import { loadConversationKnowledgeEvents, type ConversationKnowledgeEvent } from '@/lib/crm/catalogKnowledgeRepository';
+import { loadCentralChannelProvider, loadCentralConversationDetail, loadCentralInbox, loadCentralInboxCounts, markCentralConversationRead, markCentralConversationUnread, type CentralConversationDetail, type CentralInboxCounts, type CentralInboxFilters, type CentralInboxItem, type CentralMessage, type CentralSituation } from '@/lib/crm/centralInboxRepository';
 import { hasUnconfirmedPrices } from '@/domain/proposalPricing';
 import { proposalNet } from '@/domain/commercialAnalytics';
-import ConversaDrawer from './components/ConversaDrawer';
+import { resolveOrganizationSession } from '@/lib/organizationSession';
+import { supabase } from '@/lib/supabase';
+import { usePropostasStore, refreshPropostasStore } from '@/hooks/usePropostasStore';
+import { refreshLeadsStore } from '@/hooks/useLeadsStore';
+import { useTarefasStore, waitForTarefasPersistence } from '@/hooks/useTarefasStore';
+import type { Proposta } from '@/mocks/propostasData';
 import ConversationKnowledgePanel, { type PreparedKnowledgeContent } from './components/ConversationKnowledgePanel';
-import QualificationDossier from '@/components/crm/QualificationDossier';
 
-const statusCores: Record<string, string> = {
-  ativo: 'bg-primary-100 text-primary-700',
-  aguardando: 'bg-accent-100 text-accent-700',
-  resolvido: 'bg-secondary-100 text-secondary-700',
-  transferido: 'bg-background-200 text-foreground-600',
-};
+type RealtimeState = 'connecting' | 'live' | 'unavailable';
+type SideTab = 'lead' | 'qualification' | 'knowledge' | 'more';
+type MobilePanel = 'list' | 'conversation' | 'context';
 
-const statusLabel: Record<string, string> = {
-  ativo: 'Ativo',
-  aguardando: 'Aguardando',
-  resolvido: 'Resolvido',
-  transferido: 'Transferido',
-};
-
-const deliveryLabel: Record<NonNullable<Mensagem['statusEnvio']>, string> = {
-  aguardando: 'aguardando fila',
-  aceita: 'aceita pelo provedor',
-  entregue: 'entregue',
-  lida: 'lida',
-  falhou: 'falhou',
-  reconciliacao: 'em reconciliação',
-};
-
-type ConversationRealtimeState = 'connecting' | 'live' | 'unavailable';
-type InboxFilter = 'all' | 'waiting' | 'human' | 'ana';
-type SidePanelTab = 'lead' | 'knowledge' | 'quotes' | 'agenda' | 'history';
-type PreparedProposal = { id: string; number: string; text: string };
-
-const inboxFilters: { id: InboxFilter; label: string }[] = [
-  { id: 'all', label: 'Todas' },
-  { id: 'waiting', label: 'Aguardando' },
-  { id: 'human', label: 'Humano' },
-  { id: 'ana', label: 'Ana' },
+const quickReplies = [
+  { label: 'Apresentação', text: 'Olá! Sou da Wayflex. Posso entender melhor a sua necessidade para indicar a solução adequada?' },
+  { label: 'Registrar necessidade', text: 'Para orientar corretamente, qual é a necessidade, aplicação ou equipamento envolvido?' },
+  { label: 'Encaminhar orçamento', text: 'Posso encaminhar sua solicitação para avaliação comercial. Qual quantidade e prazo você precisa?' },
 ];
+const stageOptions = [['novo', 'Novo'], ['apresentado', 'Apresentado'], ['qualificando', 'Qualificando'], ['reuniao', 'Reunião'], ['orcamento', 'Orçamento'], ['ganho', 'Ganho'], ['perdido', 'Perdido']];
+const situationLabel: Record<CentralSituation, string> = { waiting: 'Aguardando', ana: 'Ana atendendo', human: 'Atendimento humano', transfer: 'Aguardando atendente', failed: 'Falha de envio', closed: 'Encerrada', blocked: 'Contato bloqueado' };
+const situationClass: Record<CentralSituation, string> = { waiting: 'border-amber-200 bg-amber-50 text-amber-800', ana: 'border-primary-200 bg-primary-50 text-primary-800', human: 'border-sky-200 bg-sky-50 text-sky-800', transfer: 'border-violet-200 bg-violet-50 text-violet-800', failed: 'border-accent-200 bg-accent-50 text-accent-800', closed: 'border-background-200 bg-background-100 text-foreground-600', blocked: 'border-accent-200 bg-accent-50 text-accent-800' };
 
-const realtimeCopy: Record<ConversationRealtimeState, string> = {
-  connecting: 'Conectando atualizações',
-  live: 'Atualização ao vivo',
-  unavailable: 'Atualização automática',
-};
-
-const sidePanelTabs: Array<{ id: Exclude<SidePanelTab, 'history'>; label: string; icon: string }> = [
-  { id: 'lead', label: 'Lead', icon: 'ri-user-3-line' },
-  { id: 'knowledge', label: 'Conhecimento', icon: 'ri-book-open-line' },
-  { id: 'quotes', label: 'Orçamentos', icon: 'ri-file-list-3-line' },
-  { id: 'agenda', label: 'Agenda', icon: 'ri-calendar-event-line' },
-];
-
-function formatTraceDate(value?: string | null): string {
-  return value ? new Date(value).toLocaleString('pt-BR') : 'não informado';
-}
+const initials = (value: string) => value.split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || '?';
+const atTime = (value?: string | null) => value ? new Date(value).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '—';
+const atDateTime = (value?: string | null) => value ? new Date(value).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : 'Não informado';
+const valueOf = (value: unknown) => typeof value === 'string' && value.trim() ? value.trim() : null;
+function deliveryLabel(value: string | null) { return ({ queued: 'Na fila', pending: 'Na fila', sent: 'Aceita pelo canal', delivered: 'Entregue', read: 'Lida', failed: 'Falhou', reconciliation_required: 'Em reconciliação', received: 'Recebida', text: 'Registrada' } as Record<string, string>)[value ?? ''] ?? 'Registrada'; }
 
 export default function Atendimento() {
-  const { conversas, adicionarMensagem, atualizarStatus, criarConversa } = useConversasStore();
   const navigate = useNavigate();
-  const [leads, setLeads] = useLeadsStore();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { propostas } = usePropostasStore();
-  const [orcamentoModal, setOrcamentoModal] = useState(false);
-  const [searchParams] = useSearchParams();
-  const leadIdParam = searchParams.get('leadId');
-  const proposalIdParam = searchParams.get('proposalId');
-
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [texto, setTexto] = useState('');
-  const [notaInterna, setNotaInterna] = useState(false);
-  const [busca, setBusca] = useState('');
-  const [inboxFilter, setInboxFilter] = useState<InboxFilter>('all');
-  const [drawerOpen, setDrawerOpen] = useState(false);
-  const [sidePanelTab, setSidePanelTab] = useState<SidePanelTab>('lead');
-  const [optoutConfirmar, setOptoutConfirmar] = useState(false);
-  const [erroIA, setErroIA] = useState('');
-  const [messageFeedback, setMessageFeedback] = useState<{ tone: 'success' | 'warning' | 'error'; text: string } | null>(null);
-  const [enviando, setEnviando] = useState(false);
-  const [handoffAction, setHandoffAction] = useState<'transfer' | 'takeover' | 'return' | null>(null);
+  const { criar: criarTarefa } = useTarefasStore();
+  const [query, setQuery] = useState(searchParams.get('q') ?? '');
+  const [debouncedQuery, setDebouncedQuery] = useState(query);
+  const [filters, setFilters] = useState<CentralInboxFilters>({ view: (searchParams.get('view') as CentralInboxFilters['view']) ?? 'all', situation: (searchParams.get('situation') as CentralInboxFilters['situation']) ?? 'all', channel: (searchParams.get('channel') as CentralInboxFilters['channel']) ?? 'all', mode: (searchParams.get('mode') as CentralInboxFilters['mode']) ?? 'all', ownerId: searchParams.get('owner') ?? undefined, stage: searchParams.get('stage') ?? undefined, slaOverdue: searchParams.get('sla') === 'overdue', from: searchParams.get('from') ?? undefined, to: searchParams.get('to') ?? undefined });
+  const [items, setItems] = useState<CentralInboxItem[]>([]);
+  const [total, setTotal] = useState(0);
+  const [quickCounts, setQuickCounts] = useState<CentralInboxCounts>({ all: 0, unread: 0, waiting: 0, mine: 0 });
+  const [hasMore, setHasMore] = useState(false);
+  const [listLoading, setListLoading] = useState(true);
+  const [listError, setListError] = useState('');
+  const [selectedId, setSelectedId] = useState<string | null>(searchParams.get('leadId'));
+  const [detail, setDetail] = useState<CentralConversationDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detailError, setDetailError] = useState('');
+  const [realtime, setRealtime] = useState<RealtimeState>('connecting');
+  const [mobilePanel, setMobilePanel] = useState<MobilePanel>('list');
+  const [sideTab, setSideTab] = useState<SideTab>('lead');
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const [transferOpen, setTransferOpen] = useState(false);
   const [transferTargetId, setTransferTargetId] = useState('');
-  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
-  const [teamLoading, setTeamLoading] = useState(true);
-  const [teamError, setTeamError] = useState('');
-  const [protectedContacts, setProtectedContacts] = useState<ContactSuppression[]>([]);
-  const [conversationRealtime, setConversationRealtime] = useState<ConversationRealtimeState>('connecting');
-  const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
+  const [transferReason, setTransferReason] = useState('');
+  const [blockOpen, setBlockOpen] = useState(false);
+  const [taskOpen, setTaskOpen] = useState(false);
+  const [taskText, setTaskText] = useState('');
+  const [taskDate, setTaskDate] = useState('');
+  const [messageText, setMessageText] = useState('');
+  const [internalNote, setInternalNote] = useState(false);
   const [preparedKnowledge, setPreparedKnowledge] = useState<PreparedKnowledgeContent | null>(null);
-  const [preparedProposal, setPreparedProposal] = useState<PreparedProposal | null>(null);
-  const [knowledgeEvents, setKnowledgeEvents] = useState<ConversationKnowledgeEvent[]>([]);
-  // Mantém a mesma chave idempotente enquanto uma mensagem está na fila ou em
-  // reconciliação. Se o operador repetir o mesmo texto nesse intervalo, o
-  // backend reconhece a solicitação em vez de criar uma segunda saída.
+  const [preparedProposal, setPreparedProposal] = useState<Proposta | null>(null);
+  const [action, setAction] = useState<'takeover' | 'transfer' | 'return' | 'send' | 'task' | 'block' | null>(null);
+  const [feedback, setFeedback] = useState<{ tone: 'success' | 'warning' | 'error'; text: string } | null>(null);
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [teamError, setTeamError] = useState('');
+  const [messageDetails, setMessageDetails] = useState<string | null>(null);
+  const [olderLoading, setOlderLoading] = useState(false);
+  const messagesRef = useRef<HTMLDivElement>(null);
+  const stickBottom = useRef(true);
+  const lastSelected = useRef<string | null>(null);
+  const listRefreshToken = useRef(0);
+  const itemsRef = useRef<CentralInboxItem[]>([]);
   const pendingMessageRequests = useRef(new Map<string, string>());
-  const handoffActionLock = useRef(false);
-  const messagesPanelRef = useRef<HTMLDivElement>(null);
-  const shouldStickToBottomRef = useRef(true);
-  const previousConversationRef = useRef<string | null>(null);
-  const handledProposalParamRef = useRef<string | null>(null);
 
-  const selected = conversas.find((c) => c.id === selectedId) || conversas[0];
-  const selectedConversationId = selected?.id ?? null;
-  const selectedMessageCount = selected?.mensagens.length ?? 0;
+  const conversation = detail?.conversation ?? null;
+  const humanOwns = conversation?.mode === 'human';
+  const composerEnabled = Boolean(conversation && humanOwns && !conversation.blocked);
 
-  const prepareKnowledge = (content: PreparedKnowledgeContent) => {
-    setPreparedKnowledge(content);
-    setPreparedProposal(null);
-    setTexto(content.text);
-    setNotaInterna(false);
-    setErroIA(`Conteúdo “${content.item.name}” preparado${content.sendImage ? ' com imagem oficial' : ''}. Revise o texto antes de enviar pela fila segura.`);
-  };
+  useEffect(() => { itemsRef.current = items; }, [items]);
 
-  const openSidePanel = (tab: Exclude<SidePanelTab, 'history'>) => {
-    setSidePanelTab(tab);
-    if (typeof window !== 'undefined' && !window.matchMedia('(min-width: 1280px)').matches) setDrawerOpen(true);
-  };
-
-  // A store é hidratada de forma assíncrona. Sem uma conversa selecionada, a
-  // tela não tenta acessar dados inexistentes durante a primeira renderização.
-  useEffect(() => {
-    if (!selectedId && conversas[0]) setSelectedId(conversas[0].id);
-  }, [conversas, selectedId]);
-
-  useEffect(() => {
-    const panel = messagesPanelRef.current;
-    if (!panel || !selectedConversationId) return;
-    const conversationChanged = previousConversationRef.current !== selectedConversationId;
-    if (conversationChanged || shouldStickToBottomRef.current) {
-      panel.scrollTo({ top: panel.scrollHeight, behavior: conversationChanged ? 'auto' : 'smooth' });
-    }
-    previousConversationRef.current = selectedConversationId;
-  }, [selectedConversationId, selectedMessageCount]);
-
-  useEffect(() => {
-    void loadContactSuppressions().then(setProtectedContacts).catch(() => undefined);
-  }, []);
-
-  useEffect(() => {
-    let active = true;
-    void loadTeamMembers()
-      .then((members) => { if (active) { setTeamMembers(members.filter((member) => member.status === 'active')); setTeamError(''); } })
-      .catch(() => { if (active) setTeamError('Não foi possível carregar os responsáveis ativos agora.'); })
-      .finally(() => { if (active) setTeamLoading(false); });
-    return () => { active = false; };
-  }, []);
-
-  useEffect(() => {
-    const leadId = selected?.leadId;
-    if (!leadId) { setKnowledgeEvents([]); return; }
-    let active = true;
-    void loadConversationKnowledgeEvents(leadId).then((events) => { if (active) setKnowledgeEvents(events); }).catch(() => { if (active) setKnowledgeEvents([]); });
-    return () => { active = false; };
-  }, [selected?.leadId, selectedMessageCount]);
-
-  const refreshInbox = useCallback(async () => {
-    await refreshConversasStore();
-    setLastSyncedAt(new Date());
-  }, []);
-
-  // O histórico chega pelo mesmo canal autenticado do Supabase usado no
-  // Dashboard. A interface apenas recarrega a fonte operacional após o evento;
-  // ela não cria mensagens nem acessa segredos no navegador.
-  useEffect(() => {
-    let disposed = false;
-    let refreshTimer: number | null = null;
-    let channel: ReturnType<typeof supabase.channel> | null = null;
-
-    const scheduleRefresh = () => {
-      if (refreshTimer !== null) window.clearTimeout(refreshTimer);
-      refreshTimer = window.setTimeout(() => void refreshInbox(), 180);
-    };
-
-    void resolveOrganizationSession()
-      .then(({ organizationId }) => {
-        if (disposed) return;
-        channel = supabase.channel(`atendimento-messages:${organizationId}`)
-          .on('postgres_changes', {
-            event: '*',
-            schema: 'public',
-            table: 'lead_messages',
-            filter: `organization_id=eq.${organizationId}`,
-          }, scheduleRefresh)
-          .subscribe((status) => {
-            if (disposed) return;
-            setConversationRealtime(
-              status === 'SUBSCRIBED'
-                ? 'live'
-                : ['CHANNEL_ERROR', 'TIMED_OUT', 'CLOSED'].includes(status)
-                  ? 'unavailable'
-                  : 'connecting',
-            );
-          });
-      })
-      .catch(() => {
-        if (!disposed) setConversationRealtime('unavailable');
-      });
-
-    return () => {
-      disposed = true;
-      if (refreshTimer !== null) window.clearTimeout(refreshTimer);
-      if (channel) void supabase.removeChannel(channel);
-    };
-  }, [refreshInbox]);
-
-  // Realtime é o caminho principal. O intervalo é somente uma recuperação
-  // silenciosa para redes que bloqueiem WebSocket ou em caso de reconexão.
-  useEffect(() => {
-    void refreshInbox();
-    const interval = window.setInterval(
-      () => void refreshInbox(),
-      conversationRealtime === 'live' ? 60_000 : 15_000,
-    );
-    const onFocus = () => void refreshInbox();
-    window.addEventListener('focus', onFocus);
-    return () => {
-      window.clearInterval(interval);
-      window.removeEventListener('focus', onFocus);
-    };
-  }, [conversationRealtime, refreshInbox]);
-
-  const leadDaConversa = (conv: Conversa | undefined): Lead | null => {
-    if (!conv) return null;
-    if (conv.leadId) return leads.find((l) => l.id === conv.leadId) || null;
-    return leads.find((l) => l.nome === conv.contato) || null;
-  };
-
-  const leadSelecionado = leadDaConversa(selected);
-
-  const normalizeContact = (contact: string) => contact.includes('@') ? contact.trim().toLowerCase().replace(/\s+/g, '') : contact.replace(/\D/g, '');
-  const contactForChannel = selected?.canal === 'email' ? leadSelecionado?.email : leadSelecionado?.whatsapp || leadSelecionado?.telefone;
-  const externalRecipient = selected?.canal === 'whatsapp' ? leadSelecionado?.whatsapp : leadSelecionado?.email;
-  const externalDispatchReady = Boolean(
-    leadSelecionado
-    && selected?.canal === 'whatsapp'
-    && (externalRecipient ?? '').replace(/\D/g, '').length >= 10
-    && (externalRecipient ?? '').replace(/\D/g, '').length <= 15
-  );
-  const contatoBloqueado = selected ? protectedContacts.some((item) => {
-    const channel = item.channel.toLowerCase();
-    return Boolean(contactForChannel) && normalizeContact(item.contact) === normalizeContact(contactForChannel) && (channel === 'all' || channel === selected.canal.toLowerCase());
-  }) : false;
-  const conversaTransferida = selected ? selected.status === 'transferido' : false;
-  const responsabilidadeHumana = conversaTransferida
-    || leadSelecionado?.modoAtendimento === 'HUMANO'
-    || leadSelecionado?.automacaoStatus === 'AGUARDANDO_HUMANO';
-
-  // Abre a conversa do lead vindo do Kanban/Leads (via ?leadId=).
-  useEffect(() => {
-    if (!leadIdParam) return;
-    const lead = leads.find((l) => l.id === leadIdParam);
-    if (!lead) return;
-    let conv = conversas.find((c) => c.leadId === leadIdParam || c.contato === lead.nome);
-    if (!conv) conv = criarConversa(lead);
-    setSelectedId(conv.id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [leadIdParam]);
-
-  // The quote screen can direct the operator to the exact proposal, without
-  // attaching it to a message until the operator explicitly prepares it.
-  useEffect(() => {
-    if (!proposalIdParam || handledProposalParamRef.current === proposalIdParam || !leadSelecionado) return;
-    const proposal = propostas.find((item) => item.id === proposalIdParam && item.leadId === leadSelecionado.id);
-    if (!proposal) return;
-    handledProposalParamRef.current = proposalIdParam;
-    setSidePanelTab('quotes');
-    setOrcamentoModal(true);
-  }, [leadSelecionado, proposalIdParam, propostas]);
-
-  if (!selected) {
-    return (
-      <div className="p-4 md:p-8 max-w-5xl mx-auto">
-        <div className="mb-6">
-          <h1 className="text-2xl md:text-3xl font-heading font-extrabold text-foreground-950 mb-2">Central de Atendimento</h1>
-          <p className="text-foreground-600 text-sm">Inbox multicanal com a Ana, filas, SLA e histórico pesquisável.</p>
-        </div>
-        <section className="bg-background-50 border border-background-200/70 rounded-xl p-8 md:p-12 text-center">
-          <div className="w-12 h-12 mx-auto mb-4 rounded-xl bg-primary-100 text-primary-700 flex items-center justify-center"><i className="ri-customer-service-2-line text-xl"></i></div>
-          <h2 className="font-heading font-bold text-foreground-950">Nenhuma conversa para exibir</h2>
-          <p className="mt-2 text-sm text-foreground-500 max-w-md mx-auto">Assim que um lead iniciar ou receber um atendimento, a conversa aparecerá aqui. A tela permanece disponível também enquanto os dados carregam.</p>
-        </section>
-      </div>
-    );
-  }
-
-  const agora = () =>
-    new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-
-  const enviar = async () => {
-    if (enviando) return;
-    const recipient = externalRecipient;
-    const validation = validateHumanMessage({
-      text: texto,
-      isInternalNote: notaInterna,
-      hasLead: Boolean(leadSelecionado),
-      channel: selected.canal,
-      recipient,
+  const setUrl = useCallback((patch: Record<string, string | null>) => {
+    const next = new URLSearchParams(searchParams);
+    Object.entries(patch).forEach(([key, value]) => value ? next.set(key, value) : next.delete(key));
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
+  const patchFilters = useCallback((patch: Partial<CentralInboxFilters>) => {
+    setFilters((current) => {
+      const next = { ...current, ...patch };
+      setUrl({ view: next.view !== 'all' ? next.view ?? null : null, situation: next.situation !== 'all' ? next.situation ?? null : null, channel: next.channel !== 'all' ? next.channel ?? null : null, mode: next.mode !== 'all' ? next.mode ?? null : null, owner: next.ownerId ?? null, stage: next.stage ?? null, sla: next.slaOverdue ? 'overdue' : null, from: next.from ?? null, to: next.to ?? null });
+      return next;
     });
-    if ('message' in validation) {
-      setMessageFeedback({ tone: 'error', text: validation.message });
-      return;
-    }
-    setErroIA('');
-    setMessageFeedback(null);
-    if (!notaInterna) {
-      if (!leadSelecionado || !recipient) return;
-      try {
-        setEnviando(true);
-        setMessageFeedback({ tone: 'warning', text: 'Registrando a mensagem na fila segura…' });
-        const messageText = texto.trim();
-        const knowledgeFingerprint = preparedKnowledge ? `${preparedKnowledge.item.id}:${preparedKnowledge.format}:${preparedKnowledge.sendImage ? 'image' : 'text'}` : 'text';
-        const proposalFingerprint = preparedProposal?.id ?? 'no-proposal';
-        const fingerprint = `${leadSelecionado.id}:${selected.canal}:${recipient}:${messageText}:${knowledgeFingerprint}:${proposalFingerprint}`;
-        let requestId = pendingMessageRequests.current.get(fingerprint);
-        if (!requestId) {
-          requestId = crypto.randomUUID();
-          pendingMessageRequests.current.set(fingerprint, requestId);
-        }
-        const result = await queueHumanMessage({
-          leadId: leadSelecionado.id,
-          proposalId: preparedProposal?.id ?? null,
-          channel: selected.canal,
-          recipient,
-          text: messageText,
-          requestId,
-          provider: selected.whatsappProvider,
-          knowledgeContent: preparedKnowledge ? {
-            itemId: preparedKnowledge.item.id,
-            presentationFormat: preparedKnowledge.format,
-            sendImage: preparedKnowledge.sendImage,
-          } : null,
-        });
-        if (!['queued', 'reconciliation'].includes(result.delivery)) {
-          pendingMessageRequests.current.delete(fingerprint);
-        }
-        if (result.delivery !== 'failed') { setTexto(''); setPreparedKnowledge(null); }
-        await refreshConversasStore();
-        if (preparedProposal && result.delivery === 'accepted') {
-          // The server projects the proposal to sent only once the provider
-          // acceptance is persisted. Queue/reconciliation preserve draft.
-          await Promise.all([refreshPropostasStore(), refreshLeadsStore()]);
-        }
-        if (result.delivery !== 'failed') setPreparedProposal(null);
-        setMessageFeedback({
-          tone: result.delivery === 'accepted' ? 'success' : result.delivery === 'failed' ? 'error' : 'warning',
-          text: result.detail,
-        });
-      } catch (error) {
-        setMessageFeedback({ tone: 'error', text: error instanceof Error ? error.message : 'A mensagem não foi enfileirada.' });
-      } finally {
-        setEnviando(false);
-      }
-      return;
-    }
-    const nova: Mensagem = {
-      id: `msg-${Date.now()}`,
-      autor: 'vendedor',
-      nome: 'Você',
-      texto: texto.trim(),
-      hora: agora(),
-      notaInterna,
-    };
-    adicionarMensagem(selected.id, nova);
-    setTexto('');
-    setNotaInterna(false);
-    setMessageFeedback({ tone: 'success', text: 'Nota interna registrada no histórico da conversa.' });
-  };
+  }, [setUrl]);
 
-  const runHandoffAction = async (
-    action: NonNullable<typeof handoffAction>,
-    operation: () => Promise<void>,
-    fallbackError: string,
-  ): Promise<boolean> => {
-    if (handoffActionLock.current) return false;
-    handoffActionLock.current = true;
-    setHandoffAction(action);
-    setErroIA('');
+  const loadInbox = useCallback(async (append = false) => {
+    const token = ++listRefreshToken.current;
+    setListLoading(true); setListError('');
     try {
-      await operation();
-      await refreshConversasStore();
-      return true;
-    } catch {
-      setErroIA(fallbackError);
-      return false;
-    } finally {
-      handoffActionLock.current = false;
-      setHandoffAction(null);
-    }
-  };
+      const [page, counts] = await Promise.all([
+        loadCentralInbox({ query: debouncedQuery, filters, limit: 25, offset: append ? itemsRef.current.length : 0 }),
+        append ? Promise.resolve(null) : loadCentralInboxCounts({ query: debouncedQuery, filters }),
+      ]);
+      if (token !== listRefreshToken.current) return;
+      setItems((current) => append ? [...current, ...page.items.filter((item) => !current.some((known) => known.leadId === item.leadId))] : page.items);
+      setTotal(page.total); setHasMore(page.hasMore);
+      if (counts) setQuickCounts(counts);
+    } catch (error) { if (token === listRefreshToken.current) setListError(error instanceof Error ? error.message : 'Não foi possível carregar as conversas.'); }
+    finally { if (token === listRefreshToken.current) setListLoading(false); }
+  }, [debouncedQuery, filters]);
+  const loadDetail = useCallback(async (leadId: string) => {
+    setDetailLoading(true); setDetailError('');
+    try {
+      const next = await loadCentralConversationDetail(leadId);
+      if (!next) throw new Error('Esta conversa não está disponível para o seu acesso.');
+      setDetail(next);
+      void markCentralConversationRead(leadId).then(() => void loadInbox(false)).catch(() => undefined);
+    } catch (error) { setDetail(null); setDetailError(error instanceof Error ? error.message : 'Não foi possível carregar a conversa.'); }
+    finally { setDetailLoading(false); }
+  }, [loadInbox]);
+  const refreshSelected = useCallback(async () => { if (selectedId) await loadDetail(selectedId); }, [loadDetail, selectedId]);
 
-  const handoff = async () => {
-    const lead = leadSelecionado;
-    if (!lead) {
-      setErroIA('Este registro não possui um lead operacional vinculado. A transferência não foi registrada.');
-      return;
-    }
-    if (teamLoading) { setErroIA('Carregando os responsáveis ativos. Tente novamente em instantes.'); return; }
-    if (!teamMembers.length) { setErroIA('Não há responsável ativo com permissão de atendimento para receber esta transferência.'); return; }
-    // Transferência nunca herda o responsável atual: o operador precisa escolher
-    // explicitamente quem receberá o atendimento antes de pausar a Ana.
-    setTransferTargetId('');
-    setTransferOpen(true);
-  };
+  useEffect(() => { const timer = window.setTimeout(() => { setDebouncedQuery(query); setUrl({ q: query.trim() || null }); }, 350); return () => window.clearTimeout(timer); }, [query, setUrl]);
+  useEffect(() => { void loadInbox(false); }, [debouncedQuery, filters]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { const requested = searchParams.get('leadId'); if (requested && requested !== selectedId) setSelectedId(requested); }, [searchParams, selectedId]);
+  useEffect(() => { if (!selectedId && items[0]) setSelectedId(items[0].leadId); }, [items, selectedId]);
+  useEffect(() => { if (selectedId) void loadDetail(selectedId); else setDetail(null); }, [selectedId]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { const node = messagesRef.current; if (!node || !detail) return; const changed = lastSelected.current !== detail.conversation.leadId; if (changed || stickBottom.current) node.scrollTo({ top: node.scrollHeight, behavior: changed ? 'auto' : 'smooth' }); lastSelected.current = detail.conversation.leadId; }, [detail]);
+  useEffect(() => { let active = true; void loadTeamMembers().then((members) => { if (active) setTeamMembers(members.filter((member) => member.status === 'active')); }).catch(() => { if (active) setTeamError('Não foi possível carregar responsáveis ativos.'); }); return () => { active = false; }; }, []);
+  useEffect(() => {
+    let disposed = false; let timer: number | null = null; let channel: ReturnType<typeof supabase.channel> | null = null;
+    const schedule = () => { if (timer !== null) window.clearTimeout(timer); timer = window.setTimeout(() => { void loadInbox(false); void refreshSelected(); }, 220); };
+    void resolveOrganizationSession().then(({ organizationId }) => {
+      if (disposed) return;
+      channel = supabase.channel(`central-atendimento:${organizationId}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'lead_messages', filter: `organization_id=eq.${organizationId}` }, schedule)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'leads', filter: `organization_id=eq.${organizationId}` }, schedule)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'lead_handoffs', filter: `organization_id=eq.${organizationId}` }, schedule)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'lead_tasks', filter: `organization_id=eq.${organizationId}` }, schedule)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'lead_qualifications', filter: `organization_id=eq.${organizationId}` }, schedule)
+        .subscribe((status) => { if (!disposed) setRealtime(status === 'SUBSCRIBED' ? 'live' : ['CHANNEL_ERROR', 'TIMED_OUT', 'CLOSED'].includes(status) ? 'unavailable' : 'connecting'); });
+    }).catch(() => { if (!disposed) setRealtime('unavailable'); });
+    return () => { disposed = true; if (timer !== null) window.clearTimeout(timer); if (channel) void supabase.removeChannel(channel); };
+  }, [loadInbox, refreshSelected]);
+  useEffect(() => { const interval = window.setInterval(() => { void loadInbox(false); void refreshSelected(); }, realtime === 'live' ? 60_000 : 15_000); const focus = () => { void loadInbox(false); void refreshSelected(); }; window.addEventListener('focus', focus); return () => { window.clearInterval(interval); window.removeEventListener('focus', focus); }; }, [loadInbox, realtime, refreshSelected]);
 
-  // O humano assume a conversa a qualquer momento: pausa a Ana (se estiver ativa)
-  // e passa a interagir livremente com o lead, sem perder o histórico.
-  const assumir = async () => {
-    const lead = leadSelecionado;
-    if (!lead) {
-      setErroIA('Este registro não possui um lead operacional vinculado. O atendimento não foi assumido.');
-      return;
-    }
-    const completed = await runHandoffAction(
-      'takeover',
-      () => assignHumanHandoff({ leadId: lead.id, reason: 'Atendimento assumido manualmente pelo operador', category: 'operator_takeover' }),
-      'Não foi possível assumir o atendimento agora. Tente novamente.',
-    );
-    if (completed) setErroIA('Atendimento assumido por você. A Ana foi pausada e o histórico foi preservado.');
+  const choose = (leadId: string) => { setSelectedId(leadId); setUrl({ leadId }); setMobilePanel('conversation'); setMoreOpen(false); };
+  const runHandoff = async (kind: 'takeover' | 'transfer' | 'return', operation: () => Promise<void>) => {
+    if (!conversation || action) return;
+    setAction(kind); setFeedback(null);
+    try { await operation(); await Promise.all([loadInbox(false), refreshSelected()]); setFeedback({ tone: 'success', text: kind === 'takeover' ? 'Atendimento assumido. A Ana foi pausada antes de liberar o compositor.' : kind === 'transfer' ? 'Atendimento transferido e auditado.' : 'Conversa devolvida para a Ana.' }); }
+    catch (error) { setFeedback({ tone: 'error', text: error instanceof Error ? error.message : 'A operação não foi concluída.' }); }
+    finally { setAction(null); }
   };
-
-  const confirmarTransferencia = async () => {
-    const lead = leadSelecionado;
+  const assume = () => void runHandoff('takeover', () => assignHumanHandoff({ leadId: conversation!.leadId, reason: 'Atendimento assumido manualmente pela Central', category: 'operator_takeover' }));
+  const confirmTransfer = () => {
     const target = teamMembers.find((member) => member.userId === transferTargetId);
-    if (!lead || !target) {
-      setErroIA('Selecione um responsável ativo antes de transferir.');
-      return;
-    }
-    const completed = await runHandoffAction(
-      'transfer',
-      () => assignHumanHandoff({ leadId: lead.id, reason: `Transferência manual para ${target.name}`, category: 'operator_transfer', targetUserId: target.userId }),
-      'Não foi possível transferir o atendimento agora. Tente novamente.',
-    );
-    if (completed) {
-      setTransferOpen(false);
-      setTransferTargetId('');
-      setErroIA(`Atendimento transferido para ${target.name}. A Ana foi pausada e o histórico foi preservado.`);
-    }
+    if (!target || !conversation) { setFeedback({ tone: 'error', text: 'Selecione um responsável ativo antes de transferir.' }); return; }
+    void runHandoff('transfer', () => assignHumanHandoff({ leadId: conversation.leadId, reason: transferReason.trim() || `Transferência manual para ${target.name}`, category: 'operator_transfer', targetUserId: target.userId })).then(() => { setTransferOpen(false); setTransferTargetId(''); setTransferReason(''); });
   };
-
-  // Devolve o atendimento para a Ana (reverte o "assumir").
-  const devolver = async () => {
-    const lead = leadSelecionado;
-    if (!lead) {
-      setErroIA('Este registro não possui um lead operacional vinculado. O atendimento não foi devolvido.');
-      return;
-    }
-    await runHandoffAction(
-      'return',
-      () => returnConversationToAna(lead.id),
-      'Não foi possível devolver o atendimento para a Ana agora.',
-    );
+  const prepareKnowledge = (prepared: PreparedKnowledgeContent) => {
+    if (!composerEnabled) { setFeedback({ tone: 'warning', text: 'Assuma o atendimento para preparar uma resposta manual.' }); return; }
+    setPreparedKnowledge(prepared); setPreparedProposal(null); setInternalNote(false); setMessageText(prepared.text); setFeedback({ tone: 'success', text: `Conteúdo “${prepared.item.name}” preparado para revisão. Ele não foi enviado.` });
   };
-
-  // Prepara o orçamento no compositor. O envio continua passando pelo caminho
-  // real e auditável das demais mensagens humanas.
-  const propostasDoLead = leadSelecionado
-    ? propostas.filter((p) => (p.leadId ? p.leadId === leadSelecionado.id : p.lead === leadSelecionado.nome))
-    : [];
-
-  const prepararOrcamento = (p: Proposta) => {
-    if (hasUnconfirmedPrices(p)) { setErroIA('Confirme os preços unitários em Orçamentos antes de preparar esta proposta.'); return; }
-    if (p.bloqueadaEnvio || p.status === 'aguardando_aprovacao') {
-      setErroIA('A proposta aguarda aprovação de desconto e não pode ser preparada para envio.');
-      return;
-    }
-    if (p.status !== 'rascunho') {
-      setErroIA('Esta proposta já não está em rascunho. Revise o histórico antes de enviar uma nova versão.');
-      return;
-    }
-    const total = proposalNet(p);
-    const textoOrcamento = [
-      `Segue o orçamento ${p.numero}:`,
-      ...p.itens.map((i) => `• ${i.nome} (${i.quantidade}x) — ${i.preco.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`),
-      p.descontoPct > 0 ? `Desconto: ${p.descontoPct}%` : '',
-      `Total: ${total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`,
-      `Validade: ${new Date(p.validade + 'T00:00:00').toLocaleDateString('pt-BR')}`,
-    ].filter(Boolean).join('\n');
-    setTexto(textoOrcamento);
-    setPreparedKnowledge(null);
-    setPreparedProposal({ id: p.id, number: p.numero, text: textoOrcamento });
-    setNotaInterna(false);
-    setOrcamentoModal(false);
-    setErroIA(`Orçamento ${p.numero} preparado. Ele só será marcado como enviado após o aceite comprovado do canal.`);
-  };
-
-  const registrarOptout = async () => {
-    if (!selected) return;
-    const channel = selected.canal === 'whatsapp' ? 'whatsapp' : selected.canal === 'email' ? 'email' : 'instagram';
+  const send = async () => {
+    if (!conversation || action) return;
+    const text = messageText.trim();
+    if (!text) { setFeedback({ tone: 'error', text: 'Digite uma mensagem antes de enviar.' }); return; }
+    if (!internalNote && !composerEnabled) { setFeedback({ tone: 'warning', text: conversation.blocked ? 'Este contato está bloqueado.' : 'Assuma o atendimento antes de responder manualmente.' }); return; }
     try {
-      if (!contactForChannel) throw new Error('contact_not_available');
-      await addContactSuppression({ contact: contactForChannel, channel, reason: 'Opt-out solicitado pelo lead', leadId: leadSelecionado?.id });
-      await loadContactSuppressions().then(setProtectedContacts);
-    } catch {
-      setErroIA('Não foi possível registrar o opt-out na lista real de proteção. Nenhuma alteração local foi simulada.');
-      return;
-    }
-    const lead = leadSelecionado;
-    if (lead) {
-      setLeads((prev) =>
-        prev.map((l) =>
-          l.id === lead.id ? { ...l, bloqueado: true, automacaoStatus: 'CONCLUIDA' } : l
-        )
-      );
-    }
-    adicionarMensagem(selected.id, {
-      id: `msg-${Date.now()}`,
-      autor: 'sistema',
-      nome: 'Sistema',
-      texto: 'Opt-out registrado. Contato adicionado à lista de supressão e cadências pausadas.',
-      hora: agora(),
-      notaInterna: true,
-    });
-    atualizarStatus(selected.id, 'resolvido');
+      setAction('send');
+      if (internalNote) {
+        const session = await resolveOrganizationSession();
+        const { error } = await supabase.from('lead_notes').insert({ organization_id: session.organizationId, lead_id: conversation.leadId, author_id: session.userId, body: text, visibility: 'internal' });
+        if (error) throw error;
+        setMessageText(''); setFeedback({ tone: 'success', text: 'Nota interna registrada.' }); await refreshSelected(); return;
+      }
+      const recipient = conversation.channel === 'whatsapp' ? conversation.whatsapp || conversation.phone : conversation.email;
+      const validation = validateHumanMessage({ text, isInternalNote: false, hasLead: true, channel: conversation.channel, recipient });
+      if ('message' in validation) { setFeedback({ tone: 'error', text: validation.message }); return; }
+      setFeedback({ tone: 'warning', text: 'Registrando a mensagem na fila segura…' });
+      const provider = conversation.channel === 'whatsapp' ? await loadCentralChannelProvider(conversation.leadId) : null;
+      const knowledgeFingerprint = preparedKnowledge ? `${preparedKnowledge.item.id}:${preparedKnowledge.format}:${preparedKnowledge.sendImage ? 'image' : 'text'}` : 'text';
+      const fingerprint = `${conversation.leadId}:${conversation.channel}:${recipient}:${text}:${provider ?? 'default'}:${knowledgeFingerprint}:${preparedProposal?.id ?? 'no-proposal'}`;
+      const requestId = pendingMessageRequests.current.get(fingerprint) ?? crypto.randomUUID();
+      pendingMessageRequests.current.set(fingerprint, requestId);
+      const result = await queueHumanMessage({ leadId: conversation.leadId, channel: conversation.channel, recipient: recipient!, text, requestId, provider, proposalId: preparedProposal?.id ?? null, knowledgeContent: preparedKnowledge ? { itemId: preparedKnowledge.item.id, presentationFormat: preparedKnowledge.format, sendImage: preparedKnowledge.sendImage } : null });
+      if (!['queued', 'reconciliation'].includes(result.delivery)) pendingMessageRequests.current.delete(fingerprint);
+      if (result.delivery !== 'failed') { setMessageText(''); setPreparedKnowledge(null); setPreparedProposal(null); }
+      setFeedback({ tone: result.delivery === 'accepted' ? 'success' : result.delivery === 'failed' ? 'error' : 'warning', text: result.detail });
+      await Promise.all([loadInbox(false), refreshSelected(), refreshPropostasStore(), refreshLeadsStore()]);
+    } catch (error) { setFeedback({ tone: 'error', text: error instanceof Error ? error.message : 'A mensagem não foi enfileirada.' }); }
+    finally { setAction(null); }
   };
-
-  const conversaComHumano = (conversa: Conversa) => {
-    const lead = leadDaConversa(conversa);
-    return conversa.status === 'transferido'
-      || lead?.modoAtendimento === 'HUMANO'
-      || lead?.automacaoStatus === 'AGUARDANDO_HUMANO';
+  const confirmBlock = async () => {
+    if (!conversation) return;
+    const contact = conversation.channel === 'email' ? conversation.email : conversation.whatsapp || conversation.phone;
+    if (!contact) { setFeedback({ tone: 'error', text: 'Não há contato válido para bloquear.' }); return; }
+    try { setAction('block'); await addContactSuppression({ contact, channel: conversation.channel, reason: 'Opt-out registrado pela Central de Atendimento', leadId: conversation.leadId }); setBlockOpen(false); setFeedback({ tone: 'success', text: 'Contato incluído na lista de proteção.' }); await Promise.all([loadInbox(false), refreshSelected()]); }
+    catch (error) { setFeedback({ tone: 'error', text: error instanceof Error ? error.message : 'Não foi possível bloquear o contato.' }); }
+    finally { setAction(null); }
   };
-
-  const filtradas = conversas.filter((c) => {
-    if (!(c.contato + c.empresa).toLowerCase().includes(busca.toLowerCase())) return false;
-    if (inboxFilter === 'waiting') return c.status === 'aguardando';
-    if (inboxFilter === 'human') return conversaComHumano(c);
-    if (inboxFilter === 'ana') return !conversaComHumano(c) && c.status !== 'resolvido';
-    return true;
-  });
-
-  const statusDaAna = responsabilidadeHumana ? 'Pausada para humano' : leadSelecionado?.modoAtendimento === 'IA' ? 'Acompanhando este lead' : 'Não atribuída';
-  const shortSyncTime = lastSyncedAt
-    ? lastSyncedAt.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
-    : '—';
-  const knowledgeEventByMessage = new Map(knowledgeEvents.map((event) => [event.messageId, event]));
-
-  return (
-    <div className="wf-page wf-page--inbox space-y-5">
-      <header className="wf-page-header lg:items-center">
-        <div>
-          <p className="wf-eyebrow">Atendimento</p>
-          <div className="mt-1 flex items-center gap-2"><h1 className="wf-page-title">Central de Atendimento</h1><InfoTooltip text="Histórico, conversa e contexto comercial do lead em um só lugar." label="Sobre Central de Atendimento" align="start" /></div>
-        </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <span
-            role="status"
-            aria-live="polite"
-            className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-semibold ${
-              conversationRealtime === 'live'
-                ? 'border-primary-200 bg-primary-50 text-primary-800'
-                : conversationRealtime === 'connecting'
-                  ? 'border-primary-200 bg-primary-50 text-primary-700'
-                  : 'border-amber-200 bg-amber-50 text-amber-800'
-            }`}
-            title={`Última sincronização: ${shortSyncTime}`}
-          >
-            <i className={conversationRealtime === 'connecting' ? 'ri-loader-4-line animate-spin' : 'ri-broadcast-line'} />
-            {realtimeCopy[conversationRealtime]}
-          </span>
-          {shortSyncTime !== '—' && <span className="hidden text-xs tabular-nums text-foreground-500 sm:inline">Atualizado às {shortSyncTime}</span>}
-          <button
-            type="button"
-            onClick={() => void refreshInbox()}
-            className="wf-btn-secondary cursor-pointer whitespace-nowrap"
-            title="Atualizar a Central agora"
-          >
-            <i className="ri-refresh-line" />
-            Atualizar
-          </button>
-        </div>
-      </header>
-
-      <div className="grid min-h-[600px] grid-cols-1 gap-3 lg:h-[calc(100vh-208px)] lg:grid-cols-[minmax(280px,0.78fr)_minmax(0,1.7fr)] xl:grid-cols-[minmax(260px,300px)_minmax(0,1fr)_minmax(300px,340px)]" aria-label="Área de atendimento">
-        {/* Lista de conversas */}
-        <div className="wf-surface flex min-h-[280px] max-h-[360px] flex-col overflow-hidden lg:max-h-none">
-          <div className="border-b border-background-200/70 bg-background-50 p-4">
-            <div className="mb-3 flex items-center justify-between gap-2">
-              <div>
-                <p className="text-sm font-bold text-foreground-900">Conversas</p>
-                <p className="text-xs text-foreground-500">{filtradas.length} na caixa atual</p>
-              </div>
-              <span className="rounded-full bg-background-100 px-2.5 py-1 text-[11px] font-semibold tabular-nums text-foreground-600">
-                {conversas.reduce((total, conversa) => total + conversa.naoLidas, 0)} novas
-              </span>
-            </div>
-            <label className="relative block">
-              <span className="sr-only">Buscar conversa</span>
-              <i className="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-foreground-400 text-sm"></i>
-              <input
-                type="text"
-                value={busca}
-                onChange={(e) => setBusca(e.target.value)}
-                placeholder="Buscar conversa..."
-                className="w-full pl-9 pr-4 py-2 bg-background-100 border border-background-200/70 rounded-lg text-sm text-foreground-800 placeholder-foreground-400 focus:outline-none focus:border-primary-400"
-              />
-            </label>
-            <div className="mt-3 flex gap-1 overflow-x-auto pb-0.5" aria-label="Filtrar conversas">
-              {inboxFilters.map((filter) => (
-                <button
-                  key={filter.id}
-                  type="button"
-                  onClick={() => setInboxFilter(filter.id)}
-                  aria-pressed={inboxFilter === filter.id}
-                  className={`whitespace-nowrap rounded-full px-2.5 py-1.5 text-[11px] font-semibold transition ${
-                    inboxFilter === filter.id
-                      ? 'bg-foreground-950 text-white'
-                      : 'bg-background-100 text-foreground-600 hover:bg-background-200'
-                  }`}
-                >
-                  {filter.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="flex-1 overflow-y-auto">
-            {filtradas.length === 0 && (
-              <div className="px-5 py-10 text-center text-sm text-foreground-500">
-                <i className="ri-chat-off-line mb-2 block text-2xl text-foreground-400" aria-hidden="true" />
-                Nenhuma conversa neste filtro.
-              </div>
-            )}
-            {filtradas.map((c) => (
-              <button
-                key={c.id}
-                onClick={() => setSelectedId(c.id)}
-                aria-current={selected.id === c.id ? 'true' : undefined}
-                className={`w-full flex items-start gap-3 border-b border-background-100 px-4 py-3.5 text-left transition-colors cursor-pointer ${
-                  selected.id === c.id ? 'border-l-[3px] border-l-primary-500 bg-primary-50/70' : 'border-l-[3px] border-l-transparent hover:bg-background-50/50'
-                }`}
-              >
-                <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-primary-100">
-                  <span className="text-sm font-bold text-primary-700">{c.contato.charAt(0)}</span>
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="break-words text-sm font-semibold leading-5 text-foreground-900">{c.contato}</p>
-                    <span className="shrink-0 whitespace-nowrap text-xs text-foreground-400">{c.hora}</span>
-                  </div>
-                  <p className="mt-1 whitespace-normal break-words text-xs leading-5 text-foreground-500">{c.ultimaMensagem}</p>
-                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                    <span className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-medium ${statusCores[c.status]}`}>
-                      {c.mensagens.length === 0 ? 'Sem mensagens' : statusLabel[c.status]}
-                    </span>
-                    <span className="text-[10px] text-foreground-400"><i className={`${c.canal === 'whatsapp' ? 'ri-whatsapp-line text-primary-600' : c.canal === 'email' ? 'ri-mail-line' : 'ri-instagram-line'} mr-1`} />{c.canal}</span>
-                    {c.canal === 'whatsapp' && c.whatsappAccountLabel && <span className="max-w-full truncate rounded-md bg-background-100 px-2 py-0.5 text-[10px] text-foreground-500" title={c.whatsappAccountLabel}><i className="ri-base-station-line mr-1" />{c.whatsappAccountLabel}</span>}
-                  </div>
-                </div>
-                {c.naoLidas > 0 && (
-                  <span className="w-5 h-5 bg-primary-500 text-background-50 rounded-full text-[10px] flex items-center justify-center flex-shrink-0">
-                    {c.naoLidas}
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Chat */}
-        <div className="wf-surface flex min-w-0 flex-col overflow-hidden">
-          <div className="flex items-center justify-between border-b border-background-200/70 bg-background-50 px-5 py-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-full bg-primary-100">
-                <span className="font-bold text-primary-700">{selected.contato.charAt(0)}</span>
-              </div>
-              <div className="min-w-0">
-                <p className="text-base font-bold text-foreground-900">{selected.contato}</p>
-                <p className="whitespace-normal break-words text-xs leading-5 text-foreground-500">
-                  <i className={selected.canal === 'whatsapp' ? 'ri-whatsapp-line mr-1 text-primary-600' : selected.canal === 'email' ? 'ri-mail-line mr-1' : 'ri-instagram-line mr-1'} />
-                  {selected.empresa} · {statusDaAna}
-                  {selected.canal === 'whatsapp' && selected.whatsappAccountLabel
-                    ? ` · via ${selected.whatsappAccountLabel}${selected.whatsappPhoneSuffix ? ` (final ${selected.whatsappPhoneSuffix})` : ''}`
-                    : ''}
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <button
-                onClick={() => openSidePanel('lead')}
-                className="w-9 h-9 flex items-center justify-center rounded-lg bg-background-100 hover:bg-background-200 text-foreground-500 cursor-pointer transition-colors lg:hidden"
-                title="Painel do lead"
-              >
-                <i className="ri-side-bar-line"></i>
-              </button>
-              <button onClick={() => openSidePanel('lead')} className="hidden items-center gap-2 rounded-lg border border-background-200 bg-background-50 px-3 py-2 text-xs font-semibold text-foreground-700 transition hover:bg-background-100 sm:inline-flex" title="Abrir dados completos do lead">
-                Painel <i className="ri-side-bar-line text-base" />
-              </button>
-              <button
-                onClick={() => setOptoutConfirmar(true)}
-                className="w-9 h-9 flex items-center justify-center rounded-lg bg-background-100 hover:bg-accent-100 text-foreground-500 hover:text-accent-700 cursor-pointer transition-colors"
-                title="Registrar opt-out"
-              >
-                <i className="ri-forbid-2-line text-base"></i>
-              </button>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap gap-2 border-b border-background-200/70 bg-background-50 px-4 py-3">
-            <span className="mr-1 inline-flex items-center text-[11px] font-semibold uppercase tracking-wide text-foreground-400">Atendimento</span>
-            {!responsabilidadeHumana ? (
-              <button onClick={() => void assumir()} disabled={handoffAction !== null} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-primary-200 bg-primary-50 px-3 text-xs font-semibold text-primary-800 transition hover:bg-primary-100 disabled:cursor-wait disabled:opacity-50">
-                <i className="ri-user-received-line text-base" />{handoffAction === 'takeover' ? 'Assumindo...' : 'Assumir'}
-              </button>
-            ) : (
-              <button onClick={() => void devolver()} disabled={handoffAction !== null} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-primary-200 bg-primary-50 px-3 text-xs font-semibold text-primary-800 transition hover:bg-primary-100 disabled:cursor-wait disabled:opacity-50">
-                <i className="ri-robot-line text-base" />{handoffAction === 'return' ? 'Devolvendo...' : 'Retomar Ana'}
-              </button>
-            )}
-            {!responsabilidadeHumana && (
-              <button onClick={() => void handoff()} disabled={handoffAction !== null} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-background-200 bg-white px-3 text-xs font-semibold text-foreground-700 transition hover:border-primary-200 hover:text-primary-700 disabled:cursor-wait disabled:opacity-50">
-                <i className="ri-arrow-left-right-line text-base" />{handoffAction === 'transfer' ? 'Transferindo...' : 'Transferir'}
-              </button>
-            )}
-          </div>
-
-          {contatoBloqueado && (
-            <div className="px-5 py-2.5 bg-accent-50 border-b border-accent-200 flex items-center gap-2 text-xs text-accent-800">
-              <i className="ri-shield-check-line"></i>
-              Contato na lista de supressão (LGPD). A Ana está bloqueada de enviar mensagens.
-            </div>
-          )}
-          {!contatoBloqueado && responsabilidadeHumana && (
-            <div className="px-5 py-2.5 bg-primary-50 border-b border-primary-200 flex items-center gap-2 text-xs text-primary-800">
-              <i className="ri-user-received-line"></i>
-              Atendimento sob responsabilidade humana. A Ana está pausada para este lead; o histórico permanece nesta Central.
-            </div>
-          )}
-
-          <div
-            ref={messagesPanelRef}
-            onScroll={(event) => {
-              const panel = event.currentTarget;
-              shouldStickToBottomRef.current = panel.scrollHeight - panel.scrollTop - panel.clientHeight < 96;
-            }}
-            className="flex-1 space-y-4 overflow-y-auto bg-[#f7f8f7] p-4 md:p-5"
-            role="log"
-            aria-live="polite"
-            aria-label={`Mensagens de ${selected.contato}`}
-          >
-            <div className="flex justify-center">
-              <span className="rounded-full bg-white/80 px-3 py-1 text-[10px] font-medium uppercase tracking-wide text-foreground-500 shadow-sm">
-                {selected.protocolo} · SLA {selected.sla}
-              </span>
-            </div>
-            {selected.mensagens.map((m) => {
-              if (m.autor === 'sistema' || m.notaInterna) {
-                return (
-                  <div key={m.id} className="flex justify-center">
-                    <div className="bg-accent-100/70 border border-accent-200 text-accent-800 text-xs px-3 py-1.5 rounded-full max-w-md text-center">
-                      {m.notaInterna && <span className="font-bold">Nota interna · </span>}
-                      {m.texto}
-                    </div>
-                  </div>
-                );
-              }
-              if (m.autor === 'vendedor') {
-                return (
-                  <div key={m.id} className="flex justify-end">
-                    <div className="max-w-[75%]">
-                      <div className="rounded-2xl rounded-br-md bg-[#d9fdd3] px-4 py-2.5 text-sm text-[#111b21] shadow-sm">
-                        {m.texto}
-                      </div>
-                      <p className="text-[10px] text-foreground-400 text-right mt-1">{m.nome} · {m.hora}{m.statusEnvio ? ` · ${deliveryLabel[m.statusEnvio]}` : ''}</p>
-                      {knowledgeEventByMessage.get(m.id)?.item && (
-                        <div className="mt-2 ml-auto flex max-w-[260px] items-center gap-2 rounded-lg border border-primary-200 bg-primary-50 px-2.5 py-2 text-left">
-                          <span className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-md bg-primary-100 text-primary-700">
-                            {knowledgeEventByMessage.get(m.id)?.item?.imageUrl ? <img src={knowledgeEventByMessage.get(m.id)?.item?.imageUrl || ''} alt="" className="h-full w-full object-cover" /> : <i className="ri-bookmark-3-line text-xs" />}
-                          </span>
-                          <span className="min-w-0"><span className="block truncate text-[11px] font-bold text-primary-900">{knowledgeEventByMessage.get(m.id)?.mediaQueued ? 'Imagem e conteúdo vinculados' : 'Conteúdo vinculado'} · {knowledgeEventByMessage.get(m.id)?.item?.name}</span><span className="block text-[10px] text-primary-700">{knowledgeEventByMessage.get(m.id)?.presentationFormat === 'technical' ? 'Formato técnico' : knowledgeEventByMessage.get(m.id)?.presentationFormat === 'commercial' ? 'Formato comercial' : 'Conteúdo rastreável'}{knowledgeEventByMessage.get(m.id)?.mediaQueued ? ' · mídia na fila' : ''}</span></span>
-                        </div>
-                      )}
-                      {(m.correlationId || m.providerMessageId || m.historicoStatus?.length) && (
-                        <details className="mt-1 text-right text-[10px] text-foreground-500">
-                          <summary className="cursor-pointer select-none">ver trilha da mensagem</summary>
-                          <div className="mt-1 rounded-lg border border-background-200 bg-white p-2 text-left leading-relaxed">
-                            <p>Direção: enviada · Canal: {selected.canal}</p>
-                            <p>ID interno: {m.id}</p>
-                            <p>Correlation ID: {m.correlationId || 'não informado'}</p>
-                            <p>ID do provedor: {m.providerMessageId || 'não informado'}</p>
-                            <p>Tentativas: {m.tentativas ?? 0}</p>
-                            {m.historicoStatus?.map((item, index) => <p key={`${item.label}-${index}`}>{item.label}: {formatTraceDate(item.at)}</p>)}
-                            {m.erroTecnico && <p>Detalhe técnico: {m.erroTecnico.slice(0, 120)}</p>}
-                          </div>
-                        </details>
-                      )}
-                    </div>
-                  </div>
-                );
-              }
-              const isAna = m.autor === 'ana';
-              return (
-                <div key={m.id} className="flex justify-start">
-                  <div className="flex gap-2.5 max-w-[75%]">
-                    <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5 ${isAna ? 'bg-secondary-500 text-background-50' : 'bg-background-200 text-foreground-600'}`}>
-                      {isAna ? <i className="ri-robot-line text-xs"></i> : <span className="text-xs font-bold">{m.nome.charAt(0)}</span>}
-                    </div>
-                    <div>
-                      <div className={`rounded-2xl rounded-bl-md px-4 py-2.5 text-sm shadow-sm ${isAna ? 'bg-primary-100 text-primary-950' : 'bg-white text-foreground-800'}`}>
-                        {m.texto}
-                      </div>
-                      <p className="text-[10px] text-foreground-400 mt-1">{m.nome} · {m.hora}{m.statusEnvio ? ` · ${deliveryLabel[m.statusEnvio]}` : ''}</p>
-                      {(m.correlationId || m.providerMessageId || m.historicoStatus?.length) && (
-                        <details className="mt-1 text-[10px] text-foreground-400">
-                          <summary className="cursor-pointer select-none">ver trilha da mensagem</summary>
-                          <div className="mt-1 rounded-lg border border-background-200 bg-white p-2 leading-relaxed">
-                            <p>Direção: {m.autor === 'cliente' ? 'recebida' : 'enviada'} · Canal: {selected.canal}</p>
-                            <p>ID interno: {m.id}</p>
-                            <p>Correlation ID: {m.correlationId || 'não informado'}</p>
-                            <p>ID do provedor: {m.providerMessageId || 'não informado'}</p>
-                            <p>Tentativas: {m.tentativas ?? 0}</p>
-                            {m.historicoStatus?.map((item, index) => <p key={`${item.label}-${index}`}>{item.label}: {formatTraceDate(item.at)}</p>)}
-                            {m.erroTecnico && <p>Detalhe técnico: {m.erroTecnico.slice(0, 120)}</p>}
-                          </div>
-                        </details>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          <div className="border-t border-background-200/70 bg-background-50 px-4 py-3">
-            {notaInterna && (
-              <div className="mb-2 inline-flex items-center gap-2 bg-accent-100 text-accent-800 text-xs px-3 py-1.5 rounded-full">
-                <i className="ri-lock-line"></i>
-                Modo nota interna ativado
-                <button onClick={() => setNotaInterna(false)} className="cursor-pointer hover:text-accent-600">
-                  <i className="ri-close-line"></i>
-                </button>
-              </div>
-            )}
-            {preparedKnowledge && !notaInterna && (
-              <div className="mb-2 flex items-center justify-between gap-2 rounded-lg border border-primary-200 bg-primary-50 px-3 py-2 text-xs text-primary-900">
-                <span className="min-w-0 whitespace-normal break-words"><i className="ri-bookmark-3-line mr-1.5" />Conteúdo preparado: <strong>{preparedKnowledge.item.name}</strong> · {preparedKnowledge.format === 'technical' ? 'técnico' : preparedKnowledge.format === 'commercial' ? 'comercial' : 'rápido'}</span>
-                <button type="button" onClick={() => setPreparedKnowledge(null)} className="shrink-0 text-primary-700 hover:text-primary-900" title="Remover vínculo do conteúdo"><i className="ri-close-line text-base" /></button>
-              </div>
-            )}
-            {preparedProposal && !notaInterna && (
-              <div className="mb-2 flex items-center justify-between gap-2 rounded-lg border border-secondary-200 bg-secondary-50 px-3 py-2 text-xs text-secondary-900">
-                <span className="min-w-0 whitespace-normal break-words"><i className="ri-file-list-3-line mr-1.5" />Proposta vinculada: <strong>{preparedProposal.number}</strong> · será marcada como enviada somente após aceite do canal.</span>
-                <button type="button" onClick={() => setPreparedProposal(null)} className="shrink-0 text-secondary-700 hover:text-secondary-900" title="Remover vínculo da proposta"><i className="ri-close-line text-base" /></button>
-              </div>
-            )}
-            {!notaInterna && (
-              <div className="mb-2 flex items-center gap-1.5 overflow-x-auto pb-0.5">
-                <span className="shrink-0 text-[11px] font-semibold text-foreground-500">Atalhos:</span>
-                {respostasRapidas.slice(0, 3).map((resposta) => (
-                  <button
-                    key={resposta}
-                    type="button"
-                    onClick={() => setTexto(resposta)}
-                    className="shrink-0 rounded-full border border-background-200 bg-background-50 px-2.5 py-1 text-[11px] font-medium text-foreground-600 transition hover:border-primary-200 hover:text-primary-700"
-                    title="Inserir no campo de mensagem para revisar antes de enviar"
-                  >
-                    {resposta.length > 28 ? `${resposta.slice(0, 28)}…` : resposta}
-                  </button>
-                ))}
-              </div>
-            )}
-            <form className="flex items-end gap-2" onSubmit={(event) => { event.preventDefault(); void enviar(); }}>
-              <button
-                type="button"
-                onClick={() => setNotaInterna(!notaInterna)}
-                className={`w-10 h-10 flex items-center justify-center rounded-lg cursor-pointer transition-colors ${notaInterna ? 'bg-accent-500 text-background-50' : 'bg-background-100 text-foreground-500 hover:bg-background-200'}`}
-                title="Nota interna"
-              >
-                <i className="ri-lock-line text-base"></i>
-              </button>
-              {!notaInterna && (
-                <button
-                  type="button"
-                  onClick={() => openSidePanel('knowledge')}
-                  className="inline-flex h-10 items-center gap-1.5 rounded-lg bg-background-100 px-2.5 text-xs font-semibold text-foreground-600 transition hover:bg-primary-100 hover:text-primary-800"
-                  title="Buscar produtos, serviços e catálogos"
-                >
-                  <i className="ri-book-open-line text-base" />
-                  <span className="hidden sm:inline">Conhecimento</span>
-                </button>
-              )}
-              <div className="relative flex-1">
-                <textarea
-                  value={texto}
-                  onChange={(e) => {
-                    setTexto(e.target.value);
-                    if (preparedKnowledge && e.target.value !== preparedKnowledge.text) setPreparedKnowledge(null);
-                    if (preparedProposal && e.target.value !== preparedProposal.text) setPreparedProposal(null);
-                  }}
-                  placeholder={notaInterna ? 'Digite uma nota interna...' : 'Digite uma mensagem para a fila segura...'}
-                  rows={1}
-                  className="max-h-28 min-h-10 w-full resize-y rounded-xl border border-background-200/70 bg-background-50 px-4 py-2.5 text-sm text-foreground-800 placeholder-foreground-400 focus:border-primary-400 focus:outline-none"
-                />
-              </div>
-              <button
-                type="submit"
-                disabled={enviando || !texto.trim() || (!notaInterna && !externalDispatchReady)}
-                className="w-10 h-10 bg-primary-500 hover:bg-primary-600 disabled:bg-primary-300 text-background-50 rounded-lg flex items-center justify-center cursor-pointer disabled:cursor-wait transition-colors"
-                title={enviando ? 'Registrando mensagem...' : !texto.trim() ? 'Digite uma mensagem para enviar' : notaInterna ? 'Registrar nota interna' : !externalDispatchReady ? 'Disponível somente para conversa WhatsApp com contato validado' : 'Enviar mensagem'}
-              >
-                <i className={enviando ? 'ri-loader-4-line animate-spin text-base' : 'ri-send-plane-fill text-base'}></i>
-              </button>
-            </form>
-            {messageFeedback && <p role={messageFeedback.tone === 'error' ? 'alert' : 'status'} aria-live="polite" className={`mt-2 rounded-lg px-3 py-2 text-xs leading-5 ${messageFeedback.tone === 'success' ? 'bg-primary-50 text-primary-900' : messageFeedback.tone === 'warning' ? 'bg-accent-50 text-accent-800' : 'bg-accent-100 text-accent-800'}`}><i className={`${messageFeedback.tone === 'success' ? 'ri-checkbox-circle-line' : messageFeedback.tone === 'warning' ? 'ri-time-line' : 'ri-error-warning-line'} mr-1.5`} />{messageFeedback.text}</p>}
-            {erroIA && <p className="mt-1.5 text-xs text-foreground-500">{erroIA}</p>}
-          </div>
-        </div>
-
-        <aside className="hidden min-h-0 xl:flex">
-          <section className="wf-surface flex min-h-0 flex-1 flex-col overflow-hidden">
-            <nav className="flex shrink-0 gap-1 overflow-x-auto border-b border-background-200/70 bg-background-50 p-2" aria-label="Painel comercial">
-              {sidePanelTabs.map((tab) => (
-                <button
-                  key={tab.id}
-                  type="button"
-                  onClick={() => setSidePanelTab(tab.id)}
-                  aria-selected={sidePanelTab === tab.id}
-                  className={`inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-2 text-[11px] font-semibold transition ${sidePanelTab === tab.id ? 'bg-primary-500 text-background-50 shadow-sm' : 'text-foreground-500 hover:bg-background-100 hover:text-foreground-800'}`}
-                >
-                  <i className={tab.icon} />{tab.label}
-                </button>
-              ))}
-            </nav>
-            <div className="min-h-0 flex-1 overflow-y-auto p-4">
-              {(sidePanelTab === 'lead' || sidePanelTab === 'history') && <div className="space-y-4">
-                <div className="flex items-start gap-3">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary-100 text-sm font-bold text-primary-700">{(leadSelecionado?.nome || selected.contato).charAt(0)}</div>
-                  <div className="min-w-0"><p className="break-words text-base font-bold leading-5 text-foreground-900">{leadSelecionado?.nome || selected.contato}</p><p className="mt-1 whitespace-normal break-words text-xs leading-5 text-foreground-500">{leadSelecionado?.empresa || selected.empresa}</p></div>
-                </div>
-                <dl className="grid grid-cols-2 gap-x-3 gap-y-3 border-y border-background-100 py-3 text-xs">
-                  <div><dt className="text-foreground-500">Etapa</dt><dd className="mt-0.5 font-semibold text-foreground-800">{leadSelecionado?.etapa || selected.fila}</dd></div>
-                  <div><dt className="text-foreground-500">Responsável</dt><dd className="mt-0.5 font-semibold text-foreground-800">{responsabilidadeHumana ? leadSelecionado?.responsavel || 'Atendimento humano' : 'Ana (IA)'}</dd></div>
-                  <div><dt className="text-foreground-500">Canal</dt><dd className="mt-0.5 font-semibold capitalize text-foreground-800">{selected.canal}</dd></div>
-                  <div><dt className="text-foreground-500">Contato</dt><dd className="mt-0.5 break-words font-semibold leading-5 text-foreground-800" title={contactForChannel || undefined}>{contactForChannel || 'Não informado'}</dd></div>
-                </dl>
-                <div className="rounded-lg border border-primary-100 bg-primary-50 px-3 py-3"><div className="flex items-start gap-2.5"><i className="ri-robot-line mt-0.5 text-primary-700" /><div><p className="text-xs font-bold text-primary-900">Ana</p><p className="mt-0.5 text-xs leading-5 text-primary-800">{statusDaAna}</p></div></div></div>
-                <QualificationDossier leadId={leadSelecionado?.id} compact />
-                <button type="button" onClick={() => leadSelecionado && navigate(`/dashboard/kanban?leadId=${encodeURIComponent(leadSelecionado.id)}`)} disabled={!leadSelecionado} className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-background-200 bg-background-50 px-3 py-2.5 text-xs font-semibold text-foreground-700 transition hover:border-primary-200 hover:text-primary-700 disabled:cursor-not-allowed disabled:opacity-50"><i className="ri-layout-column-line" />Ver no Kanban</button>
-              </div>}
-              {sidePanelTab === 'knowledge' && <ConversationKnowledgePanel context={selected.mensagens.slice().reverse().find((message) => message.autor === 'cliente')?.texto || ''} onPrepare={prepareKnowledge} />}
-              {sidePanelTab === 'quotes' && <div className="space-y-3"><div className="flex items-start justify-between gap-3"><div><p className="text-sm font-bold text-foreground-900">Orçamentos</p><p className="mt-1 text-xs leading-5 text-foreground-500">{propostasDoLead.length} vínculo(s) deste lead.</p></div><button type="button" onClick={() => setOrcamentoModal(true)} className="shrink-0 text-xs font-semibold text-primary-700 hover:text-primary-800">Abrir</button></div><button type="button" onClick={() => setOrcamentoModal(true)} disabled={!leadSelecionado} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary-500 px-3 py-2.5 text-xs font-semibold text-background-50 transition hover:bg-primary-600 disabled:cursor-not-allowed disabled:bg-primary-300"><i className="ri-file-add-line" />Criar orçamento</button>{propostasDoLead.length === 0 ? <p className="rounded-lg border border-dashed border-background-300 px-3 py-4 text-xs leading-5 text-foreground-500">Nenhuma proposta vinculada a este lead.</p> : <div className="space-y-2">{propostasDoLead.slice(0, 3).map((proposta) => <button key={proposta.id} type="button" onClick={() => setOrcamentoModal(true)} className="w-full rounded-lg border border-background-100 bg-background-50 px-3 py-2.5 text-left transition hover:border-primary-200"><p className="text-xs font-semibold text-foreground-800">{proposta.numero}</p><p className="mt-0.5 text-[11px] text-foreground-500">{proposta.status === 'rascunho' ? 'Rascunho' : proposta.status}</p></button>)}</div>}</div>}
-              {sidePanelTab === 'agenda' && <div className="space-y-3"><div className="flex h-11 w-11 items-center justify-center rounded-lg bg-primary-100 text-primary-700"><i className="ri-calendar-event-line text-xl" /></div><div><p className="text-sm font-bold text-foreground-900">Agenda do lead</p><p className="mt-1 text-xs leading-5 text-foreground-500">Consulte a disponibilidade ou crie um compromisso mantendo este lead vinculado.</p></div><button type="button" onClick={() => leadSelecionado && navigate(`/dashboard/agenda?leadId=${encodeURIComponent(leadSelecionado.id)}&new=1`)} disabled={!leadSelecionado} className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-primary-500 px-3 py-2.5 text-xs font-semibold text-background-50 transition hover:bg-primary-600 disabled:cursor-not-allowed disabled:bg-primary-300"><i className="ri-calendar-event-line" />Agendar reunião</button><button type="button" onClick={() => leadSelecionado && navigate(`/dashboard/agenda?leadId=${encodeURIComponent(leadSelecionado.id)}`)} disabled={!leadSelecionado} className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-background-200 bg-background-50 px-3 py-2.5 text-xs font-semibold text-foreground-700 transition hover:border-primary-200 hover:text-primary-700 disabled:cursor-not-allowed disabled:opacity-50"><i className="ri-calendar-line" />Abrir agenda</button></div>}
-            </div>
-          </section>
-        </aside>
-      </div>
-
-      {transferOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground-950/50 p-4" onClick={() => setTransferOpen(false)}>
-          <section className="w-full max-w-md rounded-xl bg-background-50 shadow-xl" onClick={(event) => event.stopPropagation()} aria-labelledby="transfer-title">
-            <header className="flex items-center justify-between border-b border-background-200/70 px-5 py-4">
-              <div><h3 id="transfer-title" className="font-heading font-bold text-foreground-950">Transferir atendimento</h3><p className="mt-0.5 text-xs text-foreground-500">A Ana será pausada e o histórico permanecerá vinculado ao lead.</p></div>
-              <button type="button" onClick={() => setTransferOpen(false)} className="rounded-lg p-2 text-foreground-500 hover:bg-background-100" aria-label="Fechar transferência"><i className="ri-close-line" /></button>
-            </header>
-            <div className="space-y-3 p-5">
-              <label className="block text-sm font-semibold text-foreground-800">Responsável que receberá<select value={transferTargetId} onChange={(event) => setTransferTargetId(event.target.value)} className="mt-1.5 w-full rounded-lg border border-background-300 bg-background-50 px-3 py-2.5 text-sm text-foreground-900"><option value="">Selecione um responsável ativo</option>{teamMembers.map((member) => <option key={member.userId} value={member.userId}>{member.name} · {member.role}</option>)}</select></label>
-              {teamError && <p role="alert" className="text-xs text-accent-700"><i className="ri-error-warning-line mr-1" />{teamError}</p>}
-            </div>
-            <footer className="flex justify-end gap-2 border-t border-background-200/70 px-5 py-4"><button type="button" onClick={() => setTransferOpen(false)} className="wf-btn-secondary">Cancelar</button><button type="button" disabled={!transferTargetId || handoffAction !== null} onClick={() => void confirmarTransferencia()} className="wf-btn-primary disabled:cursor-not-allowed disabled:opacity-50">{handoffAction === 'transfer' ? 'Transferindo…' : 'Confirmar transferência'}</button></footer>
-          </section>
-        </div>
-      )}
-
-      {optoutConfirmar && (
-        <div className="fixed inset-0 z-50 bg-foreground-950/50 flex items-center justify-center p-4" onClick={() => setOptoutConfirmar(false)}>
-          <div className="bg-background-50 rounded-xl max-w-md w-full" onClick={(e) => e.stopPropagation()}>
-            <div className="px-6 py-4 border-b border-background-200/70 flex items-center justify-between">
-              <h3 className="font-heading font-bold text-foreground-950">Bloquear contato (opt-out)</h3>
-              <button onClick={() => setOptoutConfirmar(false)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-background-100 cursor-pointer">
-                <i className="ri-close-line text-lg"></i>
-              </button>
-            </div>
-            <div className="p-6">
-              <div className="flex items-start gap-3 mb-4">
-                <div className="w-10 h-10 rounded-full bg-accent-100 flex items-center justify-center flex-shrink-0">
-                  <i className="ri-alarm-warning-line text-accent-600 text-lg"></i>
-                </div>
-                <p className="text-sm text-foreground-700">
-                  Você está prestes a bloquear <b>{selected.contato}</b>. Esta ação é <b>irreversível</b>: o contato será adicionado à lista de supressão (LGPD) e a Ana não poderá mais enviar mensagens.
-                </p>
-              </div>
-            </div>
-            <div className="px-6 py-4 border-t border-background-200/70 flex justify-end gap-2">
-              <button onClick={() => setOptoutConfirmar(false)} className="px-4 py-2.5 border border-background-300 text-foreground-700 rounded-lg text-sm font-semibold hover:bg-background-100 cursor-pointer whitespace-nowrap">Cancelar</button>
-              <button
-                onClick={() => { setOptoutConfirmar(false); void registrarOptout(); }}
-                className="px-5 py-2.5 bg-accent-500 hover:bg-accent-600 text-background-50 rounded-lg text-sm font-bold cursor-pointer whitespace-nowrap"
-              >
-                Confirmar bloqueio
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {orcamentoModal && (
-        <div className="fixed inset-0 z-50 bg-foreground-950/50 flex items-center justify-center p-4" onClick={() => setOrcamentoModal(false)}>
-          <div className="bg-background-50 rounded-xl max-w-lg w-full max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="px-6 py-4 border-b border-background-200/70 flex items-center justify-between sticky top-0 bg-background-50 z-10">
-              <div>
-                <h3 className="font-heading font-bold text-foreground-950">Preparar orçamento no chat</h3>
-                <p className="text-sm text-foreground-500">{leadSelecionado?.nome || selected?.contato} · {selected?.empresa}</p>
-              </div>
-              <button onClick={() => setOrcamentoModal(false)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-background-100 cursor-pointer">
-                <i className="ri-close-line text-lg"></i>
-              </button>
-            </div>
-            <div className="p-6 space-y-3">
-              {propostasDoLead.length === 0 ? (
-                <div className="text-center py-10 text-foreground-400 text-sm">
-                  <i className="ri-file-list-3-line text-3xl mb-3 block"></i>
-                  Nenhum orçamento para este lead ainda.
-                  <p className="mt-2 text-xs">Crie uma proposta e volte aqui para revisá-la antes de enviar pela fila segura.</p>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setOrcamentoModal(false);
-                      if (leadSelecionado) navigate(`/dashboard/orcamentos?leadId=${encodeURIComponent(leadSelecionado.id)}&new=1`);
-                    }}
-                    disabled={!leadSelecionado}
-                    className="mt-4 inline-flex items-center gap-2 rounded-lg bg-primary-500 px-4 py-2 text-xs font-semibold text-background-50 transition hover:bg-primary-600 disabled:cursor-not-allowed disabled:bg-primary-300"
-                  >
-                    <i className="ri-file-add-line" />
-                    Criar proposta
-                  </button>
-                </div>
-              ) : (
-                propostasDoLead.map((p) => {
-                  const total = p.valor * (1 - (p.descontoPct || 0) / 100);
-                  return (
-                    <div key={p.id} className="border border-background-200/70 rounded-lg p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="font-semibold text-foreground-900 text-sm">{p.numero}</p>
-                          <p className="text-xs text-foreground-500 mt-0.5">
-                            {p.itens.length} item(ns) · validade {new Date(p.validade + 'T00:00:00').toLocaleDateString('pt-BR')}
-                          </p>
-                        </div>
-                        <div className="text-right flex-shrink-0">
-                          <p className="font-bold text-foreground-900 text-sm">{total.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
-                          <span className={`inline-block mt-1 px-2 py-0.5 rounded-md text-[10px] font-medium ${p.status === 'enviada' || p.status === 'visualizada' || p.status === 'aceita' ? 'bg-primary-100 text-primary-700' : p.status === 'aguardando_aprovacao' ? 'bg-accent-100 text-accent-700' : 'bg-background-200 text-foreground-600'}`}>
-                            {p.status === 'rascunho' ? 'Rascunho' : p.status === 'enviada' ? 'Enviada' : p.status === 'visualizada' ? 'Visualizada' : p.status === 'aceita' ? 'Aceita' : p.status === 'aguardando_aprovacao' ? 'Aguardando aprovação' : p.status}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="mt-3 flex items-center justify-end gap-2">
-                        {p.status === 'aguardando_aprovacao' && (
-                          <span className="text-xs text-accent-700 flex items-center gap-1">
-                            <i className="ri-shield-check-line"></i> Aprove o desconto para enviar
-                          </span>
-                        )}
-                        {p.status !== 'aguardando_aprovacao' && p.status !== 'aceita' && (
-                          <button
-                            onClick={() => prepararOrcamento(p)}
-                            className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary-500 hover:bg-primary-600 text-background-50 rounded-lg text-xs font-semibold cursor-pointer whitespace-nowrap"
-                          >
-                            <i className="ri-send-plane-2-line"></i>
-                            Preparar no chat
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-            <div className="px-6 py-4 border-t border-background-200/70 flex justify-end">
-              <button onClick={() => setOrcamentoModal(false)} className="px-4 py-2.5 border border-background-300 text-foreground-700 rounded-lg text-sm font-semibold hover:bg-background-100 cursor-pointer whitespace-nowrap">Fechar</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {drawerOpen && (
-        <ConversaDrawer
-          conversa={selected}
-          lead={leadSelecionado}
-          activeTab={sidePanelTab}
-          quoteCount={propostasDoLead.length}
-          anaStatus={statusDaAna}
-          knowledgePanel={<ConversationKnowledgePanel context={selected.mensagens.slice().reverse().find((message) => message.autor === 'cliente')?.texto || ''} onPrepare={(content) => { prepareKnowledge(content); setDrawerOpen(false); }} />}
-          onClose={() => setDrawerOpen(false)}
-          onTabChange={setSidePanelTab}
-          onOpenQuotes={() => { setDrawerOpen(false); setOrcamentoModal(true); }}
-          onOpenAgenda={(create) => leadSelecionado && navigate(`/dashboard/agenda?leadId=${encodeURIComponent(leadSelecionado.id)}${create ? '&new=1' : ''}`)}
-          onOpenKanban={() => leadSelecionado && navigate(`/dashboard/kanban?leadId=${encodeURIComponent(leadSelecionado.id)}`)}
-        />
-      )}
+  const saveTask = async () => {
+    if (!conversation || !taskText.trim()) { setFeedback({ tone: 'error', text: 'Informe a próxima ação.' }); return; }
+    try { setAction('task'); criarTarefa({ titulo: taskText.trim(), leadId: conversation.leadId, leadNome: conversation.contact, responsavel: conversation.ownerName || 'Você', responsavelId: conversation.ownerId ?? undefined, prioridade: 'MEDIA', dataLimite: taskDate || undefined }); await waitForTarefasPersistence(); setTaskOpen(false); setTaskText(''); setTaskDate(''); setFeedback({ tone: 'success', text: 'Próxima ação salva na carteira do lead.' }); await Promise.all([loadInbox(false), refreshSelected()]); }
+    catch (error) { setFeedback({ tone: 'error', text: error instanceof Error ? error.message : 'A tarefa não foi salva.' }); }
+    finally { setAction(null); }
+  };
+  const loadOlder = async () => {
+    if (!detail?.hasMoreMessages || olderLoading || !detail.messages[0]) return;
+    try { setOlderLoading(true); const older = await loadCentralConversationDetail(detail.conversation.leadId, detail.messages[0].messageAt); if (older) setDetail((current) => current ? { ...current, messages: [...older.messages, ...current.messages.filter((message) => !older.messages.some((known) => known.id === message.id))], hasMoreMessages: older.hasMoreMessages } : current); }
+    catch (error) { setFeedback({ tone: 'error', text: error instanceof Error ? error.message : 'Não foi possível carregar mensagens anteriores.' }); }
+    finally { setOlderLoading(false); }
+  };
+  const prepareProposal = (proposal: Proposta) => {
+    if (!composerEnabled) { setFeedback({ tone: 'warning', text: 'Assuma o atendimento antes de preparar uma proposta.' }); return; }
+    if (hasUnconfirmedPrices(proposal) || proposal.bloqueadaEnvio || proposal.status === 'aguardando_aprovacao' || proposal.status !== 'rascunho') { setFeedback({ tone: 'error', text: 'Esta proposta ainda não está liberada para envio.' }); return; }
+    setPreparedProposal(proposal); setPreparedKnowledge(null); setInternalNote(false); setMessageText([`Segue o orçamento ${proposal.numero}:`, ...proposal.itens.map((item) => `• ${item.nome} (${item.quantidade}x) — ${item.preco.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`), `Total: ${proposalNet(proposal).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`].join('\n')); setFeedback({ tone: 'success', text: `Orçamento ${proposal.numero} preparado para revisão.` });
+  };
+  const latestInbound = useMemo(() => detail?.messages.slice().reverse().find((message) => ['lead', 'contact', 'cliente'].includes(message.sender.toLowerCase()))?.text ?? '', [detail]);
+  const proposals = useMemo(() => conversation ? propostas.filter((proposal) => proposal.leadId === conversation.leadId) : [], [conversation, propostas]);
+  return <div className="wf-page wf-page--inbox space-y-5">
+    <header className="wf-page-header lg:items-center"><div><p className="wf-eyebrow">ATENDIMENTO</p><div className="mt-1 flex items-center gap-2"><h1 className="wf-page-title">Central de Atendimento</h1><span title="Conversa, qualificação e próximo passo do lead." className="text-foreground-400"><i className="ri-information-line" /></span></div><p className="mt-1 text-sm text-foreground-600">Atenda conversas, qualifique leads e acompanhe cada próximo passo.</p></div><div className="flex items-center gap-2" aria-live="polite"><span className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-semibold ${realtime === 'live' ? 'border-primary-200 bg-primary-50 text-primary-800' : realtime === 'connecting' ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-accent-200 bg-accent-50 text-accent-800'}`}><i className={realtime === 'connecting' ? 'ri-loader-4-line animate-spin' : realtime === 'live' ? 'ri-broadcast-line' : 'ri-wifi-off-line'} />{realtime === 'live' ? 'Sincronizado agora' : realtime === 'connecting' ? 'Reconectando' : 'Sem conexão'}</span>{realtime !== 'live' && <button type="button" onClick={() => { void loadInbox(false); void refreshSelected(); }} className="wf-btn-secondary"><i className="ri-refresh-line" />Tentar novamente</button>}</div></header>
+    <div className="grid min-h-[640px] grid-cols-1 overflow-hidden rounded-2xl border border-background-200 bg-background-50 shadow-sm lg:h-[calc(100vh-210px)] lg:grid-cols-[320px_minmax(0,1fr)] xl:grid-cols-[320px_minmax(0,1fr)_390px]">
+      <section className={`${mobilePanel === 'list' ? 'flex' : 'hidden'} min-h-[560px] flex-col border-r border-background-200 lg:flex`} aria-label="Lista de conversas"><div className="border-b border-background-200 p-4"><div className="flex items-center justify-between"><div className="flex items-center gap-2"><h2 className="text-base font-bold text-foreground-950">Conversas</h2><span className="rounded-full bg-background-100 px-2 py-0.5 text-xs font-semibold">{total}</span></div><button type="button" onClick={() => setAdvancedOpen((value) => !value)} className="rounded-lg border border-background-200 p-2 text-foreground-600 hover:border-primary-200" aria-label="Filtros avançados"><i className="ri-equalizer-2-line" /></button></div><label className="relative mt-3 block"><span className="sr-only">Buscar contato, empresa ou telefone</span><i className="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-foreground-400" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Buscar contato, empresa ou telefone" className="w-full rounded-lg border border-background-200 bg-background-100 py-2.5 pl-9 pr-3 text-xs text-foreground-900" /></label><nav className="mt-3 flex gap-1 overflow-x-auto" aria-label="Filtros rápidos">{([['all', 'Todas'], ['unread', 'Não lidas'], ['waiting', 'Aguardando'], ['mine', 'Minhas']] as const).map(([value, label]) => <button key={value} type="button" onClick={() => patchFilters({ view: value })} className={`shrink-0 rounded-full px-2.5 py-1.5 text-[11px] font-semibold ${filters.view === value ? 'bg-foreground-950 text-background-50' : 'bg-background-100 text-foreground-600'}`}>{label} <span className="opacity-75">{quickCounts[value]}</span></button>)}</nav>{advancedOpen && <AdvancedFilters filters={filters} members={teamMembers} onChange={patchFilters} onClear={() => { setFilters({ view: 'all', situation: 'all', channel: 'all', mode: 'all' }); setUrl({ view: null, situation: null, channel: null, mode: null, owner: null, stage: null, sla: null, from: null, to: null }); }} />}</div><div className="flex-1 overflow-y-auto" aria-busy={listLoading}>{listError && <div role="alert" className="m-3 rounded-lg bg-accent-50 p-3 text-xs text-accent-800">{listError}</div>}{listLoading && !items.length ? <InboxSkeleton /> : !items.length ? <EmptyInbox query={debouncedQuery} /> : items.map((item) => <ConversationItem key={item.leadId} item={item} selected={selectedId === item.leadId} onClick={() => choose(item.leadId)} />)}{hasMore && <div className="p-3"><button type="button" onClick={() => void loadInbox(true)} disabled={listLoading} className="wf-btn-secondary w-full justify-center">{listLoading ? 'Carregando…' : 'Carregar mais conversas'}</button></div>}</div></section>
+      <main className={`${mobilePanel === 'conversation' ? 'flex' : 'hidden'} min-h-[620px] flex-col border-r border-background-200 lg:flex`} aria-label="Conversa ativa">{!selectedId && <EmptyConversation onBack={() => setMobilePanel('list')} />}{selectedId && detailLoading && !detail && <div className="flex flex-1 items-center justify-center text-sm text-foreground-500"><i className="ri-loader-4-line mr-2 animate-spin" />Carregando conversa…</div>}{selectedId && detailError && !detail && <div className="m-4 rounded-xl border border-accent-200 bg-accent-50 p-4 text-sm text-accent-900">{detailError}<button type="button" onClick={() => void refreshSelected()} className="mt-3 wf-btn-secondary">Tentar novamente</button></div>}{conversation && <><ConversationHeader conversation={conversation} busy={action === 'takeover' || action === 'transfer'} onBack={() => setMobilePanel('list')} onContext={() => setMobilePanel('context')} onAssume={assume} onTransfer={() => { setTransferOpen(true); setMoreOpen(false); }} onMore={() => setMoreOpen((value) => !value)} />{moreOpen && <ConversationMenu human={humanOwns} blocked={conversation.blocked} onBlock={() => { setBlockOpen(true); setMoreOpen(false); }} onReturn={() => void runHandoff('return', () => returnConversationToAna(conversation.leadId))} onUnread={async () => { try { const marked = await markCentralConversationUnread(conversation.leadId); setFeedback({ tone: marked ? 'success' : 'warning', text: marked ? 'Conversa marcada como não lida.' : 'Não há mensagem recebida para marcar.' }); await loadInbox(false); } catch { setFeedback({ tone: 'error', text: 'Não foi possível atualizar o estado de leitura.' }); } setMoreOpen(false); }} onCopy={async () => { try { await navigator.clipboard.writeText(conversation.protocol); setFeedback({ tone: 'success', text: 'Protocolo copiado.' }); } catch { setFeedback({ tone: 'warning', text: 'Não foi possível copiar o protocolo.' }); } setMoreOpen(false); }} />}<div className="flex flex-wrap gap-2 border-b border-background-200 px-4 py-2.5 text-xs"><span className="rounded-md bg-background-100 px-2.5 py-1 font-semibold">{conversation.protocol}</span><span className="rounded-md bg-primary-50 px-2.5 py-1 font-semibold text-primary-800"><i className="ri-route-line mr-1" />{conversation.stageLabel}</span><span className={`rounded-md px-2.5 py-1 ${conversation.slaDueAt && new Date(conversation.slaDueAt).getTime() < Date.now() ? 'bg-accent-50 text-accent-800' : 'bg-background-100 text-foreground-600'}`}><i className="ri-time-line mr-1" />{conversation.slaDueAt ? `SLA ${atDateTime(conversation.slaDueAt)}` : 'Sem SLA configurado'}</span></div><div ref={messagesRef} onScroll={(event) => { const node = event.currentTarget; stickBottom.current = node.scrollHeight - node.scrollTop - node.clientHeight < 64; }} className="flex-1 overflow-y-auto bg-background-100/35 px-4 py-5">{detail?.hasMoreMessages && <div className="mb-5 text-center"><button type="button" onClick={() => void loadOlder()} disabled={olderLoading} className="rounded-full border border-background-300 bg-background-50 px-3 py-1.5 text-xs font-semibold">{olderLoading ? 'Carregando…' : 'Carregar mensagens anteriores'}</button></div>}<div className="space-y-4">{detail?.messages.length ? detail.messages.map((message) => <MessageBubble key={message.id} message={message} open={messageDetails === message.id} onDetails={() => setMessageDetails((current) => current === message.id ? null : message.id)} />) : <div className="py-14 text-center text-sm text-foreground-500"><i className="ri-chat-1-line mb-2 block text-2xl" />Ainda não há mensagens registradas.</div>}</div></div><Composer enabled={composerEnabled} blocked={conversation.blocked} mode={conversation.mode} text={messageText} internal={internalNote} pending={action === 'send'} feedback={feedback} prepared={preparedKnowledge?.item.name ?? preparedProposal?.numero ?? null} onText={setMessageText} onInternal={setInternalNote} onQuick={(text) => { if (!composerEnabled) { setFeedback({ tone: 'warning', text: 'Assuma o atendimento para responder manualmente.' }); return; } setInternalNote(false); setMessageText(text); }} onSend={() => void send()} /></>}</main>
+      <aside className={`${mobilePanel === 'context' ? 'flex' : 'hidden'} min-h-[620px] flex-col bg-background-50 xl:flex`} aria-label="Contexto do lead">{conversation ? <ContextPanel detail={detail!} activeTab={sideTab} onTab={setSideTab} onBack={() => setMobilePanel('conversation')} onOpenLead={() => navigate(`/dashboard/leads?leadId=${encodeURIComponent(conversation.leadId)}`)} onOpenKanban={() => navigate(`/dashboard/kanban?leadId=${encodeURIComponent(conversation.leadId)}`)} onTask={() => setTaskOpen(true)} onAgenda={() => navigate(`/dashboard/agenda?leadId=${encodeURIComponent(conversation.leadId)}&new=1`)} onKnowledge={prepareKnowledge} knowledgeContext={latestInbound} proposals={proposals} onProposal={prepareProposal} onBudget={() => navigate(`/dashboard/orcamentos?leadId=${encodeURIComponent(conversation.leadId)}&new=1`)} /> : <div className="p-5 text-sm text-foreground-500">Selecione uma conversa para ver o contexto.</div>}</aside>
     </div>
-  );
+    {transferOpen && <TransferDialog members={teamMembers} selected={transferTargetId} reason={transferReason} error={teamError} busy={action === 'transfer'} onSelected={setTransferTargetId} onReason={setTransferReason} onClose={() => setTransferOpen(false)} onConfirm={confirmTransfer} />}{blockOpen && <BlockDialog name={conversation?.contact ?? 'este contato'} busy={action === 'block'} onClose={() => setBlockOpen(false)} onConfirm={() => void confirmBlock()} />}{taskOpen && <TaskDialog text={taskText} date={taskDate} busy={action === 'task'} onText={setTaskText} onDate={setTaskDate} onClose={() => setTaskOpen(false)} onConfirm={() => void saveTask()} />}
+  </div>;
 }
-import InfoTooltip from '@/components/feature/InfoTooltip';
+
+function AdvancedFilters({ filters, members, onChange, onClear }: { filters: CentralInboxFilters; members: TeamMember[]; onChange: (patch: Partial<CentralInboxFilters>) => void; onClear: () => void }) { return <div className="mt-3 space-y-2 rounded-xl border border-background-200 bg-background-50 p-3 text-xs"><div className="grid grid-cols-2 gap-2"><select value={filters.situation ?? 'all'} onChange={(event) => onChange({ situation: event.target.value as CentralInboxFilters['situation'] })} className="wf-select"><option value="all">Situação</option>{Object.entries(situationLabel).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select><select value={filters.channel ?? 'all'} onChange={(event) => onChange({ channel: event.target.value as CentralInboxFilters['channel'] })} className="wf-select"><option value="all">Canal</option><option value="whatsapp">WhatsApp</option><option value="email">E-mail</option><option value="instagram">Instagram</option></select><select value={filters.mode ?? 'all'} onChange={(event) => onChange({ mode: event.target.value as CentralInboxFilters['mode'] })} className="wf-select"><option value="all">Propriedade</option><option value="ana">Ana</option><option value="human">Humano</option></select><select value={filters.ownerId ?? ''} onChange={(event) => onChange({ ownerId: event.target.value || undefined })} className="wf-select"><option value="">Responsável</option>{members.map((member) => <option key={member.userId} value={member.userId}>{member.name}</option>)}</select><select value={filters.stage ?? ''} onChange={(event) => onChange({ stage: event.target.value || undefined })} className="wf-select"><option value="">Etapa</option>{stageOptions.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select><label className="flex items-center gap-2 rounded-lg border border-background-200 px-2"><input type="checkbox" checked={filters.slaOverdue === true} onChange={(event) => onChange({ slaOverdue: event.target.checked })} />SLA atrasado</label></div><div className="grid grid-cols-2 gap-2"><label>De<input type="date" value={filters.from ?? ''} onChange={(event) => onChange({ from: event.target.value || undefined })} className="mt-1 w-full wf-select" /></label><label>Até<input type="date" value={filters.to ?? ''} onChange={(event) => onChange({ to: event.target.value || undefined })} className="mt-1 w-full wf-select" /></label></div><button type="button" onClick={onClear} className="text-xs font-semibold text-primary-700">Limpar filtros</button></div>; }
+function InboxSkeleton() { return <div className="space-y-3 p-4">{Array.from({ length: 6 }).map((_, index) => <div key={index} className="wf-skeleton h-20" />)}</div>; }
+function EmptyInbox({ query }: { query: string }) { return <div className="px-5 py-14 text-center text-sm text-foreground-500"><i className="ri-chat-off-line mb-2 block text-2xl" />{query ? 'Nenhuma conversa encontrada para esta busca.' : 'Nenhuma conversa nesta visualização.'}</div>; }
+function EmptyConversation({ onBack }: { onBack: () => void }) { return <div className="flex flex-1 flex-col items-center justify-center p-8 text-center"><i className="ri-customer-service-2-line text-4xl text-primary-600" /><h2 className="mt-4 font-bold text-foreground-900">Selecione uma conversa</h2><p className="mt-1 text-sm text-foreground-500">O histórico e o contexto comercial aparecerão aqui.</p><button type="button" onClick={onBack} className="mt-4 wf-btn-secondary lg:hidden">Ver conversas</button></div>; }
+function ConversationItem({ item, selected, onClick }: { item: CentralInboxItem; selected: boolean; onClick: () => void }) { return <button type="button" onClick={onClick} aria-current={selected ? 'true' : undefined} className={`flex w-full gap-3 border-b border-background-100 px-4 py-3.5 text-left transition ${selected ? 'border-l-[3px] border-l-primary-500 bg-primary-50/70' : 'border-l-[3px] border-l-transparent hover:bg-background-100/70'}`}><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary-100 text-sm font-bold text-primary-800">{initials(item.contact)}</span><span className="min-w-0 flex-1"><span className="flex justify-between gap-2"><strong className="truncate text-sm text-foreground-900">{item.contact}</strong><span className="shrink-0 text-[11px] text-foreground-500">{atTime(item.latestAt)}</span></span><span className="mt-0.5 block truncate text-xs text-foreground-500">{item.company}</span><span className="mt-1.5 line-clamp-2 block text-xs leading-4 text-foreground-600">{item.preview}</span><span className="mt-2 flex items-center gap-1.5"><span className="text-[10px] text-foreground-500"><i className={item.channel === 'whatsapp' ? 'ri-whatsapp-line text-primary-700' : item.channel === 'email' ? 'ri-mail-line' : 'ri-instagram-line'} /> {item.channel === 'whatsapp' ? 'WhatsApp' : item.channel === 'email' ? 'E-mail' : 'Instagram'}</span><span className={`rounded-full border px-1.5 py-0.5 text-[10px] font-semibold ${situationClass[item.situation]}`}>{situationLabel[item.situation]}</span><span title={`Responsável: ${item.ownerName}`} className="max-w-[76px] truncate text-[10px] text-foreground-500"><i className="ri-user-3-line mr-0.5" />{item.ownerName}</span></span></span>{item.unreadCount > 0 && <span className="mt-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary-600 px-1 text-[10px] font-bold text-background-50">{item.unreadCount > 99 ? '99+' : item.unreadCount}</span>}</button>; }
+function ConversationHeader({ conversation, busy, onBack, onContext, onAssume, onTransfer, onMore }: { conversation: CentralConversationDetail['conversation']; busy: boolean; onBack: () => void; onContext: () => void; onAssume: () => void; onTransfer: () => void; onMore: () => void }) { const own = conversation.mode === 'ana' ? 'Ana atendendo' : conversation.mode === 'waiting_human' ? 'Aguardando atendente' : 'Atendimento humano'; const ownStyle = conversation.mode === 'ana' ? 'border-primary-200 bg-primary-50 text-primary-800' : conversation.mode === 'waiting_human' ? 'border-violet-200 bg-violet-50 text-violet-800' : 'border-sky-200 bg-sky-50 text-sky-800'; return <header className="border-b border-background-200 bg-background-50 px-4 py-3.5"><div className="flex items-center gap-3"><button type="button" onClick={onBack} className="rounded-lg p-1.5 text-foreground-600 lg:hidden" aria-label="Voltar para conversas"><i className="ri-arrow-left-line" /></button><span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary-100 font-bold text-primary-800">{initials(conversation.contact)}</span><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><h2 className="truncate text-base font-bold text-foreground-950">{conversation.contact}</h2><span className={`hidden shrink-0 rounded-full border px-2 py-1 text-[10px] font-bold sm:inline ${ownStyle}`}><i className="ri-robot-2-line mr-1" />{own}</span></div><p className="mt-0.5 truncate text-xs text-foreground-600"><i className={conversation.channel === 'whatsapp' ? 'ri-whatsapp-line text-primary-700' : conversation.channel === 'email' ? 'ri-mail-line' : 'ri-instagram-line'} /> {conversation.company} · {conversation.channel === 'whatsapp' ? 'WhatsApp' : conversation.channel === 'email' ? 'E-mail' : 'Instagram'}</p></div><div className="flex shrink-0 gap-1.5"><button type="button" disabled={busy || conversation.mode === 'human' || conversation.blocked} onClick={onAssume} className="hidden wf-btn-primary text-xs sm:inline-flex disabled:opacity-50">{busy ? 'Assumindo…' : 'Assumir'}</button><button type="button" disabled={busy || conversation.blocked} onClick={onTransfer} className="hidden wf-btn-secondary text-xs sm:inline-flex disabled:opacity-50">Transferir</button><button type="button" onClick={onContext} className="rounded-lg border border-background-200 p-2 xl:hidden" aria-label="Abrir contexto"><i className="ri-layout-right-line" /></button><button type="button" onClick={onMore} className="rounded-lg border border-background-200 p-2" aria-label="Mais ações"><i className="ri-more-2-fill" /></button></div></div><div className="mt-3 flex gap-2 sm:hidden"><button type="button" disabled={busy || conversation.mode === 'human' || conversation.blocked} onClick={onAssume} className="wf-btn-primary flex-1 justify-center text-xs disabled:opacity-50">Assumir</button><button type="button" disabled={busy || conversation.blocked} onClick={onTransfer} className="wf-btn-secondary flex-1 justify-center text-xs disabled:opacity-50">Transferir</button></div></header>; }
+function ConversationMenu({ human, blocked, onBlock, onReturn, onUnread, onCopy }: { human: boolean; blocked: boolean; onBlock: () => void; onReturn: () => void; onUnread: () => void; onCopy: () => void }) { return <div className="relative z-20"><div className="absolute right-4 top-0 w-60 rounded-xl border border-background-200 bg-background-50 p-1.5 shadow-lg"><button type="button" onClick={onUnread} className="wf-menu-item"><i className="ri-mail-unread-line" />Marcar como não lida</button><button type="button" onClick={onCopy} className="wf-menu-item"><i className="ri-file-copy-line" />Copiar protocolo</button>{human && <button type="button" onClick={onReturn} className="wf-menu-item"><i className="ri-robot-2-line" />Retornar para a Ana</button>}<button type="button" disabled={blocked} onClick={onBlock} className="wf-menu-item text-accent-700 disabled:opacity-50"><i className="ri-forbid-2-line" />{blocked ? 'Contato já bloqueado' : 'Bloquear contato'}</button></div></div>; }
+function MessageBubble({ message, open, onDetails }: { message: CentralMessage; open: boolean; onDetails: () => void }) { const sender = message.sender.toLowerCase(); const inbound = ['lead', 'contact', 'cliente'].includes(sender); const ana = ['ana', 'assistant'].includes(sender); const system = ['system', 'sistema'].includes(sender) || ['internal', 'draft', 'pending_channel'].includes(message.type); const style = system ? 'border border-background-200 bg-background-100 text-foreground-700' : inbound ? 'border border-background-200 bg-background-50 text-foreground-900 shadow-sm' : ana ? 'border border-primary-100 bg-primary-50 text-primary-950' : 'bg-primary-600 text-background-50'; return <article className={`flex gap-2 ${inbound || system ? 'justify-start' : 'justify-end'}`}>{(inbound || ana) && <span className={`mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold ${ana ? 'bg-primary-600 text-background-50' : 'bg-background-200 text-foreground-700'}`}>{ana ? 'A' : initials(message.senderName)}</span>}<div className={`max-w-[84%] rounded-2xl px-3.5 py-3 text-sm leading-5 ${style}`}><p className="whitespace-pre-wrap break-words">{message.text}</p>{message.attachments.length > 0 && <div className="mt-2 flex flex-wrap gap-1.5">{message.attachments.map((attachment) => attachment.externalUrl ? <a key={attachment.id} href={attachment.externalUrl} target="_blank" rel="noreferrer" className="rounded-md border border-current/20 px-2 py-1 text-xs underline"><i className="ri-attachment-2 mr-1" />{attachment.fileName || attachment.mediaType}</a> : <span key={attachment.id} className="rounded-md border border-current/20 px-2 py-1 text-xs"><i className="ri-attachment-2 mr-1" />{attachment.fileName || attachment.mediaType}</span>)}</div>}<div className={`mt-2 flex flex-wrap gap-1.5 text-[10px] ${inbound || system || ana ? 'text-foreground-500' : 'text-primary-100'}`}><span>{ana ? `Ana · ${atTime(message.messageAt)}` : `${message.senderName} · ${atTime(message.messageAt)}`}</span>{!inbound && !system && <span>· {deliveryLabel(message.deliveryStatus)}</span>}{message.deliveryStatus === 'failed' && <span className="text-accent-700"><i className="ri-error-warning-line mr-1" />Falha</span>}{ana && <button type="button" onClick={onDetails} className="ml-1 font-bold text-primary-800 underline">Ver detalhes</button>}</div>{ana && open && <div className="mt-3 rounded-lg border border-primary-200 bg-background-50/80 p-2.5 text-xs text-foreground-700"><strong className="text-foreground-900">Detalhes da resposta</strong><p className="mt-1">Estado de envio: {deliveryLabel(message.deliveryStatus)}{message.providerStatusAt ? ` · ${atDateTime(message.providerStatusAt)}` : ''}</p>{message.knowledgeEvents.length ? <ul className="mt-2 space-y-1">{message.knowledgeEvents.map((event, index) => <li key={`${event.itemName}-${index}`}><i className="ri-shield-check-line mr-1 text-primary-700" />{event.itemName} · fonte aprovada{event.sourceUpdatedAt ? ` · atualizada ${atDateTime(event.sourceUpdatedAt)}` : ''}{event.sourceUrl && <a href={event.sourceUrl} target="_blank" rel="noreferrer" className="ml-1 underline">Abrir fonte</a>}</li>)}</ul> : <p className="mt-2">Esta mensagem não possui fonte de catálogo vinculada.</p>}</div>}</div></article>; }
+function Composer({ enabled, blocked, mode, text, internal, pending, feedback, prepared, onText, onInternal, onQuick, onSend }: { enabled: boolean; blocked: boolean; mode: CentralConversationDetail['conversation']['mode']; text: string; internal: boolean; pending: boolean; feedback: { tone: 'success' | 'warning' | 'error'; text: string } | null; prepared: string | null; onText: (value: string) => void; onInternal: (value: boolean) => void; onQuick: (text: string) => void; onSend: () => void }) { const lock = blocked ? 'Contato bloqueado: nenhum envio pode ser iniciado.' : mode === 'waiting_human' ? 'Aguardando atendente responsável.' : 'Ana está atendendo. Assuma a conversa para responder manualmente.'; return <footer className="border-t border-background-200 bg-background-50 p-3"><div className="flex gap-2 overflow-x-auto pb-2">{quickReplies.map((reply) => <button type="button" disabled={!enabled} key={reply.label} onClick={() => onQuick(reply.text)} className="shrink-0 rounded-lg border border-background-200 px-2.5 py-1.5 text-[11px] font-semibold text-foreground-700 disabled:opacity-50"><i className="ri-file-edit-line mr-1" />{reply.label}</button>)}</div>{!enabled && <div className={`mb-2 rounded-lg px-3 py-2 text-xs ${blocked ? 'bg-accent-50 text-accent-800' : 'bg-primary-50 text-primary-800'}`}><i className={blocked ? 'ri-forbid-2-line mr-1.5' : 'ri-robot-2-line mr-1.5'} />{lock}</div>}{prepared && <div className="mb-2 rounded-lg bg-primary-50 px-3 py-2 text-xs text-primary-800">Preparado para revisão: <strong>{prepared}</strong></div>}<div className="flex items-end gap-2"><label className="flex items-center gap-1.5 pb-2 text-[11px] text-foreground-600"><input type="checkbox" checked={internal} disabled={!enabled} onChange={(event) => onInternal(event.target.checked)} />Nota interna</label><textarea value={text} disabled={!enabled} onChange={(event) => onText(event.target.value)} onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') onSend(); }} placeholder={enabled ? internal ? 'Registrar uma nota para a equipe…' : 'Digite sua mensagem…' : 'Assuma o atendimento para enviar uma mensagem'} rows={2} className="min-h-[50px] flex-1 resize-none rounded-xl border border-background-200 bg-background-50 px-3 py-2 text-sm text-foreground-900 disabled:cursor-not-allowed disabled:bg-background-100" /><button type="button" disabled={!text.trim() || pending || !enabled} onClick={onSend} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary-600 text-background-50 disabled:cursor-not-allowed disabled:bg-primary-300" aria-label="Enviar mensagem">{pending ? <i className="ri-loader-4-line animate-spin" /> : <i className="ri-send-plane-fill" />}</button></div>{feedback && <p role="status" className={`mt-2 text-xs ${feedback.tone === 'error' ? 'text-accent-700' : feedback.tone === 'warning' ? 'text-amber-700' : 'text-primary-700'}`}>{feedback.text}</p>}</footer>; }
+function ContextPanel({ detail, activeTab, onTab, onBack, onOpenLead, onOpenKanban, onTask, onAgenda, onKnowledge, knowledgeContext, proposals, onProposal, onBudget }: { detail: CentralConversationDetail; activeTab: SideTab; onTab: (tab: SideTab) => void; onBack: () => void; onOpenLead: () => void; onOpenKanban: () => void; onTask: () => void; onAgenda: () => void; onKnowledge: (prepared: PreparedKnowledgeContent) => void; knowledgeContext: string; proposals: Proposta[]; onProposal: (proposal: Proposta) => void; onBudget: () => void }) { const c = detail.conversation; const fields = [{ label: 'Apresentação realizada', value: detail.messages.some((message) => ['ana', 'assistant'].includes(message.sender.toLowerCase())) ? 'Mensagem da Ana registrada' : null }, { label: 'Necessidade', value: valueOf(detail.qualification?.technicalContext.need) }, { label: 'Aplicação ou equipamento', value: valueOf(detail.qualification?.technicalContext.application) }, { label: 'Medidas, desenho ou amostra', value: valueOf(detail.qualification?.technicalContext.measurement_or_drawing) }, { label: 'Material e condição', value: valueOf(detail.qualification?.technicalContext.material_or_condition) }, { label: 'Quantidade e prazo', value: [valueOf(detail.qualification?.technicalContext.quantity), valueOf(detail.qualification?.technicalContext.deadline)].filter(Boolean).join(' · ') || null }]; const confirmed = fields.filter((field) => field.value).length; const nextTask = detail.tasks.find((task) => !task.completed); return <><header className="flex items-center justify-between border-b border-background-200 px-4 py-3 xl:hidden"><button type="button" onClick={onBack} className="rounded-lg p-2"><i className="ri-arrow-left-line" /></button><strong className="text-sm">Contexto</strong><span className="w-8" /></header><nav className="grid grid-cols-4 border-b border-background-200" aria-label="Abas do contexto">{([{ id: 'lead', label: 'Lead', icon: 'ri-user-3-line' }, { id: 'qualification', label: 'Qualificação', icon: 'ri-focus-3-line' }, { id: 'knowledge', label: 'Conhecimento', icon: 'ri-book-open-line' }, { id: 'more', label: 'Mais', icon: 'ri-more-2-line' }] as const).map((tab) => <button key={tab.id} type="button" onClick={() => onTab(tab.id)} className={`border-b-2 px-1 py-3 text-[10px] font-semibold ${activeTab === tab.id ? 'border-primary-500 text-primary-800' : 'border-transparent text-foreground-500'}`}><i className={`${tab.icon} mr-1`} />{tab.label}</button>)}</nav><div className="flex-1 overflow-y-auto p-4">{activeTab === 'lead' && <div className="space-y-3"><div className="flex gap-3"><span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary-100 font-bold text-primary-800">{initials(c.contact)}</span><div className="min-w-0 flex-1"><p className="truncate text-base font-bold text-foreground-950">{c.contact}</p><p className="truncate text-xs text-foreground-500">{c.company}</p></div><button type="button" onClick={onOpenLead} className="rounded-lg border border-background-200 px-2.5 py-1.5 text-[11px] font-semibold">Abrir lead</button></div><dl className="grid grid-cols-2 gap-x-3 gap-y-3 border-t border-background-100 pt-3 text-xs"><Info label="Etapa" value={c.stageLabel} /><Info label="Responsável" value={c.ownerName} /><Info label="Canal" value={c.channel === 'whatsapp' ? 'WhatsApp' : c.channel === 'email' ? 'E-mail' : 'Instagram'} /><Info label="Contato" value={c.whatsapp || c.phone || 'Não informado'} /><Info label="E-mail" value={c.email || 'Não informado'} /><Info label="Local" value={[c.city, c.uf].filter(Boolean).join(' · ') || 'Não informado'} /><Info label="Origem" value={c.origin || 'Não informada'} /></dl><div className={`rounded-xl border p-3 ${c.mode === 'ana' ? 'border-primary-200 bg-primary-50' : 'border-sky-200 bg-sky-50'}`}><strong className="text-xs text-foreground-900"><i className="ri-robot-2-line mr-1.5" />{c.mode === 'ana' ? 'Ana está atendendo' : c.mode === 'waiting_human' ? 'Aguardando atendente' : 'Atendimento humano'}</strong><p className="mt-1 text-[11px] text-foreground-600">{c.mode === 'ana' ? 'Assuma para responder como humano.' : 'O histórico permanece vinculado a este lead.'}</p></div><button type="button" onClick={onOpenKanban} className="wf-btn-secondary w-full justify-center text-xs"><i className="ri-kanban-view-2-line" />Ver no Kanban</button></div>}{activeTab === 'qualification' && <div className="space-y-3"><section className="rounded-xl border border-background-200 p-3"><div className="flex items-center justify-between"><div><strong className="text-sm text-foreground-900">Qualificação</strong><p className="mt-0.5 text-xs text-foreground-500">{confirmed} de 6 confirmados</p></div><span className="rounded-full bg-primary-50 px-2 py-1 text-xs font-bold text-primary-800">{confirmed}/6</span></div><div className="mt-3 h-2 overflow-hidden rounded-full bg-background-200"><div className="h-full rounded-full bg-primary-500" style={{ width: `${(confirmed / 6) * 100}%` }} /></div><ul className="mt-4 space-y-2.5">{fields.map((field) => <li key={field.label} className="flex gap-2 text-xs"><i className={field.value ? 'ri-checkbox-circle-fill text-primary-600' : 'ri-checkbox-blank-circle-line text-amber-500'} /><span><strong className="text-foreground-800">{field.label}</strong><span className="mt-0.5 block text-foreground-500">{field.value || 'Pendente'}</span></span></li>)}</ul></section>{detail.qualification?.summary && <p className="rounded-lg bg-background-100 p-3 text-xs leading-5 text-foreground-700">{detail.qualification.summary}</p>}{detail.qualification?.updatedAt && <p className="text-[11px] leading-4 text-foreground-500">Registro atualizado em {atDateTime(detail.qualification.updatedAt)}. A origem detalhada por campo ainda não é registrada pelo modelo atual.</p>}<button type="button" onClick={onOpenLead} className="wf-btn-secondary w-full justify-center text-xs">Abrir qualificação</button></div>}{activeTab === 'knowledge' && <ConversationKnowledgePanel context={knowledgeContext} onPrepare={onKnowledge} />}{activeTab === 'more' && <div className="space-y-4"><section><div className="flex justify-between"><strong className="text-sm text-foreground-900">Próxima ação</strong><button type="button" onClick={onTask} className="text-xs font-semibold text-primary-700">Definir</button></div>{nextTask ? <div className="mt-2 rounded-xl border border-background-200 p-3 text-xs"><strong className="text-foreground-800">{nextTask.text}</strong><p className="mt-1 text-foreground-500">{nextTask.dueAt ? `${atDateTime(nextTask.dueAt)} · ` : 'Ainda sem prazo · '}{nextTask.ownerLabel || 'Sem responsável'}</p></div> : <p className="mt-2 rounded-xl border border-dashed border-background-300 p-3 text-xs text-foreground-500">Ainda sem prazo</p>}</section><section><div className="flex justify-between"><strong className="text-sm text-foreground-900">Orçamentos</strong><button type="button" onClick={onBudget} className="text-xs font-semibold text-primary-700">Abrir</button></div>{proposals.length ? <div className="mt-2 space-y-2">{proposals.slice(0, 3).map((proposal) => <div key={proposal.id} className="flex items-center justify-between gap-2 rounded-xl border border-background-200 p-3 text-xs"><span><strong className="block text-foreground-800">{proposal.numero}</strong><span className="text-foreground-500">{proposal.status}</span></span><button type="button" onClick={() => onProposal(proposal)} className="rounded-lg border border-primary-200 px-2 py-1 font-semibold text-primary-700">Preparar</button></div>)}</div> : <p className="mt-2 text-xs text-foreground-500">Nenhum orçamento vinculado.</p>}</section><section><strong className="text-sm text-foreground-900">Notas</strong>{detail.notes.length ? <div className="mt-2 space-y-2">{detail.notes.slice(0, 4).map((note) => <div key={note.id} className="rounded-lg bg-background-100 p-2.5 text-xs"><p className="text-foreground-700">{note.body}</p><p className="mt-1 text-[10px] text-foreground-500">{note.authorName} · {atDateTime(note.createdAt)}</p></div>)}</div> : <p className="mt-2 text-xs text-foreground-500">Sem notas registradas.</p>}</section><section><strong className="text-sm text-foreground-900">Atividades</strong>{detail.activities.length ? <div className="mt-2 space-y-2">{detail.activities.slice(0, 5).map((activity) => <p key={activity.id} className="border-l-2 border-primary-200 pl-2 text-xs text-foreground-600"><strong className="text-foreground-800">{activity.actorName}</strong> · {activity.detail || activity.action}<span className="block text-[10px] text-foreground-500">{atDateTime(activity.createdAt)}</span></p>)}</div> : <p className="mt-2 text-xs text-foreground-500">Sem atividades disponíveis para seu acesso.</p>}</section><button type="button" onClick={onAgenda} className="wf-btn-secondary w-full justify-center text-xs"><i className="ri-calendar-event-line" />Agendar reunião</button></div>}</div></>; }
+function Info({ label, value }: { label: string; value: string }) { return <div><dt className="text-[10px] font-semibold uppercase tracking-wide text-foreground-500">{label}</dt><dd className="mt-0.5 break-words text-xs text-foreground-800">{value}</dd></div>; }
+function TransferDialog({ members, selected, reason, error, busy, onSelected, onReason, onClose, onConfirm }: { members: TeamMember[]; selected: string; reason: string; error: string; busy: boolean; onSelected: (value: string) => void; onReason: (value: string) => void; onClose: () => void; onConfirm: () => void }) { return <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground-950/50 p-4"><section className="w-full max-w-md rounded-2xl bg-background-50 shadow-xl" role="dialog" aria-modal="true" aria-labelledby="transfer-title"><header className="flex justify-between border-b border-background-200 px-5 py-4"><div><h2 id="transfer-title" className="font-bold text-foreground-950">Transferir atendimento</h2><p className="mt-1 text-xs text-foreground-500">A Ana será pausada após a confirmação no servidor.</p></div><button type="button" onClick={onClose} className="rounded-lg p-2"><i className="ri-close-line" /></button></header><div className="space-y-3 p-5"><label className="block text-xs font-semibold text-foreground-700">Responsável<select value={selected} onChange={(event) => onSelected(event.target.value)} className="mt-1.5 w-full wf-select"><option value="">Selecione um responsável</option>{members.map((member) => <option key={member.userId} value={member.userId}>{member.name} · {member.role}</option>)}</select></label><label className="block text-xs font-semibold text-foreground-700">Motivo <span className="font-normal text-foreground-500">(opcional)</span><textarea value={reason} onChange={(event) => onReason(event.target.value)} rows={3} className="mt-1.5 w-full rounded-lg border border-background-200 p-2 text-sm" placeholder="Contexto para quem receberá o atendimento" /></label>{error && <p role="alert" className="text-xs text-accent-700">{error}</p>}</div><footer className="flex justify-end gap-2 border-t border-background-200 px-5 py-4"><button type="button" onClick={onClose} className="wf-btn-secondary">Cancelar</button><button type="button" disabled={!selected || busy} onClick={onConfirm} className="wf-btn-primary disabled:opacity-50">{busy ? 'Transferindo…' : 'Confirmar transferência'}</button></footer></section></div>; }
+function BlockDialog({ name, busy, onClose, onConfirm }: { name: string; busy: boolean; onClose: () => void; onConfirm: () => void }) { return <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground-950/50 p-4"><section className="w-full max-w-md rounded-2xl bg-background-50 shadow-xl" role="dialog" aria-modal="true" aria-labelledby="block-title"><header className="border-b border-background-200 px-5 py-4"><h2 id="block-title" className="font-bold text-foreground-950">Bloquear contato</h2></header><div className="p-5 text-sm leading-6 text-foreground-700">Você vai registrar o opt-out de <strong>{name}</strong>. A lista de proteção interrompe novas cadências e envios futuros.</div><footer className="flex justify-end gap-2 border-t border-background-200 px-5 py-4"><button type="button" onClick={onClose} className="wf-btn-secondary">Cancelar</button><button type="button" disabled={busy} onClick={onConfirm} className="rounded-lg bg-accent-600 px-4 py-2 text-sm font-semibold text-background-50 disabled:opacity-50">{busy ? 'Bloqueando…' : 'Confirmar bloqueio'}</button></footer></section></div>; }
+function TaskDialog({ text, date, busy, onText, onDate, onClose, onConfirm }: { text: string; date: string; busy: boolean; onText: (value: string) => void; onDate: (value: string) => void; onClose: () => void; onConfirm: () => void }) { return <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground-950/50 p-4"><section className="w-full max-w-md rounded-2xl bg-background-50 shadow-xl" role="dialog" aria-modal="true" aria-labelledby="task-title"><header className="border-b border-background-200 px-5 py-4"><h2 id="task-title" className="font-bold text-foreground-950">Definir próxima ação</h2></header><div className="space-y-3 p-5"><label className="block text-xs font-semibold text-foreground-700">Ação<textarea value={text} onChange={(event) => onText(event.target.value)} rows={3} className="mt-1.5 w-full rounded-lg border border-background-200 p-2 text-sm" placeholder="Ex.: Confirmar necessidade e prazo" /></label><label className="block text-xs font-semibold text-foreground-700">Prazo <span className="font-normal text-foreground-500">(opcional)</span><input type="date" value={date} onChange={(event) => onDate(event.target.value)} className="mt-1.5 w-full wf-select" /></label></div><footer className="flex justify-end gap-2 border-t border-background-200 px-5 py-4"><button type="button" onClick={onClose} className="wf-btn-secondary">Cancelar</button><button type="button" disabled={!text.trim() || busy} onClick={onConfirm} className="wf-btn-primary disabled:opacity-50">{busy ? 'Salvando…' : 'Salvar ação'}</button></footer></section></div>; }
