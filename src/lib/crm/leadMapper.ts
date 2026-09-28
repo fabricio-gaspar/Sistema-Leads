@@ -40,6 +40,8 @@ export interface CrmLeadRow {
   score_verified_at?: string | null;
   created_at: string;
   updated_at: string;
+  /** Timestamp written by the conversation persistence when a commercial message is recorded. */
+  last_contact?: string | null;
   next_action_at?: string | null;
   no_reply_deadline_at?: string | null;
   archived_at?: string | null;
@@ -217,7 +219,10 @@ export function crmRowToLead(row: CrmLeadRow, handoffPolicy?: LeadHandoffPolicyR
     score, temperatura: temperature(row.temp, score), etapa: etapaAna, origem: row.origin ?? '',
     responsavel: row.owner === 'ia' || !row.owner ? 'Ana (IA)' : row.owner,
     tags: Array.isArray(meta.tags) ? meta.tags.filter((tag): tag is string => typeof tag === 'string') : [],
-    ultimaInteracao: row.updated_at ? new Date(row.updated_at).toLocaleDateString('pt-BR') : '—', criadoEm: row.created_at.slice(0, 10), createdAt: row.created_at,
+    // `updated_at` changes for administrative edits as well.  Prefer the
+    // dedicated operational timestamp so the portfolio never presents an edit
+    // as if it were a customer interaction.
+    ultimaInteracao: row.last_contact ? new Date(row.last_contact).toLocaleString('pt-BR') : '—', criadoEm: row.created_at.slice(0, 10), createdAt: row.created_at, updatedAt: row.updated_at,
     cargo: typeof meta.cargo === 'string' ? meta.cargo : undefined, campanha: typeof meta.campanha === 'string' ? meta.campanha : undefined,
     modoAtendimento: isHuman ? 'HUMANO' : 'IA', automacaoStatus: isHuman ? 'AGUARDANDO_HUMANO' : row.automation_status === 'running' && approvalStatus === 'approved' ? 'ATIVA' : 'PAUSADA',
     responsavelId: row.owner_id ?? row.assigned_to ?? undefined, canalPreferencial: leadChannelLabel(row.active_channel),

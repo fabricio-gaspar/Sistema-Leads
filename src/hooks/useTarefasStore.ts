@@ -6,6 +6,7 @@ let state: Tarefa[] = [];
 let hydrated = false;
 let hydratePromise: Promise<void> | null = null;
 let writeQueue = Promise.resolve();
+let latestPersistenceError: unknown = null;
 const listeners = new Set<() => void>();
 
 const notify = () => listeners.forEach((listener) => listener());
@@ -36,10 +37,13 @@ function updateState(updater: (previous: Tarefa[]) => Tarefa[]): void {
   writeQueue = writeQueue
     .then(async () => {
       state = await persistOperationalTasks(previous, next);
+      latestPersistenceError = null;
       notify();
     })
     .catch((error) => {
       console.error('[crm-tasks] falha ao salvar fonte operacional', error);
+      latestPersistenceError = error;
+      hydrated = false;
       void hydrate();
     });
 }
@@ -77,4 +81,14 @@ export function useTarefasStore(): {
 
 export function getTarefasSnapshot(): Tarefa[] {
   return state;
+}
+
+/** Wait for an optimistic task mutation before confirming it in the UI. */
+export async function waitForTarefasPersistence(): Promise<void> {
+  await writeQueue;
+  if (latestPersistenceError) {
+    const error = latestPersistenceError;
+    latestPersistenceError = null;
+    throw error;
+  }
 }

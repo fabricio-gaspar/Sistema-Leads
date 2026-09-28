@@ -13,6 +13,7 @@ export type LeadQualification = {
   leadId: string;
   summary: string | null;
   nextAction: string | null;
+  nextActionDueAt: string | null;
   readinessScore: number | null;
   interestLevel: 'negative' | 'neutral' | 'positive' | 'hot';
   requestedAction: 'none' | 'follow_up' | 'meeting' | 'quote' | 'human';
@@ -27,6 +28,7 @@ type QualificationRow = {
   lead_id: string;
   summary: string | null;
   next_action: string | null;
+  next_action_due_at?: string | null;
   readiness_score: number | null;
   interest_level: LeadQualification['interestLevel'];
   requested_action: LeadQualification['requestedAction'];
@@ -51,6 +53,7 @@ export function mapLeadQualification(row: QualificationRow): LeadQualification {
     leadId: row.lead_id,
     summary: asText(row.summary),
     nextAction: asText(row.next_action),
+    nextActionDueAt: asText(row.next_action_due_at),
     readinessScore: typeof row.readiness_score === 'number' ? Math.max(0, Math.min(100, Math.round(row.readiness_score))) : null,
     interestLevel: row.interest_level,
     requestedAction: row.requested_action,
@@ -71,9 +74,31 @@ export function mapLeadQualification(row: QualificationRow): LeadQualification {
 
 export async function loadLeadQualification(leadId: string): Promise<LeadQualification | null> {
   const { data, error } = await supabase.from('lead_qualifications')
-    .select('lead_id,summary,next_action,readiness_score,interest_level,requested_action,decision_maker,objections,missing_fields,technical_context,updated_at')
+    .select('lead_id,summary,next_action,next_action_due_at,readiness_score,interest_level,requested_action,decision_maker,objections,missing_fields,technical_context,updated_at')
     .eq('lead_id', leadId)
     .maybeSingle();
   if (error) throw error;
   return data ? mapLeadQualification(data as QualificationRow) : null;
+}
+
+/**
+ * One bounded read for portfolio rows.  The table is already RLS-protected by
+ * the current organization and lead access policies; this helper deliberately
+ * does not introduce a client-side bypass or a new endpoint.
+ */
+export async function loadLeadQualifications(leadIds: string[]): Promise<Map<string, LeadQualification>> {
+  const result = new Map<string, LeadQualification>();
+  for (let index = 0; index < leadIds.length; index += 100) {
+    const ids = leadIds.slice(index, index + 100);
+    if (!ids.length) continue;
+    const { data, error } = await supabase.from('lead_qualifications')
+      .select('lead_id,summary,next_action,next_action_due_at,readiness_score,interest_level,requested_action,decision_maker,objections,missing_fields,technical_context,updated_at')
+      .in('lead_id', ids);
+    if (error) throw error;
+    for (const row of (data ?? []) as QualificationRow[]) {
+      const qualification = mapLeadQualification(row);
+      result.set(qualification.leadId, qualification);
+    }
+  }
+  return result;
 }

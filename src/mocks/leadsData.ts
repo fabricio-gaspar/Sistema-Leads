@@ -36,6 +36,7 @@ export interface Lead {
   ultimaInteracao: string;
   criadoEm: string;
   createdAt?: string;
+  updatedAt?: string;
   // — Campos de fluxo comercial (backfill via normalizarLead) —
   modoAtendimento?: 'IA' | 'HUMANO';
   anaStage?: 'novo' | 'apresentado' | 'qualificando' | 'reuniao' | 'orcamento' | 'fechado';
