@@ -8,10 +8,10 @@
     "edge_typecheck": "passed",
     "lint": "passed",
     "production_build": "passed",
-    "sites_artifact": "passed_build; publication of commit f270b05 authorized and pending deploy verification",
+    "sites_artifact": "passed_build; official Site v146 deployed successfully",
     "deterministic_smoke_checks": 0,
     "vitest": "passed; focused runtimeHandlers suite; 103 tests",
-    "visual_review": "static review passed; official-Site inspection awaits deployment. The page exposes only states evidenced by the backend and keeps Meta gated.",
+    "visual_review": "published Central inspection passed without writes: the three-pane operational layout rendered; inbox returned zero real conversations and correctly displayed its empty state. The WhatsApp page awaits its route-specific authenticated inspection.",
     "external_end_to_end": "not_executed; no provider test, message, Meta connection, callback, delivery or read receipt was invoked"
   },
   "previous_validation": {

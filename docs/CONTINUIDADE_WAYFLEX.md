@@ -7,7 +7,7 @@
 - A tela diferencia conexão, número identificado, callbacks, rota existente para a Central, aceite de teste, evento de entrada e recibos. Aceite do provedor não é apresentado como entrega ou leitura. Meta permanece em gate explícito de homologação, sem botão que simule conexão nem alteração do provedor ativo.
 - Não houve migration: `whatsapp_accounts`, `integrations`, `messaging_provider_controls`, `audit_logs` e `channel_inbound_events` já são as fontes canônicas sob RLS. A nova tela não escreve nem testa o canal ao ser aberta.
 - Validação local aprovada: type-check frontend/Edge, lint, teste de contrato da Edge Function (**103 testes**), build/artefato Sites e `git diff --check`. `whatsapp-accounts` v6 está ativa no projeto `thgzrkppouoevapjquyu`. O envio, a entrega, a leitura e uma conexão Meta reais não foram disparados nesta implantação; portanto, não são declarados homologados.
-- Código no commit `f270b05`. Publicação do Site oficial autorizada e em execução neste checkpoint; a URL do produto não será alterada.
+- Código no commit `f270b05`; a documentação foi atualizada no commit `ed19d8a`. Publicado no Site oficial como versão **146**, deploy `appgdep_6abaf640b1748191ac2b83948e6a35f8`, concluído com sucesso. A URL do produto foi preservada.
 
 ## 28/09/2026 — Kanban operacional — publicado no banco, aguardando publicação do Site
 

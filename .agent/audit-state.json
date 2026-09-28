@@ -2,21 +2,21 @@
   "schema_version": 1,
   "baseline_version": 6,
   "baseline_commit": "1dc6275b8c7d70de953b66397a8c89f5e97bc15b",
-  "last_audited_commit": "f270b05",
-  "current_head_at_update": "f270b05",
-  "working_tree_status": "whatsapp_channels_validated_site_publication_authorized",
+  "last_audited_commit": "ed19d8a4b824a3c39f5707d198c212a3bd415c92",
+  "current_head_at_update": "ed19d8a4b824a3c39f5707d198c212a3bd415c92",
+  "working_tree_status": "whatsapp_channels_and_operational_workspace_published",
   "stage_1_baseline": ".agent/baselines/2026-09-25-stage-1.json",
   "recovery_tag": "baseline-wayflex-stage1-20260925",
   "work_branch": "main",
   "last_site_publication": {
-    "commit": "5fc98085b308372d0a9813a1c8db8cac0ed23596",
-    "site_version": 144,
-    "deployment_id": "appgdep_6aba88b5e1c8819186977c232d9b2c24",
-    "validated_at": "2026-09-28T15:33:32Z",
+    "commit": "ed19d8a4b824a3c39f5707d198c212a3bd415c92",
+    "site_version": 146,
+    "deployment_id": "appgdep_6abaf640b1748191ac2b83948e6a35f8",
+    "validated_at": "2026-09-28T23:20:53Z",
     "working_tree_status": "published"
   },
   "full_audit_required": false,
-  "baseline_status": "whatsapp_channels_validated_site_publication_authorized",
-  "updated_at": "2026-09-28T20:15:00Z",
-  "next_action": "Concluir e verificar a publicação do commit f270b05 no Site oficial. Depois, fazer somente inspeção visual autenticada; envio, conexão Meta, callbacks, entrega e leitura exigem autorização operacional específica."
+  "baseline_status": "whatsapp_channels_and_operational_workspace_published",
+  "updated_at": "2026-09-28T23:22:00Z",
+  "next_action": "Homologar visualmente a Central com conversa comercial existente ou teste explicitamente autorizado. Envio, conexão Meta, callbacks, entrega e leitura exigem autorização operacional específica."
 }
