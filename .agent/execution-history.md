@@ -1,5 +1,12 @@
 # Histórico resumido de execução
 
+## 2026-09-28 — Kanban operacional
+
+- Reconstruído Kanban com pesquisa/filtros/contagens no servidor, quadro e lista no mesmo estado de URL, colunas canônicas, cartões com dados persistidos, drawer operacional e visões pessoais protegidas por RLS.
+- Aplicadas no projeto oficial as migrations `kanban_operational_portfolio` e `kanban_saved_views_fk_index`; conferidos RPCs, RLS, privilégios e índice. O auditor não reportou alerta novo da mudança.
+- Type-check, lint, 55 arquivos/323 testes, build/artefato Sites e `git diff --check` passaram. Nenhum lead, tarefa, mensagem, automação, provedor ou estado comercial foi alterado como teste.
+- Commit `fcb2c75`. Publicação do Site aguardando autorização explícita para enviar esse commit ao repositório de hospedagem; Site oficial ainda v144.
+
 ## 2026-09-28 — Carteira operacional de Leads
 
 - Reconstruída a tela **Leads** sobre os contratos operacionais existentes: filtro e busca completos, abas de prioridade, ordenação, colunas personalizáveis, ações em lote, etapa canônica, responsável, atividade, próxima ação e ações por registro.

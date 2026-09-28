@@ -1,5 +1,12 @@
 # Baseline do sistema
 
+## Kanban operacional — 28/09/2026
+
+- `get_kanban_portfolio` é a leitura única, `SECURITY INVOKER`, que aplica a busca e os filtros no servidor e devolve itens paginados, contagens por etapa e prioridades no mesmo contrato sob a RLS existente.
+- `user_saved_views` é a preferência pessoal persistida do Kanban: RLS exige sessão, organização atual, membro ativo e o próprio usuário. Não se tornou uma fonte operacional paralela.
+- `undo_recent_lead_stage_transition` restringe a reversão ao último movimento humano do mesmo usuário dentro de 30 segundos, bloqueia estados terminais e registra a trilha pelo gatilho canônico. `update_kanban_stage_alert_threshold` exige `configuration.manage`.
+- Migrações remotas: `kanban_operational_portfolio` e `kanban_saved_views_fk_index`, projeto `thgzrkppouoevapjquyu`. Commit local `fcb2c75`; frontend ainda aguarda publicação oficial. Type-check, lint, 55 arquivos/323 testes e build passaram sem chamadas a provedores.
+
 ## Assistente de termos por segmento — 28/09/2026
 
 - A etapa **Termos de busca** mantém entrada manual e oferece grupos selecionáveis alinhados à Wayflex: Borracha, Silicone, Poliuretano, Vedação industrial, Manutenção industrial e Aplicações e mercados.

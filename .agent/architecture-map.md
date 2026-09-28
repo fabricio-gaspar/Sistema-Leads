@@ -1,5 +1,9 @@
 # Mapa de arquitetura
 
+## Kanban operacional — 28/09/2026
+
+`KanbanPage` → `kanbanRepository.loadKanbanPortfolio` → `get_kanban_portfolio` (SECURITY INVOKER/RLS) → `leads` + tarefas + qualificação + listas + histórico. O contrato retorna uma página e os contadores no mesmo snapshot lógico; não há leitura por cartão. `user_saved_views` guarda apenas a preferência do usuário/organização. Mudanças de etapa continuam em `transition_lead_stage`; o undo estreito usa `undo_recent_lead_stage_transition`. O drawer só lê `lead_stage_history`, `lead_messages`, `lead_notes` e tarefas; automações permanecem com `ana-run` e o worker existentes.
+
 ## Análise comercial — 27/09/2026
 
 `CommercialAnalytics` → `useCommercialAnalytics` → repositories paginados/tabelas existentes. `commercialAnalytics.ts` calcula a leitura compartilhada e o predicado do Kanban; `proposalPricing.ts` valida preços humanos em Orçamentos/Central. `AccessibleDialog` compartilha comportamento de foco. Nenhuma tabela ou Edge Function nova.

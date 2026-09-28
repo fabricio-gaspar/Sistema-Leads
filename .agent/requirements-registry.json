@@ -2,6 +2,14 @@
   "schema_version": 1,
   "requirements": [
     {
+      "id": "REQ-063",
+      "description": "Transformar o Kanban em uma área operacional com pesquisa, filtros, visões pessoais, lista, drawer, ações e transições auditáveis sem criar fonte paralela ou automação manual insegura",
+      "module": "kanban",
+      "status": "implemented_validated_pending_site_publication",
+      "evidence": "Commit fcb2c75. A RPC get_kanban_portfolio aplica busca normalizada, filtros, ordenação, paginação e contagens sob RLS; user_saved_views persiste preferências pessoais com RLS; undo e limites por etapa possuem RPCs invocadoras e permissões. Migrations kanban_operational_portfolio e kanban_saved_views_fk_index aplicadas no projeto oficial thgzrkppouoevapjquyu. Type-check, lint, Vitest 55 arquivos/323 testes, build/artefato Sites e diff check passaram. Sem mutação comercial ou chamada externa. Frontend aguarda publicação autorizada.",
+      "last_validation": "2026-09-28"
+    },
+    {
       "id": "REQ-062",
       "description": "Transformar Leads em carteira operacional pesquisável, filtrável e auditável sem criar fonte paralela ou duplicar exclusão definitiva",
       "module": "leads",

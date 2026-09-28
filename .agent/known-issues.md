@@ -1,5 +1,11 @@
 # Problemas conhecidos
 
+## Kanban operacional — pendências de homologação — 28/09/2026
+
+- O banco, RLS, RPCs e testes locais foram validados, mas o frontend do Kanban ainda não foi publicado porque o envio do código ao repositório de hospedagem exige autorização explícita. A versão pública continua 144.
+- Não foi feita uma mutação sobre lead comercial para testar drag, desfazer, tarefa, alteração de responsável, arquivamento ou resultado. Isso evita alterar a carteira, enviar mensagem ou ativar automação para fins de teste. Após publicar, a homologação deve usar um lead autorizado e reversível.
+- O painel de Automações mostra apenas fluxos/configuração e execuções existentes. Ele não expõe um botão de reprocessar falha porque o runtime atual não oferece um contrato seguro de retry individual; não foi simulado um retry.
+
 ## API ativa não aparecia como seletor na Busca — resolvido em 27/09/2026
 
 - A tela filtrava explicitamente somente `apify` e substituía o seletor por um selo quando havia uma fonte ativa. Agora Apify e Google Places são derivados das configurações operacionais, o seletor permanece visível e a leitura é atualizada ao abrir/retomar a tela.

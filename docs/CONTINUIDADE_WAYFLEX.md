@@ -1,5 +1,14 @@
 # Checkpoint — WayFlex CRM
 
+## 28/09/2026 — Kanban operacional — publicado no banco, aguardando publicação do Site
+
+- O Kanban foi reconstruído sobre os contratos existentes: uma única RPC com RLS aplica pesquisa normalizada, filtros, paginação, contagens por etapa e contagens rápidas; a tela não cria métricas ou cartões fictícios.
+- Foram adicionadas visões pessoais persistidas em `user_saved_views`, protegidas por RLS de usuário e organização, e alertas de tempo configuráveis por etapa. Ações de mudança de etapa continuam em `transition_lead_stage`; o desfazer é uma RPC curta, humana, auditada, concorrente e incapaz de reabrir Ganho/Perdido.
+- O drawer consulta histórico de etapas, mensagens, notas e tarefas reais. O quadro e a lista compartilham URL, filtros, ordenação e dados; lista inclui seleção, exportação, atribuição, transição não terminal e arquivamento reversível com confirmação.
+- Migrações oficiais aplicadas ao projeto `thgzrkppouoevapjquyu`: `kanban_operational_portfolio` e `kanban_saved_views_fk_index`. A conferência confirmou RPCs, coluna de limite, RLS e o índice. Advisors não apontaram novo alerta relativo à entrega; alertas antigos do projeto permanecem documentados.
+- Validação local aprovada: type-check, lint, **55 arquivos / 323 testes**, build/artefato Sites e `git diff --check`. Não foi feito drag em lead real, criação de tarefa, mudança de responsável, arquivamento, automação, envio ou chamada a provedor durante a homologação técnica.
+- Código no commit `fcb2c75e0f30fc46037e4a540abeae186a3486d8`. A publicação do Site oficial requer autorização explícita de envio do código ao repositório de hospedagem; até lá a versão pública permanece **144**.
+
 ## 28/09/2026 — Carteira operacional de Leads
 
 - **Leads** foi reorganizada como uma carteira comercial operacional: cabeçalho compacto, abas rápidas para Todos / Sem contato / Sem próxima ação / Alta aderência, pesquisa por nome, empresa, telefone, e-mail e domínio de origem, filtros avançados, ordenação, colunas escolhidas pelo usuário e ações em lote.
