@@ -560,6 +560,14 @@
       "status": "confirmed",
       "evidence": "OperationalStatusTab usa somente operational-diagnostics para preencher componentes, saúde, última validação, uso, pré-requisitos da Ana, pausa global e auditoria. Menus chamam apenas as ações server-side existentes; sem migration, endpoint novo ou painel destrutivo nesta tela. Type-check, lint, 57 arquivos/329 testes, build e diff check passaram. Site oficial v151 publicado e a inspeção autenticada confirmou a tabela, filtros, pré-requisitos reais e ausência de erro de console.",
       "last_validation": "2026-09-29"
+    },
+    {
+      "id": "REQ-041",
+      "description": "Reorganizar Configurações > Canais > Entradas do WhatsApp com configuração, diagnóstico, histórico e link público real",
+      "module": "configuracoes",
+      "status": "implemented_pending_site_publication",
+      "evidence": "WhatsAppEntriesTab usa os contratos reais site-whatsapp-entry, whatsapp-accounts, operational-diagnostics e testar-integracao. A entrada valida E.164, salva/pausa com permissão, copia e rotaciona o código server-side com auditoria; checagens de webhook, Ana e fallback não são simuladas. Type-check frontend/Edge, lint, 57 arquivos/329 testes, build e diff check passaram. Edge Function site-whatsapp-entry v2 foi publicada no Supabase oficial.",
+      "last_validation": "2026-09-29"
     }
   ]
 }

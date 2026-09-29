@@ -1,13 +1,17 @@
 import { createAdminClient, requireOrganizationPermission, requireUser } from '../_shared/auth.ts';
 import { allowedCorsHeaders, hasAllowedOrigin, json, preflight, safeError } from '../_shared/http.ts';
 
-type Action = 'load' | 'save';
+type Action = 'load' | 'save' | 'rotate';
 const text = (value: unknown, max = 500) => typeof value === 'string' ? value.trim().slice(0, max) : '';
 const phone = (value: unknown) => text(value, 32).replace(/\D/g, '');
 
 function buildLink(entry: { public_phone: string; welcome_message: string; entry_code: string }): string {
   const message = `${entry.welcome_message}\n[WF:${entry.entry_code}]`;
   return `https://wa.me/${entry.public_phone}?text=${encodeURIComponent(message)}`;
+}
+
+function newEntryCode(): string {
+  return crypto.randomUUID().replaceAll('-', '').slice(0, 12).toUpperCase();
 }
 
 async function contextFor(admin: ReturnType<typeof createAdminClient>, userId: string) {
@@ -24,7 +28,7 @@ Deno.serve(async (request) => {
   try {
     const body = await request.json().catch(() => ({})) as Record<string, unknown>;
     const action = text(body.action, 32) as Action;
-    if (action !== 'load' && action !== 'save') throw new Error('unsupported_action');
+    if (action !== 'load' && action !== 'save' && action !== 'rotate') throw new Error('unsupported_action');
     const { user } = await requireUser(request);
     const admin = createAdminClient();
     const context = await contextFor(admin, user.id);
@@ -35,6 +39,32 @@ Deno.serve(async (request) => {
         .eq('organization_id', context.organizationId).maybeSingle();
       if (error) throw error;
       return json({ ok: true, entry: data ? { ...data, link: buildLink(data) } : null }, 200, headers);
+    }
+
+    if (action === 'rotate') {
+      const { data: existing, error: existingError } = await admin.from('whatsapp_site_entries')
+        .select('id,entry_code,name,source_label,public_phone,welcome_message,active,updated_at')
+        .eq('organization_id', context.organizationId).maybeSingle();
+      if (existingError) throw existingError;
+      if (!existing) throw new Error('site_entry_not_configured');
+      const { data, error } = await admin.from('whatsapp_site_entries').update({
+        entry_code: newEntryCode(),
+        updated_at: new Date().toISOString(),
+      }).eq('id', existing.id).eq('organization_id', context.organizationId)
+        .select('id,name,source_label,public_phone,welcome_message,entry_code,active,updated_at').single();
+      if (error) throw error;
+      await admin.from('audit_logs').insert({
+        organization_id: context.organizationId,
+        actor_id: user.id,
+        actor_name: context.name,
+        actor_type: 'user',
+        action: 'whatsapp.site_entry_rotated',
+        detail: 'Código público da entrada do site renovado.',
+        entity_table: 'whatsapp_site_entries',
+        entity_id: data.id,
+        event_data: { active: data.active },
+      });
+      return json({ ok: true, entry: { ...data, link: buildLink(data) } }, 200, headers);
     }
 
     const publicPhone = phone(body.public_phone);

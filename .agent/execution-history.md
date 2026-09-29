@@ -1318,3 +1318,13 @@
 - Site oficial v151 publicado pelo commit `609477f9457ca9801a1c99c2fdb9c98a935f032e`, deploy
   `appgdep_6abbc514cc1c8191aef1b8e24f4a4c19` com sucesso. Inspeção autenticada confirmou a tela
   publicada e não observou erro de console.
+
+## 2026-09-29 — Configurações > Entradas do WhatsApp
+
+- Implementada a central de Entradas do WhatsApp com Configuração, Diagnóstico e Histórico sobre os
+  contratos backend existentes. A entrada do site tem validação E.164, ativação/pausa confirmada,
+  cópia e rotação real de link; roteamento e Ana mostram somente estados comprovados ou bloqueados.
+- A Edge Function `site-whatsapp-entry` foi publicada no Supabase oficial com a ação `rotate` e
+  auditoria `whatsapp.site_entry_rotated`. Nenhum segredo foi exposto e nenhuma migration foi criada.
+- `npm run type-check`, `npm run type-check:edge`, `npm run lint`, Vitest 57/329, `npm run build` e
+  `git diff --check` passaram. Publicação do Site oficial pendente de inspeção autenticada.

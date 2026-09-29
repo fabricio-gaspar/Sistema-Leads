@@ -1898,3 +1898,19 @@ webhook em ambiente controlado.
   `appgdep_6abbc514cc1c8191aef1b8e24f4a4c19`, status `succeeded`. A inspeção autenticada confirmou
   a tabela compacta, filtros, estados de saúde/uso, bloqueio da Ana pelos pré-requisitos reais e
   ausência de erro de console. Documento: `docs/REDESIGN_CONFIGURACOES_STATUS_2026-09-29.md`.
+
+## 2026-09-29 — Entradas do WhatsApp
+
+- A rota `Configurações > Canais` passou a usar uma central única de Entradas do WhatsApp, com abas
+  Configuração, Diagnóstico e Histórico. A interface consome `site-whatsapp-entry`, `whatsapp-accounts`,
+  `operational-diagnostics` e `testar-integracao`; não há estado demonstrativo nem canal paralelo.
+- A entrada do site valida telefone E.164 no cliente e no servidor, mantém o estado Ativa/Desativada,
+  copia o link público e permite rotação real do código com confirmação e auditoria. Os controles de
+  Webhook, identificação, Ana e fallback ficam bloqueados quando não existe mutação individual segura;
+  o motivo técnico real é exibido.
+- A Edge Function `site-whatsapp-entry` foi atualizada para a ação `rotate` e publicada no Supabase
+  oficial `thgzrkppouoevapjquyu`, sem migration ou segredo no navegador.
+- Validação local aprovada: type-check frontend/Edge, lint, Vitest 57/329, build e diff check. Nenhuma
+  mensagem, lead, busca ou automação foi executada. Publicação do Site oficial fica pendente até a
+  inspeção autenticada desta versão.
+- Documento: `docs/REDESIGN_CONFIGURACOES_ENTRADAS_WHATSAPP_2026-09-29.md`.
