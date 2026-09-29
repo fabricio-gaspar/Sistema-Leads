@@ -57,6 +57,18 @@
 
 .wf-secondary-page .wf-secondary-action:disabled { opacity: .55; box-shadow: none; }
 
+/* Orçamentos follows the approved commercial mockup: green is reserved for
+   the primary create/confirm action while the shared shell keeps its own
+   graphite action treatment elsewhere. */
+.wf-secondary-page--quotes .wf-secondary-action {
+  border-color: var(--wf-command-green);
+  background: var(--wf-command-green);
+}
+
+.wf-secondary-page--quotes .wf-secondary-action:hover:not(:disabled) {
+  background: #0f7046;
+}
+
 .wf-secondary-kpis { width: 100%; gap: .85rem; }
 
 .wf-secondary-kpi {

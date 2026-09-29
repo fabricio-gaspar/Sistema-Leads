@@ -1855,6 +1855,7 @@ webhook em ambiente controlado.
 ## 29/09/2026 — Redesign da carteira de Orçamentos
 
 - A rota `/dashboard/orcamentos` foi alinhada ao mockup operacional: cabeçalho compacto, ação `Novo orçamento`, acesso a modelos e catálogo, abas com contagens reais, pesquisa por número/empresa/contato/item, responsável, filtros recolhíveis, ordenação e carteira com colunas essenciais.
+- Na inspeção publicada, o token global deixava o botão primário grafite; a tela agora aplica verde Wayflex somente às ações primárias do mockup, preservando o shell comum.
 - O estado vazio orienta para criar o primeiro orçamento e abrir o catálogo. A tabela preserva o drawer e as ações existentes: aprovação/reprovação de desconto, revisão, PDF, encaminhamento ao atendimento, aceite, recusa com motivo e arquivamento reversível.
 - Nenhuma regra, rota, permissão, migration, fonte de dados ou integração foi criada. O módulo continua lendo e gravando a entidade operacional `proposals` via `usePropostasStore`.
 - Type-check, lint, **56 arquivos / 328 testes** e build/artefato Sites passaram. Nenhum provedor, mensagem, cobrança, checkout ou dado comercial foi acionado.

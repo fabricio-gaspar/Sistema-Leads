@@ -3,6 +3,7 @@
 ## Escopo aplicado
 
 - Cabeçalho da operação comercial alinhado ao mockup, com `Novo orçamento` e acesso a modelos e catálogo.
+- Ação primária da tela usa o verde Wayflex da referência, sem alterar a paleta do restante do shell.
 - Abas compactas com contagens reais do store operacional: Todos, Rascunhos, Em aprovação, Enviados, Aceitos e Vencidos.
 - Barra de pesquisa por número, empresa, contato e itens do orçamento; filtro de responsável; filtros recolhíveis; ordenação por atualização, criação, validade e valor.
 - Carteira em tabela com seleção, número/versão, empresa e contato, valor líquido, situação, responsável, validade e ações existentes.
