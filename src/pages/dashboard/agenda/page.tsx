@@ -1,874 +1,258 @@
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import AccessibleDialog from '@/components/feature/AccessibleDialog';
-import { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
-import { useLocalStorageState } from '@/hooks/useLocalStorageState';
-import { useSavedViews } from '@/hooks/useSavedViews';
-import FilterChips from '@/components/feature/FilterChips';
-import type { FilterChip } from '@/components/feature/FilterChips';
-import SavedViewsControl from '@/components/feature/SavedViewsControl';
-import { useCompromissosStore, useCompromissosLoadStatus, refreshCompromissosStore, waitForCompromissosPersistence } from '@/hooks/useCompromissosStore';
 import DataReadNotice from '@/components/feature/DataReadNotice';
 import { useLeadsStore } from '@/hooks/useLeadsStore';
-import { stageFromLegacy } from '@/domain/pipeline';
-import type { Compromisso } from '@/mocks/frontendAdvancedData';
+import { loadTeamMembers, type TeamMember } from '@/lib/crm/teamMembersRepository';
+import {
+  agendaOrigins, agendaStatuses, agendaTypes, createAgendaSavedView, createOperationalAppointment,
+  findAgendaConflicts, loadAgendaHistory, loadAgendaPortfolio, loadAgendaSavedViews,
+  setDefaultAgendaSavedView, updateAgendaSavedView, updateOperationalAppointment,
+  validAgendaTimezone, type AgendaAppointment, type AgendaFilters, type AgendaHistoryEntry,
+  type AgendaSavedView, type AgendaStatus, type AgendaType, type AgendaViewKind,
+} from '@/lib/crm/appointmentsRepository';
 import '../command-secondary.css';
 
-const formatarData = (d: Date): string => {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const dia = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${dia}`;
-};
+type AgendaView = { view: AgendaViewKind; filters: AgendaFilters; workStart: number; workEnd: number; date: string };
+type FormState = { id?: string; expectedUpdatedAt?: string; leadId: string; type: AgendaType; title: string; description: string; date: string; startsAt: string; endsAt: string; timezone: string; responsibleId: string; participants: string; location: string; reminders: string; confirmation: 'pending' | 'confirmed'; notes: string; status: AgendaStatus; };
 
-const nomesDia = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+const dayNames = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+const typeLabel: Record<AgendaType, string> = { reuniao: 'Reunião', ligacao: 'Ligação', followup: 'Follow-up', tarefa: 'Tarefa', outro: 'Outro' };
+const statusLabel: Record<AgendaStatus, string> = { pending: 'Aguardando confirmação', confirmed: 'Confirmado', completed: 'Concluído', cancelled: 'Cancelado', no_show: 'Não compareceu' };
+const originLabel = { manual: 'Manual', ana: 'Criado pela Ana', integration: 'Integração' } as const;
+const statusTone: Record<AgendaStatus, string> = { pending: 'bg-amber-50 text-amber-800 border-amber-200', confirmed: 'bg-primary-50 text-primary-800 border-primary-200', completed: 'bg-emerald-50 text-emerald-800 border-emerald-200', cancelled: 'bg-background-100 text-foreground-600 border-background-200', no_show: 'bg-accent-50 text-accent-800 border-accent-200' };
+const typeTone: Record<AgendaType, string> = { reuniao: 'border-primary-300 bg-primary-50 text-primary-900', ligacao: 'border-sky-300 bg-sky-50 text-sky-900', followup: 'border-violet-300 bg-violet-50 text-violet-900', tarefa: 'border-amber-300 bg-amber-50 text-amber-900', outro: 'border-background-300 bg-background-100 text-foreground-800' };
 
-const gerarSemana = (base: Date): { datas: string[]; rotulos: string[] } => {
-  const inicio = new Date(base);
-  inicio.setDate(inicio.getDate() - inicio.getDay());
-  const datas: string[] = [];
-  const rotulos: string[] = [];
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(inicio);
-    d.setDate(inicio.getDate() + i);
-    datas.push(formatarData(d));
-    rotulos.push(nomesDia[d.getDay()]);
-  }
-  return { datas, rotulos };
-};
+const pad = (value: number) => String(value).padStart(2, '0');
+const localDate = (date = new Date()) => `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+const parseDate = (value: string) => new Date(`${value}T12:00:00`);
+const addDays = (value: string, count: number) => { const date = parseDate(value); date.setDate(date.getDate() + count); return localDate(date); };
+const monthTitle = (date: Date) => date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+const dateLong = (value: string) => parseDate(value).toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' });
+const dateFromIso = (iso: string, timezone = 'America/Sao_Paulo') => new Intl.DateTimeFormat('en-CA', { timeZone: timezone }).format(new Date(iso));
+const timeFromIso = (iso: string, timezone = 'America/Sao_Paulo') => new Intl.DateTimeFormat('pt-BR', { timeZone: timezone, hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(iso));
+const formatMoment = (iso: string, timezone = 'America/Sao_Paulo') => new Intl.DateTimeFormat('pt-BR', { timeZone: timezone, dateStyle: 'short', timeStyle: 'short' }).format(new Date(iso));
+const minutesBetween = (start: string, end: string) => Math.max(15, Math.round((new Date(end).getTime() - new Date(start).getTime()) / 60000));
+const addMinutes = (iso: string, amount: number) => new Date(new Date(iso).getTime() + amount * 60000).toISOString();
 
-const tipoCores: Record<string, string> = {
-  reuniao: 'bg-primary-100 text-primary-700 border-primary-200',
-  ligacao: 'bg-accent-100 text-accent-700 border-accent-200',
-  followup: 'bg-secondary-100 text-secondary-700 border-secondary-200',
-  proposta: 'bg-primary-500/20 text-primary-600 border-primary-300',
-};
-
-const tipoLabel: Record<string, string> = {
-  reuniao: 'Reunião',
-  ligacao: 'Ligação',
-  followup: 'Follow-up',
-  proposta: 'Proposta',
-};
-
-const canalIcone: Record<string, string> = {
-  presencial: 'ri-map-pin-line',
-  video: 'ri-video-line',
-  telefone: 'ri-phone-line',
-  whatsapp: 'ri-whatsapp-line',
-};
-
-interface AgendaFiltros {
-  busca: string;
-  responsavel: string;
-  segmento: string;
-  dataInicio: string;
-  dataFim: string;
+/** Converts a visible wall-clock time to UTC while keeping the chosen IANA zone explicit. */
+function zonedUtc(date: string, time: string, timezone: string) {
+  const desired = Date.UTC(Number(date.slice(0, 4)), Number(date.slice(5, 7)) - 1, Number(date.slice(8, 10)), Number(time.slice(0, 2)), Number(time.slice(3, 5)));
+  const candidate = new Date(desired);
+  const parts = new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(candidate);
+  const values = Object.fromEntries(parts.filter((part) => part.type !== 'literal').map((part) => [part.type, Number(part.value)]));
+  const shown = Date.UTC(values.year, values.month - 1, values.day, values.hour, values.minute);
+  return new Date(desired + (desired - shown)).toISOString();
 }
 
-const calcularHoraFim = (inicio: string, duracao = 60): string => {
-  const [h, m] = inicio.split(':').map(Number);
-  const d = new Date();
-  d.setHours(h, m + duracao, 0, 0);
-  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-};
+function weekStart(value: string) { const date = parseDate(value); date.setDate(date.getDate() - date.getDay()); return localDate(date); }
+function monthStart(value: string) { const date = parseDate(value); date.setDate(1); return localDate(date); }
+function rangeFor(view: AgendaViewKind, cursor: string) {
+  if (view === 'day') return { start: cursor, end: addDays(cursor, 1) };
+  if (view === 'month') return { start: monthStart(cursor), end: addDays(localDate(new Date(parseDate(monthStart(cursor)).getFullYear(), parseDate(monthStart(cursor)).getMonth() + 1, 1)), 0) };
+  if (view === 'list') return { start: addDays(cursor, -30), end: addDays(cursor, 90) };
+  const start = weekStart(cursor); return { start, end: addDays(start, 7) };
+}
+function periodLabel(view: AgendaViewKind, cursor: string) {
+  if (view === 'day') return dateLong(cursor);
+  if (view === 'month') return monthTitle(parseDate(cursor));
+  if (view === 'list') return 'Lista de compromissos';
+  const start = weekStart(cursor); const end = addDays(start, 6); const startDate = parseDate(start); const endDate = parseDate(end);
+  const left = startDate.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long' });
+  const right = endDate.toLocaleDateString('pt-BR', { day: 'numeric', month: 'long', year: 'numeric' });
+  return `${left} – ${right}`;
+}
+function shiftCursor(view: AgendaViewKind, cursor: string, amount: number) {
+  if (view === 'month') { const date = parseDate(cursor); date.setMonth(date.getMonth() + amount); return localDate(date); }
+  return addDays(cursor, amount * (view === 'week' ? 7 : 1));
+}
+function initials(value: string) { return value.trim().split(/\s+/).slice(0, 2).map((item) => item[0]).join('').toUpperCase() || '—'; }
+function blankForm(date = localDate(), time = '09:00', leadId = ''): FormState { return { leadId, type: 'reuniao', title: '', description: '', date, startsAt: time, endsAt: `${pad(Math.min(23, Number(time.slice(0, 2)) + 1))}:${time.slice(3)}`, timezone: 'America/Sao_Paulo', responsibleId: '', participants: '', location: '', reminders: '60', confirmation: 'pending', notes: '', status: 'pending' }; }
 
 export default function Agenda() {
-  const loadStatus = useCompromissosLoadStatus();
-  const [salvando, setSalvando] = useState(false);
-  const { compromissos: comps, criar, atualizar, excluir: removerCompromisso } = useCompromissosStore();
+  const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
   const [leads] = useLeadsStore();
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [items, setItems] = useState<AgendaAppointment[]>([]);
+  const [total, setTotal] = useState(0);
+  const [team, setTeam] = useState<TeamMember[]>([]);
+  const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [message, setMessage] = useState('');
+  const [searchInput, setSearchInput] = useState(() => params.get('q') ?? '');
+  const [selected, setSelected] = useState<AgendaAppointment | null>(null);
+  const [history, setHistory] = useState<AgendaHistoryEntry[]>([]);
+  const [form, setForm] = useState<FormState | null>(null);
+  const [advanced, setAdvanced] = useState(false);
+  const [viewsOpen, setViewsOpen] = useState(false);
+  const [views, setViews] = useState<AgendaSavedView<AgendaView>[]>([]);
+  const [page, setPage] = useState(0);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [conflicts, setConflicts] = useState<AgendaAppointment[]>([]);
+  const [pendingSave, setPendingSave] = useState<AgendaAppointment | null>(null);
+  const [transition, setTransition] = useState<{ item: AgendaAppointment; status: 'cancelled' | 'no_show' | 'completed' } | null>(null);
+  const [reason, setReason] = useState('');
+  const [nextActionFor, setNextActionFor] = useState<AgendaAppointment | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [undo, setUndo] = useState<null | (() => Promise<void>)>(null);
+  const [dragId, setDragId] = useState<string | null>(null);
 
-  const hoje = new Date();
-  const hojeStr = formatarData(hoje);
-  const { datas: dias, rotulos: nomesDias } = gerarSemana(hoje);
+  const view = (params.get('view') as AgendaViewKind) || 'week';
+  const cursor = params.get('date') || localDate();
+  const quick = params.get('quick') || '';
+  const range = useMemo(() => rangeFor(view, cursor), [view, cursor]);
+  const filterState: AgendaFilters = useMemo(() => ({
+    query: params.get('q') || '', responsibleId: params.get('responsible') || '', type: (params.get('type') || '') as AgendaFilters['type'],
+    status: (params.get('status') || '') as AgendaFilters['status'], origin: (params.get('origin') || '') as AgendaFilters['origin'], segment: params.get('segment') || '',
+    confirmation: (params.get('confirmation') || '') as AgendaFilters['confirmation'], nextAction: (params.get('nextAction') || '') as AgendaFilters['nextAction'],
+    quick: quick as AgendaFilters['quick'], rangeStart: `${range.start}T00:00:00-03:00`, rangeEnd: `${range.end}T00:00:00-03:00`,
+  }), [params, quick, range]);
+  const workStart = Math.min(22, Math.max(0, Number(params.get('startHour') || 8)));
+  const workEnd = Math.max(workStart + 1, Math.min(24, Number(params.get('endHour') || 18)));
+  const isModified = Boolean(params.get('q') || params.get('responsible') || params.get('type') || params.get('status') || params.get('origin') || params.get('segment') || params.get('confirmation') || params.get('nextAction') || quick || params.get('startHour') || params.get('endHour'));
 
-  const [dataSelecionada, setDataSelecionada] = useState(hojeStr);
-  const [detalhe, setDetalhe] = useState<Compromisso | null>(null);
-  const [novoModal, setNovoModal] = useState(false);
-  const [toast, setToast] = useState('');
-  const [filtroResponsavel, setFiltroResponsavel] = useLocalStorageState('agenda-filtro-responsavel', '');
-  const [filtroSegmento, setFiltroSegmento] = useLocalStorageState('agenda-filtro-segmento', '');
-  const [dataInicio, setDataInicio] = useLocalStorageState('agenda-data-inicio', '');
-  const [dataFim, setDataFim] = useLocalStorageState('agenda-data-fim', '');
-  const [busca, setBusca] = useLocalStorageState('agenda-busca', '');
+  const patchParams = useCallback((patch: Record<string, string | null>) => {
+    const next = new URLSearchParams(params);
+    Object.entries(patch).forEach(([key, value]) => { if (value) next.set(key, value); else next.delete(key); });
+    setParams(next, { replace: true });
+  }, [params, setParams]);
 
-  // Estados do modal "Novo compromisso"
-  const [novoTitulo, setNovoTitulo] = useState('Reunião de apresentação');
-  const [novoLeadId, setNovoLeadId] = useState('');
-  const [novoData, setNovoData] = useState(hojeStr);
-  const [novoHora, setNovoHora] = useState('14:00');
-  const [novoDuracao, setNovoDuracao] = useState(60);
-  const [novoTipo, setNovoTipo] = useState<'reuniao' | 'ligacao' | 'followup' | 'proposta'>('reuniao');
-  const [novoCanal, setNovoCanal] = useState<'presencial' | 'video' | 'telefone' | 'whatsapp'>('video');
-  const [remarcarModal, setRemarcarModal] = useState<Compromisso | null>(null);
-  const [remarcarData, setRemarcarData] = useState('');
-  const [remarcarHora, setRemarcarHora] = useState('');
-  const [remarcarDuracao, setRemarcarDuracao] = useState(60);
-
-  // A Central envia o lead no endereço e abre somente o formulário de
-  // compromisso. A criação continua nesta tela, usando a mesma store da Agenda.
   useEffect(() => {
-    const requestedLeadId = searchParams.get('leadId');
-    if (searchParams.get('new') !== '1' || !requestedLeadId || !leads.some((lead) => lead.id === requestedLeadId)) return;
-    setNovoLeadId(requestedLeadId);
-    setNovoModal(true);
-    const nextParams = new URLSearchParams(searchParams);
-    nextParams.delete('new');
-    setSearchParams(nextParams, { replace: true });
-  }, [leads, searchParams, setSearchParams]);
+    const timer = window.setTimeout(() => patchParams({ q: searchInput.trim() || null }), 300);
+    return () => window.clearTimeout(timer);
+  }, [searchInput, patchParams]);
 
-  const mostrarToast = (msg: string) => {
-    setToast(msg);
-    setTimeout(() => setToast(''), 3000);
-  };
+  const load = useCallback(async () => {
+    setStatus('loading');
+    try { const result = await loadAgendaPortfolio(filterState, view === 'list' ? page * 25 : 0, view === 'list' ? 25 : 200); setItems(result.items); setTotal(result.total); setStatus('ready'); }
+    catch (error) { console.error('[agenda] falha ao consultar agenda operacional', error); setStatus('error'); }
+  }, [filterState, page, view]);
 
-  const segmentoPorLead = new Map(leads.map((l) => [l.nome, l.segmento]));
-  const compromissoPorLeadId = new Map(comps.filter((c) => c.leadId).map((c) => [c.leadId as string, c]));
-
-  // Consumo da etapa canônica de reunião, incluindo registros legados apenas
-  // como compatibilidade de leitura.
-  const leadsReuniao = leads.filter((l) => stageFromLegacy(l.etapa) === 'quote_preparation');
-  const reunioesAna = comps.filter((c) => c.origem === 'ana' || c.responsavel === 'Ana (IA)');
-
-  const responsaveis = Array.from(new Set(comps.map((c) => c.responsavel))).sort();
-  const segmentosDisponiveis = Array.from(new Set(leads.map((l) => l.segmento))).filter(Boolean).sort();
-
-  const hasFiltros = Boolean(busca || filtroResponsavel || filtroSegmento || dataInicio || dataFim);
-
-  const limparFiltros = () => {
-    setBusca('');
-    setFiltroResponsavel('');
-    setFiltroSegmento('');
-    setDataInicio('');
-    setDataFim('');
-  };
-
-  const aplicarAtalho = (tipo: 'hoje' | 'semana' | 'mes') => {
-    if (tipo === 'hoje') {
-      setDataInicio(hojeStr);
-      setDataFim(hojeStr);
-    } else if (tipo === 'semana') {
-      const dia = hoje.getDay();
-      const inicio = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() - dia);
-      setDataInicio(formatarData(inicio));
-      setDataFim(hojeStr);
-    } else {
-      const inicio = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
-      setDataInicio(formatarData(inicio));
-      setDataFim(hojeStr);
+  useEffect(() => { void load(); }, [load]);
+  useEffect(() => { void loadTeamMembers().then((members) => setTeam(members.filter((member) => member.status === 'active'))).catch((error) => console.error('[agenda] equipe indisponível', error)); }, []);
+  useEffect(() => { void loadAgendaSavedViews<AgendaView>().then(setViews).catch((error) => console.error('[agenda] visões indisponíveis', error)); }, []);
+  useEffect(() => {
+    const requestedLeadId = params.get('leadId');
+    if (params.get('new') === '1' && requestedLeadId && leads.some((lead) => lead.id === requestedLeadId)) {
+      setForm(blankForm(cursor, '09:00', requestedLeadId)); patchParams({ new: null });
     }
+  }, [cursor, leads, params, patchParams]);
+
+  const pushMessage = (text: string, action?: () => Promise<void>) => { setMessage(text); setUndo(action ? () => action : null); window.setTimeout(() => { setMessage(''); setUndo(null); }, 7000); };
+  const selectedLead = form ? leads.find((lead) => lead.id === form.leadId) : undefined;
+  const filtersApplied = [
+    filterState.responsibleId && ['Responsável', team.find((member) => member.userId === filterState.responsibleId)?.name || 'Selecionado'],
+    filterState.type && ['Tipo', typeLabel[filterState.type]], filterState.status && ['Situação', statusLabel[filterState.status]],
+    filterState.origin && ['Origem', originLabel[filterState.origin]], filterState.segment && ['Segmento', filterState.segment],
+    filterState.confirmation && ['Confirmação', filterState.confirmation === 'confirmed' ? 'Confirmado' : 'Aguardando'],
+    filterState.nextAction && ['Próxima ação', filterState.nextAction === 'with' ? 'Com próxima ação' : 'Sem próxima ação'],
+  ].filter(Boolean) as [string, string][];
+
+  const openForm = (date = cursor, time = '09:00', item?: AgendaAppointment) => {
+    if (!item) { setForm(blankForm(date, time)); return; }
+    setForm({ id: item.id, expectedUpdatedAt: item.updatedAt, leadId: item.leadId, type: item.type, title: item.title, description: item.description, date: dateFromIso(item.startsAt, item.timezone), startsAt: timeFromIso(item.startsAt, item.timezone), endsAt: timeFromIso(item.endsAt, item.timezone), timezone: item.timezone, responsibleId: item.responsibleId || '', participants: item.participants.join(', '), location: item.location, reminders: item.reminderMinutes.join(', '), confirmation: item.confirmationStatus, notes: item.notes, status: item.status });
   };
-
-  const filtrosAtuais: AgendaFiltros = {
-    busca,
-    responsavel: filtroResponsavel,
-    segmento: filtroSegmento,
-    dataInicio,
-    dataFim,
+  const buildAppointment = (data: FormState): AgendaAppointment | null => {
+    const lead = leads.find((candidate) => candidate.id === data.leadId); if (!lead) { pushMessage('Selecione um lead antes de salvar.'); return null; }
+    const timezone = validAgendaTimezone(data.timezone); const startsAt = zonedUtc(data.date, data.startsAt, timezone); const endsAt = zonedUtc(data.date, data.endsAt, timezone);
+    if (new Date(endsAt) <= new Date(startsAt)) { pushMessage('O horário final deve ser posterior ao horário inicial.'); return null; }
+    const responsible = team.find((member) => member.userId === data.responsibleId);
+    const existing = data.id && selected?.id === data.id ? selected : null;
+    return { id: data.id || crypto.randomUUID(), leadId: lead.id, leadName: lead.nome, company: lead.empresa, phone: lead.telefone || lead.whatsapp || null, email: lead.email || null, segment: lead.segmento || null, stage: lead.etapa || null, title: data.title.trim() || `${typeLabel[data.type]} comercial`, description: data.description.trim(), notes: data.notes.trim(), type: data.type, status: data.status, confirmationStatus: data.confirmation, startsAt, endsAt, timezone, responsibleId: responsible?.userId || null, responsibleName: responsible?.name || 'Você', participants: data.participants.split(',').map((part) => part.trim()).filter(Boolean), location: data.location.trim(), reminderMinutes: data.reminders.split(',').map((part) => Number(part.trim())).filter((value) => Number.isInteger(value) && value >= 0 && value <= 43200).slice(0, 4), reminderStatus: data.reminders.trim() ? 'pending' : 'not_scheduled', origin: existing?.origin || 'manual', originConversationId: existing?.originConversationId || null, originMessageId: existing?.originMessageId || null, provider: existing?.provider || null, externalId: existing?.externalId || null, result: existing?.result || '', cancelReason: existing?.cancelReason || '', noShowReason: existing?.noShowReason || '', nextActionAt: existing?.nextActionAt || null, nextActionTitle: existing?.nextActionTitle || null, updatedAt: data.expectedUpdatedAt || new Date().toISOString(), createdAt: existing?.createdAt || new Date().toISOString(), isOverdue: existing?.isOverdue || false };
   };
-
-  const aplicarFiltros = (f: AgendaFiltros) => {
-    setBusca(f.busca);
-    setFiltroResponsavel(f.responsavel);
-    setFiltroSegmento(f.segmento);
-    setDataInicio(f.dataInicio);
-    setDataFim(f.dataFim);
+  const persist = async (candidate: AgendaAppointment, force = false) => {
+    setSaving(true);
+    try {
+      const overlaps = force || !candidate.responsibleId ? [] : await findAgendaConflicts(candidate, candidate.id || undefined);
+      if (overlaps.length && !force) { setPendingSave(candidate); setConflicts(overlaps); return; }
+      const existing = Boolean(form?.id) || items.some((item) => item.id === candidate.id);
+      const persisted = !existing ? await createOperationalAppointment(candidate) : await updateOperationalAppointment(candidate, form?.expectedUpdatedAt || candidate.updatedAt);
+      setForm(null); setPendingSave(null); setConflicts([]); setSelected(persisted); await load(); pushMessage('Compromisso salvo na Agenda operacional.');
+    } catch (error) {
+      console.error('[agenda] falha ao salvar compromisso', error);
+      pushMessage(error instanceof Error && error.message === 'appointment_concurrent_update' ? 'O compromisso foi alterado por outra pessoa. A Agenda foi atualizada.' : 'Não foi possível salvar. Nenhuma alteração foi confirmada.');
+      await load();
+    } finally { setSaving(false); }
   };
-
-  const { views, salvar, renomear, excluir } = useSavedViews<AgendaFiltros>('agenda-visoes-salvas');
-
-  const chips: FilterChip[] = [
-    busca ? { label: 'Busca', value: busca, onRemove: () => setBusca('') } : null,
-    filtroResponsavel ? { label: 'Responsável', value: filtroResponsavel, onRemove: () => setFiltroResponsavel('') } : null,
-    filtroSegmento ? { label: 'Segmento', value: filtroSegmento, onRemove: () => setFiltroSegmento('') } : null,
-    dataInicio || dataFim
-      ? { label: 'Período', value: [dataInicio, dataFim].filter(Boolean).join(' até '), onRemove: () => { setDataInicio(''); setDataFim(''); } }
-      : null,
-  ].filter((c): c is FilterChip => c !== null);
-
-  const termo = busca.trim().toLowerCase();
-  const compsFiltrados = comps.filter((c) => {
-    if (termo && !c.lead.toLowerCase().includes(termo) && !c.empresa.toLowerCase().includes(termo)) return false;
-    if (filtroResponsavel && c.responsavel !== filtroResponsavel) return false;
-    if (filtroSegmento && segmentoPorLead.get(c.lead) !== filtroSegmento) return false;
-    if (dataInicio && c.data < dataInicio) return false;
-    if (dataFim && c.data > dataFim) return false;
-    return true;
-  });
-
-  const compsDoDia = compsFiltrados.filter((c) => c.data === dataSelecionada && c.status !== 'cancelado' && c.status !== 'no_show');
-
-  const horarios = [
-    '08:00', '09:00', '10:00', '11:00', '12:00',
-    '13:00', '14:00', '15:00', '16:00', '17:00', '18:00',
-  ];
-
-  const proximos = compsFiltrados
-    .filter((c) => c.status === 'agendado' && c.data >= hojeStr)
-    .sort((a, b) => (a.data + a.horaInicio).localeCompare(b.data + b.horaInicio))
-    .slice(0, 5);
-
-  const kpis = [
-    { label: 'Reuniões agendadas', value: String(comps.filter((c) => c.status === 'agendado').length), icon: 'ri-calendar-event-line', color: 'bg-primary-100 text-primary-600' },
-    { label: 'Hoje', value: String(comps.filter((c) => c.status === 'agendado' && c.data === hojeStr).length), icon: 'ri-calendar-check-line', color: 'bg-accent-100 text-accent-600' },
-    { label: 'Agendadas pela Ana', value: String(reunioesAna.filter((c) => c.status === 'agendado').length), icon: 'ri-robot-line', color: 'bg-secondary-100 text-secondary-600' },
-    { label: 'Leads em reunião', value: String(leadsReuniao.length), icon: 'ri-user-heart-line', color: 'bg-primary-500/20 text-primary-600' },
-  ];
-
-  const confirmarGravacao = async () => {
-    setSalvando(true);
-    try { await waitForCompromissosPersistence(); return true; }
-    catch { mostrarToast('Não foi possível salvar. A agenda foi reconciliada com o servidor; revise e tente novamente.'); return false; }
-    finally { setSalvando(false); }
+  const saveForm = async () => { if (!form) return; const candidate = buildAppointment(form); if (candidate) await persist(candidate); };
+  const updateItem = async (item: AgendaAppointment, patch: Partial<AgendaAppointment>, previous?: AgendaAppointment) => {
+    const candidate = { ...item, ...patch };
+    try { const persisted = await updateOperationalAppointment(candidate, item.updatedAt); setSelected(persisted); await load(); pushMessage('Agenda atualizada.', previous ? async () => { await updateOperationalAppointment(previous, persisted.updatedAt); await load(); } : undefined); }
+    catch (error) { console.error('[agenda] falha ao atualizar compromisso', error); pushMessage(error instanceof Error && error.message === 'appointment_concurrent_update' ? 'Alteração concorrente: os dados foram recarregados.' : 'Não foi possível atualizar o compromisso.'); await load(); }
   };
-
-  const confirmarNovo = async () => {
-    if (salvando) return;
-    const lead = leads.find((l) => l.id === novoLeadId);
-    if (!lead) {
-      mostrarToast('Selecione um lead para agendar.');
-      return;
-    }
-    if (!novoData || !novoHora || calcularHoraFim(novoHora, novoDuracao) <= novoHora) {
-      mostrarToast('Informe data e horário válidos. O compromisso precisa terminar no mesmo dia.'); return;
-    }
-    criar({
-      titulo: novoTitulo.trim() || 'Reunião',
-      lead: lead.nome,
-      leadId: lead.id,
-      empresa: lead.empresa,
-      data: novoData,
-      horaInicio: novoHora,
-      horaFim: calcularHoraFim(novoHora, novoDuracao),
-      tipo: novoTipo,
-      canal: novoCanal,
-      status: 'agendado',
-      responsavel: 'Você',
-      observacoes: '',
-      origem: 'manual',
-    });
-    if (!await confirmarGravacao()) return;
-    setNovoModal(false);
-    setNovoTitulo('Reunião de apresentação');
-    setNovoLeadId('');
-    setNovoData(hojeStr);
-    setNovoHora('14:00');
-    setNovoDuracao(60);
-    mostrarToast('Compromisso agendado!');
+  const reschedule = async (item: AgendaAppointment, date: string, hour: string) => {
+    const start = zonedUtc(date, hour, item.timezone); const end = addMinutes(start, minutesBetween(item.startsAt, item.endsAt));
+    const candidate = { ...item, startsAt: start, endsAt: end };
+    if (item.responsibleId) { const found = await findAgendaConflicts(candidate, item.id); if (found.length) { setPendingSave(candidate); setConflicts(found); return; } }
+    await updateItem(item, { startsAt: start, endsAt: end }, item);
   };
-
-  const abrirRemarcar = (c: Compromisso) => {
-    setRemarcarModal(c);
-    setRemarcarData(c.data);
-    setRemarcarHora(c.horaInicio);
-    const minutos = (hora: string) => Number(hora.slice(0, 2)) * 60 + Number(hora.slice(3, 5));
-    setRemarcarDuracao(Math.max(15, minutos(c.horaFim) - minutos(c.horaInicio)));
+  const handleTransition = async () => {
+    if (!transition) return; if ((transition.status === 'cancelled' || transition.status === 'no_show') && !reason.trim()) return;
+    const patch: Partial<AgendaAppointment> = transition.status === 'cancelled' ? { status: 'cancelled', cancelReason: reason.trim() } : transition.status === 'no_show' ? { status: 'no_show', noShowReason: reason.trim() } : { status: 'completed', result: reason.trim() };
+    await updateItem(transition.item, patch); setTransition(null); setReason('');
   };
+  const openItem = async (item: AgendaAppointment) => { setSelected(item); setHistory([]); try { setHistory(await loadAgendaHistory(item.id)); } catch (error) { console.error('[agenda] histórico indisponível', error); } };
+  const saveView = async () => { const name = window.prompt('Nome da visão:'); if (!name?.trim()) return; const configuration: AgendaView = { view, filters: filterState, workStart, workEnd, date: cursor }; try { const created = await createAgendaSavedView(name, configuration); setViews((current) => [created, ...current]); pushMessage('Visão salva para este usuário.'); } catch { pushMessage('Não foi possível salvar esta visão.'); } };
+  const applyView = (saved: AgendaSavedView<AgendaView>) => { const savedView = saved.configuration; patchParams({ view: savedView.view, date: savedView.date, q: savedView.filters.query || null, responsible: savedView.filters.responsibleId || null, type: savedView.filters.type || null, status: savedView.filters.status || null, origin: savedView.filters.origin || null, segment: savedView.filters.segment || null, confirmation: savedView.filters.confirmation || null, nextAction: savedView.filters.nextAction || null, quick: savedView.filters.quick || null, startHour: String(savedView.workStart), endHour: String(savedView.workEnd) }); setSearchInput(savedView.filters.query); setViewsOpen(false); };
+  const updateCurrentView = async (saved: AgendaSavedView<AgendaView>) => { try { await updateAgendaSavedView(saved.id, { view, filters: filterState, workStart, workEnd, date: cursor }); pushMessage('Visão atualizada.'); } catch { pushMessage('Não foi possível atualizar a visão.'); } };
+  const hours = Array.from({ length: workEnd - workStart }, (_, index) => workStart + index);
+  const visibleDays = view === 'day' ? [cursor] : Array.from({ length: 7 }, (_, index) => addDays(weekStart(cursor), index));
+  const empty = status === 'ready' && items.length === 0;
 
-  const confirmarRemarcar = async () => {
-    if (salvando) return;
-    if (!remarcarModal) return;
-    if (!remarcarData || !remarcarHora || calcularHoraFim(remarcarHora, remarcarDuracao) <= remarcarHora) {
-      mostrarToast('Escolha a nova data e horário.');
-      return;
-    }
-    atualizar(remarcarModal.id, {
-      data: remarcarData,
-      horaInicio: remarcarHora,
-      horaFim: calcularHoraFim(remarcarHora, remarcarDuracao),
-      status: 'agendado',
-    });
-    if (!await confirmarGravacao()) return;
-    setRemarcarModal(null);
-    mostrarToast('Compromisso remarcado!');
-  };
+  return <div className="wf-page wf-secondary-page wf-secondary-page--agenda">
+    <section className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+      <div><p className="wf-eyebrow">PLANEJAMENTO COMERCIAL</p><h1 className="mt-1 font-heading text-3xl font-bold tracking-tight text-foreground-950">Agenda</h1><p className="mt-1 text-sm text-foreground-500">Organize reuniões, ligações e próximos passos da equipe comercial.</p></div>
+      <div className="flex items-center gap-3"><span className="rounded-xl border border-background-200 bg-background-50 px-4 py-2.5 text-sm font-medium text-foreground-600">{total} compromisso{total === 1 ? '' : 's'} {view === 'week' ? 'nesta semana' : 'no período'}</span><button type="button" onClick={() => openForm(cursor)} className="wf-btn-primary"><i className="ri-add-line" />Novo compromisso</button></div>
+    </section>
 
-  const cancelarCompromisso = async (c: Compromisso) => {
-    if (salvando) return;
-    atualizar(c.id, { status: 'cancelado' });
-    if (!await confirmarGravacao()) return;
-    setDetalhe(null);
-    mostrarToast('Compromisso cancelado.');
-  };
+    <DataReadNotice status={status} onRetry={() => { void load(); }} />
+    {message && <div role="status" className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary-200 bg-primary-50 px-4 py-3 text-sm text-primary-900"><span>{message}</span>{undo && <button type="button" className="font-semibold underline" onClick={() => void undo()}>Desfazer</button>}</div>}
 
-  const excluirCompromisso = async (c: Compromisso) => {
-    if (salvando || !window.confirm(`Excluir o compromisso “${c.titulo}”? Esta ação não pode ser desfeita.`)) return;
-    removerCompromisso(c.id);
-    if (!await confirmarGravacao()) return;
-    setDetalhe(null);
-    mostrarToast('Compromisso excluído definitivamente.');
-  };
-
-  return (
-    <div className="wf-page wf-secondary-page wf-secondary-page--agenda">
-      <DataReadNotice status={loadStatus} onRetry={() => { void refreshCompromissosStore(); }} />
-      {salvando && <p role="status" className="mb-3 text-sm text-foreground-600">Salvando compromisso…</p>}
-      <div className="wf-secondary-header mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <p className="wf-secondary-eyebrow">Planejamento comercial</p>
-          <h1 className="wf-page-title mb-2">
-            Agenda
-          </h1>
-          <p className="wf-secondary-description text-foreground-600 text-sm">
-            Reuniões, ligações e próximos passos. Horários em formato de 24 horas, no fuso local do dispositivo.
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          {hasFiltros && (
-            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-accent-100 text-accent-800 rounded-full text-xs font-semibold whitespace-nowrap">
-              <i className="ri-filter-3-line"></i>
-              {compsFiltrados.length} resultados
-            </span>
-          )}
-          <button
-            onClick={() => setNovoModal(true)}
-            className="wf-secondary-action inline-flex items-center gap-2 bg-primary-500 hover:bg-primary-600 text-background-50 px-5 py-2.5 rounded-lg text-sm font-bold cursor-pointer whitespace-nowrap"
-          >
-            <i className="ri-add-line"></i>
-            Novo compromisso
-          </button>
-        </div>
+    <section className="wf-surface overflow-visible">
+      <div className="flex flex-wrap items-center gap-2 border-b border-background-200 px-4 py-3 sm:px-5">
+        <button type="button" aria-label="Período anterior" onClick={() => patchParams({ date: shiftCursor(view, cursor, -1) })} className="wf-icon-button"><i className="ri-arrow-left-s-line" /></button>
+        <button type="button" onClick={() => patchParams({ date: localDate() })} className="wf-btn-secondary px-3 text-xs">Hoje</button>
+        <button type="button" aria-label="Próximo período" onClick={() => patchParams({ date: shiftCursor(view, cursor, 1) })} className="wf-icon-button"><i className="ri-arrow-right-s-line" /></button>
+        <strong aria-live="polite" className="min-w-0 flex-1 px-2 text-sm text-foreground-900 sm:text-base">{periodLabel(view, cursor)}</strong>
+        <div className="flex rounded-lg border border-background-200 bg-background-50 p-1" role="tablist" aria-label="Visão da Agenda">{([{ id: 'day', label: 'Dia' }, { id: 'week', label: 'Semana' }, { id: 'month', label: 'Mês' }, { id: 'list', label: 'Lista' }] as const).map((option) => <button key={option.id} role="tab" aria-selected={view === option.id} type="button" onClick={() => { setPage(0); patchParams({ view: option.id }); }} className={`rounded-md px-3 py-1.5 text-xs font-semibold ${view === option.id ? 'bg-primary-600 text-white shadow-sm' : 'text-foreground-600 hover:bg-background-100'}`}>{option.label}</button>)}</div>
       </div>
-
-      {toast && (
-        <div className="mb-4 bg-primary-100 border border-primary-200 text-primary-800 px-4 py-3 rounded-lg text-sm flex items-center gap-2">
-          <i className="ri-information-line"></i>
-          {toast}
-        </div>
-      )}
-
-      {/* KPIs */}
-      <div className="wf-secondary-kpis grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        {kpis.map((kpi, i) => (
-          <div key={i} className="wf-secondary-kpi bg-background-50 border border-background-200/70 rounded-xl p-5">
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-4 ${kpi.color}`}>
-              <i className={`${kpi.icon} text-lg`}></i>
-            </div>
-            <p className="text-2xl font-heading font-extrabold text-foreground-950">{kpi.value}</p>
-            <p className="text-foreground-500 text-sm mt-1">{kpi.label}</p>
-          </div>
-        ))}
+      <div className="grid gap-2 border-b border-background-200 p-4 sm:grid-cols-2 xl:grid-cols-[minmax(280px,1fr)_220px_190px_auto_auto] sm:px-5">
+        <label className="relative"><span className="sr-only">Buscar compromisso</span><i className="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-foreground-400" /><input value={searchInput} onChange={(event) => { setPage(0); setSearchInput(event.target.value); }} placeholder="Buscar lead, empresa ou compromisso" className="wf-input w-full pl-9" /></label>
+        <select aria-label="Responsável" value={filterState.responsibleId} onChange={(event) => { setPage(0); patchParams({ responsible: event.target.value || null }); }} className="wf-input"><option value="">Todos os responsáveis</option>{team.map((member) => <option key={member.userId} value={member.userId}>{member.name}</option>)}</select>
+        <select aria-label="Tipo" value={filterState.type} onChange={(event) => { setPage(0); patchParams({ type: event.target.value || null }); }} className="wf-input"><option value="">Todos os tipos</option>{agendaTypes.map((type) => <option key={type} value={type}>{typeLabel[type]}</option>)}</select>
+        <div className="relative"><button type="button" onClick={() => setViewsOpen((open) => !open)} className="wf-btn-secondary w-full justify-center text-xs"><i className="ri-bookmark-line" />Visões</button>{viewsOpen && <div className="absolute right-0 z-30 mt-2 w-72 rounded-xl border border-background-200 bg-background-50 p-2 shadow-xl"><p className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-foreground-500">Visões pessoais</p>{views.length ? views.map((saved) => <div key={saved.id} className="flex items-center gap-1 rounded-lg px-2 py-1.5 hover:bg-background-100"><button type="button" onClick={() => applyView(saved)} className="min-w-0 flex-1 truncate text-left text-sm font-medium text-foreground-800">{saved.isDefault && <i className="ri-star-fill mr-1 text-amber-500" />}{saved.name}</button><button type="button" title="Atualizar visão" onClick={() => void updateCurrentView(saved)} className="p-1 text-foreground-500 hover:text-primary-700"><i className="ri-save-line" /></button><button type="button" title="Definir como padrão" onClick={() => void setDefaultAgendaSavedView(saved.id).then(() => setViews((items) => items.map((item) => ({ ...item, isDefault: item.id === saved.id })))).catch(() => pushMessage('Não foi possível definir a visão padrão.'))} className="p-1 text-foreground-500 hover:text-amber-600"><i className="ri-star-line" /></button></div>) : <p className="px-2 py-3 text-xs text-foreground-500">Nenhuma visão salva.</p>}{isModified && <button type="button" onClick={() => void saveView()} className="mt-1 w-full rounded-lg bg-primary-50 px-2 py-2 text-left text-xs font-semibold text-primary-800 hover:bg-primary-100"><i className="ri-add-line mr-1" />Salvar configuração atual</button>}</div>}</div>
+        <button type="button" onClick={() => setAdvanced((open) => !open)} className={`wf-btn-secondary justify-center text-xs ${advanced ? 'border-primary-300 text-primary-800' : ''}`}><i className="ri-equalizer-2-line" />Filtros</button>
       </div>
+      <div className="flex flex-wrap gap-2 border-b border-background-200 px-4 py-2.5 sm:px-5">{([{ key: 'mine', label: 'Meus compromissos', icon: 'ri-user-line' }, { key: 'ana', label: 'Criados pela Ana', icon: 'ri-robot-2-line' }, { key: 'overdue', label: 'Atrasados', icon: 'ri-time-line' }] as const).map((option) => <button key={option.key} type="button" onClick={() => patchParams({ quick: quick === option.key ? null : option.key })} className={`rounded-lg border px-3 py-1.5 text-xs font-semibold ${quick === option.key ? 'border-primary-300 bg-primary-50 text-primary-800' : 'border-background-200 text-foreground-600 hover:bg-background-100'}`}><i className={`${option.icon} mr-1.5`} />{option.label}</button>)}</div>
+      {advanced && <div className="grid gap-3 border-b border-background-200 bg-background-100/40 p-4 sm:grid-cols-2 lg:grid-cols-4 sm:px-5"><SelectFilter label="Situação" value={filterState.status} onChange={(value) => patchParams({ status: value || null })} options={agendaStatuses.map((value) => [value, statusLabel[value]])} /><SelectFilter label="Origem" value={filterState.origin} onChange={(value) => patchParams({ origin: value || null })} options={agendaOrigins.map((value) => [value, originLabel[value]])} /><SelectFilter label="Confirmação" value={filterState.confirmation} onChange={(value) => patchParams({ confirmation: value || null })} options={[["pending", "Aguardando confirmação"], ["confirmed", "Confirmado"]]} /><SelectFilter label="Próxima ação" value={filterState.nextAction} onChange={(value) => patchParams({ nextAction: value || null })} options={[["with", "Com próxima ação"], ["without", "Sem próxima ação"]]} /><SelectFilter label="Segmento" value={filterState.segment} onChange={(value) => patchParams({ segment: value || null })} options={Array.from(new Set(leads.map((lead) => lead.segmento).filter(Boolean))).map((value) => [value, value])} /><SelectFilter label="Jornada inicial" value={String(workStart)} onChange={(value) => patchParams({ startHour: value === '8' ? null : value })} options={Array.from({ length: 20 }, (_, index) => [String(index + 4), `${pad(index + 4)}:00`])} /><SelectFilter label="Jornada final" value={String(workEnd)} onChange={(value) => patchParams({ endHour: value === '18' ? null : value })} options={Array.from({ length: 16 }, (_, index) => [String(index + 9), `${pad(index + 9)}:00`])} /><div className="flex items-end"><button type="button" onClick={() => { setSearchInput(''); patchParams({ q: null, responsible: null, type: null, status: null, origin: null, segment: null, confirmation: null, nextAction: null, quick: null, startHour: null, endHour: null }); }} className="text-sm font-semibold text-primary-700 hover:underline">Limpar filtros</button></div></div>}
+      {filtersApplied.length > 0 && <div className="flex flex-wrap items-center gap-2 px-4 py-2.5 sm:px-5">{filtersApplied.map(([label, value]) => <span key={label} className="rounded-full border border-primary-200 bg-primary-50 px-2.5 py-1 text-xs text-primary-800">{label}: {value}</span>)}<button type="button" onClick={() => patchParams({ responsible: null, type: null, status: null, origin: null, segment: null, confirmation: null, nextAction: null })} className="text-xs font-semibold text-primary-700">Limpar filtros</button></div>}
+    </section>
 
-      {/* Reuniões agendadas pela Ana */}
-      {leadsReuniao.length > 0 && (
-        <div className="wf-secondary-panel mb-6 bg-background-50 border border-background-200/70 rounded-xl p-5">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-lg bg-secondary-100 flex items-center justify-center">
-                <i className="ri-robot-line text-secondary-600 text-base"></i>
-              </div>
-              <div>
-                <h3 className="font-heading font-bold text-foreground-900 text-sm">Reuniões agendadas pela Ana</h3>
-                <p className="text-xs text-foreground-500">Leads na etapa Reunião do funil</p>
-              </div>
-            </div>
-            <span className="px-3 py-1.5 bg-secondary-100 text-secondary-800 rounded-full text-xs font-semibold whitespace-nowrap">
-              {leadsReuniao.length} {leadsReuniao.length === 1 ? 'reunião' : 'reuniões'}
-            </span>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {leadsReuniao.map((l) => {
-              const reu = compromissoPorLeadId.get(l.id);
-              return (
-                <div key={l.id} className="border border-background-200/70 rounded-lg p-4 bg-background-50">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <p className="text-sm font-semibold text-foreground-900 truncate">{l.nome}</p>
-                    <span className="text-[10px] px-2 py-0.5 rounded bg-primary-100 text-primary-700 font-medium whitespace-nowrap flex-shrink-0">
-                      {l.segmento}
-                    </span>
-                  </div>
-                  <p className="text-xs text-foreground-500 mb-3 truncate">{l.empresa}</p>
-                  {reu ? (
-                    <div className="flex items-center gap-2 text-xs text-foreground-600 flex-wrap">
-                      <i className="ri-calendar-line"></i>
-                      {new Date(reu.data + 'T00:00:00').toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' })}
-                      <span className="text-foreground-300">·</span>
-                      <i className="ri-time-line"></i>
-                      {reu.horaInicio}
-                      <button
-                        onClick={() => setDetalhe(reu)}
-                        className="ml-auto text-primary-600 hover:text-primary-700 text-xs font-semibold cursor-pointer whitespace-nowrap"
-                      >
-                        Ver detalhes
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2 text-xs text-foreground-400">
-                      <i className="ri-information-line"></i>
-                      Sem horário definido no calendário
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
+    <section className="mt-5">{view === 'list' ? <AgendaList items={items} total={total} page={page} selectedIds={selectedIds} onSelect={setSelectedIds} onPage={setPage} onOpen={(item) => void openItem(item)} /> : view === 'month' ? <MonthGrid cursor={cursor} items={items} onOpen={(item) => void openItem(item)} onDay={(date) => patchParams({ view: 'day', date })} /> : <CalendarGrid view={view} days={visibleDays} items={items} hours={hours} today={localDate()} timezone="America/Sao_Paulo" onOpen={(item) => void openItem(item)} onCreate={openForm} onDragStart={setDragId} onDrop={(date, hour) => { const item = items.find((candidate) => candidate.id === dragId); if (item) void reschedule(item, date, hour); setDragId(null); }} empty={empty} onPast={() => patchParams({ date: shiftCursor(view, cursor, -1) })} />}</section>
 
-      {/* Filtros */}
-      <div className="wf-secondary-filter mb-6 bg-background-50 border border-background-200/70 rounded-xl p-4">
-        <div className="flex flex-col md:flex-row gap-3 mb-3">
-          <div className="relative flex-1">
-            <i className="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-foreground-400 text-sm"></i>
-            <input
-              type="text"
-              value={busca}
-              onChange={(e) => setBusca(e.target.value)}
-              placeholder="Buscar por nome ou empresa..."
-              className="w-full pl-9 pr-4 py-2.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-900"
-            />
-          </div>
-          <SavedViewsControl
-            views={views}
-            onLoad={aplicarFiltros}
-            onSave={(nome) => salvar(nome, filtrosAtuais)}
-            onRename={renomear}
-            onDelete={excluir}
-          />
-        </div>
-        <div className="flex flex-col lg:flex-row lg:items-end gap-3 flex-wrap">
-          <div className="flex-1 min-w-[180px]">
-            <label className="block text-xs font-medium text-foreground-600 mb-1.5">Responsável</label>
-            <select
-              value={filtroResponsavel}
-              onChange={(e) => setFiltroResponsavel(e.target.value)}
-              className="w-full px-3 py-2.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-900 cursor-pointer"
-            >
-              <option value="">Todos</option>
-              {responsaveis.map((r) => (
-                <option key={r} value={r}>{r}</option>
-              ))}
-            </select>
-          </div>
-          <div className="flex-1 min-w-[180px]">
-            <label className="block text-xs font-medium text-foreground-600 mb-1.5">Segmento</label>
-            <select
-              value={filtroSegmento}
-              onChange={(e) => setFiltroSegmento(e.target.value)}
-              className="w-full px-3 py-2.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-900 cursor-pointer"
-            >
-              <option value="">Todos</option>
-              {segmentosDisponiveis.map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
-          </div>
-          <div className="flex-1 min-w-[140px]">
-            <label className="block text-xs font-medium text-foreground-600 mb-1.5">Data de</label>
-            <input
-              type="date"
-              value={dataInicio}
-              onChange={(e) => setDataInicio(e.target.value)}
-              className="w-full px-3 py-2.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-900"
-            />
-          </div>
-          <div className="flex-1 min-w-[140px]">
-            <label className="block text-xs font-medium text-foreground-600 mb-1.5">até</label>
-            <input
-              type="date"
-              value={dataFim}
-              onChange={(e) => setDataFim(e.target.value)}
-              className="w-full px-3 py-2.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-900"
-            />
-          </div>
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <button
-              onClick={() => aplicarAtalho('hoje')}
-              className="px-3 py-2.5 bg-secondary-100 hover:bg-secondary-200 text-secondary-800 rounded-lg text-xs font-semibold cursor-pointer whitespace-nowrap"
-            >
-              Hoje
-            </button>
-            <button
-              onClick={() => aplicarAtalho('semana')}
-              className="px-3 py-2.5 bg-secondary-100 hover:bg-secondary-200 text-secondary-800 rounded-lg text-xs font-semibold cursor-pointer whitespace-nowrap"
-            >
-              Esta semana
-            </button>
-            <button
-              onClick={() => aplicarAtalho('mes')}
-              className="px-3 py-2.5 bg-secondary-100 hover:bg-secondary-200 text-secondary-800 rounded-lg text-xs font-semibold cursor-pointer whitespace-nowrap"
-            >
-              Este mês
-            </button>
-          </div>
-          {hasFiltros && (
-            <button
-              onClick={limparFiltros}
-              className="inline-flex items-center gap-1.5 px-4 py-2.5 border border-background-300 text-foreground-700 rounded-lg text-sm font-semibold hover:bg-background-100 cursor-pointer whitespace-nowrap"
-            >
-              <i className="ri-close-circle-line"></i>
-              Limpar filtros
-            </button>
-          )}
-        </div>
-
-        <FilterChips chips={chips} />
-      </div>
-
-      <div className="wf-secondary-grid grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Calendário semanal */}
-        <div className="lg:col-span-2 space-y-6">
-          {/* Seletor de dia */}
-          <div className="flex gap-2 overflow-x-auto pb-2">
-            {dias.map((d, i) => {
-              const num = d.split('-')[2];
-              const ativo = d === dataSelecionada;
-              return (
-                <button
-                  key={d}
-                  onClick={() => setDataSelecionada(d)}
-                  className={`flex flex-col items-center min-w-[64px] px-3 py-2.5 rounded-xl border transition-all cursor-pointer ${
-                    ativo
-                      ? 'bg-primary-500 border-primary-500 text-background-50'
-                      : 'bg-background-50 border-background-200/70 text-foreground-700 hover:border-background-300'
-                  }`}
-                >
-                  <span className="text-[10px] font-medium uppercase">{nomesDias[i]}</span>
-                  <span className="text-lg font-heading font-bold">{num}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Timeline do dia */}
-          <div className="wf-secondary-panel bg-background-50 border border-background-200/70 rounded-xl p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-heading font-bold text-foreground-900 text-sm">
-                {new Date(dataSelecionada + 'T00:00:00').toLocaleDateString('pt-BR', {
-                  weekday: 'long',
-                  day: 'numeric',
-                  month: 'long',
-                })}
-              </h3>
-              <span className="text-xs text-foreground-500">
-                {compsDoDia.length} {compsDoDia.length === 1 ? 'compromisso' : 'compromissos'}
-              </span>
-            </div>
-
-            <div className="space-y-2">
-              {horarios.map((hora) => {
-                const comp = compsDoDia.find((c) => c.horaInicio === hora);
-                return (
-                  <div key={hora} className="flex gap-3">
-                    <span className="text-xs text-foreground-400 w-10 text-right pt-2 flex-shrink-0">
-                      {hora}
-                    </span>
-                    <div className="flex-1 min-h-[48px] border-l-2 border-background-200 pl-3 py-1">
-                      {comp ? (
-                        <button
-                          onClick={() => setDetalhe(comp)}
-                          className={`w-full text-left p-3 rounded-lg border transition-all cursor-pointer ${tipoCores[comp.tipo]}`}
-                        >
-                          <div className="flex items-center justify-between">
-                            <p className="text-sm font-semibold">{comp.titulo}</p>
-                            <span className="text-[10px] font-medium opacity-70 whitespace-nowrap">
-                              {comp.horaInicio} - {comp.horaFim}
-                            </span>
-                          </div>
-                          <p className="text-xs mt-0.5 opacity-80">
-                            {comp.lead} · {comp.empresa}
-                          </p>
-                        </button>
-                      ) : (
-                        <div className="h-8"></div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-
-        {/* Sidebar */}
-        <div className="space-y-6">
-          {/* Próximos compromissos */}
-          <div className="bg-background-50 border border-background-200/70 rounded-xl p-5">
-            <h3 className="font-heading font-bold text-foreground-900 text-sm mb-4">
-              Próximos compromissos
-            </h3>
-            <div className="space-y-3">
-              {proximos.length === 0 && (
-                <p className="text-sm text-foreground-400">Nenhum compromisso futuro.</p>
-              )}
-              {proximos.map((c) => (
-                <button
-                  key={c.id}
-                  onClick={() => setDetalhe(c)}
-                  className="w-full text-left p-3 rounded-lg border border-background-200/70 hover:border-background-300 bg-background-50 transition-all cursor-pointer"
-                >
-                  <div className="flex items-center gap-2 mb-1 flex-wrap">
-                    <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-medium ${tipoCores[c.tipo]}`}>
-                      {tipoLabel[c.tipo]}
-                    </span>
-                    <span className="text-[10px] text-foreground-400 whitespace-nowrap">
-                      {new Date(c.data + 'T00:00:00').toLocaleDateString('pt-BR', { day: 'numeric', month: 'short' })}
-                    </span>
-                    {c.origem === 'ana' && (
-                      <span className="inline-flex items-center gap-1 text-[10px] text-secondary-700 bg-secondary-100 px-1.5 py-0.5 rounded">
-                        <i className="ri-robot-line"></i>Ana
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-sm font-medium text-foreground-900">{c.titulo}</p>
-                  <p className="text-xs text-foreground-500">{c.lead} · {c.horaInicio}</p>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Resumo da semana */}
-          <div className="bg-background-50 border border-background-200/70 rounded-xl p-5">
-            <h3 className="font-heading font-bold text-foreground-900 text-sm mb-4">
-              Resumo dos filtros
-            </h3>
-            <div className="space-y-3">
-              {[
-                { label: 'Reuniões', count: compsFiltrados.filter((c) => c.tipo === 'reuniao' && c.status === 'agendado').length, icon: 'ri-video-line', color: 'text-primary-600' },
-                { label: 'Ligações', count: compsFiltrados.filter((c) => c.tipo === 'ligacao' && c.status === 'agendado').length, icon: 'ri-phone-line', color: 'text-accent-600' },
-                { label: 'Follow-ups', count: compsFiltrados.filter((c) => c.tipo === 'followup' && c.status === 'agendado').length, icon: 'ri-repeat-line', color: 'text-secondary-600' },
-                { label: 'Propostas', count: compsFiltrados.filter((c) => c.tipo === 'proposta' && c.status === 'agendado').length, icon: 'ri-file-list-3-line', color: 'text-primary-600' },
-              ].map((s, i) => (
-                <div key={i} className="flex items-center justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <div className={`w-8 h-8 flex items-center justify-center ${s.color}`}>
-                      <i className={`${s.icon} text-base`}></i>
-                    </div>
-                    <span className="text-sm text-foreground-700">{s.label}</span>
-                  </div>
-                  <span className="text-sm font-bold text-foreground-900">{s.count}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Modal Novo Compromisso */}
-      {novoModal && (
-        <AccessibleDialog title="Novo registro" className="fixed inset-0 z-50 bg-foreground-950/50 flex items-center justify-center p-4" onClose={() => setNovoModal(false)}>
-          <div className="bg-background-50 rounded-xl max-w-md w-full max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="px-6 py-4 border-b border-background-200/70 flex items-center justify-between">
-              <h3 className="font-heading font-bold text-foreground-950">Novo Compromisso</h3>
-              <button aria-label="Fechar formulário" onClick={() => setNovoModal(false)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-background-100 cursor-pointer">
-                <i className="ri-close-line text-lg"></i>
-              </button>
-            </div>
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-foreground-800 mb-1.5">Título</label>
-                <input
-                  value={novoTitulo}
-                  onChange={(e) => setNovoTitulo(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-900"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-foreground-800 mb-1.5">Data</label>
-                  <input
-                    type="date"
-                    value={novoData}
-                    onChange={(e) => setNovoData(e.target.value)}
-                    className="w-full px-4 py-2.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-900"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground-800 mb-1.5">Horário</label>
-                  <input
-                    type="time"
-                    value={novoHora}
-                    onChange={(e) => setNovoHora(e.target.value)}
-                    className="w-full px-4 py-2.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-900"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="mb-4 block text-sm font-medium">Duração<select value={novoDuracao} onChange={(event) => setNovoDuracao(Number(event.target.value))} className="mt-1.5 block w-full rounded-lg border border-background-300 px-4 py-2.5">{[15, 30, 45, 60, 90, 120].map((value) => <option key={value} value={value}>{value} minutos</option>)}</select></label>
-                <p className="mb-3 text-xs text-foreground-500">{novoData.split('-').reverse().join('/')} · {novoHora}–{calcularHoraFim(novoHora, novoDuracao)}</p>
-                <label htmlFor="appointment-lead" className="block text-sm font-medium text-foreground-800 mb-1.5">Lead</label>
-                <select
-                  id="appointment-lead"
-                  value={novoLeadId}
-                  onChange={(e) => setNovoLeadId(e.target.value)}
-                  className="w-full px-4 py-2.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-900 cursor-pointer"
-                >
-                  <option value="">Selecione um lead...</option>
-                  {leads.map((l) => (
-                    <option key={l.id} value={l.id}>{l.nome} · {l.empresa}</option>
-                  ))}
-                </select>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-sm font-medium text-foreground-800 mb-1.5">Tipo</label>
-                  <select
-                    value={novoTipo}
-                    onChange={(e) => setNovoTipo(e.target.value as typeof novoTipo)}
-                    className="w-full px-4 py-2.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-900 cursor-pointer"
-                  >
-                    <option value="reuniao">Reunião</option>
-                    <option value="ligacao">Ligação</option>
-                    <option value="followup">Follow-up</option>
-                    <option value="proposta">Proposta</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground-800 mb-1.5">Canal</label>
-                  <select
-                    value={novoCanal}
-                    onChange={(e) => setNovoCanal(e.target.value as typeof novoCanal)}
-                    className="w-full px-4 py-2.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-900 cursor-pointer"
-                  >
-                    <option value="video">Vídeo</option>
-                    <option value="presencial">Presencial</option>
-                    <option value="telefone">Telefone</option>
-                    <option value="whatsapp">WhatsApp</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-            <div className="px-6 py-4 border-t border-background-200/70 flex justify-end gap-2">
-              <button aria-label="Fechar formulário" onClick={() => setNovoModal(false)} className="px-4 py-2.5 border border-background-300 text-foreground-700 rounded-lg text-sm font-semibold hover:bg-background-100 cursor-pointer whitespace-nowrap">
-                Cancelar
-              </button>
-              <button
-                onClick={confirmarNovo}
-                disabled={salvando}
-                className="px-5 py-2.5 bg-primary-500 text-background-50 rounded-lg text-sm font-bold cursor-pointer whitespace-nowrap"
-              >
-                Agendar
-              </button>
-            </div>
-          </div>
-        </AccessibleDialog>
-      )}
-
-      {/* Modal Detalhes */}
-      {detalhe && (
-        <AccessibleDialog title="Detalhes do registro" className="fixed inset-0 z-50 bg-foreground-950/50 flex items-center justify-center p-4" onClose={() => setDetalhe(null)}>
-          <div className="bg-background-50 rounded-xl max-w-md w-full max-h-[85vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-            <div className="px-6 py-4 border-b border-background-200/70 flex items-center justify-between">
-              <div>
-                <h3 className="font-heading font-bold text-foreground-950">{detalhe.titulo}</h3>
-                <p className="text-sm text-foreground-500">{detalhe.lead} · {detalhe.empresa}</p>
-              </div>
-              <button aria-label="Fechar detalhes" onClick={() => setDetalhe(null)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-background-100 cursor-pointer">
-                <i className="ri-close-line text-lg"></i>
-              </button>
-            </div>
-            <div className="p-6 space-y-4">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className={`inline-block px-3 py-1.5 rounded-full text-xs font-medium ${tipoCores[detalhe.tipo]}`}>
-                  {tipoLabel[detalhe.tipo]}
-                </span>
-                <span className="inline-flex items-center gap-1.5 text-xs text-foreground-500">
-                  <i className={`${canalIcone[detalhe.canal]} text-sm`}></i>
-                  {detalhe.canal === 'presencial' ? 'Presencial' : detalhe.canal === 'video' ? 'Vídeo' : detalhe.canal === 'telefone' ? 'Telefone' : 'WhatsApp'}
-                </span>
-                {detalhe.origem === 'ana' && (
-                  <span className="inline-flex items-center gap-1 text-xs text-secondary-700 bg-secondary-100 px-2 py-1 rounded-full font-medium">
-                    <i className="ri-robot-line"></i>Agendada pela Ana
-                  </span>
-                )}
-                {detalhe.status === 'no_show' && (
-                  <span className="inline-flex items-center gap-1 text-xs text-accent-700 bg-accent-100 px-2 py-1 rounded-full font-medium">
-                    <i className="ri-alarm-warning-line"></i>No-show
-                  </span>
-                )}
-              </div>
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                <div>
-                  <p className="text-foreground-500 text-xs">Data</p>
-                  <p className="text-foreground-900">{new Date(detalhe.data + 'T00:00:00').toLocaleDateString('pt-BR')}</p>
-                </div>
-                <div>
-                  <p className="text-foreground-500 text-xs">Horário</p>
-                  <p className="text-foreground-900">{detalhe.horaInicio} - {detalhe.horaFim}</p>
-                </div>
-                <div>
-                  <p className="text-foreground-500 text-xs">Responsável</p>
-                  <p className="text-foreground-900">{detalhe.responsavel}</p>
-                </div>
-                <div>
-                  <p className="text-foreground-500 text-xs">Status</p>
-                  <p className="text-foreground-900">{detalhe.status === 'agendado' ? 'Agendado' : detalhe.status === 'realizado' ? 'Realizado' : detalhe.status === 'no_show' ? 'No-show' : 'Cancelado'}</p>
-                </div>
-              </div>
-              <div>
-                <p className="text-foreground-500 text-xs mb-1">Observações</p>
-                <p className="text-sm text-foreground-700 bg-background-100 rounded-lg p-3">{detalhe.observacoes || '—'}</p>
-              </div>
-              <div className="pt-3 border-t border-background-200/70 flex flex-wrap justify-end gap-2">
-                <button
-                  onClick={() => excluirCompromisso(detalhe)}
-                  className="inline-flex items-center gap-1.5 px-3 py-2.5 text-accent-600 hover:bg-accent-50 rounded-lg text-sm font-semibold cursor-pointer whitespace-nowrap"
-                >
-                  <i className="ri-delete-bin-6-line"></i>
-                  Excluir
-                </button>
-                {detalhe.status === 'agendado' && (
-                  <button
-                    onClick={() => cancelarCompromisso(detalhe)}
-                    className="px-3 py-2.5 border border-background-300 text-foreground-700 rounded-lg text-sm font-semibold hover:bg-background-100 cursor-pointer whitespace-nowrap"
-                  >
-                    Cancelar
-                  </button>
-                )}
-                <button
-                  onClick={() => abrirRemarcar(detalhe)}
-                  className="px-3 py-2.5 border border-background-300 text-foreground-700 rounded-lg text-sm font-semibold hover:bg-background-100 cursor-pointer whitespace-nowrap"
-                >
-                  <i className="ri-calendar-2-line mr-1"></i>
-                  Remarcar
-                </button>
-                {detalhe.status !== 'realizado' && (
-                  <button
-                    disabled={salvando}
-                    onClick={async () => { atualizar(detalhe.id, { status: 'realizado' }); if (!await confirmarGravacao()) return; setDetalhe(null); mostrarToast('Compromisso marcado como "Realizado".'); }}
-                    className="px-4 py-2.5 bg-primary-500 text-background-50 rounded-lg text-sm font-bold cursor-pointer whitespace-nowrap"
-                  >
-                    Marcar como realizado
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        </AccessibleDialog>
-      )}
-
-      {/* Modal Remarcar */}
-      {remarcarModal && (
-        <AccessibleDialog title="Remarcar compromisso" className="fixed inset-0 z-50 bg-foreground-950/50 flex items-center justify-center p-4" onClose={() => setRemarcarModal(null)}>
-          <div className="bg-background-50 rounded-xl max-w-sm w-full" onClick={(e) => e.stopPropagation()}>
-            <div className="px-6 py-4 border-b border-background-200/70 flex items-center justify-between">
-              <div>
-                <h3 className="font-heading font-bold text-foreground-950">Remarcar compromisso</h3>
-                <p className="text-sm text-foreground-500">{remarcarModal.titulo}</p>
-              </div>
-              <button onClick={() => setRemarcarModal(null)} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-background-100 cursor-pointer">
-                <i className="ri-close-line text-lg"></i>
-              </button>
-            </div>
-            <div className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-foreground-800 mb-1.5">Nova data</label>
-                <input type="date" value={remarcarData} onChange={(e) => setRemarcarData(e.target.value)} className="w-full px-4 py-2.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-900" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground-800 mb-1.5">Novo horário</label>
-                <input type="time" value={remarcarHora} onChange={(e) => setRemarcarHora(e.target.value)} className="w-full px-4 py-2.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-900" />
-              </div>
-            </div>
-            <div className="px-6 py-4 border-t border-background-200/70 flex justify-end gap-2">
-              <button onClick={() => setRemarcarModal(null)} className="px-4 py-2.5 border border-background-300 text-foreground-700 rounded-lg text-sm font-semibold hover:bg-background-100 cursor-pointer whitespace-nowrap">Cancelar</button>
-              <button onClick={confirmarRemarcar} className="px-5 py-2.5 bg-primary-500 hover:bg-primary-600 text-background-50 rounded-lg text-sm font-bold cursor-pointer whitespace-nowrap">Confirmar</button>
-            </div>
-          </div>
-        </AccessibleDialog>
-      )}
-    </div>
-  );
+    {form && <AppointmentForm form={form} setForm={setForm} leads={leads} team={team} selectedLead={selectedLead} saving={saving} onClose={() => setForm(null)} onSave={() => void saveForm()} />}
+    {conflicts.length > 0 && pendingSave && <ConflictDialog conflicts={conflicts} saving={saving} onCancel={() => { setConflicts([]); setPendingSave(null); }} onConfirm={() => void persist(pendingSave, true)} />}
+    {selected && <AppointmentDrawer item={selected} history={history} onClose={() => setSelected(null)} onEdit={() => openForm(cursor, '09:00', selected)} onConfirm={() => void updateItem(selected, { status: 'confirmed', confirmationStatus: 'confirmed' })} onTransition={(next) => { setReason(next === 'completed' ? selected.result : ''); setTransition({ item: selected, status: next }); }} onReschedule={() => openForm(cursor, '09:00', selected)} onNext={() => setNextActionFor(selected)} onLead={() => navigate(`/dashboard/leads?leadId=${encodeURIComponent(selected.leadId)}`)} onConversation={() => selected.originConversationId ? navigate(`/dashboard/atendimento?conversationId=${encodeURIComponent(selected.originConversationId)}`) : pushMessage('Este compromisso não tem conversa de origem vinculada.')} />}
+    {transition && <TransitionDialog state={transition.status} reason={reason} setReason={setReason} onClose={() => setTransition(null)} onConfirm={() => void handleTransition()} />}
+    {nextActionFor && <NextActionDialog item={nextActionFor} leads={leads} team={team} onClose={() => setNextActionFor(null)} onCreate={async (data) => { const next = { ...nextActionFor, id: crypto.randomUUID(), title: data.title, startsAt: zonedUtc(data.date, data.time, nextActionFor.timezone), endsAt: zonedUtc(data.date, data.time, nextActionFor.timezone), status: 'pending' as AgendaStatus, confirmationStatus: 'pending' as const, origin: 'manual' as const, result: '', cancelReason: '', noShowReason: '', nextActionAt: null, nextActionTitle: null, updatedAt: new Date().toISOString(), createdAt: new Date().toISOString() }; try { const created = await createOperationalAppointment(next); await updateOperationalAppointment({ ...nextActionFor, nextActionAt: created.startsAt, nextActionTitle: created.title }, nextActionFor.updatedAt); setNextActionFor(null); await load(); pushMessage('Próxima ação criada e vinculada.'); } catch { pushMessage('Não foi possível criar a próxima ação.'); } }} />}
+  </div>;
 }
+
+function SelectFilter({ label, value, options, onChange }: { label: string; value: string; options: string[][]; onChange: (value: string) => void }) { return <label className="text-xs font-medium text-foreground-600"><span className="mb-1 block">{label}</span><select value={value} onChange={(event) => onChange(event.target.value)} className="wf-input w-full"><option value="">Todos</option>{options.map(([option, text]) => <option key={option} value={option}>{text}</option>)}</select></label>; }
+
+function CalendarGrid({ view, days, items, hours, today, timezone, onOpen, onCreate, onDragStart, onDrop, empty, onPast }: { view: AgendaViewKind; days: string[]; items: AgendaAppointment[]; hours: number[]; today: string; timezone: string; onOpen: (item: AgendaAppointment) => void; onCreate: (date: string, hour: string) => void; onDragStart: (id: string) => void; onDrop: (date: string, hour: string) => void; empty: boolean; onPast: () => void; }) {
+  return <div className="wf-surface overflow-x-auto"><div className="min-w-[780px]"><div className="grid border-b border-background-200" style={{ gridTemplateColumns: `80px repeat(${days.length}, minmax(120px, 1fr))` }}><div className="px-4 py-3 text-xs font-semibold text-foreground-500">Horário</div>{days.map((date) => <div key={date} className={`border-l border-background-200 px-3 py-2 text-center ${date === today ? 'bg-primary-50/70 text-primary-800' : ''}`}><span className="block text-[10px] font-semibold uppercase tracking-wide text-foreground-500">{dayNames[parseDate(date).getDay()]}</span><strong className="text-sm">{parseDate(date).getDate()}</strong></div>)}</div><div className="relative">{hours.map((hour) => <div key={hour} className="grid min-h-[64px] border-b border-background-200/80" style={{ gridTemplateColumns: `80px repeat(${days.length}, minmax(120px, 1fr))` }}><div className="border-r border-background-200 px-4 pt-2 text-xs text-foreground-500">{pad(hour)}:00</div>{days.map((date) => <div key={date} role="button" tabIndex={0} onClick={() => onCreate(date, `${pad(hour)}:00`)} onKeyDown={(event) => { if (event.key === 'Enter') onCreate(date, `${pad(hour)}:00`); }} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); onDrop(date, `${pad(hour)}:00`); }} className={`relative border-r border-background-200/80 transition hover:bg-primary-50/30 ${date === today ? 'bg-primary-50/20' : ''}`} aria-label={`Criar compromisso em ${date} às ${pad(hour)}:00`}>{items.filter((item) => dateFromIso(item.startsAt, item.timezone) === date && Number(timeFromIso(item.startsAt, item.timezone).slice(0, 2)) === hour).map((item) => <button key={item.id} draggable onDragStart={(event) => { event.stopPropagation(); onDragStart(item.id); }} onClick={(event) => { event.stopPropagation(); onOpen(item); }} className={`absolute inset-x-1 top-1 z-10 overflow-hidden rounded-md border px-2 py-1.5 text-left text-[11px] shadow-sm ${typeTone[item.type]}`} title={`${item.title} · ${timeFromIso(item.startsAt, item.timezone)} – ${timeFromIso(item.endsAt, item.timezone)}`}><span className="block truncate font-bold">{item.title}</span><span className="block truncate opacity-75">{item.leadName || item.company} · {timeFromIso(item.startsAt, item.timezone)}</span></button>)}</div>)}</div>)}</div>{empty && <div className="pointer-events-none absolute inset-0 flex items-center justify-center"><div className="pointer-events-auto rounded-2xl bg-background-50/95 px-8 py-7 text-center shadow-lg"><i className="ri-calendar-line text-3xl text-foreground-400" /><h2 className="mt-3 font-heading text-xl font-bold text-foreground-950">Nenhum compromisso {view === 'day' ? 'neste dia' : 'nesta semana'}</h2><p className="mt-1 text-sm text-foreground-500">Crie um compromisso ou altere os filtros para consultar outro período.</p><button type="button" onClick={() => onCreate(days[0], '09:00')} className="wf-btn-primary mt-4"><i className="ri-add-line" />Novo compromisso</button><button type="button" onClick={onPast} className="ml-4 text-sm font-semibold text-primary-700 hover:underline">Ver compromissos anteriores</button></div></div>}</div></div>;
+}
+
+function MonthGrid({ cursor, items, onOpen, onDay }: { cursor: string; items: AgendaAppointment[]; onOpen: (item: AgendaAppointment) => void; onDay: (date: string) => void }) { const first = parseDate(monthStart(cursor)); const gridStart = addDays(localDate(first), -first.getDay()); const dates = Array.from({ length: 42 }, (_, index) => addDays(gridStart, index)); const month = first.getMonth(); return <div className="wf-surface overflow-x-auto"><div className="grid min-w-[720px] grid-cols-7 border-b border-background-200">{dayNames.map((name) => <div key={name} className="border-r border-background-200 px-3 py-2 text-center text-[11px] font-semibold uppercase text-foreground-500">{name}</div>)}</div><div className="grid min-w-[720px] grid-cols-7">{dates.map((date) => { const dayItems = items.filter((item) => dateFromIso(item.startsAt, item.timezone) === date); const muted = parseDate(date).getMonth() !== month; return <button type="button" key={date} onClick={() => onDay(date)} className={`min-h-28 border-b border-r border-background-200 p-2 text-left hover:bg-primary-50/40 ${muted ? 'bg-background-100/60 text-foreground-400' : ''}`}><span className="text-xs font-semibold">{parseDate(date).getDate()}</span>{dayItems.slice(0, 3).map((item) => <span key={item.id} onClick={(event) => { event.stopPropagation(); onOpen(item); }} className={`mt-1 block truncate rounded px-1.5 py-1 text-[10px] font-semibold ${typeTone[item.type]}`}>{timeFromIso(item.startsAt, item.timezone)} {item.title}</span>)}{dayItems.length > 3 && <span className="mt-1 text-[10px] font-semibold text-primary-700">+{dayItems.length - 3} compromissos</span>}</button>; })}</div></div>; }
+
+function AgendaList({ items, total, page, selectedIds, onSelect, onPage, onOpen }: { items: AgendaAppointment[]; total: number; page: number; selectedIds: string[]; onSelect: (ids: string[]) => void; onPage: (page: number) => void; onOpen: (item: AgendaAppointment) => void }) { const all = items.length > 0 && items.every((item) => selectedIds.includes(item.id)); return <div className="wf-surface overflow-x-auto"><table className="min-w-[980px] w-full text-sm"><thead className="bg-background-100/60 text-left text-[11px] font-semibold uppercase tracking-wide text-foreground-500"><tr><th className="px-4 py-3"><input aria-label="Selecionar página" type="checkbox" checked={all} onChange={() => onSelect(all ? [] : items.map((item) => item.id))} /></th>{['Data e horário', 'Tipo', 'Compromisso', 'Lead ou empresa', 'Responsável', 'Situação', 'Origem', 'Próxima ação'].map((label) => <th key={label} className="px-3 py-3">{label}</th>)}</tr></thead><tbody>{items.map((item) => <tr key={item.id} className="border-t border-background-200 hover:bg-background-100/50"><td className="px-4 py-3"><input aria-label={`Selecionar ${item.title}`} type="checkbox" checked={selectedIds.includes(item.id)} onChange={() => onSelect(selectedIds.includes(item.id) ? selectedIds.filter((id) => id !== item.id) : [...selectedIds, item.id])} /></td><td className="px-3 py-3 text-xs text-foreground-600">{formatMoment(item.startsAt, item.timezone)}</td><td className="px-3 py-3"><span className={`rounded-full border px-2 py-1 text-xs ${typeTone[item.type]}`}>{typeLabel[item.type]}</span></td><td className="px-3 py-3"><button type="button" onClick={() => onOpen(item)} className="font-semibold text-foreground-900 hover:text-primary-700">{item.title}</button></td><td className="px-3 py-3 text-foreground-700">{item.leadName || item.company}</td><td className="px-3 py-3 text-foreground-600">{item.responsibleName}</td><td className="px-3 py-3"><span className={`rounded-full border px-2 py-1 text-xs ${statusTone[item.status]}`}>{item.isOverdue ? 'Atrasado' : statusLabel[item.status]}</span></td><td className="px-3 py-3 text-xs text-foreground-600">{originLabel[item.origin]}</td><td className="px-3 py-3 text-xs text-foreground-600">{item.nextActionTitle || '—'}</td></tr>)}</tbody></table>{items.length === 0 && <p className="p-10 text-center text-sm text-foreground-500">Nenhum compromisso encontrado com estes filtros.</p>}<div className="flex items-center justify-between border-t border-background-200 px-4 py-3 text-xs text-foreground-600"><span>{total} registro{total === 1 ? '' : 's'}</span><div className="flex gap-2"><button type="button" disabled={page === 0} onClick={() => onPage(page - 1)} className="wf-btn-secondary px-3 py-1.5 text-xs disabled:opacity-40">Anterior</button><button type="button" disabled={(page + 1) * 25 >= total} onClick={() => onPage(page + 1)} className="wf-btn-secondary px-3 py-1.5 text-xs disabled:opacity-40">Próxima</button></div></div></div>; }
+
+function AppointmentForm({ form, setForm, leads, team, selectedLead, saving, onClose, onSave }: { form: FormState; setForm: (form: FormState) => void; leads: { id: string; nome: string; empresa: string; telefone: string; whatsapp: string; email: string; segmento: string }[]; team: TeamMember[]; selectedLead?: { empresa: string; telefone: string; whatsapp: string; email: string }; saving: boolean; onClose: () => void; onSave: () => void; }) { const patch = (next: Partial<FormState>) => setForm({ ...form, ...next }); return <AccessibleDialog title={form.id ? 'Editar compromisso' : 'Novo compromisso'} onClose={onClose} className="wf-accessible-dialog--wide"><section className="max-h-[90vh] overflow-y-auto"><header className="flex items-start justify-between border-b border-background-200 px-5 py-4"><div><p className="wf-eyebrow">AGENDA COMERCIAL</p><h2 className="mt-1 font-heading text-xl font-bold text-foreground-950">{form.id ? 'Editar compromisso' : 'Novo compromisso'}</h2><p className="mt-1 text-sm text-foreground-500">Os horários são gravados em UTC com o fuso exibido abaixo.</p></div><button type="button" onClick={onClose} className="wf-icon-button" aria-label="Fechar"><i className="ri-close-line" /></button></header><div className="grid gap-4 p-5 md:grid-cols-2"><Field label="Tipo"><select value={form.type} onChange={(event) => patch({ type: event.target.value as AgendaType })} className="wf-input">{agendaTypes.map((type) => <option key={type} value={type}>{typeLabel[type]}</option>)}</select></Field><Field label="Lead ou contato"><select value={form.leadId} onChange={(event) => patch({ leadId: event.target.value })} className="wf-input"><option value="">Selecionar lead</option>{leads.map((lead) => <option key={lead.id} value={lead.id}>{lead.nome} · {lead.empresa}</option>)}</select></Field><Field label="Empresa"><input readOnly value={selectedLead?.empresa || ''} placeholder="Preenchida a partir do lead" className="wf-input bg-background-100" /></Field><Field label="Responsável"><select value={form.responsibleId} onChange={(event) => patch({ responsibleId: event.target.value })} className="wf-input"><option value="">Você (criador)</option>{team.map((member) => <option key={member.userId} value={member.userId}>{member.name}</option>)}</select></Field><Field label="Título" wide><input value={form.title} onChange={(event) => patch({ title: event.target.value })} placeholder="Ex.: Reunião de apresentação" className="wf-input" /></Field><Field label="Descrição" wide><textarea value={form.description} onChange={(event) => patch({ description: event.target.value })} rows={2} className="wf-input" /></Field><Field label="Data"><input type="date" value={form.date} onChange={(event) => patch({ date: event.target.value })} className="wf-input" /></Field><Field label="Fuso horário"><select value={form.timezone} onChange={(event) => patch({ timezone: validAgendaTimezone(event.target.value) })} className="wf-input"><option value="America/Sao_Paulo">America/Sao_Paulo</option><option value="UTC">UTC</option></select></Field><Field label="Horário inicial"><input type="time" value={form.startsAt} onChange={(event) => patch({ startsAt: event.target.value })} className="wf-input" /></Field><Field label="Horário final"><input type="time" value={form.endsAt} onChange={(event) => patch({ endsAt: event.target.value })} className="wf-input" /></Field><Field label="Participantes"><input value={form.participants} onChange={(event) => patch({ participants: event.target.value })} placeholder="Nomes separados por vírgula" className="wf-input" /></Field><Field label="Local, telefone ou link"><input value={form.location} onChange={(event) => patch({ location: event.target.value })} placeholder={selectedLead?.telefone || selectedLead?.whatsapp || 'Presencial, telefone ou link'} className="wf-input" /></Field><Field label="Lembretes (minutos antes)"><input value={form.reminders} onChange={(event) => patch({ reminders: event.target.value })} placeholder="Ex.: 60, 1440" className="wf-input" /><p className="mt-1 text-[11px] text-foreground-500">O estado começa como pendente; entrega só é confirmada pelo canal.</p></Field><Field label="Confirmação"><select value={form.confirmation} onChange={(event) => patch({ confirmation: event.target.value as FormState['confirmation'], status: event.target.value === 'confirmed' ? 'confirmed' : 'pending' })} className="wf-input"><option value="pending">Aguardando confirmação</option><option value="confirmed">Confirmado</option></select></Field><Field label="Observações" wide><textarea value={form.notes} onChange={(event) => patch({ notes: event.target.value })} rows={3} className="wf-input" /></Field></div><footer className="flex justify-end gap-2 border-t border-background-200 px-5 py-4"><button type="button" onClick={onClose} className="wf-btn-secondary">Cancelar</button><button type="button" disabled={saving} onClick={onSave} className="wf-btn-primary disabled:opacity-60">{saving ? 'Salvando…' : 'Salvar compromisso'}</button></footer></section></AccessibleDialog>; }
+function Field({ label, children, wide = false }: { label: string; children: React.ReactNode; wide?: boolean }) { return <label className={`block text-sm font-medium text-foreground-700 ${wide ? 'md:col-span-2' : ''}`}><span className="mb-1.5 block">{label}</span>{children}</label>; }
+
+function ConflictDialog({ conflicts, saving, onCancel, onConfirm }: { conflicts: AgendaAppointment[]; saving: boolean; onCancel: () => void; onConfirm: () => void }) { return <AccessibleDialog title="Conflito de horário" onClose={onCancel}><section className="w-full max-w-lg"><header className="border-b border-background-200 px-5 py-4"><h2 className="font-heading text-xl font-bold text-foreground-950">Conflito de horário</h2><p className="mt-1 text-sm text-foreground-500">O responsável já possui compromissos sobrepostos.</p></header><ul className="max-h-64 overflow-y-auto p-5">{conflicts.map((item) => <li key={item.id} className="mb-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm"><strong>{item.title}</strong><span className="mt-1 block text-foreground-600">{formatMoment(item.startsAt, item.timezone)} · {item.responsibleName}</span></li>)}</ul><footer className="flex justify-end gap-2 border-t border-background-200 px-5 py-4"><button type="button" onClick={onCancel} className="wf-btn-secondary">Revisar</button><button type="button" disabled={saving} onClick={onConfirm} className="wf-btn-primary">Prosseguir autorizado</button></footer></section></AccessibleDialog>; }
+
+function AppointmentDrawer({ item, history, onClose, onEdit, onConfirm, onTransition, onReschedule, onNext, onLead, onConversation }: { item: AgendaAppointment; history: AgendaHistoryEntry[]; onClose: () => void; onEdit: () => void; onConfirm: () => void; onTransition: (status: 'cancelled' | 'no_show' | 'completed') => void; onReschedule: () => void; onNext: () => void; onLead: () => void; onConversation: () => void; }) { return <aside aria-label="Detalhes do compromisso" className="fixed inset-y-0 right-0 z-40 flex w-full max-w-md flex-col border-l border-background-200 bg-background-50 shadow-2xl"><header className="flex items-start justify-between border-b border-background-200 p-5"><div><span className={`rounded-full border px-2 py-1 text-xs font-semibold ${typeTone[item.type]}`}>{typeLabel[item.type]}</span><h2 className="mt-3 font-heading text-xl font-bold text-foreground-950">{item.title}</h2><p className="mt-1 text-sm text-foreground-500">{item.leadName} · {item.company || 'Empresa não informada'}</p></div><button type="button" onClick={onClose} className="wf-icon-button" aria-label="Fechar detalhes"><i className="ri-close-line" /></button></header><div className="flex-1 space-y-5 overflow-y-auto p-5"><div className="grid grid-cols-2 gap-3 text-sm"><Detail label="Responsável" value={item.responsibleName} /><Detail label="Origem" value={originLabel[item.origin]} /><Detail label="Data e horário" value={`${formatMoment(item.startsAt, item.timezone)} – ${timeFromIso(item.endsAt, item.timezone)}`} /><Detail label="Fuso" value={item.timezone} /><Detail label="Situação" value={item.isOverdue ? 'Atrasado' : statusLabel[item.status]} /><Detail label="Confirmação" value={item.confirmationStatus === 'confirmed' ? 'Confirmado' : 'Aguardando'} /></div>{item.description && <section><h3 className="text-xs font-semibold uppercase tracking-wide text-foreground-500">Descrição</h3><p className="mt-1 text-sm leading-6 text-foreground-700">{item.description}</p></section>}{item.location && <Detail label="Local, telefone ou link" value={item.location} wide />}{item.participants.length > 0 && <Detail label="Participantes" value={item.participants.join(', ')} wide />}{item.reminderMinutes.length > 0 && <Detail label="Lembretes" value={`${item.reminderMinutes.join(', ')} min · ${item.reminderStatus === 'sent' ? 'envio confirmado' : item.reminderStatus === 'failed' ? 'falhou' : 'pendente de confirmação'}`} wide />}{item.notes && <Detail label="Observações" value={item.notes} wide />}<section><h3 className="text-xs font-semibold uppercase tracking-wide text-foreground-500">Histórico</h3>{history.length ? <ol className="mt-2 space-y-2">{history.map((entry) => <li key={entry.id} className="border-l-2 border-primary-200 pl-3 text-xs text-foreground-600"><strong className="text-foreground-800">{entry.actorName}</strong> · {entry.detail || entry.action}<span className="mt-0.5 block text-foreground-400">{formatMoment(entry.occurredAt)}</span></li>)}</ol> : <p className="mt-2 text-xs text-foreground-500">O histórico será exibido quando houver registros auditáveis.</p>}</section></div><footer className="space-y-2 border-t border-background-200 p-4"><div className="grid grid-cols-2 gap-2"><button type="button" onClick={onLead} className="wf-btn-secondary justify-center text-xs"><i className="ri-user-line" />Abrir lead</button><button type="button" onClick={onConversation} className="wf-btn-secondary justify-center text-xs"><i className="ri-message-3-line" />Conversa de origem</button><button type="button" onClick={onEdit} className="wf-btn-secondary justify-center text-xs"><i className="ri-edit-line" />Editar</button><button type="button" onClick={onReschedule} className="wf-btn-secondary justify-center text-xs"><i className="ri-calendar-2-line" />Reagendar</button></div>{!['completed', 'cancelled', 'no_show'].includes(item.status) && <div className="grid grid-cols-2 gap-2">{item.status === 'pending' && <button type="button" onClick={onConfirm} className="wf-btn-secondary justify-center text-xs"><i className="ri-checkbox-circle-line" />Confirmar</button>}<button type="button" onClick={() => onTransition('completed')} className="wf-btn-primary justify-center text-xs"><i className="ri-check-line" />Concluir</button><button type="button" onClick={onNext} className="wf-btn-secondary justify-center text-xs"><i className="ri-add-line" />Próxima ação</button><button type="button" onClick={() => onTransition('no_show')} className="rounded-lg border border-amber-300 px-3 py-2 text-xs font-semibold text-amber-800">Não compareceu</button><button type="button" onClick={() => onTransition('cancelled')} className="rounded-lg border border-accent-300 px-3 py-2 text-xs font-semibold text-accent-800">Cancelar</button></div>}</footer></aside>; }
+function Detail({ label, value, wide = false }: { label: string; value: string; wide?: boolean }) { return <div className={wide ? 'col-span-2' : ''}><span className="block text-[11px] font-semibold uppercase tracking-wide text-foreground-500">{label}</span><span className="mt-1 block break-words text-sm text-foreground-800">{value || '—'}</span></div>; }
+function TransitionDialog({ state, reason, setReason, onClose, onConfirm }: { state: 'cancelled' | 'no_show' | 'completed'; reason: string; setReason: (value: string) => void; onClose: () => void; onConfirm: () => void }) { const required = state !== 'completed'; const title = state === 'completed' ? 'Registrar resultado' : state === 'cancelled' ? 'Cancelar compromisso' : 'Registrar ausência'; return <AccessibleDialog title={title} onClose={onClose}><section className="w-full max-w-md"><header className="border-b border-background-200 px-5 py-4"><h2 className="font-heading text-xl font-bold text-foreground-950">{title}</h2><p className="mt-1 text-sm text-foreground-500">{required ? 'Informe o motivo para preservar a trilha operacional.' : 'Registre o resultado antes de concluir.'}</p></header><div className="p-5"><label className="text-sm font-medium text-foreground-700">{required ? 'Motivo' : 'Resultado e observação'}<textarea autoFocus value={reason} onChange={(event) => setReason(event.target.value)} rows={4} className="wf-input mt-1.5 w-full" /></label></div><footer className="flex justify-end gap-2 border-t border-background-200 px-5 py-4"><button type="button" onClick={onClose} className="wf-btn-secondary">Voltar</button><button type="button" disabled={required && !reason.trim()} onClick={onConfirm} className="wf-btn-primary disabled:opacity-40">Confirmar</button></footer></section></AccessibleDialog>; }
+function NextActionDialog({ item, onClose, onCreate }: { item: AgendaAppointment; leads: unknown[]; team: TeamMember[]; onClose: () => void; onCreate: (data: { title: string; date: string; time: string }) => Promise<void> }) { const [title, setTitle] = useState(`Retomar: ${item.title}`); const [date, setDate] = useState(addDays(dateFromIso(item.endsAt, item.timezone), 1)); const [time, setTime] = useState('09:00'); const [busy, setBusy] = useState(false); return <AccessibleDialog title="Criar próxima ação" onClose={onClose}><section className="w-full max-w-md"><header className="border-b border-background-200 px-5 py-4"><h2 className="font-heading text-xl font-bold text-foreground-950">Criar próxima ação</h2><p className="mt-1 text-sm text-foreground-500">A próxima ação será outro compromisso vinculado ao mesmo lead.</p></header><div className="space-y-4 p-5"><Field label="Título"><input value={title} onChange={(event) => setTitle(event.target.value)} className="wf-input" /></Field><div className="grid grid-cols-2 gap-3"><Field label="Data"><input type="date" value={date} onChange={(event) => setDate(event.target.value)} className="wf-input" /></Field><Field label="Horário"><input type="time" value={time} onChange={(event) => setTime(event.target.value)} className="wf-input" /></Field></div></div><footer className="flex justify-end gap-2 border-t border-background-200 px-5 py-4"><button type="button" onClick={onClose} className="wf-btn-secondary">Cancelar</button><button type="button" disabled={busy || !title.trim()} onClick={() => { setBusy(true); void onCreate({ title, date, time }).finally(() => setBusy(false)); }} className="wf-btn-primary">Criar ação</button></footer></section></AccessibleDialog>; }

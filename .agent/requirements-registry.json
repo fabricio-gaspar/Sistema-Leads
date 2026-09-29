@@ -2,6 +2,14 @@
   "schema_version": 1,
   "requirements": [
     {
+      "id": "REQ-066",
+      "description": "Reformular a Agenda Comercial como fluxo operacional de planejar, confirmar, executar, registrar resultado e criar próxima ação, preservando a entidade appointments, RLS e a autoridade da Ana",
+      "module": "agenda",
+      "status": "implemented_validated_pending_site_publication",
+      "evidence": "Migration agenda_operational_workspace aplicada no projeto thgzrkppouoevapjquyu: RPC SECURITY INVOKER paginada, constraint de visões pessoais, índices e auditoria de appointments confirmados. A rota existente passa a usar filtros no servidor/URL, visões persistidas, UTC+fuso IANA, conflito por responsável, concorrência por updated_at, drawer e próxima ação. Type-check, lint, Vitest 56 arquivos/328 testes, build/artefato Sites e diff check passaram. Nenhuma escrita comercial, automação ou chamada externa foi feita no teste.",
+      "last_validation": "2026-09-29"
+    },
+    {
       "id": "REQ-065",
       "description": "Reformular Meu WhatsApp como Canais de WhatsApp com configuração, diagnóstico e histórico ancorados em evidência operacional, sem expor segredos ou inferir entrega/leitura",
       "module": "mensageria",

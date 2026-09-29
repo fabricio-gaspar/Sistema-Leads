@@ -1,5 +1,12 @@
 # Checkpoint — WayFlex CRM
 
+## 29/09/2026 — Agenda comercial operacional — banco aplicado, Site pendente de publicação
+
+- A rota existente **Agenda** foi reestruturada sem criar um segundo calendário: cabeçalho compacto, visões Dia/Semana/Mês/Lista, período navegável, filtros compartilhados na URL, pesquisa com debounce no servidor, filtros avançados, paginação de lista e visões pessoais persistidas.
+- O formulário grava somente em `appointments`, mantendo `lead_id`, organização e RLS existentes. Início/fim são armazenados em UTC e o fuso IANA fica no metadado; conflitos são consultados pelo responsável antes de criar/reagendar. Alterações usam `updated_at` para evitar sobrescrita silenciosa e o drawer reúne confirmação, resultado, ausência/cancelamento com motivo, próxima ação e histórico.
+- A migration `agenda_operational_workspace` foi aplicada ao projeto oficial `thgzrkppouoevapjquyu`: habilita `agenda` em `user_saved_views`, adiciona os índices de leitura, a RPC invocadora `get_agenda_portfolio` e gatilhos de auditoria/atualização. A conferência remota confirmou a constraint e os dois gatilhos; nenhum lead, compromisso, mensagem ou automação foi criado como teste.
+- Validação local aprovada: type-check, lint, Vitest **56 arquivos / 328 testes**, build/artefato Sites e `git diff --check`. A homologação visual autenticada e uma mutação de compromisso controlada continuam pendentes antes de declarar o fluxo ponta a ponta comprovado. Não há Google Calendar ou Outlook conectado; a tela não mostra sincronização externa.
+
 ## 28/09/2026 — Canais de WhatsApp: painel operacional baseado em evidência
 
 - A rota existente **Meu WhatsApp** passou a se apresentar como **Canais de WhatsApp**, sem substituir o canal corporativo Z-API, sem alterar regras de saída e sem criar uma nova integração. A interface reúne Canais, Diagnóstico e Histórico em abas navegáveis pela URL.

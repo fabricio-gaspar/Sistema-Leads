@@ -1286,3 +1286,8 @@
 - Evidência: type-check, lint, Vitest 53 arquivos/318 testes, build e artefato Sites passaram.
   Site oficial v143 publicado pelo commit `d86fc663bde1d68873a29e23e66c0c40fe995ae4`, deploy
   `appgdep_6aba75ae52e48191ae129154a2876976`; inspeção desktop confirmou a tela renderizada.
+## 2026-09-29 — Agenda comercial operacional
+
+- Reutilizada a rota `/dashboard/agenda`, a tabela `appointments`, a relação com `leads`, a RLS organizacional e a Central. Não foi criado calendário paralelo, integração externa ou automação da Ana.
+- Aplicada no Supabase oficial a migration `agenda_operational_workspace`. A primeira tentativa foi recusada pelo PostgreSQL porque `OFFSET` não aceita variável direta nesta função SQL; a transação foi revertida sem dados. A consulta foi corrigida com subconsultas escalares e a segunda aplicação foi confirmada. Constraint de visões e triggers de auditoria/updated_at foram conferidos.
+- Testes aprovados: `npm run type-check`, `npm run lint`, `npm test -- --run` (56 arquivos/328 testes), `npm run build` e `git diff --check`. Nenhuma mutação comercial ou chamada externa durante os testes. Publicação e homologação visual autenticada ainda pendentes neste checkpoint.

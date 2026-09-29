@@ -1,109 +1,64 @@
 import { useEffect, useSyncExternalStore } from 'react';
 import type { Compromisso } from '@/mocks/frontendAdvancedData';
-import {
-  createOperationalAppointment,
-  deleteOperationalAppointment,
-  loadOperationalAppointments,
-  updateOperationalAppointment,
-} from '@/lib/crm/appointmentsRepository';
+import { loadAgendaPortfolio, type AgendaAppointment } from '@/lib/crm/appointmentsRepository';
 
+// Adaptador de leitura para os indicadores legados do Dashboard. A Agenda usa
+// diretamente o repositório operacional; assim não há duas fontes de verdade.
 let state: Compromisso[] = [];
 let hydrated = false;
 let hydratePromise: Promise<void> | null = null;
-let writeQueue = Promise.resolve();
 let loadStatus: 'loading' | 'ready' | 'error' = 'loading';
-let latestPersistenceError: unknown = null;
 const listeners = new Set<() => void>();
 
 const notify = () => listeners.forEach((listener) => listener());
-const subscribe = (listener: () => void) => {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
-};
+const subscribe = (listener: () => void) => { listeners.add(listener); return () => listeners.delete(listener); };
+const datePart = (iso: string) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date(iso));
+const timePart = (iso: string) => new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(iso));
+
+function legacyAppointment(item: AgendaAppointment): Compromisso {
+  return {
+    id: item.id,
+    titulo: item.title,
+    lead: item.leadName,
+    empresa: item.company,
+    data: datePart(item.startsAt),
+    horaInicio: timePart(item.startsAt),
+    horaFim: timePart(item.endsAt),
+    tipo: item.type === 'tarefa' || item.type === 'outro' ? 'proposta' : item.type,
+    canal: item.location.startsWith('http') ? 'video' : item.location ? 'presencial' : 'telefone',
+    status: item.status === 'completed' ? 'realizado' : item.status === 'cancelled' ? 'cancelado' : item.status === 'no_show' ? 'no_show' : 'agendado',
+    responsavel: item.responsibleName,
+    observacoes: item.notes,
+    leadId: item.leadId,
+    origem: item.origin === 'ana' ? 'ana' : 'manual',
+    lembretesEnviados: item.reminderStatus === 'sent' ? item.reminderMinutes.map((minutes) => `${minutes} min`) : [],
+  };
+}
 
 async function hydrate(): Promise<void> {
   if (hydrated) return;
   if (hydratePromise) return hydratePromise;
   loadStatus = 'loading'; notify();
-  hydratePromise = loadOperationalAppointments()
-    .then((appointments) => {
-      state = appointments;
-      hydrated = true;
-      loadStatus = 'ready';
-      notify();
-    })
-    .catch((error) => { console.error('[appointments] falha ao carregar agenda operacional', error); loadStatus = 'error'; notify(); })
+  const now = new Date();
+  const start = new Date(now); start.setDate(start.getDate() - 30);
+  const end = new Date(now); end.setDate(end.getDate() + 90);
+  hydratePromise = loadAgendaPortfolio({ query: '', responsibleId: '', type: '', status: '', origin: '', segment: '', confirmation: '', nextAction: '', quick: '', rangeStart: start.toISOString(), rangeEnd: end.toISOString() }, 0, 200)
+    .then(({ items }) => { state = items.map(legacyAppointment); hydrated = true; loadStatus = 'ready'; notify(); })
+    .catch((error) => { console.error('[agenda] falha ao carregar indicadores', error); loadStatus = 'error'; notify(); })
     .finally(() => { hydratePromise = null; });
   return hydratePromise;
 }
 
-async function retryLoadAfterFailure(error: unknown) {
-  console.error('[appointments] falha ao persistir agenda operacional', error);
-  hydrated = false;
-  latestPersistenceError = error;
-  await hydrate();
-}
-
-function enqueue(operation: () => Promise<void>) {
-  writeQueue = writeQueue.then(operation).catch(retryLoadAfterFailure);
-}
-
-export interface CompromissosStore {
-  compromissos: Compromisso[];
-  criar: (dados: Omit<Compromisso, 'id'>) => Compromisso;
-  atualizar: (id: string, mudanca: Partial<Compromisso>) => void;
-  excluir: (id: string) => void;
-}
-
-export function useCompromissosStore(): CompromissosStore {
+export function useCompromissosStore(): { compromissos: Compromisso[] } {
   const compromissos = useSyncExternalStore(subscribe, () => state, () => state);
   useEffect(() => { void hydrate(); }, []);
-
-  const criar = (dados: Omit<Compromisso, 'id'>): Compromisso => {
-    const novo: Compromisso = { ...dados, id: crypto.randomUUID() };
-    state = [novo, ...state];
-    notify();
-    enqueue(async () => {
-      const persisted = await createOperationalAppointment(novo);
-      state = state.map((appointment) => (appointment.id === novo.id ? persisted : appointment));
-      notify();
-    });
-    return novo;
-  };
-
-  const atualizar = (id: string, mudanca: Partial<Compromisso>) => {
-    const next = state.map((appointment) => (appointment.id === id ? { ...appointment, ...mudanca } : appointment));
-    const appointment = next.find((candidate) => candidate.id === id);
-    if (!appointment) return;
-    state = next;
-    notify();
-    enqueue(async () => {
-      const persisted = await updateOperationalAppointment(appointment);
-      state = state.map((candidate) => (candidate.id === id ? persisted : candidate));
-      notify();
-    });
-  };
-
-  const excluir = (id: string) => {
-    state = state.filter((appointment) => appointment.id !== id);
-    notify();
-    enqueue(async () => {
-      await deleteOperationalAppointment(id);
-    });
-  };
-
-  return { compromissos, criar, atualizar, excluir };
-}
-
-export function getCompromissosSnapshot(): Compromisso[] {
-  return state;
+  return { compromissos };
 }
 
 export function useCompromissosLoadStatus() {
-  return useSyncExternalStore(subscribe, () => loadStatus, () => loadStatus);
+  const status = useSyncExternalStore(subscribe, () => loadStatus, () => loadStatus);
+  useEffect(() => { void hydrate(); }, []);
+  return status;
 }
-export async function waitForCompromissosPersistence(): Promise<void> {
-  await writeQueue;
-  if (latestPersistenceError) { const error = latestPersistenceError; latestPersistenceError = null; throw error; }
-}
+
 export async function refreshCompromissosStore(): Promise<void> { hydrated = false; await hydrate(); }

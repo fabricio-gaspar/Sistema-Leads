@@ -1,5 +1,12 @@
 # Baseline do sistema
 
+## Agenda comercial operacional — 29/09/2026
+
+- `/dashboard/agenda` passou a consultar o portfólio paginado em `get_agenda_portfolio`, uma RPC `SECURITY INVOKER` que preserva a RLS e aplica texto normalizado, telefone, responsável, tipo, status, origem, segmento, confirmação, próxima ação, atalhos e período no servidor.
+- `appointments` permanece a única entidade operacional. A migration `agenda_operational_workspace` adicionou índices de leitura, `updated_at` consistente e auditoria de inserção/edição/exclusão. `user_saved_views` agora aceita `agenda` e continua isolada por usuário e organização.
+- Não há integração Google Calendar/Outlook cadastrada no estado oficial; por isso a Agenda não afirma sincronização externa. Lembretes mostram somente estado persistido, sem alegar entrega.
+- Evidência atual: migration aplicada e trigger/constraint conferidos no projeto `thgzrkppouoevapjquyu`; type-check, lint, Vitest 56/328, build e diff check aprovados. Falta homologação autenticada de criação/edição/reagendamento com um compromisso autorizado e reversível.
+
 ## Canais de WhatsApp orientados por evidência — 28/09/2026
 
 - `/dashboard/meu-whatsapp` recebeu a superfície **Canais de WhatsApp** com abas Canais, Diagnóstico e Histórico, responsiva e acessível. O painel mantém Z-API como canal em uso e apresenta Meta somente sob seu gate de homologação; não troca provedor nem simula conexão.

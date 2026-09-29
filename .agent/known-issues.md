@@ -1,5 +1,10 @@
 # Problemas conhecidos
 
+## Agenda comercial — homologação pendente — 29/09/2026
+
+- A nova leitura, a migration e as validações locais estão confirmadas, mas não foi criado, editado, reagendado ou cancelado um compromisso comercial para teste. A homologação autenticada deve usar um lead e um compromisso explicitamente autorizados e reversíveis.
+- Google Calendar e Outlook não estão conectados na organização oficial. A Agenda oculta sincronização e não declara entrega de lembretes; a conexão externa só pode ser adicionada quando existir integração real, credenciais no backend e testes de webhooks/idempotência.
+
 ## Canais de WhatsApp — limitações de homologação — 28/09/2026
 
 - A interface e o contrato de diagnóstico estão validados localmente e a Edge Function v6 está ativa, mas não foi feito envio externo, callback de teste, recibo de entrega/leitura ou conexão Meta durante esta alteração. Esses estados permanecem não comprovados até um teste operacional explicitamente autorizado.

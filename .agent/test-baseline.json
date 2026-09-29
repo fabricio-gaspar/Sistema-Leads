@@ -1,18 +1,18 @@
 {
   "schema_version": 1,
-  "validated_commit": "f270b05",
-  "last_validated_at": "2026-09-28",
+  "validated_commit": "WORKING_TREE_AGENDA_2026-09-29",
+  "last_validated_at": "2026-09-29",
   "current_validation": {
-    "stage": "whatsapp_channels_evidence_dashboard",
+    "stage": "agenda_operational_workspace",
     "frontend_typecheck": "passed",
-    "edge_typecheck": "passed",
+    "edge_typecheck": "not_run; no Edge Function changed",
     "lint": "passed",
     "production_build": "passed",
-    "sites_artifact": "passed_build; official Site v146 deployed successfully",
+    "sites_artifact": "passed_build; official Site publication pending",
     "deterministic_smoke_checks": 0,
-    "vitest": "passed; focused runtimeHandlers suite; 103 tests",
-    "visual_review": "published Central inspection passed without writes: the three-pane operational layout rendered; inbox returned zero real conversations and correctly displayed its empty state. The WhatsApp page awaits its route-specific authenticated inspection.",
-    "external_end_to_end": "not_executed; no provider test, message, Meta connection, callback, delivery or read receipt was invoked"
+    "vitest": "passed; 56 files; 328 tests",
+    "visual_review": "not executed; the new Agenda awaits authenticated inspection after Site publication",
+    "external_end_to_end": "not executed; no appointment mutation, provider test, message, callback or reminder delivery was invoked"
   },
   "previous_validation": {
     "stage": "lead_search_dynamic_api_selector",
@@ -27,6 +27,11 @@
     "external_end_to_end": "not_executed; no paid search was required"
   },
   "commands": [
+    {
+      "command": "npm run type-check && npm run lint && npm test -- --run && npm run build && git diff --check",
+      "status": "passed",
+      "note": "Agenda operacional: 56 arquivos/328 testes, build/artefato Sites e diff check. A migration agenda_operational_workspace foi aplicada e a constraint/trigger foram conferidos; não houve escrita comercial de teste."
+    },
     {
       "command": "npm run type-check && npm run type-check:edge && npm test -- supabase/tests/runtimeHandlers.test.ts && npm run lint && npm run build && git diff --check",
       "status": "passed",
