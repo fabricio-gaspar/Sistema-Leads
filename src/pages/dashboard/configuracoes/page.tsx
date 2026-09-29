@@ -1,7 +1,7 @@
 import { useSearchParams } from 'react-router-dom';
 import EmpresaTabs from '@/pages/dashboard/empresa/components/EmpresaTabs';
 import AnaPolicyWorkspace from '@/pages/dashboard/personalizacao-ana/AnaPolicyWorkspace';
-import CommercialCatalogTab from './components/CommercialCatalogTab';
+import ProductsOrcamentosWorkspace from './components/ProductsOrcamentosWorkspace';
 import IntegracoesOperacaoTab from './components/IntegracoesOperacaoTab';
 import OperationalStatusTab from './components/OperationalStatusTab';
 import TeamAccessTab from './components/TeamAccessTab';
@@ -163,7 +163,7 @@ export default function DashboardConfiguracoes() {
           {tab === 'operacao' && <OperationalStatusTab />}
           {tab === 'empresa' && <EmpresaTabs />}
           {tab === 'usuarios' && <TeamAccessTab />}
-          {tab === 'produtos' && <CommercialCatalogTab />}
+          {tab === 'produtos' && <ProductsOrcamentosWorkspace />}
           {tab === 'canais' && <IntegracoesOperacaoTab section="channels" />}
           {tab === 'apis' && <IntegracoesOperacaoTab section="apis" />}
           {tab === 'registro' && <DiagnosticsTab />}
