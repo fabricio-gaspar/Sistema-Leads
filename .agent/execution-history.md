@@ -1297,3 +1297,10 @@
 - Reutilizada a rota `/dashboard/agenda`, a tabela `appointments`, a relação com `leads`, a RLS organizacional e a Central. Não foi criado calendário paralelo, integração externa ou automação da Ana.
 - Aplicada no Supabase oficial a migration `agenda_operational_workspace`. A primeira tentativa foi recusada pelo PostgreSQL porque `OFFSET` não aceita variável direta nesta função SQL; a transação foi revertida sem dados. A consulta foi corrigida com subconsultas escalares e a segunda aplicação foi confirmada. Constraint de visões e triggers de auditoria/updated_at foram conferidos.
 - Testes aprovados: `npm run type-check`, `npm run lint`, `npm test -- --run` (56 arquivos/328 testes), `npm run build` e `git diff --check`. Nenhuma mutação comercial ou chamada externa durante os testes. Publicação e homologação visual autenticada ainda pendentes neste checkpoint.
+
+## 2026-09-29 — Funil de inteligência comercial
+
+- Implementado `FunnelAnalytics` sobre as consultas existentes; sem migration, mocks, endpoint ou
+  alteração de regra. A rota remove `LeadBaseManager` e mantém gestão de base fora da inteligência.
+- Type-check, lint, Vitest 56/328, build e diff check aprovados. Nenhum dado comercial ou provedor
+  externo foi acionado. Publicação oficial e inspeção autenticada ficaram como próxima etapa.

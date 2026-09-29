@@ -1861,3 +1861,18 @@ webhook em ambiente controlado.
 - Type-check, lint, **56 arquivos / 328 testes** e build/artefato Sites passaram. Nenhum provedor, mensagem, cobrança, checkout ou dado comercial foi acionado.
 - Limitação explícita: o modelo atual ainda não oferece versões imutáveis, PDF privado com hash, token público de aceite, eventos de entrega ou busca server-side. Esses itens do prompt completo permanecem evolução backend separada; a UI não os simula.
 - Estado: **LOCAL/VALIDADO**, publicação no Site oficial pendente. Próxima ação exata: publicar a versão oficial após conferir o pacote e registrar o deploy.
+
+## 2026-09-29 — Redesign do Funil de inteligência comercial
+
+- A rota `/dashboard/funil` foi separada da gestão da base: `LeadBaseManager` e o botão
+  `Gerenciar base` não aparecem mais no painel. A gestão continua na área administrativa de Leads.
+- O novo painel usa as consultas existentes de `leads`, `proposals` e `lead_stage_history`, sem
+  mocks, migration ou integração nova. O layout segue o mockup: filtros persistidos na URL, cinco
+  indicadores, Pipeline atual com Leads/Valor, Movimentação no período, Evolução, Origem,
+  Avanço entre etapas, aviso de amostra pequena e exploração para os módulos existentes.
+- Conversão é Ganhos/(Ganhos+Perdidos) decididos no período; abaixo de dez decisões aparece
+  `—`. Propostas são deduplicadas por versão/família e a evolução não afirma um snapshot que o
+  banco ainda não possui. Horários usam `America/Sao_Paulo`.
+- Type-check, lint, 56 arquivos/328 testes, build e diff check passaram. Nenhum provedor,
+  mensagem, lead, orçamento ou automação foi acionado. Publicação oficial pendente neste checkpoint.
+- Documento: `docs/REDESIGN_FUNIL_2026-09-29.md`.

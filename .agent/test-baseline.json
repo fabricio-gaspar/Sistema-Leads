@@ -3,7 +3,7 @@
   "validated_commit": "bde2ef80ddd502310822d462ec89ccf231a30e9b",
   "last_validated_at": "2026-09-29",
   "current_validation": {
-    "stage": "orcamentos_redesign",
+    "stage": "funil_redesign",
     "frontend_typecheck": "passed",
     "edge_typecheck": "not_run; no Edge Function changed",
     "lint": "passed",
@@ -11,8 +11,8 @@
     "sites_artifact": "passed_build; official Site publication pending",
     "deterministic_smoke_checks": 0,
     "vitest": "passed; 56 files; 328 tests",
-    "visual_review": "not executed; Orçamentos awaits authenticated inspection after Site publication",
-    "external_end_to_end": "not executed; no appointment mutation, provider test, message, callback or reminder delivery was invoked"
+    "visual_review": "not executed; Funil awaits authenticated inspection after Site publication",
+    "external_end_to_end": "not executed; no lead, proposal, provider test, message, callback or automation was invoked"
   },
   "previous_validation": {
     "stage": "lead_search_dynamic_api_selector",

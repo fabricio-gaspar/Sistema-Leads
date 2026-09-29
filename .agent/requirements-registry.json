@@ -544,6 +544,14 @@
       "status": "implemented_pending_operator_activation",
       "evidence": "O log real confirmou handoff_notify_whatsapp=null como causa do 23502. ana-operations v5 normaliza sempre para booleano; teste dedicado, suíte 50/308, build, Site v139 e tela autenticada com nove checks OK foram aprovados. A operação permaneceu inativa durante a correção.",
       "last_validation": "2026-09-27"
+    },
+    {
+      "id": "REQ-039",
+      "description": "Exibir inteligência comercial do Funil sem misturar fotografia atual, eventos e revisão da base",
+      "module": "funil",
+      "status": "implemented_pending_site_publish",
+      "evidence": "FunnelAnalytics usa leads, proposals e lead_stage_history existentes; mantém filtros na URL, deduplica revisões, calcula conversão somente sobre decisões persistidas e remove LeadBaseManager/Gerenciar base da rota do Funil. Type-check, lint, 56 arquivos/328 testes e build aprovados; publicação oficial pendente.",
+      "last_validation": "2026-09-29"
     }
   ]
 }

@@ -4,7 +4,7 @@
   "baseline_commit": "1dc6275b8c7d70de953b66397a8c89f5e97bc15b",
   "last_audited_commit": "bde2ef80ddd502310822d462ec89ccf231a30e9b",
   "current_head_at_update": "bde2ef80ddd502310822d462ec89ccf231a30e9b",
-  "working_tree_status": "orcamentos_redesign_applied_pending_site_publication",
+  "working_tree_status": "funil_redesign_applied_pending_site_publication",
   "stage_1_baseline": ".agent/baselines/2026-09-25-stage-1.json",
   "recovery_tag": "baseline-wayflex-stage1-20260925",
   "work_branch": "main",
@@ -16,7 +16,7 @@
     "working_tree_status": "published"
   },
   "full_audit_required": false,
-  "baseline_status": "orcamentos_redesign_applied_pending_site_publication",
+  "baseline_status": "funil_redesign_applied_pending_site_publication",
   "updated_at": "2026-09-29T12:25:00Z",
-  "next_action": "Publicar o commit bde2ef80ddd502310822d462ec89ccf231a30e9b no Site oficial existente; depois validar a rota autenticada /dashboard/orcamentos sem criar ou alterar orçamento comercial."
+  "next_action": "Publicar o commit do redesign do Funil no Site oficial existente; depois validar a rota autenticada /dashboard/funil sem criar ou alterar dados comerciais."
 }

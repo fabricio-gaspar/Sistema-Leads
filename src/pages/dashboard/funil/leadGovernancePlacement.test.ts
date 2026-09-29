@@ -2,14 +2,14 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-describe('gestão definitiva da base de leads', () => {
-  it('permanece acessível pelo Funil sem criar uma segunda cópia em Leads', () => {
+describe('separação entre inteligência comercial e gestão da base', () => {
+  it('não exibe exclusão ou gerenciamento de leads dentro do Funil', () => {
     const funnelPage = readFileSync(resolve('src/pages/dashboard/funil/page.tsx'), 'utf8');
     const leadsPage = readFileSync(resolve('src/pages/dashboard/leads/page.tsx'), 'utf8');
 
-    expect(funnelPage).toContain("import LeadBaseManager from '../leads/components/LeadBaseManager'");
-    expect(funnelPage).toContain('href="#gestao-base-leads"');
-    expect(funnelPage).toContain('<LeadBaseManager />');
+    expect(funnelPage).toContain("import FunnelAnalytics from '@/components/feature/FunnelAnalytics'");
+    expect(funnelPage).not.toContain('LeadBaseManager');
+    expect(funnelPage).not.toContain('Gerenciar base');
     expect(leadsPage).not.toContain('<LeadBaseManager />');
   });
 });
