@@ -1,5 +1,11 @@
 # Histórico resumido de execução
 
+## 2026-09-29 — Carteira de Orçamentos alinhada ao mockup
+
+- Aplicado o redesign da rota `/dashboard/orcamentos` sobre `usePropostasStore` e a tabela `proposals` já existentes: cabeçalho, abas com contagens, busca por número/empresa/contato/item, responsável, filtros, ordenação, colunas essenciais/opcionais, estado vazio e ações preservadas.
+- Não foram criados mocks, dados demonstrativos, endpoints, migrations ou integrações paralelas. O modelo existente ainda não oferece versões imutáveis, PDF privado/hash, token público de aceite, eventos de entrega ou busca server-side; a UI não simula esses recursos.
+- Type-check, lint, Vitest 56 arquivos/328 testes, build/artefato Sites e `git diff --check` passaram. Commit `bde2ef80ddd502310822d462ec89ccf231a30e9b`; publicação oficial pendente.
+
 ## 2026-09-28 — Canais de WhatsApp por evidência
 
 - Reformulada a rota existente Meu WhatsApp como **Canais de WhatsApp**, com abas URL para canal, diagnóstico e histórico. A tela usa a Edge Function existente e não cria uma camada de dados ou conexão alternativa.

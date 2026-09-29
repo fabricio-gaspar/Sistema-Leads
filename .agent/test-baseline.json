@@ -1,9 +1,9 @@
 {
   "schema_version": 1,
-  "validated_commit": "3d5dc593d7f8562d683e6c16b797c48dec5da01b",
+  "validated_commit": "bde2ef80ddd502310822d462ec89ccf231a30e9b",
   "last_validated_at": "2026-09-29",
   "current_validation": {
-    "stage": "agenda_operational_workspace",
+    "stage": "orcamentos_redesign",
     "frontend_typecheck": "passed",
     "edge_typecheck": "not_run; no Edge Function changed",
     "lint": "passed",
@@ -11,7 +11,7 @@
     "sites_artifact": "passed_build; official Site publication pending",
     "deterministic_smoke_checks": 0,
     "vitest": "passed; 56 files; 328 tests",
-    "visual_review": "not executed; the new Agenda awaits authenticated inspection after Site publication",
+    "visual_review": "not executed; Orçamentos awaits authenticated inspection after Site publication",
     "external_end_to_end": "not executed; no appointment mutation, provider test, message, callback or reminder delivery was invoked"
   },
   "previous_validation": {
@@ -27,6 +27,11 @@
     "external_end_to_end": "not_executed; no paid search was required"
   },
   "commands": [
+    {
+      "command": "npm run type-check && npm run lint && npm test -- --run && npm run build && git diff --check",
+      "status": "passed",
+      "note": "Redesign da carteira de Orçamentos: 56 arquivos/328 testes, build/artefato Sites e diff check. Nenhum provedor ou dado comercial foi acionado."
+    },
     {
       "command": "npm run type-check && npm run lint && npm test -- --run && npm run build && git diff --check",
       "status": "passed",
