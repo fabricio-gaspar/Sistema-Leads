@@ -1305,3 +1305,16 @@
 - Type-check, lint, Vitest 57/329, build e diff check aprovados. Nenhum dado comercial ou provedor
   externo foi acionado. Site oficial v149 publicado pelo commit `efee41a01ec698feee5e033b45807cce5f7724a5`,
   deploy concluído; inspeção autenticada confirmou a rota e os estados reais sem erro de console.
+
+## 2026-09-29 — Configurações > Status operacional
+
+- Reformulado `OperationalStatusTab` no SiteSource, sem migration, endpoint, regra de negócio ou
+  automação nova. A tela agora usa os diagnósticos reais para a visão operacional, filtros,
+  tabela por grupos, saúde/uso, pré-requisitos da Ana, pausa global e auditoria.
+- Removido o painel de limpeza de leads desta tela. As ações de preparar worker, cadastrar callbacks
+  Z-API, atualizar status e preparar Ambiente Real continuam nas funções server-side existentes.
+- `npm run type-check`, `npm run lint`, `npm test -- --run` (57 arquivos/329 testes), `npm run build`
+  e `git diff --check` passaram. Nenhuma mensagem, busca, automação ou mutação comercial foi executada.
+- Site oficial v151 publicado pelo commit `609477f9457ca9801a1c99c2fdb9c98a935f032e`, deploy
+  `appgdep_6abbc514cc1c8191aef1b8e24f4a4c19` com sucesso. Inspeção autenticada confirmou a tela
+  publicada e não observou erro de console.

@@ -1893,5 +1893,8 @@ webhook em ambiente controlado.
 - Validação local: `npm run type-check`, `npm run lint`, Vitest **57 arquivos / 329 testes**,
   `npm run build` e `git diff --check` aprovados. Nenhuma mensagem, busca, automação ou mutação
   comercial foi executada.
-- Documento: `docs/REDESIGN_CONFIGURACOES_STATUS_2026-09-29.md`. Publicação oficial e inspeção
-  visual autenticada ficam registradas no próximo checkpoint deste arquivo.
+- Publicação oficial concluída no Site existente: versão **151**, commit
+  `609477f9457ca9801a1c99c2fdb9c98a935f032e`, deploy
+  `appgdep_6abbc514cc1c8191aef1b8e24f4a4c19`, status `succeeded`. A inspeção autenticada confirmou
+  a tabela compacta, filtros, estados de saúde/uso, bloqueio da Ana pelos pré-requisitos reais e
+  ausência de erro de console. Documento: `docs/REDESIGN_CONFIGURACOES_STATUS_2026-09-29.md`.
