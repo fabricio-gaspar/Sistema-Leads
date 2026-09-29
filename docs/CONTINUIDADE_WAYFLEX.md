@@ -1911,6 +1911,8 @@ webhook em ambiente controlado.
 - A Edge Function `site-whatsapp-entry` foi atualizada para a ação `rotate` e publicada no Supabase
   oficial `thgzrkppouoevapjquyu`, sem migration ou segredo no navegador.
 - Validação local aprovada: type-check frontend/Edge, lint, Vitest 57/329, build e diff check. Nenhuma
-  mensagem, lead, busca ou automação foi executada. Publicação do Site oficial fica pendente até a
-  inspeção autenticada desta versão.
+  mensagem, lead, busca ou automação foi executada. Site oficial publicado na versão **153**, commit
+  `ad2b8c5cce6c6b4bcf76af6dbf8e38c3b9e8178b`, deploy `appgdep_6abbcd277b4881918b0b961cde8148d7`,
+  status `succeeded`. A inspeção autenticada confirmou a nova rota, os dados reais e o alerta de
+  callback sem erro de runtime.
 - Documento: `docs/REDESIGN_CONFIGURACOES_ENTRADAS_WHATSAPP_2026-09-29.md`.

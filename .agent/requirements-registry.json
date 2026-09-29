@@ -565,8 +565,8 @@
       "id": "REQ-041",
       "description": "Reorganizar Configurações > Canais > Entradas do WhatsApp com configuração, diagnóstico, histórico e link público real",
       "module": "configuracoes",
-      "status": "implemented_pending_site_publication",
-      "evidence": "WhatsAppEntriesTab usa os contratos reais site-whatsapp-entry, whatsapp-accounts, operational-diagnostics e testar-integracao. A entrada valida E.164, salva/pausa com permissão, copia e rotaciona o código server-side com auditoria; checagens de webhook, Ana e fallback não são simuladas. Type-check frontend/Edge, lint, 57 arquivos/329 testes, build e diff check passaram. Edge Function site-whatsapp-entry v2 foi publicada no Supabase oficial.",
+      "status": "confirmed",
+      "evidence": "WhatsAppEntriesTab usa os contratos reais site-whatsapp-entry, whatsapp-accounts, operational-diagnostics e testar-integracao. A entrada valida E.164, salva/pausa com permissão, copia e rotaciona o código server-side com auditoria; checagens de webhook, Ana e fallback não são simuladas. Type-check frontend/Edge, lint, 57 arquivos/329 testes, build e diff check passaram. Edge Function site-whatsapp-entry v2 foi publicada no Supabase oficial. Site oficial v153, commit ad2b8c5cce6c6b4bcf76af6dbf8e38c3b9e8178b, deploy appgdep_6abbcd277b4881918b0b961cde8148d7; inspeção autenticada sem erro de runtime.",
       "last_validation": "2026-09-29"
     }
   ]

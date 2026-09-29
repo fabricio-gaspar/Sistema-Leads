@@ -1327,4 +1327,6 @@
 - A Edge Function `site-whatsapp-entry` foi publicada no Supabase oficial com a ação `rotate` e
   auditoria `whatsapp.site_entry_rotated`. Nenhum segredo foi exposto e nenhuma migration foi criada.
 - `npm run type-check`, `npm run type-check:edge`, `npm run lint`, Vitest 57/329, `npm run build` e
-  `git diff --check` passaram. Publicação do Site oficial pendente de inspeção autenticada.
+  `git diff --check` passaram. Site oficial v153 publicado pelo commit
+  `ad2b8c5cce6c6b4bcf76af6dbf8e38c3b9e8178b`, deploy `appgdep_6abbcd277b4881918b0b961cde8148d7`
+  com sucesso; inspeção autenticada da rota confirmou os dados reais e nenhum erro de runtime.
