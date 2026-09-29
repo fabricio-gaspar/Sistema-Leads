@@ -6,6 +6,10 @@ export type KnowledgeCatalogItemType = 'product' | 'service' | 'catalog' | 'docu
 export type KnowledgeCatalogStatus = 'draft' | 'active' | 'archived';
 export type KnowledgePresentationFormat = 'quick' | 'commercial' | 'technical' | 'link' | 'document';
 export type KnowledgeSourceScope = 'products' | 'services' | 'catalogs' | 'documents' | 'mixed';
+export type KnowledgeUsageKey = 'profile' | 'business' | 'products' | 'services' | 'catalogs' | 'documents' | 'sources';
+export type KnowledgeUsage = Record<KnowledgeUsageKey, boolean>;
+export interface KnowledgePublication { version: number; publishedAt: string; publishedBy: string; pendingItems: number; pendingSources: number; itemCount: number; sourceCount: number; }
+export interface KnowledgeAuditEvent { id: string; action: string; detail: string | null; actorName: string | null; createdAt: string; }
 
 export interface KnowledgeSource {
   id: string;
@@ -324,6 +328,33 @@ export async function syncKnowledgeSource(sourceUrl: string): Promise<{ upserted
   const { data, error } = await supabase.functions.invoke('catalog-knowledge', { body: { action: 'sync', source_url: sourceUrl } });
   if (error || !data?.ok) throw new Error(data?.erro ?? await detalheDoErroDeFuncao(error));
   return { upserted: Number(data.upserted) || 0, seen: Number(data.seen) || 0, message: String(data.message || 'Fonte sincronizada.') };
+}
+
+async function knowledgeOperation(action: string, body: Record<string, unknown> = {}) {
+  const { data, error } = await supabase.functions.invoke('knowledge-publish', { body: { action, ...body } });
+  if (error || !data?.ok) throw new Error(data?.erro ?? await detalheDoErroDeFuncao(error));
+  return data as Record<string, unknown>;
+}
+
+export const defaultKnowledgeUsage: KnowledgeUsage = { profile: true, business: true, products: true, services: true, catalogs: true, documents: true, sources: true };
+
+export async function setKnowledgeUsage(key: KnowledgeUsageKey, enabled: boolean): Promise<KnowledgeUsage> {
+  const data = await knowledgeOperation('set_usage', { key, enabled });
+  return { ...defaultKnowledgeUsage, ...(data.usage as Partial<KnowledgeUsage> || {}) };
+}
+
+export async function publishKnowledge(): Promise<KnowledgePublication> {
+  const data = await knowledgeOperation('publish');
+  return data.publication as KnowledgePublication;
+}
+
+export async function loadKnowledgePublicationState(): Promise<{ usage: KnowledgeUsage; publication: KnowledgePublication | null; audit: KnowledgeAuditEvent[] }> {
+  const data = await knowledgeOperation('get_state');
+  const audit = Array.isArray(data.audit) ? data.audit.map((event) => {
+    const item = event as Record<string, unknown>;
+    return { id: String(item.id), action: String(item.action || ''), detail: typeof item.detail === 'string' ? item.detail : null, actorName: typeof item.actor_name === 'string' ? item.actor_name : null, createdAt: String(item.created_at || '') };
+  }) : [];
+  return { usage: { ...defaultKnowledgeUsage, ...(data.usage as Partial<KnowledgeUsage> || {}) }, publication: (data.publication as KnowledgePublication | null) || null, audit };
 }
 
 export function formatKnowledgeMessage(item: KnowledgeCatalogItem, format: KnowledgePresentationFormat): string {

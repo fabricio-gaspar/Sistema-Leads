@@ -255,12 +255,29 @@ async function exactCatalogImageFallback(
   return selectCatalogImageCandidate({ ...selection, candidates: data.map(asCatalogImageCandidate) });
 }
 
+type KnowledgeUsage = { profile: boolean; business: boolean; products: boolean; services: boolean; catalogs: boolean; documents: boolean; sources: boolean };
+
+function knowledgeUsage(value: unknown): KnowledgeUsage {
+  const usage = asObject(asObject(value).knowledge_usage);
+  return {
+    profile: usage.profile !== false,
+    business: usage.business !== false,
+    products: usage.products !== false,
+    services: usage.services !== false,
+    catalogs: usage.catalogs !== false,
+    documents: usage.documents !== false,
+    sources: usage.sources !== false,
+  };
+}
+
 function approvedCompanyContext(value: unknown): Record<string, unknown> {
   const company = asObject(value);
+  const usage = knowledgeUsage(asObject(company.ui_settings));
+  if (!usage.profile) return { name: '', description: '', segment: '', website: '', phone: '', email: '' };
   return {
     name: asText(company.name, 300),
-    description: asText(company.description, 2_000),
-    segment: asText(company.segment, 300),
+    description: usage.business ? asText(company.description, 2_000) : '',
+    segment: usage.business ? asText(company.segment, 300) : '',
     website: asText(company.website, 500),
     phone: asText(company.phone, 120),
     email: asText(company.email, 320),
@@ -732,7 +749,7 @@ Deno.serve(async (request) => {
         : admin.from('integrations').select('id,connected,enabled,paused')
           .eq('organization_id', organizationId).eq('key', activeChannel).maybeSingle();
     const contextReads = await Promise.all([
-      admin.from('company_settings').select('name,description,segment,website,phone,email,active,sandbox_mode,can_use_ia,ai_actions_enabled,ana_operation_enabled,ana_operation_mode').eq('organization_id', organizationId).maybeSingle(),
+      admin.from('company_settings').select('name,description,segment,website,phone,email,active,sandbox_mode,can_use_ia,ai_actions_enabled,ana_operation_enabled,ana_operation_mode,ui_settings').eq('organization_id', organizationId).maybeSingle(),
       admin.from('lead_messages').select('id,sender,sender_name,type,text,sent_at').eq('organization_id', organizationId).eq('lead_id', leadId).order('sent_at', { ascending: false }).limit(20),
       channelRead,
       admin.from('ai_agents').select('active_version_id').eq('organization_id', organizationId).eq('key', 'ana').maybeSingle(),
@@ -746,7 +763,10 @@ Deno.serve(async (request) => {
       admin.from('organization_module_data').select('data').eq('organization_id', organizationId).eq('module_key', 'configuracao_runtime').maybeSingle(),
     ]);
     for (const read of contextReads) if (read.error) throw new Error('ana_context_read_failed');
-    const [{ data: company }, { data: messages }, { data: initialChannel }, { data: agent }, { data: catalog }, { data: catalogItems }, { data: knowledge }, { data: appointments }, { data: suppressions }, { data: aiIntegration }, { data: runtime }] = contextReads;
+    const [{ data: company }, { data: messages }, { data: initialChannel }, { data: agent }, { data: catalog }, { data: catalogItemsRaw }, { data: knowledge }, { data: appointments }, { data: suppressions }, { data: aiIntegration }, { data: runtime }] = contextReads;
+    const usage = knowledgeUsage(company?.ui_settings);
+    const catalogItems = (catalogItemsRaw ?? []).filter((item) => item.item_type === 'product' ? usage.products : item.item_type === 'service' ? usage.services : item.item_type === 'catalog' ? usage.catalogs : usage.documents);
+    const catalogServices = usage.services ? catalog ?? [] : [];
     let channel = initialChannel;
     const operationMode = company?.ana_operation_enabled === true ? asText(company.ana_operation_mode, 20) : 'automatic';
     const supervised = operationMode === 'supervised';
@@ -830,7 +850,7 @@ Deno.serve(async (request) => {
     const intent = commercialIntent(latestInboundMessage?.text);
     const baseContext = {
       event, current_time: new Date().toISOString(), time_zone: 'America/Sao_Paulo', lead: { company: lead.company, contact: lead.contact, segment: lead.segment, active_channel: activeChannel, current_stage: stageLabel[currentStage] },
-      company: approvedCompanyContext(company), agent_configuration: agentConfiguration, catalog: catalog ?? [], knowledge: matchedKnowledge, commercial_intent: intent,
+      company: approvedCompanyContext(company), agent_configuration: agentConfiguration, catalog: catalogServices, knowledge: matchedKnowledge, commercial_intent: intent,
       latest_inbound_message: latestInboundMessage, conversation: chronologicalMessages, appointments: appointments ?? [], suppressions: applicableSuppressions, contexto: executionContext,
       policies: { allow_auto_quote: false, channel_connected: !dryRun && Boolean(channel?.connected && channel?.enabled && !channel?.paused), timeout_48h: timeout, suppressed: Boolean(applicableSuppressions.length), dry_run: dryRun, knowledge_match_found: matchedKnowledge.length > 0, knowledge_strategy: semanticMatches.length ? 'hybrid' : 'keyword', missing_technical_knowledge: missingTechnicalKnowledge, cadence: event === 'cadence.followup' ? cadenceContext : null },
     };
