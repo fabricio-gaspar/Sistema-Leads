@@ -1,6 +1,6 @@
 import { useSearchParams } from 'react-router-dom';
 import EmpresaTabs from '@/pages/dashboard/empresa/components/EmpresaTabs';
-import PersonalizacaoAna from '@/pages/dashboard/personalizacao-ana/page';
+import AnaPolicyWorkspace from '@/pages/dashboard/personalizacao-ana/AnaPolicyWorkspace';
 import CommercialCatalogTab from './components/CommercialCatalogTab';
 import IntegracoesOperacaoTab from './components/IntegracoesOperacaoTab';
 import OperationalStatusTab from './components/OperationalStatusTab';
@@ -159,7 +159,7 @@ export default function DashboardConfiguracoes() {
         </div>
 
         <main className="cc-settings-main min-w-0 flex-1" aria-label={currentItem?.label || 'Configurações'}>
-          {tab === 'ana' && <PersonalizacaoAna embedded />}
+          {tab === 'ana' && <AnaPolicyWorkspace />}
           {tab === 'operacao' && <OperationalStatusTab />}
           {tab === 'empresa' && <EmpresaTabs />}
           {tab === 'usuarios' && <TeamAccessTab />}
