@@ -6,7 +6,7 @@ import { refreshLeadsStore, useLeadsStore } from '@/hooks/useLeadsStore';
 import { refreshPropostasStore, usePropostasStore, usePropostasLoadStatus, waitForPropostasPersistence } from '@/hooks/usePropostasStore';
 import { confirmedUnitPrice, hasUnconfirmedPrices } from '@/domain/proposalPricing';
 import DataReadNotice from '@/components/feature/DataReadNotice';
-import { percentage, proposalNet } from '@/domain/commercialAnalytics';
+import { proposalNet } from '@/domain/commercialAnalytics';
 import { useConfiguracaoStore } from '@/hooks/useConfiguracaoStore';
 import { useTarefasStore } from '@/hooks/useTarefasStore';
 import { useNotificacoesStore } from '@/hooks/useNotificacoesStore';
@@ -26,11 +26,11 @@ import '../command-secondary.css';
 
 const statusLabel: Record<string, string> = {
   rascunho: 'Rascunho',
-  enviada: 'Enviada',
-  visualizada: 'Visualizada',
-  aceita: 'Aceita',
-  recusada: 'Recusada',
-  expirada: 'Expirada',
+  enviada: 'Enviado',
+  visualizada: 'Visualizado',
+  aceita: 'Aceito',
+  recusada: 'Recusado',
+  expirada: 'Vencido',
   aguardando_aprovacao: 'Aguardando aprovação',
 };
 
@@ -68,9 +68,35 @@ export default function Orcamentos() {
   const { propostas, atualizar, criar, excluir } = usePropostasStore();
   const [filtroStatus, setFiltroStatus] = useState('');
   const [buscaProposta, setBuscaProposta] = useState('');
-  const propostasVisiveis = propostas.filter((proposal) => (!filtroStatus || proposal.status === filtroStatus) && `${proposal.numero} ${proposal.empresa} ${proposal.lead}`.toLocaleLowerCase('pt-BR').includes(buscaProposta.toLocaleLowerCase('pt-BR')));
-  const propostasDecididas = propostas.filter((proposal) => ['aceita', 'recusada'].includes(proposal.status));
-  const taxaAceite = percentage(propostasDecididas.filter((proposal) => proposal.status === 'aceita').length, propostasDecididas.length);
+  const [ordenacao, setOrdenacao] = useState<'updated' | 'created' | 'validity' | 'value'>('updated');
+  const [filtroResponsavel, setFiltroResponsavel] = useState('');
+  const [mostrarFiltros, setMostrarFiltros] = useState(false);
+  const [colunas, setColunas] = useState<'essenciais' | 'completas'>('essenciais');
+  const statusTabs = [
+    { value: '', label: 'Todos' },
+    { value: 'rascunho', label: 'Rascunhos' },
+    { value: 'aguardando_aprovacao', label: 'Em aprovação' },
+    { value: 'enviada', label: 'Enviados' },
+    { value: 'aceita', label: 'Aceitos' },
+    { value: 'expirada', label: 'Vencidos' },
+  ];
+  const responsaveis = useMemo(() => [...new Set(propostas.map((proposal) => proposal.responsavel).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR')), [propostas]);
+  const propostasVisiveis = useMemo(() => {
+    const termo = buscaProposta.trim().toLocaleLowerCase('pt-BR');
+    const filtered = propostas.filter((proposal) => {
+      const itens = proposal.itens.map((item) => `${item.nome} ${item.id}`).join(' ');
+      const haystack = `${proposal.numero} ${proposal.empresa} ${proposal.lead} ${itens}`.toLocaleLowerCase('pt-BR');
+      return (!filtroStatus || proposal.status === filtroStatus)
+        && (!filtroResponsavel || proposal.responsavel === filtroResponsavel)
+        && (!termo || haystack.includes(termo));
+    });
+    return [...filtered].sort((a, b) => {
+      if (ordenacao === 'value') return valorComDesconto(b) - valorComDesconto(a);
+      if (ordenacao === 'validity') return b.validade.localeCompare(a.validade);
+      if (ordenacao === 'created') return b.data.localeCompare(a.data);
+      return (b.createdAt || b.data).localeCompare(a.createdAt || a.data);
+    });
+  }, [buscaProposta, filtroResponsavel, filtroStatus, ordenacao, propostas]);
   const [selecionada, setSelecionada] = useState<Proposta | null>(null);
   const [toast, setToast] = useState('');
   const [novoModal, setNovoModal] = useState(false);
@@ -477,197 +503,65 @@ export default function Orcamentos() {
   return (
     <div className="wf-page wf-secondary-page wf-secondary-page--quotes">
       <DataReadNotice status={loadStatus} onRetry={() => { void refreshPropostasStore().catch(() => undefined); }} />
-      <div className="wf-secondary-header mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <header className="wf-secondary-header mb-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="wf-secondary-eyebrow">Operação comercial</p>
-          <h1 className="wf-page-title mb-2">
-            Orçamentos
-          </h1>
-          <p className="wf-secondary-description text-foreground-600 text-sm">
-            Crie, revise, envie e acompanhe orçamentos. O aceite conclui a oportunidade, sem cobrança ou checkout no sistema.
-          </p>
+          <h1 className="wf-page-title mb-1">Orçamentos</h1>
+          <p className="wf-secondary-description text-sm">Crie, aprove, envie e acompanhe orçamentos comerciais.</p>
         </div>
-        <button
-          onClick={() => setNovoModal(true)}
-          className="wf-secondary-action inline-flex items-center gap-2 px-5 py-2.5 bg-primary-500 hover:bg-primary-600 text-background-50 rounded-lg text-sm font-bold cursor-pointer whitespace-nowrap"
-        >
-          <i className="ri-add-line"></i>
-          Nova proposta
-        </button>
-      </div>
-
-      {toast && (
-        <div className="mb-4 bg-primary-100 border border-primary-200 text-primary-800 px-4 py-3 rounded-lg text-sm flex items-center gap-2">
-          <i className="ri-information-line"></i>
-          {toast}
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" onClick={() => navigate('/dashboard/configuracoes?tab=empresa&subtab=templates')} className="inline-flex items-center gap-2 rounded-full border border-background-300 bg-background-50 px-4 py-2.5 text-sm font-semibold text-foreground-800 hover:bg-background-100">
+            <i className="ri-file-copy-2-line" /> Modelos e catálogo
+          </button>
+          <button type="button" onClick={() => setNovoModal(true)} className="wf-secondary-action inline-flex items-center gap-2 px-5 py-2.5 text-sm font-bold">
+            <i className="ri-add-line" /> Novo orçamento
+          </button>
         </div>
-      )}
+      </header>
 
-      {/* KPIs */}
-      <div className="wf-secondary-kpis grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        {[
-          { label: 'Propostas em aberto', value: String(propostas.filter((p) => p.status === 'enviada' || p.status === 'visualizada').length), icon: 'ri-file-list-3-line', color: 'bg-primary-100 text-primary-600' },
-          { label: 'Propostas aceitas', value: String(propostas.filter((p) => p.status === 'aceita').length), icon: 'ri-check-double-line', color: 'bg-secondary-100 text-secondary-600' },
-          { label: `Aceitas / decididas (${propostasDecididas.length})`, value: taxaAceite === null ? '—' : `${taxaAceite.toLocaleString('pt-BR', { maximumFractionDigits: 1 })}%`, icon: 'ri-percent-line', color: 'bg-accent-100 text-accent-600' },
-          { label: 'Aguardando aprovação', value: String(propostas.filter((p) => p.status === 'aguardando_aprovacao').length), icon: 'ri-time-line', color: 'bg-primary-500/20 text-primary-600' },
-        ].map((kpi, i) => (
-          <div key={i} className="wf-secondary-kpi bg-background-50 border border-background-200/70 rounded-xl p-5">
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center mb-4 ${kpi.color}`}>
-              <i className={`${kpi.icon} text-lg`}></i>
-            </div>
-            <p className="text-2xl font-heading font-extrabold text-foreground-950">{loadStatus === 'ready' ? kpi.value : '—'}</p>
-            <p className="text-foreground-500 text-sm mt-1">{kpi.label}</p>
-          </div>
-        ))}
-      </div>
+      {toast && <div role="status" className="mb-4 flex items-center gap-2 rounded-xl border border-primary-200 bg-primary-50 px-4 py-3 text-sm text-primary-800"><i className="ri-information-line" />{toast}</div>}
 
-      <div className="wf-toolbar mb-4 flex flex-wrap gap-3"><label className="min-w-0 flex-1"><span className="sr-only">Buscar proposta</span><input value={buscaProposta} onChange={(event) => setBuscaProposta(event.target.value)} placeholder="Buscar número, empresa ou contato" className="w-full rounded-lg border border-background-200 px-3" /></label><label><span className="sr-only">Situação da proposta</span><select value={filtroStatus} onChange={(event) => setFiltroStatus(event.target.value)} className="rounded-lg border border-background-200 px-3"><option value="">Todas as situações</option>{Object.entries(statusLabel).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label></div>
-      <div className="wf-secondary-panel wf-secondary-table bg-background-50 border border-background-200/70 rounded-xl overflow-hidden">
-          <div className="wf-secondary-panel-heading">
-            <div><p className="wf-secondary-eyebrow">Carteira de propostas</p><h2>Orçamentos cadastrados</h2></div>
-            <span className="wf-secondary-count">{propostasVisiveis.length} de {propostas.length} registros</span>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-background-200/70 bg-background-100/50">
-                  <th className="text-left px-6 py-3 text-foreground-500 font-medium text-xs">Número</th>
-                  <th className="text-left px-6 py-3 text-foreground-500 font-medium text-xs">Lead</th>
-                  <th className="text-left px-6 py-3 text-foreground-500 font-medium text-xs">Valor</th>
-                  <th className="text-left px-6 py-3 text-foreground-500 font-medium text-xs">Status</th>
-                  <th className="text-left px-6 py-3 text-foreground-500 font-medium text-xs hidden md:table-cell">Validade</th>
-                  <th className="text-left px-6 py-3 text-foreground-500 font-medium text-xs">Ações</th>
-                </tr>
-              </thead>
-              <tbody>
-                {propostasVisiveis.map((p) => (
-                  <tr key={p.id} className="border-b border-background-100 hover:bg-background-50/50 transition-colors">
-                    <td className="px-6 py-3.5">
-                      <button
-                        onClick={() => setSelecionada(p)}
-                        className="font-semibold text-primary-600 hover:text-primary-700 cursor-pointer"
-                      >
-                        {p.numero}
-                      </button>
-                      <p className="text-xs text-foreground-400">v{p.versao} · {p.data}</p>
-                    </td>
-                    <td className="px-6 py-3.5">
-                      <p className="font-medium text-foreground-900">{p.lead}</p>
-                      <p className="text-xs text-foreground-500">{p.empresa}</p>
-                    </td>
-                    <td className="px-6 py-3.5">
-                      <p className="font-bold text-foreground-900">{fmt(valorComDesconto(p))}</p>
-                      {p.descontoPct > 0 && (
-                        <p className="text-xs text-foreground-400 line-through">{fmt(p.valor)}</p>
-                      )}
-                    </td>
-                    <td className="px-6 py-3.5">
-                      <span className={`inline-block px-2.5 py-1 rounded-md text-xs font-medium ${statusCor[p.status]}`}>
-                        {statusLabel[p.status]}
-                      </span>
-                      {p.status === 'recusada' && p.motivoPerda && (
-                        <p className="text-[11px] text-foreground-400 mt-1 max-w-[160px] truncate" title={p.motivoPerda}>
-                          {p.motivoPerda}
-                        </p>
-                      )}
-                    </td>
-                    <td className="px-6 py-3.5 text-foreground-600 hidden md:table-cell">
-                      {new Date(p.validade + 'T00:00:00').toLocaleDateString('pt-BR')}
-                    </td>
-                    <td className="px-6 py-3.5">
-                      <div className="flex items-center gap-1.5">
-                        {p.status === 'aguardando_aprovacao' && (
-                          <>
-                            <button
-                              onClick={() => aprovarDesconto(p.id)}
-                              className="px-2.5 py-1.5 bg-secondary-500 hover:bg-secondary-600 text-background-50 rounded-md text-xs font-semibold cursor-pointer whitespace-nowrap"
-                              title="Aprovar desconto"
-                            >
-                              <i className="ri-check-line"></i>
-                            </button>
-                            <button
-                              onClick={() => reprovarDesconto(p.id)}
-                              className="px-2.5 py-1.5 bg-accent-500 hover:bg-accent-600 text-background-50 rounded-md text-xs font-semibold cursor-pointer whitespace-nowrap"
-                              title="Reprovar desconto"
-                            >
-                              <i className="ri-close-line"></i>
-                            </button>
-                          </>
-                        )}
-                        {p.status === 'rascunho' && (
-                          <button
-                            onClick={() => enviar(p.id)}
-                            className="px-2.5 py-1.5 bg-primary-500 hover:bg-primary-600 text-background-50 rounded-md text-xs font-semibold cursor-pointer whitespace-nowrap"
-                            title="Enviar"
-                          >
-                            <i className="ri-send-plane-line"></i>
-                          </button>
-                        )}
-                        {(p.status === 'enviada' || p.status === 'visualizada') && (
-                          <>
-                            <button
-                              onClick={() => aceitar(p.id)}
-                              className="px-2.5 py-1.5 bg-secondary-500 hover:bg-secondary-600 text-background-50 rounded-md text-xs font-semibold cursor-pointer whitespace-nowrap"
-                              title="Aceitar"
-                            >
-                              <i className="ri-check-double-line"></i>
-                            </button>
-                            <button
-                              onClick={() => abrirRecusa(p.id)}
-                              className="px-2.5 py-1.5 bg-accent-500 hover:bg-accent-600 text-background-50 rounded-md text-xs font-semibold cursor-pointer whitespace-nowrap"
-                              title="Recusar"
-                            >
-                              <i className="ri-close-line"></i>
-                            </button>
-                          </>
-                        )}
-                        <button
-                          onClick={() => setSelecionada(p)}
-                          className="px-2.5 py-1.5 bg-background-100 hover:bg-background-200 text-foreground-600 rounded-md text-xs cursor-pointer whitespace-nowrap"
-                          title="Detalhes"
-                        >
-                          <i className="ri-eye-line"></i>
-                        </button>
-                        <button
-                          onClick={() => baixarPDF(p)}
-                          className="px-2.5 py-1.5 bg-background-100 hover:bg-background-200 text-foreground-600 rounded-md text-xs cursor-pointer whitespace-nowrap"
-                          title="Abrir para impressão"
-                        >
-                          <i className="ri-file-pdf-line"></i>
-                        </button>
-                        {(p.status === 'rascunho' || p.status === 'aguardando_aprovacao') && (
-                          <button
-                            onClick={() => abrirEdicaoProposta(p)}
-                            className="px-2.5 py-1.5 bg-background-100 hover:bg-background-200 text-foreground-600 rounded-md text-xs cursor-pointer whitespace-nowrap"
-                            title="Editar itens e desconto"
-                          >
-                            <i className="ri-edit-line"></i>
-                          </button>
-                        )}
-                        {p.status !== 'aceita' && (
-                          <button
-                            onClick={() => excluirProposta(p.id)}
-                            className="px-2.5 py-1.5 bg-background-100 hover:bg-accent-50 text-accent-600 rounded-md text-xs cursor-pointer whitespace-nowrap"
-                            title="Excluir proposta"
-                          >
-                            <i className="ri-delete-bin-6-line"></i>
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-                {loadStatus === 'ready' && propostasVisiveis.length === 0 && (
-                  <tr>
-                    <td colSpan={6} className="px-6 py-12 text-center text-foreground-500">
-                      {propostas.length ? 'Nenhuma proposta corresponde aos filtros.' : 'Nenhuma proposta criada. Comece vinculando um lead e os itens do catálogo.'}
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-      </div>
+      <section className="wf-secondary-filter mb-4 overflow-hidden" aria-label="Filtros de orçamentos">
+        <div className="flex min-w-0 flex-wrap items-center gap-2 border-b border-background-200/70 px-4 py-3 sm:px-5" role="tablist" aria-label="Status do orçamento">
+          {statusTabs.map((tab) => {
+            const count = tab.value === '' ? propostas.length : propostas.filter((proposal) => proposal.status === tab.value).length;
+            const active = filtroStatus === tab.value;
+            return <button key={tab.value || 'all'} type="button" role="tab" aria-selected={active} onClick={() => setFiltroStatus(tab.value)} className={`inline-flex items-center gap-2 rounded-lg px-3.5 py-2 text-sm font-semibold transition-colors ${active ? 'border border-primary-400 bg-primary-50 text-primary-800' : 'text-foreground-700 hover:bg-background-100'}`}><span>{tab.label}</span><span className={`rounded-full px-2 py-0.5 text-xs ${active ? 'bg-primary-100 text-primary-800' : 'bg-background-100 text-foreground-600'}`}>{loadStatus === 'ready' ? count : '—'}</span></button>;
+          })}
+        </div>
+        <div className="flex flex-wrap items-center gap-2 px-4 py-3 sm:px-5">
+          <label className="relative min-w-[220px] flex-1"><span className="sr-only">Buscar orçamento</span><i className="ri-search-line pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-foreground-400" /><input value={buscaProposta} onChange={(event) => setBuscaProposta(event.target.value)} placeholder="Buscar número, empresa, contato ou item" className="w-full rounded-lg border border-background-300 bg-background-50 py-2.5 pl-9 pr-3 text-sm" /></label>
+          <label className="min-w-[170px]"><span className="sr-only">Responsável</span><select value={filtroResponsavel} onChange={(event) => setFiltroResponsavel(event.target.value)} className="w-full rounded-lg border border-background-300 bg-background-50 px-3 py-2.5 text-sm"><option value="">Todos os responsáveis</option>{responsaveis.map((responsavel) => <option key={responsavel} value={responsavel}>{responsavel}</option>)}</select></label>
+          <button type="button" onClick={() => setMostrarFiltros((value) => !value)} className={`inline-flex items-center gap-2 rounded-lg border px-3.5 py-2.5 text-sm font-semibold ${mostrarFiltros ? 'border-primary-400 bg-primary-50 text-primary-800' : 'border-background-300 text-foreground-800 hover:bg-background-100'}`}><i className="ri-equalizer-2-line" /> Filtros</button>
+          <button type="button" onClick={() => setColunas((value) => value === 'essenciais' ? 'completas' : 'essenciais')} className="inline-flex items-center gap-2 rounded-lg border border-background-300 px-3.5 py-2.5 text-sm font-semibold text-foreground-800 hover:bg-background-100"><i className="ri-layout-column-line" /> Colunas</button>
+          <label className="ml-auto flex items-center gap-2 text-sm text-foreground-500"><span className="hidden sm:inline">Ordenar por</span><select value={ordenacao} onChange={(event) => setOrdenacao(event.target.value as typeof ordenacao)} className="rounded-lg border border-background-300 bg-background-50 px-3 py-2.5 font-semibold text-foreground-800"><option value="updated">Atualizados recentemente</option><option value="created">Criados recentemente</option><option value="validity">Validade mais próxima</option><option value="value">Maior valor</option></select></label>
+        </div>
+        {mostrarFiltros && <div className="flex flex-wrap items-center gap-2 border-t border-background-200/70 bg-background-50 px-4 py-3 text-xs text-foreground-600 sm:px-5"><span className="rounded-full bg-background-100 px-3 py-1.5">Status: {filtroStatus ? statusLabel[filtroStatus] : 'Todos'}</span><span className="rounded-full bg-background-100 px-3 py-1.5">Itens incluídos na busca</span><button type="button" onClick={() => { setFiltroStatus(''); setFiltroResponsavel(''); setBuscaProposta(''); }} className="font-semibold text-primary-700 hover:underline">Limpar filtros</button></div>}
+      </section>
+
+      <section className="wf-secondary-panel wf-secondary-table overflow-hidden" aria-labelledby="quote-portfolio-title">
+        <div className="wf-secondary-panel-heading"><div><p className="wf-secondary-eyebrow">Carteira de orçamentos</p><h2 id="quote-portfolio-title">Orçamentos cadastrados</h2></div><div className="flex items-center gap-3"><span className="wf-secondary-count">{propostasVisiveis.length} registros</span><button type="button" onClick={() => setColunas((value) => value === 'essenciais' ? 'completas' : 'essenciais')} className="hidden rounded-lg border border-background-300 px-3 py-2 text-sm font-semibold text-foreground-800 hover:bg-background-100 sm:inline-flex"><i className="ri-layout-column-line mr-1" /> Colunas</button></div></div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[760px] text-sm">
+            <thead><tr className="border-b border-background-200/70 bg-background-100/50"><th className="w-10 px-5 py-3 text-left"><input type="checkbox" aria-label="Selecionar todos os orçamentos" disabled /></th><th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-foreground-500">Número</th><th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-foreground-500">Empresa / contato</th><th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-foreground-500">Valor</th><th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-foreground-500">Situação</th><th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-foreground-500">Responsável</th>{colunas === 'completas' && <th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-foreground-500">Canal / versão</th>}<th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-foreground-500">Validade</th><th className="w-16 px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-foreground-500">Ações</th></tr></thead>
+            <tbody>
+              {propostasVisiveis.map((p) => <tr key={p.id} className="border-b border-background-100 hover:bg-background-50/60">
+                <td className="px-5 py-4"><input type="checkbox" aria-label={`Selecionar orçamento ${p.numero}`} /></td>
+                <td className="px-3 py-4"><button type="button" onClick={() => setSelecionada(p)} className="font-semibold text-primary-700 hover:underline">{p.numero}</button><p className="mt-1 text-xs text-foreground-500">v{p.versao} · {p.data}</p></td>
+                <td className="px-3 py-4"><button type="button" onClick={() => setSelecionada(p)} className="text-left"><p className="font-semibold text-foreground-900">{p.empresa}</p><p className="text-xs text-foreground-500">{p.lead}</p></button></td>
+                <td className="px-3 py-4"><p className="font-bold tabular-nums text-foreground-900">{fmt(valorComDesconto(p))}</p>{p.descontoPct > 0 && <p className="text-xs text-foreground-400 line-through">{fmt(p.valor)}</p>}</td>
+                <td className="px-3 py-4"><span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${statusCor[p.status]}`}>{statusLabel[p.status]}</span>{p.status === 'recusada' && p.motivoPerda && <p className="mt-1 max-w-[150px] truncate text-[11px] text-foreground-500" title={p.motivoPerda}>{p.motivoPerda}</p>}</td>
+                <td className="px-3 py-4 text-foreground-700">{p.responsavel}</td>
+                {colunas === 'completas' && <td className="px-3 py-4 text-foreground-700"><span>{p.canal}</span><span className="mt-1 block text-xs text-foreground-500">Versão {p.versao}</span></td>}
+                <td className="px-3 py-4 text-foreground-700">{new Date(p.validade + 'T00:00:00').toLocaleDateString('pt-BR')}</td>
+                <td className="px-4 py-4 text-right"><div className="flex justify-end gap-1"><button type="button" onClick={() => setSelecionada(p)} className="rounded-lg p-2 text-foreground-600 hover:bg-background-100" title="Abrir orçamento"><i className="ri-eye-line" /></button><button type="button" onClick={() => baixarPDF(p)} className="rounded-lg p-2 text-foreground-600 hover:bg-background-100" title="Prévia para impressão"><i className="ri-file-pdf-line" /></button><button type="button" onClick={() => { if (p.status === 'rascunho' || p.status === 'aguardando_aprovacao') abrirEdicaoProposta(p); else setSelecionada(p); }} className="rounded-lg p-2 text-foreground-600 hover:bg-background-100" title="Mais ações"><i className="ri-more-2-fill" /></button></div></td>
+              </tr>)}
+              {loadStatus === 'ready' && propostasVisiveis.length === 0 && <tr><td colSpan={colunas === 'completas' ? 9 : 8} className="px-6 py-16 text-center"><div className="mx-auto flex max-w-md flex-col items-center"><span className="mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-primary-50 text-3xl text-primary-700"><i className="ri-file-list-3-line" /></span><h3 className="text-lg font-bold text-foreground-950">{propostas.length ? 'Nenhum orçamento corresponde aos filtros' : 'Nenhum orçamento criado'}</h3><p className="mt-2 text-sm text-foreground-500">{propostas.length ? 'Ajuste a busca ou limpe os filtros para consultar a carteira.' : 'Crie seu primeiro orçamento vinculando uma empresa e adicionando produtos ou serviços.'}</p><div className="mt-5 flex flex-wrap justify-center gap-2"><button type="button" onClick={() => setNovoModal(true)} className="wf-secondary-action inline-flex items-center gap-2 px-4 py-2.5 text-sm font-bold"><i className="ri-add-line" /> Criar primeiro orçamento</button><button type="button" onClick={() => navigate('/dashboard/configuracoes?tab=empresa&subtab=catalogo')} className="inline-flex items-center gap-2 rounded-full border border-background-300 px-4 py-2.5 text-sm font-semibold text-foreground-800 hover:bg-background-100"><i className="ri-book-open-line" /> Abrir catálogo</button></div><button type="button" onClick={() => navigate('/dashboard/configuracoes?tab=empresa&subtab=templates')} className="mt-4 text-sm font-semibold text-primary-700 hover:underline">Saiba como funciona <i className="ri-arrow-right-up-line ml-1" /></button></div></td></tr>}
+            </tbody>
+          </table>
+        </div>
+        {colunas === 'completas' && <div className="border-t border-background-200/70 bg-background-50 px-5 py-3 text-xs text-foreground-500">Colunas adicionais disponíveis no detalhe: canal, versão, data de criação e itens incluídos. A carteira mantém as colunas essenciais para leitura rápida.</div>}
+      </section>
 
       {/* Drawer de detalhe */}
       {selecionada && (

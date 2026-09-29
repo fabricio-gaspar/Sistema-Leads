@@ -1852,3 +1852,11 @@ webhook em ambiente controlado.
 - Limitações deliberadas: não há contrato governado para encerrar atendimento, filtrar tags ou
   transferir para fila genérica, por isso esses controles não foram simulados. Respostas rápidas
   são editáveis antes do envio, mas ainda não possuem cadastro administrativo de templates.
+## 29/09/2026 — Redesign da carteira de Orçamentos
+
+- A rota `/dashboard/orcamentos` foi alinhada ao mockup operacional: cabeçalho compacto, ação `Novo orçamento`, acesso a modelos e catálogo, abas com contagens reais, pesquisa por número/empresa/contato/item, responsável, filtros recolhíveis, ordenação e carteira com colunas essenciais.
+- O estado vazio orienta para criar o primeiro orçamento e abrir o catálogo. A tabela preserva o drawer e as ações existentes: aprovação/reprovação de desconto, revisão, PDF, encaminhamento ao atendimento, aceite, recusa com motivo e arquivamento reversível.
+- Nenhuma regra, rota, permissão, migration, fonte de dados ou integração foi criada. O módulo continua lendo e gravando a entidade operacional `proposals` via `usePropostasStore`.
+- Type-check, lint, **56 arquivos / 328 testes** e build/artefato Sites passaram. Nenhum provedor, mensagem, cobrança, checkout ou dado comercial foi acionado.
+- Limitação explícita: o modelo atual ainda não oferece versões imutáveis, PDF privado com hash, token público de aceite, eventos de entrega ou busca server-side. Esses itens do prompt completo permanecem evolução backend separada; a UI não os simula.
+- Estado: **LOCAL/VALIDADO**, publicação no Site oficial pendente. Próxima ação exata: publicar a versão oficial após conferir o pacote e registrar o deploy.

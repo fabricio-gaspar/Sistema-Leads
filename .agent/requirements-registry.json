@@ -2,6 +2,14 @@
   "schema_version": 1,
   "requirements": [
     {
+      "id": "REQ-068",
+      "description": "Reformular Orçamentos com carteira compacta, abas de situação, busca por itens, filtros, ordenação, estado vazio e ações preservadas sem criar fonte paralela",
+      "module": "orcamentos",
+      "status": "implemented_validated_pending_site_publication",
+      "evidence": "A rota src/pages/dashboard/orcamentos/page.tsx usa proposals operacional, mantém criação, aprovação, revisão, PDF, envio, aceite, recusa e arquivamento e recebe o padrão visual do mockup. Busca inclui número, empresa, contato e itens; a carteira exibe situação, responsável, validade e drawer. Type-check, lint, Vitest 56 arquivos/328 testes e build/artefato Sites passaram. O modelo atual não possui ainda versões imutáveis, PDF privado, token público de aceite ou busca server-side; esses recursos não foram simulados.",
+      "last_validation": "2026-09-29"
+    },
+    {
       "id": "REQ-066",
       "description": "Reformular a Agenda Comercial como fluxo operacional de planejar, confirmar, executar, registrar resultado e criar próxima ação, preservando a entidade appointments, RLS e a autoridade da Ana",
       "module": "agenda",
