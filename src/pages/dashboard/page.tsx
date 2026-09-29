@@ -23,6 +23,7 @@ type OperationalAlert = {
   link: string;
   action: string;
   icon: string;
+  tone: 'warning' | 'danger';
 };
 
 function formatOperationalDate(value: string | null): string | null {
@@ -38,6 +39,8 @@ export default function Dashboard() {
   const notifications = useNotificacoesStore();
   const [operacao, setOperacao] = useState<OperationalDiagnostics | null>(null);
   const [diagnosticError, setDiagnosticError] = useState(false);
+  const [liveUpdates, setLiveUpdates] = useState(true);
+  const [panelPreferencesOpen, setPanelPreferencesOpen] = useState(false);
 
   useEffect(() => {
     let disposed = false;
@@ -53,12 +56,13 @@ export default function Dashboard() {
       }
     };
     void refreshOperationalData();
+    if (!liveUpdates) return () => { disposed = true; };
     const interval = window.setInterval(() => void refreshOperationalData(), 60_000);
     return () => {
       disposed = true;
       window.clearInterval(interval);
     };
-  }, []);
+  }, [liveUpdates]);
 
   const integrationsByKey = new Map((diagnosticError ? [] : operacao?.status.integrations ?? []).map((item) => [item.key, item]));
   const whatsappMonitoring = diagnosticError ? undefined : operacao?.status.whatsappMonitoring;
@@ -76,14 +80,13 @@ export default function Dashboard() {
 
   const operationalAlerts: OperationalAlert[] = [];
   if (diagnosticError) {
-    operationalAlerts.push({ id: 'diagnostic', title: 'Não foi possível confirmar a operação', detail: 'A leitura segura do backend falhou. Não assuma que os canais ou a Ana estão disponíveis.', link: '/dashboard/configuracoes?tab=operacao', action: 'Ver operação', icon: 'ri-error-warning-line' });
+    operationalAlerts.push({ id: 'diagnostic', title: 'Operação requer revisão', detail: 'A leitura segura do backend falhou; o estado técnico não foi confirmado.', link: '/dashboard/configuracoes?tab=operacao', action: 'Ver operação', icon: 'ri-error-warning-line', tone: 'danger' });
   } else if (operacao) {
-    if (operacao.status.killSwitch) operationalAlerts.push({ id: 'ana-paused', title: 'Ana pausada', detail: 'A pausa global está ativa e impede saídas automatizadas.', link: '/dashboard/configuracoes?tab=ana', action: 'Ver Ana', icon: 'ri-pause-circle-line' });
-    if (whatsappMonitoring && whatsappMonitoring.state !== 'stable') operationalAlerts.push({ id: 'whatsapp', title: 'WhatsApp requer atenção', detail: whatsappMonitoring.detail || 'Os contatos automáticos não podem ser considerados disponíveis até uma nova validação.', link: '/dashboard/configuracoes?tab=canais', action: 'Ver canal', icon: 'ri-whatsapp-line' });
-    if (!operacao.status.killSwitch && !operacao.status.productionReady) operationalAlerts.push({ id: 'ana-preparation', title: 'Ana em preparação', detail: 'A automação permanece bloqueada até que os requisitos reais sejam comprovados.', link: '/dashboard/configuracoes?tab=ana', action: 'Ver Ana', icon: 'ri-robot-2-line' });
-    if (operacao.summary.failedJobs > 0) operationalAlerts.push({ id: 'jobs', title: 'Processamento com falhas', detail: `${operacao.summary.failedJobs} falha(s) registrada(s) na fila operacional.`, link: '/dashboard/registro-sistema', action: 'Ver registros', icon: 'ri-alert-line' });
+    if (operacao.status.killSwitch || !operacao.status.productionReady) operationalAlerts.push({ id: 'ana-preparation', title: operacao.status.killSwitch ? 'Ana pausada' : 'Ana exige configuração', detail: operacao.status.killSwitch ? 'A pausa global impede novas automações.' : 'Automação protegida até os requisitos reais serem comprovados.', link: '/dashboard/configuracoes?tab=ana', action: 'Abrir configuração', icon: 'ri-robot-2-line', tone: 'warning' });
+    if (operacao.summary.failedJobs > 0) operationalAlerts.push({ id: 'jobs', title: `${operacao.summary.failedJobs} falha${operacao.summary.failedJobs === 1 ? '' : 's'} na fila`, detail: 'Processamento requer revisão antes de reexecutar uma ação.', link: '/dashboard/registro-sistema', action: 'Ver fila', icon: 'ri-alert-line', tone: 'danger' });
+    if (apify && apify.tone !== 'positive') operationalAlerts.push({ id: 'search', title: 'Busca precisa validar', detail: apifyIntegration?.detail || 'A integração de busca precisa de uma nova validação.', link: '/dashboard/configuracoes?tab=apis', action: 'Revalidar', icon: 'ri-map-pin-search-line', tone: 'warning' });
   }
-  const operationalAlert = operationalAlerts[0];
+  const freshness = diagnosticError ? 'Atualização pausada' : !liveUpdates ? 'Atualização pausada' : operacao ? 'Atualização automática a cada 60 s' : 'Conectando ao diagnóstico';
 
   const processing = operacao?.summary.failedJobs
     ? { label: `${operacao.summary.failedJobs} falha(s)`, tone: 'critical' as StatusTone, detail: 'Existem falhas registradas na fila operacional. Consulte os registros antes de repetir qualquer ação.' }
@@ -100,15 +103,13 @@ export default function Dashboard() {
 
   return <div className="wf-page wf-overview wf-commercial-dashboard">
     <header className="wf-page-header">
-      <div><p className="wf-eyebrow">Visão comercial</p><div className="mt-1 flex items-center gap-2"><h1 className="wf-page-title">Visão geral</h1><InfoTooltip text="Leitura rápida da carteira: decisões comerciais, pipeline e condições reais para a operação da Ana." label="Sobre a Dashboard" align="start" /></div></div>
-      <Link to="/dashboard/agenda" className="wf-btn-secondary"><i className="ri-calendar-line" aria-hidden="true" />Minha agenda</Link>
+      <div><p className="wf-eyebrow">Dashboard</p><div className="mt-1 flex items-center gap-2"><h1 className="wf-page-title">Visão geral</h1><span className="text-sm text-foreground-500">Operação comercial em tempo real.</span><InfoTooltip text="Indicadores comerciais e condição operacional. A atualização é declarada como polling de 60 segundos; não há stream simulado nesta tela." label="Sobre a Dashboard" align="start" /></div></div>
+      <div className="flex flex-wrap items-center justify-end gap-2"><span className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-semibold ${diagnosticError ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-primary-100 bg-primary-50 text-primary-800'}`}><span className="h-2 w-2 rounded-full bg-current" />{freshness}</span><label className="inline-flex items-center gap-2 rounded-lg border border-background-200 bg-white px-3 py-2 text-xs font-semibold text-foreground-700"><span>Atualização ao vivo</span><button type="button" role="switch" aria-checked={liveUpdates} onClick={() => setLiveUpdates((value) => !value)} className={`relative h-5 w-9 rounded-full ${liveUpdates ? 'bg-primary-600' : 'bg-background-300'}`}><span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition ${liveUpdates ? 'left-4' : 'left-0.5'}`} /></button><span>{liveUpdates ? 'Ativa' : 'Desativada'}</span></label><button type="button" onClick={() => setPanelPreferencesOpen((open) => !open)} className="wf-btn-secondary text-xs"><i className="ri-layout-grid-line" />Personalizar painel</button><Link to="/dashboard/agenda" className="wf-btn-secondary text-xs"><i className="ri-calendar-line" />Minha agenda</Link></div>
     </header>
 
-    {operationalAlert && <section className="wf-decision-alert" aria-label="Alerta operacional">
-      <span className="wf-decision-alert__icon" aria-hidden="true"><i className={operationalAlert.icon} /></span>
-      <div className="min-w-0 flex-1"><strong>{operationalAlert.title}</strong><p>{operationalAlert.detail}</p></div>
-      <Link to={operationalAlert.link} className="wf-decision-alert__action">{operationalAlert.action}<i className="ri-arrow-right-up-line" aria-hidden="true" /></Link>
-    </section>}
+    {panelPreferencesOpen && <section className="wf-surface mb-4 flex flex-wrap items-center gap-3 p-4 text-xs text-foreground-600"><strong className="text-foreground-900">Painel padrão</strong><span>Os widgets exibidos usam dados reais. A personalização persistente será habilitada quando houver preferência auditável por usuário.</span><button type="button" onClick={() => setPanelPreferencesOpen(false)} className="ml-auto wf-btn-secondary text-xs">Fechar</button></section>}
+
+    {operationalAlerts.length > 0 && <section className="mb-4 grid gap-3 xl:grid-cols-3" aria-label="Alertas prioritários">{operationalAlerts.slice(0, 3).map((alert) => <article key={alert.id} className={`rounded-xl border p-4 ${alert.tone === 'danger' ? 'border-red-200 bg-red-50' : 'border-amber-200 bg-amber-50'}`}><div className="flex items-start gap-3"><i className={`${alert.icon} mt-0.5 text-xl ${alert.tone === 'danger' ? 'text-red-700' : 'text-amber-700'}`} /><div className="min-w-0 flex-1"><h2 className="text-sm font-bold text-foreground-950">{alert.title}</h2><p className="mt-1 text-xs leading-5 text-foreground-700">{alert.detail}</p><Link to={alert.link} className="mt-3 inline-flex text-xs font-bold text-foreground-900 underline">{alert.action}<i className="ri-arrow-right-line ml-1" /></Link></div></div></article>)}</section>}
 
     <CommercialAnalytics aside={<SellerAttentionPanel notifications={notifications.notificacoes} leads={leads} loadState={attentionLoadState} />} />
 
