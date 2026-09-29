@@ -41,8 +41,38 @@ export interface TeamMember {
   email: string;
   avatar: string | null;
   role: TeamRole;
-  status: 'active' | 'disabled';
+  status: 'active' | 'disabled' | 'invited';
   updatedAt: string | null;
+  /** Last known membership activity. The auth provider's last sign-in is not
+   * exposed to the browser; keeping this value explicit avoids inventing it. */
+  lastAccessAt?: string | null;
+}
+
+export interface OrganizationInvite {
+  id: string;
+  email: string;
+  role: TeamRole;
+  invitedBy: string | null;
+  expiresAt: string;
+  acceptedAt: string | null;
+  cancelledAt: string | null;
+  createdAt: string;
+}
+
+export interface AccessSecurityPolicy {
+  requireMfa: boolean;
+  revokeSessionsOnDisable: boolean;
+  quarterlyReview: boolean;
+  availableRoles: Record<TeamRole, boolean>;
+}
+
+export interface AccessAuditEvent {
+  id: string;
+  action: string;
+  detail: string | null;
+  actorName: string;
+  occurredAt: string;
+  eventData: Record<string, unknown>;
 }
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -76,8 +106,9 @@ export async function loadTeamMembers(): Promise<TeamMember[]> {
       email: profile?.email || 'E-mail indisponível',
       avatar: profile?.avatar ?? null,
       role: member.role as TeamRole,
-      status: member.status === 'active' ? 'active' : 'disabled',
+      status: member.status === 'active' ? 'active' : member.status === 'invited' ? 'invited' : 'disabled',
       updatedAt: member.updated_at,
+      lastAccessAt: member.updated_at,
     };
   });
 }
@@ -163,4 +194,72 @@ export async function saveHandoffWhatsappAlertSettings(
     user_id: userId, enabled: input.enabled, phone: input.phone,
   });
   return result.settings;
+}
+
+const defaultAccessSecurityPolicy: AccessSecurityPolicy = {
+  requireMfa: false,
+  revokeSessionsOnDisable: true,
+  quarterlyReview: true,
+  availableRoles: { administrador: true, vendedor: true, sdr: true, cx: true },
+};
+
+export { defaultAccessSecurityPolicy };
+
+export async function loadOrganizationInvites(): Promise<OrganizationInvite[]> {
+  const result = await mutate<{ invites: Array<Record<string, unknown>> }>('invites_get', {});
+  return result.invites.map((invite) => ({
+    id: String(invite.id),
+    email: String(invite.email ?? ''),
+    role: String(invite.role ?? 'vendedor') as TeamRole,
+    invitedBy: typeof invite.invited_by === 'string' ? invite.invited_by : null,
+    expiresAt: String(invite.expires_at ?? ''),
+    acceptedAt: typeof invite.accepted_at === 'string' ? invite.accepted_at : null,
+    cancelledAt: typeof invite.cancelled_at === 'string' ? invite.cancelled_at : null,
+    createdAt: String(invite.created_at ?? ''),
+  }));
+}
+
+export async function cancelOrganizationInvite(inviteId: string): Promise<void> {
+  await mutate('invite_cancel', { invite_id: inviteId });
+}
+
+export async function resendOrganizationInvite(inviteId: string): Promise<void> {
+  await mutate('invite_resend', { invite_id: inviteId });
+}
+
+export async function loadAccessSecurityPolicy(): Promise<AccessSecurityPolicy> {
+  const result = await mutate<{ policy: Partial<AccessSecurityPolicy> }>('policy_get', {});
+  return {
+    ...defaultAccessSecurityPolicy,
+    ...result.policy,
+  };
+}
+
+export async function saveAccessSecurityPolicy(policy: AccessSecurityPolicy, reason: string): Promise<AccessSecurityPolicy> {
+  const result = await mutate<{ policy: AccessSecurityPolicy }>('policy_set', { policy, reason });
+  return result.policy;
+}
+
+export async function loadTeamAccessAudit(): Promise<AccessAuditEvent[]> {
+  const session = await resolveOrganizationSession();
+  const { data, error } = await supabase
+    .from('audit_logs')
+    .select('id,action,detail,actor_name,occurred_at,event_data')
+    .eq('organization_id', session.organizationId)
+    .in('action', [
+      'team.member_created', 'team.member_invited', 'team.member_enabled', 'team.member_disabled',
+      'team.member_role_changed', 'team.member_permissions_changed', 'team.member_deleted',
+      'team.invite_cancelled', 'team.invite_resent', 'team.security_policy_changed', 'team.sessions_revoked',
+    ])
+    .order('occurred_at', { ascending: false })
+    .limit(60);
+  if (error) throw error;
+  return (data ?? []).map((row) => ({
+    id: String(row.id),
+    action: String(row.action),
+    detail: typeof row.detail === 'string' ? row.detail : null,
+    actorName: typeof row.actor_name === 'string' ? row.actor_name : 'Usuário autorizado',
+    occurredAt: String(row.occurred_at ?? new Date().toISOString()),
+    eventData: row.event_data && typeof row.event_data === 'object' ? row.event_data as Record<string, unknown> : {},
+  }));
 }

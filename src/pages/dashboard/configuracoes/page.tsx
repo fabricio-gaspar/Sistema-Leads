@@ -4,7 +4,7 @@ import AnaPolicyWorkspace from '@/pages/dashboard/personalizacao-ana/AnaPolicyWo
 import ProductsOrcamentosWorkspace from './components/ProductsOrcamentosWorkspace';
 import IntegracoesOperacaoTab from './components/IntegracoesOperacaoTab';
 import OperationalStatusTab from './components/OperationalStatusTab';
-import TeamAccessTab from './components/TeamAccessTab';
+import UsersAccessWorkspace from './components/UsersAccessWorkspace';
 import SuppressionTab from './components/SuppressionTab';
 import DiagnosticsTab from './components/DiagnosticsTab';
 import './command-center.css';
@@ -162,7 +162,7 @@ export default function DashboardConfiguracoes() {
           {tab === 'ana' && <AnaPolicyWorkspace />}
           {tab === 'operacao' && <OperationalStatusTab />}
           {tab === 'empresa' && <EmpresaTabs />}
-          {tab === 'usuarios' && <TeamAccessTab />}
+          {tab === 'usuarios' && <UsersAccessWorkspace />}
           {tab === 'produtos' && <ProductsOrcamentosWorkspace />}
           {tab === 'canais' && <IntegracoesOperacaoTab section="channels" />}
           {tab === 'apis' && <IntegracoesOperacaoTab section="apis" />}

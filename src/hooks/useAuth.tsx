@@ -148,8 +148,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) return { ok: false, error: error.message };
+    // Um convite não concede acesso antes do aceite. No primeiro login do
+    // convidado, a função server-side transforma o vínculo pendente em ativo,
+    // marca o convite como aceito e registra a auditoria. Falhas transitórias
+    // aqui não bloqueiam usuários que já possuem acesso válido.
+    if (data.user) {
+      await supabase.functions.invoke('team-members', { body: { action: 'activate_invite' } });
+    }
     return { ok: true };
   };
 

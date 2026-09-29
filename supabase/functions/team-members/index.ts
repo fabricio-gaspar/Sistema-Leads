@@ -4,7 +4,7 @@ import { defaultPermissionsForRole, organizationPermissions } from '../_shared/p
 import { maskDailyReportPhone, normalizeDailyReportPhone, validDailyReportTime } from '../_shared/dailyLeadReport.ts';
 
 const roles = new Set(['administrador', 'vendedor', 'sdr', 'cx']);
-type Action = 'create' | 'invite' | 'update_role' | 'set_status' | 'remove' | 'permissions_get' | 'permissions_set' | 'daily_report_get' | 'daily_report_set' | 'handoff_alert_get' | 'handoff_alert_set';
+type Action = 'create' | 'invite' | 'update_role' | 'set_status' | 'remove' | 'permissions_get' | 'permissions_set' | 'daily_report_get' | 'daily_report_set' | 'handoff_alert_get' | 'handoff_alert_set' | 'invites_get' | 'invite_cancel' | 'invite_resend' | 'policy_get' | 'policy_set' | 'activate_invite';
 
 function text(value: unknown, max = 180): string {
   return typeof value === 'string' ? value.trim().slice(0, max) : '';
@@ -31,6 +31,30 @@ function reportTimeZone(value: unknown): string {
   } catch {
     throw new Error('invalid_daily_report_timezone');
   }
+}
+
+const defaultSecurityPolicy = {
+  requireMfa: false,
+  revokeSessionsOnDisable: true,
+  quarterlyReview: true,
+  availableRoles: { administrador: true, vendedor: true, sdr: true, cx: true },
+};
+
+function securityPolicy(value: unknown) {
+  const candidate = value && typeof value === 'object' ? value as Record<string, unknown> : {};
+  return {
+    requireMfa: candidate.requireMfa === true,
+    revokeSessionsOnDisable: candidate.revokeSessionsOnDisable !== false,
+    quarterlyReview: candidate.quarterlyReview !== false,
+    availableRoles: Object.fromEntries(['administrador', 'vendedor', 'sdr', 'cx'].map((role) => [role, (candidate.availableRoles && typeof candidate.availableRoles === 'object' && (candidate.availableRoles as Record<string, unknown>)[role] !== false)])),
+  };
+}
+
+async function loadSecurityPolicy(admin: ReturnType<typeof createAdminClient>, organizationId: string) {
+  const { data, error } = await admin.from('organization_module_data')
+    .select('data').eq('organization_id', organizationId).eq('module_key', 'access_security_policy').maybeSingle();
+  if (error) throw error;
+  return { ...defaultSecurityPolicy, ...securityPolicy(data?.data) };
 }
 
 async function dailyReportSettings(
@@ -90,6 +114,7 @@ interface PreparedInvite {
     invited_by: string | null;
     expires_at: string;
     accepted_at: string | null;
+    cancelled_at: string | null;
   } | null;
 }
 
@@ -98,14 +123,14 @@ async function prepareOrganizationInvite(
 ): Promise<PreparedInvite> {
   const now = new Date();
   const { data: pendingInvites, error: pendingError } = await admin.from('organization_invites')
-    .select('id,organization_id').ilike('email', email).is('accepted_at', null).gt('expires_at', now.toISOString());
+    .select('id,organization_id').ilike('email', email).is('accepted_at', null).is('cancelled_at', null).gt('expires_at', now.toISOString());
   if (pendingError) throw pendingError;
   if ((pendingInvites ?? []).some((invite) => invite.organization_id !== organizationId)) {
     throw new Error('member_invite_conflict');
   }
 
   const { data: existing, error: existingError } = await admin.from('organization_invites')
-    .select('id,role,invited_by,expires_at,accepted_at')
+    .select('id,role,invited_by,expires_at,accepted_at,cancelled_at')
     .eq('organization_id', organizationId).eq('email', email).maybeSingle();
   if (existingError) throw existingError;
 
@@ -116,6 +141,7 @@ async function prepareOrganizationInvite(
     invited_by: actorId,
     expires_at: new Date(now.getTime() + 15 * 60 * 1000).toISOString(),
     accepted_at: null,
+    cancelled_at: null,
   };
   const query = existing?.id
     ? admin.from('organization_invites').update(invitation).eq('id', existing.id)
@@ -129,6 +155,7 @@ async function prepareOrganizationInvite(
       invited_by: existing.invited_by,
       expires_at: existing.expires_at,
       accepted_at: existing.accepted_at,
+      cancelled_at: existing.cancelled_at,
     } : null,
   };
 }
@@ -138,10 +165,10 @@ async function restorePreparedInvite(
 ): Promise<void> {
   if (prepared.previous) {
     await admin.from('organization_invites').update(prepared.previous)
-      .eq('id', prepared.id).is('accepted_at', null);
+      .eq('id', prepared.id).is('accepted_at', null).is('cancelled_at', null);
     return;
   }
-  await admin.from('organization_invites').delete().eq('id', prepared.id).is('accepted_at', null);
+  await admin.from('organization_invites').delete().eq('id', prepared.id).is('accepted_at', null).is('cancelled_at', null);
 }
 
 async function ensureAnotherAdministrator(
@@ -164,13 +191,85 @@ Deno.serve(async (request) => {
   try {
     const body = await request.json().catch(() => ({})) as Record<string, unknown>;
     const action = text(body.action, 32) as Action;
-    if (!['create', 'invite', 'update_role', 'set_status', 'remove', 'permissions_get', 'permissions_set', 'daily_report_get', 'daily_report_set'].includes(action)) throw new Error('unsupported_action');
+    if (!['create', 'invite', 'update_role', 'set_status', 'remove', 'permissions_get', 'permissions_set', 'daily_report_get', 'daily_report_set', 'handoff_alert_get', 'handoff_alert_set', 'invites_get', 'invite_cancel', 'invite_resend', 'policy_get', 'policy_set', 'activate_invite'].includes(action)) throw new Error('unsupported_action');
     const { user } = await requireUser(request);
     const admin = createAdminClient();
+
+    // Convites são ativados somente quando o próprio convidado autentica. Isso
+    // mantém a conta fora da organização até o aceite e não exige permissão de
+    // administrador para o primeiro acesso.
+    if (action === 'activate_invite') {
+      const email = text(user.email, 254).toLowerCase();
+      if (!email) throw new Error('member_email_required');
+      const { data: pending, error: pendingError } = await admin.from('organization_invites')
+        .select('id,organization_id,role,expires_at,accepted_at').ilike('email', email)
+        .is('accepted_at', null).is('cancelled_at', null).gt('expires_at', new Date().toISOString()).order('created_at', { ascending: false }).limit(1).maybeSingle();
+      if (pendingError) throw pendingError;
+      if (!pending) return json({ ok: true, activated: false }, 200, headers);
+      const now = new Date().toISOString();
+      const { error: membershipError } = await admin.from('organization_members').upsert({
+        organization_id: pending.organization_id, user_id: user.id, role: pending.role, status: 'active', updated_at: now,
+      }, { onConflict: 'organization_id,user_id' });
+      if (membershipError) throw membershipError;
+      const { error: profileError } = await admin.from('profiles').update({
+        active: true, active_organization_id: pending.organization_id, updated_at: now,
+      }).eq('id', user.id);
+      if (profileError) throw profileError;
+      const { error: inviteError } = await admin.from('organization_invites').update({ accepted_at: now }).eq('id', pending.id).is('accepted_at', null).is('cancelled_at', null);
+      if (inviteError) throw inviteError;
+      await admin.from('audit_logs').insert({ organization_id: pending.organization_id, actor_id: user.id, actor_name: email, actor_type: 'user', action: 'team.invite_accepted', detail: 'Convite aceito e acesso liberado.', entity_table: 'organization_invites', entity_id: pending.id, event_data: { user_id: user.id, role: pending.role } });
+      return json({ ok: true, activated: true, organization_id: pending.organization_id }, 200, headers);
+    }
+
     const { data: profile, error: profileError } = await admin.from('profiles').select('active_organization_id,name').eq('id', user.id).maybeSingle();
     if (profileError || !profile?.active_organization_id) throw new Error('organization_context_required');
     const organizationId = profile.active_organization_id;
     await requireOrganizationPermission(admin, organizationId, user.id, 'team.manage');
+
+    if (action === 'policy_get') {
+      return json({ ok: true, policy: await loadSecurityPolicy(admin, organizationId) }, 200, headers);
+    }
+
+    if (action === 'policy_set') {
+      if (!body.policy || typeof body.policy !== 'object' || Array.isArray(body.policy)) throw new Error('security_policy_required');
+      const policy = securityPolicy(body.policy);
+      const now = new Date().toISOString();
+      const { error } = await admin.from('organization_module_data').upsert({
+        organization_id: organizationId, module_key: 'access_security_policy', data: policy, updated_by: user.id, updated_at: now,
+      }, { onConflict: 'organization_id,module_key' });
+      if (error) throw error;
+      await admin.from('audit_logs').insert({ organization_id: organizationId, actor_id: user.id, actor_name: profile.name, actor_type: 'user', action: 'team.security_policy_changed', detail: text(body.reason, 180) || 'Política de segurança atualizada.', entity_table: 'organization_module_data', event_data: { module_key: 'access_security_policy', policy } });
+      return json({ ok: true, policy }, 200, headers);
+    }
+
+    if (action === 'invites_get') {
+      const { data, error } = await admin.from('organization_invites')
+        .select('id,email,role,invited_by,expires_at,accepted_at,cancelled_at,created_at')
+        .eq('organization_id', organizationId).order('created_at', { ascending: false }).limit(100);
+      if (error) throw error;
+      return json({ ok: true, invites: data ?? [] }, 200, headers);
+    }
+
+    if (action === 'invite_cancel' || action === 'invite_resend') {
+      const inviteId = text(body.invite_id, 64);
+      if (!inviteId) throw new Error('invite_required');
+      const { data: invite, error: inviteError } = await admin.from('organization_invites')
+        .select('id,email,role,accepted_at,cancelled_at').eq('organization_id', organizationId).eq('id', inviteId).maybeSingle();
+      if (inviteError || !invite) throw inviteError ?? new Error('invite_not_found');
+      if (invite.accepted_at) throw new Error('invite_already_accepted');
+      if (invite.cancelled_at) throw new Error('invite_already_cancelled');
+      if (action === 'invite_cancel') {
+        const { error } = await admin.from('organization_invites').update({ cancelled_at: new Date().toISOString() }).eq('organization_id', organizationId).eq('id', inviteId).is('accepted_at', null).is('cancelled_at', null);
+        if (error) throw error;
+        await admin.from('audit_logs').insert({ organization_id: organizationId, actor_id: user.id, actor_name: profile.name, actor_type: 'user', action: 'team.invite_cancelled', detail: `Convite cancelado para ${invite.email}.`, entity_table: 'organization_invites', entity_id: inviteId, event_data: { email: invite.email, role: invite.role } });
+        return json({ ok: true }, 200, headers);
+      }
+      const { error } = await admin.auth.admin.inviteUserByEmail(invite.email, { data: {}, redirectTo: `${Deno.env.get('ALLOWED_ORIGIN') ?? 'https://leadai-crm-preview.fabricio926564.chatgpt.site'}/login` });
+      if (error) throw error;
+      await admin.from('organization_invites').update({ expires_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(), cancelled_at: null }).eq('organization_id', organizationId).eq('id', inviteId).is('accepted_at', null).is('cancelled_at', null);
+      await admin.from('audit_logs').insert({ organization_id: organizationId, actor_id: user.id, actor_name: profile.name, actor_type: 'user', action: 'team.invite_resent', detail: `Convite reenviado para ${invite.email}.`, entity_table: 'organization_invites', entity_id: inviteId, event_data: { email: invite.email, role: invite.role } });
+      return json({ ok: true }, 200, headers);
+    }
 
     if (action === 'create') {
       const email = text(body.email, 254).toLowerCase();
@@ -232,12 +331,12 @@ Deno.serve(async (request) => {
         throw invitationError ?? new Error('member_invitation_failed');
       }
       const { error: membershipError } = await admin.from('organization_members').upsert({
-        organization_id: organizationId, user_id: invitation.user.id, role, status: 'active', updated_at: new Date().toISOString(),
+        organization_id: organizationId, user_id: invitation.user.id, role, status: 'invited', updated_at: new Date().toISOString(),
       }, { onConflict: 'organization_id,user_id' });
       if (membershipError) throw membershipError;
       await admin.from('audit_logs').insert({
         organization_id: organizationId, actor_id: user.id, actor_name: profile.name, actor_type: 'user', action: 'team.member_invited',
-        detail: `Convite enviado para ${email}.`, entity_table: 'organization_members', event_data: { email, role },
+        detail: `Convite enviado para ${email}; acesso pendente até o aceite.`, entity_table: 'organization_invites', event_data: { email, role },
       });
       return json({ ok: true, message: 'Convite enviado. O acesso será liberado após o aceite.' }, 200, headers);
     }
@@ -367,6 +466,14 @@ Deno.serve(async (request) => {
       const { error } = await admin.from('organization_members').update({ status: body.enabled ? 'active' : 'disabled', updated_at: new Date().toISOString() })
         .eq('organization_id', organizationId).eq('user_id', targetUserId);
       if (error) throw error;
+      if (!body.enabled && (await loadSecurityPolicy(admin, organizationId)).revokeSessionsOnDisable) {
+        const adminAuth = admin.auth.admin as unknown as { signOut?: (userId: string, scope?: 'global' | 'local' | 'others') => Promise<{ error: unknown }> };
+        if (typeof adminAuth.signOut === 'function') {
+          const result = await adminAuth.signOut(targetUserId, 'global');
+          if (result?.error) throw new Error('member_sessions_revoke_failed');
+          await admin.from('audit_logs').insert({ organization_id: organizationId, actor_id: user.id, actor_name: profile.name, actor_type: 'user', action: 'team.sessions_revoked', detail: 'Sessões do usuário revogadas após desativação.', entity_table: 'organization_members', event_data: { user_id: targetUserId } });
+        }
+      }
       await admin.from('audit_logs').insert({ organization_id: organizationId, actor_id: user.id, actor_name: profile.name, actor_type: 'user', action: body.enabled ? 'team.member_enabled' : 'team.member_disabled', detail: body.enabled ? 'Acesso de membro liberado.' : 'Acesso de membro bloqueado.', entity_table: 'organization_members', event_data: { user_id: targetUserId } });
       return json({ ok: true }, 200, headers);
     }
