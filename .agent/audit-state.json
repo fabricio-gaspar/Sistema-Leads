@@ -2,21 +2,21 @@
   "schema_version": 1,
   "baseline_version": 6,
   "baseline_commit": "1dc6275b8c7d70de953b66397a8c89f5e97bc15b",
-  "last_audited_commit": "bde2ef80ddd502310822d462ec89ccf231a30e9b",
-  "current_head_at_update": "bde2ef80ddd502310822d462ec89ccf231a30e9b",
-  "working_tree_status": "funil_redesign_applied_pending_site_publication",
+  "last_audited_commit": "efee41a01ec698feee5e033b45807cce5f7724a5",
+  "current_head_at_update": "efee41a01ec698feee5e033b45807cce5f7724a5",
+  "working_tree_status": "funil_redesign_published",
   "stage_1_baseline": ".agent/baselines/2026-09-25-stage-1.json",
   "recovery_tag": "baseline-wayflex-stage1-20260925",
   "work_branch": "main",
   "last_site_publication": {
-    "commit": "ed19d8a4b824a3c39f5707d198c212a3bd415c92",
-    "site_version": 146,
-    "deployment_id": "appgdep_6abaf640b1748191ac2b83948e6a35f8",
-    "validated_at": "2026-09-28T23:20:53Z",
+    "commit": "efee41a01ec698feee5e033b45807cce5f7724a5",
+    "site_version": 149,
+    "deployment_id": "appgdep_6abbbd14503c8191a40f91fa7b65b6c2",
+    "validated_at": "2026-09-29T13:29:13Z",
     "working_tree_status": "published"
   },
   "full_audit_required": false,
-  "baseline_status": "funil_redesign_applied_pending_site_publication",
+  "baseline_status": "funil_redesign_published",
   "updated_at": "2026-09-29T12:25:00Z",
-  "next_action": "Publicar o commit do redesign do Funil no Site oficial existente; depois validar a rota autenticada /dashboard/funil sem criar ou alterar dados comerciais."
+  "next_action": "Manter homologação comercial separada: não executar mensagens, busca Apify, automação Ana ou mutação de dados sem autorização explícita."
 }

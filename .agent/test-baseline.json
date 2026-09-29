@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "validated_commit": "bde2ef80ddd502310822d462ec89ccf231a30e9b",
+  "validated_commit": "efee41a01ec698feee5e033b45807cce5f7724a5",
   "last_validated_at": "2026-09-29",
   "current_validation": {
     "stage": "funil_redesign",
@@ -8,10 +8,10 @@
     "edge_typecheck": "not_run; no Edge Function changed",
     "lint": "passed",
     "production_build": "passed",
-    "sites_artifact": "passed_build; official Site publication pending",
+    "sites_artifact": "passed_build; official Site v149 published",
     "deterministic_smoke_checks": 0,
     "vitest": "passed; 56 files; 328 tests",
-    "visual_review": "not executed; Funil awaits authenticated inspection after Site publication",
+    "visual_review": "passed on official Site v149; Funil matched the approved mockup and no console error was observed",
     "external_end_to_end": "not executed; no lead, proposal, provider test, message, callback or automation was invoked"
   },
   "previous_validation": {

@@ -1302,5 +1302,6 @@
 
 - Implementado `FunnelAnalytics` sobre as consultas existentes; sem migration, mocks, endpoint ou
   alteração de regra. A rota remove `LeadBaseManager` e mantém gestão de base fora da inteligência.
-- Type-check, lint, Vitest 56/328, build e diff check aprovados. Nenhum dado comercial ou provedor
-  externo foi acionado. Publicação oficial e inspeção autenticada ficaram como próxima etapa.
+- Type-check, lint, Vitest 57/329, build e diff check aprovados. Nenhum dado comercial ou provedor
+  externo foi acionado. Site oficial v149 publicado pelo commit `efee41a01ec698feee5e033b45807cce5f7724a5`,
+  deploy concluído; inspeção autenticada confirmou a rota e os estados reais sem erro de console.

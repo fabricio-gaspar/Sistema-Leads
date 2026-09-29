@@ -1873,6 +1873,8 @@ webhook em ambiente controlado.
 - Conversão é Ganhos/(Ganhos+Perdidos) decididos no período; abaixo de dez decisões aparece
   `—`. Propostas são deduplicadas por versão/família e a evolução não afirma um snapshot que o
   banco ainda não possui. Horários usam `America/Sao_Paulo`.
-- Type-check, lint, 56 arquivos/328 testes, build e diff check passaram. Nenhum provedor,
-  mensagem, lead, orçamento ou automação foi acionado. Publicação oficial pendente neste checkpoint.
+- Type-check, lint, 57 arquivos/329 testes, build e diff check passaram. Nenhum provedor,
+  mensagem, lead, orçamento ou automação foi acionado. Site oficial publicado na versão **149**
+  pelo commit `efee41a01ec698feee5e033b45807cce5f7724a5`, deploy concluído com sucesso. A inspeção
+  autenticada confirmou a rota e os estados reais do mockup sem erro de console.
 - Documento: `docs/REDESIGN_FUNIL_2026-09-29.md`.
