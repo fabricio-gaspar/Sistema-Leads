@@ -1,5 +1,6 @@
 import IntegracoesTab from './IntegracoesTab';
 import WhatsAppEntriesTab from './WhatsAppEntriesTab';
+import ApisProvidersTab from './ApisProvidersTab';
 
 function SectionHeading({ icon, eyebrow, title, description }: { icon: string; eyebrow: string; title: string; description: string }) {
   return <div className="mb-4 flex items-start gap-3">
@@ -28,6 +29,9 @@ const sectionCopy: Record<IntegrationOperationSection, { eyebrow: string; title:
 };
 
 export default function IntegracoesOperacaoTab({ section }: { section?: IntegrationOperationSection }) {
+  if (section === 'channels') return <WhatsAppEntriesTab />;
+  if (section === 'apis') return <ApisProvidersTab />;
+
   const showChannels = !section || section === 'channels';
   const showApis = !section || section === 'apis';
   const copy = section ? sectionCopy[section] : null;

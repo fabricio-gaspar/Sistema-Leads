@@ -50,7 +50,7 @@ function CredentialField({ field, value, onChange }: { field: CampoIntegracao; v
   return <label className="block text-sm font-semibold text-[#3A3A3C]"><span className="mb-1.5 block">{field.rotulo}{field.obrigatorio && <span className="ml-1 text-[#BD3D32]">*</span>}</span>{field.tipo === 'selecao' ? <select className={inputClass} value={value} onChange={(event) => onChange(event.target.value)}><option value="">Selecione…</option>{(field.opcoes || []).map((option) => <option key={option} value={option}>{option}</option>)}</select> : <input className={inputClass} type={field.tipo === 'senha' ? 'password' : 'text'} value={value} placeholder={field.placeholder} autoComplete="off" onChange={(event) => onChange(event.target.value)} />}{field.ajuda && <span className="mt-1.5 block text-xs font-normal text-[#777E89]">{field.ajuda}</span>}</label>;
 }
 
-function ConfigureModal({ integration, onClose, onSaved }: { integration: OperationalIntegration; onClose: () => void; onSaved: () => Promise<void> }) {
+export function ConfigureModal({ integration, onClose, onSaved }: { integration: OperationalIntegration; onClose: () => void; onSaved: () => Promise<void> }) {
   const [values, setValues] = useState<Record<string, string>>(() => {
     const configuration = integration.anaProviderConfiguration;
     if (integration.remoteKey !== 'ai' || !configuration) return {};

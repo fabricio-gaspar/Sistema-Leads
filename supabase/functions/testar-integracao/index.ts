@@ -135,6 +135,19 @@ Deno.serve(async (request) => {
     source = ["apify", "google_places", "cnpj_ws"].includes(canal)
       ? canal
       : null;
+    let sourceEnabled: boolean | null = null;
+    if (source) {
+      const { data: sourceConfig, error: sourceConfigError } = await admin
+        .from("lead_source_configs")
+        .select("enabled")
+        .eq("organization_id", org)
+        .eq("source_key", source)
+        .maybeSingle();
+      if (sourceConfigError) throw new Error("source_config_read_failed");
+      sourceEnabled = typeof sourceConfig?.enabled === "boolean"
+        ? sourceConfig.enabled
+        : Boolean(i.enabled);
+    }
     const { data: secret, error: secretError } = await admin.rpc(
       "read_integration_secret",
       { p_integration: i.id },
@@ -317,8 +330,11 @@ Deno.serve(async (request) => {
       .from("integrations")
       .update({
         connected: true,
-        enabled: canal === "whatsapp" ? whatsappOperational : true,
-        paused: canal === "whatsapp" ? !whatsappOperational : false,
+        // A connection test proves technical health; it must not silently
+        // turn a provider on for production use. The operational switch is
+        // changed only by configurar-integracao#set_usage.
+        enabled: canal === "whatsapp" ? whatsappOperational : i.enabled,
+        paused: canal === "whatsapp" ? !whatsappOperational : i.paused,
         status_detail: detail,
         last_tested_at: now,
         last_success_at: now,
@@ -332,7 +348,7 @@ Deno.serve(async (request) => {
       await admin
         .from("lead_source_configs")
         .update({
-          enabled: true,
+          enabled: sourceEnabled ?? Boolean(i.enabled),
           mode: "production",
           connection_status: "connected",
           last_success_at: now,

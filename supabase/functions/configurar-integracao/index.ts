@@ -59,9 +59,53 @@ Deno.serve(async (request) => {
   const headers = allowedCorsHeaders(request);
   if (request.method !== 'POST') return json({ ok: false, erro: 'method_not_allowed' }, 405, headers);
   try {
-    const body = await request.json() as { canal?: string; credenciais?: Record<string, unknown> };
+    const body = await request.json() as { action?: string; canal?: string; enabled?: unknown; credenciais?: Record<string, unknown> };
+    const action = String(body.action ?? 'save').trim();
     const canal = String(body.canal ?? '').trim();
     if (!['whatsapp', 'apify', 'google_places', 'ai'].includes(canal)) throw new Error('unsupported_channel');
+    const { user } = await requireUser(request);
+    const admin = createAdminClient();
+    const { data: profile } = await admin.from('profiles').select('active_organization_id,name').eq('id', user.id).maybeSingle();
+    if (!profile?.active_organization_id) throw new Error('organization_context_required');
+    const organizationId = profile.active_organization_id as string;
+    await requireOrganizationRole(admin, user.id, organizationId, ['owner', 'admin', 'manager']);
+
+    if (action === 'set_usage') {
+      if (!['ai', 'apify', 'google_places'].includes(canal)) throw new Error('usage_channel_not_supported');
+      if (typeof body.enabled !== 'boolean') throw new Error('usage_status_required');
+      const { data: current, error: currentError } = await admin.from('integrations')
+        .select('id,provider,connected,enabled,paused,last_tested_at,last_error')
+        .eq('organization_id', organizationId).eq('key', canal).maybeSingle();
+      if (currentError || !current) throw new Error('integration_not_found');
+      if (body.enabled === true && (current.connected !== true || current.paused === true || Boolean(current.last_error) || !current.last_tested_at)) {
+        throw new Error('integration_validation_required');
+      }
+      const now = new Date().toISOString();
+      const { error: integrationError } = await admin.from('integrations').update({
+        enabled: body.enabled,
+        updated_at: now,
+        status_detail: body.enabled ? 'Uso operacional habilitado após validação confirmada.' : 'Uso operacional desativado; configuração preservada.',
+      }).eq('id', current.id).eq('organization_id', organizationId);
+      if (integrationError) throw new Error('integration_usage_save_failed');
+      if (['apify', 'google_places'].includes(canal)) {
+        const { error: sourceError } = await admin.from('lead_source_configs').update({ enabled: body.enabled, updated_at: now })
+          .eq('organization_id', organizationId).eq('source_key', canal);
+        if (sourceError) throw new Error('integration_source_usage_save_failed');
+      }
+      await admin.from('audit_logs').insert({
+        organization_id: organizationId,
+        actor_id: user.id,
+        actor_name: profile.name,
+        actor_type: 'user',
+        action: body.enabled ? `integration.${canal}_enabled` : `integration.${canal}_disabled`,
+        detail: body.enabled ? 'Uso operacional habilitado após validação.' : 'Uso operacional desativado sem remover credenciais.',
+        entity_table: 'integrations',
+        entity_id: current.id,
+        event_data: { enabled: body.enabled, previous_enabled: current.enabled },
+      });
+      return json({ ok: true, enabled: body.enabled }, 200, headers);
+    }
+
     const credenciais = asObject(body.credenciais);
     const instanceId = asText(credenciais.instancia_id, 300);
     const token = asText(credenciais.token, 500);
@@ -76,12 +120,6 @@ Deno.serve(async (request) => {
     if (canal === 'google_places' && !googleApiKey) throw new Error('google_places_credentials_required');
     const selectedAiProvider = asText(credenciais.provedor_principal, 30).toLowerCase();
     if (canal === 'ai' && !isAiProvider(selectedAiProvider)) throw new Error('ai_provider_required');
-    const { user } = await requireUser(request);
-    const admin = createAdminClient();
-    const { data: profile } = await admin.from('profiles').select('active_organization_id,name').eq('id', user.id).maybeSingle();
-    if (!profile?.active_organization_id) throw new Error('organization_context_required');
-    const organizationId = profile.active_organization_id as string;
-    await requireOrganizationRole(admin, user.id, organizationId, ['owner', 'admin', 'manager']);
     const labels: Record<string, { label: string; provider: string; detail: string; category: string }> = {
       whatsapp: { label: 'WhatsApp (Z-API)', provider: 'Z-API', detail: 'Mensageria WhatsApp.', category: 'communication' },
       apify: { label: 'Apify — Google Maps', provider: 'Apify', detail: 'Busca real por Actor ou Task autorizado.', category: 'prospecting' },
