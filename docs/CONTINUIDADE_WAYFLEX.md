@@ -1878,3 +1878,20 @@ webhook em ambiente controlado.
   pelo commit `efee41a01ec698feee5e033b45807cce5f7724a5`, deploy concluído com sucesso. A inspeção
   autenticada confirmou a rota e os estados reais do mockup sem erro de console.
 - Documento: `docs/REDESIGN_FUNIL_2026-09-29.md`.
+
+## 2026-09-29 — Redesign de Configurações > Status operacional
+
+- A rota existente foi reorganizada como command center compacto, sem endpoint, migration,
+  integração ou regra nova. O diagnóstico server-side continua sendo a fonte exclusiva para saúde,
+  última validação, erro, pausa e status de uso.
+- A tabela agrupa Automação, Atendimento e Inteligência/prospecção, com filtros, busca, menus de
+  ação e estados reais. Ana fica Bloqueada até WhatsApp, IA, entrada e worker serem comprovados;
+  componentes sem registro persistido aparecem como Não configurado.
+- A pausa global, preparação do worker, cadastro dos callbacks Z-API e ativação do Ambiente Real
+  continuam chamando somente as Edge Functions existentes, com confirmação server-side e auditoria.
+  O painel de limpeza de leads foi retirado desta tela e não foi excluído do sistema.
+- Validação local: `npm run type-check`, `npm run lint`, Vitest **57 arquivos / 329 testes**,
+  `npm run build` e `git diff --check` aprovados. Nenhuma mensagem, busca, automação ou mutação
+  comercial foi executada.
+- Documento: `docs/REDESIGN_CONFIGURACOES_STATUS_2026-09-29.md`. Publicação oficial e inspeção
+  visual autenticada ficam registradas no próximo checkpoint deste arquivo.

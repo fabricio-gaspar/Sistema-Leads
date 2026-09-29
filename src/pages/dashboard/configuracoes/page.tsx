@@ -97,16 +97,20 @@ export default function DashboardConfiguracoes() {
   };
 
   const currentItem = groups.flatMap((group) => group.items).find((item) => item.id === tab);
+  const refreshOperationalStatus = () => window.dispatchEvent(new CustomEvent('wayflex:refresh-operational-status'));
 
   return (
     <div className="wf-page wf-settings cc-settings">
       <div className="wf-page-header cc-settings-header">
         <div>
-          <p className="cc-settings-kicker">WayFlex / Administração</p>
+          <p className="cc-settings-kicker">Administração</p>
           <h1 className="wf-page-title mt-1">Configurações</h1>
-          <p className="wf-page-description">Operação, conhecimento, canais e acessos da equipe.</p>
+          <p className="wf-page-description">Canais, automações e acessos.</p>
         </div>
-        <span className="cc-settings-context"><i className="ri-settings-3-line" aria-hidden="true" /> {currentItem?.label || 'Status operacional'}</span>
+        <div className="cc-settings-header-actions">
+          <button type="button" className="wf-btn-secondary text-xs" onClick={() => chooseTab('registro')}><i className="ri-history-line" aria-hidden="true" />Registro de auditoria</button>
+          <button type="button" className="wf-btn-secondary text-xs" onClick={refreshOperationalStatus}><i className="ri-refresh-line" aria-hidden="true" />Atualizar status</button>
+        </div>
       </div>
 
       <div className="cc-settings-layout flex flex-col items-stretch gap-4 lg:flex-row lg:items-start lg:gap-6">

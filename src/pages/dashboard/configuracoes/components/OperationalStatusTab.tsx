@@ -1,17 +1,90 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { activateRealEnvironment, activateServerScheduler, configureWhatsAppInbound, loadOperationalStatus, setOperationalKillSwitch, type OperationalStatus } from '@/lib/crm/operationalDiagnosticsRepository';
-import TestLeadCleanupPanel from './TestLeadCleanupPanel';
+import {
+  activateRealEnvironment,
+  activateServerScheduler,
+  configureWhatsAppInbound,
+  loadOperationalStatus,
+  setOperationalKillSwitch,
+  type OperationalCheck,
+  type OperationalIntegration,
+  type OperationalStatus,
+} from '@/lib/crm/operationalDiagnosticsRepository';
 
-function formatDate(value: string | null): string {
-  return value ? new Date(value).toLocaleString('pt-BR') : 'Ainda não registrado';
+type HealthState = 'validated' | 'pending' | 'stale' | 'error' | 'not_configured' | 'validating';
+type UsageState = 'active' | 'disabled' | 'blocked';
+type ComponentGroup = 'Automação' | 'Atendimento' | 'Inteligência e prospecção';
+
+interface ComponentDefinition {
+  id: string;
+  group: ComponentGroup;
+  label: string;
+  description: string;
+  icon: string;
+  keys?: string[];
+  checkIds?: string[];
+  href?: string;
+  action?: 'scheduler' | 'whatsapp';
 }
 
-function inboundActionLabel(state: OperationalStatus['webhookDiagnostic']['state']): string {
-  if (state === 'not_configured') return 'Cadastrar entrada na Z-API';
-  if (state === 'credentials_changed') return 'Atualizar entrada Z-API';
-  if (state === 'homologated') return 'Entrada homologada';
-  return 'Recadastrar entrada';
+interface ComponentRow extends ComponentDefinition {
+  health: HealthState;
+  usage: UsageState;
+  lastValidatedAt: string | null;
+  detail: string;
+  integration: OperationalIntegration | null;
+  check: OperationalCheck | null;
+}
+
+const COMPONENTS: ComponentDefinition[] = [
+  { id: 'automation-scheduler', group: 'Automação', label: 'Agendador de automações', description: 'Executa tarefas programadas.', icon: 'ri-calendar-schedule-line', keys: ['scheduler'], checkIds: ['scheduler'], action: 'scheduler' },
+  { id: 'automation-worker', group: 'Automação', label: 'Worker 24/7', description: 'Processa tarefas em segundo plano.', icon: 'ri-settings-5-line', keys: ['scheduler'], checkIds: ['scheduler'], action: 'scheduler' },
+  { id: 'whatsapp', group: 'Atendimento', label: 'WhatsApp', description: 'Envia e recebe mensagens pelo provedor ativo.', icon: 'ri-whatsapp-line', keys: ['whatsapp_zapi', 'whatsapp_meta', 'whatsapp'], checkIds: ['whatsapp'], href: '/dashboard/configuracoes?tab=canais' },
+  { id: 'zapi', group: 'Atendimento', label: 'Z-API', description: 'Canal de mensagens usado pela operação.', icon: 'ri-chat-3-line', keys: ['whatsapp'], checkIds: ['whatsapp'], href: '/dashboard/configuracoes?tab=canais' },
+  { id: 'email', group: 'Atendimento', label: 'E-mail', description: 'Envia mensagens transacionais.', icon: 'ri-mail-line', keys: ['email', 'resend'], href: '/dashboard/configuracoes?tab=canais' },
+  { id: 'zapi-webhook', group: 'Atendimento', label: 'Webhook Z-API', description: 'Recebe eventos do canal e respostas dos leads.', icon: 'ri-webhook-line', keys: ['zapi_webhook'], checkIds: ['whatsapp_webhook'], action: 'whatsapp' },
+  { id: 'resend-webhook', group: 'Atendimento', label: 'Webhook Resend', description: 'Recebe eventos de e-mail.', icon: 'ri-share-line', keys: ['resend_webhook'] },
+  { id: 'ana', group: 'Inteligência e prospecção', label: 'Ana', description: 'Assistente de atendimento e qualificação.', icon: 'ri-robot-2-line', checkIds: ['ia', 'whatsapp', 'whatsapp_webhook', 'scheduler'], href: '/dashboard/configuracoes?tab=ana' },
+  { id: 'apify', group: 'Inteligência e prospecção', label: 'Apify / Google Maps', description: 'Busca empresas para prospecção.', icon: 'ri-map-pin-search-line', keys: ['apify'], href: '/dashboard/configuracoes?tab=apis' },
+  { id: 'cnpj-ws', group: 'Inteligência e prospecção', label: 'CNPJ.ws', description: 'Consulta dados empresariais.', icon: 'ri-building-4-line', keys: ['cnpj_ws'], href: '/dashboard/configuracoes?tab=apis' },
+  { id: 'google-places', group: 'Inteligência e prospecção', label: 'Google Places', description: 'Enriquece locais e categorias.', icon: 'ri-map-pin-line', keys: ['google_places'], href: '/dashboard/configuracoes?tab=apis' },
+  { id: 'google-calendar', group: 'Inteligência e prospecção', label: 'Google Calendar', description: 'Sincroniza compromissos.', icon: 'ri-calendar-line', keys: ['google_calendar'], href: '/dashboard/configuracoes?tab=apis' },
+];
+
+const HEALTH_COPY: Record<HealthState, { label: string; className: string; icon: string }> = {
+  validated: { label: 'Validado', className: 'is-positive', icon: 'ri-checkbox-circle-fill' },
+  pending: { label: 'Validação pendente', className: 'is-attention', icon: 'ri-error-warning-fill' },
+  stale: { label: 'Validação vencida', className: 'is-attention', icon: 'ri-time-line' },
+  error: { label: 'Falha de conexão', className: 'is-critical', icon: 'ri-close-circle-fill' },
+  not_configured: { label: 'Não configurado', className: 'is-neutral', icon: 'ri-subtract-line' },
+  validating: { label: 'Validando…', className: 'is-validating', icon: 'ri-loader-4-line' },
+};
+
+const USAGE_COPY: Record<UsageState, string> = { active: 'Ativo', disabled: 'Desativado', blocked: 'Bloqueado' };
+
+function formatDate(value: string | null): string {
+  if (!value) return 'Sem validação';
+  const date = new Date(value);
+  return Number.isFinite(date.getTime()) ? date.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : 'Data indisponível';
+}
+
+function integrationHealth(item: OperationalIntegration | null): HealthState {
+  if (!item) return 'not_configured';
+  if (item.lastError) return 'error';
+  if (item.health === 'online') return 'validated';
+  if (item.health === 'stale') return 'stale';
+  return item.enabled ? 'pending' : 'not_configured';
+}
+
+function checkHealth(check: OperationalCheck | null): HealthState {
+  if (!check) return 'not_configured';
+  return check.ok ? 'validated' : 'pending';
+}
+
+function usageFor(item: OperationalIntegration | null, health: HealthState, blocked = false): UsageState {
+  if (blocked) return 'blocked';
+  if (!item) return 'disabled';
+  return item.enabled && health === 'validated' ? 'active' : 'disabled';
 }
 
 export default function OperationalStatusTab() {
@@ -21,48 +94,70 @@ export default function OperationalStatusTab() {
   const [settingUp, setSettingUp] = useState<'whatsapp' | 'scheduler' | null>(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
-  const requestedSetup = new URLSearchParams(window.location.search).get('setup');
+  const [filter, setFilter] = useState<'all' | 'active' | 'attention' | 'disabled'>('all');
+  const [search, setSearch] = useState('');
+  const [openMenu, setOpenMenu] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
     try { setStatus(await loadOperationalStatus()); setError(''); }
-    catch { setError('Não foi possível consultar o estado operacional. Atualize e tente novamente.'); }
+    catch { setError('Não foi possível consultar o estado operacional. Nenhum dado foi alterado.'); }
     finally { setLoading(false); }
   }, []);
 
-  useEffect(() => { void refresh(); }, [refresh]);
+  useEffect(() => {
+    void refresh();
+    const listener = () => { void refresh(); };
+    window.addEventListener('wayflex:refresh-operational-status', listener);
+    return () => window.removeEventListener('wayflex:refresh-operational-status', listener);
+  }, [refresh]);
 
-  const setupWhatsAppInbound = async () => {
-    if (settingUp) return;
-    setSettingUp('whatsapp'); setError(''); setNotice('');
-    try {
-      const result = await configureWhatsAppInbound();
-      setStatus(result.status); setNotice(result.message);
-    } catch {
-      setError('Não foi possível cadastrar a entrada da Z-API. A saída validada foi preservada; revise a conexão do WhatsApp e tente novamente.');
-    } finally { setSettingUp(null); }
-  };
+  const integrationByKeys = useCallback((keys: string[] | undefined): OperationalIntegration | null => {
+    if (!status || !keys) return null;
+    return keys.map((key) => status.integrations.find((item) => item.key === key)).find(Boolean) || null;
+  }, [status]);
 
-  const setupScheduler = async () => {
-    if (settingUp) return;
-    setSettingUp('scheduler'); setError(''); setNotice('');
-    try {
-      const result = await activateServerScheduler();
-      setStatus(result.status); setNotice(result.message);
-    } catch {
-      setError('Não foi possível preparar o worker server-side. Nenhuma automação real foi liberada; tente novamente ou consulte o Registro do Sistema.');
-    } finally { setSettingUp(null); }
-  };
+  const rows = useMemo<ComponentRow[]>(() => {
+    if (!status) return [];
+    const getCheck = (ids: string[] | undefined) => ids?.map((id) => status.checks.find((item) => item.id === id)).find(Boolean) || null;
+    return COMPONENTS.map((definition) => {
+      const integration = integrationByKeys(definition.keys);
+      const check = getCheck(definition.checkIds);
+      const checkList = definition.checkIds?.map((id) => status.checks.find((item) => item.id === id)).filter(Boolean) as OperationalCheck[] | undefined;
+      const isAna = definition.id === 'ana';
+      const allAnaChecksOk = isAna && Boolean(checkList?.length) && checkList?.every((item) => item.ok);
+      const health: HealthState = isAna
+        ? allAnaChecksOk ? 'validated' : checkList?.some((item) => item.detail.toLowerCase().includes('falha')) ? 'error' : 'pending'
+        : definition.checkIds?.length ? checkHealth(check) : integrationHealth(integration);
+      const usage: UsageState = isAna
+        ? allAnaChecksOk ? 'active' : 'blocked'
+        : usageFor(integration, health, false);
+      const lastValidatedAt = integration?.lastTestedAt || (check?.ok ? status.updatedAt : null);
+      const detail = check?.detail || integration?.detail || definition.description;
+      return { ...definition, health, usage, lastValidatedAt, detail, integration, check };
+    });
+  }, [integrationByKeys, status]);
+
+  const attentionCount = rows.filter((row) => row.health !== 'validated').length;
+  const filteredRows = rows.filter((row) => {
+    const normalized = search.trim().toLocaleLowerCase();
+    if (normalized && !`${row.label} ${row.description} ${row.detail}`.toLocaleLowerCase().includes(normalized)) return false;
+    if (filter === 'active') return row.usage === 'active';
+    if (filter === 'attention') return row.health !== 'validated';
+    if (filter === 'disabled') return row.usage === 'disabled';
+    return true;
+  });
+  const groupedRows = (['Automação', 'Atendimento', 'Inteligência e prospecção'] as ComponentGroup[]).map((group) => ({ group, rows: filteredRows.filter((row) => row.group === group) })).filter((item) => item.rows.length > 0);
 
   const changeKillSwitch = async () => {
     if (!status || changing) return;
     const next = !status.killSwitch;
     const message = next
-      ? 'Pausar toda automação da Ana agora? Nenhuma nova ação automática será liberada enquanto a pausa estiver ligada.'
-      : 'Liberar a automação? Os demais requisitos de segurança ainda serão verificados pelo servidor.';
+      ? 'Pausar todas as automações agora? O servidor confirmará a alteração e nenhuma nova ação automática será liberada enquanto a pausa estiver ativa.'
+      : 'Liberar as automações agora? Os demais requisitos continuarão sendo verificados pelo servidor.';
     if (!window.confirm(message)) return;
-    setChanging(true);
-    try { setStatus(await setOperationalKillSwitch(next)); setError(''); }
+    setChanging(true); setError('');
+    try { setStatus(await setOperationalKillSwitch(next)); setNotice(next ? 'Automações pausadas pelo controle global.' : 'Automações liberadas pelo controle global.'); }
     catch { setError('A pausa global não foi atualizada. O estado anterior foi preservado.'); }
     finally { setChanging(false); }
   };
@@ -70,121 +165,66 @@ export default function OperationalStatusTab() {
   const prepareRealEnvironment = async () => {
     if (!status || changing) return;
     if (!window.confirm('Verificar e preparar o Ambiente Real? O servidor aplicará somente as etapas internas seguras.')) return;
-    setChanging(true);
-    try {
-      const result = await activateRealEnvironment();
-      setStatus(result.status); setNotice(result.message); setError('');
-    }
+    setChanging(true); setError('');
+    try { const result = await activateRealEnvironment(); setStatus(result.status); setNotice(result.message); }
     catch { setError('Não foi possível concluir a preparação. As proteções atuais foram preservadas.'); }
     finally { setChanging(false); }
   };
 
-  if (loading) return <div className="wf-surface p-6 text-sm text-foreground-500">Consultando o estado operacional…</div>;
-  if (!status) return <div className="wf-surface p-6 text-sm text-accent-700">{error || 'Estado operacional indisponível.'}</div>;
-  const webhookCheck = status.checks.find((item) => item.id === 'whatsapp_webhook');
-  const whatsappCheck = status.checks.find((item) => item.id === 'whatsapp');
-  const inbound = status.webhookDiagnostic;
+  const setupWhatsAppInbound = async () => {
+    if (settingUp) return;
+    setSettingUp('whatsapp'); setError('');
+    try { const result = await configureWhatsAppInbound(); setStatus(result.status); setNotice(result.message); }
+    catch { setError('Não foi possível cadastrar os callbacks da Z-API. A configuração existente foi preservada.'); }
+    finally { setSettingUp(null); setOpenMenu(null); }
+  };
+
+  const setupScheduler = async () => {
+    if (settingUp) return;
+    setSettingUp('scheduler'); setError('');
+    try { const result = await activateServerScheduler(); setStatus(result.status); setNotice(result.message); }
+    catch { setError('Não foi possível preparar o worker server-side. Nenhuma automação foi liberada.'); }
+    finally { setSettingUp(null); setOpenMenu(null); }
+  };
+
+  if (loading) return <div className="cc-operational-loading"><i className="ri-loader-4-line animate-spin" />Consultando o estado operacional real…</div>;
+  if (!status) return <div className="cc-operational-empty"><i className="ri-error-warning-line" /><strong>Estado operacional indisponível</strong><span>{error || 'Atualize o status para consultar os componentes da empresa.'}</span><button type="button" className="wf-btn-secondary text-xs" onClick={() => void refresh()}><i className="ri-refresh-line" />Atualizar status</button></div>;
 
   return (
-    <div className="space-y-5">
-      {error && <div className="rounded-xl border border-accent-200 bg-accent-50 px-4 py-3 text-sm text-accent-800">{error}</div>}
-      {notice && <div className="rounded-xl border border-[#168654]/25 bg-[#168654]/10 px-4 py-3 text-sm text-[#116B43]">{notice}</div>}
-      <section className="wf-surface overflow-hidden" aria-label="Assistente de ativação">
-        <div className="border-b border-background-200/70 px-5 py-4 md:px-6">
-          <p className="text-xs font-semibold uppercase tracking-[.12em] text-primary-700">Assistente de ativação</p>
-          <h2 className="mt-1 font-heading text-lg font-bold text-foreground-950">Conclua cada etapa no módulo certo</h2>
-          <p className="mt-1 max-w-3xl text-sm leading-relaxed text-foreground-500">A validação da instância Z-API e a entrada das respostas são etapas diferentes. O assistente registra o que é seguro no backend e só pede uma ação externa quando ela for indispensável.</p>
-        </div>
-        <div className="grid gap-3 p-5 lg:grid-cols-2 md:p-6">
-          <article id="whatsapp-inbound" className={`scroll-mt-24 rounded-2xl border p-4 ${requestedSetup === 'whatsapp-webhook' ? 'border-primary-300 bg-primary-50' : 'border-background-200 bg-background-50/60'}`}>
-            <div className="flex items-start justify-between gap-3"><div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary-100 text-primary-700"><i className="ri-chat-check-line text-lg" /></div><span className={`rounded-full border px-2.5 py-1 font-mono text-[10px] font-semibold ${webhookCheck?.ok ? 'border-[#168654]/25 bg-[#168654]/10 text-[#116B43]' : 'border-[#BC8B42]/25 bg-[#BC8B42]/10 text-[#8C651D]'}`}>{webhookCheck?.ok ? 'HOMOLOGADO' : 'PENDENTE'}</span></div>
-            <h3 className="mt-3 text-sm font-bold text-foreground-950">1. Receber respostas do WhatsApp</h3>
-            <p className="mt-1 text-xs leading-relaxed text-foreground-500">{inbound.detail}</p>
-            {inbound.state === 'waiting_callback' && <div className="mt-3 rounded-xl border border-[#BC8B42]/25 bg-[#BC8B42]/10 px-3 py-2.5 text-xs leading-relaxed text-[#8C651D]"><strong className="block text-[#6E431D]">O que falta agora</strong>{inbound.testLead ? <>No WhatsApp do contato <strong>{inbound.testLead.label}</strong> (final <strong>{inbound.testLead.phoneSuffix}</strong>), envie uma mensagem individual para o número conectado à Z-API. Depois clique em “Atualizar diagnóstico”.</> : <>Cadastre um lead com WhatsApp antes de realizar o teste. O sistema não cria um lead fictício para liberar o ambiente.</>}</div>}
-            {inbound.state === 'credentials_changed' && <div className="mt-3 rounded-xl border border-[#BC8B42]/25 bg-[#BC8B42]/10 px-3 py-2.5 text-xs leading-relaxed text-[#8C651D]"><strong className="block text-[#6E431D]">A entrada precisa ser atualizada.</strong>As credenciais da instância mudaram desde o último cadastro. Atualize a entrada abaixo; depois envie uma mensagem individual do lead para concluir a homologação.</div>}
-            {inbound.state === 'lead_not_matched' && <div className="mt-3 rounded-xl border border-[#BD3D32]/25 bg-[#BD3D32]/10 px-3 py-2.5 text-xs leading-relaxed text-[#84251F]"><strong className="block">A mensagem chegou, mas não pertence a um lead cadastrado.</strong>Abra o lead usado no teste, confira o WhatsApp salvo e envie outra mensagem somente depois de corrigir o número.</div>}
-            {inbound.state === 'unsupported_callback' && <div className="mt-3 rounded-xl border border-[#BC8B42]/25 bg-[#BC8B42]/10 px-3 py-2.5 text-xs leading-relaxed text-[#8C651D]"><strong className="block text-[#6E431D]">O callback chegou, mas não vale como resposta individual.</strong>{inbound.detail} Depois, clique em “Atualizar diagnóstico”.</div>}
-            <ol className="mt-3 space-y-1.5 text-xs leading-relaxed text-foreground-600"><li><strong>1.</strong> {whatsappCheck?.ok ? 'A instância Z-API já está validada para saída.' : 'Valide primeiro a instância Z-API no módulo de Canais.'}</li><li><strong>2.</strong> {inbound.state === 'not_configured' ? 'Cadastre a entrada abaixo; nenhum token ou URL ficará exposto.' : inbound.state === 'credentials_changed' ? 'As credenciais foram atualizadas; recadastre a entrada abaixo antes do próximo teste.' : `A entrada foi cadastrada em ${formatDate(inbound.registeredAt)}.`}</li><li><strong>3.</strong> Envie uma mensagem de texto direta de um <Link to="/dashboard/leads" className="font-semibold text-primary-700 hover:underline">lead cadastrado</Link> para o WhatsApp conectado à Z-API. A Ana registra e analisa a entrada quando o fluxo estiver homologado.</li></ol>
-            <div className="mt-4 flex flex-wrap gap-2"><button type="button" onClick={() => void setupWhatsAppInbound()} disabled={settingUp === 'whatsapp' || !whatsappCheck?.ok || webhookCheck?.ok} className="wf-btn-primary text-xs disabled:cursor-not-allowed disabled:opacity-60"><i className="ri-link" />{settingUp === 'whatsapp' ? 'Cadastrando…' : !whatsappCheck?.ok ? 'Valide o WhatsApp primeiro' : inboundActionLabel(inbound.state)}</button><button type="button" onClick={() => void refresh()} className="wf-btn-secondary text-xs"><i className="ri-refresh-line" />Atualizar diagnóstico</button><Link to="/dashboard/configuracoes?tab=conexoes" className="wf-btn-secondary text-xs">Ver canal WhatsApp</Link></div>
-          </article>
-          <article id="scheduler-setup" className={`scroll-mt-24 rounded-2xl border p-4 ${requestedSetup === 'worker' ? 'border-primary-300 bg-primary-50' : 'border-background-200 bg-background-50/60'}`}>
-            <div className="flex items-start justify-between gap-3"><div className="flex h-9 w-9 items-center justify-center rounded-xl bg-background-100 text-foreground-700"><i className="ri-server-line text-lg" /></div><span className={`rounded-full border px-2.5 py-1 font-mono text-[10px] font-semibold ${status.checks.find((item) => item.id === 'scheduler')?.ok ? 'border-[#168654]/25 bg-[#168654]/10 text-[#116B43]' : 'border-[#BC8B42]/25 bg-[#BC8B42]/10 text-[#8C651D]'}`}>{status.checks.find((item) => item.id === 'scheduler')?.ok ? 'ATIVO' : 'PENDENTE'}</span></div>
-            <h3 className="mt-3 text-sm font-bold text-foreground-950">2. Processar automações 24/7</h3>
-            <p className="mt-1 text-xs leading-relaxed text-foreground-500">{status.checks.find((item) => item.id === 'scheduler')?.detail}</p>
-            <ol className="mt-3 space-y-1.5 text-xs leading-relaxed text-foreground-600"><li>Ao preparar, o sistema cria uma credencial interna no cofre e ativa o agendador do servidor.</li><li>Você não precisa cadastrar chave, e-mail ou URL para este módulo.</li><li>Enquanto o heartbeat não for confirmado, o backend mantém automações externas bloqueadas.</li></ol>
-            <div className="mt-4 flex flex-wrap gap-2"><button type="button" onClick={() => void setupScheduler()} disabled={settingUp === 'scheduler' || status.checks.find((item) => item.id === 'scheduler')?.ok} className="wf-btn-primary text-xs disabled:cursor-not-allowed disabled:opacity-60"><i className="ri-play-circle-line" />{settingUp === 'scheduler' ? 'Preparando…' : status.checks.find((item) => item.id === 'scheduler')?.ok ? 'Worker ativo' : 'Preparar worker 24/7'}</button><button type="button" onClick={() => void refresh()} className="wf-btn-secondary text-xs"><i className="ri-refresh-line" />Verificar heartbeat</button></div>
-          </article>
-        </div>
-      </section>
-      <section id="real-environment" className="wf-surface scroll-mt-24 p-5 md:p-6">
-        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[.12em] text-primary-700">Fonte operacional</p>
-            <h2 className="mt-1 font-heading text-xl font-bold text-foreground-950">{status.mode === 'real' ? status.productionReady ? 'Ambiente Real ativo' : 'Ambiente Real ativo · automação em preparação' : 'Ambiente Real em preparação'}</h2>
-            <p className="mt-1 max-w-2xl text-sm text-foreground-500">
-              Este estado vem diretamente da empresa e das integrações. Nenhum botão nesta tela altera o navegador para simular produção.
-            </p>
-          </div>
-          <div className="flex flex-col items-start gap-2 md:items-end">
-            <div className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold ${status.productionReady ? 'border-primary-200 bg-primary-50 text-primary-800' : 'border-accent-200 bg-accent-50 text-accent-800'}`}>
-              <span className={`h-2 w-2 rounded-full ${status.productionReady ? 'bg-primary-500' : 'bg-accent-500'}`} />
-              {status.productionReady ? 'Automação pronta' : status.mode === 'real' ? 'Comunicação ativa · automação pendente' : 'Verificações pendentes'}
-            </div>
-            <button
-              type="button"
-              disabled={changing || status.productionReady}
-              onClick={() => void prepareRealEnvironment()}
-              className={`wf-btn text-xs disabled:cursor-not-allowed disabled:opacity-50 ${status.productionReady ? 'wf-btn-secondary' : 'wf-btn-primary'}`}
-              title={!status.productionReady ? 'O servidor verificará a preparação e exibirá somente as pendências reais.' : undefined}
-            >
-              <i className={status.productionReady ? 'ri-shield-check-line' : 'ri-rocket-line'} />
-              {changing ? 'Atualizando…' : status.productionReady ? 'Automação pronta' : 'Verificar preparação'}
-            </button>
-          </div>
-        </div>
-        <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-          {status.checks.map((check) => (
-            <div key={check.id} className={`rounded-xl border p-3 ${check.ok ? 'border-primary-100 bg-primary-50/50' : 'border-background-200 bg-background-100/60'}`}>
-              <div className="flex items-center gap-2"><i className={`${check.ok ? 'ri-checkbox-circle-fill text-primary-600' : 'ri-error-warning-line text-accent-600'}`} /><p className="text-xs font-semibold text-foreground-800">{check.label}</p></div>
-              <p className="mt-1 text-xs leading-relaxed text-foreground-500">{check.detail}</p>
-            </div>
-          ))}
-        </div>
+    <div className="cc-operational space-y-4">
+      {error && <div className="cc-operational-feedback is-error" role="alert"><i className="ri-error-warning-line" />{error}</div>}
+      {notice && <div className="cc-operational-feedback is-success" role="status"><i className="ri-checkbox-circle-line" />{notice}</div>}
+
+      <section className="cc-operational-overview" aria-label="Visão operacional">
+        <div className="cc-operational-overview-item cc-operational-environment"><span className="cc-operational-overview-icon"><i className="ri-checkbox-circle-fill" /></span><div><span className="cc-operational-label">Ambiente</span><strong>{status.mode === 'real' ? 'Ambiente real' : 'Ambiente em preparação'}</strong></div></div>
+        <div className="cc-operational-overview-item"><span className="cc-operational-label">Automação global</span><strong>{status.productionReady ? 'Pronta para operar' : 'Protegida por validações'}</strong><span className="cc-operational-muted">Só executa quando os canais e a IA estão validados.</span></div>
+        <div className="cc-operational-pause"><div><span className="cc-operational-label">Pausar automações</span><span className="cc-operational-muted">{status.killSwitch ? 'Pausa ativa' : 'Não pausada'}</span></div><button type="button" role="switch" aria-checked={status.killSwitch} aria-label={status.killSwitch ? 'Retomar automações' : 'Pausar automações'} onClick={() => void changeKillSwitch()} disabled={changing} className={`cc-operational-switch ${status.killSwitch ? 'is-on' : ''}`}><span /></button><Link to="#automation-pause" className="cc-operational-impact">Ver impacto</Link></div>
       </section>
 
-      <TestLeadCleanupPanel />
+      {attentionCount > 0 && <section className="cc-operational-alert" role="status"><i className="ri-error-warning-fill" /><div><strong>{attentionCount} componentes exigem atenção</strong><span>Valide as conexões antes de ativar automações externas.</span></div><a href="#cc-operational-components" className="cc-operational-alert-action">Abrir diagnóstico</a></section>}
 
-      <section id="automation-pause" className="wf-surface scroll-mt-24 p-5 md:p-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h3 className="font-heading font-bold text-foreground-950">Pausa global da automação</h3>
-            <p className="mt-1 text-sm text-foreground-500">Este é o kill switch consultado pela Ana e pela fila de saída.</p>
-          </div>
-          <button type="button" onClick={() => void changeKillSwitch()} disabled={changing} className={`wf-btn ${status.killSwitch ? 'wf-btn-primary' : 'wf-btn-secondary'} disabled:opacity-60`}>
-            <i className={status.killSwitch ? 'ri-play-circle-line' : 'ri-pause-circle-line'} />
-            {changing ? 'Atualizando…' : status.killSwitch ? 'Liberar automação' : 'Pausar automação'}
-          </button>
-        </div>
-        <p className={`mt-4 rounded-xl px-3 py-2 text-xs ${status.killSwitch ? 'bg-accent-50 text-accent-800' : 'bg-primary-50 text-primary-800'}`}>
-          {status.killSwitch ? 'A automação está pausada pelo controle global.' : 'A pausa global está desligada; a Ana ainda exige os demais requisitos acima antes de agir.'}
-        </p>
+      <section id="cc-operational-components" className="cc-operational-card" aria-labelledby="cc-operational-components-title">
+        <div className="cc-operational-card-header"><div><h2 id="cc-operational-components-title">Componentes e conexões</h2><p>Ative o uso no sistema e acompanhe a saúde de cada integração.</p></div><div className="cc-operational-tools"><div className="cc-operational-filters" role="tablist" aria-label="Filtrar componentes">{([['all', 'Todos'], ['active', 'Ativos'], ['attention', 'Com atenção'], ['disabled', 'Desativados']] as const).map(([value, label]) => <button key={value} type="button" role="tab" aria-selected={filter === value} className={filter === value ? 'is-selected' : ''} onClick={() => setFilter(value)}>{label}</button>)}</div><label className="cc-operational-search"><i className="ri-search-line" /><span className="sr-only">Buscar componente</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar componente" /></label></div></div>
+        <div className="cc-operational-table-wrap"><table className="cc-operational-table"><thead><tr><th>Componente</th><th>Descrição</th><th>Saúde da conexão</th><th>Última validação</th><th>Status de uso</th><th><span className="sr-only">Ações</span></th></tr></thead><tbody>{groupedRows.map(({ group, rows: groupRows }) => <>{<tr key={`${group}-heading`} className="cc-operational-group"><th colSpan={6}>{group}</th></tr>}{groupRows.map((row) => <OperationalRow key={row.id} row={row} openMenu={openMenu === row.id} onToggleMenu={() => setOpenMenu(openMenu === row.id ? null : row.id)} onSetupScheduler={() => void setupScheduler()} onSetupWhatsApp={() => void setupWhatsAppInbound()} />)}</>)}{groupedRows.length === 0 && <tr><td colSpan={6} className="cc-operational-no-results">Nenhum componente corresponde aos filtros atuais.</td></tr>}</tbody></table></div>
       </section>
 
-      <section className="wf-surface overflow-hidden">
-        <div className="flex items-center justify-between border-b border-background-200/70 px-5 py-4">
-          <div><h3 className="font-heading font-bold text-foreground-950">Conexões verificadas</h3><p className="mt-0.5 text-xs text-foreground-500">Status remoto, sem presets locais.</p></div>
-          <button type="button" onClick={() => void refresh()} className="wf-btn-secondary text-xs"><i className="ri-refresh-line" />Atualizar</button>
-        </div>
-        <div className="divide-y divide-background-200/70">
-          {status.integrations.map((item) => (
-            <div key={item.key} className="flex flex-col gap-2 px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
-              <div><p className="text-sm font-semibold text-foreground-800">{item.label}</p><p className="text-xs text-foreground-500">{item.detail || item.provider || 'Sem detalhe de status.'}</p></div>
-              <div className="text-left sm:text-right"><span className={`inline-flex rounded-full border px-2.5 py-1 font-mono text-[10px] font-semibold ${item.health === 'online' ? 'border-[#168654]/25 bg-[#168654]/10 text-[#116B43]' : item.health === 'stale' ? 'border-[#BC8B42]/25 bg-[#BC8B42]/10 text-[#8C651D]' : 'border-[#BD3D32]/25 bg-[#BD3D32]/10 text-[#A52F27]'}`}>{item.health === 'online' ? 'ONLINE' : item.health === 'stale' ? 'VALIDAÇÃO VENCIDA' : 'OFFLINE'}</span><p className="mt-1 text-[11px] text-foreground-400">Última validação: {formatDate(item.lastTestedAt)}</p></div>
-            </div>
-          ))}
-          {status.integrations.length === 0 && <p className="px-5 py-8 text-sm text-foreground-500">Nenhuma conexão foi configurada para esta empresa.</p>}
-        </div>
-      </section>
+      <section className="cc-operational-card cc-operational-prereqs"><div className="cc-operational-card-header"><div><h2>Pré-requisitos para ativar a Ana</h2><p>A ativação só é liberada quando os requisitos forem concluídos.</p></div><button type="button" className="wf-btn-secondary text-xs" onClick={() => void refresh()}><i className="ri-refresh-line" />Revalidar dependências</button></div><div className="cc-operational-prereq-grid">{[['whatsapp', 'WhatsApp validado', status.checks.find((item) => item.id === 'whatsapp')], ['ia', 'IA validada', status.checks.find((item) => item.id === 'ia')], ['scheduler', 'Worker ativo', status.checks.find((item) => item.id === 'scheduler')]].map(([id, label, check]) => <div key={id as string} className={`cc-operational-prereq ${(check as OperationalCheck | undefined)?.ok ? 'is-ready' : ''}`}><i className={(check as OperationalCheck | undefined)?.ok ? 'ri-checkbox-circle-fill' : 'ri-error-warning-fill'} /><div><strong>{label as string}</strong><span>{(check as OperationalCheck | undefined)?.ok ? 'Concluído' : 'Pendente'}</span></div></div>)}</div></section>
+
+      <section id="automation-pause" className="cc-operational-audit"><div><p className="cc-operational-label">Auditoria recente</p><h2>{status.killSwitch ? 'Automações pausadas' : status.productionReady ? 'Operação pronta' : 'Validações em andamento'}</h2><p>Ativações, pausas e validações ficam registradas no Registro do Sistema.</p></div><div className="cc-operational-audit-facts"><span><i className="ri-time-line" />Status atualizado<br /><strong>{formatDate(status.updatedAt || status.runtimeUpdatedAt)}</strong></span><span><i className="ri-shield-check-line" />Proteção de dados<br /><strong>Conforme política da empresa</strong></span><Link to="/dashboard/configuracoes?tab=registro">Abrir registro <i className="ri-arrow-right-line" /></Link></div></section>
+
+      {!status.productionReady && <div className="cc-operational-prepare"><button type="button" onClick={() => void prepareRealEnvironment()} disabled={changing} className="wf-btn-primary text-xs"><i className={changing ? 'ri-loader-4-line animate-spin' : 'ri-shield-check-line'} />{changing ? 'Verificando…' : 'Verificar preparação do Ambiente Real'}</button><span>O servidor confirma cada dependência; nenhuma credencial é exibida nesta tela.</span></div>}
     </div>
   );
+}
+
+function OperationalRow({ row, openMenu, onToggleMenu, onSetupScheduler, onSetupWhatsApp }: { row: ComponentRow; openMenu: boolean; onToggleMenu: () => void; onSetupScheduler: () => void; onSetupWhatsApp: () => void }) {
+  const health = HEALTH_COPY[row.health];
+  return <tr className={row.id === 'ana' ? 'cc-operational-row-ana' : undefined}>
+    <td><div className="cc-operational-component"><span className="cc-operational-component-icon"><i className={row.icon} /></span><strong>{row.label}</strong></div></td>
+    <td><span className="cc-operational-description">{row.description}</span></td>
+    <td><span className={`cc-operational-health ${health.className}`}><i className={health.icon} />{health.label}</span></td>
+    <td><span className="cc-operational-date">{formatDate(row.lastValidatedAt)}</span></td>
+    <td><span className="cc-operational-usage"><span className={`cc-operational-switch cc-operational-switch-small ${row.usage === 'active' ? 'is-on' : ''} ${row.usage === 'blocked' ? 'is-blocked' : ''}`}><span /></span><strong>{USAGE_COPY[row.usage]}</strong>{row.usage === 'blocked' && <i className="ri-information-line" title="Bloqueado até que as dependências sejam validadas." />}</span></td>
+    <td className="cc-operational-actions"><div className="cc-operational-menu"><button type="button" aria-label={`Ações de ${row.label}`} aria-expanded={openMenu} onClick={onToggleMenu}><i className="ri-more-2-fill" /></button>{openMenu && <div className="cc-operational-menu-popover"><span>{row.detail}</span>{row.action === 'scheduler' && row.health !== 'validated' && <button type="button" onClick={onSetupScheduler}><i className="ri-play-circle-line" />Preparar worker</button>}{row.action === 'whatsapp' && row.health !== 'validated' && <button type="button" onClick={onSetupWhatsApp}><i className="ri-link" />Cadastrar callbacks</button>}{row.href && <Link to={row.href}><i className="ri-settings-3-line" />Abrir configuração</Link>}</div>}</div></td>
+  </tr>;
 }
