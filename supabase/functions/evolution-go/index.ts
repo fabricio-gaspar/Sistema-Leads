@@ -17,10 +17,16 @@ const uuid = (value: unknown): string => {
   return UUID.test(candidate) ? candidate : '';
 };
 
+/**
+ * The provisioned Evolution GO tenant for this CRM. An environment override
+ * is supported for infrastructure changes, but the function stays fail-closed
+ * to every origin except the tenant explicitly approved by the administrator.
+ */
+const PROVISIONED_EVOLUTION_GO_ORIGIN = 'https://evo-eisenflow.kz3solucoes.cloud';
+
 function allowedOrigins(): string[] {
   const configured = (Deno.env.get('EVOLUTION_GO_ALLOWED_ORIGINS') ?? '').split(',').map((value) => value.trim()).filter(Boolean);
-  if (!configured.length) throw new Error('evolution_go_allowed_origins_not_configured');
-  return configured;
+  return configured.length ? configured : [PROVISIONED_EVOLUTION_GO_ORIGIN];
 }
 
 function randomSecret(): string {

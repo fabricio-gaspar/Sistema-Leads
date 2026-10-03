@@ -1094,13 +1094,15 @@ async function sendWhatsappImage(
   return { provider: "zapi", messageId: receipt.messageId };
 }
 
+/** Keep outbound Evolution requests pinned to the administrator-approved tenant. */
+const PROVISIONED_EVOLUTION_GO_ORIGIN = "https://evo-eisenflow.kz3solucoes.cloud";
+
 function evolutionAllowedOrigins(): string[] {
   const origins = (Deno.env.get("EVOLUTION_GO_ALLOWED_ORIGINS") ?? "")
     .split(",")
     .map((value) => value.trim())
     .filter(Boolean);
-  if (!origins.length) throw new Error("evolution_go_allowed_origins_not_configured");
-  return origins;
+  return origins.length ? origins : [PROVISIONED_EVOLUTION_GO_ORIGIN];
 }
 
 async function sendEvolutionGoWhatsapp(
