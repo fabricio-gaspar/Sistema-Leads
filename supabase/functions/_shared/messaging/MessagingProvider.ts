@@ -1,6 +1,6 @@
-export type MessagingProviderName = 'zapi' | 'meta_cloud';
+export type MessagingProviderName = 'zapi' | 'meta_cloud' | 'evolution_go';
 export type MessageOrigin = 'customer' | 'business_app' | 'panel' | 'ana' | 'template' | 'system';
-export type MessageKind = 'text' | 'template' | 'image' | 'document';
+export type MessageKind = 'text' | 'template' | 'image' | 'audio' | 'video' | 'document';
 export type DeliveryStatus = 'sent' | 'delivered' | 'read' | 'failed';
 
 export interface ProviderSendRequest {
@@ -32,4 +32,3 @@ export interface MessagingProvider {
   readonly name: MessagingProviderName;
   send(request: ProviderSendRequest): Promise<ProviderSendResult>;
 }
-

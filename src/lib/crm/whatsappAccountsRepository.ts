@@ -13,7 +13,7 @@ export type WhatsappConnectionStatus =
 
 export interface WhatsappAccount {
   id: string;
-  provider: 'zapi' | 'meta_cloud';
+  provider: 'zapi' | 'meta_cloud' | 'evolution_go';
   ownerUserId: string | null;
   ownerName: string | null;
   ownerEmail: string | null;
@@ -43,7 +43,7 @@ export interface WhatsappAccount {
 }
 
 export interface WhatsappProviderControl {
-  provider: 'zapi' | 'meta_cloud';
+  provider: 'zapi' | 'meta_cloud' | 'evolution_go';
   inboundEnabled: boolean;
   sendEnabled: boolean;
   automationEnabled: boolean;
@@ -123,6 +123,95 @@ async function invoke<T extends Record<string, unknown>>(body: Record<string, un
     throw new Error(code || 'whatsapp_account_operation_failed');
   }
   return data as T;
+}
+
+export interface EvolutionGoChannelStatus {
+  configured: boolean;
+  account: null | {
+    id: string;
+    label: string;
+    enabled: boolean;
+    isDefault: boolean;
+    connectionStatus: WhatsappConnectionStatus;
+    phoneSuffix: string | null;
+    connectedAt: string | null;
+    checkedAt: string | null;
+    webhookRegisteredAt: string | null;
+    errorCode: string | null;
+  };
+  integration: null | {
+    id: string;
+    connected: boolean;
+    enabled: boolean;
+    paused: boolean;
+    statusDetail: string | null;
+    lastTestedAt: string | null;
+    lastSuccessAt: string | null;
+    lastError: string | null;
+    baseUrlConfigured: boolean;
+    instanceName: string | null;
+    version: string | null;
+  };
+  controls: null | {
+    inboundEnabled: boolean;
+    sendEnabled: boolean;
+    automationEnabled: boolean;
+    killSwitch: boolean;
+    reason: string | null;
+  };
+}
+
+export interface EvolutionGoConfigurationInput {
+  label?: string;
+  baseUrl?: string;
+  globalApiKey?: string;
+  instanceToken?: string;
+  instanceName?: string;
+  instanceId?: string;
+  timeoutMs?: number;
+  retryAttempts?: number;
+}
+
+async function invokeEvolutionGo<T extends Record<string, unknown>>(body: Record<string, unknown>): Promise<T> {
+  const { data, error } = await supabase.functions.invoke('evolution-go', { body });
+  if (error || !data?.ok) {
+    const code = typeof data?.error === 'string' ? data.error : await detalheDoErroDeFuncao(error);
+    throw new Error(code || 'evolution_go_operation_failed');
+  }
+  return data as T;
+}
+
+export function loadEvolutionGoStatus(): Promise<EvolutionGoChannelStatus> {
+  return invokeEvolutionGo<EvolutionGoChannelStatus & Record<string, unknown>>({ action: 'status' });
+}
+
+export function saveEvolutionGoConfiguration(input: EvolutionGoConfigurationInput): Promise<EvolutionGoChannelStatus> {
+  return invokeEvolutionGo<EvolutionGoChannelStatus & Record<string, unknown>>({
+    action: 'save', label: input.label, base_url: input.baseUrl, global_api_key: input.globalApiKey,
+    instance_token: input.instanceToken, instance_name: input.instanceName, instance_id: input.instanceId,
+    timeout_ms: input.timeoutMs, retry_attempts: input.retryAttempts,
+  });
+}
+
+export function createEvolutionGoInstance(input: EvolutionGoConfigurationInput): Promise<EvolutionGoChannelStatus> {
+  return invokeEvolutionGo<EvolutionGoChannelStatus & Record<string, unknown>>({
+    action: 'create_instance', label: input.label, base_url: input.baseUrl, global_api_key: input.globalApiKey,
+    instance_name: input.instanceName, timeout_ms: input.timeoutMs, retry_attempts: input.retryAttempts,
+  });
+}
+
+export function runEvolutionGoAction(
+  action: 'connect' | 'refresh_status' | 'reconnect' | 'disconnect' | 'logout' | 'activate' | 'deactivate',
+): Promise<EvolutionGoChannelStatus> {
+  return invokeEvolutionGo<EvolutionGoChannelStatus & Record<string, unknown>>({ action });
+}
+
+export function requestEvolutionGoQr(): Promise<{ qr: { qrcode: string | null; code: string | null; expiresAt: string | null } }> {
+  return invokeEvolutionGo({ action: 'qr' });
+}
+
+export function requestEvolutionGoPairingCode(phone: string): Promise<{ pairingCode: string | null }> {
+  return invokeEvolutionGo({ action: 'pair', phone });
 }
 
 export function loadWhatsappAccounts(): Promise<AccountsResponse> {

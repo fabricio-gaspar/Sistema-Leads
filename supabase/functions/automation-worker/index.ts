@@ -32,6 +32,7 @@ import {
   type DailyLeadReportStage,
 } from "../_shared/dailyLeadReport.ts";
 import { parseZapiEvent } from "../_shared/zapiInbound.ts";
+import { EvolutionGoProvider } from "../_shared/messaging/EvolutionGoProvider.ts";
 
 function secureEqual(actual: string | null, expected: string): boolean {
   if (!actual || !expected || actual.length !== expected.length) return false;
@@ -1093,6 +1094,49 @@ async function sendWhatsappImage(
   return { provider: "zapi", messageId: receipt.messageId };
 }
 
+function evolutionAllowedOrigins(): string[] {
+  const origins = (Deno.env.get("EVOLUTION_GO_ALLOWED_ORIGINS") ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean);
+  if (!origins.length) throw new Error("evolution_go_allowed_origins_not_configured");
+  return origins;
+}
+
+async function sendEvolutionGoWhatsapp(
+  credentials: Record<string, unknown>,
+  recipient: string,
+  message: string,
+  idempotencyKey: string,
+  media?: { kind: "image" | "audio" | "video" | "document"; url: string; filename?: string },
+) {
+  const provider = new EvolutionGoProvider({
+    baseUrl: asText(credentials.base_url, 500),
+    instanceToken: asText(credentials.instance_token, 1_000),
+    allowedOrigins: evolutionAllowedOrigins(),
+    timeoutMs: Number(credentials.timeout_ms) || undefined,
+  });
+  const receipt = await provider.send(media
+    ? {
+      to: recipient, kind: media.kind, idempotencyKey,
+      text: message, media: { link: media.url, caption: message, filename: media.filename },
+    }
+    : { to: recipient, kind: "text", text: message, idempotencyKey });
+  return { provider: "evolution_go", messageId: receipt.providerMessageId };
+}
+
+function requestedEvolutionMedia(payload: Record<string, unknown>): { kind: "image" | "audio" | "video" | "document"; url: string; filename?: string } | null {
+  const media = asObject(payload.provider_media);
+  const kind = asText(media.kind, 20);
+  const url = asText(media.url, 2_000);
+  if (!url || !["image", "audio", "video", "document"].includes(kind)) return null;
+  return {
+    kind: kind as "image" | "audio" | "video" | "document",
+    url,
+    ...(asText(media.filename, 240) ? { filename: asText(media.filename, 240) } : {}),
+  };
+}
+
 type ResolvedCatalogImageMedia = {
   catalogItemId: string;
   itemName: string;
@@ -1604,6 +1648,32 @@ async function processAnaOperations(admin: Admin, organizationId: string, schedu
   return { status: 'completed', imported, approved, rejected, digest_created: digestCreated };
 }
 
+/** Drains due Evolution GO callbacks from the durable queue on the existing
+ * server scheduler. A failure here is reported but never blocks commercial
+ * outreach processing. */
+async function processEvolutionGoCallbacks(admin: Admin, organizationId: string) {
+  const { count, error } = await admin.from('evolution_go_webhook_events')
+    .select('*', { count: 'exact', head: true }).eq('organization_id', organizationId)
+    .in('processing_status', ['queued', 'failed']).lte('next_retry_at', new Date().toISOString());
+  if (error) return { status: 'read_failed', queued: 0, processed: 0, failed: 0 };
+  if (!count) return { status: 'idle', queued: 0, processed: 0, failed: 0 };
+  const serviceJwt = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  const baseUrl = Deno.env.get('SUPABASE_URL');
+  if (!serviceJwt || !baseUrl) return { status: 'runtime_unavailable', queued: count, processed: 0, failed: 0 };
+  try {
+    const response = await fetch(`${baseUrl}/functions/v1/evolution-go-worker`, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${serviceJwt}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ organization_id: organizationId }), signal: AbortSignal.timeout(45_000),
+    });
+    const result = asObject(await response.json().catch(() => null));
+    if (!response.ok || result.ok !== true) return { status: 'worker_failed', queued: count, processed: 0, failed: count };
+    return { status: 'processed', queued: count, processed: Number(result.processed ?? 0), failed: Number(result.failed ?? 0) };
+  } catch {
+    return { status: 'worker_timeout', queued: count, processed: 0, failed: 0 };
+  }
+}
+
 Deno.serve(async (request) => {
   const pf = preflight(request);
   if (pf) return pf;
@@ -1733,6 +1803,9 @@ Deno.serve(async (request) => {
     const handoffWhatsappNotifications = serverScheduler
       ? await processHandoffWhatsappNotifications(admin, orgId)
       : { status: 'manual_skip', queued: 0, sent: 0, failed: 0, reconciliationRequired: 0 };
+    const evolutionGoWebhooks = serverScheduler
+      ? await processEvolutionGoCallbacks(admin, orgId)
+      : { status: 'manual_skip', queued: 0, processed: 0, failed: 0 };
     const blocked =
       reads[0].data?.active !== true ? "company_not_active" : null;
     if (blocked)
@@ -1969,6 +2042,7 @@ Deno.serve(async (request) => {
         let dispatchStarted = false,
           providerAccepted = false,
           providerMessageId: string | null = null;
+        let whatsappProvider = "zapi";
         try {
           if (!["whatsapp", "email"].includes(channel))
             throw new Error("channel_not_supported");
@@ -2033,13 +2107,14 @@ Deno.serve(async (request) => {
             if (!isUuid(requestedAccountId)) throw new Error("whatsapp_account_id_invalid");
             const { data: account, error: accountError } = await admin
               .from("whatsapp_accounts")
-              .select("id")
+              .select("id,provider")
               .eq("id", requestedAccountId)
               .eq("organization_id", orgId)
               .eq("integration_id", requestedIntegrationId)
               .is("archived_at", null)
               .maybeSingle();
             if (accountError || !account) throw new Error("whatsapp_account_integration_mismatch");
+            whatsappProvider = asText(account.provider, 40) || "zapi";
           }
           const controlledSandboxTest =
             manual &&
@@ -2319,7 +2394,7 @@ Deno.serve(async (request) => {
             manual,
             anaPolicy,
           });
-          const provider = channel === "whatsapp" ? "zapi" : "resend";
+          const provider = channel === "whatsapp" ? whatsappProvider : "resend";
           const { error: pe } = await admin
             .from("lead_outreach")
             .upsert(
@@ -2399,14 +2474,24 @@ Deno.serve(async (request) => {
           dispatchStarted = true;
           const receipt =
             channel === "whatsapp"
-              ? catalogImageMedia
-                ? await sendWhatsappImage(
+              ? whatsappProvider === "evolution_go"
+                ? await sendEvolutionGoWhatsapp(
                   asObject(credentials),
                   recipient,
-                  catalogImageMedia.imageUrl,
                   message,
+                  job.id,
+                  catalogImageMedia
+                    ? { kind: "image", url: catalogImageMedia.imageUrl }
+                    : requestedEvolutionMedia(payload) ?? undefined,
                 )
-                : await sendWhatsapp(asObject(credentials), recipient, message)
+                : catalogImageMedia
+                  ? await sendWhatsappImage(
+                    asObject(credentials),
+                    recipient,
+                    catalogImageMedia.imageUrl,
+                    message,
+                  )
+                  : await sendWhatsapp(asObject(credentials), recipient, message)
               : await sendEmail(
                   asObject(credentials),
                   asObject(integration.configuration),
@@ -2591,6 +2676,7 @@ Deno.serve(async (request) => {
         ana_operations: anaOperations,
         daily_whatsapp_reports: dailyWhatsappReports,
         handoff_whatsapp_notifications: handoffWhatsappNotifications,
+        evolution_go_webhooks: evolutionGoWebhooks,
       },
       200,
       headers,

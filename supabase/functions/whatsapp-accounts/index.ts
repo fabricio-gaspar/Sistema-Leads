@@ -279,7 +279,7 @@ async function listAccounts(admin: Admin, organizationId: string, userId: string
       ? admin.from('profiles').select('id,name,email').in('id', ownerIds)
       : Promise.resolve({ data: [], error: null }),
     admin.from('messaging_provider_controls').select('provider,inbound_enabled,send_enabled,automation_enabled,kill_switch,reason,updated_at')
-      .eq('organization_id', organizationId).in('provider', ['zapi', 'meta_cloud']),
+      .eq('organization_id', organizationId).in('provider', ['zapi', 'meta_cloud', 'evolution_go']),
     admin.from('audit_logs').select('id,action,detail,actor_name,occurred_at,created_at,entity_table,entity_id,event_data')
       .eq('organization_id', organizationId).in('action', WHATSAPP_AUDIT_ACTIONS).order('created_at', { ascending: false }).limit(100),
     integrationIds.length
@@ -329,9 +329,9 @@ async function listAccounts(admin: Admin, organizationId: string, userId: string
     };
   });
   const savedControls = new Map((controlsRead.data ?? []).map((control) => [control.provider, control]));
-  const providerControls = (['zapi', 'meta_cloud'] as const).map((provider) => {
+  const providerControls = (['zapi', 'meta_cloud', 'evolution_go'] as const).map((provider) => {
     const control = savedControls.get(provider);
-    const fallbackActive = provider === 'zapi' && presentedAccounts.some((account) => account.provider === provider && account.enabled && account.connected);
+    const fallbackActive = presentedAccounts.some((account) => account.provider === provider && account.enabled && account.connected);
     const inboundEnabled = control?.inbound_enabled === true || (!control && fallbackActive);
     const sendEnabled = control?.send_enabled === true || (!control && fallbackActive);
     const automationEnabled = control?.automation_enabled === true || (!control && fallbackActive);
