@@ -148,6 +148,19 @@ export type CentralConversationDetail = {
 export type CentralInboxPage = { items: CentralInboxItem[]; total: number; hasMore: boolean };
 export type CentralInboxCounts = { all: number; unread: number; waiting: number; mine: number };
 
+export type CentralTransferTarget = {
+  userId: string;
+  name: string;
+  role: string;
+  accountId: string | null;
+  accountLabel: string | null;
+  provider: 'zapi' | 'meta_cloud' | 'evolution_go' | null;
+  phoneSuffix: string | null;
+  connectionStatus: string;
+  channelReady: boolean;
+  unavailableReason: string | null;
+};
+
 const asRecord = (value: unknown): UnknownRecord => value && typeof value === 'object' && !Array.isArray(value)
   ? value as UnknownRecord
   : {};
@@ -381,8 +394,32 @@ export async function markCentralConversationUnread(leadId: string): Promise<boo
  * Resolves only the provider already pinned to the lead. This intentionally
  * does not expose account credentials or select a different WhatsApp account.
  */
-export async function loadCentralChannelProvider(leadId: string): Promise<'zapi' | 'meta_cloud' | null> {
+export async function loadCentralChannelProvider(leadId: string): Promise<'zapi' | 'meta_cloud' | 'evolution_go' | null> {
   const { data, error } = await supabase.rpc('central_get_conversation_channel_provider', { p_lead_id: leadId });
   if (error) throw error;
-  return data === 'meta_cloud' || data === 'zapi' ? data : null;
+  return data === 'meta_cloud' || data === 'zapi' || data === 'evolution_go' ? data : null;
+}
+
+export async function loadCentralTransferTargets(leadId: string): Promise<CentralTransferTarget[]> {
+  const { data, error } = await supabase.rpc('central_list_transfer_targets', { p_lead_id: leadId });
+  if (error) throw error;
+  return asArray(data).map((value) => {
+    const row = asRecord(value);
+    const provider = asString(row.account_provider);
+    const normalizedProvider: CentralTransferTarget['provider'] = provider === 'zapi' || provider === 'meta_cloud' || provider === 'evolution_go'
+      ? provider
+      : null;
+    return {
+      userId: asString(row.user_id) ?? '',
+      name: asString(row.member_name) ?? 'Usuário',
+      role: asString(row.member_role) ?? 'membro',
+      accountId: asString(row.account_id),
+      accountLabel: asString(row.account_label),
+      provider: normalizedProvider,
+      phoneSuffix: asString(row.phone_suffix),
+      connectionStatus: asString(row.connection_status) ?? 'unconfigured',
+      channelReady: asBool(row.channel_ready),
+      unavailableReason: asString(row.unavailable_reason),
+    };
+  }).filter((target) => Boolean(target.userId));
 }

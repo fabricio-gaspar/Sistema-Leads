@@ -127,9 +127,14 @@ async function invoke<T extends Record<string, unknown>>(body: Record<string, un
 
 export interface EvolutionGoChannelStatus {
   configured: boolean;
+  canManage: boolean;
+  canConnect: boolean;
+  canViewQr: boolean;
   account: null | {
     id: string;
     label: string;
+    accountType: 'corporate' | 'seller';
+    ownerUserId: string | null;
     enabled: boolean;
     isDefault: boolean;
     connectionStatus: WhatsappConnectionStatus;
@@ -172,6 +177,30 @@ export interface EvolutionGoConfigurationInput {
   retryAttempts?: number;
 }
 
+export interface EvolutionGoAccountsResponse {
+  accounts: EvolutionGoChannelStatus[];
+  canManage: boolean;
+}
+
+export interface EvolutionGoAccountInput {
+  accountType: 'corporate' | 'seller';
+  ownerUserId?: string;
+  label: string;
+}
+
+function evolutionGoConfigurationPayload(input: EvolutionGoConfigurationInput): Record<string, unknown> {
+  const payload: Record<string, unknown> = {};
+  if (input.label !== undefined) payload.label = input.label;
+  if (input.baseUrl !== undefined) payload.base_url = input.baseUrl;
+  if (input.globalApiKey !== undefined) payload.global_api_key = input.globalApiKey;
+  if (input.instanceToken !== undefined) payload.instance_token = input.instanceToken;
+  if (input.instanceName !== undefined) payload.instance_name = input.instanceName;
+  if (input.instanceId !== undefined) payload.instance_id = input.instanceId;
+  if (input.timeoutMs !== undefined) payload.timeout_ms = input.timeoutMs;
+  if (input.retryAttempts !== undefined) payload.retry_attempts = input.retryAttempts;
+  return payload;
+}
+
 async function invokeEvolutionGo<T extends Record<string, unknown>>(body: Record<string, unknown>): Promise<T> {
   const { data, error } = await supabase.functions.invoke('evolution-go', { body });
   if (error || !data?.ok) {
@@ -181,37 +210,56 @@ async function invokeEvolutionGo<T extends Record<string, unknown>>(body: Record
   return data as T;
 }
 
-export function loadEvolutionGoStatus(): Promise<EvolutionGoChannelStatus> {
-  return invokeEvolutionGo<EvolutionGoChannelStatus & Record<string, unknown>>({ action: 'status' });
+export function loadEvolutionGoAccounts(): Promise<EvolutionGoAccountsResponse> {
+  return invokeEvolutionGo<EvolutionGoAccountsResponse & Record<string, unknown>>({ action: 'list' });
 }
 
-export function saveEvolutionGoConfiguration(input: EvolutionGoConfigurationInput): Promise<EvolutionGoChannelStatus> {
+export function loadEvolutionGoStatus(accountId: string): Promise<EvolutionGoChannelStatus> {
+  return invokeEvolutionGo<EvolutionGoChannelStatus & Record<string, unknown>>({ action: 'status', account_id: accountId });
+}
+
+export function createEvolutionGoAccount(input: EvolutionGoAccountInput): Promise<EvolutionGoChannelStatus> {
   return invokeEvolutionGo<EvolutionGoChannelStatus & Record<string, unknown>>({
-    action: 'save', label: input.label, base_url: input.baseUrl, global_api_key: input.globalApiKey,
-    instance_token: input.instanceToken, instance_name: input.instanceName, instance_id: input.instanceId,
-    timeout_ms: input.timeoutMs, retry_attempts: input.retryAttempts,
+    action: 'create_account',
+    account_id: crypto.randomUUID(),
+    account_type: input.accountType,
+    owner_user_id: input.accountType === 'seller' ? input.ownerUserId : null,
+    label: input.label,
   });
 }
 
-export function createEvolutionGoInstance(input: EvolutionGoConfigurationInput): Promise<EvolutionGoChannelStatus> {
+export function saveEvolutionGoConfiguration(accountId: string, input: EvolutionGoConfigurationInput): Promise<EvolutionGoChannelStatus> {
   return invokeEvolutionGo<EvolutionGoChannelStatus & Record<string, unknown>>({
-    action: 'create_instance', label: input.label, base_url: input.baseUrl, global_api_key: input.globalApiKey,
-    instance_name: input.instanceName, timeout_ms: input.timeoutMs, retry_attempts: input.retryAttempts,
+    action: 'save', account_id: accountId, ...evolutionGoConfigurationPayload(input),
+  });
+}
+
+export function createEvolutionGoInstance(accountId: string, input: EvolutionGoConfigurationInput = {}): Promise<EvolutionGoChannelStatus> {
+  return invokeEvolutionGo<EvolutionGoChannelStatus & Record<string, unknown>>({
+    action: 'create_instance', account_id: accountId, ...evolutionGoConfigurationPayload({
+      label: input.label,
+      baseUrl: input.baseUrl,
+      globalApiKey: input.globalApiKey,
+      instanceName: input.instanceName,
+      timeoutMs: input.timeoutMs,
+      retryAttempts: input.retryAttempts,
+    }),
   });
 }
 
 export function runEvolutionGoAction(
   action: 'connect' | 'refresh_status' | 'reconnect' | 'disconnect' | 'logout' | 'activate' | 'deactivate',
+  accountId: string,
 ): Promise<EvolutionGoChannelStatus> {
-  return invokeEvolutionGo<EvolutionGoChannelStatus & Record<string, unknown>>({ action });
+  return invokeEvolutionGo<EvolutionGoChannelStatus & Record<string, unknown>>({ action, account_id: accountId });
 }
 
-export function requestEvolutionGoQr(): Promise<{ qr: { qrcode: string | null; code: string | null; expiresAt: string | null } }> {
-  return invokeEvolutionGo({ action: 'qr' });
+export function requestEvolutionGoQr(accountId: string): Promise<{ qr: { qrcode: string | null; code: string | null; expiresAt: string | null } }> {
+  return invokeEvolutionGo({ action: 'qr', account_id: accountId });
 }
 
-export function requestEvolutionGoPairingCode(phone: string): Promise<{ pairingCode: string | null }> {
-  return invokeEvolutionGo({ action: 'pair', phone });
+export function requestEvolutionGoPairingCode(accountId: string, phone: string): Promise<{ pairingCode: string | null }> {
+  return invokeEvolutionGo({ action: 'pair', account_id: accountId, phone });
 }
 
 export function loadWhatsappAccounts(): Promise<AccountsResponse> {

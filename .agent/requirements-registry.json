@@ -210,6 +210,14 @@
       "last_validation": "2026-09-26"
     },
     {
+      "id": "REQ-069",
+      "description": "Gerenciar canais Evolution GO corporativos e privados por vendedor, com QR restrito, transferência atômica de atendente e canal, histórico preservado e callback por conta protegido",
+      "module": "integracoes",
+      "status": "implemented_validated_pending_remote_apply",
+      "evidence": "A migration 20261003223000_transfer_whatsapp_channel_with_assignee adiciona vínculos históricos de conta e substitui assign_human_handoff para atualizar assigned_to, owner_id e whatsapp_account_id na mesma transação, validando conta seller do atendente, integração conectada e controles do provedor. evolution-go exige account_id, separa corporate/seller por owner_user_id, limita QR ao administrador ou dono e devolve somente estado público. Webhooks de Z-API, Meta e Evolution preservam a conta ativa perante uma resposta tardia; Evolution ainda bloqueia persistência quando a conta ou integração da rota está desativada. Type-check frontend/Edge, lint, build, 63 arquivos/371 testes e diff check passaram. Nenhuma instância, QR, mensagem, lead, callback ou automação real foi executada.",
+      "last_validation": "2026-10-03"
+    },
+    {
       "id": "REQ-041",
       "description": "Importar seleção da Busca para Leads e lista em uma única transação idempotente",
       "module": "prospeccao",

@@ -119,7 +119,8 @@ async function processInbound(admin: Admin, event: Row, payload: Row) {
     return;
   }
   const { data: lead, error: leadError } = await admin.from('leads')
-    .select('id,modo_atendimento,ai_paused,automation_status,first_inbound_at').eq('organization_id', event.organization_id).eq('id', leadId).maybeSingle();
+    .select('id,modo_atendimento,ai_paused,automation_status,first_inbound_at,whatsapp_account_id')
+    .eq('organization_id', event.organization_id).eq('id', leadId).maybeSingle();
   if (leadError || !lead) throw new Error('evolution_go_resolved_lead_missing');
 
   const externalId = `message:${messageId}`;
@@ -139,12 +140,14 @@ async function processInbound(admin: Admin, event: Row, payload: Row) {
   });
   if (messageError && messageError.code !== '23505') throw new Error('evolution_go_message_persist_failed');
 
-  const { error: leadUpdateError } = await admin.from('leads').update({
+  const leadUpdate: Row = {
     first_inbound_at: lead.first_inbound_at ?? occurredAt, last_contact: occurredAt, no_reply_deadline_at: null,
     no_reply_processed_at: null, contact_approval_status: 'approved',
     contact_approval_reason: 'Contato iniciou uma conversa individual pelo WhatsApp.', contact_approved_at: occurredAt,
-    whatsapp_account_id: account.id,
-  }).eq('organization_id', event.organization_id).eq('id', lead.id);
+  };
+  if (resolutionReason !== 'account_history_identity') leadUpdate.whatsapp_account_id = account.id;
+  const { error: leadUpdateError } = await admin.from('leads').update(leadUpdate)
+    .eq('organization_id', event.organization_id).eq('id', lead.id);
   if (leadUpdateError) throw new Error('evolution_go_lead_update_failed');
 
   const { data: queuedJobs, error: jobsError } = await admin.from('outreach_jobs').select('id,payload')

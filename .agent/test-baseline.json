@@ -1,18 +1,18 @@
 {
   "schema_version": 1,
-  "validated_commit": "ad2b8c5cce6c6b4bcf76af6dbf8e38c3b9e8178b",
-  "last_validated_at": "2026-09-29",
+  "validated_commit": "LOCAL_UNCOMMITTED_EVOLUTION_GO_MULTICHANNEL",
+  "last_validated_at": "2026-10-03",
   "current_validation": {
-    "stage": "configuracoes_entradas_whatsapp",
+    "stage": "evolution_go_multichannel_and_assignee_channel_transfer",
     "frontend_typecheck": "passed",
     "edge_typecheck": "passed",
     "lint": "passed",
     "production_build": "passed",
-    "sites_artifact": "passed_build; official Site v153 published",
+    "sites_artifact": "passed_build; official Site publication pending",
     "deterministic_smoke_checks": 0,
-    "vitest": "passed; 57 files; 329 tests",
-    "visual_review": "passed on official Site v153; Entradas do WhatsApp rendered with real entry, callback warning, routing states and no runtime error was observed",
-    "external_end_to_end": "not executed; no lead, proposal, provider test, message, callback or automation was invoked"
+    "vitest": "passed; 63 files; 371 tests",
+    "visual_review": "pending official Site publication",
+    "external_end_to_end": "not executed; no instance, QR, provider request, message, callback, lead transfer or automation was invoked"
   },
   "previous_validation": {
     "stage": "lead_search_dynamic_api_selector",

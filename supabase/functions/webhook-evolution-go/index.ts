@@ -50,6 +50,12 @@ Deno.serve(async (request) => {
       .select('id,enabled').eq('organization_id', integration.organization_id).eq('integration_id', integrationId)
       .eq('provider', 'evolution_go').is('archived_at', null).maybeSingle();
     if (accountError || !account) return json({ accepted: false, error: 'whatsapp_account_not_ready' }, 409);
+    if (account.enabled !== true || integration.enabled !== true || integration.connected !== true || integration.paused === true) {
+      // Authenticate first, then acknowledge callbacks for a disabled account
+      // without persisting customer data. Provider controls are organization-
+      // wide, so they cannot replace this per-account readiness gate.
+      return json({ accepted: true, ignored: true, reason: 'evolution_go_account_disabled' });
+    }
     const { data: control, error: controlError } = await admin.from('messaging_provider_controls')
       .select('inbound_enabled,kill_switch').eq('organization_id', integration.organization_id).eq('provider', 'evolution_go').maybeSingle();
     if (controlError) throw new Error('evolution_go_control_read_failed');

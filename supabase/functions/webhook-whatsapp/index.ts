@@ -426,7 +426,7 @@ Deno.serve(async (request) => {
       if (replyError) throw new Error('inbound_outreach_update_failed');
     }
 
-    const { error: leadUpdateError } = await admin.from('leads').update({
+    const leadUpdate: Row = {
       first_inbound_at: lead.first_inbound_at ?? receivedAt,
       last_contact: receivedAt,
       no_reply_deadline_at: null,
@@ -434,8 +434,14 @@ Deno.serve(async (request) => {
       contact_approval_status: 'approved',
       contact_approval_reason: 'Contato iniciou uma conversa individual no WhatsApp.',
       contact_approved_at: receivedAt,
-      whatsapp_account_id: whatsappAccount.id,
-    }).eq('organization_id', integration.organization_id).eq('id', lead.id);
+    };
+    // A resposta pode chegar pelo número anterior depois de uma transferência.
+    // Ela pertence ao mesmo histórico, mas não pode desfazer o novo canal ativo.
+    if (resolutionReason !== 'account_history_identity') {
+      leadUpdate.whatsapp_account_id = whatsappAccount.id;
+    }
+    const { error: leadUpdateError } = await admin.from('leads').update(leadUpdate)
+      .eq('organization_id', integration.organization_id).eq('id', lead.id);
     if (leadUpdateError) throw new Error('inbound_lead_update_failed');
 
     const humanResponsible = lead.ai_paused === true || lead.modo_atendimento === 'humano' || lead.automation_status === 'human';

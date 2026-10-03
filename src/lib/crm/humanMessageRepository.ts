@@ -27,7 +27,7 @@ export async function queueHumanMessage(input: {
   recipient: string;
   text: string;
   requestId: string;
-  provider?: 'zapi' | 'meta_cloud' | null;
+  provider?: 'zapi' | 'meta_cloud' | 'evolution_go' | null;
   knowledgeContent?: HumanMessageKnowledgeContent | null;
 }): Promise<HumanMessageResult> {
   if (input.channel !== 'whatsapp') {
@@ -83,7 +83,7 @@ export async function queueHumanMessage(input: {
   if (error || !data?.ok) {
     const detail = data?.erro || await detalheDoErroDeFuncao(error);
     const messages: Record<string, string> = {
-      operational_mode_protected: 'O Ambiente Real ainda está em preparação. Salve e valide a Z-API antes de enviar mensagens.',
+      operational_mode_protected: 'O Ambiente Real ainda está em preparação. Salve e valide o canal antes de enviar mensagens.',
       whatsapp_integration_not_ready: 'O WhatsApp não está validado para saída. Nenhuma mensagem foi enviada.',
       lead_opted_out: 'Este contato está bloqueado por opt-out. Nenhuma mensagem foi enviada.',
       whatsapp_paused_by_risk_policy: 'O WhatsApp foi pausado por uma política de risco. Nenhuma mensagem foi enviada.',
@@ -127,8 +127,8 @@ export async function queueHumanMessage(input: {
     const messages: Record<string, string> = {
       recipient_invalid: 'O WhatsApp deste lead é inválido. Corrija o número antes de tentar novamente.',
       recipient_mismatch: 'O número salvo no lead não corresponde ao destinatário da conversa.',
-      channel_not_ready: 'A Z-API não está pronta para envio. Valide o canal em Configurações.',
-      provider_http_400: 'A Z-API recusou a mensagem. Confira o número do lead e tente novamente.',
+      channel_not_ready: 'O canal de WhatsApp não está pronto para envio. Valide-o em Configurações.',
+      provider_http_400: 'O provedor recusou a mensagem. Confira o número do lead e tente novamente.',
       contact_suppressed: 'Este contato está protegido por opt-out. Nenhuma mensagem foi enviada.',
       catalog_media_not_available: 'A imagem deste conteúdo não está mais disponível. Revise o item antes de enviar novamente.',
       catalog_media_changed_before_dispatch: 'A imagem do conteúdo mudou antes do envio. Revise o item e prepare a mensagem novamente.',

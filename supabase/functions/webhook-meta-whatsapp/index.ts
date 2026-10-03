@@ -182,7 +182,7 @@ async function processMessage(
   const resolution = await resolveLead(admin, organizationId, accountId, customerPhone);
   if (!resolution.leadId) return { status: 'needs_review' as const, reason: `meta_lead_${resolution.reason}`.slice(0, 160) };
   const { data: lead, error: leadError } = await admin.from('leads')
-    .select('id,owner_id,assigned_to,modo_atendimento,ai_paused,opt_out,first_inbound_at')
+    .select('id,owner_id,assigned_to,modo_atendimento,ai_paused,opt_out,first_inbound_at,whatsapp_account_id')
     .eq('id', resolution.leadId).eq('organization_id', organizationId).maybeSingle();
   if (leadError || !lead) throw new Error('meta_lead_read_failed');
 
@@ -221,13 +221,16 @@ async function processMessage(
   if (messageError || !message?.id) throw new Error('meta_message_write_failed');
 
   if (event.kind === 'inbound') {
-    await admin.from('leads').update({
+    const leadUpdate: Row = {
       active_channel: 'whatsapp',
-      whatsapp_account_id: accountId,
       first_inbound_at: lead.first_inbound_at || event.occurredAt,
       last_contact: event.occurredAt,
       updated_at: new Date().toISOString(),
-    }).eq('id', lead.id).eq('organization_id', organizationId);
+    };
+    if (resolution.reason !== 'account_history_identity') leadUpdate.whatsapp_account_id = accountId;
+    const { error: leadUpdateError } = await admin.from('leads').update(leadUpdate)
+      .eq('id', lead.id).eq('organization_id', organizationId);
+    if (leadUpdateError) throw new Error('meta_lead_update_failed');
 
     if (automationEnabled) await dispatchAna(admin, account, lead, message.id as string);
   }
@@ -354,4 +357,3 @@ Deno.serve(async (request) => {
     return json({ ok: false, error: safeError(error).replace(/[^a-z0-9_]/gi, '_').toLowerCase().slice(0, 160) }, 500);
   }
 });
-

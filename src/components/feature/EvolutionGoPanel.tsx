@@ -1,34 +1,81 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { loadTeamMembers, type TeamMember } from '@/lib/crm/teamMembersRepository';
 import {
+  createEvolutionGoAccount,
   createEvolutionGoInstance,
-  loadEvolutionGoStatus,
+  loadEvolutionGoAccounts,
   requestEvolutionGoPairingCode,
   requestEvolutionGoQr,
   runEvolutionGoAction,
   saveEvolutionGoConfiguration,
+  type EvolutionGoAccountInput,
   type EvolutionGoChannelStatus,
   type EvolutionGoConfigurationInput,
+  type WhatsappConnectionStatus,
 } from '@/lib/crm/whatsappAccountsRepository';
 
-type Form = Required<Pick<EvolutionGoConfigurationInput, 'label' | 'baseUrl' | 'instanceName'>> & EvolutionGoConfigurationInput;
-const initialForm: Form = { label: 'WhatsApp Evolution GO', baseUrl: '', instanceName: '', globalApiKey: '', instanceToken: '', instanceId: '', timeoutMs: 12_000, retryAttempts: 0 };
+type Notice = { tone: 'success' | 'error'; text: string };
+type Account = NonNullable<EvolutionGoChannelStatus['account']>;
+type AccountStatus = EvolutionGoChannelStatus & { account: Account };
+type QrState = { accountId: string; qrcode: string | null; code: string | null; expiresAt: string | null };
+type PairingState = { accountId: string; code: string };
+type ConfigurationForm = Required<Pick<EvolutionGoConfigurationInput, 'label' | 'baseUrl' | 'globalApiKey' | 'instanceToken' | 'instanceName' | 'instanceId'>>;
 
-function statusCopy(status: EvolutionGoChannelStatus | null) {
-  if (!status?.configured) return { label: 'Não configurado', className: 'bg-background-100 text-foreground-600' };
-  if (status.controls?.killSwitch || !status.account?.enabled) return { label: 'Protegido', className: 'bg-[#FFF1D8] text-[#965A12]' };
-  if (status.integration?.connected && status.controls?.sendEnabled && status.controls?.inboundEnabled) return { label: 'Operacional', className: 'bg-[#E8F7EF] text-[#147445]' };
-  return { label: 'Aguardando conexão', className: 'bg-[#EEF1F3] text-[#68757D]' };
+const emptyAccountForm: EvolutionGoAccountInput = { accountType: 'corporate', label: '', ownerUserId: '' };
+const emptyConfigurationForm: ConfigurationForm = { label: '', baseUrl: '', globalApiKey: '', instanceToken: '', instanceName: '', instanceId: '' };
+
+const connectionCopy: Record<WhatsappConnectionStatus, string> = {
+  unconfigured: 'Não configurada',
+  configured: 'Configurada',
+  qr: 'Aguardando leitura do QR',
+  connected: 'Conectada',
+  disconnected: 'Desconectada',
+  expired: 'Sessão expirada',
+  error: 'Requer atenção',
+};
+
+function evolutionGoStatusCopy(status: EvolutionGoChannelStatus | null) {
+  if (!status?.account || !status.configured) {
+    return { label: 'Aguardando provisionamento', className: 'bg-background-100 text-foreground-600', icon: 'ri-settings-4-line' };
+  }
+  if (status.account.connectionStatus === 'error' || status.account.connectionStatus === 'expired') {
+    return { label: 'Requer atenção', className: 'bg-accent-50 text-accent-800', icon: 'ri-error-warning-line' };
+  }
+  if (status.account.connectionStatus === 'qr') {
+    return { label: 'Aguardando conexão', className: 'bg-[#FFF1D8] text-[#965A12]', icon: 'ri-qr-code-line' };
+  }
+  if (status.account.connectionStatus === 'configured') {
+    return { label: 'Pronta para conectar', className: 'bg-[#FFF1D8] text-[#965A12]', icon: 'ri-time-line' };
+  }
+  if (status.account.connectionStatus !== 'connected' || status.integration?.connected !== true) {
+    return { label: 'Desconectada', className: 'bg-[#EEF1F3] text-[#68757D]', icon: 'ri-link-unlink-m' };
+  }
+  if (!status.account.enabled || status.integration.enabled !== true || status.integration.paused
+    || status.controls?.killSwitch !== false || status.controls?.inboundEnabled !== true || status.controls?.sendEnabled !== true) {
+    return { label: 'Conectada · uso protegido', className: 'bg-[#FFF1D8] text-[#965A12]', icon: 'ri-shield-check-line' };
+  }
+  return { label: 'Operacional', className: 'bg-[#E8F7EF] text-[#147445]', icon: 'ri-checkbox-circle-line' };
+}
+
+function hasAccount(status: EvolutionGoChannelStatus): status is AccountStatus {
+  return Boolean(status.account?.id);
 }
 
 function errorCopy(error: unknown) {
   const code = error instanceof Error ? error.message : '';
   const map: Record<string, string> = {
-    permission_denied: 'Seu usuário não possui permissão para gerenciar o canal.',
+    permission_denied: 'Seu usuário não possui permissão para gerenciar esta conta.',
+    evolution_go_account_not_found: 'A conta não foi encontrada ou não está disponível para seu usuário.',
+    evolution_go_account_id_required: 'Não foi possível identificar a conta selecionada.',
+    evolution_go_account_owner_required: 'Selecione um usuário ativo para a conta individual.',
+    evolution_go_account_owner_already_assigned: 'Este usuário já possui uma conta Evolution GO.',
     evolution_go_allowed_origins_not_configured: 'O domínio HTTPS do Evolution GO ainda não foi liberado no ambiente seguro.',
-    evolution_go_credentials_required: 'Informe URL HTTPS, chave global, token e nome da instância.',
-    evolution_go_instance_create_credentials_required: 'Para criar uma instância, informe URL HTTPS, chave global e nome.',
-    evolution_go_connection_validation_required: 'Conecte a instância e confirme o status antes de ativar o uso operacional.',
-    evolution_go_credentials_save_failed: 'Não foi possível armazenar as credenciais no cofre.',
+    evolution_go_instance_create_credentials_required: 'O servidor ainda não possui o provisionamento seguro necessário para criar a instância.',
+    evolution_go_credentials_required: 'Informe os dados exigidos para esta instância. Campos vazios preservam valores que já estejam no cofre.',
+    evolution_go_credentials_incomplete: 'A instância ainda depende de provisionamento administrativo no servidor.',
+    evolution_go_credentials_save_failed: 'Não foi possível armazenar a configuração no cofre do servidor.',
+    evolution_go_connection_validation_required: 'Conecte a instância e atualize o status antes de ativar o uso operacional.',
+    evolution_go_phone_required: 'Informe o telefone com DDI e DDD para gerar o código.',
   };
   return map[code] || 'Não foi possível concluir a operação. O estado operacional anterior foi preservado.';
 }
@@ -36,65 +83,322 @@ function errorCopy(error: unknown) {
 function stamp(value: string | null | undefined) {
   if (!value) return 'Ainda não registrado';
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? 'Data indisponível' : date.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
+  return Number.isNaN(date.getTime())
+    ? 'Data indisponível'
+    : date.toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' });
 }
 
-/** Dedicated Evolution GO configuration. Credentials only travel to the Edge Function and are never read back. */
-export default function EvolutionGoPanel() {
-  const [status, setStatus] = useState<EvolutionGoChannelStatus | null>(null);
-  const [form, setForm] = useState<Form>(initialForm);
-  const [phone, setPhone] = useState('');
-  const [qr, setQr] = useState<{ qrcode: string | null; code: string | null; expiresAt: string | null } | null>(null);
-  const [pairingCode, setPairingCode] = useState<string | null>(null);
-  const [busy, setBusy] = useState<string | null>(null);
-  const [notice, setNotice] = useState<{ tone: 'success' | 'error'; text: string } | null>(null);
+function accountScope(account: Account, members: TeamMember[]) {
+  if (account.accountType === 'corporate') return 'Corporativa · compartilhada pela empresa';
+  const owner = members.find((member) => member.userId === account.ownerUserId);
+  return owner ? `Individual · ${owner.name}` : 'Individual · vendedor responsável';
+}
 
-  const refresh = useCallback(async () => {
-    setBusy('refresh'); setNotice(null);
-    try { setStatus(await loadEvolutionGoStatus()); }
-    catch (error) { setNotice({ tone: 'error', text: errorCopy(error) }); }
-    finally { setBusy(null); }
+/** Multi-account manager. Stored provider secrets are never returned or prefilled. */
+export default function EvolutionGoPanel() {
+  const [accounts, setAccounts] = useState<AccountStatus[]>([]);
+  const [selectedAccountId, setSelectedAccountId] = useState('');
+  const [canManage, setCanManage] = useState(false);
+  const [members, setMembers] = useState<TeamMember[]>([]);
+  const [membersError, setMembersError] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [notice, setNotice] = useState<Notice | null>(null);
+  const [adding, setAdding] = useState(false);
+  const [accountForm, setAccountForm] = useState<EvolutionGoAccountInput>(emptyAccountForm);
+  const [configuring, setConfiguring] = useState(false);
+  const [configurationForm, setConfigurationForm] = useState<ConfigurationForm>(emptyConfigurationForm);
+  const [phone, setPhone] = useState('');
+  const [qr, setQr] = useState<QrState | null>(null);
+  const [pairing, setPairing] = useState<PairingState | null>(null);
+
+  const refresh = useCallback(async (clearNotice = true) => {
+    setBusy('refresh');
+    if (clearNotice) setNotice(null);
+    try {
+      const result = await loadEvolutionGoAccounts();
+      const visibleAccounts = result.accounts.filter(hasAccount);
+      setAccounts(visibleAccounts);
+      setCanManage(result.canManage);
+      setSelectedAccountId((current) => {
+        if (visibleAccounts.some((status) => status.account.id === current)) return current;
+        return visibleAccounts.find((status) => status.canConnect && status.account.accountType === 'seller')?.account.id
+          || visibleAccounts.find((status) => status.account.isDefault)?.account.id
+          || visibleAccounts[0]?.account.id
+          || '';
+      });
+    } catch (error) {
+      setNotice({ tone: 'error', text: errorCopy(error) });
+    } finally {
+      setLoading(false);
+      setBusy(null);
+    }
   }, []);
+
   useEffect(() => { void refresh(); }, [refresh]);
 
-  const run = async (key: string, task: () => Promise<EvolutionGoChannelStatus>, success: string) => {
-    setBusy(key); setNotice(null);
-    try { const next = await task(); setStatus(next); setNotice({ tone: 'success', text: success }); }
-    catch (error) { setNotice({ tone: 'error', text: errorCopy(error) }); }
-    finally { setBusy(null); }
-  };
-  const save = () => void run('save', () => saveEvolutionGoConfiguration(form), 'Configuração armazenada no cofre. O canal permanece protegido até a validação.');
-  const create = () => {
-    if (!window.confirm('Criar uma nova instância Evolution GO? O pedido será enviado uma única vez para evitar instâncias duplicadas.')) return;
-    void run('create', () => createEvolutionGoInstance(form), 'Instância criada e vinculada com segurança. Conecte-a antes de ativar o canal.');
-  };
-  const action = (name: Parameters<typeof runEvolutionGoAction>[0], label: string) => void run(name, () => runEvolutionGoAction(name), label);
-  const loadQr = async () => {
-    setBusy('qr'); setNotice(null);
-    try { const result = await requestEvolutionGoQr(); setQr(result.qr); setNotice({ tone: 'success', text: 'QR Code atualizado a partir do provedor.' }); }
-    catch (error) { setNotice({ tone: 'error', text: errorCopy(error) }); }
-    finally { setBusy(null); }
-  };
-  const pair = async () => {
-    setBusy('pair'); setNotice(null);
-    try { const result = await requestEvolutionGoPairingCode(phone); setPairingCode(result.pairingCode); setNotice({ tone: 'success', text: 'Código de pareamento solicitado ao provedor.' }); }
-    catch (error) { setNotice({ tone: 'error', text: errorCopy(error) }); }
-    finally { setBusy(null); }
-  };
-  const badge = statusCopy(status);
-  const connected = status?.integration?.connected === true;
-  const active = status?.account?.enabled === true && status?.controls?.killSwitch === false;
-  const qrImage = qr?.qrcode && (qr.qrcode.startsWith('data:image/') || qr.qrcode.startsWith('https://')) ? qr.qrcode : null;
+  useEffect(() => {
+    if (!canManage) {
+      setMembers([]);
+      setMembersError(false);
+      return;
+    }
+    let active = true;
+    void loadTeamMembers()
+      .then((result) => {
+        if (!active) return;
+        setMembers(result.filter((member) => member.status === 'active'));
+        setMembersError(false);
+      })
+      .catch(() => { if (active) setMembersError(true); });
+    return () => { active = false; };
+  }, [canManage]);
 
-  return <section id="evolution-go-configuration" className="rounded-2xl border border-background-200 bg-white p-5 shadow-[0_10px_24px_rgba(29,29,31,0.035)]" aria-label="Configuração do Evolution GO">
+  useEffect(() => {
+    setQr(null);
+    setPairing(null);
+    setPhone('');
+    setConfiguring(false);
+    setConfigurationForm(emptyConfigurationForm);
+  }, [selectedAccountId]);
+
+  const selected = useMemo(
+    () => accounts.find((status) => status.account.id === selectedAccountId) ?? accounts[0] ?? null,
+    [accounts, selectedAccountId],
+  );
+
+  const replaceStatus = (next: EvolutionGoChannelStatus) => {
+    if (!hasAccount(next)) return;
+    setAccounts((current) => {
+      const exists = current.some((status) => status.account.id === next.account.id);
+      return exists
+        ? current.map((status) => status.account.id === next.account.id ? next : status)
+        : [...current, next];
+    });
+    setSelectedAccountId(next.account.id);
+  };
+
+  const run = async (key: string, task: () => Promise<EvolutionGoChannelStatus>, success: string) => {
+    setBusy(key);
+    setNotice(null);
+    setQr(null);
+    setPairing(null);
+    try {
+      const next = await task();
+      replaceStatus(next);
+      setNotice({ tone: 'success', text: success });
+    } catch (error) {
+      setNotice({ tone: 'error', text: errorCopy(error) });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const addAccount = async () => {
+    const label = accountForm.label.trim();
+    if (!label || (accountForm.accountType === 'seller' && !accountForm.ownerUserId)) {
+      setNotice({ tone: 'error', text: accountForm.accountType === 'seller' ? 'Informe o nome do canal e selecione o vendedor responsável.' : 'Informe o nome do canal.' });
+      return;
+    }
+    setBusy('create_account');
+    setNotice(null);
+    try {
+      const next = await createEvolutionGoAccount({ ...accountForm, label });
+      replaceStatus(next);
+      setAccountForm(emptyAccountForm);
+      setAdding(false);
+      setNotice({ tone: 'success', text: 'Conta adicionada. O canal permanece protegido até o provisionamento e a conexão serem confirmados.' });
+    } catch (error) {
+      setNotice({ tone: 'error', text: errorCopy(error) });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const openConfiguration = () => {
+    if (!selected) return;
+    setConfigurationForm({ ...emptyConfigurationForm, label: selected.account.label });
+    setConfiguring((current) => !current);
+    setNotice(null);
+  };
+
+  const submitConfiguration = async (mode: 'save' | 'create') => {
+    if (!selected) return;
+    const input: EvolutionGoConfigurationInput = {
+      label: configurationForm.label.trim() || selected.account.label,
+      baseUrl: configurationForm.baseUrl.trim() || undefined,
+      globalApiKey: configurationForm.globalApiKey.trim() || undefined,
+      instanceToken: configurationForm.instanceToken.trim() || undefined,
+      instanceName: configurationForm.instanceName.trim() || undefined,
+      instanceId: configurationForm.instanceId.trim() || undefined,
+    };
+    setBusy(`${mode}:${selected.account.id}`);
+    setNotice(null);
+    try {
+      const next = mode === 'save'
+        ? await saveEvolutionGoConfiguration(selected.account.id, input)
+        : await createEvolutionGoInstance(selected.account.id, input);
+      replaceStatus(next);
+      setConfiguring(false);
+      setNotice({
+        tone: 'success',
+        text: mode === 'save'
+          ? 'Configuração armazenada no cofre. Os valores enviados não serão exibidos pela interface.'
+          : 'Instância criada e armazenada no ambiente seguro. Inicie a conexão para gerar o pareamento.',
+      });
+    } catch (error) {
+      setNotice({ tone: 'error', text: errorCopy(error) });
+    } finally {
+      setConfigurationForm({ ...emptyConfigurationForm, label: input.label || '' });
+      setBusy(null);
+    }
+  };
+
+  const action = (
+    name: Parameters<typeof runEvolutionGoAction>[0],
+    success: string,
+  ) => {
+    if (!selected) return;
+    void run(`${name}:${selected.account.id}`, () => runEvolutionGoAction(name, selected.account.id), success);
+  };
+
+  const loadQr = async () => {
+    if (!selected?.canViewQr) return;
+    const accountId = selected.account.id;
+    setBusy(`qr:${accountId}`);
+    setNotice(null);
+    setPairing(null);
+    try {
+      const result = await requestEvolutionGoQr(accountId);
+      setQr({ accountId, ...result.qr });
+      setNotice({ tone: 'success', text: 'QR Code temporário atualizado pelo backend autorizado.' });
+    } catch (error) {
+      setQr(null);
+      setNotice({ tone: 'error', text: errorCopy(error) });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const requestPairing = async () => {
+    if (!selected?.canViewQr) return;
+    const accountId = selected.account.id;
+    setBusy(`pair:${accountId}`);
+    setNotice(null);
+    setQr(null);
+    try {
+      const result = await requestEvolutionGoPairingCode(accountId, phone);
+      setPairing(result.pairingCode ? { accountId, code: result.pairingCode } : null);
+      setNotice({ tone: 'success', text: result.pairingCode ? 'Código temporário gerado para a conta selecionada.' : 'O provedor não retornou um código. Atualize o status e tente novamente.' });
+    } catch (error) {
+      setPairing(null);
+      setNotice({ tone: 'error', text: errorCopy(error) });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const selectedBadge = evolutionGoStatusCopy(selected);
+  const selectedConnected = selected?.account.connectionStatus === 'connected' && selected.integration?.connected === true;
+  const selectedActive = selected?.account.enabled === true;
+  const selectedPairingOpen = selected?.account.connectionStatus === 'qr';
+  const phoneValid = phone.replace(/\D/g, '').length >= 10;
+  const qrForSelected = selected?.canViewQr && qr?.accountId === selected.account.id ? qr : null;
+  const pairingForSelected = selected?.canViewQr && pairing?.accountId === selected.account.id ? pairing : null;
+  const qrImage = qrForSelected?.qrcode?.startsWith('data:image/') ? qrForSelected.qrcode : null;
+
+  return <section id="evolution-go-configuration" className="rounded-2xl border border-background-200 bg-white p-5 shadow-[0_10px_24px_rgba(29,29,31,0.035)]" aria-label="Gerenciador de contas Evolution GO">
     <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-      <div className="flex gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#E8F7EF] text-xl text-[#168654]"><i className="ri-whatsapp-line" /></span><div><h4 className="font-semibold text-foreground-950">Evolution GO</h4><p className="mt-1 text-xs leading-5 text-foreground-500">Canal corporativo com instância, webhook assinado e fila idempotente.</p></div></div>
-      <span className={`w-fit rounded-full px-2.5 py-1 text-xs font-semibold ${badge.className}`}>{badge.label}</span>
+      <div className="flex gap-3">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#E8F7EF] text-xl text-[#168654]"><i className="ri-whatsapp-line" /></span>
+        <div><h4 className="font-semibold text-foreground-950">Evolution GO</h4><p className="mt-1 text-xs leading-5 text-foreground-500">Contas corporativas compartilhadas e contas individuais isoladas por vendedor.</p></div>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <button type="button" className="wf-btn-secondary text-xs" disabled={busy !== null} onClick={() => void refresh()}><i className={busy === 'refresh' ? 'ri-loader-4-line animate-spin' : 'ri-refresh-line'} />Atualizar</button>
+        {canManage && <button type="button" className="wf-btn-primary text-xs" disabled={busy !== null} onClick={() => { setAdding((value) => !value); setNotice(null); }}><i className="ri-add-line" />Adicionar conta</button>}
+      </div>
     </header>
-    {notice && <p role="status" className={`mt-4 rounded-xl border px-3 py-2 text-xs ${notice.tone === 'success' ? 'border-[#B9E4CB] bg-[#EFFAF3] text-[#176B43]' : 'border-[#E8B8B1] bg-[#FFF4F2] text-[#8B3027]'}`}>{notice.text}</p>}
-    <div className="mt-4 grid gap-3 text-xs sm:grid-cols-3"><div className="rounded-xl bg-background-50 p-3"><p className="text-foreground-500">Conexão</p><p className="mt-1 font-semibold text-foreground-900">{connected ? `Conectada${status?.account?.phoneSuffix ? ` · final ${status.account.phoneSuffix}` : ''}` : status?.account?.connectionStatus || 'Não configurada'}</p></div><div className="rounded-xl bg-background-50 p-3"><p className="text-foreground-500">Instância</p><p className="mt-1 truncate font-semibold text-foreground-900">{status?.integration?.instanceName || 'Não informada'}</p></div><div className="rounded-xl bg-background-50 p-3"><p className="text-foreground-500">Última validação</p><p className="mt-1 font-semibold text-foreground-900">{stamp(status?.integration?.lastTestedAt)}</p></div></div>
-    <details className="mt-4 rounded-xl border border-background-200 p-3.5"><summary className="cursor-pointer text-sm font-semibold text-foreground-800">Vincular instância existente ou criar uma nova</summary><div className="mt-4 grid gap-3 sm:grid-cols-2"><label className="text-xs font-medium text-foreground-700">Nome do canal<input value={form.label} onChange={(event) => setForm({ ...form, label: event.target.value })} className="mt-1.5 w-full rounded-lg border border-background-200 px-3 py-2 text-sm" /></label><label className="text-xs font-medium text-foreground-700">URL HTTPS do servidor<input inputMode="url" placeholder="https://evolution.suaempresa.com" value={form.baseUrl} onChange={(event) => setForm({ ...form, baseUrl: event.target.value })} className="mt-1.5 w-full rounded-lg border border-background-200 px-3 py-2 text-sm" /></label><label className="text-xs font-medium text-foreground-700">Nome da instância<input value={form.instanceName} onChange={(event) => setForm({ ...form, instanceName: event.target.value })} className="mt-1.5 w-full rounded-lg border border-background-200 px-3 py-2 text-sm" /></label><label className="text-xs font-medium text-foreground-700">Chave global<input type="password" autoComplete="new-password" value={form.globalApiKey} onChange={(event) => setForm({ ...form, globalApiKey: event.target.value })} className="mt-1.5 w-full rounded-lg border border-background-200 px-3 py-2 text-sm" /></label><label className="text-xs font-medium text-foreground-700">Token da instância<input type="password" autoComplete="new-password" value={form.instanceToken} onChange={(event) => setForm({ ...form, instanceToken: event.target.value })} className="mt-1.5 w-full rounded-lg border border-background-200 px-3 py-2 text-sm" /></label><label className="text-xs font-medium text-foreground-700">ID da instância <span className="font-normal text-foreground-400">opcional</span><input value={form.instanceId} onChange={(event) => setForm({ ...form, instanceId: event.target.value })} className="mt-1.5 w-full rounded-lg border border-background-200 px-3 py-2 text-sm" /></label></div><p className="mt-3 text-[11px] leading-5 text-foreground-500">As chaves são enviadas somente ao cofre do servidor e nunca são retornadas à tela. A URL precisa ter HTTPS e estar liberada na lista operacional do ambiente.</p><div className="mt-4 flex flex-wrap gap-2"><button type="button" disabled={busy !== null} onClick={save} className="wf-btn-primary text-xs disabled:opacity-60"><i className="ri-save-line" />Salvar e vincular</button><button type="button" disabled={busy !== null} onClick={create} className="wf-btn-secondary text-xs disabled:opacity-60"><i className="ri-add-circle-line" />Criar instância</button></div></details>
-    {status?.configured && <div className="mt-4 rounded-xl border border-background-200 p-3.5"><div className="flex flex-wrap items-center justify-between gap-2"><div><h5 className="text-sm font-semibold text-foreground-900">Conexão e ativação</h5><p className="mt-1 text-xs text-foreground-500">O uso só é liberado após status conectado. Desconectar preserva credenciais e histórico.</p></div><button type="button" className="wf-btn-secondary text-xs" disabled={busy !== null} onClick={() => void refresh()}><i className={busy === 'refresh' ? 'ri-loader-4-line animate-spin' : 'ri-refresh-line'} />Atualizar status</button></div><div className="mt-3 flex flex-wrap gap-2"><button type="button" className="wf-btn-secondary text-xs" disabled={busy !== null} onClick={() => action('connect', 'Conexão iniciada; leia o QR Code ou use o pareamento.')}>Conectar</button><button type="button" className="wf-btn-secondary text-xs" disabled={busy !== null} onClick={() => void loadQr()}>Ver QR Code</button><button type="button" className="wf-btn-secondary text-xs" disabled={busy !== null || !phone.trim()} onClick={() => void pair()}>Gerar código</button><input aria-label="Telefone para pareamento" inputMode="tel" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="5511999999999" className="w-40 rounded-lg border border-background-200 px-3 py-2 text-xs" /><button type="button" className="wf-btn-secondary text-xs" disabled={busy !== null} onClick={() => action('reconnect', 'Reconexão solicitada. Atualize o QR Code para continuar.')}>Reconectar</button>{!active ? <button type="button" className="wf-btn-primary text-xs" disabled={busy !== null || !connected} onClick={() => { if (window.confirm('Ativar Evolution GO como canal corporativo padrão? Os outros provedores corporativos serão desativados no WayFlex, sem apagar sessões nem histórico.')) action('activate', 'Evolution GO ativado como canal corporativo padrão.'); }}>Ativar uso</button> : <button type="button" className="wf-btn-secondary text-xs text-accent-700" disabled={busy !== null} onClick={() => { if (window.confirm('Desativar o uso operacional do Evolution GO? A sessão e as credenciais serão preservadas.')) action('deactivate', 'Uso operacional desativado; sessão e histórico preservados.'); }}>Desativar uso</button>}<button type="button" className="wf-btn-secondary text-xs text-accent-700" disabled={busy !== null} onClick={() => { if (window.confirm('Encerrar a sessão remota do Evolution GO? Esta ação exige novo pareamento.')) action('logout', 'Sessão Evolution GO encerrada.'); }}>Encerrar sessão</button></div>{(qr || pairingCode) && <div className="mt-4 grid gap-3 rounded-xl bg-background-50 p-3 sm:grid-cols-2">{qr && <div><p className="text-xs font-semibold text-foreground-800">QR Code atual</p>{qrImage ? <img src={qrImage} alt="QR Code de pareamento da instância Evolution GO" className="mt-2 h-40 w-40 rounded-lg bg-white object-contain p-2" /> : <p className="mt-2 break-all text-[11px] text-foreground-600">{qr.code || 'O provedor não retornou uma imagem QR legível. Use o código ou atualize o QR.'}</p>}<p className="mt-2 text-[11px] text-foreground-500">Expira: {stamp(qr.expiresAt)}</p></div>}{pairingCode && <div><p className="text-xs font-semibold text-foreground-800">Código de pareamento</p><code className="mt-2 block rounded-lg bg-white p-3 text-base font-bold tracking-widest text-foreground-950">{pairingCode}</code><p className="mt-2 text-[11px] text-foreground-500">Use no WhatsApp antes de atualizar o status.</p></div>}</div>}</div>}
-    <p className="mt-4 text-[11px] leading-5 text-foreground-500">Webhook: aceitação rápida, assinatura por integração e processamento assíncrono. Eventos desconhecidos, grupos e mídia sem metadados suficientes são registrados para revisão, nunca associados silenciosamente a um lead.</p>
+
+    <p className="mt-3 rounded-xl border border-background-200 bg-background-50 px-3 py-2 text-[11px] leading-5 text-foreground-500"><i className="ri-lock-2-line mr-1" />Valores já armazenados permanecem no backend. A interface recebe somente metadados, permissões e estados operacionais e nunca preenche os campos protegidos.</p>
+    {notice && <p role={notice.tone === 'error' ? 'alert' : 'status'} className={`mt-4 rounded-xl border px-3 py-2 text-xs ${notice.tone === 'success' ? 'border-[#B9E4CB] bg-[#EFFAF3] text-[#176B43]' : 'border-[#E8B8B1] bg-[#FFF4F2] text-[#8B3027]'}`}>{notice.text}</p>}
+
+    {adding && canManage && <div className="mt-4 rounded-xl border border-background-200 bg-background-50 p-4">
+      <div className="flex items-start justify-between gap-3"><div><h5 className="text-sm font-semibold text-foreground-900">Nova conta Evolution GO</h5><p className="mt-1 text-xs leading-5 text-foreground-500">A criação registra somente o vínculo operacional. O provisionamento continua fechado no servidor.</p></div><button type="button" className="rounded-lg p-1.5 text-foreground-500 hover:bg-background-100" onClick={() => setAdding(false)} aria-label="Fechar cadastro"><i className="ri-close-line" /></button></div>
+      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <label className="text-xs font-medium text-foreground-700">Escopo<select value={accountForm.accountType} onChange={(event) => setAccountForm({ accountType: event.target.value as EvolutionGoAccountInput['accountType'], label: accountForm.label, ownerUserId: '' })} className="mt-1.5 w-full rounded-lg border border-background-200 bg-white px-3 py-2 text-sm"><option value="corporate">Corporativa compartilhada</option><option value="seller">Individual por vendedor</option></select></label>
+        <label className="text-xs font-medium text-foreground-700">Nome do canal<input value={accountForm.label} onChange={(event) => setAccountForm({ ...accountForm, label: event.target.value })} placeholder={accountForm.accountType === 'corporate' ? 'WhatsApp corporativo' : 'WhatsApp comercial'} className="mt-1.5 w-full rounded-lg border border-background-200 bg-white px-3 py-2 text-sm" /></label>
+        {accountForm.accountType === 'seller' && <label className="text-xs font-medium text-foreground-700 sm:col-span-2">Vendedor responsável<select value={accountForm.ownerUserId} onChange={(event) => setAccountForm({ ...accountForm, ownerUserId: event.target.value })} disabled={membersError || members.length === 0} className="mt-1.5 w-full rounded-lg border border-background-200 bg-white px-3 py-2 text-sm disabled:opacity-60"><option value="">Selecione um usuário ativo</option>{members.map((member) => <option key={member.userId} value={member.userId}>{member.name} · {member.email}</option>)}</select>{membersError && <span className="mt-1 block text-[11px] text-accent-700">A equipe não pôde ser carregada. Atualize a página antes de criar uma conta individual.</span>}</label>}
+      </div>
+      <div className="mt-4 flex justify-end gap-2"><button type="button" className="wf-btn-secondary text-xs" onClick={() => setAdding(false)}>Cancelar</button><button type="button" className="wf-btn-primary text-xs disabled:opacity-60" disabled={busy !== null || !accountForm.label.trim() || (accountForm.accountType === 'seller' && !accountForm.ownerUserId)} onClick={() => void addAccount()}>{busy === 'create_account' ? 'Adicionando…' : 'Adicionar conta'}</button></div>
+    </div>}
+
+    {loading ? <div className="mt-4 rounded-xl border border-background-200 p-7 text-center text-sm text-foreground-500"><i className="ri-loader-4-line mr-2 animate-spin" />Carregando contas autorizadas…</div>
+      : accounts.length === 0
+        ? <div className="mt-4 rounded-xl border border-dashed border-background-300 bg-background-50 p-7 text-center"><i className="ri-whatsapp-line text-3xl text-foreground-300" /><p className="mt-2 font-semibold text-foreground-800">Nenhuma conta Evolution GO disponível</p><p className="mx-auto mt-1 max-w-xl text-xs leading-5 text-foreground-500">{canManage ? 'Adicione uma conta corporativa ou individual. Ela permanecerá inativa até o provisionamento seguro e a conexão.' : 'Seu usuário ainda não possui uma conta individual, e nenhuma conta corporativa foi compartilhada.'}</p></div>
+        : <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(240px,0.72fr)_minmax(0,1.28fr)]">
+          <div className="space-y-2" aria-label="Contas Evolution GO disponíveis">{accounts.map((status) => {
+            const badge = evolutionGoStatusCopy(status);
+            const selectedAccount = status.account.id === selected?.account.id;
+            return <button key={status.account.id} type="button" aria-pressed={selectedAccount} onClick={() => setSelectedAccountId(status.account.id)} className={`w-full rounded-xl border p-3 text-left transition ${selectedAccount ? 'border-primary-300 bg-primary-50/50 ring-1 ring-primary-200' : 'border-background-200 bg-white hover:border-background-300 hover:bg-background-50'}`}>
+              <span className="flex items-start justify-between gap-2"><span className="min-w-0"><span className="block truncate text-sm font-semibold text-foreground-900">{status.account.label}</span><span className="mt-1 block text-[11px] leading-4 text-foreground-500">{accountScope(status.account, members)}</span></span><span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-semibold ${badge.className}`}><i className={`${badge.icon} mr-1`} />{badge.label}</span></span>
+              <span className="mt-3 flex items-center justify-between text-[11px] text-foreground-500"><span>{status.account.phoneSuffix ? `Número final ${status.account.phoneSuffix}` : 'Número não confirmado'}</span>{status.account.isDefault && <span className="font-semibold text-primary-700">Padrão</span>}</span>
+            </button>;
+          })}</div>
+
+          {selected && <article className="rounded-xl border border-background-200 p-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><div className="flex flex-wrap items-center gap-2"><h5 className="font-semibold text-foreground-950">{selected.account.label}</h5><span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${selectedBadge.className}`}><i className={`${selectedBadge.icon} mr-1`} />{selectedBadge.label}</span></div><p className="mt-1 text-xs text-foreground-500">{accountScope(selected.account, members)}</p></div>{selected.canManage && <button type="button" className="wf-btn-secondary text-xs" disabled={busy !== null} onClick={openConfiguration}><i className="ri-lock-2-line" />{configuring ? 'Fechar configuração' : selected.configured ? 'Atualizar configuração' : 'Configurar instância'}</button>}</div>
+
+            {configuring && selected.canManage && <div className="mt-4 rounded-xl border border-background-200 bg-background-50 p-4">
+              <div><h6 className="text-sm font-semibold text-foreground-900">Configuração protegida desta conta</h6><p className="mt-1 text-[11px] leading-5 text-foreground-500">Os campos protegidos começam sempre vazios. Em uma conta já configurada, deixar um campo vazio preserva o valor existente no cofre; nenhum valor salvo é retornado ou exibido.</p></div>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <label className="text-xs font-medium text-foreground-700">Nome do canal<input value={configurationForm.label} onChange={(event) => setConfigurationForm({ ...configurationForm, label: event.target.value })} className="mt-1.5 w-full rounded-lg border border-background-200 bg-white px-3 py-2 text-sm" /></label>
+                <label className="text-xs font-medium text-foreground-700">URL HTTPS do servidor<input type="password" autoComplete="new-password" spellCheck={false} value={configurationForm.baseUrl} onChange={(event) => setConfigurationForm({ ...configurationForm, baseUrl: event.target.value })} placeholder={selected.configured ? 'Vazio preserva o valor do cofre' : 'Informe para vincular uma instância'} className="mt-1.5 w-full rounded-lg border border-background-200 bg-white px-3 py-2 text-sm" /></label>
+                <label className="text-xs font-medium text-foreground-700">Chave global<input type="password" autoComplete="new-password" spellCheck={false} value={configurationForm.globalApiKey} onChange={(event) => setConfigurationForm({ ...configurationForm, globalApiKey: event.target.value })} placeholder={selected.configured ? 'Vazio preserva o valor do cofre' : 'Informe para vincular uma instância'} className="mt-1.5 w-full rounded-lg border border-background-200 bg-white px-3 py-2 text-sm" /></label>
+                <label className="text-xs font-medium text-foreground-700">Token da instância<input type="password" autoComplete="new-password" spellCheck={false} value={configurationForm.instanceToken} onChange={(event) => setConfigurationForm({ ...configurationForm, instanceToken: event.target.value })} placeholder={selected.configured ? 'Vazio preserva o valor do cofre' : 'Obrigatório ao vincular uma instância existente'} className="mt-1.5 w-full rounded-lg border border-background-200 bg-white px-3 py-2 text-sm" /></label>
+                <label className="text-xs font-medium text-foreground-700">Nome da instância<input type="password" autoComplete="new-password" spellCheck={false} value={configurationForm.instanceName} onChange={(event) => setConfigurationForm({ ...configurationForm, instanceName: event.target.value })} placeholder={selected.configured ? 'Vazio preserva o valor do cofre' : 'Vazio usa o nome do canal ao criar'} className="mt-1.5 w-full rounded-lg border border-background-200 bg-white px-3 py-2 text-sm" /></label>
+                <label className="text-xs font-medium text-foreground-700">ID da instância <span className="font-normal text-foreground-400">somente vínculo existente</span><input type="password" autoComplete="new-password" spellCheck={false} value={configurationForm.instanceId} onChange={(event) => setConfigurationForm({ ...configurationForm, instanceId: event.target.value })} placeholder={selected.configured ? 'Vazio preserva o valor do cofre' : 'Opcional'} className="mt-1.5 w-full rounded-lg border border-background-200 bg-white px-3 py-2 text-sm" /></label>
+              </div>
+              <div className="mt-4 flex flex-wrap justify-end gap-2"><button type="button" className="wf-btn-secondary text-xs" disabled={busy !== null} onClick={() => { setConfiguring(false); setConfigurationForm(emptyConfigurationForm); }}>Cancelar</button><button type="button" className="wf-btn-secondary text-xs disabled:opacity-60" disabled={busy !== null || !configurationForm.label.trim()} onClick={() => { if (window.confirm('Criar uma nova instância para esta conta? A operação não será repetida automaticamente em caso de resposta incerta.')) void submitConfiguration('create'); }}><i className="ri-add-circle-line" />{busy?.startsWith('create:') ? 'Criando…' : 'Criar nova instância'}</button><button type="button" className="wf-btn-primary text-xs disabled:opacity-60" disabled={busy !== null || !configurationForm.label.trim()} onClick={() => void submitConfiguration('save')}><i className="ri-save-line" />{busy?.startsWith('save:') ? 'Salvando…' : 'Salvar vínculo existente'}</button></div>
+            </div>}
+
+            <dl className="mt-4 grid gap-3 text-xs sm:grid-cols-2 lg:grid-cols-3">
+              <div className="rounded-xl bg-background-50 p-3"><dt className="text-foreground-500">Conexão real</dt><dd className="mt-1 font-semibold text-foreground-900">{connectionCopy[selected.account.connectionStatus] ?? 'Estado indisponível'}</dd></div>
+              <div className="rounded-xl bg-background-50 p-3"><dt className="text-foreground-500">Número</dt><dd className="mt-1 font-semibold text-foreground-900">{selected.account.phoneSuffix ? `Final ${selected.account.phoneSuffix}` : 'Não confirmado'}</dd></div>
+              <div className="rounded-xl bg-background-50 p-3"><dt className="text-foreground-500">Roteamento</dt><dd className="mt-1 font-semibold text-foreground-900">{selected.account.enabled ? selected.account.isDefault ? 'Ativo · padrão' : 'Ativo' : 'Desativado'}</dd></div>
+              <div className="rounded-xl bg-background-50 p-3"><dt className="text-foreground-500">Instância</dt><dd className="mt-1 truncate font-semibold text-foreground-900">{selected.integration?.instanceName || (selected.configured ? 'Identificador protegido' : 'Não provisionada')}</dd></div>
+              <div className="rounded-xl bg-background-50 p-3"><dt className="text-foreground-500">Última validação</dt><dd className="mt-1 font-semibold text-foreground-900">{stamp(selected.integration?.lastTestedAt || selected.account.checkedAt)}</dd></div>
+              <div className="rounded-xl bg-background-50 p-3"><dt className="text-foreground-500">Entrada / saída</dt><dd className="mt-1 font-semibold text-foreground-900">{selected.controls?.inboundEnabled && selected.controls.sendEnabled ? 'Liberadas' : 'Protegidas'}</dd></div>
+            </dl>
+
+            {selected.integration?.statusDetail && <p className="mt-3 rounded-xl border border-background-200 bg-background-50 px-3 py-2 text-xs leading-5 text-foreground-600"><span className="font-semibold text-foreground-700">Estado do servidor:</span> {selected.integration.statusDetail}</p>}
+            {selected.account.errorCode && <p className="mt-3 rounded-xl border border-accent-200 bg-accent-50 px-3 py-2 text-xs text-accent-800">Falha registrada: {selected.account.errorCode}</p>}
+
+            {!selected.configured && <div className="mt-4 rounded-xl border border-[#E9D2A9] bg-[#FFF8EA] p-3 text-xs leading-5 text-[#7B521B]"><i className="ri-information-line mr-1" />A conta existe, mas ainda depende do provisionamento seguro do servidor. Nenhum estado de conexão será presumido.</div>}
+            {selected.configured && !selected.canConnect && <div className="mt-4 rounded-xl border border-background-200 bg-background-50 p-3 text-xs leading-5 text-foreground-600"><i className="ri-eye-line mr-1" />Você possui acesso somente para acompanhar esta conta compartilhada. Pareamento e mudanças operacionais continuam restritos.</div>}
+
+            {selected.configured && selected.canConnect && <div className="mt-4 rounded-xl border border-background-200 p-3.5">
+              <div><h6 className="text-sm font-semibold text-foreground-900">Conexão e uso</h6><p className="mt-1 text-xs leading-5 text-foreground-500">As ações atingem somente a conta selecionada. Ativar uma conta individual não troca o canal corporativo padrão.</p></div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {!selectedConnected && !selectedPairingOpen && <button type="button" className="wf-btn-primary text-xs" disabled={busy !== null} onClick={() => action('connect', 'Conexão iniciada. Use o QR Code ou o pareamento temporário desta conta.')}><i className="ri-link" />Conectar</button>}
+                {selectedConnected && <button type="button" className="wf-btn-secondary text-xs" disabled={busy !== null} onClick={() => action('reconnect', 'Reconexão solicitada. Gere um novo QR Code ou código temporário.')}><i className="ri-restart-line" />Reconectar</button>}
+                <button type="button" className="wf-btn-secondary text-xs" disabled={busy !== null} onClick={() => action('refresh_status', 'Status real atualizado a partir do provedor.')}><i className={busy?.startsWith('refresh_status:') ? 'ri-loader-4-line animate-spin' : 'ri-refresh-line'} />Validar status</button>
+                {!selectedActive
+                  ? <button type="button" className="wf-btn-primary text-xs" disabled={busy !== null || !selectedConnected} onClick={() => { const scope = selected.account.accountType === 'corporate' ? 'como conta corporativa padrão' : 'somente para as conversas atribuídas a este vendedor'; if (window.confirm(`Ativar esta conta ${scope}?`)) action('activate', selected.account.accountType === 'corporate' ? 'Conta ativada como canal corporativo padrão.' : 'Conta individual ativada sem substituir o canal corporativo.'); }}><i className="ri-play-circle-line" />Ativar uso</button>
+                  : <button type="button" className="wf-btn-secondary text-xs text-accent-700" disabled={busy !== null} onClick={() => { if (window.confirm('Desativar o uso desta conta sem apagar sessão ou histórico?')) action('deactivate', 'Uso operacional desativado; sessão e histórico preservados.'); }}><i className="ri-pause-circle-line" />Desativar uso</button>}
+                <button type="button" className="wf-btn-secondary text-xs text-accent-700" disabled={busy !== null || !selectedConnected} onClick={() => { if (window.confirm('Desconectar esta conta no provedor? O provisionamento será preservado.')) action('disconnect', 'Conta desconectada; provisionamento e histórico preservados.'); }}><i className="ri-link-unlink-m" />Desconectar</button>
+                <button type="button" className="wf-btn-secondary text-xs text-accent-700" disabled={busy !== null} onClick={() => { if (window.confirm('Encerrar a sessão remota desta conta? Um novo pareamento será necessário.')) action('logout', 'Sessão remota encerrada para a conta selecionada.'); }}><i className="ri-logout-box-r-line" />Encerrar sessão</button>
+              </div>
+
+              {selectedPairingOpen && selected.canViewQr && <div className="mt-4 rounded-xl bg-background-50 p-3"><div className="flex flex-wrap items-center gap-2"><button type="button" className="wf-btn-secondary text-xs" disabled={busy !== null} onClick={() => void loadQr()}><i className="ri-qr-code-line" />Gerar QR temporário</button><input aria-label="Telefone para pareamento Evolution GO" inputMode="tel" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="5511999999999" className="w-44 rounded-lg border border-background-200 bg-white px-3 py-2 text-xs" /><button type="button" className="wf-btn-secondary text-xs" disabled={busy !== null || !phoneValid} onClick={() => void requestPairing()}><i className="ri-smartphone-line" />Gerar código</button></div><p className="mt-2 text-[11px] leading-5 text-foreground-500">O backend revalida sua permissão para cada geração. QR e código nunca são incluídos na listagem de contas.</p></div>}
+
+              {(qrForSelected || pairingForSelected) && <div className="mt-4 grid gap-3 rounded-xl border border-background-200 bg-background-50 p-3 sm:grid-cols-2">
+                {qrForSelected && <div><p className="text-xs font-semibold text-foreground-800">QR Code temporário</p>{qrImage ? <img src={qrImage} alt="QR Code temporário da conta Evolution GO selecionada" className="mt-2 h-40 w-40 rounded-lg bg-white object-contain p-2" /> : <p className="mt-2 text-[11px] leading-5 text-foreground-600">O provedor não retornou uma imagem segura para exibição. Gere um código de pareamento ou atualize o QR.</p>}<p className="mt-2 text-[11px] text-foreground-500">Expira: {stamp(qrForSelected.expiresAt)}</p></div>}
+                {pairingForSelected && <div><p className="text-xs font-semibold text-foreground-800">Código temporário</p><code className="mt-2 block rounded-lg bg-white p-3 text-base font-bold tracking-widest text-foreground-950">{pairingForSelected.code}</code><p className="mt-2 text-[11px] leading-5 text-foreground-500">Use somente no WhatsApp desta conta e valide o status em seguida.</p></div>}
+              </div>}
+            </div>}
+          </article>}
+        </div>}
+
+    <p className="mt-4 text-[11px] leading-5 text-foreground-500">A conta corporativa continua sendo o fallback compartilhado. Contas individuais permanecem vinculadas ao <code>owner_user_id</code>; seleção, conexão, QR e ativação são revalidados pelo backend para cada conta.</p>
   </section>;
 }

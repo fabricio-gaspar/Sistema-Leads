@@ -1330,3 +1330,10 @@
   `git diff --check` passaram. Site oficial v153 publicado pelo commit
   `ad2b8c5cce6c6b4bcf76af6dbf8e38c3b9e8178b`, deploy `appgdep_6abbcd277b4881918b0b961cde8148d7`
   com sucesso; inspeção autenticada da rota confirmou os dados reais e nenhum erro de runtime.
+
+## 2026-10-03 — Evolution GO multi-canal e transferência por atendente
+
+- Evoluído o adaptador existente, sem criar fluxo paralelo: cada canal Evolution GO é corporativo compartilhado ou privado de vendedor (`owner_user_id`), com metadados e permissões por conta. Segredos e QR não entram na listagem; QR/código são temporários, `no-store` e revalidados no backend.
+- A migration `20261003223000_transfer_whatsapp_channel_with_assignee` torna a transferência humana atômica: `assigned_to`, `owner_id` e `whatsapp_account_id` trocam juntos após verificar a conta privada do novo atendente, a integração e os controles. O número antigo fica só como identidade histórica de entrada; respostas tardias não desfazem a conta ativa.
+- Todo callback Evolution agora também exige conta habilitada e integração conectada/habilitada/não pausada, mesmo quando outra conta da organização mantém o gate global aberto.
+- Validação local concluída: type-check frontend/Edge, lint, build/artefato Sites, `git diff --check` e Vitest **63 arquivos / 371 testes**. Nenhuma instância, QR, mensagem, callback, lead, transferência, automação ou credencial real foi acionada. Próxima ação: aplicação remota e homologação visual segura.
