@@ -103,6 +103,19 @@ export interface AccountsResponse {
   channelHistory?: WhatsappChannelHistoryEntry[];
 }
 
+const ACCOUNTS_READ_TIMEOUT_MS = 8_000;
+let accountsReadInFlight: Promise<AccountsResponse> | null = null;
+
+function withDeadline<T>(request: Promise<T>, timeoutMs: number, code: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error(code)), timeoutMs);
+    request.then(
+      (value) => { clearTimeout(timeout); resolve(value); },
+      (error) => { clearTimeout(timeout); reject(error); },
+    );
+  });
+}
+
 async function invoke<T extends Record<string, unknown>>(body: Record<string, unknown>): Promise<T> {
   const { data, error } = await supabase.functions.invoke('whatsapp-accounts', { body });
   if (error || !data?.ok) {
@@ -113,7 +126,16 @@ async function invoke<T extends Record<string, unknown>>(body: Record<string, un
 }
 
 export function loadWhatsappAccounts(): Promise<AccountsResponse> {
-  return invoke<AccountsResponse & Record<string, unknown>>({ action: 'list' });
+  if (accountsReadInFlight) return accountsReadInFlight;
+  const request = withDeadline(
+    invoke<AccountsResponse & Record<string, unknown>>({ action: 'list' }),
+    ACCOUNTS_READ_TIMEOUT_MS,
+    'whatsapp_accounts_request_timeout',
+  );
+  accountsReadInFlight = request;
+  const clear = () => { if (accountsReadInFlight === request) accountsReadInFlight = null; };
+  request.then(clear, clear);
+  return request;
 }
 
 export async function configureSellerWhatsappAccount(input: {

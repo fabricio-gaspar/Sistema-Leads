@@ -49,6 +49,16 @@ const emptyForm: EntryForm = {
   active: true,
 };
 
+function withDeadline<T>(request: Promise<T>, timeoutMs = 8_000): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error('whatsapp_entries_request_timeout')), timeoutMs);
+    request.then(
+      (value) => { clearTimeout(timeout); resolve(value); },
+      (error) => { clearTimeout(timeout); reject(error); },
+    );
+  });
+}
+
 async function invokeEntry<T>(action: 'load' | 'save' | 'rotate', payload: Record<string, unknown> = {}): Promise<T> {
   const { data, error } = await supabase.functions.invoke('site-whatsapp-entry', { body: { action, ...payload } });
   if (error || !data?.ok) throw new Error(data?.erro ?? await detalheDoErroDeFuncao(error));
@@ -74,6 +84,7 @@ function errorMessage(error: unknown): string {
   if (code === 'site_entry_fields_required') return 'Preencha nome, origem, número e mensagem inicial.';
   if (code === 'site_entry_not_configured') return 'Salve a entrada antes de gerar um novo link.';
   if (code === 'whatsapp_provider_disabled') return 'O provedor WhatsApp está desativado no Wayflex. Valide o canal em Configurações > Status operacional.';
+  if (code === 'whatsapp_entries_request_timeout' || code === 'whatsapp_accounts_request_timeout' || code === 'operational_request_timeout') return 'Uma consulta operacional demorou mais do que o permitido. Os dados disponíveis foram mantidos; atualize o status para tentar novamente.';
   return 'Não foi possível concluir esta ação. Nenhuma configuração foi alterada.';
 }
 
@@ -143,7 +154,7 @@ export default function WhatsAppEntriesTab() {
   const refresh = useCallback(async () => {
     setLoading(true);
     const [entryResult, accountsResult, diagnosticsResult] = await Promise.allSettled([
-      invokeEntry<{ entry: SiteEntry | null }>('load'),
+      withDeadline(invokeEntry<{ entry: SiteEntry | null }>('load')),
       loadWhatsappAccounts(),
       loadOperationalDiagnostics(),
     ]);
@@ -161,7 +172,9 @@ export default function WhatsAppEntriesTab() {
       setOverview(nextAccount ? accountsResult.value.channelOverviews?.[nextAccount.id] || null : null);
     }
     if (diagnosticsResult.status === 'fulfilled') setDiagnostics(diagnosticsResult.value);
-    if (entryResult.status === 'rejected' && accountsResult.status === 'rejected' && diagnosticsResult.status === 'rejected') setNotice({ tone: 'error', text: 'Não foi possível carregar as informações reais da entrada agora.' });
+    const failedReads = [entryResult, accountsResult, diagnosticsResult].filter((result) => result.status === 'rejected');
+    if (failedReads.length === 3) setNotice({ tone: 'error', text: 'Não foi possível carregar as informações reais da entrada agora.' });
+    else if (failedReads.length > 0) setNotice({ tone: 'error', text: 'Parte do diagnóstico demorou mais do que o permitido. Os dados reais disponíveis permanecem visíveis; atualize o status para tentar novamente.' });
     setLoading(false);
   }, []);
 

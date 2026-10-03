@@ -10,6 +10,13 @@ import {
   preflight,
   safeError,
 } from "../_shared/http.ts";
+
+const PROVIDER_REQUEST_TIMEOUT_MS = 5_000;
+
+function externalRequestFailed(error: unknown) {
+  const message = safeError(error).toLowerCase();
+  return message.includes("timeout") || message.includes("timed out") || message.includes("aborted");
+}
 const obj = (v: unknown): Record<string, unknown> =>
   v && typeof v === "object" && !Array.isArray(v)
     ? (v as Record<string, unknown>)
@@ -73,6 +80,8 @@ function providerDetail(code: string, provider: string) {
       "O Google Calendar recusou ou expirou a autorização.",
     cnpj_provider_unavailable:
       "A consulta pública CNPJ.ws não respondeu corretamente.",
+    provider_timeout:
+      "O provedor não respondeu dentro do prazo seguro de validação. Tente novamente em alguns instantes.",
   };
   return (
     map[code] ?? `Falha ao validar ${provider}. Consulte o código ${code}.`
@@ -187,7 +196,7 @@ Deno.serve(async (request) => {
             "Content-Type": "application/json",
             "Client-Token": client,
           },
-          signal: AbortSignal.timeout(20000),
+          signal: AbortSignal.timeout(PROVIDER_REQUEST_TIMEOUT_MS),
         },
       );
       const p = (await payload(response)) as {
@@ -207,14 +216,14 @@ Deno.serve(async (request) => {
         if (!key) throw new Error("integration_credentials_missing");
         response = await fetch("https://api.anthropic.com/v1/models?limit=1", {
           headers: { "x-api-key": key, "anthropic-version": "2023-06-01" },
-          signal: AbortSignal.timeout(20000),
+          signal: AbortSignal.timeout(PROVIDER_REQUEST_TIMEOUT_MS),
         });
       } else {
         const key = txt(credentials.openai_key, 1000);
         if (!key) throw new Error("integration_credentials_missing");
         response = await fetch("https://api.openai.com/v1/models", {
           headers: { Authorization: `Bearer ${key}` },
-          signal: AbortSignal.timeout(20000),
+          signal: AbortSignal.timeout(PROVIDER_REQUEST_TIMEOUT_MS),
         });
       }
       if (!response.ok) throw new Error(`ai_provider_${response.status}`);
@@ -226,7 +235,7 @@ Deno.serve(async (request) => {
         throw new Error("source_credentials_missing");
       let r = await fetch(
         `https://api.apify.com/v2/users/me?token=${encodeURIComponent(token)}`,
-        { signal: AbortSignal.timeout(20000) },
+        { signal: AbortSignal.timeout(PROVIDER_REQUEST_TIMEOUT_MS) },
       );
       if (r.status === 401 || r.status === 403)
         throw new Error("apify_token_rejected");
@@ -237,7 +246,7 @@ Deno.serve(async (request) => {
         : `/v2/acts/${encodeURIComponent(actor)}`;
       r = await fetch(
         `https://api.apify.com${path}?token=${encodeURIComponent(token)}`,
-        { signal: AbortSignal.timeout(20000) },
+        { signal: AbortSignal.timeout(PROVIDER_REQUEST_TIMEOUT_MS) },
       );
       if (r.status === 404) throw new Error("apify_actor_not_found");
       if (r.status === 401 || r.status === 403)
@@ -263,7 +272,7 @@ Deno.serve(async (request) => {
             regionCode: "BR",
             pageSize: 1,
           }),
-          signal: AbortSignal.timeout(20000),
+          signal: AbortSignal.timeout(PROVIDER_REQUEST_TIMEOUT_MS),
         },
       );
       if (
@@ -284,7 +293,7 @@ Deno.serve(async (request) => {
         throw new Error("email_credentials_incomplete");
       response = await fetch("https://api.resend.com/domains", {
         headers: { Authorization: `Bearer ${key}` },
-        signal: AbortSignal.timeout(20000),
+        signal: AbortSignal.timeout(PROVIDER_REQUEST_TIMEOUT_MS),
       });
       if (response.status === 401 || response.status === 403)
         throw new Error("email_key_rejected");
@@ -296,7 +305,7 @@ Deno.serve(async (request) => {
         "https://www.googleapis.com/calendar/v3/users/me/calendarList?maxResults=1",
         {
           headers: { Authorization: `Bearer ${access}` },
-          signal: AbortSignal.timeout(20000),
+          signal: AbortSignal.timeout(PROVIDER_REQUEST_TIMEOUT_MS),
         },
       );
       if (response.status === 401 || response.status === 403)
@@ -305,7 +314,7 @@ Deno.serve(async (request) => {
     } else {
       response = await fetch("https://publica.cnpj.ws/cnpj/19131243000197", {
         headers: { accept: "application/json" },
-        signal: AbortSignal.timeout(20000),
+        signal: AbortSignal.timeout(PROVIDER_REQUEST_TIMEOUT_MS),
       });
       if (!response.ok) throw new Error("cnpj_provider_unavailable");
     }
@@ -392,7 +401,7 @@ Deno.serve(async (request) => {
       headers,
     );
   } catch (error) {
-    const code = safeError(error),
+    const code = externalRequestFailed(error) ? "provider_timeout" : safeError(error),
       detail = code.startsWith("zapi_")
         ? zapiDetail(code)
         : providerDetail(code, provider);

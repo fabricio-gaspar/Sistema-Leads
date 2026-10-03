@@ -118,6 +118,9 @@ export interface OperationalDiagnostics {
 
 type OperationalAction = 'status' | 'set_kill_switch' | 'activate_real' | 'events' | 'configure_whatsapp_webhook' | 'activate_scheduler';
 
+const READ_ACTION_TIMEOUT_MS = 8_000;
+const readRequests = new Map<OperationalAction, Promise<unknown>>();
+
 export interface OperationalSetupResult {
   message: string;
   status: OperationalStatus;
@@ -129,10 +132,36 @@ export interface OperationalActivationResult extends OperationalSetupResult {
   remaining: OperationalCheck[];
 }
 
-async function invoke<T>(action: OperationalAction, payload: Record<string, unknown> = {}): Promise<T> {
+function withDeadline<T>(request: Promise<T>, timeoutMs: number, code: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error(code)), timeoutMs);
+    request.then(
+      (value) => { clearTimeout(timeout); resolve(value); },
+      (error) => { clearTimeout(timeout); reject(error); },
+    );
+  });
+}
+
+async function execute<T>(action: OperationalAction, payload: Record<string, unknown>): Promise<T> {
   const { data, error } = await supabase.functions.invoke('operational-diagnostics', { body: { action, ...payload } });
   if (error || !data?.ok) throw new Error(data?.erro ?? await detalheDoErroDeFuncao(error));
   return data as T;
+}
+
+function invoke<T>(action: OperationalAction, payload: Record<string, unknown> = {}): Promise<T> {
+  const isRead = action === 'status' || action === 'events';
+  if (!isRead) return execute<T>(action, payload);
+
+  const inFlight = readRequests.get(action) as Promise<T> | undefined;
+  if (inFlight) return inFlight;
+
+  const request = withDeadline(execute<T>(action, payload), READ_ACTION_TIMEOUT_MS, 'operational_request_timeout');
+  readRequests.set(action, request);
+  const clear = () => {
+    if (readRequests.get(action) === request) readRequests.delete(action);
+  };
+  request.then(clear, clear);
+  return request;
 }
 
 export async function loadOperationalStatus(): Promise<OperationalStatus> {
