@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "validated_commit": "LOCAL_UNCOMMITTED_EVOLUTION_GO_MULTICHANNEL",
-  "last_validated_at": "2026-10-03",
+  "validated_commit": "LOCAL_UNCOMMITTED_EVOLUTION_GO_REMOTE_SYNC",
+  "last_validated_at": "2026-10-04",
   "current_validation": {
     "stage": "evolution_go_multichannel_and_assignee_channel_transfer",
     "frontend_typecheck": "passed",
@@ -10,7 +10,7 @@
     "production_build": "passed",
     "sites_artifact": "passed_build; official Site publication pending",
     "deterministic_smoke_checks": 0,
-    "vitest": "passed; 63 files; 371 tests",
+    "vitest": "passed; 63 files; 372 tests",
     "visual_review": "pending official Site publication",
     "external_end_to_end": "not executed; no instance, QR, provider request, message, callback, lead transfer or automation was invoked"
   },

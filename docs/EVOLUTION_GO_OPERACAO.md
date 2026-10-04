@@ -1,6 +1,6 @@
 # Evolution GO — operação segura
 
-Esta integração adiciona o Evolution GO como **terceiro provedor corporativo** de WhatsApp. Ela não substitui Z-API ou Meta Cloud API e começa bloqueada por padrão.
+O Evolution GO é o **canal principal configurável** de WhatsApp. Z-API e Meta Cloud API permanecem disponíveis apenas como provedores legados/alternativos e o Evolution começa bloqueado por padrão.
 
 ## O que foi implementado
 
@@ -10,14 +10,14 @@ Esta integração adiciona o Evolution GO como **terceiro provedor corporativo**
 - Webhook rápido, com segredo por integração, comparação em tempo constante, limite de corpo e fila idempotente. Segredos, QR Codes e pareamentos não são persistidos em diagnósticos ou logs.
 - Worker assíncrono para mensagens recebidas, recibos e conexão. Ele grava mensagens, cancela automações pendentes após resposta do cliente, respeita handoff humano e chama a Ana apenas quando permitido.
 - Retentativas com espera exponencial e `dead_letter` após cinco falhas; o agendador já existente também consome callbacks pendentes sem bloquear a operação comercial.
+- Ao criar um acesso direto de vendedor, o servidor cria registros locais desativados e uma fila durável de provisionamento individual. Token, nome e ID da instância só são criados pelo worker, depois de a configuração global segura estar disponível; nenhum segredo é retornado ao navegador.
 
 ## Pré-requisitos de publicação
 
-1. Aplicar a migração `20261003185824_evolution_go_channel_foundation.sql` no projeto Supabase correto.
-2. Publicar as funções `evolution-go`, `webhook-evolution-go` e `evolution-go-worker`, juntamente com o `automation-worker` atualizado.
-3. Definir `EVOLUTION_GO_ALLOWED_ORIGINS` como uma lista separada por vírgulas de origens HTTPS exatas. Não use IP privado, `localhost`, caminhos ou curingas.
-4. Informar na tela a URL HTTPS da instância Evolution GO e as credenciais reais. Elas não entram no Git nem no frontend.
-5. Criar ou vincular a instância; conectar por QR Code ou pareamento; atualizar status; só então clicar em **Ativar uso**.
+1. As migrations de fundação, transferência atômica e provisionamento automático e as funções Evolution já foram verificadas no projeto Supabase oficial em 04/10/2026.
+2. Definir `EVOLUTION_GO_ALLOWED_ORIGINS` como uma lista separada por vírgulas de origens HTTPS exatas. Não use IP privado, `localhost`, caminhos ou curingas.
+3. Informar na tela a URL HTTPS da instância Evolution GO e as credenciais reais. Elas não entram no Git nem no frontend.
+4. Criar ou vincular a instância; conectar por QR Code ou pareamento; atualizar status; só então clicar em **Ativar uso**.
 
 Enquanto esses passos não forem concluídos, o controle de entrada, saída e automação permanece desligado. Nenhuma mensagem será enviada nem recebida pelo Evolution GO por engano.
 

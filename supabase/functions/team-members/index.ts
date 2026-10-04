@@ -118,6 +118,89 @@ interface PreparedInvite {
   } | null;
 }
 
+type SellerProvisioning = {
+  jobId: string;
+  whatsappAccountId: string;
+  integrationId: string;
+  instanceName: string;
+  state: string;
+};
+
+/**
+ * The database transaction creates only local, disabled records and a durable
+ * queue entry.  The worker is the sole process that talks to Evolution GO, so
+ * a failed HTTP call can never leave an account without an auditable job.
+ */
+async function enqueueSellerProvisioning(
+  admin: ReturnType<typeof createAdminClient>,
+  input: { organizationId: string; userId: string; actorId: string; source: 'direct_create' | 'invite'; inviteId?: string },
+): Promise<SellerProvisioning> {
+  const { data, error } = await admin.rpc('enqueue_evolution_go_seller_provisioning', {
+    p_organization_id: input.organizationId,
+    p_user_id: input.userId,
+    p_created_by: input.actorId,
+    p_source: input.source,
+    p_invite_id: input.inviteId ?? null,
+  });
+  const row = Array.isArray(data) ? data[0] : data;
+  if (error || !row || typeof row !== 'object') throw new Error('evolution_go_provisioning_enqueue_failed');
+  const candidate = row as Record<string, unknown>;
+  const jobId = text(candidate.job_id, 80);
+  const whatsappAccountId = text(candidate.whatsapp_account_id, 80);
+  const integrationId = text(candidate.integration_id, 80);
+  const instanceName = text(candidate.instance_name, 120);
+  const state = text(candidate.state, 40);
+  if (!jobId || !whatsappAccountId || !integrationId || !instanceName || !state) {
+    throw new Error('evolution_go_provisioning_enqueue_failed');
+  }
+  return { jobId, whatsappAccountId, integrationId, instanceName, state };
+}
+
+function wakeSellerProvisioningWorker(jobId: string): void {
+  const baseUrl = Deno.env.get('SUPABASE_URL');
+  const serviceRole = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+  if (!baseUrl || !serviceRole) return;
+  // The job is durable; this is only a low-latency wake-up. If the task cannot
+  // run, the scheduler will process it later rather than silently dropping it.
+  const pending = fetch(`${baseUrl}/functions/v1/evolution-go-worker`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${serviceRole}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ provisioning_job_id: jobId }),
+    signal: AbortSignal.timeout(45_000),
+  }).catch(() => undefined);
+  const runtime = (globalThis as { EdgeRuntime?: { waitUntil: (task: Promise<unknown>) => void } }).EdgeRuntime;
+  runtime?.waitUntil(pending);
+}
+
+async function cancelSellerProvisioningForInvite(
+  admin: ReturnType<typeof createAdminClient>, organizationId: string, inviteId: string,
+): Promise<number> {
+  const { data: jobs, error: jobsError } = await admin.from('evolution_go_seller_provisioning_jobs')
+    .select('id,whatsapp_account_id,integration_id').eq('organization_id', organizationId).eq('invite_id', inviteId)
+    .in('state', ['queued', 'failed', 'processing', 'awaiting_qr']);
+  if (jobsError) throw new Error('evolution_go_provisioning_cancel_read_failed');
+  if (!jobs?.length) return 0;
+  const now = new Date().toISOString();
+  const jobIds = jobs.map((job) => job.id);
+  const accountIds = jobs.map((job) => job.whatsapp_account_id);
+  const integrationIds = jobs.map((job) => job.integration_id);
+  const [jobsUpdate, accountsUpdate, integrationsUpdate] = await Promise.all([
+    admin.from('evolution_go_seller_provisioning_jobs').update({
+      state: 'cancelled', completed_at: now, last_error_code: 'invite_cancelled', updated_at: now,
+    }).eq('organization_id', organizationId).in('id', jobIds),
+    admin.from('whatsapp_accounts').update({
+      enabled: false, archived_at: now, updated_at: now,
+    }).eq('organization_id', organizationId).in('id', accountIds),
+    admin.from('integrations').update({
+      enabled: false, paused: true, status_detail: 'Canal individual arquivado porque o convite foi cancelado.', updated_at: now,
+    }).eq('organization_id', organizationId).in('id', integrationIds),
+  ]);
+  if (jobsUpdate.error || accountsUpdate.error || integrationsUpdate.error) {
+    throw new Error('evolution_go_provisioning_cancel_failed');
+  }
+  return jobs.length;
+}
+
 async function prepareOrganizationInvite(
   admin: ReturnType<typeof createAdminClient>, organizationId: string, actorId: string, email: string, role: string,
 ): Promise<PreparedInvite> {
@@ -261,7 +344,8 @@ Deno.serve(async (request) => {
       if (action === 'invite_cancel') {
         const { error } = await admin.from('organization_invites').update({ cancelled_at: new Date().toISOString() }).eq('organization_id', organizationId).eq('id', inviteId).is('accepted_at', null).is('cancelled_at', null);
         if (error) throw error;
-        await admin.from('audit_logs').insert({ organization_id: organizationId, actor_id: user.id, actor_name: profile.name, actor_type: 'user', action: 'team.invite_cancelled', detail: `Convite cancelado para ${invite.email}.`, entity_table: 'organization_invites', entity_id: inviteId, event_data: { email: invite.email, role: invite.role } });
+        const cancelledProvisioning = await cancelSellerProvisioningForInvite(admin, organizationId, inviteId);
+        await admin.from('audit_logs').insert({ organization_id: organizationId, actor_id: user.id, actor_name: profile.name, actor_type: 'user', action: 'team.invite_cancelled', detail: `Convite cancelado para ${invite.email}.`, entity_table: 'organization_invites', entity_id: inviteId, event_data: { email: invite.email, role: invite.role, evolution_go_provisioning_cancelled: cancelledProvisioning } });
         return json({ ok: true }, 200, headers);
       }
       const { error } = await admin.auth.admin.inviteUserByEmail(invite.email, { data: {}, redirectTo: `${Deno.env.get('ALLOWED_ORIGIN') ?? 'https://leadai-crm-preview.fabricio926564.chatgpt.site'}/login` });
@@ -299,6 +383,7 @@ Deno.serve(async (request) => {
       }, { onConflict: 'organization_id,user_id' });
       if (membershipError) {
         await admin.auth.admin.deleteUser(created.user.id);
+        await restorePreparedInvite(admin, preparedInvite);
         throw membershipError;
       }
       const { error: profileError } = await admin.from('profiles').update({
@@ -306,14 +391,46 @@ Deno.serve(async (request) => {
       }).eq('id', created.user.id);
       if (profileError) {
         await admin.auth.admin.deleteUser(created.user.id);
+        await restorePreparedInvite(admin, preparedInvite);
         throw profileError;
+      }
+
+      // `prepareOrganizationInvite` is used here only as a cross-organization
+      // email reservation. A direct credential-based creation must not leave a
+      // phantom invitation visible to the administrator.
+      const { error: reservationCleanupError } = await admin.from('organization_invites').delete()
+        .eq('id', preparedInvite.id).is('accepted_at', null).is('cancelled_at', null);
+      if (reservationCleanupError) {
+        await admin.auth.admin.deleteUser(created.user.id);
+        await restorePreparedInvite(admin, preparedInvite);
+        throw new Error('member_invitation_cleanup_failed');
+      }
+
+      let provisioning: SellerProvisioning | null = null;
+      if (role === 'vendedor') {
+        try {
+          provisioning = await enqueueSellerProvisioning(admin, {
+            organizationId, userId: created.user.id, actorId: user.id, source: 'direct_create',
+          });
+        } catch (provisioningError) {
+          await admin.auth.admin.deleteUser(created.user.id);
+          throw provisioningError;
+        }
       }
 
       await admin.from('audit_logs').insert({
         organization_id: organizationId, actor_id: user.id, actor_name: profile.name, actor_type: 'user', action: 'team.member_created',
-        detail: `Acesso criado para ${email}.`, entity_table: 'organization_members', event_data: { email, role, user_id: created.user.id },
+        detail: `Acesso criado para ${email}.`, entity_table: 'organization_members', event_data: {
+          email, role, user_id: created.user.id,
+          evolution_go_auto_provisioning: provisioning ? { job_id: provisioning.jobId, state: provisioning.state } : null,
+        },
       });
-      return json({ ok: true, user_id: created.user.id, message: 'Acesso criado e liberado.' }, 201, headers);
+      if (provisioning) wakeSellerProvisioningWorker(provisioning.jobId);
+      return json({
+        ok: true, user_id: created.user.id,
+        provisioning: provisioning ? { state: provisioning.state, automatic_channel: true } : null,
+        message: provisioning ? 'Acesso criado; o canal individual Evolution GO será preparado automaticamente.' : 'Acesso criado e liberado.',
+      }, 201, headers);
     }
 
     if (action === 'invite') {
@@ -333,12 +450,35 @@ Deno.serve(async (request) => {
       const { error: membershipError } = await admin.from('organization_members').upsert({
         organization_id: organizationId, user_id: invitation.user.id, role, status: 'invited', updated_at: new Date().toISOString(),
       }, { onConflict: 'organization_id,user_id' });
-      if (membershipError) throw membershipError;
+      if (membershipError) {
+        await admin.auth.admin.deleteUser(invitation.user.id);
+        await restorePreparedInvite(admin, preparedInvite);
+        throw membershipError;
+      }
+      let provisioning: SellerProvisioning | null = null;
+      if (role === 'vendedor') {
+        try {
+          provisioning = await enqueueSellerProvisioning(admin, {
+            organizationId, userId: invitation.user.id, actorId: user.id, source: 'invite', inviteId: preparedInvite.id,
+          });
+        } catch (provisioningError) {
+          await admin.auth.admin.deleteUser(invitation.user.id);
+          await restorePreparedInvite(admin, preparedInvite);
+          throw provisioningError;
+        }
+      }
       await admin.from('audit_logs').insert({
         organization_id: organizationId, actor_id: user.id, actor_name: profile.name, actor_type: 'user', action: 'team.member_invited',
-        detail: `Convite enviado para ${email}; acesso pendente até o aceite.`, entity_table: 'organization_invites', event_data: { email, role },
+        detail: `Convite enviado para ${email}; acesso pendente até o aceite.`, entity_table: 'organization_invites', event_data: {
+          email, role,
+          evolution_go_auto_provisioning: provisioning ? { job_id: provisioning.jobId, state: provisioning.state } : null,
+        },
       });
-      return json({ ok: true, message: 'Convite enviado. O acesso será liberado após o aceite.' }, 200, headers);
+      if (provisioning) wakeSellerProvisioningWorker(provisioning.jobId);
+      return json({
+        ok: true, provisioning: provisioning ? { state: provisioning.state, automatic_channel: true } : null,
+        message: provisioning ? 'Convite enviado; o canal individual Evolution GO será preparado automaticamente.' : 'Convite enviado. O acesso será liberado após o aceite.',
+      }, 200, headers);
     }
 
     const targetUserId = text(body.user_id, 64);

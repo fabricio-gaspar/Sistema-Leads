@@ -213,9 +213,9 @@
       "id": "REQ-069",
       "description": "Gerenciar canais Evolution GO corporativos e privados por vendedor, com QR restrito, transferência atômica de atendente e canal, histórico preservado e callback por conta protegido",
       "module": "integracoes",
-      "status": "implemented_validated_pending_remote_apply",
-      "evidence": "A migration 20261003223000_transfer_whatsapp_channel_with_assignee adiciona vínculos históricos de conta e substitui assign_human_handoff para atualizar assigned_to, owner_id e whatsapp_account_id na mesma transação, validando conta seller do atendente, integração conectada e controles do provedor. evolution-go exige account_id, separa corporate/seller por owner_user_id, limita QR ao administrador ou dono e devolve somente estado público. Webhooks de Z-API, Meta e Evolution preservam a conta ativa perante uma resposta tardia; Evolution ainda bloqueia persistência quando a conta ou integração da rota está desativada. Type-check frontend/Edge, lint, build, 63 arquivos/371 testes e diff check passaram. Nenhuma instância, QR, mensagem, lead, callback ou automação real foi executada.",
-      "last_validation": "2026-10-03"
+      "status": "implemented_remote_verified_credentials_pending",
+      "evidence": "O Supabase oficial confirmou as migrations de fundação, transferência atômica e provisionamento individual, a função enqueue_evolution_go_seller_provisioning e as Edge Functions evolution-go, webhook-evolution-go, evolution-go-worker e team-members. A criação direta de usuário envia a senha temporária somente para o backend e enfileira a instância individual; o worker cria token, nome e ID remotamente apenas depois de receber a configuração global válida. A interface mostra Evolution GO como canal principal e mantém Z-API somente como alternativa legada. Type-check frontend/Edge, lint, build, 63 arquivos/372 testes e diff check passaram. Nenhuma instância, QR, mensagem, lead, callback ou automação real foi executada.",
+      "last_validation": "2026-10-04"
     },
     {
       "id": "REQ-041",

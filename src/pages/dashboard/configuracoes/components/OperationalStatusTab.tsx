@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import {
   activateRealEnvironment,
   activateServerScheduler,
-  configureWhatsAppInbound,
   loadOperationalStatus,
   setOperationalKillSwitch,
   type OperationalCheck,
@@ -39,10 +38,10 @@ interface ComponentRow extends ComponentDefinition {
 const COMPONENTS: ComponentDefinition[] = [
   { id: 'automation-scheduler', group: 'Automação', label: 'Agendador de automações', description: 'Executa tarefas programadas.', icon: 'ri-calendar-schedule-line', keys: ['scheduler'], checkIds: ['scheduler'], action: 'scheduler' },
   { id: 'automation-worker', group: 'Automação', label: 'Worker 24/7', description: 'Processa tarefas em segundo plano.', icon: 'ri-settings-5-line', keys: ['scheduler'], checkIds: ['scheduler'], action: 'scheduler' },
-  { id: 'whatsapp', group: 'Atendimento', label: 'WhatsApp', description: 'Envia e recebe mensagens pelo provedor ativo.', icon: 'ri-whatsapp-line', keys: ['whatsapp_zapi', 'whatsapp_meta', 'whatsapp'], checkIds: ['whatsapp'], href: '/dashboard/configuracoes?tab=canais' },
-  { id: 'zapi', group: 'Atendimento', label: 'Z-API', description: 'Canal de mensagens usado pela operação.', icon: 'ri-chat-3-line', keys: ['whatsapp'], checkIds: ['whatsapp'], href: '/dashboard/configuracoes?tab=canais' },
+  { id: 'whatsapp', group: 'Atendimento', label: 'WhatsApp', description: 'Envia e recebe mensagens pelo provedor ativo.', icon: 'ri-whatsapp-line', keys: ['whatsapp_evolution_go:', 'whatsapp_meta', 'whatsapp'], checkIds: ['whatsapp'], href: '/dashboard/configuracoes?tab=canais' },
+  { id: 'evolution-go', group: 'Atendimento', label: 'Evolution GO', description: 'Canal principal de mensagens e instâncias individuais da operação.', icon: 'ri-whatsapp-line', keys: ['whatsapp_evolution_go:', 'whatsapp'], checkIds: ['whatsapp'], href: '/dashboard/configuracoes?tab=canais#evolution-go-configuration' },
   { id: 'email', group: 'Atendimento', label: 'E-mail', description: 'Envia mensagens transacionais.', icon: 'ri-mail-line', keys: ['email', 'resend'], href: '/dashboard/configuracoes?tab=canais' },
-  { id: 'zapi-webhook', group: 'Atendimento', label: 'Webhook Z-API', description: 'Recebe eventos do canal e respostas dos leads.', icon: 'ri-webhook-line', keys: ['zapi_webhook'], checkIds: ['whatsapp_webhook'], action: 'whatsapp' },
+  { id: 'evolution-go-webhook', group: 'Atendimento', label: 'Webhook Evolution GO', description: 'Recebe eventos do canal e respostas dos leads; é registrado durante o provisionamento seguro.', icon: 'ri-webhook-line', keys: ['evolution_go_webhook'], checkIds: ['whatsapp_webhook'], href: '/dashboard/configuracoes?tab=canais#evolution-go-configuration' },
   { id: 'resend-webhook', group: 'Atendimento', label: 'Webhook Resend', description: 'Recebe eventos de e-mail.', icon: 'ri-share-line', keys: ['resend_webhook'] },
   { id: 'ana', group: 'Inteligência e prospecção', label: 'Ana', description: 'Assistente de atendimento e qualificação.', icon: 'ri-robot-2-line', checkIds: ['ia', 'whatsapp', 'whatsapp_webhook', 'scheduler'], href: '/dashboard/configuracoes?tab=ana' },
   { id: 'apify', group: 'Inteligência e prospecção', label: 'Apify / Google Maps', description: 'Busca empresas para prospecção.', icon: 'ri-map-pin-search-line', keys: ['apify'], href: '/dashboard/configuracoes?tab=apis' },
@@ -91,7 +90,7 @@ export default function OperationalStatusTab() {
   const [status, setStatus] = useState<OperationalStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [changing, setChanging] = useState(false);
-  const [settingUp, setSettingUp] = useState<'whatsapp' | 'scheduler' | null>(null);
+  const [settingUp, setSettingUp] = useState<'scheduler' | null>(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [filter, setFilter] = useState<'all' | 'active' | 'attention' | 'disabled'>('all');
@@ -114,7 +113,7 @@ export default function OperationalStatusTab() {
 
   const integrationByKeys = useCallback((keys: string[] | undefined): OperationalIntegration | null => {
     if (!status || !keys) return null;
-    return keys.map((key) => status.integrations.find((item) => item.key === key)).find(Boolean) || null;
+    return keys.map((key) => status.integrations.find((item) => item.key === key || (key.endsWith(':') && item.key.startsWith(key)))).find(Boolean) || null;
   }, [status]);
 
   const rows = useMemo<ComponentRow[]>(() => {
@@ -171,14 +170,6 @@ export default function OperationalStatusTab() {
     finally { setChanging(false); }
   };
 
-  const setupWhatsAppInbound = async () => {
-    if (settingUp) return;
-    setSettingUp('whatsapp'); setError('');
-    try { const result = await configureWhatsAppInbound(); setStatus(result.status); setNotice(result.message); }
-    catch { setError('Não foi possível cadastrar os callbacks da Z-API. A configuração existente foi preservada.'); }
-    finally { setSettingUp(null); setOpenMenu(null); }
-  };
-
   const setupScheduler = async () => {
     if (settingUp) return;
     setSettingUp('scheduler'); setError('');
@@ -205,7 +196,7 @@ export default function OperationalStatusTab() {
 
       <section id="cc-operational-components" className="cc-operational-card" aria-labelledby="cc-operational-components-title">
         <div className="cc-operational-card-header"><div><h2 id="cc-operational-components-title">Componentes e conexões</h2><p>Ative o uso no sistema e acompanhe a saúde de cada integração.</p></div><div className="cc-operational-tools"><div className="cc-operational-filters" role="tablist" aria-label="Filtrar componentes">{([['all', 'Todos'], ['active', 'Ativos'], ['attention', 'Com atenção'], ['disabled', 'Desativados']] as const).map(([value, label]) => <button key={value} type="button" role="tab" aria-selected={filter === value} className={filter === value ? 'is-selected' : ''} onClick={() => setFilter(value)}>{label}</button>)}</div><label className="cc-operational-search"><i className="ri-search-line" /><span className="sr-only">Buscar componente</span><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Buscar componente" /></label></div></div>
-        <div className="cc-operational-table-wrap"><table className="cc-operational-table"><thead><tr><th>Componente</th><th>Descrição</th><th>Saúde da conexão</th><th>Última validação</th><th>Status de uso</th><th><span className="sr-only">Ações</span></th></tr></thead><tbody>{groupedRows.map(({ group, rows: groupRows }) => <>{<tr key={`${group}-heading`} className="cc-operational-group"><th colSpan={6}>{group}</th></tr>}{groupRows.map((row) => <OperationalRow key={row.id} row={row} openMenu={openMenu === row.id} onToggleMenu={() => setOpenMenu(openMenu === row.id ? null : row.id)} onSetupScheduler={() => void setupScheduler()} onSetupWhatsApp={() => void setupWhatsAppInbound()} />)}</>)}{groupedRows.length === 0 && <tr><td colSpan={6} className="cc-operational-no-results">Nenhum componente corresponde aos filtros atuais.</td></tr>}</tbody></table></div>
+        <div className="cc-operational-table-wrap"><table className="cc-operational-table"><thead><tr><th>Componente</th><th>Descrição</th><th>Saúde da conexão</th><th>Última validação</th><th>Status de uso</th><th><span className="sr-only">Ações</span></th></tr></thead><tbody>{groupedRows.map(({ group, rows: groupRows }) => <>{<tr key={`${group}-heading`} className="cc-operational-group"><th colSpan={6}>{group}</th></tr>}{groupRows.map((row) => <OperationalRow key={row.id} row={row} openMenu={openMenu === row.id} onToggleMenu={() => setOpenMenu(openMenu === row.id ? null : row.id)} onSetupScheduler={() => void setupScheduler()} />)}</>)}{groupedRows.length === 0 && <tr><td colSpan={6} className="cc-operational-no-results">Nenhum componente corresponde aos filtros atuais.</td></tr>}</tbody></table></div>
       </section>
 
       <section className="cc-operational-card cc-operational-prereqs"><div className="cc-operational-card-header"><div><h2>Pré-requisitos para ativar a Ana</h2><p>A ativação só é liberada quando os requisitos forem concluídos.</p></div><button type="button" className="wf-btn-secondary text-xs" onClick={() => void refresh()}><i className="ri-refresh-line" />Revalidar dependências</button></div><div className="cc-operational-prereq-grid">{[['whatsapp', 'WhatsApp validado', status.checks.find((item) => item.id === 'whatsapp')], ['ia', 'IA validada', status.checks.find((item) => item.id === 'ia')], ['scheduler', 'Worker ativo', status.checks.find((item) => item.id === 'scheduler')]].map(([id, label, check]) => <div key={id as string} className={`cc-operational-prereq ${(check as OperationalCheck | undefined)?.ok ? 'is-ready' : ''}`}><i className={(check as OperationalCheck | undefined)?.ok ? 'ri-checkbox-circle-fill' : 'ri-error-warning-fill'} /><div><strong>{label as string}</strong><span>{(check as OperationalCheck | undefined)?.ok ? 'Concluído' : 'Pendente'}</span></div></div>)}</div></section>
@@ -217,7 +208,7 @@ export default function OperationalStatusTab() {
   );
 }
 
-function OperationalRow({ row, openMenu, onToggleMenu, onSetupScheduler, onSetupWhatsApp }: { row: ComponentRow; openMenu: boolean; onToggleMenu: () => void; onSetupScheduler: () => void; onSetupWhatsApp: () => void }) {
+function OperationalRow({ row, openMenu, onToggleMenu, onSetupScheduler }: { row: ComponentRow; openMenu: boolean; onToggleMenu: () => void; onSetupScheduler: () => void }) {
   const health = HEALTH_COPY[row.health];
   return <tr className={row.id === 'ana' ? 'cc-operational-row-ana' : undefined}>
     <td><div className="cc-operational-component"><span className="cc-operational-component-icon"><i className={row.icon} /></span><strong>{row.label}</strong></div></td>
@@ -225,6 +216,6 @@ function OperationalRow({ row, openMenu, onToggleMenu, onSetupScheduler, onSetup
     <td><span className={`cc-operational-health ${health.className}`}><i className={health.icon} />{health.label}</span></td>
     <td><span className="cc-operational-date">{formatDate(row.lastValidatedAt)}</span></td>
     <td><span className="cc-operational-usage"><span className={`cc-operational-switch cc-operational-switch-small ${row.usage === 'active' ? 'is-on' : ''} ${row.usage === 'blocked' ? 'is-blocked' : ''}`}><span /></span><strong>{USAGE_COPY[row.usage]}</strong>{row.usage === 'blocked' && <i className="ri-information-line" title="Bloqueado até que as dependências sejam validadas." />}</span></td>
-    <td className="cc-operational-actions"><div className="cc-operational-menu"><button type="button" aria-label={`Ações de ${row.label}`} aria-expanded={openMenu} onClick={onToggleMenu}><i className="ri-more-2-fill" /></button>{openMenu && <div className="cc-operational-menu-popover"><span>{row.detail}</span>{row.action === 'scheduler' && row.health !== 'validated' && <button type="button" onClick={onSetupScheduler}><i className="ri-play-circle-line" />Preparar worker</button>}{row.action === 'whatsapp' && row.health !== 'validated' && <button type="button" onClick={onSetupWhatsApp}><i className="ri-link" />Cadastrar callbacks</button>}{row.href && <Link to={row.href}><i className="ri-settings-3-line" />Abrir configuração</Link>}</div>}</div></td>
+    <td className="cc-operational-actions"><div className="cc-operational-menu"><button type="button" aria-label={`Ações de ${row.label}`} aria-expanded={openMenu} onClick={onToggleMenu}><i className="ri-more-2-fill" /></button>{openMenu && <div className="cc-operational-menu-popover"><span>{row.detail}</span>{row.action === 'scheduler' && row.health !== 'validated' && <button type="button" onClick={onSetupScheduler}><i className="ri-play-circle-line" />Preparar worker</button>}{row.href && <Link to={row.href}><i className="ri-settings-3-line" />Abrir configuração</Link>}</div>}</div></td>
   </tr>;
 }

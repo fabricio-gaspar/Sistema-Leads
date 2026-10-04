@@ -684,6 +684,9 @@ describe('Team member creation contract', () => {
       if (q.table === 'organization_invites' && q.operation === 'select') {
         return 'organization_id' in q.filters ? ok(null) : ok([]);
       }
+      if (q.table === 'enqueue_evolution_go_seller_provisioning' && q.operation === 'rpc') {
+        return ok([{ job_id: 'seller-provisioning-job', whatsapp_account_id: 'seller-whatsapp-account', integration_id: 'seller-evolution-integration', instance_name: 'novo-membro', state: 'queued' }]);
+      }
       return undefined;
     };
 
@@ -712,6 +715,8 @@ describe('Team member creation contract', () => {
     });
     expect(calls.find((q) => q.table === 'profiles' && q.operation === 'update')?.value)
       .toMatchObject({ active_organization_id: org, name: 'Novo membro', email: 'membro@wayflex.ind.br' });
+    expect(calls.find((q) => q.table === 'enqueue_evolution_go_seller_provisioning' && q.operation === 'rpc')?.value)
+      .toMatchObject({ p_organization_id: org, p_user_id: 'new-team-user', p_created_by: 'owner', p_source: 'direct_create' });
     expect(calls.some((q) => q.table === 'organizations')).toBe(false);
   });
 

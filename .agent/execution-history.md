@@ -1337,3 +1337,9 @@
 - A migration `20261003223000_transfer_whatsapp_channel_with_assignee` torna a transferência humana atômica: `assigned_to`, `owner_id` e `whatsapp_account_id` trocam juntos após verificar a conta privada do novo atendente, a integração e os controles. O número antigo fica só como identidade histórica de entrada; respostas tardias não desfazem a conta ativa.
 - Todo callback Evolution agora também exige conta habilitada e integração conectada/habilitada/não pausada, mesmo quando outra conta da organização mantém o gate global aberto.
 - Validação local concluída: type-check frontend/Edge, lint, build/artefato Sites, `git diff --check` e Vitest **63 arquivos / 371 testes**. Nenhuma instância, QR, mensagem, callback, lead, transferência, automação ou credencial real foi acionada. Próxima ação: aplicação remota e homologação visual segura.
+
+## 2026-10-04 — Sincronização do canal principal Evolution GO
+
+- Confirmada a origem editável do Site e conferido o Supabase oficial: migrations de Evolution, provisionamento individual e as funções `evolution-go`, `webhook-evolution-go`, `evolution-go-worker` e `team-members` já estavam ativas. Os fontes de `team-members` e `evolution-go-worker` foram sincronizados com as versões ativas para não deixar o repositório defasado.
+- A tela efetiva de Usuários passou a criar acesso direto com nome, e-mail, senha temporária e papel. A criação agenda a instância individual Evolution GO no servidor; token, nome e ID não transitam pelo frontend. O painel operacional e os atalhos agora apresentam Evolution GO como canal principal, sem disparar o callback legado de Z-API.
+- Validação local: type-check frontend/Edge, lint, build/artefato Sites, `git diff --check` e Vitest **63 arquivos / 372 testes**. Não houve criação de instância, QR, mensagem, callback, lead ou automação real. A configuração real ainda exige a URL HTTPS e a chave global da Evolution GO.

@@ -1,11 +1,24 @@
 import { createAdminClient } from '../_shared/auth.ts';
 import { json, safeError } from '../_shared/http.ts';
+import { normalizeEvolutionGoBaseUrl } from '../_shared/messaging/EvolutionGoProvider.ts';
 
 type Admin = ReturnType<typeof createAdminClient>;
 type Row = Record<string, unknown>;
 const object = (value: unknown): Row => value && typeof value === 'object' && !Array.isArray(value) ? value as Row : {};
 const text = (value: unknown, max = 4_000): string => typeof value === 'string' ? value.trim().slice(0, max) : '';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const PROVISIONED_EVOLUTION_GO_ORIGIN = 'https://evo-eisenflow.kz3solucoes.cloud';
+
+function allowedOrigins(): string[] {
+  const configured = (Deno.env.get('EVOLUTION_GO_ALLOWED_ORIGINS') ?? '')
+    .split(',').map((value) => value.trim()).filter(Boolean);
+  return configured.length ? configured : [PROVISIONED_EVOLUTION_GO_ORIGIN];
+}
+
+function randomSecret(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(32));
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+}
 
 function secureEqual(actual: string | null, expected: string | undefined): boolean {
   if (!actual || !expected || actual.length !== expected.length) return false;
@@ -205,6 +218,197 @@ async function processOne(admin: Admin, event: Row) {
   }
 }
 
+async function updateProvisioningState(
+  admin: Admin,
+  job: Row,
+  state: 'queued' | 'failed' | 'awaiting_qr' | 'needs_review',
+  input: Row = {},
+  requireProcessing = true,
+): Promise<boolean> {
+  let query = admin.from('evolution_go_seller_provisioning_jobs').update({
+    state,
+    updated_at: new Date().toISOString(),
+    ...input,
+  }).eq('id', job.id).eq('organization_id', job.organization_id);
+  if (requireProcessing) query = query.eq('state', 'processing');
+  const { data, error } = await query.select('id').maybeSingle();
+  if (error) throw new Error('evolution_go_provisioning_state_save_failed');
+  return Boolean(data);
+}
+
+async function auditProvisioning(admin: Admin, job: Row, action: string, detail: string, data: Row = {}) {
+  const { error } = await admin.from('audit_logs').insert({
+    organization_id: job.organization_id,
+    actor_name: 'Sistema',
+    actor_type: 'system',
+    action,
+    detail,
+    entity_table: 'whatsapp_accounts',
+    entity_id: job.whatsapp_account_id,
+    // Never place the generated instance UUID, token, webhook token, base URL,
+    // provider response, or platform credential in the audit payload.
+    event_data: { provider: 'evolution_go', provisioning_job_id: job.id, ...data },
+  });
+  if (error) console.error('evolution_go_provisioning_audit_failed', { action, jobId: job.id });
+}
+
+async function claimProvisioningJob(admin: Admin, job: Row): Promise<Row | null> {
+  const { data, error } = await admin.from('evolution_go_seller_provisioning_jobs').update({
+    state: 'processing',
+    attempt_count: Number(job.attempt_count ?? 0) + 1,
+    processing_started_at: new Date().toISOString(),
+    last_error_code: null,
+    updated_at: new Date().toISOString(),
+  }).eq('id', job.id).eq('organization_id', job.organization_id)
+    .in('state', ['queued', 'failed']).select('*').maybeSingle();
+  if (error) throw new Error('evolution_go_provisioning_claim_failed');
+  return data ? data as Row : null;
+}
+
+async function loadProvisioningSecret(admin: Admin, integrationId: string): Promise<Row> {
+  const { data, error } = await admin.rpc('read_integration_secret', { p_integration: integrationId });
+  if (error) throw new Error('evolution_go_provisioning_secret_read_failed');
+  return object(data);
+}
+
+async function processProvisioningOne(admin: Admin, job: Row) {
+  const claimed = await claimProvisioningJob(admin, job);
+  if (!claimed) return { skipped: true };
+  const attempts = Number(claimed.attempt_count ?? 1);
+  const instanceId = text(claimed.instance_id, 80);
+  const instanceName = text(claimed.instance_name, 120);
+  const integrationId = text(claimed.integration_id, 80);
+  const accountId = text(claimed.whatsapp_account_id, 80);
+
+  if (!UUID.test(instanceId) || !instanceName || !UUID.test(integrationId) || !UUID.test(accountId)) {
+    await updateProvisioningState(admin, claimed, 'needs_review', {
+      completed_at: new Date().toISOString(), last_error_code: 'evolution_go_provisioning_job_invalid',
+    });
+    await auditProvisioning(admin, claimed, 'whatsapp.evolution_go_seller_provisioning_review_required', 'Canal individual requer revisão antes de criar a instância.', { reason: 'invalid_job' });
+    return { failed: true, review: true };
+  }
+
+  const baseUrlInput = text(Deno.env.get('EVOLUTION_GO_BASE_URL'), 500);
+  const globalApiKey = text(Deno.env.get('EVOLUTION_GO_GLOBAL_API_KEY'), 1_000);
+  if (!baseUrlInput || !globalApiKey) {
+    await updateProvisioningState(admin, claimed, 'failed', {
+      next_attempt_at: retryAt(attempts), last_error_code: 'evolution_go_global_credentials_missing',
+    });
+    await auditProvisioning(admin, claimed, 'whatsapp.evolution_go_seller_provisioning_blocked', 'Canal individual aguardando a credencial global Evolution GO.', { reason: 'global_credentials_missing' });
+    return { failed: true, retryable: true };
+  }
+
+  let baseUrl: string;
+  let existingSecret: Row;
+  try {
+    baseUrl = normalizeEvolutionGoBaseUrl(baseUrlInput, allowedOrigins());
+    existingSecret = await loadProvisioningSecret(admin, integrationId);
+  } catch (error) {
+    const code = safeError(error).replace(/[^a-z0-9_]/gi, '_').toLowerCase().slice(0, 100) || 'evolution_go_provisioning_secret_invalid';
+    await updateProvisioningState(admin, claimed, 'failed', { next_attempt_at: retryAt(attempts), last_error_code: code });
+    await auditProvisioning(admin, claimed, 'whatsapp.evolution_go_seller_provisioning_blocked', 'Canal individual aguardando uma configuração segura do provedor.', { reason: code });
+    return { failed: true, retryable: true };
+  }
+
+  const instanceToken = text(existingSecret.instance_token, 1_000) || randomSecret();
+  const webhookSecret = text(existingSecret.webhook_secret, 256) || randomSecret();
+  // Store the generated per-instance token *before* the remote POST. If the
+  // network becomes uncertain, an operator can reconcile the exact intended
+  // instance without showing or regenerating credentials in the browser.
+  const { error: vaultError } = await admin.rpc('store_integration_secret', {
+    p_integration: integrationId,
+    p_secret: {
+      base_url: baseUrl,
+      instance_name: instanceName,
+      instance_id: instanceId,
+      instance_token: instanceToken,
+      webhook_secret: webhookSecret,
+      timeout_ms: 12_000,
+      retry_attempts: 0,
+    },
+  });
+  if (vaultError) {
+    await updateProvisioningState(admin, claimed, 'failed', {
+      next_attempt_at: retryAt(attempts), last_error_code: 'evolution_go_provisioning_secret_save_failed',
+    });
+    return { failed: true, retryable: true };
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(new URL('/instance/create', baseUrl), {
+      method: 'POST',
+      headers: { apikey: globalApiKey, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ instanceId, name: instanceName, token: instanceToken, advancedSettings: {} }),
+      signal: AbortSignal.timeout(20_000),
+      redirect: 'error',
+    });
+  } catch {
+    await updateProvisioningState(admin, claimed, 'needs_review', {
+      completed_at: new Date().toISOString(), last_error_code: 'evolution_go_instance_create_uncertain',
+    });
+    await auditProvisioning(admin, claimed, 'whatsapp.evolution_go_seller_provisioning_review_required', 'A criação da instância não teve confirmação conclusiva e requer revisão.', { reason: 'remote_result_uncertain' });
+    return { failed: true, review: true };
+  }
+
+  if (!response.ok) {
+    const code = response.status >= 500
+      ? 'evolution_go_instance_create_uncertain'
+      : `evolution_go_instance_create_${response.status}`;
+    await updateProvisioningState(admin, claimed, 'needs_review', {
+      completed_at: new Date().toISOString(), last_error_code: code,
+    });
+    await auditProvisioning(admin, claimed, 'whatsapp.evolution_go_seller_provisioning_review_required', 'A instância individual não foi confirmada e requer revisão.', { reason: code });
+    return { failed: true, review: true };
+  }
+
+  // Do not resurrect a channel if its invitation was cancelled while Evolution
+  // processed the request. The remote account remains disabled and auditable.
+  const { data: stillProcessing, error: statusReadError } = await admin.from('evolution_go_seller_provisioning_jobs')
+    .select('id').eq('id', claimed.id).eq('organization_id', claimed.organization_id).eq('state', 'processing').maybeSingle();
+  if (statusReadError) throw new Error('evolution_go_provisioning_state_read_failed');
+  if (!stillProcessing) return { cancelled: true };
+
+  try {
+    const { data: storedIntegration, error: integrationReadError } = await admin.from('integrations')
+      .select('configuration').eq('id', integrationId).eq('organization_id', claimed.organization_id).maybeSingle();
+    const { data: account, error: accountReadError } = await admin.from('whatsapp_accounts')
+      .select('provider_metadata').eq('id', accountId).eq('organization_id', claimed.organization_id).maybeSingle();
+    if (integrationReadError || accountReadError || !storedIntegration || !account) throw new Error('evolution_go_provisioning_record_read_failed');
+    const now = new Date().toISOString();
+    const [integrationUpdate, accountUpdate] = await Promise.all([
+      admin.from('integrations').update({
+        connected: false, enabled: false, paused: true, last_error: null, last_error_at: null,
+        status_detail: 'Instância individual criada. O vendedor deve conectar o WhatsApp por QR Code antes da validação.',
+        configuration: {
+          ...object(storedIntegration.configuration), configured: true, base_url_configured: true,
+          instance_name: instanceName, provider_version: '0.7.2', provisioning_state: 'awaiting_qr',
+        }, updated_at: now,
+      }).eq('id', integrationId).eq('organization_id', claimed.organization_id),
+      admin.from('whatsapp_accounts').update({
+        enabled: false, connection_status: 'configured', status_checked_at: now,
+        provider_metadata: { ...object(account.provider_metadata), provider_version: '0.7.2', provisioning_state: 'awaiting_qr' },
+        updated_at: now,
+      }).eq('id', accountId).eq('organization_id', claimed.organization_id),
+    ]);
+    if (integrationUpdate.error || accountUpdate.error) throw new Error('evolution_go_provisioning_record_save_failed');
+    const saved = await updateProvisioningState(admin, claimed, 'awaiting_qr', {
+      completed_at: now, next_attempt_at: now, last_error_code: null,
+    });
+    if (!saved) return { cancelled: true };
+  } catch (error) {
+    const code = safeError(error).replace(/[^a-z0-9_]/gi, '_').toLowerCase().slice(0, 100) || 'evolution_go_provisioning_finalize_failed';
+    await updateProvisioningState(admin, claimed, 'needs_review', {
+      completed_at: new Date().toISOString(), last_error_code: code,
+    });
+    await auditProvisioning(admin, claimed, 'whatsapp.evolution_go_seller_provisioning_review_required', 'A instância foi criada, mas a finalização local requer revisão.', { reason: code });
+    return { failed: true, review: true };
+  }
+
+  await auditProvisioning(admin, claimed, 'whatsapp.evolution_go_seller_instance_created', 'Instância individual criada automaticamente; aguardando conexão por QR Code.', { state: 'awaiting_qr' });
+  return { provisioned: true };
+}
+
 Deno.serve(async (request) => {
   if (request.method !== 'POST') return json({ ok: false, error: 'method_not_allowed' }, 405);
   if (!serviceRoleAuthorized(request) && !secureEqual(request.headers.get('x-evolution-go-worker-token'), Deno.env.get('EVOLUTION_GO_WORKER_TOKEN'))) {
@@ -213,17 +417,49 @@ Deno.serve(async (request) => {
   try {
     const body = object(await request.json().catch(() => ({})));
     const eventId = text(body.event_id, 80);
+    const provisioningJobId = text(body.provisioning_job_id, 80);
     const organizationId = text(body.organization_id, 80);
     const admin = createAdminClient();
-    let query = admin.from('evolution_go_webhook_events').select('*').in('processing_status', ['queued', 'failed'])
-      .lte('next_retry_at', new Date().toISOString()).order('created_at', { ascending: true }).limit(20);
-    if (UUID.test(eventId)) query = query.eq('id', eventId);
-    if (UUID.test(organizationId)) query = query.eq('organization_id', organizationId);
-    const { data, error } = await query;
-    if (error) throw new Error('evolution_go_queue_read_failed');
-    const results = [];
-    for (const event of data ?? []) results.push(await processOne(admin, event as Row));
-    return json({ ok: true, processed: results.filter((result) => result.processed).length, failed: results.filter((result) => result.failed).length, skipped: results.filter((result) => result.skipped).length });
+    const shouldProcessEvents = Boolean(eventId) || !provisioningJobId;
+    const shouldProcessProvisioning = Boolean(provisioningJobId) || !eventId;
+    const now = new Date().toISOString();
+
+    const eventResults: Row[] = [];
+    if (shouldProcessEvents) {
+      let query = admin.from('evolution_go_webhook_events').select('*').in('processing_status', ['queued', 'failed'])
+        .lte('next_retry_at', now).order('created_at', { ascending: true }).limit(20);
+      if (UUID.test(eventId)) query = query.eq('id', eventId);
+      if (UUID.test(organizationId)) query = query.eq('organization_id', organizationId);
+      const { data, error } = await query;
+      if (error) throw new Error('evolution_go_queue_read_failed');
+      for (const event of data ?? []) eventResults.push(await processOne(admin, event as Row));
+    }
+
+    const provisioningResults: Row[] = [];
+    if (shouldProcessProvisioning) {
+      let query = admin.from('evolution_go_seller_provisioning_jobs').select('*').in('state', ['queued', 'failed'])
+        .lte('next_attempt_at', now).order('created_at', { ascending: true }).limit(20);
+      if (UUID.test(provisioningJobId)) query = query.eq('id', provisioningJobId);
+      if (UUID.test(organizationId)) query = query.eq('organization_id', organizationId);
+      const { data, error } = await query;
+      if (error) throw new Error('evolution_go_provisioning_queue_read_failed');
+      for (const job of data ?? []) provisioningResults.push(await processProvisioningOne(admin, job as Row));
+    }
+
+    const eventProcessed = eventResults.filter((result) => result.processed).length;
+    const eventFailed = eventResults.filter((result) => result.failed).length;
+    const provisioned = provisioningResults.filter((result) => result.provisioned).length;
+    const provisioningFailed = provisioningResults.filter((result) => result.failed).length;
+    return json({
+      ok: true,
+      processed: eventProcessed,
+      failed: eventFailed,
+      skipped: eventResults.filter((result) => result.skipped).length,
+      provisioned,
+      provisioning_failed: provisioningFailed,
+      provisioning_skipped: provisioningResults.filter((result) => result.skipped).length,
+      provisioning_cancelled: provisioningResults.filter((result) => result.cancelled).length,
+    });
   } catch (error) {
     return json({ ok: false, error: safeError(error).replace(/[^a-z0-9_]/gi, '_').toLowerCase().slice(0, 100) }, 500);
   }

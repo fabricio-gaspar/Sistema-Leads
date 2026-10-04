@@ -50,7 +50,7 @@ const READINESS_ITEMS: ReadinessItem[] = [
   { key: 'ai', label: 'IA', pendingDetail: 'A IA precisa estar configurada, validada e ativa.', actionLabel: 'Configurar IA', href: '/dashboard/configuracoes?tab=apis#ai-configuration' },
   { key: 'apify', label: 'Apify', pendingDetail: 'O Apify precisa estar configurado, validado e ativo para a busca.', actionLabel: 'Configurar Apify', href: '/dashboard/configuracoes?tab=apis#prospecting-providers' },
   { key: 'scheduler', label: 'Agendador', pendingDetail: 'O worker 24/7 ainda não confirmou o processamento das rotinas.', actionLabel: 'Preparar worker', href: '/dashboard/configuracoes?tab=operacao&setup=worker#scheduler-setup' },
-  { key: 'whatsappOutbound', label: 'WhatsApp de saída', pendingDetail: 'Valide e ative o provedor corporativo usado para enviar mensagens.', actionLabel: 'Validar WhatsApp', href: '/dashboard/configuracoes?tab=canais#zapi-configuration' },
+  { key: 'whatsappOutbound', label: 'WhatsApp de saída', pendingDetail: 'Valide e ative a conta corporativa Evolution GO usada para enviar mensagens.', actionLabel: 'Validar Evolution GO', href: '/dashboard/configuracoes?tab=canais#evolution-go-configuration' },
   { key: 'whatsappInbound', label: 'WhatsApp de entrada', pendingDetail: 'Cadastre a entrada e confirme um callback real de um lead conhecido.', actionLabel: 'Concluir entrada', href: '/dashboard/configuracoes?tab=operacao&setup=whatsapp-webhook#whatsapp-inbound' },
   { key: 'killSwitchOff', label: 'Pausa global desligada', pendingDetail: 'A pausa global está ligada e bloqueia todas as automações.', actionLabel: 'Retomar automações' },
 ];

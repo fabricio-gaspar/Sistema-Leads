@@ -4,7 +4,7 @@
   "baseline_commit": "1dc6275b8c7d70de953b66397a8c89f5e97bc15b",
   "last_audited_commit": "ad2b8c5cce6c6b4bcf76af6dbf8e38c3b9e8178b",
   "current_head_at_update": "ad2b8c5cce6c6b4bcf76af6dbf8e38c3b9e8178b",
-  "working_tree_status": "evolution_go_multichannel_local_validated_pending_remote_apply",
+  "working_tree_status": "evolution_go_remote_verified_source_synced_pending_credentials",
   "stage_1_baseline": ".agent/baselines/2026-09-25-stage-1.json",
   "recovery_tag": "baseline-wayflex-stage1-20260925",
   "work_branch": "main",
@@ -16,7 +16,7 @@
     "working_tree_status": "published"
   },
   "full_audit_required": false,
-  "baseline_status": "evolution_go_multichannel_local_validated_pending_remote_apply",
-  "updated_at": "2026-10-03T18:31:00Z",
-  "next_action": "Aplicar a migration de transferência atômica, publicar as quatro Edge Functions e o artefato do Site; depois homologar visualmente sem criar instância, QR Code, mensagem ou automação."
+  "baseline_status": "evolution_go_remote_verified_source_synced_pending_credentials",
+  "updated_at": "2026-10-04T17:11:47Z",
+  "next_action": "Publicar o artefato do Site com a tela de criação direta de usuários e Evolution GO como canal principal; depois, informar a URL HTTPS e a chave global reais para uma homologação controlada, sem envio de mensagens não autorizado."
 }
