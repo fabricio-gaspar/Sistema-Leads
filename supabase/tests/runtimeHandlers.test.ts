@@ -65,6 +65,7 @@ function execute(query: Query): Result {
       return ok({});
     }
     if (query.table === 'purge_user_owned_storage') return ok(0);
+    if (query.table === 'revoke_user_auth_sessions') return ok(0);
     if (query.table === 'reserve_prospecting_run') {
       return ok([{
         run_id: 'reserved-run',
@@ -163,6 +164,8 @@ describe('Team member identity deletion', () => {
     });
     expect(calls.find((query) => query.table === 'purge_user_owned_storage' && query.operation === 'rpc')?.value)
       .toEqual({ p_user_id: removedUserId });
+    expect(calls.find((query) => query.table === 'revoke_user_auth_sessions' && query.operation === 'rpc')?.value)
+      .toEqual({ p_user_id: removedUserId });
   });
 
   it('does not delete an identity that belongs to another organization', async () => {
@@ -251,12 +254,6 @@ describe('Team member profile and credential management', () => {
   });
 
   it('resets a member password without persisting the secret in the audit record', async () => {
-    const signOut = vi.fn(async () => ({ error: null }));
-    state.admin = {
-      from: queryFor,
-      rpc: (name: string, value: Row) => Promise.resolve(execute({ table: name, operation: 'rpc', value, filters: {} })),
-      auth: { admin: { deleteUser: state.deleteUser, updateUserById: state.updateUser, signOut } },
-    };
     override = (query) => query.table === 'organization_members' && query.operation === 'select' && query.filters.user_id === managedUserId
       ? ok({ role: 'vendedor', status: 'active' }) : undefined;
 
@@ -268,11 +265,12 @@ describe('Team member profile and credential management', () => {
     }));
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ ok: true, sessions_revoked: true });
+    expect(await response.json()).toMatchObject({ ok: true, sessions_revoked: false });
     expect(state.updateUser).toHaveBeenCalledWith(managedUserId, { password: 'synthetic-new-password' });
-    expect(signOut).toHaveBeenCalledWith(managedUserId, 'global');
+    expect(calls.find((query) => query.table === 'revoke_user_auth_sessions' && query.operation === 'rpc')?.value)
+      .toEqual({ p_user_id: managedUserId });
     const audit = calls.find((query) => query.table === 'audit_logs' && query.operation === 'insert')?.value;
-    expect(audit).toMatchObject({ action: 'team.member_password_reset', event_data: { user_id: managedUserId, sessions_revoked: true } });
+    expect(audit).toMatchObject({ action: 'team.member_password_reset', event_data: { user_id: managedUserId, sessions_revoked: false, revoked_session_count: 0 } });
     expect(JSON.stringify(audit)).not.toContain('synthetic-new-password');
   });
 });

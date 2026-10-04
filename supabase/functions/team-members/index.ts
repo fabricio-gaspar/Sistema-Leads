@@ -279,6 +279,19 @@ type MemberPurgeSummary = {
 };
 
 /**
+ * Supabase Auth's admin signOut endpoint expects the member's JWT, not their
+ * user id. Team administration never receives another member's JWT, so use
+ * the service-only database helper to revoke renewable sessions by user id.
+ */
+async function revokeMemberSessions(
+  admin: ReturnType<typeof createAdminClient>, targetUserId: string,
+): Promise<number> {
+  const { data, error } = await admin.rpc('revoke_user_auth_sessions', { p_user_id: targetUserId });
+  if (error || !Number.isInteger(data) || data < 0) throw new Error('member_sessions_revoke_failed');
+  return data;
+}
+
+/**
  * Removes data that is exclusively attached to a team member. Commercial leads
  * and messages are deliberately not deleted: they belong to the organization
  * and their user references are cleared by their ON DELETE SET NULL foreign
@@ -626,16 +639,14 @@ Deno.serve(async (request) => {
       const { error: passwordError } = await admin.auth.admin.updateUserById(targetUserId, { password });
       if (passwordError) throw new Error('member_password_reset_failed');
 
-      // A senha temporária substitui a anterior. Quando a API de revogação está
-      // disponível, encerramos também as sessões renováveis para que o membro
-      // tenha de entrar novamente com a nova senha. Access tokens emitidos antes
-      // disso permanecem válidos somente até o vencimento normal do JWT.
-      const adminAuth = admin.auth.admin as unknown as { signOut?: (userId: string, scope?: 'global' | 'local' | 'others') => Promise<{ error: unknown }> };
-      let sessionsRevoked = false;
-      if (typeof adminAuth.signOut === 'function') {
-        const result = await adminAuth.signOut(targetUserId, 'global');
-        if (result?.error) throw new Error('member_password_reset_session_revoke_failed');
-        sessionsRevoked = true;
+      // A senha temporária substitui a anterior e encerra as sessões renováveis
+      // existentes. Access tokens emitidos antes disso expiram normalmente e
+      // continuam sujeitos às checagens de associação e permissões do CRM.
+      let revokedSessionCount = 0;
+      try {
+        revokedSessionCount = await revokeMemberSessions(admin, targetUserId);
+      } catch {
+        throw new Error('member_password_reset_session_revoke_failed');
       }
       await admin.from('audit_logs').insert({
         organization_id: organizationId,
@@ -646,9 +657,9 @@ Deno.serve(async (request) => {
         detail: 'Senha temporária de membro redefinida.',
         entity_table: 'organization_members',
         entity_id: targetUserId,
-        event_data: { user_id: targetUserId, sessions_revoked: sessionsRevoked },
+        event_data: { user_id: targetUserId, sessions_revoked: revokedSessionCount > 0, revoked_session_count: revokedSessionCount },
       });
-      return json({ ok: true, sessions_revoked: sessionsRevoked }, 200, headers);
+      return json({ ok: true, sessions_revoked: revokedSessionCount > 0 }, 200, headers);
     }
 
     if (action === 'permissions_set') {
@@ -760,12 +771,8 @@ Deno.serve(async (request) => {
         .eq('organization_id', organizationId).eq('user_id', targetUserId);
       if (error) throw error;
       if (!body.enabled && (await loadSecurityPolicy(admin, organizationId)).revokeSessionsOnDisable) {
-        const adminAuth = admin.auth.admin as unknown as { signOut?: (userId: string, scope?: 'global' | 'local' | 'others') => Promise<{ error: unknown }> };
-        if (typeof adminAuth.signOut === 'function') {
-          const result = await adminAuth.signOut(targetUserId, 'global');
-          if (result?.error) throw new Error('member_sessions_revoke_failed');
-          await admin.from('audit_logs').insert({ organization_id: organizationId, actor_id: user.id, actor_name: profile.name, actor_type: 'user', action: 'team.sessions_revoked', detail: 'Sessões do usuário revogadas após desativação.', entity_table: 'organization_members', event_data: { user_id: targetUserId } });
-        }
+        const revokedSessionCount = await revokeMemberSessions(admin, targetUserId);
+        await admin.from('audit_logs').insert({ organization_id: organizationId, actor_id: user.id, actor_name: profile.name, actor_type: 'user', action: 'team.sessions_revoked', detail: 'Sessões renováveis do usuário revogadas após desativação.', entity_table: 'organization_members', event_data: { user_id: targetUserId, revoked_session_count: revokedSessionCount } });
       }
       await admin.from('audit_logs').insert({ organization_id: organizationId, actor_id: user.id, actor_name: profile.name, actor_type: 'user', action: body.enabled ? 'team.member_enabled' : 'team.member_disabled', detail: body.enabled ? 'Acesso de membro liberado.' : 'Acesso de membro bloqueado.', entity_table: 'organization_members', event_data: { user_id: targetUserId } });
       return json({ ok: true }, 200, headers);
@@ -777,13 +784,10 @@ Deno.serve(async (request) => {
     if (otherOrganizationError) throw otherOrganizationError;
     if ((otherOrganizationCount ?? 0) > 0) throw new Error('member_linked_to_another_organization');
 
-    // Auth user deletion does not invalidate an already-issued JWT. End the
-    // user's refreshable sessions before we purge their private resources.
-    const adminAuth = admin.auth.admin as unknown as { signOut?: (userId: string, scope?: 'global' | 'local' | 'others') => Promise<{ error: unknown }> };
-    if (typeof adminAuth.signOut === 'function') {
-      const sessionRevoke = await adminAuth.signOut(targetUserId, 'global');
-      if (sessionRevoke?.error) throw new Error('member_sessions_revoke_failed');
-    }
+    // Auth user deletion does not invalidate a JWT already issued to the
+    // browser. Revoke renewable sessions first; organization membership and
+    // permissions are then removed by the Auth-user cascade.
+    await revokeMemberSessions(admin, targetUserId);
 
     const purge = await purgeMemberOwnedData(admin, organizationId, targetUserId);
 
