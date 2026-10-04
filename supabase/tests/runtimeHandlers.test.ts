@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 type Row = Record<string, unknown>;
 type Query = { table: string; operation: string; value?: Row; filters: Record<string, unknown> };
 type Result = { data: unknown; error: null | { message: string; code?: string }; count?: number };
-const state = vi.hoisted(() => ({ admin: {} as object, deleteUser: vi.fn(), updateUser: vi.fn() }));
+const state = vi.hoisted(() => ({ admin: {} as object, deleteUser: vi.fn(), updateUser: vi.fn(), storageRemove: vi.fn() }));
 vi.mock('../functions/_shared/auth.ts', () => ({
   createAdminClient: () => state.admin,
   hasOrganizationPermission: async () => true,
@@ -64,7 +64,6 @@ function execute(query: Query): Result {
       };
       return ok({});
     }
-    if (query.table === 'purge_user_owned_storage') return ok(0);
     if (query.table === 'revoke_user_auth_sessions') return ok(0);
     if (query.table === 'reserve_prospecting_run') {
       return ok([{
@@ -94,6 +93,7 @@ function execute(query: Query): Result {
     case 'whatsapp_accounts': return 'owner_user_id' in query.filters
       ? ok([])
       : ok({ id: whatsappAccountId, integration_id: integrationId, owner_user_id: null, is_default: true, enabled: true, connection_status: 'connected', archived_at: null });
+    case 'storage.objects': return ok([]);
     case 'agent_runs': return ok(null);
     case 'lead_messages': return ok([{ sender: 'lead', type: 'received', text: 'Qual o valor?', sent_at: '2026-09-08T00:00:00Z' }]);
     case 'ai_agents': return ok({ active_version_id: anaConfigurationVersionId });
@@ -105,10 +105,11 @@ function execute(query: Query): Result {
 function queryFor(table: string) {
   const query: Query = { table, operation: 'select', filters: {} };
   const chain: Record<string, unknown> = {};
-  for (const method of ['eq', 'is', 'in', 'not', 'gt', 'gte', 'lte', 'neq', 'ilike', 'or', 'order', 'limit']) {
+  for (const method of ['eq', 'is', 'in', 'not', 'gt', 'gte', 'lte', 'neq', 'ilike', 'or', 'order', 'limit', 'range']) {
     chain[method] = (key: string, value: unknown) => {
       if (method === 'eq') query.filters[key] = value;
       if (method === 'neq') query.filters[`neq:${key}`] = value;
+      if (method === 'or') query.filters.or = key;
       return chain;
     };
   }
@@ -124,9 +125,12 @@ beforeEach(() => {
   vi.resetModules(); calls = []; override = undefined; acceptedLeadState = {};
   state.deleteUser = vi.fn(async () => ({ data: { user: { id: 'deleted-user' } }, error: null }));
   state.updateUser = vi.fn(async () => ({ data: { user: { id: 'updated-user' } }, error: null }));
+  state.storageRemove = vi.fn(async () => ({ data: [], error: null }));
   state.admin = {
     from: queryFor,
+    schema: (schema: string) => ({ from: (table: string) => queryFor(`${schema}.${table}`) }),
     rpc: (name: string, value: Row) => Promise.resolve(execute({ table: name, operation: 'rpc', value, filters: {} })),
+    storage: { from: () => ({ remove: state.storageRemove }) },
     auth: { admin: { deleteUser: state.deleteUser, updateUserById: state.updateUser } },
   };
   vi.stubGlobal('Deno', { env: { get: (name: string) => ({ SUPABASE_URL: 'https://example.invalid', SUPABASE_SERVICE_ROLE_KEY: 'synthetic-service-jwt', WHATSAPP_WEBHOOK_SHARED_SECRET: 'synthetic-internal-secret' } as Record<string, string>)[name] }, serve: (callback: typeof handler) => { handler = callback; } });
@@ -162,10 +166,44 @@ describe('Team member identity deletion', () => {
         storage_objects_deleted: 0,
       },
     });
-    expect(calls.find((query) => query.table === 'purge_user_owned_storage' && query.operation === 'rpc')?.value)
-      .toEqual({ p_user_id: removedUserId });
+    expect(calls.find((query) => query.table === 'storage.objects' && query.operation === 'select')?.filters.or)
+      .toBe(`owner.eq.${removedUserId},owner_id.eq.${removedUserId}`);
+    expect(state.storageRemove).not.toHaveBeenCalled();
     expect(calls.find((query) => query.table === 'revoke_user_auth_sessions' && query.operation === 'rpc')?.value)
       .toEqual({ p_user_id: removedUserId });
+  });
+
+  it('removes member-owned files through the Storage API instead of direct Storage SQL', async () => {
+    let hasOwnedFiles = true;
+    state.storageRemove = vi.fn(async () => {
+      hasOwnedFiles = false;
+      return { data: [], error: null };
+    });
+    override = (query) => {
+      if (query.table === 'organization_members' && query.operation === 'select' && query.filters.user_id === removedUserId) {
+        if (query.filters['neq:organization_id'] === org) return { data: [], error: null, count: 0 };
+        return ok({ role: 'vendedor', status: 'active' });
+      }
+      if (query.table === 'storage.objects' && query.operation === 'select') {
+        return ok(hasOwnedFiles ? [
+          { bucket_id: 'member-files', name: `${removedUserId}/avatar.png` },
+          { bucket_id: 'member-files', name: `${removedUserId}/notes.txt` },
+        ] : []);
+      }
+      return undefined;
+    };
+
+    await import('../functions/team-members/index');
+    const response = await handler(removalRequest());
+
+    expect(response.status).toBe(200);
+    expect(state.storageRemove).toHaveBeenCalledWith([
+      `${removedUserId}/avatar.png`,
+      `${removedUserId}/notes.txt`,
+    ]);
+    const deletionAudit = calls.find((query) => query.table === 'audit_logs' && query.operation === 'insert')?.value;
+    expect(deletionAudit).toMatchObject({ event_data: { storage_objects_deleted: 2 } });
+    expect(calls.some((query) => query.table === 'purge_user_owned_storage')).toBe(false);
   });
 
   it('does not delete an identity that belongs to another organization', async () => {

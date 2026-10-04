@@ -51,6 +51,8 @@ const errorCopy: Record<string, string> = {
   last_administrator_protected: 'A empresa precisa manter ao menos um administrador ativo.',
   member_self_deletion_protected: 'Seu próprio acesso não pode ser removido por esta tela.',
   member_sessions_revoke_failed: 'O acesso foi preservado porque as sessões não puderam ser revogadas.',
+  member_storage_list_failed: 'Não foi possível localizar os arquivos privados da conta para exclusão segura.',
+  member_storage_delete_failed: 'Não foi possível apagar os arquivos privados da conta pelo serviço de armazenamento.',
   member_email_already_registered: 'Este e-mail já possui uma conta. Use outro endereço.',
   member_profile_not_found: 'O cadastro deste usuário não foi localizado.',
   member_profile_update_failed: 'Não foi possível atualizar o cadastro. Nenhuma alteração parcial foi mantida.',

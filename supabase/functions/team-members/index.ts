@@ -278,6 +278,11 @@ type MemberPurgeSummary = {
   storageObjects: number;
 };
 
+type MemberStorageObject = {
+  bucket_id: string | null;
+  name: string | null;
+};
+
 /**
  * Supabase Auth's admin signOut endpoint expects the member's JWT, not their
  * user id. Team administration never receives another member's JWT, so use
@@ -289,6 +294,54 @@ async function revokeMemberSessions(
   const { data, error } = await admin.rpc('revoke_user_auth_sessions', { p_user_id: targetUserId });
   if (error || !Number.isInteger(data) || data < 0) throw new Error('member_sessions_revoke_failed');
   return data;
+}
+
+/**
+ * Storage objects cannot be deleted by issuing SQL against storage.objects:
+ * the Storage service deliberately blocks that route to protect object
+ * consistency. List only the departing member's objects through PostgREST,
+ * then remove them through the Storage API, which clears both the object and
+ * its backing file.
+ */
+async function purgeMemberOwnedStorage(
+  admin: ReturnType<typeof createAdminClient>, targetUserId: string,
+): Promise<number> {
+  const pageSize = 100;
+  let removedCount = 0;
+
+  while (true) {
+    const { data, error } = await admin.schema('storage').from('objects')
+      .select('bucket_id,name')
+      .or(`owner.eq.${targetUserId},owner_id.eq.${targetUserId}`)
+      .order('bucket_id', { ascending: true })
+      .order('name', { ascending: true })
+      .limit(pageSize);
+    if (error) throw new Error('member_storage_list_failed');
+
+    const objects = ((data ?? []) as MemberStorageObject[]).filter((object) =>
+      typeof object.bucket_id === 'string' && object.bucket_id.length > 0
+      && typeof object.name === 'string' && object.name.length > 0,
+    );
+    if (!objects.length) return removedCount;
+
+    const pathsByBucket = new Map<string, string[]>();
+    for (const object of objects) {
+      const bucket = object.bucket_id as string;
+      const paths = pathsByBucket.get(bucket) ?? [];
+      paths.push(object.name as string);
+      pathsByBucket.set(bucket, paths);
+    }
+
+    for (const [bucket, paths] of pathsByBucket) {
+      const { error: removeError } = await admin.storage.from(bucket).remove(paths);
+      if (removeError) throw new Error('member_storage_delete_failed');
+      removedCount += paths.length;
+    }
+
+    // Each successful delete shrinks the first page. Re-read it until no
+    // records remain so accounts with more than one page are fully cleaned.
+    if (objects.length < pageSize) return removedCount;
+  }
 }
 
 /**
@@ -346,8 +399,7 @@ async function purgeMemberOwnedData(
     if (integrationDeleteError) throw new Error('member_integration_delete_failed');
   }
 
-  const { data: storageObjects, error: storageError } = await admin.rpc('purge_user_owned_storage', { p_user_id: targetUserId });
-  if (storageError || !Number.isInteger(storageObjects)) throw new Error('member_storage_purge_failed');
+  const storageObjects = await purgeMemberOwnedStorage(admin, targetUserId);
 
   // Keep the audit timeline useful without retaining the removed person's
   // name. The FK will also clear actor_id once Auth deletes the identity.
