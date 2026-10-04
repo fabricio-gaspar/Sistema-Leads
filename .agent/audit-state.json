@@ -4,19 +4,19 @@
   "baseline_commit": "1dc6275b8c7d70de953b66397a8c89f5e97bc15b",
   "last_audited_commit": "ad2b8c5cce6c6b4bcf76af6dbf8e38c3b9e8178b",
   "current_head_at_update": "ad2b8c5cce6c6b4bcf76af6dbf8e38c3b9e8178b",
-  "working_tree_status": "evolution_go_remote_verified_source_synced_pending_credentials",
+  "working_tree_status": "evolution_go_published_pending_credentials",
   "stage_1_baseline": ".agent/baselines/2026-09-25-stage-1.json",
   "recovery_tag": "baseline-wayflex-stage1-20260925",
   "work_branch": "main",
   "last_site_publication": {
-    "commit": "ad2b8c5cce6c6b4bcf76af6dbf8e38c3b9e8178b",
-    "site_version": 153,
-    "deployment_id": "appgdep_6abbcd277b4881918b0b961cde8148d7",
-    "validated_at": "2026-09-29T14:04:05Z",
+    "commit": "3e61c7730542b12b2eee164155bef8977155434c",
+    "site_version": 163,
+    "deployment_id": "appgdep_6ac289e4343c8191a29c2bbf96e6185f",
+    "validated_at": "2026-10-04T17:16:41Z",
     "working_tree_status": "published"
   },
   "full_audit_required": false,
-  "baseline_status": "evolution_go_remote_verified_source_synced_pending_credentials",
-  "updated_at": "2026-10-04T17:11:47Z",
-  "next_action": "Publicar o artefato do Site com a tela de criação direta de usuários e Evolution GO como canal principal; depois, informar a URL HTTPS e a chave global reais para uma homologação controlada, sem envio de mensagens não autorizado."
+  "baseline_status": "evolution_go_published_pending_credentials",
+  "updated_at": "2026-10-04T17:16:41Z",
+  "next_action": "Informar a URL HTTPS e a chave global reais da Evolution GO para uma homologação controlada; não ativar o canal nem enviar mensagens sem autorização explícita para o número de teste."
 }

@@ -8,10 +8,10 @@
     "edge_typecheck": "passed",
     "lint": "passed",
     "production_build": "passed",
-    "sites_artifact": "passed_build; official Site publication pending",
+    "sites_artifact": "passed_build; official Site v163 published from commit 3e61c7730542b12b2eee164155bef8977155434c",
     "deterministic_smoke_checks": 0,
     "vitest": "passed; 63 files; 372 tests",
-    "visual_review": "pending official Site publication",
+    "visual_review": "passed on official Site v163; Evolution GO configuration and direct-user form visibly confirmed without submitting credentials",
     "external_end_to_end": "not executed; no instance, QR, provider request, message, callback, lead transfer or automation was invoked"
   },
   "previous_validation": {
