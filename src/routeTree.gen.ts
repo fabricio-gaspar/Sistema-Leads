@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as AuthRouteImport } from './routes/auth'
+import { Route as AlterarSenhaRouteImport } from './routes/alterar-senha'
 import { Route as AuthenticatedRouteRouteImport } from './routes/_authenticated/route'
 import { Route as AuthenticatedIndexRouteImport } from './routes/_authenticated/index'
 import { Route as AuthenticatedRelatoriosRouteImport } from './routes/_authenticated/relatorios'
@@ -18,6 +19,7 @@ import { Route as AuthenticatedProspeccaoRouteImport } from './routes/_authentic
 import { Route as AuthenticatedPortalVendedorRouteImport } from './routes/_authenticated/portal-vendedor'
 import { Route as AuthenticatedPedidosRouteImport } from './routes/_authenticated/pedidos'
 import { Route as AuthenticatedOrcamentosRouteImport } from './routes/_authenticated/orcamentos'
+import { Route as AuthenticatedMeuWhatsappRouteImport } from './routes/_authenticated/meu-whatsapp'
 import { Route as AuthenticatedLeadsRouteImport } from './routes/_authenticated/leads'
 import { Route as AuthenticatedEmpresaRouteImport } from './routes/_authenticated/empresa'
 import { Route as AuthenticatedDiagnosticoRouteImport } from './routes/_authenticated/diagnostico'
@@ -40,6 +42,11 @@ const ResetPasswordRoute = ResetPasswordRouteImport.update({
 const AuthRoute = AuthRouteImport.update({
   id: '/auth',
   path: '/auth',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AlterarSenhaRoute = AlterarSenhaRouteImport.update({
+  id: '/alterar-senha',
+  path: '/alterar-senha',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedRouteRoute = AuthenticatedRouteRouteImport.update({
@@ -77,6 +84,12 @@ const AuthenticatedOrcamentosRoute = AuthenticatedOrcamentosRouteImport.update({
   path: '/orcamentos',
   getParentRoute: () => AuthenticatedRouteRoute,
 } as any)
+const AuthenticatedMeuWhatsappRoute =
+  AuthenticatedMeuWhatsappRouteImport.update({
+    id: '/meu-whatsapp',
+    path: '/meu-whatsapp',
+    getParentRoute: () => AuthenticatedRouteRoute,
+  } as any)
 const AuthenticatedLeadsRoute = AuthenticatedLeadsRouteImport.update({
   id: '/leads',
   path: '/leads',
@@ -151,6 +164,7 @@ const AuthenticatedLeadsIdRoute = AuthenticatedLeadsIdRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof AuthenticatedIndexRoute
+  '/alterar-senha': typeof AlterarSenhaRoute
   '/auth': typeof AuthRoute
   '/reset-password': typeof ResetPasswordRoute
   '/atendimento': typeof AuthenticatedAtendimentoRoute
@@ -158,6 +172,7 @@ export interface FileRoutesByFullPath {
   '/diagnostico': typeof AuthenticatedDiagnosticoRoute
   '/empresa': typeof AuthenticatedEmpresaRoute
   '/leads': typeof AuthenticatedLeadsRouteWithChildren
+  '/meu-whatsapp': typeof AuthenticatedMeuWhatsappRoute
   '/orcamentos': typeof AuthenticatedOrcamentosRoute
   '/pedidos': typeof AuthenticatedPedidosRoute
   '/portal-vendedor': typeof AuthenticatedPortalVendedorRoute
@@ -173,6 +188,7 @@ export interface FileRoutesByFullPath {
   '/oauth/google-calendar/return': typeof OauthGoogleCalendarReturnRoute
 }
 export interface FileRoutesByTo {
+  '/alterar-senha': typeof AlterarSenhaRoute
   '/auth': typeof AuthRoute
   '/reset-password': typeof ResetPasswordRoute
   '/atendimento': typeof AuthenticatedAtendimentoRoute
@@ -180,6 +196,7 @@ export interface FileRoutesByTo {
   '/diagnostico': typeof AuthenticatedDiagnosticoRoute
   '/empresa': typeof AuthenticatedEmpresaRoute
   '/leads': typeof AuthenticatedLeadsRouteWithChildren
+  '/meu-whatsapp': typeof AuthenticatedMeuWhatsappRoute
   '/orcamentos': typeof AuthenticatedOrcamentosRoute
   '/pedidos': typeof AuthenticatedPedidosRoute
   '/portal-vendedor': typeof AuthenticatedPortalVendedorRoute
@@ -198,6 +215,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_authenticated': typeof AuthenticatedRouteRouteWithChildren
+  '/alterar-senha': typeof AlterarSenhaRoute
   '/auth': typeof AuthRoute
   '/reset-password': typeof ResetPasswordRoute
   '/_authenticated/atendimento': typeof AuthenticatedAtendimentoRoute
@@ -205,6 +223,7 @@ export interface FileRoutesById {
   '/_authenticated/diagnostico': typeof AuthenticatedDiagnosticoRoute
   '/_authenticated/empresa': typeof AuthenticatedEmpresaRoute
   '/_authenticated/leads': typeof AuthenticatedLeadsRouteWithChildren
+  '/_authenticated/meu-whatsapp': typeof AuthenticatedMeuWhatsappRoute
   '/_authenticated/orcamentos': typeof AuthenticatedOrcamentosRoute
   '/_authenticated/pedidos': typeof AuthenticatedPedidosRoute
   '/_authenticated/portal-vendedor': typeof AuthenticatedPortalVendedorRoute
@@ -224,6 +243,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/alterar-senha'
     | '/auth'
     | '/reset-password'
     | '/atendimento'
@@ -231,6 +251,7 @@ export interface FileRouteTypes {
     | '/diagnostico'
     | '/empresa'
     | '/leads'
+    | '/meu-whatsapp'
     | '/orcamentos'
     | '/pedidos'
     | '/portal-vendedor'
@@ -246,6 +267,7 @@ export interface FileRouteTypes {
     | '/oauth/google-calendar/return'
   fileRoutesByTo: FileRoutesByTo
   to:
+    | '/alterar-senha'
     | '/auth'
     | '/reset-password'
     | '/atendimento'
@@ -253,6 +275,7 @@ export interface FileRouteTypes {
     | '/diagnostico'
     | '/empresa'
     | '/leads'
+    | '/meu-whatsapp'
     | '/orcamentos'
     | '/pedidos'
     | '/portal-vendedor'
@@ -270,6 +293,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/_authenticated'
+    | '/alterar-senha'
     | '/auth'
     | '/reset-password'
     | '/_authenticated/atendimento'
@@ -277,6 +301,7 @@ export interface FileRouteTypes {
     | '/_authenticated/diagnostico'
     | '/_authenticated/empresa'
     | '/_authenticated/leads'
+    | '/_authenticated/meu-whatsapp'
     | '/_authenticated/orcamentos'
     | '/_authenticated/pedidos'
     | '/_authenticated/portal-vendedor'
@@ -295,6 +320,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   AuthenticatedRouteRoute: typeof AuthenticatedRouteRouteWithChildren
+  AlterarSenhaRoute: typeof AlterarSenhaRoute
   AuthRoute: typeof AuthRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   ApiPublicEvolutionWebhookRoute: typeof ApiPublicEvolutionWebhookRoute
@@ -320,6 +346,13 @@ declare module '@tanstack/react-router' {
       path: '/auth'
       fullPath: '/auth'
       preLoaderRoute: typeof AuthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/alterar-senha': {
+      id: '/alterar-senha'
+      path: '/alterar-senha'
+      fullPath: '/alterar-senha'
+      preLoaderRoute: typeof AlterarSenhaRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated': {
@@ -369,6 +402,13 @@ declare module '@tanstack/react-router' {
       path: '/orcamentos'
       fullPath: '/orcamentos'
       preLoaderRoute: typeof AuthenticatedOrcamentosRouteImport
+      parentRoute: typeof AuthenticatedRouteRoute
+    }
+    '/_authenticated/meu-whatsapp': {
+      id: '/_authenticated/meu-whatsapp'
+      path: '/meu-whatsapp'
+      fullPath: '/meu-whatsapp'
+      preLoaderRoute: typeof AuthenticatedMeuWhatsappRouteImport
       parentRoute: typeof AuthenticatedRouteRoute
     }
     '/_authenticated/leads': {
@@ -482,6 +522,7 @@ interface AuthenticatedRouteRouteChildren {
   AuthenticatedDiagnosticoRoute: typeof AuthenticatedDiagnosticoRoute
   AuthenticatedEmpresaRoute: typeof AuthenticatedEmpresaRoute
   AuthenticatedLeadsRoute: typeof AuthenticatedLeadsRouteWithChildren
+  AuthenticatedMeuWhatsappRoute: typeof AuthenticatedMeuWhatsappRoute
   AuthenticatedOrcamentosRoute: typeof AuthenticatedOrcamentosRoute
   AuthenticatedPedidosRoute: typeof AuthenticatedPedidosRoute
   AuthenticatedPortalVendedorRoute: typeof AuthenticatedPortalVendedorRoute
@@ -496,6 +537,7 @@ const AuthenticatedRouteRouteChildren: AuthenticatedRouteRouteChildren = {
   AuthenticatedDiagnosticoRoute: AuthenticatedDiagnosticoRoute,
   AuthenticatedEmpresaRoute: AuthenticatedEmpresaRoute,
   AuthenticatedLeadsRoute: AuthenticatedLeadsRouteWithChildren,
+  AuthenticatedMeuWhatsappRoute: AuthenticatedMeuWhatsappRoute,
   AuthenticatedOrcamentosRoute: AuthenticatedOrcamentosRoute,
   AuthenticatedPedidosRoute: AuthenticatedPedidosRoute,
   AuthenticatedPortalVendedorRoute: AuthenticatedPortalVendedorRoute,
@@ -509,6 +551,7 @@ const AuthenticatedRouteRouteWithChildren =
 
 const rootRouteChildren: RootRouteChildren = {
   AuthenticatedRouteRoute: AuthenticatedRouteRouteWithChildren,
+  AlterarSenhaRoute: AlterarSenhaRoute,
   AuthRoute: AuthRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   ApiPublicEvolutionWebhookRoute: ApiPublicEvolutionWebhookRoute,

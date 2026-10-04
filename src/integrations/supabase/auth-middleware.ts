@@ -98,19 +98,20 @@ export const requireSupabaseAuth = createMiddleware({ type: 'function' }).server
       throw new Error('Unauthorized: No user ID found in token');
     }
 
-    // Bloqueia usuários com profile.active=false em qualquer server function.
-    // Patch intencional além do gerador para atender à matriz de RBAC aprovada.
-    const { data: profile, error: profileErr } = await supabase
-      .from('profiles' as any)
-      .select('active')
-      .eq('id', data.claims.sub)
+    // Membership is tenant-scoped. A profile-level flag would disable a person
+    // in every tenant and does not prove access to the active organization.
+    const { data: membership, error: membershipErr } = await supabase
+      .from('organization_members' as any)
+      .select('organization_id, active')
+      .eq('user_id', data.claims.sub)
+      .eq('active', true)
       .maybeSingle();
-    if (profileErr) {
-      console.error('[auth-middleware] profile lookup failed:', profileErr.message);
-      throw new Error('Unauthorized: profile lookup failed');
+    if (membershipErr) {
+      console.error('[auth-middleware] membership lookup failed:', membershipErr.message);
+      throw new Error('Unauthorized: membership lookup failed');
     }
-    if (profile && (profile as any).active === false) {
-      throw new Error('Unauthorized: user is inactive');
+    if (!membership) {
+      throw new Error('Unauthorized: no active organization membership');
     }
 
     return next({

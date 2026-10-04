@@ -6,6 +6,7 @@ import {
   Search,
   Users,
   MessagesSquare,
+  Smartphone,
   FileText,
   ShoppingCart,
   BarChart3,
@@ -34,6 +35,7 @@ const NAV = [
   { to: "/prospeccao", label: "Prospecção", icon: Search },
   { to: "/leads", label: "Leads", icon: Users },
   { to: "/atendimento", label: "Central de Atendimento", icon: MessagesSquare },
+  { to: "/meu-whatsapp", label: "Meu WhatsApp", icon: Smartphone },
   { to: "/orcamentos", label: "Orçamentos", icon: FileText },
   { to: "/pedidos", label: "Pedidos", icon: ShoppingCart },
   { to: "/relatorios", label: "Relatórios", icon: BarChart3 },
@@ -47,6 +49,7 @@ const TITLES: Record<string, string> = {
   "/prospeccao": "Prospecção",
   "/leads": "Leads",
   "/atendimento": "Central de Atendimento",
+  "/meu-whatsapp": "Meu WhatsApp",
   "/orcamentos": "Orçamentos",
   "/pedidos": "Pedidos",
   "/relatorios": "Relatórios",
@@ -86,9 +89,9 @@ export function AppShell({
   // Matriz de navegação por papel (mesma de _authenticated/route.tsx)
   const visibleNav = NAV.filter((item) => {
     if (isAdmin) return true;
-    if (isSellerOnly) return item.to === "/atendimento";
-    if (isCxOnly) return item.to === "/atendimento";
-    if (isSdrOnly) return ["/prospeccao", "/leads", "/atendimento"].includes(item.to);
+    if (isSellerOnly) return ["/atendimento", "/meu-whatsapp"].includes(item.to);
+    if (isCxOnly) return ["/atendimento", "/meu-whatsapp"].includes(item.to);
+    if (isSdrOnly) return ["/prospeccao", "/leads", "/atendimento", "/meu-whatsapp"].includes(item.to);
     return false;
   });
   const showChrome = isAdmin; // busca global e notificações apenas para admin

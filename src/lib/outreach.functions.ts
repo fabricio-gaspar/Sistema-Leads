@@ -393,49 +393,32 @@ Gere ${kind}. Não use "prezado/a". Apresente a empresa, mencione de forma natur
 }
 
 // ============================================================================
-// Channel senders (server only) — Z-API is the only WhatsApp provider
+// Channel senders (server only) — Evolution GO is the only WhatsApp provider.
 // ============================================================================
 
-async function sendZapiText(to: string, message: string): Promise<{
-  ok: boolean
-  messageId?: string
-  error?: string
-}> {
-  const instance = process.env.ZAPI_INSTANCE_ID
-  const token = process.env.ZAPI_TOKEN
-  const clientToken = process.env.ZAPI_CLIENT_TOKEN
-  if (!instance || !token) {
-    return { ok: false, error: 'zapi_not_configured' }
-  }
-  const phone = to.replace(/\D/g, '')
-  if (phone.length < 10) return { ok: false, error: 'invalid_phone' }
-  const url = `https://api.z-api.io/instances/${instance}/token/${token}/send-text`
-  try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        ...(clientToken ? { 'Client-Token': clientToken } : {}),
-      },
-      body: JSON.stringify({ phone, message }),
-    })
-    const body = (await res.json().catch(() => ({}))) as any
-    if (!res.ok || body?.error) {
-      return { ok: false, error: body?.error || `http_${res.status}` }
-    }
-    return { ok: true, messageId: body?.messageId || body?.id || body?.zaapId }
-  } catch (err) {
-    return { ok: false, error: (err as Error).message }
-  }
-}
-
 async function sendWhatsappText(
-  _ctx: Ctx,
+  ctx: Ctx,
   to: string,
   message: string,
-): Promise<{ ok: boolean; messageId?: string; error?: string; provider: 'zapi' | 'none' }> {
-  const r = await sendZapiText(to, message)
-  return { ...r, provider: r.ok || r.error !== 'zapi_not_configured' ? 'zapi' : 'none' }
+  ownerUserId = ctx.userId,
+): Promise<{ ok: boolean; messageId?: string; error?: string; provider: 'evolution_go' | 'none' }> {
+  try {
+    const [{ supabaseAdmin }, evolution] = await Promise.all([
+      import('@/integrations/supabase/client.server'),
+      import('@/server/evolution-go.server'),
+    ])
+    const membership = await evolution.getActiveMembership(supabaseAdmin, ctx.userId)
+    const result = await evolution.sendEvolutionTextForOwner({
+      admin: supabaseAdmin,
+      organizationId: membership.organization_id,
+      ownerUserId,
+      to,
+      text: message,
+    })
+    return { ...result, provider: result.ok || result.error !== 'evolution_instance_missing' ? 'evolution_go' : 'none' }
+  } catch (err) {
+    return { ok: false, error: (err as Error).message, provider: 'evolution_go' }
+  }
 }
 
 function splitEmailContent(content: string): { subject: string; text: string } {
@@ -532,7 +515,7 @@ async function tryStep(ctx: Ctx, lead: any, step: SequenceStep): Promise<void> {
       status: 'pending',
       attempt,
       content,
-      provider: channel === 'whatsapp' ? 'zapi' : channel === 'email' ? 'resend' : 'manual',
+      provider: channel === 'whatsapp' ? 'evolution_go' : channel === 'email' ? 'resend' : 'manual',
       actor_type: 'ia',
       metadata: { sequence_step: step.id },
     } as never)
@@ -549,7 +532,7 @@ async function tryStep(ctx: Ctx, lead: any, step: SequenceStep): Promise<void> {
 
   if (channel === 'whatsapp') {
     const to = lead.whatsapp || lead.phone || ''
-    const result = await sendWhatsappText(ctx, to, content)
+    const result = await sendWhatsappText(ctx, to, content, lead.assigned_to || lead.owner_id || ctx.userId)
     if (result.ok) {
       const now = new Date().toISOString()
       await ctx.supabase
@@ -557,7 +540,7 @@ async function tryStep(ctx: Ctx, lead: any, step: SequenceStep): Promise<void> {
         .update({
           status: 'sent',
           sent_at: now,
-          provider: 'zapi',
+          provider: 'evolution_go',
           provider_message_id: result.messageId ?? null,
         } as never)
         .eq('id', row.id)
@@ -749,7 +732,7 @@ async function recordAiOutbound(
     owner_id: lead.assigned_to || lead.owner_id || ctx.userId,
     channel,
     status: result.ok ? 'sent' : 'failed',
-    provider: channel === 'whatsapp' ? 'zapi' : channel === 'email' ? 'resend' : 'meta_instagram',
+    provider: channel === 'whatsapp' ? 'evolution_go' : channel === 'email' ? 'resend' : 'meta_instagram',
     provider_message_id: result.messageId ?? null,
     content: text,
     error: result.error ?? null,
@@ -787,7 +770,7 @@ async function deliverAiMessage(
       )
     : channel === 'instagram'
       ? await sendInstagramText(lead.instagram_user_id || '', text)
-      : await sendZapiText(lead.whatsapp || lead.phone || '', text)
+      : await sendWhatsappText(ctx, lead.whatsapp || lead.phone || '', text, lead.assigned_to || lead.owner_id || ctx.userId)
   await recordAiOutbound(ctx, lead, text, result, channel, messageType)
   return result
 }
@@ -1274,7 +1257,7 @@ export const sendManualWhatsapp = createServerFn({ method: 'POST' })
       .eq('lead_id', lead.id)
       .eq('channel', 'whatsapp')
     const attempt = (count ?? 0) + 1
-    const result = await sendZapiText(to, data.text)
+    const result = await sendWhatsappText(ctx, to, data.text, ctx.userId)
     const now = new Date().toISOString()
 
     const { error: outreachError } = await ctx.supabase.from('lead_outreach').insert({
@@ -1282,7 +1265,7 @@ export const sendManualWhatsapp = createServerFn({ method: 'POST' })
       owner_id: ctx.userId,
       channel: 'whatsapp',
       status: result.ok ? 'sent' : 'failed',
-      provider: 'zapi',
+      provider: 'evolution_go',
       provider_message_id: result.messageId ?? null,
       content: data.text,
       error: result.error ?? null,
@@ -1296,7 +1279,7 @@ export const sendManualWhatsapp = createServerFn({ method: 'POST' })
     if (!result.ok) {
       await updateChannelStatus(ctx, lead.id, 'whatsapp', 'failed')
       await audit(ctx, 'manual_whatsapp_failed', `Falha no WhatsApp manual para ${lead.company}: ${result.error}`, 'human')
-      return { ok: false, error: result.error || 'Falha ao enviar pela Z-API.' }
+      return { ok: false, error: result.error || 'Falha ao enviar pela Evolution GO.' }
     }
 
     const { error: messageError } = await ctx.supabase.from('lead_messages').insert({
@@ -1419,35 +1402,14 @@ export const listOutreach = createServerFn({ method: 'POST' })
     return rows ?? []
   })
 
-export const testZapi = createServerFn({ method: 'POST' })
-  .middleware([requireSupabaseAuth])
-  .handler(async () => {
-    const instance = process.env.ZAPI_INSTANCE_ID
-    const token = process.env.ZAPI_TOKEN
-    const clientToken = process.env.ZAPI_CLIENT_TOKEN
-    if (!instance || !token) return { ok: false, error: 'Credenciais Z-API ausentes' }
-    try {
-      const res = await fetch(
-        `https://api.z-api.io/instances/${instance}/token/${token}/status`,
-        { headers: clientToken ? { 'Client-Token': clientToken } : {} },
-      )
-      const body = (await res.json().catch(() => ({}))) as any
-      if (!res.ok) return { ok: false, error: body?.error || `http_${res.status}` }
-      return { ok: true, connected: !!body?.connected, session: body?.session ?? null }
-    } catch (err) {
-      return { ok: false, error: (err as Error).message }
-    }
-  })
-
 export const getOutreachHealth = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .handler(async () => ({
     ai: Object.values(aiProviderHealth()).some(Boolean),
     aiProviders: aiProviderHealth(),
     prospecting: Boolean(process.env.GOOGLE_PLACES_API_KEY),
-    zapi: Boolean(process.env.ZAPI_INSTANCE_ID && process.env.ZAPI_TOKEN),
-    zapiClientToken: Boolean(process.env.ZAPI_CLIENT_TOKEN),
-    zapiWebhook: Boolean(process.env.ZAPI_WEBHOOK_SECRET),
+    evolution: Boolean(process.env.EVOLUTION_ENCRYPTION_KEY),
+    evolutionWebhook: Boolean(process.env.EVOLUTION_WEBHOOK_SECRET),
     scheduler: Boolean(process.env.OUTREACH_CRON_SECRET),
     email: Boolean(process.env.RESEND_API_KEY && process.env.OUTREACH_EMAIL_FROM),
     emailWebhook: Boolean(process.env.RESEND_WEBHOOK_SECRET),

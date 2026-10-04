@@ -22,7 +22,7 @@ type MediaContext = {
   supabase: any;
   organizationId: string;
   leadId: string;
-  provider: "zapi" | "meta_instagram";
+  provider: "evolution_go" | "meta_instagram";
   externalId?: string | null;
 };
 

@@ -80,9 +80,8 @@ function DiagnosticoPage() {
             {[
               ["Ana (IA)", health.ai],
               ["Google Places", health.prospecting],
-              ["WhatsApp Z-API", health.zapi],
-              ["Token cliente Z-API", health.zapiClientToken],
-              ["Webhook WhatsApp", health.zapiWebhook],
+              ["Criptografia Evolution GO", health.evolution],
+              ["Webhook Evolution GO", health.evolutionWebhook],
               ["E-mail Resend", health.email],
               ["Webhook de e-mail", health.emailWebhook],
               ["Agendador da cadência", health.scheduler],

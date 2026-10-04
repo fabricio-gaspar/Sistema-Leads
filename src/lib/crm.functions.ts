@@ -809,37 +809,51 @@ export const getDocumentSignedUrl = createServerFn({ method: 'POST' })
 
 const appRole = z.enum(['administrador', 'vendedor', 'sdr', 'cx'])
 
-async function assertAdmin(ctx: { supabase: any; userId: string }) {
-  const { data, error } = await ctx.supabase.rpc('has_role', { _user_id: ctx.userId, _role: 'administrador' })
-  if (error) throw new Error(error.message)
-  if (!data) throw new Error('Acesso restrito a administradores')
+type OrganizationMembership = {
+  organization_id: string
+  role: 'administrador' | 'vendedor' | 'sdr' | 'cx'
+  active: boolean
 }
 
-async function countAdmins(admin: any): Promise<number> {
-  // Conta apenas administradores ATIVOS. user_roles e profiles referenciam auth.users
-  // sem FK direta entre si (Relationships: []), portanto não é possível usar join PostgREST.
-  const { data: roleRows, error: roleErr } = await admin
-    .from('user_roles')
-    .select('user_id')
-    .eq('role', 'administrador')
-  if (roleErr) throw new Error(roleErr.message)
-  const ids = (roleRows ?? []).map((r: any) => r.user_id).filter(Boolean)
-  if (ids.length === 0) return 0
-  const { data: profRows, error: profErr } = await admin
-    .from('profiles')
-    .select('id')
-    .in('id', ids)
+async function getActiveOrganizationMembership(ctx: { supabase: any; userId: string }): Promise<OrganizationMembership> {
+  const { data, error } = await ctx.supabase
+    .from('organization_members')
+    .select('organization_id, role, active')
+    .eq('user_id', ctx.userId)
     .eq('active', true)
-  if (profErr) throw new Error(profErr.message)
-  return (profRows ?? []).length
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle()
+  if (error) throw new Error(error.message)
+  if (!data) throw new Error('Seu usuário não possui uma organização ativa.')
+  return data as OrganizationMembership
 }
 
-async function isAdminUser(admin: any, userId: string): Promise<boolean> {
+async function assertAdmin(ctx: { supabase: any; userId: string }): Promise<OrganizationMembership> {
+  const membership = await getActiveOrganizationMembership(ctx)
+  if (membership.role !== 'administrador') throw new Error('Acesso restrito a administradores')
+  return membership
+}
+
+async function countAdmins(admin: any, organizationId: string): Promise<number> {
+  const { count, error } = await admin
+    .from('organization_members')
+    .select('user_id', { count: 'exact', head: true })
+    .eq('organization_id', organizationId)
+    .eq('role', 'administrador')
+    .eq('active', true)
+  if (error) throw new Error(error.message)
+  return count ?? 0
+}
+
+async function isAdminUser(admin: any, organizationId: string, userId: string): Promise<boolean> {
   const { data, error } = await admin
-    .from('user_roles')
+    .from('organization_members')
     .select('user_id')
+    .eq('organization_id', organizationId)
     .eq('user_id', userId)
     .eq('role', 'administrador')
+    .eq('active', true)
     .maybeSingle()
   if (error) throw new Error(error.message)
   return Boolean(data)
@@ -914,38 +928,43 @@ async function auditTeam(
 export const getMyRoles = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    const { data, error } = await context.supabase.from('user_roles').select('role').eq('user_id', context.userId)
-    if (error) throw new Error(error.message)
-    return (data ?? []).map((r: { role: string }) => r.role)
+    const membership = await getActiveOrganizationMembership(context)
+    return [membership.role]
   })
 
 export const listTeam = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
-    await assertAdmin(context)
-    const [{ data: profiles, error: e1 }, { data: roles, error: e2 }] = await Promise.all([
-      context.supabase.from('profiles').select('*').order('created_at', { ascending: true }),
-      context.supabase.from('user_roles').select('user_id, role'),
-    ])
-    if (e1) throw new Error(e1.message)
-    if (e2) throw new Error(e2.message)
-    const byUser = new Map<string, string[]>()
-    for (const r of roles ?? []) {
-      const arr = byUser.get(r.user_id) ?? []
-      arr.push(r.role)
-      byUser.set(r.user_id, arr)
-    }
-    type Profile = {
+    const membership = await assertAdmin(context)
+    const { supabaseAdmin } = await import('@/integrations/supabase/client.server')
+    const { data: members, error: membersError } = await supabaseAdmin
+      .from('organization_members')
+      .select('user_id, role, active, created_at')
+      .eq('organization_id', membership.organization_id)
+      .order('created_at', { ascending: true })
+    if (membersError) throw new Error(membersError.message)
+    const memberIds = (members ?? []).map((member: { user_id: string }) => member.user_id)
+    const { data: profiles, error: profilesError } = memberIds.length
+      ? await supabaseAdmin.from('profiles').select('id, name, email, phone, avatar, can_use_ia, discount_limit').in('id', memberIds)
+      : { data: [], error: null }
+    if (profilesError) throw new Error(profilesError.message)
+    const people = new Map((profiles ?? []).map((profile: { id: string }) => [profile.id, profile]))
+    return (members ?? []).map((member: { user_id: string; role: string; active: boolean }) => ({
+      ...(people.get(member.user_id) ?? { id: member.user_id, name: null, email: null, phone: null, avatar: null, can_use_ia: true, discount_limit: null }),
+      id: member.user_id,
+      active: member.active,
+      roles: [member.role],
+    })) as Array<{
       id: string
       name: string | null
       email: string | null
       phone: string | null
       avatar: string | null
-      active: boolean | null
+      active: boolean
       can_use_ia: boolean | null
       discount_limit: string | null
-    }
-    return ((profiles ?? []) as Profile[]).map((p) => ({ ...p, roles: byUser.get(p.id) ?? [] }))
+      roles: string[]
+    }>
   })
 
 export const assignLeadToSeller = createServerFn({ method: 'POST' })
@@ -954,13 +973,15 @@ export const assignLeadToSeller = createServerFn({ method: 'POST' })
     z.object({ lead_id: z.string().uuid(), seller_id: z.string().uuid().nullable() }).parse(d),
   )
   .handler(async ({ data, context }) => {
-    await assertAdmin(context)
+    const membership = await assertAdmin(context)
     if (data.seller_id) {
       const { data: role, error: roleError } = await context.supabase
-        .from('user_roles')
+        .from('organization_members')
         .select('user_id')
+        .eq('organization_id', membership.organization_id)
         .eq('user_id', data.seller_id)
         .eq('role', 'vendedor')
+        .eq('active', true)
         .maybeSingle()
       if (roleError) throw new Error(roleError.message)
       if (!role) throw new Error('O usuário selecionado não possui o perfil de vendedor')
@@ -985,61 +1006,31 @@ export const setUserRole = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => z.object({ user_id: z.string().uuid(), role: appRole }).parse(d))
   .handler(async ({ data, context }) => {
-    await assertAdmin(context)
+    const membership = await assertAdmin(context)
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server')
 
-    // Bloqueia rebaixar o último administrador
-    const wasAdmin = await isAdminUser(supabaseAdmin, data.user_id)
+    const { data: target, error: targetError } = await supabaseAdmin
+      .from('organization_members')
+      .select('role, active')
+      .eq('organization_id', membership.organization_id)
+      .eq('user_id', data.user_id)
+      .maybeSingle()
+    if (targetError) throw new Error(targetError.message)
+    if (!target) throw new Error('Usuário não pertence à organização ativa.')
+
+    const wasAdmin = target.role === 'administrador' && target.active
     if (wasAdmin && data.role !== 'administrador') {
-      const total = await countAdmins(supabaseAdmin)
+      const total = await countAdmins(supabaseAdmin, membership.organization_id)
       if (total <= 1) throw new Error('Não é possível remover o último administrador do sistema.')
     }
 
-    // Snapshot para rollback
-    const { data: prev, error: readErr } = await supabaseAdmin
-      .from('user_roles')
-      .select('role')
+    const { error: updateError } = await supabaseAdmin
+      .from('organization_members')
+      .update({ role: data.role } as never)
+      .eq('organization_id', membership.organization_id)
       .eq('user_id', data.user_id)
-    if (readErr) throw new Error(readErr.message)
-    const prevRoles = (prev ?? []).map((r: { role: string }) => r.role)
-
-    const { error: delErr } = await supabaseAdmin.from('user_roles').delete().eq('user_id', data.user_id)
-    if (delErr) throw new Error(delErr.message)
-    const { error: insErr } = await supabaseAdmin
-      .from('user_roles')
-      .insert({ user_id: data.user_id, role: data.role } as never)
-    if (insErr) {
-      // Rollback: restaura papéis anteriores para não deixar usuário órfão
-      if (prevRoles.length) {
-        const { error: rbErr } = await supabaseAdmin
-          .from('user_roles')
-          .insert(prevRoles.map((r) => ({ user_id: data.user_id, role: r })) as never)
-        if (rbErr) {
-          console.error('[setUserRole] rollback failed:', rbErr.message, 'user:', data.user_id)
-        }
-      }
-      throw new Error(insErr.message)
-    }
+    if (updateError) throw new Error(updateError.message)
     await auditTeam(context, 'role_change', `Usuário ${data.user_id} → ${data.role}`)
-    return { ok: true }
-  })
-
-export const removeUserRole = createServerFn({ method: 'POST' })
-  .middleware([requireSupabaseAuth])
-  .inputValidator((d: unknown) => z.object({ user_id: z.string().uuid(), role: appRole }).parse(d))
-  .handler(async ({ data, context }) => {
-    await assertAdmin(context)
-    const { supabaseAdmin } = await import('@/integrations/supabase/client.server')
-    if (data.role === 'administrador') {
-      const total = await countAdmins(supabaseAdmin)
-      if (total <= 1) throw new Error('Não é possível remover o último administrador do sistema.')
-    }
-    const { error } = await supabaseAdmin
-      .from('user_roles')
-      .delete()
-      .eq('user_id', data.user_id)
-      .eq('role', data.role)
-    if (error) throw new Error(error.message)
     return { ok: true }
   })
 
@@ -1062,73 +1053,64 @@ export const updateTeamMember = createServerFn({ method: 'POST' })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
-    await assertAdmin(context)
+    const membership = await assertAdmin(context)
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server')
 
     // Impede auto-desativação
     if (data.patch.active === false && data.id === context.userId) {
       throw new Error('Você não pode desativar o próprio usuário.')
     }
-    // Impede desativar o último administrador
+    const { data: target, error: targetError } = await supabaseAdmin
+      .from('organization_members')
+      .select('role, active')
+      .eq('organization_id', membership.organization_id)
+      .eq('user_id', data.id)
+      .maybeSingle()
+    if (targetError) throw new Error(targetError.message)
+    if (!target) throw new Error('Usuário não pertence à organização ativa.')
+
+    // Impede desativar o último administrador da organização.
     if (data.patch.active === false) {
-      const targetIsAdmin = await isAdminUser(supabaseAdmin, data.id)
+      const targetIsAdmin = target.role === 'administrador' && target.active
       if (targetIsAdmin) {
-        const total = await countAdmins(supabaseAdmin)
+        const total = await countAdmins(supabaseAdmin, membership.organization_id)
         if (total <= 1) throw new Error('Não é possível desativar o último administrador do sistema.')
       }
     }
 
-    // Snapshot para rollback
-    const { data: before, error: readErr } = await supabaseAdmin
-      .from('profiles')
-      .select('active, can_use_ia, name, phone, discount_limit')
-      .eq('id', data.id)
-      .maybeSingle()
-    if (readErr) throw new Error(readErr.message)
+    const { active: memberActive, ...profilePatch } = data.patch
+    let row: any = null
+    if (Object.keys(profilePatch).length > 0) {
+      const { data: profile, error } = await supabaseAdmin
+        .from('profiles')
+        .update(profilePatch as never)
+        .eq('id', data.id)
+        .select()
+        .single()
+      if (error) throw new Error(error.message)
+      row = profile
+    }
 
-    const { data: row, error } = await supabaseAdmin
-      .from('profiles')
-      .update(data.patch as never)
-      .eq('id', data.id)
-      .select()
-      .single()
-    if (error) throw new Error(error.message)
-
-    // Sincroniza ban do usuário no Auth
     if (data.patch.active !== undefined) {
-      let authError: Error | null = null
-      try {
-        const { error: authErr } = await supabaseAdmin.auth.admin.updateUserById(data.id, {
-          ban_duration: data.patch.active ? 'none' : '87600h', // ~10 anos
-        } as never)
-        if (authErr) authError = new Error(authErr.message)
-      } catch (err) {
-        authError = err as Error
-      }
-      if (authError) {
-        // rollback do profile
-        const { error: rbErr } = await supabaseAdmin
-          .from('profiles')
-          .update({ active: before?.active ?? true } as never)
-          .eq('id', data.id)
-        if (rbErr) {
-          console.error('[updateTeamMember] rollback profile failed:', rbErr.message)
-        }
-        throw new Error(`Falha ao sincronizar Auth: ${authError.message}`)
-      }
+      const { error: membershipError } = await supabaseAdmin
+        .from('organization_members')
+        .update({ active: memberActive } as never)
+        .eq('organization_id', membership.organization_id)
+        .eq('user_id', data.id)
+      if (membershipError) throw new Error(membershipError.message)
       await auditTeam(
         context,
         data.patch.active ? 'user_activate' : 'user_deactivate',
         `Usuário ${data.id}`,
       )
     }
-    if (data.patch.can_use_ia !== undefined && before?.can_use_ia !== data.patch.can_use_ia) {
+    if (data.patch.can_use_ia !== undefined) {
       await auditTeam(context, 'can_use_ia_change', `Usuário ${data.id} → ${data.patch.can_use_ia}`)
     }
-    return row
+    return row ?? { id: data.id, active: data.patch.active ?? target.active }
   })
 
-export const inviteTeamMember = createServerFn({ method: 'POST' })
+export const createTeamMember = createServerFn({ method: 'POST' })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) =>
     z
@@ -1136,6 +1118,7 @@ export const inviteTeamMember = createServerFn({ method: 'POST' })
         email: z.string().trim().toLowerCase().email('E-mail inválido'),
         name: z.string().trim().min(1, 'Nome obrigatório').max(200),
         role: appRole,
+        temporaryPassword: z.string().min(12, 'A senha temporária deve ter ao menos 12 caracteres.').max(128),
         phone: z.string().trim().max(40).optional().nullable(),
         can_use_ia: z.boolean().optional().default(true),
         active: z.boolean().optional().default(true),
@@ -1143,7 +1126,7 @@ export const inviteTeamMember = createServerFn({ method: 'POST' })
       .parse(d),
   )
   .handler(async ({ data, context }) => {
-    await assertAdmin(context)
+    const membership = await assertAdmin(context)
     const { supabaseAdmin } = await import('@/integrations/supabase/client.server')
 
     // Duplicidade case-insensitive
@@ -1155,20 +1138,19 @@ export const inviteTeamMember = createServerFn({ method: 'POST' })
     if (existErr) throw new Error(existErr.message)
     if (existing) throw new Error('Já existe um usuário com este e-mail.')
 
-    // Origin seguro
-    const origin = await deriveOriginFromRequest()
-    const redirectTo = origin ? `${origin}/reset-password` : undefined
-
-    const { data: invite, error } = await supabaseAdmin.auth.admin.inviteUserByEmail(data.email, {
-      data: { name: data.name },
-      redirectTo,
+    const { data: created, error } = await supabaseAdmin.auth.admin.createUser({
+      email: data.email,
+      password: data.temporaryPassword,
+      email_confirm: true,
+      user_metadata: { name: data.name },
+      app_metadata: { managed_team_member: true },
     })
-    // Mantém erro do Auth caso o usuário exista apenas em auth.users
     if (error) throw new Error(error.message)
-    const userId = invite.user?.id
+    const userId = created.user?.id
     if (!userId) throw new Error('Falha ao criar usuário no Auth')
 
-    // Persiste perfil + papel com rollback em qualquer falha
+    // Auth profile is created by the trigger. Add it to the administrator's
+    // organization, then provision exactly one isolated Evolution instance.
     try {
       const { error: upErr } = await supabaseAdmin.from('profiles').upsert(
         {
@@ -1176,7 +1158,7 @@ export const inviteTeamMember = createServerFn({ method: 'POST' })
           name: data.name,
           email: data.email,
           phone: data.phone ?? null,
-          active: data.active,
+          active: true,
           can_use_ia: data.can_use_ia,
           avatar: data.name.charAt(0).toUpperCase(),
         } as never,
@@ -1184,19 +1166,14 @@ export const inviteTeamMember = createServerFn({ method: 'POST' })
       )
       if (upErr) throw new Error(`profiles: ${upErr.message}`)
 
-      const { error: delErr } = await supabaseAdmin.from('user_roles').delete().eq('user_id', userId)
-      if (delErr) throw new Error(`user_roles delete: ${delErr.message}`)
-      const { error: insErr } = await supabaseAdmin
-        .from('user_roles')
-        .insert({ user_id: userId, role: data.role } as never)
-      if (insErr) throw new Error(`user_roles insert: ${insErr.message}`)
-
-      if (!data.active) {
-        const { error: banErr } = await supabaseAdmin.auth.admin.updateUserById(userId, {
-          ban_duration: '87600h',
-        } as never)
-        if (banErr) throw new Error(`auth ban: ${banErr.message}`)
-      }
+      const { error: memberError } = await supabaseAdmin.from('organization_members').insert({
+        organization_id: membership.organization_id,
+        user_id: userId,
+        role: data.role,
+        active: data.active,
+        password_change_required: true,
+      } as never)
+      if (memberError) throw new Error(`organization_members: ${memberError.message}`)
     } catch (err) {
       // Rollback completo do usuário. auth.admin.deleteUser retorna { error } sem lançar.
       try {
@@ -1210,8 +1187,39 @@ export const inviteTeamMember = createServerFn({ method: 'POST' })
       throw err
     }
 
-    await auditTeam(context, 'invite_member', `${data.email} → ${data.role}`)
-    return { ok: true, user_id: userId }
+    let evolution: { status: 'ready' | 'pending'; error?: string } = { status: 'ready' }
+    try {
+      const evolutionServer = await import('@/server/evolution-go.server')
+      await evolutionServer.provisionEvolutionInstance({
+        admin: supabaseAdmin,
+        organizationId: membership.organization_id,
+        ownerUserId: userId,
+        ownerName: data.name,
+      })
+    } catch (provisionError) {
+      evolution = {
+        status: 'pending',
+        error: provisionError instanceof Error ? provisionError.message : 'Provisionamento pendente.',
+      }
+    }
+
+    await auditTeam(context, 'team_member_create', `${data.email} → ${data.role}; Evolution ${evolution.status}`)
+    return { ok: true, user_id: userId, evolution }
+  })
+
+export const completeTemporaryPasswordChange = createServerFn({ method: 'POST' })
+  .middleware([requireSupabaseAuth])
+  .handler(async ({ context }) => {
+    const membership = await getActiveOrganizationMembership(context)
+    const { supabaseAdmin } = await import('@/integrations/supabase/client.server')
+    const { error } = await supabaseAdmin
+      .from('organization_members')
+      .update({ password_change_required: false } as never)
+      .eq('organization_id', membership.organization_id)
+      .eq('user_id', context.userId)
+    if (error) throw new Error(error.message)
+    await auditTeam(context, 'temporary_password_changed', 'Senha temporária substituída pelo próprio usuário.')
+    return { ok: true }
   })
 
 export const resendMemberInvite = createServerFn({ method: 'POST' })
@@ -1951,6 +1959,18 @@ export const getSidebarCounts = createServerFn({ method: 'GET' })
 export const listIntegrations = createServerFn({ method: 'GET' })
   .middleware([requireSupabaseAuth])
   .handler(async ({ context }) => {
+    const [{ supabaseAdmin }, evolution] = await Promise.all([
+      import('@/integrations/supabase/client.server'),
+      import('@/server/evolution-go.server'),
+    ])
+    const membership = await evolution.getActiveMembership(supabaseAdmin, context.userId)
+    const evolutionConfiguration = await evolution.getEvolutionConfiguration(
+      supabaseAdmin,
+      membership.organization_id,
+    )
+    const evolutionReady = Boolean(
+      evolutionConfiguration?.active && process.env.EVOLUTION_ENCRYPTION_KEY,
+    )
     const { data, error } = await context.supabase
       .from('integrations')
       .select('id, key, label, connected, updated_at')
@@ -1960,8 +1980,8 @@ export const listIntegrations = createServerFn({ method: 'GET' })
       if (integration.key === 'whatsapp') {
         return {
           ...integration,
-          label: 'WhatsApp (Z-API)',
-          connected: Boolean(process.env.ZAPI_INSTANCE_ID && process.env.ZAPI_TOKEN),
+          label: 'WhatsApp (Evolution GO)',
+          connected: evolutionReady,
           managed: true,
         }
       }

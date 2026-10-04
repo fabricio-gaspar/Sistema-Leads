@@ -8,9 +8,9 @@ import { AppShell } from "@/components/AppShell";
 // - SDR:      /prospeccao, /leads (+detalhe) e /atendimento
 // - CX:       somente /atendimento
 const ADMIN_ONLY = ["/", "/empresa", "/configuracoes", "/diagnostico", "/relatorios", "/orcamentos", "/pedidos"];
-const SDR_ALLOWED = ["/prospeccao", "/leads", "/atendimento"];
-const CX_ALLOWED = ["/atendimento"];
-const VENDEDOR_ALLOWED = ["/atendimento"];
+const SDR_ALLOWED = ["/prospeccao", "/leads", "/atendimento", "/meu-whatsapp"];
+const CX_ALLOWED = ["/atendimento", "/meu-whatsapp"];
+const VENDEDOR_ALLOWED = ["/atendimento", "/meu-whatsapp"];
 
 const allows = (allowed: string[], path: string) =>
   allowed.some((p) => path === p || path.startsWith(p + "/"));
@@ -23,18 +23,24 @@ export const Route = createFileRoute("/_authenticated")({
       throw redirect({ to: "/auth" });
     }
 
-    const [{ data: profile }, { data: rolesRows }] = await Promise.all([
-      supabase.from("profiles").select("active").eq("id", data.user.id).maybeSingle(),
-      supabase.from("user_roles").select("role").eq("user_id", data.user.id),
-    ]);
+    const { data: memberships, error: membershipsError } = await supabase
+      .from("organization_members")
+      .select("organization_id, role, active, password_change_required, created_at")
+      .eq("user_id", data.user.id)
+      .eq("active", true)
+      .order("created_at", { ascending: true })
+      .limit(1);
 
-    // Bloqueia usuários desativados
-    if (profile && profile.active === false) {
+    if (membershipsError || !memberships?.[0]) {
       await supabase.auth.signOut();
       throw redirect({ to: "/auth" });
     }
 
-    const roles = (rolesRows ?? []).map((r) => r.role as string);
+    if (memberships[0].password_change_required) {
+      throw redirect({ to: "/alterar-senha" });
+    }
+
+    const roles = [memberships[0].role as string];
     const isAdmin = roles.includes("administrador");
     const isSellerOnly = !isAdmin && roles.includes("vendedor");
     const isSdrOnly = !isAdmin && !roles.includes("vendedor") && roles.includes("sdr");

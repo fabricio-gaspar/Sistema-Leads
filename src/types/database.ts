@@ -4,7 +4,7 @@ export type Database = {
   public: {
     Tables: {
       organizations: { Row: { id: string; name: string; slug: string; created_at: string; updated_at: string }; Insert: any; Update: any }
-      organization_members: { Row: { organization_id: string; user_id: string; role: string; created_at: string }; Insert: any; Update: any }
+      organization_members: { Row: { organization_id: string; user_id: string; role: string; active: boolean; password_change_required: boolean; created_at: string }; Insert: any; Update: any }
       organization_invites: { Row: { id: string; organization_id: string; email: string; role: string; inviter_id: string; created_at: string; expires_at: string; accepted_at: string | null }; Insert: any; Update: any }
       leads: { Row: { id: string; organization_id: string; company: string; contact: string | null; title: string | null; phone: string | null; email: string | null; segment: string | null; uf: string | null; distance: number | null; score: number; temp: string; stage: string; value: number; owner: string; assigned_to: string | null; stale_hours: number; escalated: boolean; escalation_reason: string | null; sla_info: string | null; last_contact: string | null; lost_reason: string | null; origin: string | null; created_at: string; updated_at: string; annual_revenue: string | null; score_snapshot: Json | null; score_explanation: string | null; score_source: string | null; score_verified_at: string | null }; Insert: any; Update: any }
       profiles: { Row: { id: string; name: string; email: string; phone: string | null; avatar: string | null; active: boolean; can_use_ia: boolean; created_at: string; updated_at: string }; Insert: any; Update: any }

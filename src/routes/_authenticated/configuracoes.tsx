@@ -12,7 +12,7 @@ import {
   listTeam,
   setUserRole,
   updateTeamMember,
-  inviteTeamMember,
+  createTeamMember,
   resendMemberInvite,
   listAuditLogs,
   listServices,
@@ -36,7 +36,12 @@ import {
 import { reindexAllDocuments, getKnowledgeStats } from "@/lib/knowledge.functions";
 import { listRecentProspectingSamples } from "@/lib/prospecting.functions";
 import { distributionFor, DEFAULT_WEIGHTS as SCORE_DEFAULTS, type Weights as ScoreWeights } from "@/lib/score-explain";
-import { getOutreachHealth, testZapi } from "@/lib/outreach.functions";
+import {
+  getEvolutionGoConfiguration,
+  listEvolutionInstances,
+  provisionEvolutionInstanceForMember,
+  saveEvolutionGoConfiguration,
+} from "@/lib/evolution-go.functions";
 import {
   listSequences,
   getSequenceWithSteps,
@@ -49,12 +54,12 @@ import { AUTONOMY_STAGES, AUTONOMY_LABEL, DEFAULT_AUTONOMY, readAutonomy, type A
 import { GoogleCalendarCard } from "@/components/GoogleCalendarCard";
 
 
-type TabId = "ana" | "autonomia" | "prospeccao" | "equipe" | "servicos" | "objecoes" | "score" | "governanca" | "auditoria" | "notificacoes" | "integracoes" | "seguranca";
+type TabId = "ana" | "autonomia" | "prospeccao" | "equipe" | "servicos" | "objecoes" | "score" | "governanca" | "auditoria" | "notificacoes" | "canais" | "integracoes" | "seguranca";
 export const Route = createFileRoute("/_authenticated/configuracoes")({
   component: Configuracoes,
   validateSearch: (s: Record<string, unknown>): { tab?: TabId } => {
     const t = s.tab;
-    const valid: TabId[] = ["ana","autonomia","prospeccao","equipe","servicos","objecoes","score","governanca","auditoria","notificacoes","integracoes","seguranca"];
+    const valid: TabId[] = ["ana","autonomia","prospeccao","equipe","servicos","objecoes","score","governanca","auditoria","notificacoes","canais","integracoes","seguranca"];
     return typeof t === "string" && (valid as string[]).includes(t) ? { tab: t as TabId } : {};
   },
 });
@@ -70,6 +75,7 @@ const TABS = [
   { id: "governanca", label: "Governança IA", icon: HelpCircle },
   { id: "auditoria", label: "Auditoria", icon: ClipboardList },
   { id: "notificacoes", label: "Notificações", icon: Bell },
+  { id: "canais", label: "Canais", icon: Plug },
   { id: "integracoes", label: "Integrações", icon: Zap },
   { id: "seguranca", label: "Segurança", icon: Shield },
 ] as const;
@@ -112,6 +118,7 @@ function Configuracoes() {
         {tab === "governanca" && <AbaGovernanca />}
         {tab === "auditoria" && <AbaAuditoria />}
         {tab === "notificacoes" && <AbaNotif />}
+        {tab === "canais" && <AbaCanais />}
         {tab === "integracoes" && <AbaInt />}
         {tab === "seguranca" && <AbaSeg />}
       </div>
@@ -375,12 +382,116 @@ function AdminGate({ error, children }: { error: unknown; children: React.ReactN
   return <>{children}</>;
 }
 
+function AbaCanais() {
+  const queryClient = useQueryClient();
+  const getConfigFn = useServerFn(getEvolutionGoConfiguration);
+  const saveConfigFn = useServerFn(saveEvolutionGoConfiguration);
+  const listInstancesFn = useServerFn(listEvolutionInstances);
+  const provisionFn = useServerFn(provisionEvolutionInstanceForMember);
+  const { data: configuration, error: configurationError } = useQuery({
+    queryKey: ["evolution-go-config"],
+    queryFn: () => getConfigFn(),
+  });
+  const { data: instances, error: instancesError, isLoading: instancesLoading } = useQuery({
+    queryKey: ["evolution-go-instances"],
+    queryFn: () => listInstancesFn(),
+  });
+  const [channelName, setChannelName] = useState("WhatsApp Evolution GO");
+  const [serverUrl, setServerUrl] = useState("");
+  const [globalApiKey, setGlobalApiKey] = useState("");
+
+  useEffect(() => {
+    if (!configuration) return;
+    setChannelName(configuration.channelName);
+    setServerUrl(configuration.serverUrl);
+  }, [configuration]);
+
+  const saveMutation = useMutation({
+    mutationFn: () => saveConfigFn({ data: { channelName, serverUrl, globalApiKey } }),
+    onSuccess: () => {
+      setGlobalApiKey("");
+      queryClient.invalidateQueries({ queryKey: ["evolution-go-config"] });
+      queryClient.invalidateQueries({ queryKey: ["evolution-go-instances"] });
+      toast.success("Evolution GO configurada. Instâncias pendentes foram encaminhadas para provisionamento.");
+    },
+    onError: (error: Error) => toast.error("Não foi possível salvar a Evolution GO", { description: error.message }),
+  });
+  const provisionMutation = useMutation({
+    mutationFn: (userId: string) => provisionFn({ data: { userId } }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["evolution-go-instances"] });
+      toast.success("Provisionamento solicitado.");
+    },
+    onError: (error: Error) => toast.error("Não foi possível provisionar a instância", { description: error.message }),
+  });
+
+  const error = configurationError ?? instancesError;
+  return (
+    <AdminGate error={error}>
+      <div className="space-y-4">
+        <Card>
+          <SectionTitle title="Evolution GO" hint="Canal principal do WhatsApp" />
+          <p className="mb-4 max-w-3xl text-[12.5px] text-text-sec">
+            A URL HTTPS e a chave global ficam protegidas no servidor. Cada integrante recebe uma instância isolada, com token, nome e ID gerados automaticamente no provisionamento.
+          </p>
+          <div className="grid gap-3 md:grid-cols-2">
+            <label className="block md:col-span-2">
+              <span className="mb-1 block text-[11px] uppercase text-text-ter">Nome do canal *</span>
+              <input value={channelName} onChange={(event) => setChannelName(event.target.value)} className="h-9 w-full rounded-md border border-border-card bg-bg-general px-2 text-[13px]" placeholder="WhatsApp Evolution GO" />
+            </label>
+            <label className="block md:col-span-2">
+              <span className="mb-1 block text-[11px] uppercase text-text-ter">URL HTTPS do servidor *</span>
+              <input type="url" value={serverUrl} onChange={(event) => setServerUrl(event.target.value)} className="h-9 w-full rounded-md border border-border-card bg-bg-general px-2 text-[13px]" placeholder="https://evolution.seudominio.com" />
+            </label>
+            <label className="block md:col-span-2">
+              <span className="mb-1 block text-[11px] uppercase text-text-ter">Chave global {configuration ? "(preencha somente para substituir)" : "*"}</span>
+              <input type="password" autoComplete="new-password" value={globalApiKey} onChange={(event) => setGlobalApiKey(event.target.value)} className="h-9 w-full rounded-md border border-border-card bg-bg-general px-2 text-[13px]" placeholder={configuration ? "A chave atual permanece protegida" : "Cole a chave global da Evolution GO"} />
+            </label>
+          </div>
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending || !channelName || !serverUrl || (!configuration && !globalApiKey)} className="inline-flex h-9 items-center gap-2 rounded-md bg-primary px-3 text-[12px] font-medium text-primary-foreground hover:bg-primary-hover disabled:opacity-50">
+              {saveMutation.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}{saveMutation.isPending ? "Salvando…" : "Salvar canal Evolution GO"}
+            </button>
+            {configuration && <span className="text-[11.5px] text-success">Canal configurado. A chave global não é exibida novamente.</span>}
+          </div>
+        </Card>
+
+        <Card>
+          <SectionTitle title="Instâncias por integrante" hint="Criação automática, isolada por usuário" />
+          {instancesLoading ? <div className="flex items-center gap-2 text-[12px] text-text-sec"><Loader2 className="h-4 w-4 animate-spin" /> Carregando instâncias…</div> : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[720px] text-[13px]">
+                <thead><tr className="text-left text-[11px] uppercase text-text-ter"><th className="pb-2">Integrante</th><th className="pb-2">Canal</th><th className="pb-2">Instância</th><th className="pb-2">Status</th><th /></tr></thead>
+                <tbody className="divide-y divide-border-card">
+                  {(instances ?? []).length === 0 && <tr><td colSpan={5} className="py-6 text-center text-[12px] text-text-ter">Nenhuma instância criada ainda. Elas serão provisionadas ao criar integrantes.</td></tr>}
+                  {(instances ?? []).map((instance: any) => {
+                    const retryable = !instance.external_instance_id || instance.connection_status === "error";
+                    const busy = provisionMutation.isPending && provisionMutation.variables === instance.owner_user_id;
+                    return <tr key={instance.id}>
+                      <td className="py-2.5"><div className="font-medium text-text-title">{instance.owner?.name ?? "Usuário"}</div><div className="text-[11px] text-text-ter">{instance.owner?.email ?? ""}</div></td>
+                      <td className="py-2.5 text-text-body">{instance.channel_name}</td>
+                      <td className="py-2.5 font-mono text-[11px] text-text-body">{instance.instance_name}</td>
+                      <td className="py-2.5"><span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${instance.connection_status === "connected" ? "bg-success-bg text-success" : "bg-warm-bg text-warm"}`}>{instance.connection_status === "connected" ? "Conectada" : instance.connection_status === "awaiting_connection" ? "Aguardando QR" : instance.connection_status === "pending_configuration" ? "Aguardando configuração" : instance.connection_status === "error" ? "Erro" : "Provisionando"}</span>{instance.last_error && <div className="mt-1 max-w-xs text-[10.5px] text-error">{instance.last_error}</div>}</td>
+                      <td className="py-2.5 text-right">{retryable && <button onClick={() => provisionMutation.mutate(instance.owner_user_id)} disabled={busy} className="text-[12px] text-primary hover:underline disabled:opacity-50">{busy ? "Aguarde…" : "Provisionar novamente"}</button>}</td>
+                    </tr>;
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+      </div>
+    </AdminGate>
+  );
+}
+
 function AbaEquipe() {
+  const routeContext = Route.useRouteContext();
   const qc = useQueryClient();
   const listFn = useServerFn(listTeam);
   const setRoleFn = useServerFn(setUserRole);
   const updateFn = useServerFn(updateTeamMember);
-  const inviteFn = useServerFn(inviteTeamMember);
+  const createMemberFn = useServerFn(createTeamMember);
   const resetFn = useServerFn(resendMemberInvite);
   const { data, isLoading, error } = useQuery({ queryKey: ["team"], queryFn: () => listFn() });
 
@@ -389,12 +500,16 @@ function AbaEquipe() {
     email: "",
     name: "",
     role: "vendedor" as "administrador" | "vendedor" | "sdr" | "cx",
+    temporaryPassword: "",
     phone: "",
     can_use_ia: true,
     active: true,
   });
   const [inviteError, setInviteError] = useState<string | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
+  const [editMember, setEditMember] = useState<any | null>(null);
+  const [edit, setEdit] = useState({ name: "", phone: "", can_use_ia: true, active: true });
+  const [editError, setEditError] = useState<string | null>(null);
 
   const setRoleMut = useMutation({
     mutationFn: (v: { user_id: string; role: "administrador" | "vendedor" | "sdr" | "cx" }) =>
@@ -437,11 +552,12 @@ function AbaEquipe() {
   });
   const inviteMut = useMutation({
     mutationFn: () =>
-      inviteFn({
+      createMemberFn({
         data: {
           email: inv.email.trim().toLowerCase(),
           name: inv.name.trim(),
           role: inv.role,
+          temporaryPassword: inv.temporaryPassword,
           phone: inv.phone.trim() || null,
           can_use_ia: inv.can_use_ia,
           active: inv.active,
@@ -449,10 +565,11 @@ function AbaEquipe() {
       }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["team"] });
+      qc.invalidateQueries({ queryKey: ["evolution-go-instances"] });
       setInviteOpen(false);
-      setInv({ email: "", name: "", role: "vendedor", phone: "", can_use_ia: true, active: true });
-      toast.success("Convite enviado por e-mail");
-      setFlash("✔ Convite enviado por e-mail.");
+      setInv({ email: "", name: "", role: "vendedor", temporaryPassword: "", phone: "", can_use_ia: true, active: true });
+      toast.success("Usuário criado e instância Evolution encaminhada.");
+      setFlash("✔ Usuário criado. A instância Evolution GO foi provisionada ou ficou pendente de configuração.");
       setTimeout(() => setFlash(null), 3500);
     },
     onError: (e: Error) => {
@@ -472,6 +589,21 @@ function AbaEquipe() {
       setFlash(`Erro: ${e.message}`);
       setTimeout(() => setFlash(null), 4000);
     },
+  });
+  const editMut = useMutation({
+    mutationFn: () => updateFn({
+      data: {
+        id: editMember.id,
+        patch: { name: edit.name.trim(), phone: edit.phone.trim() || null, can_use_ia: edit.can_use_ia, active: edit.active },
+      },
+    }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["team"] });
+      setEditMember(null);
+      setEditError(null);
+      toast.success("Integrante atualizado");
+    },
+    onError: (e: Error) => setEditError(e.message),
   });
 
   // Escape fecha o dialog de convite
@@ -580,6 +712,16 @@ function AbaEquipe() {
                     </td>
                     <td className="py-2.5 text-right space-x-3 whitespace-nowrap">
                       <button
+                        onClick={() => {
+                          setEditMember(t);
+                          setEdit({ name: t.name ?? "", phone: t.phone ?? "", can_use_ia: Boolean(t.can_use_ia), active: Boolean(t.active) });
+                          setEditError(null);
+                        }}
+                        className="text-[12px] text-text-sec hover:text-primary"
+                      >
+                        Editar
+                      </button>
+                      <button
                         onClick={() => t.email && resetMut.mutate(t.email)}
                         disabled={!t.email || resetPending}
                         className="text-[12px] text-text-sec hover:text-primary disabled:opacity-50"
@@ -620,8 +762,8 @@ function AbaEquipe() {
           >
             <div className="flex items-start justify-between gap-3 border-b border-border-card p-4">
               <div>
-                <div id="invite-title" className="text-[14px] font-semibold text-text-title">Adicionar integrante</div>
-                <div className="text-[11px] text-text-ter">Enviaremos um e-mail para o novo usuário definir a senha.</div>
+                <div id="invite-title" className="text-[14px] font-semibold text-text-title">Criar integrante</div>
+                <div className="text-[11px] text-text-ter">O usuário recebe a senha temporária definida abaixo e uma instância Evolution GO isolada.</div>
               </div>
               <button
                 type="button"
@@ -640,6 +782,10 @@ function AbaEquipe() {
               <label className="block">
                 <span className="mb-1 block text-[11px] uppercase text-text-ter">Nome *</span>
                 <input required value={inv.name} onChange={(e) => setInv({ ...inv, name: e.target.value })} className="w-full h-9 rounded-md border border-border-card bg-bg-general px-2 text-[13px]" />
+              </label>
+              <label className="block">
+                <span className="mb-1 block text-[11px] uppercase text-text-ter">Senha temporária *</span>
+                <input type="password" autoComplete="new-password" minLength={12} required value={inv.temporaryPassword} onChange={(e) => setInv({ ...inv, temporaryPassword: e.target.value })} className="w-full h-9 rounded-md border border-border-card bg-bg-general px-2 text-[13px]" placeholder="Mínimo de 12 caracteres" />
               </label>
               <label className="block">
                 <span className="mb-1 block text-[11px] uppercase text-text-ter">Telefone</span>
@@ -669,13 +815,37 @@ function AbaEquipe() {
               <button onClick={() => setInviteOpen(false)} className="rounded-md border border-border-card px-3 py-1.5 text-[12px] text-text-body hover:bg-bg-general">Cancelar</button>
               <button
                 onClick={() => { setInviteError(null); inviteMut.mutate(); }}
-                disabled={!inv.email || !inv.name || inviteMut.isPending}
+                disabled={!inv.email || !inv.name || inv.temporaryPassword.length < 12 || inviteMut.isPending}
                 className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-[12px] font-medium text-primary-foreground hover:bg-primary-hover disabled:opacity-50"
               >
                 {inviteMut.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                Enviar convite
+                Criar usuário
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {editMember && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setEditMember(null)}>
+          <div role="dialog" aria-modal="true" aria-labelledby="edit-member-title" className="w-full max-w-md rounded-xl border border-border-card bg-bg-card shadow-2xl" onClick={(event) => event.stopPropagation()}>
+            <div className="flex items-start justify-between gap-3 border-b border-border-card p-4">
+              <div>
+                <div id="edit-member-title" className="text-[14px] font-semibold text-text-title">Editar integrante</div>
+                <div className="text-[11px] text-text-ter">{editMember.email ?? ""}</div>
+              </div>
+              <button type="button" aria-label="Fechar" onClick={() => setEditMember(null)} className="rounded-md p-1 text-text-ter hover:bg-bg-general hover:text-text-title">✕</button>
+            </div>
+            <div className="space-y-3 p-4">
+              <label className="block"><span className="mb-1 block text-[11px] uppercase text-text-ter">Nome *</span><input required value={edit.name} onChange={(event) => setEdit({ ...edit, name: event.target.value })} className="h-9 w-full rounded-md border border-border-card bg-bg-general px-2 text-[13px]" /></label>
+              <label className="block"><span className="mb-1 block text-[11px] uppercase text-text-ter">Telefone</span><input value={edit.phone} onChange={(event) => setEdit({ ...edit, phone: event.target.value })} className="h-9 w-full rounded-md border border-border-card bg-bg-general px-2 text-[13px]" /></label>
+              <div className="flex flex-wrap gap-4 pt-1">
+                <label className="inline-flex items-center gap-1.5 text-[12.5px] text-text-body"><input type="checkbox" checked={edit.can_use_ia} onChange={(event) => setEdit({ ...edit, can_use_ia: event.target.checked })} className="h-3.5 w-3.5 accent-primary" /> Pode usar a IA</label>
+                <label className="inline-flex items-center gap-1.5 text-[12.5px] text-text-body"><input type="checkbox" checked={edit.active} disabled={editMember.id === routeContext.user.id} onChange={(event) => setEdit({ ...edit, active: event.target.checked })} className="h-3.5 w-3.5 accent-primary disabled:opacity-50" /> Acesso ativo</label>
+              </div>
+              {editError && <div className="rounded-md bg-error-bg px-3 py-2 text-[12px] text-error">{editError}</div>}
+            </div>
+            <div className="flex justify-end gap-2 border-t border-border-card p-3"><button onClick={() => setEditMember(null)} className="rounded-md border border-border-card px-3 py-1.5 text-[12px] text-text-body hover:bg-bg-general">Cancelar</button><button onClick={() => editMut.mutate()} disabled={!edit.name.trim() || editMut.isPending} className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-[12px] font-medium text-primary-foreground hover:bg-primary-hover disabled:opacity-50">{editMut.isPending && <Loader2 className="h-3.5 w-3.5 animate-spin" />}{editMut.isPending ? "Salvando…" : "Salvar alterações"}</button></div>
           </div>
         </div>
       )}
@@ -900,7 +1070,7 @@ function AbaInt() {
           )}
         </div>
       )}
-      <ZapiCadenceCard />
+      <EvolutionCadenceCard />
       <SequenceEditorCard />
       <HandoffAutomationCard />
       <GoogleCalendarCard />
@@ -1720,133 +1890,12 @@ function AbaProspeccao() {
 }
 
 
-function ZapiCadenceCard() {
-  const getFn = useServerFn(getCompanySettings);
-  const updateFn = useServerFn(updateCompanySettings);
-  const healthFn = useServerFn(getOutreachHealth);
-  const testFn = useServerFn(testZapi);
-  const qc = useQueryClient();
-  const { data } = useQuery({ queryKey: ["company-settings"], queryFn: () => getFn() });
-  const { data: health } = useQuery({ queryKey: ["outreach-health"], queryFn: () => healthFn() });
-  const [waitH, setWaitH] = useState<number>(24);
-  const [maxA, setMaxA] = useState<number>(3);
-  const [testing, setTesting] = useState(false);
-  const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null);
-  useEffect(() => {
-    if (data) {
-      setWaitH(Number((data as any).outreach_wait_hours ?? 24));
-      setMaxA(Number((data as any).outreach_max_attempts ?? 3));
-    }
-  }, [data]);
-
-  const saveMut = useMutation({
-    mutationFn: () =>
-      updateFn({ data: { outreach_wait_hours: waitH, outreach_max_attempts: maxA } as any }),
-    onSuccess: () => {
-      toast.success("Cadência salva");
-      qc.invalidateQueries({ queryKey: ["company-settings"] });
-    },
-    onError: (e: Error) => toast.error("Erro ao salvar", { description: e.message }),
-  });
-
-  const testConnection = async () => {
-    setTesting(true);
-    setTestResult(null);
-    try {
-      const result: any = await testFn();
-      setTestResult({
-        ok: result.ok,
-        message: result.ok
-          ? result.connected
-            ? "Z-API conectada e pronta para envio."
-            : "Credenciais válidas, mas a instância ainda não está conectada."
-          : result.error || "Falha ao testar a Z-API.",
-      });
-    } catch (error) {
-      setTestResult({ ok: false, message: (error as Error).message });
-    } finally {
-      setTesting(false);
-    }
-  };
-
-  const healthItems = [
-    ["Z-API", health?.zapi],
-    ["Client Token", health?.zapiClientToken],
-    ["Webhook", health?.zapiWebhook],
-    ["Agendador", health?.scheduler],
-    ["E-mail (Resend)", health?.email],
-    ["Webhook e-mail", health?.emailWebhook],
-  ] as const;
-
+function EvolutionCadenceCard() {
   return (
     <div className="mt-4 rounded-md border border-border-card p-4">
-      <div className="mb-1 text-[13px] font-semibold text-text-title">
-        Cadência de primeiro contato (IA)
-      </div>
-      <div className="mb-3 text-[11.5px] text-text-sec">
-        Configure a estratégia sequencial WhatsApp → E-mail → Ligação. A IA só
-        avança de canal se o anterior falhar ou não tiver resposta no prazo. A Z-API
-        é o único provedor de WhatsApp deste sistema.
-      </div>
-      <div className="mb-3 grid grid-cols-2 gap-2 md:grid-cols-6">
-        {healthItems.map(([label, ready]) => (
-          <div key={label} className="rounded-md border border-border-card px-2 py-1.5">
-            <div className="text-[10.5px] text-text-ter">{label}</div>
-            <div className={`text-[11.5px] font-semibold ${ready ? "text-success" : "text-error"}`}>
-              {ready ? "Configurado" : "Pendente"}
-            </div>
-          </div>
-        ))}
-      </div>
-      <div className="grid grid-cols-2 gap-3 max-w-md">
-        <label className="block text-[12px]">
-          <span className="text-text-sec">Aguardar (horas) sem resposta</span>
-          <input
-            type="number"
-            min={1}
-            max={168}
-            value={waitH}
-            onChange={(e) => setWaitH(Number(e.target.value))}
-            className="mt-1 w-full rounded-md border border-border-card bg-bg-card px-2 py-1.5 text-[13px]"
-          />
-        </label>
-        <label className="block text-[12px]">
-          <span className="text-text-sec">Tentativas por canal</span>
-          <input
-            type="number"
-            min={1}
-            max={10}
-            value={maxA}
-            onChange={(e) => setMaxA(Number(e.target.value))}
-            className="mt-1 w-full rounded-md border border-border-card bg-bg-card px-2 py-1.5 text-[13px]"
-          />
-        </label>
-      </div>
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        <button
-          onClick={() => saveMut.mutate()}
-          disabled={saveMut.isPending}
-          className="inline-flex h-8 items-center rounded-md bg-primary px-3 text-[12px] font-medium text-primary-foreground hover:bg-primary-hover disabled:opacity-50"
-        >
-          {saveMut.isPending ? "Salvando…" : "Salvar cadência"}
-        </button>
-        <button
-          onClick={testConnection}
-          disabled={testing || !health?.zapi}
-          className="inline-flex h-8 items-center rounded-md border border-border-card bg-bg-card px-3 text-[12px] font-medium text-text-body hover:bg-bg-general disabled:opacity-50"
-        >
-          {testing ? "Testando…" : "Testar Z-API"}
-        </button>
-        {testResult && (
-          <span className={`text-[11.5px] font-medium ${testResult.ok ? "text-success" : "text-error"}`}>
-            {testResult.message}
-          </span>
-        )}
-      </div>
-      <div className="mt-3 text-[11px] text-text-ter">
-        Secrets necessários: ZAPI_INSTANCE_ID, ZAPI_TOKEN, ZAPI_CLIENT_TOKEN,
-        ZAPI_WEBHOOK_SECRET, OUTREACH_CRON_SECRET, RESEND_API_KEY e OUTREACH_EMAIL_FROM.
-        Para respostas por e-mail, configure também RESEND_WEBHOOK_SECRET.
+      <div className="mb-1 text-[13px] font-semibold text-text-title">WhatsApp pela Evolution GO</div>
+      <div className="text-[11.5px] text-text-sec">
+        A cadência, o atendimento manual e as automações usam exclusivamente a instância Evolution GO do responsável pelo lead. Não há fallback para outro provedor. Configure as credenciais em <b>Configurações → Canais</b> e conclua a leitura do QR em <b>Meu WhatsApp</b>.
       </div>
     </div>
   );

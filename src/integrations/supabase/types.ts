@@ -1390,20 +1390,26 @@ export type Database = {
       }
       organization_members: {
         Row: {
+          active: boolean
           created_at: string
           organization_id: string
+          password_change_required: boolean
           role: Database["public"]["Enums"]["app_role"]
           user_id: string
         }
         Insert: {
+          active?: boolean
           created_at?: string
           organization_id: string
+          password_change_required?: boolean
           role?: Database["public"]["Enums"]["app_role"]
           user_id: string
         }
         Update: {
+          active?: boolean
           created_at?: string
           organization_id?: string
+          password_change_required?: boolean
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
         }
