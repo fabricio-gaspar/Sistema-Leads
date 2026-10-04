@@ -146,6 +146,14 @@ export async function updateTeamRole(userId: string, role: TeamRole): Promise<vo
   await mutate('update_role', { user_id: userId, role });
 }
 
+export async function updateTeamMemberProfile(userId: string, input: { name: string; email: string }): Promise<void> {
+  await mutate('update_member', { user_id: userId, name: input.name, email: input.email });
+}
+
+export async function resetTeamMemberPassword(userId: string, password: string): Promise<void> {
+  await mutate('reset_password', { user_id: userId, password });
+}
+
 export async function setTeamMemberStatus(userId: string, enabled: boolean): Promise<void> {
   await mutate('set_status', { user_id: userId, enabled });
 }
@@ -248,7 +256,8 @@ export async function loadTeamAccessAudit(): Promise<AccessAuditEvent[]> {
     .eq('organization_id', session.organizationId)
     .in('action', [
       'team.member_created', 'team.member_invited', 'team.member_enabled', 'team.member_disabled',
-      'team.member_role_changed', 'team.member_permissions_changed', 'team.member_deleted',
+      'team.member_role_changed', 'team.member_updated', 'team.member_password_reset',
+      'team.member_permissions_changed', 'team.member_deleted',
       'team.invite_cancelled', 'team.invite_resent', 'team.security_policy_changed', 'team.sessions_revoked',
     ])
     .order('occurred_at', { ascending: false })

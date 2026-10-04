@@ -4,7 +4,7 @@ import { defaultPermissionsForRole, organizationPermissions } from '../_shared/p
 import { maskDailyReportPhone, normalizeDailyReportPhone, validDailyReportTime } from '../_shared/dailyLeadReport.ts';
 
 const roles = new Set(['administrador', 'vendedor', 'sdr', 'cx']);
-type Action = 'create' | 'invite' | 'update_role' | 'set_status' | 'remove' | 'permissions_get' | 'permissions_set' | 'daily_report_get' | 'daily_report_set' | 'handoff_alert_get' | 'handoff_alert_set' | 'invites_get' | 'invite_cancel' | 'invite_resend' | 'policy_get' | 'policy_set' | 'activate_invite';
+type Action = 'create' | 'invite' | 'update_member' | 'reset_password' | 'update_role' | 'set_status' | 'remove' | 'permissions_get' | 'permissions_set' | 'daily_report_get' | 'daily_report_set' | 'handoff_alert_get' | 'handoff_alert_set' | 'invites_get' | 'invite_cancel' | 'invite_resend' | 'policy_get' | 'policy_set' | 'activate_invite';
 
 function text(value: unknown, max = 180): string {
   return typeof value === 'string' ? value.trim().slice(0, max) : '';
@@ -21,6 +21,12 @@ function memberPassword(value: unknown): string {
     throw new Error('invalid_member_password');
   }
   return value;
+}
+
+function memberEmail(value: unknown): string {
+  const email = text(value, 254).toLowerCase();
+  if (!/^\S+@\S+\.\S+$/.test(email)) throw new Error('invalid_member_email');
+  return email;
 }
 
 function reportTimeZone(value: unknown): string {
@@ -274,7 +280,7 @@ Deno.serve(async (request) => {
   try {
     const body = await request.json().catch(() => ({})) as Record<string, unknown>;
     const action = text(body.action, 32) as Action;
-    if (!['create', 'invite', 'update_role', 'set_status', 'remove', 'permissions_get', 'permissions_set', 'daily_report_get', 'daily_report_set', 'handoff_alert_get', 'handoff_alert_set', 'invites_get', 'invite_cancel', 'invite_resend', 'policy_get', 'policy_set', 'activate_invite'].includes(action)) throw new Error('unsupported_action');
+    if (!['create', 'invite', 'update_member', 'reset_password', 'update_role', 'set_status', 'remove', 'permissions_get', 'permissions_set', 'daily_report_get', 'daily_report_set', 'handoff_alert_get', 'handoff_alert_set', 'invites_get', 'invite_cancel', 'invite_resend', 'policy_get', 'policy_set', 'activate_invite'].includes(action)) throw new Error('unsupported_action');
     const { user } = await requireUser(request);
     const admin = createAdminClient();
 
@@ -356,12 +362,11 @@ Deno.serve(async (request) => {
     }
 
     if (action === 'create') {
-      const email = text(body.email, 254).toLowerCase();
+      const email = memberEmail(body.email);
       const name = text(body.name, 120);
       const password = memberPassword(body.password);
       const role = memberRole(body.role);
       if (!name) throw new Error('invalid_member_name');
-      if (!/^\S+@\S+\.\S+$/.test(email)) throw new Error('invalid_member_email');
 
       const preparedInvite = await prepareOrganizationInvite(admin, organizationId, user.id, email, role);
 
@@ -434,10 +439,9 @@ Deno.serve(async (request) => {
     }
 
     if (action === 'invite') {
-      const email = text(body.email, 254).toLowerCase();
+      const email = memberEmail(body.email);
       const name = text(body.name, 120);
       const role = memberRole(body.role);
-      if (!/^\S+@\S+\.\S+$/.test(email)) throw new Error('invalid_member_email');
       const preparedInvite = await prepareOrganizationInvite(admin, organizationId, user.id, email, role);
       const redirectTo = `${Deno.env.get('ALLOWED_ORIGIN') ?? 'https://leadai-crm-preview.fabricio926564.chatgpt.site'}/login`;
       const { data: invitation, error: invitationError } = await admin.auth.admin.inviteUserByEmail(email, {
@@ -496,6 +500,78 @@ Deno.serve(async (request) => {
       const defaults = defaultPermissionsForRole(current.role);
       const permissions = Object.fromEntries(organizationPermissions.map((permission) => [permission, overrides.get(permission) ?? defaults[permission]]));
       return json({ ok: true, role: current.role, permissions }, 200, headers);
+    }
+
+    if (action === 'update_member') {
+      const name = text(body.name, 120);
+      const email = memberEmail(body.email);
+      if (!name) throw new Error('invalid_member_name');
+      const { data: previousProfile, error: previousProfileError } = await admin.from('profiles')
+        .select('name,email').eq('id', targetUserId).maybeSingle();
+      if (previousProfileError || !previousProfile) throw previousProfileError ?? new Error('member_profile_not_found');
+
+      const { error: authUpdateError } = await admin.auth.admin.updateUserById(targetUserId, {
+        email,
+        email_confirm: true,
+        user_metadata: { name },
+      });
+      if (authUpdateError) {
+        if (isExistingAuthUser(authUpdateError)) throw new Error('member_email_already_registered');
+        throw new Error('member_profile_update_failed');
+      }
+
+      const now = new Date().toISOString();
+      const { error: profileUpdateError } = await admin.from('profiles').update({ name, email, updated_at: now }).eq('id', targetUserId);
+      if (profileUpdateError) {
+        await admin.auth.admin.updateUserById(targetUserId, {
+          email: previousProfile.email,
+          email_confirm: true,
+          user_metadata: { name: previousProfile.name },
+        });
+        throw new Error('member_profile_update_failed');
+      }
+      await admin.from('audit_logs').insert({
+        organization_id: organizationId,
+        actor_id: user.id,
+        actor_name: profile.name,
+        actor_type: 'user',
+        action: 'team.member_updated',
+        detail: 'Cadastro de membro atualizado.',
+        entity_table: 'profiles',
+        entity_id: targetUserId,
+        event_data: { user_id: targetUserId, name, email },
+      });
+      return json({ ok: true }, 200, headers);
+    }
+
+    if (action === 'reset_password') {
+      const password = memberPassword(body.password);
+      const { error: passwordError } = await admin.auth.admin.updateUserById(targetUserId, { password });
+      if (passwordError) throw new Error('member_password_reset_failed');
+
+      // A senha temporária substitui a anterior. Quando a API de revogação está
+      // disponível, encerramos também as sessões renováveis para que o membro
+      // tenha de entrar novamente com a nova senha. Access tokens emitidos antes
+      // disso permanecem válidos somente até o vencimento normal do JWT.
+      const adminAuth = admin.auth.admin as unknown as { signOut?: (userId: string, scope?: 'global' | 'local' | 'others') => Promise<{ error: unknown }> };
+      let sessionsRevoked = false;
+      if (typeof adminAuth.signOut === 'function') {
+        const result = await adminAuth.signOut(targetUserId, 'global');
+        if (result?.error) throw new Error('member_password_reset_session_revoke_failed');
+        sessionsRevoked = true;
+      }
+      await admin.from('audit_logs').insert({
+        organization_id: organizationId,
+        actor_id: user.id,
+        actor_name: profile.name,
+        actor_type: 'user',
+        action: 'team.member_password_reset',
+        detail: 'Senha temporária de membro redefinida.',
+        entity_table: 'organization_members',
+        entity_id: targetUserId,
+        event_data: { user_id: targetUserId, sessions_revoked: sessionsRevoked },
+      });
+      return json({ ok: true, sessions_revoked: sessionsRevoked }, 200, headers);
     }
 
     if (action === 'permissions_set') {

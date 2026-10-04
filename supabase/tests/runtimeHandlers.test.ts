@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 type Row = Record<string, unknown>;
 type Query = { table: string; operation: string; value?: Row; filters: Record<string, unknown> };
 type Result = { data: unknown; error: null | { message: string; code?: string }; count?: number };
-const state = vi.hoisted(() => ({ admin: {} as object, deleteUser: vi.fn() }));
+const state = vi.hoisted(() => ({ admin: {} as object, deleteUser: vi.fn(), updateUser: vi.fn() }));
 vi.mock('../functions/_shared/auth.ts', () => ({
   createAdminClient: () => state.admin,
   hasOrganizationPermission: async () => true,
@@ -121,10 +121,11 @@ function queryFor(table: string) {
 beforeEach(() => {
   vi.resetModules(); calls = []; override = undefined; acceptedLeadState = {};
   state.deleteUser = vi.fn(async () => ({ data: { user: { id: 'deleted-user' } }, error: null }));
+  state.updateUser = vi.fn(async () => ({ data: { user: { id: 'updated-user' } }, error: null }));
   state.admin = {
     from: queryFor,
     rpc: (name: string, value: Row) => Promise.resolve(execute({ table: name, operation: 'rpc', value, filters: {} })),
-    auth: { admin: { deleteUser: state.deleteUser } },
+    auth: { admin: { deleteUser: state.deleteUser, updateUserById: state.updateUser } },
   };
   vi.stubGlobal('Deno', { env: { get: (name: string) => ({ SUPABASE_URL: 'https://example.invalid', SUPABASE_SERVICE_ROLE_KEY: 'synthetic-service-jwt', WHATSAPP_WEBHOOK_SHARED_SECRET: 'synthetic-internal-secret' } as Record<string, string>)[name] }, serve: (callback: typeof handler) => { handler = callback; } });
   fetchMock = vi.fn(async () => { throw new Error('Unexpected external call in safety test'); });
@@ -211,6 +212,61 @@ describe('Team member identity deletion', () => {
     ]));
     expect(calls.find((query) => query.table === 'audit_logs' && query.operation === 'insert')?.value)
       .toMatchObject({ action: 'team.member_permissions_changed', event_data: { user_id: removedUserId } });
+  });
+});
+
+describe('Team member profile and credential management', () => {
+  const managedUserId = 'f1111111-1111-4111-8111-111111111111';
+
+  it('updates the Auth identity and CRM profile together, then audits the change', async () => {
+    override = (query) => {
+      if (query.table === 'organization_members' && query.operation === 'select' && query.filters.user_id === managedUserId) return ok({ role: 'vendedor', status: 'active' });
+      if (query.table === 'profiles' && query.operation === 'select' && query.filters.id === managedUserId) return ok({ name: 'Nome anterior', email: 'anterior@wayflex.ind.br' });
+      return undefined;
+    };
+
+    await import('../functions/team-members/index');
+    const response = await handler(new Request('https://example.invalid/team-members', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'update_member', user_id: managedUserId, name: 'Nome atualizado', email: 'ATUALIZADO@WAYFLEX.IND.BR' }),
+    }));
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ ok: true });
+    expect(state.updateUser).toHaveBeenCalledWith(managedUserId, {
+      email: 'atualizado@wayflex.ind.br', email_confirm: true, user_metadata: { name: 'Nome atualizado' },
+    });
+    expect(calls.find((query) => query.table === 'profiles' && query.operation === 'update')?.value)
+      .toMatchObject({ name: 'Nome atualizado', email: 'atualizado@wayflex.ind.br' });
+    expect(calls.find((query) => query.table === 'audit_logs' && query.operation === 'insert')?.value)
+      .toMatchObject({ action: 'team.member_updated', event_data: { user_id: managedUserId, name: 'Nome atualizado', email: 'atualizado@wayflex.ind.br' } });
+  });
+
+  it('resets a member password without persisting the secret in the audit record', async () => {
+    const signOut = vi.fn(async () => ({ error: null }));
+    state.admin = {
+      from: queryFor,
+      rpc: (name: string, value: Row) => Promise.resolve(execute({ table: name, operation: 'rpc', value, filters: {} })),
+      auth: { admin: { deleteUser: state.deleteUser, updateUserById: state.updateUser, signOut } },
+    };
+    override = (query) => query.table === 'organization_members' && query.operation === 'select' && query.filters.user_id === managedUserId
+      ? ok({ role: 'vendedor', status: 'active' }) : undefined;
+
+    await import('../functions/team-members/index');
+    const response = await handler(new Request('https://example.invalid/team-members', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'reset_password', user_id: managedUserId, password: 'synthetic-new-password' }),
+    }));
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ ok: true, sessions_revoked: true });
+    expect(state.updateUser).toHaveBeenCalledWith(managedUserId, { password: 'synthetic-new-password' });
+    expect(signOut).toHaveBeenCalledWith(managedUserId, 'global');
+    const audit = calls.find((query) => query.table === 'audit_logs' && query.operation === 'insert')?.value;
+    expect(audit).toMatchObject({ action: 'team.member_password_reset', event_data: { user_id: managedUserId, sessions_revoked: true } });
+    expect(JSON.stringify(audit)).not.toContain('synthetic-new-password');
   });
 });
 
