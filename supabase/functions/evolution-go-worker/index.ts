@@ -271,16 +271,120 @@ async function loadProvisioningSecret(admin: Admin, integrationId: string): Prom
   return object(data);
 }
 
+type GlobalProvisioningCredentials = {
+  baseUrlInput: string;
+  globalApiKey: string;
+};
+
+function isEvolutionGoProvider(value: unknown): boolean {
+  return text(value, 80).toLowerCase().replace(/[^a-z0-9]+/g, '_') === 'evolution_go';
+}
+
+function environmentGlobalProvisioningCredentials(): GlobalProvisioningCredentials | null {
+  const baseUrlInput = text(Deno.env.get('EVOLUTION_GO_BASE_URL'), 500);
+  const globalApiKey = text(Deno.env.get('EVOLUTION_GO_GLOBAL_API_KEY'), 1_000);
+  // Do not combine a partial database configuration with a partial environment
+  // configuration. A mismatched base URL and global key could target the wrong
+  // Evolution tenant.
+  return baseUrlInput && globalApiKey ? { baseUrlInput, globalApiKey } : null;
+}
+
+/**
+ * The organization-level corporate account owns the global Evolution GO
+ * credential. Seller accounts intentionally store only their own token and
+ * webhook secret. A configured corporate account can remain disabled while it
+ * awaits QR validation, so "active" here means the non-archived organization
+ * configuration record, not a channel approved to send messages.
+ */
+async function loadGlobalProvisioningCredentials(
+  admin: Admin,
+  organizationId: string,
+): Promise<GlobalProvisioningCredentials> {
+  const { data: corporateAccount, error: accountError } = await admin.from('whatsapp_accounts')
+    .select('id,integration_id,is_default,updated_at')
+    .eq('organization_id', organizationId)
+    .eq('provider', 'evolution_go')
+    .eq('account_type', 'corporate')
+    .is('archived_at', null)
+    .order('is_default', { ascending: false })
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (accountError) throw new Error('evolution_go_global_account_lookup_failed');
+
+  const corporateIntegrationId = text(corporateAccount?.integration_id, 80);
+  if (corporateAccount && !UUID.test(corporateIntegrationId)) {
+    throw new Error('evolution_go_global_integration_lookup_failed');
+  }
+  if (UUID.test(corporateIntegrationId)) {
+    const { data: corporateIntegration, error: integrationError } = await admin.from('integrations')
+      .select('id,provider')
+      .eq('id', corporateIntegrationId)
+      .eq('organization_id', organizationId)
+      .maybeSingle();
+    if (integrationError || !corporateIntegration || !isEvolutionGoProvider(corporateIntegration.provider)) {
+      throw new Error('evolution_go_global_integration_lookup_failed');
+    }
+
+    const { data: secret, error: secretError } = await admin.rpc('read_integration_secret', {
+      p_integration: corporateIntegrationId,
+    });
+    if (secretError) throw new Error('evolution_go_global_secret_read_failed');
+    const corporateSecret = object(secret);
+    const baseUrlInput = text(corporateSecret.base_url, 500);
+    const globalApiKey = text(corporateSecret.global_api_key, 1_000);
+    if (baseUrlInput && globalApiKey) return { baseUrlInput, globalApiKey };
+  }
+
+  const fallback = environmentGlobalProvisioningCredentials();
+  if (fallback) return fallback;
+  throw new Error('evolution_go_global_credentials_missing');
+}
+
+function providerInstanceIdFromResponse(payload: unknown, fallbackName: string): string {
+  const created = object(object(payload).data);
+  const instanceId = text(created.id, 120)
+    || text(created.instance_id, 120)
+    || text(created.instanceId, 120)
+    || text(created.name, 120)
+    || fallbackName;
+  // Identifiers are persisted in Vault and may be used in URL paths later.
+  // Reject control characters instead of serializing an unsafe provider value.
+  if (!instanceId || /[\u0000-\u001f\u007f]/.test(instanceId)) {
+    throw new Error('evolution_go_instance_create_response_invalid');
+  }
+  return instanceId;
+}
+
+function provisioningConfigurationErrorCode(error: unknown): string {
+  const candidate = safeError(error).replace(/[^a-z0-9_]/gi, '_').toLowerCase().slice(0, 100);
+  const allowed = new Set([
+    'evolution_go_global_account_lookup_failed',
+    'evolution_go_global_integration_lookup_failed',
+    'evolution_go_global_secret_read_failed',
+    'evolution_go_global_credentials_missing',
+    'evolution_go_provisioning_secret_read_failed',
+    'evolution_go_allowed_origins_required',
+    'evolution_go_base_url_invalid',
+    'evolution_go_base_url_unsafe',
+    'evolution_go_base_url_not_allowed',
+  ]);
+  return allowed.has(candidate) ? candidate : 'evolution_go_provisioning_configuration_invalid';
+}
+
 async function processProvisioningOne(admin: Admin, job: Row) {
   const claimed = await claimProvisioningJob(admin, job);
   if (!claimed) return { skipped: true };
   const attempts = Number(claimed.attempt_count ?? 1);
-  const instanceId = text(claimed.instance_id, 80);
+  // This UUID is only the durable local provisioning correlation. Evolution GO
+  // creates its own instance identifier and it must never be sent as if it
+  // were a provider-supported field.
+  const provisioningId = text(claimed.instance_id, 80);
   const instanceName = text(claimed.instance_name, 120);
   const integrationId = text(claimed.integration_id, 80);
   const accountId = text(claimed.whatsapp_account_id, 80);
 
-  if (!UUID.test(instanceId) || !instanceName || !UUID.test(integrationId) || !UUID.test(accountId)) {
+  if (!UUID.test(provisioningId) || !instanceName || !UUID.test(integrationId) || !UUID.test(accountId)) {
     await updateProvisioningState(admin, claimed, 'needs_review', {
       completed_at: new Date().toISOString(), last_error_code: 'evolution_go_provisioning_job_invalid',
     });
@@ -288,23 +392,16 @@ async function processProvisioningOne(admin: Admin, job: Row) {
     return { failed: true, review: true };
   }
 
-  const baseUrlInput = text(Deno.env.get('EVOLUTION_GO_BASE_URL'), 500);
-  const globalApiKey = text(Deno.env.get('EVOLUTION_GO_GLOBAL_API_KEY'), 1_000);
-  if (!baseUrlInput || !globalApiKey) {
-    await updateProvisioningState(admin, claimed, 'failed', {
-      next_attempt_at: retryAt(attempts), last_error_code: 'evolution_go_global_credentials_missing',
-    });
-    await auditProvisioning(admin, claimed, 'whatsapp.evolution_go_seller_provisioning_blocked', 'Canal individual aguardando a credencial global Evolution GO.', { reason: 'global_credentials_missing' });
-    return { failed: true, retryable: true };
-  }
-
   let baseUrl: string;
+  let globalApiKey: string;
   let existingSecret: Row;
   try {
-    baseUrl = normalizeEvolutionGoBaseUrl(baseUrlInput, allowedOrigins());
+    const globalCredentials = await loadGlobalProvisioningCredentials(admin, text(claimed.organization_id, 80));
+    baseUrl = normalizeEvolutionGoBaseUrl(globalCredentials.baseUrlInput, allowedOrigins());
+    globalApiKey = globalCredentials.globalApiKey;
     existingSecret = await loadProvisioningSecret(admin, integrationId);
   } catch (error) {
-    const code = safeError(error).replace(/[^a-z0-9_]/gi, '_').toLowerCase().slice(0, 100) || 'evolution_go_provisioning_secret_invalid';
+    const code = provisioningConfigurationErrorCode(error);
     await updateProvisioningState(admin, claimed, 'failed', { next_attempt_at: retryAt(attempts), last_error_code: code });
     await auditProvisioning(admin, claimed, 'whatsapp.evolution_go_seller_provisioning_blocked', 'Canal individual aguardando uma configuração segura do provedor.', { reason: code });
     return { failed: true, retryable: true };
@@ -315,17 +412,21 @@ async function processProvisioningOne(admin: Admin, job: Row) {
   // Store the generated per-instance token *before* the remote POST. If the
   // network becomes uncertain, an operator can reconcile the exact intended
   // instance without showing or regenerating credentials in the browser.
+  const sellerSecret = {
+    base_url: baseUrl,
+    instance_name: instanceName,
+    // Evolution GO assigns the real ID. Keep this null until the provider
+    // confirms it, rather than persisting the local provisioning UUID as a
+    // false remote identifier.
+    instance_id: null,
+    instance_token: instanceToken,
+    webhook_secret: webhookSecret,
+    timeout_ms: 12_000,
+    retry_attempts: 0,
+  };
   const { error: vaultError } = await admin.rpc('store_integration_secret', {
     p_integration: integrationId,
-    p_secret: {
-      base_url: baseUrl,
-      instance_name: instanceName,
-      instance_id: instanceId,
-      instance_token: instanceToken,
-      webhook_secret: webhookSecret,
-      timeout_ms: 12_000,
-      retry_attempts: 0,
-    },
+    p_secret: sellerSecret,
   });
   if (vaultError) {
     await updateProvisioningState(admin, claimed, 'failed', {
@@ -339,7 +440,7 @@ async function processProvisioningOne(admin: Admin, job: Row) {
     response = await fetch(new URL('/instance/create', baseUrl), {
       method: 'POST',
       headers: { apikey: globalApiKey, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ instanceId, name: instanceName, token: instanceToken, advancedSettings: {} }),
+      body: JSON.stringify({ name: instanceName, token: instanceToken }),
       signal: AbortSignal.timeout(20_000),
       redirect: 'error',
     });
@@ -362,12 +463,38 @@ async function processProvisioningOne(admin: Admin, job: Row) {
     return { failed: true, review: true };
   }
 
+  let providerInstanceId: string;
+  try {
+    providerInstanceId = providerInstanceIdFromResponse(await response.json().catch(() => null), instanceName);
+  } catch (error) {
+    const code = safeError(error).replace(/[^a-z0-9_]/gi, '_').toLowerCase().slice(0, 100) || 'evolution_go_instance_create_response_invalid';
+    await updateProvisioningState(admin, claimed, 'needs_review', {
+      completed_at: new Date().toISOString(), last_error_code: code,
+    });
+    await auditProvisioning(admin, claimed, 'whatsapp.evolution_go_seller_provisioning_review_required', 'A instância foi criada, mas sua identificação não pôde ser validada localmente.', { reason: code });
+    return { failed: true, review: true };
+  }
+
   // Do not resurrect a channel if its invitation was cancelled while Evolution
   // processed the request. The remote account remains disabled and auditable.
   const { data: stillProcessing, error: statusReadError } = await admin.from('evolution_go_seller_provisioning_jobs')
     .select('id').eq('id', claimed.id).eq('organization_id', claimed.organization_id).eq('state', 'processing').maybeSingle();
   if (statusReadError) throw new Error('evolution_go_provisioning_state_read_failed');
   if (!stillProcessing) return { cancelled: true };
+
+  // This second Vault write happens only after a confirmed response. If it
+  // fails, do not retry the POST: the remote instance may already exist.
+  const { error: providerIdSaveError } = await admin.rpc('store_integration_secret', {
+    p_integration: integrationId,
+    p_secret: { ...sellerSecret, instance_id: providerInstanceId },
+  });
+  if (providerIdSaveError) {
+    await updateProvisioningState(admin, claimed, 'needs_review', {
+      completed_at: new Date().toISOString(), last_error_code: 'evolution_go_provider_instance_id_save_failed',
+    });
+    await auditProvisioning(admin, claimed, 'whatsapp.evolution_go_seller_provisioning_review_required', 'A instância foi criada, mas sua identificação segura requer revisão.', { reason: 'provider_instance_id_save_failed' });
+    return { failed: true, review: true };
+  }
 
   try {
     const { data: storedIntegration, error: integrationReadError } = await admin.from('integrations')

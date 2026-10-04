@@ -325,6 +325,27 @@ describe('Evolution GO multi-account handler', () => {
       && call.operation === 'select' && call.or)?.selection).toContain('is_default');
   });
 
+  it('returns only the authenticated owner account for self-service, never a corporate or another seller account', async () => {
+    await import('../functions/evolution-go/index');
+    const response = await handler(request('my_account'));
+
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body).toMatchObject({ ok: true, canManage: false, account: { id: ownerAccountId, accountType: 'seller', ownerUserId: ownerId } });
+    expect(JSON.stringify(body)).not.toMatch(/Corporativa|Conta alheia|synthetic-global-key|synthetic-instance-token|synthetic-webhook-secret|vault-ref/);
+    const ownAccountQuery = calls.find((call) => call.table === 'whatsapp_accounts'
+      && call.operation === 'select'
+      && call.filters.owner_user_id === ownerId
+      && call.filters.account_type === 'seller');
+    expect(ownAccountQuery).toBeDefined();
+
+    state.userId = administratorId;
+    state.permissions = { 'channels.manage_all': true };
+    const administratorResponse = await handler(request('my_account'));
+    expect(administratorResponse.status).toBe(200);
+    expect(await administratorResponse.json()).toMatchObject({ ok: true, account: null, canManage: false });
+  });
+
   it('requires account_id before any secret read or provider request', async () => {
     await import('../functions/evolution-go/index');
     const response = await handler(request('status'));

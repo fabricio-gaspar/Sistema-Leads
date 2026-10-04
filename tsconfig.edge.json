@@ -24,6 +24,7 @@
     "supabase/functions/meta-whatsapp-onboarding/index.ts",
     "supabase/functions/meta-whatsapp-messages/index.ts",
     "supabase/functions/meta-whatsapp-worker/index.ts",
+    "supabase/functions/evolution-go-worker/index.ts",
     "supabase/functions/_shared/messaging/*.ts"
   ]
 }

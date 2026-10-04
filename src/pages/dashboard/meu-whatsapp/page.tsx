@@ -1,5 +1,5 @@
-import WhatsappChannelsWorkspace from '@/components/feature/WhatsappChannelsWorkspace';
+import EvolutionGoPanel from '@/components/feature/EvolutionGoPanel';
 
 export default function MeuWhatsapp() {
-  return <div className="wf-page wf-page--whatsapp"><WhatsappChannelsWorkspace /></div>;
+  return <div className="wf-page wf-page--whatsapp"><EvolutionGoPanel mode="self-service" /></div>;
 }

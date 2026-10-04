@@ -214,6 +214,15 @@ export function loadEvolutionGoAccounts(): Promise<EvolutionGoAccountsResponse> 
   return invokeEvolutionGo<EvolutionGoAccountsResponse & Record<string, unknown>>({ action: 'list' });
 }
 
+/**
+ * Uses the authenticated server-side identity instead of accepting an account
+ * id. This prevents the self-service screen from ever receiving corporate or
+ * another seller's account metadata.
+ */
+export function loadMyEvolutionGoAccount(): Promise<EvolutionGoChannelStatus> {
+  return invokeEvolutionGo<EvolutionGoChannelStatus & Record<string, unknown>>({ action: 'my_account' });
+}
+
 export function loadEvolutionGoStatus(accountId: string): Promise<EvolutionGoChannelStatus> {
   return invokeEvolutionGo<EvolutionGoChannelStatus & Record<string, unknown>>({ action: 'status', account_id: accountId });
 }

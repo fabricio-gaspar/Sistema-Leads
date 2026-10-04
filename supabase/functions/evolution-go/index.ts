@@ -179,6 +179,27 @@ async function listRecords(admin: Admin, actor: ActorContext): Promise<AccountRe
   return records.filter((record): record is AccountRecord => Boolean(record));
 }
 
+/**
+ * Self-service must never inherit the administrator's broader list scope.
+ * This lookup is intentionally separate from listRecords: even an
+ * administrator opening "Meu WhatsApp" receives at most the seller account
+ * owned by their authenticated identity, never the corporate/default account
+ * or another seller's account.
+ */
+async function ownSellerRecord(admin: Admin, actor: ActorContext): Promise<AccountRecord | null> {
+  if (!actor.canViewOwn && !actor.canManage) return null;
+  const { data: account, error } = await admin.from('whatsapp_accounts')
+    .select('id')
+    .eq('organization_id', actor.organizationId)
+    .eq('provider', 'evolution_go')
+    .eq('account_type', 'seller')
+    .eq('owner_user_id', actor.userId)
+    .is('archived_at', null)
+    .maybeSingle();
+  if (error) throw new Error('evolution_go_own_account_lookup_failed');
+  return account ? recordFor(admin, actor.organizationId, String(account.id)) : null;
+}
+
 async function createRecord(
   admin: Admin,
   actor: ActorContext,
@@ -284,6 +305,20 @@ function publicStatus(record: AccountRecord, actor: ActorContext) {
       reason: controls.reason ?? null,
     },
     ...accessFlags(record.account, actor),
+  };
+}
+
+function noSelfServiceAccount() {
+  return {
+    configured: false,
+    account: null,
+    integration: null,
+    controls: null,
+    // This endpoint is purpose-built for self-service.  Do not let a manager
+    // mode accidentally activate the administration UI in Meu WhatsApp.
+    canManage: false,
+    canConnect: false,
+    canViewQr: false,
   };
 }
 
@@ -494,6 +529,14 @@ Deno.serve(async (request) => {
         accounts: records.map((record) => publicStatus(record, actor)),
         canManage: actor.canManage,
       }, 200, headers);
+    }
+
+    if (action === 'my_account') {
+      const record = await ownSellerRecord(admin, actor);
+      const status = record
+        ? { ...publicStatus(record, actor), canManage: false }
+        : noSelfServiceAccount();
+      return json({ ok: true, ...status }, 200, headers);
     }
 
     const accountId = uuid(body.account_id);

@@ -20,6 +20,7 @@ import {
   createEvolutionGoAccount,
   createEvolutionGoInstance,
   loadEvolutionGoAccounts,
+  loadMyEvolutionGoAccount,
   requestEvolutionGoPairingCode,
   requestEvolutionGoQr,
   runEvolutionGoAction,
@@ -47,6 +48,17 @@ describe('Evolution GO multi-account repository', () => {
 
     await expect(loadEvolutionGoAccounts()).resolves.toEqual(expect.objectContaining({ accounts: [], canManage: false }));
     expect(invokeMock).toHaveBeenCalledWith('evolution-go', { body: { action: 'list' } });
+  });
+
+  it('loads the self-service account without accepting an account id or requesting secrets', async () => {
+    ok({ configured: false, account: null, integration: null, controls: null, canManage: false, canConnect: false, canViewQr: false });
+
+    await expect(loadMyEvolutionGoAccount()).resolves.toMatchObject({ account: null, canManage: false });
+    expect(invokeMock).toHaveBeenCalledWith('evolution-go', { body: { action: 'my_account' } });
+    const body = invokeMock.mock.calls[0]?.[1]?.body;
+    expect(body).not.toHaveProperty('account_id');
+    expect(body).not.toHaveProperty('global_api_key');
+    expect(body).not.toHaveProperty('instance_token');
   });
 
   it('creates a seller account with a client-generated id and explicit owner', async () => {

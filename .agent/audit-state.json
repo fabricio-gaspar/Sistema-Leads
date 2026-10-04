@@ -4,7 +4,7 @@
   "baseline_commit": "1dc6275b8c7d70de953b66397a8c89f5e97bc15b",
   "last_audited_commit": "4bf73c1",
   "current_head_at_update": "4bf73c1",
-  "working_tree_status": "member_session_revocation_backend_published",
+  "working_tree_status": "evolution_go_provisioning_validation_backend_published_frontend_pending",
   "stage_1_baseline": ".agent/baselines/2026-09-25-stage-1.json",
   "recovery_tag": "baseline-wayflex-stage1-20260925",
   "work_branch": "main",
@@ -16,7 +16,7 @@
     "working_tree_status": "published"
   },
   "full_audit_required": false,
-  "baseline_status": "member_session_revocation_backend_published",
-  "updated_at": "2026-10-04T18:52:00Z",
-  "next_action": "Repetir, com confirmação explícita do administrador na interface, a exclusão definitiva de Flavio Gaspar; depois conferir que a identidade saiu do Auth e que o histórico comercial permaneceu sem vínculo pessoal."
+  "baseline_status": "evolution_go_provisioning_validation_backend_published_frontend_pending",
+  "updated_at": "2026-10-04T19:10:00Z",
+  "next_action": "Publicar o frontend validado de Meu WhatsApp; depois, com confirmação explícita, criar um usuário Vendedor de teste e conferir a fila Evolution GO em awaiting_qr antes de parear o QR Code."
 }
