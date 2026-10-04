@@ -18,7 +18,7 @@ describe('Meu WhatsApp Evolution GO', () => {
   it('keeps connection, activation and Central access inside the seller workspace', () => {
     const panel = readFileSync(resolve('src/components/feature/EvolutionGoPanel.tsx'), 'utf8');
 
-    expect(panel).toContain('Ativar meu WhatsApp');
+    expect(panel).toContain('Ativar para a Central');
     expect(panel).toContain('Sua conta está conectada, mas o atendimento ainda está protegido.');
     expect(panel).toContain('Abrir Central de Atendimento');
     expect(panel).toContain('to="/dashboard/atendimento"');

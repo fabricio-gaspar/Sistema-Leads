@@ -449,7 +449,7 @@ describe('Evolution GO multi-account handler', () => {
     });
   });
 
-  it('lets the owner enable only their seller account without opening the shared provider gate', async () => {
+  it('lets the owner activate their seller account and open the validated Evolution route', async () => {
     controls = {
       ...controls,
       inbound_enabled: false,
@@ -463,12 +463,13 @@ describe('Evolution GO multi-account handler', () => {
     expect(response.status).toBe(200);
     expect(accounts.find((item) => item.id === ownerAccountId)).toMatchObject({ enabled: true, is_default: false });
     expect(controls).toMatchObject({
-      inbound_enabled: false,
-      send_enabled: false,
-      automation_enabled: false,
-      kill_switch: true,
+      inbound_enabled: true,
+      send_enabled: true,
+      automation_enabled: true,
+      kill_switch: false,
     });
-    expect(calls.some((call) => call.table === 'messaging_provider_controls' && call.operation === 'upsert')).toBe(false);
+    expect(calls.some((call) => call.table === 'messaging_provider_controls'
+      && call.operation === 'upsert' && call.value?.reason === 'seller_account_activated')).toBe(true);
   });
 
   it('activates a seller account without changing the corporate default', async () => {

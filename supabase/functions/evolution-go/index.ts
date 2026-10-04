@@ -880,16 +880,19 @@ Deno.serve(async (request) => {
         await closeProviderControlsIfUnused(admin, actor, 'account_activation_failed');
         throw new Error('evolution_go_activation_state_save_failed');
       }
-      // Provider controls are an organization-wide administrative gate. An
-      // owner may enable their private account, but only a manager can open the
-      // shared inbound/send/automation switches.
-      if (actor.canManage) {
-        await saveProviderControls(admin, actor, true, 'validated_account_activated');
-        // Reconcile immediately after opening. If another operation disabled
-        // the last account concurrently, fail closed instead of leaving an
-        // organization-wide gate open with no usable channel.
-        await closeProviderControlsIfUnused(admin, actor, 'activation_state_changed');
-      }
+      // A seller reaches this point only for their own private account, after
+      // a live provider status check. Requiring a second administrator action
+      // here left a successfully scanned number unable to receive or send in
+      // the Central. Open the provider route only after this explicit, scoped
+      // activation; every inbound/outbound operation still revalidates the
+      // specific whatsapp_account_id, so one seller never borrows another
+      // seller's instance.
+      await saveProviderControls(admin, actor, true,
+        actor.canManage ? 'validated_account_activated' : 'seller_account_activated');
+      // Reconcile immediately after opening. If another operation disabled
+      // the last account concurrently, fail closed instead of leaving an
+      // organization-wide gate open with no usable channel.
+      await closeProviderControlsIfUnused(admin, actor, 'activation_state_changed');
       await audit(admin, {
         organizationId: actor.organizationId,
         userId: actor.userId,
