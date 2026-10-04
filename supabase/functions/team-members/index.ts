@@ -299,9 +299,8 @@ async function revokeMemberSessions(
 /**
  * Storage objects cannot be deleted by issuing SQL against storage.objects:
  * the Storage service deliberately blocks that route to protect object
- * consistency. List only the departing member's objects through PostgREST,
- * then remove them through the Storage API, which clears both the object and
- * its backing file.
+ * consistency. A service-only RPC lists only the departing member's objects,
+ * then the Storage API clears both each object record and its backing file.
  */
 async function purgeMemberOwnedStorage(
   admin: ReturnType<typeof createAdminClient>, targetUserId: string,
@@ -310,14 +309,13 @@ async function purgeMemberOwnedStorage(
   let removedCount = 0;
 
   while (true) {
-    const { data, error } = await admin.schema('storage').from('objects')
-      .select('bucket_id,name')
-      .or(`owner.eq.${targetUserId},owner_id.eq.${targetUserId}`)
-      .order('bucket_id', { ascending: true })
-      .order('name', { ascending: true })
-      .limit(pageSize);
+    const { data, error } = await admin.rpc('list_user_owned_storage', {
+      p_user_id: targetUserId,
+      p_limit: pageSize,
+    });
     if (error) throw new Error('member_storage_list_failed');
 
+    if (data !== null && !Array.isArray(data)) throw new Error('member_storage_list_failed');
     const objects = ((data ?? []) as MemberStorageObject[]).filter((object) =>
       typeof object.bucket_id === 'string' && object.bucket_id.length > 0
       && typeof object.name === 'string' && object.name.length > 0,

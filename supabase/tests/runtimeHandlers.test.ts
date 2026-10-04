@@ -64,6 +64,7 @@ function execute(query: Query): Result {
       };
       return ok({});
     }
+    if (query.table === 'list_user_owned_storage') return ok([]);
     if (query.table === 'revoke_user_auth_sessions') return ok(0);
     if (query.table === 'reserve_prospecting_run') {
       return ok([{
@@ -93,7 +94,6 @@ function execute(query: Query): Result {
     case 'whatsapp_accounts': return 'owner_user_id' in query.filters
       ? ok([])
       : ok({ id: whatsappAccountId, integration_id: integrationId, owner_user_id: null, is_default: true, enabled: true, connection_status: 'connected', archived_at: null });
-    case 'storage.objects': return ok([]);
     case 'agent_runs': return ok(null);
     case 'lead_messages': return ok([{ sender: 'lead', type: 'received', text: 'Qual o valor?', sent_at: '2026-09-08T00:00:00Z' }]);
     case 'ai_agents': return ok({ active_version_id: anaConfigurationVersionId });
@@ -128,7 +128,6 @@ beforeEach(() => {
   state.storageRemove = vi.fn(async () => ({ data: [], error: null }));
   state.admin = {
     from: queryFor,
-    schema: (schema: string) => ({ from: (table: string) => queryFor(`${schema}.${table}`) }),
     rpc: (name: string, value: Row) => Promise.resolve(execute({ table: name, operation: 'rpc', value, filters: {} })),
     storage: { from: () => ({ remove: state.storageRemove }) },
     auth: { admin: { deleteUser: state.deleteUser, updateUserById: state.updateUser } },
@@ -166,8 +165,8 @@ describe('Team member identity deletion', () => {
         storage_objects_deleted: 0,
       },
     });
-    expect(calls.find((query) => query.table === 'storage.objects' && query.operation === 'select')?.filters.or)
-      .toBe(`owner.eq.${removedUserId},owner_id.eq.${removedUserId}`);
+    expect(calls.find((query) => query.table === 'list_user_owned_storage' && query.operation === 'rpc')?.value)
+      .toEqual({ p_user_id: removedUserId, p_limit: 100 });
     expect(state.storageRemove).not.toHaveBeenCalled();
     expect(calls.find((query) => query.table === 'revoke_user_auth_sessions' && query.operation === 'rpc')?.value)
       .toEqual({ p_user_id: removedUserId });
@@ -184,7 +183,7 @@ describe('Team member identity deletion', () => {
         if (query.filters['neq:organization_id'] === org) return { data: [], error: null, count: 0 };
         return ok({ role: 'vendedor', status: 'active' });
       }
-      if (query.table === 'storage.objects' && query.operation === 'select') {
+      if (query.table === 'list_user_owned_storage' && query.operation === 'rpc') {
         return ok(hasOwnedFiles ? [
           { bucket_id: 'member-files', name: `${removedUserId}/avatar.png` },
           { bucket_id: 'member-files', name: `${removedUserId}/notes.txt` },
