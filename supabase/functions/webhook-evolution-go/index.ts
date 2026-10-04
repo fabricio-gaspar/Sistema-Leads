@@ -38,6 +38,7 @@ Deno.serve(async (request) => {
     if (!raw || raw.length > 128_000) throw new Error('evolution_go_payload_invalid');
     const payload = JSON.parse(raw);
     if (!payload || typeof payload !== 'object' || Array.isArray(payload)) throw new Error('evolution_go_payload_invalid');
+    const parsed = parseEvolutionGoEvent(payload);
     const admin = createAdminClient();
     const { data: integration, error: integrationError } = await admin.from('integrations')
       .select('id,organization_id,provider,enabled,connected,paused').eq('id', integrationId).maybeSingle();
@@ -50,22 +51,23 @@ Deno.serve(async (request) => {
       .select('id,enabled').eq('organization_id', integration.organization_id).eq('integration_id', integrationId)
       .eq('provider', 'evolution_go').is('archived_at', null).maybeSingle();
     if (accountError || !account) return json({ accepted: false, error: 'whatsapp_account_not_ready' }, 409);
-    if (account.enabled !== true || integration.enabled !== true || integration.connected !== true || integration.paused === true) {
-      // Authenticate first, then acknowledge callbacks for a disabled account
-      // without persisting customer data. Provider controls are organization-
-      // wide, so they cannot replace this per-account readiness gate.
-      return json({ accepted: true, ignored: true, reason: 'evolution_go_account_disabled' });
-    }
-    const { data: control, error: controlError } = await admin.from('messaging_provider_controls')
-      .select('inbound_enabled,kill_switch').eq('organization_id', integration.organization_id).eq('provider', 'evolution_go').maybeSingle();
-    if (controlError) throw new Error('evolution_go_control_read_failed');
-    if (control?.inbound_enabled !== true || control.kill_switch === true) {
-      // Acknowledge a disabled route so Evolution does not create a retry storm,
-      // but do not persist customer data or wake automations while it is off.
-      return json({ accepted: true, ignored: true, reason: 'evolution_go_provider_disabled' });
+    if (parsed.kind !== 'connection') {
+      if (account.enabled !== true || integration.enabled !== true || integration.connected !== true || integration.paused === true) {
+        // Authenticate first, then acknowledge callbacks for a disabled account
+        // without persisting customer data. Provider controls are organization-
+        // wide, so they cannot replace this per-account readiness gate.
+        return json({ accepted: true, ignored: true, reason: 'evolution_go_account_disabled' });
+      }
+      const { data: control, error: controlError } = await admin.from('messaging_provider_controls')
+        .select('inbound_enabled,kill_switch').eq('organization_id', integration.organization_id).eq('provider', 'evolution_go').maybeSingle();
+      if (controlError) throw new Error('evolution_go_control_read_failed');
+      if (control?.inbound_enabled !== true || control.kill_switch === true) {
+        // Acknowledge a disabled route so Evolution does not create a retry storm,
+        // but do not persist customer data or wake automations while it is off.
+        return json({ accepted: true, ignored: true, reason: 'evolution_go_provider_disabled' });
+      }
     }
 
-    const parsed = parseEvolutionGoEvent(payload);
     const payloadHash = await sha256(raw);
     const now = new Date().toISOString();
     const kind = parsed.kind === 'ignored' ? 'unknown' : parsed.kind;

@@ -43,6 +43,25 @@ function stringValue(value: unknown, limit = 500): string | undefined {
   return typeof value === 'string' && value.trim() ? value.trim().slice(0, limit) : undefined;
 }
 
+/**
+ * Upstream error bodies may be from a reverse proxy and must never be logged
+ * verbatim: some proxies echo credentials, URLs or request bodies.  These
+ * coarse flags are enough to distinguish an invalid number from a temporary
+ * session-state rejection while keeping the failure diagnostic safe.
+ */
+function upstreamErrorFlags(payload: ObjectValue): Record<string, boolean> {
+  const values = [payload.error, payload.message, payload.errors]
+    .filter((value): value is string => typeof value === 'string')
+    .join(' ').toLowerCase();
+  return {
+    phone: /phone|number|telefone|celular/.test(values),
+    instance: /instance|inst[aâ]ncia/.test(values),
+    session: /session|sess[aã]o|connection|conex[aã]o|websocket/.test(values),
+    authentication: /auth|token|apikey|api key|credential/.test(values),
+    retry: /retry|again|aguarde|wait|later/.test(values),
+  };
+}
+
 function safeRecipient(value: string): string {
   const digits = value.replace(/\D/g, '');
   if (!/^[1-9]\d{7,14}$/.test(digits)) throw new Error('evolution_go_recipient_invalid');
@@ -163,8 +182,25 @@ export class EvolutionGoProvider implements MessagingProvider {
     });
     const payload = asObject(await response.json().catch(() => null));
     if (!response.ok) {
-      const providerCode = stringValue(asObject(payload.error).code ?? payload.code, 60)
-        ?.replace(/[^a-zA-Z0-9_-]/g, '') || String(response.status);
+      // Providers in the Evolution GO family vary between `{ code }`,
+      // `{ error: { code } }`, `{ error: "code" }` and `{ message }`.
+      // Preserve only a short machine-readable token: never propagate a
+      // response body, because an upstream proxy may echo request material.
+      const upstreamError = asObject(payload.error);
+      const rawCode = upstreamError.code
+        ?? payload.code
+        ?? (typeof payload.error === 'string' ? payload.error : undefined)
+        ?? payload.message;
+      const candidate = stringValue(rawCode, 60);
+      const providerCode = candidate && /^[A-Za-z][A-Za-z0-9_-]{0,59}$/.test(candidate)
+        ? candidate
+        : String(response.status);
+      console.warn('evolution_go_upstream_rejected', {
+        path,
+        status: response.status,
+        response_keys: Object.keys(payload).sort(),
+        error_flags: upstreamErrorFlags(payload),
+      });
       throw new Error(`evolution_go_request_rejected_${providerCode}`);
     }
     return payload;
@@ -189,10 +225,14 @@ export class EvolutionGoProvider implements MessagingProvider {
     const payload = await this.request('/instance/status', { method: 'GET' });
     const data = asObject(payload.data);
     return {
-      connected: data.connected === true,
-      loggedIn: data.loggedIn === true,
-      phone: stringValue(data.myJid ?? data.phone),
-      name: stringValue(data.name),
+      // The 0.7.x Go structs serialize exported fields with their original
+      // casing (`Connected`, `LoggedIn`, `Name`); compatible releases use
+      // lower camel case. Support both so a successful scan cannot be shown
+      // as disconnected merely because of a serialization difference.
+      connected: data.connected === true || data.Connected === true,
+      loggedIn: data.loggedIn === true || data.LoggedIn === true,
+      phone: stringValue(data.myJid ?? data.MyJid ?? data.phone ?? data.Phone),
+      name: stringValue(data.name ?? data.Name),
     };
   }
 
@@ -200,26 +240,40 @@ export class EvolutionGoProvider implements MessagingProvider {
     const webhookUrl = safeMediaUrl(options.webhookUrl);
     await this.request('/instance/connect', {
       method: 'POST',
-      // Evolution GO expects the event names, rather than a boolean
-      // subscription flag. The explicit allowlist limits callbacks to events
-      // this CRM actually processes.
+      // v0.7.x validates these identifiers against its Go EventType enum. The
+      // older Evolution API names (for example `messages.upsert`) are silently
+      // discarded, leaving the remote instance without connection callbacks.
+      // Keep the subscription narrowly scoped to the families this CRM uses.
       body: JSON.stringify({
         webhookUrl,
-        subscribe: options.subscribe === false ? [] : ['messages.upsert', 'connection.update'],
+        subscribe: options.subscribe === false ? [] : ['MESSAGE', 'SEND_MESSAGE', 'READ_RECEIPT', 'CONNECTION', 'QRCODE'],
       }),
     });
   }
 
   async qr(): Promise<EvolutionGoQrCode> {
-    const payload = await this.request('/instance/qr', { method: 'GET' });
+    // QR codes have a short lifetime. A unique benign query parameter and
+    // explicit no-store directives prevent a CDN/reverse proxy from returning
+    // an already-expired code to the operator.
+    const payload = await this.request(`/instance/qr?request=${crypto.randomUUID()}`, {
+      method: 'GET',
+      cache: 'no-store',
+      headers: { 'Cache-Control': 'no-store, no-cache, max-age=0', Pragma: 'no-cache' },
+    });
     const data = asObject(payload.data);
     const directQr = stringValue(data.qrcode, 2_000_000);
     const code = stringValue(data.code, 2_000_000);
+    const imageDataUrl = (value: string | undefined): string | undefined => {
+      if (!value) return undefined;
+      if (value.startsWith('data:image/')) return value;
+      // Some compatible builds omit the data-URL prefix but retain PNG base64.
+      return value.startsWith('iVBORw0KGgo') ? `data:image/png;base64,${value}` : undefined;
+    };
     return {
       // Evolution GO returns its renderable image in `code` and the raw QR
       // payload in `qrcode`. Older compatible versions may invert this.
-      qrcode: code?.startsWith('data:image/') ? code : directQr,
-      pairingCode: stringValue(data.pairingCode ?? data.passkeyCode, 120)
+      qrcode: imageDataUrl(code) ?? imageDataUrl(directQr),
+      pairingCode: stringValue(data.pairingCode ?? data.PairingCode ?? data.passkeyCode, 120)
         || (code && !code.startsWith('data:image/') ? code.slice(0, 120) : undefined),
       pairingUrl: stringValue(data.passkeyOpenUrl, 2_000),
     };
@@ -228,9 +282,17 @@ export class EvolutionGoProvider implements MessagingProvider {
   async pair(phone: string): Promise<string> {
     const payload = await this.request('/instance/pair', {
       method: 'POST',
-      body: JSON.stringify({ phone: safeRecipient(phone), subscribe: true }),
+      // `subscribe` belongs to /instance/connect. In Evolution GO it is a
+      // string array, so the boolean previously sent here made the Go JSON
+      // binder reject every pairing-code request with HTTP 400.
+      body: JSON.stringify({ phone: safeRecipient(phone) }),
     });
-    const code = stringValue(asObject(payload.data).pairingCode, 120);
+    // Evolution GO returns the eight-character code as `data.code`. Some
+    // compatible releases called it `pairingCode` or `passkeyCode`; accepting
+    // all documented variants keeps the CRM compatible without ever exposing
+    // the instance token to the browser.
+    const data = asObject(payload.data);
+    const code = stringValue(data.pairingCode ?? data.PairingCode ?? data.code ?? data.Code ?? data.passkeyCode, 120);
     if (!code) throw new Error('evolution_go_pair_response_invalid');
     return code;
   }

@@ -1,5 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { loadTeamMembers, type TeamMember } from '@/lib/crm/teamMembersRepository';
+import { isEvolutionGoAutomationReady, isEvolutionGoOperational } from '@/lib/crm/evolutionGoOnboarding';
 import {
   createEvolutionGoAccount,
   createEvolutionGoInstance,
@@ -78,6 +80,11 @@ function errorCopy(error: unknown) {
     evolution_go_credentials_save_failed: 'Não foi possível armazenar a configuração no cofre do servidor.',
     evolution_go_connection_validation_required: 'Conecte a instância e atualize o status antes de ativar o uso operacional.',
     evolution_go_phone_required: 'Informe o telefone com DDI e DDD para gerar o código.',
+    evolution_go_qr_unavailable: 'A instância ainda está iniciando. Aguarde alguns segundos e gere um novo QR Code.',
+    evolution_go_qr_runtime_not_ready: 'A instância não iniciou no servidor Evolution GO. Verifique a capacidade do servidor antes de gerar outro QR Code.',
+    evolution_go_pair_runtime_not_ready: 'A instância ainda está iniciando. Aguarde alguns segundos e gere o código novamente uma única vez.',
+    evolution_go_instance_already_connected: 'Esta conta já está conectada. Atualize o status antes de iniciar outro pareamento.',
+    evolution_go_pair_provider_rejected: 'A Evolution GO recusou o código após preparar a sessão. Gere um novo QR Code ou verifique a versão do servidor Evolution GO.',
   };
   return map[code] || 'Não foi possível concluir a operação. O estado operacional anterior foi preservado.';
 }
@@ -119,6 +126,7 @@ export default function EvolutionGoPanel({ mode = 'administration' }: { mode?: E
   const [phone, setPhone] = useState('');
   const [qr, setQr] = useState<QrState | null>(null);
   const [pairing, setPairing] = useState<PairingState | null>(null);
+  const autoQrRequest = useRef<string | null>(null);
 
   const refresh = useCallback(async (clearNotice = true) => {
     setBusy('refresh');
@@ -272,7 +280,7 @@ export default function EvolutionGoPanel({ mode = 'administration' }: { mode?: E
     void run(`${name}:${selected.account.id}`, () => runEvolutionGoAction(name, selected.account.id), success);
   };
 
-  const loadQr = async () => {
+  const loadQr = useCallback(async () => {
     if (!selected?.canViewQr) return;
     const accountId = selected.account.id;
     setBusy(`qr:${accountId}`);
@@ -288,16 +296,19 @@ export default function EvolutionGoPanel({ mode = 'administration' }: { mode?: E
     } finally {
       setBusy(null);
     }
-  };
+  }, [selected]);
 
   const requestPairing = async () => {
     if (!selected?.canViewQr) return;
     const accountId = selected.account.id;
     setBusy(`pair:${accountId}`);
     setNotice(null);
-    setQr(null);
     try {
       const result = await requestEvolutionGoPairingCode(accountId, phone);
+      // A successful phone pairing replaces the QR ceremony. Keep a current
+      // QR visible after a failed code request so the operator still has a
+      // safe fallback instead of losing the only actionable connection path.
+      setQr(null);
       setPairing(result.pairingCode ? { accountId, code: result.pairingCode } : null);
       setNotice({ tone: 'success', text: result.pairingCode ? 'Código temporário gerado para a conta selecionada.' : 'O provedor não retornou um código. Atualize o status e tente novamente.' });
     } catch (error) {
@@ -314,11 +325,24 @@ export default function EvolutionGoPanel({ mode = 'administration' }: { mode?: E
     : '';
   const selectedConnected = selected?.account.connectionStatus === 'connected' && selected.integration?.connected === true;
   const selectedActive = selected?.account.enabled === true;
+  const selectedOperational = isEvolutionGoOperational(selected);
+  const selectedAutomationReady = isEvolutionGoAutomationReady(selected);
   const selectedPairingOpen = selected?.account.connectionStatus === 'qr';
   const phoneValid = phone.replace(/\D/g, '').length >= 10;
   const qrForSelected = selected?.canViewQr && qr?.accountId === selected.account.id ? qr : null;
   const pairingForSelected = selected?.canViewQr && pairing?.accountId === selected.account.id ? pairing : null;
   const qrImage = qrForSelected?.qrcode?.startsWith('data:image/') ? qrForSelected.qrcode : null;
+
+  useEffect(() => {
+    if (!selfService || !selectedPairingOpen || !selected?.canViewQr) return;
+    const key = `${selected.account.id}:${selected.account.connectionStatus}`;
+    if (autoQrRequest.current === key) return;
+    autoQrRequest.current = key;
+    // QR data is short-lived and never persisted by the browser. The seller
+    // arrives directly on this screen after login, so make the first scan
+    // available without requiring them to discover a second action.
+    void loadQr();
+  }, [loadQr, selected?.account.connectionStatus, selected?.account.id, selected?.canViewQr, selectedPairingOpen, selfService]);
 
   return <section id={selfService ? 'my-evolution-go-account' : 'evolution-go-configuration'} className="rounded-2xl border border-background-200 bg-white p-5 shadow-[0_10px_24px_rgba(29,29,31,0.035)]" aria-label={selfService ? 'Meu WhatsApp Evolution GO' : 'Gerenciador de contas Evolution GO'}>
     <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -391,18 +415,21 @@ export default function EvolutionGoPanel({ mode = 'administration' }: { mode?: E
 
             {selected.configured && selected.canConnect && <div className="mt-4 rounded-xl border border-background-200 p-3.5">
               <div><h6 className="text-sm font-semibold text-foreground-900">{selfService ? 'Conectar seu WhatsApp' : 'Conexão e uso'}</h6><p className="mt-1 text-xs leading-5 text-foreground-500">{selfService ? 'As ações abaixo alcançam somente sua instância individual. Primeiro conecte; quando o estado passar para “Aguardando leitura do QR”, gere o QR Code ou o código temporário.' : 'As ações atingem somente a conta selecionada. Ativar uma conta individual não troca o canal corporativo padrão.'}</p></div>
+              {selfService && selectedConnected && !selectedActive && <div role="status" className="mt-3 rounded-xl border border-[#E9D2A9] bg-[#FFF8EA] p-3 text-xs leading-5 text-[#7B521B]"><p className="font-semibold text-[#70430E]"><i className="ri-checkbox-circle-line mr-1" />WhatsApp conectado. Falta ativar seu atendimento.</p><p className="mt-1">Confirme a ativação abaixo para vincular esta conta às conversas atribuídas a você. Os controles gerais da empresa continuam protegidos.</p></div>}
+              {selfService && selectedConnected && selectedActive && !selectedOperational && <div role="status" className="mt-3 rounded-xl border border-[#E9D2A9] bg-[#FFF8EA] p-3 text-xs leading-5 text-[#7B521B]"><p className="font-semibold text-[#70430E]"><i className="ri-shield-check-line mr-1" />Sua conta está conectada, mas o atendimento ainda está protegido.</p><p className="mt-1">A conexão não precisa de outro QR Code. Um administrador precisa liberar a entrada e a saída da Evolution GO para a empresa antes de qualquer atendimento pela Central.</p></div>}
+              {selfService && selectedOperational && <div role="status" className="mt-3 flex flex-col gap-3 rounded-xl border border-[#B9E4CB] bg-[#EFFAF3] p-3 text-xs leading-5 text-[#176B43] sm:flex-row sm:items-center sm:justify-between"><div><p className="font-semibold"><i className="ri-checkbox-circle-line mr-1" />Seu WhatsApp está conectado e liberado.</p><p className="mt-1">{selectedAutomationReady ? 'As conversas atribuídas a você e a automação da Ana já podem ser atendidas pela Central.' : 'As conversas atribuídas a você já podem ser atendidas na Central. A Ana automática aguarda a liberação geral da empresa.'}</p></div><Link to="/dashboard/atendimento" className="wf-btn-primary shrink-0 text-xs"><i className="ri-customer-service-2-line" />Abrir Central de Atendimento</Link></div>}
               <div className="mt-3 flex flex-wrap gap-2">
                 {!selectedConnected && !selectedPairingOpen && <button type="button" className="wf-btn-primary text-xs" disabled={busy !== null} onClick={() => action('connect', 'Conexão iniciada. Use o QR Code ou o pareamento temporário desta conta.')}><i className="ri-link" />Conectar</button>}
                 {selectedConnected && <button type="button" className="wf-btn-secondary text-xs" disabled={busy !== null} onClick={() => action('reconnect', 'Reconexão solicitada. Gere um novo QR Code ou código temporário.')}><i className="ri-restart-line" />Reconectar</button>}
                 <button type="button" className="wf-btn-secondary text-xs" disabled={busy !== null} onClick={() => action('refresh_status', 'Status real atualizado a partir do provedor.')}><i className={busy?.startsWith('refresh_status:') ? 'ri-loader-4-line animate-spin' : 'ri-refresh-line'} />Validar status</button>
-                {!selfService && !selectedActive
-                  ? <button type="button" className="wf-btn-primary text-xs" disabled={busy !== null || !selectedConnected} onClick={() => { const scope = selected.account.accountType === 'corporate' ? 'como conta corporativa padrão' : 'somente para as conversas atribuídas a este vendedor'; if (window.confirm(`Ativar esta conta ${scope}?`)) action('activate', selected.account.accountType === 'corporate' ? 'Conta ativada como canal corporativo padrão.' : 'Conta individual ativada sem substituir o canal corporativo.'); }}><i className="ri-play-circle-line" />Ativar uso</button>
+                {!selectedActive
+                  ? <button type="button" className="wf-btn-primary text-xs" disabled={busy !== null || !selectedConnected} onClick={() => { const scope = selfService ? 'para as conversas atribuídas a você' : selected.account.accountType === 'corporate' ? 'como conta corporativa padrão' : 'somente para as conversas atribuídas a este vendedor'; const confirmation = selfService ? 'Ativar seu WhatsApp para as conversas atribuídas a você? Os controles gerais da empresa continuarão protegidos.' : `Ativar esta conta ${scope}?`; if (window.confirm(confirmation)) action('activate', selfService ? 'Seu WhatsApp foi ativado para as suas conversas. A liberação geral da empresa continua sendo confirmada separadamente.' : selected.account.accountType === 'corporate' ? 'Conta ativada como canal corporativo padrão.' : 'Conta individual ativada sem substituir o canal corporativo.'); }}><i className="ri-play-circle-line" />{selfService ? 'Ativar meu WhatsApp' : 'Ativar uso'}</button>
                   : !selfService && <button type="button" className="wf-btn-secondary text-xs text-accent-700" disabled={busy !== null} onClick={() => { if (window.confirm('Desativar o uso desta conta sem apagar sessão ou histórico?')) action('deactivate', 'Uso operacional desativado; sessão e histórico preservados.'); }}><i className="ri-pause-circle-line" />Desativar uso</button>}
                 {!selfService && <><button type="button" className="wf-btn-secondary text-xs text-accent-700" disabled={busy !== null || !selectedConnected} onClick={() => { if (window.confirm('Desconectar esta conta no provedor? O provisionamento será preservado.')) action('disconnect', 'Conta desconectada; provisionamento e histórico preservados.'); }}><i className="ri-link-unlink-m" />Desconectar</button>
                 <button type="button" className="wf-btn-secondary text-xs text-accent-700" disabled={busy !== null} onClick={() => { if (window.confirm('Encerrar a sessão remota desta conta? Um novo pareamento será necessário.')) action('logout', 'Sessão remota encerrada para a conta selecionada.'); }}><i className="ri-logout-box-r-line" />Encerrar sessão</button></>}
               </div>
 
-              {selectedPairingOpen && selected.canViewQr && <div className="mt-4 rounded-xl bg-background-50 p-3"><div className="flex flex-wrap items-center gap-2"><button type="button" className="wf-btn-secondary text-xs" disabled={busy !== null} onClick={() => void loadQr()}><i className="ri-qr-code-line" />Gerar QR temporário</button><input aria-label="Telefone para pareamento Evolution GO" inputMode="tel" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="5511999999999" className="w-44 rounded-lg border border-background-200 bg-white px-3 py-2 text-xs" /><button type="button" className="wf-btn-secondary text-xs" disabled={busy !== null || !phoneValid} onClick={() => void requestPairing()}><i className="ri-smartphone-line" />Gerar código</button></div><p className="mt-2 text-[11px] leading-5 text-foreground-500">O backend revalida sua permissão para cada geração. QR e código nunca são incluídos na resposta de consulta da conta.</p></div>}
+              {selectedPairingOpen && selected.canViewQr && <div className="mt-4 rounded-xl bg-background-50 p-3"><div className="flex flex-wrap items-center gap-2"><button type="button" className="wf-btn-secondary text-xs" disabled={busy !== null} onClick={() => void loadQr()}><i className="ri-qr-code-line" />Gerar novo QR</button><input aria-label="Telefone para pareamento Evolution GO" inputMode="tel" value={phone} onChange={(event) => setPhone(event.target.value)} placeholder="5511999999999" className="w-44 rounded-lg border border-background-200 bg-white px-3 py-2 text-xs" /><button type="button" className="wf-btn-secondary text-xs" disabled={busy !== null || !phoneValid} onClick={() => void requestPairing()}><i className="ri-smartphone-line" />Gerar código</button></div><p className="mt-2 text-[11px] leading-5 text-foreground-500">O QR é carregado automaticamente ao abrir esta tela e pode ser renovado aqui. O backend revalida sua permissão para cada geração; QR e código nunca são incluídos na resposta de consulta da conta.</p></div>}
 
               {(qrForSelected || pairingForSelected) && <div className="mt-4 grid gap-3 rounded-xl border border-background-200 bg-background-50 p-3 sm:grid-cols-2">
                 {qrForSelected && <div><p className="text-xs font-semibold text-foreground-800">QR Code temporário</p>{qrImage ? <img src={qrImage} alt={selfService ? 'QR Code temporário da sua conta Evolution GO' : 'QR Code temporário da conta Evolution GO selecionada'} className="mt-2 h-40 w-40 rounded-lg bg-white object-contain p-2" /> : <p className="mt-2 text-[11px] leading-5 text-foreground-600">O provedor não retornou uma imagem segura para exibição. Gere um código de pareamento ou atualize o QR.</p>}<p className="mt-2 text-[11px] text-foreground-500">Expira: {stamp(qrForSelected.expiresAt)}</p></div>}

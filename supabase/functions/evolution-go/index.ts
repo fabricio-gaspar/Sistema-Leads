@@ -358,6 +358,38 @@ function providerFrom(secret: Row): EvolutionGoProvider {
   });
 }
 
+const PAIR_RUNTIME_POLL_INTERVAL_MS = 500;
+const PAIR_RUNTIME_MAX_POLLS = 16;
+
+/**
+ * Evolution GO starts an unauthenticated WhatsApp client asynchronously after
+ * `/instance/connect`. Calling `/instance/pair` while that client is merely
+ * allocated (but has not opened its websocket) makes some releases return a
+ * 500 from PairPhone. Verify the runtime state first instead of guessing with
+ * a fixed delay or issuing duplicate pairing-code requests.
+ */
+async function prepareUnauthenticatedRuntime(
+  provider: EvolutionGoProvider,
+  webhookUrl: string,
+): Promise<'ready' | 'already_connected' | 'not_ready'> {
+  await provider.connect({
+    webhookUrl,
+    subscribe: true,
+    immediate: false,
+  });
+
+  for (let attempt = 0; attempt < PAIR_RUNTIME_MAX_POLLS; attempt += 1) {
+    const current = await provider.status();
+    if (current.loggedIn) return 'already_connected';
+    if (current.connected) return 'ready';
+    if (attempt + 1 < PAIR_RUNTIME_MAX_POLLS) {
+      await new Promise<void>((resolve) => setTimeout(resolve, PAIR_RUNTIME_POLL_INTERVAL_MS));
+    }
+  }
+
+  return 'not_ready';
+}
+
 /** Creates an Evolution GO instance once. Deliberately never retries a POST: an
  * uncertain response must be investigated instead of risking a second session. */
 async function createInstance(body: Row, existingSecret: Row, defaultName: string) {
@@ -515,9 +547,10 @@ Deno.serve(async (request) => {
   if (!hasAllowedOrigin(request)) return json({ ok: false, error: 'origin_not_allowed' }, 403);
   const headers = allowedCorsHeaders(request);
   if (request.method !== 'POST') return json({ ok: false, error: 'method_not_allowed' }, 405, headers);
+  let action = '';
   try {
     const body = object(await request.json().catch(() => ({})));
-    const action = text(body.action, 80);
+    action = text(body.action, 80);
     const { user } = await requireUser(request);
     const admin = createAdminClient();
     const actor = await context(admin, user.id);
@@ -666,14 +699,49 @@ Deno.serve(async (request) => {
     }
 
     if (action === 'qr') {
-      return json({ ok: true, qr: await provider.qr() }, 200, {
+      const webhookSecret = text(secret.webhook_secret, 256);
+      if (!webhookSecret) throw new Error('evolution_go_credentials_incomplete');
+      // A few Evolution GO builds can return a QR persisted in their database
+      // after the WhatsApp client has already stopped. Do not present that
+      // stale image as scannable: first establish an actual unauthenticated
+      // runtime and only then retrieve the QR.
+      const runtime = await prepareUnauthenticatedRuntime(
+        provider,
+        callbackUrl(String(record.integration.id), webhookSecret),
+      );
+      if (runtime === 'already_connected') throw new Error('evolution_go_instance_already_connected');
+      if (runtime !== 'ready') throw new Error('evolution_go_qr_runtime_not_ready');
+      const qr = await provider.qr();
+      if (!qr.qrcode?.startsWith('data:image/')) throw new Error('evolution_go_qr_unavailable');
+      return json({ ok: true, qr }, 200, {
         ...headers,
         'Cache-Control': 'no-store',
       });
     }
 
     if (action === 'pair') {
-      return json({ ok: true, pairingCode: await provider.pair(text(body.phone, 32)) }, 200, {
+      const webhookSecret = text(secret.webhook_secret, 256);
+      if (!webhookSecret) throw new Error('evolution_go_credentials_incomplete');
+      const runtime = await prepareUnauthenticatedRuntime(
+        provider,
+        callbackUrl(String(record.integration.id), webhookSecret),
+      );
+      if (runtime === 'already_connected') throw new Error('evolution_go_instance_already_connected');
+      if (runtime !== 'ready') throw new Error('evolution_go_pair_runtime_not_ready');
+
+      // Never retry this POST automatically. The provider can have created a
+      // code even when its response was interrupted, and a second request can
+      // replace that live code. The operator explicitly chooses a new attempt.
+      let pairingCode: string;
+      try {
+        pairingCode = await provider.pair(text(body.phone, 32));
+      } catch (error) {
+        if (safeError(error) === 'evolution_go_request_rejected_500') {
+          throw new Error('evolution_go_pair_provider_rejected');
+        }
+        throw error;
+      }
+      return json({ ok: true, pairingCode }, 200, {
         ...headers,
         'Cache-Control': 'no-store',
       });
@@ -865,6 +933,11 @@ Deno.serve(async (request) => {
 
     throw new Error('unsupported_action');
   } catch (error) {
-    return json({ ok: false, error: safeError(error) }, 400, allowedCorsHeaders(request));
+    const code = safeError(error);
+    // Keep this diagnostic deliberately narrow: operation and normalized code
+    // make provider incompatibilities traceable without emitting credentials,
+    // phone numbers, QR material or upstream response bodies.
+    console.error('evolution_go_action_failed', { action, code });
+    return json({ ok: false, error: code }, 400, allowedCorsHeaders(request));
   }
 });

@@ -17,6 +17,7 @@ const corporateAccountId = 'd1111111-1111-4111-8111-111111111111';
 const corporateIntegrationId = 'e1111111-1111-4111-8111-111111111111';
 const sellerAccountId = 'f1111111-1111-4111-8111-111111111111';
 const sellerIntegrationId = 'a2222222-2222-4222-8222-222222222222';
+const webhookEventId = 'b2222222-2222-4222-8222-222222222222';
 
 const state = vi.hoisted(() => ({ admin: {} as object }));
 
@@ -26,8 +27,10 @@ vi.mock('../functions/_shared/auth.ts', () => ({
 
 let calls: Query[];
 let jobs: Row[];
+let events: Row[];
 let accounts: Row[];
 let integrations: Row[];
+let providerControls: Row | null;
 let secrets: Map<string, Row>;
 let auditLogs: Row[];
 let edgeEnv: Record<string, string | undefined>;
@@ -66,6 +69,7 @@ function updateRows(rows: Row[], query: Query): Row[] {
     return value;
   });
   if (rows === jobs) jobs = next;
+  if (rows === events) events = next;
   if (rows === accounts) accounts = next;
   if (rows === integrations) integrations = next;
   return updated;
@@ -86,8 +90,10 @@ function execute(query: Query): Result {
 
   if (query.operation === 'select') {
     if (query.table === 'evolution_go_seller_provisioning_jobs') return ok(selected(jobs, query));
+    if (query.table === 'evolution_go_webhook_events') return ok(selected(events, query));
     if (query.table === 'whatsapp_accounts') return ok(selected(accounts, query));
     if (query.table === 'integrations') return ok(selected(integrations, query));
+    if (query.table === 'messaging_provider_controls') return ok(query.single ? providerControls : providerControls ? [providerControls] : []);
     return ok(query.single ? null : []);
   }
 
@@ -98,6 +104,10 @@ function execute(query: Query): Result {
     }
     if (query.table === 'whatsapp_accounts') {
       const updated = updateRows(accounts, query);
+      return ok(query.single ? updated[0] ?? null : updated);
+    }
+    if (query.table === 'evolution_go_webhook_events') {
+      const updated = updateRows(events, query);
       return ok(query.single ? updated[0] ?? null : updated);
     }
     if (query.table === 'integrations') {
@@ -137,6 +147,14 @@ function workerRequest() {
   });
 }
 
+function eventRequest(eventId = webhookEventId) {
+  return new Request('https://example.invalid/evolution-go-worker', {
+    method: 'POST',
+    headers: { Authorization: 'Bearer synthetic-service-role', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ event_id: eventId }),
+  });
+}
+
 beforeEach(() => {
   vi.resetModules();
   calls = [];
@@ -156,6 +174,13 @@ beforeEach(() => {
     attempt_count: 0,
     next_attempt_at: '2026-10-04T00:00:00.000Z',
   }];
+  events = [];
+  providerControls = {
+    inbound_enabled: true,
+    send_enabled: true,
+    automation_enabled: true,
+    kill_switch: false,
+  };
   accounts = [
     {
       id: corporateAccountId,
@@ -174,11 +199,13 @@ beforeEach(() => {
       account_type: 'seller',
       archived_at: null,
       provider_metadata: {},
+      enabled: false,
+      connection_status: 'configured',
     },
   ];
   integrations = [
     { id: corporateIntegrationId, organization_id: organizationId, provider: 'Evolution GO', configuration: {} },
-    { id: sellerIntegrationId, organization_id: organizationId, provider: 'Evolution GO', configuration: {} },
+    { id: sellerIntegrationId, organization_id: organizationId, provider: 'Evolution GO', configuration: {}, enabled: false, connected: false, paused: true },
   ];
   secrets = new Map([
     [corporateIntegrationId, {
@@ -266,5 +293,60 @@ describe('Evolution GO seller provisioning worker', () => {
     expect(fetchMock).not.toHaveBeenCalled();
     expect(jobs[0]).toMatchObject({ state: 'failed', last_error_code: 'evolution_go_global_credentials_missing' });
     expect(JSON.stringify({ body, auditLogs, calls })).not.toContain('evo-eisenflow.kz3solucoes.cloud');
+  });
+
+  it('records a connection callback while keeping a disabled seller route disabled', async () => {
+    events = [{
+      id: webhookEventId,
+      organization_id: organizationId,
+      whatsapp_account_id: sellerAccountId,
+      integration_id: sellerIntegrationId,
+      event_kind: 'connection',
+      processing_status: 'queued',
+      attempt_count: 0,
+      sanitized_payload: { state: 'connected' },
+    }];
+    await import('../functions/evolution-go-worker/index');
+
+    const response = await handler(eventRequest());
+
+    expect(await response.json()).toMatchObject({ ok: true, processed: 1, failed: 0 });
+    expect(events[0]).toMatchObject({ processing_status: 'processed' });
+    expect(accounts.find((row) => row.id === sellerAccountId)).toMatchObject({
+      enabled: false,
+      connection_status: 'connected',
+    });
+    expect(integrations.find((row) => row.id === sellerIntegrationId)).toMatchObject({
+      enabled: false,
+      connected: true,
+      paused: true,
+    });
+  });
+
+  it('drops a queued inbound event when the seller account was disabled after it was queued', async () => {
+    events = [{
+      id: webhookEventId,
+      organization_id: organizationId,
+      whatsapp_account_id: sellerAccountId,
+      integration_id: sellerIntegrationId,
+      event_kind: 'inbound',
+      processing_status: 'queued',
+      attempt_count: 0,
+      sanitized_payload: {
+        message_id: 'inbound-1',
+        remote_jid: '5511999990000@s.whatsapp.net',
+        text: 'Olá',
+      },
+    }];
+    await import('../functions/evolution-go-worker/index');
+
+    const response = await handler(eventRequest());
+
+    expect(await response.json()).toMatchObject({ ok: true, processed: 0, failed: 0 });
+    expect(events[0]).toMatchObject({
+      processing_status: 'ignored',
+      error_code: 'evolution_go_account_disabled',
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

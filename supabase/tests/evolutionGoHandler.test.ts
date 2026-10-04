@@ -356,6 +356,15 @@ describe('Evolution GO multi-account handler', () => {
   });
 
   it('returns QR only to an administrator or the private-account owner and never reveals another seller account', async () => {
+    fetchMock.mockImplementation(async (url: string | URL) => {
+      const path = new URL(String(url)).pathname;
+      const data = path.endsWith('/instance/status')
+        ? { Connected: true, LoggedIn: false }
+        : path.endsWith('/instance/qr')
+          ? { qrcode: 'data:image/png;base64,synthetic-qr', code: 'QR-CODE' }
+          : {};
+      return new Response(JSON.stringify({ data }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+    });
     await import('../functions/evolution-go/index');
 
     const deniedOther = await handler(request('qr', { account_id: otherAccountId }));
@@ -381,6 +390,34 @@ describe('Evolution GO multi-account handler', () => {
     expect(administratorQr.status).toBe(200);
     expect(administratorQr.headers.get('Cache-Control')).toBe('no-store');
     expect(calls.filter((call) => call.table === 'read_integration_secret')).toHaveLength(2);
+  });
+
+  it('waits for an unauthenticated Evolution GO runtime before requesting one pairing code', async () => {
+    fetchMock.mockImplementation(async (url: string | URL) => {
+      const path = new URL(String(url)).pathname;
+      if (path.endsWith('/instance/connect')) return new Response(JSON.stringify({ data: {} }), { status: 200 });
+      if (path.endsWith('/instance/status')) {
+        return new Response(JSON.stringify({ data: { Connected: true, LoggedIn: false } }), { status: 200 });
+      }
+      if (path.endsWith('/instance/pair')) {
+        return new Response(JSON.stringify({ data: { PairingCode: 'PAIR-123' } }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ data: {} }), { status: 200 });
+    });
+    await import('../functions/evolution-go/index');
+
+    const response = await handler(request('pair', {
+      account_id: ownerAccountId,
+      phone: '5511999997788',
+    }));
+
+    expect(response.status, JSON.stringify(await response.clone().json())).toBe(200);
+    expect(await response.json()).toMatchObject({ ok: true, pairingCode: 'PAIR-123' });
+    expect(fetchMock.mock.calls.map(([url]) => new URL(String(url)).pathname)).toEqual([
+      '/instance/connect', '/instance/status', '/instance/pair',
+    ]);
+    const pairCall = fetchMock.mock.calls.find(([url]) => new URL(String(url)).pathname === '/instance/pair');
+    expect(JSON.parse(String(pairCall?.[1]?.body))).toEqual({ phone: '5511999997788' });
   });
 
   it('creates corporate and seller accounts in the canonical tables with the correct ownership', async () => {

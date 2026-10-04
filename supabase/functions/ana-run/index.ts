@@ -290,6 +290,21 @@ function secureEqual(actual: string | null, expected: string | undefined): boole
   return difference === 0;
 }
 
+// Evolution GO stores an account-scoped webhook_secret.  Keep the legacy
+// webhook_token path for the existing provider, but never accept the new
+// secret for an arbitrary integration key.
+export function matchesIntegrationWebhookSecret(
+  supplied: string | null,
+  integrationKey: unknown,
+  storedSecret: unknown,
+): boolean {
+  const secret = asObject(storedSecret);
+  if (secureEqual(supplied, asText(secret.webhook_token, 1_000))) return true;
+  const key = asText(integrationKey, 200).toLowerCase();
+  return key.startsWith('whatsapp_evolution_go:')
+    && secureEqual(supplied, asText(secret.webhook_secret, 1_000));
+}
+
 async function isAuthenticatedInternalRequest(
   admin: ReturnType<typeof createAdminClient>,
   request: Request,
@@ -312,7 +327,7 @@ async function isAuthenticatedInternalRequest(
   }
   const { data: storedSecret, error: secretError } = await admin.rpc('read_integration_secret', { p_integration: integration.id });
   if (secretError) return false;
-  return secureEqual(supplied, asText(asObject(storedSecret).webhook_token, 1_000));
+  return matchesIntegrationWebhookSecret(supplied, integration.key, storedSecret);
 }
 
 function errorCode(error: unknown): string {

@@ -8,6 +8,8 @@ import SellerAttentionPanel from './components/SellerAttentionPanel';
 import { useNotificacoesStore } from '@/hooks/useNotificacoesStore';
 import InfoTooltip from '@/components/feature/InfoTooltip';
 import AnaAutomaticControl from './components/AnaAutomaticControl';
+import { useCurrentAccess } from '@/hooks/useCurrentAccess';
+import { hasAnyPermission } from '@/lib/crm/currentAccessRepository';
 
 function PanelHeading({ title, help, link, linkLabel = 'Abrir' }: { title: string; help: string; link?: string; linkLabel?: string }) {
   return <div className="wf-overview-heading">
@@ -41,6 +43,11 @@ export default function Dashboard() {
   const [diagnosticError, setDiagnosticError] = useState(false);
   const [liveUpdates, setLiveUpdates] = useState(true);
   const [panelPreferencesOpen, setPanelPreferencesOpen] = useState(false);
+  const { access } = useCurrentAccess();
+  const sellerOwnWhatsapp = access?.role === 'vendedor'
+    && hasAnyPermission(access, ['channels.connect_own']);
+  const whatsappWorkspaceLink = sellerOwnWhatsapp ? '/dashboard/meu-whatsapp' : '/dashboard/configuracoes?tab=canais';
+  const whatsappWorkspaceLabel = sellerOwnWhatsapp ? 'Meu WhatsApp' : 'Ver canal';
 
   useEffect(() => {
     let disposed = false;
@@ -96,7 +103,7 @@ export default function Dashboard() {
 
   const operationalItems = [
     { label: 'Ana', icon: 'ri-robot-2-line', ...diagnosticStatus(operacao?.status.killSwitch ? 'Pausada' : operacao?.status.productionReady ? 'Pronta' : 'Pendente', operacao?.status.productionReady && !operacao.status.killSwitch ? 'positive' : 'attention'), detail: 'Prontidão e pausa operacional da Ana. Estar pronta não é prova de envio ou entrega.', link: '/dashboard/configuracoes?tab=ana' },
-    { label: 'WhatsApp', icon: 'ri-whatsapp-line', ...diagnosticStatus(whatsappMonitoring?.state === 'stable' ? 'Estável' : whatsappMonitoring?.state === 'paused' ? 'Pausado' : whatsappMonitoring?.state === 'attention' ? 'Requer atenção' : whatsappMonitoring?.state === 'unavailable' ? 'Indisponível' : 'Não configurado', whatsappMonitoring?.state === 'stable' ? 'positive' : whatsappMonitoring?.state === 'unavailable' ? 'critical' : 'attention'), detail: whatsappMonitoring?.detail ?? 'Estado do canal confirmado pelo backend.', link: '/dashboard/configuracoes?tab=canais' },
+    { label: 'WhatsApp', icon: 'ri-whatsapp-line', ...diagnosticStatus(whatsappMonitoring?.state === 'stable' ? 'Estável' : whatsappMonitoring?.state === 'paused' ? 'Pausado' : whatsappMonitoring?.state === 'attention' ? 'Requer atenção' : whatsappMonitoring?.state === 'unavailable' ? 'Indisponível' : 'Não configurado', whatsappMonitoring?.state === 'stable' ? 'positive' : whatsappMonitoring?.state === 'unavailable' ? 'critical' : 'attention'), detail: sellerOwnWhatsapp ? 'Estado da sua conta Evolution GO. Use Meu WhatsApp para conectar ou validar o seu canal.' : whatsappMonitoring?.detail ?? 'Estado do canal confirmado pelo backend.', link: whatsappWorkspaceLink },
     { label: 'Busca', icon: 'ri-map-pin-search-line', ...diagnosticStatus(apify?.label ?? 'Não configurada', apify?.tone ?? 'neutral'), detail: apifyIntegration?.detail ?? 'Estado da integração de busca Apify.', link: '/dashboard/configuracoes?tab=apis' },
     { label: 'Processamento', icon: 'ri-pulse-line', ...diagnosticStatus(processing.label, processing.tone), detail: processing.detail, link: '/dashboard/configuracoes?tab=operacao' },
   ];
@@ -117,7 +124,7 @@ export default function Dashboard() {
 
     <section className="wf-dashboard-operations wf-operations-summary mt-5" aria-label="Atividade e saúde operacional">
       <article className="wf-surface wf-contact-activity">
-        <div className="border-b border-background-200 px-5 py-4"><PanelHeading title="Atividade de contato" help="Contagens operacionais das últimas 24 horas. Envios aceitos não significam entrega ou leitura." link="/dashboard/configuracoes?tab=canais" linkLabel="Ver canal" /></div>
+        <div className="border-b border-background-200 px-5 py-4"><PanelHeading title="Atividade de contato" help="Contagens operacionais das últimas 24 horas. Envios aceitos não significam entrega ou leitura." link={whatsappWorkspaceLink} linkLabel={whatsappWorkspaceLabel} /></div>
         <dl className="wf-contact-activity__grid">
           {[
             { label: 'Envios aceitos · 24h', value: diagnosticValue(whatsappMonitoring?.sentLast24Hours) },

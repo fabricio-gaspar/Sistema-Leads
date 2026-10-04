@@ -101,6 +101,18 @@ Deno.serve(async (request) => {
     const { data: integration } = await admin.from('integrations').select('id,key,provider,connected,enabled,paused')
       .eq('organization_id', organizationId).eq('id', account.integration_id).maybeSingle();
     if (!integration?.connected || !integration.enabled || integration.paused) throw new Error('whatsapp_integration_not_ready');
+    const { data: operationalAccount, error: operationalAccountError } = await admin.from('whatsapp_accounts')
+      .select('id,provider,enabled,connection_status').eq('id', account.account_id)
+      .eq('organization_id', organizationId).eq('integration_id', integration.id).is('archived_at', null).maybeSingle();
+    if (operationalAccountError || !operationalAccount || operationalAccount.enabled !== true || operationalAccount.connection_status !== 'connected') {
+      throw new Error('whatsapp_account_not_ready');
+    }
+    if (String(operationalAccount.provider) === 'evolution_go') {
+      const { data: controls, error: controlsError } = await admin.from('messaging_provider_controls')
+        .select('send_enabled,kill_switch').eq('organization_id', organizationId).eq('provider', 'evolution_go').maybeSingle();
+      if (controlsError) throw new Error('evolution_go_control_read_failed');
+      if (!controls || controls.send_enabled !== true || controls.kill_switch === true) throw new Error('evolution_go_send_not_ready');
+    }
     const { data: blockingPolicy } = await admin.from('channel_policy_events')
       .select('id,risk_level,action').eq('organization_id', organizationId).eq('channel', 'whatsapp')
       .is('resolved_at', null).in('action', ['pause', 'throttle']).order('created_at', { ascending: false }).limit(1).maybeSingle();

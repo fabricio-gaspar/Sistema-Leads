@@ -64,7 +64,18 @@ describe('EvolutionGoProvider', () => {
     await expect(provider.pair('5511988887777')).resolves.toBe('ABC-123');
   });
 
-  it('uses Evolution GO event names while connecting and renders the image returned in code', async () => {
+  it('reads status and pairing code field casing used by Evolution GO v0.7', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ data: { Connected: true, LoggedIn: true, Name: 'Comercial GO' } }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ data: { PairingCode: '87654321' } }), { status: 200 }));
+    const provider = new EvolutionGoProvider({ baseUrl: 'https://evolution.wayflex.example', instanceToken: 'token', allowedOrigins, fetchImpl: fetchMock });
+
+    await expect(provider.status()).resolves.toEqual({ connected: true, loggedIn: true, phone: undefined, name: 'Comercial GO' });
+    await expect(provider.pair('5511988887777')).resolves.toBe('87654321');
+  });
+
+  it('uses Evolution GO v0.7 event names while connecting and renders the image returned in code', async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(new Response(JSON.stringify({ data: {} }), { status: 200 }))
@@ -75,7 +86,15 @@ describe('EvolutionGoProvider', () => {
     await expect(provider.qr()).resolves.toMatchObject({ qrcode: 'data:image/png;base64,synthetic' });
     expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({
       webhookUrl: 'https://crm.wayflex.example/webhook',
-      subscribe: ['messages.upsert', 'connection.update'],
+      subscribe: ['MESSAGE', 'SEND_MESSAGE', 'READ_RECEIPT', 'CONNECTION', 'QRCODE'],
     });
+  });
+
+  it('sends a pairing request with only the phone and accepts the documented data.code response', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ data: { code: '12345678' } }), { status: 200 }));
+    const provider = new EvolutionGoProvider({ baseUrl: 'https://evolution.wayflex.example', instanceToken: 'token', allowedOrigins, fetchImpl: fetchMock });
+
+    await expect(provider.pair('+55 (11) 98888-7777')).resolves.toBe('12345678');
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({ phone: '5511988887777' });
   });
 });

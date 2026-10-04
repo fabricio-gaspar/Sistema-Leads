@@ -10,6 +10,8 @@ import ModoExecucaoToggle from '@/components/feature/ModoExecucaoToggle';
 import { useCurrentAccess } from '@/hooks/useCurrentAccess';
 import { hasAnyPermission } from '@/lib/crm/currentAccessRepository';
 import { roleLabel, type TeamPermission } from '@/lib/crm/teamMembersRepository';
+import { loadMyEvolutionGoAccount } from '@/lib/crm/whatsappAccountsRepository';
+import { evolutionGoOnboardingSessionKey, evolutionGoSellerNeedsOnboarding } from '@/lib/crm/evolutionGoOnboarding';
 import './wayflex-visual.css';
 import './wayflex-redesign.css';
 
@@ -115,12 +117,13 @@ export default function DashboardLayout() {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [painelAba, setPainelAba] = useState<'notificacoes' | 'tarefas'>('notificacoes');
+  const sellerOnboardingAttempt = useRef<string | null>(null);
   const location = useLocation();
   const navigate = useNavigate();
   const { user, loading, logout } = useAuth();
   const notif = useNotificacoesStore();
   const tarefas = useTarefasStore();
-  const { access } = useCurrentAccess();
+  const { access, loading: accessLoading } = useCurrentAccess();
   const saude = useSaudeWhatsapp();
   const { mode: operationalMode } = useOperationalMode();
   const filteredSections = useMemo(() => {
@@ -135,6 +138,37 @@ export default function DashboardLayout() {
       }))
       .filter((section) => section.items.length > 0);
   }, [access, navQuery]);
+
+  const sellerCanConnectOwnWhatsapp = access?.role === 'vendedor'
+    && hasAnyPermission(access, ['channels.connect_own']);
+
+  useEffect(() => {
+    if (loading || accessLoading || !user || !sellerCanConnectOwnWhatsapp || location.pathname !== '/dashboard') return;
+
+    const sessionKey = evolutionGoOnboardingSessionKey(user.id);
+    try {
+      if (window.sessionStorage.getItem(sessionKey) === 'shown') return;
+    } catch {
+      // A browser with blocked session storage can still use the in-memory
+      // guard below; this must never prevent the seller from opening the CRM.
+    }
+    if (sellerOnboardingAttempt.current === sessionKey) return;
+    sellerOnboardingAttempt.current = sessionKey;
+
+    let active = true;
+    void loadMyEvolutionGoAccount()
+      .then((status) => {
+        if (!active || !evolutionGoSellerNeedsOnboarding(status)) return;
+        try { window.sessionStorage.setItem(sessionKey, 'shown'); } catch { /* storage is optional */ }
+        navigate('/dashboard/meu-whatsapp', { replace: true });
+      })
+      // The normal Dashboard must remain available if the connection read is
+      // temporarily unavailable. The seller can still use the Meu WhatsApp
+      // item from the sidebar to retry safely.
+      .catch(() => undefined);
+
+    return () => { active = false; };
+  }, [accessLoading, loading, location.pathname, navigate, sellerCanConnectOwnWhatsapp, user]);
 
   if (loading) {
     return (

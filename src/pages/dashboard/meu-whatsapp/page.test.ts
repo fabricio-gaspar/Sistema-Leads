@@ -14,4 +14,15 @@ describe('Meu WhatsApp Evolution GO', () => {
     expect(panel).toContain("mode === 'self-service'");
     expect(panel).toContain("id={selfService ? 'my-evolution-go-account' : 'evolution-go-configuration'}");
   });
+
+  it('keeps connection, activation and Central access inside the seller workspace', () => {
+    const panel = readFileSync(resolve('src/components/feature/EvolutionGoPanel.tsx'), 'utf8');
+
+    expect(panel).toContain('Ativar meu WhatsApp');
+    expect(panel).toContain('Sua conta está conectada, mas o atendimento ainda está protegido.');
+    expect(panel).toContain('Abrir Central de Atendimento');
+    expect(panel).toContain('to="/dashboard/atendimento"');
+    expect(panel).toContain('autoQrRequest');
+    expect(panel).toContain('QR é carregado automaticamente ao abrir esta tela');
+  });
 });

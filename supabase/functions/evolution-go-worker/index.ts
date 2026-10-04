@@ -64,6 +64,53 @@ async function accountIntegration(admin: Admin, event: Row) {
   return { account, integration };
 }
 
+/**
+ * Load the organization-wide Evolution controls at the moment an event is
+ * consumed. The webhook's check is intentionally not trusted here: a queued
+ * event can outlive a channel being disconnected or disabled.
+ */
+async function providerControls(admin: Admin, organizationId: unknown) {
+  const { data, error } = await admin.from('messaging_provider_controls')
+    .select('inbound_enabled,send_enabled,automation_enabled,kill_switch')
+    .eq('organization_id', organizationId).eq('provider', 'evolution_go').maybeSingle();
+  if (error) throw new Error('evolution_go_control_read_failed');
+  if (!data) throw new Error('evolution_go_provider_control_missing');
+  return data;
+}
+
+async function activeRouteReady(admin: Admin, event: Row) {
+  const route = await accountIntegration(admin, event);
+  if (route.account.enabled !== true) throw new Error('evolution_go_account_disabled');
+  if (route.account.connection_status !== 'connected') throw new Error('evolution_go_account_disconnected');
+  if (route.integration.enabled !== true) throw new Error('evolution_go_integration_disabled');
+  if (route.integration.connected !== true) throw new Error('evolution_go_integration_disconnected');
+  if (route.integration.paused === true) throw new Error('evolution_go_integration_paused');
+  const controls = await providerControls(admin, event.organization_id);
+  if (controls.kill_switch === true) throw new Error('evolution_go_kill_switch_active');
+  return { ...route, controls };
+}
+
+async function inboundRouteReady(admin: Admin, event: Row) {
+  const route = await activeRouteReady(admin, event);
+  if (route.controls.inbound_enabled !== true) throw new Error('evolution_go_inbound_disabled');
+  return route;
+}
+
+async function outboundRouteReady(admin: Admin, event: Row) {
+  const route = await activeRouteReady(admin, event);
+  if (route.controls.send_enabled !== true) throw new Error('evolution_go_send_disabled');
+  return route;
+}
+
+async function automationDispatchReady(admin: Admin, event: Row) {
+  const route = await inboundRouteReady(admin, event);
+  // Inbound reception and AI automation are intentionally independent: when
+  // automation is paused, the seller must still see the customer's message in
+  // the Central, but no AI reply may be generated.
+  if (route.controls.send_enabled !== true || route.controls.automation_enabled !== true) return null;
+  return route;
+}
+
 async function processConnection(admin: Admin, event: Row, payload: Row) {
   const { account, integration } = await accountIntegration(admin, event);
   const state = text(payload.state, 40);
@@ -84,6 +131,9 @@ async function processConnection(admin: Admin, event: Row, payload: Row) {
 }
 
 async function processReceipt(admin: Admin, event: Row, payload: Row) {
+  // Receipts can arrive after an account is disconnected. Do not mutate
+  // message history from a stale route after an administrator has closed it.
+  await outboundRouteReady(admin, event);
   const messageIds = Array.isArray(payload.provider_message_ids)
     ? [...new Set(payload.provider_message_ids.filter((value): value is string => typeof value === 'string' && value.length <= 300))].slice(0, 100)
     : [];
@@ -106,7 +156,7 @@ async function processReceipt(admin: Admin, event: Row, payload: Row) {
 }
 
 async function processInbound(admin: Admin, event: Row, payload: Row) {
-  const { account, integration } = await accountIntegration(admin, event);
+  const { account, integration } = await inboundRouteReady(admin, event);
   const messageId = text(payload.message_id, 300);
   const phone = phoneFromJid(payload.remote_jid);
   const message = text(payload.text, 4_000);
@@ -173,21 +223,27 @@ async function processInbound(admin: Admin, event: Row, payload: Row) {
   const humanResponsible = lead.ai_paused === true || lead.modo_atendimento === 'humano' || lead.automation_status === 'human';
   let anaCompleted = true;
   if (!humanResponsible) {
-    const { data: secret, error: secretError } = await admin.rpc('read_integration_secret', { p_integration: integration.id });
-    const webhookSecret = text(object(secret).webhook_secret, 256);
-    if (secretError || !webhookSecret) throw new Error('evolution_go_ana_credential_missing');
-    const response = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/ana-run`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''}`, 'Content-Type': 'application/json', 'x-internal-worker-secret': webhookSecret },
-      body: JSON.stringify({ event: 'message.received', message_id: messageId, request_id: `evolution:${messageId}`,
-        retry_failed: true, lead_id: lead.id, modo: lead.modo_atendimento, organization_id: event.organization_id,
-        source_integration_id: integration.id, contexto: { channel: 'whatsapp', inbound_event_id: externalId, media_requires_review: Boolean(text(payload.media_kind, 30)) },
-      }), signal: AbortSignal.timeout(45_000),
-    });
-    const result = object(await response.json().catch(() => null));
-    // The Ana endpoint's idempotent duplicate is already a completed delivery;
-    // retrying it would only create queue noise and cannot generate a second reply.
-    anaCompleted = response.ok && (result.ok === true || result.duplicate === true);
+    // Re-check immediately before waking Ana. This keeps a queued inbound
+    // event from producing an automated response when an administrator turns
+    // off automation or outbound sending while it is being processed.
+    const dispatchRoute = await automationDispatchReady(admin, event);
+    if (dispatchRoute) {
+      const { data: secret, error: secretError } = await admin.rpc('read_integration_secret', { p_integration: dispatchRoute.integration.id });
+      const webhookSecret = text(object(secret).webhook_secret, 256);
+      if (secretError || !webhookSecret) throw new Error('evolution_go_ana_credential_missing');
+      const response = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/ana-run`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''}`, 'Content-Type': 'application/json', 'x-internal-worker-secret': webhookSecret },
+        body: JSON.stringify({ event: 'message.received', message_id: messageId, request_id: `evolution:${messageId}`,
+          retry_failed: true, lead_id: lead.id, modo: lead.modo_atendimento, organization_id: event.organization_id,
+          source_integration_id: dispatchRoute.integration.id, contexto: { channel: 'whatsapp', inbound_event_id: externalId, media_requires_review: Boolean(text(payload.media_kind, 30)) },
+        }), signal: AbortSignal.timeout(45_000),
+      });
+      const result = object(await response.json().catch(() => null));
+      // The Ana endpoint's idempotent duplicate is already a completed delivery;
+      // retrying it would only create queue noise and cannot generate a second reply.
+      anaCompleted = response.ok && (result.ok === true || result.duplicate === true);
+    }
   }
   await admin.from('channel_inbound_events').update({ status: anaCompleted ? 'processed' : 'failed', error: anaCompleted ? null : 'ana_not_completed', processed_at: new Date().toISOString() })
     .eq('id', inbound.id).eq('organization_id', event.organization_id);
@@ -212,6 +268,23 @@ async function processOne(admin: Admin, event: Row) {
     return { processed: true };
   } catch (error) {
     const code = safeError(error).replace(/[^a-z0-9_]/gi, '_').toLowerCase().slice(0, 100) || 'evolution_go_worker_failed';
+    const terminalRouteState = new Set([
+      'evolution_go_account_not_ready',
+      'evolution_go_integration_not_ready',
+      'evolution_go_account_disabled',
+      'evolution_go_account_disconnected',
+      'evolution_go_integration_disabled',
+      'evolution_go_integration_disconnected',
+      'evolution_go_integration_paused',
+      'evolution_go_provider_control_missing',
+      'evolution_go_kill_switch_active',
+      'evolution_go_inbound_disabled',
+      'evolution_go_send_disabled',
+    ]);
+    if (terminalRouteState.has(code)) {
+      await mark(admin, owned, 'ignored', { error_code: code });
+      return { ignored: true, code };
+    }
     const attempts = Number(owned.attempt_count ?? 1);
     await mark(admin, owned, attempts >= 5 ? 'dead_letter' : 'failed', { error_code: code, next_retry_at: retryAt(attempts) });
     return { failed: true, code };

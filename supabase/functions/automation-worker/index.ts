@@ -558,7 +558,7 @@ async function failCadenceJob(
  * immediately before a provider call (and before creating another cadence
  * job) instead of relying on the earlier queue-read snapshot.
  */
-async function automaticDispatchBlock(
+export async function automaticDispatchBlock(
   admin: Admin,
   input: {
     organizationId: string;
@@ -567,9 +567,20 @@ async function automaticDispatchBlock(
     expectedLastContact: unknown;
     expectedNoReplyDeadline?: unknown;
     expectedConfigurationVersionId?: string;
+    expectedIntegrationId?: string;
+    expectedWhatsappAccountId?: string;
     allowMeetingHandoffAcknowledgement?: boolean;
   },
 ): Promise<string | null> {
+  const expectedIntegrationId = isUuid(input.expectedIntegrationId)
+    ? input.expectedIntegrationId
+    : null;
+  const expectedWhatsappAccountId = isUuid(input.expectedWhatsappAccountId)
+    ? input.expectedWhatsappAccountId
+    : null;
+  if (input.channel === 'whatsapp' && Boolean(expectedIntegrationId) !== Boolean(expectedWhatsappAccountId)) {
+    return 'whatsapp_channel_identity_invalid';
+  }
   const [leadResult, companyResult, aiResult, runtimeResult, handoffResult, channelResult] =
     await Promise.all([
       admin
@@ -609,7 +620,7 @@ async function automaticDispatchBlock(
         .from("integrations")
         .select("enabled,connected,paused")
         .eq("organization_id", input.organizationId)
-        .eq("key", input.channel)
+        .eq(expectedIntegrationId ? "id" : "key", expectedIntegrationId ?? input.channel)
         .maybeSingle(),
     ]);
   if (
@@ -657,6 +668,38 @@ async function automaticDispatchBlock(
     channelResult.data.paused !== false
   )
     return "channel_not_ready";
+  if (input.channel === 'whatsapp' && expectedIntegrationId && expectedWhatsappAccountId) {
+    const [accountRead, canonicalRouteRead] = await Promise.all([
+      admin.from('whatsapp_accounts')
+        .select('id,integration_id,provider,enabled,connection_status')
+        .eq('id', expectedWhatsappAccountId).eq('organization_id', input.organizationId)
+        .eq('integration_id', expectedIntegrationId).is('archived_at', null).maybeSingle(),
+      admin.rpc('resolve_lead_whatsapp_account', {
+        p_organization_id: input.organizationId,
+        p_lead_id: input.leadId,
+      }),
+    ]);
+    if (accountRead.error || canonicalRouteRead.error) throw new Error('whatsapp_final_route_read_failed');
+    const account = accountRead.data;
+    const routeRows = Array.isArray(canonicalRouteRead.data)
+      ? canonicalRouteRead.data
+      : canonicalRouteRead.data ? [canonicalRouteRead.data] : [];
+    const canonicalRoute = asObject(routeRows[0]);
+    if (!account || account.enabled !== true || account.connection_status !== 'connected') return 'channel_not_ready';
+    if (
+      asText(canonicalRoute.account_id, 80) !== expectedWhatsappAccountId
+      || asText(canonicalRoute.integration_id, 80) !== expectedIntegrationId
+    ) return 'whatsapp_account_changed';
+    if (asText(account.provider, 40) === 'evolution_go') {
+      const { data: controls, error: controlsError } = await admin.from('messaging_provider_controls')
+        .select('send_enabled,automation_enabled,kill_switch')
+        .eq('organization_id', input.organizationId).eq('provider', 'evolution_go').maybeSingle();
+      if (controlsError) throw new Error('evolution_go_control_read_failed');
+      if (!controls || controls.send_enabled !== true || controls.automation_enabled !== true || controls.kill_switch === true) {
+        return 'evolution_go_automation_not_ready';
+      }
+    }
+  }
   if (input.expectedConfigurationVersionId) {
     const policy = await readPublishedAnaPolicy(admin, input.organizationId);
     if (!policy) return "ana_configuration_missing";
@@ -682,6 +725,8 @@ async function scheduleAnaCadence(
     previousCadenceStep?: string | null;
     noReplyDeadlineAt: string;
     policy: AnaPolicy;
+    integrationId?: string;
+    whatsappAccountId?: string;
   },
 ) {
   const sentAt = Date.parse(input.sentAt);
@@ -707,6 +752,8 @@ async function scheduleAnaCadence(
     expectedLastContact: input.sentAt,
     expectedNoReplyDeadline: input.noReplyDeadlineAt,
     expectedConfigurationVersionId: input.policy.configurationVersionId,
+    expectedIntegrationId: input.integrationId,
+    expectedWhatsappAccountId: input.whatsappAccountId,
   });
   if (finalBlock) return { scheduled: 0, error: finalBlock };
   let scheduled = 0;
@@ -739,6 +786,10 @@ async function scheduleAnaCadence(
           expected_last_contact: input.sentAt,
           no_reply_deadline_at: input.noReplyDeadlineAt,
           configuration_version_id: input.policy.configurationVersionId,
+          ...(input.channel === 'whatsapp' && isUuid(input.integrationId) && isUuid(input.whatsappAccountId) ? {
+            integration_id: input.integrationId,
+            whatsapp_account_id: input.whatsappAccountId,
+          } : {}),
         },
       },
       { onConflict: "idempotency_key", ignoreDuplicates: true },
@@ -2109,14 +2160,25 @@ Deno.serve(async (request) => {
             if (!isUuid(requestedAccountId)) throw new Error("whatsapp_account_id_invalid");
             const { data: account, error: accountError } = await admin
               .from("whatsapp_accounts")
-              .select("id,provider")
+              .select("id,provider,enabled,connection_status")
               .eq("id", requestedAccountId)
               .eq("organization_id", orgId)
               .eq("integration_id", requestedIntegrationId)
               .is("archived_at", null)
               .maybeSingle();
             if (accountError || !account) throw new Error("whatsapp_account_integration_mismatch");
+            if (account.enabled !== true || account.connection_status !== 'connected') throw new Error('whatsapp_account_not_ready');
             whatsappProvider = asText(account.provider, 40) || "zapi";
+            if (whatsappProvider === 'evolution_go') {
+              const { data: controls, error: controlsError } = await admin.from('messaging_provider_controls')
+                .select('send_enabled,automation_enabled,kill_switch')
+                .eq('organization_id', orgId).eq('provider', 'evolution_go').maybeSingle();
+              if (controlsError) throw new Error('evolution_go_control_read_failed');
+              if (!controls || controls.send_enabled !== true || controls.kill_switch === true) {
+                throw new Error('evolution_go_send_not_ready');
+              }
+              if (!manual && controls.automation_enabled !== true) throw new Error('evolution_go_automation_not_ready');
+            }
           }
           const controlledSandboxTest =
             manual &&
@@ -2443,6 +2505,8 @@ Deno.serve(async (request) => {
                 payload.configuration_version_id,
                 80,
               ),
+              expectedIntegrationId: requestedIntegrationId || undefined,
+              expectedWhatsappAccountId: asText(payload.whatsapp_account_id, 80) || undefined,
               allowMeetingHandoffAcknowledgement: meetingHandoffAcknowledgement,
             });
             if (finalBlock) {
@@ -2570,6 +2634,8 @@ Deno.serve(async (request) => {
                 previousCadenceStep: previousCadenceStep || null,
                 noReplyDeadlineAt: noReplyDeadlineAt!,
                 policy: anaPolicy,
+                integrationId: requestedIntegrationId || undefined,
+                whatsappAccountId: asText(payload.whatsapp_account_id, 80) || undefined,
               });
             } catch {
               cadence = { scheduled: 0, error: "cadence_schedule_persist_failed" };
