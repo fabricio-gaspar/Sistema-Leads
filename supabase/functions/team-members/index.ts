@@ -272,6 +272,83 @@ async function ensureAnotherAdministrator(
   }
 }
 
+type MemberPurgeSummary = {
+  evolutionAccounts: number;
+  integrationSecrets: number;
+  storageObjects: number;
+};
+
+/**
+ * Removes data that is exclusively attached to a team member. Commercial leads
+ * and messages are deliberately not deleted: they belong to the organization
+ * and their user references are cleared by their ON DELETE SET NULL foreign
+ * keys. This makes the identity unrecoverable without destroying the company
+ * history that may be shared with other members.
+ */
+async function purgeMemberOwnedData(
+  admin: ReturnType<typeof createAdminClient>, organizationId: string, targetUserId: string,
+): Promise<MemberPurgeSummary> {
+  const { data: accounts, error: accountsError } = await admin.from('whatsapp_accounts')
+    .select('id,integration_id').eq('organization_id', organizationId).eq('owner_user_id', targetUserId);
+  if (accountsError) throw new Error('member_whatsapp_accounts_read_failed');
+
+  const accountIds = (accounts ?? []).map((account) => String(account.id)).filter(Boolean);
+  const integrationIds = [...new Set((accounts ?? []).map((account) => String(account.integration_id)).filter(Boolean))];
+  const now = new Date().toISOString();
+
+  if (accountIds.length) {
+    // Stop the durable worker first. Marking records as archived is a
+    // fail-closed guard against a worker that started before this request.
+    const [jobs, accountArchive] = await Promise.all([
+      admin.from('evolution_go_seller_provisioning_jobs').update({
+        state: 'cancelled', completed_at: now, last_error_code: 'member_deleted', updated_at: now,
+      }).eq('organization_id', organizationId).in('whatsapp_account_id', accountIds)
+        .in('state', ['queued', 'failed', 'processing', 'awaiting_qr']),
+      admin.from('whatsapp_accounts').update({
+        enabled: false, is_default: false, connection_status: 'disconnected', archived_at: now, updated_at: now,
+      }).eq('organization_id', organizationId).in('id', accountIds),
+    ]);
+    if (jobs.error || accountArchive.error) throw new Error('member_operational_channel_lock_failed');
+
+    // These tables use RESTRICT because a normal channel transfer must retain
+    // history. On permanent identity deletion the records are user-owned, so
+    // remove them before deleting the account and its integration secret.
+    const [bindings, outbox, conversations] = await Promise.all([
+      admin.from('lead_whatsapp_account_bindings').delete().eq('organization_id', organizationId).in('whatsapp_account_id', accountIds),
+      admin.from('messaging_outbox').delete().eq('organization_id', organizationId).in('whatsapp_account_id', accountIds),
+      admin.from('whatsapp_conversations').delete().eq('organization_id', organizationId).in('whatsapp_account_id', accountIds),
+    ]);
+    if (bindings.error || outbox.error || conversations.error) throw new Error('member_operational_channel_purge_failed');
+
+    const { error: accountDeleteError } = await admin.from('whatsapp_accounts').delete()
+      .eq('organization_id', organizationId).in('id', accountIds);
+    if (accountDeleteError) throw new Error('member_whatsapp_accounts_delete_failed');
+  }
+
+  for (const integrationId of integrationIds) {
+    const { data: removed, error: secretError } = await admin.rpc('delete_integration_secret', { p_integration: integrationId });
+    if (secretError || (removed !== true && removed !== false)) throw new Error('member_integration_secret_purge_failed');
+    const { error: integrationDeleteError } = await admin.from('integrations').delete()
+      .eq('organization_id', organizationId).eq('id', integrationId);
+    if (integrationDeleteError) throw new Error('member_integration_delete_failed');
+  }
+
+  const { data: storageObjects, error: storageError } = await admin.rpc('purge_user_owned_storage', { p_user_id: targetUserId });
+  if (storageError || !Number.isInteger(storageObjects)) throw new Error('member_storage_purge_failed');
+
+  // Keep the audit timeline useful without retaining the removed person's
+  // name. The FK will also clear actor_id once Auth deletes the identity.
+  const { error: auditAnonymizeError } = await admin.from('audit_logs').update({ actor_name: 'Usuário removido' })
+    .eq('organization_id', organizationId).eq('actor_id', targetUserId);
+  if (auditAnonymizeError) throw new Error('member_audit_anonymize_failed');
+
+  return {
+    evolutionAccounts: accountIds.length,
+    integrationSecrets: integrationIds.length,
+    storageObjects,
+  };
+}
+
 Deno.serve(async (request) => {
   const options = preflight(request); if (options) return options;
   if (!hasAllowedOrigin(request)) return json({ ok: false, erro: 'origin_not_allowed' }, 403);
@@ -700,41 +777,19 @@ Deno.serve(async (request) => {
     if (otherOrganizationError) throw otherOrganizationError;
     if ((otherOrganizationCount ?? 0) > 0) throw new Error('member_linked_to_another_organization');
 
-    // A conta operacional pertence à identidade do vendedor. Arquivá-la antes
-    // da remoção evita que uma sessão antiga seja roteada para um usuário
-    // recriado com o mesmo e-mail, sem apagar o histórico das conversas.
-    const { data: ownedWhatsappAccounts, error: ownedAccountsError } = await admin.from('whatsapp_accounts')
-      .select('id,integration_id,enabled,archived_at')
-      .eq('organization_id', organizationId).eq('owner_user_id', targetUserId).is('archived_at', null);
-    if (ownedAccountsError) throw new Error('member_whatsapp_accounts_read_failed');
-    const integrationIds = (ownedWhatsappAccounts ?? []).map((account) => account.integration_id);
-    const archivedAt = new Date().toISOString();
-    if (integrationIds.length) {
-      const { error: integrationsDisableError } = await admin.from('integrations').update({
-        enabled: false, paused: true,
-        status_detail: 'Conta arquivada após remoção definitiva do usuário.',
-        updated_at: archivedAt,
-      }).eq('organization_id', organizationId).in('id', integrationIds);
-      if (integrationsDisableError) throw new Error('member_whatsapp_accounts_archive_failed');
-      const { error: accountsArchiveError } = await admin.from('whatsapp_accounts').update({
-        enabled: false, archived_at: archivedAt, updated_at: archivedAt,
-      }).eq('organization_id', organizationId).eq('owner_user_id', targetUserId).is('archived_at', null);
-      if (accountsArchiveError) throw new Error('member_whatsapp_accounts_archive_failed');
+    // Auth user deletion does not invalidate an already-issued JWT. End the
+    // user's refreshable sessions before we purge their private resources.
+    const adminAuth = admin.auth.admin as unknown as { signOut?: (userId: string, scope?: 'global' | 'local' | 'others') => Promise<{ error: unknown }> };
+    if (typeof adminAuth.signOut === 'function') {
+      const sessionRevoke = await adminAuth.signOut(targetUserId, 'global');
+      if (sessionRevoke?.error) throw new Error('member_sessions_revoke_failed');
     }
 
+    const purge = await purgeMemberOwnedData(admin, organizationId, targetUserId);
+
     const { error: deleteUserError } = await admin.auth.admin.deleteUser(targetUserId);
-    if (deleteUserError) {
-      if ((ownedWhatsappAccounts ?? []).length) {
-        await Promise.all((ownedWhatsappAccounts ?? []).map(async (account) => {
-          await admin.from('whatsapp_accounts').update({ enabled: account.enabled, archived_at: account.archived_at })
-            .eq('id', account.id).eq('organization_id', organizationId);
-          await admin.from('integrations').update({ enabled: account.enabled, paused: false })
-            .eq('id', account.integration_id).eq('organization_id', organizationId);
-        }));
-      }
-      throw new Error('member_identity_deletion_failed');
-    }
-    await admin.from('audit_logs').insert({ organization_id: organizationId, actor_id: user.id, actor_name: profile.name, actor_type: 'user', action: 'team.member_deleted', detail: 'Identidade do membro removida definitivamente; contas operacionais foram arquivadas.', entity_table: 'organization_members', event_data: { user_id: targetUserId, whatsapp_accounts_archived: (ownedWhatsappAccounts ?? []).length } });
+    if (deleteUserError) throw new Error('member_identity_deletion_failed');
+    await admin.from('audit_logs').insert({ organization_id: organizationId, actor_id: user.id, actor_name: profile.name, actor_type: 'user', action: 'team.member_deleted', detail: 'Identidade e dados privados do membro removidos definitivamente.', entity_table: 'organization_members', event_data: { evolution_accounts_deleted: purge.evolutionAccounts, integration_secrets_deleted: purge.integrationSecrets, storage_objects_deleted: purge.storageObjects } });
     return json({ ok: true, deleted_identity: true }, 200, headers);
   } catch (error) {
     return json({ ok: false, erro: safeError(error) }, 400, headers);

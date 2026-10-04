@@ -64,6 +64,7 @@ function execute(query: Query): Result {
       };
       return ok({});
     }
+    if (query.table === 'purge_user_owned_storage') return ok(0);
     if (query.table === 'reserve_prospecting_run') {
       return ok([{
         run_id: 'reserved-run',
@@ -140,7 +141,7 @@ describe('Team member identity deletion', () => {
     body: JSON.stringify({ action: 'remove', user_id: removedUserId }),
   });
 
-  it('hard-deletes an unshared member identity after preserving commercial records', async () => {
+  it('hard-deletes an unshared member identity after purging private resources', async () => {
     override = (query) => {
       if (query.table !== 'organization_members' || query.operation !== 'select' || query.filters.user_id !== removedUserId) return undefined;
       if (query.filters['neq:organization_id'] === org) return { data: [], error: null, count: 0 };
@@ -154,8 +155,14 @@ describe('Team member identity deletion', () => {
     expect(await response.json()).toMatchObject({ ok: true, deleted_identity: true });
     expect(state.deleteUser).toHaveBeenCalledWith(removedUserId);
     expect(calls.find((query) => query.table === 'audit_logs' && query.operation === 'insert')?.value).toMatchObject({
-      action: 'team.member_deleted', event_data: { user_id: removedUserId },
+      action: 'team.member_deleted', event_data: {
+        evolution_accounts_deleted: 0,
+        integration_secrets_deleted: 0,
+        storage_objects_deleted: 0,
+      },
     });
+    expect(calls.find((query) => query.table === 'purge_user_owned_storage' && query.operation === 'rpc')?.value)
+      .toEqual({ p_user_id: removedUserId });
   });
 
   it('does not delete an identity that belongs to another organization', async () => {
