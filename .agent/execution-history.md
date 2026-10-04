@@ -1,5 +1,11 @@
 # Histórico resumido de execução
 
+## 2026-10-04 — Correção da revogação de sessões no gerenciamento de usuários
+
+- Logs do projeto oficial apontaram que `team-members` chamava o logout administrativo com o UUID do membro, embora o endpoint espere um JWT. A tentativa de remover Flavio Gaspar falhava com 400 antes da exclusão da identidade.
+- Foi aplicada a migration `revoke_member_auth_sessions` e publicada `team-members` v14. A função SQL nova elimina somente sessões renováveis do usuário indicado, com execução limitada a `service_role`; a Edge Function passa a usá-la para exclusão, desativação e redefinição de senha.
+- Foram aprovados type-check frontend/Edge, lint e 105 testes do runtime. A função foi exercitada com UUID sem sessão e retornou zero; nenhuma conta, dado comercial, canal ou credencial foi removido nesta validação.
+
 ## 2026-09-29 — Carteira de Orçamentos alinhada ao mockup
 
 - Aplicado o redesign da rota `/dashboard/orcamentos` sobre `usePropostasStore` e a tabela `proposals` já existentes: cabeçalho, abas com contagens, busca por número/empresa/contato/item, responsável, filtros, ordenação, colunas essenciais/opcionais, estado vazio e ações preservadas.

@@ -1,5 +1,13 @@
 # Checkpoint — WayFlex CRM
 
+## 04/10/2026 — Exclusão de membro: revogação de sessão corrigida no servidor
+
+- A exclusão de **Flavio Gaspar** foi recusada pelo backend antes de remover qualquer dado. O diagnóstico dos logs confirmou que a função tentava enviar o UUID do membro ao endpoint Auth de logout, que exige um JWT; o Supabase respondeu `bad_jwt` e a operação retornou 400.
+- A Edge Function `team-members` foi publicada na versão **14**. Agora a revogação de sessões renováveis ocorre por `revoke_user_auth_sessions`, uma função SQL `SECURITY DEFINER` com `search_path` fixo e execução exclusiva de `service_role`; `anon` e `authenticated` não podem chamá-la.
+- A correção vale para exclusão definitiva, desativação de acesso e redefinição de senha. A exclusão continua protegendo a própria conta, o último administrador e identidades vinculadas a outra organização; histórico comercial da empresa não é apagado.
+- Validação confirmada: migration aplicada no projeto oficial `thgzrkppouoevapjquyu`, contrato de autorização conferido, chamada de teste sem alvo retornou zero sessões, type-check frontend/Edge, lint e **105 testes** do runtime passaram. Nenhuma conta foi removida pelo diagnóstico. Código: commit `4bf73c1`.
+- Próxima ação: o administrador pode repetir a exclusão de Flavio pela confirmação da interface. Se confirmar, a identidade será apagada definitivamente e não poderá ser restaurada.
+
 ## 29/09/2026 — Agenda comercial operacional — banco aplicado, Site pendente de publicação
 
 - A rota existente **Agenda** foi reestruturada sem criar um segundo calendário: cabeçalho compacto, visões Dia/Semana/Mês/Lista, período navegável, filtros compartilhados na URL, pesquisa com debounce no servidor, filtros avançados, paginação de lista e visões pessoais persistidas.
