@@ -63,4 +63,19 @@ describe('EvolutionGoProvider', () => {
     await expect(provider.qr()).resolves.toMatchObject({ qrcode: 'data:image/png;base64,synthetic', pairingCode: '123-456' });
     await expect(provider.pair('5511988887777')).resolves.toBe('ABC-123');
   });
+
+  it('uses Evolution GO event names while connecting and renders the image returned in code', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ data: {} }), { status: 200 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ data: { qrcode: '2@raw-qr', code: 'data:image/png;base64,synthetic' } }), { status: 200 }));
+    const provider = new EvolutionGoProvider({ baseUrl: 'https://evolution.wayflex.example', instanceToken: 'token', allowedOrigins, fetchImpl: fetchMock });
+
+    await provider.connect({ webhookUrl: 'https://crm.wayflex.example/webhook' });
+    await expect(provider.qr()).resolves.toMatchObject({ qrcode: 'data:image/png;base64,synthetic' });
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({
+      webhookUrl: 'https://crm.wayflex.example/webhook',
+      subscribe: ['messages.upsert', 'connection.update'],
+    });
+  });
 });

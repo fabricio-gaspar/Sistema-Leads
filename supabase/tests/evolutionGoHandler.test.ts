@@ -285,6 +285,28 @@ beforeEach(() => {
 });
 
 describe('Evolution GO multi-account handler', () => {
+  it('persists the provider-issued ID after creating an instance without unsupported fields', async () => {
+    state.userId = administratorId;
+    state.permissions = { 'channels.manage_all': true };
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ data: { id: 'provider-instance-id', name: 'Corporativa 2' } }), { status: 200 }));
+    await import('../functions/evolution-go/index');
+
+    const response = await handler(request('create_instance', {
+      account_id: secondCorporateAccountId,
+      base_url: 'https://evo-eisenflow.kz3solucoes.cloud',
+      global_api_key: 'synthetic-global-key-must-not-leak',
+    }));
+
+    expect(response.status, JSON.stringify(await response.clone().json())).toBe(200);
+    const providerRequest = fetchMock.mock.calls.find(([url]) => new URL(String(url)).pathname === '/instance/create');
+    expect(providerRequest).toBeDefined();
+    expect(JSON.parse(String(providerRequest?.[1]?.body))).toEqual({ name: 'Corporativa 2', token: expect.any(String) });
+    expect(secrets.get(secondCorporateIntegrationId)).toMatchObject({
+      instance_id: 'provider-instance-id',
+      instance_name: 'Corporativa 2',
+    });
+  });
+
   it('lists shared corporate accounts plus only the caller-owned seller account without exposing secrets', async () => {
     await import('../functions/evolution-go/index');
     const response = await handler(request('list'));

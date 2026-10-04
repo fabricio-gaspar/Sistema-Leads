@@ -200,16 +200,27 @@ export class EvolutionGoProvider implements MessagingProvider {
     const webhookUrl = safeMediaUrl(options.webhookUrl);
     await this.request('/instance/connect', {
       method: 'POST',
-      body: JSON.stringify({ webhookUrl, subscribe: options.subscribe ?? true, immediate: options.immediate ?? false }),
+      // Evolution GO expects the event names, rather than a boolean
+      // subscription flag. The explicit allowlist limits callbacks to events
+      // this CRM actually processes.
+      body: JSON.stringify({
+        webhookUrl,
+        subscribe: options.subscribe === false ? [] : ['messages.upsert', 'connection.update'],
+      }),
     });
   }
 
   async qr(): Promise<EvolutionGoQrCode> {
     const payload = await this.request('/instance/qr', { method: 'GET' });
     const data = asObject(payload.data);
+    const directQr = stringValue(data.qrcode, 2_000_000);
+    const code = stringValue(data.code, 2_000_000);
     return {
-      qrcode: stringValue(data.qrcode, 2_000_000),
-      pairingCode: stringValue(data.code ?? data.passkeyCode, 120),
+      // Evolution GO returns its renderable image in `code` and the raw QR
+      // payload in `qrcode`. Older compatible versions may invert this.
+      qrcode: code?.startsWith('data:image/') ? code : directQr,
+      pairingCode: stringValue(data.pairingCode ?? data.passkeyCode, 120)
+        || (code && !code.startsWith('data:image/') ? code.slice(0, 120) : undefined),
       pairingUrl: stringValue(data.passkeyOpenUrl, 2_000),
     };
   }

@@ -335,16 +335,25 @@ async function createInstance(body: Row, existingSecret: Row, defaultName: strin
   const instanceName = text(body.instance_name, 120) || text(existingSecret.instance_name, 120) || defaultName;
   if (!baseUrlInput || !globalApiKey || !instanceName) throw new Error('evolution_go_instance_create_credentials_required');
   const baseUrl = normalizeEvolutionGoBaseUrl(baseUrlInput, allowedOrigins());
-  const instanceId = crypto.randomUUID();
   const instanceToken = randomSecret();
   const response = await fetch(new URL('/instance/create', baseUrl), {
     method: 'POST',
     headers: { apikey: globalApiKey, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ instanceId, name: instanceName, token: instanceToken, advancedSettings: {} }),
+    // Evolution GO creates the identifier itself. Sending a locally-generated
+    // identifier or an unsupported advanced-settings object can make a valid
+    // creation look failed, leaving an orphaned remote instance behind.
+    body: JSON.stringify({ name: instanceName, token: instanceToken }),
     signal: AbortSignal.timeout(20_000),
     redirect: 'error',
   });
   if (!response.ok) throw new Error(`evolution_go_instance_create_${response.status}`);
+  const payload = object(await response.json().catch(() => null));
+  const created = object(payload.data);
+  // Current Evolution GO versions return `data.id`; compatible versions can
+  // use the instance name for administration. Never persist a random local
+  // UUID instead of the provider's identifier.
+  const instanceId = text(created.id, 120) || text(created.instance_id, 120)
+    || text(created.instanceId, 120) || text(created.name, 120) || instanceName;
   return {
     base_url: baseUrl,
     global_api_key: globalApiKey,
@@ -581,21 +590,23 @@ Deno.serve(async (request) => {
         subscribe: true,
         immediate: false,
       });
-      const [accountUpdate, integrationUpdate] = await Promise.all([
-        admin.from('whatsapp_accounts').update({
-          enabled: false,
-          connection_status: 'qr',
-          webhook_registered_at: now,
-          status_checked_at: now,
-          last_error_code: null,
-        }).eq('id', record.account.id).eq('organization_id', actor.organizationId),
-        admin.from('integrations').update({
-          connected: false,
-          enabled: false,
-          paused: true,
-          status_detail: 'Webhook registrado; conclua QR Code ou código de pareamento e atualize o status.',
-        }).eq('id', record.integration.id).eq('organization_id', actor.organizationId),
-      ]);
+      // Updating integrations fires the legacy synchronization trigger, which
+      // derives a generic `configured` state. Persist the explicit QR state
+      // afterwards so the pairing controls remain available to the operator.
+      const integrationUpdate = await admin.from('integrations').update({
+        connected: false,
+        enabled: false,
+        paused: true,
+        status_detail: 'Webhook registrado; conclua QR Code ou código de pareamento e atualize o status.',
+      }).eq('id', record.integration.id).eq('organization_id', actor.organizationId);
+      if (integrationUpdate.error) throw new Error('evolution_go_connection_state_save_failed');
+      const accountUpdate = await admin.from('whatsapp_accounts').update({
+        enabled: false,
+        connection_status: 'qr',
+        webhook_registered_at: now,
+        status_checked_at: now,
+        last_error_code: null,
+      }).eq('id', record.account.id).eq('organization_id', actor.organizationId);
       await closeProviderControlsIfUnused(admin, actor, 'account_connection_pending');
       if (accountUpdate.error || integrationUpdate.error) throw new Error('evolution_go_connection_state_save_failed');
       await audit(admin, {
