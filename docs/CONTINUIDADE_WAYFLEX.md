@@ -3,7 +3,7 @@
 ## 05/10/2026 — Evolution GO principal no checkout; produção NO-GO
 
 - A base existente de Evolution GO foi ligada ao aceite de vendedor, ao primeiro acesso/QR na Central, à seleção de conta para novos leads e à transferência humana. Ana e worker usam o provedor da conta fixada, sem trocar números já vinculados; controles de envio/automação permanecem separados.
-- Produto local `5671f44`; **733 Vitest/91 arquivos**, sete verificações SQL PGlite, type-check frontend/Edge, lint, build/artefato Sites e diff check aprovados. Detalhes e limites em `docs/remediacao/2026-10-05-evolution-go-primary/RESULTADO_FINAL.md`.
+- Produto local `5671f44`; snapshot GitHub `a22ee34896d67c08794f1d7eded0302af9f0be53`, pai remoto anterior preservado e árvore idêntica ao checkout. **733 Vitest/91 arquivos**, sete verificações SQL PGlite, type-check frontend/Edge, lint, build/artefato Sites e diff check aprovados. Detalhes e limites em `docs/remediacao/2026-10-05-evolution-go-primary/RESULTADO_FINAL.md`.
 - Banco, Edge e Site **não foram atualizados**: histórico de migrations/bundles diverge e falta homologação integrada isolada. Não publicar frontend sozinho, executar db push geral, acionar gateway/QR nem enviar mensagens reais como teste. Os parágrafos históricos abaixo descrevem versões anteriores, inclusive WA-AKG/Site v168, e não representam esta nova release.
 
 

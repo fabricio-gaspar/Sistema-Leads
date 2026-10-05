@@ -2,6 +2,8 @@
 
 05/10/2026. Checkout existente, branch `main`. Produto local `5671f44`.
 
+Snapshot de produto e documentação enviado ao GitHub `main`: `a22ee34896d67c08794f1d7eded0302af9f0be53`, filho de `73bcf0d546941242ab4f0a79cce251b108b073d0`, sem force. A árvore `f558a3a317d165a70c434d819e2fe748eaf9e110` foi conferida igual à local. Este checkpoint final acompanha esse snapshot.
+
 ## Escopo e estado
 
 | Requisito | Estado | Evidência e limite |

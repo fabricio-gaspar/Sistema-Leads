@@ -2,9 +2,9 @@
   "schema_version": 1,
   "baseline_version": 10,
   "baseline_commit": "1dc6275b8c7d70de953b66397a8c89f5e97bc15b",
-  "last_audited_commit": "5671f44",
-  "current_head_at_update": "5671f44",
-  "working_tree_status": "evolution_go_product_committed_locally; documentation_checkpoint_pending; preexisting_untracked_pnpm_preserved",
+  "last_audited_commit": "1fc168f9fac10544f90ec06ea5035765b73fd017",
+  "current_head_at_update": "1fc168f9fac10544f90ec06ea5035765b73fd017",
+  "working_tree_status": "evolution_go_product_and_documentation_snapshotted_to_GitHub; final_delivery_checkpoint; preexisting_untracked_pnpm_preserved",
   "stage_1_baseline": ".agent/baselines/2026-09-25-stage-1.json",
   "recovery_tag": "baseline-wayflex-stage1-20260925",
   "work_branch": "main",
@@ -17,12 +17,12 @@
   },
   "last_github_publication": {
     "repository": "https://github.com/fabricio-gaspar/Sistema-Leads",
-    "commit": "4f7f4514613ca64461cda3d1ffcf004ac1c79d4f",
-    "parent": "118b131b47d56cda8615f24b00c332eabe3d2805",
-    "tree": "804172b06e122a8e9ec41374c21151c4f3b98f4c",
+    "commit": "a22ee34896d67c08794f1d7eded0302af9f0be53",
+    "parent": "73bcf0d546941242ab4f0a79cce251b108b073d0",
+    "tree": "f558a3a317d165a70c434d819e2fe748eaf9e110",
     "validated_at": "2026-10-05",
-    "ci": "Validate completed success; https://github.com/fabricio-gaspar/Sistema-Leads/actions/runs/37388447881",
-    "working_tree_status": "product_snapshot_pushed_and_tree_verified; final_documentation_snapshot_identified_in_Git_history_and_final_handoff"
+    "ci": "not_checked_for_this_snapshot; local validation passed",
+    "working_tree_status": "evolution_go_snapshot_pushed_without_force_and_tree_verified; final_documentation_checkpoint_follows"
   },
   "full_audit_required": false,
   "baseline_status": "Evolution_GO_primary_local_delta_validated; prior_R1_R12_remediation_preserved; global_NO_GO; no_production_deployment",
@@ -44,6 +44,7 @@
   "next_action": "Evolution GO principal está apenas no checkout e GitHub. Obter homologação isolada e identidades/números consentidos; reconciliar seletivamente migrations e bundles R1–R12; validar provisionamento, QR, callback, Ana/humano, recibos e cortes; planejar release coordenada banco/Edge/Site. Não fazer db push integral, publicar só frontend, enviar mensagens reais ou ativar automações como teste. WA-AKG permanece contingência bloqueada pelo gateway não homologado.",
   "evolution_go_primary_20261005": {
     "product_commit": "5671f44",
+    "github_product_snapshot": "a22ee34896d67c08794f1d7eded0302af9f0be53",
     "report": "docs/remediacao/2026-10-05-evolution-go-primary/RESULTADO_FINAL.md",
     "local_validation": "733 Vitest tests in 91 files; seven synthetic PGlite checks; frontend and Edge type-check, lint, build and Sites artifact passed",
     "remote_metadata_readonly": "Evolution GO provisioning RPC/signature/grants and selection function definitions checked; Edge function slugs active",
