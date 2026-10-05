@@ -4,6 +4,8 @@ import Landing from '../pages/landing/page';
 import Login from '../pages/login/page';
 import Register from '../pages/register/page';
 import ResetPassword from '../pages/reset-password/page';
+import OrganizationGate from '@/components/auth/OrganizationGate';
+import InvitesPage from '@/components/auth/InvitesPage';
 
 const NotFound = lazy(() => import('../pages/NotFound'));
 const Dashboard = lazy(() => import('../pages/dashboard/page'));
@@ -23,6 +25,7 @@ const DashboardLayout = lazy(() => import('../components/feature/DashboardLayout
 const PermissionRoute = lazy(() => import('../components/feature/PermissionRoute'));
 
 const routes: RouteObject[] = [
+  { path: '/convites', element: <InvitesPage /> },
   {
     path: "/",
     element: <Navigate to="/login" replace />,
@@ -45,7 +48,7 @@ const routes: RouteObject[] = [
   },
   {
     path: "/dashboard",
-    element: <DashboardLayout />,
+    element: <OrganizationGate><DashboardLayout /></OrganizationGate>,
     children: [
       {
         index: true,

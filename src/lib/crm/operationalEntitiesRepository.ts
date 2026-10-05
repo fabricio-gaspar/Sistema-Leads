@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import { resolveOrganizationSession } from '@/lib/organizationSession';
+import { resolveOrganizationSession, assertOrganizationSession } from '@/lib/organizationSession';
 import { isUuid } from '@/lib/crm/leadMapper';
 import type { ListaDeLeads, StatusLista } from '@/hooks/useListasStore';
 import type { ProdutoCatalogo } from '@/hooks/useCatalogoStore';
@@ -165,6 +165,7 @@ function rowToCatalog(row: CatalogRow): ProdutoCatalogo {
 
 export async function loadOperationalLists(): Promise<ListaDeLeads[]> {
   const session = await resolveOrganizationSession();
+  assertOrganizationSession(session);
   const { data: lists, error: listsError } = await supabase
     .from('lead_lists')
     .select('id, name, status, criteria, created_at')
@@ -173,6 +174,7 @@ export async function loadOperationalLists(): Promise<ListaDeLeads[]> {
   if (listsError) throw listsError;
   const listIds = (lists ?? []).map((list) => list.id);
   if (listIds.length === 0) return [];
+  assertOrganizationSession(session);
   const { data: members, error: membersError } = await supabase
     .from('lead_list_members')
     .select('list_id, lead_id')
@@ -190,8 +192,10 @@ export async function loadOperationalLists(): Promise<ListaDeLeads[]> {
 
 export async function persistOperationalLists(previous: ListaDeLeads[], next: ListaDeLeads[]): Promise<ListaDeLeads[]> {
   const session = await resolveOrganizationSession();
+  assertOrganizationSession(session);
   const previousById = new Map(previous.map((list) => [list.id, list]));
   for (const list of next) {
+    assertOrganizationSession(session);
     const row = listToRow(list, session.organizationId, session.userId);
     const { created_by: _createdBy, ...updateRow } = row;
     const { error } = previousById.has(list.id)
@@ -204,6 +208,7 @@ export async function persistOperationalLists(previous: ListaDeLeads[], next: Li
     const toAdd = [...after].filter((leadId) => !before.has(leadId));
     const toRemove = [...before].filter((leadId) => !after.has(leadId));
     if (toAdd.length) {
+      assertOrganizationSession(session);
       const { error: membersError } = await supabase.from('lead_list_members').upsert(
         toAdd.map((lead_id) => ({ organization_id: session.organizationId, list_id: list.id, lead_id })),
         { onConflict: 'list_id,lead_id' },
@@ -211,6 +216,7 @@ export async function persistOperationalLists(previous: ListaDeLeads[], next: Li
       if (membersError) throw membersError;
     }
     if (toRemove.length) {
+      assertOrganizationSession(session);
       const { error: removeError } = await supabase
         .from('lead_list_members')
         .delete()
@@ -225,6 +231,7 @@ export async function persistOperationalLists(previous: ListaDeLeads[], next: Li
 
 export async function loadOperationalFlows(): Promise<FluxoAutomatizacao[]> {
   const session = await resolveOrganizationSession();
+  assertOrganizationSession(session);
   const { data: sequences, error } = await supabase
     .from('outreach_sequences')
     .select('id, name, description, active, trigger_key')
@@ -233,6 +240,7 @@ export async function loadOperationalFlows(): Promise<FluxoAutomatizacao[]> {
   if (error) throw error;
   const sequenceIds = (sequences ?? []).map((sequence) => sequence.id);
   if (!sequenceIds.length) return [];
+  assertOrganizationSession(session);
   const { data: steps, error: stepsError } = await supabase
     .from('outreach_sequence_steps')
     .select('id, sequence_id, channel, content, delay_minutes, order_index')
@@ -247,13 +255,17 @@ export async function loadOperationalFlows(): Promise<FluxoAutomatizacao[]> {
 
 export async function persistOperationalFlows(previous: FluxoAutomatizacao[], next: FluxoAutomatizacao[]): Promise<FluxoAutomatizacao[]> {
   const session = await resolveOrganizationSession();
+  assertOrganizationSession(session);
   const previousIds = new Set(previous.map((flow) => flow.id));
   for (const flow of next) {
     const row = flowToRow(flow, session.organizationId);
+    assertOrganizationSession(session);
     const { error } = previousIds.has(flow.id)
       ? await supabase.from('outreach_sequences').update(row).eq('id', flow.id).eq('organization_id', session.organizationId)
       : await supabase.from('outreach_sequences').insert(row);
     if (error) throw error;
+
+    assertOrganizationSession(session);
 
     const { error: deleteStepsError } = await supabase
       .from('outreach_sequence_steps')
@@ -262,6 +274,7 @@ export async function persistOperationalFlows(previous: FluxoAutomatizacao[], ne
       .eq('sequence_id', flow.id);
     if (deleteStepsError) throw deleteStepsError;
     if (flow.passos.length) {
+      assertOrganizationSession(session);
       const { error: stepsError } = await supabase.from('outreach_sequence_steps').insert(
         flow.passos.map((step, index) => ({
           id: isUuid(step.id) ? step.id : crypto.randomUUID(),
@@ -280,6 +293,7 @@ export async function persistOperationalFlows(previous: FluxoAutomatizacao[], ne
   }
   const archivedIds = previous.filter((flow) => !next.some((candidate) => candidate.id === flow.id)).map((flow) => flow.id);
   if (archivedIds.length) {
+    assertOrganizationSession(session);
     const { error } = await supabase
       .from('outreach_sequences')
       .update({ active: false })
@@ -292,6 +306,7 @@ export async function persistOperationalFlows(previous: FluxoAutomatizacao[], ne
 
 export async function loadOperationalCatalog(): Promise<ProdutoCatalogo[]> {
   const session = await resolveOrganizationSession();
+  assertOrganizationSession(session);
   const { data, error } = await supabase
     .from('services')
     .select('id, code, name, category, unit, short_description, description, active, quote_enabled, max_discount, default_lead_time_days, price')
@@ -304,9 +319,11 @@ export async function loadOperationalCatalog(): Promise<ProdutoCatalogo[]> {
 
 export async function persistOperationalCatalog(previous: ProdutoCatalogo[], next: ProdutoCatalogo[]): Promise<ProdutoCatalogo[]> {
   const session = await resolveOrganizationSession();
+  assertOrganizationSession(session);
   const previousIds = new Set(previous.map((item) => item.id));
   for (const item of next) {
     const row = catalogToRow(item, session.organizationId);
+    assertOrganizationSession(session);
     const { error } = previousIds.has(item.id)
       ? await supabase.from('services').update(row).eq('id', item.id).eq('organization_id', session.organizationId)
       : await supabase.from('services').insert(row);
@@ -314,6 +331,7 @@ export async function persistOperationalCatalog(previous: ProdutoCatalogo[], nex
   }
   const archivedIds = previous.filter((item) => !next.some((candidate) => candidate.id === item.id)).map((item) => item.id);
   if (archivedIds.length) {
+    assertOrganizationSession(session);
     const { error } = await supabase
       .from('services')
       .update({ active: false })

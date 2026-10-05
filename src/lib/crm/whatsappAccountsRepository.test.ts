@@ -28,10 +28,47 @@ import {
   loadMyWaAkgAccount,
   requestWaAkgQr,
   runWaAkgAction,
+  reviewChannelLifecycle,
 } from './whatsappAccountsRepository';
+import { sessionContext } from '@/lib/sessionContext';
 
 const accountId = '11111111-1111-4111-8111-111111111111';
 const ownerUserId = '22222222-2222-4222-8222-222222222222';
+
+describe('R6 explicit administrative recovery client', () => {
+  const diagnosis = { lifecycle: { state: 'needs_review', revision: 7, desiredAction: 'activate', errorCode: null },
+    recovery: { eligible: true, reason: 'read_only', observedConnected: true, observedAt: null, requiresAdmin: true, retainsLocalCutoff: true } };
+  beforeEach(() => { invokeMock.mockReset(); sessionContext.replace(ownerUserId, accountId); });
+  afterEach(() => { sessionContext.replace(null); });
+  it.each(['wa_akg','evolution_go'] as const)('diagnoses %s without connect, QR or activation', async (provider) => {
+    invokeMock.mockResolvedValue({ data: { ok: true, ...diagnosis }, error: null });
+    await expect(reviewChannelLifecycle(provider, accountId)).resolves.toMatchObject(diagnosis);
+    expect(invokeMock).toHaveBeenCalledExactlyOnceWith(provider.replaceAll('_','-'), { body: { action: 'lifecycle_diagnose', account_id: accountId } });
+  });
+  it('reconciles only the observed revision and requires retained cutoff', async () => {
+    invokeMock.mockResolvedValue({ data: { ok: true, ...diagnosis, recovery: {...diagnosis.recovery,reconciled:true} }, error: null });
+    await reviewChannelLifecycle('wa_akg', accountId, {expectedRevision:7,reason:' Consulta revisada '});
+    expect(invokeMock).toHaveBeenCalledExactlyOnceWith('wa-akg',{body:{action:'lifecycle_reconcile',account_id:accountId,expected_revision:7,reason:'Consulta revisada'}});
+  });
+  it('rejects a generic success that does not confirm recovery', async () => {
+    invokeMock.mockResolvedValue({data:{ok:true,...diagnosis},error:null});
+    await expect(reviewChannelLifecycle('wa_akg',accountId,{expectedRevision:7,reason:'Consulta revisada'})).rejects.toThrow('lifecycle_recovery_unconfirmed');
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+  });
+  it('does not retry an uncertain result', async () => {
+    invokeMock.mockRejectedValue(new Error('Failed to fetch'));
+    await expect(reviewChannelLifecycle('wa_akg',accountId,{expectedRevision:7,reason:'Consulta revisada'})).rejects.toThrow('Failed to fetch');
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+  });
+  it('discards a response after organization switch', async () => {
+    invokeMock.mockImplementation(async()=>{sessionContext.replace(ownerUserId,'another-org');return {data:{ok:true,...diagnosis},error:null};});
+    await expect(reviewChannelLifecycle('wa_akg',accountId)).rejects.toThrow('session_context_changed');
+  });
+  it('rejects empty audit justification before network', async () => {
+    await expect(reviewChannelLifecycle('wa_akg',accountId,{expectedRevision:7,reason:'short'})).rejects.toThrow('lifecycle_recovery_reason_required');
+    expect(invokeMock).not.toHaveBeenCalled();
+  });
+});
 
 function ok(data: Record<string, unknown> = {}) {
   invokeMock.mockResolvedValueOnce({ data: { ok: true, ...data }, error: null });

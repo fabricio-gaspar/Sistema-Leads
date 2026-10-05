@@ -1,5 +1,4 @@
 import { createBackendStore } from '@/lib/backendStore';
-import { pastas, arquivos } from '@/mocks/midiaData';
 import type { Pasta, Arquivo } from '@/mocks/midiaData';
 
 export interface MidiaDriveState {
@@ -8,7 +7,7 @@ export interface MidiaDriveState {
 }
 
 const STORAGE_KEY = 'leadai_midia_drive_v1';
-const store = createBackendStore<MidiaDriveState>('midia_drive', STORAGE_KEY, { pastas, arquivos });
+const store = createBackendStore<MidiaDriveState>('midia_drive', STORAGE_KEY, { pastas: [], arquivos: [] });
 
 export interface MidiaDriveStore {
   pastas: Pasta[];
@@ -23,21 +22,22 @@ export interface MidiaDriveStore {
 
 export function useMidiaDriveStore(): MidiaDriveStore {
   const state = store.useStore();
+  const setStore = store.bindSet();
 
   const adicionarArquivo = (arquivo: Arquivo) =>
-    store.set((prev) => ({ ...prev, arquivos: [arquivo, ...prev.arquivos] }));
+    setStore((prev) => ({ ...prev, arquivos: [arquivo, ...prev.arquivos] }));
 
   const adicionarPasta = (pasta: Pasta) =>
-    store.set((prev) => ({ ...prev, pastas: [...prev.pastas, pasta] }));
+    setStore((prev) => ({ ...prev, pastas: [...prev.pastas, pasta] }));
 
   const renomearArquivo = (id: string, nome: string) =>
-    store.set((prev) => ({
+    setStore((prev) => ({
       ...prev,
       arquivos: prev.arquivos.map((a) => (a.id === id ? { ...a, nome } : a)),
     }));
 
   const renomearPasta = (id: string, nome: string) =>
-    store.set((prev) => ({
+    setStore((prev) => ({
       ...prev,
       pastas: prev.pastas.map((p) => (p.id === id ? { ...p, nome } : p)),
       // Atualiza também a referência de pasta nos arquivos.
@@ -48,10 +48,10 @@ export function useMidiaDriveStore(): MidiaDriveStore {
     }));
 
   const excluirArquivo = (id: string) =>
-    store.set((prev) => ({ ...prev, arquivos: prev.arquivos.filter((a) => a.id !== id) }));
+    setStore((prev) => ({ ...prev, arquivos: prev.arquivos.filter((a) => a.id !== id) }));
 
   const excluirPasta = (id: string) =>
-    store.set((prev) => {
+    setStore((prev) => {
       const pasta = prev.pastas.find((p) => p.id === id);
       return {
         pastas: prev.pastas.filter((p) => p.id !== id),

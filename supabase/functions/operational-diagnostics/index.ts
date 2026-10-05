@@ -343,10 +343,10 @@ async function operationalStatus(admin: ReturnType<typeof createAdminClient>, or
     },
     {
       id: 'scheduler',
-      label: 'Worker 24/7 ativo',
+      label: 'Heartbeat recente do worker',
       ok: isOnline(scheduler),
       detail: isOnline(scheduler)
-        ? (scheduler?.status_detail || 'Agendador server-side validado.')
+        ? 'O worker respondeu recentemente. Isso não comprova conclusão de buscas, mensagens ou entrega; consulte as execuções e a fila no Registro do Sistema.'
         : scheduler?.enabled
           ? 'O worker foi preparado e está aguardando seu primeiro heartbeat do servidor.'
           : 'Ative o worker seguro. Não é necessário cadastrar chave ou credencial manualmente.',

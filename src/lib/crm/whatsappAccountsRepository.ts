@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabase';
 import { detalheDoErroDeFuncao } from '@/lib/transportador';
 import { resolveOrganizationSession } from '@/lib/organizationSession';
 import { assertChannelActionCompleted } from './channelLifecycle';
+import { sessionContext } from '@/lib/sessionContext';
 
 export type WhatsappConnectionStatus =
   | 'unconfigured'
@@ -106,6 +107,7 @@ export interface AccountsResponse {
 
 const ACCOUNTS_READ_TIMEOUT_MS = 8_000;
 let accountsReadInFlight: Promise<AccountsResponse> | null = null;
+sessionContext.subscribe(() => { accountsReadInFlight = null; });
 
 function withDeadline<T>(request: Promise<T>, timeoutMs: number, code: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -381,6 +383,39 @@ export function requestWaAkgPairingCode(accountId: string, phone: string): Promi
   return invokeWaAkg({ action: 'pair', account_id: accountId, phone });
 }
 
+export interface ChannelRecoveryResult {
+  lifecycle: import('./channelLifecycle').ChannelLifecycle;
+  recovery: {
+    eligible: boolean;
+    reason: string;
+    observedConnected: boolean | null;
+    observedAt: string | null;
+    requiresAdmin: true;
+    retainsLocalCutoff: true;
+    reconciled?: boolean;
+  };
+}
+
+export async function reviewChannelLifecycle(
+  provider: 'wa_akg' | 'evolution_go', accountId: string,
+  reconciliation?: { expectedRevision: number; reason: string },
+): Promise<ChannelRecoveryResult> {
+  const context = sessionContext.requireReady();
+  if (reconciliation && (!Number.isInteger(reconciliation.expectedRevision) || reconciliation.reason.trim().length < 8 || reconciliation.reason.trim().length > 500)) {
+    throw new Error('lifecycle_recovery_reason_required');
+  }
+  const body = { action: reconciliation ? 'lifecycle_reconcile' : 'lifecycle_diagnose', account_id: accountId,
+    ...(reconciliation ? { expected_revision: reconciliation.expectedRevision, reason: reconciliation.reason.trim() } : {}) };
+  const { data, error } = await supabase.functions.invoke(provider === 'wa_akg' ? 'wa-akg' : 'evolution-go', { body });
+  sessionContext.assertCurrent(context);
+  if (error || !data?.ok) throw new Error(await channelInvocationError(data, error) || 'lifecycle_recovery_failed');
+  if (!Number.isInteger(data.lifecycle?.revision) || data.recovery?.retainsLocalCutoff !== true || data.recovery?.requiresAdmin !== true
+    || typeof data.recovery?.eligible !== 'boolean' || (reconciliation && data.recovery?.reconciled !== true)) {
+    throw new Error('lifecycle_recovery_unconfirmed');
+  }
+  return data as ChannelRecoveryResult;
+}
+
 export function saveWaAkgControls(accountId: string, input: {
   minDelaySeconds: number; maxDelaySeconds: number; burstLimit: number; dailyLimit: number;
 }): Promise<WaAkgChannelStatus> {
@@ -392,9 +427,10 @@ export function saveWaAkgControls(accountId: string, input: {
 }
 
 export function loadWhatsappAccounts(): Promise<AccountsResponse> {
+  const context = sessionContext.requireReady();
   if (accountsReadInFlight) return accountsReadInFlight;
   const request = withDeadline(
-    invoke<AccountsResponse & Record<string, unknown>>({ action: 'list' }),
+    invoke<AccountsResponse & Record<string, unknown>>({ action: 'list' }).then((result) => { sessionContext.assertCurrent(context); return result; }),
     ACCOUNTS_READ_TIMEOUT_MS,
     'whatsapp_accounts_request_timeout',
   );

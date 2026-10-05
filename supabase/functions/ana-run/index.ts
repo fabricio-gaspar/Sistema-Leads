@@ -4,6 +4,10 @@ import { anaEventKey, automationBlockReason } from '../_shared/runtimeSafety.ts'
 import { suppressionHashes, suppressionOrFilter } from '../_shared/contactSuppression.ts';
 import { handoffStageReached } from '../_shared/handoffPolicy.ts';
 import { safePublicImageUrl, selectCatalogImageCandidate, type CatalogImageCandidate } from '../_shared/catalogMedia.ts';
+import { readAnaKnowledgeFence, assertAnaKnowledgeSnapshot } from '../_shared/anaKnowledgeFence.ts';
+import { assertAnaEffectAllowed, type AnaEffectExpectation } from '../_shared/anaEffectFence.ts';
+import { validatedAnaMeetingRequest as meetingRequest } from '../_shared/anaMeetingRequest.ts';
+import { knowledgeUsage } from '../_shared/commercialCatalogPolicy.ts';
 
 const EVENTS = new Set(['lead.created', 'message.received', 'stage.changed', 'meeting.done', 'timeout.48h', 'manual.run', 'cadence.followup']);
 const MODES = new Set(['ia', 'humano']);
@@ -142,6 +146,7 @@ function relevantKnowledge(entries: unknown[], question: unknown) {
     const score = terms.reduce((total, term) => total + (lexicalVariants(term).some((variant) => searchable.includes(variant)) ? 1 : 0), 0);
     return {
       score,
+      documentId: asText(record.document_id, 80),
       content: asText(record.content, 2_000),
       metadata: {
         category: asText(metadata.category, 80) || asText(documentMetadata.category, 80),
@@ -185,6 +190,7 @@ async function semanticKnowledge(
       const record = asObject(entry);
       return {
         score: typeof record.similarity === 'number' ? record.similarity * 10 : 0,
+        documentId: asText(record.document_id, 80),
         content: asText(record.content, 2_000),
         metadata: { category: 'busca_semantica', keywords: [], image_alt: '' },
         source: asText(record.document_name, 200) || 'Base aprovada da Ana',
@@ -252,22 +258,8 @@ async function exactCatalogImageFallback(
     .or(filter)
     .limit(40);
   if (error || !Array.isArray(data)) return null;
-  return selectCatalogImageCandidate({ ...selection, candidates: data.map(asCatalogImageCandidate) });
-}
-
-type KnowledgeUsage = { profile: boolean; business: boolean; products: boolean; services: boolean; catalogs: boolean; documents: boolean; sources: boolean };
-
-function knowledgeUsage(value: unknown): KnowledgeUsage {
-  const usage = asObject(asObject(value).knowledge_usage);
-  return {
-    profile: usage.profile !== false,
-    business: usage.business !== false,
-    products: usage.products !== false,
-    services: usage.services !== false,
-    catalogs: usage.catalogs !== false,
-    documents: usage.documents !== false,
-    sources: usage.sources !== false,
-  };
+  const fence = await readAnaKnowledgeFence(admin, organizationId, [], data.map((item) => item.id));
+  return selectCatalogImageCandidate({ ...selection, candidates: fence.catalogItems.map(asCatalogImageCandidate) });
 }
 
 function approvedCompanyContext(value: unknown): Record<string, unknown> {
@@ -530,26 +522,15 @@ async function callAi(system: string, context: Record<string, unknown>, storedCr
   return { provider: 'claude', decision: await callClaude(claudeKey!, system, context, claudeModel) };
 }
 
-function meetingRequest(payload: unknown, latestInbound: unknown) {
-  const input = asObject(payload);
-  const startsAt = asText(input.starts_at, 64);
-  const duration = typeof input.duration_minutes === 'number' && Number.isFinite(input.duration_minutes)
-    ? Math.round(input.duration_minutes) : 30;
-  const inbound = asText(latestInbound, 4_000);
-  const parsed = Date.parse(startsAt);
-  const hasExplicitTime = /\b(?:[01]?\d|2[0-3])(?::|h)\d{0,2}\b|\b(?:[1-9]|1[0-2])\s*(?:da manh[ãa]|da tarde|da noite)\b/i.test(inbound);
-  if (!startsAt || !/(?:z|[+-]\d{2}:\d{2})$/i.test(startsAt) || !Number.isFinite(parsed) || !hasExplicitTime) return null;
-  if (parsed < Date.now() + 5 * 60_000 || parsed > Date.now() + 90 * 86_400_000 || duration < 15 || duration > 120) return null;
-  return { startsAt: new Date(parsed).toISOString(), endsAt: new Date(parsed + duration * 60_000).toISOString(), duration };
-}
-
 async function scheduleGoogleMeeting(
   admin: ReturnType<typeof createAdminClient>,
   organizationId: string,
   runId: string,
   lead: Record<string, unknown>,
   request: { startsAt: string; endsAt: string; duration: number },
+  assertEffect: () => Promise<void>,
 ) {
+  await assertEffect();
   const { data: priorAppointment, error: priorError } = await admin.from('appointments')
     .select('external_id,meeting_url').eq('organization_id', organizationId).eq('lead_id', asText(lead.id, 80))
     .contains('metadata', { agent_run_id: runId }).limit(1).maybeSingle();
@@ -589,7 +570,12 @@ async function scheduleGoogleMeeting(
   if (!freeBusy.ok) throw new Error(freeBusy.status === 401 || freeBusy.status === 403 ? 'calendar_token_rejected' : `calendar_freebusy_${freeBusy.status}`);
   const availability = await freeBusy.json() as { calendars?: Record<string, { busy?: unknown[]; errors?: unknown[] }> };
   const primary = availability.calendars?.primary;
+  if (!primary || !Array.isArray(primary.busy)) throw new Error('calendar_availability_unconfirmed');
   if (primary?.errors?.length || (primary?.busy?.length ?? 0) > 0) throw new Error('calendar_slot_unavailable');
+  // A pause/handoff/configuration change during lookup/freeBusy must stop BEFORE create.
+  await assertEffect();
+  const { data: currentCalendar, error: calendarRecheckError } = await admin.from('integrations').select('id,enabled,connected,paused').eq('organization_id', organizationId).eq('key', 'google_calendar').maybeSingle();
+  if (calendarRecheckError || currentCalendar?.id !== integration.id || !currentCalendar?.enabled || !currentCalendar.connected || currentCalendar.paused) throw new Error('calendar_not_ready');
   const eventResponse = await fetch('https://www.googleapis.com/calendar/v3/calendars/primary/events?sendUpdates=none', {
     method: 'POST', headers,
     body: JSON.stringify({
@@ -660,7 +646,7 @@ Deno.serve(async (request) => {
     }
 
     const { data: lead, error: leadError } = await admin.from('leads')
-      .select('id,organization_id,company,contact,segment,email,phone,whatsapp,score,stage,ana_stage,ana_outcome,modo_atendimento,owner_id,assigned_to,active_channel,whatsapp_account_id,ai_paused,opt_out,contact_approval_status,last_contact,no_reply_deadline_at')
+      .select('id,organization_id,company,contact,segment,email,phone,whatsapp,score,stage,ana_stage,ana_outcome,modo_atendimento,owner_id,assigned_to,active_channel,whatsapp_account_id,ai_paused,opt_out,contact_approval_status,last_contact,no_reply_deadline_at,updated_at')
       .eq('id', leadId).eq('organization_id', organizationId).maybeSingle();
     if (leadError || !lead) throw new Error('lead_not_found');
     const { data: handoffPolicy, error: handoffPolicyError } = await admin.from('lead_handoff_policies')
@@ -768,9 +754,8 @@ Deno.serve(async (request) => {
       admin.from('lead_messages').select('id,sender,sender_name,type,text,sent_at').eq('organization_id', organizationId).eq('lead_id', leadId).order('sent_at', { ascending: false }).limit(20),
       channelRead,
       admin.from('ai_agents').select('active_version_id').eq('organization_id', organizationId).eq('key', 'ana').maybeSingle(),
-      admin.from('services').select('id,name,category,description,price,unit,term,max_discount').eq('organization_id', organizationId).eq('active', true).limit(50),
       admin.from('knowledge_catalog_items').select('id,item_type,name,short_description,technical_description,category,material,applications,keywords,image_url').eq('organization_id', organizationId).eq('status', 'active').eq('ana_enabled', true).not('image_url', 'is', null).limit(80),
-      admin.from('knowledge_chunks').select('content,metadata,documents!inner(name,status,metadata,source_url)').eq('organization_id', organizationId).eq('status', 'active').eq('documents.status', 'active').limit(80),
+      admin.from('knowledge_chunks').select('id,document_id,content,metadata,documents!inner(id,name,status,metadata,source_type,source_url)').eq('organization_id', organizationId).eq('status', 'active').eq('documents.status', 'active').limit(80),
       admin.from('appointments').select('starts_at,ends_at,status,meeting_url').eq('organization_id', organizationId).eq('lead_id', leadId).order('starts_at', { ascending: false }).limit(10),
       admin.from('contact_suppressions').select('channel,reason,created_at').eq('organization_id', organizationId)
         .or(suppressionOrFilter(leadId, await suppressionHashes(lead))).limit(10),
@@ -778,10 +763,7 @@ Deno.serve(async (request) => {
       admin.from('organization_module_data').select('data').eq('organization_id', organizationId).eq('module_key', 'configuracao_runtime').maybeSingle(),
     ]);
     for (const read of contextReads) if (read.error) throw new Error('ana_context_read_failed');
-    const [{ data: company }, { data: messages }, { data: initialChannel }, { data: agent }, { data: catalog }, { data: catalogItemsRaw }, { data: knowledge }, { data: appointments }, { data: suppressions }, { data: aiIntegration }, { data: runtime }] = contextReads;
-    const usage = knowledgeUsage(company?.ui_settings);
-    const catalogItems = (catalogItemsRaw ?? []).filter((item) => item.item_type === 'product' ? usage.products : item.item_type === 'service' ? usage.services : item.item_type === 'catalog' ? usage.catalogs : usage.documents);
-    const catalogServices = usage.services ? catalog ?? [] : [];
+    const [{ data: company }, { data: messages }, { data: initialChannel }, { data: agent }, { data: catalogItemsRaw }, { data: knowledge }, { data: appointments }, { data: suppressions }, { data: aiIntegration }, { data: runtime }] = contextReads;
     let channel = initialChannel;
     const operationMode = company?.ana_operation_enabled === true ? asText(company.ana_operation_mode, 20) : 'automatic';
     const supervised = operationMode === 'supervised';
@@ -850,22 +832,72 @@ Deno.serve(async (request) => {
       if (error) throw error;
       return json({ ok: true, run_id: runId, ...result }, 200, headers);
     }
+    if (activeChannel === 'whatsapp' && !dryRun && !supervised) {
+      await assertAnaEffectAllowed(admin, organizationId, { lead, configurationVersionId,
+        companyOperationEnabled: company?.ana_operation_enabled, companyOperationMode: company?.ana_operation_mode,
+        requiresApprovedContact: event !== 'message.received' });
+      const { data: accountRows, error: accountError } = await admin.rpc('resolve_lead_whatsapp_account', {
+        p_organization_id: organizationId,
+        p_lead_id: leadId,
+      });
+      const resolvedAccount = firstRow(accountRows);
+      if (accountError || !resolvedAccount?.integration_id || !resolvedAccount?.account_id) {
+        throw new Error('whatsapp_account_not_configured');
+      }
+      if (resolvedAccount.integration_id !== whatsappAccount?.integration_id) {
+        const { data: resolvedChannel, error: resolvedChannelError } = await admin.from('integrations')
+          .select('id,connected,enabled,paused').eq('organization_id', organizationId)
+          .eq('id', resolvedAccount.integration_id).maybeSingle();
+        if (resolvedChannelError) throw new Error('whatsapp_account_read_failed');
+        channel = resolvedChannel;
+      }
+      if (!lead.whatsapp_account_id) {
+        const { data: boundLead, error: boundError } = await admin.from('leads')
+          .select('id,ai_paused,modo_atendimento,opt_out,contact_approval_status,owner_id,assigned_to,active_channel,whatsapp_account_id,last_contact,ana_stage,ana_outcome,updated_at')
+          .eq('organization_id', organizationId).eq('id', leadId).maybeSingle();
+        if (boundError || !boundLead || boundLead.whatsapp_account_id !== resolvedAccount.account_id
+          || (['ai_paused', 'modo_atendimento', 'opt_out', 'contact_approval_status', 'owner_id', 'assigned_to', 'active_channel', 'last_contact', 'ana_stage', 'ana_outcome'] as const)
+            .some((key) => (boundLead[key] ?? null) !== (lead[key] ?? null))) throw new Error('lead_changed_during_account_binding');
+        lead.whatsapp_account_id = boundLead.whatsapp_account_id;
+        lead.updated_at = boundLead.updated_at;
+      }
+      whatsappAccount = resolvedAccount;
+    }
     const timeout = false; // An inbound response is never an expired no-reply event.
     const chronologicalMessages = (messages ?? []).slice().reverse();
     const latestInboundMessage = chronologicalMessages.slice().reverse().find((message) => message.sender === 'lead') ?? null;
     const initialPresentation = event === 'lead.created' && currentStage === 'novo' && chronologicalMessages.length === 0;
     const sensitiveInbound = requiresHumanReview(latestInboundMessage?.text);
     const configurationTrigger = configuredHandoffTrigger(agentConfiguration.handoffTriggers, latestInboundMessage?.text);
-    const lexicalKnowledge = relevantKnowledge(knowledge ?? [], latestInboundMessage?.text);
     const semanticMatches = dryRun || !hasTechnicalQuestion(latestInboundMessage?.text)
       ? []
       : await semanticKnowledge(admin, organizationId, latestInboundMessage?.text, asObject(aiCredentials));
-    const matchedKnowledge = mergeKnowledge(semanticMatches, lexicalKnowledge);
+    const knowledgeFence = await readAnaKnowledgeFence(admin, organizationId,
+      [...(knowledge ?? []).map((entry) => asText(entry.document_id, 80)), ...semanticMatches.map((entry) => entry.documentId)],
+      (catalogItemsRaw ?? []).map((item) => asText(item.id, 80)));
+    // The fingerprint and model input come from the same reread. An earlier
+    // search result cannot lend stale content to a newer authority snapshot.
+    const lexicalKnowledge = relevantKnowledge(knowledgeFence.canonicalKnowledge, latestInboundMessage?.text);
+    const canonicalSemantic = semanticMatches.flatMap((match) => relevantKnowledge(
+      knowledgeFence.canonicalKnowledge.filter((entry) => entry.document_id === match.documentId), '',
+    ).map((entry) => ({ ...entry, score: match.score })));
+    const matchedKnowledge = mergeKnowledge(canonicalSemantic, lexicalKnowledge);
+    const catalogItems = knowledgeFence.catalogItems;
+    const effectExpected: AnaEffectExpectation = {
+      lead: { ...lead }, configurationVersionId, companyOperationEnabled: company?.ana_operation_enabled,
+      companyOperationMode: company?.ana_operation_mode, requiresApprovedContact: event !== 'message.received',
+    };
+    const assertEffect = async () => {
+      await assertAnaKnowledgeSnapshot(admin!, organizationId!, knowledgeFence.snapshot);
+      await assertAnaEffectAllowed(admin!, organizationId!, effectExpected);
+    };
     const missingTechnicalKnowledge = executionContext.media_requires_review === true || (hasTechnicalQuestion(latestInboundMessage?.text) && matchedKnowledge.length === 0);
     const intent = commercialIntent(latestInboundMessage?.text);
     const baseContext = {
       event, current_time: new Date().toISOString(), time_zone: 'America/Sao_Paulo', lead: { company: lead.company, contact: lead.contact, segment: lead.segment, active_channel: activeChannel, current_stage: stageLabel[currentStage] },
-      company: approvedCompanyContext(company), agent_configuration: agentConfiguration, catalog: catalogServices, knowledge: matchedKnowledge, commercial_intent: intent,
+      company: approvedCompanyContext(knowledgeFence.company), agent_configuration: agentConfiguration,
+      catalog: catalogItems.map((item) => ({ name: item.name, item_type: item.item_type, description: item.short_description })),
+      knowledge: matchedKnowledge, commercial_intent: intent,
       latest_inbound_message: latestInboundMessage, conversation: chronologicalMessages, appointments: appointments ?? [], suppressions: applicableSuppressions, contexto: executionContext,
       policies: { allow_auto_quote: false, channel_connected: !dryRun && Boolean(channel?.connected && channel?.enabled && !channel?.paused), timeout_48h: timeout, suppressed: Boolean(applicableSuppressions.length), dry_run: dryRun, knowledge_match_found: matchedKnowledge.length > 0, knowledge_strategy: semanticMatches.length ? 'hybrid' : 'keyword', missing_technical_knowledge: missingTechnicalKnowledge, cadence: event === 'cadence.followup' ? cadenceContext : null },
     };
@@ -918,15 +950,20 @@ Deno.serve(async (request) => {
     }
 
     const automaticQuoteRequested = decision.acoes.some((action) => action.tipo === 'gerar_orcamento');
+    if (!knowledgeFence.policy.draftEnabled) decision = { ...decision, acoes: decision.acoes.filter((action) => action.tipo !== 'gerar_orcamento') };
+    if (!dryRun) await assertEffect();
     const meetingAction = decision.acoes.find((action) => action.tipo === 'agendar_reuniao');
     let meetingApplied: { externalId: string; meetingUrl: string | null } | null = null;
     let schedulingFailure: string | null = null;
-    if (meetingAction && !dryRun && !supervised && !decision.precisa_humano) {
+    if (meetingAction && !dryRun && !supervised && !decision.precisa_humano
+      && !decision.acoes.some((action) => action.tipo === 'handoff') && !automaticQuoteRequested
+      && decision.score >= lowConfidenceThreshold && !requiresHumanReview(decision.mensagem_sugerida)
+      && !(handoffPolicy && handoffStageReached(decision.proximo_estagio, handoffPolicy.handoff_stage))) {
       const requestedMeeting = meetingRequest(meetingAction.payload, latestInboundMessage?.text);
       if (!requestedMeeting) schedulingFailure = 'Pedido de reunião sem data e horário explícitos ou válidos.';
       else {
         try {
-          meetingApplied = await scheduleGoogleMeeting(admin, organizationId, runId, lead as Record<string, unknown>, requestedMeeting);
+          meetingApplied = await scheduleGoogleMeeting(admin, organizationId, runId, lead as Record<string, unknown>, requestedMeeting, assertEffect);
         } catch (error) {
           schedulingFailure = `Agendamento não confirmado: ${safeError(error)}.`;
         }
@@ -978,24 +1015,6 @@ Deno.serve(async (request) => {
       && !policyHandoffReason
       && modo !== 'humano'
       && !requiresHumanReview(decision.mensagem_sugerida);
-    if (activeChannel === 'whatsapp' && !dryRun && !supervised) {
-      const { data: accountRows, error: accountError } = await admin.rpc('resolve_lead_whatsapp_account', {
-        p_organization_id: organizationId,
-        p_lead_id: leadId,
-      });
-      const resolvedAccount = firstRow(accountRows);
-      if (accountError || !resolvedAccount?.integration_id || !resolvedAccount?.account_id) {
-        throw new Error('whatsapp_account_not_configured');
-      }
-      if (resolvedAccount.integration_id !== whatsappAccount?.integration_id) {
-        const { data: resolvedChannel, error: resolvedChannelError } = await admin.from('integrations')
-          .select('id,connected,enabled,paused').eq('organization_id', organizationId)
-          .eq('id', resolvedAccount.integration_id).maybeSingle();
-        if (resolvedChannelError) throw new Error('whatsapp_account_read_failed');
-        channel = resolvedChannel;
-      }
-      whatsappAccount = resolvedAccount;
-    }
     const channelConnected = !dryRun && Boolean(channel?.connected && channel?.enabled && !channel?.paused);
     const catalogMediaSelection: CatalogMediaSelectionInput = {
       enabled: agentConfiguration.catalogMediaImagesEnabled === true,
@@ -1026,10 +1045,18 @@ Deno.serve(async (request) => {
       if (error) throw error;
       return json({ ok: true, run_id: runId, ...result }, 200, headers);
     }
+    await assertEffect();
+    let dispatchKnowledgeSnapshot = knowledgeFence.snapshot;
+    if (catalogImageCandidate && !dispatchKnowledgeSnapshot.catalogItemIds.includes(catalogImageCandidate.id)) {
+      const expanded = await readAnaKnowledgeFence(admin, organizationId, dispatchKnowledgeSnapshot.documentIds, [...dispatchKnowledgeSnapshot.catalogItemIds, catalogImageCandidate.id]);
+      if (!expanded.allowedCatalogItemIds.includes(catalogImageCandidate.id)) throw new Error('ana_knowledge_context_changed');
+      dispatchKnowledgeSnapshot = expanded.snapshot;
+    }
     const inboundEvidence = latestInboundMessage && typeof latestInboundMessage === 'object' ? latestInboundMessage as Record<string, unknown> : null;
     await persistCommercialQualification(admin, organizationId, leadId, runId, asText(inboundEvidence?.id, 80) || null, decision, inboundEvidence);
     if (supervised) {
       if (decision.mensagem_sugerida) {
+        await assertEffect();
         const { error: draftError } = await admin.from('lead_messages').insert({
           organization_id: organizationId, lead_id: leadId, sender: 'ana', sender_name: 'Ana', type: 'pending_approval', text: decision.mensagem_sugerida, sent_at: null,
         });
@@ -1053,16 +1080,22 @@ Deno.serve(async (request) => {
       last_contact: event === 'message.received' ? new Date().toISOString() : lead.last_contact,
       no_reply_deadline_at: event === 'message.received' ? null : lead.no_reply_deadline_at,
     };
+    await assertEffect();
     let leadWrite = admin.from('leads').update(update).eq('id', leadId).eq('organization_id', organizationId)
       .eq('ai_paused', false).eq('modo_atendimento', 'ia').eq('opt_out', false).eq('owner_id', lead.owner_id);
     leadWrite = lead.last_contact ? leadWrite.eq('last_contact', lead.last_contact) : leadWrite.is('last_contact', null);
-    const { data: updatedLead, error: updateError } = await leadWrite.select('id').maybeSingle();
+    if (lead.updated_at) leadWrite = leadWrite.eq('updated_at', lead.updated_at);
+    const { data: updatedLead, error: updateError } = await leadWrite.select('id,updated_at').maybeSingle();
     if (updateError) throw updateError;
     if (!updatedLead) throw new Error('lead_changed_during_decision');
+    effectExpected.lead = { ...effectExpected.lead, ...update, updated_at: updatedLead.updated_at ?? lead.updated_at };
+    effectExpected.ownHandoff = needsHuman;
 
     const appliedActions: Array<Record<string, unknown>> = [];
     if (meetingApplied) appliedActions.push({ tipo: 'agendar_reuniao', status: 'confirmado', external_id: meetingApplied.externalId, meeting_url: meetingApplied.meetingUrl });
     if (decision.mensagem_sugerida && (!needsHuman || meetingAcknowledgement)) {
+      await assertEffect();
+      await assertAnaKnowledgeSnapshot(admin, organizationId, dispatchKnowledgeSnapshot);
       const { data: message, error: messageError } = await admin.from('lead_messages').insert({
         organization_id: organizationId, lead_id: leadId, sender: 'ana', sender_name: 'Ana',
         type: channelConnected ? 'draft' : 'pending_channel', text: decision.mensagem_sugerida, sent_at: null,
@@ -1112,6 +1145,8 @@ Deno.serve(async (request) => {
         };
       }
       if (channelConnected && !applicableSuppressions.length) {
+        await assertEffect();
+        await assertAnaKnowledgeSnapshot(admin, organizationId, dispatchKnowledgeSnapshot);
         const cadencePayload = event === 'cadence.followup'
           ? {
             step: asText(cadenceContext.step, 20),
@@ -1133,6 +1168,7 @@ Deno.serve(async (request) => {
           idempotency_key: `${runId}:message`, payload: {
             text: decision.mensagem_sugerida,
             agent_run_id: runId,
+            ana_knowledge_snapshot: dispatchKnowledgeSnapshot,
             message_id: message.id,
             context_last_contact: update.last_contact,
             configuration_version_id: configurationVersionId,
@@ -1162,6 +1198,7 @@ Deno.serve(async (request) => {
       });
     }
     if (needsHuman) {
+      await assertEffect();
       const handoffAssigneeId = stageLimitReached ? handoffPolicy?.assignee_user_id : lead.owner_id;
       if (!handoffAssigneeId) throw new Error('handoff_assignee_required');
       const { data: createdHandoff, error: handoffError } = await admin.from('lead_handoffs').insert({ organization_id: organizationId, lead_id: leadId, to_user_id: handoffAssigneeId, assigned_to: handoffAssigneeId, status: 'pending', reason: decision.motivo || 'Revisar atendimento da Ana.', summary: decision.motivo || 'Revisar atendimento da Ana.', due_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(), context: { run_id: runId, event, score: decision.score, stage_limit_reached: stageLimitReached } }).select('id').maybeSingle();
@@ -1182,6 +1219,7 @@ Deno.serve(async (request) => {
       const { data: latest, error: proposalReadError } = await admin.from('proposals').select('id').eq('organization_id', organizationId).eq('lead_id', leadId).in('status', ['draft', 'pending']).limit(1).maybeSingle();
       if (proposalReadError) throw proposalReadError;
       if (!latest) {
+        await assertEffect();
         const { error: proposalError } = await admin.from('proposals').insert({ organization_id: organizationId, lead_id: leadId, number: `ANA-${new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)}`, client: lead.company, items: [], value: 0, creator: 'ana', creator_name: 'Ana', owner_id: lead.owner_id, status: 'pending', need_approval: true });
         if (proposalError) throw proposalError;
       }

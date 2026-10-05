@@ -1,0 +1,598 @@
+{
+  "engine": "PostgreSQL/PGlite 0.3.14 in-memory",
+  "migration": "supabase/migrations/20261005220137_audit_r1_access_hardening.sql",
+  "fixture": "remote policy/function snapshot 2026-10-05; reduced schema; synthetic data; no network",
+  "before": [
+    {
+      "resource": "proposal peer read",
+      "unauthorizedRows": 1
+    },
+    {
+      "resource": "proposal peer delete",
+      "unauthorizedRows": 1
+    },
+    {
+      "resource": "document peer delete",
+      "unauthorizedRows": 1
+    },
+    {
+      "resource": "storage peer read",
+      "unauthorizedRows": 1
+    },
+    {
+      "resource": "suppression peer delete",
+      "unauthorizedRows": 1
+    },
+    {
+      "resource": "last admin delete",
+      "unauthorizedRows": 1
+    }
+  ],
+  "results": [
+    {
+      "id": "T-R1-001",
+      "name": "Proposta alheia/cross-org invisível",
+      "result": "APROVADO",
+      "observed": [
+        {
+          "n": 1
+        }
+      ]
+    },
+    {
+      "id": "T-R1-002",
+      "name": "Excluir proposta alheia negado",
+      "result": "APROVADO",
+      "observed": []
+    },
+    {
+      "id": "T-R1-003",
+      "name": "Editar proposta alheia negado",
+      "result": "APROVADO",
+      "observed": []
+    },
+    {
+      "id": "T-R1-004",
+      "name": "Criar proposta no próprio lead",
+      "result": "APROVADO",
+      "observed": [
+        {
+          "id": "aaaaaaaa-0000-4000-8000-000000000020"
+        }
+      ]
+    },
+    {
+      "id": "T-R1-005",
+      "name": "Criar proposta no lead alheio negado mesmo com owner próprio",
+      "result": "APROVADO",
+      "observed": {
+        "code": "42501",
+        "error": "new row violates row-level security policy for table \"proposals\""
+      }
+    },
+    {
+      "id": "T-R1-006",
+      "name": "Excluir proposta própria autorizado",
+      "result": "APROVADO",
+      "observed": [
+        {
+          "id": "aaaaaaaa-0000-4000-8000-000000000001"
+        }
+      ]
+    },
+    {
+      "id": "T-R1-007",
+      "name": "Override proposals.manage=false impede edição",
+      "result": "APROVADO",
+      "observed": []
+    },
+    {
+      "id": "T-R1-008",
+      "name": "Override leads.read_all=true dá leitura carteira ampliada",
+      "result": "APROVADO",
+      "observed": [
+        {
+          "n": 2
+        }
+      ]
+    },
+    {
+      "id": "T-R1-009",
+      "name": "Administrador acessa propostas só na empresa ativa",
+      "result": "APROVADO",
+      "observed": [
+        {
+          "n": 2
+        }
+      ]
+    },
+    {
+      "id": "T-R1-010",
+      "name": "Excluir documento privado alheio negado",
+      "result": "APROVADO",
+      "observed": []
+    },
+    {
+      "id": "T-R1-011",
+      "name": "Ler privado/ai alheio e outra organização negado",
+      "result": "APROVADO",
+      "observed": []
+    },
+    {
+      "id": "T-R1-012",
+      "name": "Team e sellers preservados",
+      "result": "APROVADO",
+      "observed": [
+        {
+          "n": 2
+        }
+      ]
+    },
+    {
+      "id": "T-R1-013",
+      "name": "Compartilhado não concede escrita",
+      "result": "APROVADO",
+      "observed": []
+    },
+    {
+      "id": "T-R1-014",
+      "name": "Criar documento próprio",
+      "result": "APROVADO",
+      "observed": [
+        {
+          "id": "aaaaaaaa-0000-4000-8000-000000000020"
+        }
+      ]
+    },
+    {
+      "id": "T-R1-015",
+      "name": "Mover documento a outra empresa negado",
+      "result": "APROVADO",
+      "observed": {
+        "code": "42501",
+        "error": "new row violates row-level security policy for table \"documents\""
+      }
+    },
+    {
+      "id": "T-R1-016",
+      "name": "Config delegado administra documentos privados",
+      "result": "APROVADO",
+      "observed": [
+        {
+          "id": "aaaaaaaa-0000-4000-8000-000000000002"
+        }
+      ]
+    },
+    {
+      "id": "T-R1-017",
+      "name": "Chunks privados não contornam documents",
+      "result": "APROVADO",
+      "observed": []
+    },
+    {
+      "id": "T-R1-018",
+      "name": "Chunks compartilhados legíveis",
+      "result": "APROVADO",
+      "observed": [
+        {
+          "n": 2
+        }
+      ]
+    },
+    {
+      "id": "T-R1-019",
+      "name": "Chunk alheio não pode ser editado",
+      "result": "APROVADO",
+      "observed": []
+    },
+    {
+      "id": "T-R1-020",
+      "name": "Chunk próprio pode ser criado",
+      "result": "APROVADO",
+      "observed": [
+        {
+          "id": "aaaaaaaa-0000-4000-8000-000000000020"
+        }
+      ]
+    },
+    {
+      "id": "T-R1-021",
+      "name": "Chunk cross-org/parent alheio negado",
+      "result": "APROVADO",
+      "observed": {
+        "code": "42501",
+        "error": "new row violates row-level security policy for table \"knowledge_chunks\""
+      }
+    },
+    {
+      "id": "T-R1-022",
+      "name": "Bytes privados/mídia legado/cross-org/sem dono negados, ponteiro forjado não vaza",
+      "result": "APROVADO",
+      "observed": []
+    },
+    {
+      "id": "T-R1-023",
+      "name": "Bytes team/sellers e próprio (inclui owner legado) legíveis",
+      "result": "APROVADO",
+      "observed": [
+        {
+          "n": 4
+        }
+      ]
+    },
+    {
+      "id": "T-R1-024",
+      "name": "Mídia canônica por carteira legível",
+      "result": "APROVADO",
+      "observed": [
+        {
+          "id": "aaaaaaaa-0000-4000-8000-000000000008"
+        }
+      ]
+    },
+    {
+      "id": "T-R1-025",
+      "name": "Compartilhado não permite overwrite",
+      "result": "APROVADO",
+      "observed": []
+    },
+    {
+      "id": "T-R1-026",
+      "name": "Compartilhado não permite delete",
+      "result": "APROVADO",
+      "observed": []
+    },
+    {
+      "id": "T-R1-027",
+      "name": "Upload próprio anterior a documento permitido",
+      "result": "APROVADO",
+      "observed": [
+        {
+          "id": "ce2867ca-4511-414d-92fe-24299861773d"
+        }
+      ]
+    },
+    {
+      "id": "T-R1-028",
+      "name": "Upload atribuído a colega negado",
+      "result": "APROVADO",
+      "observed": {
+        "code": "42501",
+        "error": "new row violates row-level security policy for table \"objects\""
+      }
+    },
+    {
+      "id": "T-R1-029",
+      "name": "Upload cross-org negado",
+      "result": "APROVADO",
+      "observed": {
+        "code": "42501",
+        "error": "new row violates row-level security policy for table \"objects\""
+      }
+    },
+    {
+      "id": "T-R1-030",
+      "name": "Cleanup próprio permitido",
+      "result": "APROVADO",
+      "observed": [
+        {
+          "id": "aaaaaaaa-0000-4000-8000-000000000012"
+        }
+      ]
+    },
+    {
+      "id": "T-R1-031",
+      "name": "Revogação visibility corta compartilhamento bytes",
+      "result": "APROVADO",
+      "observed": []
+    },
+    {
+      "id": "T-R1-032",
+      "name": "Config delegado administra bytes legados sem dono",
+      "result": "APROVADO",
+      "observed": [
+        {
+          "id": "aaaaaaaa-0000-4000-8000-000000000010"
+        }
+      ]
+    },
+    {
+      "id": "T-R1-033",
+      "name": "Excluir supressão alheia negado",
+      "result": "APROVADO",
+      "observed": []
+    },
+    {
+      "id": "T-R1-034",
+      "name": "Excluir supressão própria sem config negado",
+      "result": "APROVADO",
+      "observed": []
+    },
+    {
+      "id": "T-R1-035",
+      "name": "Supressão de lead alheio não é legível",
+      "result": "APROVADO",
+      "observed": []
+    },
+    {
+      "id": "T-R1-036",
+      "name": "Central inclui supressão de lead próprio",
+      "result": "APROVADO",
+      "observed": [
+        {
+          "id": "659a4966-693d-4209-b756-22399c630422"
+        }
+      ]
+    },
+    {
+      "id": "T-R1-037",
+      "name": "Supressão idempotente por upsert preservada",
+      "result": "APROVADO",
+      "observed": [
+        {
+          "id": "aaaaaaaa-0000-4000-8000-000000000001"
+        }
+      ]
+    },
+    {
+      "id": "T-R1-038",
+      "name": "Enfraquecer all para whatsapp negado",
+      "result": "APROVADO",
+      "observed": {
+        "code": "42501",
+        "error": "suppression_change_requires_configuration_manage"
+      }
+    },
+    {
+      "id": "T-R1-039",
+      "name": "Trocar hash para contornar supressão negado",
+      "result": "APROVADO",
+      "observed": {
+        "code": "42501",
+        "error": "suppression_change_requires_configuration_manage"
+      }
+    },
+    {
+      "id": "T-R1-040",
+      "name": "Fortalecer supressão para all permitido",
+      "result": "APROVADO",
+      "observed": [
+        {
+          "id": "aaaaaaaa-0000-4000-8000-000000000001"
+        }
+      ]
+    },
+    {
+      "id": "T-R1-041",
+      "name": "Remoção explícita por config delegado permitida",
+      "result": "APROVADO",
+      "observed": [
+        {
+          "id": "aaaaaaaa-0000-4000-8000-000000000001"
+        }
+      ]
+    },
+    {
+      "id": "T-R1-042",
+      "name": "Último admin DELETE direto negado",
+      "result": "APROVADO",
+      "observed": {
+        "code": "23514",
+        "error": "organization_requires_active_administrator"
+      }
+    },
+    {
+      "id": "T-R1-043",
+      "name": "Último admin disable negado",
+      "result": "APROVADO",
+      "observed": {
+        "code": "23514",
+        "error": "organization_requires_active_administrator"
+      }
+    },
+    {
+      "id": "T-R1-044",
+      "name": "Último admin demotion negada",
+      "result": "APROVADO",
+      "observed": {
+        "code": "23514",
+        "error": "organization_requires_active_administrator"
+      }
+    },
+    {
+      "id": "T-R1-045",
+      "name": "Dois admins: um pode ser removido",
+      "result": "APROVADO",
+      "observed": [
+        {
+          "user_id": "11111111-1111-4111-8111-111111111111"
+        }
+      ]
+    },
+    {
+      "id": "T-R1-046",
+      "name": "Admin pode remover vendedor",
+      "result": "APROVADO",
+      "observed": [
+        {
+          "user_id": "22222222-2222-4222-8222-222222222222"
+        }
+      ]
+    },
+    {
+      "id": "T-R1-047",
+      "name": "Service role mantém bypass legítimo para supressão",
+      "result": "APROVADO",
+      "observed": [
+        {
+          "id": "aaaaaaaa-0000-4000-8000-000000000002"
+        }
+      ]
+    },
+    {
+      "id": "T-R1-048",
+      "name": "Service role ainda preserva último admin",
+      "result": "APROVADO",
+      "observed": {
+        "code": "23514",
+        "error": "organization_requires_active_administrator"
+      }
+    },
+    {
+      "id": "T-R1-049",
+      "name": "Exclusão organizacional cascade preservada (somente fixture)",
+      "result": "APROVADO",
+      "observed": [
+        {
+          "id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+        }
+      ]
+    },
+    {
+      "id": "T-R1-050",
+      "name": "Vínculo disabled nega propostas/documentos/chunks/Storage",
+      "result": "APROVADO",
+      "observed": [
+        {
+          "n": 0
+        }
+      ]
+    },
+    {
+      "id": "T-R1-051",
+      "name": "Anon não pode executar helpers de privilégio",
+      "result": "APROVADO",
+      "observed": {
+        "code": "42501",
+        "error": "permission denied for function r1_can_access_storage"
+      }
+    },
+    {
+      "id": "T-R1-052",
+      "name": "Cadeia consumer upload → documento → chunk em requisições SQL sucessivas",
+      "result": "APROVADO",
+      "observed": [
+        {
+          "id": "aaaaaaaa-0000-4000-8000-000000000020"
+        }
+      ]
+    },
+    {
+      "id": "T-R1-053",
+      "name": "Overwrite próprio permitido",
+      "result": "APROVADO",
+      "observed": [
+        {
+          "id": "aaaaaaaa-0000-4000-8000-000000000001"
+        }
+      ]
+    },
+    {
+      "id": "T-R1-054",
+      "name": "Proprietário não conserva mídia canônica após sair da carteira",
+      "result": "APROVADO",
+      "observed": []
+    },
+    {
+      "id": "T-R1-055",
+      "name": "Upload canônico em carteira alheia negado",
+      "result": "APROVADO",
+      "observed": {
+        "code": "42501",
+        "error": "new row violates row-level security policy for table \"objects\""
+      }
+    },
+    {
+      "id": "T-R1-056",
+      "name": "Último admin não pode mover vínculo de organização via service role",
+      "result": "APROVADO",
+      "observed": {
+        "code": "23514",
+        "error": "organization_requires_active_administrator"
+      }
+    },
+    {
+      "id": "T-R1-057",
+      "name": "DELETE em lote não remove os dois admins",
+      "result": "APROVADO",
+      "observed": {
+        "code": "23514",
+        "error": "organization_requires_active_administrator"
+      }
+    },
+    {
+      "id": "T-R1-058",
+      "name": "Membro convidado não é admin ativo de reserva",
+      "result": "APROVADO",
+      "observed": {
+        "code": "23514",
+        "error": "organization_requires_active_administrator"
+      }
+    },
+    {
+      "id": "T-R1-059",
+      "name": "TRUNCATE fora do workflow não contorna invariante",
+      "result": "APROVADO",
+      "observed": {
+        "code": "42501",
+        "error": "permission denied for table organization_members"
+      }
+    },
+    {
+      "id": "T-R1-060",
+      "name": "Revogar leitura atribuída corta proposta própria vinculada",
+      "result": "APROVADO",
+      "observed": []
+    },
+    {
+      "id": "T-R1-061",
+      "name": "SDR preserva team/sellers",
+      "result": "APROVADO",
+      "observed": [
+        {
+          "n": 2
+        }
+      ]
+    },
+    {
+      "id": "T-R1-062",
+      "name": "CX preserva team, mas sellers é restrito a vendedores/SDR",
+      "result": "APROVADO",
+      "observed": [
+        {
+          "n": 1
+        }
+      ]
+    },
+    {
+      "id": "T-R1-063",
+      "name": "Duas empresas válidas: não vê organização inativa",
+      "result": "APROVADO",
+      "observed": []
+    },
+    {
+      "id": "T-R1-064",
+      "name": "Supressão não pode trocar lead para contornar escopo",
+      "result": "APROVADO",
+      "observed": {
+        "code": "42501",
+        "error": "suppression_change_requires_configuration_manage"
+      }
+    },
+    {
+      "id": "T-R1-065",
+      "name": "Service role pode incluir arquivo sem dono legítimo",
+      "result": "APROVADO",
+      "observed": [
+        {
+          "id": "da67c92f-afdb-4836-a5de-6ac110ed0a97"
+        }
+      ]
+    }
+  ],
+  "passed": 65,
+  "failed": 0,
+  "concurrency": "Not demonstrated by this single-session runner; see separate multi-session evidence."
+}
+
+STDERR

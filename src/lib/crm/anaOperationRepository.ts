@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { sessionContext } from '@/lib/sessionContext';
 
 export type AnaOperationMode = 'simulation' | 'supervised' | 'automatic';
 export type AnaInitialAssignmentMode = 'ana' | 'human' | 'team';
@@ -22,6 +23,7 @@ export interface AnaOperationSettings {
   handoffStage: AnaHandoffStage | null;
   handoffAssigneeUserId: string | null;
   handoffNotifyWhatsapp: boolean;
+  city: string;
   regions: string[];
   segments: string[];
   keywords: string[];
@@ -69,8 +71,18 @@ export interface AnaAutomaticToggleResult {
 }
 
 async function invoke<T>(action: string, payload: Record<string, unknown> = {}): Promise<T> {
+  const context = sessionContext.requireReady();
   const { data, error } = await supabase.functions.invoke('ana-operations', { body: { action, ...payload } });
-  if (error || !data?.ok) throw new Error(data?.error || error?.message || 'ana_operation_request_failed');
+  sessionContext.assertCurrent(context);
+  if (error || !data?.ok) {
+    let code = typeof data?.error === 'string' ? data.error : '';
+    const response = (error as { context?: Response } | null)?.context;
+    if (!code && response && typeof response.clone === 'function') {
+      try { const body = await response.clone().json() as { error?: unknown }; if (typeof body.error === 'string') code = body.error; }
+      catch { /* Keep transport uncertainty when no structured server result exists. */ }
+    }
+    throw new Error(code || error?.message || 'ana_operation_request_failed');
+  }
   return data as T;
 }
 

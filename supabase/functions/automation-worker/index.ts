@@ -34,6 +34,7 @@ import {
 import { parseZapiEvent } from "../_shared/zapiInbound.ts";
 import { EvolutionGoProvider } from "../_shared/messaging/EvolutionGoProvider.ts";
 import { WaAkgProvider } from "../_shared/messaging/WaAkgProvider.ts";
+import { assertAnaKnowledgeSnapshot } from "../_shared/anaKnowledgeFence.ts";
 
 function secureEqual(actual: string | null, expected: string): boolean {
   if (!actual || !expected || actual.length !== expected.length) return false;
@@ -1519,6 +1520,7 @@ async function processDailyWhatsappReports(admin: Admin, organizationId: string)
       continue;
     }
     let providerAccepted = false;
+    let dispatchStarted = false;
     let deliveryId: string | null = null;
     try {
       const content = await dailyLeadReportContent(admin, organizationId, preference.user_id, asText(member.role, 40), local, timeZone);
@@ -1536,6 +1538,7 @@ async function processDailyWhatsappReports(admin: Admin, organizationId: string)
       if (reservationError || !reservation?.id) throw new Error('daily_report_reservation_failed');
       deliveryId = reservation.id;
       await setDailyReportPreferenceState(admin, organizationId, preference.user_id, 'sending');
+      dispatchStarted = true;
       const receipt = await sendWhatsapp(asObject(credentials), phone, content);
       providerAccepted = true;
       const sentAt = new Date().toISOString();
@@ -1556,8 +1559,9 @@ async function processDailyWhatsappReports(admin: Admin, organizationId: string)
       });
       sent += 1;
     } catch (error) {
-      const state = providerAccepted ? 'reconciliation_required' : 'failed';
-      const code = providerAccepted ? 'daily_report_provider_accepted_reconciliation_required' : safeError(error).slice(0, 160);
+      const state = dispatchStarted ? 'reconciliation_required' : 'failed';
+      const code = providerAccepted ? 'daily_report_provider_accepted_reconciliation_required'
+        : dispatchStarted ? 'daily_report_delivery_unknown_reconciliation_required' : safeError(error).slice(0, 160);
       if (deliveryId) await admin.from('daily_lead_report_deliveries').update({
         status: state, error: code, updated_at: new Date().toISOString(),
       }).eq('id', deliveryId).eq('organization_id', organizationId);
@@ -1566,13 +1570,13 @@ async function processDailyWhatsappReports(admin: Admin, organizationId: string)
         organization_id: organizationId,
         actor_name: 'Sistema',
         actor_type: 'system',
-        action: providerAccepted ? 'notification.daily_report_reconciliation_required' : 'notification.daily_report_failed',
-        detail: providerAccepted ? 'A Z-API aceitou o resumo diário, mas o registro final requer reconciliação.' : 'O resumo diário não foi enviado pelo provedor.',
+        action: dispatchStarted ? 'notification.daily_report_reconciliation_required' : 'notification.daily_report_failed',
+        detail: dispatchStarted ? 'O resultado do envio do resumo diário requer reconciliação; não haverá reenvio automático.' : 'O resumo diário foi bloqueado antes do envio.',
         entity_table: 'daily_lead_report_deliveries',
         entity_id: deliveryId,
         event_data: { user_id: preference.user_id, phone_suffix: phone.slice(-4), reason: code },
       });
-      if (providerAccepted) reconciliationRequired += 1;
+      if (dispatchStarted) reconciliationRequired += 1;
       else failed += 1;
     }
   }
@@ -1604,6 +1608,7 @@ async function processHandoffWhatsappNotifications(admin: Admin, organizationId:
     if (claimError) throw new Error('handoff_notification_claim_failed');
     if (!claimed) continue;
     let providerAccepted = false;
+    let dispatchStarted = false;
     try {
       const [{ data: lead, error: leadError }, { data: handoff, error: handoffError }] = await Promise.all([
         admin.from('leads').select('company,contact,ana_stage').eq('id', delivery.lead_id).eq('organization_id', organizationId).maybeSingle(),
@@ -1614,6 +1619,7 @@ async function processHandoffWhatsappNotifications(admin: Admin, organizationId:
       const reason = asText(handoff.reason, 220) || 'A Ana solicitou atendimento humano.';
       const stage = asText(lead.ana_stage, 40) || 'atual';
       const message = `Wayflex: ${subject} foi transferido para você na etapa ${stage}. Motivo: ${reason} Abra a Central de Atendimento para assumir.`;
+      dispatchStarted = true;
       const receipt = await sendWhatsapp(asObject(credentials), delivery.recipient_phone, message);
       providerAccepted = true;
       const sentAt = new Date().toISOString();
@@ -1622,11 +1628,12 @@ async function processHandoffWhatsappNotifications(admin: Admin, organizationId:
       await admin.from('audit_logs').insert({ organization_id: organizationId, actor_name: 'Sistema', actor_type: 'system', action: 'notification.handoff_provider_accepted', detail: 'Aviso interno de transferência aceito pela Z-API.', entity_table: 'handoff_whatsapp_deliveries', entity_id: delivery.id, event_data: { handoff_id: delivery.handoff_id, user_id: delivery.recipient_user_id, phone_suffix: delivery.recipient_phone.slice(-4) } });
       sent += 1;
     } catch (error) {
-      const status = providerAccepted ? 'reconciliation_required' : 'failed';
-      const code = providerAccepted ? 'handoff_notification_provider_accepted_reconciliation_required' : safeError(error).slice(0, 160);
+      const status = dispatchStarted ? 'reconciliation_required' : 'failed';
+      const code = providerAccepted ? 'handoff_notification_provider_accepted_reconciliation_required'
+        : dispatchStarted ? 'handoff_notification_delivery_unknown_reconciliation_required' : safeError(error).slice(0, 160);
       await admin.from('handoff_whatsapp_deliveries').update({ status, error: code, updated_at: new Date().toISOString() }).eq('id', delivery.id).eq('organization_id', organizationId);
-      await admin.from('audit_logs').insert({ organization_id: organizationId, actor_name: 'Sistema', actor_type: 'system', action: providerAccepted ? 'notification.handoff_reconciliation_required' : 'notification.handoff_failed', detail: providerAccepted ? 'A Z-API aceitou o aviso interno, mas a persistência final requer reconciliação.' : 'O aviso interno de transferência não foi enviado.', entity_table: 'handoff_whatsapp_deliveries', entity_id: delivery.id, event_data: { handoff_id: delivery.handoff_id, user_id: delivery.recipient_user_id, phone_suffix: delivery.recipient_phone.slice(-4), reason: code } });
-      if (providerAccepted) reconciliationRequired += 1; else failed += 1;
+      await admin.from('audit_logs').insert({ organization_id: organizationId, actor_name: 'Sistema', actor_type: 'system', action: dispatchStarted ? 'notification.handoff_reconciliation_required' : 'notification.handoff_failed', detail: dispatchStarted ? 'O resultado do aviso interno requer reconciliação; não haverá reenvio automático.' : 'O aviso interno foi bloqueado antes do envio.', entity_table: 'handoff_whatsapp_deliveries', entity_id: delivery.id, event_data: { handoff_id: delivery.handoff_id, user_id: delivery.recipient_user_id, phone_suffix: delivery.recipient_phone.slice(-4), reason: code } });
+      if (dispatchStarted) reconciliationRequired += 1; else failed += 1;
     }
   }
   return { status: sent > 0 ? 'sent' : 'idle', queued: deliveries!.length, sent, failed, reconciliationRequired };
@@ -1774,7 +1781,7 @@ async function processAnaOperations(admin: Admin, organizationId: string, schedu
 async function processEvolutionGoCallbacks(admin: Admin, organizationId: string) {
   const { count, error } = await admin.from('evolution_go_webhook_events')
     .select('*', { count: 'exact', head: true }).eq('organization_id', organizationId)
-    .in('processing_status', ['queued', 'failed']).lte('next_retry_at', new Date().toISOString());
+    .in('processing_status', ['queued', 'failed', 'processing']).lte('next_retry_at', new Date().toISOString());
   if (error) return { status: 'read_failed', queued: 0, processed: 0, failed: 0 };
   if (!count) return { status: 'idle', queued: 0, processed: 0, failed: 0 };
   const serviceJwt = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
@@ -2097,7 +2104,7 @@ Deno.serve(async (request) => {
       failedJobs = 0;
     const jobResults: Array<{
       id: string;
-      status: "sent" | "failed" | "deferred" | "cadence_completed" | "cadence_deferred" | "cadence_cancelled";
+      status: "sent" | "failed" | "reconciliation_required" | "deferred" | "cadence_completed" | "cadence_deferred" | "cadence_cancelled";
       error?: string;
       cadence_scheduled?: number;
       cadence_error?: string;
@@ -2637,6 +2644,12 @@ Deno.serve(async (request) => {
               ...asObject(credentials),
             };
           }
+          // Prepared Ana content remains subject to the current source/policy
+          // revision at the effect boundary. A missing legacy snapshot is held,
+          // never silently treated as current. Manual messages are unchanged.
+          if (!manual && typeof payload.agent_run_id === 'string') {
+            await assertAnaKnowledgeSnapshot(admin, orgId, payload.ana_knowledge_snapshot);
+          }
           dispatchStarted = true;
           const receipt =
             channel === "whatsapp"
@@ -2787,7 +2800,7 @@ Deno.serve(async (request) => {
               : dispatchStarted
                 ? "delivery_unknown_reconciliation_required"
                 : safeError(error),
-            status = dispatchStarted ? "reconciliation_required" : "failed";
+            status = dispatchStarted || code.startsWith('ana_knowledge_') ? "reconciliation_required" : "failed";
           if (providerMessageId) {
             await admin
               .from("lead_outreach")
@@ -2825,7 +2838,7 @@ Deno.serve(async (request) => {
               .eq("sender", "human")
               .eq("type", "queued");
           failedJobs++;
-          jobResults.push({ id: job.id, status: "failed", error: code });
+          jobResults.push({ id: job.id, status, error: code });
         }
       }
     }

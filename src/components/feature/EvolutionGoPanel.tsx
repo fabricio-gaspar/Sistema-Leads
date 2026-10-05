@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { loadTeamMembers, type TeamMember } from '@/lib/crm/teamMembersRepository';
 import { isEvolutionGoAutomationReady, isEvolutionGoOperational } from '@/lib/crm/evolutionGoOnboarding';
 import { channelLifecycleBlocked, channelLifecycleMessage, refreshAfterLifecycleError } from '@/lib/crm/channelLifecycle';
+import ChannelLifecycleRecovery from './ChannelLifecycleRecovery';
 import {
   createEvolutionGoAccount,
   createEvolutionGoInstance,
@@ -375,6 +376,7 @@ export default function EvolutionGoPanel({ mode = 'administration' }: { mode?: E
 
     <p className="mt-3 rounded-xl border border-background-200 bg-background-50 px-3 py-2 text-[11px] leading-5 text-foreground-500"><i className="ri-lock-2-line mr-1" />Valores já armazenados permanecem no backend. A interface recebe somente metadados, permissões e estados operacionais e nunca preenche os campos protegidos.</p>
     {channelLifecycleMessage(selected?.lifecycle) && <p role="status" className="mt-4 rounded-xl border border-background-200 bg-background-50 px-3 py-2 text-xs text-foreground-700">{channelLifecycleMessage(selected?.lifecycle)}</p>}
+    {canManage && selected && channelLifecycleBlocked(selected.lifecycle) && <ChannelLifecycleRecovery key={`${selected.account.id}:${selected.lifecycle?.revision}`} provider="evolution_go" accountId={selected.account.id} disabled={Boolean(busy) || statusUnconfirmed} onReconciled={refresh} />}
     {notice && <p role={notice.tone === 'error' ? 'alert' : 'status'} className={`mt-4 rounded-xl border px-3 py-2 text-xs ${notice.tone === 'success' ? 'border-[#B9E4CB] bg-[#EFFAF3] text-[#176B43]' : 'border-[#E8B8B1] bg-[#FFF4F2] text-[#8B3027]'}`}>{notice.text}</p>}
 
     {adding && canManage && <div className="mt-4 rounded-xl border border-background-200 bg-background-50 p-4">

@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { readAnaKnowledgeFence, type AnaKnowledgeSnapshot } from '../functions/_shared/anaKnowledgeFence';
 
 type Row = Record<string, unknown>;
 type Query = { table: string; operation: string; value?: Row; filters: Record<string, unknown> };
@@ -9,7 +10,7 @@ vi.mock('../functions/_shared/auth.ts', () => ({
   hasOrganizationPermission: async () => true,
   requireUser: async (request: Request) => {
     if (!request.headers.get('Authorization')) throw new Error('authentication_required');
-    return { user: { id: 'owner' } };
+    return { user: { id: 'owner' }, client: state.admin };
   },
   requireOrganizationRole: async () => undefined,
   requireOrganizationPermission: async () => undefined,
@@ -79,12 +80,13 @@ function execute(query: Query): Result {
     }
     return ok({});
   }
+  if (query.table === 'leads' && query.operation === 'update') acceptedLeadState = { ...acceptedLeadState, ...query.value };
   if (query.operation !== 'select') return ok({ id: `${query.table}-id` });
   switch (query.table) {
     case 'profiles': return ok({ active_organization_id: org, name: 'Synthetic user' });
     case 'organization_members': return ok({ role: 'admin', status: 'active' });
     case 'company_settings': return ok(readyCompany);
-    case 'organization_module_data': return ok({ data: readyRuntime });
+    case 'organization_module_data': return ok({ data: query.filters.module_key === 'commercial_catalog_policy' ? {} : readyRuntime });
     case 'leads': {
       const lead = { ...readyLead, ...acceptedLeadState };
       return ok('id' in query.filters ? lead : [lead]);
@@ -137,178 +139,73 @@ beforeEach(() => {
   vi.stubGlobal('fetch', fetchMock);
 });
 
-describe('Team member identity deletion', () => {
-  const removedUserId = 'e1111111-1111-4111-8111-111111111111';
-  const removalRequest = () => new Request('https://example.invalid/team-members', {
-    method: 'POST',
-    headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'remove', user_id: removedUserId }),
+describe('R4 team membership and identity boundary — mocked HTTP', () => {
+  const target = 'e1111111-1111-4111-8111-111111111111';
+  const request = (action: string, fields: Row = {}) => new Request('https://example.invalid/team-members', {
+    method: 'POST', headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action, user_id: target, ...fields }),
   });
-
-  it('hard-deletes an unshared member identity after purging private resources', async () => {
-    override = (query) => {
-      if (query.table !== 'organization_members' || query.operation !== 'select' || query.filters.user_id !== removedUserId) return undefined;
-      if (query.filters['neq:organization_id'] === org) return { data: [], error: null, count: 0 };
-      return ok({ role: 'vendedor', status: 'active' });
-    };
-
+  for (const action of ['create', 'update_member', 'reset_password']) it(action + ' refuses global identity mutation', async () => {
     await import('../functions/team-members/index');
-    const response = await handler(removalRequest());
-
-    expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ ok: true, deleted_identity: true });
-    expect(state.deleteUser).toHaveBeenCalledWith(removedUserId);
-    expect(calls.find((query) => query.table === 'audit_logs' && query.operation === 'insert')?.value).toMatchObject({
-      action: 'team.member_deleted', event_data: {
-        evolution_accounts_deleted: 0,
-        integration_secrets_deleted: 0,
-        storage_objects_deleted: 0,
-      },
-    });
-    expect(calls.find((query) => query.table === 'list_user_owned_storage' && query.operation === 'rpc')?.value)
-      .toEqual({ p_user_id: removedUserId, p_limit: 100 });
-    expect(state.storageRemove).not.toHaveBeenCalled();
-    expect(calls.find((query) => query.table === 'revoke_user_auth_sessions' && query.operation === 'rpc')?.value)
-      .toEqual({ p_user_id: removedUserId });
-  });
-
-  it('removes member-owned files through the Storage API instead of direct Storage SQL', async () => {
-    let hasOwnedFiles = true;
-    state.storageRemove = vi.fn(async () => {
-      hasOwnedFiles = false;
-      return { data: [], error: null };
-    });
-    override = (query) => {
-      if (query.table === 'organization_members' && query.operation === 'select' && query.filters.user_id === removedUserId) {
-        if (query.filters['neq:organization_id'] === org) return { data: [], error: null, count: 0 };
-        return ok({ role: 'vendedor', status: 'active' });
-      }
-      if (query.table === 'list_user_owned_storage' && query.operation === 'rpc') {
-        return ok(hasOwnedFiles ? [
-          { bucket_id: 'member-files', name: `${removedUserId}/avatar.png` },
-          { bucket_id: 'member-files', name: `${removedUserId}/notes.txt` },
-        ] : []);
-      }
-      return undefined;
-    };
-
-    await import('../functions/team-members/index');
-    const response = await handler(removalRequest());
-
-    expect(response.status).toBe(200);
-    expect(state.storageRemove).toHaveBeenCalledWith([
-      `${removedUserId}/avatar.png`,
-      `${removedUserId}/notes.txt`,
-    ]);
-    const deletionAudit = calls.find((query) => query.table === 'audit_logs' && query.operation === 'insert')?.value;
-    expect(deletionAudit).toMatchObject({ event_data: { storage_objects_deleted: 2 } });
-    expect(calls.some((query) => query.table === 'purge_user_owned_storage')).toBe(false);
-  });
-
-  it('does not delete an identity that belongs to another organization', async () => {
-    override = (query) => {
-      if (query.table !== 'organization_members' || query.operation !== 'select' || query.filters.user_id !== removedUserId) return undefined;
-      if (query.filters['neq:organization_id'] === org) return { data: [], error: null, count: 1 };
-      return ok({ role: 'vendedor', status: 'active' });
-    };
-
-    await import('../functions/team-members/index');
-    const response = await handler(removalRequest());
-
+    const response = await handler(request(action, { name: 'Synthetic', email: 'synthetic@example.test', password: 'synthetic-password', role: 'vendedor' }));
     expect(response.status).toBe(400);
-    expect(await response.json()).toMatchObject({ ok: false, erro: 'member_linked_to_another_organization' });
-    expect(state.deleteUser).not.toHaveBeenCalled();
+    expect(await response.json()).toMatchObject({ erro: 'global_identity_self_service_required' });
+    expect(state.updateUser).not.toHaveBeenCalled(); expect(state.deleteUser).not.toHaveBeenCalled();
+    expect(calls.some(q => q.operation !== 'select')).toBe(false);
   });
-
-  it('persists an explicit, complete permission map for a team member', async () => {
-    const permissions = {
-      'leads.read_all': true,
-      'leads.read_assigned': true,
-      'leads.create': true,
-      'leads.edit_all': false,
-      'leads.edit_assigned': true,
-      'leads.delete': false,
-      'conversations.read_all': true,
-      'conversations.reply_all': false,
-      'conversations.reply_assigned': true,
-      'messages.delete': false,
-      'prospecting.manage': true,
-      'proposals.manage': false,
-      'configuration.manage': false,
-      'website_entry.manage': false,
-      'team.manage': false,
-      'audit.view': false,
-      'channels.view_own': true,
-      'channels.connect_own': true,
-      'channels.manage_all': false,
-    };
-
+  for (const action of ['remove', 'set_status', 'update_role']) it(action + ' uses caller-scoped transaction, never global Auth/Storage', async () => {
+    override = q => q.table === 'team_member_change' ? ok({ deleted_identity: false, membership_removed: action === 'remove' }) : undefined;
     await import('../functions/team-members/index');
-    const response = await handler(new Request('https://example.invalid/team-members', {
-      method: 'POST',
-      headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'permissions_set', user_id: removedUserId, permissions }),
-    }));
-
-    expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ ok: true });
-    const stored = calls.find((query) => query.table === 'team_member_permissions' && query.operation === 'upsert')?.value;
-    expect(stored).toEqual(expect.arrayContaining([
-      expect.objectContaining({ organization_id: org, user_id: removedUserId, permission: 'leads.delete', allowed: false }),
-      expect.objectContaining({ organization_id: org, user_id: removedUserId, permission: 'prospecting.manage', allowed: true }),
-    ]));
-    expect(calls.find((query) => query.table === 'audit_logs' && query.operation === 'insert')?.value)
-      .toMatchObject({ action: 'team.member_permissions_changed', event_data: { user_id: removedUserId } });
+    const response = await handler(request(action, { enabled: false, role: 'cx' }));
+    expect(response.status).toBe(200); expect(await response.json()).toMatchObject({ ok: true, deleted_identity: false });
+    expect(calls.find(q => q.table === 'team_member_change')?.value).toMatchObject({ p_org: org, p_user: target, p_action: action });
+    expect(state.deleteUser).not.toHaveBeenCalled(); expect(state.updateUser).not.toHaveBeenCalled(); expect(state.storageRemove).not.toHaveBeenCalled();
+    expect(calls.some(q => q.table === 'revoke_user_auth_sessions')).toBe(false);
   });
-});
-
-describe('Team member profile and credential management', () => {
-  const managedUserId = 'f1111111-1111-4111-8111-111111111111';
-
-  it('updates the Auth identity and CRM profile together, then audits the change', async () => {
-    override = (query) => {
-      if (query.table === 'organization_members' && query.operation === 'select' && query.filters.user_id === managedUserId) return ok({ role: 'vendedor', status: 'active' });
-      if (query.table === 'profiles' && query.operation === 'select' && query.filters.id === managedUserId) return ok({ name: 'Nome anterior', email: 'anterior@wayflex.ind.br' });
-      return undefined;
-    };
-
+  it('does not turn a failed transaction into success', async () => {
+    override = q => q.table === 'team_member_change' ? { data: null, error: { message: 'organization_access_denied' } } : undefined;
     await import('../functions/team-members/index');
-    const response = await handler(new Request('https://example.invalid/team-members', {
-      method: 'POST',
-      headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'update_member', user_id: managedUserId, name: 'Nome atualizado', email: 'ATUALIZADO@WAYFLEX.IND.BR' }),
-    }));
-
-    expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ ok: true });
-    expect(state.updateUser).toHaveBeenCalledWith(managedUserId, {
-      email: 'atualizado@wayflex.ind.br', email_confirm: true, user_metadata: { name: 'Nome atualizado' },
-    });
-    expect(calls.find((query) => query.table === 'profiles' && query.operation === 'update')?.value)
-      .toMatchObject({ name: 'Nome atualizado', email: 'atualizado@wayflex.ind.br' });
-    expect(calls.find((query) => query.table === 'audit_logs' && query.operation === 'insert')?.value)
-      .toMatchObject({ action: 'team.member_updated', event_data: { user_id: managedUserId, name: 'Nome atualizado', email: 'atualizado@wayflex.ind.br' } });
+    expect((await handler(request('remove'))).status).toBe(400); expect(state.deleteUser).not.toHaveBeenCalled();
   });
-
-  it('resets a member password without persisting the secret in the audit record', async () => {
-    override = (query) => query.table === 'organization_members' && query.operation === 'select' && query.filters.user_id === managedUserId
-      ? ok({ role: 'vendedor', status: 'active' }) : undefined;
-
+  it('requires an explicit invite revision, never autoaccepts latest', async () => {
     await import('../functions/team-members/index');
-    const response = await handler(new Request('https://example.invalid/team-members', {
-      method: 'POST',
-      headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'reset_password', user_id: managedUserId, password: 'synthetic-new-password' }),
-    }));
-
-    expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ ok: true, sessions_revoked: false });
-    expect(state.updateUser).toHaveBeenCalledWith(managedUserId, { password: 'synthetic-new-password' });
-    expect(calls.find((query) => query.table === 'revoke_user_auth_sessions' && query.operation === 'rpc')?.value)
-      .toEqual({ p_user_id: managedUserId });
-    const audit = calls.find((query) => query.table === 'audit_logs' && query.operation === 'insert')?.value;
-    expect(audit).toMatchObject({ action: 'team.member_password_reset', event_data: { user_id: managedUserId, sessions_revoked: false, revoked_session_count: 0 } });
-    expect(JSON.stringify(audit)).not.toContain('synthetic-new-password');
+    const response = await handler(request('activate_invite'));
+    expect(response.status).toBe(400); expect(await response.json()).toMatchObject({ erro: 'invite_revision_required' });
+    expect(calls.some(q => q.operation !== 'select')).toBe(false);
+  });
+  it('acceptance uses the authenticated RPC and does not overwrite profiles/memberships from Edge', async () => {
+    override = q => q.table === 'team_invite_accept' ? ok({ activated: true, organization_id: org, role: 'cx' }) : undefined;
+    await import('../functions/team-members/index');
+    const response = await handler(request('activate_invite', { invite_id: target, revision: 3 }));
+    expect(response.status).toBe(200); expect(calls.find(q => q.table === 'team_invite_accept')?.value).toEqual({ p_id: target, p_revision: 3 });
+    expect(calls.some(q => ['profiles', 'organization_members'].includes(q.table) && q.operation !== 'select')).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it('cancel/expired acceptance error causes no provisioning or compensating deletion', async () => {
+    override = q => q.table === 'team_invite_accept' ? { data: null, error: { message: 'invite_not_current' } } : undefined;
+    await import('../functions/team-members/index');
+    expect((await handler(request('activate_invite', { invite_id: target, revision: 1 }))).status).toBe(400);
+    expect(calls.some(q => q.table === 'enqueue_wa_akg_seller_provisioning')).toBe(false); expect(state.deleteUser).not.toHaveBeenCalled();
+  });
+  it('accepted seller reports durable provisioning failure honestly, without rolling back identity', async () => {
+    override = q => q.table === 'team_invite_accept' ? ok({ activated: true, organization_id: org, role: 'vendedor' }) : undefined;
+    await import('../functions/team-members/index');
+    const response = await handler(request('activate_invite', { invite_id: target, revision: 1 }));
+    expect(await response.json()).toMatchObject({ ok: true, provisioning_warning: 'seller_provisioning_pending_review' });
+    expect(state.deleteUser).not.toHaveBeenCalled(); expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it('administrator effective permissions remain total despite misleading old false overrides', async () => {
+    override = q => q.table === 'organization_members' ? ok({ role: 'administrador', status: 'active' })
+      : q.table === 'team_member_permissions' ? ok([{ permission: 'team.manage', allowed: false }]) : undefined;
+    await import('../functions/team-members/index');
+    expect(await (await handler(request('permissions_get'))).json()).toMatchObject({ permissions: { 'team.manage': true } });
+    expect((await handler(request('permissions_set', { permissions: { 'team.manage': false } }))).status).toBe(400);
+  });
+  it('cancel uses transaction and surfaces already accepted conflict', async () => {
+    override = q => q.table === 'team_invite_cancel' ? { data: null, error: { message: 'invite_already_accepted' } } : undefined;
+    await import('../functions/team-members/index');
+    expect((await handler(request('invite_cancel', { invite_id: target }))).status).toBe(400);
+    expect(calls.some(q => q.table === 'organization_invites' && q.operation === 'update')).toBe(false);
   });
 });
 
@@ -770,81 +667,18 @@ describe('Integration configuration secret boundary', () => {
   });
 });
 
-describe('Team member creation contract', () => {
-  it('prepares the organization invite before creating the Auth user', async () => {
-    const createUser = vi.fn(async () => ({ data: { user: { id: 'new-team-user' } }, error: null }));
-    state.admin = {
-      from: queryFor,
-      rpc: (name: string, value: Row) => Promise.resolve(execute({ table: name, operation: 'rpc', value, filters: {} })),
-      auth: { admin: { createUser, deleteUser: vi.fn(async () => ({ error: null })) } },
-    };
-    override = (q) => {
-      if (q.table === 'organization_invites' && q.operation === 'select') {
-        return 'organization_id' in q.filters ? ok(null) : ok([]);
-      }
-      if (q.table === 'enqueue_wa_akg_seller_provisioning' && q.operation === 'rpc') {
-        return ok([{ job_id: 'seller-provisioning-job', whatsapp_account_id: 'seller-whatsapp-account', integration_id: 'seller-wa-akg-integration', instance_name: 'seller_new-team-user', state: 'queued' }]);
-      }
-      return undefined;
-    };
-
+describe('R4 invitation delivery — mocked Auth, no emails sent', () => {
+  for (const delivery of ['sent', 'existing_account', 'failed']) it('keeps canonical invite and reports ' + delivery, async () => {
+    const inviteUserByEmail = vi.fn(async () => ({ data: { user: delivery === 'sent' ? { id: 'new-user' } : null }, error: delivery === 'sent' ? null : delivery === 'existing_account' ? { code: 'email_exists', message: 'already registered' } : { message: 'smtp unavailable' } }));
+    state.admin = { from: queryFor, rpc: (name: string, value: Row) => Promise.resolve(execute({ table: name, operation: 'rpc', value, filters: {} })), auth: { admin: { inviteUserByEmail, deleteUser: state.deleteUser } } };
+    override = q => q.table === 'team_invite_prepare' ? ok({ id: 'synthetic-invite', email: 'existing@example.test', revision: 2 }) : undefined;
     await import('../functions/team-members/index');
-    const response = await handler(new Request('https://example.invalid/team-members', {
-      method: 'POST',
-      headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'create', name: 'Novo membro', email: 'MEMBRO@WAYFLEX.IND.BR', password: 'synthetic-password', role: 'vendedor' }),
-    }));
-
-    expect(response.status).toBe(201);
-    expect(await response.json()).toMatchObject({ ok: true, user_id: 'new-team-user' });
-    expect(createUser).toHaveBeenCalledWith(expect.objectContaining({
-      email: 'membro@wayflex.ind.br', email_confirm: true, user_metadata: { name: 'Novo membro' },
-    }));
-    const inviteIndex = calls.findIndex((q) => q.table === 'organization_invites' && q.operation === 'insert');
-    const membershipIndex = calls.findIndex((q) => q.table === 'organization_members' && q.operation === 'upsert');
-    expect(inviteIndex).toBeGreaterThanOrEqual(0);
-    expect(membershipIndex).toBeGreaterThan(inviteIndex);
-    expect(calls[inviteIndex].value).toMatchObject({
-      organization_id: org,
-      email: 'membro@wayflex.ind.br',
-      role: 'vendedor',
-      invited_by: 'owner',
-      accepted_at: null,
-    });
-    expect(calls.find((q) => q.table === 'profiles' && q.operation === 'update')?.value)
-      .toMatchObject({ active_organization_id: org, name: 'Novo membro', email: 'membro@wayflex.ind.br' });
-    expect(calls.find((q) => q.table === 'enqueue_wa_akg_seller_provisioning' && q.operation === 'rpc')?.value)
-      .toMatchObject({ p_organization_id: org, p_user_id: 'new-team-user', p_created_by: 'owner', p_source: 'direct_create' });
-    expect(calls.some((q) => q.table === 'organizations')).toBe(false);
-  });
-
-  it('removes the prepared invite when Auth rejects an existing email', async () => {
-    state.admin = {
-      from: queryFor,
-      rpc: (name: string, value: Row) => Promise.resolve(execute({ table: name, operation: 'rpc', value, filters: {} })),
-      auth: { admin: {
-        createUser: vi.fn(async () => ({ data: { user: null }, error: { code: 'email_exists', message: 'already registered' } })),
-        deleteUser: vi.fn(async () => ({ error: null })),
-      } },
-    };
-    override = (q) => {
-      if (q.table === 'organization_invites' && q.operation === 'select') {
-        return 'organization_id' in q.filters ? ok(null) : ok([]);
-      }
-      return undefined;
-    };
-
-    await import('../functions/team-members/index');
-    const response = await handler(new Request('https://example.invalid/team-members', {
-      method: 'POST',
-      headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'create', name: 'Membro existente', email: 'existing@wayflex.ind.br', password: 'synthetic-password', role: 'administrador' }),
-    }));
-
-    expect(response.status).toBe(400);
-    expect(await response.json()).toMatchObject({ ok: false, erro: 'member_email_already_registered' });
-    expect(calls.some((q) => q.table === 'organization_invites' && q.operation === 'delete')).toBe(true);
-    expect(calls.some((q) => q.table === 'organization_members' && q.operation === 'upsert')).toBe(false);
+    const response = await handler(new Request('https://example.invalid/team-members', { method: 'POST', headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'invite', name: 'Synthetic', email: 'existing@example.test', role: 'vendedor' }) }));
+    expect(response.status).toBe(200); expect(await response.json()).toMatchObject({ ok: true, delivery });
+    expect(inviteUserByEmail).toHaveBeenCalledTimes(1); expect(state.deleteUser).not.toHaveBeenCalled();
+    expect(calls.some(q => q.table === 'enqueue_wa_akg_seller_provisioning')).toBe(false);
+    expect(calls.some(q => q.table === 'organization_members' && q.operation !== 'select')).toBe(false);
+    expect(calls.some(q => q.table === 'organization_invites' && q.operation === 'delete')).toBe(false);
   });
 });
 
@@ -1418,7 +1252,8 @@ describe('Lead workflow compatibility', () => {
 });
 
 describe('Worker safety handler', () => {
-  const job = { id: 'synthetic-job', lead_id: leadId, channel: 'whatsapp', attempt: 0, payload: { text: 'Mensagem sintética', message_id: 'synthetic-draft', agent_run_id: 'synthetic-run', context_last_contact: null, configuration_version_id: anaConfigurationVersionId } };
+  const job = { id: 'synthetic-job', lead_id: leadId, channel: 'whatsapp', attempt: 0, payload: { text: 'Mensagem sintética', message_id: 'synthetic-draft', agent_run_id: 'synthetic-run', context_last_contact: null, configuration_version_id: anaConfigurationVersionId, ana_knowledge_snapshot: undefined as AnaKnowledgeSnapshot | undefined } };
+  beforeEach(async () => { job.payload.ana_knowledge_snapshot = (await readAnaKnowledgeFence(state.admin as never, org)).snapshot; });
   function workerRequest() {
     return new Request('https://example.invalid/automation-worker', { method: 'POST', headers: { Authorization: 'Bearer synthetic-user' }, body: JSON.stringify({ run: 'outreach' }) });
   }
@@ -1433,6 +1268,17 @@ describe('Worker safety handler', () => {
       return undefined;
     };
   }
+  it.each(['missing', 'changed'])('R8 holds an Ana job with %s knowledge authority for review without dispatch', async (mode) => {
+    setupQueue((q) => mode === 'changed' && q.table === 'organization_module_data' && q.filters.module_key === 'commercial_catalog_policy'
+      ? ok({ data: { catalogEnabled: false } }) : undefined);
+    if (mode === 'missing') job.payload.ana_knowledge_snapshot = undefined;
+    await import('../functions/automation-worker/index');
+    expect(await (await handler(workerRequest())).json()).toMatchObject({ ok: true, sent_jobs: 0, failed_jobs: 1 });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(calls.filter(q => q.table === 'outreach_jobs' && q.operation === 'update').at(-1)?.value).toMatchObject({
+      status: 'reconciliation_required', error: mode === 'missing' ? 'ana_knowledge_snapshot_missing' : 'ana_knowledge_context_changed',
+    });
+  });
   it('does not read/send the queue while sandbox is on', async () => {
     override = (q) => q.table === 'company_settings' ? ok({ ...readyCompany, sandbox_mode: true }) : undefined;
     await import('../functions/automation-worker/index');

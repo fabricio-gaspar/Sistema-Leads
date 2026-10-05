@@ -59,7 +59,7 @@ describe('EvolutionGoProvider', () => {
       .mockResolvedValueOnce(new Response(JSON.stringify({ data: { qrcode: 'data:image/png;base64,synthetic', code: '123-456' } }), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ data: { pairingCode: 'ABC-123' } }), { status: 200 }));
     const provider = new EvolutionGoProvider({ baseUrl: 'https://evolution.wayflex.example', instanceToken: 'token', allowedOrigins, fetchImpl: fetchMock });
-    await expect(provider.status()).resolves.toEqual({ connected: true, loggedIn: true, phone: '5511988887777@s.whatsapp.net', name: 'Comercial' });
+    await expect(provider.status()).resolves.toEqual({ connected: true, loggedIn: true, phone: '5511988887777@s.whatsapp.net', name: 'Comercial', confirmed: true });
     await expect(provider.qr()).resolves.toMatchObject({ qrcode: 'data:image/png;base64,synthetic', pairingCode: '123-456' });
     await expect(provider.pair('5511988887777')).resolves.toBe('ABC-123');
     expect(String(fetchMock.mock.calls[1][0])).toBe('https://evolution.wayflex.example/instance/qr');
@@ -72,8 +72,24 @@ describe('EvolutionGoProvider', () => {
       .mockResolvedValueOnce(new Response(JSON.stringify({ data: { PairingCode: '87654321' } }), { status: 200 }));
     const provider = new EvolutionGoProvider({ baseUrl: 'https://evolution.wayflex.example', instanceToken: 'token', allowedOrigins, fetchImpl: fetchMock });
 
-    await expect(provider.status()).resolves.toEqual({ connected: true, loggedIn: true, phone: undefined, name: 'Comercial GO' });
+    await expect(provider.status()).resolves.toEqual({ connected: true, loggedIn: true, phone: undefined, name: 'Comercial GO', confirmed: true });
     await expect(provider.pair('5511988887777')).resolves.toBe('87654321');
+  });
+
+  it.each([
+    { label: 'absent fields', data: {}, connected: false, loggedIn: false, confirmed: false },
+    { label: 'explicitly disconnected', data: { connected: false, loggedIn: false }, connected: false, loggedIn: false, confirmed: true },
+    { label: 'incomplete connection', data: { connected: true }, connected: true, loggedIn: false, confirmed: false },
+    { label: 'string booleans', data: { connected: 'true', loggedIn: 'true' }, connected: false, loggedIn: false, confirmed: false },
+    { label: 'malformed original casing', data: { Connected: true, LoggedIn: 'true' }, connected: true, loggedIn: false, confirmed: false },
+  ])('requires explicit boolean evidence for status confirmation: $label', async ({ data, connected, loggedIn, confirmed }) => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ data }), { status: 200 }));
+    const provider = new EvolutionGoProvider({ baseUrl: 'https://evolution.wayflex.example', instanceToken: 'token', allowedOrigins, fetchImpl: fetchMock });
+
+    await expect(provider.status()).resolves.toEqual({ connected, loggedIn, phone: undefined, name: undefined, confirmed });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(String(fetchMock.mock.calls[0][0])).toBe('https://evolution.wayflex.example/instance/status');
+    expect(fetchMock.mock.calls[0][1]?.method).toBe('GET');
   });
 
   it('uses Evolution GO v0.7 event names while connecting and renders the image returned in code', async () => {

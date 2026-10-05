@@ -1,0 +1,30 @@
+<!doctype html><html lang="pt-BR"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Teste isolado R9/R12</title></head><body><div id="root"></div>
+<script type="module">
+import React, { useState } from 'react';
+import { createRoot } from 'react-dom/client';
+import InfoTooltip from '/src/components/feature/InfoTooltip.tsx';
+import CsvImportModal from '/src/components/feature/CsvImportModal.tsx';
+import ChannelLifecycleRecovery from '/src/components/feature/ChannelLifecycleRecovery.tsx';
+import '/src/index.css';
+import '/src/components/feature/wayflex-visual.css';
+const h=React.createElement;
+window.__imports=[];
+window.__reviews=[];window.__reconciled=0;
+const review=async(provider,accountId,reconciliation)=>{window.__reviews.push({provider,accountId,reconciliation});return {
+  lifecycle:{state:'needs_review',revision:7,desiredAction:'refresh_status',errorCode:null},
+  recovery:{eligible:window.__eligible!==false,reason:window.__eligible===false?'external_mutation_terminality_unproven':'read_only',observedConnected:true,observedAt:null,requiresAdmin:true,retainsLocalCutoff:true,...(reconciliation?{reconciled:true}:{})}};};
+function Harness(){
+  const [open,setOpen]=useState(false);
+  const [recoveryKey,setRecoveryKey]=useState(0);
+  return h('main',{style:{padding:32}},h('h1',null,'Somente componentes e dados sintéticos'),
+    h('button',{onClick:()=>setOpen(true),id:'open-csv'},'Abrir CSV de teste'),
+    h(InfoTooltip,{text:'Ajuda sintética. '.repeat(70),label:'Ajuda de teste'}),
+    h('button',{id:'outside',style:{display:'block',marginTop:300}},'Fora da ajuda'),
+    h('button',{id:'reset-recovery',onClick:()=>{window.__eligible=false;setRecoveryKey(value=>value+1);}},'Cenário incerto sintético'),
+    h(ChannelLifecycleRecovery,{key:recoveryKey,provider:'wa_akg',accountId:'synthetic-only',review,onReconciled:async()=>{window.__reconciled++;}}),
+    open&&h(CsvImportModal,{titulo:'CSV sintético',subtitulo:'Sem backend ou operação real',
+      campos:[{chave:'nome',rotulo:'Nome',obrigatorio:true},{chave:'nota',rotulo:'Nota'}],
+      onClose:()=>setOpen(false),onImportar:rows=>{window.__imports.push(rows);return {importados:rows.length,duplicados:0};}}));
+}
+createRoot(document.getElementById('root')).render(h(Harness));
+</script></body></html>

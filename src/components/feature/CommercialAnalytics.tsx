@@ -1,3 +1,4 @@
+import { escapeCsvCell } from '@/lib/csv';
 import { useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router-dom';
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
@@ -45,7 +46,7 @@ export default function CommercialAnalytics({ mode = 'overview', aside }: { mode
   const metric = (value: number) => ready ? format(value) : '—';
   const exportCsv = () => {
     if (!ready) return;
-    const escape = (value: string) => `"${(/^[=+@\-\t\r]/.test(value) ? "'" : '') + value.replaceAll('"', '""')}"`;
+    const escape = escapeCsvCell;
     const rows = [['Empresa', 'Contato', 'Segmento', 'Score', 'Origem', 'Responsável', 'Etapa', 'Data de cadastro', 'Na carteira'], ...analytics.cohort.map((lead) => [lead.empresa, lead.nome, lead.segmento, String(lead.score), lead.origem, lead.responsavel, lead.etapa, lead.criadoEm, analytics.pipeline.some((item) => item.id === lead.id) ? 'Sim' : 'Não'])];
     const blob = new Blob(['\uFEFF', rows.map((row) => row.map(escape).join(';')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob); const anchor = document.createElement('a'); anchor.href = url; anchor.download = `wayflex-${analytics.range.start}-${analytics.range.end}.csv`; anchor.click(); URL.revokeObjectURL(url);
@@ -53,7 +54,7 @@ export default function CommercialAnalytics({ mode = 'overview', aside }: { mode
   const metrics = mode === 'overview' ? [
     { title: 'Novos leads', value: metric(analytics.cohort.length), note: ready ? analytics.growth === null ? 'Sem comparação percentual' : `${analytics.growth >= 0 ? '+' : ''}${rate(analytics.growth)} vs. período anterior` : 'Aguardando leitura', help: 'Leads persistidos no CRM, criados no período. Resultados de busca ainda não importados não entram nesta contagem.' },
     { title: 'Na carteira', value: metric(analytics.pipeline.length), note: 'Mesma regra do Kanban', help: 'Leads não arquivados com modo e responsável atribuídos. O contato pode continuar bloqueado por falta de autorização.' },
-    { title: 'Mensagens hoje', value: metric(analytics.days.reduce((total, day) => total + day.recebidas + day.enviadas, 0)), note: 'Recebidas e envios aceitos', help: 'Atividade de contato no recorte selecionado. Um envio aceito não comprova entrega ou leitura.' },
+    { title: 'Mensagens no período', value: metric(analytics.days.reduce((total, day) => total + day.recebidas + day.enviadas, 0)), note: 'Recebidas e envios aceitos', help: 'Atividade de contato no recorte selecionado. Um envio aceito não comprova entrega ou leitura.' },
     { title: 'Orçamentos abertos', value: metric(analytics.openProposals.length), note: ready ? currency(analytics.expectedValue) : '—', help: 'Propostas criadas no período, Enviadas ou Visualizadas, ligadas à carteira. Valor líquido do desconto; não é receita reconhecida.' },
     { title: 'Conversão', value: ready ? rate(analytics.conversion) : '—', note: ready ? `${analytics.won.length} ganhos / ${analytics.pipeline.length} na carteira${analytics.pipeline.length > 0 && analytics.pipeline.length < 10 ? ' · base pequena' : ''}` : 'Aguardando leitura', help: 'Situação atual dos leads criados no período: ganhos divididos pela carteira atribuída. Base zero não produz percentual. Uma base pequena tem baixa estabilidade.' },
   ] : [

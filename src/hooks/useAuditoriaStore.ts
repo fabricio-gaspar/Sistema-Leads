@@ -22,6 +22,7 @@ export function useAuditoriaStore(): {
   registrar: (dados: { evento: string; ator: string; alvo: string; detalhes: string }) => RegistroAuditoria;
 } {
   const registros = store.useStore();
+  const setStore = store.bindSet();
 
   const registrar = (dados: { evento: string; ator: string; alvo: string; detalhes: string }): RegistroAuditoria => {
     const novo: RegistroAuditoria = {
@@ -32,7 +33,7 @@ export function useAuditoriaStore(): {
       detalhes: dados.detalhes,
       data: dataHora(),
     };
-    store.set((prev) => [novo, ...prev].slice(0, 500));
+    setStore((prev) => [novo, ...prev].slice(0, 500));
     return novo;
   };
 

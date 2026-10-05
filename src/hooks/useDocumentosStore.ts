@@ -14,11 +14,12 @@ export interface DocumentosStore {
 
 export function useDocumentosStore(): DocumentosStore {
   const docs = store.useStore();
+  const setStore = store.bindSet();
 
-  const adicionar = (doc: Documento) => store.set((prev) => [doc, ...prev]);
+  const adicionar = (doc: Documento) => setStore((prev) => [doc, ...prev]);
   const atualizar = (id: string, mudanca: Partial<Documento>) =>
-    store.set((prev) => prev.map((d) => (d.id === id ? { ...d, ...mudanca } : d)));
-  const excluir = (id: string) => store.set((prev) => prev.filter((d) => d.id !== id));
+    setStore((prev) => prev.map((d) => (d.id === id ? { ...d, ...mudanca } : d)));
+  const excluir = (id: string) => setStore((prev) => prev.filter((d) => d.id !== id));
 
   return { docs, adicionar, atualizar, excluir };
 }

@@ -14,11 +14,12 @@ export interface EquipeStore {
 
 export function useEquipeStore(): EquipeStore {
   const membros = store.useStore();
+  const setStore = store.bindSet();
 
-  const adicionar = (membro: Membro) => store.set((prev) => [...prev, membro]);
+  const adicionar = (membro: Membro) => setStore((prev) => [...prev, membro]);
   const atualizar = (id: string, mudanca: Partial<Membro>) =>
-    store.set((prev) => prev.map((m) => (m.id === id ? { ...m, ...mudanca } : m)));
-  const excluir = (id: string) => store.set((prev) => prev.filter((m) => m.id !== id));
+    setStore((prev) => prev.map((m) => (m.id === id ? { ...m, ...mudanca } : m)));
+  const excluir = (id: string) => setStore((prev) => prev.filter((m) => m.id !== id));
 
   return { membros, adicionar, atualizar, excluir };
 }

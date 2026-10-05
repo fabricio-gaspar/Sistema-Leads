@@ -1,0 +1,810 @@
+{
+  "observedAt": "2026-10-05T23:00:19Z",
+  "scope": "Read-only deployment/migration/security metadata; no business rows or writes",
+  "localMigrationCount": 128,
+  "remoteMigrationCount": 171,
+  "remoteOnlyVersions": [
+    {
+      "version": "20260811001327",
+      "name": "49fcae01-e7c1-49a8-bf14-75046dfdd3c6"
+    },
+    {
+      "version": "20260811133722",
+      "name": "10299de0-9cb8-471c-b0f0-d0851d721baa"
+    },
+    {
+      "version": "20260811141835",
+      "name": "a47e8ec4-0c4d-468c-8c45-f108dacb20b2"
+    },
+    {
+      "version": "20260811142020",
+      "name": "00e46d0d-a170-4232-b441-398eeffada58"
+    },
+    {
+      "version": "20260811142111",
+      "name": "7cf6cfda-08bb-45e9-aafb-e4e2db340383"
+    },
+    {
+      "version": "20260811142215",
+      "name": "a7118105-ed75-4887-840e-e2d98475cbde"
+    },
+    {
+      "version": "20260811150015",
+      "name": "9581231f-b628-4fae-aabd-a971616ecf4a"
+    },
+    {
+      "version": "20260811150205",
+      "name": "3f209e79-8d4c-4111-b8c5-7785acdb5ad9"
+    },
+    {
+      "version": "20260811150718",
+      "name": "32911650-ef96-43a6-8c54-0bdf4ba5e82c"
+    },
+    {
+      "version": "20260811165555",
+      "name": "72f30612-d3a5-40dc-b3ed-5593b0aca1f7"
+    },
+    {
+      "version": "20260811165921",
+      "name": "5cdb6bd9-e498-4e83-b2a9-21adc520af4a"
+    },
+    {
+      "version": "20260811170021",
+      "name": "6b2a72e3-9745-44c4-ab05-30c88c9eb843"
+    },
+    {
+      "version": "20260811170102",
+      "name": "a0739ad6-6b6f-42d9-8d0b-f5fa50b4b74c"
+    },
+    {
+      "version": "20260811170638",
+      "name": "c2132635-961a-4b7b-989e-485a5c1f771e"
+    },
+    {
+      "version": "20260812224754",
+      "name": "secure_multitenant_sandbox_foundation"
+    },
+    {
+      "version": "20260812225009",
+      "name": "harden_function_execute_privileges"
+    },
+    {
+      "version": "20260812225055",
+      "name": "fix_invite_activation_order"
+    },
+    {
+      "version": "20260812231132",
+      "name": "index_foreign_keys"
+    },
+    {
+      "version": "20260812231248",
+      "name": "optimize_auth_rls_initplans"
+    },
+    {
+      "version": "20260812231415",
+      "name": "consolidate_membership_read_policies"
+    },
+    {
+      "version": "20260812234521",
+      "name": "fix_membership_audit_trigger"
+    },
+    {
+      "version": "20260813130731",
+      "name": "complete_commercial_core"
+    },
+    {
+      "version": "20260813130834",
+      "name": "optimize_commercial_core_policies"
+    },
+    {
+      "version": "20260813131900",
+      "name": "reconcile_runtime_schema"
+    },
+    {
+      "version": "20260813132241",
+      "name": "reconcile_handoff_contract"
+    },
+    {
+      "version": "20260813202917",
+      "name": "commercial_autonomy_foundation"
+    },
+    {
+      "version": "20260813203207",
+      "name": "automation_contract_and_templates"
+    },
+    {
+      "version": "20260813203611",
+      "name": "commercial_domain_event_triggers"
+    },
+    {
+      "version": "20260813204540",
+      "name": "optimize_autonomy_rls_and_indexes"
+    },
+    {
+      "version": "20260813205117",
+      "name": "seed_safe_sandbox_scenario"
+    },
+    {
+      "version": "20260814215455",
+      "name": "5ab20099-3d5d-42ad-9b38-b3b1698c43a5"
+    },
+    {
+      "version": "20260814215558",
+      "name": "293be5f2-2076-47a4-9008-366345777973"
+    },
+    {
+      "version": "20260814215637",
+      "name": "f79092f0-bb5e-425a-95cd-af5875433d03"
+    },
+    {
+      "version": "20260814215653",
+      "name": "7f9d7a46-48f1-423f-95e1-97a106b1018c"
+    },
+    {
+      "version": "20260814220528",
+      "name": "fcf847c4-0444-42a8-9700-7c233170d4d0"
+    },
+    {
+      "version": "20260817195604",
+      "name": "repair_multitenant_security_foundation"
+    },
+    {
+      "version": "20260817195805",
+      "name": "consolidate_identity_policies"
+    },
+    {
+      "version": "20260817200056",
+      "name": "fix_returning_rls_policies"
+    },
+    {
+      "version": "20260817200236",
+      "name": "seed_missing_lead_sources"
+    },
+    {
+      "version": "20260817202933",
+      "name": "prospecting_preflight_governance"
+    },
+    {
+      "version": "20260817203548",
+      "name": "protect_preflight_cache_snapshot"
+    },
+    {
+      "version": "20260817203804",
+      "name": "optimize_prospecting_preflight_rls"
+    },
+    {
+      "version": "20260817205209",
+      "name": "commercial_lead_lifecycle_queue"
+    },
+    {
+      "version": "20260818121437",
+      "name": "crm_accounts_contacts_foundation"
+    },
+    {
+      "version": "20260818122230",
+      "name": "voice_outcomes_and_attribution"
+    },
+    {
+      "version": "20260818123244",
+      "name": "index_crm_identity_foreign_keys"
+    },
+    {
+      "version": "20260820191048",
+      "name": "3a265dc9-db92-4e0b-9fe2-6a6af9700e03"
+    },
+    {
+      "version": "20260820191113",
+      "name": "bfb8674e-b063-47f6-927d-f847e0b261fa"
+    },
+    {
+      "version": "20260821143528",
+      "name": "create_app_user_connections"
+    },
+    {
+      "version": "20260821143708",
+      "name": "app_user_connections_service_role_policy"
+    },
+    {
+      "version": "20260821231358",
+      "name": "leadai_operational_hardening"
+    },
+    {
+      "version": "20260822125316",
+      "name": "fix_lead_search_security"
+    },
+    {
+      "version": "20260822125507",
+      "name": "harden_current_org_id"
+    },
+    {
+      "version": "20260822133342",
+      "name": "harden_lead_search_runtime"
+    },
+    {
+      "version": "20260822184813",
+      "name": "integration_control_center"
+    },
+    {
+      "version": "20260828124837",
+      "name": "phase_12_reconcile_security"
+    },
+    {
+      "version": "20260828130723",
+      "name": "phase_12_ana_server_boundary"
+    },
+    {
+      "version": "20260828182438",
+      "name": "reconcile_ana_quote_preparation"
+    },
+    {
+      "version": "20260831190509",
+      "name": "ana_orchestrator_runtime"
+    },
+    {
+      "version": "20260831191901",
+      "name": "ana_existing_leads_safe_mode"
+    },
+    {
+      "version": "20260903142959",
+      "name": "finalize_wayflex_security_and_scope"
+    },
+    {
+      "version": "20260903143232",
+      "name": "secure_ana_configuration"
+    },
+    {
+      "version": "20260903144141",
+      "name": "finalize_ana_runtime"
+    },
+    {
+      "version": "20260903144625",
+      "name": "align_openai_integration"
+    },
+    {
+      "version": "20260903165056",
+      "name": "reconcile_operational_frontend"
+    },
+    {
+      "version": "20260903211121",
+      "name": "index_reconciled_operational_tables"
+    },
+    {
+      "version": "20260904203407",
+      "name": "normalize_zapi_phone_and_ana_knowledge_memory"
+    },
+    {
+      "version": "20260904205301",
+      "name": "import_wayflex_approved_ana_memory"
+    },
+    {
+      "version": "20260906123543",
+      "name": "allow_claude_provider"
+    },
+    {
+      "version": "20260906130254",
+      "name": "ana_approved_knowledge_library"
+    },
+    {
+      "version": "20260910182135",
+      "name": "fix_test_lead_cleanup_ambiguity"
+    },
+    {
+      "version": "20260910182236",
+      "name": "preserve_immutable_logs_in_test_cleanup"
+    },
+    {
+      "version": "20260910182420",
+      "name": "allow_real_mode_with_registered_zapi_webhook"
+    },
+    {
+      "version": "20260910221525",
+      "name": "reconcile_handoffs_and_human_messages_20260910"
+    },
+    {
+      "version": "20260910221534",
+      "name": "enforce_ana_cadence_policy_20260910"
+    },
+    {
+      "version": "20260910221544",
+      "name": "reserve_whatsapp_direct_test_20260910"
+    },
+    {
+      "version": "20260910225346",
+      "name": "refresh_wayflex_official_ana_catalog"
+    },
+    {
+      "version": "20260911122344",
+      "name": "sync_legacy_scheduler_heartbeat"
+    },
+    {
+      "version": "20260911205122",
+      "name": "enable_lead_messages_realtime"
+    },
+    {
+      "version": "20260913184402",
+      "name": "ana_autonomous_operation_and_commercial_alerts"
+    },
+    {
+      "version": "20260913184658",
+      "name": "commercial_alert_preferences"
+    },
+    {
+      "version": "20260913185032",
+      "name": "fix_commercial_alert_app_roles"
+    },
+    {
+      "version": "20260913185119",
+      "name": "index_ana_operation_foreign_keys"
+    },
+    {
+      "version": "20260917202503",
+      "name": "daily_whatsapp_lead_reports"
+    },
+    {
+      "version": "20260918194743",
+      "name": "commercial_knowledge_catalog"
+    },
+    {
+      "version": "20260918200258",
+      "name": "index_commercial_knowledge_foreign_keys"
+    },
+    {
+      "version": "20260918201112",
+      "name": "consolidate_commercial_knowledge_policies"
+    },
+    {
+      "version": "20260922142724",
+      "name": "ana_automatic_routing_and_validation"
+    },
+    {
+      "version": "20260922143539",
+      "name": "prospecting_schedule_assignment_fk_indexes"
+    },
+    {
+      "version": "20260923145752",
+      "name": "catalog_media_whatsapp_queue"
+    },
+    {
+      "version": "20260923195949",
+      "name": "explicit_central_handoff_assignee"
+    },
+    {
+      "version": "20260923214152",
+      "name": "multi_whatsapp_seller_accounts"
+    },
+    {
+      "version": "20260923214542",
+      "name": "multi_whatsapp_fk_indexes"
+    },
+    {
+      "version": "20260924205357",
+      "name": "meta_coexistence_foundation"
+    },
+    {
+      "version": "20260924205458",
+      "name": "meta_coexistence_hardening"
+    },
+    {
+      "version": "20260924205858",
+      "name": "meta_coexistence_message_integrity"
+    },
+    {
+      "version": "20260925142124",
+      "name": "whatsapp_provider_activation_controls"
+    },
+    {
+      "version": "20260925160307",
+      "name": "prospecting_resume_atomic_results"
+    },
+    {
+      "version": "20260925160943",
+      "name": "prospecting_cache_transition_recovery"
+    },
+    {
+      "version": "20260925191831",
+      "name": "validate_active_lead_assignee"
+    },
+    {
+      "version": "20260925191946",
+      "name": "prioritize_lead_assignee_validation"
+    },
+    {
+      "version": "20260926115800",
+      "name": "catalog_qualification_guides"
+    },
+    {
+      "version": "20260926120904",
+      "name": "lead_technical_dossier"
+    },
+    {
+      "version": "20260926225535",
+      "name": "prospecting_run_idempotency"
+    },
+    {
+      "version": "20260926231632",
+      "name": "prospecting_legacy_recovery"
+    },
+    {
+      "version": "20260927122315",
+      "name": "canonical_stage_transitions_and_history"
+    },
+    {
+      "version": "20260927122749",
+      "name": "persist_lead_archival"
+    },
+    {
+      "version": "20260927124323",
+      "name": "proposal_delivery_projection"
+    },
+    {
+      "version": "20260927124532",
+      "name": "index_leads_archived_by"
+    },
+    {
+      "version": "20260927130334",
+      "name": "dashboard_ana_automatic_control"
+    },
+    {
+      "version": "20260927180537",
+      "name": "preserve_whatsapp_connection_state_when_provider_paused"
+    },
+    {
+      "version": "20260927193211",
+      "name": "fix_whatsapp_account_resolver_ambiguity"
+    },
+    {
+      "version": "20260927195241",
+      "name": "fix_proposal_delivery_outreach_ordering"
+    },
+    {
+      "version": "20260928171925",
+      "name": "kanban_operational_portfolio"
+    },
+    {
+      "version": "20260928172341",
+      "name": "kanban_saved_views_fk_index"
+    },
+    {
+      "version": "20260928185708",
+      "name": "central_atendimento_inbox"
+    },
+    {
+      "version": "20260928191132",
+      "name": "central_atendimento_realtime"
+    },
+    {
+      "version": "20260928191315",
+      "name": "central_atendimento_read_state_fk_indexes"
+    },
+    {
+      "version": "20260928191616",
+      "name": "central_atendimento_channel_provider"
+    },
+    {
+      "version": "20260928192037",
+      "name": "central_atendimento_inbox_counts"
+    },
+    {
+      "version": "20260929114225",
+      "name": "agenda_operational_workspace"
+    },
+    {
+      "version": "20260929172150",
+      "name": "users_access_lifecycle"
+    },
+    {
+      "version": "20260929224104",
+      "name": "fix_central_inbox_bounds"
+    },
+    {
+      "version": "20260929224214",
+      "name": "fix_central_inbox_least"
+    },
+    {
+      "version": "20261003194220",
+      "name": "evolution_go_channel_foundation"
+    },
+    {
+      "version": "20261003230245",
+      "name": "transfer_whatsapp_channel_with_assignee"
+    },
+    {
+      "version": "20261003230257",
+      "name": "evolution_go_seller_auto_provisioning"
+    },
+    {
+      "version": "20261003233405",
+      "name": "index_evolution_go_seller_provisioning_foreign_keys"
+    },
+    {
+      "version": "20261004182302",
+      "name": "harden_member_data_purge"
+    },
+    {
+      "version": "20261004184933",
+      "name": "revoke_member_auth_sessions"
+    },
+    {
+      "version": "20261004190328",
+      "name": "remove_unsafe_storage_purge"
+    },
+    {
+      "version": "20261004190937",
+      "name": "list_user_owned_storage"
+    },
+    {
+      "version": "20261005012004",
+      "name": "wa_akg_provider_foundation"
+    },
+    {
+      "version": "20261005012505",
+      "name": "wa_akg_security_indexes"
+    }
+  ],
+  "localOnlyFiles": [
+    "supabase/migrations/20260910190000_reserve_whatsapp_direct_test.sql",
+    "supabase/migrations/20260903144000_secure_ana_configuration.sql",
+    "supabase/migrations/20260903090000_finalize_wayflex_security_and_scope.sql",
+    "supabase/migrations/20260927133000_persist_lead_archival.sql",
+    "supabase/migrations/20260926085704_catalog_qualification_guides.sql",
+    "supabase/migrations/20260926131000_prospecting_legacy_recovery.sql",
+    "supabase/migrations/20261003223000_transfer_whatsapp_channel_with_assignee.sql",
+    "supabase/migrations/20261005012800_wa_akg_security_indexes.sql",
+    "supabase/migrations/20260927193046_fix_whatsapp_account_resolver_ambiguity.sql",
+    "supabase/migrations/20260926123000_lead_technical_dossier.sql",
+    "supabase/migrations/20260928192500_central_atendimento_channel_provider.sql",
+    "supabase/migrations/20260929194000_fix_central_inbox_bounds.sql",
+    "supabase/migrations/20260826205811_phase_6_sales_receivables_operational.sql",
+    "supabase/migrations/20260928192000_central_atendimento_read_state_fk_indexes.sql",
+    "supabase/migrations/20260922120000_prospecting_schedule_assignment_fk_indexes.sql",
+    "supabase/migrations/20261005220138_audit_r2_account_lifecycle.sql",
+    "supabase/migrations/20260911110000_sync_legacy_scheduler_heartbeat.sql",
+    "supabase/migrations/20260918211000_consolidate_commercial_knowledge_policies.sql",
+    "supabase/migrations/20260828141500_phase_12_ana_server_boundary.sql",
+    "supabase/migrations/20260923133000_catalog_media_whatsapp_queue.sql",
+    "supabase/migrations/20261005220137_audit_r1_access_hardening.sql",
+    "supabase/migrations/20260928190000_central_atendimento_inbox.sql",
+    "supabase/migrations/20260917213000_daily_whatsapp_lead_reports.sql",
+    "supabase/migrations/20261004200000_remove_unsafe_storage_purge.sql",
+    "supabase/migrations/20260922113000_ana_automatic_routing_and_validation.sql",
+    "supabase/migrations/20260826195018_phase_2_crm_operational_core.sql",
+    "supabase/migrations/20260927160000_preserve_whatsapp_connection_state_when_provider_paused.sql",
+    "supabase/migrations/20260913193000_index_ana_operation_foreign_keys.sql",
+    "supabase/migrations/20260925191735_validate_active_lead_assignee.sql",
+    "supabase/migrations/20261004201000_list_user_owned_storage.sql",
+    "supabase/migrations/20260904143000_update_integration_secret_in_place.sql",
+    "supabase/migrations/20260928154000_kanban_operational_portfolio.sql",
+    "supabase/migrations/20260904205156_import_wayflex_approved_ana_memory.sql",
+    "supabase/migrations/20260826191633_phase_1_commercial_foundation.sql",
+    "supabase/migrations/20260906133000_ana_approved_knowledge_library.sql",
+    "supabase/migrations/20261005223517_audit_r6_r7_messaging_recovery.sql",
+    "supabase/migrations/20260927195156_fix_proposal_delivery_outreach_ordering.sql",
+    "supabase/migrations/20260906124000_allow_claude_provider.sql",
+    "supabase/migrations/20260923214500_multi_whatsapp_fk_indexes.sql",
+    "supabase/migrations/20260929150000_users_access_lifecycle.sql",
+    "supabase/migrations/20260826204000_phase_4_operational_catalog_and_campaigns.sql",
+    "supabase/migrations/20260829194500_secure_integration_credentials.sql",
+    "supabase/migrations/20260926130000_prospecting_run_idempotency.sql",
+    "supabase/migrations/20260928193000_central_atendimento_inbox_counts.sql",
+    "supabase/migrations/20260826204655_phase_5_cpq_proposals_operational.sql",
+    "supabase/migrations/20260910195000_refresh_wayflex_official_ana_catalog.sql",
+    "supabase/migrations/20260927143000_proposal_delivery_projection.sql",
+    "supabase/migrations/20260910170000_reconcile_handoffs_and_human_messages.sql",
+    "supabase/migrations/20260923193000_multi_whatsapp_seller_accounts.sql",
+    "supabase/migrations/20260928191000_central_atendimento_realtime.sql",
+    "supabase/migrations/20260918210000_index_commercial_knowledge_foreign_keys.sql",
+    "supabase/migrations/20260924161500_meta_coexistence_hardening.sql",
+    "supabase/migrations/20260910183000_enforce_ana_cadence_policy.sql",
+    "supabase/migrations/20260913182736_ana_autonomous_operation_and_commercial_alerts.sql",
+    "supabase/migrations/20260831154500_ana_orchestrator_runtime.sql",
+    "supabase/migrations/20260924163000_meta_coexistence_message_integrity.sql",
+    "supabase/migrations/20260925162000_prospecting_cache_transition_recovery.sql",
+    "supabase/migrations/20260903171500_index_reconciled_operational_tables.sql",
+    "supabase/migrations/20260903150000_finalize_ana_runtime.sql",
+    "supabase/migrations/20260927143500_index_leads_archived_by.sql",
+    "supabase/migrations/20260929194500_fix_central_inbox_least.sql",
+    "supabase/migrations/20260827160000_phase_8_operational_core.sql",
+    "supabase/migrations/20260927130054_dashboard_ana_automatic_control.sql",
+    "supabase/migrations/20261005005823_wa_akg_provider_foundation.sql",
+    "supabase/migrations/20261004195000_revoke_member_auth_sessions.sql",
+    "supabase/migrations/20260828140000_phase_12_reconcile_security.sql",
+    "supabase/migrations/20260903152000_align_openai_integration.sql",
+    "supabase/migrations/20260918203000_commercial_knowledge_catalog.sql",
+    "supabase/migrations/20260928220000_agenda_operational_workspace.sql",
+    "supabase/migrations/20261005223638_audit_r4_team_access.sql",
+    "supabase/migrations/20261005225107_audit_r11_prospecting_location_guard.sql",
+    "supabase/migrations/20260925191900_prioritize_lead_assignee_validation.sql",
+    "supabase/migrations/20260904201808_normalize_zapi_phone.sql",
+    "supabase/migrations/20260828190000_reconcile_ana_quote_preparation.sql",
+    "supabase/migrations/20260903170000_reconcile_operational_frontend.sql",
+    "supabase/migrations/20260927130000_canonical_stage_transitions_and_history.sql",
+    "supabase/migrations/20260925150000_whatsapp_provider_activation_controls.sql",
+    "supabase/migrations/20260923170000_explicit_central_handoff_assignee.sql",
+    "supabase/migrations/20260826200531_phase_3_lists_campaigns_cpq.sql",
+    "supabase/migrations/20260913191500_fix_commercial_alert_app_roles.sql",
+    "supabase/migrations/20261003185824_evolution_go_channel_foundation.sql",
+    "supabase/migrations/20261005220139_audit_r3_receipt_reconciliation.sql",
+    "supabase/migrations/20261005223557_audit_r9_agenda_next_action_atomic.sql",
+    "supabase/migrations/20260904141000_align_lead_source_connection_status.sql",
+    "supabase/migrations/20260831162000_ana_existing_leads_safe_mode.sql",
+    "supabase/migrations/20261004193000_harden_member_data_purge.sql",
+    "supabase/migrations/20260928165000_kanban_saved_views_fk_index.sql",
+    "supabase/migrations/20260913190000_commercial_alert_preferences.sql",
+    "supabase/migrations/20260924160000_meta_coexistence_foundation.sql",
+    "supabase/migrations/20260911180000_enable_lead_messages_realtime.sql",
+    "supabase/migrations/20260925160000_prospecting_resume_atomic_results.sql"
+  ],
+  "note": "Version mismatch is not proof of absent schema: historical migrations were published under different timestamps. Do not db push/replay the full chain. Compare object definitions and apply reviewed deltas on staging.",
+  "deployedAna": {
+    "version": 5,
+    "artifactSha256": "029f79d11fc9ab53226d2a79c365abe7e03df48650f11cced3de91fdf91435d1",
+    "sharedHttpMatchesLocal": false,
+    "sharedHttpLocalLength": 2896,
+    "sharedHttpRemoteLength": 2221
+  },
+  "securityAdvisor": {
+    "lints": [
+      {
+        "name": "rls_enabled_no_policy",
+        "title": "RLS Enabled No Policy",
+        "level": "INFO",
+        "facing": "EXTERNAL",
+        "categories": [
+          "SECURITY"
+        ],
+        "description": "Detects cases where row level security (RLS) has been enabled on a table but no RLS policies have been created.",
+        "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy",
+        "count": 5,
+        "findings": [
+          {
+            "detail": "Table \\`public.daily_lead_report_deliveries\\` has RLS enabled, but no policies exist",
+            "metadata": {
+              "name": "daily_lead_report_deliveries",
+              "type": "table",
+              "schema": "public"
+            },
+            "observed_at": "2026-10-05T23:00:19.677Z"
+          },
+          {
+            "detail": "Table \\`public.evolution_go_seller_provisioning_jobs\\` has RLS enabled, but no policies exist",
+            "metadata": {
+              "name": "evolution_go_seller_provisioning_jobs",
+              "type": "table",
+              "schema": "public"
+            },
+            "observed_at": "2026-10-05T23:00:19.677Z"
+          },
+          {
+            "detail": "Table \\`public.evolution_go_webhook_events\\` has RLS enabled, but no policies exist",
+            "metadata": {
+              "name": "evolution_go_webhook_events",
+              "type": "table",
+              "schema": "public"
+            },
+            "observed_at": "2026-10-05T23:00:19.677Z"
+          },
+          {
+            "detail": "Table \\`public.handoff_whatsapp_deliveries\\` has RLS enabled, but no policies exist",
+            "metadata": {
+              "name": "handoff_whatsapp_deliveries",
+              "type": "table",
+              "schema": "public"
+            },
+            "observed_at": "2026-10-05T23:00:19.677Z"
+          },
+          {
+            "detail": "Table \\`public.lead_whatsapp_account_bindings\\` has RLS enabled, but no policies exist",
+            "metadata": {
+              "name": "lead_whatsapp_account_bindings",
+              "type": "table",
+              "schema": "public"
+            },
+            "observed_at": "2026-10-05T23:00:19.677Z"
+          }
+        ]
+      },
+      {
+        "name": "authenticated_security_definer_function_executable",
+        "title": "Signed-In Users Can Execute SECURITY DEFINER Function",
+        "level": "WARN",
+        "facing": "EXTERNAL",
+        "categories": [
+          "SECURITY"
+        ],
+        "description": "Detects `SECURITY DEFINER` functions that are callable by signed-in users. Revoke `EXECUTE`, switch the function to `SECURITY INVOKER`, or move it out of your exposed API schema if signed-in users should not call it.",
+        "remediation": "https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable",
+        "count": 6,
+        "findings": [
+          {
+            "detail": "Function `public.assign_human_handoff(p_lead_id uuid, p_reason text, p_category text, p_target_user_id uuid)` can be executed by the `authenticated` role as a `SECURITY DEFINER` function via `/rest/v1/rpc/assign_human_handoff`. Revoke `EXECUTE` or switch it to `SECURITY INVOKER` if that is not intentional.",
+            "metadata": {
+              "name": "assign_human_handoff",
+              "schema": "public",
+              "language": "plpgsql",
+              "arguments": "p_lead_id uuid, p_reason text, p_category text, p_target_user_id uuid",
+              "security_definer": true
+            },
+            "observed_at": "2026-10-05T23:00:19.677Z"
+          },
+          {
+            "detail": "Function `public.central_list_transfer_targets(p_lead_id uuid)` can be executed by the `authenticated` role as a `SECURITY DEFINER` function via `/rest/v1/rpc/central_list_transfer_targets`. Revoke `EXECUTE` or switch it to `SECURITY INVOKER` if that is not intentional.",
+            "metadata": {
+              "name": "central_list_transfer_targets",
+              "schema": "public",
+              "language": "plpgsql",
+              "arguments": "p_lead_id uuid",
+              "security_definer": true
+            },
+            "observed_at": "2026-10-05T23:00:19.677Z"
+          },
+          {
+            "detail": "Function `public.configure_lead_handoff_policy(p_lead_ids uuid[], p_assignee_user_id uuid, p_handoff_stage text, p_notify_whatsapp boolean)` can be executed by the `authenticated` role as a `SECURITY DEFINER` function via `/rest/v1/rpc/configure_lead_handoff_policy`. Revoke `EXECUTE` or switch it to `SECURITY INVOKER` if that is not intentional.",
+            "metadata": {
+              "name": "configure_lead_handoff_policy",
+              "schema": "public",
+              "language": "plpgsql",
+              "arguments": "p_lead_ids uuid[], p_assignee_user_id uuid, p_handoff_stage text, p_notify_whatsapp boolean",
+              "security_definer": true
+            },
+            "observed_at": "2026-10-05T23:00:19.677Z"
+          },
+          {
+            "detail": "Function `public.current_user_access()` can be executed by the `authenticated` role as a `SECURITY DEFINER` function via `/rest/v1/rpc/current_user_access`. Revoke `EXECUTE` or switch it to `SECURITY INVOKER` if that is not intentional.",
+            "metadata": {
+              "name": "current_user_access",
+              "schema": "public",
+              "language": "sql",
+              "arguments": "",
+              "security_definer": true
+            },
+            "observed_at": "2026-10-05T23:00:19.677Z"
+          },
+          {
+            "detail": "Function `public.request_human_handoff(p_lead_id uuid, p_reason text, p_category text)` can be executed by the `authenticated` role as a `SECURITY DEFINER` function via `/rest/v1/rpc/request_human_handoff`. Revoke `EXECUTE` or switch it to `SECURITY INVOKER` if that is not intentional.",
+            "metadata": {
+              "name": "request_human_handoff",
+              "schema": "public",
+              "language": "plpgsql",
+              "arguments": "p_lead_id uuid, p_reason text, p_category text",
+              "security_definer": true
+            },
+            "observed_at": "2026-10-05T23:00:19.677Z"
+          },
+          {
+            "detail": "Function `public.return_handoff_to_ana(p_lead_id uuid)` can be executed by the `authenticated` role as a `SECURITY DEFINER` function via `/rest/v1/rpc/return_handoff_to_ana`. Revoke `EXECUTE` or switch it to `SECURITY INVOKER` if that is not intentional.",
+            "metadata": {
+              "name": "return_handoff_to_ana",
+              "schema": "public",
+              "language": "plpgsql",
+              "arguments": "p_lead_id uuid",
+              "security_definer": true
+            },
+            "observed_at": "2026-10-05T23:00:19.677Z"
+          }
+        ]
+      },
+      {
+        "name": "auth_leaked_password_protection",
+        "title": "Leaked Password Protection Disabled",
+        "level": "WARN",
+        "facing": "EXTERNAL",
+        "categories": [
+          "SECURITY"
+        ],
+        "description": "Leaked password protection is currently disabled.",
+        "remediation": "https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection",
+        "count": 1,
+        "findings": [
+          {
+            "detail": "Supabase Auth prevents the use of compromised passwords by checking against HaveIBeenPwned.org. Enable this feature to enhance security.",
+            "metadata": {
+              "type": "auth",
+              "entity": "Auth"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "noDeploy": true
+}

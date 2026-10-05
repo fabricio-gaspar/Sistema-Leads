@@ -27,6 +27,7 @@ export interface EvolutionGoStatus {
   loggedIn: boolean;
   phone?: string;
   name?: string;
+  confirmed?: boolean;
 }
 
 export interface EvolutionGoQrCode {
@@ -233,6 +234,7 @@ export class EvolutionGoProvider implements MessagingProvider {
       loggedIn: data.loggedIn === true || data.LoggedIn === true,
       phone: stringValue(data.myJid ?? data.MyJid ?? data.phone ?? data.Phone),
       name: stringValue(data.name ?? data.Name),
+      confirmed: typeof (data.connected ?? data.Connected) === 'boolean' && typeof (data.loggedIn ?? data.LoggedIn) === 'boolean',
     };
   }
 

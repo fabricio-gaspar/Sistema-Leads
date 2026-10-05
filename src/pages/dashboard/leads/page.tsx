@@ -1,3 +1,4 @@
+import { escapeCsvCell } from '@/lib/csv';
 import AccessibleDialog from '@/components/feature/AccessibleDialog';
 import InfoTooltip from '@/components/feature/InfoTooltip';
 import FilterChips from '@/components/feature/FilterChips';
@@ -728,7 +729,7 @@ export default function Leads() {
   const exportarSelecionados = () => {
     const selected = leads.filter((lead) => selecionados.includes(lead.id));
     if (!selected.length) return;
-    const quote = (value: string | number | null | undefined) => `"${String(value ?? '').replaceAll('"', '""')}"`;
+    const quote = escapeCsvCell;
     const header = ['Nome', 'Empresa', 'E-mail', 'Telefone', 'WhatsApp', 'Segmento', 'Cidade', 'UF', 'Aderência', 'Etapa', 'Responsável', 'Origem'];
     const lines = selected.map((lead) => [lead.nome, lead.empresa, lead.email, lead.telefone, lead.whatsapp, lead.segmento, lead.cidade, lead.estado, lead.score, lead.etapa, lead.responsavel, lead.origem].map(quote).join(','));
     const blob = new Blob([[header.map(quote).join(','), ...lines].join('\n')], { type: 'text/csv;charset=utf-8' });

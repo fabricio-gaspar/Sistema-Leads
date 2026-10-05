@@ -88,3 +88,23 @@ export async function setAccountProviderControls(admin: Admin, context: Lifecycl
     p_automation_enabled: input.automation_enabled, p_kill_switch: input.kill_switch,
   });
 }
+
+export async function recoverAccountLifecycle(admin: Admin, context: LifecycleContext, input: Row,
+  observe: () => Promise<{ confirmed: boolean; connected: boolean }>,
+): Promise<{ lifecycle: LifecycleResult; recovery: Row; status: number }> {
+  const diagnosis = await rpc(admin, 'diagnose_whatsapp_account_lifecycle', params(context));
+  const observed = await observe(); // GET only; never connect/start/pair/QR
+  const observation = { ...observed, observed_at: new Date().toISOString() };
+  const eligible = diagnosis.can_reconcile_read_only === true && observed.confirmed;
+  const recovery: Row = { eligible, reason: observed.confirmed ? diagnosis.reason : 'provider_state_not_confirmed',
+    observedConnected: observed.confirmed ? observed.connected : null, observedAt: observation.observed_at,
+    requiresAdmin: true, retainsLocalCutoff: true };
+  if (input.action !== 'lifecycle_reconcile') return { lifecycle: present(diagnosis), recovery, status: 200 };
+  if (!eligible) return { lifecycle: present(diagnosis), recovery, status: 409 };
+  const revision = Number(input.expected_revision);
+  const reason = typeof input.reason === 'string' ? input.reason.trim() : '';
+  if (!Number.isSafeInteger(revision) || revision < 0 || reason.length < 8 || reason.length > 500) throw new Error('account_lifecycle_recovery_input_invalid');
+  const completed = await rpc(admin, 'reconcile_whatsapp_account_lifecycle', { ...params(context),
+    p_expected_revision: revision, p_reason: reason, p_observation: observation });
+  return { lifecycle: present(completed), recovery: { ...recovery, reconciled: true }, status: 200 };
+}

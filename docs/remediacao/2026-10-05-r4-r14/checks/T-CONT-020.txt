@@ -1,0 +1,144 @@
+{
+  "scope": "R11 migration + synthetic schema, no real provider",
+  "tests": [
+    {
+      "name": "Missing city",
+      "passed": true,
+      "code": "23514",
+      "message": "operation_city_required"
+    },
+    {
+      "name": "Non-string city",
+      "passed": true,
+      "code": "23514",
+      "message": "operation_city_required"
+    },
+    {
+      "name": "Empty city",
+      "passed": true,
+      "code": "23514",
+      "message": "operation_city_required"
+    },
+    {
+      "name": "Oversize city",
+      "passed": true,
+      "code": "23514",
+      "message": "operation_city_required"
+    },
+    {
+      "name": "No UF",
+      "passed": true,
+      "code": "23514",
+      "message": "operation_single_state_required"
+    },
+    {
+      "name": "Multiple UF",
+      "passed": true,
+      "code": "23514",
+      "message": "operation_single_state_required"
+    },
+    {
+      "name": "Invalid UF",
+      "passed": true,
+      "code": "23514",
+      "message": "operation_single_state_required"
+    },
+    {
+      "name": "Wrong UF type",
+      "passed": true,
+      "code": "23514",
+      "message": "operation_single_state_required"
+    },
+    {
+      "name": "No term",
+      "passed": true,
+      "code": "23514",
+      "message": "operation_search_terms_required"
+    },
+    {
+      "name": "Malformed term",
+      "passed": true,
+      "code": "23514",
+      "message": "operation_search_terms_required"
+    },
+    {
+      "name": "Valid active schedule accepted",
+      "passed": true,
+      "rows": [
+        {
+          "active": true
+        }
+      ]
+    },
+    {
+      "name": "Invalid legacy draft still editable without activation",
+      "passed": true,
+      "rows": [
+        {
+          "id": "00000000-0000-4000-8000-000000000001"
+        }
+      ]
+    },
+    {
+      "name": "Invalid parent rejects awaiting_approval",
+      "passed": true,
+      "code": "23514",
+      "message": "operation_city_required"
+    },
+    {
+      "name": "Invalid parent rejects queued",
+      "passed": true,
+      "code": "23514",
+      "message": "operation_city_required"
+    },
+    {
+      "name": "Invalid parent rejects running",
+      "passed": true,
+      "code": "23514",
+      "message": "operation_city_required"
+    },
+    {
+      "name": "Approval checks older run parent rather than newer valid schedule",
+      "passed": true,
+      "code": "23514",
+      "message": "operation_city_required"
+    },
+    {
+      "name": "Valid execution accepted",
+      "passed": true,
+      "rows": [
+        {
+          "id": "00000000-0000-4000-8000-000000000004"
+        }
+      ]
+    },
+    {
+      "name": "Cross-org parent refused",
+      "passed": true,
+      "code": "23514",
+      "message": "operation_schedule_missing"
+    },
+    {
+      "name": "Simulation can report incomplete draft without paid queue",
+      "passed": true,
+      "rows": [
+        {
+          "id": "00000000-0000-4000-8000-000000000004"
+        }
+      ]
+    },
+    {
+      "name": "Legacy invalid run can be cancelled",
+      "passed": true,
+      "rows": [
+        {
+          "id": "00000000-0000-4000-8000-000000000003"
+        }
+      ]
+    }
+  ],
+  "passed": 20,
+  "total": 20
+}
+
+STDERR

@@ -305,6 +305,7 @@ export default function DashboardLayout() {
                 <p className="text-foreground-900 text-sm font-medium truncate">{user.email}</p>
                 <p className="text-foreground-500 text-xs">{user.company}</p>
               </div>
+              <Link to="/convites" className="block px-3 py-2.5 text-sm text-foreground-600 hover:bg-background-100">Convites para empresas</Link>
               <button
                 onClick={handleLogout}
                 className="w-full flex items-center gap-2 px-3 py-2.5 text-sm text-foreground-600 hover:bg-background-100 hover:text-foreground-900 cursor-pointer transition-colors"

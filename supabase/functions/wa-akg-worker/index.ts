@@ -1,6 +1,8 @@
 import { createAdminClient } from '../_shared/auth.ts';
 import { json, safeError } from '../_shared/http.ts';
-import { WaAkgProvider, normalizeWaAkgBaseUrl } from '../_shared/messaging/WaAkgProvider.ts';
+import { WaAkgProvider, normalizeWaAkgBaseUrl, waAkgSessionName } from '../_shared/messaging/WaAkgProvider.ts';
+import { runProvisioningWork } from '../_shared/provisioningWork.ts';
+import { claimInboundWork, finishInboundWork, processInboundWork } from '../_shared/inboundWork.ts';
 
 type Admin = ReturnType<typeof createAdminClient>;
 type Row = Record<string, unknown>;
@@ -41,12 +43,7 @@ function randomSecret(): string {
 }
 
 async function markEvent(admin: Admin, event: Row, state: string, values: Row = {}) {
-  const { error } = await admin.from('wa_akg_webhook_events').update({
-    processing_status: state,
-    processed_at: ['processed', 'ignored', 'needs_review', 'dead_letter'].includes(state) ? new Date().toISOString() : null,
-    ...values,
-  }).eq('id', event.id).eq('organization_id', event.organization_id);
-  if (error) throw new Error('wa_akg_event_state_save_failed');
+  await finishInboundWork(admin, 'wa_akg', event, state, values.error_code);
 }
 
 async function accountIntegration(admin: Admin, event: Row) {
@@ -59,21 +56,6 @@ async function accountIntegration(admin: Admin, event: Row) {
     .eq('id', event.integration_id).maybeSingle();
   if (integrationError || !integration) throw new Error('wa_akg_integration_not_ready');
   return { account, integration };
-}
-
-async function route(admin: Admin, event: Row, direction: 'inbound' | 'send') {
-  const { account, integration } = await accountIntegration(admin, event);
-  const { data: controls, error: controlsError } = await admin.from('messaging_provider_controls')
-    .select('inbound_enabled,send_enabled,automation_enabled,kill_switch')
-    .eq('organization_id', event.organization_id).eq('provider', 'wa_akg').maybeSingle();
-  if (controlsError || !controls) throw new Error('wa_akg_controls_not_ready');
-  if (!account.enabled || account.connection_status !== 'connected'
-    || !integration.enabled || !integration.connected || integration.paused || controls.kill_switch) {
-    throw new Error('wa_akg_route_not_ready');
-  }
-  if (direction === 'inbound' && !controls.inbound_enabled) throw new Error('wa_akg_inbound_disabled');
-  if (direction === 'send' && !controls.send_enabled) throw new Error('wa_akg_send_disabled');
-  return { account, integration, controls };
 }
 
 async function processConnection(admin: Admin, event: Row, payload: Row) {
@@ -125,111 +107,16 @@ async function processReceipt(admin: Admin, event: Row, payload: Row) {
   });
 }
 
-async function processInbound(admin: Admin, event: Row, payload: Row) {
-  const active = await route(admin, event, 'inbound');
-  const messageId = text(payload.message_id, 300);
-  const phone = text(payload.phone, 20).replace(/\D/g, '');
-  const message = text(payload.text, 4_096);
-  if (!messageId || !/^[1-9]\d{7,14}$/.test(phone) || !message) {
-    await markEvent(admin, event, 'ignored', { error_code: 'inbound_payload_invalid' });
-    return;
-  }
-  const { data: resolvedRows, error: resolveError } = await admin.rpc('resolve_whatsapp_lead_for_account', {
-    p_organization_id: event.organization_id, p_account_id: active.account.id, p_phone: phone,
-  });
-  if (resolveError) throw new Error('wa_akg_lead_resolution_failed');
-  const resolution = object(Array.isArray(resolvedRows) ? resolvedRows[0] : resolvedRows);
-  const leadId = text(resolution.lead_id, 80);
-  const reason = text(resolution.reason, 100) || 'not_found';
-  if (!UUID.test(leadId)) {
-    await markEvent(admin, event, 'needs_review', { error_code: reason === 'ambiguous_identity' ? 'lead_identity_ambiguous' : 'lead_not_matched' });
-    await admin.from('audit_logs').insert({
-      organization_id: event.organization_id, actor_name: 'Sistema', actor_type: 'system',
-      action: 'webhook.unmatched', detail: 'Mensagem WA-AKG recebida sem lead vinculado automaticamente.',
-      entity_table: 'wa_akg_webhook_events', entity_id: event.id,
-      event_data: { provider: 'wa_akg', phone_suffix: phone.slice(-4), resolution: reason },
-    });
-    return;
-  }
-  const { data: lead, error: leadError } = await admin.from('leads')
-    .select('id,modo_atendimento,ai_paused,automation_status,first_inbound_at')
-    .eq('organization_id', event.organization_id).eq('id', leadId).maybeSingle();
-  if (leadError || !lead) throw new Error('wa_akg_resolved_lead_missing');
-
-  const externalId = `message:${messageId}`;
-  const { data: inbound, error: inboundError } = await admin.from('channel_inbound_events').upsert({
-    organization_id: event.organization_id, whatsapp_account_id: active.account.id, provider: 'wa_akg',
-    event_type: 'message', external_id: externalId, lead_id: lead.id, payload,
-    status: 'received', error: null, processed_at: null,
-  }, { onConflict: 'organization_id,provider,external_id', ignoreDuplicates: true }).select('id').maybeSingle();
-  if (inboundError) throw new Error('wa_akg_inbound_persist_failed');
-  if (!inbound) { await markEvent(admin, event, 'processed', { error_code: 'duplicate_inbound' }); return; }
-
-  const occurredAt = text(payload.occurred_at, 80) || new Date().toISOString();
-  const { error: messageError } = await admin.from('lead_messages').insert({
-    organization_id: event.organization_id, lead_id: lead.id, whatsapp_account_id: active.account.id,
-    sender: 'lead', sender_name: 'Lead', type: 'received', text: message, sent_at: occurredAt,
-    provider: 'wa_akg', message_origin: 'customer', provider_message_id: messageId, provider_occurred_at: occurredAt,
-  });
-  if (messageError && messageError.code !== '23505') throw new Error('wa_akg_message_persist_failed');
-  const { error: leadUpdateError } = await admin.from('leads').update({
-    first_inbound_at: lead.first_inbound_at ?? occurredAt, last_contact: occurredAt,
-    no_reply_deadline_at: null, no_reply_processed_at: null,
-    contact_approval_status: 'approved', contact_approval_reason: 'Contato iniciou uma conversa individual pelo WhatsApp.',
-    contact_approved_at: occurredAt, ...(reason === 'account_history_identity' ? {} : { whatsapp_account_id: active.account.id }),
-  }).eq('organization_id', event.organization_id).eq('id', lead.id);
-  if (leadUpdateError) throw new Error('wa_akg_lead_update_failed');
-
-  const { data: queued, error: queuedError } = await admin.from('outreach_jobs').select('id,payload')
-    .eq('organization_id', event.organization_id).eq('lead_id', lead.id).in('status', ['queued', 'retry']);
-  if (queuedError) throw new Error('wa_akg_pending_jobs_read_failed');
-  const automaticIds = (queued ?? []).filter((job) => object(job.payload).manual !== true).map((job) => job.id);
-  if (automaticIds.length) await admin.from('outreach_jobs').update({
-    status: 'cancelled', processed_at: occurredAt, error: 'cancelled_by_inbound_reply',
-  }).eq('organization_id', event.organization_id).in('id', automaticIds).in('status', ['queued', 'retry']);
-
-  const human = lead.ai_paused === true || lead.modo_atendimento === 'humano' || lead.automation_status === 'human';
-  let anaCompleted = true;
-  if (!human && active.controls.automation_enabled === true && active.controls.send_enabled === true) {
-    const { data: credentials, error: secretError } = await admin.rpc('read_integration_secret', { p_integration: active.integration.id });
-    const webhookSecret = text(object(credentials).webhook_secret, 256);
-    if (secretError || !webhookSecret) throw new Error('wa_akg_ana_credential_missing');
-    const response = await fetch(`${Deno.env.get('SUPABASE_URL')}/functions/v1/ana-run`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''}`,
-        'Content-Type': 'application/json', 'x-internal-worker-secret': webhookSecret,
-      },
-      body: JSON.stringify({
-        event: 'message.received', message_id: messageId, request_id: `wa-akg:${messageId}`,
-        retry_failed: true, lead_id: lead.id, modo: lead.modo_atendimento,
-        organization_id: event.organization_id, source_integration_id: active.integration.id,
-        contexto: { channel: 'whatsapp', inbound_event_id: externalId,
-          media_requires_review: text(payload.message_type, 30) !== 'text' },
-      }),
-      signal: AbortSignal.timeout(45_000),
-    });
-    const result = object(await response.json().catch(() => null));
-    anaCompleted = response.ok && (result.ok === true || result.duplicate === true);
-  }
-  await admin.from('channel_inbound_events').update({
-    status: anaCompleted ? 'processed' : 'failed', error: anaCompleted ? null : 'ana_not_completed',
-    processed_at: new Date().toISOString(),
-  }).eq('id', inbound.id).eq('organization_id', event.organization_id);
-  if (!anaCompleted) throw new Error('wa_akg_ana_not_completed');
-  await markEvent(admin, event, 'processed');
+async function processInbound(admin: Admin, event: Row, _payload: Row) {
+  return processInboundWork(admin, 'wa_akg', event);
 }
 
 async function processEvent(admin: Admin, event: Row): Promise<Row> {
-  const { data: claimed, error } = await admin.from('wa_akg_webhook_events').update({
-    processing_status: 'processing', attempt_count: Number(event.attempt_count ?? 0) + 1, error_code: null,
-  }).eq('id', event.id).eq('organization_id', event.organization_id).in('processing_status', ['queued', 'failed'])
-    .select('*').maybeSingle();
-  if (error) throw new Error('wa_akg_event_claim_failed');
+  const claimed = await claimInboundWork(admin, 'wa_akg', event);
   if (!claimed) return { skipped: true };
   try {
     const payload = object(claimed.sanitized_payload);
-    if (claimed.event_kind === 'inbound') await processInbound(admin, claimed, payload);
+    if (claimed.event_kind === 'inbound') return await processInbound(admin, claimed, payload);
     else if (claimed.event_kind === 'receipt') await processReceipt(admin, claimed, payload);
     else if (claimed.event_kind === 'connection') await processConnection(admin, claimed, payload);
     else await markEvent(admin, claimed, 'ignored', { error_code: 'unsupported_event_kind' });
@@ -258,95 +145,48 @@ async function globalCredentials(admin: Admin, organizationId: string): Promise<
   const stored = data?.integration_id
     ? object((await admin.rpc('read_integration_secret', { p_integration: data.integration_id })).data)
     : {};
-  const baseUrlInput = text(stored.base_url, 500) || text(Deno.env.get('WA_AKG_BASE_URL'), 500);
-  const apiKey = text(stored.api_key, 1_000) || text(Deno.env.get('WA_AKG_API_KEY'), 1_000);
+  const storedUrl = text(stored.base_url, 500), storedKey = text(stored.api_key, 1_000);
+  if (Boolean(storedUrl) !== Boolean(storedKey)) throw new Error('wa_akg_gateway_configuration_incomplete');
+  const baseUrlInput = storedUrl || text(Deno.env.get('WA_AKG_BASE_URL'), 500);
+  const apiKey = storedKey || text(Deno.env.get('WA_AKG_API_KEY'), 1_000);
   if (!baseUrlInput || !apiKey) throw new Error('wa_akg_gateway_not_configured');
   return { baseUrl: normalizeWaAkgBaseUrl(baseUrlInput, allowedOrigins()), apiKey };
 }
 
-async function updateJob(admin: Admin, job: Row, state: string, values: Row = {}) {
-  const { error } = await admin.from('wa_akg_seller_provisioning_jobs').update({
-    state, updated_at: new Date().toISOString(), ...values,
-  }).eq('id', job.id).eq('organization_id', job.organization_id).eq('state', 'processing');
-  if (error) throw new Error('wa_akg_provisioning_state_save_failed');
-}
-
 async function processProvisioning(admin: Admin, job: Row): Promise<Row> {
-  const { data: claimed, error } = await admin.from('wa_akg_seller_provisioning_jobs').update({
-    state: 'processing', attempt_count: Number(job.attempt_count ?? 0) + 1,
-    locked_at: new Date().toISOString(), locked_by: crypto.randomUUID(), error_code: null,
-  }).eq('id', job.id).eq('organization_id', job.organization_id).in('state', ['queued', 'failed'])
-    .select('*').maybeSingle();
-  if (error) throw new Error('wa_akg_provisioning_claim_failed');
-  if (!claimed) return { skipped: true };
-  const accountId = text(claimed.account_id, 80);
-  const integrationId = text(claimed.integration_id, 80);
-  const sessionId = text(claimed.session_name, 120);
-  if (!UUID.test(accountId) || !UUID.test(integrationId) || !sessionId) {
-    await updateJob(admin, claimed, 'needs_review', { completed_at: new Date().toISOString(), error_code: 'wa_akg_job_invalid' });
-    return { failed: true, review: true };
-  }
-  let gateway: { baseUrl: string; apiKey: string };
-  try { gateway = await globalCredentials(admin, text(claimed.organization_id, 80)); }
-  catch (error) {
-    const code = safeError(error).replace(/[^a-z0-9_]/gi, '_').toLowerCase().slice(0, 100);
-    await updateJob(admin, claimed, 'failed', { next_attempt_at: retryAt(Number(claimed.attempt_count ?? 1)), error_code: code });
-    return { failed: true, retryable: true, code };
-  }
-  const { data: previousData, error: previousError } = await admin.rpc('read_integration_secret', { p_integration: integrationId });
-  if (previousError) throw new Error('wa_akg_provisioning_secret_read_failed');
-  const previous = object(previousData);
-  const webhookSecret = text(previous.webhook_secret, 256) || randomSecret();
-  const secret = { session_id: sessionId, webhook_secret: webhookSecret, timeout_ms: 15_000 };
-  const { error: preSaveError } = await admin.rpc('store_integration_secret', { p_integration: integrationId, p_secret: secret });
-  if (preSaveError) throw new Error('wa_akg_provisioning_secret_save_failed');
-  const provider = new WaAkgProvider({
-    baseUrl: gateway.baseUrl, apiKey: gateway.apiKey, sessionId, allowedOrigins: allowedOrigins(), timeoutMs: 15_000,
-  });
-  try {
-    if (previous.remote_created !== true) {
-      try { await provider.create('WhatsApp do vendedor'); }
-      catch (error) { if (safeError(error) !== 'wa_akg_request_rejected_409') throw error; }
+  return runProvisioningWork(admin, 'wa_akg', job, async (claimed, step, saveSecret) => {
+    const organizationId = text(claimed.organization_id, 80);
+    const accountId = text(claimed.account_id, 80);
+    const integrationId = text(claimed.integration_id, 80);
+    const expectedSession = waAkgSessionName(organizationId, accountId);
+    const gateway = await globalCredentials(admin, organizationId);
+    const previousRead = await admin.rpc('read_integration_secret', { p_integration: integrationId });
+    if (previousRead.error) throw new Error('wa_akg_provisioning_secret_read_failed');
+    const previous = object(previousRead.data);
+    const sessionId = text(previous.session_id, 120) || expectedSession;
+    if (sessionId !== expectedSession || text(claimed.session_name, 120) !== expectedSession) throw new Error('wa_akg_legacy_session_requires_review');
+    const webhookSecret = text(previous.webhook_secret, 256) || randomSecret();
+    const secret = { ...previous, session_id: sessionId, webhook_secret: webhookSecret, timeout_ms: 15_000 };
+    await saveSecret(secret);
+    const provider = new WaAkgProvider({ ...gateway, sessionId, allowedOrigins: allowedOrigins(), timeoutMs: 15_000 });
+    if (previous.remote_created === true) {
+      await step('verify_session', () => provider.verifyOwnedSession(callbackUrl(integrationId), webhookSecret));
+    } else {
+      try { await step('create_session', () => provider.create('WhatsApp do vendedor'), true); }
+      catch (error) {
+        if (safeError(error) !== 'wa_akg_request_rejected_409') throw error;
+        await step('verify_session', () => provider.verifyOwnedSession(callbackUrl(integrationId), webhookSecret));
+      }
     }
-    await provider.configureSafety();
-    await provider.registerWebhook(callbackUrl(integrationId), webhookSecret);
-    await provider.start();
-  } catch (error) {
-    const code = safeError(error).replace(/[^a-z0-9_]/gi, '_').toLowerCase().slice(0, 100) || 'wa_akg_remote_provision_uncertain';
-    await updateJob(admin, claimed, 'needs_review', { completed_at: new Date().toISOString(), error_code: code });
-    return { failed: true, review: true, code };
-  }
-  const { error: secretSaveError } = await admin.rpc('store_integration_secret', {
-    p_integration: integrationId, p_secret: { ...secret, remote_created: true, webhook_registered: true },
+    await step('configure_safety', () => provider.configureSafety(), true);
+    await step('register_webhook', () => provider.registerWebhook(callbackUrl(integrationId), webhookSecret,
+      () => step('register_webhook_post', async () => undefined, true)), true);
+    await step('start_session', () => provider.start(), true);
+    await saveSecret({ ...secret, remote_created: true, webhook_registered: true });
+    return { connection_status: 'qr', webhook_registered: true,
+      configuration: { configured: true, base_url_configured: true, session_name: sessionId,
+        provider_version: '1.7.0-beta.1', provider_revision: 'c7dd01a04339e4363b549beb3a41fe02cf131acb', provisioning_state: 'awaiting_qr' } };
   });
-  if (secretSaveError) throw new Error('wa_akg_provisioning_secret_finalize_failed');
-  const { data: integration } = await admin.from('integrations').select('configuration')
-    .eq('id', integrationId).eq('organization_id', claimed.organization_id).maybeSingle();
-  const now = new Date().toISOString();
-  const [integrationUpdate, accountUpdate] = await Promise.all([
-    admin.from('integrations').update({
-      connected: false, enabled: false, paused: true,
-      status_detail: 'Sessão individual criada. O vendedor deve ler o QR Code em Meu WhatsApp.',
-      configuration: { ...object(integration?.configuration), configured: true, base_url_configured: true,
-        session_name: sessionId, provider_version: '1.7.0-beta.1', provisioning_state: 'awaiting_qr' },
-      updated_at: now,
-    }).eq('id', integrationId).eq('organization_id', claimed.organization_id),
-    admin.from('whatsapp_accounts').update({
-      enabled: false, connection_status: 'qr', webhook_registered_at: now, status_checked_at: now,
-      last_error_code: null, provider_metadata: { session_name: sessionId, provisioning_state: 'awaiting_qr' },
-      updated_at: now,
-    }).eq('id', accountId).eq('organization_id', claimed.organization_id),
-  ]);
-  if (integrationUpdate.error || accountUpdate.error) throw new Error('wa_akg_provisioning_finalize_failed');
-  await updateJob(admin, claimed, 'completed', { completed_at: now, error_code: null });
-  await admin.from('audit_logs').insert({
-    organization_id: claimed.organization_id, actor_name: 'Sistema', actor_type: 'system',
-    action: 'whatsapp.wa_akg_seller_session_created',
-    detail: 'Sessão individual WA-AKG criada automaticamente; aguarda QR Code do vendedor.',
-    entity_table: 'whatsapp_accounts', entity_id: accountId,
-    event_data: { provider: 'wa_akg', provisioning_job_id: claimed.id, state: 'awaiting_qr' },
-  });
-  return { provisioned: true };
 }
 
 Deno.serve(async (request) => {
@@ -362,7 +202,7 @@ Deno.serve(async (request) => {
     const events: Row[] = [];
     const jobs: Row[] = [];
     if (eventId || !jobId) {
-      let query = admin.from('wa_akg_webhook_events').select('*').in('processing_status', ['queued', 'failed'])
+      let query = admin.from('wa_akg_webhook_events').select('*').in('processing_status', ['queued', 'failed', 'processing'])
         .lte('next_retry_at', now).order('created_at').limit(20);
       if (UUID.test(eventId)) query = query.eq('id', eventId);
       if (UUID.test(organizationId)) query = query.eq('organization_id', organizationId);
@@ -371,7 +211,7 @@ Deno.serve(async (request) => {
       for (const event of data ?? []) events.push(await processEvent(admin, event as Row));
     }
     if (jobId || !eventId) {
-      let query = admin.from('wa_akg_seller_provisioning_jobs').select('*').in('state', ['queued', 'failed'])
+      let query = admin.from('wa_akg_seller_provisioning_jobs').select('*').in('state', ['queued', 'failed', 'processing'])
         .lte('next_attempt_at', now).order('created_at').limit(20);
       if (UUID.test(jobId)) query = query.eq('id', jobId);
       if (UUID.test(organizationId)) query = query.eq('organization_id', organizationId);

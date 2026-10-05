@@ -20,11 +20,16 @@ describe('Evolution GO inbound parser', () => {
   it.each([
     { data: { ...inbound.data, key: { ...inbound.data.key, fromMe: true } } },
     { data: { ...inbound.data, key: { ...inbound.data.key, remoteJid: 'group@g.us' } } },
-    { data: { ...inbound.data, key: { ...inbound.data.key, remoteJid: '5511999990000@lid' } } },
     { data: { ...inbound.data, key: { ...inbound.data.key, id: '' } } },
     { event: 'Presence', data: {} },
   ])('never routes an unsafe or unsupported callback into a lead %#', (patch) => {
     expect(parseEvolutionGoEvent({ ...inbound, ...patch }).kind).toBe('ignored');
+  });
+
+  it('preserves opaque LID for review without deriving a phone or dropping the content', () => {
+    const payload = { ...inbound, data: { ...inbound.data, key: { ...inbound.data.key, remoteJid: '5511999990000@lid' } } };
+    expect(parseEvolutionGoEvent(payload)).toMatchObject({ kind: 'inbound', phone: '', senderJid: '5511999990000@lid' });
+    expect(sanitizeEvolutionGoPayload(payload)).toMatchObject({ identity_requires_review: true, phone: '' });
   });
 
   it('keeps delivery receipts and connection events out of the conversation flow', () => {

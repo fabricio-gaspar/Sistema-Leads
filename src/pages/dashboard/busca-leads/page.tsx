@@ -6,6 +6,7 @@ import { refreshListsStore } from '@/hooks/useListasStore';
 import { fontesApiProspeccao, fontesAtivas, useFontesStore } from '@/hooks/useFontesStore';
 import { templatesMensagem } from '@/mocks/templatesData';
 import { useAuth } from '@/hooks/useAuth';
+import { sessionContext } from '@/lib/sessionContext';
 import { loadCurrentAccess } from '@/lib/crm/currentAccessRepository';
 import { findActiveAssignee, loadTeamMembers, roleLabel, type TeamMember } from '@/lib/crm/teamMembersRepository';
 import { temperaturaDe, tempBadge } from '@/mocks/enriquecimentoData';
@@ -45,6 +46,7 @@ import {
   PROSPECTING_WIZARD_STEPS,
   nextProspectingWizardStep,
   validateProspectingWizardStep,
+  prospectingWizardBlockReason,
   type ProspectingWizardStep,
 } from '@/lib/crm/prospectingWizard';
 
@@ -310,6 +312,7 @@ export default function BuscaLeads() {
     offer: ofertaEmpresa,
     terms: termosAplicados,
   }), [cidade, fonteSelecionada, ofertaEmpresa, termosAplicados]);
+  const wizardBlockReason = prospectingWizardBlockReason(wizardStep, wizardDraft, buscando);
 
   useEffect(() => {
     if (wizardError && !validateProspectingWizardStep(wizardStep, wizardDraft)) {
@@ -515,12 +518,14 @@ export default function BuscaLeads() {
   const requestSignature = (sourceKey: string, filters: Record<string, unknown>) => JSON.stringify({ sourceKey, filters });
 
   const requestKeyFor = (sourceKey: string, filters: Record<string, unknown>) => {
+    const context = sessionContext.requireReady();
+    const storageKey = `${PROSPECTING_REQUEST_STORAGE_KEY}:${context.userId}:${context.organizationId}`;
     const signature = requestSignature(sourceKey, filters);
     try {
-      const stored = JSON.parse(window.sessionStorage.getItem(PROSPECTING_REQUEST_STORAGE_KEY) || '{}') as { signature?: string; key?: string };
+      const stored = JSON.parse(window.sessionStorage.getItem(storageKey) || '{}') as { signature?: string; key?: string };
       if (stored.signature === signature && typeof stored.key === 'string' && stored.key) return stored.key;
       const key = crypto.randomUUID();
-      window.sessionStorage.setItem(PROSPECTING_REQUEST_STORAGE_KEY, JSON.stringify({ signature, key }));
+      window.sessionStorage.setItem(storageKey, JSON.stringify({ signature, key }));
       return key;
     } catch {
       return crypto.randomUUID();
@@ -528,7 +533,8 @@ export default function BuscaLeads() {
   };
 
   const clearRequestKey = () => {
-    try { window.sessionStorage.removeItem(PROSPECTING_REQUEST_STORAGE_KEY); } catch { /* armazenamento indisponível */ }
+    const context = sessionContext.get();
+    try { window.sessionStorage.removeItem(`${PROSPECTING_REQUEST_STORAGE_KEY}:${context.userId}:${context.organizationId}`); } catch { /* armazenamento indisponível */ }
   };
 
   const testarAmostra = () => { void executarBusca(SAMPLE_SIZE); };
@@ -745,7 +751,7 @@ export default function BuscaLeads() {
       return;
     }
 
-    const validationError = validateProspectingWizardStep(wizardStep, wizardDraft);
+    const validationError = prospectingWizardBlockReason(wizardStep, wizardDraft, buscando);
     if (validationError) {
       setWizardError(validationError);
       return;
@@ -1282,7 +1288,7 @@ export default function BuscaLeads() {
                       <div className="flex justify-between py-2"><dt className="text-background-400">Obrigatórios</dt><dd className="font-semibold">{[temSite, temWhatsApp, temEmail].filter(Boolean).length}</dd></div>
                     </dl>
                     <div className="mt-4 border-t border-white/10 pt-4"><p className="flex items-center gap-2 text-xs font-semibold text-primary-200"><span className="h-2 w-2 rounded-full bg-primary-400" />{wizardStep === 4 ? 'Pronto para validar a amostra' : `Próximo: ${PROSPECTING_WIZARD_STEPS.find((step) => step.id === nextProspectingWizardStep(wizardStep))?.label}`}</p><p className="mt-1 text-xs leading-5 text-background-300">A primeira consulta real continua limitada a 10 empresas.</p></div>
-                    <button type="button" onClick={avancar} disabled={wizardStep !== 4 || buscando || !fonteSelecionada || !cidade.trim() || termosAplicados.length === 0} className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-primary-500 px-3 py-2.5 text-sm font-heading font-bold text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:bg-primary-800">{buscando ? <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />Buscando...</> : <><i className="ri-search-eye-line" aria-hidden="true" />Testar com 10 empresas</>}</button>
+                    <button type="button" onClick={avancar} aria-describedby={wizardBlockReason ? 'wizard-block-reason' : undefined} disabled={wizardStep !== 4 || Boolean(wizardBlockReason)} className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-primary-500 px-3 py-2.5 text-sm font-heading font-bold text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:bg-primary-800">{buscando ? <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />Buscando...</> : <><i className="ri-search-eye-line" aria-hidden="true" />Testar com 10 empresas</>}</button>
                     <button type="button" onClick={() => { setHistoricoAberto(true); setAba('salvas'); }} className="mt-2 w-full rounded-lg border border-white/25 px-3 py-2 text-xs font-semibold text-white hover:bg-white/10">Ver buscas salvas</button>
                   </section>
                   <section className="rounded-2xl border border-background-200 bg-white p-4"><h3 className="flex items-center gap-2 text-sm font-heading font-bold text-foreground-900"><i className="ri-lightbulb-flash-line text-primary-600" aria-hidden="true" />Como a amostra melhora a busca</h3><ol className="mt-3 space-y-3 text-xs leading-5 text-foreground-600"><li className="flex gap-2"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary-100 font-bold text-primary-700">1</span>Valide o público encontrado.</li><li className="flex gap-2"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary-100 font-bold text-primary-700">2</span>Classifique os resultados fora do perfil.</li><li className="flex gap-2"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary-100 font-bold text-primary-700">3</span>Ajuste termos antes da busca completa.</li></ol></section>
@@ -1295,7 +1301,7 @@ export default function BuscaLeads() {
                   <p className="text-xs font-semibold text-foreground-700">Passo {wizardStep} de 4</p>
                   <p className="mt-0.5 text-xs text-foreground-500">{wizardStep === 4 ? 'A consulta só começa após este comando.' : 'Nenhuma busca é realizada enquanto você preenche.'}</p>
                 </div>
-                <button type="button" onClick={avancar} disabled={buscando} className="inline-flex items-center gap-2 rounded-lg bg-primary-500 px-5 py-2.5 text-sm font-bold text-white hover:bg-primary-600 disabled:cursor-not-allowed disabled:bg-primary-300">
+                <button type="button" onClick={avancar} aria-describedby={wizardBlockReason ? 'wizard-block-reason' : undefined} disabled={Boolean(wizardBlockReason)} className="inline-flex items-center gap-2 rounded-lg bg-primary-500 px-5 py-2.5 text-sm font-bold text-white hover:bg-primary-600 disabled:cursor-not-allowed disabled:bg-primary-300">
                   {wizardStep === 2 ? 'Continuar para o perfil' : wizardStep === 3 ? 'Continuar para os critérios' : buscando ? 'Buscando...' : 'Testar com 10 empresas'}
                   {!buscando && <i className={wizardStep === 4 ? 'ri-search-eye-line' : 'ri-arrow-right-line'} aria-hidden="true" />}
                 </button>
@@ -1307,6 +1313,7 @@ export default function BuscaLeads() {
                   <span>{wizardError}</span>
                 </div>
               )}
+              {wizardBlockReason && <p id="wizard-block-reason" className="text-xs text-foreground-600" role="status">{wizardBlockReason}</p>}
 
               {erroBusca && (
                 <div role="alert" className="border border-secondary-200 bg-secondary-50 px-4 py-3 text-sm text-secondary-800 rounded-lg flex items-start gap-2">

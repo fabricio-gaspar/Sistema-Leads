@@ -4,7 +4,7 @@ import { defaultPermissionsForRole, organizationPermissions } from '../_shared/p
 import { maskDailyReportPhone, normalizeDailyReportPhone, validDailyReportTime } from '../_shared/dailyLeadReport.ts';
 
 const roles = new Set(['administrador', 'vendedor', 'sdr', 'cx']);
-type Action = 'create' | 'invite' | 'update_member' | 'reset_password' | 'update_role' | 'set_status' | 'remove' | 'permissions_get' | 'permissions_set' | 'daily_report_get' | 'daily_report_set' | 'handoff_alert_get' | 'handoff_alert_set' | 'invites_get' | 'invite_cancel' | 'invite_resend' | 'policy_get' | 'policy_set' | 'activate_invite';
+type Action = 'create' | 'invite' | 'update_member' | 'reset_password' | 'update_role' | 'set_status' | 'remove' | 'permissions_get' | 'permissions_set' | 'daily_report_get' | 'daily_report_set' | 'handoff_alert_get' | 'handoff_alert_set' | 'invites_get' | 'invite_cancel' | 'invite_resend' | 'policy_get' | 'policy_set' | 'activate_invite' | 'pending_invites';
 
 function text(value: unknown, max = 180): string {
   return typeof value === 'string' ? value.trim().slice(0, max) : '';
@@ -14,13 +14,6 @@ function memberRole(value: unknown): string {
   const role = text(value, 40).toLowerCase();
   if (!roles.has(role)) throw new Error('invalid_member_role');
   return role;
-}
-
-function memberPassword(value: unknown): string {
-  if (typeof value !== 'string' || value.length < 8 || value.length > 128) {
-    throw new Error('invalid_member_password');
-  }
-  return value;
 }
 
 function memberEmail(value: unknown): string {
@@ -116,17 +109,6 @@ function isExistingAuthUser(error: unknown): boolean {
     || (typeof candidate.message === 'string' && /already (been )?registered|already exists/i.test(candidate.message));
 }
 
-interface PreparedInvite {
-  id: string;
-  previous: {
-    role: string;
-    invited_by: string | null;
-    expires_at: string;
-    accepted_at: string | null;
-    cancelled_at: string | null;
-  } | null;
-}
-
 type SellerProvisioning = {
   jobId: string;
   whatsappAccountId: string;
@@ -181,256 +163,6 @@ function wakeSellerProvisioningWorker(jobId: string): void {
   runtime?.waitUntil(pending);
 }
 
-async function cancelSellerProvisioningForInvite(
-  admin: ReturnType<typeof createAdminClient>, organizationId: string, inviteId: string,
-): Promise<number> {
-  const [waRead, evolutionRead] = await Promise.all([
-    admin.from('wa_akg_seller_provisioning_jobs').select('id,account_id,integration_id')
-      .eq('organization_id', organizationId).eq('invite_id', inviteId).in('state', ['queued', 'failed', 'processing']),
-    admin.from('evolution_go_seller_provisioning_jobs').select('id,whatsapp_account_id,integration_id')
-      .eq('organization_id', organizationId).eq('invite_id', inviteId)
-      .in('state', ['queued', 'failed', 'processing', 'awaiting_qr']),
-  ]);
-  if (waRead.error || evolutionRead.error) throw new Error('seller_provisioning_cancel_read_failed');
-  const waJobs = waRead.data ?? [];
-  const evolutionJobs = evolutionRead.data ?? [];
-  if (!waJobs.length && !evolutionJobs.length) return 0;
-  const now = new Date().toISOString();
-  const updates: Array<PromiseLike<{ error: unknown }>> = [];
-  if (waJobs.length) updates.push(admin.from('wa_akg_seller_provisioning_jobs').update({
-      state: 'cancelled', completed_at: now, error_code: 'invite_cancelled', updated_at: now,
-    }).eq('organization_id', organizationId).in('id', waJobs.map((job) => job.id)));
-  if (evolutionJobs.length) updates.push(admin.from('evolution_go_seller_provisioning_jobs').update({
-      state: 'cancelled', completed_at: now, last_error_code: 'invite_cancelled', updated_at: now,
-    }).eq('organization_id', organizationId).in('id', evolutionJobs.map((job) => job.id)));
-  const accountIds = [...new Set([
-    ...waJobs.map((job) => job.account_id), ...evolutionJobs.map((job) => job.whatsapp_account_id),
-  ].filter(Boolean))];
-  const integrationIds = [...new Set([
-    ...waJobs.map((job) => job.integration_id), ...evolutionJobs.map((job) => job.integration_id),
-  ].filter(Boolean))];
-  updates.push(
-    admin.from('whatsapp_accounts').update({
-      enabled: false, archived_at: now, updated_at: now,
-    }).eq('organization_id', organizationId).in('id', accountIds),
-    admin.from('integrations').update({
-      enabled: false, paused: true, status_detail: 'Canal individual arquivado porque o convite foi cancelado.', updated_at: now,
-    }).eq('organization_id', organizationId).in('id', integrationIds),
-  );
-  const results = await Promise.all(updates);
-  if (results.some((result) => result.error)) throw new Error('seller_provisioning_cancel_failed');
-  return waJobs.length + evolutionJobs.length;
-}
-
-async function prepareOrganizationInvite(
-  admin: ReturnType<typeof createAdminClient>, organizationId: string, actorId: string, email: string, role: string,
-): Promise<PreparedInvite> {
-  const now = new Date();
-  const { data: pendingInvites, error: pendingError } = await admin.from('organization_invites')
-    .select('id,organization_id').ilike('email', email).is('accepted_at', null).is('cancelled_at', null).gt('expires_at', now.toISOString());
-  if (pendingError) throw pendingError;
-  if ((pendingInvites ?? []).some((invite) => invite.organization_id !== organizationId)) {
-    throw new Error('member_invite_conflict');
-  }
-
-  const { data: existing, error: existingError } = await admin.from('organization_invites')
-    .select('id,role,invited_by,expires_at,accepted_at,cancelled_at')
-    .eq('organization_id', organizationId).eq('email', email).maybeSingle();
-  if (existingError) throw existingError;
-
-  const invitation = {
-    organization_id: organizationId,
-    email,
-    role,
-    invited_by: actorId,
-    expires_at: new Date(now.getTime() + 15 * 60 * 1000).toISOString(),
-    accepted_at: null,
-    cancelled_at: null,
-  };
-  const query = existing?.id
-    ? admin.from('organization_invites').update(invitation).eq('id', existing.id)
-    : admin.from('organization_invites').insert(invitation);
-  const { data: prepared, error: prepareError } = await query.select('id').single();
-  if (prepareError || !prepared?.id) throw prepareError ?? new Error('member_invitation_preparation_failed');
-  return {
-    id: prepared.id,
-    previous: existing ? {
-      role: existing.role,
-      invited_by: existing.invited_by,
-      expires_at: existing.expires_at,
-      accepted_at: existing.accepted_at,
-      cancelled_at: existing.cancelled_at,
-    } : null,
-  };
-}
-
-async function restorePreparedInvite(
-  admin: ReturnType<typeof createAdminClient>, prepared: PreparedInvite,
-): Promise<void> {
-  if (prepared.previous) {
-    await admin.from('organization_invites').update(prepared.previous)
-      .eq('id', prepared.id).is('accepted_at', null).is('cancelled_at', null);
-    return;
-  }
-  await admin.from('organization_invites').delete().eq('id', prepared.id).is('accepted_at', null).is('cancelled_at', null);
-}
-
-async function ensureAnotherAdministrator(
-  admin: ReturnType<typeof createAdminClient>, organizationId: string, targetUserId: string, removesAdmin: boolean,
-) {
-  if (!removesAdmin) return;
-  const { data, error } = await admin.from('organization_members').select('user_id')
-    .eq('organization_id', organizationId).eq('role', 'administrador').eq('status', 'active');
-  if (error) throw error;
-  if ((data ?? []).some((member) => member.user_id === targetUserId) && (data?.length ?? 0) <= 1) {
-    throw new Error('last_administrator_protected');
-  }
-}
-
-type MemberPurgeSummary = {
-  evolutionAccounts: number;
-  integrationSecrets: number;
-  storageObjects: number;
-};
-
-type MemberStorageObject = {
-  bucket_id: string | null;
-  name: string | null;
-};
-
-/**
- * Supabase Auth's admin signOut endpoint expects the member's JWT, not their
- * user id. Team administration never receives another member's JWT, so use
- * the service-only database helper to revoke renewable sessions by user id.
- */
-async function revokeMemberSessions(
-  admin: ReturnType<typeof createAdminClient>, targetUserId: string,
-): Promise<number> {
-  const { data, error } = await admin.rpc('revoke_user_auth_sessions', { p_user_id: targetUserId });
-  if (error || !Number.isInteger(data) || data < 0) throw new Error('member_sessions_revoke_failed');
-  return data;
-}
-
-/**
- * Storage objects cannot be deleted by issuing SQL against storage.objects:
- * the Storage service deliberately blocks that route to protect object
- * consistency. A service-only RPC lists only the departing member's objects,
- * then the Storage API clears both each object record and its backing file.
- */
-async function purgeMemberOwnedStorage(
-  admin: ReturnType<typeof createAdminClient>, targetUserId: string,
-): Promise<number> {
-  const pageSize = 100;
-  let removedCount = 0;
-
-  while (true) {
-    const { data, error } = await admin.rpc('list_user_owned_storage', {
-      p_user_id: targetUserId,
-      p_limit: pageSize,
-    });
-    if (error) throw new Error('member_storage_list_failed');
-
-    if (data !== null && !Array.isArray(data)) throw new Error('member_storage_list_failed');
-    const objects = ((data ?? []) as MemberStorageObject[]).filter((object) =>
-      typeof object.bucket_id === 'string' && object.bucket_id.length > 0
-      && typeof object.name === 'string' && object.name.length > 0,
-    );
-    if (!objects.length) return removedCount;
-
-    const pathsByBucket = new Map<string, string[]>();
-    for (const object of objects) {
-      const bucket = object.bucket_id as string;
-      const paths = pathsByBucket.get(bucket) ?? [];
-      paths.push(object.name as string);
-      pathsByBucket.set(bucket, paths);
-    }
-
-    for (const [bucket, paths] of pathsByBucket) {
-      const { error: removeError } = await admin.storage.from(bucket).remove(paths);
-      if (removeError) throw new Error('member_storage_delete_failed');
-      removedCount += paths.length;
-    }
-
-    // Each successful delete shrinks the first page. Re-read it until no
-    // records remain so accounts with more than one page are fully cleaned.
-    if (objects.length < pageSize) return removedCount;
-  }
-}
-
-/**
- * Removes data that is exclusively attached to a team member. Commercial leads
- * and messages are deliberately not deleted: they belong to the organization
- * and their user references are cleared by their ON DELETE SET NULL foreign
- * keys. This makes the identity unrecoverable without destroying the company
- * history that may be shared with other members.
- */
-async function purgeMemberOwnedData(
-  admin: ReturnType<typeof createAdminClient>, organizationId: string, targetUserId: string,
-): Promise<MemberPurgeSummary> {
-  const { data: accounts, error: accountsError } = await admin.from('whatsapp_accounts')
-    .select('id,integration_id').eq('organization_id', organizationId).eq('owner_user_id', targetUserId);
-  if (accountsError) throw new Error('member_whatsapp_accounts_read_failed');
-
-  const accountIds = (accounts ?? []).map((account) => String(account.id)).filter(Boolean);
-  const integrationIds = [...new Set((accounts ?? []).map((account) => String(account.integration_id)).filter(Boolean))];
-  const now = new Date().toISOString();
-
-  if (accountIds.length) {
-    // Stop the durable worker first. Marking records as archived is a
-    // fail-closed guard against a worker that started before this request.
-    const [waJobs, evolutionJobs, accountArchive] = await Promise.all([
-      admin.from('wa_akg_seller_provisioning_jobs').update({
-        state: 'cancelled', completed_at: now, error_code: 'member_deleted', updated_at: now,
-      }).eq('organization_id', organizationId).in('account_id', accountIds)
-        .in('state', ['queued', 'failed', 'processing']),
-      admin.from('evolution_go_seller_provisioning_jobs').update({
-        state: 'cancelled', completed_at: now, last_error_code: 'member_deleted', updated_at: now,
-      }).eq('organization_id', organizationId).in('whatsapp_account_id', accountIds)
-        .in('state', ['queued', 'failed', 'processing', 'awaiting_qr']),
-      admin.from('whatsapp_accounts').update({
-        enabled: false, is_default: false, connection_status: 'disconnected', archived_at: now, updated_at: now,
-      }).eq('organization_id', organizationId).in('id', accountIds),
-    ]);
-    if (waJobs.error || evolutionJobs.error || accountArchive.error) throw new Error('member_operational_channel_lock_failed');
-
-    // These tables use RESTRICT because a normal channel transfer must retain
-    // history. On permanent identity deletion the records are user-owned, so
-    // remove them before deleting the account and its integration secret.
-    const [bindings, outbox, conversations] = await Promise.all([
-      admin.from('lead_whatsapp_account_bindings').delete().eq('organization_id', organizationId).in('whatsapp_account_id', accountIds),
-      admin.from('messaging_outbox').delete().eq('organization_id', organizationId).in('whatsapp_account_id', accountIds),
-      admin.from('whatsapp_conversations').delete().eq('organization_id', organizationId).in('whatsapp_account_id', accountIds),
-    ]);
-    if (bindings.error || outbox.error || conversations.error) throw new Error('member_operational_channel_purge_failed');
-
-    const { error: accountDeleteError } = await admin.from('whatsapp_accounts').delete()
-      .eq('organization_id', organizationId).in('id', accountIds);
-    if (accountDeleteError) throw new Error('member_whatsapp_accounts_delete_failed');
-  }
-
-  for (const integrationId of integrationIds) {
-    const { data: removed, error: secretError } = await admin.rpc('delete_integration_secret', { p_integration: integrationId });
-    if (secretError || (removed !== true && removed !== false)) throw new Error('member_integration_secret_purge_failed');
-    const { error: integrationDeleteError } = await admin.from('integrations').delete()
-      .eq('organization_id', organizationId).eq('id', integrationId);
-    if (integrationDeleteError) throw new Error('member_integration_delete_failed');
-  }
-
-  const storageObjects = await purgeMemberOwnedStorage(admin, targetUserId);
-
-  // Keep the audit timeline useful without retaining the removed person's
-  // name. The FK will also clear actor_id once Auth deletes the identity.
-  const { error: auditAnonymizeError } = await admin.from('audit_logs').update({ actor_name: 'Usuário removido' })
-    .eq('organization_id', organizationId).eq('actor_id', targetUserId);
-  if (auditAnonymizeError) throw new Error('member_audit_anonymize_failed');
-
-  return {
-    evolutionAccounts: accountIds.length,
-    integrationSecrets: integrationIds.length,
-    storageObjects,
-  };
-}
-
 Deno.serve(async (request) => {
   const options = preflight(request); if (options) return options;
   if (!hasAllowedOrigin(request)) return json({ ok: false, erro: 'origin_not_allowed' }, 403);
@@ -439,34 +171,34 @@ Deno.serve(async (request) => {
   try {
     const body = await request.json().catch(() => ({})) as Record<string, unknown>;
     const action = text(body.action, 32) as Action;
-    if (!['create', 'invite', 'update_member', 'reset_password', 'update_role', 'set_status', 'remove', 'permissions_get', 'permissions_set', 'daily_report_get', 'daily_report_set', 'handoff_alert_get', 'handoff_alert_set', 'invites_get', 'invite_cancel', 'invite_resend', 'policy_get', 'policy_set', 'activate_invite'].includes(action)) throw new Error('unsupported_action');
-    const { user } = await requireUser(request);
+    if (!['create', 'invite', 'update_member', 'reset_password', 'update_role', 'set_status', 'remove', 'permissions_get', 'permissions_set', 'daily_report_get', 'daily_report_set', 'handoff_alert_get', 'handoff_alert_set', 'invites_get', 'invite_cancel', 'invite_resend', 'policy_get', 'policy_set', 'activate_invite', 'pending_invites'].includes(action)) throw new Error('unsupported_action');
+    const { user, client } = await requireUser(request);
     const admin = createAdminClient();
 
-    // Convites são ativados somente quando o próprio convidado autentica. Isso
-    // mantém a conta fora da organização até o aceite e não exige permissão de
-    // administrador para o primeiro acesso.
+    if (action === 'pending_invites') {
+      const { data, error } = await client.rpc('team_pending_invites');
+      if (error) throw error;
+      return json({ ok: true, invites: data ?? [] }, 200, headers);
+    }
     if (action === 'activate_invite') {
-      const email = text(user.email, 254).toLowerCase();
-      if (!email) throw new Error('member_email_required');
-      const { data: pending, error: pendingError } = await admin.from('organization_invites')
-        .select('id,organization_id,role,expires_at,accepted_at').ilike('email', email)
-        .is('accepted_at', null).is('cancelled_at', null).gt('expires_at', new Date().toISOString()).order('created_at', { ascending: false }).limit(1).maybeSingle();
-      if (pendingError) throw pendingError;
-      if (!pending) return json({ ok: true, activated: false }, 200, headers);
-      const now = new Date().toISOString();
-      const { error: membershipError } = await admin.from('organization_members').upsert({
-        organization_id: pending.organization_id, user_id: user.id, role: pending.role, status: 'active', updated_at: now,
-      }, { onConflict: 'organization_id,user_id' });
-      if (membershipError) throw membershipError;
-      const { error: profileError } = await admin.from('profiles').update({
-        active: true, active_organization_id: pending.organization_id, updated_at: now,
-      }).eq('id', user.id);
-      if (profileError) throw profileError;
-      const { error: inviteError } = await admin.from('organization_invites').update({ accepted_at: now }).eq('id', pending.id).is('accepted_at', null).is('cancelled_at', null);
-      if (inviteError) throw inviteError;
-      await admin.from('audit_logs').insert({ organization_id: pending.organization_id, actor_id: user.id, actor_name: email, actor_type: 'user', action: 'team.invite_accepted', detail: 'Convite aceito e acesso liberado.', entity_table: 'organization_invites', entity_id: pending.id, event_data: { user_id: user.id, role: pending.role } });
-      return json({ ok: true, activated: true, organization_id: pending.organization_id }, 200, headers);
+      const inviteId = text(body.invite_id, 64);
+      if (!inviteId || !Number.isSafeInteger(body.revision) || Number(body.revision) < 1) throw new Error('invite_revision_required');
+      const { data, error } = await client.rpc('team_invite_accept', { p_id: inviteId, p_revision: body.revision });
+      if (error || !data?.organization_id) throw error ?? new Error('invite_acceptance_failed');
+      let provisioning: SellerProvisioning | null = null;
+      let provisioningWarning: string | null = null;
+      if (data.role === 'vendedor') {
+        try {
+          provisioning = await enqueueSellerProvisioning(admin, {
+            organizationId: data.organization_id, userId: user.id, actorId: user.id, source: 'invite', inviteId,
+          });
+        } catch { provisioningWarning = 'seller_provisioning_pending_review'; }
+      }
+      if (provisioning) wakeSellerProvisioningWorker(provisioning.jobId);
+      return json({ ok: true, ...data, provisioning_warning: provisioningWarning }, 200, headers);
+    }
+    if (action === 'create' || action === 'update_member' || action === 'reset_password') {
+      throw new Error('global_identity_self_service_required');
     }
 
     const { data: profile, error: profileError } = await admin.from('profiles').select('active_organization_id,name').eq('id', user.id).maybeSingle();
@@ -482,7 +214,7 @@ Deno.serve(async (request) => {
       if (!body.policy || typeof body.policy !== 'object' || Array.isArray(body.policy)) throw new Error('security_policy_required');
       const policy = securityPolicy(body.policy);
       const now = new Date().toISOString();
-      const { error } = await admin.from('organization_module_data').upsert({
+      const { error } = await client.from('organization_module_data').upsert({
         organization_id: organizationId, module_key: 'access_security_policy', data: policy, updated_by: user.id, updated_at: now,
       }, { onConflict: 'organization_id,module_key' });
       if (error) throw error;
@@ -498,149 +230,38 @@ Deno.serve(async (request) => {
       return json({ ok: true, invites: data ?? [] }, 200, headers);
     }
 
-    if (action === 'invite_cancel' || action === 'invite_resend') {
-      const inviteId = text(body.invite_id, 64);
-      if (!inviteId) throw new Error('invite_required');
-      const { data: invite, error: inviteError } = await admin.from('organization_invites')
-        .select('id,email,role,accepted_at,cancelled_at').eq('organization_id', organizationId).eq('id', inviteId).maybeSingle();
-      if (inviteError || !invite) throw inviteError ?? new Error('invite_not_found');
-      if (invite.accepted_at) throw new Error('invite_already_accepted');
-      if (invite.cancelled_at) throw new Error('invite_already_cancelled');
-      if (action === 'invite_cancel') {
-        const { error } = await admin.from('organization_invites').update({ cancelled_at: new Date().toISOString() }).eq('organization_id', organizationId).eq('id', inviteId).is('accepted_at', null).is('cancelled_at', null);
-        if (error) throw error;
-        const cancelledProvisioning = await cancelSellerProvisioningForInvite(admin, organizationId, inviteId);
-        await admin.from('audit_logs').insert({ organization_id: organizationId, actor_id: user.id, actor_name: profile.name, actor_type: 'user', action: 'team.invite_cancelled', detail: `Convite cancelado para ${invite.email}.`, entity_table: 'organization_invites', entity_id: inviteId, event_data: { email: invite.email, role: invite.role, evolution_go_provisioning_cancelled: cancelledProvisioning } });
-        return json({ ok: true }, 200, headers);
-      }
-      const { error } = await admin.auth.admin.inviteUserByEmail(invite.email, { data: {}, redirectTo: `${Deno.env.get('ALLOWED_ORIGIN') ?? 'https://leadai-crm-preview.fabricio926564.chatgpt.site'}/login` });
+    if (action === 'invite_cancel') {
+      const { error } = await client.rpc('team_invite_cancel', { p_id: text(body.invite_id, 64) });
       if (error) throw error;
-      await admin.from('organization_invites').update({ expires_at: new Date(Date.now() + 15 * 60 * 1000).toISOString(), cancelled_at: null }).eq('organization_id', organizationId).eq('id', inviteId).is('accepted_at', null).is('cancelled_at', null);
-      await admin.from('audit_logs').insert({ organization_id: organizationId, actor_id: user.id, actor_name: profile.name, actor_type: 'user', action: 'team.invite_resent', detail: `Convite reenviado para ${invite.email}.`, entity_table: 'organization_invites', entity_id: inviteId, event_data: { email: invite.email, role: invite.role } });
       return json({ ok: true }, 200, headers);
     }
-
-    if (action === 'create') {
-      const email = memberEmail(body.email);
+    if (action === 'invite' || action === 'invite_resend') {
+      let email = body.email; let requestedRole = body.role;
+      if (action === 'invite_resend') {
+        const { data: invite, error } = await admin.from('organization_invites')
+          .select('email,role,accepted_at,cancelled_at').eq('organization_id', organizationId)
+          .eq('id', text(body.invite_id, 64)).maybeSingle();
+        if (error || !invite) throw error ?? new Error('invite_not_found');
+        if (invite.accepted_at || invite.cancelled_at) throw new Error('invite_not_current');
+        email = invite.email; requestedRole = invite.role;
+      }
+      const { data: invitation, error: prepareError } = await client.rpc('team_invite_prepare', {
+        p_org: organizationId, p_email: memberEmail(email), p_role: memberRole(requestedRole),
+      });
+      if (prepareError || !invitation?.id) throw prepareError ?? new Error('member_invitation_failed');
       const name = text(body.name, 120);
-      const password = memberPassword(body.password);
-      const role = memberRole(body.role);
-      if (!name) throw new Error('invalid_member_name');
-
-      const preparedInvite = await prepareOrganizationInvite(admin, organizationId, user.id, email, role);
-
-      const { data: created, error: createError } = await admin.auth.admin.createUser({
-        email,
-        password,
-        email_confirm: true,
-        user_metadata: { name },
+      const { error: deliveryError } = await admin.auth.admin.inviteUserByEmail(invitation.email, {
+        // A marker may suppress standalone bootstrap, but NEVER grants tenant access.
+        data: { ...(name ? { name } : {}), wayflex_invitation: true },
+        redirectTo: `${Deno.env.get('ALLOWED_ORIGIN') ?? 'https://leadai-crm-preview.fabricio926564.chatgpt.site'}/login`,
       });
-      if (createError || !created.user) {
-        await restorePreparedInvite(admin, preparedInvite);
-        if (isExistingAuthUser(createError)) throw new Error('member_email_already_registered');
-        throw createError ?? new Error('member_creation_failed');
-      }
-
-      const now = new Date().toISOString();
-      const { error: membershipError } = await admin.from('organization_members').upsert({
-        organization_id: organizationId, user_id: created.user.id, role, status: 'active', updated_at: now,
-      }, { onConflict: 'organization_id,user_id' });
-      if (membershipError) {
-        await admin.auth.admin.deleteUser(created.user.id);
-        await restorePreparedInvite(admin, preparedInvite);
-        throw membershipError;
-      }
-      const { error: profileError } = await admin.from('profiles').update({
-        name, email, active: true, active_organization_id: organizationId, updated_at: now,
-      }).eq('id', created.user.id);
-      if (profileError) {
-        await admin.auth.admin.deleteUser(created.user.id);
-        await restorePreparedInvite(admin, preparedInvite);
-        throw profileError;
-      }
-
-      // `prepareOrganizationInvite` is used here only as a cross-organization
-      // email reservation. A direct credential-based creation must not leave a
-      // phantom invitation visible to the administrator.
-      const { error: reservationCleanupError } = await admin.from('organization_invites').delete()
-        .eq('id', preparedInvite.id).is('accepted_at', null).is('cancelled_at', null);
-      if (reservationCleanupError) {
-        await admin.auth.admin.deleteUser(created.user.id);
-        await restorePreparedInvite(admin, preparedInvite);
-        throw new Error('member_invitation_cleanup_failed');
-      }
-
-      let provisioning: SellerProvisioning | null = null;
-      if (role === 'vendedor') {
-        try {
-          provisioning = await enqueueSellerProvisioning(admin, {
-            organizationId, userId: created.user.id, actorId: user.id, source: 'direct_create',
-          });
-        } catch (provisioningError) {
-          await admin.auth.admin.deleteUser(created.user.id);
-          throw provisioningError;
-        }
-      }
-
-      await admin.from('audit_logs').insert({
-        organization_id: organizationId, actor_id: user.id, actor_name: profile.name, actor_type: 'user', action: 'team.member_created',
-        detail: `Acesso criado para ${email}.`, entity_table: 'organization_members', event_data: {
-          email, role, user_id: created.user.id,
-          evolution_go_auto_provisioning: provisioning ? { job_id: provisioning.jobId, state: provisioning.state } : null,
-        },
-      });
-      if (provisioning) wakeSellerProvisioningWorker(provisioning.jobId);
-      return json({
-        ok: true, user_id: created.user.id,
-        provisioning: provisioning ? { state: provisioning.state, automatic_channel: true } : null,
-        message: provisioning ? 'Acesso criado; o canal individual Evolution GO será preparado automaticamente.' : 'Acesso criado e liberado.',
-      }, 201, headers);
-    }
-
-    if (action === 'invite') {
-      const email = memberEmail(body.email);
-      const name = text(body.name, 120);
-      const role = memberRole(body.role);
-      const preparedInvite = await prepareOrganizationInvite(admin, organizationId, user.id, email, role);
-      const redirectTo = `${Deno.env.get('ALLOWED_ORIGIN') ?? 'https://leadai-crm-preview.fabricio926564.chatgpt.site'}/login`;
-      const { data: invitation, error: invitationError } = await admin.auth.admin.inviteUserByEmail(email, {
-        data: name ? { name } : {}, redirectTo,
-      });
-      if (invitationError || !invitation.user) {
-        await restorePreparedInvite(admin, preparedInvite);
-        throw invitationError ?? new Error('member_invitation_failed');
-      }
-      const { error: membershipError } = await admin.from('organization_members').upsert({
-        organization_id: organizationId, user_id: invitation.user.id, role, status: 'invited', updated_at: new Date().toISOString(),
-      }, { onConflict: 'organization_id,user_id' });
-      if (membershipError) {
-        await admin.auth.admin.deleteUser(invitation.user.id);
-        await restorePreparedInvite(admin, preparedInvite);
-        throw membershipError;
-      }
-      let provisioning: SellerProvisioning | null = null;
-      if (role === 'vendedor') {
-        try {
-          provisioning = await enqueueSellerProvisioning(admin, {
-            organizationId, userId: invitation.user.id, actorId: user.id, source: 'invite', inviteId: preparedInvite.id,
-          });
-        } catch (provisioningError) {
-          await admin.auth.admin.deleteUser(invitation.user.id);
-          await restorePreparedInvite(admin, preparedInvite);
-          throw provisioningError;
-        }
-      }
-      await admin.from('audit_logs').insert({
-        organization_id: organizationId, actor_id: user.id, actor_name: profile.name, actor_type: 'user', action: 'team.member_invited',
-        detail: `Convite enviado para ${email}; acesso pendente até o aceite.`, entity_table: 'organization_invites', event_data: {
-          email, role,
-          evolution_go_auto_provisioning: provisioning ? { job_id: provisioning.jobId, state: provisioning.state } : null,
-        },
-      });
-      if (provisioning) wakeSellerProvisioningWorker(provisioning.jobId);
-      return json({
-        ok: true, provisioning: provisioning ? { state: provisioning.state, automatic_channel: true } : null,
-        message: provisioning ? 'Convite enviado; o canal individual Evolution GO será preparado automaticamente.' : 'Convite enviado. O acesso será liberado após o aceite.',
+      // External email delivery is not transactional. Keep the canonical pending
+      // invitation on failures; never delete an Auth identity as compensation.
+      const delivery = !deliveryError ? 'sent' : isExistingAuthUser(deliveryError) ? 'existing_account' : 'failed';
+      return json({ ok: true, invite_id: invitation.id, revision: invitation.revision, delivery,
+        message: delivery === 'sent' ? 'Convite enviado. O titular deve confirmar o e-mail e aceitar o vínculo.'
+          : delivery === 'existing_account' ? 'Convite registrado. O titular deve entrar na conta existente e aceitar em Convites pendentes.'
+            : 'Convite registrado, mas o e-mail não foi enviado. Reenvie após verificar o serviço de e-mail.',
       }, 200, headers);
     }
 
@@ -657,81 +278,12 @@ Deno.serve(async (request) => {
       if (error) throw error;
       const overrides = new Map((rows ?? []).map((row) => [row.permission, row.allowed === true]));
       const defaults = defaultPermissionsForRole(current.role);
-      const permissions = Object.fromEntries(organizationPermissions.map((permission) => [permission, overrides.get(permission) ?? defaults[permission]]));
+      const permissions = Object.fromEntries(organizationPermissions.map((permission) => [permission, current.role === 'administrador' ? true : (overrides.get(permission) ?? defaults[permission])]));
       return json({ ok: true, role: current.role, permissions }, 200, headers);
     }
 
-    if (action === 'update_member') {
-      const name = text(body.name, 120);
-      const email = memberEmail(body.email);
-      if (!name) throw new Error('invalid_member_name');
-      const { data: previousProfile, error: previousProfileError } = await admin.from('profiles')
-        .select('name,email').eq('id', targetUserId).maybeSingle();
-      if (previousProfileError || !previousProfile) throw previousProfileError ?? new Error('member_profile_not_found');
-
-      const { error: authUpdateError } = await admin.auth.admin.updateUserById(targetUserId, {
-        email,
-        email_confirm: true,
-        user_metadata: { name },
-      });
-      if (authUpdateError) {
-        if (isExistingAuthUser(authUpdateError)) throw new Error('member_email_already_registered');
-        throw new Error('member_profile_update_failed');
-      }
-
-      const now = new Date().toISOString();
-      const { error: profileUpdateError } = await admin.from('profiles').update({ name, email, updated_at: now }).eq('id', targetUserId);
-      if (profileUpdateError) {
-        await admin.auth.admin.updateUserById(targetUserId, {
-          email: previousProfile.email,
-          email_confirm: true,
-          user_metadata: { name: previousProfile.name },
-        });
-        throw new Error('member_profile_update_failed');
-      }
-      await admin.from('audit_logs').insert({
-        organization_id: organizationId,
-        actor_id: user.id,
-        actor_name: profile.name,
-        actor_type: 'user',
-        action: 'team.member_updated',
-        detail: 'Cadastro de membro atualizado.',
-        entity_table: 'profiles',
-        entity_id: targetUserId,
-        event_data: { user_id: targetUserId, name, email },
-      });
-      return json({ ok: true }, 200, headers);
-    }
-
-    if (action === 'reset_password') {
-      const password = memberPassword(body.password);
-      const { error: passwordError } = await admin.auth.admin.updateUserById(targetUserId, { password });
-      if (passwordError) throw new Error('member_password_reset_failed');
-
-      // A senha temporária substitui a anterior e encerra as sessões renováveis
-      // existentes. Access tokens emitidos antes disso expiram normalmente e
-      // continuam sujeitos às checagens de associação e permissões do CRM.
-      let revokedSessionCount = 0;
-      try {
-        revokedSessionCount = await revokeMemberSessions(admin, targetUserId);
-      } catch {
-        throw new Error('member_password_reset_session_revoke_failed');
-      }
-      await admin.from('audit_logs').insert({
-        organization_id: organizationId,
-        actor_id: user.id,
-        actor_name: profile.name,
-        actor_type: 'user',
-        action: 'team.member_password_reset',
-        detail: 'Senha temporária de membro redefinida.',
-        entity_table: 'organization_members',
-        entity_id: targetUserId,
-        event_data: { user_id: targetUserId, sessions_revoked: revokedSessionCount > 0, revoked_session_count: revokedSessionCount },
-      });
-      return json({ ok: true, sessions_revoked: revokedSessionCount > 0 }, 200, headers);
-    }
-
     if (action === 'permissions_set') {
+      if (current.role === 'administrador') throw new Error('administrator_permissions_are_fixed');
       const requested = body.permissions;
       if (!requested || typeof requested !== 'object' || Array.isArray(requested)) throw new Error('permissions_required');
       const permissionMap = requested as Record<string, unknown>;
@@ -823,47 +375,14 @@ Deno.serve(async (request) => {
       return json({ ok: true, settings: await handoffAlertSettings(admin, organizationId, targetUserId) }, 200, headers);
     }
 
-    if (action === 'update_role') {
-      const role = memberRole(body.role);
-      await ensureAnotherAdministrator(admin, organizationId, targetUserId, current.role === 'administrador' && role !== 'administrador');
-      const { error } = await admin.from('organization_members').update({ role, updated_at: new Date().toISOString() })
-        .eq('organization_id', organizationId).eq('user_id', targetUserId);
-      if (error) throw error;
-      await admin.from('audit_logs').insert({ organization_id: organizationId, actor_id: user.id, actor_name: profile.name, actor_type: 'user', action: 'team.member_role_changed', detail: 'Papel de membro atualizado.', entity_table: 'organization_members', event_data: { user_id: targetUserId, role } });
-      return json({ ok: true }, 200, headers);
-    }
-
-    if (action === 'set_status') {
-      if (typeof body.enabled !== 'boolean') throw new Error('member_status_required');
-      await ensureAnotherAdministrator(admin, organizationId, targetUserId, current.role === 'administrador' && current.status === 'active' && body.enabled === false);
-      const { error } = await admin.from('organization_members').update({ status: body.enabled ? 'active' : 'disabled', updated_at: new Date().toISOString() })
-        .eq('organization_id', organizationId).eq('user_id', targetUserId);
-      if (error) throw error;
-      if (!body.enabled && (await loadSecurityPolicy(admin, organizationId)).revokeSessionsOnDisable) {
-        const revokedSessionCount = await revokeMemberSessions(admin, targetUserId);
-        await admin.from('audit_logs').insert({ organization_id: organizationId, actor_id: user.id, actor_name: profile.name, actor_type: 'user', action: 'team.sessions_revoked', detail: 'Sessões renováveis do usuário revogadas após desativação.', entity_table: 'organization_members', event_data: { user_id: targetUserId, revoked_session_count: revokedSessionCount } });
-      }
-      await admin.from('audit_logs').insert({ organization_id: organizationId, actor_id: user.id, actor_name: profile.name, actor_type: 'user', action: body.enabled ? 'team.member_enabled' : 'team.member_disabled', detail: body.enabled ? 'Acesso de membro liberado.' : 'Acesso de membro bloqueado.', entity_table: 'organization_members', event_data: { user_id: targetUserId } });
-      return json({ ok: true }, 200, headers);
-    }
-
-    await ensureAnotherAdministrator(admin, organizationId, targetUserId, current.role === 'administrador' && current.status === 'active');
-    const { count: otherOrganizationCount, error: otherOrganizationError } = await admin.from('organization_members')
-      .select('organization_id', { count: 'exact', head: true }).eq('user_id', targetUserId).neq('organization_id', organizationId);
-    if (otherOrganizationError) throw otherOrganizationError;
-    if ((otherOrganizationCount ?? 0) > 0) throw new Error('member_linked_to_another_organization');
-
-    // Auth user deletion does not invalidate a JWT already issued to the
-    // browser. Revoke renewable sessions first; organization membership and
-    // permissions are then removed by the Auth-user cascade.
-    await revokeMemberSessions(admin, targetUserId);
-
-    const purge = await purgeMemberOwnedData(admin, organizationId, targetUserId);
-
-    const { error: deleteUserError } = await admin.auth.admin.deleteUser(targetUserId);
-    if (deleteUserError) throw new Error('member_identity_deletion_failed');
-    await admin.from('audit_logs').insert({ organization_id: organizationId, actor_id: user.id, actor_name: profile.name, actor_type: 'user', action: 'team.member_deleted', detail: 'Identidade e dados privados do membro removidos definitivamente.', entity_table: 'organization_members', event_data: { evolution_accounts_deleted: purge.evolutionAccounts, integration_secrets_deleted: purge.integrationSecrets, storage_objects_deleted: purge.storageObjects } });
-    return json({ ok: true, deleted_identity: true }, 200, headers);
+    if (action === 'set_status' && typeof body.enabled !== 'boolean') throw new Error('member_status_required');
+    const { data, error } = await client.rpc('team_member_change', {
+      p_org: organizationId, p_user: targetUserId, p_action: action,
+      p_role: action === 'update_role' ? memberRole(body.role) : null,
+      p_enabled: action === 'set_status' ? body.enabled : null,
+    });
+    if (error) throw error;
+    return json({ ok: true, ...data }, 200, headers);
   } catch (error) {
     return json({ ok: false, erro: safeError(error) }, 400, headers);
   }

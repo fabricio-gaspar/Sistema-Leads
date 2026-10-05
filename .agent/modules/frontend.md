@@ -1,5 +1,9 @@
 # Frontend
 
+## 05/10/2026 — deltas R5/R9/R12 locais, não publicados
+
+Auth → sessionContext (user/org/generation) → OrganizationGate → stores por contexto. Respostas antigas e setters anteriores são recusados; não há seed operacional por localStorage. Convites têm aceite explícito fora do CRM. CSV/exports usam parser e escape central; próxima ação da Agenda usa RPC idempotente; tooltip/CSV usam interação e diálogo acessíveis; CTAs do Wizard compartilham motivo. Recovery de canal é administrativo, explícito e não ativa transporte. Ver `docs/remediacao/2026-10-05-r4-r14/` e manifesto final; não publicar frontend sem backend/migrations compatíveis.
+
 - Busca de Leads (05/10, LOCAL VALIDADO): o preenchimento é guiado por **Fonte → Região → Perfil → Critérios**. Cada etapa valida apenas seu dado obrigatório e mantém o progresso ao voltar; fonte continua derivada de `lead_source_configs` conectadas/ativas. A consulta real ainda acontece somente em **Testar com 10 empresas**; revisão e importação não foram modificadas. O commit `b01f600` aguarda publicação e inspeção autenticada do Site.
 
 - Leads (28/09, Site v144): carteira operacional com abas de prioridade, pesquisa normalizada, filtros básicos/avançados, ordenação, colunas salvas por usuário e tabela de dados autorizados. Aderência explica os critérios; próxima ação usa tarefa persistida; etapa e responsável preservam os contratos atuais. Exclusão definitiva não é duplicada: o atalho direciona à gestão governada em Funil.

@@ -1,7 +1,8 @@
+import { phoneFromPersonalJid, inboundMedia, type InboundMedia } from './messaging/inboundIdentity.ts';
 type Row = Record<string, unknown>;
 
 export type WaAkgInboundEvent =
-  | { kind: 'inbound'; externalId: string; messageId: string; phone: string; text: string; occurredAt: string; messageType: string }
+  | { kind: 'inbound'; externalId: string; messageId: string; phone: string; senderJid: string; text: string; occurredAt: string; messageType: string; media?: InboundMedia }
   | { kind: 'receipt'; externalId: string; providerMessageIds: string[]; status: 'sent' | 'delivered' | 'read' | 'failed'; occurredAt: string }
   | { kind: 'connection'; externalId: string; state: 'connected' | 'disconnected' | 'qr'; occurredAt: string }
   | { kind: 'ignored'; reason: string; externalId: string; occurredAt: string };
@@ -21,11 +22,6 @@ function instant(value: unknown): string {
     return new Date(millis).toISOString();
   }
   return new Date().toISOString();
-}
-
-function digitsFromJid(value: unknown): string {
-  const local = text(value, 200).split('@')[0]?.replace(/\D/g, '') ?? '';
-  return /^[1-9]\d{7,14}$/.test(local) ? local : '';
 }
 
 function status(value: unknown): 'sent' | 'delivered' | 'read' | 'failed' | null {
@@ -88,28 +84,34 @@ export function parseWaAkgEvent(input: unknown): WaAkgInboundEvent {
   if (!jid || /@g\.us$|@broadcast$|status@broadcast$|@newsletter$/.test(jid)) {
     return { kind: 'ignored', reason: 'non_personal_chat', externalId, occurredAt };
   }
-  const phone = digitsFromJid(jid);
-  if (!phone) return { kind: 'ignored', reason: 'sender_invalid', externalId, occurredAt };
+  const phone = phoneFromPersonalJid(jid) ?? '';
+  // Preserve unresolved personal identities for human review. Do not derive a
+  // phone from @lid or accept an unverified mapping supplied in arbitrary fields.
   const content = object(data.content ?? data.message);
   const messageType = text(data.type ?? payload.messageType, 40).toLowerCase() || 'text';
+  const media = inboundMedia(messageType, data.fileUrl ?? content.fileUrl ?? content.url,
+    data.mimeType ?? content.mimetype, data.fileName ?? content.fileName);
   const body = text(
     typeof data.content === 'string' ? data.content
       : data.text ?? data.caption ?? content.text ?? content.caption ?? content.conversation,
     4_096,
   );
-  if (!body) {
+  if (!body && !media) {
     return { kind: 'ignored', reason: 'message_content_unsupported', externalId, occurredAt };
   }
   const messageId = text(key.id ?? data.id, 300);
   if (!messageId) return { kind: 'ignored', reason: 'message_id_missing', externalId, occurredAt };
-  return { kind: 'inbound', externalId, messageId, phone, text: body, occurredAt, messageType };
+  return { kind: 'inbound', externalId, messageId, phone, senderJid: jid,
+    text: body || `[${media?.kind} recebido; revisão humana necessária.]`, occurredAt, messageType, media };
 }
 
 /** Only the normalized fields required by the worker are persisted. */
 export function sanitizeWaAkgPayload(input: unknown): Row {
   const parsed = parseWaAkgEvent(input);
   return parsed.kind === 'inbound'
-    ? { kind: parsed.kind, external_id: parsed.externalId, message_id: parsed.messageId, phone: parsed.phone, text: parsed.text, occurred_at: parsed.occurredAt, message_type: parsed.messageType }
+    ? { kind: parsed.kind, external_id: parsed.externalId, message_id: parsed.messageId, phone: parsed.phone,
+      remote_jid: parsed.senderJid, identity_requires_review: !parsed.phone, media: parsed.media,
+      text: parsed.text, occurred_at: parsed.occurredAt, message_type: parsed.messageType }
     : parsed.kind === 'receipt'
       ? { kind: parsed.kind, external_id: parsed.externalId, provider_message_ids: parsed.providerMessageIds, status: parsed.status, occurred_at: parsed.occurredAt }
       : parsed.kind === 'connection'

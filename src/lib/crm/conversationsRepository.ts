@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import { resolveOrganizationSession } from '@/lib/organizationSession';
+import { resolveOrganizationSession, assertOrganizationSession } from '@/lib/organizationSession';
 import type { Conversa, Mensagem } from '@/mocks/atendimentoData';
 import { isUuid, persistentLeadId } from '@/lib/crm/leadMapper';
 
@@ -153,6 +153,7 @@ export function planOperationalConversationPersistence(previous: Conversa[], nex
 
 export async function loadOperationalConversations(): Promise<Conversa[]> {
   const session = await resolveOrganizationSession();
+  assertOrganizationSession(session);
   const { data: leads, error: leadsError } = await supabase.from('leads')
     .select('id, company, contact, active_channel, ai_paused, automation_status, modo_atendimento, last_contact, updated_at, whatsapp_account_id')
     .eq('organization_id', session.organizationId).order('updated_at', { ascending: false });
@@ -223,13 +224,16 @@ export async function loadOperationalConversations(): Promise<Conversa[]> {
 
 export async function persistOperationalConversations(previous: Conversa[], next: Conversa[]): Promise<Conversa[]> {
   const session = await resolveOrganizationSession();
+  assertOrganizationSession(session);
   const now = new Date().toISOString();
   const plan = planOperationalConversationPersistence(previous, next, now);
   if (plan.messages.length) {
+    assertOrganizationSession(session);
     const { error } = await supabase.from('lead_messages').insert(plan.messages.map(({ leadId, message }) => messageToRow(message, session.organizationId, leadId, now)));
     if (error) throw error;
   }
   for (const item of plan.leadPatches) {
+    assertOrganizationSession(session);
     const { error } = await supabase.from('leads').update(item.patch)
       .eq('id', item.leadId).eq('organization_id', session.organizationId);
     if (error) throw error;

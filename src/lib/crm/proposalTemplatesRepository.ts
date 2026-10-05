@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import { resolveOrganizationSession } from '@/lib/organizationSession';
+import { resolveOrganizationSession, assertOrganizationSession } from '@/lib/organizationSession';
 import type { TemplateProposta } from '@/hooks/useTemplatesPropostaStore';
 
 const MODULE_KEY = 'proposal_templates';
@@ -21,6 +21,7 @@ function isTemplate(value: unknown): value is TemplateProposta {
 
 export async function loadProposalTemplates(): Promise<TemplateProposta[] | null> {
   const session = await resolveOrganizationSession();
+  assertOrganizationSession(session);
   const { data, error } = await supabase
     .from('organization_module_data')
     .select('data')
@@ -38,6 +39,7 @@ export async function loadProposalTemplates(): Promise<TemplateProposta[] | null
 
 export async function saveProposalTemplates(templates: TemplateProposta[]): Promise<void> {
   const session = await resolveOrganizationSession();
+  assertOrganizationSession(session);
   const { error } = await supabase
     .from('organization_module_data')
     .upsert({

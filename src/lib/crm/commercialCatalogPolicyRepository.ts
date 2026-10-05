@@ -1,49 +1,16 @@
 import { supabase } from '@/lib/supabase';
-import { resolveOrganizationSession } from '@/lib/organizationSession';
-
-export interface CommercialCatalogPolicy {
-  catalogEnabled: boolean;
-  productsForAna: boolean;
-  servicesForAna: boolean;
-  draftEnabled: boolean;
-  automaticSendEnabled: boolean;
-  approvedPriceTable: boolean;
-  discountApprovalRequired: boolean;
-  includeValidityAndConditions: boolean;
-  defaultTemplateId: string | null;
-  updatedAt: string | null;
-}
+import { assertOrganizationSession, resolveOrganizationSession } from '@/lib/organizationSession';
+import { normalizeCommercialCatalogPolicy as asPolicy, type CommercialCatalogPolicy } from '../../../supabase/functions/_shared/commercialCatalogPolicy';
+export { defaultCommercialCatalogPolicy, type CommercialCatalogPolicy } from '../../../supabase/functions/_shared/commercialCatalogPolicy';
 
 const MODULE_KEY = 'commercial_catalog_policy';
-
-export const defaultCommercialCatalogPolicy: CommercialCatalogPolicy = {
-  catalogEnabled: true,
-  productsForAna: true,
-  servicesForAna: true,
-  draftEnabled: true,
-  automaticSendEnabled: false,
-  approvedPriceTable: true,
-  discountApprovalRequired: true,
-  includeValidityAndConditions: true,
-  defaultTemplateId: null,
-  updatedAt: null,
-};
-
-function asPolicy(value: unknown): CommercialCatalogPolicy {
-  const candidate = value && typeof value === 'object' ? value as Partial<CommercialCatalogPolicy> : {};
-  return {
-    ...defaultCommercialCatalogPolicy,
-    ...candidate,
-    defaultTemplateId: typeof candidate.defaultTemplateId === 'string' ? candidate.defaultTemplateId : null,
-    updatedAt: typeof candidate.updatedAt === 'string' ? candidate.updatedAt : null,
-  };
-}
 
 export async function loadCommercialCatalogPolicy(): Promise<CommercialCatalogPolicy> {
   const session = await resolveOrganizationSession();
   const { data, error } = await supabase.from('organization_module_data').select('data,updated_at')
     .eq('organization_id', session.organizationId).eq('module_key', MODULE_KEY).maybeSingle();
   if (error) throw error;
+  assertOrganizationSession(session);
   return asPolicy({ ...(data?.data as Record<string, unknown> || {}), updatedAt: data?.updated_at || null });
 }
 
@@ -59,7 +26,8 @@ export async function saveCommercialCatalogPolicy(policy: CommercialCatalogPolic
     updated_at: updatedAt,
   }, { onConflict: 'organization_id,module_key' });
   if (error) throw error;
-  await supabase.from('audit_logs').insert({
+  assertOrganizationSession(session);
+  const { error: auditError } = await supabase.from('audit_logs').insert({
     organization_id: session.organizationId,
     actor_id: session.userId,
     actor_type: 'user',
@@ -69,6 +37,8 @@ export async function saveCommercialCatalogPolicy(policy: CommercialCatalogPolic
     entity_id: session.organizationId,
     event_data: next,
   });
+  if (auditError) throw new Error('Política salva, mas o registro de auditoria não foi confirmado. Recarregue antes de tentar novamente.');
+  assertOrganizationSession(session);
   return next;
 }
 

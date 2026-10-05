@@ -22,6 +22,14 @@ export interface WaAkgSessionStatus {
   state: string;
   phone?: string;
   name?: string;
+  confirmed?: boolean;
+}
+
+/** A user can belong to several organizations; user IDs are not session IDs. */
+export function waAkgSessionName(organizationId: string, accountId: string): string {
+  const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  if (!uuid.test(organizationId) || !uuid.test(accountId)) throw new Error('wa_akg_session_scope_invalid');
+  return `wf_${organizationId.replaceAll('-', '').toLowerCase()}_${accountId.replaceAll('-', '').toLowerCase()}`;
 }
 
 export interface WaAkgQrCode {
@@ -155,7 +163,7 @@ export class WaAkgProvider implements MessagingProvider {
       redirect: 'error',
     });
     const payload = object(await response.json().catch(() => null));
-    if (!response.ok || payload.success === false) {
+    if (!response.ok || payload.success === false || payload.status === false) {
       console.warn('wa_akg_upstream_rejected', {
         path,
         status: response.status,
@@ -182,10 +190,11 @@ export class WaAkgProvider implements MessagingProvider {
   async create(name: string): Promise<void> {
     const safeName = name.trim().slice(0, 120);
     if (!safeName) throw new Error('wa_akg_session_name_required');
-    await this.request('/api/sessions', {
+    const created = await this.request('/api/sessions', {
       method: 'POST',
       body: JSON.stringify({ name: safeName, sessionId: this.session }),
     }, 20_000);
+    if (object(created.data).sessionId !== this.session) throw new Error('wa_akg_create_response_scope_invalid');
   }
 
   async start(): Promise<void> {
@@ -214,6 +223,7 @@ export class WaAkgProvider implements MessagingProvider {
       state: state || 'UNKNOWN',
       phone: text(me.id ?? me.phone ?? data.phone, 120) || undefined,
       name: text(me.name ?? me.notify ?? data.name, 160) || undefined,
+      confirmed: data.sessionId === this.session && ['CONNECTED','DISCONNECTED','STOPPED','SCAN_QR','QR','CONNECTING','LOGGED_OUT'].includes(state),
     };
   }
 
@@ -248,7 +258,13 @@ export class WaAkgProvider implements MessagingProvider {
       method: 'POST',
       body: JSON.stringify({
         enabled: false,
-        autoReplyMode: 'DISABLED',
+        // AccessMode at the pinned upstream is ALL/OWNER/SPECIFIC/BLACKLIST.
+        // Empty allow-lists are defense in depth; enabled=false is verified below
+        // because the upstream update branch currently omits that property.
+        botMode: 'SPECIFIC', botAllowedJids: [], botBlockedJids: [],
+        autoReplyMode: 'SPECIFIC', autoReplyAllowedJids: [], autoReplyBlockedJids: [],
+        enableSticker: false, enableVideoSticker: false, enablePing: false, enableUptime: false,
+        welcomeMessage: null,
         antiSpamEnabled: true,
         spamLimit: 3,
         spamInterval: 60,
@@ -258,11 +274,54 @@ export class WaAkgProvider implements MessagingProvider {
         alwaysOnline: false,
       }),
     });
+    await this.assertSafety();
   }
 
-  async registerWebhook(url: string, secret: string): Promise<void> {
+  /** Read-only precondition before activating/starting an already created session. */
+  async assertSafety(): Promise<void> {
+    const verified = object((await this.request(`/api/sessions/${encodeURIComponent(this.session)}/bot-config`, {
+      method: 'GET', cache: 'no-store',
+    })).data);
+    if (verified.enabled !== false || verified.botMode !== 'SPECIFIC' || verified.autoReplyMode !== 'SPECIFIC'
+      || !Array.isArray(verified.botAllowedJids) || verified.botAllowedJids.length !== 0
+      || !Array.isArray(verified.autoReplyAllowedJids) || verified.autoReplyAllowedJids.length !== 0
+      || verified.autoRead !== false || verified.alwaysOnline !== false || verified.welcomeMessage) {
+      throw new Error('wa_akg_safety_not_confirmed');
+    }
+  }
+
+  private async webhooks(): Promise<JsonObject[]> {
+    const payload = await this.request(`/api/webhooks/${encodeURIComponent(this.session)}`, { method: 'GET', cache: 'no-store' });
+    if (!Array.isArray(payload.data)) throw new Error('wa_akg_webhook_contract_invalid');
+    return payload.data.map(object);
+  }
+
+  private matchingWebhook(webhooks: JsonObject[], url: string, secret: string): boolean {
+    const active = webhooks.filter((hook) => hook.isActive !== false);
+    if (!active.length) return false;
+    const events = ['message.received', 'message.sent', 'message.status', 'connection.update'];
+    if (active.length !== 1 || active[0].url !== url || active[0].secret !== secret
+      || object(active[0].session).sessionId !== this.session
+      || !Array.isArray(active[0].events) || events.some((event) => !(active[0].events as unknown[]).includes(event))) {
+      throw new Error('wa_akg_webhook_ownership_requires_review');
+    }
+    return true;
+  }
+
+  /** Never adopt an existing session based solely on HTTP 409 or a display name. */
+  async verifyOwnedSession(url: string, secret: string): Promise<void> {
+    const session = object((await this.request(`/api/sessions/${encodeURIComponent(this.session)}`, { method: 'GET', cache: 'no-store' })).data);
+    if (session.sessionId !== this.session || !this.matchingWebhook(await this.webhooks(), safeHttpsUrl(url), secret)) {
+      throw new Error('wa_akg_session_ownership_requires_review');
+    }
+  }
+
+  async registerWebhook(url: string, secret: string, beforeCreate?: () => Promise<void>): Promise<void> {
     const webhookUrl = safeHttpsUrl(url);
     if (!secret.trim() || secret.length < 32) throw new Error('wa_akg_webhook_secret_invalid');
+    if (this.matchingWebhook(await this.webhooks(), webhookUrl, secret)) return;
+    // The lifecycle fence is repeated after the read, immediately before POST.
+    await beforeCreate?.();
     await this.request(`/api/webhooks/${encodeURIComponent(this.session)}`, {
       method: 'POST',
       body: JSON.stringify({
@@ -272,5 +331,6 @@ export class WaAkgProvider implements MessagingProvider {
         events: ['message.received', 'message.sent', 'message.status', 'connection.update'],
       }),
     });
+    if (!this.matchingWebhook(await this.webhooks(), webhookUrl, secret)) throw new Error('wa_akg_webhook_registration_not_confirmed');
   }
 }

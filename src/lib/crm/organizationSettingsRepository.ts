@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import { resolveOrganizationSession } from '@/lib/organizationSession';
+import { resolveOrganizationSession, assertOrganizationSession } from '@/lib/organizationSession';
 import type { EmpresaSettings, Organizacao } from '@/hooks/useEmpresaSettingsStore';
 
 interface OrganizationSettingsRow {
@@ -20,6 +20,7 @@ export function organizationSettingsToEmpresaSettings(row: OrganizationSettingsR
 
 export async function loadOperationalCompanySettings(fallback: EmpresaSettings): Promise<EmpresaSettings> {
   const session = await resolveOrganizationSession();
+  assertOrganizationSession(session);
   const { data, error } = await supabase
     .from('company_settings')
     .select('organization_id, ui_settings')
@@ -31,6 +32,7 @@ export async function loadOperationalCompanySettings(fallback: EmpresaSettings):
 
 export async function persistOperationalCompanySettings(settings: EmpresaSettings): Promise<void> {
   const session = await resolveOrganizationSession();
+  assertOrganizationSession(session);
   const { error } = await supabase
     .from('company_settings')
     .upsert({

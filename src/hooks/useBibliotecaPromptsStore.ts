@@ -87,17 +87,18 @@ const store = createBackendStore<BibliotecaPrompt[]>('biblioteca_prompts', STORA
 
 export function useBibliotecaPromptsStore() {
   const prompts = store.useStore();
+  const setStore = store.bindSet();
 
   const atualizar = (id: string, mudanca: Partial<BibliotecaPrompt>) => {
-    store.set((prev) => prev.map((p) => (p.id === id ? { ...p, ...mudanca } : p)));
+    setStore((prev) => prev.map((p) => (p.id === id ? { ...p, ...mudanca } : p)));
   };
 
   const adicionar = (p: BibliotecaPrompt) => {
-    store.set((prev) => [p, ...prev]);
+    setStore((prev) => [p, ...prev]);
   };
 
   const excluir = (id: string) => {
-    store.set((prev) => prev.filter((p) => p.id !== id));
+    setStore((prev) => prev.filter((p) => p.id !== id));
   };
 
   return { prompts, atualizar, adicionar, excluir };

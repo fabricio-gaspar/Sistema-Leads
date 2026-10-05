@@ -48,19 +48,17 @@ const configInicial: ConfiguracaoRuntime = {
 
 const store = createBackendStore<ConfiguracaoRuntime>('configuracao_runtime',STORAGE_KEY, configInicial);
 
-// Migração única (ao carregar o módulo): garante que configurações salvas em
-// versões anteriores ganhem os novos campos (modo de execução, estados de módulo
-// e contatos de teste) sem quebrar telas que os leem diretamente.
-store.set((prev) => ({ ...configInicial, ...prev }));
+// Defaults are merged on read. Importing this module never writes operational data.
 
 export function useConfiguracaoStore(): {
   config: ConfiguracaoRuntime;
   atualizar: (patch: Partial<ConfiguracaoRuntime>) => void;
 } {
   const config = store.useStore();
+  const setStore = store.bindSet();
 
   const atualizar = (patch: Partial<ConfiguracaoRuntime>) => {
-    store.set((prev) => ({ ...prev, ...patch }));
+    setStore((prev) => ({ ...prev, ...patch }));
   };
 
   return { config, atualizar };

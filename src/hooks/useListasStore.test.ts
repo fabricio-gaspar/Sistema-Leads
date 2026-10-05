@@ -1,7 +1,8 @@
 import { createElement } from 'react';
 import { renderToString } from 'react-dom/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { getListasSnapshot, useListasStore, waitForListsPersistence, type ListaDeLeads } from './useListasStore';
+import { getListasSnapshot, refreshListsStore, useListasStore, waitForListsPersistence, type ListaDeLeads } from './useListasStore';
+import { sessionContext } from '@/lib/sessionContext';
 
 const repository = vi.hoisted(() => ({
   load: vi.fn(),
@@ -22,6 +23,10 @@ describe('persistência das listas de leads', () => {
     vi.spyOn(console, 'error').mockImplementation(() => {});
     repository.load.mockResolvedValue([]);
     repository.persist.mockRejectedValueOnce(new Error('list_insert_failed'));
+    const pending = sessionContext.replace('synthetic-user');
+    sessionContext.confirm(pending, 'synthetic-user', 'synthetic-org');
+    await refreshListsStore();
+    repository.load.mockClear();
 
     let criar!: ReturnType<typeof useListasStore>['criar'];
     function Harness() {
@@ -40,6 +45,8 @@ describe('persistência das listas de leads', () => {
     expect(getListasSnapshot()).toEqual([]);
 
     repository.persist.mockImplementation(async (_previous: ListaDeLeads[], next: ListaDeLeads[]) => next);
+    expect(() => criar(dados)).toThrow('store_refresh_required_after_write_failure');
+    await refreshListsStore(); // Explicit recovery is required; a failed queue never silently replays.
     criar(dados);
     await expect(waitForListsPersistence()).resolves.toBeUndefined();
     expect(getListasSnapshot()).toHaveLength(1);

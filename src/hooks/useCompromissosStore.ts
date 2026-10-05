@@ -1,17 +1,9 @@
-import { useEffect, useSyncExternalStore } from 'react';
+import { createContextStore } from '@/lib/contextStore';
 import type { Compromisso } from '@/mocks/frontendAdvancedData';
 import { loadAgendaPortfolio, type AgendaAppointment } from '@/lib/crm/appointmentsRepository';
 
 // Adaptador de leitura para os indicadores legados do Dashboard. A Agenda usa
 // diretamente o repositório operacional; assim não há duas fontes de verdade.
-let state: Compromisso[] = [];
-let hydrated = false;
-let hydratePromise: Promise<void> | null = null;
-let loadStatus: 'loading' | 'ready' | 'error' = 'loading';
-const listeners = new Set<() => void>();
-
-const notify = () => listeners.forEach((listener) => listener());
-const subscribe = (listener: () => void) => { listeners.add(listener); return () => listeners.delete(listener); };
 const datePart = (iso: string) => new Intl.DateTimeFormat('en-CA', { timeZone: 'America/Sao_Paulo' }).format(new Date(iso));
 const timePart = (iso: string) => new Intl.DateTimeFormat('pt-BR', { timeZone: 'America/Sao_Paulo', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date(iso));
 
@@ -35,30 +27,20 @@ function legacyAppointment(item: AgendaAppointment): Compromisso {
   };
 }
 
-async function hydrate(): Promise<void> {
-  if (hydrated) return;
-  if (hydratePromise) return hydratePromise;
-  loadStatus = 'loading'; notify();
-  const now = new Date();
-  const start = new Date(now); start.setDate(start.getDate() - 30);
-  const end = new Date(now); end.setDate(end.getDate() + 90);
-  hydratePromise = loadAgendaPortfolio({ query: '', responsibleId: '', type: '', status: '', origin: '', segment: '', confirmation: '', nextAction: '', quick: '', rangeStart: start.toISOString(), rangeEnd: end.toISOString() }, 0, 200)
-    .then(({ items }) => { state = items.map(legacyAppointment); hydrated = true; loadStatus = 'ready'; notify(); })
-    .catch((error) => { console.error('[agenda] falha ao carregar indicadores', error); loadStatus = 'error'; notify(); })
-    .finally(() => { hydratePromise = null; });
-  return hydratePromise;
-}
+const store = createContextStore<Compromisso[]>({
+  initial: () => [],
+  load: async () => {
+    const now = new Date();
+    const start = new Date(now); start.setDate(start.getDate() - 30);
+    const end = new Date(now); end.setDate(end.getDate() + 90);
+    const { items } = await loadAgendaPortfolio({ query: '', responsibleId: '', type: '', status: '', origin: '', segment: '', confirmation: '', nextAction: '', quick: '', rangeStart: start.toISOString(), rangeEnd: end.toISOString() }, 0, 200);
+    return items.map(legacyAppointment);
+  },
+});
 
 export function useCompromissosStore(): { compromissos: Compromisso[] } {
-  const compromissos = useSyncExternalStore(subscribe, () => state, () => state);
-  useEffect(() => { void hydrate(); }, []);
-  return { compromissos };
+  return { compromissos: store.useData() };
 }
 
-export function useCompromissosLoadStatus() {
-  const status = useSyncExternalStore(subscribe, () => loadStatus, () => loadStatus);
-  useEffect(() => { void hydrate(); }, []);
-  return status;
-}
-
-export async function refreshCompromissosStore(): Promise<void> { hydrated = false; await hydrate(); }
+export const useCompromissosLoadStatus = store.useStatus;
+export const refreshCompromissosStore = store.refresh;

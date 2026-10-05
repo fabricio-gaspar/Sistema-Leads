@@ -1,5 +1,9 @@
 # Segurança
 
+## 05/10/2026 — R4/R5 e revisão independente locais
+
+Convite possui revisão, expiração/cancelamento e aceite por usuário de email confirmado; papéis configurados são validados no backend. Metadata declarativa não concede papel/empresa. Operações sobre senha/identidade global foram removidas da administração de vínculo. MFA de UI não é enforcement Auth; proteção de senha vazada continua aviso remoto. Sessão frontend é cercada por identidade/empresa/geração, sem substituir RLS. Agenda restringe carteira. Nenhuma alteração em Auth/cliente real; ver R4/R5/R9 e revisões em `docs/remediacao/2026-10-05-r4-r14/`.
+
 ## 05/10/2026 — Endurecimento local R1/R2/R3, não implantado
 
 Carteira de propostas, proprietário/compartilhamento de documentos/chunks/Storage, proteção de supressão e último admin concorrente corrigidos no escopo R1. R2 separa intenção da conta de gate global administrativo, valida associação/permissão em cada checkpoint e impede retorno obsoleto de reativar flags. R3 revalida organização/conta/provedor antes de conciliar recibos. Revisões independentes e casos negativos/positivos registrados em `docs/remediacao/2026-10-05-r1-r3/`. Convites/MFA/caches e recuperação operacional não foram resolvidos por este lote; NO-GO global permanece.

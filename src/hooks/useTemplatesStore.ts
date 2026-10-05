@@ -15,17 +15,18 @@ export interface TemplatesStore {
 
 export function useTemplatesStore(): TemplatesStore {
   const templates = store.useStore();
+  const setStore = store.bindSet();
 
   const atualizar = (id: string, mudanca: Partial<TemplateMensagem>) => {
-    store.set((prev) => prev.map((t) => (t.id === id ? { ...t, ...mudanca } : t)));
+    setStore((prev) => prev.map((t) => (t.id === id ? { ...t, ...mudanca } : t)));
   };
 
   const adicionar = (template: TemplateMensagem) => {
-    store.set((prev) => [template, ...prev]);
+    setStore((prev) => [template, ...prev]);
   };
 
   const excluir = (id: string) => {
-    store.set((prev) => prev.filter((t) => t.id !== id));
+    setStore((prev) => prev.filter((t) => t.id !== id));
   };
 
   return { templates, atualizar, adicionar, excluir };

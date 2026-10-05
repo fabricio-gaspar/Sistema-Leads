@@ -1,7 +1,7 @@
 import { createAdminClient, hasOrganizationPermission, requireUser } from '../_shared/auth.ts';
 import { allowedCorsHeaders, hasAllowedOrigin, json, preflight, safeError } from '../_shared/http.ts';
-import { WaAkgProvider, normalizeWaAkgBaseUrl } from '../_shared/messaging/WaAkgProvider.ts';
-import { accountLifecycleStatus, runAccountLifecycle, setAccountProviderControls, type LifecycleStep } from '../_shared/accountLifecycle.ts';
+import { WaAkgProvider, normalizeWaAkgBaseUrl, waAkgSessionName } from '../_shared/messaging/WaAkgProvider.ts';
+import { accountLifecycleStatus, recoverAccountLifecycle, runAccountLifecycle, setAccountProviderControls, type LifecycleStep } from '../_shared/accountLifecycle.ts';
 
 type Admin = ReturnType<typeof createAdminClient>;
 type Row = Record<string, unknown>;
@@ -21,10 +21,6 @@ function allowedOrigins(): string[] {
 function randomSecret(): string {
   const bytes = crypto.getRandomValues(new Uint8Array(32));
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
-}
-
-function sessionName(userId: string): string {
-  return `seller_${userId.replace(/-/g, '')}`;
 }
 
 function phoneSuffix(value: string | undefined): string | null {
@@ -158,8 +154,10 @@ async function corporateCredentials(admin: Admin, organizationId: string): Promi
     .is('archived_at', null).order('created_at', { ascending: true }).limit(1).maybeSingle();
   if (error) throw new Error('wa_akg_gateway_lookup_failed');
   const stored = data?.integration_id ? await secretFor(admin, String(data.integration_id)) : {};
-  const baseUrl = text(stored.base_url, 500) || text(Deno.env.get('WA_AKG_BASE_URL'), 500);
-  const apiKey = text(stored.api_key, 1_000) || text(Deno.env.get('WA_AKG_API_KEY'), 1_000);
+  const storedUrl = text(stored.base_url, 500), storedKey = text(stored.api_key, 1_000);
+  if (Boolean(storedUrl) !== Boolean(storedKey)) throw new Error('wa_akg_gateway_configuration_incomplete');
+  const baseUrl = storedUrl || text(Deno.env.get('WA_AKG_BASE_URL'), 500);
+  const apiKey = storedKey || text(Deno.env.get('WA_AKG_API_KEY'), 1_000);
   if (!baseUrl || !apiKey) throw new Error('wa_akg_gateway_not_configured');
   return { base_url: normalizeWaAkgBaseUrl(baseUrl, allowedOrigins()), api_key: apiKey };
 }
@@ -169,6 +167,9 @@ async function providerFor(admin: Admin, organizationId: string, record: RecordS
   const gateway = await corporateCredentials(admin, organizationId);
   const sessionId = text(ownSecret.session_id, 120) || text(object(record.integration.configuration).session_name, 120);
   if (!sessionId) throw new Error('wa_akg_session_not_provisioned');
+  if (record.account.account_type === 'seller' && sessionId !== waAkgSessionName(organizationId, String(record.account.id))) {
+    throw new Error('wa_akg_legacy_session_requires_review');
+  }
   return {
     provider: new WaAkgProvider({
       baseUrl: text(gateway.base_url, 500), apiKey: text(gateway.api_key, 1_000), sessionId,
@@ -187,7 +188,9 @@ async function provision(admin: Admin, actor: Actor, record: RecordSet, step: Li
   if (record.account.account_type !== 'seller') throw new Error('wa_akg_seller_account_required');
   const gateway = await corporateCredentials(admin, actor.organizationId);
   const existing = await secretFor(admin, String(record.integration.id));
-  const sessionId = text(existing.session_id, 120) || sessionName(String(record.account.owner_user_id));
+  const expectedSessionId = waAkgSessionName(actor.organizationId, String(record.account.id));
+  const sessionId = text(existing.session_id, 120) || expectedSessionId;
+  if (sessionId !== expectedSessionId) throw new Error('wa_akg_legacy_session_requires_review');
   const webhookSecret = text(existing.webhook_secret, 256) || randomSecret();
   const secret = { ...existing, session_id: sessionId, webhook_secret: webhookSecret, timeout_ms: 15_000 };
   await step(() => storeSecret(admin, String(record.integration.id), secret));
@@ -197,10 +200,15 @@ async function provision(admin: Admin, actor: Actor, record: RecordSet, step: Li
   });
   if (existing.remote_created !== true) {
     try { await step(() => provider.create(text(record.account.label, 120) || 'WhatsApp do vendedor'), true); }
-    catch (error) { if (safeError(error) !== 'wa_akg_request_rejected_409') throw error; }
+    catch (error) {
+      if (safeError(error) !== 'wa_akg_request_rejected_409') throw error;
+      await step(() => provider.verifyOwnedSession(callbackUrl(String(record.integration.id)), webhookSecret));
+    }
+  } else {
+    await step(() => provider.verifyOwnedSession(callbackUrl(String(record.integration.id)), webhookSecret));
   }
   await step(() => provider.configureSafety(), true);
-  await step(() => provider.registerWebhook(callbackUrl(String(record.integration.id)), webhookSecret), true);
+  await step(() => provider.registerWebhook(callbackUrl(String(record.integration.id)), webhookSecret, () => step(async () => undefined)), true);
   await step(() => provider.start(), true);
   await step(() => storeSecret(admin, String(record.integration.id), { ...secret, remote_created: true, webhook_registered: true }));
 
@@ -319,6 +327,16 @@ Deno.serve(async (request) => {
       const lifecycle = await accountLifecycleStatus(admin, { organizationId: actor.organizationId, accountId, provider: 'wa_akg', actorId: actor.userId });
       return json({ ok: true, ...publicStatus(record, actor), lifecycle }, 200, headers);
     }
+    if (action === 'lifecycle_diagnose' || action === 'lifecycle_reconcile') {
+      const record = await accessible(admin, actor, accountId, 'manage');
+      const result = await recoverAccountLifecycle(admin, { organizationId: actor.organizationId, accountId,
+        provider: 'wa_akg', actorId: actor.userId }, body, async () => {
+        const { provider } = await providerFor(admin, actor.organizationId, record);
+        const status = await provider.status();
+        return { confirmed: status.confirmed === true, connected: status.connected };
+      });
+      return json({ ok: result.status === 200, ...result, ...(result.status === 409 ? { error: 'account_lifecycle_needs_review' } : {}) }, result.status, headers);
+    }
     if (action === 'provision') {
       const current = await accessible(admin, actor, accountId, 'manage');
       const result = await runAccountLifecycle(admin, { organizationId: actor.organizationId, accountId,
@@ -354,6 +372,9 @@ Deno.serve(async (request) => {
       const result = await runAccountLifecycle(admin, lifecycleContext, action, async (step) => {
         // Credential lookup intentionally follows the durable local cutoff.
         const { provider } = await providerFor(admin, actor.organizationId, record);
+        if (['connect', 'reconnect', 'qr', 'pair', 'activate'].includes(action)) {
+          await step(() => provider.assertSafety());
+        }
         if (action === 'connect' || action === 'reconnect') {
           await step(() => action === 'connect' ? provider.start() : provider.restart(), true);
           return { connectionStatus: 'qr' };

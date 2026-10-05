@@ -10,7 +10,7 @@ import {
   type AnaOperationRun,
   type AnaOperationSettings,
 } from '@/lib/crm/anaOperationRepository';
-import { validateAnaOperationForActivation, type AnaOperationField } from '@/lib/crm/anaOperationValidation';
+import { anaLocationErrors, validateAnaOperationForActivation, type AnaOperationField } from '@/lib/crm/anaOperationValidation';
 import { loadTeamMembers, type TeamMember } from '@/lib/crm/teamMembersRepository';
 import { loadOperationalStatus, setOperationalKillSwitch } from '@/lib/crm/operationalDiagnosticsRepository';
 
@@ -23,19 +23,20 @@ const DEFAULTS: AnaOperationSettings = {
   enabled: false, mode: 'simulation', name: 'Operação diária da Ana', timezone: 'America/Sao_Paulo', weekdays: [1, 2, 3, 4, 5], runTime: '09:00',
   dailyLeadLimit: 20, dailyCap: 50, monthlyCap: 500, minimumFitScore: 70, assignmentStrategy: 'owner',
   initialAssignmentMode: 'ana', initialAssigneeUserId: null, teamMemberIds: [], handoffStage: null, handoffAssigneeUserId: null, handoffNotifyWhatsapp: false,
-  regions: [], segments: [], keywords: [], requireWebsite: true, requireWhatsapp: true, requireEmail: false,
+  city: '', regions: [], segments: [], keywords: [], requireWebsite: true, requireWhatsapp: true, requireEmail: false,
   paidProspectingApproved: false, notifyImmediate: true, notifyProgress: true, digestEnabled: true, digestTime: '18:00',
 };
 const MODE_COPY: Record<AnaOperationMode, { title: string; text: string; icon: string }> = {
-  simulation: { title: 'Simulação', text: 'Valida a rotina e registra o plano sem chamar Apify, IA ou canais.', icon: 'ri-flask-line' },
+  simulation: { title: 'Simulação', text: 'Registra o plano sem chamar Apify, IA ou canais. Não comprova execução real.', icon: 'ri-flask-line' },
   supervised: { title: 'Supervisionado', text: 'Prepara a execução e aguarda aprovação antes de prospectar.', icon: 'ri-user-follow-line' },
   automatic: { title: 'Automático', text: 'Executa a rotina somente quando todas as conexões e proteções estiverem comprovadas.', icon: 'ri-robot-2-line' },
 };
 const FIELD_LABEL: Record<AnaOperationField, string> = {
+  city: 'Cidade', regions: 'UF', keywords: 'Segmentos ou palavras-chave',
   runTime: 'Horário diário', timezone: 'Fuso horário', weekdays: 'Dias da semana', dailyLeadLimit: 'Leads por busca', dailyCap: 'Limite diário', monthlyCap: 'Limite mensal',
   paidProspectingApproved: 'Autorização de uso do Apify', initialAssigneeUserId: 'Vendedor responsável', teamMemberIds: 'Equipe do rodízio', handoffAssigneeUserId: 'Vendedor da transferência',
 };
-type ReadinessKey = 'company' | 'realEnvironment' | 'anaConfiguration' | 'ai' | 'apify' | 'scheduler' | 'whatsappOutbound' | 'whatsappInbound' | 'killSwitchOff';
+type ReadinessKey = 'company' | 'realEnvironment' | 'anaConfiguration' | 'ai' | 'apify' | 'scheduler' | 'whatsappOutbound' | 'whatsappInbound' | 'killSwitchOff' | 'prospectingLocation';
 interface ReadinessItem {
   key: ReadinessKey;
   label: string;
@@ -44,13 +45,14 @@ interface ReadinessItem {
   href?: string;
 }
 const READINESS_ITEMS: ReadinessItem[] = [
+  { key: 'prospectingLocation', label: 'Busca delimitada', pendingDetail: 'Salve uma cidade, uma única UF e ao menos um segmento ou palavra-chave. Configurações antigas sem cidade não podem executar buscas.', actionLabel: 'Revisar local da busca', href: '#operation-location' },
   { key: 'company', label: 'Empresa ativa', pendingDetail: 'O cadastro operacional da empresa ainda não está ativo.', actionLabel: 'Revisar empresa', href: '/dashboard/configuracoes?tab=operacao#real-environment' },
   { key: 'realEnvironment', label: 'Ambiente real', pendingDetail: 'A preparação segura do Ambiente Real ainda não foi concluída.', actionLabel: 'Preparar ambiente', href: '/dashboard/configuracoes?tab=operacao#real-environment' },
   { key: 'anaConfiguration', label: 'Configuração publicada', pendingDetail: 'Publique a política da Ana na etapa Canais e publicar.', actionLabel: 'Publicar configuração', href: '/dashboard/configuracoes?tab=ana&section=behavior&step=5' },
   { key: 'ai', label: 'IA', pendingDetail: 'A IA precisa estar configurada, validada e ativa.', actionLabel: 'Configurar IA', href: '/dashboard/configuracoes?tab=apis#ai-configuration' },
   { key: 'apify', label: 'Apify', pendingDetail: 'O Apify precisa estar configurado, validado e ativo para a busca.', actionLabel: 'Configurar Apify', href: '/dashboard/configuracoes?tab=apis#prospecting-providers' },
-  { key: 'scheduler', label: 'Agendador', pendingDetail: 'O worker 24/7 ainda não confirmou o processamento das rotinas.', actionLabel: 'Preparar worker', href: '/dashboard/configuracoes?tab=operacao&setup=worker#scheduler-setup' },
-  { key: 'whatsappOutbound', label: 'WhatsApp de saída', pendingDetail: 'Valide e ative a conta corporativa Evolution GO usada para enviar mensagens.', actionLabel: 'Validar Evolution GO', href: '/dashboard/configuracoes?tab=canais#evolution-go-configuration' },
+  { key: 'scheduler', label: 'Agendador', pendingDetail: 'Ainda falta a confirmação de presença do worker. O heartbeat não comprova a conclusão de uma rotina.', actionLabel: 'Preparar worker', href: '/dashboard/configuracoes?tab=operacao&setup=worker#scheduler-setup' },
+  { key: 'whatsappOutbound', label: 'WhatsApp corporativo de saída', pendingDetail: 'Valide o canal corporativo configurado para esta rotina. Uma sessão individual do vendedor não comprova este pré-requisito.', actionLabel: 'Revisar canais', href: '/dashboard/configuracoes?tab=canais' },
   { key: 'whatsappInbound', label: 'WhatsApp de entrada', pendingDetail: 'Cadastre a entrada e confirme um callback real de um lead conhecido.', actionLabel: 'Concluir entrada', href: '/dashboard/configuracoes?tab=operacao&setup=whatsapp-webhook#whatsapp-inbound' },
   { key: 'killSwitchOff', label: 'Pausa global desligada', pendingDetail: 'A pausa global está ligada e bloqueia todas as automações.', actionLabel: 'Retomar automações' },
 ];
@@ -95,7 +97,7 @@ export default function AnaAutomaticOperation() {
         initialAssigneeUserId: asId(schedule.initial_assignee_user_id), teamMemberIds: textList(schedule.team_member_ids),
         handoffStage: HANDOFF_STAGES.some((stage) => stage.id === schedule.handoff_stage) ? schedule.handoff_stage as AnaHandoffStage : null,
         handoffAssigneeUserId: asId(schedule.handoff_assignee_user_id), handoffNotifyWhatsapp: schedule.handoff_notify_whatsapp === true,
-        regions: textList(filters.estados), segments: textList(filters.segmentos), keywords: textList(filters.atividades),
+        city: typeof filters.cidade === 'string' ? filters.cidade : '', regions: textList(filters.estados), segments: textList(filters.segmentos), keywords: textList(filters.atividades),
         requireWebsite: filters.exigeSite !== false, requireWhatsapp: filters.exigeWhatsApp !== false, requireEmail: filters.exigeEmail === true,
         paidProspectingApproved: schedule.paid_prospecting_approved === true, notifyImmediate: schedule.notify_immediate !== false,
         notifyProgress: schedule.notify_progress !== false, digestEnabled: schedule.digest_enabled !== false, digestTime: clock(schedule.digest_time, DEFAULTS.digestTime),
@@ -134,9 +136,11 @@ export default function AnaAutomaticOperation() {
         setError(`Revise ${issues.map((issue) => FIELD_LABEL[issue.field]).join(', ')} antes de ativar.`);
         return;
       }
-      if (candidate.mode === 'automatic' && !automaticReady) {
-        const firstPending = pendingReadiness[0];
-        setError(`Não foi possível ativar: ${pendingReadiness.length} ${pendingReadiness.length === 1 ? 'pré-requisito está pendente' : 'pré-requisitos estão pendentes'}${firstPending ? `. Comece por “${firstPending.label}”` : ''}.`);
+      // The form validator above checks the new location; the server will recheck it on save.
+      const remaining = pendingReadiness.filter((item) => item.key !== 'prospectingLocation');
+      if (candidate.mode === 'automatic' && remaining.length) {
+        const firstPending = remaining[0];
+        setError(`Não foi possível ativar: ${remaining.length} ${remaining.length === 1 ? 'pré-requisito está pendente' : 'pré-requisitos estão pendentes'}${firstPending ? `. Comece por “${firstPending.label}”` : ''}.`);
         if (firstPending) focusReadiness(firstPending.key);
         return;
       }
@@ -149,15 +153,16 @@ export default function AnaAutomaticOperation() {
     } catch (reason) {
       const code = reason instanceof Error ? reason.message : 'ana_operation_save_failed';
       const serverMessage: Record<string, string> = {
+        ...anaLocationErrors,
         automatic_mode_not_ready: 'O modo automático ainda não está apto. Veja os pré-requisitos pendentes.',
         paid_prospecting_approval_required: 'Confirme o uso do Apify dentro dos limites configurados.',
         operation_assignment_member_required: 'Selecione um usuário ativo que possa atender conversas.',
         operation_assignment_member_cannot_reply: 'O usuário selecionado não possui permissão para atender conversas.',
         operation_handoff_recipient_required: 'Selecione quem assumirá a transferência da Ana.',
         operation_handoff_whatsapp_not_configured: 'O aviso por WhatsApp exige que o número do usuário esteja configurado em Usuários.',
-        schedule_not_saved: 'Não foi possível gravar a agenda da Ana. A configuração anterior foi preservada.',
+        schedule_not_saved: 'Não foi possível confirmar a gravação da agenda. Atualize a leitura antes de repetir.',
       };
-      setError(serverMessage[code] || 'Não foi possível salvar a operação. Os dados atuais não foram ativados.');
+      setError(serverMessage[code] || 'Não foi possível confirmar o salvamento. Atualize a leitura para conferir o estado antes de repetir.');
     } finally { setBusy(''); }
   };
   const simulate = async () => {
@@ -168,14 +173,19 @@ export default function AnaAutomaticOperation() {
   };
   const runNow = async () => {
     setBusy('run'); setError(''); setMessage('');
-    try { const result = await runAnaOperationNow(); setRuns((current) => [result.run, ...current]); setMessage(settings.mode === 'supervised' ? 'Execução preparada e aguardando aprovação.' : 'Execução colocada na fila auditável.'); }
-    catch (reason) { setError(reason instanceof Error ? reason.message : 'Não foi possível executar.'); }
+    try {
+      const result = await runAnaOperationNow(); setRuns((current) => [result.run, ...current]);
+      setMessage(result.run.status === 'simulated' ? 'Plano simulado registrado; nenhuma execução externa ocorreu.'
+        : result.run.status === 'awaiting_approval' ? 'Execução preparada e aguardando aprovação.'
+          : result.run.status === 'queued' ? 'Execução colocada na fila; a busca ainda não foi concluída.' : 'Estado recebido. Confira o histórico da execução.');
+    }
+    catch (reason) { setError(reason instanceof Error && anaLocationErrors[reason.message] || 'Não foi possível confirmar a execução. Atualize o histórico antes de repetir.'); }
     finally { setBusy(''); }
   };
   const approve = async (id: string) => {
     setBusy(id); setError('');
     try { const result = await approveAnaOperationRun(id); setRuns((current) => current.map((item) => item.id === id ? result.run : item)); setMessage('Execução aprovada e colocada na fila auditável.'); }
-    catch { setError('Não foi possível aprovar a execução.'); }
+    catch (reason) { setError(reason instanceof Error && anaLocationErrors[reason.message] || 'Não foi possível confirmar a aprovação. Atualize o histórico antes de repetir.'); }
     finally { setBusy(''); }
   };
   const pauseAll = async () => {
@@ -210,8 +220,12 @@ export default function AnaAutomaticOperation() {
           <div className="mt-4 grid gap-4 md:grid-cols-2"><label className="text-sm">Horário diário<input className="mt-1 w-full" type="time" value={settings.runTime} onChange={(event) => update('runTime', event.target.value)} />{showFieldError('runTime')}</label><label className="text-sm">Fuso horário<input className="mt-1 w-full" value={settings.timezone} onChange={(event) => update('timezone', event.target.value)} />{showFieldError('timezone')}</label></div>
           <div className="mt-4"><span className="text-sm">Dias da semana</span><div className="mt-2 flex flex-wrap gap-2">{DAYS.map((day) => <button type="button" key={day.id} onClick={() => update('weekdays', settings.weekdays.includes(day.id) ? settings.weekdays.filter((item) => item !== day.id) : [...settings.weekdays, day.id])} className={`rounded-lg border px-3 py-2 text-sm ${settings.weekdays.includes(day.id) ? 'border-primary-500 bg-primary-50 text-primary-800' : 'border-background-200'}`}>{day.label}</button>)}</div>{showFieldError('weekdays')}</div>
           <div className="mt-4 grid gap-4 md:grid-cols-3"><label className="text-sm">Leads por busca<input className="mt-1 w-full" type="number" min="1" max="100" value={settings.dailyLeadLimit} onChange={(event) => update('dailyLeadLimit', Number(event.target.value))} />{showFieldError('dailyLeadLimit')}</label><label className="text-sm">Limite diário<input className="mt-1 w-full" type="number" min="1" value={settings.dailyCap} onChange={(event) => update('dailyCap', Number(event.target.value))} />{showFieldError('dailyCap')}</label><label className="text-sm">Limite mensal<input className="mt-1 w-full" type="number" min="1" value={settings.monthlyCap} onChange={(event) => update('monthlyCap', Number(event.target.value))} />{showFieldError('monthlyCap')}</label></div>
-          <div className="mt-4 grid gap-4 md:grid-cols-2"><label className="text-sm">Segmentos<textarea className="mt-1 w-full" value={settings.segments.join(', ')} onChange={(event) => update('segments', split(event.target.value))} placeholder="Alimentos, logística, embalagem" /></label><label className="text-sm">Regiões<textarea className="mt-1 w-full" value={settings.regions.join(', ')} onChange={(event) => update('regions', split(event.target.value))} placeholder="SP, PR, SC" /></label></div>
-          <label className="mt-4 block text-sm">Palavras-chave e atividades<textarea className="mt-1 w-full" value={settings.keywords.join(', ')} onChange={(event) => update('keywords', split(event.target.value))} placeholder="esteiras, transportadores, correias" /></label>
+          <div id="operation-location" className="mt-4 grid gap-4 md:grid-cols-2">
+            <label className="text-sm">Cidade<input className="mt-1 w-full" maxLength={120} value={settings.city} onChange={(event) => update('city', event.target.value)} placeholder="Informe a cidade" />{showFieldError('city')}</label>
+            <label className="text-sm">UF (uma por rotina)<select className="mt-1 w-full" value={settings.regions.length === 1 ? settings.regions[0] : ''} onChange={(event) => update('regions', event.target.value ? [event.target.value] : [])}><option value="">Selecione a UF</option>{'AC AL AP AM BA CE DF ES GO MA MT MS MG PA PB PR PE PI RJ RN RS RO RR SC SP SE TO'.split(' ').map((uf) => <option key={uf} value={uf}>{uf}</option>)}</select>{showFieldError('regions')}</label>
+          </div>
+          <label className="mt-4 block text-sm">Segmentos<textarea className="mt-1 w-full" value={settings.segments.join(', ')} onChange={(event) => update('segments', split(event.target.value))} placeholder="Alimentos, logística, embalagem" /></label>
+          <label className="mt-4 block text-sm">Palavras-chave e atividades<textarea className="mt-1 w-full" value={settings.keywords.join(', ')} onChange={(event) => update('keywords', split(event.target.value))} placeholder="esteiras, transportadores, correias" />{showFieldError('keywords')}</label>
           <div className="mt-4 grid gap-3 sm:grid-cols-3">{([['requireWebsite', 'Exigir site'], ['requireWhatsapp', 'Exigir WhatsApp'], ['requireEmail', 'Exigir e-mail']] as const).map(([key, label]) => <label key={key} className="flex items-center gap-2 rounded-lg border border-background-200 p-3 text-sm"><input type="checkbox" checked={settings[key]} onChange={(event) => update(key, event.target.checked)} />{label}</label>)}</div>
           <label className="mt-4 block text-sm">Fit mínimo para aprovação<input className="mt-1 w-full" type="number" min="0" max="100" value={settings.minimumFitScore} onChange={(event) => update('minimumFitScore', Number(event.target.value))} /></label>
         </section>

@@ -641,13 +641,19 @@ describe.each(['evolution-go', 'wa-akg'] as const)('R2 lifecycle HTTP contract: 
       accounts = accounts.map(item => ({ ...item, provider: 'wa_akg' }));
       integrations = integrations.map(item => ({ ...item, provider: 'WA-AKG', configuration: { session_name: 'seller_synthetic', configured: true } }));
       controls.provider = 'wa_akg';
-      for (const item of integrations) secrets.set(String(item.id), { base_url: 'https://wa.example.invalid', api_key: 'synthetic', session_id: 'seller_synthetic', webhook_secret: 'synthetic' });
+      for (const item of integrations) {
+        const account = accounts.find(account => account.integration_id === item.id)!;
+        secrets.set(String(item.id), { base_url: 'https://wa.example.invalid', api_key: 'synthetic',
+          session_id: `wf_${organizationId.replaceAll('-', '')}_${String(account.id).replaceAll('-', '')}`, webhook_secret: 'synthetic' });
+      }
       vi.stubGlobal('Deno', { env: { get: (name: string) => ({ SUPABASE_URL: 'https://example.invalid', WA_AKG_ALLOWED_ORIGINS: 'https://wa.example.invalid' } as Row)[name] }, serve: (callback: typeof handler) => { handler = callback; } });
       await import('../functions/wa-akg/index.ts');
     } else await import('../functions/evolution-go/index.ts');
   }
   function connectedResponse() {
-    return new Response(JSON.stringify({ data: { status: 'CONNECTED', connected: true, loggedIn: true } }), { status: 200 });
+    return new Response(JSON.stringify({ data: { status: 'CONNECTED', connected: true, loggedIn: true,
+      enabled: false, botMode: 'SPECIFIC', autoReplyMode: 'SPECIFIC', botAllowedJids: [], autoReplyAllowedJids: [],
+      autoRead: false, alwaysOnline: false, welcomeMessage: null } }), { status: 200 });
   }
   function ownerEnabled() { return accounts.find(item => item.id === ownerAccountId)?.enabled; }
   function enableFixture() {
@@ -747,7 +753,9 @@ describe.each(['evolution-go', 'wa-akg'] as const)('R2 lifecycle HTTP contract: 
   });
 
   it('R2-HTTP-09 treats disconnected activation as a safe failure, not a locked uncertain send', async () => {
-    fetchMock.mockResolvedValue(new Response(JSON.stringify({ data: { status: 'DISCONNECTED', connected: false, loggedIn: false } }), { status: 200 }));
+    fetchMock.mockImplementation(async () => new Response(JSON.stringify({ data: { status: 'DISCONNECTED', connected: false, loggedIn: false,
+      enabled: false, botMode: 'SPECIFIC', autoReplyMode: 'SPECIFIC', botAllowedJids: [], autoReplyAllowedJids: [],
+      autoRead: false, alwaysOnline: false, welcomeMessage: null } }), { status: 200 }));
     await load();
     expect((await handler(request('activate', { account_id: ownerAccountId }))).status).toBe(400);
     expect(lifecycle.get(ownerAccountId)?.state).toBe('failed');
@@ -768,7 +776,7 @@ describe.each(['evolution-go', 'wa-akg'] as const)('R2 lifecycle HTTP contract: 
     state.permissions = { 'channels.manage_all': true };
     let release!: () => void, reached!: () => void;
     const ready = new Promise<void>(resolve => { reached = resolve; });
-    fetchMock.mockImplementation(() => { reached(); return new Promise<Response>(resolve => { release = () => resolve(new Response(JSON.stringify({ success: true }), { status: 200 })); }); });
+    fetchMock.mockImplementation(() => { reached(); return new Promise<Response>(resolve => { release = () => resolve(new Response(JSON.stringify({ success: true, data: { sessionId: `wf_${organizationId.replaceAll('-', '')}_${ownerAccountId.replaceAll('-', '')}` } }), { status: 200 })); }); });
     await load();
     const older = handler(request('provision', { account_id: ownerAccountId }));
     await ready;

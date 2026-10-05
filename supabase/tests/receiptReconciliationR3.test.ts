@@ -67,6 +67,20 @@ beforeEach(() => {
   };
   state.admin = { from: query, rpc: async (name: string, args: Row) => {
     calls.push({ rpc: name, args });
+    const event = tables[`${args.p_provider}_webhook_events`]?.find(row => row.id === args.p_event_id);
+    if (name === 'claim_whatsapp_webhook_event') {
+      if (!event || event.processing_status !== 'queued') return { error: null, data: null };
+      Object.assign(event, { processing_status: 'processing', lease_id: 'synthetic-lease' });
+      return { error: null, data: structuredClone(event) };
+    }
+    if (name === 'finish_whatsapp_webhook_event') {
+      Object.assign(event ?? {}, { processing_status: args.p_state, error_code: args.p_error_code });
+      return { error: null, data: true };
+    }
+    if (name === 'persist_whatsapp_inbound') {
+      Object.assign(event ?? {}, { processing_status: 'ignored', error_code: 'whatsapp_inbound_route_disabled' });
+      return { error: null, data: { review: true, reason: 'whatsapp_inbound_route_disabled' } };
+    }
     return { error: null, data: name === 'read_integration_secret'
       ? { webhook_secret: secret, webhook_token: secret, session_id: session }
       : name === 'reconcile_whatsapp_receipt_for_account' ? receiptResult : [] };

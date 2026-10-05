@@ -1,5 +1,9 @@
 # Integrações
 
+## 05/10/2026 — R6/R7 locais; gateway WA-AKG bloqueado
+
+Workers automáticos agora compartilham ledger com ações manuais; entrada tem persistência local atômica/lease e resultado Ana incerto fica em revisão. A UI oferece diagnóstico administrativo e conclusão somente para consulta comprovada; nunca replay cego de POST. Upstream WA-AKG examinado cria bot habilitado e ignora enabled:false no update; adaptador exige GET confirmando bot desligado antes de start/connect/QR. Não remover esse bloqueio. Falta versão corrigida/homologada e servidor persistente HTTPS. Nenhum QR, sessão ou mensagem real foi usado. Ver R6/R7/revisão na pasta atual.
+
 ## 05/10/2026 — Conta não é autorização global; delta local
 
 WA-AKG/Evolution: habilitar conta não libera gates globais; abertura de controles depende de ação administrativa explícita e readiness canônica. UI distingue pendente/revisão/estado não confirmado, limpa QR anterior e atualiza por leitura após resultado ambíguo, sem retry de mutação. Desligamento local antecede chamadas ao gateway; cada nova etapa manual revalida intenção. Gateway real, contrato/tag, QR e provisionamento automático concorrente não homologados. Produção e credenciais não alteradas; ver `docs/remediacao/2026-10-05-r1-r3/RESULTADO_FINAL.md`.

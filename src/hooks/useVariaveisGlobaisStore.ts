@@ -20,17 +20,18 @@ const store = createBackendStore<VariavelGlobal[]>('variaveis_globais', STORAGE_
 
 export function useVariaveisGlobaisStore() {
   const variaveis = store.useStore();
+  const setStore = store.bindSet();
 
   const atualizar = (id: string, mudanca: Partial<VariavelGlobal>) => {
-    store.set((prev) => prev.map((v) => (v.id === id ? { ...v, ...mudanca } : v)));
+    setStore((prev) => prev.map((v) => (v.id === id ? { ...v, ...mudanca } : v)));
   };
 
   const adicionar = (v: VariavelGlobal) => {
-    store.set((prev) => [...prev, v]);
+    setStore((prev) => [...prev, v]);
   };
 
   const excluir = (id: string) => {
-    store.set((prev) => prev.filter((v) => v.id !== id));
+    setStore((prev) => prev.filter((v) => v.id !== id));
   };
 
   return { variaveis, atualizar, adicionar, excluir };

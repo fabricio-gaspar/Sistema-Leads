@@ -1,121 +1,39 @@
-import { useSyncExternalStore } from 'react';
 import { supabase } from '@/lib/supabase';
-import { resolveOrganizationSession } from '@/lib/organizationSession';
-
-// Store externo persistente no Backend, mantendo o MESMO contrato síncrono
-// (get/set/useStore) usado pelo resto da aplicação. Isso permite migrar as
-// stores sem quebrar nenhum consumidor:
-// - Leitura instantânea: estado em memória + cache localStorage (fallback offline).
-// - Escrita: atualiza o estado local de forma síncrona e espelha no Backend (assíncrono).
-// - Sincronização: ao autenticar, carrega do Backend (fonte da verdade); se ainda
-//   não houver dados, semeia o cache local para a primeira carga.
-
-function carregar<T>(key: string, inicial: T): T {
-  try {
-    const raw = localStorage.getItem(key);
-    if (raw) return JSON.parse(raw) as T;
-  } catch {
-    // ignora cache corrompido
-  }
-  return inicial;
-}
-
-function salvar<T>(key: string, valor: T): void {
-  try {
-    localStorage.setItem(key, JSON.stringify(valor));
-  } catch {
-    // falha silenciosa no cache
-  }
-}
+import { sessionContext } from '@/lib/sessionContext';
+import { createContextStore } from '@/lib/contextStore';
 
 export interface BackendStore<T> {
   get: () => T;
   set: (updater: (prev: T) => T) => void;
   useStore: () => T;
+  bindSet: () => (updater: (prev: T) => T) => void;
+  refresh: () => Promise<void>;
 }
 
-export function createBackendStore<T>(moduleKey: string, key: string, inicial: T): BackendStore<T> {
-  let state: T = carregar(key, inicial);
-  const listeners = new Set<() => void>();
-  let sincronizado = false;
-
-  const notify = () => listeners.forEach((l) => l());
-
-  async function persistir(valor: T): Promise<void> {
-    let session;
-    try {
-      session = await resolveOrganizationSession();
-    } catch {
-      return;
-    }
-    const { error } = await supabase
-      .from('organization_module_data')
-      .upsert({
-        organization_id: session.organizationId,
-        module_key: moduleKey,
-        data: valor,
-        updated_by: session.userId,
-        updated_at: new Date().toISOString(),
+export function createBackendStore<T>(moduleKey: string, legacyKey: string, inicial: T): BackendStore<T> {
+  // Legacy cache has no owner/org provenance. Never read it or seed it remotely.
+  try { if (typeof localStorage !== 'undefined') localStorage.removeItem(legacyKey); } catch { /* Optional cleanup only. */ }
+  const initial = () => structuredClone(Array.isArray(inicial) ? [] as T : inicial);
+  const store = createContextStore<T>({
+    initial,
+    load: async (context) => {
+      const { data, error } = await supabase.from('organization_module_data').select('data')
+        .eq('organization_id', context.organizationId).eq('module_key', moduleKey).maybeSingle();
+      sessionContext.assertCurrent(context);
+      if (error) throw error;
+      return data?.data == null ? initial() : (Array.isArray(inicial) ? data.data as T : { ...inicial, ...data.data });
+    },
+    save: async (_previous, next, context) => {
+      sessionContext.assertCurrent(context);
+      const { error } = await supabase.from('organization_module_data').upsert({
+        organization_id: context.organizationId, module_key: moduleKey, data: next,
+        updated_by: context.userId, updated_at: new Date().toISOString(),
       }, { onConflict: 'organization_id,module_key' });
-    if (error) {
-      console.error(`[backendStore:${moduleKey}] falha ao salvar`, error);
-    }
-  }
-
-  async function sincronizar(): Promise<void> {
-    let session;
-    try {
-      session = await resolveOrganizationSession();
-    } catch {
-      return;
-    }
-    const { data, error } = await supabase
-      .from('organization_module_data')
-      .select('data')
-      .eq('organization_id', session.organizationId)
-      .eq('module_key', moduleKey)
-      .maybeSingle();
-    if (error) {
-      console.error(`[backendStore:${moduleKey}] falha ao carregar`, error);
-      return;
-    }
-    if (data && data.data != null) {
-      // Backend é a fonte da verdade: substitui o cache local.
-      state = data.data as T;
-      salvar(key, state);
-      notify();
-    } else if (!sincronizado) {
-      // Primeiro acesso do usuário: semeia o cache local no Backend.
-      await persistir(state);
-    }
-    sincronizado = true;
-  }
-
-  // Assim que houver usuário autenticado (login ou refresh), sincroniza.
-  // O callback retorna de forma síncrona; a sincronização roda em segundo plano.
-  supabase.auth.onAuthStateChange((_event, session) => {
-    if (session?.user) {
-      void sincronizar();
-    }
+      sessionContext.assertCurrent(context);
+      if (error) throw error;
+      return next;
+    },
   });
-
-  const get = () => state;
-
-  const set = (updater: (prev: T) => T) => {
-    state = updater(state);
-    salvar(key, state);
-    notify();
-    void persistir(state);
-  };
-
-  const subscribe = (listener: () => void) => {
-    listeners.add(listener);
-    return () => {
-      listeners.delete(listener);
-    };
-  };
-
-  const useStore = () => useSyncExternalStore(subscribe, get);
-
-  return { get, set, useStore };
+  const bindSet = () => { const update = store.bindUpdate(); return (updater: (prev: T) => T) => { void update(updater); }; };
+  return { get: store.get, set: (updater) => { void store.update(updater); }, bindSet, useStore: store.useData, refresh: store.refresh };
 }

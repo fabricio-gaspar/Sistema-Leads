@@ -25,7 +25,9 @@ describe('WaAkgProvider', () => {
   });
 
   it('configures WA-AKG built-in automation off and bounded pacing on', async () => {
-    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ success: true }), { status: 200 }));
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ status: true, data: {
+      enabled: false, botMode: 'SPECIFIC', autoReplyMode: 'SPECIFIC', botAllowedJids: [], autoReplyAllowedJids: [], autoRead: false, alwaysOnline: false,
+    } }), { status: 200 }));
     const provider = new WaAkgProvider({
       baseUrl: 'https://wa.example.com', apiKey: 'secret', sessionId: 'seller_12345678', allowedOrigins, fetchImpl: fetchMock,
     });

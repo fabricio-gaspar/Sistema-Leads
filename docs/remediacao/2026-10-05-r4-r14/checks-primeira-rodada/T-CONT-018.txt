@@ -1,0 +1,221 @@
+{
+  "scope": "Synthetic local SQL, real helper and schema metadata captured read-only; audit trigger simulated; no production writes",
+  "baseline": {
+    "deployedLegacyPolicyVisibleAppointments": 2,
+    "expectedBefore": 2
+  },
+  "tests": [
+    {
+      "name": "Own portfolio only",
+      "passed": true,
+      "observed": [
+        {
+          "n": 1
+        }
+      ]
+    },
+    {
+      "name": "Admin can see both portfolios, not other org",
+      "passed": true,
+      "observed": [
+        {
+          "n": 2
+        }
+      ]
+    },
+    {
+      "name": "Cross-portfolio update touches no row",
+      "passed": true,
+      "observed": []
+    },
+    {
+      "name": "Cross-org update touches no row",
+      "passed": true,
+      "observed": []
+    },
+    {
+      "name": "Private MVCC barrier cannot be written directly",
+      "passed": true,
+      "code": "42501",
+      "message": "permission denied for table agenda_responsible_revision"
+    },
+    {
+      "name": "Private barrier helper denies cross-portfolio scope",
+      "passed": true,
+      "code": "42501",
+      "message": "appointment_responsible_forbidden"
+    },
+    {
+      "name": "Private barrier helper denies cross-organization scope",
+      "passed": true,
+      "code": "42501",
+      "message": "appointment_responsible_forbidden"
+    },
+    {
+      "name": "Anonymous caller cannot invoke barrier",
+      "passed": true,
+      "code": "42501",
+      "message": "permission denied for function r9_lock_agenda_responsible"
+    },
+    {
+      "name": "Creates child and parent link atomically",
+      "passed": true,
+      "observed": [
+        {
+          "ok": true
+        }
+      ]
+    },
+    {
+      "name": "Child duration and no external identity/reminder claim",
+      "passed": true,
+      "observed": [
+        {
+          "ok": true
+        }
+      ]
+    },
+    {
+      "name": "Same request replays once despite stale expected timestamp",
+      "passed": true,
+      "observed": [
+        {
+          "n": 2
+        }
+      ]
+    },
+    {
+      "name": "Same id with changed payload rejected",
+      "passed": true,
+      "code": "22023",
+      "message": "appointment_idempotency_conflict"
+    },
+    {
+      "name": "Other portfolio rejected",
+      "passed": true,
+      "code": "42501",
+      "message": "appointment_not_found_or_forbidden"
+    },
+    {
+      "name": "Other organization rejected",
+      "passed": true,
+      "code": "42501",
+      "message": "appointment_not_found_or_forbidden"
+    },
+    {
+      "name": "Stale parent version rejected",
+      "passed": true,
+      "code": "40001",
+      "message": "appointment_concurrent_update"
+    },
+    {
+      "name": "Same parent/request id rejected",
+      "passed": true,
+      "code": "22023",
+      "message": "appointment_next_action_invalid"
+    },
+    {
+      "name": "Invalid duration 0",
+      "passed": true,
+      "code": "22023",
+      "message": "appointment_next_action_invalid"
+    },
+    {
+      "name": "Invalid duration -1",
+      "passed": true,
+      "code": "22023",
+      "message": "appointment_next_action_invalid"
+    },
+    {
+      "name": "Invalid duration 1441",
+      "passed": true,
+      "code": "22023",
+      "message": "appointment_next_action_invalid"
+    },
+    {
+      "name": "Invalid duration null",
+      "passed": true,
+      "code": "22023",
+      "message": "appointment_next_action_invalid"
+    },
+    {
+      "name": "Invalid infinite datetime rejected",
+      "passed": true,
+      "code": "22023",
+      "message": "appointment_next_action_invalid"
+    },
+    {
+      "name": "Blank title rejected",
+      "passed": true,
+      "code": "22023",
+      "message": "appointment_next_action_invalid"
+    },
+    {
+      "name": "Revoked reply permission blocked",
+      "passed": true,
+      "code": "42501",
+      "message": "appointment_not_found_or_forbidden"
+    },
+    {
+      "name": "Inactive membership blocked",
+      "passed": true,
+      "code": "42501",
+      "message": "authentication_required"
+    },
+    {
+      "name": "Anonymous execution revoked",
+      "passed": true,
+      "code": "42501",
+      "message": "permission denied for function create_agenda_next_action"
+    },
+    {
+      "name": "Overlap rejected",
+      "passed": true,
+      "code": "23P01",
+      "message": "appointment_time_conflict"
+    },
+    {
+      "name": "Explicit overlap consent recorded",
+      "passed": true,
+      "observed": [
+        {
+          "ok": true
+        }
+      ]
+    },
+    {
+      "name": "Failure linking parent rolls back child and audit",
+      "passed": true,
+      "observed": [
+        {
+          "n": 1
+        }
+      ]
+    },
+    {
+      "name": "Audit persistence failure rolls back child and link",
+      "passed": true,
+      "observed": [
+        {
+          "ok": true
+        }
+      ]
+    },
+    {
+      "name": "Direct insert in another portfolio denied",
+      "passed": true,
+      "code": "42501",
+      "message": "new row violates row-level security policy for table \"appointments\""
+    },
+    {
+      "name": "Direct insert with forged actor denied",
+      "passed": true,
+      "code": "42501",
+      "message": "new row violates row-level security policy for table \"appointments\""
+    }
+  ],
+  "passed": 31,
+  "failed": 0
+}
+
+STDERR

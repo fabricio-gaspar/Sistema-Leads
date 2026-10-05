@@ -1,5 +1,9 @@
 # Backend
 
+## 05/10/2026 — R4/R6/R8/R11 locais
+
+Administração de equipe controla vínculo/convite, não identidade global Auth. Entrada usa etapa local atômica e lease; provisionamento automático compartilha ledger de lifecycle; recuperação só encerra consulta comprovada por GET/CAS e mantém corte. Ana/worker revalidam contexto comercial e autorização antes dos efeitos; pedido de orçamento continua rascunho humano. Rotina paga exige cidade, uma UF e termo no handler e guard SQL. Sem deploy; contratos e limites em `docs/remediacao/2026-10-05-r4-r14/`.
+
 ## 05/10/2026 — R2/R3 locais e type-check integral, não publicados
 
 Handlers WA/Evolution usam `accountLifecycle`: intenção/corte persistente antes do remoto, token/revisão, revalidação entre etapas de provisionamento manual e conclusão CAS. Falha após efeito incerto mantém bloqueio, sem repetir POST. Consumidores recebem lifecycle público sem token; 202/409 não são sucesso de conexão. Recibos tardios autenticados são conciliados por escopo sem reabrir gates/Ana; callback conectado não restaura enabled/paused. Todas as Edge Functions agora entram no type-check (nove diagnósticos corrigidos). Recuperação manual e workers automáticos fora do ledger permanecem R6. Nenhuma Edge publicada nesta etapa.

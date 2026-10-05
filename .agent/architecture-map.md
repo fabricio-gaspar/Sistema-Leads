@@ -1,5 +1,15 @@
 # Mapa de arquitetura
 
+## Continuação R4–R12 — 05/10/2026 — LOCAL, não implantada
+
+Auth/convite → vínculo canônico explícito → contexto frontend por user/org/generation → OrganizationGate → stores cercados e sem cache operacional compartilhado. Administração empresarial não gerencia senha/identidade Auth global.
+
+WA/Evolution: ações manuais e provisionamento automático → mesmo ledger/token/revisão → cutoff persistido → etapa externa cercada → conclusão CAS. Diagnóstico administrativo só consulta; encerra operação read-only comprovada mantendo disabled/gates. Entrada → transação local única (mensagem/mídia/projeções) → lease de consequência → Ana; falha incerta vai para revisão, sem POST repetido. Contrato upstream WA-AKG não homologado mantém bloqueio.
+
+Ana: política comercial + fontes/documentos/chunks canônicos → snapshot de IDs/digest → decisão → revalidação de lead/política/fontes antes de efeito e pós-freeBusy → worker revalida snapshot antes de dispatch. Catálogo de conhecimento permanece distinto da tabela de preços. Sem autoridade automática para aprovação/envio final de orçamento.
+
+Agenda: próxima ação → RPC invoker/RLS → pai bloqueado + barreira física privada por org/responsável → filho/link atômicos + UUID estável. Conflito limitado à carteira visível; não é calendário global exclusivo. Rotina de prospecção → cidade/UF/termo obrigatórios no handler e guards SQL. Código remoto permanece anterior; ver `docs/remediacao/2026-10-05-r4-r14/` para limites/evidência.
+
 ## Remediação R1/R2/R3 — 05/10/2026 — LOCAL, não implantada
 
 R1 mantém as tabelas existentes: helpers privados e policies aplicam organização/carteira/proprietário ao acesso; trigger de último administrador serializa por escrita MVCC na organização. R2 acrescenta somente ledger privado de orquestração: UI → handlers WA/Evolution → intenção/corte local → etapas remotas cercadas por revisão/token → conclusão CAS. Flags canônicas em conta/integração continuam a autoridade; conectar conta não abre o gate global. R3 separa recibo autenticado do gate de entrada: identidade organização/conta/provedor → RPC monotônica → projeções locais, sem disparar Ana/saída. `ana-run` permanece a única autoridade automática.

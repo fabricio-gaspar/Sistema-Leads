@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { loadTeamMembers, type TeamMember } from '@/lib/crm/teamMembersRepository';
 import { isWaAkgOperational } from '@/lib/crm/waAkgOnboarding';
 import { channelLifecycleBlocked, channelLifecycleMessage, refreshAfterLifecycleError } from '@/lib/crm/channelLifecycle';
+import ChannelLifecycleRecovery from './ChannelLifecycleRecovery';
 import {
   configureWaAkgGateway,
   createWaAkgSellerAccount,
@@ -224,6 +225,7 @@ export default function WaAkgPanel({ mode = 'administration', surface = 'whatsap
 
     <div className="space-y-4 p-5">
       {channelLifecycleMessage(selected?.lifecycle) && <p role="status" className="rounded-xl border border-background-200 bg-background-50 px-3 py-2 text-xs text-foreground-700">{channelLifecycleMessage(selected?.lifecycle)}</p>}
+      {canManage && selected && channelLifecycleBlocked(selected.lifecycle) && <ChannelLifecycleRecovery key={`${selected.account.id}:${selected.lifecycle?.revision}`} provider="wa_akg" accountId={selected.account.id} disabled={Boolean(busy) || statusUnconfirmed} onReconciled={refresh} />}
       {notice && <p role={notice.tone === 'error' ? 'alert' : 'status'} className={`rounded-xl border px-3 py-2 text-xs ${notice.tone === 'success' ? 'border-[#B9E4CB] bg-[#EFFAF3] text-[#176B43]' : 'border-[#E8B8B1] bg-[#FFF4F2] text-[#8B3027]'}`}>{notice.text}</p>}
 
       {canManage && gatewayOpen && <div className="rounded-xl border border-background-200 bg-background-50 p-4"><h3 className="text-sm font-semibold text-foreground-900">Gateway WA-AKG</h3><p className="mt-1 text-xs leading-5 text-foreground-500">A URL e a chave ficam somente no cofre do backend. O navegador nunca recebe esses valores de volta.</p><div className="mt-3 grid gap-3 md:grid-cols-3"><label className="text-xs font-medium text-foreground-700">Nome do canal<input className="mt-1.5 w-full rounded-lg border border-background-200 bg-white px-3 py-2 text-sm" value={gateway.label} onChange={(event) => setGateway({ ...gateway, label: event.target.value })} /></label><label className="text-xs font-medium text-foreground-700">URL HTTPS do servidor<input type="password" autoComplete="new-password" spellCheck={false} className="mt-1.5 w-full rounded-lg border border-background-200 bg-white px-3 py-2 text-sm" placeholder="https://wa.suaempresa.com" value={gateway.baseUrl} onChange={(event) => setGateway({ ...gateway, baseUrl: event.target.value })} /></label><label className="text-xs font-medium text-foreground-700">Chave da API<input type="password" autoComplete="new-password" spellCheck={false} className="mt-1.5 w-full rounded-lg border border-background-200 bg-white px-3 py-2 text-sm" value={gateway.apiKey} onChange={(event) => setGateway({ ...gateway, apiKey: event.target.value })} /></label></div><div className="mt-3 flex justify-end"><button type="button" className="wf-btn-primary text-xs disabled:opacity-60" disabled={Boolean(busy) || !gateway.baseUrl.trim() || !gateway.apiKey.trim()} onClick={() => void saveGateway()}>{busy === 'gateway' ? 'Salvando…' : 'Salvar no cofre'}</button></div></div>}

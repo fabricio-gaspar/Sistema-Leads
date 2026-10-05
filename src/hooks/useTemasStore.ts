@@ -55,21 +55,22 @@ const store = createBackendStore<Tema[]>('temas', STORAGE_KEY, inicial);
 
 export function useTemasStore() {
   const temas = store.useStore();
+  const setStore = store.bindSet();
 
   const atualizar = (id: string, mudanca: Partial<Tema>) => {
-    store.set((prev) => prev.map((t) => (t.id === id ? { ...t, ...mudanca } : t)));
+    setStore((prev) => prev.map((t) => (t.id === id ? { ...t, ...mudanca } : t)));
   };
 
   const adicionar = (t: Tema) => {
-    store.set((prev) => [...prev, t]);
+    setStore((prev) => [...prev, t]);
   };
 
   const excluir = (id: string) => {
-    store.set((prev) => prev.filter((t) => t.id !== id));
+    setStore((prev) => prev.filter((t) => t.id !== id));
   };
 
   const definirPadrao = (id: string) => {
-    store.set((prev) => prev.map((t) => ({ ...t, padrao: t.id === id })));
+    setStore((prev) => prev.map((t) => ({ ...t, padrao: t.id === id })));
   };
 
   // Retorna o tema marcado como padrão, com fallback para o primeiro da lista.

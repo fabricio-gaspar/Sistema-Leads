@@ -5,7 +5,7 @@ import {
 } from '../_shared/auth.ts';
 import { allowedCorsHeaders, hasAllowedOrigin, json, preflight, safeError } from '../_shared/http.ts';
 import { EvolutionGoProvider, normalizeEvolutionGoBaseUrl } from '../_shared/messaging/EvolutionGoProvider.ts';
-import { accountLifecycleStatus, runAccountLifecycle, setAccountProviderControls, type LifecycleStep } from '../_shared/accountLifecycle.ts';
+import { accountLifecycleStatus, recoverAccountLifecycle, runAccountLifecycle, setAccountProviderControls, type LifecycleStep } from '../_shared/accountLifecycle.ts';
 
 type Admin = ReturnType<typeof createAdminClient>;
 type Row = Record<string, unknown>;
@@ -623,6 +623,15 @@ Deno.serve(async (request) => {
     }
 
     const lifecycleContext = { organizationId: actor.organizationId, accountId, provider: 'evolution_go' as const, actorId: actor.userId };
+    if (action === 'lifecycle_diagnose' || action === 'lifecycle_reconcile') {
+      const record = await accessibleRecord(admin, actor, accountId, 'manage');
+      const result = await recoverAccountLifecycle(admin, lifecycleContext, body, async () => {
+        const provider = providerFrom(await secretFor(admin, String(record.integration.id)));
+        const status = await provider.status();
+        return { confirmed: status.confirmed === true, connected: status.connected && status.loggedIn };
+      });
+      return json({ ok: result.status === 200, ...result, ...(result.status === 409 ? { error: 'account_lifecycle_needs_review' } : {}) }, result.status, headers);
+    }
     if (action === 'set_provider_controls') {
       if (!actor.canManage) throw new Error('permission_denied');
       await accessibleRecord(admin, actor, accountId, 'manage');
