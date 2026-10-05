@@ -13,7 +13,7 @@ export type WhatsappConnectionStatus =
 
 export interface WhatsappAccount {
   id: string;
-  provider: 'zapi' | 'meta_cloud' | 'evolution_go';
+  provider: 'zapi' | 'meta_cloud' | 'evolution_go' | 'wa_akg';
   ownerUserId: string | null;
   ownerName: string | null;
   ownerEmail: string | null;
@@ -43,7 +43,7 @@ export interface WhatsappAccount {
 }
 
 export interface WhatsappProviderControl {
-  provider: 'zapi' | 'meta_cloud' | 'evolution_go';
+  provider: 'zapi' | 'meta_cloud' | 'evolution_go' | 'wa_akg';
   inboundEnabled: boolean;
   sendEnabled: boolean;
   automationEnabled: boolean;
@@ -269,6 +269,106 @@ export function requestEvolutionGoQr(accountId: string): Promise<{ qr: { qrcode:
 
 export function requestEvolutionGoPairingCode(accountId: string, phone: string): Promise<{ pairingCode: string | null }> {
   return invokeEvolutionGo({ action: 'pair', account_id: accountId, phone });
+}
+
+export interface WaAkgChannelStatus {
+  configured: boolean;
+  canManage: boolean;
+  canConnect: boolean;
+  canViewQr: boolean;
+  account: null | {
+    id: string;
+    label: string;
+    accountType: 'corporate' | 'seller';
+    ownerUserId: string | null;
+    enabled: boolean;
+    isDefault: boolean;
+    connectionStatus: WhatsappConnectionStatus;
+    phoneSuffix: string | null;
+    connectedAt: string | null;
+    checkedAt: string | null;
+    webhookRegisteredAt: string | null;
+    errorCode: string | null;
+    messagingMode: 'suggestion' | 'assisted' | 'automatic';
+  };
+  integration: null | {
+    id: string;
+    connected: boolean;
+    enabled: boolean;
+    paused: boolean;
+    statusDetail: string | null;
+    lastTestedAt: string | null;
+    lastSuccessAt: string | null;
+    baseUrlConfigured: boolean;
+    sessionName: string | null;
+    version: string | null;
+  };
+  controls: null | {
+    inboundEnabled: boolean;
+    sendEnabled: boolean;
+    automationEnabled: boolean;
+    killSwitch: boolean;
+    reason: string | null;
+    minDelaySeconds: number;
+    maxDelaySeconds: number;
+    burstLimit: number;
+    burstWindowSeconds: number;
+    dailyLimit: number;
+  };
+}
+
+async function invokeWaAkg<T extends Record<string, unknown>>(body: Record<string, unknown>): Promise<T> {
+  const { data, error } = await supabase.functions.invoke('wa-akg', { body });
+  if (error || !data?.ok) {
+    const code = typeof data?.error === 'string' ? data.error : await detalheDoErroDeFuncao(error);
+    throw new Error(code || 'wa_akg_operation_failed');
+  }
+  return data as T;
+}
+
+export function loadWaAkgAccounts(): Promise<{ accounts: WaAkgChannelStatus[]; canManage: boolean }> {
+  return invokeWaAkg<{ accounts: WaAkgChannelStatus[]; canManage: boolean } & Record<string, unknown>>({ action: 'list' });
+}
+
+export function loadMyWaAkgAccount(): Promise<WaAkgChannelStatus> {
+  return invokeWaAkg<WaAkgChannelStatus & Record<string, unknown>>({ action: 'my_account' });
+}
+
+export function configureWaAkgGateway(input: { label: string; baseUrl: string; apiKey: string }): Promise<WaAkgChannelStatus> {
+  return invokeWaAkg<WaAkgChannelStatus & Record<string, unknown>>({ action: 'configure_gateway', label: input.label, base_url: input.baseUrl, api_key: input.apiKey });
+}
+
+export function createWaAkgSellerAccount(ownerUserId: string): Promise<WaAkgChannelStatus> {
+  return invokeWaAkg<WaAkgChannelStatus & Record<string, unknown>>({ action: 'create_account', owner_user_id: ownerUserId });
+}
+
+export function provisionWaAkgAccount(accountId: string): Promise<WaAkgChannelStatus> {
+  return invokeWaAkg<WaAkgChannelStatus & Record<string, unknown>>({ action: 'provision', account_id: accountId });
+}
+
+export function runWaAkgAction(
+  action: 'connect' | 'refresh_status' | 'reconnect' | 'disconnect' | 'logout' | 'activate' | 'deactivate',
+  accountId: string,
+): Promise<WaAkgChannelStatus> {
+  return invokeWaAkg<WaAkgChannelStatus & Record<string, unknown>>({ action, account_id: accountId });
+}
+
+export function requestWaAkgQr(accountId: string): Promise<{ qr: { qrcode: string | null; code: string | null; expiresAt: string | null } }> {
+  return invokeWaAkg({ action: 'qr', account_id: accountId });
+}
+
+export function requestWaAkgPairingCode(accountId: string, phone: string): Promise<{ pairingCode: string | null }> {
+  return invokeWaAkg({ action: 'pair', account_id: accountId, phone });
+}
+
+export function saveWaAkgControls(accountId: string, input: {
+  minDelaySeconds: number; maxDelaySeconds: number; burstLimit: number; dailyLimit: number;
+}): Promise<WaAkgChannelStatus> {
+  return invokeWaAkg<WaAkgChannelStatus & Record<string, unknown>>({
+    action: 'save_controls', account_id: accountId,
+    min_delay_seconds: input.minDelaySeconds, max_delay_seconds: input.maxDelaySeconds,
+    burst_limit: input.burstLimit, daily_limit: input.dailyLimit,
+  });
 }
 
 export function loadWhatsappAccounts(): Promise<AccountsResponse> {

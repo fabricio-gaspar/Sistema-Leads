@@ -41,6 +41,12 @@ import {
   termsFromIdealProfile,
   type ProspectingTargetProfile,
 } from '@/lib/crm/prospectingIdealProfile';
+import {
+  PROSPECTING_WIZARD_STEPS,
+  nextProspectingWizardStep,
+  validateProspectingWizardStep,
+  type ProspectingWizardStep,
+} from '@/lib/crm/prospectingWizard';
 
 const estados = ['SP', 'RJ', 'MG', 'PR', 'SC', 'RS', 'BA', 'PE', 'GO', 'DF'];
 const fasesBusca = ['Iniciando a busca', 'Aguardando resposta da fonte', 'Preparando a revisão'];
@@ -204,7 +210,9 @@ const camposLeadImport: CampoImportacao[] = [
 export default function BuscaLeads() {
   const navigate = useNavigate();
   const [aba, setAba] = useState<'agente' | 'busca' | 'importar' | 'salvas'>('busca');
-  const [etapa, setEtapa] = useState(2);
+  const [etapa, setEtapa] = useState(1);
+  const [wizardStep, setWizardStep] = useState<ProspectingWizardStep>(1);
+  const [wizardError, setWizardError] = useState<string | null>(null);
   const [fonteSelecionada, setFonteSelecionada] = useState('');
   const [cidade, setCidade] = useState('São Paulo');
   const [estado, setEstado] = useState('SP');
@@ -295,12 +303,25 @@ export default function BuscaLeads() {
   // oferece sugestões, mas não dispara uma busca com filtros implícitos.
   const termosAplicados = useMemo(() => normalizeProspectingTerms(termosBusca), [termosBusca]);
   const tipoEmpresaAlvoLabel = PROSPECTING_TARGET_PROFILES.find((item) => item.id === tipoEmpresaAlvo)?.label || 'Clientes potenciais';
-  const activeSearchStage = etapa === 2 ? (buscando ? 2 : 1) : etapa === 3 ? 3 : 4;
+  const activeSearchStage = etapa;
+  const wizardDraft = useMemo(() => ({
+    sourceId: fonteSelecionada,
+    city: cidade,
+    offer: ofertaEmpresa,
+    terms: termosAplicados,
+  }), [cidade, fonteSelecionada, ofertaEmpresa, termosAplicados]);
+
+  useEffect(() => {
+    if (wizardError && !validateProspectingWizardStep(wizardStep, wizardDraft)) {
+      setWizardError(null);
+    }
+  }, [wizardDraft, wizardError, wizardStep]);
 
   useEffect(() => {
     if (fonteSelecionada && !fontesDisponiveis.some((fonte) => fonte.id === fonteSelecionada)) {
       setFonteSelecionada('');
-      setEtapa(2);
+      setEtapa(1);
+      setWizardStep(1);
     }
   }, [fonteSelecionada, fontesDisponiveis]);
 
@@ -719,16 +740,47 @@ export default function BuscaLeads() {
   };
 
   const avancar = () => {
-    if (etapa < 4) setEtapa(etapa + 1);
+    if (etapa === 3) {
+      if (selecionados.length > 0) setEtapa(4);
+      return;
+    }
+
+    const validationError = validateProspectingWizardStep(wizardStep, wizardDraft);
+    if (validationError) {
+      setWizardError(validationError);
+      return;
+    }
+
+    setWizardError(null);
+    if (wizardStep === 4) {
+      testarAmostra();
+      return;
+    }
+
+    const nextStep = nextProspectingWizardStep(wizardStep);
+    setWizardStep(nextStep);
+    if (nextStep === 2) setEtapa(2);
   };
 
   const voltar = () => {
-    if (etapa === 4) setEtapa(3);
-    else {
+    setWizardError(null);
+    if (etapa === 4) {
+      setEtapa(3);
+      return;
+    }
+    if (etapa === 3) {
       setResultado(null);
       setErroBusca(null);
       setEtapa(2);
+      setWizardStep(4);
+      return;
     }
+    if (etapa === 2 && wizardStep > 2) {
+      setWizardStep((current) => (current - 1) as ProspectingWizardStep);
+      return;
+    }
+    setEtapa(1);
+    setWizardStep(1);
   };
 
   const confirmarLote = async (input: ProspectingBatchInput) => {
@@ -965,7 +1017,7 @@ export default function BuscaLeads() {
     return confirmarImportacaoCsv(nextPending);
   };
 
-  const etapaLabel = ['Perfil ideal', 'Testar amostra', 'Revisar leads', 'Importar'];
+  const etapaLabel = ['Escolher fonte', 'Configurar busca', 'Revisar amostra', 'Importar'];
   const leadsRevisao = preview.filter((lead) => {
     const classificacao = classificacaoDaAmostra(lead);
     if (filtroRevisao === 'elegiveis') return !lead.duplicado && classificacao === 'adequada';
@@ -992,6 +1044,7 @@ export default function BuscaLeads() {
         {(
           [
             { id: 'busca', label: 'Nova busca' },
+            { id: 'agente', label: 'Assistente de termos' },
             { id: 'importar', label: 'Importar CSV' },
             { id: 'salvas', label: 'Buscas salvas' },
           ] as const
@@ -1062,12 +1115,13 @@ export default function BuscaLeads() {
               <div className="bg-background-50 border border-background-200/70 rounded-xl p-6">
                 <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
                   <div>
-                    <h3 className="font-heading font-bold text-foreground-900 text-sm">Como deseja buscar?</h3>
-                    <p className="mt-1 text-xs text-foreground-500">Escolha uma fonte validada para liberar os filtros da busca.</p>
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary-700">Passo 1 de 4</p>
+                    <h3 className="mt-1 font-heading font-bold text-foreground-900 text-sm">Escolha a fonte da busca</h3>
+                    <p className="mt-1 text-xs text-foreground-500">Use somente uma fonte validada para liberar o restante do assistente.</p>
                   </div>
                   <span className="rounded-full bg-background-100 px-2.5 py-1 text-[11px] font-semibold text-foreground-600">{fontesDisponiveis.length} fonte(s) pronta(s)</span>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4" role="group" aria-label="Fonte da busca">
                   {fontesProspecao.map((f) => {
                     const pronta = fontesDisponiveis.some((fonte) => fonte.id === f.id);
                     return (
@@ -1100,7 +1154,7 @@ export default function BuscaLeads() {
                   disabled={!fonteSelecionada}
                   className="px-6 py-2.5 bg-primary-500 hover:bg-primary-600 disabled:bg-primary-300 text-background-50 rounded-lg text-sm font-bold cursor-pointer whitespace-nowrap"
                 >
-                  Avançar
+                  Continuar para a região
                 </button>
               </div>
             </div>
@@ -1109,14 +1163,35 @@ export default function BuscaLeads() {
           {/* ETAPA 2: Filtros */}
           {etapa === 2 && (
             <div className="space-y-5">
+              <section className="rounded-2xl border border-primary-100 bg-primary-50/60 p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary-700">Assistente de busca</p>
+                    <h2 className="mt-1 text-base font-heading font-bold text-foreground-900">Passo {wizardStep} de 4 · {PROSPECTING_WIZARD_STEPS.find((step) => step.id === wizardStep)?.label}</h2>
+                    <p className="mt-1 text-sm text-foreground-600">{PROSPECTING_WIZARD_STEPS.find((step) => step.id === wizardStep)?.description}</p>
+                  </div>
+                  <span className="rounded-full border border-primary-200 bg-white px-3 py-1.5 text-xs font-semibold text-primary-800">Dados ficam salvos enquanto você avança</span>
+                </div>
+                <ol className="mt-4 grid gap-2 sm:grid-cols-3" aria-label="Progresso da configuração">
+                  {PROSPECTING_WIZARD_STEPS.filter((step) => step.id > 1).map((step) => {
+                    const completed = wizardStep > step.id;
+                    const active = wizardStep === step.id;
+                    return <li key={step.id} className={`flex min-h-10 items-center gap-2 rounded-xl border px-3 text-xs font-semibold ${active ? 'border-primary-400 bg-white text-primary-800' : completed ? 'border-primary-200 bg-primary-100/60 text-primary-800' : 'border-background-200 bg-white/70 text-foreground-500'}`}>
+                      <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] ${active ? 'bg-primary-600 text-white' : completed ? 'bg-primary-200 text-primary-800' : 'bg-background-200 text-foreground-500'}`}>{completed ? <i className="ri-check-line" aria-hidden="true" /> : step.id}</span>
+                      {step.label}
+                    </li>;
+                  })}
+                </ol>
+              </section>
               <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_300px]">
                 <div className="space-y-4">
+                  {wizardStep === 2 && (
                   <section className="rounded-2xl border border-background-200/80 bg-white p-4 shadow-sm">
                     <div className="mb-4 flex items-start gap-3">
                       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary-100 text-primary-700"><i className="ri-map-pin-2-line" aria-hidden="true" /></span>
                       <div><h3 className="text-sm font-heading font-bold text-foreground-900">1. Região da busca</h3><p className="mt-0.5 text-xs text-foreground-500">Escolha onde as empresas devem atuar.</p></div>
                     </div>
-                    <div className="grid gap-3 sm:grid-cols-3">
+                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                       <label className="text-xs font-semibold text-foreground-700">Cidade
                         <input type="text" value={cidade} onChange={(event) => setCidade(event.target.value)} placeholder="Ex.: São Paulo" className="mt-1.5 w-full rounded-lg border border-background-300 bg-background-50 px-3 py-2 text-sm text-foreground-900" />
                       </label>
@@ -1125,12 +1200,21 @@ export default function BuscaLeads() {
                           {estados.map((uf) => <option key={uf} value={uf}>{uf}</option>)}
                         </select>
                       </label>
+                      <label className="text-xs font-semibold text-foreground-700">País
+                        <input type="text" value={pais} onChange={(event) => setPais(event.target.value)} className="mt-1.5 w-full rounded-lg border border-background-300 bg-background-50 px-3 py-2 text-sm text-foreground-900" />
+                      </label>
                       <div className="text-xs font-semibold text-foreground-700">Abrangência <InfoTooltip text="A fonte ativa recebe cidade e UF. Raio de alcance não é aplicado pelo conector atual e, por isso, não é exibido como filtro." label="Sobre a abrangência" />
                         <div className="mt-1.5 flex h-[38px] items-center rounded-lg border border-background-200 bg-background-100 px-3 text-sm font-medium text-foreground-500">Toda a cidade</div>
                       </div>
                     </div>
+                    <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-background-200 bg-background-50 px-3 py-2.5">
+                      <p className="text-xs text-foreground-600"><strong className="text-foreground-800">Fonte selecionada:</strong> {fontesProspecao.find((fonte) => fonte.id === fonteSelecionada)?.nome || 'Nenhuma fonte selecionada'}</p>
+                      <button type="button" onClick={() => { setWizardError(null); setEtapa(1); setWizardStep(1); }} className="text-xs font-semibold text-primary-700 hover:text-primary-900">Trocar fonte</button>
+                    </div>
                   </section>
+                  )}
 
+                  {wizardStep === 3 && (
                   <section className="rounded-2xl border border-background-200/80 bg-white p-4 shadow-sm">
                     <div className="mb-4 flex items-start gap-3">
                       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary-100 text-primary-700"><i className="ri-group-line" aria-hidden="true" /></span>
@@ -1156,7 +1240,10 @@ export default function BuscaLeads() {
                       </div>
                     </div>
                   </section>
+                  )}
 
+                  {wizardStep === 4 && (
+                  <>
                   <section className="rounded-2xl border border-background-200/80 bg-white p-4 shadow-sm">
                     <div className="mb-3 flex items-start gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary-100 text-primary-700"><i className="ri-equalizer-2-line" aria-hidden="true" /></span><div><h3 className="text-sm font-heading font-bold text-foreground-900">3. Critérios de qualificação</h3><p className="mt-0.5 text-xs text-foreground-500">Defina o que precisa estar presente para entrar na amostra.</p></div></div>
                     <div className="flex flex-wrap gap-x-5 gap-y-2 text-xs font-medium text-foreground-700">
@@ -1165,15 +1252,7 @@ export default function BuscaLeads() {
                       <label className="inline-flex cursor-pointer items-center gap-2"><input type="checkbox" checked={temEmail === true} onChange={() => setTemEmail(temEmail === true ? null : true)} /> E-mail informado</label>
                     </div>
                     <button type="button" onClick={() => setFiltrosAvancados((visible) => !visible)} aria-expanded={filtrosAvancados} className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold text-foreground-600 hover:text-foreground-900"><i className={filtrosAvancados ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line'} aria-hidden="true" /> Filtros avançados</button>
-                    {filtrosAvancados && <div className="mt-3 grid gap-3 border-t border-background-200 pt-3 sm:grid-cols-2">
-                      <label className="text-xs font-semibold text-foreground-700">País<input type="text" value={pais} onChange={(event) => setPais(event.target.value)} className="mt-1.5 w-full rounded-lg border border-background-300 bg-background-50 px-3 py-2 text-sm text-foreground-900" /></label>
-                      {fontesDisponiveis.length > 0 ? <label className="text-xs font-semibold text-foreground-700">API da busca
-                        <select aria-label="API da busca" value={fonteSelecionada} onChange={(event) => setFonteSelecionada(event.target.value)} className="mt-1.5 w-full rounded-lg border border-background-300 bg-background-50 px-3 py-2 text-sm text-foreground-900">
-                          {fontesDisponiveis.length > 1 && <option value="">Escolha a API</option>}
-                          {fontesDisponiveis.map((fonte) => <option key={fonte.id} value={fonte.id}>{fonte.nome}</option>)}
-                        </select>
-                      </label> : <button type="button" onClick={() => navigate('/dashboard/configuracoes?tab=apis')} className="self-end rounded-lg border border-secondary-200 px-3 py-2 text-xs font-semibold text-secondary-700">Configurar API de busca</button>}
-                    </div>}
+                    {filtrosAvancados && <div className="mt-3 rounded-xl border border-background-200 bg-background-50 px-3 py-2.5 text-xs leading-5 text-foreground-600">A fonte e a região já foram definidas nos passos anteriores. A duplicidade será conferida na revisão por empresa, e-mail ou telefone.</div>}
                     <div className="mt-4 border-t border-background-200 pt-3"><p className="text-xs font-semibold text-foreground-700">Excluir da busca</p><div className="mt-2 flex flex-wrap gap-2"><span className="rounded-full bg-background-100 px-3 py-1.5 text-xs text-foreground-600">Empresas já cadastradas no CRM</span></div><p className="mt-2 text-xs leading-5 text-foreground-500">A duplicidade é identificada na revisão por empresa, e-mail ou telefone; nenhuma lista fictícia é enviada ao provedor.</p></div>
                   </section>
 
@@ -1187,13 +1266,47 @@ export default function BuscaLeads() {
                       {gruposSugeridos.length > 0 && <div className="mt-3 space-y-2">{gruposSugeridos.map((group) => <div key={group.id} className="rounded-xl border border-background-200 bg-background-50/70 p-3"><div className="flex flex-wrap items-start justify-between gap-2"><div><p className="text-sm font-semibold text-foreground-900">{group.label}</p><p className="mt-0.5 text-xs text-foreground-500">{group.description}</p></div><button type="button" onClick={() => adicionarGrupoSugerido(group.terms)} className="rounded-lg border border-primary-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-primary-800 hover:bg-primary-50">Marcar disponíveis</button></div></div>)}</div>}
                     </div>
                   </section>
+                  </>
+                  )}
                 </div>
 
                 <aside className="space-y-4 xl:sticky xl:top-5 xl:self-start">
-                  <section className="rounded-2xl bg-background-950 p-5 text-background-50 shadow-sm"><p className="text-xs font-semibold text-background-400">Resumo da busca</p><p className="mt-2 flex items-center gap-2 text-lg font-heading font-bold"><i className="ri-map-pin-line text-primary-300" aria-hidden="true" />{cidade || 'Cidade'} · {estado}</p><dl className="mt-4 divide-y divide-white/10 text-xs"><div className="flex justify-between py-2"><dt className="text-background-400">Perfil</dt><dd className="font-semibold">{tipoEmpresaAlvoLabel}</dd></div><div className="flex justify-between py-2"><dt className="text-background-400">Segmentos</dt><dd className="font-semibold">{segmentosCliente.length}</dd></div><div className="flex justify-between py-2"><dt className="text-background-400">Termos</dt><dd className="font-semibold">{termosAplicados.length}</dd></div><div className="flex justify-between py-2"><dt className="text-background-400">Obrigatórios</dt><dd className="font-semibold">{[temSite, temWhatsApp, temEmail].filter(Boolean).length}</dd></div><div className="flex justify-between py-2"><dt className="text-background-400">Exclusões</dt><dd className="font-semibold">1</dd></div></dl><div className="mt-4 border-t border-white/10 pt-4"><p className="flex items-center gap-2 text-xs font-semibold text-primary-200"><span className="h-2 w-2 rounded-full bg-primary-400" />Pronto para amostra</p><p className="mt-1 text-xs leading-5 text-background-300">A primeira consulta real é limitada a 10 empresas.</p></div><button type="button" onClick={testarAmostra} disabled={buscando || !fonteSelecionada || !cidade.trim() || termosAplicados.length === 0} className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-primary-500 px-3 py-2.5 text-sm font-heading font-bold text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:bg-primary-800">{buscando ? <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />Buscando...</> : <><i className="ri-search-eye-line" aria-hidden="true" />Testar com 10 empresas</>}</button><button type="button" onClick={() => { setHistoricoAberto(true); setAba('salvas'); }} className="mt-2 w-full rounded-lg border border-white/25 px-3 py-2 text-xs font-semibold text-white hover:bg-white/10">Ver buscas salvas</button></section>
+                  <section className="rounded-2xl bg-background-950 p-5 text-background-50 shadow-sm">
+                    <p className="text-xs font-semibold text-background-400">Resumo da busca</p>
+                    <p className="mt-2 flex items-center gap-2 text-lg font-heading font-bold"><i className="ri-map-pin-line text-primary-300" aria-hidden="true" />{cidade || 'Cidade'} · {estado}</p>
+                    <dl className="mt-4 divide-y divide-white/10 text-xs">
+                      <div className="flex justify-between gap-3 py-2"><dt className="text-background-400">Fonte</dt><dd className="text-right font-semibold">{fontesProspecao.find((fonte) => fonte.id === fonteSelecionada)?.nome || 'Pendente'}</dd></div>
+                      <div className="flex justify-between py-2"><dt className="text-background-400">Perfil</dt><dd className="font-semibold">{tipoEmpresaAlvoLabel}</dd></div>
+                      <div className="flex justify-between py-2"><dt className="text-background-400">Segmentos</dt><dd className="font-semibold">{segmentosCliente.length}</dd></div>
+                      <div className="flex justify-between py-2"><dt className="text-background-400">Termos</dt><dd className="font-semibold">{termosAplicados.length}</dd></div>
+                      <div className="flex justify-between py-2"><dt className="text-background-400">Obrigatórios</dt><dd className="font-semibold">{[temSite, temWhatsApp, temEmail].filter(Boolean).length}</dd></div>
+                    </dl>
+                    <div className="mt-4 border-t border-white/10 pt-4"><p className="flex items-center gap-2 text-xs font-semibold text-primary-200"><span className="h-2 w-2 rounded-full bg-primary-400" />{wizardStep === 4 ? 'Pronto para validar a amostra' : `Próximo: ${PROSPECTING_WIZARD_STEPS.find((step) => step.id === nextProspectingWizardStep(wizardStep))?.label}`}</p><p className="mt-1 text-xs leading-5 text-background-300">A primeira consulta real continua limitada a 10 empresas.</p></div>
+                    <button type="button" onClick={avancar} disabled={wizardStep !== 4 || buscando || !fonteSelecionada || !cidade.trim() || termosAplicados.length === 0} className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-primary-500 px-3 py-2.5 text-sm font-heading font-bold text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:bg-primary-800">{buscando ? <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />Buscando...</> : <><i className="ri-search-eye-line" aria-hidden="true" />Testar com 10 empresas</>}</button>
+                    <button type="button" onClick={() => { setHistoricoAberto(true); setAba('salvas'); }} className="mt-2 w-full rounded-lg border border-white/25 px-3 py-2 text-xs font-semibold text-white hover:bg-white/10">Ver buscas salvas</button>
+                  </section>
                   <section className="rounded-2xl border border-background-200 bg-white p-4"><h3 className="flex items-center gap-2 text-sm font-heading font-bold text-foreground-900"><i className="ri-lightbulb-flash-line text-primary-600" aria-hidden="true" />Como a amostra melhora a busca</h3><ol className="mt-3 space-y-3 text-xs leading-5 text-foreground-600"><li className="flex gap-2"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary-100 font-bold text-primary-700">1</span>Valide o público encontrado.</li><li className="flex gap-2"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary-100 font-bold text-primary-700">2</span>Classifique os resultados fora do perfil.</li><li className="flex gap-2"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary-100 font-bold text-primary-700">3</span>Ajuste termos antes da busca completa.</li></ol></section>
                 </aside>
               </div>
+
+              <div className="sticky bottom-3 z-10 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-background-200 bg-white/95 p-3 shadow-sm backdrop-blur">
+                <button type="button" onClick={voltar} className="rounded-lg border border-background-300 px-4 py-2.5 text-sm font-semibold text-foreground-700 hover:bg-background-100">{wizardStep === 2 ? 'Voltar para a fonte' : 'Voltar'}</button>
+                <div className="text-right">
+                  <p className="text-xs font-semibold text-foreground-700">Passo {wizardStep} de 4</p>
+                  <p className="mt-0.5 text-xs text-foreground-500">{wizardStep === 4 ? 'A consulta só começa após este comando.' : 'Nenhuma busca é realizada enquanto você preenche.'}</p>
+                </div>
+                <button type="button" onClick={avancar} disabled={buscando} className="inline-flex items-center gap-2 rounded-lg bg-primary-500 px-5 py-2.5 text-sm font-bold text-white hover:bg-primary-600 disabled:cursor-not-allowed disabled:bg-primary-300">
+                  {wizardStep === 2 ? 'Continuar para o perfil' : wizardStep === 3 ? 'Continuar para os critérios' : buscando ? 'Buscando...' : 'Testar com 10 empresas'}
+                  {!buscando && <i className={wizardStep === 4 ? 'ri-search-eye-line' : 'ri-arrow-right-line'} aria-hidden="true" />}
+                </button>
+              </div>
+
+              {wizardError && (
+                <div role="alert" className="flex items-start gap-2 rounded-lg border border-secondary-200 bg-secondary-50 px-4 py-3 text-sm text-secondary-800">
+                  <i className="ri-error-warning-line mt-0.5" aria-hidden="true" />
+                  <span>{wizardError}</span>
+                </div>
+              )}
 
               {erroBusca && (
                 <div role="alert" className="border border-secondary-200 bg-secondary-50 px-4 py-3 text-sm text-secondary-800 rounded-lg flex items-start gap-2">

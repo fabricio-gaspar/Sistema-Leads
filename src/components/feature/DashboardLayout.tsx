@@ -10,8 +10,8 @@ import ModoExecucaoToggle from '@/components/feature/ModoExecucaoToggle';
 import { useCurrentAccess } from '@/hooks/useCurrentAccess';
 import { hasAnyPermission } from '@/lib/crm/currentAccessRepository';
 import { roleLabel, type TeamPermission } from '@/lib/crm/teamMembersRepository';
-import { loadMyEvolutionGoAccount } from '@/lib/crm/whatsappAccountsRepository';
-import { evolutionGoOnboardingSessionKey, evolutionGoSellerNeedsOnboarding } from '@/lib/crm/evolutionGoOnboarding';
+import { loadMyWaAkgAccount } from '@/lib/crm/whatsappAccountsRepository';
+import { waAkgOnboardingSessionKey, waAkgSellerNeedsOnboarding } from '@/lib/crm/waAkgOnboarding';
 import './wayflex-visual.css';
 import './wayflex-redesign.css';
 
@@ -44,7 +44,6 @@ const navSections: NavSection[] = [
     items: [
       { label: 'Kanban', path: '/dashboard/kanban', icon: 'ri-layout-masonry-line', anyOf: ['leads.read_all', 'leads.read_assigned'] },
       { label: 'Central de Atendimento', path: '/dashboard/atendimento', icon: 'ri-customer-service-2-line', anyOf: ['conversations.read_all', 'conversations.reply_all', 'conversations.reply_assigned'] },
-      { label: 'Meu WhatsApp', path: '/dashboard/meu-whatsapp', icon: 'ri-whatsapp-line', anyOf: ['channels.view_own', 'channels.manage_all', 'configuration.manage'] },
       { label: 'Agenda', path: '/dashboard/agenda', icon: 'ri-calendar-event-line', anyOf: ['conversations.read_all', 'conversations.reply_all', 'conversations.reply_assigned'] },
     ],
   },
@@ -145,7 +144,7 @@ export default function DashboardLayout() {
   useEffect(() => {
     if (loading || accessLoading || !user || !sellerCanConnectOwnWhatsapp || location.pathname !== '/dashboard') return;
 
-    const sessionKey = evolutionGoOnboardingSessionKey(user.id);
+    const sessionKey = waAkgOnboardingSessionKey(user.id);
     try {
       if (window.sessionStorage.getItem(sessionKey) === 'shown') return;
     } catch {
@@ -156,15 +155,15 @@ export default function DashboardLayout() {
     sellerOnboardingAttempt.current = sessionKey;
 
     let active = true;
-    void loadMyEvolutionGoAccount()
+    void loadMyWaAkgAccount()
       .then((status) => {
-        if (!active || !evolutionGoSellerNeedsOnboarding(status)) return;
+        if (!active || !waAkgSellerNeedsOnboarding(status)) return;
         try { window.sessionStorage.setItem(sessionKey, 'shown'); } catch { /* storage is optional */ }
-        navigate('/dashboard/meu-whatsapp', { replace: true });
+        navigate('/dashboard/atendimento', { replace: true });
       })
       // The normal Dashboard must remain available if the connection read is
-      // temporarily unavailable. The seller can still use the Meu WhatsApp
-      // item from the sidebar to retry safely.
+      // temporarily unavailable. The seller can still use the Central to
+      // retry the private QR connection safely.
       .catch(() => undefined);
 
     return () => { active = false; };

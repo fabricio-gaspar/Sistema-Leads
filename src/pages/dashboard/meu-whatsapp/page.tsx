@@ -1,5 +1,5 @@
-import EvolutionGoPanel from '@/components/feature/EvolutionGoPanel';
+import { Navigate } from 'react-router-dom';
 
 export default function MeuWhatsapp() {
-  return <div className="wf-page wf-page--whatsapp"><EvolutionGoPanel mode="self-service" /></div>;
+  return <Navigate to="/dashboard/atendimento" replace />;
 }

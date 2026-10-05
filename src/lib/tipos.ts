@@ -64,9 +64,9 @@ export interface ModuloEstado {
 }
 
 // Provedor usado para a saída real de WhatsApp pela Ana.
-// - "zapi": Z-API (conexão por QR Code a um número real).
-// - "meta": WhatsApp Cloud API oficial da Meta (Graph API).
-export type ProvedorWhatsapp = 'zapi' | 'meta';
+// WA-AKG é o canal principal por vendedor; os demais permanecem apenas para
+// migração e contingência controlada.
+export type ProvedorWhatsapp = 'wa_akg' | 'evolution_go' | 'zapi' | 'meta';
 
 export interface EventoHistorico {
   id: string;

@@ -46,8 +46,8 @@ export default function Dashboard() {
   const { access } = useCurrentAccess();
   const sellerOwnWhatsapp = access?.role === 'vendedor'
     && hasAnyPermission(access, ['channels.connect_own']);
-  const whatsappWorkspaceLink = sellerOwnWhatsapp ? '/dashboard/meu-whatsapp' : '/dashboard/configuracoes?tab=canais';
-  const whatsappWorkspaceLabel = sellerOwnWhatsapp ? 'Meu WhatsApp' : 'Ver canal';
+  const whatsappWorkspaceLink = sellerOwnWhatsapp ? '/dashboard/atendimento' : '/dashboard/configuracoes?tab=canais';
+  const whatsappWorkspaceLabel = sellerOwnWhatsapp ? 'Conectar WhatsApp' : 'Ver canal';
 
   useEffect(() => {
     let disposed = false;
@@ -103,7 +103,7 @@ export default function Dashboard() {
 
   const operationalItems = [
     { label: 'Ana', icon: 'ri-robot-2-line', ...diagnosticStatus(operacao?.status.killSwitch ? 'Pausada' : operacao?.status.productionReady ? 'Pronta' : 'Pendente', operacao?.status.productionReady && !operacao.status.killSwitch ? 'positive' : 'attention'), detail: 'Prontidão e pausa operacional da Ana. Estar pronta não é prova de envio ou entrega.', link: '/dashboard/configuracoes?tab=ana' },
-    { label: 'WhatsApp', icon: 'ri-whatsapp-line', ...diagnosticStatus(whatsappMonitoring?.state === 'stable' ? 'Estável' : whatsappMonitoring?.state === 'paused' ? 'Pausado' : whatsappMonitoring?.state === 'attention' ? 'Requer atenção' : whatsappMonitoring?.state === 'unavailable' ? 'Indisponível' : 'Não configurado', whatsappMonitoring?.state === 'stable' ? 'positive' : whatsappMonitoring?.state === 'unavailable' ? 'critical' : 'attention'), detail: sellerOwnWhatsapp ? 'Estado da sua conta Evolution GO. Use Meu WhatsApp para conectar ou validar o seu canal.' : whatsappMonitoring?.detail ?? 'Estado do canal confirmado pelo backend.', link: whatsappWorkspaceLink },
+    { label: 'WhatsApp', icon: 'ri-whatsapp-line', ...diagnosticStatus(whatsappMonitoring?.state === 'stable' ? 'Estável' : whatsappMonitoring?.state === 'paused' ? 'Pausado' : whatsappMonitoring?.state === 'attention' ? 'Requer atenção' : whatsappMonitoring?.state === 'unavailable' ? 'Indisponível' : 'Não configurado', whatsappMonitoring?.state === 'stable' ? 'positive' : whatsappMonitoring?.state === 'unavailable' ? 'critical' : 'attention'), detail: sellerOwnWhatsapp ? 'Estado da sua conta WA-AKG. Use a Central de Atendimento para conectar ou validar o seu canal.' : whatsappMonitoring?.detail ?? 'Estado do canal confirmado pelo backend.', link: whatsappWorkspaceLink },
     { label: 'Busca', icon: 'ri-map-pin-search-line', ...diagnosticStatus(apify?.label ?? 'Não configurada', apify?.tone ?? 'neutral'), detail: apifyIntegration?.detail ?? 'Estado da integração de busca Apify.', link: '/dashboard/configuracoes?tab=apis' },
     { label: 'Processamento', icon: 'ri-pulse-line', ...diagnosticStatus(processing.label, processing.tone), detail: processing.detail, link: '/dashboard/configuracoes?tab=operacao' },
   ];

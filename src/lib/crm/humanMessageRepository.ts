@@ -27,7 +27,7 @@ export async function queueHumanMessage(input: {
   recipient: string;
   text: string;
   requestId: string;
-  provider?: 'zapi' | 'meta_cloud' | 'evolution_go' | null;
+  provider?: 'zapi' | 'meta_cloud' | 'evolution_go' | 'wa_akg' | null;
   knowledgeContent?: HumanMessageKnowledgeContent | null;
 }): Promise<HumanMessageResult> {
   if (input.channel !== 'whatsapp') {
@@ -96,7 +96,7 @@ export async function queueHumanMessage(input: {
   const existingStatus = typeof data.job_status === 'string' ? data.job_status : '';
   const messageId = typeof data.message_id === 'string' ? data.message_id : undefined;
   if (existingStatus === 'processed') {
-    return { queued: true, delivery: 'accepted', detail: 'Esta mesma solicitação já foi aceita pela Z-API; nenhum reenvio foi feito.', messageId };
+    return { queued: true, delivery: 'accepted', detail: 'Esta mesma solicitação já foi aceita pelo provedor; nenhum reenvio foi feito.', messageId };
   }
   if (existingStatus === 'reconciliation_required') {
     return { queued: true, delivery: 'reconciliation', detail: 'A tentativa já chegou ao provedor, mas o resultado ainda precisa de reconciliação. Não repita o envio.', messageId };
@@ -108,7 +108,7 @@ export async function queueHumanMessage(input: {
 
   // A mensagem humana tenta ser despachada imediatamente. Se houver uma falha
   // transitória, o job permanece disponível ao worker server-side; assim o
-  // operador não depende de esperar o próximo ciclo para saber se a Z-API
+  // operador não depende de esperar o próximo ciclo para saber se o provedor
   // aceitou a mensagem.
   const immediate = await supabase.functions.invoke('automation-worker', {
     body: { run: 'outreach', job_id: jobId },
@@ -117,7 +117,7 @@ export async function queueHumanMessage(input: {
     ? immediate.data.job_results.find((item: { id?: unknown }) => item.id === jobId) as { status?: unknown; error?: unknown } | undefined
     : undefined;
   if (outcome?.status === 'sent') {
-    return { queued: true, delivery: 'accepted', detail: 'Mensagem aceita pela Z-API e registrada no histórico do lead. Entrega e leitura aguardam o callback do canal.', messageId };
+    return { queued: true, delivery: 'accepted', detail: 'Mensagem aceita pelo provedor e registrada no histórico do lead. Entrega e leitura aguardam o callback do canal.', messageId };
   }
   if (outcome?.status === 'failed') {
     const code = typeof outcome.error === 'string' ? outcome.error : 'dispatch_failed';
