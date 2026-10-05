@@ -1,0 +1,142 @@
+{
+  "environment": "PGlite 0.3.14; PostgreSQL in memory; no network",
+  "snapshotDate": "2026-10-05",
+  "results": [
+    {
+      "id": "T-SEC-001",
+      "scenario": "Vendedor sem carteira não lê leads do colega nem de outra empresa",
+      "modality": "integração PostgreSQL WASM isolada, políticas/corpos remotos exatos e schema mínimo",
+      "expected": "0 registros",
+      "observed": [],
+      "result": "APROVADO"
+    },
+    {
+      "id": "T-SEC-002",
+      "scenario": "Vendedor sem carteira tenta ler proposta do colega",
+      "modality": "integração PostgreSQL WASM isolada, políticas/corpos remotos exatos e schema mínimo",
+      "expected": "0 registros",
+      "observed": [
+        {
+          "id": "aaaaaaaa-1111-4111-8111-111111111111"
+        }
+      ],
+      "result": "REPROVADO"
+    },
+    {
+      "id": "T-SEC-003",
+      "scenario": "Vendedor tenta excluir proposta alheia sem permissão administrativa",
+      "modality": "integração PostgreSQL WASM isolada, políticas/corpos remotos exatos e schema mínimo",
+      "expected": "0 registros excluídos",
+      "observed": [
+        {
+          "id": "aaaaaaaa-1111-4111-8111-111111111111"
+        }
+      ],
+      "result": "REPROVADO"
+    },
+    {
+      "id": "T-SEC-004",
+      "scenario": "Vendedor tenta excluir documento enviado por colega",
+      "modality": "integração PostgreSQL WASM isolada, políticas/corpos remotos exatos e schema mínimo",
+      "expected": "0 registros excluídos",
+      "observed": [
+        {
+          "id": "aaaaaaaa-1111-4111-8111-111111111111"
+        }
+      ],
+      "result": "REPROVADO"
+    },
+    {
+      "id": "T-SEC-005",
+      "scenario": "Vendedor sem carteira tenta ler mídia de outro responsável",
+      "modality": "integração PostgreSQL WASM isolada, políticas/corpos remotos exatos e schema mínimo",
+      "expected": "0 arquivos",
+      "observed": [
+        {
+          "name": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/peer-private-media.pdf"
+        }
+      ],
+      "result": "REPROVADO"
+    },
+    {
+      "id": "T-SEC-006",
+      "scenario": "Vendedor tenta remover supressão da organização por Data API",
+      "modality": "integração PostgreSQL WASM isolada, políticas/corpos remotos exatos e schema mínimo",
+      "expected": "0 registros excluídos",
+      "observed": [
+        {
+          "id": "aaaaaaaa-1111-4111-8111-111111111111"
+        }
+      ],
+      "result": "REPROVADO"
+    },
+    {
+      "id": "T-SEC-007",
+      "scenario": "Vendedor tenta ler proposta de outra empresa",
+      "modality": "integração PostgreSQL WASM isolada, políticas/corpos remotos exatos e schema mínimo",
+      "expected": "0 registros",
+      "observed": [],
+      "result": "APROVADO"
+    },
+    {
+      "id": "T-SEC-016",
+      "scenario": "Uploader move documento próprio para empresa sem vínculo",
+      "modality": "integração PostgreSQL WASM isolada, políticas/corpos remotos exatos e schema mínimo",
+      "expected": "operação negada",
+      "observed": {
+        "error": "new row violates row-level security policy for table \"documents\""
+      },
+      "result": "APROVADO"
+    },
+    {
+      "id": "T-SEC-008",
+      "scenario": "Último administrador usa DELETE direto contornando Edge",
+      "modality": "integração PostgreSQL WASM isolada, políticas/corpos remotos exatos e schema mínimo",
+      "expected": "exclusão negada",
+      "observed": [
+        {
+          "user_id": "11111111-1111-4111-8111-111111111111"
+        }
+      ],
+      "result": "REPROVADO"
+    },
+    {
+      "id": "T-SEC-009",
+      "scenario": "JWT sintético antigo com vínculo desativado tenta ler Storage/propostas",
+      "modality": "integração PostgreSQL WASM isolada, políticas/corpos remotos exatos e schema mínimo",
+      "expected": "0 registros",
+      "observed": {
+        "objects": [],
+        "proposals": []
+      },
+      "result": "APROVADO"
+    },
+    {
+      "id": "T-SEC-010",
+      "scenario": "Cadastro Auth depois de convite cancelado",
+      "modality": "integração PostgreSQL WASM isolada, políticas/corpos remotos exatos e schema mínimo",
+      "expected": "convite cancelado não concede vínculo ativo",
+      "observed": [
+        {
+          "status": "active",
+          "accepted": true,
+          "cancelled": true
+        }
+      ],
+      "result": "REPROVADO"
+    },
+    {
+      "id": "T-SEC-011",
+      "scenario": "Trigger Auth + upsert invited do handler + busca activate_invite",
+      "modality": "integração PostgreSQL WASM isolada, políticas/corpos remotos exatos e schema mínimo",
+      "expected": "1 convite elegível para ativação no login",
+      "observed": [
+        {
+          "status": "invited",
+          "activation_candidates": 0
+        }
+      ],
+      "result": "REPROVADO"
+    }
+  ]
+}

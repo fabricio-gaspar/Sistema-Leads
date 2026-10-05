@@ -1,5 +1,13 @@
 # Baseline do sistema
 
+## Auditoria V3 — 05/10/2026 — NO-GO, sem remediação
+
+- Código auditado `847048429a86294aa10fa54ffdd750c04447d4fb`; GitHub inicial `9fdfb554ed5e23b1edc5b7e5250bd8df84cbad7d` com a mesma árvore. Site oficial v168, fonte isolada `87b9b8309eb8fc0fa4d47611c7a1315598fc4f76`, não alterado.
+- Auditoria no acesso seguro disponível: 421 testes existentes e17 smoke passaram; 40 assertivas novas tiveram 7 aprovações/33 reprovações; typecheck integral Edge encontrou9 diagnósticos. UI autenticada Wizard/Central/estados vazios e reflow320/390/1024/1440 conferidos sem negócios.
+- Bloqueadores: policies de carteira/Storage/supressão, último admin/convites, gate global por vendedor, concorrência/retomada, SQL de recibos inválido remoto, caches de sessão, flags comerciais sem consumo e próxima ação de Agenda. Relatório e evidências em `docs/auditoria/2026-10-05-v3/RELATORIO_AUDITORIA.md`.
+- Apenas docs/testes/checkpoint alterados. Nenhuma mensagem, cliente, busca paga, integração, cron, migration ou publicação alterado pelo agente. A operação real previamente habilitada não foi desligada silenciosamente.
+- Homologação externa permanece incompleta. Próxima ação: autorização explícita de remediação dos lotes R1/R2/R3 do plano; depois sandbox/gateway/perfis/destinos para E2E. Não repetir auditoria completa nem publicar todo checkout.
+
 ## Wizard da Busca de Leads — 05/10/2026 — LOCAL VALIDADO, SITE PENDENTE
 
 - A entrada manual passou a seguir **Fonte → Região → Perfil → Critérios**, com validação somente do passo atual, resumo do que já foi escolhido e retorno linear. A fonte é escolhida uma vez no primeiro passo; o seletor duplicado foi removido da configuração.

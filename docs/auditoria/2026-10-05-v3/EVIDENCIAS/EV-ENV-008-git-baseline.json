@@ -1,0 +1,19 @@
+{
+  "audit_id": "WAYFLEX-V3-20261005",
+  "observed_at": "2026-10-05",
+  "local_branch": "main",
+  "local_commit": "847048429a86294aa10fa54ffdd750c04447d4fb",
+  "github_repository": "https://github.com/fabricio-gaspar/Sistema-Leads",
+  "github_main": "9fdfb554ed5e23b1edc5b7e5250bd8df84cbad7d",
+  "local_tree": "324d69608bc780d7d4d8abffe1121767e04bbcb9",
+  "github_tree": "324d69608bc780d7d4d8abffe1121767e04bbcb9",
+  "commands": [
+    "git ls-remote https://github.com/fabricio-gaspar/Sistema-Leads.git refs/heads/main",
+    "git rev-parse HEAD HEAD^{tree} 9fdfb554ed5e23b1edc5b7e5250bd8df84cbad7d^{tree}"
+  ],
+  "tracked_trees_equal": true,
+  "preexisting_untracked_preserved": [
+    "pnpm-lock.yaml",
+    "pnpm-workspace.yaml"
+  ]
+}

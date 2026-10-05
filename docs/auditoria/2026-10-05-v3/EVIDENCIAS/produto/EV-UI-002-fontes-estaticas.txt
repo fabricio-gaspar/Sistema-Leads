@@ -1,0 +1,348 @@
+Fonte: checkout 847048429a86294aa10fa54ffdd750c04447d4fb; 05/10/2026; inspeção estática.
+Sequência dos trechos: csv.ts; backendStore.ts; useAuth.tsx; useLeadsStore.ts; useListasStore.ts; agenda/page.tsx; appointmentsRepository.ts; CommercialAnalytics.tsx; InfoTooltip.tsx; wayflex-visual.css; commercialCatalogPolicyRepository.ts; ocorrências globais de flags.
+19
+    20	// Faz o parse de um CSV com suporte a aspas e separadores ; ou ,.
+    21	export function parseCsv(texto: string): ParsedCsv {
+    22	  const linhas = texto.split(/\r?\n/).filter((l) => l.trim().length > 0);
+    23	  if (linhas.length === 0) return { cabecalho: [], linhas: [] };
+    24
+    25	  const delimitador = linhas[0].includes(';') ? ';' : ',';
+    26
+    27	  const parseLinha = (linha: string): string[] => {
+    28	    const cols: string[] = [];
+    29	    let atual = '';
+    30	    let entreAspas = false;
+    31	    for (let i = 0; i < linha.length; i += 1) {
+    32	      const ch = linha[i];
+    33	      if (ch === '"') {
+    34	        entreAspas = !entreAspas;
+    35	      } else if (ch === delimitador && !entreAspas) {
+    36	        cols.push(atual.trim());
+    37	        atual = '';
+    38	      } else {
+    39	        atual += ch;
+    40	      }
+    41	    }
+    42	    cols.push(atual.trim());
+    43	    return cols.map((c) => c.replace(/^"|"$/g, '').trim());
+    44	  };
+    45
+    46	  const cabecalho = parseLinha(linhas[0]);
+    47	  const dados = linhas
+    48	    .slice(1)
+    49	    .map(parseLinha)
+    50	    .filter((l) => l.some((c) => c !== ''));
+    51
+    52	  return { cabecalho, linhas: dados };
+    12
+    13	function carregar<T>(key: string, inicial: T): T {
+    14	  try {
+    15	    const raw = localStorage.getItem(key);
+    16	    if (raw) return JSON.parse(raw) as T;
+    17	  } catch {
+    18	    // ignora cache corrompido
+    19	  }
+    20	  return inicial;
+    21	}
+    22
+    23	function salvar<T>(key: string, valor: T): void {
+    24	  try {
+    25	    localStorage.setItem(key, JSON.stringify(valor));
+    26	  } catch {
+    27	    // falha silenciosa no cache
+    28	  }
+    29	}
+    30
+    31	export interface BackendStore<T> {
+    32	  get: () => T;
+    33	  set: (updater: (prev: T) => T) => void;
+    34	  useStore: () => T;
+    35	}
+    36
+    37	export function createBackendStore<T>(moduleKey: string, key: string, inicial: T): BackendStore<T> {
+    38	  let state: T = carregar(key, inicial);
+    39	  const listeners = new Set<() => void>();
+    40	  let sincronizado = false;
+    41
+    42	  const notify = () => listeners.forEach((l) => l());
+    43
+    44	  async function persistir(valor: T): Promise<void> {
+    45	    let session;
+    46	    try {
+    47	      session = await resolveOrganizationSession();
+    48	    } catch {
+    49	      return;
+    50	    }
+    51	    const { error } = await supabase
+    52	      .from('organization_module_data')
+    53	      .upsert({
+    54	        organization_id: session.organizationId,
+    55	        module_key: moduleKey,
+    56	        data: valor,
+    57	        updated_by: session.userId,
+    58	        updated_at: new Date().toISOString(),
+    59	      }, { onConflict: 'organization_id,module_key' });
+    60	    if (error) {
+    61	      console.error(`[backendStore:${moduleKey}] falha ao salvar`, error);
+    62	    }
+    63	  }
+    64
+    65	  async function sincronizar(): Promise<void> {
+    66	    let session;
+    67	    try {
+    68	      session = await resolveOrganizationSession();
+    69	    } catch {
+    70	      return;
+    71	    }
+    72	    const { data, error } = await supabase
+    73	      .from('organization_module_data')
+    74	      .select('data')
+    75	      .eq('organization_id', session.organizationId)
+    76	      .eq('module_key', moduleKey)
+    77	      .maybeSingle();
+    78	    if (error) {
+    79	      console.error(`[backendStore:${moduleKey}] falha ao carregar`, error);
+    80	      return;
+    81	    }
+    82	    if (data && data.data != null) {
+    83	      // Backend é a fonte da verdade: substitui o cache local.
+    84	      state = data.data as T;
+    85	      salvar(key, state);
+    86	      notify();
+    87	    } else if (!sincronizado) {
+    88	      // Primeiro acesso do usuário: semeia o cache local no Backend.
+    89	      await persistir(state);
+    90	    }
+    91	    sincronizado = true;
+    92	  }
+    93
+    94	  // Assim que houver usuário autenticado (login ou refresh), sincroniza.
+    95	  // O callback retorna de forma síncrona; a sincronização roda em segundo plano.
+    96	  supabase.auth.onAuthStateChange((_event, session) => {
+    97	    if (session?.user) {
+    98	      void sincronizar();
+    99	    }
+   100	  });
+   101
+   102	  const get = () => state;
+   103
+   104	  const set = (updater: (prev: T) => T) => {
+   105	    state = updater(state);
+   106	    salvar(key, state);
+   107	    notify();
+   108	    void persistir(state);
+   109	  };
+   110
+   111	  const subscribe = (listener: () => void) => {
+   192	    return { ok: true };
+   193	  };
+   194
+   195	  const logout = async () => {
+   196	    await supabase.auth.signOut();
+   197	    setUser(null);
+   198	  };
+   199
+   200	  return (
+   201	    <AuthContext.Provider value={{ user, loading, login, register, resetPassword, logout }}>
+     6
+     7	let state: Lead[] = [];
+     8	let hydrated = false;
+     9	let loadStatus: 'loading' | 'ready' | 'error' = 'loading';
+    10	let hydratePromise: Promise<void> | null = null;
+    11	let writeQueue: Promise<void> = Promise.resolve();
+    12	let latestPersistenceError: unknown = null;
+    13	const listeners = new Set<() => void>();
+    14
+    15	const notify = () => listeners.forEach((listener) => listener());
+    16	const getSnapshot = () => state;
+    17	const getLoadStatus = () => loadStatus;
+    18	const subscribe = (listener: () => void) => {
+    19	  listeners.add(listener);
+    20	  return () => listeners.delete(listener);
+    21	};
+    22
+    23	async function hydrate(): Promise<void> {
+    24	  if (hydrated) return;
+    25	  if (hydratePromise) return hydratePromise;
+    26	  loadStatus = 'loading';
+    27	  notify();
+    28	  hydratePromise = loadOperationalLeads()
+    29	    .then((leads) => {
+    30	      state = leads.map(normalizarLead);
+    31	      hydrated = true;
+    32	      loadStatus = 'ready';
+    33	      notify();
+    34	    })
+    35	    .catch((error) => {
+    36	      console.error('[crm-leads] falha ao carregar fonte operacional', error);
+    37	      loadStatus = 'error';
+    38	      notify();
+    39	    })
+    40	    .finally(() => {
+    41	      hydratePromise = null;
+    42	    });
+    43	  return hydratePromise;
+    44	}
+    45
+    46	/** Recarrega a fonte operacional depois de uma mutação transacional do backend. */
+    22
+    23	let state: ListaDeLeads[] = [];
+    24	let hydrated = false;
+    25	let hydratePromise: Promise<void> | null = null;
+    26	let writeQueue = Promise.resolve();
+    27	let latestPersistenceError: unknown = null;
+    28	const listeners = new Set<() => void>();
+    29
+    30	const notify = () => listeners.forEach((listener) => listener());
+    31	const getSnapshot = () => state;
+    32	const subscribe = (listener: () => void) => {
+    33	  listeners.add(listener);
+    34	  return () => listeners.delete(listener);
+    35	};
+    36
+    37	async function hydrate(): Promise<void> {
+    38	  if (hydrated) return;
+    39	  if (hydratePromise) return hydratePromise;
+    40	  hydratePromise = loadOperationalLists()
+    41	    .then((lists) => { state = lists; hydrated = true; notify(); })
+    42	    .catch((error) => console.error('[crm-lists] falha ao carregar fonte operacional', error))
+    43	    .finally(() => { hydratePromise = null; });
+    44	  return hydratePromise;
+   232	    {form && <AppointmentForm form={form} setForm={setForm} leads={leads} team={team} selectedLead={selectedLead} saving={saving} onClose={() => setForm(null)} onSave={() => void saveForm()} />}
+   233	    {conflicts.length > 0 && pendingSave && <ConflictDialog conflicts={conflicts} saving={saving} onCancel={() => { setConflicts([]); setPendingSave(null); }} onConfirm={() => void persist(pendingSave, true)} />}
+   234	    {selected && <AppointmentDrawer item={selected} history={history} onClose={() => setSelected(null)} onEdit={() => openForm(cursor, '09:00', selected)} onConfirm={() => void updateItem(selected, { status: 'confirmed', confirmationStatus: 'confirmed' })} onTransition={(next) => { setReason(next === 'completed' ? selected.result : ''); setTransition({ item: selected, status: next }); }} onReschedule={() => openForm(cursor, '09:00', selected)} onNext={() => setNextActionFor(selected)} onLead={() => navigate(`/dashboard/leads?leadId=${encodeURIComponent(selected.leadId)}`)} onConversation={() => selected.originConversationId ? navigate(`/dashboard/atendimento?conversationId=${encodeURIComponent(selected.originConversationId)}`) : pushMessage('Este compromisso não tem conversa de origem vinculada.')} />}
+   235	    {transition && <TransitionDialog state={transition.status} reason={reason} setReason={setReason} onClose={() => setTransition(null)} onConfirm={() => void handleTransition()} />}
+   236	    {nextActionFor && <NextActionDialog item={nextActionFor} leads={leads} team={team} onClose={() => setNextActionFor(null)} onCreate={async (data) => { const next = { ...nextActionFor, id: crypto.randomUUID(), title: data.title, startsAt: zonedUtc(data.date, data.time, nextActionFor.timezone), endsAt: zonedUtc(data.date, data.time, nextActionFor.timezone), status: 'pending' as AgendaStatus, confirmationStatus: 'pending' as const, origin: 'manual' as const, result: '', cancelReason: '', noShowReason: '', nextActionAt: null, nextActionTitle: null, updatedAt: new Date().toISOString(), createdAt: new Date().toISOString() }; try { const created = await createOperationalAppointment(next); await updateOperationalAppointment({ ...nextActionFor, nextActionAt: created.startsAt, nextActionTitle: created.title }, nextActionFor.updatedAt); setNextActionFor(null); await load(); pushMessage('Próxima ação criada e vinculada.'); } catch { pushMessage('Não foi possível criar a próxima ação.'); } }} />}
+   237	  </div>;
+   140	function editableRow(appointment: AgendaAppointment) {
+   141	  if (!appointment.leadId || !isUuid(appointment.leadId)) throw new Error('appointment_lead_id_invalid');
+   142	  const startsAt = new Date(appointment.startsAt); const endsAt = new Date(appointment.endsAt);
+   143	  if (!Number.isFinite(startsAt.getTime()) || !Number.isFinite(endsAt.getTime()) || endsAt <= startsAt) throw new Error('appointment_datetime_invalid');
+   144	  return { lead_id: appointment.leadId, title: appointment.title.trim().slice(0, 240) || 'Compromisso comercial', starts_at: startsAt.toISOString(),
+   145	    ends_at: endsAt.toISOString(), status: appointment.status, meeting_url: appointment.location.trim() || null,
+   146	    notes: appointment.notes.trim() || null, metadata: toMetadata(appointment) };
+    54	    { title: 'Novos leads', value: metric(analytics.cohort.length), note: ready ? analytics.growth === null ? 'Sem comparação percentual' : `${analytics.growth >= 0 ? '+' : ''}${rate(analytics.growth)} vs. período anterior` : 'Aguardando leitura', help: 'Leads persistidos no CRM, criados no período. Resultados de busca ainda não importados não entram nesta contagem.' },
+    55	    { title: 'Na carteira', value: metric(analytics.pipeline.length), note: 'Mesma regra do Kanban', help: 'Leads não arquivados com modo e responsável atribuídos. O contato pode continuar bloqueado por falta de autorização.' },
+    56	    { title: 'Mensagens hoje', value: metric(analytics.days.reduce((total, day) => total + day.recebidas + day.enviadas, 0)), note: 'Recebidas e envios aceitos', help: 'Atividade de contato no recorte selecionado. Um envio aceito não comprova entrega ou leitura.' },
+    57	    { title: 'Orçamentos abertos', value: metric(analytics.openProposals.length), note: ready ? currency(analytics.expectedValue) : '—', help: 'Propostas criadas no período, Enviadas ou Visualizadas, ligadas à carteira. Valor líquido do desconto; não é receita reconhecida.' },
+    58	    { title: 'Conversão', value: ready ? rate(analytics.conversion) : '—', note: ready ? `${analytics.won.length} ganhos / ${analytics.pipeline.length} na carteira${analytics.pipeline.length > 0 && analytics.pipeline.length < 10 ? ' · base pequena' : ''}` : 'Aguardando leitura', help: 'Situação atual dos leads criados no período: ganhos divididos pela carteira atribuída. Base zero não produz percentual. Uma base pequena tem baixa estabilidade.' },
+    59	  ] : [
+    60	    { title: 'Cadastrados', value: metric(analytics.cohort.length), note: ready ? analytics.growth === null ? 'Sem comparação percentual' : `${analytics.growth >= 0 ? '+' : ''}${rate(analytics.growth)} vs. período anterior` : 'Aguardando leitura', help: 'Leads persistidos no CRM, criados no período. Resultados de busca ainda não importados não entram nesta contagem.' },
+    16	    const rect = trigger.current?.getBoundingClientRect();
+    17	    if (!rect) return;
+    18	    const width = Math.min(304, window.innerWidth - 32);
+    19	    const preferred = align === 'end' ? rect.right - width : align === 'center' ? rect.left + rect.width / 2 - width / 2 : rect.left;
+    20	    setPosition({ left: Math.max(16, Math.min(preferred, window.innerWidth - width - 16)), top: rect.bottom + 8, width });
+    21	    setOpen(true);
+    22	  };
+    23	  useEffect(() => {
+    24	    if (!open) return;
+    25	    const close = () => setOpen(false);
+    26	    window.addEventListener('scroll', close, true);
+    27	    window.addEventListener('resize', close);
+    28	    return () => {
+    29	      window.removeEventListener('scroll', close, true);
+    30	      window.removeEventListener('resize', close);
+    31	    };
+    32	  }, [open]);
+    33
+    34	  return <span className={`wf-info-tooltip wf-info-tooltip--${align} ${open ? 'is-open' : ''}`} onMouseEnter={show} onMouseLeave={() => setOpen(false)} onBlur={(event) => {
+    35	    if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false);
+    36	  }}>
+    37	    <button ref={trigger} type="button" className="wf-info-tooltip__trigger" aria-label={label} aria-describedby={open ? tooltipId : undefined} aria-expanded={open} onFocus={show} onClick={show} onKeyDown={(event) => { if (event.key === 'Escape') setOpen(false); }}>
+    38	      <i className="ri-information-line" aria-hidden="true" />
+    39	    </button>
+    40	    {open && createPortal(<span id={tooltipId} role="tooltip" className="wf-info-tooltip__floating" style={position}>{text}</span>, document.body)}
+    41	  </span>;
+    42	}
+     1	/* Approved WayFlex visual guide. Presentation only; operational semantics stay local. */
+     2	.wf-info-tooltip__floating { position: fixed; z-index: 1000; border-radius: .75rem; background: #14151a; padding: .7rem .85rem; color: white; font-size: .875rem; line-height: 1.5; font-weight: 500; box-shadow: 0 8px 24px rgb(20 21 26 / .2); pointer-events: none; max-height: 45vh; overflow-y: auto; }
+     3	.wf-app {
+     4	  --wf-ink: #14151a;
+     5	  --wf-canvas: #f2f4f8;
+     6	  --wf-surface: #ffffff;
+     7	  --wf-line: #e3e7ed;
+     8	  --wf-lime: #d9f66d;
+     9	  --wf-green: #168654;
+    10	  --wf-green-strong: #116b43;
+    11	  --wf-green-soft: #e9f8ef;
+    12	  --wf-coral: #bd3d32;
+    13	  --wf-coral-strong: #84251f;
+    14	  --wf-coral-soft: #fff0ee;
+    15	  --wf-amber: #8c651d;
+    16	  --wf-amber-soft: #fff5eb;
+    17	  --wf-muted: #69717d;
+    18	  --wf-muted-soft: #eef1f4;
+    17	const MODULE_KEY = 'commercial_catalog_policy';
+    18
+    19	export const defaultCommercialCatalogPolicy: CommercialCatalogPolicy = {
+    20	  catalogEnabled: true,
+    21	  productsForAna: true,
+    22	  servicesForAna: true,
+    23	  draftEnabled: true,
+    24	  automaticSendEnabled: false,
+    25	  approvedPriceTable: true,
+    26	  discountApprovalRequired: true,
+    27	  includeValidityAndConditions: true,
+    28	  defaultTemplateId: null,
+    29	  updatedAt: null,
+    30	};
+    31
+    32	function asPolicy(value: unknown): CommercialCatalogPolicy {
+    33	  const candidate = value && typeof value === 'object' ? value as Partial<CommercialCatalogPolicy> : {};
+    34	  return {
+    35	    ...defaultCommercialCatalogPolicy,
+    36	    ...candidate,
+    37	    defaultTemplateId: typeof candidate.defaultTemplateId === 'string' ? candidate.defaultTemplateId : null,
+    38	    updatedAt: typeof candidate.updatedAt === 'string' ? candidate.updatedAt : null,
+    39	  };
+    40	}
+    41
+    42	export async function loadCommercialCatalogPolicy(): Promise<CommercialCatalogPolicy> {
+    43	  const session = await resolveOrganizationSession();
+    44	  const { data, error } = await supabase.from('organization_module_data').select('data,updated_at')
+    45	    .eq('organization_id', session.organizationId).eq('module_key', MODULE_KEY).maybeSingle();
+    46	  if (error) throw error;
+    47	  return asPolicy({ ...(data?.data as Record<string, unknown> || {}), updatedAt: data?.updated_at || null });
+    48	}
+    49
+    50	export async function saveCommercialCatalogPolicy(policy: CommercialCatalogPolicy, reason = 'Atualização da política comercial'): Promise<CommercialCatalogPolicy> {
+    51	  const session = await resolveOrganizationSession();
+    52	  const updatedAt = new Date().toISOString();
+    53	  const next = { ...asPolicy(policy), updatedAt };
+    54	  const { error } = await supabase.from('organization_module_data').upsert({
+    55	    organization_id: session.organizationId,
+    56	    module_key: MODULE_KEY,
+    57	    data: next,
+    58	    updated_by: session.userId,
+    59	    updated_at: updatedAt,
+    60	  }, { onConflict: 'organization_id,module_key' });
+    61	  if (error) throw error;
+    62	  await supabase.from('audit_logs').insert({
+    63	    organization_id: session.organizationId,
+    64	    actor_id: session.userId,
+    65	    actor_type: 'user',
+    66	    action: 'commercial.policy_updated',
+    67	    detail: reason,
+    68	    entity_table: 'organization_module_data',
+    69	    entity_id: session.organizationId,
+    70	    event_data: next,
+src/pages/dashboard/configuracoes/components/ProductsOrcamentosWorkspace.tsx:65:  const readyForAutomaticSend = policy.catalogEnabled && policy.draftEnabled && policy.approvedPriceTable && policy.discountApprovalRequired && policy.includeValidityAndConditions
+src/pages/dashboard/configuracoes/components/ProductsOrcamentosWorkspace.tsx:77:    if (!current && key === 'automaticSendEnabled' && !readyForAutomaticSend) { setError('Envio automático bloqueado: ative catálogo, rascunho, tabela aprovada, regras de aprovação
+src/pages/dashboard/configuracoes/components/ProductsOrcamentosWorkspace.tsx:105:    { key: 'catalogEnabled', title: 'Catálogo operacional', description: `${products.length + services.length} itens revisados na base única.`, icon: 'ri-archive-stack-line', stat
+src/pages/dashboard/configuracoes/components/ProductsOrcamentosWorkspace.tsx:106:    { key: 'productsForAna', title: 'Produtos para Ana', description: `${products.filter((item) => item.status === 'active' && item.anaEnabled).length} itens disponíveis para cons
+src/pages/dashboard/configuracoes/components/ProductsOrcamentosWorkspace.tsx:107:    { key: 'servicesForAna', title: 'Serviços para Ana', description: `${services.filter((item) => item.status === 'active' && item.anaEnabled).length} serviços disponíveis para c
+src/pages/dashboard/configuracoes/components/ProductsOrcamentosWorkspace.tsx:108:    { key: 'draftEnabled', title: 'Gerar rascunho de orçamento', description: 'A Ana pode preparar; nenhum rascunho é enviado automaticamente.', icon: 'ri-draft-line', state: 'rev
+src/pages/dashboard/configuracoes/components/ProductsOrcamentosWorkspace.tsx:109:    { key: 'automaticSendEnabled', title: 'Envio automático de orçamento', description: readyForAutomaticSend ? 'Permitido pela política atual.' : 'Bloqueado até todas as validaçõ
+src/pages/dashboard/configuracoes/components/ProductsOrcamentosWorkspace.tsx:111:  return <div className="grid gap-4 xl:grid-cols-[minmax(0,1.03fr)_minmax(25rem,.97fr)]"><div className="space-y-4"><section className="wf-surface overflow-hidden"><div className=
+src/lib/crm/commercialCatalogPolicyRepository.ts:5:  catalogEnabled: boolean;
+src/lib/crm/commercialCatalogPolicyRepository.ts:6:  productsForAna: boolean;
+src/lib/crm/commercialCatalogPolicyRepository.ts:7:  servicesForAna: boolean;
+src/lib/crm/commercialCatalogPolicyRepository.ts:8:  draftEnabled: boolean;
+src/lib/crm/commercialCatalogPolicyRepository.ts:9:  automaticSendEnabled: boolean;
+src/lib/crm/commercialCatalogPolicyRepository.ts:17:const MODULE_KEY = 'commercial_catalog_policy';
+src/lib/crm/commercialCatalogPolicyRepository.ts:20:  catalogEnabled: true,
+src/lib/crm/commercialCatalogPolicyRepository.ts:21:  productsForAna: true,
+src/lib/crm/commercialCatalogPolicyRepository.ts:22:  servicesForAna: true,
+src/lib/crm/commercialCatalogPolicyRepository.ts:23:  draftEnabled: true,
+src/lib/crm/commercialCatalogPolicyRepository.ts:24:  automaticSendEnabled: false,

@@ -1,5 +1,15 @@
 # Histórico resumido de execução
 
+## 05/10/2026 — Auditoria V3 — NO-GO; produto/produção preservados
+
+- Diagnóstico e provas no checkout `847048429a86294aa10fa54ffdd750c04447d4fb`, árvore inicialmente igual ao GitHub `9fdfb554ed5e23b1edc5b7e5250bd8df84cbad7d`. Site oficial v168 permanece fonte isolada87b9b83, sem nova publicação.
+- 421 testes existentes e17 smoke aprovados; 40 assertivas adversariais novas (7 aprovadas/33 reprovadas); type-check ampliado Edge com9 diagnósticos; RPC de recibos implantada contém pg_catalog.coalesce inválido (SQLSTATE42883 em SELECT não mutante).
+- Inspeção autenticada limitada: Wizard Fonte→Região→Perfil→Critérios, reflow320/390/1024/1440, Central sem conta WA-AKG, ajuda por teclado e carteiras vazias. Não houve busca, QR, envio, convite ou alteração de cliente.
+- RLS habilitada106/106 não equivale a autorização correta: carteira/Storage/supressão e último admin reprovados em PostgreSQL sintético com políticas remotas. Convites, gates/transições, retry e caches também possuem bloqueadores. Nenhuma exploração real alegada.
+- Documentos/provas/matrizes em `docs/auditoria/2026-10-05-v3/RELATORIO_AUDITORIA.md`. Artefatos de auditoria e checkpoints apenas; produto, banco, Edge, crons e configurações remotas intactos.
+- Próxima ação exata: obter autorização de remediação e executar R1/R2/R3 do plano, repetir as provas antes de ampliar. E2E depende de staging/gateway/perfis/destinos isolados (BL-01..08). Não repetir auditoria integral nem publicar automaticamente.
+- Observações antigas abaixo são históricas e podem ter sido superadas por este checkpoint. Auditoria segura encerrada; homologação externa/comercial integral permanece incompleta.
+
 ## 2026-10-05 — Sincronização integral do checkout no GitHub
 
 - O `main` de [fabricio-gaspar/Sistema-Leads](https://github.com/fabricio-gaspar/Sistema-Leads) foi atualizado para o snapshot `5db2d95ba6080e446cbf669c68a011ff8afc282a`. Como o histórico local e o remoto não tinham ancestral comum, o snapshot preserva o commit remoto anterior `c4733b65c552d53be40c78f0350396432e163609` como pai e contém a árvore completa do checkout atual.

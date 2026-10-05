@@ -1,17 +1,22 @@
 {
   "schema_version": 1,
-  "validated_commit": "5db2d95ba6080e446cbf669c68a011ff8afc282a",
+  "validated_commit": "847048429a86294aa10fa54ffdd750c04447d4fb",
   "last_validated_at": "2026-10-05",
   "current_validation": {
-    "stage": "github_full_sync_wayflex_2026_10_05",
+    "stage": "audit_v3_2026_10_05_NO_GO",
     "frontend_typecheck": "passed",
     "lint": "passed",
     "production_build": "passed",
-    "sites_artifact": "passed_build; GitHub main synchronized. Official Site remains the isolated v168 deployment appgdep_6ac3d1bec3e48191ba29a2d5559426a8",
-    "deterministic_smoke_checks": 0,
+    "sites_artifact": "passed_build_local_only; official Site v168 unchanged",
+    "deterministic_smoke_checks": 17,
     "vitest": "passed; full run: 77 files; 421 tests",
-    "visual_review": "GitHub ref verified by ls-remote; authenticated visual review not executed, to avoid operational actions",
-    "external_end_to_end": "not executed; no provider request, lead import, message or automation was invoked"
+    "visual_review": "5 limited authenticated read-only cases passed: Wizard, reflow320/390/1024/1440, Central, tooltip keyboard, empty portfolios",
+    "external_end_to_end": "blocked/not executed; no provider business request, lead import, message or automation invoked",
+    "edge_typecheck_configured": "passed; partial entrypoint coverage",
+    "edge_typecheck_expanded": "failed; 9 diagnostics; EV-ENV-005",
+    "adversarial_new": "40 assertions; 7 passed/33 failed; synthetic SQL/JS and mocked handlers; not real E2E",
+    "receipt_sql_readonly": "failed SQLSTATE42883; invalid expression confirmed in deployed RPC body; no business RPC called",
+    "report": "docs/auditoria/2026-10-05-v3/RELATORIO_AUDITORIA.md"
   },
   "previous_validation": {
     "stage": "lead_search_dynamic_api_selector",

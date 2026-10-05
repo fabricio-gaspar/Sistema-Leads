@@ -1,0 +1,7 @@
+{
+  "extends": "../../../../tsconfig.edge.json",
+  "include": [
+    "../../../../supabase/tests/edge-globals.d.ts",
+    "../../../../supabase/functions/**/*.ts"
+  ]
+}

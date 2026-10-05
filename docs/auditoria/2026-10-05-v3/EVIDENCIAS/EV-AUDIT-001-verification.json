@@ -1,0 +1,113 @@
+{
+  "observed_at": "2026-10-05T21:46:37.634Z",
+  "json": [
+    "EVIDENCIAS/EV-ENV-001-remote-inventory.json",
+    "EVIDENCIAS/EV-ENV-002-operational-snapshot.json",
+    "EVIDENCIAS/EV-ENV-003-queue-health.json",
+    "EVIDENCIAS/EV-ENV-004-schema-coverage.json",
+    "EVIDENCIAS/EV-ENV-006-receipt-sql.json",
+    "EVIDENCIAS/EV-ENV-007-schedule-config.json",
+    "EVIDENCIAS/EV-ENV-008-git-baseline.json",
+    "EVIDENCIAS/EV-LIVE-001-ui.json",
+    "EVIDENCIAS/baseline-results.json",
+    "EVIDENCIAS/produto/EV-UI-001-probes.json",
+    "EVIDENCIAS/seguranca/EV-SEC-001-politicas-remotas.json",
+    "EVIDENCIAS/seguranca/EV-SEC-002-trigger-remoto.json",
+    "EVIDENCIAS/seguranca/EV-SEC-003-rpcs-handoff.json",
+    "EVIDENCIAS/seguranca/EV-SEC-004-provas-rls.json",
+    "EVIDENCIAS/seguranca/EV-SEC-005-provas-codigo.json",
+    "EVIDENCIAS/seguranca/EV-SEC-006-inventario-remoto.json",
+    "EVIDENCIAS/seguranca/EV-SEC-007-catalogo-advisors.json",
+    "EVIDENCIAS/tsconfig-edge-all.json",
+    "EVIDENCIAS/vitest-baseline.json"
+  ],
+  "csv": [
+    {
+      "file": "CASOS_MENSAGERIA.csv",
+      "rows": 13,
+      "columns": 9
+    },
+    {
+      "file": "CASOS_PRODUTO.csv",
+      "rows": 21,
+      "columns": 19
+    },
+    {
+      "file": "EVIDENCIAS/seguranca/matriz-seguranca.csv",
+      "rows": 30,
+      "columns": 12
+    },
+    {
+      "file": "MATRIZ_CICLO_DE_VIDA_MODULOS.csv",
+      "rows": 39,
+      "columns": 15
+    },
+    {
+      "file": "MATRIZ_DE_COBERTURA.csv",
+      "rows": 30,
+      "columns": 12
+    },
+    {
+      "file": "MATRIZ_REQUISITOS_TESTES_EVIDENCIAS.csv",
+      "rows": 46,
+      "columns": 11
+    }
+  ],
+  "required": [
+    {
+      "file": "RELATORIO_AUDITORIA.md",
+      "exists": true
+    },
+    {
+      "file": "MATRIZ_DE_COBERTURA.csv",
+      "exists": true
+    },
+    {
+      "file": "PLANO_DE_REMEDIACAO.md",
+      "exists": true
+    },
+    {
+      "file": "EVIDENCIAS/index.md",
+      "exists": true
+    },
+    {
+      "file": "MATRIZ_CICLO_DE_VIDA_MODULOS.csv",
+      "exists": true
+    },
+    {
+      "file": "MAPA_NAVEGACAO_E_RECURSOS.md",
+      "exists": true
+    },
+    {
+      "file": "ESPECIFICACAO_UI_COMPACTA.md",
+      "exists": true
+    },
+    {
+      "file": "FONTES_E_DECISOES.md",
+      "exists": true
+    },
+    {
+      "file": "RELATORIO_IMPLEMENTACAO_E_REGRESSAO.md",
+      "exists": true
+    },
+    {
+      "file": "MATRIZ_REQUISITOS_TESTES_EVIDENCIAS.csv",
+      "exists": true
+    },
+    {
+      "file": "JORNADAS_PONTA_A_PONTA.md",
+      "exists": true
+    },
+    {
+      "file": "BLOQUEIOS_E_ACESSOS.md",
+      "exists": true
+    },
+    {
+      "file": "CHECKLIST_DE_LIBERACAO.md",
+      "exists": true
+    }
+  ],
+  "secret_scan": [],
+  "errors": [],
+  "status": "APROVADO"
+}

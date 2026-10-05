@@ -1,0 +1,341 @@
+{
+  "audit_id": "WAYFLEX-V3-20261005",
+  "algorithm": "SHA-256",
+  "excludes": [
+    "EVIDENCIAS/manifest-sha256.json",
+    "EVIDENCIAS/EV-AUDIT-001-verification.json",
+    "EVIDENCIAS/EV-GIT-FINAL.json"
+  ],
+  "files": [
+    {
+      "path": "BLOQUEIOS_E_ACESSOS.md",
+      "bytes": 2665,
+      "sha256": "05ee6f57373e1a15e1375602031c8842fe1867b141a9d0ff5e30aeb6b4bef29d"
+    },
+    {
+      "path": "CASOS_MENSAGERIA.csv",
+      "bytes": 3572,
+      "sha256": "c19d732d8af4f4be57834590c924a72d7c745408fc4acc142992c22ecebfab02"
+    },
+    {
+      "path": "CASOS_PRODUTO.csv",
+      "bytes": 14335,
+      "sha256": "0071273e7e10c996632cf4be6aa3f854ca4f5d5f139e77779d9628f3a71f03ce"
+    },
+    {
+      "path": "CHECKLIST_DE_LIBERACAO.md",
+      "bytes": 2783,
+      "sha256": "d6f4af04a51e2a3783a4cc8879c021afda3bb1e4358b74aae43ce964efe07c2e"
+    },
+    {
+      "path": "ESPECIFICACAO_UI_COMPACTA.md",
+      "bytes": 4076,
+      "sha256": "7421542a450de0739ebaae09927efc68f7d60f96dd44c0f47893ab60d3b75f84"
+    },
+    {
+      "path": "EVIDENCIAS/EV-ENV-001-remote-inventory.json",
+      "bytes": 26027,
+      "sha256": "8ecc2bbeb4b5b8dae5300d1853edf9720a7475cb3bc289dea5204127b3423d10"
+    },
+    {
+      "path": "EVIDENCIAS/EV-ENV-002-operational-snapshot.json",
+      "bytes": 29530,
+      "sha256": "a089330cf1775797e80f503d6902701afaf427b34e2c9947f34ee2f4e30cc01f"
+    },
+    {
+      "path": "EVIDENCIAS/EV-ENV-003-queue-health.json",
+      "bytes": 2319,
+      "sha256": "06c2f0f017865b5624ca73541801eef53d59d094c057970127217ccafaca9d2a"
+    },
+    {
+      "path": "EVIDENCIAS/EV-ENV-004-schema-coverage.json",
+      "bytes": 3368,
+      "sha256": "bb8cca0239431a8dc1c18c88d728437410b80121b97cdef48c62d5d985357dd1"
+    },
+    {
+      "path": "EVIDENCIAS/EV-ENV-005-typecheck-expanded.txt",
+      "bytes": 4540,
+      "sha256": "44c5a5e02acb76c147c46ca30bb96b7544a40c7c18cd5380f25a57a1c61a3356"
+    },
+    {
+      "path": "EVIDENCIAS/EV-ENV-006-receipt-sql.json",
+      "bytes": 3589,
+      "sha256": "40eca18cf7d5349c7db4213fcffe77fb556feacf4fa36ca27f9ff42d12bd43f5"
+    },
+    {
+      "path": "EVIDENCIAS/EV-ENV-007-schedule-config.json",
+      "bytes": 1151,
+      "sha256": "a9c70bb2f70d44b4330fca4af8473ad5c2a12425e2415e4c4698d3fcc520215d"
+    },
+    {
+      "path": "EVIDENCIAS/EV-ENV-008-git-baseline.json",
+      "bytes": 735,
+      "sha256": "b20a6d5bd4f376aa6529d628b883df928b1ceabb6a61c829899200ce0ef16f5b"
+    },
+    {
+      "path": "EVIDENCIAS/EV-LIVE-001-ui.json",
+      "bytes": 2113,
+      "sha256": "8f4eb40b03efdf8244bbd635eaa0f27b981c4ef7937cd2292f3a0b2b8824f74a"
+    },
+    {
+      "path": "EVIDENCIAS/T-BASE-001.log",
+      "bytes": 8,
+      "sha256": "a3680b6601c39b586ea892ad2bbaa58a7f72b62a64f73917b09aa8c5f188110e"
+    },
+    {
+      "path": "EVIDENCIAS/T-BASE-002.log",
+      "bytes": 8,
+      "sha256": "a3680b6601c39b586ea892ad2bbaa58a7f72b62a64f73917b09aa8c5f188110e"
+    },
+    {
+      "path": "EVIDENCIAS/T-BASE-003.log",
+      "bytes": 8,
+      "sha256": "a3680b6601c39b586ea892ad2bbaa58a7f72b62a64f73917b09aa8c5f188110e"
+    },
+    {
+      "path": "EVIDENCIAS/T-BASE-004.log",
+      "bytes": 6768,
+      "sha256": "7c93eb7c24ff9bd34d2881509bce620072ea21dc1db0236346f96a012b94cb2f"
+    },
+    {
+      "path": "EVIDENCIAS/T-BASE-005.log",
+      "bytes": 5545,
+      "sha256": "0266912f6e1afb27428c8ef2088f38f66d6ac947dfe82337fcf7090e30876336"
+    },
+    {
+      "path": "EVIDENCIAS/T-BASE-006.log",
+      "bytes": 40,
+      "sha256": "cf28b4727e8db1d7f4e3dd822294a8fe37766217d356e83a2c6430e2ee4986d4"
+    },
+    {
+      "path": "EVIDENCIAS/T-BASE-007.log",
+      "bytes": 886,
+      "sha256": "016c9620a9bdcdea6cf3b1cf75d7385b7ae13bbceb2642d66f33938415c00153"
+    },
+    {
+      "path": "EVIDENCIAS/baseline-results.json",
+      "bytes": 2716,
+      "sha256": "0341a49e4baa3ead849847ada3d8eed29e58d1609dd0d8cca8ce8b66c345559c"
+    },
+    {
+      "path": "EVIDENCIAS/index.md",
+      "bytes": 4951,
+      "sha256": "6083d415e08183699153cba87a288feaac1bdf7bb887503152b9689458dcbb20"
+    },
+    {
+      "path": "EVIDENCIAS/mensageria/EV-MSG-001-vitest.txt",
+      "bytes": 13218,
+      "sha256": "a142850cd19183bb83c52f506a6e6c8f04aade3e2b35e577ce3060c0d9048d85"
+    },
+    {
+      "path": "EVIDENCIAS/mensageria/EV-MSG-002-vitest-meta.txt",
+      "bytes": 14288,
+      "sha256": "3ba7142209c981b00d652915cec16aa1a16f19f861d978417bea2aee23b9e2c6"
+    },
+    {
+      "path": "EVIDENCIAS/mensageria/EV-MSG-003-FONTES.md",
+      "bytes": 5260,
+      "sha256": "61f35f5e2dca86503715a2faca9f4878acfc9da2129160eaa63c7c72b9427049"
+    },
+    {
+      "path": "EVIDENCIAS/mensageria/audit.test.ts",
+      "bytes": 13551,
+      "sha256": "aa2d7d4924d35ef5c56540527bea55e9466b8e0f8d67e0bf8c4d7812bef6909d"
+    },
+    {
+      "path": "EVIDENCIAS/mensageria/vitest.config.ts",
+      "bytes": 204,
+      "sha256": "dca5bacb3f39e8e86a29f3d79b211023ad2dad9eb210895bca6de556ccf1445a"
+    },
+    {
+      "path": "EVIDENCIAS/produto/EV-UI-001-probes.json",
+      "bytes": 6579,
+      "sha256": "629781c8bca4e87545f7d7341e2d8ce017fa0c3a8d8c2e5e2cbfe1b2d5636cb6"
+    },
+    {
+      "path": "EVIDENCIAS/produto/EV-UI-002-fontes-estaticas.txt",
+      "bytes": 21320,
+      "sha256": "97857b6444ba593748182263900a0968472b5c01296d199d4694c5da3eaf7f7c"
+    },
+    {
+      "path": "EVIDENCIAS/produto/probes-produto.mjs",
+      "bytes": 12042,
+      "sha256": "de613bbe2a3b09798dacf098924644e3cca95037b0abe245ed2f3d0e33e8809e"
+    },
+    {
+      "path": "EVIDENCIAS/run-baseline.mjs",
+      "bytes": 2356,
+      "sha256": "d6a416b9728109171bdc7c44f5cc590e7e71c39d3a32a3ef35328bfbcfceb837"
+    },
+    {
+      "path": "EVIDENCIAS/seguranca/EV-SEC-001-politicas-remotas.json",
+      "bytes": 96320,
+      "sha256": "d07c3b14fa42df016b9e4bda4c1ed2d58523f2878b6ef06bd1efbcf0d9050c40"
+    },
+    {
+      "path": "EVIDENCIAS/seguranca/EV-SEC-002-trigger-remoto.json",
+      "bytes": 6473,
+      "sha256": "005fb4c2ae9246c57b74e21e951ac95096f40a2e23437ee9039b2526c0a67d6e"
+    },
+    {
+      "path": "EVIDENCIAS/seguranca/EV-SEC-003-rpcs-handoff.json",
+      "bytes": 28292,
+      "sha256": "493d05d9eefbbd73da17d1feffe7d54d04e5a2c6eab4b9720dd74b92fd4c5deb"
+    },
+    {
+      "path": "EVIDENCIAS/seguranca/EV-SEC-004-provas-rls.json",
+      "bytes": 4824,
+      "sha256": "1104cdc8be1e0d5c87c47cac251fca9591a150e3fb5d89758da69d963d7ae2d0"
+    },
+    {
+      "path": "EVIDENCIAS/seguranca/EV-SEC-005-provas-codigo.json",
+      "bytes": 4242,
+      "sha256": "b75dab74dde208238beb6b3234de31c38a3fa13e7aac44522f4cf2aba035f977"
+    },
+    {
+      "path": "EVIDENCIAS/seguranca/EV-SEC-006-inventario-remoto.json",
+      "bytes": 24678,
+      "sha256": "4110941a8c1555c454feafc9001c592e5df2c8168db564f457ca3dc2be3f52c5"
+    },
+    {
+      "path": "EVIDENCIAS/seguranca/EV-SEC-007-catalogo-advisors.json",
+      "bytes": 12944,
+      "sha256": "0ff01b300b57284150c956e0ab5f1a842eb4d7fe7b7da7f3ac730d3bd4a2eec1"
+    },
+    {
+      "path": "EVIDENCIAS/seguranca/EV-SEC-008-execucao.md",
+      "bytes": 4394,
+      "sha256": "622aadf27551358267c7e69c9596ecf2be4ffa5bc9672eae6a41e207fa44dbe1"
+    },
+    {
+      "path": "EVIDENCIAS/seguranca/matriz-seguranca.csv",
+      "bytes": 7639,
+      "sha256": "f9b1b53a18f7e4435ff2fe395ba3ebc4438dfe4d70b3376159a7c22c992804b3"
+    },
+    {
+      "path": "EVIDENCIAS/seguranca/provas-codigo.mjs",
+      "bytes": 5203,
+      "sha256": "c6d33361c99b503f8ed2918a664e2a2faf9fde363b4637e6378efde874263f5c"
+    },
+    {
+      "path": "EVIDENCIAS/seguranca/provas-rls.mjs",
+      "bytes": 12488,
+      "sha256": "0246b2e0ecffe65120b1dbc9c43d2d0449029f413cb93574ff2536eb11cf90c9"
+    },
+    {
+      "path": "EVIDENCIAS/tsconfig-edge-all.json",
+      "bytes": 167,
+      "sha256": "fdbaef3cea0a7e73f7da40ac04f79cc17827937875b29be393e5634f4406a6f3"
+    },
+    {
+      "path": "EVIDENCIAS/ui/central-v168-sem-conta.jpg",
+      "bytes": 63341,
+      "sha256": "46017865e389bdae28d5793a29318abad20ebfdb2805ee9cf6e6e0f55182fd1d"
+    },
+    {
+      "path": "EVIDENCIAS/ui/wizard-criterios-1024.jpg",
+      "bytes": 60651,
+      "sha256": "dbf8e0b2629887228a4a5f223d3db4c938b6871501bae90de3a2a4c3c4f72845"
+    },
+    {
+      "path": "EVIDENCIAS/ui/wizard-criterios-1440.jpg",
+      "bytes": 88008,
+      "sha256": "a9f034c7e6c66001bb4e8e47ce96189b6299134660adbaeaafeaccb7dce9d3d2"
+    },
+    {
+      "path": "EVIDENCIAS/ui/wizard-criterios-320.jpg",
+      "bytes": 33090,
+      "sha256": "7c75f0a39c59e19bcc718361289d7834ab7b50965c4f483d4175727947b85115"
+    },
+    {
+      "path": "EVIDENCIAS/ui/wizard-criterios-390.jpg",
+      "bytes": 36620,
+      "sha256": "a900b37eaa0680fb9d632e9ee4067b77e03a1f513f9bf3daf702597998a4824a"
+    },
+    {
+      "path": "EVIDENCIAS/ui/wizard-criterios-desktop.jpg",
+      "bytes": 88567,
+      "sha256": "a5c5c7cf7c1a5bd5dc4cca5c736bf9feb586c404773e9fc8923bba57fa8b1cba"
+    },
+    {
+      "path": "EVIDENCIAS/verify-audit.mjs",
+      "bytes": 3477,
+      "sha256": "a8c8efe95c4b9107f9ca8909528c7dd94a5a4b5a9fa52a411df6cb5b6efebb13"
+    },
+    {
+      "path": "EVIDENCIAS/vitest-baseline.json",
+      "bytes": 152242,
+      "sha256": "f78ab7e4d196e8c94a1260e8000fb4695ae0966516b6b81bca15c30313a6e2cc"
+    },
+    {
+      "path": "FONTES_E_DECISOES.md",
+      "bytes": 5648,
+      "sha256": "d0903fa21fc299e0e2a28607065dcff342a587693e1fa75e5e7a1795b1612057"
+    },
+    {
+      "path": "FONTES_UI.md",
+      "bytes": 4222,
+      "sha256": "5156ea45922450472c7384432759d91cf29ef675e6b176dc6bab59d942024ad7"
+    },
+    {
+      "path": "JORNADAS_PONTA_A_PONTA.md",
+      "bytes": 11383,
+      "sha256": "be9c6c7bb50a41bed345d2fa7081b25920ba16f2efbd60eefe7c423b1f605054"
+    },
+    {
+      "path": "MAPA_NAVEGACAO_E_RECURSOS.md",
+      "bytes": 5506,
+      "sha256": "79ab2871d992edd1d256a772630179472effad869af3c6765dc074411409ca00"
+    },
+    {
+      "path": "MATRIZ_CICLO_DE_VIDA_MODULOS.csv",
+      "bytes": 33471,
+      "sha256": "b13b41ba4dc1f275b298fd2bf537981882c8f6235996644501910c45e9944524"
+    },
+    {
+      "path": "MATRIZ_DE_COBERTURA.csv",
+      "bytes": 21696,
+      "sha256": "6e3a89c1cec5a74510ea1795a8c208e0b50ee0145fe03165702103ea78b1b853"
+    },
+    {
+      "path": "MATRIZ_REQUISITOS_TESTES_EVIDENCIAS.csv",
+      "bytes": 16897,
+      "sha256": "54ddcfcbad96deeb0c060190eae16231386d9827e4f54a9f34d22193a243c7c9"
+    },
+    {
+      "path": "MODULOS_E_UX.md",
+      "bytes": 33840,
+      "sha256": "161e069a027ff7a7adcc46ef8ff4453281da2d6569c92dcc8342afb7ba342a9b"
+    },
+    {
+      "path": "PLANO_DE_REMEDIACAO.md",
+      "bytes": 6994,
+      "sha256": "66096b35d69c42cd40b4740a1eb9dd9bb6edc4417bef37e7e7e9c776f2d7cfce"
+    },
+    {
+      "path": "PROGRESSO.md",
+      "bytes": 2961,
+      "sha256": "d9f8edb412887a125eafe7737e53c78f345eb2ec2341fd377e860f54103ffcc0"
+    },
+    {
+      "path": "PROVEDORES_ANA_E_RECUPERACAO.md",
+      "bytes": 30234,
+      "sha256": "0838f57d8a0baed03333f12a2167d8a34daae64582743bf4bef395b89415269b"
+    },
+    {
+      "path": "RELATORIO_AUDITORIA.md",
+      "bytes": 13782,
+      "sha256": "3a7f2f2ca0ae1e180b6ea64d23e77bee34389b8f51bb34f684fcddfa03136663"
+    },
+    {
+      "path": "RELATORIO_IMPLEMENTACAO_E_REGRESSAO.md",
+      "bytes": 3364,
+      "sha256": "a78ba5cad863d6dec5604f68397a9a222259ed986b48686abe10fcb114fa8664"
+    },
+    {
+      "path": "SEGURANCA_E_ACESSOS.md",
+      "bytes": 28123,
+      "sha256": "9d9fe39d167d09d181dc240a07a3c0e5bf2e5c2a0f4d923fb40e789d786a0fba"
+    }
+  ]
+}

@@ -1,0 +1,118 @@
+
+ RUN  v3.2.7 /Users/fabriciogaspar/Documents/Codex/2026-10-04/c/Sistema-Leads-live
+
+ ✓ supabase/tests/transferChannelOwnership.test.ts (8 tests) 7ms
+ ✓ supabase/tests/evolutionGoWebhook.test.ts (2 tests) 221ms
+ ✓ supabase/tests/evolutionGoWorker.test.ts (5 tests) 180ms
+ ✓ supabase/tests/anaEvolutionInternalAuth.test.ts (3 tests) 236ms
+ ✓ supabase/tests/automationEvolutionRouting.test.ts (3 tests) 266ms
+ ✓ src/lib/crm/operationalEntitiesRepository.test.ts (3 tests) 275ms
+ ✓ src/lib/crm/proposalsRepository.test.ts (2 tests) 270ms
+ ✓ src/pages/dashboard/components/dashboardDecisionQueue.test.ts (3 tests) 25ms
+ ✓ src/lib/whatsappRisk.test.ts (2 tests) 3ms
+ ✓ src/lib/crm/whatsappAccountsRepository.test.ts (7 tests) 6ms
+ ✓ src/pages/dashboard/components/ConversationActivityChart.test.ts (2 tests) 24ms
+ ✓ src/pages/dashboard/components/SellerAttentionPanel.test.ts (2 tests) 24ms
+ ✓ src/domain/funnelAnalytics.test.ts (1 test) 21ms
+ ✓ src/domain/commercialAnalytics.test.ts (15 tests) 28ms
+ ✓ supabase/tests/metaSignature.test.ts (2 tests) 8ms
+ ✓ src/lib/crm/appointmentsRepository.test.ts (3 tests) 22ms
+ ✓ supabase/tests/evolutionGoProvider.test.ts (10 tests) 25ms
+ ✓ src/lib/crm/waAkgOnboarding.test.ts (2 tests) 4ms
+ ✓ src/hooks/useListasStore.test.ts (1 test) 11ms
+ ✓ supabase/tests/waAkgProvider.test.ts (4 tests) 15ms
+ ✓ supabase/tests/runtimeSafety.test.ts (65 tests) 27ms
+ ✓ supabase/tests/metaWebhookParser.test.ts (4 tests) 9ms
+ ✓ supabase/tests/httpCors.test.ts (2 tests) 15ms
+ ✓ src/domain/pipeline.test.ts (6 tests) 5ms
+ ✓ src/lib/crm/prospectingUi.test.ts (7 tests) 11ms
+ ✓ supabase/tests/catalogKnowledgeParser.test.ts (5 tests) 15ms
+ ✓ src/lib/crm/operationalStatusPresentation.test.ts (4 tests) 5ms
+ ✓ src/lib/crm/leadMapper.test.ts (5 tests) 11ms
+ ✓ supabase/tests/anaOperationSettings.test.ts (2 tests) 4ms
+ ✓ supabase/tests/runtimeHandlers.test.ts (107 tests) 1296ms
+ ✓ supabase/tests/evolutionGoInbound.test.ts (8 tests) 7ms
+ ✓ supabase/tests/waAkgInbound.test.ts (3 tests) 6ms
+ ✓ supabase/tests/catalogMedia.test.ts (8 tests) 8ms
+ ✓ supabase/tests/metaMessagingProvider.test.ts (2 tests) 29ms
+ ✓ src/lib/crm/paginatedRead.test.ts (3 tests) 39ms
+ ✓ src/lib/buscaManual.test.ts (5 tests) 11ms
+ ✓ src/lib/crm/prospectingBatchRepository.test.ts (2 tests) 7ms
+ ✓ supabase/tests/evolutionGoHandler.test.ts (13 tests) 1836ms
+   ✓ Evolution GO multi-account handler > recovers one stale Evolution GO runtime before returning a QR  1508ms
+ ✓ src/lib/crm/leadPortfolio.test.ts (3 tests) 23ms
+ ✓ src/lib/crm/prospectingImportDetails.test.ts (3 tests) 16ms
+ ✓ supabase/tests/dailyLeadReport.test.ts (3 tests) 10ms
+ ✓ src/pages/dashboard/busca-leads/sourceSelector.test.ts (1 test) 3ms
+ ✓ src/lib/crm/centralInboxRepository.test.ts (3 tests) 8ms
+ ✓ src/lib/crm/prospectingIdealProfile.test.ts (3 tests) 11ms
+ ✓ src/pages/dashboard/meu-whatsapp/page.test.ts (2 tests) 4ms
+ ✓ src/lib/crm/anaOperationValidation.test.ts (3 tests) 8ms
+ ✓ src/pages/dashboard/busca-leads/components/prospectingMapGeometry.test.ts (3 tests) 5ms
+ ✓ supabase/tests/messagingWindow.test.ts (2 tests) 64ms
+ ✓ src/pages/dashboard/atendimento/page.test.ts (1 test) 7ms
+ ✓ src/lib/crm/leadsRepository.test.ts (2 tests) 4ms
+ ✓ src/lib/crm/evolutionGoOnboarding.test.ts (3 tests) 5ms
+ ✓ src/domain/proposalPricing.test.ts (4 tests) 8ms
+ ✓ src/lib/crm/currentAccessRepository.test.ts (2 tests) 5ms
+ ✓ src/lib/crm/conversationMapper.test.ts (3 tests) 6ms
+ ✓ src/lib/supabaseConfig.test.ts (2 tests) 8ms
+ ✓ src/lib/anaCommercialPlaybook.test.ts (2 tests) 4ms
+ ✓ src/lib/organization.test.ts (2 tests) 3ms
+ ✓ src/lib/crm/manualLeadContact.test.ts (3 tests) 4ms
+ ✓ src/lib/crm/prospectingWizard.test.ts (4 tests) 4ms
+ ✓ src/pages/dashboard/funil/leadGovernancePlacement.test.ts (1 test) 4ms
+ ✓ src/lib/crm/humanMessageValidation.test.ts (3 tests) 8ms
+ ✓ src/lib/crm/kanbanRepository.test.ts (2 tests) 7ms
+ ✓ src/components/feature/DashboardLayout.test.ts (1 test) 3ms
+ ✓ src/lib/runtimeSupabaseConfig.test.ts (2 tests) 3ms
+ ✓ src/pages/dashboard/leads/leadDeletionActions.test.ts (1 test) 8ms
+ ✓ src/lib/crm/leadQualificationRepository.test.ts (1 test) 12ms
+ ✓ supabase/tests/manualLeadPhoneNormalization.test.ts (2 tests) 3ms
+ ✓ src/pages/dashboard/leads/components/leadPurgeConfirmation.test.ts (1 test) 2ms
+ ✓ src/lib/crm/kanbanLeadVisibility.test.ts (2 tests) 4ms
+ ✓ src/lib/crm/leadStageRepository.test.ts (2 tests) 5ms
+ ✓ src/lib/crm/handoffsRepository.test.ts (6 tests) 4ms
+ ✓ src/lib/crm/catalogKnowledgeRepository.test.ts (2 tests) 6ms
+ ✓ supabase/tests/handoffPolicy.test.ts (2 tests) 5ms
+ ✓ src/lib/automacao.test.ts (1 test) 3ms
+ ✓ src/hooks/useIntegracoesStore.test.ts (4 tests) 3ms
+ ✓ src/lib/crm/leadWorkflowRepository.test.ts (2 tests) 3ms
+ ✓ src/lib/crm/teamMembersRepository.test.ts (1 test) 4ms
+
+ Test Files  77 passed (77)
+      Tests  421 passed (421)
+   Start at  18:23:17
+   Duration  4.51s (transform 2.48s, setup 0ms, collect 5.04s, tests 5.31s, environment 29ms, prepare 8.67s)
+
+JSON report written to /Users/fabriciogaspar/Documents/Codex/2026-10-04/c/Sistema-Leads-live/docs/auditoria/2026-10-05-v3/EVIDENCIAS/vitest-baseline.json
+
+STDERR
+stderr | supabase/tests/evolutionGoHandler.test.ts > Evolution GO multi-account handler > requires account_id before any secret read or provider request
+evolution_go_action_failed { action: 'status', code: 'evolution_go_account_required' }
+
+stderr | supabase/tests/evolutionGoHandler.test.ts > Evolution GO multi-account handler > returns QR only to an administrator or the private-account owner and never reveals another seller account
+evolution_go_action_failed { action: 'qr', code: 'evolution_go_account_not_found' }
+
+stderr | supabase/tests/evolutionGoHandler.test.ts > Evolution GO multi-account handler > returns QR only to an administrator or the private-account owner and never reveals another seller account
+evolution_go_action_failed { action: 'qr', code: 'evolution_go_account_not_found' }
+
+stderr | supabase/tests/evolutionGoHandler.test.ts > Evolution GO multi-account handler > recovers one stale Evolution GO runtime before returning a QR
+evolution_go_upstream_rejected {
+  path: '/instance/qr',
+  status: 400,
+  response_keys: [ 'error' ],
+  error_flags: {
+    phone: false,
+    instance: false,
+    session: false,
+    authentication: false,
+    retry: true
+  }
+}
+
+stderr | supabase/tests/evolutionGoHandler.test.ts > Evolution GO multi-account handler > fails closed and does not audit activation success when account state persistence fails
+evolution_go_action_failed {
+  action: 'activate',
+  code: 'evolution_go_activation_state_save_failed'
+}

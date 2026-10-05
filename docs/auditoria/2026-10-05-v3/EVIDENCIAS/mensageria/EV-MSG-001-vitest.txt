@@ -1,0 +1,217 @@
+
+ RUN  v3.2.7 /Users/fabriciogaspar/Documents/Codex/2026-10-04/c/Sistema-Leads-live
+
+stderr | docs/auditoria/2026-10-05-v3/EVIDENCIAS/mensageria/audit.test.ts > V3 desired invariants — failures preserve audit evidence, not product changes > T-MSG-002 disconnect must block local dispatch even when provider is unavailable
+wa_akg_action_failed { action: 'disconnect', code: 'synthetic_provider_unavailable' }
+
+ × docs/auditoria/2026-10-05-v3/EVIDENCIAS/mensageria/audit.test.ts > V3 desired invariants — failures preserve audit evidence, not product changes > T-MSG-001 seller activation must preserve an administrative kill switch 47ms
+   → expected false to be true // Object.is equality
+ × docs/auditoria/2026-10-05-v3/EVIDENCIAS/mensageria/audit.test.ts > V3 desired invariants — failures preserve audit evidence, not product changes > T-MSG-002 disconnect must block local dispatch even when provider is unavailable 4ms
+   → expected true to be false // Object.is equality
+ × docs/auditoria/2026-10-05-v3/EVIDENCIAS/mensageria/audit.test.ts > V3 desired invariants — failures preserve audit evidence, not product changes > T-MSG-003 activation must not report success after account persistence fails 3ms
+   → expected 200 not to be 200 // Object.is equality
+ × docs/auditoria/2026-10-05-v3/EVIDENCIAS/mensageria/audit.test.ts > V3 desired invariants — failures preserve audit evidence, not product changes > T-MSG-004 official receipt keyId must resolve to the receipt message 3ms
+   → expected { kind: 'ignored', …(3) } to match object { kind: 'receipt', …(2) }
+(3 matching properties omitted from actual)
+ × docs/auditoria/2026-10-05-v3/EVIDENCIAS/mensageria/audit.test.ts > V3 desired invariants — failures preserve audit evidence, not product changes > T-MSG-005 distinct delivered/read updates must have distinct inbox identities 0ms
+   → expected 'message.status:message-synthetic' not to be 'message.status:message-synthetic' // Object.is equality
+ × docs/auditoria/2026-10-05-v3/EVIDENCIAS/mensageria/audit.test.ts > V3 desired invariants — failures preserve audit evidence, not product changes > T-MSG-006 LID without explicit phone mapping must not be interpreted as a phone 1ms
+   → expected 'inbound' to be 'ignored' // Object.is equality
+ × docs/auditoria/2026-10-05-v3/EVIDENCIAS/mensageria/audit.test.ts > V3 desired invariants — failures preserve audit evidence, not product changes > T-MSG-007 media without caption must preserve an attachment reference for review 1ms
+   → expected '{"kind":"ignored","external_id":"mess…' to contain 'synthetic.mp3'
+ × docs/auditoria/2026-10-05-v3/EVIDENCIAS/mensageria/audit.test.ts > V3 desired invariants — failures preserve audit evidence, not product changes > T-MSG-008 retry after inbox persistence must complete the missing message stage 18ms
+   → expected [] to have a length of 1 but got +0
+ × docs/auditoria/2026-10-05-v3/EVIDENCIAS/mensageria/audit.test.ts > V3 desired invariants — failures preserve audit evidence, not product changes > T-MSG-009 receipts for disabled transport must still reconcile history 2ms
+   → expected false to be true // Object.is equality
+ ✓ docs/auditoria/2026-10-05-v3/EVIDENCIAS/mensageria/audit.test.ts > V3 desired invariants — failures preserve audit evidence, not product changes > T-MSG-010 recovered connection must not re-enable a disabled account 1ms
+ × docs/auditoria/2026-10-05-v3/EVIDENCIAS/mensageria/audit.test.ts > V3 desired invariants — failures preserve audit evidence, not product changes > T-MSG-011 stale processing events must be recovered after worker interruption 2ms
+   → expected 'processing' not to be 'processing' // Object.is equality
+ × docs/auditoria/2026-10-05-v3/EVIDENCIAS/mensageria/audit.test.ts > V3 desired invariants — failures preserve audit evidence, not product changes > T-MSG-012 newer deactivate must prevail over an older pending activation 3ms
+   → expected true to be false // Object.is equality
+
+⎯⎯⎯⎯⎯⎯ Failed Tests 11 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  docs/auditoria/2026-10-05-v3/EVIDENCIAS/mensageria/audit.test.ts > V3 desired invariants — failures preserve audit evidence, not product changes > T-MSG-001 seller activation must preserve an administrative kill switch
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ docs/auditoria/2026-10-05-v3/EVIDENCIAS/mensageria/audit.test.ts:78:63
+     76|     await import('../../../../../supabase/functions/wa-akg/index.ts');
+     77|     await handler(request('activate'));
+     78|     expect(tables.messaging_provider_controls[0].kill_switch).toBe(tru…
+       |                                                               ^
+     79|   });
+     80|   it('T-MSG-002 disconnect must block local dispatch even when provide…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/11]⎯
+
+ FAIL  docs/auditoria/2026-10-05-v3/EVIDENCIAS/mensageria/audit.test.ts > V3 desired invariants — failures preserve audit evidence, not product changes > T-MSG-002 disconnect must block local dispatch even when provider is unavailable
+AssertionError: expected true to be false // Object.is equality
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ docs/auditoria/2026-10-05-v3/EVIDENCIAS/mensageria/audit.test.ts:84:49
+     82|     await import('../../../../../supabase/functions/wa-akg/index.ts');
+     83|     await handler(request('disconnect'));
+     84|     expect(tables.whatsapp_accounts[0].enabled).toBe(false);
+       |                                                 ^
+     85|   });
+     86|   it('T-MSG-003 activation must not report success after account persi…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/11]⎯
+
+ FAIL  docs/auditoria/2026-10-05-v3/EVIDENCIAS/mensageria/audit.test.ts > V3 desired invariants — failures preserve audit evidence, not product changes > T-MSG-003 activation must not report success after account persistence fails
+AssertionError: expected 200 not to be 200 // Object.is equality
+ ❯ docs/auditoria/2026-10-05-v3/EVIDENCIAS/mensageria/audit.test.ts:90:33
+     88|     await import('../../../../../supabase/functions/wa-akg/index.ts');
+     89|     const response = await handler(request('activate'));
+     90|     expect(response.status).not.toBe(200);
+       |                                 ^
+     91|   });
+     92|   it('T-MSG-004 official receipt keyId must resolve to the receipt mes…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[3/11]⎯
+
+ FAIL  docs/auditoria/2026-10-05-v3/EVIDENCIAS/mensageria/audit.test.ts > V3 desired invariants — failures preserve audit evidence, not product changes > T-MSG-004 official receipt keyId must resolve to the receipt message
+AssertionError: expected { kind: 'ignored', …(3) } to match object { kind: 'receipt', …(2) }
+(3 matching properties omitted from actual)
+
+- Expected
++ Received
+
+  {
+-   "kind": "receipt",
+-   "providerMessageIds": [
+-     "message-synthetic",
+-   ],
+-   "status": "read",
++   "kind": "ignored",
+  }
+
+ ❯ docs/auditoria/2026-10-05-v3/EVIDENCIAS/mensageria/audit.test.ts:93:178
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[4/11]⎯
+
+ FAIL  docs/auditoria/2026-10-05-v3/EVIDENCIAS/mensageria/audit.test.ts > V3 desired invariants — failures preserve audit evidence, not product changes > T-MSG-005 distinct delivered/read updates must have distinct inbox identities
+AssertionError: expected 'message.status:message-synthetic' not to be 'message.status:message-synthetic' // Object.is equality
+ ❯ docs/auditoria/2026-10-05-v3/EVIDENCIAS/mensageria/audit.test.ts:97:53
+     95|   it('T-MSG-005 distinct delivered/read updates must have distinct inb…
+     96|     const payload = { event: 'message.status', sessionId: 'seller_synt…
+     97|     expect(parseWaAkgEvent(payload).externalId).not.toBe(parseWaAkgEve…
+       |                                                     ^
+     98|   });
+     99|   it('T-MSG-006 LID without explicit phone mapping must not be interpr…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[5/11]⎯
+
+ FAIL  docs/auditoria/2026-10-05-v3/EVIDENCIAS/mensageria/audit.test.ts > V3 desired invariants — failures preserve audit evidence, not product changes > T-MSG-006 LID without explicit phone mapping must not be interpreted as a phone
+AssertionError: expected 'inbound' to be 'ignored' // Object.is equality
+
+Expected: "ignored"
+Received: "inbound"
+
+ ❯ docs/auditoria/2026-10-05-v3/EVIDENCIAS/mensageria/audit.test.ts:101:24
+     99|   it('T-MSG-006 LID without explicit phone mapping must not be interpr…
+    100|     const value = parseWaAkgEvent({ event: 'message.received', data: {…
+    101|     expect(value.kind).toBe('ignored');
+       |                        ^
+    102|   });
+    103|   it('T-MSG-007 media without caption must preserve an attachment refe…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[6/11]⎯
+
+ FAIL  docs/auditoria/2026-10-05-v3/EVIDENCIAS/mensageria/audit.test.ts > V3 desired invariants — failures preserve audit evidence, not product changes > T-MSG-007 media without caption must preserve an attachment reference for review
+AssertionError: expected '{"kind":"ignored","external_id":"mess…' to contain 'synthetic.mp3'
+
+Expected: "synthetic.mp3"
+Received: "{"kind":"ignored","external_id":"message.received:audio-message","reason":"message_content_unsupported","occurred_at":"2026-10-05T21:24:54.764Z"}"
+
+ ❯ docs/auditoria/2026-10-05-v3/EVIDENCIAS/mensageria/audit.test.ts:105:35
+
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[7/11]⎯
+
+ FAIL  docs/auditoria/2026-10-05-v3/EVIDENCIAS/mensageria/audit.test.ts > V3 desired invariants — failures preserve audit evidence, not product changes > T-MSG-008 retry after inbox persistence must complete the missing message stage
+AssertionError: expected [] to have a length of 1 but got +0
+
+- Expected
++ Received
+
+- 1
++ 0
+
+ ❯ docs/auditoria/2026-10-05-v3/EVIDENCIAS/mensageria/audit.test.ts:116:40
+    114|     expect(tables.wa_akg_webhook_events[0]).toMatchObject({ processing…
+    115|     expect(fetchMock).not.toHaveBeenCalled();
+    116|     expect(tables.lead_messages ?? []).toHaveLength(1);
+       |                                        ^
+    117|   });
+    118|   it('T-MSG-009 receipts for disabled transport must still reconcile h…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[8/11]⎯
+
+ FAIL  docs/auditoria/2026-10-05-v3/EVIDENCIAS/mensageria/audit.test.ts > V3 desired invariants — failures preserve audit evidence, not product changes > T-MSG-009 receipts for disabled transport must still reconcile history
+AssertionError: expected false to be true // Object.is equality
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ docs/auditoria/2026-10-05-v3/EVIDENCIAS/mensageria/audit.test.ts:123:75
+    121|     await import('../../../../../supabase/functions/wa-akg-worker/inde…
+    122|     await handler(request('', true));
+    123|     expect(calls.some(call => call.rpc === 'reconcile_whatsapp_receipt…
+       |                                                                           ^
+    124|   });
+    125|   it('T-MSG-010 recovered connection must not re-enable a disabled acc…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[9/11]⎯
+
+ FAIL  docs/auditoria/2026-10-05-v3/EVIDENCIAS/mensageria/audit.test.ts > V3 desired invariants — failures preserve audit evidence, not product changes > T-MSG-011 stale processing events must be recovered after worker interruption
+AssertionError: expected 'processing' not to be 'processing' // Object.is equality
+ ❯ docs/auditoria/2026-10-05-v3/EVIDENCIAS/mensageria/audit.test.ts:136:67
+    134|     await import('../../../../../supabase/functions/wa-akg-worker/inde…
+    135|     await handler(request('', true));
+    136|     expect(tables.wa_akg_webhook_events[0].processing_status).not.toBe…
+       |                                                                   ^
+    137|   });
+    138|   it('T-MSG-012 newer deactivate must prevail over an older pending ac…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[10/11]⎯
+
+ FAIL  docs/auditoria/2026-10-05-v3/EVIDENCIAS/mensageria/audit.test.ts > V3 desired invariants — failures preserve audit evidence, not product changes > T-MSG-012 newer deactivate must prevail over an older pending activation
+AssertionError: expected true to be false // Object.is equality
+
+- Expected
++ Received
+
+- false
++ true
+
+ ❯ docs/auditoria/2026-10-05-v3/EVIDENCIAS/mensageria/audit.test.ts:150:49
+    148|     releaseStatus();
+    149|     await older;
+    150|     expect(tables.whatsapp_accounts[0].enabled).toBe(false);
+       |                                                 ^
+    151|   });
+    152| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[11/11]⎯
+
+
+ Test Files  1 failed (1)
+      Tests  11 failed | 1 passed (12)
+   Start at  18:24:54
+   Duration  422ms (transform 76ms, setup 0ms, collect 43ms, tests 86ms, environment 0ms, prepare 64ms)

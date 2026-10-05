@@ -2,6 +2,14 @@
   "schema_version": 1,
   "requirements": [
     {
+      "id": "REQ-V3-AUDIT-20261005",
+      "description": "Executar auditoria e testes do protocolo V3 sem remediar ou publicar, mantendo checkout/main e rastreabilidade por recurso/jornada/ciclo",
+      "module": "auditoria_transversal",
+      "status": "audit_recorded_NO_GO_external_homologation_incomplete",
+      "evidence": "docs/auditoria/2026-10-05-v3/RELATORIO_AUDITORIA.md e matrizes: 421 testes baseline, 17 smoke, 40 assertivas adversariais (7 aprovadas/33 reprovadas), 9 diagnósticos de tipos Edge ampliados, SQL de recibos inválido confirmado remotamente, 5 casos UI limitados. J01-J16/CIC01-16 possuem prova parcial ou bloqueio. Produto e produção intactos; não é homologação comercial completa.",
+      "last_validation": "2026-10-05"
+    },
+    {
       "id": "REQ-071",
       "description": "Organizar o preenchimento da Busca de Leads em um Wizard passo a passo sem alterar a consulta real, a revisão ou a importação",
       "module": "prospeccao",
