@@ -28,12 +28,12 @@ function digitsFromJid(value: unknown): string {
   return /^[1-9]\d{7,14}$/.test(local) ? local : '';
 }
 
-function status(value: unknown): 'sent' | 'delivered' | 'read' | 'failed' {
+function status(value: unknown): 'sent' | 'delivered' | 'read' | 'failed' | null {
   const normalized = text(value, 40).toUpperCase();
-  if (normalized.includes('READ')) return 'read';
-  if (normalized.includes('DELIVER')) return 'delivered';
-  if (normalized.includes('ERROR') || normalized.includes('FAIL')) return 'failed';
-  return 'sent';
+  if (normalized === 'READ') return 'read';
+  if (normalized === 'DELIVERED') return 'delivered';
+  if (normalized === 'ERROR' || normalized === 'FAILED') return 'failed';
+  return normalized === 'SENT' ? 'sent' : null;
 }
 
 function stableExternalId(event: string, sessionId: string, data: Row, key: Row, occurredAt: string): string {
@@ -62,13 +62,18 @@ export function parseWaAkgEvent(input: unknown): WaAkgInboundEvent {
   }
 
   if (event === 'message.status') {
-    const id = text(key.id ?? data.messageId ?? data.id, 300);
+    // keyId is the versioned WA-AKG receipt contract; retain earlier adapters.
+    const id = text(data.keyId ?? key.id ?? data.messageId ?? data.id, 300);
     if (!id) return { kind: 'ignored', reason: 'receipt_message_id_missing', externalId, occurredAt };
+    const receiptStatus = status(data.status ?? payload.status);
+    if (!receiptStatus) return { kind: 'ignored', reason: 'receipt_status_unsupported', externalId, occurredAt };
     return {
       kind: 'receipt',
-      externalId,
+      // Do not use timestamps: identical callbacks can be retried with a new time.
+      // A status transition is a new event; an identical transition is not.
+      externalId: `message.status:${receiptStatus}:${id}`,
       providerMessageIds: [id],
-      status: status(data.status ?? payload.status),
+      status: receiptStatus,
       occurredAt,
     };
   }

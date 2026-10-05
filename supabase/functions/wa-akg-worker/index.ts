@@ -49,7 +49,7 @@ async function markEvent(admin: Admin, event: Row, state: string, values: Row = 
   if (error) throw new Error('wa_akg_event_state_save_failed');
 }
 
-async function route(admin: Admin, event: Row, direction: 'inbound' | 'send') {
+async function accountIntegration(admin: Admin, event: Row) {
   const { data: account, error: accountError } = await admin.from('whatsapp_accounts')
     .select('id,integration_id,enabled,connection_status').eq('organization_id', event.organization_id)
     .eq('id', event.whatsapp_account_id).eq('provider', 'wa_akg').is('archived_at', null).maybeSingle();
@@ -58,6 +58,11 @@ async function route(admin: Admin, event: Row, direction: 'inbound' | 'send') {
     .select('id,enabled,connected,paused').eq('organization_id', event.organization_id)
     .eq('id', event.integration_id).maybeSingle();
   if (integrationError || !integration) throw new Error('wa_akg_integration_not_ready');
+  return { account, integration };
+}
+
+async function route(admin: Admin, event: Row, direction: 'inbound' | 'send') {
+  const { account, integration } = await accountIntegration(admin, event);
   const { data: controls, error: controlsError } = await admin.from('messaging_provider_controls')
     .select('inbound_enabled,send_enabled,automation_enabled,kill_switch')
     .eq('organization_id', event.organization_id).eq('provider', 'wa_akg').maybeSingle();
@@ -93,16 +98,19 @@ async function processConnection(admin: Admin, event: Row, payload: Row) {
 }
 
 async function processReceipt(admin: Admin, event: Row, payload: Row) {
-  await route(admin, event, 'send');
+  // Authenticate ownership, not permission to send. A paused transport still
+  // owns historical receipts; this path never dispatches inbound/AI/outbound.
+  const { account } = await accountIntegration(admin, event);
   const ids = Array.isArray(payload.provider_message_ids)
-    ? payload.provider_message_ids.filter((value): value is string => typeof value === 'string' && value.length <= 300).slice(0, 100)
+    ? [...new Set(payload.provider_message_ids.filter((value): value is string => typeof value === 'string' && value.length > 0 && value.length <= 300))].slice(0, 100)
     : [];
   const status = text(payload.status, 30);
   if (!ids.length || !['sent', 'delivered', 'read', 'failed'].includes(status)) {
     await markEvent(admin, event, 'ignored', { error_code: 'receipt_payload_invalid' });
     return;
   }
-  const { data, error } = await admin.rpc('reconcile_whatsapp_receipt', {
+  const { data, error } = await admin.rpc('reconcile_whatsapp_receipt_for_account', {
+    p_whatsapp_account_id: account.id,
     p_organization_id: event.organization_id, p_provider_message_ids: ids,
     p_expected_message_count: ids.length, p_status: status,
     p_occurred_at: text(payload.occurred_at, 80) || new Date().toISOString(),
@@ -112,7 +120,9 @@ async function processReceipt(admin: Admin, event: Row, payload: Row) {
     await markEvent(admin, event, 'needs_review', { error_code: 'outbound_message_not_matched' });
     return;
   }
-  await markEvent(admin, event, 'processed');
+  await markEvent(admin, event, data.length < ids.length ? 'needs_review' : 'processed', {
+    error_code: data.length < ids.length ? 'receipt_targets_pending' : null,
+  });
 }
 
 async function processInbound(admin: Admin, event: Row, payload: Row) {

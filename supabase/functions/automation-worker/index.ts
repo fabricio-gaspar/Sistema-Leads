@@ -92,7 +92,7 @@ async function reconcileEarlyWhatsappReceipts(
   const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1_000).toISOString();
   const { data, error } = await admin
     .from("webhook_events")
-    .select("id,payload")
+    .select("id,payload,whatsapp_account_id")
     .eq("organization_id", organizationId)
     .in("provider", ["zapi", "z-api"])
     .eq("status", "failed")
@@ -107,12 +107,16 @@ async function reconcileEarlyWhatsappReceipts(
   for (const candidate of Array.isArray(data) ? data : []) {
     const event = asObject(candidate);
     const eventId = asText(event.id, 80);
+    const receiptAccountId = asText(event.whatsapp_account_id, 80);
     const receipt = parseZapiEvent(event.payload);
-    if (!eventId || receipt.kind !== "receipt" || !receipt.providerMessageIds.includes(providerMessageId)) continue;
+    // A legacy event without its authenticated account cannot safely attribute
+    // a provider ID. Leave it pending review instead of guessing the route.
+    if (!eventId || !isUuid(receiptAccountId) || receipt.kind !== "receipt" || !receipt.providerMessageIds.includes(providerMessageId)) continue;
     matched += 1;
     const { data: reconciledData, error: reconciliationError } = await admin.rpc(
-      "reconcile_whatsapp_receipt",
+      "reconcile_whatsapp_receipt_for_account",
       {
+        p_whatsapp_account_id: receiptAccountId,
         p_organization_id: organizationId,
         p_provider_message_ids: receipt.providerMessageIds,
         p_expected_message_count: receipt.expectedMessageCount,

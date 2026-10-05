@@ -1244,7 +1244,7 @@ describe('Webhook handler contract — synthetic callbacks', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
   it('reconciles a receipt through the database without invoking Ana or an outbound provider', async () => {
-    override = (q) => q.table === 'reconcile_whatsapp_receipt' && q.operation === 'rpc'
+    override = (q) => q.table === 'reconcile_whatsapp_receipt_for_account' && q.operation === 'rpc'
       ? ok([{ outreach_id: 'outreach-1', lead_id: leadId, current_status: 'read', changed: true }])
       : undefined;
     await import('../functions/webhook-whatsapp/index');
@@ -1260,8 +1260,9 @@ describe('Webhook handler contract — synthetic callbacks', () => {
       status: 'read',
       expected_count: 1,
     });
-    expect(calls.find((q) => q.table === 'reconcile_whatsapp_receipt' && q.operation === 'rpc')?.value).toMatchObject({
+    expect(calls.find((q) => q.table === 'reconcile_whatsapp_receipt_for_account' && q.operation === 'rpc')?.value).toMatchObject({
       p_organization_id: org,
+      p_whatsapp_account_id: whatsappAccountId,
       p_provider_message_ids: ['synthetic-provider-message'],
       p_expected_message_count: 1,
       p_status: 'read',
@@ -1271,7 +1272,7 @@ describe('Webhook handler contract — synthetic callbacks', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
   it('accepts an unmatched receipt for reconciliation without retrying or sending anything', async () => {
-    override = (q) => q.table === 'reconcile_whatsapp_receipt' && q.operation === 'rpc' ? ok([]) : undefined;
+    override = (q) => q.table === 'reconcile_whatsapp_receipt_for_account' && q.operation === 'rpc' ? ok([]) : undefined;
     await import('../functions/webhook-whatsapp/index');
     const response = await handler(webhookRequest({ type: 'DeliveryCallback', messageId: 'synthetic-unmatched-receipt' }));
     expect(response.status).toBe(200);
@@ -1286,7 +1287,7 @@ describe('Webhook handler contract — synthetic callbacks', () => {
     expect(calls.some((q) => q.table === 'lead_messages')).toBe(false);
   });
   it('acknowledges an ambiguous receipt for manual reconciliation without invoking any sender', async () => {
-    override = (q) => q.table === 'reconcile_whatsapp_receipt' && q.operation === 'rpc'
+    override = (q) => q.table === 'reconcile_whatsapp_receipt_for_account' && q.operation === 'rpc'
       ? { data: null, error: { message: 'receipt_identity_ambiguous' } }
       : undefined;
     await import('../functions/webhook-whatsapp/index');
@@ -1303,7 +1304,7 @@ describe('Webhook handler contract — synthetic callbacks', () => {
     expect(calls.some((q) => q.table === 'outreach_jobs')).toBe(false);
   });
   it('keeps a partial receipt pending while preserving the provider acknowledgement', async () => {
-    override = (q) => q.table === 'reconcile_whatsapp_receipt' && q.operation === 'rpc'
+    override = (q) => q.table === 'reconcile_whatsapp_receipt_for_account' && q.operation === 'rpc'
       ? ok([{ outreach_id: 'outreach-1', lead_id: leadId, current_status: 'delivered', changed: true }])
       : undefined;
     await import('../functions/webhook-whatsapp/index');
@@ -1480,11 +1481,12 @@ describe('Worker safety handler', () => {
   it('reconciles an early WhatsApp receipt after provider acceptance without resending', async () => {
     const earlyReceipt = {
       id: 'early-receipt-event',
+      whatsapp_account_id: whatsappAccountId,
       payload: { type: 'MessageStatusCallback', status: 'READ', ids: ['synthetic-receipt'], momment: 1_772_494_009_341 },
     };
     setupQueue((q) => {
       if (q.table === 'webhook_events' && q.operation === 'select') return ok([earlyReceipt]);
-      if (q.table === 'reconcile_whatsapp_receipt' && q.operation === 'rpc') {
+      if (q.table === 'reconcile_whatsapp_receipt_for_account' && q.operation === 'rpc') {
         return ok([{ outreach_id: 'synthetic-job', lead_id: leadId, current_status: 'read', changed: true }]);
       }
       return undefined;
@@ -1493,13 +1495,25 @@ describe('Worker safety handler', () => {
     await import('../functions/automation-worker/index');
     expect(await (await handler(workerRequest())).json()).toMatchObject({ ok: true, sent_jobs: 1 });
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(calls.find((q) => q.table === 'reconcile_whatsapp_receipt' && q.operation === 'rpc')?.value).toMatchObject({
+    expect(calls.find((q) => q.table === 'reconcile_whatsapp_receipt_for_account' && q.operation === 'rpc')?.value).toMatchObject({
+      p_organization_id: org, p_whatsapp_account_id: whatsappAccountId,
       p_provider_message_ids: ['synthetic-receipt'], p_status: 'read',
     });
     expect(calls.find((q) => q.table === 'webhook_events' && q.operation === 'update')?.value).toMatchObject({
       status: 'processed', lead_id: leadId, outreach_id: 'synthetic-job',
     });
     expect(calls.find((q) => q.table === 'audit_logs' && q.operation === 'insert' && q.value?.action === 'whatsapp.early_receipt_reconciled')).toBeTruthy();
+  });
+  it('does not guess an account for a legacy early receipt without ownership', async () => {
+    setupQueue((q) => q.table === 'webhook_events' && q.operation === 'select'
+      ? ok([{ id: 'legacy-early-receipt', payload: { type: 'MessageStatusCallback', status: 'READ', ids: ['synthetic-receipt'] } }])
+      : undefined);
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ messageId: 'synthetic-receipt' }), { status: 200 }));
+    await import('../functions/automation-worker/index');
+    expect(await (await handler(workerRequest())).json()).toMatchObject({ ok: true, sent_jobs: 1 });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(calls.some((q) => q.operation === 'rpc' && q.table.startsWith('reconcile_whatsapp_receipt'))).toBe(false);
+    expect(calls.some((q) => q.table === 'webhook_events' && q.operation === 'update')).toBe(false);
   });
   it('does not schedule a cadence job if a human handoff opens after provider acceptance', async () => {
     let providerAcceptanceRecorded = false;

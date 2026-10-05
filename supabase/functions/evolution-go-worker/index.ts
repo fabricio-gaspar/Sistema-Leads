@@ -96,12 +96,6 @@ async function inboundRouteReady(admin: Admin, event: Row) {
   return route;
 }
 
-async function outboundRouteReady(admin: Admin, event: Row) {
-  const route = await activeRouteReady(admin, event);
-  if (route.controls.send_enabled !== true) throw new Error('evolution_go_send_disabled');
-  return route;
-}
-
 async function automationDispatchReady(admin: Admin, event: Row) {
   const route = await inboundRouteReady(admin, event);
   // Inbound reception and AI automation are intentionally independent: when
@@ -118,10 +112,13 @@ async function processConnection(admin: Admin, event: Row, payload: Row) {
   const now = new Date().toISOString();
   const { error: accountError } = await admin.from('whatsapp_accounts').update({
     connection_status: connected ? 'connected' : 'disconnected', status_checked_at: now,
+    ...(!connected ? { enabled: false } : {}),
     connected_at: connected ? now : null, last_error_code: connected ? null : `provider_${state || 'disconnected'}`,
   }).eq('id', account.id).eq('organization_id', event.organization_id);
   const { error: integrationError } = await admin.from('integrations').update({
-    connected, enabled: connected ? integration.enabled : false, paused: connected ? integration.paused : true,
+    // A connection callback describes transport only. Never restore a snapshot
+    // of administrative intent after a concurrent pause/disconnect.
+    connected, ...(!connected ? { enabled: false, paused: true } : {}),
     last_tested_at: now, last_success_at: connected ? now : null,
     last_error: connected ? null : `provider_${state || 'disconnected'}`,
     status_detail: connected ? 'Evolution GO confirmou a conexão.' : 'Evolution GO informou que a sessão foi desconectada.',
@@ -131,9 +128,9 @@ async function processConnection(admin: Admin, event: Row, payload: Row) {
 }
 
 async function processReceipt(admin: Admin, event: Row, payload: Row) {
-  // Receipts can arrive after an account is disconnected. Do not mutate
-  // message history from a stale route after an administrator has closed it.
-  await outboundRouteReady(admin, event);
+  // Historical receipts require ownership, not an active transport. No Ana or
+  // outbound dispatch is reachable from this reconciliation-only branch.
+  const { account } = await accountIntegration(admin, event);
   const messageIds = Array.isArray(payload.provider_message_ids)
     ? [...new Set(payload.provider_message_ids.filter((value): value is string => typeof value === 'string' && value.length <= 300))].slice(0, 100)
     : [];
@@ -142,7 +139,8 @@ async function processReceipt(admin: Admin, event: Row, payload: Row) {
     await mark(admin, event, 'ignored', { error_code: 'receipt_payload_invalid' });
     return;
   }
-  const { data, error } = await admin.rpc('reconcile_whatsapp_receipt', {
+  const { data, error } = await admin.rpc('reconcile_whatsapp_receipt_for_account', {
+    p_whatsapp_account_id: account.id,
     p_organization_id: event.organization_id, p_provider_message_ids: messageIds,
     p_expected_message_count: messageIds.length, p_status: status,
     p_occurred_at: text(payload.timestamp, 80) || new Date().toISOString(),
@@ -152,7 +150,9 @@ async function processReceipt(admin: Admin, event: Row, payload: Row) {
     await mark(admin, event, 'needs_review', { error_code: 'outbound_message_not_matched' });
     return;
   }
-  await mark(admin, event, 'processed');
+  await mark(admin, event, data.length < messageIds.length ? 'needs_review' : 'processed', {
+    error_code: data.length < messageIds.length ? 'receipt_targets_pending' : null,
+  });
 }
 
 async function processInbound(admin: Admin, event: Row, payload: Row) {
