@@ -1,6 +1,7 @@
 import { createAdminClient, hasOrganizationPermission, requireUser } from '../_shared/auth.ts';
 import { allowedCorsHeaders, hasAllowedOrigin, json, preflight, safeError } from '../_shared/http.ts';
 import { WaAkgProvider, normalizeWaAkgBaseUrl } from '../_shared/messaging/WaAkgProvider.ts';
+import { accountLifecycleStatus, runAccountLifecycle, setAccountProviderControls, type LifecycleStep } from '../_shared/accountLifecycle.ts';
 
 type Admin = ReturnType<typeof createAdminClient>;
 type Row = Record<string, unknown>;
@@ -182,52 +183,32 @@ async function storeSecret(admin: Admin, integrationId: string, value: Row): Pro
   if (error) throw new Error('wa_akg_secret_save_failed');
 }
 
-async function audit(admin: Admin, actor: Actor, action: string, accountId: string, detail: string, data: Row = {}) {
-  await admin.from('audit_logs').insert({
-    organization_id: actor.organizationId, actor_id: actor.userId, actor_name: actor.name, actor_type: 'user',
-    action, detail, entity_table: 'whatsapp_accounts', entity_id: accountId,
-    event_data: { provider: 'wa_akg', ...data },
-  });
-}
-
-async function closeControls(admin: Admin, actor: Actor, reason: string) {
-  const { count, error } = await admin.from('whatsapp_accounts').select('*', { count: 'exact', head: true })
-    .eq('organization_id', actor.organizationId).eq('provider', 'wa_akg').eq('enabled', true)
-    .eq('connection_status', 'connected').is('archived_at', null);
-  if (error) throw new Error('wa_akg_active_accounts_lookup_failed');
-  if ((count ?? 0) > 0) return;
-  const { error: updateError } = await admin.from('messaging_provider_controls').upsert({
-    organization_id: actor.organizationId, provider: 'wa_akg', inbound_enabled: false, send_enabled: false,
-    automation_enabled: false, kill_switch: true, reason, changed_by: actor.userId,
-  }, { onConflict: 'organization_id,provider' });
-  if (updateError) throw new Error('wa_akg_controls_save_failed');
-}
-
-async function provision(admin: Admin, actor: Actor, record: RecordSet): Promise<RecordSet> {
+async function provision(admin: Admin, actor: Actor, record: RecordSet, step: LifecycleStep): Promise<RecordSet> {
   if (record.account.account_type !== 'seller') throw new Error('wa_akg_seller_account_required');
   const gateway = await corporateCredentials(admin, actor.organizationId);
   const existing = await secretFor(admin, String(record.integration.id));
   const sessionId = text(existing.session_id, 120) || sessionName(String(record.account.owner_user_id));
   const webhookSecret = text(existing.webhook_secret, 256) || randomSecret();
   const secret = { ...existing, session_id: sessionId, webhook_secret: webhookSecret, timeout_ms: 15_000 };
-  await storeSecret(admin, String(record.integration.id), secret);
+  await step(() => storeSecret(admin, String(record.integration.id), secret));
   const provider = new WaAkgProvider({
     baseUrl: text(gateway.base_url, 500), apiKey: text(gateway.api_key, 1_000), sessionId,
     allowedOrigins: allowedOrigins(), timeoutMs: 15_000,
   });
   if (existing.remote_created !== true) {
-    try { await provider.create(text(record.account.label, 120) || 'WhatsApp do vendedor'); }
+    try { await step(() => provider.create(text(record.account.label, 120) || 'WhatsApp do vendedor'), true); }
     catch (error) { if (safeError(error) !== 'wa_akg_request_rejected_409') throw error; }
   }
-  await provider.configureSafety();
-  await provider.registerWebhook(callbackUrl(String(record.integration.id)), webhookSecret);
-  await provider.start();
-  await storeSecret(admin, String(record.integration.id), { ...secret, remote_created: true, webhook_registered: true });
+  await step(() => provider.configureSafety(), true);
+  await step(() => provider.registerWebhook(callbackUrl(String(record.integration.id)), webhookSecret), true);
+  await step(() => provider.start(), true);
+  await step(() => storeSecret(admin, String(record.integration.id), { ...secret, remote_created: true, webhook_registered: true }));
 
-  const { data: storedIntegration } = await admin.from('integrations').select('configuration')
+  const { data: storedIntegration, error: storedIntegrationError } = await admin.from('integrations').select('configuration')
     .eq('id', record.integration.id).eq('organization_id', actor.organizationId).maybeSingle();
+  if (storedIntegrationError || !storedIntegration) throw new Error('wa_akg_integration_lookup_failed');
   const now = new Date().toISOString();
-  const [integrationUpdate, accountUpdate] = await Promise.all([
+  const [integrationUpdate, accountUpdate] = await step(async () => Promise.all([
     admin.from('integrations').update({
       connected: false, enabled: false, paused: true,
       status_detail: 'Sessão WA-AKG criada; leia o QR Code em Meu WhatsApp.',
@@ -238,14 +219,13 @@ async function provision(admin: Admin, actor: Actor, record: RecordSet): Promise
       connection_status: 'qr', enabled: false, webhook_registered_at: now, status_checked_at: now,
       last_error_code: null, provider_metadata: { session_name: sessionId, provider_version: '1.7.0-beta.1' }, updated_at: now,
     }).eq('id', record.account.id).eq('organization_id', actor.organizationId),
-  ]);
+  ]));
   if (integrationUpdate.error || accountUpdate.error) throw new Error('wa_akg_provision_state_save_failed');
-  const { error: jobUpdateError } = await admin.from('wa_akg_seller_provisioning_jobs').update({
+  const { error: jobUpdateError } = await step(async () => admin.from('wa_akg_seller_provisioning_jobs').update({
     state: 'completed', completed_at: now, last_error: null, locked_at: null, locked_by: null,
   }).eq('organization_id', actor.organizationId).eq('account_id', record.account.id)
-    .in('state', ['queued', 'processing', 'failed', 'needs_review']);
+    .in('state', ['queued', 'processing', 'failed', 'needs_review']));
   if (jobUpdateError) throw new Error('wa_akg_provision_job_complete_failed');
-  await closeControls(admin, actor, 'account_connection_pending');
   const updated = await recordFor(admin, actor.organizationId, String(record.account.id));
   if (!updated) throw new Error('wa_akg_record_missing');
   return updated;
@@ -266,14 +246,18 @@ Deno.serve(async (request) => {
 
     if (action === 'list') {
       const records = await listRecords(admin, actor);
-      return json({ ok: true, accounts: records.map((record) => publicStatus(record, actor)), canManage: actor.canManage }, 200, headers);
+      const accounts = await Promise.all(records.map(async (record) => ({ ...publicStatus(record, actor),
+        lifecycle: await accountLifecycleStatus(admin, { organizationId: actor.organizationId,
+          accountId: String(record.account.id), provider: 'wa_akg', actorId: actor.userId }) })));
+      return json({ ok: true, accounts, canManage: actor.canManage }, 200, headers);
     }
     if (action === 'my_account') {
       const record = await ownRecord(admin, actor);
       return json({ ok: true, ...(record ? publicStatus(record, actor) : {
         configured: false, account: null, integration: null, controls: null,
         canManage: false, canConnect: false, canViewQr: false,
-      }) }, 200, headers);
+      }), lifecycle: record ? await accountLifecycleStatus(admin, { organizationId: actor.organizationId,
+        accountId: String(record.account.id), provider: 'wa_akg', actorId: actor.userId }) : null }, 200, headers);
     }
 
     if (action === 'configure_gateway') {
@@ -281,11 +265,12 @@ Deno.serve(async (request) => {
       const baseUrl = normalizeWaAkgBaseUrl(text(body.base_url, 500), allowedOrigins());
       const apiKey = text(body.api_key, 1_000);
       if (!apiKey) throw new Error('wa_akg_api_key_required');
-      const { data: existing } = await admin.from('whatsapp_accounts').select('id,integration_id')
+      const { data: existing, error: existingError } = await admin.from('whatsapp_accounts').select('id,integration_id')
         .eq('organization_id', actor.organizationId).eq('provider', 'wa_akg').eq('account_type', 'corporate')
         .is('archived_at', null).limit(1).maybeSingle();
-      let accountId = existing?.id ? String(existing.id) : crypto.randomUUID();
-      let integrationId = existing?.integration_id ? String(existing.integration_id) : crypto.randomUUID();
+      if (existingError) throw new Error('wa_akg_gateway_lookup_failed');
+      const accountId = existing?.id ? String(existing.id) : crypto.randomUUID();
+      const integrationId = existing?.integration_id ? String(existing.integration_id) : crypto.randomUUID();
       if (!existing) {
         const label = text(body.label, 120) || 'WA-AKG principal';
         const { error: integrationError } = await admin.from('integrations').insert({
@@ -303,17 +288,14 @@ Deno.serve(async (request) => {
         });
         if (accountError) throw new Error('wa_akg_gateway_create_failed');
       }
-      await storeSecret(admin, integrationId, { base_url: baseUrl, api_key: apiKey });
-      await admin.from('messaging_provider_controls').upsert({
-        organization_id: actor.organizationId, provider: 'wa_akg', inbound_enabled: false,
-        send_enabled: false, automation_enabled: false, kill_switch: true,
-        reason: 'gateway_configured_pending_validation', changed_by: actor.userId,
-      }, { onConflict: 'organization_id,provider' });
-      await audit(admin, actor, 'whatsapp.wa_akg_gateway_configured', accountId,
-        'Gateway WA-AKG salvo no cofre; nenhum envio foi ativado.');
+      const result = await runAccountLifecycle(admin, { organizationId: actor.organizationId, accountId,
+        provider: 'wa_akg', actorId: actor.userId }, action, async (step) => {
+        await step(() => storeSecret(admin, integrationId, { base_url: baseUrl, api_key: apiKey }));
+        return { connectionStatus: 'configured' };
+      });
       const record = await recordFor(admin, actor.organizationId, accountId);
       if (!record) throw new Error('wa_akg_record_missing');
-      return json({ ok: true, ...publicStatus(record, actor) }, 200, headers);
+      return json({ ok: result.status < 400, ...publicStatus(record, actor), lifecycle: result.lifecycle, ...result.payload }, result.status, headers);
     }
 
     if (action === 'create_account') {
@@ -334,118 +316,82 @@ Deno.serve(async (request) => {
     if (!accountId) throw new Error('wa_akg_account_required');
     if (action === 'status') {
       const record = await accessible(admin, actor, accountId, 'view');
-      return json({ ok: true, ...publicStatus(record, actor) }, 200, headers);
+      const lifecycle = await accountLifecycleStatus(admin, { organizationId: actor.organizationId, accountId, provider: 'wa_akg', actorId: actor.userId });
+      return json({ ok: true, ...publicStatus(record, actor), lifecycle }, 200, headers);
     }
     if (action === 'provision') {
       const current = await accessible(admin, actor, accountId, 'manage');
-      const updated = await provision(admin, actor, current);
-      await audit(admin, actor, 'whatsapp.wa_akg_session_provisioned', accountId,
-        'Sessão individual WA-AKG criada com automações internas desativadas e webhook registrado.');
-      return json({ ok: true, ...publicStatus(updated, actor) }, 200, headers);
+      const result = await runAccountLifecycle(admin, { organizationId: actor.organizationId, accountId,
+        provider: 'wa_akg', actorId: actor.userId }, action, async (step) => {
+        await provision(admin, actor, current, step);
+        return { connectionStatus: 'qr', webhookRegistered: true };
+      });
+      const updated = await recordFor(admin, actor.organizationId, accountId);
+      if (!updated) throw new Error('wa_akg_record_missing');
+      return json({ ok: result.status < 400, ...publicStatus(updated, actor), lifecycle: result.lifecycle, ...result.payload }, result.status, headers);
     }
 
     const record = await accessible(admin, actor, accountId, 'connect');
-    const { provider } = await providerFor(admin, actor.organizationId, record);
-    const now = new Date().toISOString();
-
-    if (action === 'connect') {
-      await provider.start();
-      await admin.from('whatsapp_accounts').update({ connection_status: 'qr', enabled: false, status_checked_at: now })
-        .eq('id', accountId).eq('organization_id', actor.organizationId);
-      await closeControls(admin, actor, 'account_connection_pending');
-    } else if (action === 'qr') {
-      const state = await provider.status();
-      if (state.connected) throw new Error('wa_akg_session_already_connected');
-      if (!['SCAN_QR', 'QR'].includes(state.state)) await provider.start();
-      let result: { qrcode: string } | null = null;
-      for (let attempt = 0; attempt < 5 && !result; attempt += 1) {
-        try { result = await provider.qr(); }
-        catch (error) {
-          if (attempt === 4) throw error;
-          await new Promise((resolve) => setTimeout(resolve, 1_500));
-        }
-      }
-      return json({ ok: true, qr: { qrcode: result?.qrcode ?? null, code: null, expiresAt: null } }, 200,
-        { ...headers, 'Cache-Control': 'no-store' });
-    } else if (action === 'pair') {
-      const pairingCode = await provider.pair(text(body.phone, 32));
-      return json({ ok: true, pairingCode }, 200, { ...headers, 'Cache-Control': 'no-store' });
-    } else if (action === 'refresh_status') {
-      const state = await provider.status();
-      const connected = state.connected;
-      const [accountUpdate, integrationUpdate] = await Promise.all([
-        admin.from('whatsapp_accounts').update({
-          connection_status: connected ? 'connected' : state.state === 'SCAN_QR' ? 'qr' : 'disconnected',
-          connected_phone_suffix: phoneSuffix(state.phone), connected_at: connected ? now : null,
-          status_checked_at: now, enabled: connected ? record.account.enabled === true : false,
-          last_error_code: null,
-        }).eq('id', accountId).eq('organization_id', actor.organizationId),
-        admin.from('integrations').update({
-          connected, enabled: connected ? record.integration.enabled === true : false,
-          paused: connected ? record.integration.paused === true : true,
-          last_tested_at: now, last_success_at: connected ? now : null,
-          status_detail: connected ? 'WA-AKG confirmou a conexão desta sessão.' : 'Sessão aguardando conexão do WhatsApp.',
-        }).eq('id', record.integration.id).eq('organization_id', actor.organizationId),
-      ]);
-      if (accountUpdate.error || integrationUpdate.error) throw new Error('wa_akg_status_save_failed');
-      await closeControls(admin, actor, 'account_connection_unavailable');
-    } else if (action === 'reconnect') {
-      await provider.restart();
-      await admin.from('whatsapp_accounts').update({ connection_status: 'qr', enabled: false, status_checked_at: now })
-        .eq('id', accountId).eq('organization_id', actor.organizationId);
-      await closeControls(admin, actor, 'account_reconnect_requested');
-    } else if (action === 'disconnect' || action === 'logout') {
-      if (action === 'logout') await provider.logout(); else await provider.stop();
-      await Promise.all([
-        admin.from('whatsapp_accounts').update({ enabled: false, is_default: false, connection_status: 'disconnected', status_checked_at: now })
-          .eq('id', accountId).eq('organization_id', actor.organizationId),
-        admin.from('integrations').update({ connected: false, enabled: false, paused: true, status_detail: 'Sessão WA-AKG desconectada.' })
-          .eq('id', record.integration.id).eq('organization_id', actor.organizationId),
-      ]);
-      await closeControls(admin, actor, action);
-    } else if (action === 'activate') {
-      const state = await provider.status();
-      if (!state.connected) throw new Error('wa_akg_connection_validation_required');
-      await Promise.all([
-        admin.from('whatsapp_accounts').update({
-          enabled: true, connection_status: 'connected', connected_phone_suffix: phoneSuffix(state.phone),
-          connected_at: now, status_checked_at: now, last_error_code: null,
-        }).eq('id', accountId).eq('organization_id', actor.organizationId),
-        admin.from('integrations').update({
-          connected: true, enabled: true, paused: false, last_tested_at: now, last_success_at: now,
-          status_detail: 'Canal WA-AKG operacional. A Ana respeita o modo automático, opt-out e transferência humana.',
-        }).eq('id', record.integration.id).eq('organization_id', actor.organizationId),
-        admin.from('messaging_provider_controls').upsert({
-          organization_id: actor.organizationId, provider: 'wa_akg', inbound_enabled: true,
-          send_enabled: true, automation_enabled: true, kill_switch: false,
-          reason: 'validated_account_activated', changed_by: actor.userId,
-        }, { onConflict: 'organization_id,provider' }),
-      ]);
-      await audit(admin, actor, 'whatsapp.wa_akg_activated', accountId,
-        'Canal WA-AKG ativado; a automação permanece subordinada às políticas publicadas da Ana.');
-    } else if (action === 'deactivate') {
-      await Promise.all([
-        admin.from('whatsapp_accounts').update({ enabled: false, is_default: false })
-          .eq('id', accountId).eq('organization_id', actor.organizationId),
-        admin.from('integrations').update({ enabled: false, paused: true, status_detail: 'Canal desativado; sessão preservada.' })
-          .eq('id', record.integration.id).eq('organization_id', actor.organizationId),
-      ]);
-      await closeControls(admin, actor, 'account_disabled_by_operator');
-    } else if (action === 'save_controls') {
+    const lifecycleContext = { organizationId: actor.organizationId, accountId, provider: 'wa_akg' as const, actorId: actor.userId };
+    if (action === 'save_controls') {
       if (!actor.canManage) throw new Error('permission_denied');
       const minDelay = Math.min(Math.max(Number(body.min_delay_seconds) || 10, 10), 300);
       const maxDelay = Math.min(Math.max(Number(body.max_delay_seconds) || 30, minDelay), 600);
-      const burstLimit = Math.min(Math.max(Number(body.burst_limit) || 3, 1), 20);
-      const dailyLimit = Math.min(Math.max(Number(body.daily_limit) || 100, 1), 5_000);
-      const { error } = await admin.from('messaging_provider_controls').update({
-        min_delay_seconds: minDelay, max_delay_seconds: maxDelay, burst_limit: burstLimit,
-        burst_window_seconds: 60, daily_limit: dailyLimit, changed_by: actor.userId,
-      }).eq('organization_id', actor.organizationId).eq('provider', 'wa_akg');
-      if (error) throw new Error('wa_akg_controls_save_failed');
+      const { data: savedControls, error } = await admin.from('messaging_provider_controls').update({
+        min_delay_seconds: minDelay, max_delay_seconds: maxDelay,
+        burst_limit: Math.min(Math.max(Number(body.burst_limit) || 3, 1), 20),
+        burst_window_seconds: 60, daily_limit: Math.min(Math.max(Number(body.daily_limit) || 100, 1), 5_000),
+        changed_by: actor.userId,
+      }).eq('organization_id', actor.organizationId).eq('provider', 'wa_akg').select('provider').maybeSingle();
+      if (error || !savedControls) throw new Error('wa_akg_controls_save_failed');
+    } else if (action === 'set_provider_controls') {
+      if (!actor.canManage) throw new Error('permission_denied');
+      await setAccountProviderControls(admin, lifecycleContext, body);
     } else {
-      throw new Error('unsupported_action');
+      if (!['connect', 'qr', 'pair', 'refresh_status', 'reconnect', 'disconnect', 'logout', 'activate', 'deactivate'].includes(action)) {
+        throw new Error('unsupported_action');
+      }
+      const result = await runAccountLifecycle(admin, lifecycleContext, action, async (step) => {
+        // Credential lookup intentionally follows the durable local cutoff.
+        const { provider } = await providerFor(admin, actor.organizationId, record);
+        if (action === 'connect' || action === 'reconnect') {
+          await step(() => action === 'connect' ? provider.start() : provider.restart(), true);
+          return { connectionStatus: 'qr' };
+        }
+        if (action === 'disconnect' || action === 'logout') {
+          await step(() => action === 'logout' ? provider.logout() : provider.stop(), true);
+          return { connected: false };
+        }
+        if (action === 'activate' || action === 'refresh_status') {
+          const state = await step(() => provider.status());
+          if (action === 'activate' && !state.connected) throw new Error('wa_akg_connection_validation_required');
+          return { connected: state.connected, connectionStatus: state.state === 'SCAN_QR' ? 'qr' : undefined, phoneSuffix: phoneSuffix(state.phone) };
+        }
+        if (action === 'qr') {
+          const state = await step(() => provider.status());
+          if (state.connected) throw new Error('wa_akg_session_already_connected');
+          if (!['SCAN_QR', 'QR'].includes(state.state)) await step(() => provider.start(), true);
+          let qr: { qrcode: string } | null = null;
+          for (let attempt = 0; attempt < 5 && !qr; attempt += 1) {
+            try { qr = await step(() => provider.qr()); }
+            catch (error) {
+              if (attempt === 4 || safeError(error) === 'account_lifecycle_superseded') throw error;
+              await new Promise((resolve) => setTimeout(resolve, 1_500));
+            }
+          }
+          return { connectionStatus: 'qr', payload: { qr: { qrcode: qr?.qrcode ?? null, code: null, expiresAt: null } } };
+        }
+        if (action === 'pair') {
+          const pairingCode = await step(() => provider.pair(text(body.phone, 32)), true);
+          return { connectionStatus: 'qr', payload: { pairingCode } };
+        }
+        throw new Error('unsupported_action');
+      });
+      const updated = await recordFor(admin, actor.organizationId, accountId);
+      if (!updated) throw new Error('wa_akg_record_missing');
+      return json({ ok: result.status < 400, ...publicStatus(updated, actor), lifecycle: result.lifecycle, ...result.payload },
+        result.status, { ...headers, 'Cache-Control': 'no-store' });
     }
-
     const updated = await recordFor(admin, actor.organizationId, accountId);
     if (!updated) throw new Error('wa_akg_record_missing');
     return json({ ok: true, ...publicStatus(updated, actor) }, 200, headers);

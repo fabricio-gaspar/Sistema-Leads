@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { loadTeamMembers, type TeamMember } from '@/lib/crm/teamMembersRepository';
+import { isWaAkgOperational } from '@/lib/crm/waAkgOnboarding';
+import { channelLifecycleBlocked, channelLifecycleMessage, refreshAfterLifecycleError } from '@/lib/crm/channelLifecycle';
 import {
   configureWaAkgGateway,
   createWaAkgSellerAccount,
@@ -24,6 +26,9 @@ const hasAccount = (status: WaAkgChannelStatus): status is Status => Boolean(sta
 function errorMessage(error: unknown) {
   const code = error instanceof Error ? error.message : '';
   const copy: Record<string, string> = {
+    account_lifecycle_pending: 'Operação pendente. Use Atualizar para consultar o resultado; não há confirmação de conclusão.',
+    account_lifecycle_needs_review: 'A conta precisa de revisão administrativa antes de repetir a operação.',
+    account_lifecycle_persistence_failed: 'Não foi possível confirmar a gravação. Consulte o estado antes de tentar novamente.',
     permission_denied: 'Seu usuário não possui permissão para esta operação.',
     wa_akg_allowed_origins_required: 'Cadastre WA_AKG_ALLOWED_ORIGINS nos segredos do servidor antes de salvar o gateway.',
     wa_akg_base_url_not_allowed: 'A URL não está na lista HTTPS autorizada do servidor.',
@@ -41,8 +46,9 @@ function errorMessage(error: unknown) {
 }
 
 function badge(status: Status | null) {
+  if (channelLifecycleBlocked(status?.lifecycle)) return { label: status?.lifecycle?.state === 'pending' || status?.lifecycle?.state === 'in_flight' ? 'Operação pendente' : 'Requer revisão', css: 'bg-[#FFF1D8] text-[#965A12]' };
   if (!status?.configured) return { label: 'Aguardando provisionamento', css: 'bg-background-100 text-foreground-600' };
-  if (status.account.connectionStatus === 'connected' && status.account.enabled && status.controls?.killSwitch === false) {
+  if (isWaAkgOperational(status)) {
     return { label: 'Operacional', css: 'bg-[#E8F7EF] text-[#147445]' };
   }
   if (status.account.connectionStatus === 'connected') return { label: 'Conectado · protegido', css: 'bg-[#FFF1D8] text-[#965A12]' };
@@ -59,6 +65,7 @@ export default function WaAkgPanel({ mode = 'administration', surface = 'whatsap
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [canManage, setCanManage] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [statusUnconfirmed, setStatusUnconfirmed] = useState(true);
   const [busy, setBusy] = useState('');
   const [notice, setNotice] = useState<Notice | null>(null);
   const [qr, setQr] = useState<string | null>(null);
@@ -72,12 +79,15 @@ export default function WaAkgPanel({ mode = 'administration', surface = 'whatsap
 
   const refresh = useCallback(async () => {
     setBusy('refresh');
+    setStatusUnconfirmed(true);
+    setQr(null); setPairingCode('');
     try {
       const result = selfService
         ? { accounts: [await loadMyWaAkgAccount()], canManage: false }
         : await loadWaAkgAccounts();
       const visible = result.accounts.filter(hasAccount);
       setAccounts(visible);
+      setStatusUnconfirmed(false);
       setCanManage(!selfService && result.canManage);
       setSelectedId((current) => visible.some((item) => item.account.id === current)
         ? current : visible.find((item) => item.account.accountType === 'seller')?.account.id || visible[0]?.account.id || '');
@@ -95,10 +105,12 @@ export default function WaAkgPanel({ mode = 'administration', surface = 'whatsap
   }, [canManage]);
 
   const selected = useMemo(() => accounts.find((item) => item.account.id === selectedId) ?? accounts[0] ?? null, [accounts, selectedId]);
-  const selectedBadge = badge(selected);
+  const selectedBadge = statusUnconfirmed
+    ? { label: 'Estado não confirmado', css: 'bg-[#FFF1D8] text-[#965A12]' } : badge(selected);
 
   const replace = useCallback((next: WaAkgChannelStatus) => {
     if (!hasAccount(next)) return;
+    setStatusUnconfirmed(false);
     setAccounts((current) => current.some((item) => item.account.id === next.account.id)
       ? current.map((item) => item.account.id === next.account.id ? next : item)
       : [...current, next]);
@@ -110,46 +122,54 @@ export default function WaAkgPanel({ mode = 'administration', surface = 'whatsap
     try {
       const next = await task();
       replace(next);
-      setNotice({ tone: 'success', text: success });
+      setNotice({ tone: 'success', text: key === 'activate'
+        ? 'Conta habilitada. Recebimento, envio e Ana continuam sujeitos à liberação administrativa separada.' : success });
       if (selfService && !inCentral && (key === 'status' || key === 'activate') && hasAccount(next)
-        && next.account.connectionStatus === 'connected' && !redirecting.current) {
+        && isWaAkgOperational(next) && !redirecting.current) {
         redirecting.current = true;
         window.setTimeout(() => navigate('/dashboard/atendimento', { replace: true }), 700);
       }
     }
-    catch (error) { setNotice({ tone: 'error', text: errorMessage(error) }); }
+    catch (error) {
+      await refreshAfterLifecycleError(error, refresh);
+      setNotice({ tone: 'error', text: errorMessage(error) });
+    }
     finally { setBusy(''); }
   };
 
   const loadQr = useCallback(async () => {
-    if (!selected?.canViewQr) return;
+    if (statusUnconfirmed || !selected?.canViewQr || channelLifecycleBlocked(selected.lifecycle)) return;
     setBusy('qr'); setNotice(null); setPairingCode('');
     try {
       const result = await requestWaAkgQr(selected.account.id);
       if (!result.qr.qrcode?.startsWith('data:image/')) throw new Error('wa_akg_qr_unavailable');
       setQr(result.qr.qrcode);
       setNotice({ tone: 'success', text: 'QR Code temporário atualizado. Leia em Aparelhos conectados no WhatsApp.' });
-    } catch (error) { setQr(null); setNotice({ tone: 'error', text: errorMessage(error) }); }
+    } catch (error) {
+      setQr(null);
+      await refreshAfterLifecycleError(error, refresh);
+      setNotice({ tone: 'error', text: errorMessage(error) });
+    }
     finally { setBusy(''); }
-  }, [selected]);
+  }, [selected, refresh, statusUnconfirmed]);
 
   useEffect(() => {
-    if (!selfService || !selected?.canViewQr || selected.account.connectionStatus !== 'qr') return;
+    if (statusUnconfirmed || !selfService || !selected?.canViewQr || channelLifecycleBlocked(selected.lifecycle) || selected.account.connectionStatus !== 'qr') return;
     const key = `${selected.account.id}:${selected.account.checkedAt ?? ''}`;
     if (autoQr.current === key) return;
     autoQr.current = key;
     void loadQr();
-  }, [loadQr, selected, selfService]);
+  }, [loadQr, selected, selfService, statusUnconfirmed]);
 
   useEffect(() => {
-    if (!selfService || inCentral || !selected || selected.account.connectionStatus !== 'qr' || redirecting.current) return;
+    if (statusUnconfirmed || !selfService || inCentral || !selected || channelLifecycleBlocked(selected.lifecycle) || selected.account.connectionStatus !== 'qr' || redirecting.current) return;
     const accountId = selected.account.id;
     let cancelled = false;
     const poll = window.setInterval(() => {
       void runWaAkgAction('refresh_status', accountId).then((next) => {
         if (cancelled || !hasAccount(next)) return;
         replace(next);
-        if (next.account.connectionStatus === 'connected' && !redirecting.current) {
+        if (isWaAkgOperational(next) && !redirecting.current) {
           redirecting.current = true;
           setQr(null);
           setNotice({ tone: 'success', text: 'WhatsApp conectado. Abrindo a Central de Atendimento…' });
@@ -158,7 +178,7 @@ export default function WaAkgPanel({ mode = 'administration', surface = 'whatsap
       }).catch(() => undefined);
     }, 3_000);
     return () => { cancelled = true; window.clearInterval(poll); };
-  }, [inCentral, navigate, replace, selected, selfService]);
+  }, [inCentral, navigate, replace, selected, selfService, statusUnconfirmed]);
 
   const saveGateway = async () => {
     if (!gateway.baseUrl.trim() || !gateway.apiKey.trim()) return;
@@ -167,7 +187,10 @@ export default function WaAkgPanel({ mode = 'administration', surface = 'whatsap
       const next = await configureWaAkgGateway(gateway);
       replace(next); setGateway({ ...gateway, baseUrl: '', apiKey: '' }); setGatewayOpen(false);
       setNotice({ tone: 'success', text: 'Gateway salvo no cofre. Agora provisione uma sessão individual para cada vendedor.' });
-    } catch (error) { setNotice({ tone: 'error', text: errorMessage(error) }); }
+    } catch (error) {
+      await refreshAfterLifecycleError(error, refresh);
+      setNotice({ tone: 'error', text: errorMessage(error) });
+    }
     finally { setBusy(''); }
   };
 
@@ -178,13 +201,16 @@ export default function WaAkgPanel({ mode = 'administration', surface = 'whatsap
   };
 
   const requestPairing = async () => {
-    if (!selected || phone.replace(/\D/g, '').length < 10) return;
-    setBusy('pair'); setNotice(null); setQr(null);
+    if (statusUnconfirmed || !selected || channelLifecycleBlocked(selected.lifecycle) || phone.replace(/\D/g, '').length < 10) return;
+    setBusy('pair'); setNotice(null); setQr(null); setPairingCode('');
     try {
       const result = await requestWaAkgPairingCode(selected.account.id, phone);
       setPairingCode(result.pairingCode ?? '');
       setNotice({ tone: 'success', text: 'Código temporário gerado. Digite-o no WhatsApp em Aparelhos conectados.' });
-    } catch (error) { setNotice({ tone: 'error', text: errorMessage(error) }); }
+    } catch (error) {
+      await refreshAfterLifecycleError(error, refresh);
+      setNotice({ tone: 'error', text: errorMessage(error) });
+    }
     finally { setBusy(''); }
   };
 
@@ -192,11 +218,12 @@ export default function WaAkgPanel({ mode = 'administration', surface = 'whatsap
 
   return <section id={selfService ? (inCentral ? 'central-whatsapp-account' : 'my-wa-akg-account') : 'wa-akg-configuration'} className="wf-surface overflow-hidden">
     <header className="flex flex-col gap-3 border-b border-background-200 px-5 py-4 sm:flex-row sm:items-start sm:justify-between">
-      <div className="flex gap-3"><span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#E8F7EF] text-xl text-[#168654]"><i className="ri-whatsapp-line" /></span><div><p className="wf-eyebrow">{selfService ? 'Canal individual' : 'Canal principal'}</p><h2 className="mt-1 text-lg font-bold text-foreground-950">{selfService ? (inCentral ? 'Conectar meu WhatsApp' : 'Meu WhatsApp') : 'WA-AKG + Ana'}</h2><p className="mt-1 text-xs leading-5 text-foreground-500">{selfService ? (inCentral ? 'Conecte seu número aqui. Após a confirmação, suas conversas e recursos autorizados já ficam disponíveis nesta Central.' : 'Conecte seu número; suas conversas aparecem na Central de Atendimento.') : 'Uma sessão isolada por vendedor, com QR próprio, fila persistente e automação centralizada na Ana.'}</p></div></div>
+      <div className="flex gap-3"><span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#E8F7EF] text-xl text-[#168654]"><i className="ri-whatsapp-line" /></span><div><p className="wf-eyebrow">{selfService ? 'Canal individual' : 'Canal principal'}</p><h2 className="mt-1 text-lg font-bold text-foreground-950">{selfService ? (inCentral ? 'Conectar meu WhatsApp' : 'Meu WhatsApp') : 'WA-AKG + Ana'}</h2><p className="mt-1 text-xs leading-5 text-foreground-500">{selfService ? (inCentral ? 'Conecte seu número aqui. Recebimento e envio dependem de autorização administrativa; a conexão não libera a Ana.' : 'Conecte seu número; suas conversas aparecem na Central de Atendimento.') : 'Uma sessão isolada por vendedor, com QR próprio, fila persistente e automação centralizada na Ana.'}</p></div></div>
       <div className="flex gap-2"><button type="button" className="wf-btn-secondary text-xs" disabled={Boolean(busy)} onClick={() => void refresh()}><i className={busy === 'refresh' ? 'ri-loader-4-line animate-spin' : 'ri-refresh-line'} />Atualizar</button>{canManage && <button type="button" className="wf-btn-primary text-xs" onClick={() => setGatewayOpen((value) => !value)}><i className="ri-settings-3-line" />Configurar gateway</button>}</div>
     </header>
 
     <div className="space-y-4 p-5">
+      {channelLifecycleMessage(selected?.lifecycle) && <p role="status" className="rounded-xl border border-background-200 bg-background-50 px-3 py-2 text-xs text-foreground-700">{channelLifecycleMessage(selected?.lifecycle)}</p>}
       {notice && <p role={notice.tone === 'error' ? 'alert' : 'status'} className={`rounded-xl border px-3 py-2 text-xs ${notice.tone === 'success' ? 'border-[#B9E4CB] bg-[#EFFAF3] text-[#176B43]' : 'border-[#E8B8B1] bg-[#FFF4F2] text-[#8B3027]'}`}>{notice.text}</p>}
 
       {canManage && gatewayOpen && <div className="rounded-xl border border-background-200 bg-background-50 p-4"><h3 className="text-sm font-semibold text-foreground-900">Gateway WA-AKG</h3><p className="mt-1 text-xs leading-5 text-foreground-500">A URL e a chave ficam somente no cofre do backend. O navegador nunca recebe esses valores de volta.</p><div className="mt-3 grid gap-3 md:grid-cols-3"><label className="text-xs font-medium text-foreground-700">Nome do canal<input className="mt-1.5 w-full rounded-lg border border-background-200 bg-white px-3 py-2 text-sm" value={gateway.label} onChange={(event) => setGateway({ ...gateway, label: event.target.value })} /></label><label className="text-xs font-medium text-foreground-700">URL HTTPS do servidor<input type="password" autoComplete="new-password" spellCheck={false} className="mt-1.5 w-full rounded-lg border border-background-200 bg-white px-3 py-2 text-sm" placeholder="https://wa.suaempresa.com" value={gateway.baseUrl} onChange={(event) => setGateway({ ...gateway, baseUrl: event.target.value })} /></label><label className="text-xs font-medium text-foreground-700">Chave da API<input type="password" autoComplete="new-password" spellCheck={false} className="mt-1.5 w-full rounded-lg border border-background-200 bg-white px-3 py-2 text-sm" value={gateway.apiKey} onChange={(event) => setGateway({ ...gateway, apiKey: event.target.value })} /></label></div><div className="mt-3 flex justify-end"><button type="button" className="wf-btn-primary text-xs disabled:opacity-60" disabled={Boolean(busy) || !gateway.baseUrl.trim() || !gateway.apiKey.trim()} onClick={() => void saveGateway()}>{busy === 'gateway' ? 'Salvando…' : 'Salvar no cofre'}</button></div></div>}
@@ -208,11 +235,11 @@ export default function WaAkgPanel({ mode = 'administration', surface = 'whatsap
 
         {selected && <article className="rounded-xl border border-background-200 p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold text-foreground-950">{selected.account.label}</h3><span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${selectedBadge.css}`}>{selectedBadge.label}</span></div><p className="mt-1 text-xs text-foreground-500">{selected.account.accountType === 'seller' ? 'Sessão privada; mensagens saem pelo número deste vendedor.' : 'Conta administrativa; não envia até ser explicitamente ativada.'}</p></div><div className="flex flex-wrap gap-2">{canManage && selected.account.accountType === 'seller' && !selected.configured && <button type="button" className="wf-btn-primary text-xs" disabled={Boolean(busy)} onClick={() => void run('provision', () => provisionWaAkgAccount(selected.account.id), 'Sessão criada. O vendedor já pode abrir a Central e ler o QR Code.')}><i className="ri-cloud-line" />{busy === 'provision' ? 'Provisionando…' : 'Provisionar sessão'}</button>}<button type="button" className="wf-btn-secondary text-xs" disabled={Boolean(busy)} onClick={() => void run('status', () => runWaAkgAction('refresh_status', selected.account.id), 'Status atualizado diretamente do WA-AKG.')}><i className="ri-refresh-line" />Atualizar status</button></div></div>
 
-          <dl className="mt-4 grid gap-3 text-xs sm:grid-cols-2 lg:grid-cols-4"><div className="rounded-xl bg-background-50 p-3"><dt className="text-foreground-500">Conexão</dt><dd className="mt-1 font-semibold text-foreground-900">{selected.account.connectionStatus}</dd></div><div className="rounded-xl bg-background-50 p-3"><dt className="text-foreground-500">Número</dt><dd className="mt-1 font-semibold text-foreground-900">{selected.account.phoneSuffix ? `Final ${selected.account.phoneSuffix}` : 'Não confirmado'}</dd></div><div className="rounded-xl bg-background-50 p-3"><dt className="text-foreground-500">Ana automática</dt><dd className="mt-1 font-semibold text-foreground-900">{selected.controls?.automationEnabled && !selected.controls.killSwitch ? 'Liberada pelas regras' : 'Protegida'}</dd></div><div className="rounded-xl bg-background-50 p-3"><dt className="text-foreground-500">Cadência</dt><dd className="mt-1 font-semibold text-foreground-900">{selected.controls ? `${selected.controls.minDelaySeconds}–${selected.controls.maxDelaySeconds}s` : '10–30s'}</dd></div></dl>
+          <dl className="mt-4 grid gap-3 text-xs sm:grid-cols-2 lg:grid-cols-4"><div className="rounded-xl bg-background-50 p-3"><dt className="text-foreground-500">Conexão</dt><dd className="mt-1 font-semibold text-foreground-900">{statusUnconfirmed ? 'Não confirmado' : selected.account.connectionStatus}</dd></div><div className="rounded-xl bg-background-50 p-3"><dt className="text-foreground-500">Número</dt><dd className="mt-1 font-semibold text-foreground-900">{selected.account.phoneSuffix ? `Final ${selected.account.phoneSuffix}` : 'Não confirmado'}</dd></div><div className="rounded-xl bg-background-50 p-3"><dt className="text-foreground-500">Ana automática</dt><dd className="mt-1 font-semibold text-foreground-900">{statusUnconfirmed ? 'Não confirmado' : isWaAkgOperational(selected) && selected.controls?.automationEnabled ? 'Liberada pelas regras' : 'Protegida'}</dd></div><div className="rounded-xl bg-background-50 p-3"><dt className="text-foreground-500">Cadência</dt><dd className="mt-1 font-semibold text-foreground-900">{selected.controls ? `${selected.controls.minDelaySeconds}–${selected.controls.maxDelaySeconds}s` : '10–30s'}</dd></div></dl>
 
           {selected.account.accountType === 'seller' && selected.configured && <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(260px,0.8fr)_minmax(0,1.2fr)]"><div className="rounded-xl border border-background-200 bg-background-50 p-4"><h4 className="text-sm font-semibold text-foreground-900">Conectar o telefone</h4><p className="mt-1 text-xs leading-5 text-foreground-500">No WhatsApp, abra Aparelhos conectados → Conectar aparelho e leia o código abaixo.</p><div className="mt-3 flex flex-wrap gap-2"><button type="button" className="wf-btn-primary text-xs" disabled={Boolean(busy) || !selected.canViewQr} onClick={() => void loadQr()}><i className="ri-qr-code-line" />{busy === 'qr' ? 'Gerando…' : 'Gerar novo QR'}</button><button type="button" className="wf-btn-secondary text-xs" disabled={Boolean(busy)} onClick={() => void run('connect', () => runWaAkgAction('connect', selected.account.id), 'Sessão iniciada; gere o QR Code.')}><i className="ri-play-line" />Iniciar sessão</button></div>{qr && <div className="mt-4 flex justify-center rounded-xl border border-background-200 bg-white p-3"><img src={qr} alt="QR Code temporário do WhatsApp" className="h-64 w-64 max-w-full" /></div>}<div className="mt-4 flex gap-2"><input inputMode="tel" className="min-w-0 flex-1 rounded-lg border border-background-200 bg-white px-3 py-2 text-sm" placeholder="55 11 99999-9999" value={phone} onChange={(event) => setPhone(event.target.value)} /><button type="button" className="wf-btn-secondary text-xs" disabled={Boolean(busy) || phone.replace(/\D/g, '').length < 10} onClick={() => void requestPairing()}>{busy === 'pair' ? 'Gerando…' : 'Gerar código'}</button></div>{pairingCode && <p className="mt-3 rounded-xl bg-white p-3 text-center text-xl font-bold tracking-[.25em] text-foreground-950">{pairingCode}</p>}</div>
 
-            <div className="rounded-xl border border-background-200 p-4"><h4 className="text-sm font-semibold text-foreground-900">Operação automática segura</h4><p className="mt-1 text-xs leading-5 text-foreground-500">Quando o canal e o modo automático da Ana estiverem ativos, ela recebe, qualifica, responde e atualiza o funil. Opt-out, horário comercial, limites, transferência humana e botão de emergência continuam obrigatórios.</p><div className="mt-3 flex flex-wrap gap-2">{selected.account.connectionStatus === 'connected' && !selected.account.enabled ? <button type="button" className="wf-btn-primary text-xs" disabled={Boolean(busy)} onClick={() => void run('activate', () => runWaAkgAction('activate', selected.account.id), 'Canal ativado. A Ana seguirá somente as políticas publicadas e os contatos autorizados.')}><i className="ri-shield-check-line" />Ativar canal</button> : selected.account.enabled ? <button type="button" className="wf-btn-secondary text-xs" disabled={Boolean(busy)} onClick={() => void run('deactivate', () => runWaAkgAction('deactivate', selected.account.id), 'Canal pausado sem apagar a sessão.')}><i className="ri-pause-circle-line" />Pausar canal</button> : null}<button type="button" className="wf-btn-secondary text-xs" disabled={Boolean(busy)} onClick={() => void run('reconnect', () => runWaAkgAction('reconnect', selected.account.id), 'Reconexão solicitada. Gere um novo QR.')}><i className="ri-restart-line" />Reconectar</button></div>{!inCentral && <Link to="/dashboard/atendimento" className="wf-btn-secondary mt-3 inline-flex text-xs"><i className="ri-customer-service-2-line" />Abrir Central de Atendimento</Link>}</div></div>}
+            <div className="rounded-xl border border-background-200 p-4"><h4 className="text-sm font-semibold text-foreground-900">Operação automática segura</h4><p className="mt-1 text-xs leading-5 text-foreground-500">Quando o canal e o modo automático da Ana estiverem ativos, ela recebe, qualifica, responde e atualiza o funil. Opt-out, horário comercial, limites, transferência humana e botão de emergência continuam obrigatórios.</p><div className="mt-3 flex flex-wrap gap-2">{selected.account.connectionStatus === 'connected' && !selected.account.enabled ? <button type="button" className="wf-btn-primary text-xs" disabled={Boolean(busy)} onClick={() => void run('activate', () => runWaAkgAction('activate', selected.account.id), 'Conta habilitada. Os controles administrativos de envio e da Ana permanecem separados.')}><i className="ri-shield-check-line" />Habilitar conta</button> : selected.account.enabled ? <button type="button" className="wf-btn-secondary text-xs" disabled={Boolean(busy)} onClick={() => void run('deactivate', () => runWaAkgAction('deactivate', selected.account.id), 'Canal pausado sem apagar a sessão.')}><i className="ri-pause-circle-line" />Pausar canal</button> : null}<button type="button" className="wf-btn-secondary text-xs" disabled={Boolean(busy)} onClick={() => void run('reconnect', () => runWaAkgAction('reconnect', selected.account.id), 'Reconexão solicitada. Gere um novo QR.')}><i className="ri-restart-line" />Reconectar</button></div>{!inCentral && <Link to="/dashboard/atendimento" className="wf-btn-secondary mt-3 inline-flex text-xs"><i className="ri-customer-service-2-line" />Abrir Central de Atendimento</Link>}</div></div>}
 
           {canManage && selected.controls && <form className="mt-4 rounded-xl border border-background-200 bg-background-50 p-4" onSubmit={(event) => { event.preventDefault(); const form = new FormData(event.currentTarget); void run('controls', () => saveWaAkgControls(selected.account.id, { minDelaySeconds: Number(form.get('min')), maxDelaySeconds: Number(form.get('max')), burstLimit: Number(form.get('burst')), dailyLimit: Number(form.get('daily')) }), 'Limites operacionais atualizados.'); }}><h4 className="text-sm font-semibold text-foreground-900">Limites de cadência</h4><p className="mt-1 text-xs text-foreground-500">Atrasos reduzem rajadas, mas não garantem ausência de bloqueios pelo WhatsApp.</p><div className="mt-3 grid gap-3 sm:grid-cols-4"><label className="text-xs">Atraso mínimo (s)<input name="min" type="number" min="10" max="300" defaultValue={selected.controls.minDelaySeconds} className="mt-1 w-full rounded-lg border border-background-200 bg-white px-3 py-2" /></label><label className="text-xs">Atraso máximo (s)<input name="max" type="number" min="10" max="600" defaultValue={selected.controls.maxDelaySeconds} className="mt-1 w-full rounded-lg border border-background-200 bg-white px-3 py-2" /></label><label className="text-xs">Rajada por minuto<input name="burst" type="number" min="1" max="20" defaultValue={selected.controls.burstLimit} className="mt-1 w-full rounded-lg border border-background-200 bg-white px-3 py-2" /></label><label className="text-xs">Limite diário<input name="daily" type="number" min="1" max="5000" defaultValue={selected.controls.dailyLimit} className="mt-1 w-full rounded-lg border border-background-200 bg-white px-3 py-2" /></label></div><div className="mt-3 flex justify-end"><button type="submit" className="wf-btn-secondary text-xs" disabled={Boolean(busy)}>{busy === 'controls' ? 'Salvando…' : 'Salvar limites'}</button></div></form>}
         </article>}

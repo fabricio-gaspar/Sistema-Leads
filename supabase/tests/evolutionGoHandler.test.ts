@@ -51,6 +51,7 @@ let handler: (request: Request) => Promise<Response>;
 let fetchMock: ReturnType<typeof vi.fn>;
 let secrets: Map<string, Row>;
 let failQuery: ((query: Query) => Result | null) | null;
+let lifecycle: Map<string, Row>;
 
 const ok = (data: unknown): Result => ({ data, error: null });
 
@@ -138,6 +139,55 @@ function execute(query: Query): Result {
   const failure = failQuery?.(query);
   if (failure) return failure;
   if (query.operation === 'rpc') {
+    // Transport fixture only; transaction/authorization/CAS are independently
+    // exercised with the exact migration in r2-sql.mjs (PostgreSQL, not this fake).
+    if (query.table.includes('whatsapp_account_lifecycle')) {
+      const args = query.value ?? {};
+      const accountId = String(args.p_account_id);
+      const current = lifecycle.get(accountId) ?? { revision: 0, state: 'idle', desired_action: null };
+      if (query.table === 'get_whatsapp_account_lifecycle') return ok({ state: current.state, revision: current.revision, desired_action: current.desired_action });
+      if (query.table === 'check_whatsapp_account_lifecycle') return ok({ current: current.operation_id === args.p_operation_id && current.revision === args.p_revision && current.state === 'in_flight' });
+      const selectedAccount = accounts.find(item => item.id === accountId);
+      const selectedIntegration = integrations.find(item => item.id === selectedAccount?.integration_id);
+      if (!selectedAccount || !selectedIntegration) return { data: null, error: { message: 'missing record' } };
+      const previousAccounts = structuredClone(accounts), previousIntegrations = structuredClone(integrations);
+      const write = (table: string, value: Row, filters: Row) => execute({ table, operation: 'update', value, filters });
+      if (query.table === 'begin_whatsapp_account_lifecycle') {
+        const action = String(args.p_action);
+        if (action !== 'refresh_status') {
+          const first = write('integrations', { enabled: false, paused: true }, { id: selectedIntegration.id });
+          const second = first.error ? first : write('whatsapp_accounts', { enabled: false, is_default: false }, { id: accountId });
+          if (second.error) { accounts = previousAccounts; integrations = previousIntegrations; return second; }
+          Object.assign(current, { revision: Number(current.revision) + 1, desired_action: action });
+        }
+        lifecycle.set(accountId, current);
+        if (current.operation_id) return ok({ ...current, admitted: false, state: current.state === 'needs_review' ? 'needs_review' : 'pending' });
+        if (action === 'deactivate') { current.state = 'completed'; return ok({ ...current, admitted: false }); }
+        Object.assign(current, { operation_id: crypto.randomUUID(), operation_action: action, state: 'in_flight' });
+        return ok({ ...current, admitted: true });
+      }
+      const result = args.p_result as Row;
+      if (result.success === false && result.uncertain === true) { current.state = 'needs_review'; current.error_code = result.error_code; return ok({ ...current }); }
+      if (current.revision !== args.p_revision) {
+        delete current.operation_id; current.state = current.desired_action === 'deactivate' ? 'completed' : 'pending';
+        return ok({ ...current, state: 'pending', error_code: 'account_lifecycle_superseded' });
+      }
+      if (result.success === true) {
+        const connected = result.connected === true;
+        const enabled = current.operation_action === 'activate' || (current.operation_action === 'refresh_status' && connected && selectedAccount.enabled === true && selectedIntegration.enabled === true && selectedIntegration.paused === false);
+        const first = write('integrations', { connected, enabled, paused: !enabled, last_error: null, last_error_at: null }, { id: selectedIntegration.id });
+        const second = first.error ? first : write('whatsapp_accounts', { enabled,
+          connection_status: connected ? 'connected' : result.connection_status ?? 'disconnected',
+          is_default: enabled && selectedAccount.account_type === 'corporate',
+          ...(result.webhook_registered ? { webhook_registered_at: new Date().toISOString() } : {}),
+        }, { id: accountId });
+        if (second.error) { accounts = previousAccounts; integrations = previousIntegrations; return second; }
+        if (enabled && selectedAccount.account_type === 'corporate') accounts = accounts.map(item => item.id !== accountId && item.account_type === 'corporate' ? { ...item, is_default: false } : item);
+      }
+      delete current.operation_id;
+      current.state = result.success ? 'completed' : 'failed';
+      return ok({ ...current });
+    }
     if (query.table === 'read_integration_secret') {
       return ok(secrets.get(String(query.value?.p_integration)) ?? {});
     }
@@ -222,6 +272,7 @@ function request(action: string, input: Row = {}) {
 beforeEach(() => {
   vi.resetModules();
   calls = [];
+  lifecycle = new Map();
   state.userId = ownerId;
   state.permissions = { 'channels.view_own': true, 'channels.connect_own': true };
   accounts = [
@@ -498,7 +549,7 @@ describe('Evolution GO multi-account handler', () => {
     });
   });
 
-  it('lets the owner activate their seller account and open the validated Evolution route', async () => {
+  it('lets the owner activate their own account without changing administrative provider gates', async () => {
     controls = {
       ...controls,
       inbound_enabled: false,
@@ -512,13 +563,13 @@ describe('Evolution GO multi-account handler', () => {
     expect(response.status).toBe(200);
     expect(accounts.find((item) => item.id === ownerAccountId)).toMatchObject({ enabled: true, is_default: false });
     expect(controls).toMatchObject({
-      inbound_enabled: true,
-      send_enabled: true,
-      automation_enabled: true,
-      kill_switch: false,
+      inbound_enabled: false,
+      send_enabled: false,
+      automation_enabled: false,
+      kill_switch: true,
     });
     expect(calls.some((call) => call.table === 'messaging_provider_controls'
-      && call.operation === 'upsert' && call.value?.reason === 'seller_account_activated')).toBe(true);
+      && call.operation === 'upsert')).toBe(false);
   });
 
   it('activates a seller account without changing the corporate default', async () => {
@@ -570,7 +621,7 @@ describe('Evolution GO multi-account handler', () => {
     expect(response.status).toBe(400);
     expect(await response.json()).toMatchObject({
       ok: false,
-      error: 'evolution_go_activation_state_save_failed',
+      error: 'account_lifecycle_persistence_failed',
     });
     expect(controls).toMatchObject({
       inbound_enabled: false,
@@ -581,5 +632,151 @@ describe('Evolution GO multi-account handler', () => {
     expect(calls.some((call) => call.table === 'audit_logs'
       && call.operation === 'insert'
       && call.value?.action === 'whatsapp.evolution_go_activated')).toBe(false);
+  });
+});
+
+describe.each(['evolution-go', 'wa-akg'] as const)('R2 lifecycle HTTP contract: %s (DB transport mocked)', (endpoint) => {
+  async function load() {
+    if (endpoint === 'wa-akg') {
+      accounts = accounts.map(item => ({ ...item, provider: 'wa_akg' }));
+      integrations = integrations.map(item => ({ ...item, provider: 'WA-AKG', configuration: { session_name: 'seller_synthetic', configured: true } }));
+      controls.provider = 'wa_akg';
+      for (const item of integrations) secrets.set(String(item.id), { base_url: 'https://wa.example.invalid', api_key: 'synthetic', session_id: 'seller_synthetic', webhook_secret: 'synthetic' });
+      vi.stubGlobal('Deno', { env: { get: (name: string) => ({ SUPABASE_URL: 'https://example.invalid', WA_AKG_ALLOWED_ORIGINS: 'https://wa.example.invalid' } as Row)[name] }, serve: (callback: typeof handler) => { handler = callback; } });
+      await import('../functions/wa-akg/index.ts');
+    } else await import('../functions/evolution-go/index.ts');
+  }
+  function connectedResponse() {
+    return new Response(JSON.stringify({ data: { status: 'CONNECTED', connected: true, loggedIn: true } }), { status: 200 });
+  }
+  function ownerEnabled() { return accounts.find(item => item.id === ownerAccountId)?.enabled; }
+  function enableFixture() {
+    Object.assign(accounts.find(item => item.id === ownerAccountId)!, { enabled: true });
+    Object.assign(integrations.find(item => item.id === ownerIntegrationId)!, { enabled: true, paused: false });
+  }
+
+  it('R2-HTTP-01 preserves a global emergency when the owner activates their account', async () => {
+    Object.assign(controls, { inbound_enabled: false, send_enabled: false, automation_enabled: false, kill_switch: true });
+    fetchMock.mockImplementation(async () => connectedResponse());
+    await load();
+    const response = await handler(request('activate', { account_id: ownerAccountId }));
+    expect(response.status).toBe(200);
+    expect(ownerEnabled()).toBe(true);
+    expect(controls.kill_switch).toBe(true);
+    expect(calls.some(call => call.table === 'messaging_provider_controls' && call.operation === 'upsert')).toBe(false);
+  });
+
+  it('R2-HTTP-02 commits local cutoff before unavailable disconnect and never retries an uncertain POST', async () => {
+    enableFixture();
+    fetchMock.mockImplementation(async () => { expect(ownerEnabled()).toBe(false); throw new Error('response lost'); });
+    await load();
+    const response = await handler(request('disconnect', { account_id: ownerAccountId }));
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ error: 'account_lifecycle_needs_review', lifecycle: { state: 'needs_review' } });
+    expect(ownerEnabled()).toBe(false);
+    expect((await handler(request('connect', { account_id: ownerAccountId }))).status).toBe(409);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('R2-HTTP-03 performs no remote call when durable intent fails to save', async () => {
+    failQuery = query => query.table === 'begin_whatsapp_account_lifecycle' ? { data: null, error: { message: 'injected DB failure' } } : null;
+    await load();
+    expect((await handler(request('disconnect', { account_id: ownerAccountId }))).status).toBe(400);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(calls.some(call => call.table === 'read_integration_secret')).toBe(false);
+  });
+
+  it('R2-HTTP-04 never reports success when atomic final persistence fails', async () => {
+    fetchMock.mockImplementation(async () => connectedResponse());
+    failQuery = query => query.table === 'finish_whatsapp_account_lifecycle' ? { data: null, error: { message: 'injected DB failure' } } : null;
+    await load();
+    expect((await handler(request('activate', { account_id: ownerAccountId }))).status).toBe(400);
+    expect(ownerEnabled()).toBe(false);
+    expect(lifecycle.get(ownerAccountId)?.state).toBe('in_flight');
+  });
+
+  it.each(['activate', 'refresh_status'])('R2-HTTP-05 newer deactivation fences an older %s response', async action => {
+    enableFixture();
+    let release!: () => void, reached!: () => void;
+    const ready = new Promise<void>(resolve => { reached = resolve; });
+    fetchMock.mockImplementation(() => { reached(); return new Promise<Response>(resolve => { release = () => resolve(connectedResponse()); }); });
+    await load();
+    const old = handler(request(action, { account_id: ownerAccountId }));
+    await ready;
+    const cutoff = await handler(request('deactivate', { account_id: ownerAccountId }));
+    expect(cutoff.status).toBe(202);
+    expect(ownerEnabled()).toBe(false);
+    release();
+    expect((await old).status).toBe(202);
+    expect(ownerEnabled()).toBe(false);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('R2-HTTP-06 does not obtain a QR or credentials while another operation is in-flight', async () => {
+    lifecycle.set(ownerAccountId, { revision: 1, operation_id: 'synthetic-locked-token', state: 'in_flight', desired_action: 'connect' });
+    await load();
+    const response = await handler(request('qr', { account_id: ownerAccountId }));
+    expect(response.status).toBe(202);
+    const body = await response.json();
+    expect(body.qr).toBeUndefined();
+    expect(JSON.stringify(body)).not.toContain('synthetic-locked-token');
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(calls.some(call => call.table === 'read_integration_secret')).toBe(false);
+  });
+
+  it('R2-HTTP-07 fences a management writer while activation is in-flight', async () => {
+    state.userId = administratorId;
+    state.permissions = { 'channels.manage_all': true };
+    lifecycle.set(ownerAccountId, { revision: 1, operation_id: 'synthetic-locked-token', state: 'in_flight', desired_action: 'activate' });
+    await load();
+    const action = endpoint === 'wa-akg' ? 'provision' : 'create_instance';
+    const response = await handler(request(action, { account_id: ownerAccountId }));
+    expect(response.status).toBe(202);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(calls.some(call => ['read_integration_secret', 'store_integration_secret'].includes(call.table))).toBe(false);
+  });
+
+  it('R2-HTTP-08 returns durable review state in list without operation tokens', async () => {
+    lifecycle.set(ownerAccountId, { revision: 4, operation_id: 'synthetic-private-token', state: 'needs_review', desired_action: 'disconnect' });
+    await load();
+    const response = await handler(request('list'));
+    const body = await response.json();
+    expect(body.accounts.find((item: Row) => (item.account as Row).id === ownerAccountId).lifecycle).toMatchObject({ state: 'needs_review', revision: 4 });
+    expect(JSON.stringify(body)).not.toContain('synthetic-private-token');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('R2-HTTP-09 treats disconnected activation as a safe failure, not a locked uncertain send', async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ data: { status: 'DISCONNECTED', connected: false, loggedIn: false } }), { status: 200 }));
+    await load();
+    expect((await handler(request('activate', { account_id: ownerAccountId }))).status).toBe(400);
+    expect(lifecycle.get(ownerAccountId)?.state).toBe('failed');
+    expect(lifecycle.get(ownerAccountId)?.operation_id).toBeUndefined();
+    expect(ownerEnabled()).toBe(false);
+  });
+
+  it('R2-HTTP-10 denies self-service attempts to open administrative controls', async () => {
+    await load();
+    const response = await handler(request('set_provider_controls', { account_id: ownerAccountId, inbound_enabled: true, send_enabled: true, automation_enabled: true, kill_switch: false }));
+    expect(response.status).toBe(400);
+    expect(calls.some(call => call.table === 'set_whatsapp_account_provider_controls')).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  if (endpoint === 'wa-akg') it('R2-HTTP-11 stops provision between remote steps when a newer cutoff arrives', async () => {
+    state.userId = administratorId;
+    state.permissions = { 'channels.manage_all': true };
+    let release!: () => void, reached!: () => void;
+    const ready = new Promise<void>(resolve => { reached = resolve; });
+    fetchMock.mockImplementation(() => { reached(); return new Promise<Response>(resolve => { release = () => resolve(new Response(JSON.stringify({ success: true }), { status: 200 })); }); });
+    await load();
+    const older = handler(request('provision', { account_id: ownerAccountId }));
+    await ready;
+    expect((await handler(request('deactivate', { account_id: ownerAccountId }))).status).toBe(202);
+    release();
+    expect((await older).status).toBe(409);
+    expect(ownerEnabled()).toBe(false);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(lifecycle.get(ownerAccountId)?.state).toBe('needs_review');
   });
 });

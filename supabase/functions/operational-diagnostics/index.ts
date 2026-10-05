@@ -154,7 +154,7 @@ async function operationalStatus(admin: ReturnType<typeof createAdminClient>, or
     const testedAt = new Date(value).getTime();
     return Number.isFinite(testedAt) && Date.now() - testedAt <= 24 * 60 * 60 * 1000;
   };
-  const isOnline = (item: typeof ai) => Boolean(item?.connected && item?.enabled && !item?.paused && !item?.last_error && isFresh(item?.last_tested_at));
+  const isOnline = (item: Pick<NonNullable<typeof ai>, 'connected' | 'enabled' | 'paused' | 'last_error' | 'last_tested_at'> | null) => Boolean(item?.connected && item?.enabled && !item?.paused && !item?.last_error && isFresh(item?.last_tested_at));
   const accountForProvider = (provider: 'zapi' | 'meta_cloud') => whatsappAccounts.find((account) => account.provider === provider && account.is_default)
     ?? whatsappAccounts.find((account) => account.provider === provider && account.account_type === 'corporate')
     ?? whatsappAccounts.find((account) => account.provider === provider)
@@ -456,7 +456,7 @@ async function configureWhatsAppWebhook(
     if (partialStateError) throw new Error('whatsapp_webhook_partial_state_save_failed');
     throw error;
   }
-  const configuration = {
+  const configuration: Record<string, unknown> = {
     ...asObject(webhook.configuration),
     registered_at: now,
     registration_endpoints: ZAPI_WEBHOOK_ENDPOINTS,

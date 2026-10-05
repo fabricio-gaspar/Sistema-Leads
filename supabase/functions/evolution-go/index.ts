@@ -5,6 +5,7 @@ import {
 } from '../_shared/auth.ts';
 import { allowedCorsHeaders, hasAllowedOrigin, json, preflight, safeError } from '../_shared/http.ts';
 import { EvolutionGoProvider, normalizeEvolutionGoBaseUrl } from '../_shared/messaging/EvolutionGoProvider.ts';
+import { accountLifecycleStatus, runAccountLifecycle, setAccountProviderControls, type LifecycleStep } from '../_shared/accountLifecycle.ts';
 
 type Admin = ReturnType<typeof createAdminClient>;
 type Row = Record<string, unknown>;
@@ -369,15 +370,16 @@ function providerFrom(secret: Row): EvolutionGoProvider {
 async function prepareUnauthenticatedRuntime(
   provider: EvolutionGoProvider,
   webhookUrl: string,
+  step: LifecycleStep,
 ): Promise<'ready' | 'already_connected'> {
-  const before = await provider.status();
+  const before = await step(() => provider.status());
   if (before.loggedIn) return 'already_connected';
 
-  await provider.connect({
+  await step(() => provider.connect({
     webhookUrl,
     subscribe: true,
     immediate: false,
-  });
+  }), true);
   return 'ready';
 }
 
@@ -390,11 +392,11 @@ const QR_STARTUP_MAX_ATTEMPTS = 5;
  * retryable 400 from the read-only QR endpoint. Retrying this GET is safe and
  * avoids making an operator manually race the provider's startup sequence.
  */
-async function freshQr(provider: EvolutionGoProvider, webhookUrl: string) {
+async function freshQr(provider: EvolutionGoProvider, webhookUrl: string, step: LifecycleStep) {
   let lastError: unknown;
   for (let attempt = 0; attempt < QR_STARTUP_MAX_ATTEMPTS; attempt += 1) {
     try {
-      return await provider.qr();
+      return await step(() => provider.qr());
     } catch (error) {
       lastError = error;
       if (safeError(error) !== 'evolution_go_request_rejected_400' || attempt + 1 === QR_STARTUP_MAX_ATTEMPTS) throw error;
@@ -402,8 +404,8 @@ async function freshQr(provider: EvolutionGoProvider, webhookUrl: string) {
         // A stale, pre-connection client can keep returning a retryable QR
         // error indefinitely. Reset it once, then restore the webhook before
         // polling again. This is scoped to the current seller instance.
-        await provider.reconnect();
-        await provider.connect({ webhookUrl, subscribe: true, immediate: false });
+        await step(() => provider.reconnect(), true);
+        await step(() => provider.connect({ webhookUrl, subscribe: true, immediate: false }), true);
       }
       await new Promise<void>((resolve) => setTimeout(resolve, QR_STARTUP_RETRY_DELAY_MS));
     }
@@ -521,47 +523,11 @@ async function saveConfiguration(admin: Admin, body: Row, actor: ActorContext, r
     updated_at: now,
   }).eq('id', record.account.id).eq('organization_id', actor.organizationId);
   if (integrationError || accountError) {
-    await closeProviderControlsIfUnused(admin, actor, 'account_reconfiguration_failed');
     throw new Error('evolution_go_configuration_state_save_failed');
   }
   return await recordFor(admin, actor.organizationId, String(record.account.id));
 }
 
-async function hasActiveAccount(admin: Admin, actor: ActorContext): Promise<boolean> {
-  const { data: activeAccounts, error } = await admin.from('whatsapp_accounts')
-    .select('integration_id').eq('organization_id', actor.organizationId).eq('provider', 'evolution_go')
-    .eq('enabled', true).eq('connection_status', 'connected').is('archived_at', null);
-  if (error) throw new Error('evolution_go_active_accounts_lookup_failed');
-  const integrationIds = (activeAccounts ?? []).map((account) => account.integration_id).filter(Boolean);
-  const { data: activeIntegrations, error: integrationError } = integrationIds.length
-    ? await admin.from('integrations').select('id').eq('organization_id', actor.organizationId)
-      .in('id', integrationIds).eq('connected', true).eq('enabled', true).eq('paused', false).limit(1)
-    : { data: [], error: null };
-  if (integrationError) throw new Error('evolution_go_active_integrations_lookup_failed');
-  return Boolean(activeIntegrations?.length);
-}
-
-async function saveProviderControls(admin: Admin, actor: ActorContext, active: boolean, reason: string): Promise<void> {
-  const { error: controlError } = await admin.from('messaging_provider_controls').upsert({
-    organization_id: actor.organizationId,
-    provider: 'evolution_go',
-    inbound_enabled: active,
-    send_enabled: active,
-    automation_enabled: active,
-    kill_switch: !active,
-    reason,
-    changed_by: actor.userId,
-    updated_at: new Date().toISOString(),
-  }, { onConflict: 'organization_id,provider' });
-  if (controlError) throw new Error('evolution_go_control_save_failed');
-}
-
-async function closeProviderControlsIfUnused(admin: Admin, actor: ActorContext, reason: string): Promise<void> {
-  // Owners may close a now-unused shared gate but can never open it. This keeps
-  // callbacks blocked after the last account disconnects without turning a
-  // private-account permission into organization-wide activation authority.
-  if (!await hasActiveAccount(admin, actor)) await saveProviderControls(admin, actor, false, reason);
-}
 
 Deno.serve(async (request) => {
   const options = preflight(request); if (options) return options;
@@ -578,9 +544,12 @@ Deno.serve(async (request) => {
 
     if (action === 'list') {
       const records = await listRecords(admin, actor);
+      const accounts = await Promise.all(records.map(async (record) => ({ ...publicStatus(record, actor),
+        lifecycle: await accountLifecycleStatus(admin, { organizationId: actor.organizationId,
+          accountId: String(record.account.id), provider: 'evolution_go', actorId: actor.userId }) })));
       return json({
         ok: true,
-        accounts: records.map((record) => publicStatus(record, actor)),
+        accounts,
         canManage: actor.canManage,
       }, 200, headers);
     }
@@ -590,7 +559,9 @@ Deno.serve(async (request) => {
       const status = record
         ? { ...publicStatus(record, actor), canManage: false }
         : noSelfServiceAccount();
-      return json({ ok: true, ...status }, 200, headers);
+      const lifecycle = record ? await accountLifecycleStatus(admin, { organizationId: actor.organizationId,
+        accountId: String(record.account.id), provider: 'evolution_go', actorId: actor.userId }) : null;
+      return json({ ok: true, ...status, lifecycle }, 200, headers);
     }
 
     const accountId = uuid(body.account_id);
@@ -627,333 +598,91 @@ Deno.serve(async (request) => {
 
     if (action === 'status') {
       const record = await accessibleRecord(admin, actor, accountId, 'view');
-      return json({ ok: true, ...publicStatus(record, actor) }, 200, headers);
+      const lifecycle = await accountLifecycleStatus(admin, { organizationId: actor.organizationId, accountId, provider: 'evolution_go', actorId: actor.userId });
+      return json({ ok: true, ...publicStatus(record, actor), lifecycle }, 200, headers);
     }
 
-    if (action === 'save') {
+    if (action === 'save' || action === 'create_instance') {
       const current = await accessibleRecord(admin, actor, accountId, 'manage');
-      const saved = await saveConfiguration(admin, body, actor, current);
-      if (!saved) throw new Error('evolution_go_record_missing');
-      await closeProviderControlsIfUnused(admin, actor, 'account_reconfigured');
-      await audit(admin, {
-        organizationId: actor.organizationId,
-        userId: actor.userId,
-        actorName: actor.actorName,
-        action: 'whatsapp.evolution_go_configured',
-        entityId: accountId,
-        detail: 'Credenciais Evolution GO armazenadas no cofre; o canal permanece desativado até a validação.',
+      const result = await runAccountLifecycle(admin, { organizationId: actor.organizationId, accountId,
+        provider: 'evolution_go', actorId: actor.userId }, action, async (step) => {
+        let configuration = body;
+        if (action === 'create_instance') {
+          const existingSecret = await secretFor(admin, String(current.integration.id));
+          const created = await step(() => createInstance(body, existingSecret,
+            text(current.account.label, 120) || 'WhatsApp Evolution GO'), true);
+          configuration = { ...body, ...created };
+        }
+        const saved = await step(() => saveConfiguration(admin, configuration, actor, current));
+        if (!saved) throw new Error('evolution_go_record_missing');
+        return { connectionStatus: 'configured' };
       });
       const record = await recordFor(admin, actor.organizationId, accountId);
       if (!record) throw new Error('evolution_go_record_missing');
-      return json({ ok: true, ...publicStatus(record, actor) }, 200, headers);
+      return json({ ok: result.status < 400, ...publicStatus(record, actor), lifecycle: result.lifecycle, ...result.payload }, result.status, headers);
     }
 
-    if (action === 'create_instance') {
-      const current = await accessibleRecord(admin, actor, accountId, 'manage');
-      const existingSecret = await secretFor(admin, String(current.integration.id));
-      const created = await createInstance(
-        body,
-        existingSecret,
-        text(current.account.label, 120) || 'WhatsApp Evolution GO',
-      );
-      const saved = await saveConfiguration(admin, { ...body, ...created }, actor, current);
-      if (!saved) throw new Error('evolution_go_record_missing');
-      await closeProviderControlsIfUnused(admin, actor, 'account_instance_created');
-      await audit(admin, {
-        organizationId: actor.organizationId,
-        userId: actor.userId,
-        actorName: actor.actorName,
-        action: 'whatsapp.evolution_go_instance_created',
-        entityId: accountId,
-        detail: 'Instância Evolution GO criada e credenciais armazenadas no cofre; conclua a conexão antes de ativar.',
-        data: { instance_id: created.instance_id },
-      });
-      const record = await recordFor(admin, actor.organizationId, accountId);
-      if (!record) throw new Error('evolution_go_record_missing');
-      return json({ ok: true, ...publicStatus(record, actor) }, 200, headers);
+    const lifecycleContext = { organizationId: actor.organizationId, accountId, provider: 'evolution_go' as const, actorId: actor.userId };
+    if (action === 'set_provider_controls') {
+      if (!actor.canManage) throw new Error('permission_denied');
+      await accessibleRecord(admin, actor, accountId, 'manage');
+      await setAccountProviderControls(admin, lifecycleContext, body);
+      const updated = await recordFor(admin, actor.organizationId, accountId);
+      if (!updated) throw new Error('evolution_go_record_missing');
+      return json({ ok: true, ...publicStatus(updated, actor) }, 200, headers);
     }
-
     if (!ACCOUNT_ACTIONS.has(action)) throw new Error('unsupported_action');
     const record = await accessibleRecord(admin, actor, accountId, 'connect');
-    const secret = await secretFor(admin, String(record.integration.id));
-    const provider = providerFrom(secret);
-    const now = new Date().toISOString();
-
-    if (action === 'connect') {
-      const webhookSecret = text(secret.webhook_secret, 256);
-      if (!webhookSecret) throw new Error('evolution_go_credentials_incomplete');
-      await provider.connect({
-        webhookUrl: callbackUrl(String(record.integration.id), webhookSecret),
-        subscribe: true,
-        immediate: false,
-      });
-      // Updating integrations fires the legacy synchronization trigger, which
-      // derives a generic `configured` state. Persist the explicit QR state
-      // afterwards so the pairing controls remain available to the operator.
-      const integrationUpdate = await admin.from('integrations').update({
-        connected: false,
-        enabled: false,
-        paused: true,
-        status_detail: 'Webhook registrado; conclua QR Code ou código de pareamento e atualize o status.',
-      }).eq('id', record.integration.id).eq('organization_id', actor.organizationId);
-      if (integrationUpdate.error) throw new Error('evolution_go_connection_state_save_failed');
-      const accountUpdate = await admin.from('whatsapp_accounts').update({
-        enabled: false,
-        connection_status: 'qr',
-        webhook_registered_at: now,
-        status_checked_at: now,
-        last_error_code: null,
-      }).eq('id', record.account.id).eq('organization_id', actor.organizationId);
-      await closeProviderControlsIfUnused(admin, actor, 'account_connection_pending');
-      if (accountUpdate.error || integrationUpdate.error) throw new Error('evolution_go_connection_state_save_failed');
-      await audit(admin, {
-        organizationId: actor.organizationId,
-        userId: actor.userId,
-        actorName: actor.actorName,
-        action: 'whatsapp.evolution_go_connect_requested',
-        entityId: accountId,
-        detail: 'Conexão Evolution GO iniciada; aguarda QR Code ou pareamento.',
-      });
-      const updated = await recordFor(admin, actor.organizationId, accountId);
-      if (!updated) throw new Error('evolution_go_record_missing');
-      return json({ ok: true, ...publicStatus(updated, actor) }, 200, headers);
-    }
-
-    if (action === 'qr') {
-      const webhookSecret = text(secret.webhook_secret, 256);
-      if (!webhookSecret) throw new Error('evolution_go_credentials_incomplete');
-      // A few Evolution GO builds can return a QR persisted in their database
-      // after the WhatsApp client has already stopped. Do not present that
-      // stale image as scannable: first establish an actual unauthenticated
-      // runtime and only then retrieve the QR.
-      const runtime = await prepareUnauthenticatedRuntime(
-        provider,
-        callbackUrl(String(record.integration.id), webhookSecret),
-      );
-      if (runtime === 'already_connected') throw new Error('evolution_go_instance_already_connected');
-      const qr = await freshQr(provider, callbackUrl(String(record.integration.id), webhookSecret));
-      if (!qr.qrcode?.startsWith('data:image/')) throw new Error('evolution_go_qr_unavailable');
-      return json({ ok: true, qr }, 200, {
-        ...headers,
-        'Cache-Control': 'no-store',
-      });
-    }
-
-    if (action === 'pair') {
-      const webhookSecret = text(secret.webhook_secret, 256);
-      if (!webhookSecret) throw new Error('evolution_go_credentials_incomplete');
-      const runtime = await prepareUnauthenticatedRuntime(
-        provider,
-        callbackUrl(String(record.integration.id), webhookSecret),
-      );
-      if (runtime === 'already_connected') throw new Error('evolution_go_instance_already_connected');
-
-      // Never retry this POST automatically. The provider can have created a
-      // code even when its response was interrupted, and a second request can
-      // replace that live code. The operator explicitly chooses a new attempt.
-      let pairingCode: string;
-      try {
-        pairingCode = await provider.pair(text(body.phone, 32));
-      } catch (error) {
-        if (safeError(error) === 'evolution_go_request_rejected_500') {
-          throw new Error('evolution_go_pair_provider_rejected');
+    const result = await runAccountLifecycle(admin, lifecycleContext, action, async (step) => {
+      const secret = await secretFor(admin, String(record.integration.id));
+      const provider = providerFrom(secret);
+      if (action === 'connect') {
+        const webhookSecret = text(secret.webhook_secret, 256);
+        if (!webhookSecret) throw new Error('evolution_go_credentials_incomplete');
+        await step(() => provider.connect({
+          webhookUrl: callbackUrl(String(record.integration.id), webhookSecret), subscribe: true, immediate: false,
+        }), true);
+        return { connectionStatus: 'qr', webhookRegistered: true };
+      }
+      if (action === 'reconnect') {
+        await step(() => provider.reconnect(), true);
+        return { connectionStatus: 'qr' };
+      }
+      if (action === 'disconnect' || action === 'logout') {
+        await step(() => action === 'disconnect' ? provider.disconnect() : provider.logout(), true);
+        return { connected: false };
+      }
+      if (action === 'activate' || action === 'refresh_status') {
+        const current = await step(() => provider.status());
+        const connected = current.connected === true && current.loggedIn === true;
+        if (action === 'activate' && !connected) throw new Error('evolution_go_connection_validation_required');
+        return { connected, phoneSuffix: phoneSuffix(current.phone) };
+      }
+      if (action === 'qr' || action === 'pair') {
+        const webhookSecret = text(secret.webhook_secret, 256);
+        if (!webhookSecret) throw new Error('evolution_go_credentials_incomplete');
+        const webhookUrl = callbackUrl(String(record.integration.id), webhookSecret);
+        const runtime = await prepareUnauthenticatedRuntime(provider, webhookUrl, step);
+        if (runtime === 'already_connected') throw new Error('evolution_go_instance_already_connected');
+        if (action === 'qr') {
+          const qr = await freshQr(provider, webhookUrl, step);
+          if (!qr.qrcode?.startsWith('data:image/')) throw new Error('evolution_go_qr_unavailable');
+          return { connectionStatus: 'qr', webhookRegistered: true, payload: { qr } };
         }
-        throw error;
+        let pairingCode: string;
+        try { pairingCode = await step(() => provider.pair(text(body.phone, 32)), true); }
+        catch (error) {
+          if (safeError(error) === 'evolution_go_request_rejected_500') throw new Error('evolution_go_pair_provider_rejected');
+          throw error;
+        }
+        return { connectionStatus: 'qr', webhookRegistered: true, payload: { pairingCode } };
       }
-      return json({ ok: true, pairingCode }, 200, {
-        ...headers,
-        'Cache-Control': 'no-store',
-      });
-    }
-
-    if (action === 'refresh_status') {
-      const current = await provider.status();
-      const connected = current.connected === true && current.loggedIn === true;
-      const [accountUpdate, integrationUpdate] = await Promise.all([
-        admin.from('whatsapp_accounts').update({
-          enabled: connected ? record.account.enabled === true : false,
-          connection_status: connected ? 'connected' : 'disconnected',
-          connected_phone_suffix: phoneSuffix(current.phone),
-          connected_at: connected ? now : null,
-          status_checked_at: now,
-          last_error_code: null,
-        }).eq('id', record.account.id).eq('organization_id', actor.organizationId),
-        admin.from('integrations').update({
-          connected,
-          enabled: connected ? record.integration.enabled === true : false,
-          paused: connected ? record.integration.paused === true : true,
-          last_tested_at: now,
-          last_success_at: now,
-          last_error: null,
-          last_error_at: null,
-          status_detail: connected
-            ? record.integration.enabled === true
-              ? 'Canal Evolution GO continua operacional após a validação.'
-              : 'Instância conectada e pronta para ativação controlada.'
-            : 'A instância ainda não possui sessão conectada.',
-        }).eq('id', record.integration.id).eq('organization_id', actor.organizationId),
-      ]);
-      await closeProviderControlsIfUnused(admin, actor, 'account_connection_unavailable');
-      if (accountUpdate.error || integrationUpdate.error) throw new Error('evolution_go_status_state_save_failed');
-      const updated = await recordFor(admin, actor.organizationId, accountId);
-      if (!updated) throw new Error('evolution_go_record_missing');
-      return json({ ok: true, ...publicStatus(updated, actor) }, 200, headers);
-    }
-
-    if (action === 'reconnect') {
-      await provider.reconnect();
-      const [accountUpdate, integrationUpdate] = await Promise.all([
-        admin.from('whatsapp_accounts').update({
-          connection_status: 'qr',
-          enabled: false,
-          status_checked_at: now,
-        }).eq('id', record.account.id).eq('organization_id', actor.organizationId),
-        admin.from('integrations').update({
-          enabled: false,
-          paused: true,
-          status_detail: 'Reconexão solicitada; conclua o QR Code ou pareamento antes de reativar.',
-        }).eq('id', record.integration.id).eq('organization_id', actor.organizationId),
-      ]);
-      await closeProviderControlsIfUnused(admin, actor, 'account_reconnect_requested');
-      if (accountUpdate.error || integrationUpdate.error) throw new Error('evolution_go_reconnect_state_save_failed');
-      await audit(admin, {
-        organizationId: actor.organizationId,
-        userId: actor.userId,
-        actorName: actor.actorName,
-        action: 'whatsapp.evolution_go_reconnect_requested',
-        entityId: accountId,
-        detail: 'Reconexão Evolution GO solicitada; confirme o QR Code ou o pareamento antes de ativar.',
-      });
-      const updated = await recordFor(admin, actor.organizationId, accountId);
-      if (!updated) throw new Error('evolution_go_record_missing');
-      return json({ ok: true, ...publicStatus(updated, actor) }, 200, headers);
-    }
-
-    if (action === 'disconnect' || action === 'logout') {
-      if (action === 'disconnect') await provider.disconnect(); else await provider.logout();
-      const [accountUpdate, integrationUpdate] = await Promise.all([
-        admin.from('whatsapp_accounts').update({
-          enabled: false,
-          is_default: false,
-          connection_status: 'disconnected',
-          status_checked_at: now,
-        }).eq('id', record.account.id).eq('organization_id', actor.organizationId),
-        admin.from('integrations').update({
-          connected: false,
-          enabled: false,
-          paused: true,
-          status_detail: 'Canal desconectado; credenciais preservadas no cofre.',
-        }).eq('id', record.integration.id).eq('organization_id', actor.organizationId),
-      ]);
-      await closeProviderControlsIfUnused(admin, actor, action);
-      if (accountUpdate.error || integrationUpdate.error) throw new Error('evolution_go_disconnect_state_save_failed');
-      await audit(admin, {
-        organizationId: actor.organizationId,
-        userId: actor.userId,
-        actorName: actor.actorName,
-        action: `whatsapp.evolution_go_${action}`,
-        entityId: accountId,
-        detail: action === 'logout' ? 'Sessão Evolution GO encerrada.' : 'Canal Evolution GO desconectado.',
-      });
-      const updated = await recordFor(admin, actor.organizationId, accountId);
-      if (!updated) throw new Error('evolution_go_record_missing');
-      return json({ ok: true, ...publicStatus(updated, actor) }, 200, headers);
-    }
-
-    if (action === 'activate') {
-      const current = await provider.status();
-      if (current.connected !== true || current.loggedIn !== true) {
-        throw new Error('evolution_go_connection_validation_required');
-      }
-      if (accountType(record.account) === 'corporate') {
-        // Corporate accounts are shared, but exactly one corporate default is
-        // selected for automatic fallback. Seller accounts are never default.
-        const { error: defaultError } = await admin.from('whatsapp_accounts').update({ is_default: false })
-          .eq('organization_id', actor.organizationId).eq('account_type', 'corporate').neq('id', accountId);
-        if (defaultError) throw new Error('evolution_go_default_switch_failed');
-      }
-      const [accountUpdate, integrationUpdate] = await Promise.all([
-        admin.from('whatsapp_accounts').update({
-          is_default: accountType(record.account) === 'corporate',
-          enabled: true,
-          connection_status: 'connected',
-          connected_phone_suffix: phoneSuffix(current.phone),
-          connected_at: now,
-          status_checked_at: now,
-          last_error_code: null,
-        }).eq('id', record.account.id).eq('organization_id', actor.organizationId),
-        admin.from('integrations').update({
-          connected: true,
-          enabled: true,
-          paused: false,
-          last_tested_at: now,
-          last_success_at: now,
-          last_error: null,
-          last_error_at: null,
-          status_detail: accountType(record.account) === 'corporate'
-            ? 'Canal Evolution GO corporativo operacional após validação explícita.'
-            : 'Canal Evolution GO privado do vendedor operacional após validação explícita.',
-        }).eq('id', record.integration.id).eq('organization_id', actor.organizationId),
-      ]);
-      if (accountUpdate.error || integrationUpdate.error) {
-        await closeProviderControlsIfUnused(admin, actor, 'account_activation_failed');
-        throw new Error('evolution_go_activation_state_save_failed');
-      }
-      // A seller reaches this point only for their own private account, after
-      // a live provider status check. Requiring a second administrator action
-      // here left a successfully scanned number unable to receive or send in
-      // the Central. Open the provider route only after this explicit, scoped
-      // activation; every inbound/outbound operation still revalidates the
-      // specific whatsapp_account_id, so one seller never borrows another
-      // seller's instance.
-      await saveProviderControls(admin, actor, true,
-        actor.canManage ? 'validated_account_activated' : 'seller_account_activated');
-      // Reconcile immediately after opening. If another operation disabled
-      // the last account concurrently, fail closed instead of leaving an
-      // organization-wide gate open with no usable channel.
-      await closeProviderControlsIfUnused(admin, actor, 'activation_state_changed');
-      await audit(admin, {
-        organizationId: actor.organizationId,
-        userId: actor.userId,
-        actorName: actor.actorName,
-        action: 'whatsapp.evolution_go_activated',
-        entityId: accountId,
-        detail: accountType(record.account) === 'corporate'
-          ? 'Canal Evolution GO ativado como conta corporativa padrão após validação.'
-          : 'Canal Evolution GO privado ativado pelo administrador ou proprietário após validação.',
-        data: { phone_suffix: phoneSuffix(current.phone), account_type: accountType(record.account) },
-      });
-      const updated = await recordFor(admin, actor.organizationId, accountId);
-      if (!updated) throw new Error('evolution_go_record_missing');
-      return json({ ok: true, ...publicStatus(updated, actor) }, 200, headers);
-    }
-
-    if (action === 'deactivate') {
-      const [accountUpdate, integrationUpdate] = await Promise.all([
-        admin.from('whatsapp_accounts').update({ enabled: false, is_default: false })
-          .eq('id', record.account.id).eq('organization_id', actor.organizationId),
-        admin.from('integrations').update({
-          enabled: false,
-          paused: true,
-          status_detail: 'Uso operacional desativado; sessão e credenciais preservadas.',
-        }).eq('id', record.integration.id).eq('organization_id', actor.organizationId),
-      ]);
-      await closeProviderControlsIfUnused(admin, actor, 'account_disabled_by_operator');
-      if (accountUpdate.error || integrationUpdate.error) throw new Error('evolution_go_deactivation_state_save_failed');
-      await audit(admin, {
-        organizationId: actor.organizationId,
-        userId: actor.userId,
-        actorName: actor.actorName,
-        action: 'whatsapp.evolution_go_deactivated',
-        entityId: accountId,
-        detail: 'Uso operacional Evolution GO desta conta desativado sem apagar credenciais.',
-      });
-      const updated = await recordFor(admin, actor.organizationId, accountId);
-      if (!updated) throw new Error('evolution_go_record_missing');
-      return json({ ok: true, ...publicStatus(updated, actor) }, 200, headers);
-    }
-
-    throw new Error('unsupported_action');
+      throw new Error('unsupported_action');
+    });
+    const updated = await recordFor(admin, actor.organizationId, accountId);
+    if (!updated) throw new Error('evolution_go_record_missing');
+    return json({ ok: result.status < 400, ...publicStatus(updated, actor), lifecycle: result.lifecycle, ...result.payload },
+      result.status, { ...headers, 'Cache-Control': 'no-store' });
   } catch (error) {
     const code = safeError(error);
     // Keep this diagnostic deliberately narrow: operation and normalized code

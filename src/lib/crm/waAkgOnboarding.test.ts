@@ -14,6 +14,9 @@ const status = (overrides: Partial<WaAkgChannelStatus> = {}): WaAkgChannelStatus
 });
 
 describe('WA-AKG seller onboarding', () => {
+  it.each(['pending', 'in_flight', 'needs_review', 'failed'] as const)('never calls a %s lifecycle operational even with open gates', (state) => {
+    expect(isWaAkgOperational(status({ lifecycle: { state, revision: 2, desiredAction: 'disconnect', errorCode: null } }))).toBe(false);
+  });
   it('requires the Central connection surface until the private channel is server-confirmed', () => {
     expect(isWaAkgOperational(status())).toBe(true);
     expect(waAkgSellerNeedsOnboarding(status())).toBe(false);

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { loadTeamMembers, type TeamMember } from '@/lib/crm/teamMembersRepository';
 import { isEvolutionGoAutomationReady, isEvolutionGoOperational } from '@/lib/crm/evolutionGoOnboarding';
+import { channelLifecycleBlocked, channelLifecycleMessage, refreshAfterLifecycleError } from '@/lib/crm/channelLifecycle';
 import {
   createEvolutionGoAccount,
   createEvolutionGoInstance,
@@ -39,6 +40,7 @@ const connectionCopy: Record<WhatsappConnectionStatus, string> = {
 };
 
 function evolutionGoStatusCopy(status: EvolutionGoChannelStatus | null) {
+  if (channelLifecycleBlocked(status?.lifecycle)) return { label: status?.lifecycle?.state === 'pending' || status?.lifecycle?.state === 'in_flight' ? 'Operação pendente' : 'Requer revisão', className: 'bg-[#FFF1D8] text-[#965A12]', icon: 'ri-time-line' };
   if (!status?.account || !status.configured) {
     return { label: 'Aguardando provisionamento', className: 'bg-background-100 text-foreground-600', icon: 'ri-settings-4-line' };
   }
@@ -68,6 +70,9 @@ function hasAccount(status: EvolutionGoChannelStatus): status is AccountStatus {
 function errorCopy(error: unknown) {
   const code = error instanceof Error ? error.message : '';
   const map: Record<string, string> = {
+    account_lifecycle_pending: 'Operação pendente. Use Atualizar para consultar o resultado; não há confirmação de conclusão.',
+    account_lifecycle_needs_review: 'A conta precisa de revisão administrativa antes de repetir a operação.',
+    account_lifecycle_persistence_failed: 'Não foi possível confirmar a gravação. Consulte o estado antes de tentar novamente.',
     permission_denied: 'Seu usuário não possui permissão para gerenciar esta conta.',
     evolution_go_account_not_found: 'A conta não foi encontrada ou não está disponível para seu usuário.',
     evolution_go_account_id_required: 'Não foi possível identificar a conta selecionada.',
@@ -86,7 +91,7 @@ function errorCopy(error: unknown) {
     evolution_go_instance_already_connected: 'Esta conta já está conectada. Atualize o status antes de iniciar outro pareamento.',
     evolution_go_pair_provider_rejected: 'A Evolution GO recusou o código após preparar a sessão. Gere um novo QR Code ou verifique a versão do servidor Evolution GO.',
   };
-  return map[code] || 'Não foi possível concluir a operação. O estado operacional anterior foi preservado.';
+  return map[code] || 'Não foi possível confirmar a operação. Consulte o estado antes de tentar novamente; nenhum envio foi autorizado por esta resposta.';
 }
 
 function stamp(value: string | null | undefined) {
@@ -117,6 +122,7 @@ export default function EvolutionGoPanel({ mode = 'administration' }: { mode?: E
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [membersError, setMembersError] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [statusUnconfirmed, setStatusUnconfirmed] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [adding, setAdding] = useState(false);
@@ -130,6 +136,8 @@ export default function EvolutionGoPanel({ mode = 'administration' }: { mode?: E
 
   const refresh = useCallback(async (clearNotice = true) => {
     setBusy('refresh');
+    setStatusUnconfirmed(true);
+    setQr(null); setPairing(null);
     if (clearNotice) setNotice(null);
     try {
       const result = selfService
@@ -137,6 +145,7 @@ export default function EvolutionGoPanel({ mode = 'administration' }: { mode?: E
         : await loadEvolutionGoAccounts();
       const visibleAccounts = result.accounts.filter(hasAccount);
       setAccounts(visibleAccounts);
+      setStatusUnconfirmed(false);
       setCanManage(selfService ? false : result.canManage);
       setSelectedAccountId((current) => {
         if (visibleAccounts.some((status) => status.account.id === current)) return current;
@@ -187,6 +196,7 @@ export default function EvolutionGoPanel({ mode = 'administration' }: { mode?: E
 
   const replaceStatus = (next: EvolutionGoChannelStatus) => {
     if (!hasAccount(next)) return;
+    setStatusUnconfirmed(false);
     setAccounts((current) => {
       const exists = current.some((status) => status.account.id === next.account.id);
       return exists
@@ -204,8 +214,10 @@ export default function EvolutionGoPanel({ mode = 'administration' }: { mode?: E
     try {
       const next = await task();
       replaceStatus(next);
-      setNotice({ tone: 'success', text: success });
+      setNotice({ tone: 'success', text: key.startsWith('activate:')
+        ? 'Conta habilitada. Recebimento, envio e Ana continuam sujeitos à liberação administrativa separada.' : success });
     } catch (error) {
+      await refreshAfterLifecycleError(error, () => refresh(false));
       setNotice({ tone: 'error', text: errorCopy(error) });
     } finally {
       setBusy(null);
@@ -265,6 +277,7 @@ export default function EvolutionGoPanel({ mode = 'administration' }: { mode?: E
           : 'Instância criada e armazenada no ambiente seguro. Inicie a conexão para gerar o pareamento.',
       });
     } catch (error) {
+      await refreshAfterLifecycleError(error, () => refresh(false));
       setNotice({ tone: 'error', text: errorCopy(error) });
     } finally {
       setConfigurationForm({ ...emptyConfigurationForm, label: input.label || '' });
@@ -281,7 +294,7 @@ export default function EvolutionGoPanel({ mode = 'administration' }: { mode?: E
   };
 
   const loadQr = useCallback(async () => {
-    if (!selected?.canViewQr) return;
+    if (statusUnconfirmed || !selected?.canViewQr || channelLifecycleBlocked(selected.lifecycle)) return;
     const accountId = selected.account.id;
     setBusy(`qr:${accountId}`);
     setNotice(null);
@@ -292,14 +305,15 @@ export default function EvolutionGoPanel({ mode = 'administration' }: { mode?: E
       setNotice({ tone: 'success', text: 'QR Code temporário atualizado pelo backend autorizado.' });
     } catch (error) {
       setQr(null);
+      await refreshAfterLifecycleError(error, () => refresh(false));
       setNotice({ tone: 'error', text: errorCopy(error) });
     } finally {
       setBusy(null);
     }
-  }, [selected]);
+  }, [selected, refresh, statusUnconfirmed]);
 
   const requestPairing = async () => {
-    if (!selected?.canViewQr) return;
+    if (statusUnconfirmed || !selected?.canViewQr || channelLifecycleBlocked(selected.lifecycle)) return;
     const accountId = selected.account.id;
     setBusy(`pair:${accountId}`);
     setNotice(null);
@@ -313,21 +327,24 @@ export default function EvolutionGoPanel({ mode = 'administration' }: { mode?: E
       setNotice({ tone: 'success', text: result.pairingCode ? 'Código temporário gerado para a conta selecionada.' : 'O provedor não retornou um código. Atualize o status e tente novamente.' });
     } catch (error) {
       setPairing(null);
+      await refreshAfterLifecycleError(error, () => refresh(false));
       setNotice({ tone: 'error', text: errorCopy(error) });
     } finally {
       setBusy(null);
     }
   };
 
-  const selectedBadge = evolutionGoStatusCopy(selected);
+  const selectedBadge = statusUnconfirmed
+    ? { label: 'Estado não confirmado', className: 'bg-[#FFF1D8] text-[#965A12]', icon: 'ri-time-line' }
+    : evolutionGoStatusCopy(selected);
   const selectedScope = selected
     ? selfService ? 'Sua conta individual Evolution GO' : accountScope(selected.account, members)
     : '';
-  const selectedConnected = selected?.account.connectionStatus === 'connected' && selected.integration?.connected === true;
+  const selectedConnected = !statusUnconfirmed && selected?.account.connectionStatus === 'connected' && selected.integration?.connected === true;
   const selectedActive = selected?.account.enabled === true;
-  const selectedOperational = isEvolutionGoOperational(selected);
-  const selectedAutomationReady = isEvolutionGoAutomationReady(selected);
-  const selectedPairingOpen = selected?.account.connectionStatus === 'qr';
+  const selectedOperational = !statusUnconfirmed && isEvolutionGoOperational(selected);
+  const selectedAutomationReady = !statusUnconfirmed && isEvolutionGoAutomationReady(selected);
+  const selectedPairingOpen = !statusUnconfirmed && selected?.account.connectionStatus === 'qr' && !channelLifecycleBlocked(selected.lifecycle);
   const phoneValid = phone.replace(/\D/g, '').length >= 10;
   const qrForSelected = selected?.canViewQr && qr?.accountId === selected.account.id ? qr : null;
   const pairingForSelected = selected?.canViewQr && pairing?.accountId === selected.account.id ? pairing : null;
@@ -357,6 +374,7 @@ export default function EvolutionGoPanel({ mode = 'administration' }: { mode?: E
     </header>
 
     <p className="mt-3 rounded-xl border border-background-200 bg-background-50 px-3 py-2 text-[11px] leading-5 text-foreground-500"><i className="ri-lock-2-line mr-1" />Valores já armazenados permanecem no backend. A interface recebe somente metadados, permissões e estados operacionais e nunca preenche os campos protegidos.</p>
+    {channelLifecycleMessage(selected?.lifecycle) && <p role="status" className="mt-4 rounded-xl border border-background-200 bg-background-50 px-3 py-2 text-xs text-foreground-700">{channelLifecycleMessage(selected?.lifecycle)}</p>}
     {notice && <p role={notice.tone === 'error' ? 'alert' : 'status'} className={`mt-4 rounded-xl border px-3 py-2 text-xs ${notice.tone === 'success' ? 'border-[#B9E4CB] bg-[#EFFAF3] text-[#176B43]' : 'border-[#E8B8B1] bg-[#FFF4F2] text-[#8B3027]'}`}>{notice.text}</p>}
 
     {adding && canManage && <div className="mt-4 rounded-xl border border-background-200 bg-background-50 p-4">
@@ -374,7 +392,7 @@ export default function EvolutionGoPanel({ mode = 'administration' }: { mode?: E
         ? <div className="mt-4 rounded-xl border border-dashed border-background-300 bg-background-50 p-7 text-center"><i className="ri-whatsapp-line text-3xl text-foreground-300" /><p className="mt-2 font-semibold text-foreground-800">Nenhuma conta Evolution GO disponível</p><p className="mx-auto mt-1 max-w-xl text-xs leading-5 text-foreground-500">{selfService ? 'Sua instância individual ainda está sendo provisionada. Quando ela estiver pronta, atualize esta tela para conectar seu WhatsApp.' : canManage ? 'Adicione uma conta corporativa ou individual. Ela permanecerá inativa até o provisionamento seguro e a conexão.' : 'Seu usuário ainda não possui uma conta individual, e nenhuma conta corporativa foi compartilhada.'}</p></div>
         : <div className={`mt-4 ${selfService ? '' : 'grid gap-4 xl:grid-cols-[minmax(240px,0.72fr)_minmax(0,1.28fr)]'}`}>
           {!selfService && <div className="space-y-2" aria-label="Contas Evolution GO disponíveis">{accounts.map((status) => {
-            const badge = evolutionGoStatusCopy(status);
+            const badge = statusUnconfirmed ? selectedBadge : evolutionGoStatusCopy(status);
             const selectedAccount = status.account.id === selected?.account.id;
             return <button key={status.account.id} type="button" aria-pressed={selectedAccount} onClick={() => setSelectedAccountId(status.account.id)} className={`w-full rounded-xl border p-3 text-left transition ${selectedAccount ? 'border-primary-300 bg-primary-50/50 ring-1 ring-primary-200' : 'border-background-200 bg-white hover:border-background-300 hover:bg-background-50'}`}>
               <span className="flex items-start justify-between gap-2"><span className="min-w-0"><span className="block truncate text-sm font-semibold text-foreground-900">{status.account.label}</span><span className="mt-1 block text-[11px] leading-4 text-foreground-500">{accountScope(status.account, members)}</span></span><span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-semibold ${badge.className}`}><i className={`${badge.icon} mr-1`} />{badge.label}</span></span>
@@ -399,15 +417,15 @@ export default function EvolutionGoPanel({ mode = 'administration' }: { mode?: E
             </div>}
 
             <dl className="mt-4 grid gap-3 text-xs sm:grid-cols-2 lg:grid-cols-3">
-              <div className="rounded-xl bg-background-50 p-3"><dt className="text-foreground-500">Conexão real</dt><dd className="mt-1 font-semibold text-foreground-900">{connectionCopy[selected.account.connectionStatus] ?? 'Estado indisponível'}</dd></div>
+              <div className="rounded-xl bg-background-50 p-3"><dt className="text-foreground-500">Conexão real</dt><dd className="mt-1 font-semibold text-foreground-900">{statusUnconfirmed ? 'Não confirmado' : connectionCopy[selected.account.connectionStatus] ?? 'Estado indisponível'}</dd></div>
               <div className="rounded-xl bg-background-50 p-3"><dt className="text-foreground-500">Número</dt><dd className="mt-1 font-semibold text-foreground-900">{selected.account.phoneSuffix ? `Final ${selected.account.phoneSuffix}` : 'Não confirmado'}</dd></div>
-              <div className="rounded-xl bg-background-50 p-3"><dt className="text-foreground-500">Roteamento</dt><dd className="mt-1 font-semibold text-foreground-900">{selected.account.enabled ? selected.account.isDefault ? 'Ativo · padrão' : 'Ativo' : 'Desativado'}</dd></div>
+              <div className="rounded-xl bg-background-50 p-3"><dt className="text-foreground-500">Roteamento</dt><dd className="mt-1 font-semibold text-foreground-900">{statusUnconfirmed ? 'Não confirmado' : selected.account.enabled ? selected.account.isDefault ? 'Ativo · padrão' : 'Ativo' : 'Desativado'}</dd></div>
               <div className="rounded-xl bg-background-50 p-3"><dt className="text-foreground-500">Instância</dt><dd className="mt-1 truncate font-semibold text-foreground-900">{selected.integration?.instanceName || (selected.configured ? 'Identificador protegido' : 'Não provisionada')}</dd></div>
               <div className="rounded-xl bg-background-50 p-3"><dt className="text-foreground-500">Última validação</dt><dd className="mt-1 font-semibold text-foreground-900">{stamp(selected.integration?.lastTestedAt || selected.account.checkedAt)}</dd></div>
-              <div className="rounded-xl bg-background-50 p-3"><dt className="text-foreground-500">Entrada / saída</dt><dd className="mt-1 font-semibold text-foreground-900">{selected.controls?.inboundEnabled && selected.controls.sendEnabled ? 'Liberadas' : 'Protegidas'}</dd></div>
+              <div className="rounded-xl bg-background-50 p-3"><dt className="text-foreground-500">Entrada / saída</dt><dd className="mt-1 font-semibold text-foreground-900">{statusUnconfirmed ? 'Não confirmado' : selectedOperational ? 'Liberadas' : 'Protegidas'}</dd></div>
             </dl>
 
-            {selected.integration?.statusDetail && <p className="mt-3 rounded-xl border border-background-200 bg-background-50 px-3 py-2 text-xs leading-5 text-foreground-600"><span className="font-semibold text-foreground-700">Estado do servidor:</span> {selected.integration.statusDetail}</p>}
+            {!statusUnconfirmed && selected.integration?.statusDetail && <p className="mt-3 rounded-xl border border-background-200 bg-background-50 px-3 py-2 text-xs leading-5 text-foreground-600"><span className="font-semibold text-foreground-700">Estado do servidor:</span> {selected.integration.statusDetail}</p>}
             {selected.account.errorCode && <p className="mt-3 rounded-xl border border-accent-200 bg-accent-50 px-3 py-2 text-xs text-accent-800">Falha registrada: {selected.account.errorCode}</p>}
 
             {!selected.configured && <div className="mt-4 rounded-xl border border-[#E9D2A9] bg-[#FFF8EA] p-3 text-xs leading-5 text-[#7B521B]"><i className="ri-information-line mr-1" />A conta existe, mas ainda depende do provisionamento seguro do servidor. Nenhum estado de conexão será presumido.</div>}
@@ -415,15 +433,15 @@ export default function EvolutionGoPanel({ mode = 'administration' }: { mode?: E
 
             {selected.configured && selected.canConnect && <div className="mt-4 rounded-xl border border-background-200 p-3.5">
               <div><h6 className="text-sm font-semibold text-foreground-900">{selfService ? 'Conectar seu WhatsApp' : 'Conexão e uso'}</h6><p className="mt-1 text-xs leading-5 text-foreground-500">{selfService ? 'As ações abaixo alcançam somente sua instância individual. Primeiro conecte; quando o estado passar para “Aguardando leitura do QR”, gere o QR Code ou o código temporário.' : 'As ações atingem somente a conta selecionada. Ativar uma conta individual não troca o canal corporativo padrão.'}</p></div>
-              {selfService && selectedConnected && !selectedActive && <div role="status" className="mt-3 rounded-xl border border-[#E9D2A9] bg-[#FFF8EA] p-3 text-xs leading-5 text-[#7B521B]"><p className="font-semibold text-[#70430E]"><i className="ri-checkbox-circle-line mr-1" />WhatsApp conectado. Falta ativar seu atendimento.</p><p className="mt-1">Confirme a ativação abaixo para liberar sua conta na Central e concluir o vínculo com as conversas atribuídas a você.</p></div>}
-              {selfService && selectedConnected && selectedActive && !selectedOperational && <div role="status" className="mt-3 rounded-xl border border-[#E9D2A9] bg-[#FFF8EA] p-3 text-xs leading-5 text-[#7B521B]"><p className="font-semibold text-[#70430E]"><i className="ri-shield-check-line mr-1" />Sua conta está conectada, mas o atendimento ainda está protegido.</p><p className="mt-1">A conexão não precisa de outro QR Code. Atualize o status; se a proteção continuar ativa, ela foi fechada por uma ação administrativa de segurança.</p></div>}
+              {selfService && selectedConnected && !selectedActive && <div role="status" className="mt-3 rounded-xl border border-[#E9D2A9] bg-[#FFF8EA] p-3 text-xs leading-5 text-[#7B521B]"><p className="font-semibold text-[#70430E]"><i className="ri-checkbox-circle-line mr-1" />WhatsApp conectado. Sua conta ainda está desabilitada.</p><p className="mt-1">Habilitar a conta não altera os controles administrativos. Recebimento, envio e Ana dependem de liberação separada.</p></div>}
+              {selfService && selectedConnected && selectedActive && !selectedOperational && <div role="status" className="mt-3 rounded-xl border border-[#E9D2A9] bg-[#FFF8EA] p-3 text-xs leading-5 text-[#7B521B]"><p className="font-semibold text-[#70430E]"><i className="ri-shield-check-line mr-1" />Sua conta está conectada, mas o atendimento ainda está protegido.</p><p className="mt-1">A conexão não precisa de outro QR Code. O recebimento e o envio dependem de liberação administrativa; atualizar o status não muda essa autorização.</p></div>}
               {selfService && selectedOperational && <div role="status" className="mt-3 flex flex-col gap-3 rounded-xl border border-[#B9E4CB] bg-[#EFFAF3] p-3 text-xs leading-5 text-[#176B43] sm:flex-row sm:items-center sm:justify-between"><div><p className="font-semibold"><i className="ri-checkbox-circle-line mr-1" />Seu WhatsApp está conectado e liberado.</p><p className="mt-1">{selectedAutomationReady ? 'As conversas atribuídas a você e a automação da Ana já podem ser atendidas pela Central.' : 'As conversas atribuídas a você já podem ser atendidas na Central. A Ana automática aguarda a liberação geral da empresa.'}</p></div><Link to="/dashboard/atendimento" className="wf-btn-primary shrink-0 text-xs"><i className="ri-customer-service-2-line" />Abrir Central de Atendimento</Link></div>}
               <div className="mt-3 flex flex-wrap gap-2">
                 {!selectedConnected && !selectedPairingOpen && <button type="button" className="wf-btn-primary text-xs" disabled={busy !== null} onClick={() => action('connect', 'Conexão iniciada. Use o QR Code ou o pareamento temporário desta conta.')}><i className="ri-link" />Conectar</button>}
                 {selectedConnected && <button type="button" className="wf-btn-secondary text-xs" disabled={busy !== null} onClick={() => action('reconnect', 'Reconexão solicitada. Gere um novo QR Code ou código temporário.')}><i className="ri-restart-line" />Reconectar</button>}
                 <button type="button" className="wf-btn-secondary text-xs" disabled={busy !== null} onClick={() => action('refresh_status', 'Status real atualizado a partir do provedor.')}><i className={busy?.startsWith('refresh_status:') ? 'ri-loader-4-line animate-spin' : 'ri-refresh-line'} />Validar status</button>
                 {!selectedActive
-                  ? <button type="button" className="wf-btn-primary text-xs" disabled={busy !== null || !selectedConnected} onClick={() => { const scope = selfService ? 'para as conversas atribuídas a você' : selected.account.accountType === 'corporate' ? 'como conta corporativa padrão' : 'somente para as conversas atribuídas a este vendedor'; const confirmation = selfService ? 'Ativar seu WhatsApp e liberar a Central para as conversas atribuídas a você?' : `Ativar esta conta ${scope}?`; if (window.confirm(confirmation)) action('activate', selfService ? 'Seu WhatsApp foi ativado. A Central está liberada; a Ana seguirá as regras gerais da empresa.' : selected.account.accountType === 'corporate' ? 'Conta ativada como canal corporativo padrão.' : 'Conta individual ativada sem substituir o canal corporativo.'); }}><i className="ri-play-circle-line" />{selfService ? 'Ativar para a Central' : 'Ativar uso'}</button>
+                  ? <button type="button" className="wf-btn-primary text-xs" disabled={busy !== null || !selectedConnected} onClick={() => { const scope = selfService ? 'para as conversas atribuídas a você' : selected.account.accountType === 'corporate' ? 'como conta corporativa padrão' : 'somente para as conversas atribuídas a este vendedor'; const confirmation = selfService ? 'Habilitar sua conta? Os controles administrativos de recebimento, envio e Ana não serão alterados.' : `Ativar esta conta ${scope}?`; if (window.confirm(confirmation)) action('activate', selfService ? 'Conta habilitada. Os controles administrativos de recebimento, envio e Ana não foram alterados.' : selected.account.accountType === 'corporate' ? 'Conta ativada como canal corporativo padrão.' : 'Conta individual ativada sem substituir o canal corporativo.'); }}><i className="ri-play-circle-line" />{selfService ? 'Habilitar minha conta' : 'Habilitar conta'}</button>
                   : !selfService && <button type="button" className="wf-btn-secondary text-xs text-accent-700" disabled={busy !== null} onClick={() => { if (window.confirm('Desativar o uso desta conta sem apagar sessão ou histórico?')) action('deactivate', 'Uso operacional desativado; sessão e histórico preservados.'); }}><i className="ri-pause-circle-line" />Desativar uso</button>}
                 {!selfService && <><button type="button" className="wf-btn-secondary text-xs text-accent-700" disabled={busy !== null || !selectedConnected} onClick={() => { if (window.confirm('Desconectar esta conta no provedor? O provisionamento será preservado.')) action('disconnect', 'Conta desconectada; provisionamento e histórico preservados.'); }}><i className="ri-link-unlink-m" />Desconectar</button>
                 <button type="button" className="wf-btn-secondary text-xs text-accent-700" disabled={busy !== null} onClick={() => { if (window.confirm('Encerrar a sessão remota desta conta? Um novo pareamento será necessário.')) action('logout', 'Sessão remota encerrada para a conta selecionada.'); }}><i className="ri-logout-box-r-line" />Encerrar sessão</button></>}

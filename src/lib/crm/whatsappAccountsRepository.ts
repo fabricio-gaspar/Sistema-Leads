@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase';
 import { detalheDoErroDeFuncao } from '@/lib/transportador';
 import { resolveOrganizationSession } from '@/lib/organizationSession';
+import { assertChannelActionCompleted } from './channelLifecycle';
 
 export type WhatsappConnectionStatus =
   | 'unconfigured'
@@ -126,6 +127,7 @@ async function invoke<T extends Record<string, unknown>>(body: Record<string, un
 }
 
 export interface EvolutionGoChannelStatus {
+  lifecycle?: import('./channelLifecycle').ChannelLifecycle | null;
   configured: boolean;
   canManage: boolean;
   canConnect: boolean;
@@ -201,12 +203,28 @@ function evolutionGoConfigurationPayload(input: EvolutionGoConfigurationInput): 
   return payload;
 }
 
+async function channelInvocationError(data: unknown, error: unknown): Promise<string> {
+  const payload = data as { error?: unknown } | null;
+  if (typeof payload?.error === 'string') return payload.error;
+  // FunctionsHttpError exposes non-2xx JSON through context, not data. Keep a
+  // clone so the existing fallback can still inspect the response if needed.
+  const context = (error as { context?: Response } | null)?.context;
+  if (context && typeof context.clone === 'function') {
+    try {
+      const failure = await context.clone().json() as { error?: unknown };
+      if (typeof failure?.error === 'string') return failure.error;
+    } catch { /* Use the established transport fallback for non-JSON errors. */ }
+  }
+  return detalheDoErroDeFuncao(error);
+}
+
 async function invokeEvolutionGo<T extends Record<string, unknown>>(body: Record<string, unknown>): Promise<T> {
   const { data, error } = await supabase.functions.invoke('evolution-go', { body });
   if (error || !data?.ok) {
-    const code = typeof data?.error === 'string' ? data.error : await detalheDoErroDeFuncao(error);
+    const code = await channelInvocationError(data, error);
     throw new Error(code || 'evolution_go_operation_failed');
   }
+  assertChannelActionCompleted(body.action, data.lifecycle);
   return data as T;
 }
 
@@ -272,6 +290,7 @@ export function requestEvolutionGoPairingCode(accountId: string, phone: string):
 }
 
 export interface WaAkgChannelStatus {
+  lifecycle?: import('./channelLifecycle').ChannelLifecycle | null;
   configured: boolean;
   canManage: boolean;
   canConnect: boolean;
@@ -320,9 +339,10 @@ export interface WaAkgChannelStatus {
 async function invokeWaAkg<T extends Record<string, unknown>>(body: Record<string, unknown>): Promise<T> {
   const { data, error } = await supabase.functions.invoke('wa-akg', { body });
   if (error || !data?.ok) {
-    const code = typeof data?.error === 'string' ? data.error : await detalheDoErroDeFuncao(error);
+    const code = await channelInvocationError(data, error);
     throw new Error(code || 'wa_akg_operation_failed');
   }
+  assertChannelActionCompleted(body.action, data.lifecycle);
   return data as T;
 }
 

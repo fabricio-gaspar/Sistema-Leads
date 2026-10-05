@@ -1,4 +1,5 @@
 import type { EvolutionGoChannelStatus } from '@/lib/crm/whatsappAccountsRepository';
+import { channelLifecycleBlocked } from './channelLifecycle';
 
 /**
  * A seller can complete the connection ceremony, but a channel only becomes
@@ -9,7 +10,7 @@ import type { EvolutionGoChannelStatus } from '@/lib/crm/whatsappAccountsReposit
  */
 export function isEvolutionGoOperational(status: EvolutionGoChannelStatus | null | undefined): boolean {
   return Boolean(
-    status?.account?.enabled
+    !channelLifecycleBlocked(status?.lifecycle) && status?.account?.enabled
       && status.account.connectionStatus === 'connected'
       && status.integration?.connected === true
       && status.integration.enabled === true

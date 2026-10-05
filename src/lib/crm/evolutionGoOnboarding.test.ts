@@ -52,6 +52,11 @@ function status(overrides: Partial<EvolutionGoChannelStatus> = {}): EvolutionGoC
 }
 
 describe('Evolution GO seller onboarding', () => {
+  it.each(['pending', 'in_flight', 'needs_review', 'failed'] as const)('never calls a %s lifecycle operational even with open gates', (state) => {
+    const pending = status({ lifecycle: { state, revision: 2, desiredAction: 'disconnect', errorCode: null } });
+    expect(isEvolutionGoOperational(pending)).toBe(false);
+    expect(isEvolutionGoAutomationReady(pending)).toBe(false);
+  });
   it('recognizes a fully confirmed private channel as operational', () => {
     expect(isEvolutionGoOperational(status())).toBe(true);
     expect(isEvolutionGoAutomationReady(status())).toBe(true);

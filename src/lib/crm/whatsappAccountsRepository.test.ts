@@ -25,6 +25,9 @@ import {
   requestEvolutionGoQr,
   runEvolutionGoAction,
   saveEvolutionGoConfiguration,
+  loadMyWaAkgAccount,
+  requestWaAkgQr,
+  runWaAkgAction,
 } from './whatsappAccountsRepository';
 
 const accountId = '11111111-1111-4111-8111-111111111111';
@@ -41,6 +44,33 @@ describe('Evolution GO multi-account repository', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+  it.each([
+    ['WA-AKG activate', () => runWaAkgAction('activate', accountId)],
+    ['Evolution activate', () => runEvolutionGoAction('activate', accountId)],
+    ['WA-AKG QR', () => requestWaAkgQr(accountId)],
+    ['Evolution QR', () => requestEvolutionGoQr(accountId)],
+  ])('does not mistake a pending acknowledgement for successful %s', async (_label, call) => {
+    ok({ lifecycle: { state: 'pending', revision: 2, desiredAction: 'activate', errorCode: null } });
+    await expect(call()).rejects.toThrow('account_lifecycle_pending');
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('allows read-only inspection of a pending WA-AKG account', async () => {
+    ok({ account: null, lifecycle: { state: 'pending', revision: 2, desiredAction: 'connect', errorCode: null } });
+    await expect(loadMyWaAkgAccount()).resolves.toMatchObject({ lifecycle: { state: 'pending' } });
+  });
+
+  it.each([
+    ['WA-AKG', () => runWaAkgAction('connect', accountId)],
+    ['Evolution', () => runEvolutionGoAction('connect', accountId)],
+  ])('surfaces a %s HTTP 409 lifecycle code without inventing success or consuming the response', async (_label, call) => {
+    const context = new Response(JSON.stringify({ ok: false, error: 'account_lifecycle_needs_review' }), { status: 409 });
+    invokeMock.mockResolvedValueOnce({ data: null, error: { context } });
+    await expect(call()).rejects.toThrow('account_lifecycle_needs_review');
+    expect(context.bodyUsed).toBe(false);
+    expect(invokeMock).toHaveBeenCalledTimes(1);
   });
 
   it('loads the authorized collection without requesting secrets or QR data', async () => {
