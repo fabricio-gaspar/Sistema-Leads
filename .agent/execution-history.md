@@ -1,5 +1,12 @@
 # Histórico resumido de execução
 
+## 2026-10-05 — Sincronização integral do checkout no GitHub
+
+- O `main` de [fabricio-gaspar/Sistema-Leads](https://github.com/fabricio-gaspar/Sistema-Leads) foi atualizado para o snapshot `5db2d95ba6080e446cbf669c68a011ff8afc282a`. Como o histórico local e o remoto não tinham ancestral comum, o snapshot preserva o commit remoto anterior `c4733b65c552d53be40c78f0350396432e163609` como pai e contém a árvore completa do checkout atual.
+- A sincronização inclui os recursos desenvolvidos em 04 e 05/10, inclusive WA-AKG, a Ana, o QR/pareamento e o Wizard da Busca. Arquivos não rastreados preexistentes (`pnpm-lock.yaml` e `pnpm-workspace.yaml`) foram preservados localmente e não entraram no envio.
+- Type-check do frontend e Edge, lint, Vitest completo (**77 arquivos / 421 testes**), build de produção, artefato Sites e `git diff --check` passaram. O ref remoto foi conferido com `git ls-remote`.
+- Isto não altera a publicação oficial: o Site continua na versão isolada **168**, sem migrations adicionais, Edge Functions, mensagens reais, automações, QR real ou alterações de dados de clientes.
+
 ## 2026-10-05 — Publicação isolada do Wizard e da Central WA-AKG
 
 - Publicado o Site oficial v168, deploy `appgdep_6ac3d1bec3e48191ba29a2d5559426a8`, a partir da fonte isolada `87b9b8309eb8fc0fa4d47611c7a1315598fc4f76` sobre a base pública v167.

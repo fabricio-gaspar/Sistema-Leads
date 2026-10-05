@@ -1967,3 +1967,8 @@ webhook em ambiente controlado.
   status `succeeded`. A inspeção autenticada confirmou a nova rota, os dados reais e o alerta de
   callback sem erro de runtime.
 - Documento: `docs/REDESIGN_CONFIGURACOES_ENTRADAS_WHATSAPP_2026-09-29.md`.
+## 05/10/2026 — Sincronização integral no GitHub — concluída
+
+- O `main` de [fabricio-gaspar/Sistema-Leads](https://github.com/fabricio-gaspar/Sistema-Leads) recebeu o snapshot completo `5db2d95ba6080e446cbf669c68a011ff8afc282a`, preservando o histórico remoto anterior como pai. Ele contém o checkout atual, inclusive a base WA-AKG/Ana e o Wizard da Busca.
+- Validação da árvore enviada: type-check frontend/Edge, lint, Vitest completo (**77 arquivos / 421 testes**), build de produção, artefato Sites e `git diff --check` aprovados; o `main` remoto foi confirmado por `git ls-remote`.
+- Segurança: esta sincronização não publicou todo o checkout no Site oficial. O produto permanece na versão isolada **168**; nenhuma mensagem, automação, busca, QR real, integração de provedor ou dado de cliente foi acionado.

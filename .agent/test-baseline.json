@@ -1,16 +1,16 @@
 {
   "schema_version": 1,
-  "validated_commit": "87b9b8309eb8fc0fa4d47611c7a1315598fc4f76",
+  "validated_commit": "5db2d95ba6080e446cbf669c68a011ff8afc282a",
   "last_validated_at": "2026-10-05",
   "current_validation": {
-    "stage": "isolated_site_release_wizard_and_central_wa_akg",
+    "stage": "github_full_sync_wayflex_2026_10_05",
     "frontend_typecheck": "passed",
     "lint": "passed",
     "production_build": "passed",
-    "sites_artifact": "passed_build; official Site v168 published with deployment appgdep_6ac3d1bec3e48191ba29a2d5559426a8 succeeded",
+    "sites_artifact": "passed_build; GitHub main synchronized. Official Site remains the isolated v168 deployment appgdep_6ac3d1bec3e48191ba29a2d5559426a8",
     "deterministic_smoke_checks": 0,
-    "vitest": "passed; focused isolated-release run: 6 files; 11 tests",
-    "visual_review": "deployment status succeeded; authenticated visual review not executed, to avoid operational actions",
+    "vitest": "passed; full run: 77 files; 421 tests",
+    "visual_review": "GitHub ref verified by ls-remote; authenticated visual review not executed, to avoid operational actions",
     "external_end_to_end": "not executed; no provider request, lead import, message or automation was invoked"
   },
   "previous_validation": {
@@ -26,6 +26,11 @@
     "external_end_to_end": "not_executed; no paid search was required"
   },
   "commands": [
+    {
+      "command": "tsc --noEmit --project tsconfig.app.json; tsc --project tsconfig.edge.json; eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0; vitest run --configLoader runner; vite build --configLoader runner; node scripts/build-sites-artifact.mjs; git diff --check",
+      "status": "passed",
+      "note": "Sincronização integral do checkout para GitHub main: type-check frontend/Edge, lint, 77 arquivos/421 testes, build, artefato Sites e diff check. Nenhuma mensagem, automação, busca, alteração de cliente ou chamada a provedor foi executada."
+    },
     {
       "command": "vitest run src/lib/crm/prospectingWizard.test.ts src/pages/dashboard/busca-leads/sourceSelector.test.ts src/lib/crm/waAkgOnboarding.test.ts src/pages/dashboard/atendimento/page.test.ts src/pages/dashboard/meu-whatsapp/page.test.ts src/components/feature/DashboardLayout.test.ts; tsc --noEmit --project tsconfig.app.json; eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0; vite build; node scripts/build-sites-artifact.mjs; git diff --check",
       "status": "passed",
