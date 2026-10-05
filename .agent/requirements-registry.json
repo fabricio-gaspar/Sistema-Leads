@@ -2,6 +2,46 @@
   "schema_version": 1,
   "requirements": [
     {
+      "id": "REQ-EGO-01-20261005",
+      "description": "Provisionar vendedor novo por RPC e fila Evolution GO, sem habilitar envio automaticamente",
+      "module": "mensageria_integracoes",
+      "status": "PARCIAL",
+      "evidence": "docs/remediacao/2026-10-05-evolution-go-primary/RESULTADO_FINAL.md; RPC e privilégio remoto conferidos; não implantado nem homologado externamente",
+      "last_validation": "2026-10-05"
+    },
+    {
+      "id": "REQ-EGO-02-20261005",
+      "description": "Conectar conta individual Evolution GO pelo onboarding e QR na Central",
+      "module": "atendimento_frontend",
+      "status": "PARCIAL",
+      "evidence": "docs/remediacao/2026-10-05-evolution-go-primary/RESULTADO_FINAL.md; testes locais aprovados, QR real não solicitado",
+      "last_validation": "2026-10-05"
+    },
+    {
+      "id": "REQ-EGO-03-20261005",
+      "description": "Priorizar Evolution GO em leads novos, transferência humana e rota da Ana, preservando vínculos existentes",
+      "module": "mensageria_ana",
+      "status": "PARCIAL",
+      "evidence": "docs/remediacao/2026-10-05-evolution-go-primary/RESULTADO_FINAL.md; sete verificações SQL sintéticas e routing mocks; E2E externo pendente",
+      "last_validation": "2026-10-05"
+    },
+    {
+      "id": "REQ-EGO-04-20261005",
+      "description": "Exibir Evolution GO como canal principal sem atribuir saúde de outro provedor",
+      "module": "configuracoes",
+      "status": "PARCIAL",
+      "evidence": "docs/remediacao/2026-10-05-evolution-go-primary/RESULTADO_FINAL.md; build local e testes aprovados, Site não publicado",
+      "last_validation": "2026-10-05"
+    },
+    {
+      "id": "REQ-EGO-05-20261005",
+      "description": "Homologar e publicar conjuntamente banco, Edge e frontend Evolution GO",
+      "module": "qualidade_release",
+      "status": "BLOQUEADO",
+      "evidence": "docs/remediacao/2026-10-05-evolution-go-primary/RESULTADO_FINAL.md; staging e reconciliação R1–R12 pendentes, produção NO-GO",
+      "last_validation": "2026-10-05"
+    },
+    {
       "id": "REQ-REM-R4-20261005",
       "description": "Convites revisionados, vínculo empresarial e privilégios separados da identidade global",
       "module": "seguranca_auth",

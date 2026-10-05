@@ -185,7 +185,7 @@ describe('R4 team membership and identity boundary — mocked HTTP', () => {
     override = q => q.table === 'team_invite_accept' ? { data: null, error: { message: 'invite_not_current' } } : undefined;
     await import('../functions/team-members/index');
     expect((await handler(request('activate_invite', { invite_id: target, revision: 1 }))).status).toBe(400);
-    expect(calls.some(q => q.table === 'enqueue_wa_akg_seller_provisioning')).toBe(false); expect(state.deleteUser).not.toHaveBeenCalled();
+    expect(calls.some(q => q.table === 'enqueue_evolution_go_seller_provisioning')).toBe(false); expect(state.deleteUser).not.toHaveBeenCalled();
   });
   it('accepted seller reports durable provisioning failure honestly, without rolling back identity', async () => {
     override = q => q.table === 'team_invite_accept' ? ok({ activated: true, organization_id: org, role: 'vendedor' }) : undefined;
@@ -193,6 +193,23 @@ describe('R4 team membership and identity boundary — mocked HTTP', () => {
     const response = await handler(request('activate_invite', { invite_id: target, revision: 1 }));
     expect(await response.json()).toMatchObject({ ok: true, provisioning_warning: 'seller_provisioning_pending_review' });
     expect(state.deleteUser).not.toHaveBeenCalled(); expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it('accepted seller enqueues only the Evolution GO job and wakes only its worker', async () => {
+    override = q => q.table === 'team_invite_accept'
+      ? ok({ activated: true, organization_id: org, role: 'vendedor' })
+      : q.table === 'enqueue_evolution_go_seller_provisioning'
+        ? ok([{ job_id: target, whatsapp_account_id: whatsappAccountId, integration_id: integrationId, instance_name: 'wf-synthetic', state: 'queued' }])
+        : undefined;
+    await import('../functions/team-members/index');
+    const response = await handler(request('activate_invite', { invite_id: target, revision: 2 }));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ ok: true, provisioning_warning: null });
+    expect(calls.find(q => q.table === 'enqueue_evolution_go_seller_provisioning')?.value).toMatchObject({
+      p_organization_id: org, p_user_id: 'owner', p_created_by: 'owner', p_source: 'invite', p_invite_id: target,
+    });
+    expect(calls.some(q => q.table === 'enqueue_wa_akg_seller_provisioning')).toBe(false);
+    expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/evolution-go-worker'))).toBe(true);
+    expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/wa-akg-worker'))).toBe(false);
   });
   it('administrator effective permissions remain total despite misleading old false overrides', async () => {
     override = q => q.table === 'organization_members' ? ok({ role: 'administrador', status: 'active' })
@@ -676,7 +693,7 @@ describe('R4 invitation delivery — mocked Auth, no emails sent', () => {
     const response = await handler(new Request('https://example.invalid/team-members', { method: 'POST', headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'invite', name: 'Synthetic', email: 'existing@example.test', role: 'vendedor' }) }));
     expect(response.status).toBe(200); expect(await response.json()).toMatchObject({ ok: true, delivery });
     expect(inviteUserByEmail).toHaveBeenCalledTimes(1); expect(state.deleteUser).not.toHaveBeenCalled();
-    expect(calls.some(q => q.table === 'enqueue_wa_akg_seller_provisioning')).toBe(false);
+    expect(calls.some(q => q.table === 'enqueue_evolution_go_seller_provisioning')).toBe(false);
     expect(calls.some(q => q.table === 'organization_members' && q.operation !== 'select')).toBe(false);
     expect(calls.some(q => q.table === 'organization_invites' && q.operation === 'delete')).toBe(false);
   });

@@ -1,5 +1,12 @@
 # Problemas conhecidos
 
+## 05/10/2026 — Evolution GO principal ainda sem release
+
+- A nova seleção de Evolution GO está validada somente localmente. Catálogo remoto confirma RPC e funções compatíveis, mas não comprova o contrato externo, segredo, QR, callback, entrega ou operação da Ana em ambiente isolado.
+- Não aplicar a migration nem publicar `team-members`/frontend isoladamente enquanto R1–R12 não forem reconciliados com os bundles e migrations reais. O NO-GO global permanece; ver `docs/remediacao/2026-10-05-evolution-go-primary/RESULTADO_FINAL.md`.
+- WA-AKG permanece como contingência para vínculos existentes e intervenção administrativa; seu bloqueio de gateway descrito abaixo não foi removido.
+
+
 ## 05/10/2026 — Pendências atuais após R4–R14 local
 
 As notas históricas abaixo permanecem como evidência, mas o checkpoint atual é `docs/remediacao/2026-10-05-r4-r14/RESULTADO_FINAL.md`. R6 já integrou provisionamento automático e recuperação por GET + CAS; não continuam ausentes no código local. Nenhum desses deltas foi aplicado em produção.

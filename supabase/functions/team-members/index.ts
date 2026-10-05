@@ -119,14 +119,14 @@ type SellerProvisioning = {
 
 /**
  * The database transaction creates only local, disabled records and a durable
- * queue entry. The worker is the sole process that talks to WA-AKG, so
+ * queue entry. The worker is the sole process that talks to Evolution GO, so
  * a failed HTTP call can never leave an account without an auditable job.
  */
 async function enqueueSellerProvisioning(
   admin: ReturnType<typeof createAdminClient>,
   input: { organizationId: string; userId: string; actorId: string; source: 'direct_create' | 'invite'; inviteId?: string },
 ): Promise<SellerProvisioning> {
-  const { data, error } = await admin.rpc('enqueue_wa_akg_seller_provisioning', {
+  const { data, error } = await admin.rpc('enqueue_evolution_go_seller_provisioning', {
     p_organization_id: input.organizationId,
     p_user_id: input.userId,
     p_created_by: input.actorId,
@@ -134,7 +134,7 @@ async function enqueueSellerProvisioning(
     p_invite_id: input.inviteId ?? null,
   });
   const row = Array.isArray(data) ? data[0] : data;
-  if (error || !row || typeof row !== 'object') throw new Error('wa_akg_provisioning_enqueue_failed');
+  if (error || !row || typeof row !== 'object') throw new Error('evolution_go_provisioning_enqueue_failed');
   const candidate = row as Record<string, unknown>;
   const jobId = text(candidate.job_id, 80);
   const whatsappAccountId = text(candidate.whatsapp_account_id, 80);
@@ -142,7 +142,7 @@ async function enqueueSellerProvisioning(
   const instanceName = text(candidate.instance_name, 120);
   const state = text(candidate.state, 40);
   if (!jobId || !whatsappAccountId || !integrationId || !instanceName || !state) {
-    throw new Error('wa_akg_provisioning_enqueue_failed');
+    throw new Error('evolution_go_provisioning_enqueue_failed');
   }
   return { jobId, whatsappAccountId, integrationId, instanceName, state };
 }
@@ -153,7 +153,7 @@ function wakeSellerProvisioningWorker(jobId: string): void {
   if (!baseUrl || !serviceRole) return;
   // The job is durable; this is only a low-latency wake-up. If the task cannot
   // run, the scheduler will process it later rather than silently dropping it.
-  const pending = fetch(`${baseUrl}/functions/v1/wa-akg-worker`, {
+  const pending = fetch(`${baseUrl}/functions/v1/evolution-go-worker`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${serviceRole}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ provisioning_job_id: jobId }),

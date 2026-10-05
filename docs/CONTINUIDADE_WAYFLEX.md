@@ -1,5 +1,12 @@
 # Checkpoint — WayFlex CRM
 
+## 05/10/2026 — Evolution GO principal no checkout; produção NO-GO
+
+- A base existente de Evolution GO foi ligada ao aceite de vendedor, ao primeiro acesso/QR na Central, à seleção de conta para novos leads e à transferência humana. Ana e worker usam o provedor da conta fixada, sem trocar números já vinculados; controles de envio/automação permanecem separados.
+- Produto local `5671f44`; **733 Vitest/91 arquivos**, sete verificações SQL PGlite, type-check frontend/Edge, lint, build/artefato Sites e diff check aprovados. Detalhes e limites em `docs/remediacao/2026-10-05-evolution-go-primary/RESULTADO_FINAL.md`.
+- Banco, Edge e Site **não foram atualizados**: histórico de migrations/bundles diverge e falta homologação integrada isolada. Não publicar frontend sozinho, executar db push geral, acionar gateway/QR nem enviar mensagens reais como teste. Os parágrafos históricos abaixo descrevem versões anteriores, inclusive WA-AKG/Site v168, e não representam esta nova release.
+
+
 ## 05/10/2026 — R4–R14: remediação local validada e GitHub atualizado; produção NO-GO
 
 - Produto local `225a379e096efa4eb3fb543759edd71ad50ef581`; snapshot GitHub `4f7f4514613ca64461cda3d1ffcf004ac1c79d4f`, filho do remoto `118b131b47d56cda8615f24b00c332eabe3d2805`. Push não forçado e árvore igual `804172b06e122a8e9ec41374c21151c4f3b98f4c` confirmados. Checkpoint documental final identificado no histórico/entrega; nenhum branch/worktree/projeto novo.

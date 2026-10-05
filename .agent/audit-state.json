@@ -1,10 +1,10 @@
 {
   "schema_version": 1,
-  "baseline_version": 9,
+  "baseline_version": 10,
   "baseline_commit": "1dc6275b8c7d70de953b66397a8c89f5e97bc15b",
-  "last_audited_commit": "225a379e096efa4eb3fb543759edd71ad50ef581",
-  "current_head_at_update": "225a379e096efa4eb3fb543759edd71ad50ef581",
-  "working_tree_status": "product_committed_and_pushed; final_documentation_checkpoint; preexisting_untracked_pnpm_preserved",
+  "last_audited_commit": "5671f44",
+  "current_head_at_update": "5671f44",
+  "working_tree_status": "evolution_go_product_committed_locally; documentation_checkpoint_pending; preexisting_untracked_pnpm_preserved",
   "stage_1_baseline": ".agent/baselines/2026-09-25-stage-1.json",
   "recovery_tag": "baseline-wayflex-stage1-20260925",
   "work_branch": "main",
@@ -25,7 +25,7 @@
     "working_tree_status": "product_snapshot_pushed_and_tree_verified; final_documentation_snapshot_identified_in_Git_history_and_final_handoff"
   },
   "full_audit_required": false,
-  "baseline_status": "R1_R12_local_remediation_validated_and_saved_to_GitHub; R4_MFA_R7_R10_R11_R12_R13_R14_limits_documented; global_NO_GO; no_production_deployment",
+  "baseline_status": "Evolution_GO_primary_local_delta_validated; prior_R1_R12_remediation_preserved; global_NO_GO; no_production_deployment",
   "updated_at": "2026-10-05",
   "audit_v3": {
     "id": "WAYFLEX-V3-20261005",
@@ -41,7 +41,19 @@
     "production_mutations": false,
     "homologation_complete": false
   },
-  "next_action": "Não repetir deltas concluídos. Obter staging compatível, gateway WA-AKG corrigido/versionado com bot comprovadamente desligado, identidades/destinos consentidos e acesso protegido; decidir CRM interno vs SaaS e autoridade/MFA. Reconciliar definições/migrations seletivamente, homologar Auth/REST/Storage/mensageria/Calendar/UI e somente então planejar release coordenada. Não aplicar db push/replay/repair integral, publicar só frontend ou ativar operação como teste.",
+  "next_action": "Evolution GO principal está apenas no checkout e GitHub. Obter homologação isolada e identidades/números consentidos; reconciliar seletivamente migrations e bundles R1–R12; validar provisionamento, QR, callback, Ana/humano, recibos e cortes; planejar release coordenada banco/Edge/Site. Não fazer db push integral, publicar só frontend, enviar mensagens reais ou ativar automações como teste. WA-AKG permanece contingência bloqueada pelo gateway não homologado.",
+  "evolution_go_primary_20261005": {
+    "product_commit": "5671f44",
+    "report": "docs/remediacao/2026-10-05-evolution-go-primary/RESULTADO_FINAL.md",
+    "local_validation": "733 Vitest tests in 91 files; seven synthetic PGlite checks; frontend and Edge type-check, lint, build and Sites artifact passed",
+    "remote_metadata_readonly": "Evolution GO provisioning RPC/signature/grants and selection function definitions checked; Edge function slugs active",
+    "migration_applied_remotely": false,
+    "edge_functions_deployed": false,
+    "site_deployed": false,
+    "real_messages_sent": false,
+    "customer_data_changed": false,
+    "status": "LOCAL_VALIDADO; PRODUCAO_NO_GO"
+  },
   "remediation_20261005": {
     "scope": [
       "R1",

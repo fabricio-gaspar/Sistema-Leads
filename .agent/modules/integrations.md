@@ -1,5 +1,10 @@
 # Integrações
 
+## 05/10/2026 — Evolution GO principal no código local
+
+O aceite de vendedor passou a provisionar Evolution GO por RPC/fila; onboarding privado e QR estão na Central. A preferência SQL só afeta novos vínculos e destinos de transferência, preservando números já fixados. Adaptador, webhook, worker e despacho da Ana já existiam; controles do provedor, opt-out, handoff e pausa global continuam obrigatórios. Testes locais aprovados, nenhum gateway/QR/mensagem real chamado. A migration e as Edge Functions não foram aplicadas em produção; Site não publicado. Ver `docs/remediacao/2026-10-05-evolution-go-primary/RESULTADO_FINAL.md`.
+
+
 ## 05/10/2026 — R6/R7 locais; gateway WA-AKG bloqueado
 
 Workers automáticos agora compartilham ledger com ações manuais; entrada tem persistência local atômica/lease e resultado Ana incerto fica em revisão. A UI oferece diagnóstico administrativo e conclusão somente para consulta comprovada; nunca replay cego de POST. Upstream WA-AKG examinado cria bot habilitado e ignora enabled:false no update; adaptador exige GET confirmando bot desligado antes de start/connect/QR. Não remover esse bloqueio. Falta versão corrigida/homologada e servidor persistente HTTPS. Nenhum QR, sessão ou mensagem real foi usado. Ver R6/R7/revisão na pasta atual.

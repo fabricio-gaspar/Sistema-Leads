@@ -1,5 +1,12 @@
 # Histórico resumido de execução
 
+## 05/10/2026 — Evolution GO principal, delta local validado; produção NO-GO
+
+- Produto `5671f44` no checkout existente. Convite de vendedor → RPC/worker Evolution GO; primeiro acesso/QR pela Central; preferência SQL para novos vínculos e transferência; status específico sem check genérico. WA-AKG preservado para contingência, vínculos existentes não migrados.
+- Validação: 733 Vitest/91 arquivos, sete verificações SQL PGlite, type-check frontend/Edge, lint, build/artefato Sites e diff check. Metadados de assinatura/grants/Edge conferidos no Supabase, sem segredos ou dados de cliente.
+- Banco, Edge e Site não receberam este lote. Sem mensagem real, QR, automação, callback ou mutação de cliente. Próxima ação: homologação isolada e release coordenada após reconciliar os deltas R1–R12. Relatório: `docs/remediacao/2026-10-05-evolution-go-primary/RESULTADO_FINAL.md`.
+
+
 ## 05/10/2026 — R4–R14: remediação local validada e GitHub atualizado; produção NO-GO
 
 - Produto local `225a379e096efa4eb3fb543759edd71ad50ef581`; snapshot GitHub `4f7f4514613ca64461cda3d1ffcf004ac1c79d4f`, filho do remoto `118b131b47d56cda8615f24b00c332eabe3d2805`. Push não forçado e árvore igual `804172b06e122a8e9ec41374c21151c4f3b98f4c` confirmados. Checkpoint documental final identificado no histórico/entrega; nenhum branch/worktree/projeto novo.

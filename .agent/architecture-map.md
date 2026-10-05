@@ -1,5 +1,10 @@
 # Mapa de arquitetura
 
+## Evolution GO principal — 05/10/2026 — LOCAL, não implantada
+
+Convite aceito → `team-members` → `enqueue_evolution_go_seller_provisioning` (conta/integração desabilitadas + job durável) → `evolution-go-worker` → painel individual Evolution GO na Central. Webhook Evolution GO → worker de entrada → mensagem/lead → `ana-run`; a Ana resolve a conta com `resolve_lead_whatsapp_account` → outbox → `automation-worker` → adaptador `EvolutionGoProvider`, sujeito a controles e snapshot canônicos. Na transferência humana, lista e ação preferem a conta individual Evolution GO conectada sem reatribuir silenciosamente vínculos existentes. WA-AKG continua como contingência administrativa. Código local e testes: `docs/remediacao/2026-10-05-evolution-go-primary/RESULTADO_FINAL.md`; produção permanece NO-GO.
+
+
 ## Continuação R4–R12 — 05/10/2026 — LOCAL, não implantada
 
 Auth/convite → vínculo canônico explícito → contexto frontend por user/org/generation → OrganizationGate → stores cercados e sem cache operacional compartilhado. Administração empresarial não gerencia senha/identidade Auth global.

@@ -1,28 +1,21 @@
 {
   "schema_version": 1,
-  "validated_commit": "225a379e096efa4eb3fb543759edd71ad50ef581",
+  "validated_commit": "5671f44",
   "last_validated_at": "2026-10-05",
   "current_validation": {
-    "stage": "R4_R12_local_remediation_R1_R3_regressions_global_NO_GO",
+    "stage": "Evolution_GO_primary_local_delta_global_NO_GO",
     "frontend_typecheck": "passed",
     "edge_typecheck": "passed; all supabase/functions/**/*.ts included",
     "lint": "passed; src; zero warnings",
     "production_build": "passed",
     "sites_artifact": "passed local build only; official Site not deployed",
-    "deterministic_smoke_checks": 17,
-    "vitest": "passed; 91 files; 732 tests; zero failures",
-    "sql_unique_sequential_cases": 245,
-    "sql_unique_concurrency_cases": 54,
-    "sql_native_total_cases": 279,
-    "sql_note": "PGlite/native reruns not double counted; R11 20 cases PGlite only; reduced synthetic schemas, not production restore",
-    "browser_cases": 11,
-    "validation_commands_passed": 21,
-    "source_manifest": "docs/remediacao/2026-10-05-r4-r14/checks/results.json",
-    "source_files": 579,
-    "changed_during_run": [],
-    "visual_review": "Chrome 155 local synthetic harness; tooltip/dialog/CSV/recovery; zero page errors; no full authenticated CRM E2E or WCAG certification",
-    "external_end_to_end": "not executed; synthetic databases and intercepted HTTP; browser network only localhost; no provider business request or customer mutation",
-    "report": "docs/remediacao/2026-10-05-r4-r14/RESULTADO_FINAL.md"
+    "vitest": "passed; 91 files; 733 tests; zero failures",
+    "sql_synthetic_cases": 7,
+    "sql_note": "PGlite in memory; three function definitions and four routing scenarios; no native PostgreSQL or production restore in this delta",
+    "browser_cases": 0,
+    "visual_review": "not executed for this delta; prior R12 local synthetic review remains historical only",
+    "external_end_to_end": "not executed; no QR, provider request, real message or customer mutation",
+    "report": "docs/remediacao/2026-10-05-evolution-go-primary/RESULTADO_FINAL.md"
   },
   "previous_validation": {
     "stage": "lead_search_dynamic_api_selector",
@@ -37,6 +30,12 @@
     "external_end_to_end": "not_executed; no paid search was required"
   },
   "commands": [
+    {
+      "command": "vitest run; node supabase/tests/evolutionGoPrimary.sql.mjs <PGlite module>; tsc --noEmit --project tsconfig.app.json; tsc --project tsconfig.edge.json; eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0; vite build; node scripts/build-sites-artifact.mjs; git diff --check",
+      "status": "passed",
+      "note": "Evolution GO principal no checkout: 733 testes/91 arquivos, sete verificações SQL sintéticas, tipos frontend/Edge, lint, build e artefato local. Sem provider request, QR, mensagem ou deploy.",
+      "evidence": "docs/remediacao/2026-10-05-evolution-go-primary/RESULTADO_FINAL.md"
+    },
     {
       "command": "node docs/remediacao/2026-10-05-r4-r14/run-checks.mjs <PGlite module> <PostgreSQL binaries> <pg module> <Playwright module>",
       "status": "passed",
