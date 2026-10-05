@@ -1,0 +1,31 @@
+{
+  "release": "2026-09-08-runtime-safety",
+  "commercial_readiness": "NO-GO — remaining phases in CONTINUIDADE_WAYFLEX.md",
+  "backend_source_commit": "72b3fd7f9bac5687b7133bff967afa6afcf6bf4c",
+  "supabase_project": "thgzrkppouoevapjquyu",
+  "schema_changes_in_this_release": [],
+  "functions": {
+    "ana-run": { "version": 13, "verify_jwt": true, "bundle_sha256": "38a83e7737f06aaa846db5695e3fa3ad0cc0c678a5f163ef2405dd5839e0dfd5" },
+    "automation-worker": { "version": 7, "verify_jwt": true, "bundle_sha256": "bdaef06c943685e41e131ee145c03796a6c4b712d37de7fbffb79a6a7f62bbd2" },
+    "webhook-whatsapp": { "version": 7, "verify_jwt": false, "bundle_sha256": "2262273b194ef1f2c21d693968bd127db65d765bc8a2bf28b409b207905f14ab" }
+  },
+  "validation": {
+    "existing_tests": 27,
+    "pure_policy_contract_tests": 57,
+    "mocked_handler_tests": 20,
+    "frontend_typecheck": "passed",
+    "edge_static_typecheck": "passed with local Supabase types and minimal Deno globals",
+    "frontend_lint": "passed",
+    "build": "passed",
+    "login_visual": "desktop 1363x936 inspected",
+    "postgres_concurrency_rls": "pending",
+    "whatsapp_claude_e2e": "pending — no real messages sent"
+  },
+  "production_messaging_enabled_by_release": false,
+  "frontend_source": "95f6d14ce0568192347121406c42021ca9421437",
+  "sites_version": 46,
+  "sites_version_id": "appgprj_6a905559159c8191a61fb776b9a4c531~appgver_21c6af3f374481919e6c72cb2221f8d7",
+  "sites_deployment_id": "appgdep_6aa05c150e308191abad420f197f868c",
+  "sites_deployment_status": "succeeded",
+  "continuation": "docs/CONTINUIDADE_WAYFLEX.md"
+}

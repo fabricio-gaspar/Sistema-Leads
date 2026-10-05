@@ -1,1 +1,44 @@
 project_id = "thgzrkppouoevapjquyu"
+
+# User-facing functions keep Supabase JWT verification enabled (the default).
+# External webhooks cannot send a user JWT, so this endpoint authenticates the
+# provider signature/secret inside the handler before reading or writing data.
+[functions.webhook-whatsapp]
+verify_jwt = false
+
+# O cron do banco não possui sessão de usuário. Esta função valida, no próprio
+# handler, um token rotativo por organização mantido no Vault; chamadas do
+# painel continuam exigindo sessão e papel administrativo.
+[functions.automation-worker]
+verify_jwt = false
+
+# A Meta assina o corpo bruto com X-Hub-Signature-256 e não envia JWT do
+# Supabase. O handler também valida o token do desafio GET.
+[functions.webhook-meta-whatsapp]
+verify_jwt = false
+
+# Evolution GO cannot sign webhooks in its current documented API. The callback
+# therefore validates a per-integration secret itself and only queues a
+# sanitized, idempotent event after that check.
+[functions.webhook-evolution-go]
+verify_jwt = false
+
+# This worker accepts only its rotation-capable internal token. It may be
+# invoked by the webhook background task or a scheduled internal request.
+[functions.evolution-go-worker]
+verify_jwt = false
+
+# WA-AKG signs the exact raw JSON body with the per-session webhook secret.
+# The public callback validates that HMAC and persists only normalized fields.
+[functions.webhook-wa-akg]
+verify_jwt = false
+
+# Internal durable consumer for WA-AKG callbacks and seller provisioning. It
+# accepts only the service-role bearer or WA_AKG_WORKER_TOKEN in the handler.
+[functions.wa-akg-worker]
+verify_jwt = false
+
+# O worker não é exposto ao navegador. Ele exige META_WORKER_TOKEN no próprio
+# handler e permanece sem trabalho enquanto os gates Meta estiverem desligados.
+[functions.meta-whatsapp-worker]
+verify_jwt = false

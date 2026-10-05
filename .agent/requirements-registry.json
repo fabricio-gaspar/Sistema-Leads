@@ -1,0 +1,597 @@
+{
+  "schema_version": 1,
+  "requirements": [
+    {
+      "id": "REQ-071",
+      "description": "Organizar o preenchimento da Busca de Leads em um Wizard passo a passo sem alterar a consulta real, a revisão ou a importação",
+      "module": "prospeccao",
+      "status": "implemented_validated_pending_site_publication",
+      "evidence": "Commit b01f600 separa a intenção humana em Fonte, Região, Perfil e Critérios, com validação do passo atual, retorno linear e resumo persistente. A fonte continua limitada a adaptadores conectados/ativos; executarBusca mantém as guardas operacionais, a consulta só ocorre em Testar com 10 empresas e a revisão/importação existentes não foram alteradas. Vitest focado: 3 arquivos/12 testes; type-check, lint sem warnings, build/artefato Sites e diff check passaram. Nenhum provedor, lead, importação ou automação foi acionado. Publicação e inspeção autenticada do Site aguardam o canal seguro de escrita da origem.",
+      "last_validation": "2026-10-05"
+    },
+    {
+      "id": "REQ-068",
+      "description": "Reformular Orçamentos com carteira compacta, abas de situação, busca por itens, filtros, ordenação, estado vazio e ações preservadas sem criar fonte paralela",
+      "module": "orcamentos",
+      "status": "implemented_validated_pending_site_publication",
+      "evidence": "A rota src/pages/dashboard/orcamentos/page.tsx usa proposals operacional, mantém criação, aprovação, revisão, PDF, envio, aceite, recusa e arquivamento e recebe o padrão visual do mockup. Busca inclui número, empresa, contato e itens; a carteira exibe situação, responsável, validade e drawer. Type-check, lint, Vitest 56 arquivos/328 testes e build/artefato Sites passaram. O modelo atual não possui ainda versões imutáveis, PDF privado, token público de aceite ou busca server-side; esses recursos não foram simulados.",
+      "last_validation": "2026-09-29"
+    },
+    {
+      "id": "REQ-066",
+      "description": "Reformular a Agenda Comercial como fluxo operacional de planejar, confirmar, executar, registrar resultado e criar próxima ação, preservando a entidade appointments, RLS e a autoridade da Ana",
+      "module": "agenda",
+      "status": "implemented_validated_pending_site_publication",
+      "evidence": "Migration agenda_operational_workspace aplicada no projeto thgzrkppouoevapjquyu: RPC SECURITY INVOKER paginada, constraint de visões pessoais, índices e auditoria de appointments confirmados. A rota existente passa a usar filtros no servidor/URL, visões persistidas, UTC+fuso IANA, conflito por responsável, concorrência por updated_at, drawer e próxima ação. Type-check, lint, Vitest 56 arquivos/328 testes, build/artefato Sites e diff check passaram. Nenhuma escrita comercial, automação ou chamada externa foi feita no teste.",
+      "last_validation": "2026-09-29"
+    },
+    {
+      "id": "REQ-065",
+      "description": "Reformular Meu WhatsApp como Canais de WhatsApp com configuração, diagnóstico e histórico ancorados em evidência operacional, sem expor segredos ou inferir entrega/leitura",
+      "module": "mensageria",
+      "status": "implemented_validated_site_publication_authorized",
+      "evidence": "Commit f270b05 e whatsapp-accounts v6 no projeto thgzrkppouoevapjquyu. O contrato autorizado calcula estado por organização a partir de conta, integração, controles, auditoria e eventos de entrada, sem credenciais. A UI separa aceite, entrada, entrega e leitura; Meta continua sob gate de homologação. Type-check frontend/Edge, lint, 103 testes focados, build/artefato Sites e diff check passaram; nenhum provedor externo foi acionado.",
+      "last_validation": "2026-09-28"
+    },
+    {
+      "id": "REQ-064",
+      "description": "Reconstruir a Central de Atendimento como inbox operacional seguro, paginado, auditável e em tempo real, preservando Ana, Kanban e filas existentes",
+      "module": "atendimento",
+      "status": "implemented_validated_pending_site_publication",
+      "evidence": "Commit 2740934. A rota usa RPCs invocadoras sob RLS para busca normalizada, filtros, paginação, totais reais, detalhe paginado, estado de leitura por operador e resolução do provedor já vinculado ao lead. Assunção/transferência continuam no contrato atômico existente; saída humana continua na fila segura com chave idempotente. Migrations central_atendimento_inbox, central_atendimento_realtime, central_atendimento_read_state_fk_indexes, central_atendimento_channel_provider e central_atendimento_inbox_counts foram aplicadas no projeto oficial thgzrkppouoevapjquyu. Type-check frontend/Edge, lint, Vitest 56 arquivos/326 testes, build/artefato Sites e diff check passaram. Nenhuma mensagem, automação, handoff, bloqueio ou tarefa real foi executado como teste.",
+      "last_validation": "2026-09-28"
+    },
+    {
+      "id": "REQ-063",
+      "description": "Transformar o Kanban em uma área operacional com pesquisa, filtros, visões pessoais, lista, drawer, ações e transições auditáveis sem criar fonte paralela ou automação manual insegura",
+      "module": "kanban",
+      "status": "implemented_validated_pending_site_publication",
+      "evidence": "Commit fcb2c75. A RPC get_kanban_portfolio aplica busca normalizada, filtros, ordenação, paginação e contagens sob RLS; user_saved_views persiste preferências pessoais com RLS; undo e limites por etapa possuem RPCs invocadoras e permissões. Migrations kanban_operational_portfolio e kanban_saved_views_fk_index aplicadas no projeto oficial thgzrkppouoevapjquyu. Type-check, lint, Vitest 55 arquivos/323 testes, build/artefato Sites e diff check passaram. Sem mutação comercial ou chamada externa. Frontend aguarda publicação autorizada.",
+      "last_validation": "2026-09-28"
+    },
+    {
+      "id": "REQ-062",
+      "description": "Transformar Leads em carteira operacional pesquisável, filtrável e auditável sem criar fonte paralela ou duplicar exclusão definitiva",
+      "module": "leads",
+      "status": "confirmed",
+      "evidence": "Site oficial v144, commit 5fc98085b308372d0a9813a1c8db8cac0ed23596. A carteira lê leads, qualificações e tarefas autorizados, exibe contatos, origem/local, aderência explicável, etapa canônica, última interação, próxima ação e responsável. Ações de etapa e atribuição preservam os contratos existentes; tarefa espera persistência; a remoção definitiva encaminha à gestão governada do Funil. Visões/colunas são preferências locais por usuário. Type-check, lint, Vitest 54 arquivos/321 testes, build e inspeção autenticada desktop aprovados; nenhum provedor ou dado operacional foi acionado.",
+      "last_validation": "2026-09-28"
+    },
+    {
+      "id": "REQ-061",
+      "description": "Redesenhar Busca de Leads com perfil ideal, amostra controlada e revisão classificável sem criar resultados simulados",
+      "module": "prospeccao",
+      "status": "confirmed",
+      "evidence": "Site oficial v143: a rota mantém a fonte ativa real, idempotência e importação existente; organiza região por cidade/UF, perfil de cliente, critérios realmente suportados, termos selecionáveis e amostra de 10 somente por clique. A revisão classifica adequação, fora do perfil, duplicidade ou ausência de contato e exclui itens não adequados da importação. Raio não é exibido como filtro porque o conector atual não o aplica. Type-check, lint, Vitest 53 arquivos/318 testes e build passaram. A inspeção publicada confirmou os controles renderizados, sem chamar o provedor externo.",
+      "last_validation": "2026-09-28"
+    },
+    {
+      "id": "REQ-060",
+      "description": "Sugerir termos de prospecção por segmento da empresa sem substituir a entrada manual",
+      "module": "prospeccao",
+      "status": "confirmed",
+      "evidence": "Busca de Leads mantém termo livre e oferece seis grupos Wayflex selecionáveis, com deduplicação, remoção e limite de dez termos. Segmento desconhecido não gera conteúdo inventado e a seleção não chama provedor externo. Type-check frontend/Edge, lint, 52 arquivos/315 testes e build passaram. Site oficial v142, commit 58143d5, deploy appgdep_6aba6c17ebc48191aa5dd1a125be55bb.",
+      "last_validation": "2026-09-28"
+    },
+    {
+      "id": "REQ-059",
+      "description": "Exibir na Busca de Leads um seletor alimentado pelas APIs de prospecção ativadas em Configurações",
+      "module": "prospeccao",
+      "status": "confirmed",
+      "evidence": "A Busca recarrega lead_source_configs ao abrir e ao retomar a aba, filtra somente os adaptadores reais apify/google_places e mostra apenas fontes conectadas e ativas. O seletor permanece visível mesmo com uma única API e o botão usa o provedor escolhido. Type-check frontend/Edge, lint, 52 arquivos/313 testes, build e 17 verificações determinísticas passaram. Site oficial v141 confirmou Apify no seletor, botão coerente e console limpo; nenhuma API externa foi chamada.",
+      "last_validation": "2026-09-27"
+    },
+    {
+      "id": "REQ-058",
+      "description": "Comprovar a apresentação real da Ana sem duplicar envio e reconciliar o aceite do provedor",
+      "module": "mensageria",
+      "status": "confirmed",
+      "evidence": "Teste único autorizado fora do horário: Z-API aceitou a apresentação e o webhook recebeu Boa tarde. O worker preservou o ID remoto em reconciliation_required; migration 20260927195156 aplicada como 20260927195241 corrigiu o trigger que usava outreach_jobs.created_at, e a reconciliação concluiu processed/sent sem reenvio. Política businessHoursOnly restaurada. 51 arquivos/311 testes, type-checks, lint, build e 17 smoke checks passaram. Commit fdc3d74.",
+      "last_validation": "2026-09-27"
+    },
+    {
+      "id": "REQ-057",
+      "description": "Restaurar o fluxo Leads → Kanban → apresentação inicial da Ana quando a conta WhatsApp está configurada",
+      "module": "ana",
+      "status": "implemented_validated_pending_real_e2e",
+      "evidence": "Logs do Supabase comprovaram ambiguidade owner_user_id em resolve_lead_whatsapp_account. Migration 20260927193046 aplicada no projeto oficial como 20260927193211; teste transacional resolveu conta e integração e foi revertido com zero resíduos. Type-check frontend/Edge, lint, 51 arquivos/310 testes, build e 17 smoke checks passaram. Commit 4fd878f. E2E externo com novo lead não executado.",
+      "last_validation": "2026-09-27"
+    },
+    {
+      "id": "REQ-056",
+      "description": "Redesenhar as 11 telas do WayFlex com métricas auditáveis, design consistente e execução navegável",
+      "module": "frontend",
+      "status": "partial",
+      "evidence": "Implementação e revisão independente estática concluídas. Três layouts analíticos reconstruídos e demais rotas refinadas. Type-check frontend/Edge, lint, build e 17 smoke checks passaram; Vitest não encerrou e QA visual autenticada permanece pendente. Especificação docs/REDESIGN_WAYFLEX_2026-09-27.md. Nenhuma mutação operacional remota.",
+      "last_validation": "2026-09-27"
+    },
+    {
+      "id": "REQ-055",
+      "description": "Indicar exatamente os campos e pré-requisitos que impedem a ativação automática da Ana",
+      "module": "ana",
+      "status": "confirmed",
+      "evidence": "Site oficial v136, commit de6d902. Operação automática conta e destaca cada requisito pendente, explica a correção e navega ao módulo ou etapa correspondente; a ativação leva à primeira pendência. Type-check, lint, 46 arquivos/282 testes e build aprovados, sem alterar gates, integrações ou dados.",
+      "last_validation": "2026-09-27"
+    },
+    {
+      "id": "REQ-054",
+      "description": "Aplicar em todo o CRM a mesma paleta visual da Dashboard sem alterar a operação",
+      "module": "frontend",
+      "status": "confirmed",
+      "evidence": "Site oficial v135, commit 8a48ea4. Paleta centralizada no shell e nos tokens globais; telas operacionais, administrativas, estados e gráficos harmonizados. Cores de marca limitadas aos ícones externos. Type-check, lint, 46 arquivos/282 testes e build/artefato Sites aprovados; nenhuma regra, rota, integração ou persistência alterada.",
+      "last_validation": "2026-09-27"
+    },
+    {
+      "id": "REQ-053",
+      "description": "Ativar ou pausar a operação automática da Ana por um controle compacto na Dashboard",
+      "module": "dashboard",
+      "status": "confirmed",
+      "evidence": "Site oficial v134, commit 2b6cb64. Controle reutiliza a configuração existente e chama ana-operations; RPC transacional exclusiva do backend revalida prontidão, permissão, rota, autorização e concorrência antes de gravar. Migration oficial aplicada, ana-operations v4 publicada, authenticated sem EXECUTE. Type-check frontend/Edge, lint, 46 arquivos/282 testes e build passaram. Estado oficial permaneceu desativado porque WhatsApp e zapi_webhook estão pausados; nenhum provedor foi chamado.",
+      "last_validation": "2026-09-27"
+    },
+    {
+      "id": "REQ-052",
+      "description": "Consolidar a Dashboard em uma visão comercial compacta sem duplicar a operação",
+      "module": "dashboard",
+      "status": "confirmed",
+      "evidence": "Site v131, commit a3d29da; quatro KPIs compactos, até cinco decisões deduplicadas, pipeline canônico, atividade e saúde factual. Type-check, lint, 43 arquivos/265 testes, build e revisão desktop/móvel passaram. Sem mudança de rotas, dados, regras, automações ou mensagens.",
+      "last_validation": "2026-09-26"
+    },
+    {
+      "id": "REQ-051",
+      "description": "Aplicar guia visual grafite/lima com densidade compacta e explicações em balões preservando operação",
+      "module": "frontend",
+      "status": "confirmed",
+      "evidence": "Site v130, commit 563d00a; type-check, lint, 262 testes e build aprovados; revisão visual desktop e móvel amostrada, sem alteração de regras ou rotas.",
+      "last_validation": "2026-09-26"
+    },
+    {
+      "id": "REQ-050",
+      "description": "Aplicar a linguagem visual WayFlex Command Center ao CRM sem alterar a operação homologada",
+      "module": "frontend",
+      "status": "implemented_validated_pending_site_publish",
+      "evidence": "Command Center aplicado ao Dashboard, Busca, Leads, Kanban, Central, Catálogo real, Ana, Configurações, Orçamentos, Agenda, Relatórios e Equipe. Quatro KPIs, prioridade sem dupla contagem, pipeline, cinco ações e seis serviços com dados confirmados; carga/erro explícitos. Type-check frontend/Edge e build passaram; oito asserções apareceram como aprovadas, mas Vitest não encerrou. Nenhuma regra, mensagem ou ativação foi alterada.",
+      "last_validation": "2026-09-26"
+    },
+    {
+      "id": "REQ-049",
+      "description": "Concluir o plano comercial com homologação e decisão explícita de liberação",
+      "module": "governanca",
+      "status": "partial",
+      "evidence": "Validação final aprovou type-check frontend/Edge, lint, 42 arquivos/262 testes, build, Site v125, RLS e probes sem credencial. ana-run v36 e automation-worker v33 estão publicados. CRM liberado somente para uso supervisionado/piloto; Automático bloqueado por WhatsApp desativado, zero conta Meta, zero agenda ativa, E2E real pendente e Leaked Password Protection desativada.",
+      "last_validation": "2026-09-26"
+    },
+    {
+      "id": "REQ-048",
+      "description": "Homologar isolamento, privilégios e fluxo crítico sem efeitos externos",
+      "module": "seguranca",
+      "status": "partial",
+      "evidence": "Projeto oficial saudável; sessões authenticated comprovaram isolamento de organização e carteira; tabelas internas recusaram SELECT; handoff transacional foi revertido com zero resíduos; Git sem chave privada. Advisors revisados. Probes de ana-run v36 e automation-worker v33 recusaram chamadas sem credencial. Pendente habilitar Leaked Password Protection e executar E2E controlado antes da liberação automática.",
+      "last_validation": "2026-09-26"
+    },
+    {
+      "id": "REQ-047",
+      "description": "Classificar alertas comerciais em cinco grupos sem duplicar leads ou ocultar o contexto",
+      "module": "dashboard",
+      "status": "implemented_pending_site_publish",
+      "evidence": "Atenção do vendedor prioriza o significado objetivo do evento: HANDOFF/ALERT em Responder agora, HOT/INTEREST em Leads quentes e MEETING/QUOTE em Reuniões e orçamentos. Notificações abertas excluem duplicação em acompanhamento/atraso; cards exibem resumo e ação completos. Duas regressões, type-check frontend/Edge, lint, 42 arquivos/262 testes e build passaram; nenhum aviso externo foi enviado.",
+      "last_validation": "2026-09-26"
+    },
+    {
+      "id": "REQ-046",
+      "description": "Reconciliar recibos antecipados do WhatsApp sem reenvio ou perda do aceite",
+      "module": "mensageria",
+      "status": "implemented_pending_real_e2e",
+      "evidence": "automation-worker v33 publicado. Após o aceite atômico, reconcilia callbacks Z-API falhos recentes pelo parser canônico sem reenvio; regressão garante uma chamada externa. Validação local final passou, mas WhatsApp está desativado e nenhum E2E real foi autorizado.",
+      "last_validation": "2026-09-26"
+    },
+    {
+      "id": "REQ-045",
+      "description": "Impedir execuções concorrentes e duplicadas no motor crítico da Ana",
+      "module": "ana",
+      "status": "implemented_pending_real_e2e",
+      "evidence": "ana-run v36 e automation-worker v33 publicados. Idempotência, claim atômico, lock vencido e guardas de pausa, opt-out, canal, handoff e limites estão implementados e testados; probes sem credencial foram recusados. Falta E2E real antes do Automático.",
+      "last_validation": "2026-09-26"
+    },
+    {
+      "id": "REQ-044",
+      "description": "Exibir e persistir dossiê técnico de qualificação sem segunda fonte operacional",
+      "module": "qualificacao",
+      "status": "implemented_pending_site_publish",
+      "evidence": "A migration oficial 20260926123000_lead_technical_dossier acrescentou technical_context e missing_fields à lead_qualifications existente. ana-run aceita contexto técnico somente quando explicitamente declarado e usa vazio em política/simulação. Central e Kanban exibem o mesmo registro somente leitura. Type-check frontend/Edge, lint, 41 arquivos/258 testes e build passaram; nenhum canal/provedor foi acionado.",
+      "last_validation": "2026-09-26"
+    },
+    {
+      "id": "REQ-043",
+      "description": "Registrar perguntas internas de qualificação no catálogo rastreável da Wayflex",
+      "module": "empresa_conhecimento",
+      "status": "implemented_pending_site_publish",
+      "evidence": "A migration oficial 20260926085704_catalog_qualification_guides adicionou qualification_questions limitado a oito e atualizou os 56 itens ativos da organização Wayflex (19 produtos, 19 serviços e 18 catálogos). Editor, busca e formatos identificam as perguntas como orientação interna; documentos/chunks existentes foram recompostos. Type-check frontend/Edge, lint, 40 arquivos/257 testes e build passaram. Nenhum dado técnico foi inventado e nenhum envio/canal foi acionado.",
+      "last_validation": "2026-09-26"
+    },
+    {
+      "id": "REQ-042",
+      "description": "Consolidar a arquitetura final sem criar fonte operacional paralela",
+      "module": "arquitetura",
+      "status": "confirmed",
+      "evidence": "Contrato final documenta fonte operacional, entidades, estados independentes, autoridade ana-run, filas, idempotência e RLS. A máquina compartilhada bloqueia saltos automáticos e saída comum de estados terminais. Type-check frontend/Edge, lint, 40 arquivos/257 testes e build passaram; nenhuma mutação remota foi feita.",
+      "last_validation": "2026-09-26"
+    },
+    {
+      "id": "REQ-069",
+      "description": "Gerenciar canais Evolution GO corporativos e privados por vendedor, com QR restrito, transferência atômica de atendente e canal, histórico preservado e callback por conta protegido",
+      "module": "integracoes",
+      "status": "implemented_remote_verified_credentials_pending",
+      "evidence": "O Supabase oficial confirmou as migrations de fundação, transferência atômica e provisionamento individual, a função enqueue_evolution_go_seller_provisioning e as Edge Functions evolution-go, webhook-evolution-go, evolution-go-worker e team-members. A criação direta de usuário envia a senha temporária somente para o backend e enfileira a instância individual; o worker cria token, nome e ID remotamente apenas depois de receber a configuração global válida. A interface mostra Evolution GO como canal principal e mantém Z-API somente como alternativa legada. Type-check frontend/Edge, lint, build, 63 arquivos/372 testes e diff check passaram. Nenhuma instância, QR, mensagem, lead, callback ou automação real foi executada.",
+      "last_validation": "2026-10-04"
+    },
+    {
+      "id": "REQ-070",
+      "description": "Substituir o transporte principal por WA-AKG por vendedor, mantendo a Ana como autoridade automática e controles operacionais simples",
+      "module": "mensageria",
+      "status": "implemented_backend_published_gateway_pending",
+      "evidence": "Migrations wa_akg_provider_foundation e wa_akg_security_indexes aplicadas no Supabase oficial; wa-akg, webhook-wa-akg e wa-akg-worker publicados junto das versões atualizadas de automation-worker, ana-run, team-members, enviar-whatsapp e whatsapp-accounts. Há sessão isolada por vendedor, QR/código em Meu WhatsApp, webhook HMAC/idempotente, fila de provisionamento e reserva durável de envio com atraso aleatório 10–30 s, limites e kill switch. Bot/agendador/broadcast internos ficam desligados e Ana respeita opt-out, humano, política e horário. Type-check frontend/Edge, lint, build e 72 arquivos/411 testes passaram; zero conta WA-AKG ativa, evento ou reserva. Homologação externa aguarda servidor WA-AKG persistente, allowlist e chave.",
+      "last_validation": "2026-10-04"
+    },
+    {
+      "id": "REQ-041",
+      "description": "Importar seleção da Busca para Leads e lista em uma única transação idempotente",
+      "module": "prospeccao",
+      "status": "implemented_pending_site_publish",
+      "evidence": "RPC SECURITY INVOKER aplicada no Supabase oficial; transações revertidas validaram 2 leads/2 vínculos, retry sem duplicação, rollback total e recusa RBAC. Type-check frontend/Edge, lint, 40 arquivos/255 testes e build passaram. Importação humana ponta a ponta adiada pelo operador.",
+      "last_validation": "2026-09-25"
+    },
+    {
+      "id": "REQ-040",
+      "description": "Atribuir leads importados somente a usuários reais e ativos da organização, com RBAC também no banco",
+      "module": "usuarios",
+      "status": "partial",
+      "evidence": "Busca removeu mockUsers, exige seleção humana e reconfirma equipe/permissão antes de importar. Trigger privado rejeitou membro inválido e reatribuição sem leads.edit_all em transação revertida. 39 arquivos/253 testes, type-check, lint e build passaram. Site v123 publicado; UI exibiu três membros reais e bloqueou submissão sem seleção. Importação humana de novo lead não executada.",
+      "last_validation": "2026-09-25"
+    },
+    {
+      "id": "REQ-039",
+      "description": "Confirmar a persistência da importação Busca para Leads e lista, com erro visível e sem repetição cega",
+      "module": "prospeccao",
+      "status": "confirmed",
+      "evidence": "Duas importações controladas autenticadas persistiram após recarga; lead_lists e membros conferidos no Supabase. v121 preserva fonte/categoria/localização, não inventa porte, bloqueia dois duplicados e conta membros reais. Falha de lista e recuperação cobertas por regressão. Type-check, lint, 38 arquivos/252 testes e build passaram. Limites: operação em lote ainda não é transação única; nova busca paga não executada; responsáveis reais pertencem à etapa 3 original.",
+      "last_validation": "2026-09-25"
+    },
+    {
+      "id": "REQ-038",
+      "description": "Preservar baseline antes da evolução por etapas e aguardar troca manual de agente",
+      "module": "agent_os",
+      "status": "confirmed",
+      "evidence": "Etapa 1: branch isolada, tag baseline-wayflex-stage1-20260925, manifesto sanitizado de Site/Supabase, comparação GitHub, type-check frontend/Edge, lint, 35 arquivos/238 testes, build e artefato Sites aprovados. Nenhuma alteração de runtime; próxima etapa exige confirmação do operador após trocar para Sol Extra High.",
+      "last_validation": "2026-09-25"
+    },
+    {
+      "id": "REQ-001",
+      "description": "Configurações organizadas por efeito e fonte real",
+      "module": "configuracoes",
+      "status": "confirmed",
+      "evidence": "Menu segue a sequência status, empresa, Ana e operação comercial; Canais separa WhatsApp, enquanto APIs concentra IA e os provedores de busca sem uma segunda tela Fontes; Registro do Sistema permanece fora desta área",
+      "last_validation": "2026-09-22"
+    },
+    {
+      "id": "REQ-002",
+      "description": "Monitorar APIs e indicar estado verificado",
+      "module": "integracoes",
+      "status": "partial",
+      "evidence": "Canais, APIs e Dashboard usam o diagnóstico autenticado e a mesma janela de validação de 24 horas do backend. A interface separa Validada, Validação vencida, Entrada pendente, Pausada, Erro de conexão e Não configurada; monitor server-side adicional e alertas externos continuam como evolução própria.",
+      "last_validation": "2026-09-22"
+    },
+    {
+      "id": "REQ-003",
+      "description": "Eliminar módulos e fontes de verdade duplicadas",
+      "module": "arquitetura",
+      "status": "partial",
+      "evidence": "A superfície duplicada de Fontes foi consolidada em APIs. integrations mantém a conexão do provedor e lead_source_configs conserva apenas a guarda operacional server-side, sem credencial ou tela duplicada; stores e funções legadas ainda existem",
+      "last_validation": "2026-09-22"
+    },
+    {
+      "id": "REQ-004",
+      "description": "Conectar Kanban, Ana, Central e histórico humano",
+      "module": "atendimento",
+      "status": "confirmed",
+      "evidence": "Lead e Kanban compartilham o mesmo ID; Central monta uma conversa por lead a partir de lead_messages; saída humana registra job auditável e aciona o worker para despachar apenas a mensagem solicitada",
+      "last_validation": "2026-09-10"
+    },
+    {
+      "id": "REQ-005",
+      "description": "Marca textual WAYFLEX sem semáforos decorativos",
+      "module": "frontend",
+      "status": "confirmed",
+      "evidence": "Marca textual aplicada ao shell e semáforos removidos do JSX/CSS; typecheck, lint e build aprovados",
+      "last_validation": "2026-09-09"
+    },
+    {
+      "id": "REQ-006",
+      "description": "Dashboard executivo com métricas reais e alertas úteis",
+      "module": "dashboard",
+      "status": "confirmed",
+      "evidence": "Dashboard consulta diagnóstico remoto e concentra carteira, Kanban, temperatura, operação, Canais e APIs, handoffs e fila sem duplicar a navegação. O gráfico de conversas deriva de lead_messages operacionais, exclui notas internas e recebe alterações Realtime filtradas pela organização.",
+      "last_validation": "2026-09-11"
+    },
+    {
+      "id": "REQ-007",
+      "description": "Ambiente Real único no backend, sem seletor Demo e com prontidão separada para comunicação e automação",
+      "module": "operacao",
+      "status": "confirmed",
+      "evidence": "Dashboard e Configurações exibem somente Ambiente Real; sandbox_mode permanece como proteção interna. Validar Z-API sem filas pendentes libera comunicação manual no backend, enquanto Ana automática exige IA, entrada, worker e políticas comprovados",
+      "last_validation": "2026-09-10"
+    },
+    {
+      "id": "REQ-008",
+      "description": "Templates industriais de orçamento sem preço inventado",
+      "module": "orcamentos",
+      "status": "confirmed",
+      "evidence": "Quatro templates industriais persistidos em proposal_templates, com preço/prazo/validade exigindo definição humana",
+      "last_validation": "2026-09-09"
+    },
+    {
+      "id": "REQ-009",
+      "description": "Cards compactos e integrações não verificadas como offline/pendentes",
+      "module": "integracoes",
+      "status": "confirmed",
+      "evidence": "Os cartões compactos usam somente o diagnóstico remoto e mostram estados específicos, sem reduzir pendências a Desconectado. O Dashboard exibe apenas caminhos operacionais do CRM: saída e entrada WhatsApp; IA, Apify e Google Places; Apify, cadastro manual e CSV.",
+      "last_validation": "2026-09-22"
+    },
+    {
+      "id": "REQ-010",
+      "description": "Registro do Sistema separado de Configurações",
+      "module": "governanca",
+      "status": "confirmed",
+      "evidence": "Menu e rota /dashboard/registro-sistema criados; diagnóstico/auditoria removido de Configurações",
+      "last_validation": "2026-09-09"
+    },
+    {
+      "id": "REQ-011",
+      "description": "Auditar faltas relevantes para comercialização",
+      "module": "governanca",
+      "status": "confirmed",
+      "evidence": "Auditoria técnica de 2026-09-08 e continuidade versionada",
+      "last_validation": "2026-09-09"
+    },
+    {
+      "id": "REQ-012",
+      "description": "Todas as configurações devem persistir e produzir efeito real",
+      "module": "configuracoes",
+      "status": "partial",
+      "evidence": "A configuração publicada da Ana usa ai_agents/ai_agent_versions e governa conteúdo, canais, cadência, horário, limite diário por lead e handoff no ana-run; a tela diferencia versão já publicada de alteração pendente e só libera nova publicação após edição. Integrações preservam segredos no Vault. Execução externa ponta a ponta ainda não foi homologada",
+      "last_validation": "2026-09-10"
+    },
+    {
+      "id": "REQ-013",
+      "description": "Memória da Ana correta, aprovada, multimídia e sem WF Digital",
+      "module": "ana",
+      "status": "partial",
+      "evidence": "A curadoria oficial Wayflex v2 publicou 61 fontes rastreáveis de catálogos, segmentos, acessórios, respostas e limites; ana-run recupera a URL-fonte. Extração automática de texto de mídia, embeddings ativos e teste de isolamento entre múltiplas organizações continuam pendentes",
+      "last_validation": "2026-09-10"
+    },
+    {
+      "id": "REQ-014",
+      "description": "Memória técnica persistente e auditoria incremental do agente",
+      "module": "agent_os",
+      "status": "confirmed",
+      "evidence": "AGENTS.md exige o protocolo; baseline, arquitetura, requisitos, problemas, testes e histórico existem em .agent",
+      "last_validation": "2026-09-09"
+    },
+    {
+      "id": "REQ-015",
+      "description": "Separar canais e APIs sem duplicar provedores de busca",
+      "module": "integracoes",
+      "status": "confirmed",
+      "evidence": "Canais concentra WhatsApp/Z-API e seu único teste. APIs concentra IA, configuração, validação e ativação/pausa de Apify e Google Places na Busca de Leads; a guarda complementar de fonte permanece exclusivamente no backend",
+      "last_validation": "2026-09-22"
+    },
+    {
+      "id": "REQ-016",
+      "description": "Limpar dados de teste confirmados sem apagar dados ambíguos",
+      "module": "dados",
+      "status": "confirmed",
+      "evidence": "A transação de limpeza foi executada uma vez, restrita ao ID único solicitado pelo operador e à organização Wayflex. A verificação pós-exclusão confirmou zero cadastro e zero vínculos operacionais diretos em atendimento, filas, automação, Kanban, agenda, comercial e matching. Audit logs e domain events permanecem append-only por governança e não participam da operação.",
+      "last_validation": "2026-09-10"
+    },
+    {
+      "id": "REQ-017",
+      "description": "Assistente de ativação distingue saída Z-API, entrada de respostas e worker server-side",
+      "module": "operacao",
+      "status": "partial",
+      "evidence": "Worker server-side, cron e heartbeat estão ativos; diagnóstico distingue ausência de callback, telefone sem lead, callback de grupo/direção inválida e falha de processamento. A saída Z-API tem teste direto de número controlado, mas a mensagem real de entrada para a Ana ainda aguarda homologação",
+      "last_validation": "2026-09-10"
+    },
+    {
+      "id": "REQ-018",
+      "description": "Teste simples e real da Z-API sem depender de lead ou worker",
+      "module": "integracoes",
+      "status": "partial",
+      "evidence": "O painel coleta número e mensagem e a Edge Function mantém o envio direto sem criar lead ou conversa. A reserva idempotente do teste foi corrigida: a transação como service_role retornou reserved e foi revertida sem chamar a Z-API. Falta o aceite externo controlado pelo operador para nova evidência ponta a ponta.",
+      "last_validation": "2026-09-17"
+    },
+    {
+      "id": "REQ-019",
+      "description": "Ana automática governada por versão publicada e política segura",
+      "module": "ana",
+      "status": "partial",
+      "evidence": "ana-run é a única autoridade automática; Ambiente Real, política publicada, IA, WhatsApp, entrada e worker foram confirmados no Dashboard após revalidação segura da credencial de IA. O handoff por baixa confiança ou conteúdo comercial sensível falha fechado e, desde ana-run v31, registra domain_events com idempotência por execução, evitando interrupção na auditoria. Ainda falta homologação de resposta de modelo e entrega externa ponta a ponta",
+      "last_validation": "2026-09-19"
+    },
+    {
+      "id": "REQ-020",
+      "description": "Aplicar layout executivo Wayflex e orientar todas as telas pelo fluxo comercial",
+      "module": "frontend",
+      "status": "confirmed",
+      "evidence": "Shell global, tokens, Dashboard e Configurações usam Wayflex Executive Light; menu e atalhos conectam captação, atendimento e fechamento; typecheck, lint, 127 testes e build aprovados",
+      "last_validation": "2026-09-10"
+    },
+    {
+      "id": "REQ-021",
+      "description": "Site oficial sempre inicializa o cliente Supabase com configuração pública válida",
+      "module": "hosting",
+      "status": "confirmed",
+      "evidence": "Ambiente do Site confere com o projeto oficial; o artefato Vite foi reconstruído com URL e chave publicável, e ambas foram verificadas no pacote sem gravá-las no Git",
+      "last_validation": "2026-09-10"
+    },
+    {
+      "id": "REQ-022",
+      "description": "Configurar a Ana por um mapa visual sem duplicar ou alterar a lógica operacional",
+      "module": "frontend",
+      "status": "superseded",
+      "evidence": "O mapa da versão 75 foi rejeitado pelo operador e removido integralmente sem alterar a lógica operacional",
+      "last_validation": "2026-09-13"
+    },
+    {
+      "id": "REQ-023",
+      "description": "Restaurar Configurar a Ana ao layout compacto anterior",
+      "module": "frontend",
+      "status": "confirmed",
+      "evidence": "JSX e CSS dos dois arquivos afetados voltaram exatamente ao estado da versão 74; type-check frontend/Edge, lint, 165 testes e build aprovados",
+      "last_validation": "2026-09-13"
+    },
+    {
+      "id": "REQ-024",
+      "description": "Separar aderência, contactabilidade e engajamento na qualificação de leads",
+      "module": "prospeccao",
+      "status": "confirmed",
+      "evidence": "Apify retorna score de fit/contactabilidade/engajamento, explicação e origem rastreável; mapper persiste o snapshot e a UI apresenta aderência e contato separadamente",
+      "last_validation": "2026-09-13"
+    },
+    {
+      "id": "REQ-025",
+      "description": "Não tratar telefone como WhatsApp nem ativar a Ana sem autorização comprovada",
+      "module": "leads",
+      "status": "confirmed",
+      "evidence": "O cadastro manual persiste contato pending; a normalização não deriva WhatsApp de telefone genérico. O lead atribuído já aparece no Kanban em Novo com autorização pendente, mas mapper, ana-run e worker exigem canal comprovado e contact_approval_status aprovado antes da primeira saída. Inbound individual pode registrar aprovação originada pelo próprio lead.",
+      "last_validation": "2026-09-17"
+    },
+    {
+      "id": "REQ-026",
+      "description": "Ana consulta a base aprovada por recuperação híbrida e agenda reuniões sem prometer antes de confirmar",
+      "module": "ana",
+      "status": "partial",
+      "evidence": "ana-run combina busca lexical e match_knowledge_chunks quando há embedding; ação de agenda consulta disponibilidade, reconcilia por idempotência e transfere ao humano em falha. Os 61 chunks ativos ainda aguardam embedding e o Calendar real não foi homologado",
+      "last_validation": "2026-09-13"
+    },
+    {
+      "id": "REQ-027",
+      "description": "Mensageria distingue aceite, entrega e leitura e reconcilia aceite sem reenvio",
+      "module": "mensageria",
+      "status": "confirmed",
+      "evidence": "Funções SQL atômicas foram corrigidas, seis aceites históricos foram reconciliados sem chamada externa, worker v19 repete a rotina com segurança e o diagnóstico lista fila e saída por mensagem. Teste transacional com rollback cobriu fila idempotente, aceite e entrega",
+      "last_validation": "2026-09-13"
+    },
+    {
+      "id": "REQ-028",
+      "description": "Fluxo principal de captura expõe somente Apify e entrada manual",
+      "module": "prospeccao",
+      "status": "confirmed",
+      "evidence": "Busca de Leads filtra a fonte principal para Apify; cadastro/CSV permanecem disponíveis; conectores legados foram preservados fora do fluxo principal",
+      "last_validation": "2026-09-13"
+    },
+    {
+      "id": "REQ-029",
+      "description": "Configurar a operação diária da Ana em modos Simulação, Supervisionado e Automático",
+      "module": "ana",
+      "status": "partial",
+      "evidence": "Configurações > Ana agora persiste agenda, ICP, limites, aprovações, destino explícito (Ana, vendedor específico ou rodízio somente da equipe escolhida), etapa de transferência e aviso opcional. A ativação aponta os campos ausentes; o backend confirma permissão e prontidão antes de gravar. ana-run continua a única autoridade de automação. A entrada WhatsApp real ainda precisa estar saudável para habilitar Automático.",
+      "last_validation": "2026-09-22"
+    },
+    {
+      "id": "REQ-030",
+      "description": "Avisar o vendedor por eventos comerciais objetivos e resumo diário por carteira",
+      "module": "dashboard",
+      "status": "confirmed",
+      "evidence": "lead_qualifications e domain_events geram notifications por responsável; sino usa Realtime; Dashboard apresenta cinco grupos de atenção e worker cria resumo diário restrito à carteira",
+      "last_validation": "2026-09-13"
+    },
+    {
+      "id": "REQ-031",
+      "description": "Criar membros diretamente dentro da organização ativa sem onboarding paralelo",
+      "module": "equipe",
+      "status": "confirmed",
+      "evidence": "team-members prepara organization_invites antes do Auth, impedindo a criação de organização pessoal; Juca foi associado à WayFlex como administrador ativo e confirmado visualmente na lista",
+      "last_validation": "2026-09-14"
+    },
+    {
+      "id": "REQ-032",
+      "description": "Administrar a base de leads por status e excluir somente registros selecionados com todos os vínculos operacionais",
+      "module": "leads",
+      "status": "confirmed",
+      "evidence": "Site v140: LeadBaseManager está novamente acessível em Funil > Gerenciar base, somente para leads.read_all; excluir exige leads.delete, seleção e frase EXCLUIR N LEADS. lead-governance v1 e as RPCs exclusivas de service_role foram confirmadas. Type-check, lint, 51 arquivos/309 testes, build e inspeção autenticada passaram sem excluir registros.",
+      "last_validation": "2026-09-27"
+    },
+    {
+      "id": "REQ-033",
+      "description": "Permitir entrada de WhatsApp originada pelo site sem expor segredos nem aceitar mensagens desconhecidas",
+      "module": "integracoes",
+      "status": "implemented_pending_site_publish",
+      "evidence": "Canais > WhatsApp gera link wa.me com marcador público por organização; webhook só cria lead para marcador ativo, preserva ambiguidade bloqueada e entrega o inbound ao ana-run",
+      "last_validation": "2026-09-16"
+    },
+    {
+      "id": "REQ-034",
+      "description": "Controlar permissões individuais por membro e aplicá-las no frontend, Edge Functions e RLS",
+      "module": "equipe",
+      "status": "implemented_pending_site_publish",
+      "evidence": "team_member_permissions, helper privado de autorização, RLS em Leads/Mensagens/Integrações e modal de permissões da equipe foram implantados; administrador mantém acesso total",
+      "last_validation": "2026-09-16"
+    },
+    {
+      "id": "REQ-035",
+      "description": "Central de Atendimento atualiza novas mensagens sem recarga manual e conecta o contexto comercial",
+      "module": "atendimento",
+      "status": "confirmed",
+      "evidence": "A Central assina somente lead_messages publicados no Realtime e filtrados pela organização autenticada; SUBSCRIBED é apresentado como Ao vivo e a leitura periódica é contingência explícita. A apresentação passou a usar a composição de três áreas da referência, com ações agrupadas, painel comercial mais amplo e textos integrais nos cards; Agenda, Orçamentos e o envio seguro continuam nos mesmos fluxos existentes.",
+      "last_validation": "2026-09-19"
+    },
+    {
+      "id": "REQ-036",
+      "description": "Centralizar produtos, serviços, catálogos e documentos com rastreabilidade para Ana e Central",
+      "module": "empresa_conhecimento",
+      "status": "partial",
+      "evidence": "O adaptador catalog-knowledge v6 lê os módulos públicos publicados da Wayflex para produtos e catálogos e registra o snapshot público de segmentos quando a página é dinâmica: 18 produtos, 18 segmentos e 17 catálogos visuais foram sincronizados com origem, imagem referenciada, payload e documento/chunk derivados (56 ativos). Configurações exibe cards, a Central preserva pré-visualização/preparo auditável e ana-run v32 cita nomes e resumos antes da URL. Mídia permanece como link oficial, não como arquivo nativo, e o site de segmentos ainda precisa de uma fonte estruturada aprovada para sincronização futura sem snapshot.",
+      "last_validation": "2026-09-23"
+    },
+    {
+      "id": "REQ-037",
+      "description": "Adicionar Meta WhatsApp Cloud API Coexistence sem substituir a operação Z-API homologada",
+      "module": "integracoes",
+      "status": "partial",
+      "evidence": "MessagingProvider, Embedded Signup oficial, webhook HMAC/idempotente, outbox, status fora de ordem, RLS, retry/DLQ e gates foram implantados no projeto oficial. Duas contas Z-API continuam conectadas; Meta possui zero conta/evento/fila e todos os gates permanecem fechados. Gate 3 real depende de App/WABA/número de teste autorizado.",
+      "last_validation": "2026-09-24"
+    },
+    {
+      "id": "REQ-038",
+      "description": "Permitir salvar e ativar a Operação automática da Ana sem exigir transferência programada por etapa",
+      "module": "ana",
+      "status": "implemented_pending_operator_activation",
+      "evidence": "O log real confirmou handoff_notify_whatsapp=null como causa do 23502. ana-operations v5 normaliza sempre para booleano; teste dedicado, suíte 50/308, build, Site v139 e tela autenticada com nove checks OK foram aprovados. A operação permaneceu inativa durante a correção.",
+      "last_validation": "2026-09-27"
+    },
+    {
+      "id": "REQ-039",
+      "description": "Exibir inteligência comercial do Funil sem misturar fotografia atual, eventos e revisão da base",
+      "module": "funil",
+      "status": "confirmed",
+      "evidence": "FunnelAnalytics usa leads, proposals e lead_stage_history existentes; mantém filtros na URL, deduplica revisões, calcula conversão somente sobre decisões persistidas e remove LeadBaseManager/Gerenciar base da rota do Funil. Type-check, lint, 57 arquivos/329 testes, build e inspeção autenticada da rota publicados no Site oficial v149.",
+      "last_validation": "2026-09-29"
+    },
+    {
+      "id": "REQ-040",
+      "description": "Exibir o Status operacional em command center compacto com estados factuais e ações protegidas",
+      "module": "configuracoes",
+      "status": "confirmed",
+      "evidence": "OperationalStatusTab usa somente operational-diagnostics para preencher componentes, saúde, última validação, uso, pré-requisitos da Ana, pausa global e auditoria. Menus chamam apenas as ações server-side existentes; sem migration, endpoint novo ou painel destrutivo nesta tela. Type-check, lint, 57 arquivos/329 testes, build e diff check passaram. Site oficial v151 publicado e a inspeção autenticada confirmou a tabela, filtros, pré-requisitos reais e ausência de erro de console.",
+      "last_validation": "2026-09-29"
+    },
+    {
+      "id": "REQ-041",
+      "description": "Reorganizar Configurações > Canais > Entradas do WhatsApp com configuração, diagnóstico, histórico e link público real",
+      "module": "configuracoes",
+      "status": "confirmed",
+      "evidence": "WhatsAppEntriesTab usa os contratos reais site-whatsapp-entry, whatsapp-accounts, operational-diagnostics e testar-integracao. A entrada valida E.164, salva/pausa com permissão, copia e rotaciona o código server-side com auditoria; checagens de webhook, Ana e fallback não são simuladas. Type-check frontend/Edge, lint, 57 arquivos/329 testes, build e diff check passaram. Edge Function site-whatsapp-entry v2 foi publicada no Supabase oficial. Site oficial v153, commit ad2b8c5cce6c6b4bcf76af6dbf8e38c3b9e8178b, deploy appgdep_6abbcd277b4881918b0b961cde8148d7; inspeção autenticada sem erro de runtime.",
+      "last_validation": "2026-09-29"
+    }
+  ]
+}

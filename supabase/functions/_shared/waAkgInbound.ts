@@ -1,0 +1,113 @@
+type Row = Record<string, unknown>;
+
+export type WaAkgInboundEvent =
+  | { kind: 'inbound'; externalId: string; messageId: string; phone: string; text: string; occurredAt: string; messageType: string }
+  | { kind: 'receipt'; externalId: string; providerMessageIds: string[]; status: 'sent' | 'delivered' | 'read' | 'failed'; occurredAt: string }
+  | { kind: 'connection'; externalId: string; state: 'connected' | 'disconnected' | 'qr'; occurredAt: string }
+  | { kind: 'ignored'; reason: string; externalId: string; occurredAt: string };
+
+const object = (value: unknown): Row => value && typeof value === 'object' && !Array.isArray(value)
+  ? value as Row
+  : {};
+const text = (value: unknown, max = 4_096): string => typeof value === 'string'
+  ? value.trim().slice(0, max)
+  : '';
+
+function instant(value: unknown): string {
+  const raw = text(value, 80);
+  if (raw && Number.isFinite(Date.parse(raw))) return new Date(raw).toISOString();
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const millis = value > 10_000_000_000 ? value : value * 1_000;
+    return new Date(millis).toISOString();
+  }
+  return new Date().toISOString();
+}
+
+function digitsFromJid(value: unknown): string {
+  const local = text(value, 200).split('@')[0]?.replace(/\D/g, '') ?? '';
+  return /^[1-9]\d{7,14}$/.test(local) ? local : '';
+}
+
+function status(value: unknown): 'sent' | 'delivered' | 'read' | 'failed' {
+  const normalized = text(value, 40).toUpperCase();
+  if (normalized.includes('READ')) return 'read';
+  if (normalized.includes('DELIVER')) return 'delivered';
+  if (normalized.includes('ERROR') || normalized.includes('FAIL')) return 'failed';
+  return 'sent';
+}
+
+function stableExternalId(event: string, sessionId: string, data: Row, key: Row, occurredAt: string): string {
+  const id = text(key.id ?? data.id, 300);
+  if (id) return `${event}:${id}`;
+  return `${event}:${sessionId || 'unknown'}:${occurredAt}`.slice(0, 300);
+}
+
+export function parseWaAkgEvent(input: unknown): WaAkgInboundEvent {
+  const payload = object(input);
+  const event = text(payload.event ?? payload.type, 80).toLowerCase();
+  const data = object(payload.data);
+  const key = object(data.key);
+  const session = text(payload.sessionId ?? payload.session_id ?? data.sessionId, 120);
+  const occurredAt = instant(payload.timestamp ?? data.timestamp ?? data.messageTimestamp);
+  const externalId = stableExternalId(event || 'unknown', session, data, key, occurredAt);
+
+  if (event === 'connection.update') {
+    const rawState = text(data.status ?? data.state ?? payload.status, 80).toUpperCase();
+    const state = rawState === 'CONNECTED'
+      ? 'connected'
+      : rawState === 'SCAN_QR' || rawState === 'QR'
+        ? 'qr'
+        : 'disconnected';
+    return { kind: 'connection', externalId, state, occurredAt };
+  }
+
+  if (event === 'message.status') {
+    const id = text(key.id ?? data.messageId ?? data.id, 300);
+    if (!id) return { kind: 'ignored', reason: 'receipt_message_id_missing', externalId, occurredAt };
+    return {
+      kind: 'receipt',
+      externalId,
+      providerMessageIds: [id],
+      status: status(data.status ?? payload.status),
+      occurredAt,
+    };
+  }
+
+  if (event !== 'message.received') {
+    return { kind: 'ignored', reason: 'event_not_supported', externalId, occurredAt };
+  }
+  if (key.fromMe === true || data.fromMe === true) {
+    return { kind: 'ignored', reason: 'outbound_echo', externalId, occurredAt };
+  }
+  const jid = text(key.remoteJid ?? data.from ?? data.remoteJid, 200);
+  if (!jid || /@g\.us$|@broadcast$|status@broadcast$|@newsletter$/.test(jid)) {
+    return { kind: 'ignored', reason: 'non_personal_chat', externalId, occurredAt };
+  }
+  const phone = digitsFromJid(jid);
+  if (!phone) return { kind: 'ignored', reason: 'sender_invalid', externalId, occurredAt };
+  const content = object(data.content ?? data.message);
+  const messageType = text(data.type ?? payload.messageType, 40).toLowerCase() || 'text';
+  const body = text(
+    typeof data.content === 'string' ? data.content
+      : data.text ?? data.caption ?? content.text ?? content.caption ?? content.conversation,
+    4_096,
+  );
+  if (!body) {
+    return { kind: 'ignored', reason: 'message_content_unsupported', externalId, occurredAt };
+  }
+  const messageId = text(key.id ?? data.id, 300);
+  if (!messageId) return { kind: 'ignored', reason: 'message_id_missing', externalId, occurredAt };
+  return { kind: 'inbound', externalId, messageId, phone, text: body, occurredAt, messageType };
+}
+
+/** Only the normalized fields required by the worker are persisted. */
+export function sanitizeWaAkgPayload(input: unknown): Row {
+  const parsed = parseWaAkgEvent(input);
+  return parsed.kind === 'inbound'
+    ? { kind: parsed.kind, external_id: parsed.externalId, message_id: parsed.messageId, phone: parsed.phone, text: parsed.text, occurred_at: parsed.occurredAt, message_type: parsed.messageType }
+    : parsed.kind === 'receipt'
+      ? { kind: parsed.kind, external_id: parsed.externalId, provider_message_ids: parsed.providerMessageIds, status: parsed.status, occurred_at: parsed.occurredAt }
+      : parsed.kind === 'connection'
+        ? { kind: parsed.kind, external_id: parsed.externalId, state: parsed.state, occurred_at: parsed.occurredAt }
+        : { kind: parsed.kind, external_id: parsed.externalId, reason: parsed.reason, occurred_at: parsed.occurredAt };
+}

@@ -1,0 +1,896 @@
+{
+  "schema_version": 1,
+  "stage": 1,
+  "recorded_at": "2026-09-25T15:37:10Z",
+  "scope": "baseline de codigo e inventario operacional somente leitura; nao equivale a backup de dados nem homologacao externa",
+  "local_recovery_bundle": {
+    "path_relative_to_checkout": "../../outputs/wayflex-pre-stage-1-20260925.bundle",
+    "size_bytes": 1796293,
+    "sha256": "861a146a9cb589efc13c38eff6f543434802895d92c3130f138da1cbee4cefeb",
+    "git_bundle_verify": "passed_complete_history",
+    "contains_database_or_vault_backup": false
+  },
+  "source": {
+    "validated_commit": "9bdd136eaa9c03a2eb1eca91f67e57d3dac88579",
+    "original_branch": "feat/meta-coexistence-foundation-2026-09-24",
+    "work_branch": "chore/wayflex-stage-1-baseline-2026-09-25",
+    "recovery_tag": "baseline-wayflex-stage1-20260925",
+    "initial_working_tree": "clean",
+    "shallow_repository": false,
+    "github_repository": "https://github.com/fabricio-gaspar/Sistema-Leads.git",
+    "github_main": "c4733b65c552d53be40c78f0350396432e163609",
+    "github_comparison_branch": "stabilize/production-readiness-2026-09-09",
+    "github_comparison_commit": "585409bb96352458e5797a5f9de29f69363ece1b",
+    "github_has_common_ancestor": false,
+    "github_main_only_commits": 625,
+    "site_checkout_only_commits": 183,
+    "github_changed_files": 604,
+    "site_source_main": "a55a0a21c4c1f09cd9b7672f3cf7576ce56bbee2",
+    "local_cached_official_main": "f97f18fbe87caa962b78deb428e83995b7c8be16",
+    "runtime_delta_from_published_source": [],
+    "package_lock_sha256": "e7648df1932c58349019ac125a2dddc9b64e40b86246f26214f132aa0ea69208"
+  },
+  "site": {
+    "project_id": "appgprj_6a905559159c8191a61fb776b9a4c531",
+    "version": 118,
+    "version_id": "appgprj_6a905559159c8191a61fb776b9a4c531~appgver_613dde066f8c8191ba88c02e9fcaa124",
+    "deployment_id": "appgdep_6ab6875c99d8819188bf75e080a139bb",
+    "deployment_status": "succeeded",
+    "source_commit": "a55a0a21c4c1f09cd9b7672f3cf7576ce56bbee2",
+    "url": "https://leadai-crm-preview.fabricio926564.chatgpt.site",
+    "access_mode": "public",
+    "artifact_sha256": "b62bdd2860baf08e1ff8f6484bb3a5736326d782603bb0a36e07737f3e26d7ba",
+    "changed": false
+  },
+  "backend": {
+    "project_ref": "thgzrkppouoevapjquyu",
+    "name": "Sistema de Leads",
+    "status": "ACTIVE_HEALTHY",
+    "region": "sa-east-1",
+    "organization_id": "a1ea4d91-3d09-4052-9759-3009b442e6cb",
+    "company": {
+      "active": true,
+      "can_use_ia": true,
+      "sandbox_mode": false,
+      "ana_operation_mode": "automatic",
+      "ana_operation_enabled": false
+    },
+    "provider_controls": [
+      {
+        "provider": "zapi",
+        "inbound_enabled": false,
+        "send_enabled": false,
+        "automation_enabled": false,
+        "kill_switch": true
+      },
+      {
+        "provider": "meta_cloud",
+        "inbound_enabled": false,
+        "send_enabled": false,
+        "automation_enabled": false,
+        "kill_switch": true
+      }
+    ],
+    "accounts": [
+      {
+        "provider": "zapi",
+        "enabled": false,
+        "connection_status": "error"
+      }
+    ],
+    "meta_accounts": 0,
+    "counts": {
+      "leads": 0,
+      "messages": 0,
+      "agent_runs": 0,
+      "outreach_jobs": 0,
+      "messaging_outbox": 0
+    },
+    "manual_prospecting": {
+      "source": "apify",
+      "mode": "production",
+      "running": 5,
+      "running_with_provider_run_id": 5,
+      "failed": 5
+    },
+    "schedule": {
+      "active": false,
+      "run_time": "09:00:00",
+      "timezone": "America/Sao_Paulo",
+      "weekdays": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "last_run_at": null,
+      "next_run_at": "2026-09-23T12:00:00Z"
+    },
+    "schedule_runs": {
+      "simulated": 1
+    },
+    "worker_cron": {
+      "active": true,
+      "schedule": "* * * * *",
+      "jobname": "leadai-automation-worker-dispatch"
+    },
+    "scheduler_last_success_at": "2026-09-25T15:34:01.137Z",
+    "apify_last_tested_at": "2026-09-11T18:36:11.955Z",
+    "lead_messages_realtime": true,
+    "edge_functions": [
+      {
+        "slug": "lead-workflow",
+        "version": 5,
+        "status": "ACTIVE",
+        "verify_jwt": true,
+        "sha256": "5d1acb61bcdb772a34e03eff7b0084b3ee796a577af0d7e54862939aac3d2616"
+      },
+      {
+        "slug": "ana-ia",
+        "version": 10,
+        "status": "ACTIVE",
+        "verify_jwt": true,
+        "sha256": "7fa89967af8814e015639686227efcbcd7befae329d8f8040e2a819e278d9b9a"
+      },
+      {
+        "slug": "webhook-whatsapp",
+        "version": 19,
+        "status": "ACTIVE",
+        "verify_jwt": false,
+        "sha256": "96550c85a6e756917eae6bccee12799b043146354837119deccec114b7b22435"
+      },
+      {
+        "slug": "automation-worker",
+        "version": 32,
+        "status": "ACTIVE",
+        "verify_jwt": false,
+        "sha256": "cffb1928ea186014c3474720bd97397d9e8508be4b8244b363eb1305da63de57"
+      },
+      {
+        "slug": "enviar-whatsapp",
+        "version": 9,
+        "status": "ACTIVE",
+        "verify_jwt": true,
+        "sha256": "488ff0f04498ef8e3ed49ab2dc3f8895c6b187017cc51e1f5f02724e5e4a6c92"
+      },
+      {
+        "slug": "enviar-email",
+        "version": 2,
+        "status": "ACTIVE",
+        "verify_jwt": true,
+        "sha256": "5b34b80a1f52b8972b50cb3d844c42e0091936d300a06c53d1ad96d7b720a399"
+      },
+      {
+        "slug": "testar-integracao",
+        "version": 15,
+        "status": "ACTIVE",
+        "verify_jwt": true,
+        "sha256": "419fdd26cd594bf02ae49196d698a12ea9f7dcb99d1fa278bd2e3b3dfe7f8944"
+      },
+      {
+        "slug": "configurar-integracao",
+        "version": 18,
+        "status": "ACTIVE",
+        "verify_jwt": true,
+        "sha256": "d8b240308e102a7099645e2f34c1020d851038e653ec14d5a5eeb54c1cebe188"
+      },
+      {
+        "slug": "prospectar-leads",
+        "version": 11,
+        "status": "ACTIVE",
+        "verify_jwt": true,
+        "sha256": "53a34268347eefe5668960f990f350b2d75fe01e3a415d6780a89671d10f0afd"
+      },
+      {
+        "slug": "ana-run",
+        "version": 35,
+        "status": "ACTIVE",
+        "verify_jwt": true,
+        "sha256": "6a797e67463d93c81a98da9254018d639feaec31dce335ddf1e0e564a9884bd0"
+      },
+      {
+        "slug": "gerar-prompt-busca",
+        "version": 1,
+        "status": "ACTIVE",
+        "verify_jwt": true,
+        "sha256": "7c9473d9c36b4b3551d457cb0587ead47881f14f51533ac38cb2c42c3b3d0f09"
+      },
+      {
+        "slug": "base-ana-ingest",
+        "version": 3,
+        "status": "ACTIVE",
+        "verify_jwt": true,
+        "sha256": "60664d05a9265fcdfc1865059a9eed48fa78b38b2003ff3d0d65204f3b41446a"
+      },
+      {
+        "slug": "operational-diagnostics",
+        "version": 18,
+        "status": "ACTIVE",
+        "verify_jwt": true,
+        "sha256": "6a846b8b5594679a4a93438696dd19076cf9cff74f2ef2dcfd6eb968fb406e28"
+      },
+      {
+        "slug": "team-members",
+        "version": 9,
+        "status": "ACTIVE",
+        "verify_jwt": true,
+        "sha256": "f674c466bfb1c7ec4136e9f3fff7abc165711a393110d1e6901e167b52f86e91"
+      },
+      {
+        "slug": "cleanup-test-leads",
+        "version": 1,
+        "status": "ACTIVE",
+        "verify_jwt": true,
+        "sha256": "19dd099db746160f9beca37a39f871921a473de0a02bb0a942d448c5b6f309ec"
+      },
+      {
+        "slug": "enviar-teste-whatsapp",
+        "version": 3,
+        "status": "ACTIVE",
+        "verify_jwt": true,
+        "sha256": "8f061ddf9f572bedeee81df943d81df209acb270d28e21e9869ec017d77edea2"
+      },
+      {
+        "slug": "ana-operations",
+        "version": 2,
+        "status": "ACTIVE",
+        "verify_jwt": true,
+        "sha256": "7c6193356488f3501d9c8fc234c4d907f683065ddea7496b20a1df8440dc8920"
+      },
+      {
+        "slug": "lead-governance",
+        "version": 1,
+        "status": "ACTIVE",
+        "verify_jwt": true,
+        "sha256": "ebbb64605247ba3a72ec4db0a3d587ea4147dbeb525f9e5011181babd569befa"
+      },
+      {
+        "slug": "site-whatsapp-entry",
+        "version": 1,
+        "status": "ACTIVE",
+        "verify_jwt": true,
+        "sha256": "75f58ae66270ff7bf4809fd93063f67ad20b9a25a18f95bd864082656b70b582"
+      },
+      {
+        "slug": "catalog-knowledge",
+        "version": 6,
+        "status": "ACTIVE",
+        "verify_jwt": true,
+        "sha256": "def676e25cab7c78ae6ff3f9fa9f5cdeb23e25a6414e093e045b3d467cabc1a2"
+      },
+      {
+        "slug": "whatsapp-accounts",
+        "version": 4,
+        "status": "ACTIVE",
+        "verify_jwt": false,
+        "sha256": "f82ba3042c877fddb926a76bbf84ba830b3f5db8de34c543ba09c2d00811197d"
+      },
+      {
+        "slug": "webhook-meta-whatsapp",
+        "version": 2,
+        "status": "ACTIVE",
+        "verify_jwt": false,
+        "sha256": "7f6e321b95177d3e0f070c923136230cb911f0e0eb7fcb729faf9cd64eb6202f"
+      },
+      {
+        "slug": "meta-whatsapp-onboarding",
+        "version": 1,
+        "status": "ACTIVE",
+        "verify_jwt": true,
+        "sha256": "ea3add7d580406a7ff2a7291fe344e2be543c3159f395bd2122b0b213bfb26b7"
+      },
+      {
+        "slug": "meta-whatsapp-messages",
+        "version": 1,
+        "status": "ACTIVE",
+        "verify_jwt": true,
+        "sha256": "1ae131f52ac3ccbc14b42ce79b9089ea2f2de373dd3982904f761ccce9173aed"
+      },
+      {
+        "slug": "meta-whatsapp-worker",
+        "version": 2,
+        "status": "ACTIVE",
+        "verify_jwt": false,
+        "sha256": "4982198b919dfed3c8bd58b77dcec302787cbfa71699aa0880c0eeb254f28e7f"
+      }
+    ],
+    "applied_migrations": [
+      {
+        "version": "20260811001327",
+        "name": "49fcae01-e7c1-49a8-bf14-75046dfdd3c6"
+      },
+      {
+        "version": "20260811133722",
+        "name": "10299de0-9cb8-471c-b0f0-d0851d721baa"
+      },
+      {
+        "version": "20260811141835",
+        "name": "a47e8ec4-0c4d-468c-8c45-f108dacb20b2"
+      },
+      {
+        "version": "20260811142020",
+        "name": "00e46d0d-a170-4232-b441-398eeffada58"
+      },
+      {
+        "version": "20260811142111",
+        "name": "7cf6cfda-08bb-45e9-aafb-e4e2db340383"
+      },
+      {
+        "version": "20260811142215",
+        "name": "a7118105-ed75-4887-840e-e2d98475cbde"
+      },
+      {
+        "version": "20260811150015",
+        "name": "9581231f-b628-4fae-aabd-a971616ecf4a"
+      },
+      {
+        "version": "20260811150205",
+        "name": "3f209e79-8d4c-4111-b8c5-7785acdb5ad9"
+      },
+      {
+        "version": "20260811150718",
+        "name": "32911650-ef96-43a6-8c54-0bdf4ba5e82c"
+      },
+      {
+        "version": "20260811165555",
+        "name": "72f30612-d3a5-40dc-b3ed-5593b0aca1f7"
+      },
+      {
+        "version": "20260811165921",
+        "name": "5cdb6bd9-e498-4e83-b2a9-21adc520af4a"
+      },
+      {
+        "version": "20260811170021",
+        "name": "6b2a72e3-9745-44c4-ab05-30c88c9eb843"
+      },
+      {
+        "version": "20260811170102",
+        "name": "a0739ad6-6b6f-42d9-8d0b-f5fa50b4b74c"
+      },
+      {
+        "version": "20260811170638",
+        "name": "c2132635-961a-4b7b-989e-485a5c1f771e"
+      },
+      {
+        "version": "20260812224754",
+        "name": "secure_multitenant_sandbox_foundation"
+      },
+      {
+        "version": "20260812225009",
+        "name": "harden_function_execute_privileges"
+      },
+      {
+        "version": "20260812225055",
+        "name": "fix_invite_activation_order"
+      },
+      {
+        "version": "20260812231132",
+        "name": "index_foreign_keys"
+      },
+      {
+        "version": "20260812231248",
+        "name": "optimize_auth_rls_initplans"
+      },
+      {
+        "version": "20260812231415",
+        "name": "consolidate_membership_read_policies"
+      },
+      {
+        "version": "20260812234521",
+        "name": "fix_membership_audit_trigger"
+      },
+      {
+        "version": "20260813130731",
+        "name": "complete_commercial_core"
+      },
+      {
+        "version": "20260813130834",
+        "name": "optimize_commercial_core_policies"
+      },
+      {
+        "version": "20260813131900",
+        "name": "reconcile_runtime_schema"
+      },
+      {
+        "version": "20260813132241",
+        "name": "reconcile_handoff_contract"
+      },
+      {
+        "version": "20260813202917",
+        "name": "commercial_autonomy_foundation"
+      },
+      {
+        "version": "20260813203207",
+        "name": "automation_contract_and_templates"
+      },
+      {
+        "version": "20260813203611",
+        "name": "commercial_domain_event_triggers"
+      },
+      {
+        "version": "20260813204540",
+        "name": "optimize_autonomy_rls_and_indexes"
+      },
+      {
+        "version": "20260813205117",
+        "name": "seed_safe_sandbox_scenario"
+      },
+      {
+        "version": "20260814215455",
+        "name": "5ab20099-3d5d-42ad-9b38-b3b1698c43a5"
+      },
+      {
+        "version": "20260814215558",
+        "name": "293be5f2-2076-47a4-9008-366345777973"
+      },
+      {
+        "version": "20260814215637",
+        "name": "f79092f0-bb5e-425a-95cd-af5875433d03"
+      },
+      {
+        "version": "20260814215653",
+        "name": "7f9d7a46-48f1-423f-95e1-97a106b1018c"
+      },
+      {
+        "version": "20260814220528",
+        "name": "fcf847c4-0444-42a8-9700-7c233170d4d0"
+      },
+      {
+        "version": "20260817195604",
+        "name": "repair_multitenant_security_foundation"
+      },
+      {
+        "version": "20260817195805",
+        "name": "consolidate_identity_policies"
+      },
+      {
+        "version": "20260817200056",
+        "name": "fix_returning_rls_policies"
+      },
+      {
+        "version": "20260817200236",
+        "name": "seed_missing_lead_sources"
+      },
+      {
+        "version": "20260817202933",
+        "name": "prospecting_preflight_governance"
+      },
+      {
+        "version": "20260817203548",
+        "name": "protect_preflight_cache_snapshot"
+      },
+      {
+        "version": "20260817203804",
+        "name": "optimize_prospecting_preflight_rls"
+      },
+      {
+        "version": "20260817205209",
+        "name": "commercial_lead_lifecycle_queue"
+      },
+      {
+        "version": "20260818121437",
+        "name": "crm_accounts_contacts_foundation"
+      },
+      {
+        "version": "20260818122230",
+        "name": "voice_outcomes_and_attribution"
+      },
+      {
+        "version": "20260818123244",
+        "name": "index_crm_identity_foreign_keys"
+      },
+      {
+        "version": "20260820191048",
+        "name": "3a265dc9-db92-4e0b-9fe2-6a6af9700e03"
+      },
+      {
+        "version": "20260820191113",
+        "name": "bfb8674e-b063-47f6-927d-f847e0b261fa"
+      },
+      {
+        "version": "20260821143528",
+        "name": "create_app_user_connections"
+      },
+      {
+        "version": "20260821143708",
+        "name": "app_user_connections_service_role_policy"
+      },
+      {
+        "version": "20260821231358",
+        "name": "leadai_operational_hardening"
+      },
+      {
+        "version": "20260822125316",
+        "name": "fix_lead_search_security"
+      },
+      {
+        "version": "20260822125507",
+        "name": "harden_current_org_id"
+      },
+      {
+        "version": "20260822133342",
+        "name": "harden_lead_search_runtime"
+      },
+      {
+        "version": "20260822184813",
+        "name": "integration_control_center"
+      },
+      {
+        "version": "20260827124047",
+        "name": "reconcile_phase_7_appointments_metadata"
+      },
+      {
+        "version": "20260827124229",
+        "name": "remove_duplicate_phase_7_appointments_index"
+      },
+      {
+        "version": "20260828124837",
+        "name": "phase_12_reconcile_security"
+      },
+      {
+        "version": "20260828130723",
+        "name": "phase_12_ana_server_boundary"
+      },
+      {
+        "version": "20260828182438",
+        "name": "reconcile_ana_quote_preparation"
+      },
+      {
+        "version": "20260831190509",
+        "name": "ana_orchestrator_runtime"
+      },
+      {
+        "version": "20260831191901",
+        "name": "ana_existing_leads_safe_mode"
+      },
+      {
+        "version": "20260903142959",
+        "name": "finalize_wayflex_security_and_scope"
+      },
+      {
+        "version": "20260903143232",
+        "name": "secure_ana_configuration"
+      },
+      {
+        "version": "20260903144141",
+        "name": "finalize_ana_runtime"
+      },
+      {
+        "version": "20260903144625",
+        "name": "align_openai_integration"
+      },
+      {
+        "version": "20260903165056",
+        "name": "reconcile_operational_frontend"
+      },
+      {
+        "version": "20260903211121",
+        "name": "index_reconciled_operational_tables"
+      },
+      {
+        "version": "20260904203407",
+        "name": "normalize_zapi_phone_and_ana_knowledge_memory"
+      },
+      {
+        "version": "20260904205301",
+        "name": "import_wayflex_approved_ana_memory"
+      },
+      {
+        "version": "20260906123543",
+        "name": "allow_claude_provider"
+      },
+      {
+        "version": "20260906130254",
+        "name": "ana_approved_knowledge_library"
+      },
+      {
+        "version": "20260909174739",
+        "name": "categorize_operational_integrations"
+      },
+      {
+        "version": "20260909182343",
+        "name": "add_server_side_automation_dispatch"
+      },
+      {
+        "version": "20260909200350",
+        "name": "production_readiness_phase0_canonical_runtime_pipeline"
+      },
+      {
+        "version": "20260909200447",
+        "name": "production_readiness_phase1_diagnostics"
+      },
+      {
+        "version": "20260909200709",
+        "name": "production_readiness_phase2_real_mode_gate"
+      },
+      {
+        "version": "20260909200815",
+        "name": "production_readiness_phase3_security_performance"
+      },
+      {
+        "version": "20260909201144",
+        "name": "production_readiness_phase4_legacy_pipeline_bridge"
+      },
+      {
+        "version": "20260909201441",
+        "name": "production_readiness_phase5_phone_identity"
+      },
+      {
+        "version": "20260909201540",
+        "name": "production_readiness_phase6_channel_contact_binding"
+      },
+      {
+        "version": "20260909201648",
+        "name": "production_readiness_phase6b_fix_phone_resolver"
+      },
+      {
+        "version": "20260909201721",
+        "name": "production_readiness_phase6c_active_conversation_resolution"
+      },
+      {
+        "version": "20260909202555",
+        "name": "production_readiness_phase7_inbound_resolution_diagnostics"
+      },
+      {
+        "version": "20260909204601",
+        "name": "production_readiness_phase8_security_index_cleanup"
+      },
+      {
+        "version": "20260909205802",
+        "name": "production_readiness_phase9_initialize_canonical_stage"
+      },
+      {
+        "version": "20260909210540",
+        "name": "production_readiness_phase10_single_operational_mode_authority"
+      },
+      {
+        "version": "20260909210636",
+        "name": "production_readiness_phase11_operational_readiness_security_invoker"
+      },
+      {
+        "version": "20260909221458",
+        "name": "hybrid_knowledge_search_and_operational_indexes"
+      },
+      {
+        "version": "20260909222719",
+        "name": "commercial_workflow_integrity_constraints"
+      },
+      {
+        "version": "20260909231814",
+        "name": "atomic_handoff_operations"
+      },
+      {
+        "version": "20260909232209",
+        "name": "fix_atomic_handoff_audit_actor"
+      },
+      {
+        "version": "20260909232713",
+        "name": "restore_message_proposal_rls_base"
+      },
+      {
+        "version": "20260909233057",
+        "name": "align_proposal_runtime_contract"
+      },
+      {
+        "version": "20260910134209",
+        "name": "purge_selected_test_leads"
+      },
+      {
+        "version": "20260910182135",
+        "name": "fix_test_lead_cleanup_ambiguity"
+      },
+      {
+        "version": "20260910182236",
+        "name": "preserve_immutable_logs_in_test_cleanup"
+      },
+      {
+        "version": "20260910182420",
+        "name": "allow_real_mode_with_registered_zapi_webhook"
+      },
+      {
+        "version": "20260910221525",
+        "name": "reconcile_handoffs_and_human_messages_20260910"
+      },
+      {
+        "version": "20260910221534",
+        "name": "enforce_ana_cadence_policy_20260910"
+      },
+      {
+        "version": "20260910221544",
+        "name": "reserve_whatsapp_direct_test_20260910"
+      },
+      {
+        "version": "20260910225346",
+        "name": "refresh_wayflex_official_ana_catalog"
+      },
+      {
+        "version": "20260911122344",
+        "name": "sync_legacy_scheduler_heartbeat"
+      },
+      {
+        "version": "20260911205122",
+        "name": "enable_lead_messages_realtime"
+      },
+      {
+        "version": "20260913173405",
+        "name": "enforce_lead_contact_approval_and_scoring_indexes"
+      },
+      {
+        "version": "20260913174113",
+        "name": "reconcile_provider_accepted_outreach"
+      },
+      {
+        "version": "20260913174227",
+        "name": "fix_provider_acceptance_reconciliation"
+      },
+      {
+        "version": "20260913174320",
+        "name": "finalize_provider_acceptance_reconciliation"
+      },
+      {
+        "version": "20260913174711",
+        "name": "harden_handoff_contact_approval"
+      },
+      {
+        "version": "20260913174751",
+        "name": "fix_atomic_message_sql_special_forms"
+      },
+      {
+        "version": "20260913184402",
+        "name": "ana_autonomous_operation_and_commercial_alerts"
+      },
+      {
+        "version": "20260913184658",
+        "name": "commercial_alert_preferences"
+      },
+      {
+        "version": "20260913185032",
+        "name": "fix_commercial_alert_app_roles"
+      },
+      {
+        "version": "20260913185119",
+        "name": "index_ana_operation_foreign_keys"
+      },
+      {
+        "version": "20260914203238",
+        "name": "member_identity_deletion"
+      },
+      {
+        "version": "20260916205958",
+        "name": "lead_governance_permissions_and_site_whatsapp"
+      },
+      {
+        "version": "20260917150914",
+        "name": "fix_whatsapp_direct_test_reservation_special_forms"
+      },
+      {
+        "version": "20260917175303",
+        "name": "fix_pending_manual_lead_phone_identity"
+      },
+      {
+        "version": "20260917202503",
+        "name": "daily_whatsapp_lead_reports"
+      },
+      {
+        "version": "20260918185000",
+        "name": "handoff_assignee_and_whatsapp_alerts"
+      },
+      {
+        "version": "20260918194743",
+        "name": "commercial_knowledge_catalog"
+      },
+      {
+        "version": "20260918200258",
+        "name": "index_commercial_knowledge_foreign_keys"
+      },
+      {
+        "version": "20260918201112",
+        "name": "consolidate_commercial_knowledge_policies"
+      },
+      {
+        "version": "20260922142724",
+        "name": "ana_automatic_routing_and_validation"
+      },
+      {
+        "version": "20260922143539",
+        "name": "prospecting_schedule_assignment_fk_indexes"
+      },
+      {
+        "version": "20260923145752",
+        "name": "catalog_media_whatsapp_queue"
+      },
+      {
+        "version": "20260923195949",
+        "name": "explicit_central_handoff_assignee"
+      },
+      {
+        "version": "20260923214152",
+        "name": "multi_whatsapp_seller_accounts"
+      },
+      {
+        "version": "20260923214542",
+        "name": "multi_whatsapp_fk_indexes"
+      },
+      {
+        "version": "20260924205357",
+        "name": "meta_coexistence_foundation"
+      },
+      {
+        "version": "20260924205458",
+        "name": "meta_coexistence_hardening"
+      },
+      {
+        "version": "20260924205858",
+        "name": "meta_coexistence_message_integrity"
+      },
+      {
+        "version": "20260925142124",
+        "name": "whatsapp_provider_activation_controls"
+      }
+    ]
+  },
+  "tests": {
+    "node": "24.19.0",
+    "installed_matches_lock": true,
+    "packages": {
+      "typescript": "5.8.3",
+      "vite": "8.2.2",
+      "vitest": "3.2.7",
+      "eslint": "9.39.5",
+      "@supabase/supabase-js": "2.57.4"
+    },
+    "checks": [
+      {
+        "command": "node node_modules/typescript/bin/tsc --noEmit --project tsconfig.app.json",
+        "result": "passed"
+      },
+      {
+        "command": "node node_modules/typescript/bin/tsc --project tsconfig.edge.json",
+        "result": "passed"
+      },
+      {
+        "command": "node node_modules/eslint/bin/eslint.js src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+        "result": "passed",
+        "warnings": 0
+      },
+      {
+        "command": "node node_modules/vitest/vitest.mjs run --configLoader runner",
+        "result": "passed",
+        "files": 35,
+        "tests": 238
+      },
+      {
+        "command": "node node_modules/vite/bin/vite.js build --configLoader runner",
+        "result": "passed"
+      },
+      {
+        "command": "node scripts/build-sites-artifact.mjs",
+        "result": "passed"
+      }
+    ],
+    "build_notes": [
+      "Aviso existente: runtime-config.js e um script classico de configuracao runtime; nao alterar para module apenas para silenciar o aviso.",
+      "Aviso informativo de tempo de plugins do Vite."
+    ],
+    "not_executed": [
+      "authenticated_e2e",
+      "mobile_visual_qa",
+      "real_whatsapp",
+      "real_meta",
+      "real_apify",
+      "real_ai",
+      "database_restore",
+      "rls_cross_org",
+      "database_concurrency",
+      "fresh_npm_ci"
+    ]
+  },
+  "next_step": {
+    "stage": 2,
+    "model": "GPT-6 Sol",
+    "effort": "Extra High",
+    "requires_user_stage_confirmation": true,
+    "scope": "recuperacao das buscas Apify, estados de execucao e resultados retomaveis; revalidar causa antes de corrigir"
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "baseline_version": 6,
+  "baseline_commit": "1dc6275b8c7d70de953b66397a8c89f5e97bc15b",
+  "last_audited_commit": "b7b3283cf45bf0498930e1bb4c72b4169ecddd24",
+  "current_head_at_update": "159b6db1535b3addecebe754e3054c6376afc34e",
+  "working_tree_status": "central_whatsapp_connection_and_lead_search_wizard_published_as_isolated_site_v168_accumulated_delta_partially_audited",
+  "stage_1_baseline": ".agent/baselines/2026-09-25-stage-1.json",
+  "recovery_tag": "baseline-wayflex-stage1-20260925",
+  "work_branch": "main",
+  "last_site_publication": {
+    "commit": "87b9b8309eb8fc0fa4d47611c7a1315598fc4f76",
+    "site_version": 168,
+    "deployment_id": "appgdep_6ac3d1bec3e48191ba29a2d5559426a8",
+    "validated_at": "2026-10-05T16:35:31Z",
+    "working_tree_status": "published"
+  },
+  "full_audit_required": true,
+  "baseline_status": "central_whatsapp_connection_and_lead_search_wizard_published_as_isolated_site_v168_accumulated_delta_partially_audited",
+  "updated_at": "2026-10-05T16:35:31Z",
+  "next_action": "Validar visualmente, em sessão autenticada e sem iniciar busca externa, o Wizard e a entrada WA-AKG na Central publicados no Site v168. Separadamente, concluir a auditoria dos deltas b7b3283..381dd31: cobrir o fallback CORS de http.ts nos consumidores, inclusive origem ausente e ALLOWED_ORIGIN legado; validar sem mutação autorização/erro/atualização da exclusão de leads; e conferir os deploys das Edge Functions. As pendências independentes do WA-AKG continuam registradas em docs/WA_AKG_OPERACAO.md."
+}
