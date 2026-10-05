@@ -1,5 +1,11 @@
 # Mapa de arquitetura
 
+## Remediação R1/R2/R3 — 05/10/2026 — LOCAL, não implantada
+
+R1 mantém as tabelas existentes: helpers privados e policies aplicam organização/carteira/proprietário ao acesso; trigger de último administrador serializa por escrita MVCC na organização. R2 acrescenta somente ledger privado de orquestração: UI → handlers WA/Evolution → intenção/corte local → etapas remotas cercadas por revisão/token → conclusão CAS. Flags canônicas em conta/integração continuam a autoridade; conectar conta não abre o gate global. R3 separa recibo autenticado do gate de entrada: identidade organização/conta/provedor → RPC monotônica → projeções locais, sem disparar Ana/saída. `ana-run` permanece a única autoridade automática.
+
+Limite: workers de provisionamento automático ainda não participam do ledger; reconciliação humana de resultado incerto permanece pendente R6. Relatório e manifestos em `docs/remediacao/2026-10-05-r1-r3/RESULTADO_FINAL.md`. Não existe implantação remota deste delta.
+
 ## Wizard da Busca de Leads — 05/10/2026
 
 `BuscaLeads` → `prospectingWizard` (validação local de Fonte, Região, Perfil e Critérios) → intenção humana ainda não persistida. Somente o clique final **Testar com 10 empresas** chama `executarBusca` → `prospectar-leads` → provedor real. A fonte chega de `useFontesStore` e continua elegível apenas quando o adaptador existe e a configuração está conectada/ativa. A resposta mantém o caminho já existente de revisão → `prospectingBatchRepository` → `import_prospecting_batch`; o Wizard não cria tabela, Edge Function, fila ou fonte paralela.

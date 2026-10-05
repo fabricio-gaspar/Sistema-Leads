@@ -1,5 +1,9 @@
 # Segurança
 
+## 05/10/2026 — Endurecimento local R1/R2/R3, não implantado
+
+Carteira de propostas, proprietário/compartilhamento de documentos/chunks/Storage, proteção de supressão e último admin concorrente corrigidos no escopo R1. R2 separa intenção da conta de gate global administrativo, valida associação/permissão em cada checkpoint e impede retorno obsoleto de reativar flags. R3 revalida organização/conta/provedor antes de conciliar recibos. Revisões independentes e casos negativos/positivos registrados em `docs/remediacao/2026-10-05-r1-r3/`. Convites/MFA/caches e recuperação operacional não foram resolvidos por este lote; NO-GO global permanece.
+
 - Isolamento por `organization_id` e carteira por owner/assigned_to.
 - Autorização não usa metadata editável pelo usuário.
 - `service_role` e credenciais de provedores nunca saem do backend.

@@ -1,5 +1,9 @@
 # Backend
 
+## 05/10/2026 — R2/R3 locais e type-check integral, não publicados
+
+Handlers WA/Evolution usam `accountLifecycle`: intenção/corte persistente antes do remoto, token/revisão, revalidação entre etapas de provisionamento manual e conclusão CAS. Falha após efeito incerto mantém bloqueio, sem repetir POST. Consumidores recebem lifecycle público sem token; 202/409 não são sucesso de conexão. Recibos tardios autenticados são conciliados por escopo sem reabrir gates/Ana; callback conectado não restaura enabled/paused. Todas as Edge Functions agora entram no type-check (nove diagnósticos corrigidos). Recuperação manual e workers automáticos fora do ledger permanecem R6. Nenhuma Edge publicada nesta etapa.
+
 - O E2E controlado confirmou a proteção pós-aceite: quando a Z-API aceitou e a persistência local falhou, `automation-worker` gravou `provider_accepted_reconciliation_required` com o ID remoto e não repetiu o envio. Depois da correção do trigger, a RPC canônica reconciliou o mesmo aceite como `processed/sent`.
 
 - O caminho canônico `ana-run` → `resolve_lead_whatsapp_account` voltou a obter a conta/integração corporativa depois da correção SQL de ambiguidade. Nenhuma Edge Function foi substituída ou publicada nesta correção; `ana-run` continua sendo a única autoridade automática e a fila existente continua sendo a única via de saída.

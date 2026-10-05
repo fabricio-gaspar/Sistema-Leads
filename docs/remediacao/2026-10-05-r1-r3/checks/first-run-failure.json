@@ -1,0 +1,10 @@
+{
+  "scope": "Primeira suíte integrada da remediação; resultados históricos V3 não foram alterados",
+  "tests": 499,
+  "passed": 498,
+  "failed": 1,
+  "file": "src/pages/dashboard/meu-whatsapp/page.test.ts",
+  "cause": "Contrato estático ainda procurava Ativar canal após a ação ter sido renomeada Habilitar conta para não sugerir abertura automática dos controles globais.",
+  "remediation": "Atualizada a expectativa textual; preservada a existência da ação activate e adicionada a exigência da explicação de controles administrativos separados. Acrescentado um caso estático de estado não confirmado.",
+  "other_checks": "typechecks, lint, build, artefato, smoke e três suítes SQL PGlite/PostgreSQL passaram; nenhum arquivo fonte mudou durante a execução"
+}

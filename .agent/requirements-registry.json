@@ -2,6 +2,38 @@
   "schema_version": 1,
   "requirements": [
     {
+      "id": "REQ-REM-R1-20261005",
+      "description": "Remediar carteira, documentos/Storage, supressão e invariante último administrador",
+      "module": "seguranca_banco",
+      "status": "local_validated_pending_integrated_homologation",
+      "evidence": "docs/remediacao/2026-10-05-r1-r3/R1_SEGURANCA_E_ACESSOS.md; 65 sequenciais e 9 concorrentes; migration local, não aplicada remotamente",
+      "last_validation": "2026-10-05"
+    },
+    {
+      "id": "REQ-REM-R2-20261005",
+      "description": "Cercar transições manuais WA/Evolution por intenção, revisão/token/CAS e preservar corte administrativo nos consumidores",
+      "module": "whatsapp_backend_frontend",
+      "status": "local_delta_validated_recovery_and_auto_provision_R6_pending",
+      "evidence": "docs/remediacao/2026-10-05-r1-r3/R2.md e REVISAO_R2.md; 28 SQL sequenciais e 6 concorrentes; 36 handlers; needs_review sem reset e workers automáticos fora do ledger; não publicado",
+      "last_validation": "2026-10-05"
+    },
+    {
+      "id": "REQ-REM-R3-20261005",
+      "description": "Corrigir SQL e escopo/ordem de recibos autenticados tardios sem reativar transporte",
+      "module": "mensageria_recibos",
+      "status": "local_validated_pending_integrated_homologation",
+      "evidence": "docs/remediacao/2026-10-05-r1-r3/R3.md e R3_NATIVE.md; 14 SQL sequenciais incluindo reprodução anterior e 9 concorrentes; migration/Edge não publicados",
+      "last_validation": "2026-10-05"
+    },
+    {
+      "id": "REQ-REM-VALIDACAO-20261005",
+      "description": "Validar deltas R1/R2/R3, consumidores e cobertura integral de tipos Edge (subconjunto R10)",
+      "module": "qualidade_transversal",
+      "status": "local_passed_global_NO_GO",
+      "evidence": "docs/remediacao/2026-10-05-r1-r3/RESULTADO_FINAL.md e checks/results.json; 500 testes/79 arquivos, 17 smoke, 13 comandos aprovados, 534 hashes estáveis; não equivale a E2E real",
+      "last_validation": "2026-10-05"
+    },
+    {
       "id": "REQ-V3-AUDIT-20261005",
       "description": "Executar auditoria e testes do protocolo V3 sem remediar ou publicar, mantendo checkout/main e rastreabilidade por recurso/jornada/ciclo",
       "module": "auditoria_transversal",

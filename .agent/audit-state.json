@@ -1,10 +1,10 @@
 {
   "schema_version": 1,
-  "baseline_version": 7,
+  "baseline_version": 8,
   "baseline_commit": "1dc6275b8c7d70de953b66397a8c89f5e97bc15b",
-  "last_audited_commit": "847048429a86294aa10fa54ffdd750c04447d4fb",
-  "current_head_at_update": "847048429a86294aa10fa54ffdd750c04447d4fb",
-  "working_tree_status": "audit_documents_and_checkpoints_only; preexisting_untracked_pnpm_files_preserved; product_unchanged",
+  "last_audited_commit": "2a48e6546bcbeef3b935fc5d77cd81c5ac65900d",
+  "current_head_at_update": "2a48e6546bcbeef3b935fc5d77cd81c5ac65900d",
+  "working_tree_status": "product_committed; final_validation_and_checkpoint_documents; preexisting_untracked_pnpm_preserved",
   "stage_1_baseline": ".agent/baselines/2026-09-25-stage-1.json",
   "recovery_tag": "baseline-wayflex-stage1-20260925",
   "work_branch": "main",
@@ -17,13 +17,14 @@
   },
   "last_github_publication": {
     "repository": "https://github.com/fabricio-gaspar/Sistema-Leads",
-    "commit": "9fdfb554ed5e23b1edc5b7e5250bd8df84cbad7d",
-    "parent": "5db2d95ba6080e446cbf669c68a011ff8afc282a",
+    "commit": "a07409610e2cac48882f6c6975ed3d516a0a615b",
+    "parent": "9daabbdeaa0c583455b382c02df95fa1f757ea3f",
+    "tree": "31593132256627504d49666438c11b4f77c215b5",
     "validated_at": "2026-10-05",
-    "working_tree_status": "product_snapshot_verified_at_audit_start; follow-up audit-document commit is identified in Git history and final handoff"
+    "working_tree_status": "product_snapshot_pushed_and_verified; final_evidence_and_documentation_snapshot_identified_in_Git_history_and_final_handoff"
   },
   "full_audit_required": false,
-  "baseline_status": "audit_v3_recorded_NO_GO; full_external_homologation_incomplete; official_site_preserved_v168",
+  "baseline_status": "R1_R2_R3_locally_validated_and_saved_to_GitHub; global_NO_GO; production_unchanged",
   "updated_at": "2026-10-05",
   "audit_v3": {
     "id": "WAYFLEX-V3-20261005",
@@ -39,5 +40,23 @@
     "production_mutations": false,
     "homologation_complete": false
   },
-  "next_action": "Aguardar autorização explícita de remediação. Retomar pelo PLANO_DE_REMEDIACAO.md R1/R2/R3: autorização carteira/Storage/supressão/último admin, gates administrativos/CAS e RPC de recibos pg_catalog.coalesce. Repetir casos adversariais preservados; depois convites, caches, retomada, gateway e contratos. Não repetir auditoria integral nem publicar/ativar automaticamente. Para E2E real, resolver BL-01..08."
+  "next_action": "Retomar remediação pelo plano R4 (acesso/convites) e R5 (cache por contexto), depois R6 (recuperação controlada e exclusão mútua no provisionamento automático), dentro da autoridade concedida. Não repetir auditoria integral. Gateway/staging/perfis/destinos consentidos e decisões de autoridade/MFA continuam necessários. Não aplicar migrations, publicar Edge/Site ou ativar operação automaticamente; manter NO-GO global.",
+  "remediation_20261005": {
+    "scope": [
+      "R1",
+      "R2",
+      "R3",
+      "R10_typecheck_subset"
+    ],
+    "report": "docs/remediacao/2026-10-05-r1-r3/RESULTADO_FINAL.md",
+    "local_validation": "passed; 13 commands; 500 Vitest tests in 79 files; 17 smoke; 107 sequential SQL cases plus 24 concurrency races",
+    "source_manifest": "docs/remediacao/2026-10-05-r1-r3/checks/results.json",
+    "changed_during_validation": [],
+    "migrations_applied_remotely": false,
+    "edge_functions_deployed": false,
+    "site_deployed": false,
+    "real_messages_sent": false,
+    "customer_data_changed": false,
+    "remaining": "R2 operational recovery and auto-provision integration remain R6; R4-R14 remaining scope and external/integrated homologation not completed"
+  }
 }

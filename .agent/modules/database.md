@@ -1,5 +1,9 @@
 # Banco de dados
 
+## 05/10/2026 — Migrations locais R1/R2/R3, não aplicadas remotamente
+
+`20261005220137_audit_r1_access_hardening` restringe policies e protege último admin por serialização MVCC; `20261005220138_audit_r2_account_lifecycle` acrescenta ledger privado e RPCs service_role para intenção/checkpoint/conclusão CAS/gates administrativos; `20261005220139_audit_r3_receipt_reconciliation` corrige COALESCE e acrescenta reconciliação por conta/provedor. 107 casos SQL sequenciais e 24 disputas reais aprovados em bancos sintéticos isolados. Homologar schema completo/compatibilidade antes de aplicação. Evidências em `docs/remediacao/2026-10-05-r1-r3/RESULTADO_FINAL.md`.
+
 - `20260927195156_fix_proposal_delivery_outreach_ordering`: corrige o trigger de projeção de propostas para ordenar `outreach_jobs` por `run_at, id`, colunas existentes. Isso permite que mensagens comuns da Ana sejam consolidadas após o aceite do provedor sem interferir na projeção de propostas. Aplicada no projeto oficial como `20260927195241`.
 
 - `20260927193046_fix_whatsapp_account_resolver_ambiguity`: restaura `resolve_lead_whatsapp_account` qualificando campos que colidiam com as variáveis de `RETURNS TABLE`. Preserva o lock do lead, preferência por conta do responsável, fallback para conta padrão, gate do provedor e `EXECUTE` exclusivo de `service_role`. Aplicada no projeto oficial como registro remoto `20260927193211`.

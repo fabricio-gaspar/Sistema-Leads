@@ -1,22 +1,27 @@
 {
   "schema_version": 1,
-  "validated_commit": "847048429a86294aa10fa54ffdd750c04447d4fb",
+  "validated_commit": "2a48e6546bcbeef3b935fc5d77cd81c5ac65900d",
   "last_validated_at": "2026-10-05",
   "current_validation": {
-    "stage": "audit_v3_2026_10_05_NO_GO",
+    "stage": "R1_R2_R3_local_remediation_global_NO_GO",
     "frontend_typecheck": "passed",
-    "lint": "passed",
+    "edge_typecheck": "passed; all supabase/functions/**/*.ts included",
+    "lint": "passed; src; zero warnings",
     "production_build": "passed",
-    "sites_artifact": "passed_build_local_only; official Site v168 unchanged",
+    "sites_artifact": "passed local build only; official Site not deployed",
     "deterministic_smoke_checks": 17,
-    "vitest": "passed; full run: 77 files; 421 tests",
-    "visual_review": "5 limited authenticated read-only cases passed: Wizard, reflow320/390/1024/1440, Central, tooltip keyboard, empty portfolios",
-    "external_end_to_end": "blocked/not executed; no provider business request, lead import, message or automation invoked",
-    "edge_typecheck_configured": "passed; partial entrypoint coverage",
-    "edge_typecheck_expanded": "failed; 9 diagnostics; EV-ENV-005",
-    "adversarial_new": "40 assertions; 7 passed/33 failed; synthetic SQL/JS and mocked handlers; not real E2E",
-    "receipt_sql_readonly": "failed SQLSTATE42883; invalid expression confirmed in deployed RPC body; no business RPC called",
-    "report": "docs/auditoria/2026-10-05-v3/RELATORIO_AUDITORIA.md"
+    "vitest": "passed; 79 files; 500 tests; zero failures",
+    "sql_unique_sequential_cases": 107,
+    "sql_unique_concurrency_cases": 24,
+    "sql_native_total_cases": 131,
+    "sql_note": "PGlite/native reruns not double counted; R3 sequential set includes original defect reproduction",
+    "validation_commands_passed": 13,
+    "source_manifest": "docs/remediacao/2026-10-05-r1-r3/checks/results.json",
+    "source_files": 534,
+    "changed_during_run": [],
+    "visual_review": "not rerun for remediation; consumer logic and static source-contract tests only",
+    "external_end_to_end": "not executed; synthetic local databases and mocked HTTP; no provider business request or customer mutation",
+    "report": "docs/remediacao/2026-10-05-r1-r3/RESULTADO_FINAL.md"
   },
   "previous_validation": {
     "stage": "lead_search_dynamic_api_selector",
@@ -31,6 +36,12 @@
     "external_end_to_end": "not_executed; no paid search was required"
   },
   "commands": [
+    {
+      "command": "node docs/remediacao/2026-10-05-r1-r3/run-checks.mjs <PGlite module> <PostgreSQL binaries> <pg module>; git diff --check",
+      "status": "passed",
+      "note": "R1/R2/R3 and expanded Edge type coverage: 13 commands, 500 tests, 17 smoke, 107 sequential SQL cases and 24 real concurrent races. 534 source hashes unchanged during run. Local synthetic data only; no deployment or message.",
+      "evidence": "docs/remediacao/2026-10-05-r1-r3/checks/results.json"
+    },
     {
       "command": "tsc --noEmit --project tsconfig.app.json; tsc --project tsconfig.edge.json; eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0; vitest run --configLoader runner; vite build --configLoader runner; node scripts/build-sites-artifact.mjs; git diff --check",
       "status": "passed",
@@ -935,5 +946,21 @@
     "meta_history_sync",
     "meta_template_delivery"
   ],
-  "working_tree_validation": "Busca de Leads agora guia Fonte → Região → Perfil → Critérios antes da amostra. A consulta real continua exclusivamente no comando Testar com 10 empresas, com guardas de fonte ativa, modo real, cidade e termos preservadas. Vitest focado 3/12, type-check, lint, build/artefato e diff check passaram; publicação e QA autenticada do Site aguardam o canal seguro de escrita da origem."
+  "working_tree_validation": "Busca de Leads agora guia Fonte → Região → Perfil → Critérios antes da amostra. A consulta real continua exclusivamente no comando Testar com 10 empresas, com guardas de fonte ativa, modo real, cidade e termos preservadas. Vitest focado 3/12, type-check, lint, build/artefato e diff check passaram; publicação e QA autenticada do Site aguardam o canal seguro de escrita da origem.",
+  "audit_v3_validation": {
+    "stage": "audit_v3_2026_10_05_NO_GO",
+    "frontend_typecheck": "passed",
+    "lint": "passed",
+    "production_build": "passed",
+    "sites_artifact": "passed_build_local_only; official Site v168 unchanged",
+    "deterministic_smoke_checks": 17,
+    "vitest": "passed; full run: 77 files; 421 tests",
+    "visual_review": "5 limited authenticated read-only cases passed: Wizard, reflow320/390/1024/1440, Central, tooltip keyboard, empty portfolios",
+    "external_end_to_end": "blocked/not executed; no provider business request, lead import, message or automation invoked",
+    "edge_typecheck_configured": "passed; partial entrypoint coverage",
+    "edge_typecheck_expanded": "failed; 9 diagnostics; EV-ENV-005",
+    "adversarial_new": "40 assertions; 7 passed/33 failed; synthetic SQL/JS and mocked handlers; not real E2E",
+    "receipt_sql_readonly": "failed SQLSTATE42883; invalid expression confirmed in deployed RPC body; no business RPC called",
+    "report": "docs/auditoria/2026-10-05-v3/RELATORIO_AUDITORIA.md"
+  }
 }

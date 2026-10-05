@@ -1,5 +1,9 @@
 # Integrações
 
+## 05/10/2026 — Conta não é autorização global; delta local
+
+WA-AKG/Evolution: habilitar conta não libera gates globais; abertura de controles depende de ação administrativa explícita e readiness canônica. UI distingue pendente/revisão/estado não confirmado, limpa QR anterior e atualiza por leitura após resultado ambíguo, sem retry de mutação. Desligamento local antecede chamadas ao gateway; cada nova etapa manual revalida intenção. Gateway real, contrato/tag, QR e provisionamento automático concorrente não homologados. Produção e credenciais não alteradas; ver `docs/remediacao/2026-10-05-r1-r3/RESULTADO_FINAL.md`.
+
 - A Busca de Leads deriva o seletor das guardas já existentes: `integrations` confirma disponibilidade/credencial e `lead_source_configs` confirma o uso operacional. A interface não exibe IA ou fonte sem adaptador; hoje os adaptadores manuais permitidos são `apify` e `google_places`.
 
 - Fonte de status: tabela `integrations`; segredo: cofre acessado por RPC no backend.
