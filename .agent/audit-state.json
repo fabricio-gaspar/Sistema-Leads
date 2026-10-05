@@ -1,10 +1,10 @@
 {
   "schema_version": 1,
-  "baseline_version": 8,
+  "baseline_version": 9,
   "baseline_commit": "1dc6275b8c7d70de953b66397a8c89f5e97bc15b",
-  "last_audited_commit": "2a48e6546bcbeef3b935fc5d77cd81c5ac65900d",
-  "current_head_at_update": "2a48e6546bcbeef3b935fc5d77cd81c5ac65900d",
-  "working_tree_status": "product_committed; final_validation_and_checkpoint_documents; preexisting_untracked_pnpm_preserved",
+  "last_audited_commit": "225a379e096efa4eb3fb543759edd71ad50ef581",
+  "current_head_at_update": "225a379e096efa4eb3fb543759edd71ad50ef581",
+  "working_tree_status": "product_committed_and_pushed; final_documentation_checkpoint; preexisting_untracked_pnpm_preserved",
   "stage_1_baseline": ".agent/baselines/2026-09-25-stage-1.json",
   "recovery_tag": "baseline-wayflex-stage1-20260925",
   "work_branch": "main",
@@ -17,14 +17,15 @@
   },
   "last_github_publication": {
     "repository": "https://github.com/fabricio-gaspar/Sistema-Leads",
-    "commit": "a07409610e2cac48882f6c6975ed3d516a0a615b",
-    "parent": "9daabbdeaa0c583455b382c02df95fa1f757ea3f",
-    "tree": "31593132256627504d49666438c11b4f77c215b5",
+    "commit": "4f7f4514613ca64461cda3d1ffcf004ac1c79d4f",
+    "parent": "118b131b47d56cda8615f24b00c332eabe3d2805",
+    "tree": "804172b06e122a8e9ec41374c21151c4f3b98f4c",
     "validated_at": "2026-10-05",
-    "working_tree_status": "product_snapshot_pushed_and_verified; final_evidence_and_documentation_snapshot_identified_in_Git_history_and_final_handoff"
+    "ci": "Validate completed success; https://github.com/fabricio-gaspar/Sistema-Leads/actions/runs/37388447881",
+    "working_tree_status": "product_snapshot_pushed_and_tree_verified; final_documentation_snapshot_identified_in_Git_history_and_final_handoff"
   },
   "full_audit_required": false,
-  "baseline_status": "R1_R2_R3_locally_validated_and_saved_to_GitHub; global_NO_GO; production_unchanged",
+  "baseline_status": "R1_R12_local_remediation_validated_and_saved_to_GitHub; R4_MFA_R7_R10_R11_R12_R13_R14_limits_documented; global_NO_GO; no_production_deployment",
   "updated_at": "2026-10-05",
   "audit_v3": {
     "id": "WAYFLEX-V3-20261005",
@@ -40,7 +41,7 @@
     "production_mutations": false,
     "homologation_complete": false
   },
-  "next_action": "Retomar remediação pelo plano R4 (acesso/convites) e R5 (cache por contexto), depois R6 (recuperação controlada e exclusão mútua no provisionamento automático), dentro da autoridade concedida. Não repetir auditoria integral. Gateway/staging/perfis/destinos consentidos e decisões de autoridade/MFA continuam necessários. Não aplicar migrations, publicar Edge/Site ou ativar operação automaticamente; manter NO-GO global.",
+  "next_action": "Não repetir deltas concluídos. Obter staging compatível, gateway WA-AKG corrigido/versionado com bot comprovadamente desligado, identidades/destinos consentidos e acesso protegido; decidir CRM interno vs SaaS e autoridade/MFA. Reconciliar definições/migrations seletivamente, homologar Auth/REST/Storage/mensageria/Calendar/UI e somente então planejar release coordenada. Não aplicar db push/replay/repair integral, publicar só frontend ou ativar operação como teste.",
   "remediation_20261005": {
     "scope": [
       "R1",
@@ -58,5 +59,33 @@
     "real_messages_sent": false,
     "customer_data_changed": false,
     "remaining": "R2 operational recovery and auto-provision integration remain R6; R4-R14 remaining scope and external/integrated homologation not completed"
+  },
+  "remediation_r4_r14_20261005": {
+    "scope": [
+      "R4",
+      "R5",
+      "R6",
+      "R7_local_contract",
+      "R8",
+      "R9",
+      "R10_reproducibility_and_remote_inventory",
+      "R11",
+      "R12_targeted_UI",
+      "R13_decision_pending",
+      "R14_local_validation"
+    ],
+    "report": "docs/remediacao/2026-10-05-r4-r14/RESULTADO_FINAL.md",
+    "local_validation": "passed; 21 commands; 732 Vitest tests in 91 files; 17 smoke; 245 unique sequential SQL cases plus 54 native concurrency races; 11 Chrome cases",
+    "source_manifest": "docs/remediacao/2026-10-05-r4-r14/checks/results.json",
+    "source_files": 579,
+    "changed_during_validation": [],
+    "first_failed_run_preserved": "docs/remediacao/2026-10-05-r4-r14/checks-primeira-rodada/",
+    "migrations_applied_remotely": false,
+    "edge_functions_deployed": false,
+    "site_deployed": false,
+    "real_messages_sent": false,
+    "customer_data_changed": false,
+    "remote_access": "read-only metadata/catalogs/advisors and one Edge bundle; no customer records",
+    "remaining": "Full integrated homologation, corrected WA-AKG gateway and hosting, product/authority/MFA choices, selective schema/bundle reconciliation, broader accessibility; production remains NO-GO"
   }
 }

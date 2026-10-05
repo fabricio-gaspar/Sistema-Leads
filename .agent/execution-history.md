@@ -1,5 +1,14 @@
 # Histórico resumido de execução
 
+## 05/10/2026 — R4–R14: remediação local validada e GitHub atualizado; produção NO-GO
+
+- Produto local `225a379e096efa4eb3fb543759edd71ad50ef581`; snapshot GitHub `4f7f4514613ca64461cda3d1ffcf004ac1c79d4f`, filho do remoto `118b131b47d56cda8615f24b00c332eabe3d2805`. Push não forçado e árvore igual `804172b06e122a8e9ec41374c21151c4f3b98f4c` confirmados. Checkpoint documental final identificado no histórico/entrega; nenhum branch/worktree/projeto novo.
+- Concluídos localmente: convites e vínculos empresariais R4, contexto/filas de stores R5, recuperação/provisionamento/entrada R6, guardas de contrato R7, política e autoridade Ana R8, CSV/Agenda R9, reprodução R10, cidade/diagnóstico R11 e interações R12. Estado completo por requisito e limites em `docs/remediacao/2026-10-05-r4-r14/RESULTADO_FINAL.md`; não equivale a todos R4–R14 concluídos em produção.
+- Validação final: 21/21 comandos, 732 testes/91 arquivos, 17 smoke, 245 SQL sequenciais únicos + 54 disputas nativas, 11 Chrome. 579 hashes estáveis, também conferidos contra o index antes do commit. Primeira rodada com duas expectativas antigas reprovadas preservada; correção e rodada completa final aprovadas. Sem duplicar contagem PGlite/PostgreSQL.
+- LOCAL validado / GITHUB salvo / banco, Edge e Site NÃO implantados. Última inspeção histórica do Site v168; não reinspecionado neste lote. Nenhuma mensagem, QR, evento Calendar, automação, busca paga ou cliente alterado; não se desligou silenciosamente operação previamente habilitada.
+- Bloqueios reais: gateway WA-AKG examinado não desliga o bot pelo contrato usado; exige versão corrigida/homologada além de VPS/HTTPS. Staging/identidades/destinos protegidos indisponíveis, escolha CRM interno/SaaS e autoridade/MFA não definida, bundles/histórico de migrations divergentes. MFA obrigatório e WCAG integral não implementados/certificados.
+- Próxima ação: obter essas dependências, comparar definições reais e preparar aplicação seletiva coordenada banco/Edge/frontend com compensação; executar homologação integrada antes de liberar. Não repetir remediação/auditoria já concluída, não executar db push/replay/repair integral e não publicar frontend isoladamente. Arquivos pnpm preexistentes preservados fora do Git.
+
 ## 05/10/2026 — R1/R2/R3 locais validados e salvos no GitHub; produção preservada
 
 - Autorização de remediação recebida; substitui a antiga espera por autorização abaixo. Produto local `2a48e6546bcbeef3b935fc5d77cd81c5ac65900d`; snapshot GitHub `a07409610e2cac48882f6c6975ed3d516a0a615b`, árvore igual e push sem force confirmado. Commit documental final identificado no histórico/entrega.

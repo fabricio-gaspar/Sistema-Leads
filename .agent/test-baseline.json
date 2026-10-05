@@ -1,27 +1,28 @@
 {
   "schema_version": 1,
-  "validated_commit": "2a48e6546bcbeef3b935fc5d77cd81c5ac65900d",
+  "validated_commit": "225a379e096efa4eb3fb543759edd71ad50ef581",
   "last_validated_at": "2026-10-05",
   "current_validation": {
-    "stage": "R1_R2_R3_local_remediation_global_NO_GO",
+    "stage": "R4_R12_local_remediation_R1_R3_regressions_global_NO_GO",
     "frontend_typecheck": "passed",
     "edge_typecheck": "passed; all supabase/functions/**/*.ts included",
     "lint": "passed; src; zero warnings",
     "production_build": "passed",
     "sites_artifact": "passed local build only; official Site not deployed",
     "deterministic_smoke_checks": 17,
-    "vitest": "passed; 79 files; 500 tests; zero failures",
-    "sql_unique_sequential_cases": 107,
-    "sql_unique_concurrency_cases": 24,
-    "sql_native_total_cases": 131,
-    "sql_note": "PGlite/native reruns not double counted; R3 sequential set includes original defect reproduction",
-    "validation_commands_passed": 13,
-    "source_manifest": "docs/remediacao/2026-10-05-r1-r3/checks/results.json",
-    "source_files": 534,
+    "vitest": "passed; 91 files; 732 tests; zero failures",
+    "sql_unique_sequential_cases": 245,
+    "sql_unique_concurrency_cases": 54,
+    "sql_native_total_cases": 279,
+    "sql_note": "PGlite/native reruns not double counted; R11 20 cases PGlite only; reduced synthetic schemas, not production restore",
+    "browser_cases": 11,
+    "validation_commands_passed": 21,
+    "source_manifest": "docs/remediacao/2026-10-05-r4-r14/checks/results.json",
+    "source_files": 579,
     "changed_during_run": [],
-    "visual_review": "not rerun for remediation; consumer logic and static source-contract tests only",
-    "external_end_to_end": "not executed; synthetic local databases and mocked HTTP; no provider business request or customer mutation",
-    "report": "docs/remediacao/2026-10-05-r1-r3/RESULTADO_FINAL.md"
+    "visual_review": "Chrome 155 local synthetic harness; tooltip/dialog/CSV/recovery; zero page errors; no full authenticated CRM E2E or WCAG certification",
+    "external_end_to_end": "not executed; synthetic databases and intercepted HTTP; browser network only localhost; no provider business request or customer mutation",
+    "report": "docs/remediacao/2026-10-05-r4-r14/RESULTADO_FINAL.md"
   },
   "previous_validation": {
     "stage": "lead_search_dynamic_api_selector",
@@ -36,6 +37,12 @@
     "external_end_to_end": "not_executed; no paid search was required"
   },
   "commands": [
+    {
+      "command": "node docs/remediacao/2026-10-05-r4-r14/run-checks.mjs <PGlite module> <PostgreSQL binaries> <pg module> <Playwright module>",
+      "status": "passed",
+      "note": "21 commands; 732 Vitest, 17 smoke, 245 unique sequential SQL + 54 native races, 11 Chrome. 579 stable source hashes. First failed Vitest expectations preserved; final all passed. Source/docs diff-check passed excluding two raw Vitest output files with renderer whitespace, preserved unchanged.",
+      "evidence": "docs/remediacao/2026-10-05-r4-r14/checks/results.json"
+    },
     {
       "command": "node docs/remediacao/2026-10-05-r1-r3/run-checks.mjs <PGlite module> <PostgreSQL binaries> <pg module>; git diff --check",
       "status": "passed",
@@ -962,5 +969,26 @@
     "adversarial_new": "40 assertions; 7 passed/33 failed; synthetic SQL/JS and mocked handlers; not real E2E",
     "receipt_sql_readonly": "failed SQLSTATE42883; invalid expression confirmed in deployed RPC body; no business RPC called",
     "report": "docs/auditoria/2026-10-05-v3/RELATORIO_AUDITORIA.md"
+  },
+  "previous_remediation_validation": {
+    "stage": "R1_R2_R3_local_remediation_global_NO_GO",
+    "frontend_typecheck": "passed",
+    "edge_typecheck": "passed; all supabase/functions/**/*.ts included",
+    "lint": "passed; src; zero warnings",
+    "production_build": "passed",
+    "sites_artifact": "passed local build only; official Site not deployed",
+    "deterministic_smoke_checks": 17,
+    "vitest": "passed; 79 files; 500 tests; zero failures",
+    "sql_unique_sequential_cases": 107,
+    "sql_unique_concurrency_cases": 24,
+    "sql_native_total_cases": 131,
+    "sql_note": "PGlite/native reruns not double counted; R3 sequential set includes original defect reproduction",
+    "validation_commands_passed": 13,
+    "source_manifest": "docs/remediacao/2026-10-05-r1-r3/checks/results.json",
+    "source_files": 534,
+    "changed_during_run": [],
+    "visual_review": "not rerun for remediation; consumer logic and static source-contract tests only",
+    "external_end_to_end": "not executed; synthetic local databases and mocked HTTP; no provider business request or customer mutation",
+    "report": "docs/remediacao/2026-10-05-r1-r3/RESULTADO_FINAL.md"
   }
 }

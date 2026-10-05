@@ -1,5 +1,24 @@
 # Problemas conhecidos
 
+## 05/10/2026 — Pendências atuais após R4–R14 local
+
+As notas históricas abaixo permanecem como evidência, mas o checkpoint atual é `docs/remediacao/2026-10-05-r4-r14/RESULTADO_FINAL.md`. R6 já integrou provisionamento automático e recuperação por GET + CAS; não continuam ausentes no código local. Nenhum desses deltas foi aplicado em produção.
+
+### Bloqueios de implantação e produto
+
+- WA-AKG upstream v1.7.0-beta.1 examinado cria bot habilitado e ignora enabled:false no update. O adaptador local exige confirmação de bot desligado e bloqueia conexão/QR/ativação caso contrário. Precisa de versão corrigida e homologada; apenas fornecer VPS/HTTPS não resolve.
+- Falta staging compatível com Auth/REST/Storage/SMTP, duas identidades/organizações e destinos/gateway de teste consentidos. Testes locais não homologam efeitos externos nem restauram integralmente o catálogo real.
+- Histórico de migrations e bundles divergente: inventário não equivale a plano de replay. Não executar db push, repair/reset ou deploy frontend desacoplado de R4/R5/R6/R8/R9.
+- R13 depende de escolha explícita CRM interno versus SaaS, planos/autoridade/suporte/ciclo de clientes. R4 não implementou enrollment/challenge/AAL de MFA: interface não promete exigência real. Advisor remoto ainda reporta proteção de senhas vazadas desabilitada; não alterada pelo agente.
+
+### Limites residuais da implementação validada
+
+- Fonte importada sem relação canônica comprovável falha fechada; não se inventou vínculo/backfill em dados reais.
+- Guardas da Ana/worker diminuem TOCTOU, não cancelam efeito externo já em voo. Recuperação Calendar entre aceite remoto e persistência local ainda exige prova integrada.
+- Agenda limita conflitos às linhas visíveis por RLS; não oferece exclusividade global em outros fluxos nem refaz timezone de todos os formulários.
+- R12 tem 11 provas Chrome no harness sintético; leitores de tela, contraste e todas as jornadas continuam fora do aceite. Métricas R11 são amostra dos últimos 50 registros, não SLA nem prova de entrega.
+- NO-GO global mantido apesar de 732 testes e 21 comandos aprovados. Nenhuma mensagem real, automação, cliente ou produção alterado neste lote.
+
 ## 05/10/2026 — R1/R2/R3 locais validados e salvos no GitHub; produção preservada
 
 - Autorização de remediação recebida; substitui a antiga espera por autorização abaixo. Produto local `2a48e6546bcbeef3b935fc5d77cd81c5ac65900d`; snapshot GitHub `a07409610e2cac48882f6c6975ed3d516a0a615b`, árvore igual e push sem force confirmado. Commit documental final identificado no histórico/entrega.

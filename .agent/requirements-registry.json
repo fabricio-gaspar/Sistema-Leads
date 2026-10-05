@@ -2,6 +2,94 @@
   "schema_version": 1,
   "requirements": [
     {
+      "id": "REQ-REM-R4-20261005",
+      "description": "Convites revisionados, vínculo empresarial e privilégios separados da identidade global",
+      "module": "seguranca_auth",
+      "status": "PARCIAL",
+      "evidence": "docs/remediacao/2026-10-05-r4-r14/R4.md; 47 SQL + 12 disputas; MFA real e jornadas SMTP/Auth pendentes",
+      "last_validation": "2026-10-05"
+    },
+    {
+      "id": "REQ-REM-R5-20261005",
+      "description": "Isolar estado operacional por usuário/organização/geração e cercar escritas/respostas antigas",
+      "module": "frontend_auth",
+      "status": "PARCIAL",
+      "evidence": "docs/remediacao/2026-10-05-r4-r14/R5.md e REVISAO_R5_R11.md; provas locais concluídas, Auth/PostgREST multi-sessão real pendente",
+      "last_validation": "2026-10-05"
+    },
+    {
+      "id": "REQ-REM-R6-20261005",
+      "description": "Recuperação controlada, ledger automático/manual, entrada idempotente e resultado externo incerto",
+      "module": "mensageria_backend",
+      "status": "PARCIAL",
+      "evidence": "docs/remediacao/2026-10-05-r4-r14/R6.md e REVISAO_R6_R7.md; 40 SQL + 9 disputas; UI explícita; gateway integrado pendente",
+      "last_validation": "2026-10-05"
+    },
+    {
+      "id": "REQ-REM-R7-20261005",
+      "description": "Validar identidade/namespace e contrato WA-AKG sem motor automático paralelo",
+      "module": "mensageria_integracoes",
+      "status": "BLOQUEADO",
+      "evidence": "docs/remediacao/2026-10-05-r4-r14/R7.md; upstream examinado ignora enabled:false no update; código bloqueia conexão até gateway corrigido e homologado",
+      "last_validation": "2026-10-05"
+    },
+    {
+      "id": "REQ-REM-R8-20261005",
+      "description": "Consumir política e conhecimento canônicos, revalidando autoridade antes de efeitos da Ana",
+      "module": "ana_conhecimento",
+      "status": "PARCIAL",
+      "evidence": "docs/remediacao/2026-10-05-r4-r14/R8.md e REVISAO_R8.md; 41 handler Ana + 2 dispatch novos; Calendar/fontes/provedores reais pendentes",
+      "last_validation": "2026-10-05"
+    },
+    {
+      "id": "REQ-REM-R9-20261005",
+      "description": "CSV robusto/exportação segura, próxima ação atômica com fuso/duração e métrica de período",
+      "module": "agenda_csv",
+      "status": "PARCIAL",
+      "evidence": "docs/remediacao/2026-10-05-r4-r14/R9.md e REVISAO_R9_MVCC.md; 36 CSV, 17 Agenda, 31 SQL + 9 disputas; aplicação/homologação REST pendente",
+      "last_validation": "2026-10-05"
+    },
+    {
+      "id": "REQ-REM-R10-20261005",
+      "description": "Reprodução integral local e inventário de divergências de bundles/migrations",
+      "module": "qualidade_release",
+      "status": "PARCIAL",
+      "evidence": "docs/remediacao/2026-10-05-r4-r14/R10_R13_R14.md; tipos integrais aprovados; histórico/bundles remotos ainda não reconciliados; proibido replay integral",
+      "last_validation": "2026-10-05"
+    },
+    {
+      "id": "REQ-REM-R11-20261005",
+      "description": "Cidade/UF/termo obrigatórios, parent real em aprovação e diagnóstico observado",
+      "module": "prospeccao_observabilidade",
+      "status": "PARCIAL",
+      "evidence": "docs/remediacao/2026-10-05-r4-r14/R11.md; 43 testes focados e 20 SQL; proteção Auth de senha vazada e homologação integrada pendentes",
+      "last_validation": "2026-10-05"
+    },
+    {
+      "id": "REQ-REM-R12-20261005",
+      "description": "Tooltip hoverable, teclado/foco em diálogos, CSV/recovery e guardas do Wizard",
+      "module": "frontend_acessibilidade",
+      "status": "PARCIAL",
+      "evidence": "docs/remediacao/2026-10-05-r4-r14/R12.md; 11/11 Chrome sintético; não comprova WCAG integral ou todas as telas",
+      "last_validation": "2026-10-05"
+    },
+    {
+      "id": "REQ-REM-R13-20261005",
+      "description": "Definir CRM interno versus SaaS e autoridade/ciclo comercial",
+      "module": "oferta_governanca",
+      "status": "BLOQUEADO",
+      "evidence": "docs/remediacao/2026-10-05-r4-r14/R10_R13_R14.md; decisão solicitada não recebida; sem preços/planos/poder global inventados",
+      "last_validation": "2026-10-05"
+    },
+    {
+      "id": "REQ-REM-R14-20261005",
+      "description": "Consolidar validação e revisão cruzada com release seletiva governada",
+      "module": "qualidade_release",
+      "status": "PARCIAL",
+      "evidence": "docs/remediacao/2026-10-05-r4-r14/RESULTADO_FINAL.md; 21 comandos, 732 testes, 245 SQL + 54 disputas, 11 Chrome, 579 hashes estáveis; produção NO-GO",
+      "last_validation": "2026-10-05"
+    },
+    {
       "id": "REQ-REM-R1-20261005",
       "description": "Remediar carteira, documentos/Storage, supressão e invariante último administrador",
       "module": "seguranca_banco",
@@ -13,8 +101,8 @@
       "id": "REQ-REM-R2-20261005",
       "description": "Cercar transições manuais WA/Evolution por intenção, revisão/token/CAS e preservar corte administrativo nos consumidores",
       "module": "whatsapp_backend_frontend",
-      "status": "local_delta_validated_recovery_and_auto_provision_R6_pending",
-      "evidence": "docs/remediacao/2026-10-05-r1-r3/R2.md e REVISAO_R2.md; 28 SQL sequenciais e 6 concorrentes; 36 handlers; needs_review sem reset e workers automáticos fora do ledger; não publicado",
+      "status": "local_validated_R6_extended_pending_integrated_homologation",
+      "evidence": "docs/remediacao/2026-10-05-r1-r3/R2.md e REVISAO_R2.md preservados; extensão R6 em docs/remediacao/2026-10-05-r4-r14/R6.md integra recuperação GET + CAS e provisionamento automático ao ledger, sem POST cego; não implantado",
       "last_validation": "2026-10-05"
     },
     {
@@ -27,10 +115,10 @@
     },
     {
       "id": "REQ-REM-VALIDACAO-20261005",
-      "description": "Validar deltas R1/R2/R3, consumidores e cobertura integral de tipos Edge (subconjunto R10)",
+      "description": "Validar deltas R1–R12, consumidores e cobertura integral de tipos Edge, com limites R13/R14 explícitos",
       "module": "qualidade_transversal",
       "status": "local_passed_global_NO_GO",
-      "evidence": "docs/remediacao/2026-10-05-r1-r3/RESULTADO_FINAL.md e checks/results.json; 500 testes/79 arquivos, 17 smoke, 13 comandos aprovados, 534 hashes estáveis; não equivale a E2E real",
+      "evidence": "docs/remediacao/2026-10-05-r4-r14/RESULTADO_FINAL.md e checks/results.json; 732 testes/91 arquivos, 17 smoke, 21 comandos aprovados, 579 hashes estáveis; 245 SQL + 54 disputas e 11 Chrome; não equivale a E2E externo real",
       "last_validation": "2026-10-05"
     },
     {
