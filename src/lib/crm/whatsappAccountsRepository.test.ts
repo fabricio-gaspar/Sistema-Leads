@@ -19,12 +19,16 @@ vi.mock('@/lib/organizationSession', () => ({
 import {
   createEvolutionGoAccount,
   createEvolutionGoInstance,
+  inspectEvolutionGoInstance,
   loadEvolutionGoAccounts,
   loadMyEvolutionGoAccount,
   requestEvolutionGoPairingCode,
   requestEvolutionGoQr,
+  replaceEvolutionGoInstance,
   runEvolutionGoAction,
   saveEvolutionGoConfiguration,
+  saveEvolutionGoServer,
+  testEvolutionGoServer,
   loadMyWaAkgAccount,
   requestWaAkgQr,
   runWaAkgAction,
@@ -126,6 +130,40 @@ describe('Evolution GO multi-account repository', () => {
     expect(body).not.toHaveProperty('account_id');
     expect(body).not.toHaveProperty('global_api_key');
     expect(body).not.toHaveProperty('instance_token');
+  });
+
+  it('inspects a seller instance without submitting credentials or changing provider state', async () => {
+    ok({ instance_name: 'wf-test', provider_id: 'remote-id', provider_connected: false,
+      token_accepted: false, job_state: 'awaiting_qr' });
+    await expect(inspectEvolutionGoInstance(accountId)).resolves.toMatchObject({ token_accepted: false });
+    expect(invokeMock).toHaveBeenCalledExactlyOnceWith('evolution-go-recovery', {
+      body: { action: 'inspect', account_id: accountId },
+    });
+  });
+
+  it('submits only the explicitly confirmed seller instance for replacement, once', async () => {
+    ok({ instance_name: 'wf-test', provider_id: 'new-id', token_confirmed: true,
+      messaging_enabled: false });
+    await expect(replaceEvolutionGoInstance(accountId, 'wf-test', 'old-id'))
+      .resolves.toMatchObject({ token_confirmed: true, messaging_enabled: false });
+    expect(invokeMock).toHaveBeenCalledExactlyOnceWith('evolution-go-recovery', {
+      body: { action: 'replace', account_id: accountId, confirm_instance_name: 'wf-test',
+        confirm_remote_id: 'old-id' },
+    });
+  });
+
+  it.each([
+    ['save_server', () => saveEvolutionGoServer(accountId, { baseUrl: 'https://example.test', globalApiKey: 'test-key' })],
+    ['test_server', () => testEvolutionGoServer(accountId)],
+  ])('propagates unsupported deployed %s without retrying or claiming success', async (action, call) => {
+    const context = new Response(JSON.stringify({ ok: false, error: 'unsupported_action' }), { status: 400 });
+    invokeMock.mockResolvedValueOnce({ data: null, error: { context } });
+
+    await expect(call()).rejects.toThrow('unsupported_action');
+    expect(invokeMock).toHaveBeenCalledExactlyOnceWith('evolution-go', {
+      body: expect.objectContaining({ action, account_id: accountId }),
+    });
+    expect(context.bodyUsed).toBe(false);
   });
 
   it('creates a seller account with a client-generated id and explicit owner', async () => {
