@@ -4,7 +4,7 @@ import { readAnaKnowledgeFence, type AnaKnowledgeSnapshot } from '../functions/_
 type Row = Record<string, unknown>;
 type Query = { table: string; operation: string; value?: Row; filters: Record<string, unknown> };
 type Result = { data: unknown; error: null | { message: string; code?: string }; count?: number };
-const state = vi.hoisted(() => ({ admin: {} as object, deleteUser: vi.fn(), updateUser: vi.fn(), storageRemove: vi.fn() }));
+const state = vi.hoisted(() => ({ admin: {} as object, createUser: vi.fn(), deleteUser: vi.fn(), updateUser: vi.fn(), storageRemove: vi.fn() }));
 vi.mock('../functions/_shared/auth.ts', () => ({
   createAdminClient: () => state.admin,
   hasOrganizationPermission: async () => true,
@@ -126,13 +126,14 @@ function queryFor(table: string) {
 beforeEach(() => {
   vi.resetModules(); calls = []; override = undefined; acceptedLeadState = {};
   state.deleteUser = vi.fn(async () => ({ data: { user: { id: 'deleted-user' } }, error: null }));
+  state.createUser = vi.fn(async () => ({ data: { user: { id: 'e1111111-1111-4111-8111-111111111111' } }, error: null }));
   state.updateUser = vi.fn(async () => ({ data: { user: { id: 'updated-user' } }, error: null }));
   state.storageRemove = vi.fn(async () => ({ data: [], error: null }));
   state.admin = {
     from: queryFor,
     rpc: (name: string, value: Row) => Promise.resolve(execute({ table: name, operation: 'rpc', value, filters: {} })),
     storage: { from: () => ({ remove: state.storageRemove }) },
-    auth: { admin: { deleteUser: state.deleteUser, updateUserById: state.updateUser } },
+    auth: { admin: { createUser: state.createUser, deleteUser: state.deleteUser, updateUserById: state.updateUser } },
   };
   vi.stubGlobal('Deno', { env: { get: (name: string) => ({ SUPABASE_URL: 'https://example.invalid', SUPABASE_SERVICE_ROLE_KEY: 'synthetic-service-jwt', WHATSAPP_WEBHOOK_SHARED_SECRET: 'synthetic-internal-secret' } as Record<string, string>)[name] }, serve: (callback: typeof handler) => { handler = callback; } });
   fetchMock = vi.fn(async () => { throw new Error('Unexpected external call in safety test'); });
@@ -145,7 +146,7 @@ describe('R4 team membership and identity boundary — mocked HTTP', () => {
     method: 'POST', headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
     body: JSON.stringify({ action, user_id: target, ...fields }),
   });
-  for (const action of ['create', 'update_member', 'reset_password']) it(action + ' refuses global identity mutation', async () => {
+  for (const action of ['update_member', 'reset_password']) it(action + ' refuses global identity mutation', async () => {
     await import('../functions/team-members/index');
     const response = await handler(request(action, { name: 'Synthetic', email: 'synthetic@example.test', password: 'synthetic-password', role: 'vendedor' }));
     expect(response.status).toBe(400);
@@ -153,7 +154,53 @@ describe('R4 team membership and identity boundary — mocked HTTP', () => {
     expect(state.updateUser).not.toHaveBeenCalled(); expect(state.deleteUser).not.toHaveBeenCalled();
     expect(calls.some(q => q.operation !== 'select')).toBe(false);
   });
-  for (const action of ['remove', 'set_status', 'update_role']) it(action + ' uses caller-scoped transaction, never global Auth/Storage', async () => {
+  it('refuses direct creation before Auth if the coordinated backend is missing', async () => {
+    override = q => q.table === 'team_direct_create_preflight' ? { data: null, error: { message: 'function unavailable' } } : undefined;
+    await import('../functions/team-members/index');
+    const response = await handler(request('create', { name: 'Synthetic', email: 'synthetic@example.test', password: 'synthetic-password', role: 'vendedor' }));
+    expect(await response.json()).toMatchObject({ erro: 'member_creation_backend_unavailable' });
+    expect(state.createUser).not.toHaveBeenCalled();
+    expect(calls.some(q => q.table === 'team_direct_create_attach')).toBe(false);
+  });
+  it('creates only a new seller identity, attaches it atomically and wakes the existing Evolution GO job', async () => {
+    override = q => q.table === 'team_direct_create_preflight' ? ok({ ready: true })
+      : q.table === 'team_direct_create_attach' ? ok({ user_id: target, role: 'vendedor' })
+        : q.table === 'evolution_go_seller_provisioning_jobs' ? ok({ id: target, state: 'queued' }) : undefined;
+    await import('../functions/team-members/index');
+    const response = await handler(request('create', { name: 'Synthetic', email: 'synthetic@example.test', password: 'synthetic-password', role: 'vendedor' }));
+    expect(response.status).toBe(201);
+    const body = await response.json();
+    expect(body).toMatchObject({ ok: true, user_id: target, role: 'vendedor', provisioning_state: 'queued', provisioning_warning: null });
+    expect(JSON.stringify(body)).not.toContain('synthetic-password');
+    expect(state.createUser).toHaveBeenCalledWith(expect.objectContaining({
+      email: 'synthetic@example.test', password: 'synthetic-password', email_confirm: true,
+      user_metadata: expect.objectContaining({ wayflex_direct_create: true }),
+    }));
+    expect(calls.find(q => q.table === 'team_direct_create_attach')?.value).toMatchObject({
+      p_org: org, p_actor: 'owner', p_user: target, p_role: 'vendedor',
+    });
+    expect(calls.findIndex(q => q.table === 'team_direct_create_preflight')).toBeLessThan(calls.findIndex(q => q.table === 'team_direct_create_attach'));
+    expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/evolution-go-worker'))).toBe(true);
+    expect(state.deleteUser).not.toHaveBeenCalled();
+  });
+  it('does not adopt or reset an existing global account with the requested email', async () => {
+    override = q => q.table === 'team_direct_create_preflight' ? ok({ ready: true }) : undefined;
+    state.createUser.mockResolvedValue({ data: { user: null }, error: { code: 'email_exists', message: 'already registered' } });
+    await import('../functions/team-members/index');
+    const response = await handler(request('create', { name: 'Synthetic', email: 'existing@example.test', password: 'synthetic-password', role: 'administrador' }));
+    expect(await response.json()).toMatchObject({ erro: 'member_email_already_registered' });
+    expect(calls.some(q => q.table === 'team_direct_create_attach')).toBe(false);
+    expect(state.updateUser).not.toHaveBeenCalled(); expect(state.deleteUser).not.toHaveBeenCalled();
+  });
+  it('preserves a newly created identity if the tenant transaction result is ambiguous', async () => {
+    override = q => q.table === 'team_direct_create_preflight' ? ok({ ready: true })
+      : q.table === 'team_direct_create_attach' ? { data: null, error: { message: 'timeout' } } : undefined;
+    await import('../functions/team-members/index');
+    const response = await handler(request('create', { name: 'Synthetic', email: 'synthetic@example.test', password: 'synthetic-password', role: 'vendedor' }));
+    expect(await response.json()).toMatchObject({ erro: 'member_creation_pending_review' });
+    expect(state.deleteUser).not.toHaveBeenCalled(); expect(fetchMock).not.toHaveBeenCalled();
+  });
+  for (const action of ['set_status', 'update_role']) it(action + ' uses caller-scoped transaction, never global Auth/Storage', async () => {
     override = q => q.table === 'team_member_change' ? ok({ deleted_identity: false, membership_removed: action === 'remove' }) : undefined;
     await import('../functions/team-members/index');
     const response = await handler(request(action, { enabled: false, role: 'cx' }));
@@ -162,10 +209,24 @@ describe('R4 team membership and identity boundary — mocked HTTP', () => {
     expect(state.deleteUser).not.toHaveBeenCalled(); expect(state.updateUser).not.toHaveBeenCalled(); expect(state.storageRemove).not.toHaveBeenCalled();
     expect(calls.some(q => q.table === 'revoke_user_auth_sessions')).toBe(false);
   });
-  it('does not turn a failed transaction into success', async () => {
-    override = q => q.table === 'team_member_change' ? { data: null, error: { message: 'organization_access_denied' } } : undefined;
+  it('forwards removal to the isolated Evolution GO endpoint without touching Auth or history', async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ ok: true, membership_removed: true, history_preserved: true }), { status: 200 }));
     await import('../functions/team-members/index');
-    expect((await handler(request('remove'))).status).toBe(400); expect(state.deleteUser).not.toHaveBeenCalled();
+    const response = await handler(request('remove'));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ ok: true, history_preserved: true });
+    expect(fetchMock.mock.calls[0]?.[0].toString()).toContain('/functions/v1/team-member-evolution-removal');
+    expect(calls.some(q => q.table === 'team_member_change')).toBe(false);
+    expect(state.deleteUser).not.toHaveBeenCalled();
+    expect(state.storageRemove).not.toHaveBeenCalled();
+  });
+  it('does not turn a failed isolated removal into success', async () => {
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ ok: false, erro: 'member_remote_delete_not_confirmed' }), { status: 409 }));
+    await import('../functions/team-members/index');
+    const response = await handler(request('remove'));
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ erro: 'member_remote_delete_not_confirmed' });
+    expect(state.deleteUser).not.toHaveBeenCalled();
   });
   it('requires an explicit invite revision, never autoaccepts latest', async () => {
     await import('../functions/team-members/index');
@@ -185,31 +246,88 @@ describe('R4 team membership and identity boundary — mocked HTTP', () => {
     override = q => q.table === 'team_invite_accept' ? { data: null, error: { message: 'invite_not_current' } } : undefined;
     await import('../functions/team-members/index');
     expect((await handler(request('activate_invite', { invite_id: target, revision: 1 }))).status).toBe(400);
-    expect(calls.some(q => q.table === 'enqueue_evolution_go_seller_provisioning')).toBe(false); expect(state.deleteUser).not.toHaveBeenCalled();
+    expect(calls.some(q => q.table === 'evolution_go_seller_provisioning_jobs')).toBe(false); expect(state.deleteUser).not.toHaveBeenCalled();
   });
-  it('accepted seller reports durable provisioning failure honestly, without rolling back identity', async () => {
+  it('accepted seller reports a missing transaction-created job without rolling back identity', async () => {
     override = q => q.table === 'team_invite_accept' ? ok({ activated: true, organization_id: org, role: 'vendedor' }) : undefined;
     await import('../functions/team-members/index');
     const response = await handler(request('activate_invite', { invite_id: target, revision: 1 }));
-    expect(await response.json()).toMatchObject({ ok: true, provisioning_warning: 'seller_provisioning_pending_review' });
+    expect(await response.json()).toMatchObject({ ok: true, provisioning_state: null, provisioning_warning: 'seller_provisioning_missing' });
+    expect(calls.some(q => q.table === 'enqueue_evolution_go_seller_provisioning')).toBe(false);
     expect(state.deleteUser).not.toHaveBeenCalled(); expect(fetchMock).not.toHaveBeenCalled();
   });
-  it('accepted seller enqueues only the Evolution GO job and wakes only its worker', async () => {
+  it('accepted seller reads the transaction-created Evolution GO job and wakes only its worker', async () => {
     override = q => q.table === 'team_invite_accept'
       ? ok({ activated: true, organization_id: org, role: 'vendedor' })
-      : q.table === 'enqueue_evolution_go_seller_provisioning'
-        ? ok([{ job_id: target, whatsapp_account_id: whatsappAccountId, integration_id: integrationId, instance_name: 'wf-synthetic', state: 'queued' }])
+      : q.table === 'evolution_go_seller_provisioning_jobs'
+        ? ok({ id: target, state: 'queued' })
         : undefined;
     await import('../functions/team-members/index');
     const response = await handler(request('activate_invite', { invite_id: target, revision: 2 }));
     expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ ok: true, provisioning_warning: null });
-    expect(calls.find(q => q.table === 'enqueue_evolution_go_seller_provisioning')?.value).toMatchObject({
-      p_organization_id: org, p_user_id: 'owner', p_created_by: 'owner', p_source: 'invite', p_invite_id: target,
+    const responseBody = await response.json();
+    expect(responseBody).toMatchObject({ ok: true, provisioning_state: 'queued', provisioning_warning: null });
+    expect(JSON.stringify(responseBody)).not.toMatch(/whatsapp_account_id|integration_id|instance_name|job_id/);
+    expect(calls.find(q => q.table === 'evolution_go_seller_provisioning_jobs')?.filters).toMatchObject({
+      organization_id: org, user_id: 'owner',
     });
+    expect(calls.some(q => q.table === 'enqueue_evolution_go_seller_provisioning')).toBe(false);
     expect(calls.some(q => q.table === 'enqueue_wa_akg_seller_provisioning')).toBe(false);
     expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/evolution-go-worker'))).toBe(true);
     expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/wa-akg-worker'))).toBe(false);
+  });
+  it('returns a safe awaiting-QR state without waking the worker again', async () => {
+    override = q => q.table === 'team_invite_accept'
+      ? ok({ activated: true, organization_id: org, role: 'vendedor' })
+      : q.table === 'evolution_go_seller_provisioning_jobs'
+        ? ok({ id: target, state: 'awaiting_qr' })
+        : undefined;
+    await import('../functions/team-members/index');
+    const response = await handler(request('activate_invite', { invite_id: target, revision: 2 }));
+    const body = await response.json();
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({ ok: true, provisioning_state: 'awaiting_qr', provisioning_warning: null });
+    expect(JSON.stringify(body)).not.toMatch(/whatsapp_account_id|integration_id|instance_name|job_id/);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it.each([
+    { action: 'update_role', fields: { role: 'vendedor' }, current: { role: 'cx', status: 'active' } },
+    { action: 'set_status', fields: { enabled: true }, current: { role: 'vendedor', status: 'disabled' } },
+  ])('wakes the existing seller job after $action activates seller access', async ({ action, fields, current }) => {
+    override = q => q.table === 'organization_members'
+      ? ok(current)
+      : q.table === 'team_member_change'
+        ? ok({ deleted_identity: false, membership_removed: false })
+        : q.table === 'evolution_go_seller_provisioning_jobs'
+          ? ok({ id: target, state: 'queued' })
+          : undefined;
+    await import('../functions/team-members/index');
+    const response = await handler(request(action, fields));
+    const body = await response.json();
+    expect(response.status).toBe(200);
+    expect(body).toMatchObject({ ok: true, provisioning_state: 'queued', provisioning_warning: null });
+    expect(JSON.stringify(body)).not.toMatch(/whatsapp_account_id|integration_id|instance_name|job_id/);
+    const mutationIndex = calls.findIndex(q => q.table === 'team_member_change');
+    const jobIndex = calls.findIndex(q => q.table === 'evolution_go_seller_provisioning_jobs');
+    expect(jobIndex).toBeGreaterThan(mutationIndex);
+    expect(calls.find(q => q.table === 'evolution_go_seller_provisioning_jobs')?.filters).toMatchObject({
+      organization_id: org, user_id: target,
+    });
+    expect(calls.some(q => q.table === 'enqueue_evolution_go_seller_provisioning')).toBe(false);
+    expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/evolution-go-worker'))).toBe(true);
+  });
+  it('does not wake a job when disabling seller access', async () => {
+    override = q => q.table === 'organization_members'
+      ? ok({ role: 'vendedor', status: 'active' })
+      : q.table === 'team_member_change'
+        ? ok({ deleted_identity: false, membership_removed: false })
+        : undefined;
+    await import('../functions/team-members/index');
+    const response = await handler(request('set_status', { enabled: false }));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ ok: true, provisioning_state: null, provisioning_warning: null });
+    expect(calls.some(q => q.table === 'evolution_go_seller_provisioning_jobs')).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
   it('administrator effective permissions remain total despite misleading old false overrides', async () => {
     override = q => q.table === 'organization_members' ? ok({ role: 'administrador', status: 'active' })
@@ -647,6 +765,50 @@ describe('Prospecting handler persistence contract', () => {
 });
 
 describe('Integration configuration secret boundary', () => {
+  it('reactivates a validated paused provider, clears only the usage pause, and synchronizes its lead source', async () => {
+    override = (q) => {
+      if (q.table === 'integrations' && q.operation === 'select') {
+        return ok({ id: integrationId, provider: 'Apify', connected: true, enabled: false, paused: true, last_tested_at: '2026-10-06T12:00:00.000Z', last_error: null });
+      }
+      return undefined;
+    };
+    await import('../functions/configurar-integracao/index');
+    const response = await handler(new Request('https://example.invalid/configurar-integracao', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'set_usage', canal: 'apify', enabled: true }),
+    }));
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ ok: true, enabled: true });
+    expect(calls.find((q) => q.table === 'integrations' && q.operation === 'update')?.value).toMatchObject({ enabled: true, paused: false });
+    expect(calls.find((q) => q.table === 'lead_source_configs' && q.operation === 'update')?.value).toMatchObject({ enabled: true });
+    expect(calls.find((q) => q.table === 'audit_logs' && q.operation === 'insert')?.value).toMatchObject({
+      action: 'integration.apify_enabled', event_data: { enabled: true, previous_enabled: false, previous_paused: true },
+    });
+  });
+
+  it('deactivates usage without removing credentials or changing its pause state', async () => {
+    override = (q) => {
+      if (q.table === 'integrations' && q.operation === 'select') {
+        return ok({ id: integrationId, provider: 'Apify', connected: true, enabled: true, paused: false, last_tested_at: '2026-10-06T12:00:00.000Z', last_error: null });
+      }
+      return undefined;
+    };
+    await import('../functions/configurar-integracao/index');
+    const response = await handler(new Request('https://example.invalid/configurar-integracao', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'set_usage', canal: 'apify', enabled: false }),
+    }));
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ ok: true, enabled: false });
+    expect(calls.find((q) => q.table === 'integrations' && q.operation === 'update')?.value).toMatchObject({ enabled: false, paused: false });
+    expect(calls.find((q) => q.table === 'lead_source_configs' && q.operation === 'update')?.value).toMatchObject({ enabled: false });
+    expect(calls.some((q) => q.table === 'store_integration_secret' && q.operation === 'rpc')).toBe(false);
+  });
+
   it('replaces only the incompatible Apify actor in the Vault and exposes no token', async () => {
     override = (q) => {
       if (q.table === 'integrations' && q.operation === 'select') return ok({ id: integrationId, configuration: {} });
