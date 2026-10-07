@@ -162,15 +162,6 @@ function isEvolutionGoProvider(value: unknown): boolean {
   return text(value, 80).toLowerCase().replace(/[^a-z0-9]+/g, '_') === 'evolution_go';
 }
 
-function environmentGlobalProvisioningCredentials(): GlobalProvisioningCredentials | null {
-  const baseUrlInput = text(Deno.env.get('EVOLUTION_GO_BASE_URL'), 500);
-  const globalApiKey = text(Deno.env.get('EVOLUTION_GO_GLOBAL_API_KEY'), 1_000);
-  // Do not combine a partial database configuration with a partial environment
-  // configuration. A mismatched base URL and global key could target the wrong
-  // Evolution tenant.
-  return baseUrlInput && globalApiKey ? { baseUrlInput, globalApiKey } : null;
-}
-
 /**
  * The organization-level corporate account owns the global Evolution GO
  * credential. Seller accounts intentionally store only their own token and
@@ -195,17 +186,21 @@ async function loadGlobalProvisioningCredentials(
   if (accountError) throw new Error('evolution_go_global_account_lookup_failed');
 
   const corporateIntegrationId = text(corporateAccount?.integration_id, 80);
-  if (corporateAccount && !UUID.test(corporateIntegrationId)) {
+  if (!corporateAccount || !UUID.test(corporateIntegrationId)) {
     throw new Error('evolution_go_global_integration_lookup_failed');
   }
   if (UUID.test(corporateIntegrationId)) {
     const { data: corporateIntegration, error: integrationError } = await admin.from('integrations')
-      .select('id,provider')
+      .select('id,provider,configuration')
       .eq('id', corporateIntegrationId)
       .eq('organization_id', organizationId)
       .maybeSingle();
     if (integrationError || !corporateIntegration || !isEvolutionGoProvider(corporateIntegration.provider)) {
       throw new Error('evolution_go_global_integration_lookup_failed');
+    }
+    const validationStatus = text(object(object(corporateIntegration.configuration).server_validation).status, 30);
+    if (validationStatus !== 'passed') {
+      throw new Error('evolution_go_server_validation_required');
     }
 
     const { data: secret, error: secretError } = await admin.rpc('read_integration_secret', {
@@ -217,9 +212,6 @@ async function loadGlobalProvisioningCredentials(
     const globalApiKey = text(corporateSecret.global_api_key, 1_000);
     if (baseUrlInput && globalApiKey) return { baseUrlInput, globalApiKey };
   }
-
-  const fallback = environmentGlobalProvisioningCredentials();
-  if (fallback) return fallback;
   throw new Error('evolution_go_global_credentials_missing');
 }
 
