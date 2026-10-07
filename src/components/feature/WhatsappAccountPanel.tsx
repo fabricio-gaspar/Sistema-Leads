@@ -53,9 +53,11 @@ function dateTime(value: string | null): string {
 export default function WhatsappAccountPanel({
   member,
   mode = 'full',
+  showMetaUnavailable = false,
 }: {
   member?: TeamMember;
   mode?: 'full' | 'meta';
+  showMetaUnavailable?: boolean;
 }) {
   const [accounts, setAccounts] = useState<WhatsappAccount[]>([]);
   const [canManage, setCanManage] = useState(false);
@@ -183,7 +185,7 @@ export default function WhatsappAccountPanel({
       </button>}
     </div>}
 
-    <MetaCoexistencePanel member={member} accounts={accounts} canManage={canManage} onConnected={refresh} />
+    <MetaCoexistencePanel member={member} accounts={accounts} canManage={canManage} onConnected={refresh} showUnavailableWhenDisabled={showMetaUnavailable} />
 
     {error && <div role="alert" className="rounded-xl border border-accent-200 bg-accent-50 px-4 py-3 text-sm text-accent-800">{error}</div>}
     {notice && <div role="status" className="rounded-xl border border-primary-200 bg-primary-50 px-4 py-3 text-sm text-primary-800">{notice}</div>}
