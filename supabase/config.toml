@@ -28,6 +28,16 @@ verify_jwt = false
 [functions.evolution-go-worker]
 verify_jwt = false
 
+# WA-AKG signs the exact raw JSON body with the per-session webhook secret.
+# The public callback validates that HMAC and persists only normalized fields.
+[functions.webhook-wa-akg]
+verify_jwt = false
+
+# Internal durable consumer for WA-AKG callbacks and seller provisioning. It
+# accepts only the service-role bearer or WA_AKG_WORKER_TOKEN in the handler.
+[functions.wa-akg-worker]
+verify_jwt = false
+
 # O worker não é exposto ao navegador. Ele exige META_WORKER_TOKEN no próprio
 # handler e permanece sem trabalho enquanto os gates Meta estiverem desligados.
 [functions.meta-whatsapp-worker]

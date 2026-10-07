@@ -24,6 +24,15 @@ describe('Ana internal Evolution GO authentication', () => {
     )).toBe(true);
   });
 
+  it('accepts the account-scoped WA-AKG webhook secret', async () => {
+    const { matchesIntegrationWebhookSecret } = await import('../functions/ana-run/index');
+    expect(matchesIntegrationWebhookSecret(
+      'synthetic-wa-akg-webhook-secret',
+      'whatsapp_wa_akg:aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      { webhook_secret: 'synthetic-wa-akg-webhook-secret' },
+    )).toBe(true);
+  });
+
   it('keeps the legacy webhook token and rejects Evolution secret reuse elsewhere', async () => {
     const { matchesIntegrationWebhookSecret } = await import('../functions/ana-run/index');
     expect(matchesIntegrationWebhookSecret(

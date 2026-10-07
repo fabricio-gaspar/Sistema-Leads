@@ -1,0 +1,55 @@
+{
+  "scope": "Real React components in isolated local Chrome; recovery service injected synthetic; no Auth/Supabase/provider requests; not full CRM E2E",
+  "browser": "155.0.8059.26",
+  "checks": [
+    {
+      "name": "Tooltip remains visible across trigger/content gap",
+      "passed": true
+    },
+    {
+      "name": "Tooltip overflow can scroll without closing",
+      "passed": true
+    },
+    {
+      "name": "Escape dismisses help without moving keyboard focus",
+      "passed": true
+    },
+    {
+      "name": "Outside click dismisses help",
+      "passed": true
+    },
+    {
+      "name": "Native dialog traps focus, Escape closes and restores trigger",
+      "passed": true
+    },
+    {
+      "name": "Column labels associated; multiline/escaped quotes remain one row",
+      "passed": true
+    },
+    {
+      "name": "Malformed replacement clears previous valid dataset",
+      "passed": true
+    },
+    {
+      "name": "Dialog fits 320px and retains accessible close",
+      "passed": true
+    },
+    {
+      "name": "Recovery never runs automatically and requires explicit diagnosis",
+      "passed": true
+    },
+    {
+      "name": "Recovery sends observed revision once and promises no activation",
+      "passed": true
+    },
+    {
+      "name": "Unknown external mutation has no reset/replay button",
+      "passed": true
+    }
+  ],
+  "passed": 11,
+  "failed": 0,
+  "consoleErrors": []
+}
+
+STDERR

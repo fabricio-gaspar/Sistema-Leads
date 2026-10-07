@@ -51,6 +51,7 @@ let handler: (request: Request) => Promise<Response>;
 let fetchMock: ReturnType<typeof vi.fn>;
 let secrets: Map<string, Row>;
 let failQuery: ((query: Query) => Result | null) | null;
+let lifecycle: Map<string, Row>;
 
 const ok = (data: unknown): Result => ({ data, error: null });
 
@@ -98,6 +99,7 @@ function integration(id: string, label: string, enabled = false): Row {
     last_tested_at: '2026-10-03T12:00:00.000Z',
     last_success_at: '2026-10-03T12:00:00.000Z',
     last_error: null,
+    updated_at: '2026-10-03T12:00:00.000Z',
     status_detail: enabled ? 'Operacional' : 'Protegido',
     configuration: {
       configured: true,
@@ -138,6 +140,55 @@ function execute(query: Query): Result {
   const failure = failQuery?.(query);
   if (failure) return failure;
   if (query.operation === 'rpc') {
+    // Transport fixture only; transaction/authorization/CAS are independently
+    // exercised with the exact migration in r2-sql.mjs (PostgreSQL, not this fake).
+    if (query.table.includes('whatsapp_account_lifecycle')) {
+      const args = query.value ?? {};
+      const accountId = String(args.p_account_id);
+      const current = lifecycle.get(accountId) ?? { revision: 0, state: 'idle', desired_action: null };
+      if (query.table === 'get_whatsapp_account_lifecycle') return ok({ state: current.state, revision: current.revision, desired_action: current.desired_action });
+      if (query.table === 'check_whatsapp_account_lifecycle') return ok({ current: current.operation_id === args.p_operation_id && current.revision === args.p_revision && current.state === 'in_flight' });
+      const selectedAccount = accounts.find(item => item.id === accountId);
+      const selectedIntegration = integrations.find(item => item.id === selectedAccount?.integration_id);
+      if (!selectedAccount || !selectedIntegration) return { data: null, error: { message: 'missing record' } };
+      const previousAccounts = structuredClone(accounts), previousIntegrations = structuredClone(integrations);
+      const write = (table: string, value: Row, filters: Row) => execute({ table, operation: 'update', value, filters });
+      if (query.table === 'begin_whatsapp_account_lifecycle') {
+        const action = String(args.p_action);
+        if (action !== 'refresh_status') {
+          const first = write('integrations', { enabled: false, paused: true }, { id: selectedIntegration.id });
+          const second = first.error ? first : write('whatsapp_accounts', { enabled: false, is_default: false }, { id: accountId });
+          if (second.error) { accounts = previousAccounts; integrations = previousIntegrations; return second; }
+          Object.assign(current, { revision: Number(current.revision) + 1, desired_action: action });
+        }
+        lifecycle.set(accountId, current);
+        if (current.operation_id) return ok({ ...current, admitted: false, state: current.state === 'needs_review' ? 'needs_review' : 'pending' });
+        if (action === 'deactivate') { current.state = 'completed'; return ok({ ...current, admitted: false }); }
+        Object.assign(current, { operation_id: crypto.randomUUID(), operation_action: action, state: 'in_flight' });
+        return ok({ ...current, admitted: true });
+      }
+      const result = args.p_result as Row;
+      if (result.success === false && result.uncertain === true) { current.state = 'needs_review'; current.error_code = result.error_code; return ok({ ...current }); }
+      if (current.revision !== args.p_revision) {
+        delete current.operation_id; current.state = current.desired_action === 'deactivate' ? 'completed' : 'pending';
+        return ok({ ...current, state: 'pending', error_code: 'account_lifecycle_superseded' });
+      }
+      if (result.success === true) {
+        const connected = result.connected === true;
+        const enabled = current.operation_action === 'activate' || (current.operation_action === 'refresh_status' && connected && selectedAccount.enabled === true && selectedIntegration.enabled === true && selectedIntegration.paused === false);
+        const first = write('integrations', { connected, enabled, paused: !enabled, last_error: null, last_error_at: null }, { id: selectedIntegration.id });
+        const second = first.error ? first : write('whatsapp_accounts', { enabled,
+          connection_status: connected ? 'connected' : result.connection_status ?? 'disconnected',
+          is_default: enabled && selectedAccount.account_type === 'corporate',
+          ...(result.webhook_registered ? { webhook_registered_at: new Date().toISOString() } : {}),
+        }, { id: accountId });
+        if (second.error) { accounts = previousAccounts; integrations = previousIntegrations; return second; }
+        if (enabled && selectedAccount.account_type === 'corporate') accounts = accounts.map(item => item.id !== accountId && item.account_type === 'corporate' ? { ...item, is_default: false } : item);
+      }
+      delete current.operation_id;
+      current.state = result.success ? 'completed' : 'failed';
+      return ok({ ...current });
+    }
     if (query.table === 'read_integration_secret') {
       return ok(secrets.get(String(query.value?.p_integration)) ?? {});
     }
@@ -222,6 +273,7 @@ function request(action: string, input: Row = {}) {
 beforeEach(() => {
   vi.resetModules();
   calls = [];
+  lifecycle = new Map();
   state.userId = ownerId;
   state.permissions = { 'channels.view_own': true, 'channels.connect_own': true };
   accounts = [
@@ -274,6 +326,9 @@ beforeEach(() => {
   });
   fetchMock = vi.fn(async (url: string | URL) => {
     const path = new URL(String(url)).pathname;
+    if (path === '/instance/all') return new Response(JSON.stringify({ message: 'success', data: [] }), {
+      status: 200, headers: { 'Content-Type': 'application/json' },
+    });
     const data = path.endsWith('/instance/qr')
       ? { qrcode: 'data:image/png;base64,synthetic-qr', code: 'QR-CODE' }
       : path.endsWith('/instance/pair')
@@ -285,6 +340,123 @@ beforeEach(() => {
 });
 
 describe('Evolution GO multi-account handler', () => {
+  it('stores corporate server credentials without creating an instance or enabling routing, then validates read-only access', async () => {
+    state.userId = administratorId;
+    state.permissions = { 'channels.manage_all': true };
+    accounts.find((item) => item.id === secondCorporateAccountId)!.connection_status = 'unconfigured';
+    integrations.find((item) => item.id === secondCorporateIntegrationId)!.connected = false;
+    await import('../functions/evolution-go/index');
+
+    const saved = await handler(request('save_server', { account_id: secondCorporateAccountId,
+      base_url: 'https://evo-eisenflow.kz3solucoes.cloud', global_api_key: 'new-synthetic-global-key-must-not-leak' }));
+    expect(saved.status).toBe(200);
+    expect(await saved.json()).toMatchObject({ account: { enabled: false }, integration: {
+      enabled: false, connected: false, paused: true, serverConfigured: true,
+      serverValidation: { status: 'not_tested' },
+    } });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(secrets.get(secondCorporateIntegrationId)).toMatchObject({
+      global_api_key: 'new-synthetic-global-key-must-not-leak',
+      instance_token: 'synthetic-instance-token-must-not-leak',
+    });
+    const status = await handler(request('status', { account_id: secondCorporateAccountId }));
+    expect(JSON.stringify(await status.json())).not.toContain('new-synthetic-global-key-must-not-leak');
+
+    const tested = await handler(request('test_server', { account_id: secondCorporateAccountId }));
+    expect(tested.status).toBe(200);
+    expect(await tested.json()).toMatchObject({ account: { enabled: false }, integration: {
+      enabled: false, connected: false, serverValidation: { status: 'passed' },
+    } });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, options] = fetchMock.mock.calls[0] as [URL, RequestInit];
+    expect(new URL(String(url)).pathname).toBe('/instance/all');
+    expect(options).toMatchObject({ method: 'GET', headers: {
+      apikey: 'new-synthetic-global-key-must-not-leak', Accept: 'application/json',
+    } });
+    expect(accounts.find((item) => item.id === secondCorporateAccountId)).toMatchObject({ enabled: false });
+  });
+
+  it('reports invalid global credentials without exposing them or opening seller access', async () => {
+    state.userId = administratorId;
+    state.permissions = { 'channels.manage_all': true };
+    fetchMock.mockResolvedValueOnce(new Response('', { status: 401 }));
+    await import('../functions/evolution-go/index');
+
+    const response = await handler(request('test_server', { account_id: secondCorporateAccountId }));
+    const body = await response.json();
+    expect(response.status).toBe(200);
+    expect(body.integration).toMatchObject({ serverValidation: {
+      status: 'failed', errorCode: 'evolution_go_server_auth_failed',
+    } });
+    expect(JSON.stringify(body)).not.toContain('synthetic-global-key-must-not-leak');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(accounts.find((item) => item.id === secondCorporateAccountId)).toMatchObject({ enabled: false });
+  });
+
+  it('does not approve an unrelated JSON endpoint as an Evolution GO server', async () => {
+    state.userId = administratorId;
+    state.permissions = { 'channels.manage_all': true };
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ ok: true }), {
+      status: 200, headers: { 'Content-Type': 'application/json' },
+    }));
+    await import('../functions/evolution-go/index');
+    const response = await handler(request('test_server', { account_id: secondCorporateAccountId }));
+    expect(await response.json()).toMatchObject({ integration: { serverValidation: {
+      status: 'failed', errorCode: 'evolution_go_server_invalid_response',
+    } } });
+  });
+
+  it('does not allow a seller to read or change corporate server credentials', async () => {
+    await import('../functions/evolution-go/index');
+    for (const action of ['save_server', 'test_server']) {
+      const response = await handler(request(action, { account_id: secondCorporateAccountId,
+        global_api_key: 'untrusted-client-value' }));
+      expect(response.status).toBe(400);
+    }
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(calls.filter((call) => call.table === 'read_integration_secret')).toHaveLength(0);
+  });
+
+  it('blocks instance creation after a server is saved until its access test passes', async () => {
+    state.userId = administratorId;
+    state.permissions = { 'channels.manage_all': true };
+    integrations.find((item) => item.id === secondCorporateIntegrationId)!.configuration = {
+      configured: true, server_validation: { status: 'not_tested' },
+    };
+    await import('../functions/evolution-go/index');
+    const response = await handler(request('create_instance', { account_id: secondCorporateAccountId }));
+    expect(response.status).toBeGreaterThanOrEqual(400);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('invalidates an earlier server test if legacy instance configuration replaces the global key', async () => {
+    state.userId = administratorId;
+    state.permissions = { 'channels.manage_all': true };
+    integrations.find((item) => item.id === secondCorporateIntegrationId)!.configuration = {
+      configured: true, server_validation: { status: 'passed', checked_at: '2026-10-03T12:00:00.000Z' },
+    };
+    await import('../functions/evolution-go/index');
+    const response = await handler(request('save', { account_id: secondCorporateAccountId,
+      global_api_key: 'rotated-synthetic-key' }));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ integration: {
+      serverValidation: { status: 'not_tested' },
+    } });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects changing a live corporate server without modifying its stored secret', async () => {
+    state.userId = administratorId;
+    state.permissions = { 'channels.manage_all': true };
+    await import('../functions/evolution-go/index');
+    const before = { ...secrets.get(corporateIntegrationId) };
+    const response = await handler(request('save_server', { account_id: corporateAccountId,
+      global_api_key: 'should-not-be-stored' }));
+    expect(response.status).toBeGreaterThanOrEqual(400);
+    expect(secrets.get(corporateIntegrationId)).toEqual(before);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('persists the provider-issued ID after creating an instance without unsupported fields', async () => {
     state.userId = administratorId;
     state.permissions = { 'channels.manage_all': true };
@@ -356,6 +528,9 @@ describe('Evolution GO multi-account handler', () => {
   });
 
   it('returns QR only to an administrator or the private-account owner and never reveals another seller account', async () => {
+    accounts.find((item) => item.id === corporateAccountId)!.connection_status = 'qr';
+    accounts.find((item) => item.id === ownerAccountId)!.connection_status = 'qr';
+    accounts.find((item) => item.id === otherAccountId)!.connection_status = 'qr';
     fetchMock.mockImplementation(async (url: string | URL) => {
       const path = new URL(String(url)).pathname;
       const data = path.endsWith('/instance/status')
@@ -392,7 +567,7 @@ describe('Evolution GO multi-account handler', () => {
     expect(calls.filter((call) => call.table === 'read_integration_secret')).toHaveLength(2);
   });
 
-  it('waits for an unauthenticated Evolution GO runtime before requesting one pairing code', async () => {
+  it('lets Evolution GO establish an unauthenticated runtime before requesting one pairing code', async () => {
     fetchMock.mockImplementation(async (url: string | URL) => {
       const path = new URL(String(url)).pathname;
       if (path.endsWith('/instance/connect')) return new Response(JSON.stringify({ data: {} }), { status: 200 });
@@ -414,13 +589,116 @@ describe('Evolution GO multi-account handler', () => {
     expect(response.status, JSON.stringify(await response.clone().json())).toBe(200);
     expect(await response.json()).toMatchObject({ ok: true, pairingCode: 'PAIR-123' });
     expect(fetchMock.mock.calls.map(([url]) => new URL(String(url)).pathname)).toEqual([
-      '/instance/connect', '/instance/status', '/instance/pair',
+      '/instance/status', '/instance/connect', '/instance/pair',
     ]);
     const pairCall = fetchMock.mock.calls.find(([url]) => new URL(String(url)).pathname === '/instance/pair');
     expect(JSON.parse(String(pairCall?.[1]?.body))).toEqual({ phone: '5511999997788' });
   });
 
-  it('creates corporate and seller accounts in the canonical tables with the correct ownership', async () => {
+  it('requests a fresh QR even while Evolution GO still reports its startup status as disconnected', async () => {
+    accounts.find((item) => item.id === ownerAccountId)!.connection_status = 'qr';
+    fetchMock.mockImplementation(async (url: string | URL) => {
+      const path = new URL(String(url)).pathname;
+      if (path.endsWith('/instance/status')) {
+        return new Response(JSON.stringify({ data: { Connected: false, LoggedIn: false } }), { status: 200 });
+      }
+      if (path.endsWith('/instance/connect')) return new Response(JSON.stringify({ data: {} }), { status: 200 });
+      if (path.endsWith('/instance/qr')) {
+        return new Response(JSON.stringify({ data: { code: 'data:image/png;base64,fresh-qr' } }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ data: {} }), { status: 200 });
+    });
+    await import('../functions/evolution-go/index');
+
+    const response = await handler(request('qr', { account_id: ownerAccountId }));
+
+    expect(response.status, JSON.stringify(await response.clone().json())).toBe(200);
+    expect(await response.json()).toMatchObject({ ok: true, qr: { qrcode: 'data:image/png;base64,fresh-qr' } });
+    expect(fetchMock.mock.calls.map(([url]) => new URL(String(url)).pathname)).toEqual([
+      '/instance/qr',
+    ]);
+    expect(lifecycle.get(ownerAccountId)).toBeUndefined();
+  });
+
+  it('does not amplify a missing QR into repeated runtime and database startups', async () => {
+    accounts.find((item) => item.id === ownerAccountId)!.connection_status = 'qr';
+    let qrCalls = 0;
+    fetchMock.mockImplementation(async (url: string | URL) => {
+      const path = new URL(String(url)).pathname;
+      if (path.endsWith('/instance/status')) {
+        return new Response(JSON.stringify({ data: { Connected: false, LoggedIn: false } }), { status: 200 });
+      }
+      if (path.endsWith('/instance/qr')) {
+        qrCalls += 1;
+        return qrCalls === 1
+          ? new Response(JSON.stringify({ error: 'no QR code available. Please wait a moment and try again' }), { status: 400 })
+          : new Response(JSON.stringify({ data: { code: 'data:image/png;base64,recovered-qr' } }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ data: {} }), { status: 200 });
+    });
+    await import('../functions/evolution-go/index');
+
+    const response = await handler(request('qr', { account_id: ownerAccountId }));
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ ok: false, error: 'evolution_go_qr_runtime_not_ready' });
+    expect(fetchMock.mock.calls.map(([url]) => new URL(String(url)).pathname)).toEqual([
+      '/instance/qr',
+    ]);
+    expect(qrCalls).toBe(1);
+    expect(lifecycle.get(ownerAccountId)).toBeUndefined();
+  });
+
+  it('does not retry a server-side QR startup failure or expose the upstream detail', async () => {
+    accounts.find((item) => item.id === ownerAccountId)!.connection_status = 'qr';
+    fetchMock.mockImplementation(async (url: string | URL) => {
+      const path = new URL(String(url)).pathname;
+      if (path.endsWith('/instance/status')) {
+        return new Response(JSON.stringify({ data: { Connected: false, LoggedIn: false } }), { status: 200 });
+      }
+      if (path.endsWith('/instance/qr')) {
+        return new Response(JSON.stringify({ error: 'failed to start instance: private upstream detail' }), { status: 400 });
+      }
+      return new Response(JSON.stringify({ data: {} }), { status: 200 });
+    });
+    await import('../functions/evolution-go/index');
+
+    const response = await handler(request('qr', { account_id: ownerAccountId }));
+    const body = await response.json();
+
+    expect(response.status).toBeGreaterThanOrEqual(400);
+    expect(body.error).toBe('evolution_go_qr_start_failed');
+    expect(JSON.stringify(body)).not.toContain('private upstream detail');
+    expect(fetchMock.mock.calls.map(([url]) => new URL(String(url)).pathname)).toEqual([
+      '/instance/qr',
+    ]);
+    expect(lifecycle.get(ownerAccountId)).toBeUndefined();
+  });
+
+  it('refuses QR before a registered connection without contacting Evolution GO', async () => {
+    accounts.find((item) => item.id === ownerAccountId)!.connection_status = 'configured';
+    await import('../functions/evolution-go/index');
+
+    const response = await handler(request('qr', { account_id: ownerAccountId }));
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ ok: false, error: 'evolution_go_connection_start_required' });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('does not expose QR after the administrative cutoff', async () => {
+    accounts.find((item) => item.id === ownerAccountId)!.connection_status = 'qr';
+    lifecycle.set(ownerAccountId, { revision: 2, state: 'completed', desired_action: 'deactivate' });
+    await import('../functions/evolution-go/index');
+
+    const response = await handler(request('qr', { account_id: ownerAccountId }));
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ ok: false, error: 'evolution_go_connection_start_required' });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('creates only corporate accounts manually; seller accounts are provisioned by membership', async () => {
     state.userId = administratorId;
     state.permissions = { 'channels.manage_all': true };
     await import('../functions/evolution-go/index');
@@ -438,18 +716,42 @@ describe('Evolution GO multi-account handler', () => {
       account_type: 'corporate', owner_user_id: null, provider: 'evolution_go', is_default: false,
     });
 
-    expect((await handler(request('create_account', {
+    const sellerResponse = await handler(request('create_account', {
       account_id: newSellerId,
       account_type: 'seller',
       owner_user_id: newSellerOwnerId,
       label: 'Privada vendedor',
-    }))).status).toBe(200);
-    expect(accounts.find((item) => item.id === newSellerId)).toMatchObject({
-      account_type: 'seller', owner_user_id: newSellerOwnerId, provider: 'evolution_go', is_default: false,
+    }));
+    expect(sellerResponse.status).toBe(400);
+    expect(await sellerResponse.json()).toMatchObject({
+      ok: false, error: 'evolution_go_seller_provisioned_by_membership',
     });
+    expect(accounts.find((item) => item.id === newSellerId)).toBeUndefined();
   });
 
-  it('lets the owner activate their seller account and open the validated Evolution route', async () => {
+  it('refuses manual seller instance configuration before lifecycle, secret, or provider access', async () => {
+    state.userId = administratorId;
+    state.permissions = { 'channels.manage_all': true };
+    await import('../functions/evolution-go/index');
+
+    for (const action of ['save', 'create_instance']) {
+      const response = await handler(request(action, {
+        account_id: ownerAccountId,
+        base_url: 'https://evo.example.invalid',
+        global_api_key: 'synthetic-global-key-must-not-leak',
+      }));
+      expect(response.status).toBe(400);
+      expect(await response.json()).toMatchObject({
+        ok: false, error: 'evolution_go_seller_provisioned_by_membership',
+      });
+    }
+
+    expect(calls.some((call) => call.table === 'read_integration_secret')).toBe(false);
+    expect(calls.some((call) => call.table.includes('whatsapp_account_lifecycle'))).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('lets the owner activate their own account without changing administrative provider gates', async () => {
     controls = {
       ...controls,
       inbound_enabled: false,
@@ -463,13 +765,13 @@ describe('Evolution GO multi-account handler', () => {
     expect(response.status).toBe(200);
     expect(accounts.find((item) => item.id === ownerAccountId)).toMatchObject({ enabled: true, is_default: false });
     expect(controls).toMatchObject({
-      inbound_enabled: true,
-      send_enabled: true,
-      automation_enabled: true,
-      kill_switch: false,
+      inbound_enabled: false,
+      send_enabled: false,
+      automation_enabled: false,
+      kill_switch: true,
     });
     expect(calls.some((call) => call.table === 'messaging_provider_controls'
-      && call.operation === 'upsert' && call.value?.reason === 'seller_account_activated')).toBe(true);
+      && call.operation === 'upsert')).toBe(false);
   });
 
   it('activates a seller account without changing the corporate default', async () => {
@@ -521,7 +823,7 @@ describe('Evolution GO multi-account handler', () => {
     expect(response.status).toBe(400);
     expect(await response.json()).toMatchObject({
       ok: false,
-      error: 'evolution_go_activation_state_save_failed',
+      error: 'account_lifecycle_persistence_failed',
     });
     expect(controls).toMatchObject({
       inbound_enabled: false,
@@ -532,5 +834,164 @@ describe('Evolution GO multi-account handler', () => {
     expect(calls.some((call) => call.table === 'audit_logs'
       && call.operation === 'insert'
       && call.value?.action === 'whatsapp.evolution_go_activated')).toBe(false);
+  });
+});
+
+describe.each(['evolution-go', 'wa-akg'] as const)('R2 lifecycle HTTP contract: %s (DB transport mocked)', (endpoint) => {
+  async function load() {
+    if (endpoint === 'wa-akg') {
+      accounts = accounts.map(item => ({ ...item, provider: 'wa_akg' }));
+      integrations = integrations.map(item => ({ ...item, provider: 'WA-AKG', configuration: { session_name: 'seller_synthetic', configured: true } }));
+      controls.provider = 'wa_akg';
+      for (const item of integrations) {
+        const account = accounts.find(account => account.integration_id === item.id)!;
+        secrets.set(String(item.id), { base_url: 'https://wa.example.invalid', api_key: 'synthetic',
+          session_id: `wf_${organizationId.replaceAll('-', '')}_${String(account.id).replaceAll('-', '')}`, webhook_secret: 'synthetic' });
+      }
+      vi.stubGlobal('Deno', { env: { get: (name: string) => ({ SUPABASE_URL: 'https://example.invalid', WA_AKG_ALLOWED_ORIGINS: 'https://wa.example.invalid' } as Row)[name] }, serve: (callback: typeof handler) => { handler = callback; } });
+      await import('../functions/wa-akg/index.ts');
+    } else await import('../functions/evolution-go/index.ts');
+  }
+  function connectedResponse() {
+    return new Response(JSON.stringify({ data: { status: 'CONNECTED', connected: true, loggedIn: true,
+      enabled: false, botMode: 'SPECIFIC', autoReplyMode: 'SPECIFIC', botAllowedJids: [], autoReplyAllowedJids: [],
+      autoRead: false, alwaysOnline: false, welcomeMessage: null } }), { status: 200 });
+  }
+  function ownerEnabled() { return accounts.find(item => item.id === ownerAccountId)?.enabled; }
+  function enableFixture() {
+    Object.assign(accounts.find(item => item.id === ownerAccountId)!, { enabled: true });
+    Object.assign(integrations.find(item => item.id === ownerIntegrationId)!, { enabled: true, paused: false });
+  }
+
+  it('R2-HTTP-01 preserves a global emergency when the owner activates their account', async () => {
+    Object.assign(controls, { inbound_enabled: false, send_enabled: false, automation_enabled: false, kill_switch: true });
+    fetchMock.mockImplementation(async () => connectedResponse());
+    await load();
+    const response = await handler(request('activate', { account_id: ownerAccountId }));
+    expect(response.status).toBe(200);
+    expect(ownerEnabled()).toBe(true);
+    expect(controls.kill_switch).toBe(true);
+    expect(calls.some(call => call.table === 'messaging_provider_controls' && call.operation === 'upsert')).toBe(false);
+  });
+
+  it('R2-HTTP-02 commits local cutoff before unavailable disconnect and never retries an uncertain POST', async () => {
+    enableFixture();
+    fetchMock.mockImplementation(async () => { expect(ownerEnabled()).toBe(false); throw new Error('response lost'); });
+    await load();
+    const response = await handler(request('disconnect', { account_id: ownerAccountId }));
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ error: 'account_lifecycle_needs_review', lifecycle: { state: 'needs_review' } });
+    expect(ownerEnabled()).toBe(false);
+    expect((await handler(request('connect', { account_id: ownerAccountId }))).status).toBe(409);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('R2-HTTP-03 performs no remote call when durable intent fails to save', async () => {
+    failQuery = query => query.table === 'begin_whatsapp_account_lifecycle' ? { data: null, error: { message: 'injected DB failure' } } : null;
+    await load();
+    expect((await handler(request('disconnect', { account_id: ownerAccountId }))).status).toBe(400);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(calls.some(call => call.table === 'read_integration_secret')).toBe(false);
+  });
+
+  it('R2-HTTP-04 never reports success when atomic final persistence fails', async () => {
+    fetchMock.mockImplementation(async () => connectedResponse());
+    failQuery = query => query.table === 'finish_whatsapp_account_lifecycle' ? { data: null, error: { message: 'injected DB failure' } } : null;
+    await load();
+    expect((await handler(request('activate', { account_id: ownerAccountId }))).status).toBe(400);
+    expect(ownerEnabled()).toBe(false);
+    expect(lifecycle.get(ownerAccountId)?.state).toBe('in_flight');
+  });
+
+  it.each(['activate', 'refresh_status'])('R2-HTTP-05 newer deactivation fences an older %s response', async action => {
+    enableFixture();
+    let release!: () => void, reached!: () => void;
+    const ready = new Promise<void>(resolve => { reached = resolve; });
+    fetchMock.mockImplementation(() => { reached(); return new Promise<Response>(resolve => { release = () => resolve(connectedResponse()); }); });
+    await load();
+    const old = handler(request(action, { account_id: ownerAccountId }));
+    await ready;
+    const cutoff = await handler(request('deactivate', { account_id: ownerAccountId }));
+    expect(cutoff.status).toBe(202);
+    expect(ownerEnabled()).toBe(false);
+    release();
+    expect((await old).status).toBe(202);
+    expect(ownerEnabled()).toBe(false);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('R2-HTTP-06 does not obtain a QR or credentials while another operation is in-flight', async () => {
+    lifecycle.set(ownerAccountId, { revision: 1, operation_id: 'synthetic-locked-token', state: 'in_flight', desired_action: 'connect' });
+    await load();
+    const response = await handler(request('qr', { account_id: ownerAccountId }));
+    expect(response.status).toBe(202);
+    const body = await response.json();
+    expect(body.qr).toBeUndefined();
+    expect(JSON.stringify(body)).not.toContain('synthetic-locked-token');
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(calls.some(call => call.table === 'read_integration_secret')).toBe(false);
+  });
+
+  it('R2-HTTP-07 fences a WA-AKG writer while activation is in-flight and refuses manual Evolution seller creation', async () => {
+    state.userId = administratorId;
+    state.permissions = { 'channels.manage_all': true };
+    lifecycle.set(ownerAccountId, { revision: 1, operation_id: 'synthetic-locked-token', state: 'in_flight', desired_action: 'activate' });
+    await load();
+    const action = endpoint === 'wa-akg' ? 'provision' : 'create_instance';
+    const response = await handler(request(action, { account_id: ownerAccountId }));
+    if (endpoint === 'wa-akg') {
+      expect(response.status).toBe(202);
+    } else {
+      expect(response.status).toBe(400);
+      expect(await response.json()).toMatchObject({ error: 'evolution_go_seller_provisioned_by_membership' });
+    }
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(calls.some(call => ['read_integration_secret', 'store_integration_secret'].includes(call.table))).toBe(false);
+  });
+
+  it('R2-HTTP-08 returns durable review state in list without operation tokens', async () => {
+    lifecycle.set(ownerAccountId, { revision: 4, operation_id: 'synthetic-private-token', state: 'needs_review', desired_action: 'disconnect' });
+    await load();
+    const response = await handler(request('list'));
+    const body = await response.json();
+    expect(body.accounts.find((item: Row) => (item.account as Row).id === ownerAccountId).lifecycle).toMatchObject({ state: 'needs_review', revision: 4 });
+    expect(JSON.stringify(body)).not.toContain('synthetic-private-token');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('R2-HTTP-09 treats disconnected activation as a safe failure, not a locked uncertain send', async () => {
+    fetchMock.mockImplementation(async () => new Response(JSON.stringify({ data: { status: 'DISCONNECTED', connected: false, loggedIn: false,
+      enabled: false, botMode: 'SPECIFIC', autoReplyMode: 'SPECIFIC', botAllowedJids: [], autoReplyAllowedJids: [],
+      autoRead: false, alwaysOnline: false, welcomeMessage: null } }), { status: 200 }));
+    await load();
+    expect((await handler(request('activate', { account_id: ownerAccountId }))).status).toBe(400);
+    expect(lifecycle.get(ownerAccountId)?.state).toBe('failed');
+    expect(lifecycle.get(ownerAccountId)?.operation_id).toBeUndefined();
+    expect(ownerEnabled()).toBe(false);
+  });
+
+  it('R2-HTTP-10 denies self-service attempts to open administrative controls', async () => {
+    await load();
+    const response = await handler(request('set_provider_controls', { account_id: ownerAccountId, inbound_enabled: true, send_enabled: true, automation_enabled: true, kill_switch: false }));
+    expect(response.status).toBe(400);
+    expect(calls.some(call => call.table === 'set_whatsapp_account_provider_controls')).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  if (endpoint === 'wa-akg') it('R2-HTTP-11 stops provision between remote steps when a newer cutoff arrives', async () => {
+    state.userId = administratorId;
+    state.permissions = { 'channels.manage_all': true };
+    let release!: () => void, reached!: () => void;
+    const ready = new Promise<void>(resolve => { reached = resolve; });
+    fetchMock.mockImplementation(() => { reached(); return new Promise<Response>(resolve => { release = () => resolve(new Response(JSON.stringify({ success: true, data: { sessionId: `wf_${organizationId.replaceAll('-', '')}_${ownerAccountId.replaceAll('-', '')}` } }), { status: 200 })); }); });
+    await load();
+    const older = handler(request('provision', { account_id: ownerAccountId }));
+    await ready;
+    expect((await handler(request('deactivate', { account_id: ownerAccountId }))).status).toBe(202);
+    release();
+    expect((await older).status).toBe(409);
+    expect(ownerEnabled()).toBe(false);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(lifecycle.get(ownerAccountId)?.state).toBe('needs_review');
   });
 });

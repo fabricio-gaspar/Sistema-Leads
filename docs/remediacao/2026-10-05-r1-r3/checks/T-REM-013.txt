@@ -1,0 +1,238 @@
+{
+  "engine": "PostgreSQL 17.6 on x86_64-apple-darwin23.6.0, compiled by Apple clang version 16.0.0 (clang-1600.0.26.6), 64-bit",
+  "directory": "/var/folders/ts/wxslxg794g31zvbyfd69k1s80000gn/T/wayflex-r3-pg-wVn5Yh",
+  "sourceSha256": "64e3dd154a11a03307fdf6efe9a87412c2e70281293322c2fe16595bdd444e87",
+  "scope": "Synthetic local PostgreSQL; private Unix socket, no TCP, no production",
+  "sequential": {
+    "environment": "Native PostgreSQL; unchanged R3 assertions adapted only at runner boundaries",
+    "version": "PostgreSQL 17.6 on x86_64-apple-darwin23.6.0, compiled by Apple clang version 16.0.0 (clang-1600.0.26.6), 64-bit",
+    "migration": "/Users/fabriciogaspar/Documents/Codex/2026-10-04/c/Sistema-Leads-live/supabase/migrations/20261005220139_audit_r3_receipt_reconciliation.sql",
+    "passed": 14,
+    "failed": 0,
+    "results": [
+      {
+        "id": "T-R3-SQL-000",
+        "result": "PASS",
+        "scenario": "preserved pre-fix function reproduces COALESCE SQLSTATE42883"
+      },
+      {
+        "id": "T-R3-SQL-001",
+        "result": "PASS",
+        "scenario": "read, then older delivered/sent/failed never downgrade; repeat read is unchanged"
+      },
+      {
+        "id": "T-R3-SQL-002",
+        "result": "PASS",
+        "scenario": "normal sent → delivered → read transition fills timestamps once"
+      },
+      {
+        "id": "T-R3-SQL-003",
+        "result": "PASS",
+        "scenario": "same provider ID in other account or organization is untouched"
+      },
+      {
+        "id": "T-R3-SQL-004",
+        "result": "PASS",
+        "scenario": "account from another organization or missing account fails closed"
+      },
+      {
+        "id": "T-R3-SQL-005",
+        "result": "PASS",
+        "scenario": "unknown ID is a no-op, not a synthetic outbound message"
+      },
+      {
+        "id": "T-R3-SQL-006",
+        "result": "PASS",
+        "scenario": "receipt provider must match original account"
+      },
+      {
+        "id": "T-R3-SQL-007",
+        "result": "PASS",
+        "scenario": "linked message from another account aborts and rolls back outreach update"
+      },
+      {
+        "id": "T-R3-SQL-008",
+        "result": "PASS",
+        "scenario": "failed and replied terminal states preserve existing contract"
+      },
+      {
+        "id": "T-R3-SQL-009",
+        "result": "PASS",
+        "scenario": "ambiguous same-account IDs reject atomically"
+      },
+      {
+        "id": "T-R3-SQL-010",
+        "result": "PASS",
+        "scenario": "partial batch returns only known target for caller review"
+      },
+      {
+        "id": "T-R3-SQL-011",
+        "result": "PASS",
+        "scenario": "legacy five-argument API is fixed and preserved without broader grants"
+      },
+      {
+        "id": "T-R3-SQL-012",
+        "result": "PASS",
+        "scenario": "both APIs deny anon/authenticated and remain invoker with empty search_path"
+      },
+      {
+        "id": "T-R3-SQL-013",
+        "result": "PASS",
+        "scenario": "null status and empty message IDs are invalid"
+      }
+    ]
+  },
+  "races": [
+    {
+      "id": "T-R3-PG-C1",
+      "isolation": "READ COMMITTED",
+      "firstStatus": "read",
+      "secondStatus": "delivered",
+      "secondWaitedForLock": true,
+      "outcome": {
+        "success": true,
+        "rows": [
+          {
+            "outreach_id": "00000000-0000-4000-8000-000000000021",
+            "lead_id": "00000000-0000-4000-8000-000000000031",
+            "message_id": "00000000-0000-4000-8000-000000000041",
+            "provider_message_id": "same-provider-id",
+            "previous_status": "read",
+            "current_status": "read",
+            "changed": false
+          }
+        ]
+      },
+      "final": "read",
+      "result": "PASS"
+    },
+    {
+      "id": "T-R3-PG-C2",
+      "isolation": "READ COMMITTED",
+      "firstStatus": "delivered",
+      "secondStatus": "read",
+      "secondWaitedForLock": true,
+      "outcome": {
+        "success": true,
+        "rows": [
+          {
+            "outreach_id": "00000000-0000-4000-8000-000000000021",
+            "lead_id": "00000000-0000-4000-8000-000000000031",
+            "message_id": "00000000-0000-4000-8000-000000000041",
+            "provider_message_id": "same-provider-id",
+            "previous_status": "delivered",
+            "current_status": "read",
+            "changed": true
+          }
+        ]
+      },
+      "final": "read",
+      "result": "PASS"
+    },
+    {
+      "id": "T-R3-PG-C3",
+      "isolation": "READ COMMITTED",
+      "firstStatus": "read",
+      "secondStatus": "failed",
+      "secondWaitedForLock": true,
+      "outcome": {
+        "success": true,
+        "rows": [
+          {
+            "outreach_id": "00000000-0000-4000-8000-000000000021",
+            "lead_id": "00000000-0000-4000-8000-000000000031",
+            "message_id": "00000000-0000-4000-8000-000000000041",
+            "provider_message_id": "same-provider-id",
+            "previous_status": "read",
+            "current_status": "read",
+            "changed": false
+          }
+        ]
+      },
+      "final": "read",
+      "result": "PASS"
+    },
+    {
+      "id": "T-R3-PG-C4",
+      "isolation": "REPEATABLE READ",
+      "firstStatus": "read",
+      "secondStatus": "delivered",
+      "secondWaitedForLock": true,
+      "outcome": {
+        "success": false,
+        "code": "40001"
+      },
+      "final": "read",
+      "result": "PASS"
+    },
+    {
+      "id": "T-R3-PG-C5",
+      "isolation": "REPEATABLE READ",
+      "firstStatus": "delivered",
+      "secondStatus": "read",
+      "secondWaitedForLock": true,
+      "outcome": {
+        "success": false,
+        "code": "40001"
+      },
+      "final": "read",
+      "result": "PASS"
+    },
+    {
+      "id": "T-R3-PG-C6",
+      "isolation": "REPEATABLE READ",
+      "firstStatus": "read",
+      "secondStatus": "failed",
+      "secondWaitedForLock": true,
+      "outcome": {
+        "success": false,
+        "code": "40001"
+      },
+      "final": "read",
+      "result": "PASS"
+    },
+    {
+      "id": "T-R3-PG-C7",
+      "isolation": "SERIALIZABLE",
+      "firstStatus": "read",
+      "secondStatus": "delivered",
+      "secondWaitedForLock": true,
+      "outcome": {
+        "success": false,
+        "code": "40001"
+      },
+      "final": "read",
+      "result": "PASS"
+    },
+    {
+      "id": "T-R3-PG-C8",
+      "isolation": "SERIALIZABLE",
+      "firstStatus": "delivered",
+      "secondStatus": "read",
+      "secondWaitedForLock": true,
+      "outcome": {
+        "success": false,
+        "code": "40001"
+      },
+      "final": "read",
+      "result": "PASS"
+    },
+    {
+      "id": "T-R3-PG-C9",
+      "isolation": "SERIALIZABLE",
+      "firstStatus": "read",
+      "secondStatus": "failed",
+      "secondWaitedForLock": true,
+      "outcome": {
+        "success": false,
+        "code": "40001"
+      },
+      "final": "read",
+      "result": "PASS"
+    }
+  ],
+  "passed": 23,
+  "failed": 0
+}
+
+STDERR

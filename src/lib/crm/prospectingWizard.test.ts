@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   nextProspectingWizardStep,
+  prospectingWizardBlockReason,
   validateProspectingWizardStep,
   type ProspectingWizardDraft,
 } from '@/lib/crm/prospectingWizard';
@@ -13,6 +14,15 @@ const completeDraft: ProspectingWizardDraft = {
 };
 
 describe('wizard da Busca de Leads', () => {
+  it('blocks every sample CTA if an earlier required step becomes invalid', () => {
+    expect(prospectingWizardBlockReason(4,{...completeDraft,city:''})).toBe('Informe a cidade onde deseja encontrar empresas.');
+    expect(prospectingWizardBlockReason(4,{...completeDraft,sourceId:''})).toBe('Escolha uma fonte validada para continuar.');
+    expect(prospectingWizardBlockReason(4,completeDraft,true)).toBe('Aguarde a consulta em andamento.');
+    expect(prospectingWizardBlockReason(4,completeDraft)).toBeNull();
+  });
+  it('does not require future steps while navigating', () => {
+    expect(prospectingWizardBlockReason(1,{sourceId:'apify',city:'',offer:'',terms:[]})).toBeNull();
+  });
   it('exige somente a informação necessária em cada passo', () => {
     expect(validateProspectingWizardStep(1, { ...completeDraft, sourceId: '  ' }))
       .toBe('Escolha uma fonte validada para continuar.');

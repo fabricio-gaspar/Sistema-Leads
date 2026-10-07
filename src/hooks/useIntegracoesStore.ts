@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useSyncExternalStore } from 'react';
+import { createContextStore } from '@/lib/contextStore';
+import { sessionContext, type SessionContext } from '@/lib/sessionContext';
 import { integracoes as integrationDescriptors } from '@/mocks/businessData';
 import type { Integracao } from '@/mocks/businessData';
 import { supabase } from '@/lib/supabase';
@@ -9,6 +10,7 @@ export type OperationalIntegration = Omit<Integracao, 'status'> & {
   remoteKey: 'whatsapp' | 'ai' | 'apify' | 'google_places';
   operationalCategory: 'prospecting' | 'communication' | 'intelligence' | 'scheduling' | 'system';
   connected: boolean;
+  configured: boolean;
   enabled: boolean;
   paused: boolean;
   lastError: string | null;
@@ -36,14 +38,6 @@ const descriptorByKey: Record<SupportedKey, Integracao> = {
   google_places: integrationDescriptors.find((item) => item.id === 'int-8')!,
 };
 
-let state: OperationalIntegration[] = [];
-let hydratedUser: string | null = null;
-const listeners = new Set<() => void>();
-
-function notify() {
-  listeners.forEach((listener) => listener());
-}
-
 function pendingDescriptor(key: SupportedKey): OperationalIntegration {
   const descriptor = descriptorByKey[key];
   return {
@@ -53,6 +47,7 @@ function pendingDescriptor(key: SupportedKey): OperationalIntegration {
     remoteKey: key,
     operationalCategory: key === 'whatsapp' ? 'communication' : key === 'ai' ? 'intelligence' : 'prospecting',
     connected: false,
+    configured: false,
     enabled: false,
     paused: false,
     lastError: null,
@@ -101,33 +96,20 @@ function anaProviderConfiguration(value: unknown): AnaProviderConfiguration | nu
 
 export { integrationDisplayStatus };
 
-async function hydrateFromBackend(force = false): Promise<void> {
-  const { data: auth } = await supabase.auth.getUser();
-  const userId = auth.user?.id;
-  if (!userId || (!force && hydratedUser === userId)) return;
-
-  const { data: profile, error: profileError } = await supabase
-    .from('profiles')
-    .select('active_organization_id')
-    .eq('id', userId)
-    .maybeSingle();
-  const organizationId = profile?.active_organization_id as string | null | undefined;
-  if (profileError || !organizationId) return;
-
+async function loadFromBackend(context: SessionContext): Promise<OperationalIntegration[]> {
+  const organizationId = context.organizationId;
   const { data, error } = await supabase
     .from('integrations')
     // Nunca hidratar o JSON inteiro no navegador: este recorte transporta
     // somente o estado público da Ana, sem a referência do cofre ou chaves.
-    .select('key,category,connected,enabled,paused,status_detail,last_error,last_tested_at,ana_provider:configuration->>provedor_principal,ana_model:configuration->>modelo_principal,ana_openai_model:configuration->>openai_model,ana_claude_model:configuration->>claude_model,ana_openai_configured:configuration->>openai_configurado,ana_claude_configured:configuration->>claude_configurado')
+    .select('key,category,connected,enabled,paused,status_detail,last_error,last_tested_at,configured:configuration->>configured,ana_provider:configuration->>provedor_principal,ana_model:configuration->>modelo_principal,ana_openai_model:configuration->>openai_model,ana_claude_model:configuration->>claude_model,ana_openai_configured:configuration->>openai_configurado,ana_claude_configured:configuration->>claude_configurado')
     .eq('organization_id', organizationId)
     .in('key', [...supportedKeys]);
-  if (error) {
-    console.error('[integracoes] falha ao carregar conexões operacionais', error);
-    return;
-  }
+  sessionContext.assertCurrent(context);
+  if (error) throw error;
 
   const byKey = new Map((data ?? []).map((row) => [row.key as SupportedKey, row]));
-  state = supportedKeys.map((key) => {
+  return supportedKeys.map((key) => {
     const descriptor = descriptorByKey[key];
     const remote = byKey.get(key);
     if (!remote) return pendingDescriptor(key);
@@ -149,6 +131,10 @@ async function hydrateFromBackend(force = false): Promise<void> {
       ultimoTeste: remote.last_tested_at ? new Date(remote.last_tested_at).toLocaleString('pt-BR') : 'Nunca testada',
       descricao: integrationStatusDetail(statusInput, remote.status_detail || descriptor.descricao),
       connected: Boolean(remote.connected),
+      // Registros antigos podem não ter a marca pública `configured`, mas uma
+      // conexão já confirmada ou um uso já habilitado também prova que não é
+      // necessário abrir novamente o formulário de credenciais.
+      configured: publicBoolean(remote.configured) || Boolean(remote.connected) || Boolean(remote.enabled),
       enabled: Boolean(remote.enabled),
       paused: Boolean(remote.paused),
       lastError: remote.last_error ?? null,
@@ -156,9 +142,10 @@ async function hydrateFromBackend(force = false): Promise<void> {
       anaProviderConfiguration: key === 'ai' ? anaProviderConfiguration(remote) : null,
     };
   });
-  hydratedUser = userId;
-  notify();
+
 }
+
+const store = createContextStore<OperationalIntegration[]>({ initial: () => [], load: loadFromBackend });
 
 export interface IntegracoesStore {
   integracoes: OperationalIntegration[];
@@ -166,23 +153,5 @@ export interface IntegracoesStore {
 }
 
 export function useIntegracoesStore(): IntegracoesStore {
-  const raw = useSyncExternalStore(
-    (listener) => { listeners.add(listener); return () => listeners.delete(listener); },
-    () => state,
-    () => state,
-  );
-
-  useEffect(() => {
-    void hydrateFromBackend();
-    const { data: subscription } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user?.id !== hydratedUser) {
-        hydratedUser = null;
-        void hydrateFromBackend(true);
-      }
-    });
-    return () => subscription.subscription.unsubscribe();
-  }, []);
-
-  const integracoes = useMemo(() => raw, [raw]);
-  return { integracoes, recarregar: () => hydrateFromBackend(true) };
+  return { integracoes: store.useData(), recarregar: store.refresh };
 }

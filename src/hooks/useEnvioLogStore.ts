@@ -18,9 +18,10 @@ export function useEnvioLogStore(): {
   limpar: () => void;
 } {
   const registros = store.useStore();
+  const setStore = store.bindSet();
 
   const limpar = () => {
-    store.set(() => []);
+    setStore(() => []);
   };
 
   return { registros, limpar };

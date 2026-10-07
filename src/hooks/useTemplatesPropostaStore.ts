@@ -1,4 +1,4 @@
-import { useEffect, useSyncExternalStore } from 'react';
+import { createContextStore } from '@/lib/contextStore';
 import { loadProposalTemplates, saveProposalTemplates } from '@/lib/crm/proposalTemplatesRepository';
 
 export interface BlocoProposta {
@@ -93,116 +93,67 @@ export const WAYFLEX_TEMPLATE_EXAMPLES: TemplateProposta[] = [
   },
 ];
 
-interface TemplateState {
-  templates: TemplateProposta[];
-  loading: boolean;
-  saving: boolean;
-  loaded: boolean;
-  error: string | null;
-}
-
-let state: TemplateState = { templates: [], loading: false, saving: false, loaded: false, error: null };
-const listeners = new Set<() => void>();
-let loadPromise: Promise<void> | null = null;
-
-const notify = () => listeners.forEach((listener) => listener());
-const updateState = (next: Partial<TemplateState>) => {
-  state = { ...state, ...next };
-  notify();
-};
-const subscribe = (listener: () => void) => {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
-};
-
-async function ensureLoaded(force = false): Promise<void> {
-  if (state.loaded && !force) return;
-  if (loadPromise) return loadPromise;
-  updateState({ loading: true, error: null });
-  loadPromise = (async () => {
-    try {
-      const remote = await loadProposalTemplates();
-      const templates = remote ?? WAYFLEX_TEMPLATE_EXAMPLES;
-      if (remote === null) await saveProposalTemplates(templates);
-      updateState({ templates, loaded: true });
-    } catch (error) {
-      console.error('[proposal-templates] falha ao carregar', error);
-      updateState({ error: 'Não foi possível carregar os templates do banco.' });
-    } finally {
-      updateState({ loading: false });
-      loadPromise = null;
-    }
-  })();
-  return loadPromise;
-}
-
-async function persist(next: TemplateProposta[]): Promise<void> {
-  updateState({ saving: true, error: null });
-  try {
-    await saveProposalTemplates(next);
-    updateState({ templates: next, loaded: true });
-  } catch (error) {
-    console.error('[proposal-templates] falha ao salvar', error);
-    updateState({ error: 'A alteração não foi salva. O conteúdo anterior foi mantido.' });
-    throw error;
-  } finally {
-    updateState({ saving: false });
-  }
-}
+const store = createContextStore<TemplateProposta[]>({
+  initial: () => [],
+  load: async () => (await loadProposalTemplates()) ?? [],
+  save: async (_previous, next) => { await saveProposalTemplates(next); return next; },
+  optimistic: false,
+});
 
 export function useTemplatesPropostaStore() {
-  const snapshot = useSyncExternalStore(subscribe, () => state, () => state);
-
-  useEffect(() => {
-    void ensureLoaded();
-  }, []);
-
+  const snapshot = store.useSnapshot();
+  const update = store.bindUpdate();
   const atualizar = async (id: string, mudanca: Partial<TemplateProposta>) => {
-    let next = state.templates.map((template) => template.id === id ? { ...template, ...mudanca } : template);
-    if (mudanca.padrao) next = next.map((template) => ({ ...template, padrao: template.id === id }));
-    await persist(next);
+    await update((previous) => {
+      let next = previous.map((template) => template.id === id ? { ...template, ...mudanca } : template);
+      if (mudanca.padrao) next = next.map((template) => ({ ...template, padrao: template.id === id }));
+      return next;
+    });
   };
 
   const adicionar = async (template: TemplateProposta) => {
-    const next = template.padrao
-      ? [...state.templates.map((item) => ({ ...item, padrao: false })), template]
-      : [...state.templates, template];
-    await persist(next);
+    await update((previous) => template.padrao
+      ? [...previous.map((item) => ({ ...item, padrao: false })), template]
+      : [...previous, template]);
   };
 
   const duplicar = async (id: string) => {
-    const source = state.templates.find((template) => template.id === id);
-    if (!source) throw new Error('proposal_template_not_found');
-    const copy: TemplateProposta = {
-      ...source,
-      id: crypto.randomUUID(),
-      nome: `${source.nome} — cópia`,
-      padrao: false,
-      blocos: source.blocos.map((block) => ({ ...block, id: crypto.randomUUID() })),
-    };
-    await persist([...state.templates, copy]);
+    await update((previous) => {
+      const source = previous.find((template) => template.id === id);
+      if (!source) throw new Error('proposal_template_not_found');
+      return [...previous, { ...source, id: crypto.randomUUID(), nome: `${source.nome} — cópia`, padrao: false,
+        blocos: source.blocos.map((block) => ({ ...block, id: crypto.randomUUID() })) }];
+    });
   };
 
   const excluir = async (id: string) => {
-    const current = state.templates.find((template) => template.id === id);
-    const remaining = state.templates.filter((template) => template.id !== id);
-    const next = current?.padrao && remaining.length > 0
-      ? remaining.map((template, index) => ({ ...template, padrao: index === 0 }))
-      : remaining;
-    await persist(next);
+    await update((previous) => {
+      const current = previous.find((template) => template.id === id);
+      const remaining = previous.filter((template) => template.id !== id);
+      return current?.padrao && remaining.length > 0
+        ? remaining.map((template, index) => ({ ...template, padrao: index === 0 })) : remaining;
+    });
   };
 
   const definirPadrao = async (id: string) => {
-    await persist(state.templates.map((template) => ({ ...template, padrao: template.id === id })));
+    await update((previous) => {
+      const selected = previous.find((template) => template.id === id);
+      if (!selected?.ativo || !selected.blocos.length) throw new Error('proposal_template_not_available');
+      return previous.map((template) => ({ ...template, padrao: template.id === id }));
+    });
   };
 
   return {
-    ...snapshot,
+    templates: snapshot.data,
+    loading: snapshot.status === 'loading',
+    saving: snapshot.saving,
+    loaded: snapshot.loaded,
+    error: snapshot.error ? 'Não foi possível confirmar a operação no banco.' : null,
     atualizar,
     adicionar,
     duplicar,
     excluir,
     definirPadrao,
-    recarregar: () => ensureLoaded(true),
+    recarregar: store.refresh,
   };
 }

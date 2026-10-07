@@ -1,6 +1,6 @@
 import { createAdminClient, requireOrganizationPermission, requireOrganizationRole, requireUser } from '../_shared/auth.ts';
 import { allowedCorsHeaders, hasAllowedOrigin, json, preflight, safeError } from '../_shared/http.ts';
-import { normalizeHandoffWhatsappNotification } from './settings.ts';
+import { assertProspectingFilters, normalizeHandoffWhatsappNotification, prospectingFiltersIssue } from './settings.ts';
 
 type OperationMode = 'simulation' | 'supervised' | 'automatic';
 type InitialAssignmentMode = 'ana' | 'human' | 'team';
@@ -108,7 +108,7 @@ function normalizeSettings(value: unknown) {
       digest_enabled: input.digestEnabled !== false,
       digest_time: digestTime,
       filters: {
-        pais: 'Brasil', estados: list(input.regions, 27), segmentos: list(input.segments),
+        pais: 'Brasil', cidade: asText(input.city, 120), estados: list(input.regions, 27).map((uf) => uf.toUpperCase()), segmentos: list(input.segments),
         atividades: list(input.keywords), exigeSite: input.requireWebsite === true,
         exigeWhatsApp: input.requireWhatsapp === true, exigeEmail: input.requireEmail === true,
         volumeMaximo: quantity,
@@ -117,7 +117,7 @@ function normalizeSettings(value: unknown) {
   };
 }
 
-async function readiness(admin: ReturnType<typeof createAdminClient>, organizationId: string) {
+async function readiness(admin: ReturnType<typeof createAdminClient>, organizationId: string, candidateFilters?: unknown) {
   const [{ data: company }, { data: integrations }, { data: runtime }, { data: agent }] = await Promise.all([
     admin.from('company_settings').select('active,sandbox_mode,can_use_ia,ai_actions_enabled').eq('organization_id', organizationId).maybeSingle(),
     admin.from('integrations').select('key,connected,enabled,paused').eq('organization_id', organizationId).in('key', ['ai','apify','scheduler','whatsapp','zapi_webhook']),
@@ -125,7 +125,14 @@ async function readiness(admin: ReturnType<typeof createAdminClient>, organizati
     admin.from('ai_agents').select('active_version_id').eq('organization_id', organizationId).eq('key', 'ana').maybeSingle(),
   ]);
   const available = new Map((integrations ?? []).map((item) => [item.key, item.connected === true && item.enabled === true && item.paused === false]));
+  let filters = candidateFilters;
+  if (filters === undefined) {
+    const { data: schedule, error } = await admin.from('prospecting_schedules').select('filters').eq('organization_id', organizationId)
+      .order('created_at', { ascending: false }).limit(1).maybeSingle();
+    filters = error ? null : schedule?.filters;
+  }
   const checks = {
+    prospectingLocation: prospectingFiltersIssue(filters) === null,
     company: company?.active === true,
     realEnvironment: company?.sandbox_mode === false,
     anaConfiguration: Boolean(agent?.active_version_id),
@@ -224,6 +231,7 @@ Deno.serve(async (request) => {
       ]);
       if (scheduleError || !schedule) throw new Error('operation_schedule_missing');
       if (enabled) {
+        assertProspectingFilters(schedule.filters);
         if (schedule.paid_prospecting_approved !== true) throw new Error('paid_prospecting_approval_required');
         if (!operationReadiness.automaticReady) throw new Error('automatic_mode_not_ready');
         await validateActivatedRouting(admin, organizationId, schedule);
@@ -243,8 +251,11 @@ Deno.serve(async (request) => {
     }
     if (action === 'save') {
       const normalized = normalizeSettings(body.settings);
-      const operationReadiness = await readiness(admin, organizationId);
-      if (normalized.enabled) await validateActivatedRouting(admin, organizationId, normalized.schedule);
+      const operationReadiness = await readiness(admin, organizationId, normalized.schedule.filters);
+      if (normalized.enabled) {
+        assertProspectingFilters(normalized.schedule.filters);
+        await validateActivatedRouting(admin, organizationId, normalized.schedule);
+      }
       if (normalized.enabled && normalized.mode === 'automatic' && (!normalized.schedule.paid_prospecting_approved || !operationReadiness.automaticReady)) {
         throw new Error(!normalized.schedule.paid_prospecting_approved ? 'paid_prospecting_approval_required' : 'automatic_mode_not_ready');
       }
@@ -290,6 +301,7 @@ Deno.serve(async (request) => {
 
     if (action === 'run_now') {
       const mode = company.ana_operation_mode as OperationMode;
+      if (mode !== 'simulation') assertProspectingFilters(schedule.filters);
       const operationReadiness = await readiness(admin, organizationId);
       if (mode === 'automatic' && (!schedule.paid_prospecting_approved || !operationReadiness.automaticReady)) throw new Error('automatic_mode_not_ready');
       const now = new Date();
@@ -309,6 +321,14 @@ Deno.serve(async (request) => {
 
     const runId = body.runId;
     if (!isUuid(runId)) throw new Error('run_id_invalid');
+    // The run may belong to an older schedule: validate its actual parent, not the latest schedule.
+    const { data: pendingRun, error: pendingError } = await admin.from('prospecting_schedule_runs').select('schedule_id')
+      .eq('id', runId).eq('organization_id', organizationId).eq('status', 'awaiting_approval').maybeSingle();
+    if (pendingError || !pendingRun) throw new Error('operation_run_not_awaiting_approval');
+    const { data: pendingSchedule, error: parentError } = await admin.from('prospecting_schedules').select('filters')
+      .eq('id', pendingRun.schedule_id).eq('organization_id', organizationId).maybeSingle();
+    if (parentError || !pendingSchedule) throw new Error('operation_schedule_missing');
+    assertProspectingFilters(pendingSchedule.filters);
     const { data: run, error: runError } = await admin.from('prospecting_schedule_runs').update({
       status: 'queued', approved_by: user.id, approved_at: new Date().toISOString(), next_run_at: new Date().toISOString(), error_code: null,
     }).eq('id', runId).eq('organization_id', organizationId).eq('status', 'awaiting_approval').select('*').maybeSingle();

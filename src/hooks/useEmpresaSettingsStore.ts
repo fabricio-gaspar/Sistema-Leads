@@ -1,8 +1,6 @@
-import { useEffect, useSyncExternalStore } from 'react';
+import { createContextStore } from '@/lib/contextStore';
 import { regrasComerciais } from '@/mocks/comercialData';
-import { controleAna, regrasHandoffAna } from '@/mocks/anaComercial';
 import type { RegraHandoff } from '@/mocks/anaComercial';
-import { identidadeAna, assinaturaCta, complianceLgpd } from '@/mocks/empresaExtra';
 import { loadOperationalCompanySettings, persistOperationalCompanySettings } from '@/lib/crm/organizationSettingsRepository';
 
 export interface Organizacao {
@@ -36,82 +34,31 @@ export interface EmpresaSettings {
   regras: typeof regrasComerciais;
 }
 
-const inicial: EmpresaSettings = {
+export const EMPTY_EMPRESA_SETTINGS: EmpresaSettings = {
   organizacao: {
-    nome: 'WayFlex Indústria e Comércio',
-    nomeComercial: 'Wayflex',
-    cnpj: '',
-    site: 'https://www.wayflex.ind.br',
-    email: 'contato@wayflex.ind.br',
-    telefone: '(11) 93288-4074',
-    endereco: 'R. Luiz Fornaziero, 134 - Jardim do Paço, Sorocaba - SP, 18087-094',
-    fusoHorario: 'America/Sao_Paulo',
-    idioma: 'pt-BR',
-    assinaturaComercial: 'Wayflex — Soluções industriais em borracha, silicone e poliuretano.',
+    nome: '', nomeComercial: '', cnpj: '', site: '', email: '', telefone: '', endereco: '',
+    fusoHorario: 'America/Sao_Paulo', idioma: 'pt-BR', assinaturaComercial: '',
   },
-  ramo: 'Soluções industriais em borracha, silicone e poliuretano, com peças técnicas sob medida para vedação, reposição e projetos especiais.',
-  regiao: 'Sorocaba/SP e atendimento comercial para indústrias.',
-  publico: 'Indústrias que precisam de peças técnicas, vedações, reposição ou desenvolvimento sob medida; priorizar responsáveis por manutenção, engenharia, compras e produção.',
-  diferenciais: [
-    'Soluções industriais em borracha, silicone e poliuretano',
-    'Desenvolvimento de peças conforme os requisitos fornecidos pelo cliente',
-    'Análise técnica sujeita à validação da equipe WayFlex',
-  ],
-  saudacao: identidadeAna.saudacao,
-  corBalao: identidadeAna.corBalao,
-  assinatura: assinaturaCta.assinatura,
-  horario: controleAna.horarioAtendimento,
-  limiteMensagens: controleAna.limiteMensagensPorLeadDia,
-  handoff: regrasHandoffAna,
-  consentimento: complianceLgpd.consentimento,
-  regras: regrasComerciais,
+  ramo: '', regiao: '', publico: '', diferenciais: [], saudacao: '', corBalao: '', assinatura: '',
+  horario: '', limiteMensagens: 0, handoff: [], consentimento: '',
+  regras: {
+    descontoMaximoPadrao: 0, descontoExigeAprovacaoAcima: 0, cargoMinimoAprovacao: '',
+    anaPodeAplicarDesconto: false, anaDescontoMaximo: 0, validadePropostaDias: 0,
+    condicoesPagamentoPadrao: '', prazoEntregaPadraoDias: 0, gerarPdf: false,
+    transferirNegociacaoHumano: true, motivoPerdaObrigatorio: true,
+  },
 };
 
-let state: EmpresaSettings = inicial;
-let hydrated = false;
-let hydratePromise: Promise<void> | null = null;
-let writeQueue = Promise.resolve();
-const listeners = new Set<() => void>();
-
-const notify = () => listeners.forEach((listener) => listener());
-const subscribe = (listener: () => void) => {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
-};
-
-async function hydrate(): Promise<void> {
-  if (hydrated) return;
-  if (hydratePromise) return hydratePromise;
-  hydratePromise = loadOperationalCompanySettings(inicial)
-    .then((settings) => {
-      state = settings;
-      hydrated = true;
-      notify();
-    })
-    .catch((error) => console.error('[organization-settings] falha ao carregar fonte operacional', error))
-    .finally(() => { hydratePromise = null; });
-  return hydratePromise;
-}
-
-function updateState(updater: (previous: EmpresaSettings) => EmpresaSettings): Promise<void> {
-  const operation = writeQueue
-    .catch(() => undefined)
-    .then(async () => {
-      const next = updater(state);
-      await persistOperationalCompanySettings(next);
-      state = next;
-      hydrated = true;
-      notify();
-    });
-  writeQueue = operation.catch((error) => {
-    console.error('[organization-settings] falha ao salvar fonte operacional', error);
-  });
-  return operation;
-}
+const store = createContextStore<EmpresaSettings>({
+  initial: () => structuredClone(EMPTY_EMPRESA_SETTINGS),
+  load: () => loadOperationalCompanySettings(EMPTY_EMPRESA_SETTINGS),
+  save: async (_previous, next) => { await persistOperationalCompanySettings(next); return next; },
+  optimistic: false,
+});
 
 export function useEmpresaSettingsStore() {
-  const settings = useSyncExternalStore(subscribe, () => state, () => state);
-  useEffect(() => { void hydrate(); }, []);
+  const settings = store.useData();
+  const updateState = store.bindUpdate();
 
   const salvar = (mudanca: Partial<EmpresaSettings>): Promise<void> => {
     return updateState((prev) => ({ ...prev, ...mudanca }));
@@ -126,5 +73,5 @@ export function useEmpresaSettingsStore() {
 
 // Acesso imperativo ao snapshot da empresa (para o motor de automação).
 export function getEmpresaSettingsSnapshot(): EmpresaSettings {
-  return state;
+  return store.get();
 }

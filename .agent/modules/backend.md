@@ -1,5 +1,17 @@
 # Backend
 
+## 06/10/2026 — Evolution GO multi-tenant local, sem aplicação remota
+
+`team-members` observa o job já criado pelo vínculo e só acorda o worker quando ele existe; não recria instância após o vendedor estar ativo. `evolution-go` recusa criação/configuração manual de conta seller, preservando conta corporativa/admin e o convite/autodefinição segura de senha. O lifecycle por trigger mantém job único por organização/usuário, self-service só do titular e histórico pós-desconexão. Validação: 769 Vitest/93 arquivos, type-check app/Edge, lint, build/artefato, PGlite 6/6 e PostgreSQL nativo 2/2. Não aplicado a migrations/Supabase/Edge/Site/GitHub; sem QR, chamada a provedor, mensagem ou dado de cliente. Drift remoto, QR Evolution 400/500 e política de senha/Auth pendente exigem staging/homologação coordenada.
+
+## 05/10/2026 — R4/R6/R8/R11 locais
+
+Administração de equipe controla vínculo/convite, não identidade global Auth. Entrada usa etapa local atômica e lease; provisionamento automático compartilha ledger de lifecycle; recuperação só encerra consulta comprovada por GET/CAS e mantém corte. Ana/worker revalidam contexto comercial e autorização antes dos efeitos; pedido de orçamento continua rascunho humano. Rotina paga exige cidade, uma UF e termo no handler e guard SQL. Sem deploy; contratos e limites em `docs/remediacao/2026-10-05-r4-r14/`.
+
+## 05/10/2026 — R2/R3 locais e type-check integral, não publicados
+
+Handlers WA/Evolution usam `accountLifecycle`: intenção/corte persistente antes do remoto, token/revisão, revalidação entre etapas de provisionamento manual e conclusão CAS. Falha após efeito incerto mantém bloqueio, sem repetir POST. Consumidores recebem lifecycle público sem token; 202/409 não são sucesso de conexão. Recibos tardios autenticados são conciliados por escopo sem reabrir gates/Ana; callback conectado não restaura enabled/paused. Todas as Edge Functions agora entram no type-check (nove diagnósticos corrigidos). Recuperação manual e workers automáticos fora do ledger permanecem R6. Nenhuma Edge publicada nesta etapa.
+
 - O E2E controlado confirmou a proteção pós-aceite: quando a Z-API aceitou e a persistência local falhou, `automation-worker` gravou `provider_accepted_reconciliation_required` com o ID remoto e não repetiu o envio. Depois da correção do trigger, a RPC canônica reconciliou o mesmo aceite como `processed/sent`.
 
 - O caminho canônico `ana-run` → `resolve_lead_whatsapp_account` voltou a obter a conta/integração corporativa depois da correção SQL de ambiguidade. Nenhuma Edge Function foi substituída ou publicada nesta correção; `ana-run` continua sendo a única autoridade automática e a fila existente continua sendo a única via de saída.

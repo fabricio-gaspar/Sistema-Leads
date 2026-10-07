@@ -1,3 +1,4 @@
+import { escapeCsvCell } from '@/lib/csv';
 import { useMemo, useState } from 'react';
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { ArrowDownToLine, ArrowUpRight, BarChart3, CalendarDays, ChevronRight, CircleHelp, FileText, Filter, History, Info, RefreshCw, SlidersHorizontal, UserRound, UsersRound, Wifi, WifiOff } from 'lucide-react';
@@ -84,7 +85,7 @@ export default function FunnelAnalytics() {
       ['Etapa', 'Leads', 'Valor em aberto'],
       ...analytics.stageCounts.map((stage) => [stage.name, String(stage.leads), money(stage.value)]),
     ];
-    const escape = (value: string) => `"${value.replaceAll('"', '""')}"`;
+    const escape = escapeCsvCell;
     const blob = new Blob(['\uFEFF', rows.map((row) => row.map((cell) => escape(String(cell))).join(';')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
     const url = URL.createObjectURL(blob); const anchor = document.createElement('a'); anchor.href = url; anchor.download = `wayflex-funil-${analytics.range.start}-${analytics.range.end}.csv`; anchor.click(); URL.revokeObjectURL(url);
   };

@@ -1,0 +1,996 @@
+[
+  {
+    "result": {
+      "tables": [
+        {
+          "rls": true,
+          "table": "agent_runs",
+          "delete": false,
+          "insert": false,
+          "select": true,
+          "update": false,
+          "policy_count": 1
+        },
+        {
+          "rls": true,
+          "table": "ai_agent_versions",
+          "delete": false,
+          "insert": false,
+          "select": true,
+          "update": false,
+          "policy_count": 1
+        },
+        {
+          "rls": true,
+          "table": "ai_agents",
+          "delete": false,
+          "insert": false,
+          "select": true,
+          "update": false,
+          "policy_count": 1
+        },
+        {
+          "rls": true,
+          "table": "ai_decisions",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 3
+        },
+        {
+          "rls": true,
+          "table": "app_user_connections",
+          "delete": false,
+          "insert": false,
+          "select": false,
+          "update": false,
+          "policy_count": 1
+        },
+        {
+          "rls": true,
+          "table": "appointment_reminders",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 4
+        },
+        {
+          "rls": true,
+          "table": "appointments",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 1
+        },
+        {
+          "rls": true,
+          "table": "audit_logs",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 2
+        },
+        {
+          "rls": true,
+          "table": "automation_dead_letters",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 3
+        },
+        {
+          "rls": true,
+          "table": "automation_definitions",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 4
+        },
+        {
+          "rls": true,
+          "table": "automation_heartbeats",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 1
+        },
+        {
+          "rls": true,
+          "table": "automation_run_steps",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 3
+        },
+        {
+          "rls": true,
+          "table": "automation_runs",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 3
+        },
+        {
+          "rls": true,
+          "table": "call_records",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 1
+        },
+        {
+          "rls": true,
+          "table": "channel_contact_bindings",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 1
+        },
+        {
+          "rls": true,
+          "table": "channel_health_samples",
+          "delete": false,
+          "insert": false,
+          "select": true,
+          "update": false,
+          "policy_count": 1
+        },
+        {
+          "rls": true,
+          "table": "channel_inbound_events",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 1
+        },
+        {
+          "rls": true,
+          "table": "channel_policy_events",
+          "delete": false,
+          "insert": false,
+          "select": true,
+          "update": false,
+          "policy_count": 1
+        },
+        {
+          "rls": true,
+          "table": "company_settings",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 4
+        },
+        {
+          "rls": true,
+          "table": "consent_events",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 1
+        },
+        {
+          "rls": true,
+          "table": "contact_points",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 1
+        },
+        {
+          "rls": true,
+          "table": "contact_suppressions",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 1
+        },
+        {
+          "rls": true,
+          "table": "conversation_knowledge_events",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 1
+        },
+        {
+          "rls": true,
+          "table": "conversation_read_states",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 1
+        },
+        {
+          "rls": true,
+          "table": "crm_accounts",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 4
+        },
+        {
+          "rls": true,
+          "table": "crm_contacts",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 4
+        },
+        {
+          "rls": true,
+          "table": "crm_opportunities",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 1
+        },
+        {
+          "rls": true,
+          "table": "crm_stage_events",
+          "delete": false,
+          "insert": false,
+          "select": true,
+          "update": false,
+          "policy_count": 1
+        },
+        {
+          "rls": true,
+          "table": "daily_lead_report_deliveries",
+          "delete": false,
+          "insert": false,
+          "select": false,
+          "update": false,
+          "policy_count": 0
+        },
+        {
+          "rls": true,
+          "table": "departments",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 4
+        },
+        {
+          "rls": true,
+          "table": "documents",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 5
+        },
+        {
+          "rls": true,
+          "table": "domain_events",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 2
+        },
+        {
+          "rls": true,
+          "table": "evolution_go_seller_provisioning_jobs",
+          "delete": false,
+          "insert": false,
+          "select": false,
+          "update": false,
+          "policy_count": 0
+        },
+        {
+          "rls": true,
+          "table": "evolution_go_webhook_events",
+          "delete": false,
+          "insert": false,
+          "select": false,
+          "update": false,
+          "policy_count": 0
+        },
+        {
+          "rls": true,
+          "table": "handoff_whatsapp_deliveries",
+          "delete": false,
+          "insert": false,
+          "select": false,
+          "update": false,
+          "policy_count": 0
+        },
+        {
+          "rls": true,
+          "table": "integrations",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 4
+        },
+        {
+          "rls": true,
+          "table": "knowledge_catalog_items",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 4
+        },
+        {
+          "rls": true,
+          "table": "knowledge_chunks",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 1
+        },
+        {
+          "rls": true,
+          "table": "knowledge_item_relations",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 4
+        },
+        {
+          "rls": true,
+          "table": "knowledge_source_imports",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 1
+        },
+        {
+          "rls": true,
+          "table": "knowledge_sources",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 4
+        },
+        {
+          "rls": true,
+          "table": "lead_assignments",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 1
+        },
+        {
+          "rls": true,
+          "table": "lead_handoff_policies",
+          "delete": false,
+          "insert": false,
+          "select": true,
+          "update": false,
+          "policy_count": 1
+        },
+        {
+          "rls": true,
+          "table": "lead_handoffs",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 1
+        },
+        {
+          "rls": true,
+          "table": "lead_import_batches",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 3
+        },
+        {
+          "rls": true,
+          "table": "lead_list_members",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 1
+        },
+        {
+          "rls": true,
+          "table": "lead_lists",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 1
+        },
+        {
+          "rls": true,
+          "table": "lead_messages",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 5
+        },
+        {
+          "rls": true,
+          "table": "lead_notes",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 1
+        },
+        {
+          "rls": true,
+          "table": "lead_outreach",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 1
+        },
+        {
+          "rls": true,
+          "table": "lead_qualifications",
+          "delete": false,
+          "insert": false,
+          "select": true,
+          "update": false,
+          "policy_count": 1
+        },
+        {
+          "rls": true,
+          "table": "lead_sequence_enrollments",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 1
+        },
+        {
+          "rls": true,
+          "table": "lead_source_configs",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 4
+        },
+        {
+          "rls": true,
+          "table": "lead_stage_history",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 1
+        },
+        {
+          "rls": true,
+          "table": "lead_tasks",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 1
+        },
+        {
+          "rls": true,
+          "table": "lead_whatsapp_account_bindings",
+          "delete": false,
+          "insert": false,
+          "select": false,
+          "update": false,
+          "policy_count": 0
+        },
+        {
+          "rls": true,
+          "table": "leads",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 4
+        },
+        {
+          "rls": true,
+          "table": "message_attachments",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 1
+        },
+        {
+          "rls": true,
+          "table": "message_status_events",
+          "delete": false,
+          "insert": false,
+          "select": false,
+          "update": false,
+          "policy_count": 1
+        },
+        {
+          "rls": true,
+          "table": "messaging_outbox",
+          "delete": false,
+          "insert": false,
+          "select": false,
+          "update": false,
+          "policy_count": 1
+        },
+        {
+          "rls": true,
+          "table": "messaging_provider_controls",
+          "delete": false,
+          "insert": false,
+          "select": true,
+          "update": false,
+          "policy_count": 1
+        },
+        {
+          "rls": true,
+          "table": "messaging_send_reservations",
+          "delete": false,
+          "insert": false,
+          "select": false,
+          "update": false,
+          "policy_count": 1
+        },
+        {
+          "rls": true,
+          "table": "messaging_webhook_events",
+          "delete": false,
+          "insert": false,
+          "select": false,
+          "update": false,
+          "policy_count": 1
+        },
+        {
+          "rls": true,
+          "table": "meta_onboarding_sessions",
+          "delete": false,
+          "insert": false,
+          "select": false,
+          "update": false,
+          "policy_count": 1
+        },
+        {
+          "rls": true,
+          "table": "meta_rate_cards",
+          "delete": false,
+          "insert": false,
+          "select": true,
+          "update": false,
+          "policy_count": 1
+        },
+        {
+          "rls": true,
+          "table": "notification_preferences",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 3
+        },
+        {
+          "rls": true,
+          "table": "notifications",
+          "delete": false,
+          "insert": false,
+          "select": true,
+          "update": false,
+          "policy_count": 3
+        },
+        {
+          "rls": true,
+          "table": "objections",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 4
+        },
+        {
+          "rls": true,
+          "table": "organization_feature_flags",
+          "delete": false,
+          "insert": false,
+          "select": true,
+          "update": false,
+          "policy_count": 1
+        },
+        {
+          "rls": true,
+          "table": "organization_invites",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 1
+        },
+        {
+          "rls": true,
+          "table": "organization_members",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 4
+        },
+        {
+          "rls": true,
+          "table": "organization_module_data",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 3
+        },
+        {
+          "rls": true,
+          "table": "organizations",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 2
+        },
+        {
+          "rls": true,
+          "table": "outreach_jobs",
+          "delete": false,
+          "insert": false,
+          "select": false,
+          "update": false,
+          "policy_count": 1
+        },
+        {
+          "rls": true,
+          "table": "outreach_sequence_steps",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 4
+        },
+        {
+          "rls": true,
+          "table": "outreach_sequences",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 4
+        },
+        {
+          "rls": true,
+          "table": "pipeline_stages",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 4
+        },
+        {
+          "rls": true,
+          "table": "pipelines",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 4
+        },
+        {
+          "rls": true,
+          "table": "privacy_requests",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 1
+        },
+        {
+          "rls": true,
+          "table": "profiles",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 3
+        },
+        {
+          "rls": true,
+          "table": "proposals",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 5
+        },
+        {
+          "rls": true,
+          "table": "prospecting_cache",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 1
+        },
+        {
+          "rls": true,
+          "table": "prospecting_runs",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 3
+        },
+        {
+          "rls": true,
+          "table": "prospecting_schedule_runs",
+          "delete": false,
+          "insert": false,
+          "select": true,
+          "update": false,
+          "policy_count": 1
+        },
+        {
+          "rls": true,
+          "table": "prospecting_schedules",
+          "delete": false,
+          "insert": false,
+          "select": true,
+          "update": false,
+          "policy_count": 1
+        },
+        {
+          "rls": true,
+          "table": "quick_replies",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 4
+        },
+        {
+          "rls": true,
+          "table": "score_weights",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 4
+        },
+        {
+          "rls": true,
+          "table": "seller_routing_profiles",
+          "delete": false,
+          "insert": false,
+          "select": true,
+          "update": false,
+          "policy_count": 1
+        },
+        {
+          "rls": true,
+          "table": "service_queues",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 4
+        },
+        {
+          "rls": true,
+          "table": "services",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 4
+        },
+        {
+          "rls": true,
+          "table": "tags",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 4
+        },
+        {
+          "rls": true,
+          "table": "team_member_permissions",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 2
+        },
+        {
+          "rls": true,
+          "table": "ticket_notes",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 1
+        },
+        {
+          "rls": true,
+          "table": "ticket_tags",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 1
+        },
+        {
+          "rls": true,
+          "table": "tickets",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 5
+        },
+        {
+          "rls": true,
+          "table": "unanswered_questions",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 1
+        },
+        {
+          "rls": true,
+          "table": "user_roles",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 4
+        },
+        {
+          "rls": true,
+          "table": "user_saved_views",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 4
+        },
+        {
+          "rls": true,
+          "table": "wa_akg_seller_provisioning_jobs",
+          "delete": false,
+          "insert": false,
+          "select": false,
+          "update": false,
+          "policy_count": 1
+        },
+        {
+          "rls": true,
+          "table": "wa_akg_webhook_events",
+          "delete": false,
+          "insert": false,
+          "select": false,
+          "update": false,
+          "policy_count": 1
+        },
+        {
+          "rls": true,
+          "table": "webhook_events",
+          "delete": false,
+          "insert": false,
+          "select": false,
+          "update": false,
+          "policy_count": 1
+        },
+        {
+          "rls": true,
+          "table": "whatsapp_accounts",
+          "delete": false,
+          "insert": false,
+          "select": true,
+          "update": false,
+          "policy_count": 1
+        },
+        {
+          "rls": true,
+          "table": "whatsapp_conversations",
+          "delete": false,
+          "insert": false,
+          "select": true,
+          "update": false,
+          "policy_count": 1
+        },
+        {
+          "rls": true,
+          "table": "whatsapp_site_entries",
+          "delete": true,
+          "insert": true,
+          "select": true,
+          "update": true,
+          "policy_count": 1
+        },
+        {
+          "rls": true,
+          "table": "whatsapp_sync_state",
+          "delete": false,
+          "insert": false,
+          "select": true,
+          "update": false,
+          "policy_count": 1
+        },
+        {
+          "rls": true,
+          "table": "whatsapp_templates",
+          "delete": false,
+          "insert": false,
+          "select": true,
+          "update": false,
+          "policy_count": 1
+        }
+      ],
+      "triggers": [
+        {
+          "table": "contact_suppressions",
+          "trigger": "CREATE TRIGGER audit_contact_suppressions AFTER INSERT OR DELETE OR UPDATE ON public.contact_suppressions FOR EACH ROW EXECUTE FUNCTION private.audit_business_change()"
+        },
+        {
+          "table": "documents",
+          "trigger": "CREATE TRIGGER audit_documents AFTER INSERT OR DELETE OR UPDATE ON public.documents FOR EACH ROW EXECUTE FUNCTION private.audit_business_change()"
+        },
+        {
+          "table": "organization_members",
+          "trigger": "CREATE TRIGGER audit_organization_members AFTER INSERT OR DELETE OR UPDATE ON public.organization_members FOR EACH ROW EXECUTE FUNCTION private.audit_business_change()"
+        },
+        {
+          "table": "proposals",
+          "trigger": "CREATE TRIGGER audit_proposals AFTER INSERT OR DELETE OR UPDATE ON public.proposals FOR EACH ROW EXECUTE FUNCTION private.audit_business_change()"
+        },
+        {
+          "table": "proposals",
+          "trigger": "CREATE TRIGGER proposals_emit_created_event AFTER INSERT ON public.proposals FOR EACH ROW EXECUTE FUNCTION private.emit_proposal_event()"
+        },
+        {
+          "table": "users",
+          "trigger": "CREATE TRIGGER on_auth_user_created AFTER INSERT ON auth.users FOR EACH ROW EXECUTE FUNCTION private.handle_new_auth_user()"
+        }
+      ],
+      "app_roles": [
+        "administrador",
+        "vendedor",
+        "ia",
+        "sdr",
+        "cx"
+      ],
+      "multi_org_identity_count": 0
+    }
+  }
+]

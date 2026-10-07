@@ -1,0 +1,57 @@
+{
+  "lote": "R5",
+  "date": "2026-10-05",
+  "baseline": "aeeb24b2f9970b7b36b32b661c4534a368357662",
+  "mode": "local synthetic runtime; no remote data or provider calls",
+  "commands": [
+    {
+      "command": "node node_modules/vitest/vitest.mjs run src/lib/contextIsolationR5.test.ts src/lib/authContextObserverR5.test.ts src/hooks/operationalStoresR5.test.ts src/hooks/useListasStore.test.ts src/lib/crm/currentAccessRepository.test.ts src/hooks/useIntegracoesStore.test.ts src/lib/crm/leadsRepository.test.ts src/lib/crm/proposalsRepository.test.ts src/lib/crm/operationalEntitiesRepository.test.ts src/lib/crm/whatsappAccountsRepository.test.ts",
+      "exit_code": 0,
+      "files": 10,
+      "tests": 64,
+      "passed": 64,
+      "new_adversarial_tests": 36,
+      "existing_tests": 28,
+      "start": "19:54:22 local",
+      "duration": "899ms"
+    },
+    {
+      "command": "node node_modules/typescript/bin/tsc --noEmit --project tsconfig.app.json",
+      "exit_code": 0,
+      "diagnostics": 0
+    },
+    {
+      "command": "node node_modules/eslint/bin/eslint.js src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+      "exit_code": 0,
+      "diagnostics": 0
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0
+    }
+  ],
+  "node": "/Users/fabriciogaspar/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node",
+  "limitations": [
+    "No real two-user/two-browser login or UI E2E was executed.",
+    "Cross-tab test uses two EventTarget hosts with production storage-event binding, not real tabs.",
+    "Requests already accepted by the backend cannot be undone by a frontend context fence; server RLS remains mandatory.",
+    "Full suite run on concurrently changing R4/R6 sources is diagnostic only, not a final pass. Root owns stable final suite/build."
+  ],
+  "production_mutations": false,
+  "commit": false,
+  "push": false,
+  "deploy": false,
+  "post_review_final": {
+    "new_adversarial_tests": 44,
+    "focused_files": 11,
+    "focused_tests": 79,
+    "legacy_regressions": 28,
+    "integrator_R6_additions": 7,
+    "combined_command": "/Users/fabriciogaspar/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node node_modules/vitest/vitest.mjs run src/lib/contextIsolationR5.test.ts src/lib/authContextObserverR5.test.ts src/hooks/operationalStoresR5.test.ts src/hooks/templateQueueR5.test.ts src/hooks/useListasStore.test.ts src/lib/crm/currentAccessRepository.test.ts src/hooks/useIntegracoesStore.test.ts src/lib/crm/leadsRepository.test.ts src/lib/crm/proposalsRepository.test.ts src/lib/crm/operationalEntitiesRepository.test.ts src/lib/crm/whatsappAccountsRepository.test.ts supabase/tests/anaAuthorityR8.test.ts supabase/tests/runtimeHandlers.test.ts",
+    "combined_files": 13,
+    "combined_tests": 238,
+    "combined_exit_code": 0,
+    "review_cases": "T-R5-034..039; serial acknowledged base, failed queue cancellation, logout/peer refresh, read-during-save, real template adapter",
+    "product_frozen": true
+  }
+}

@@ -13,6 +13,7 @@ interface MenuItem {
   id: string;
   label: string;
   icon: string;
+  description: string;
 }
 
 interface MenuGroup {
@@ -24,35 +25,35 @@ const groups: MenuGroup[] = [
   {
     title: 'Operação',
     items: [
-      { id: 'operacao', label: 'Status operacional', icon: 'ri-pulse-line' },
+      { id: 'operacao', label: 'Status operacional', icon: 'ri-pulse-line', description: 'Estado, controles e preparação operacional do sistema.' },
     ],
   },
   {
     title: 'Canais e integrações',
     items: [
-      { id: 'canais', label: 'Canais', icon: 'ri-message-3-line' },
-      { id: 'apis', label: 'APIs', icon: 'ri-code-s-slash-line' },
+      { id: 'canais', label: 'Canais', icon: 'ri-message-3-line', description: 'Entradas, recebimento e canais de atendimento.' },
+      { id: 'apis', label: 'APIs', icon: 'ri-code-s-slash-line', description: 'Credenciais, validação e uso operacional de provedores.' },
     ],
   },
   {
     title: 'Empresa e inteligência',
     items: [
-      { id: 'empresa', label: 'Empresa e conhecimento', icon: 'ri-building-2-line' },
-      { id: 'ana', label: 'Configurar a Ana', icon: 'ri-robot-2-line' },
+      { id: 'empresa', label: 'Empresa e conhecimento', icon: 'ri-building-2-line', description: 'Perfil da empresa, catálogo e conhecimento aprovado.' },
+      { id: 'ana', label: 'Configurar a Ana', icon: 'ri-robot-2-line', description: 'Políticas, limites e comportamento assistido da Ana.' },
     ],
   },
   {
     title: 'Gestão comercial',
     items: [
-      { id: 'produtos', label: 'Produtos e orçamentos', icon: 'ri-shopping-bag-3-line' },
+      { id: 'produtos', label: 'Produtos e orçamentos', icon: 'ri-shopping-bag-3-line', description: 'Catálogo, documentos e configurações comerciais.' },
     ],
   },
   {
-    title: 'Acesso e governança',
+    title: 'Acesso e segurança',
     items: [
-      { id: 'usuarios', label: 'Usuários', icon: 'ri-team-line' },
-      { id: 'registro', label: 'Registro do Sistema', icon: 'ri-shield-check-line' },
-      { id: 'supressao', label: 'Proteção de contatos', icon: 'ri-shield-check-line' },
+      { id: 'usuarios', label: 'Usuários', icon: 'ri-team-line', description: 'Pessoas, permissões e contas de atendimento.' },
+      { id: 'registro', label: 'Registro do Sistema', icon: 'ri-shield-check-line', description: 'Auditoria, diagnósticos e histórico técnico.' },
+      { id: 'supressao', label: 'Proteção de contatos', icon: 'ri-shield-check-line', description: 'Preferências de contato e controles de proteção.' },
     ],
   },
 ];
@@ -105,16 +106,15 @@ export default function DashboardConfiguracoes() {
         <div>
           <p className="cc-settings-kicker">Administração</p>
           <h1 className="wf-page-title mt-1">Configurações</h1>
-          <p className="wf-page-description">Canais, automações e acessos.</p>
+          <p className="wf-page-description">{currentItem?.description || 'Canais, automações e acessos.'}</p>
         </div>
-        <div className="cc-settings-header-actions">
-          <button type="button" className="wf-btn-secondary text-xs" onClick={() => chooseTab('registro')}><i className="ri-history-line" aria-hidden="true" />Registro de auditoria</button>
+        {tab === 'operacao' && <div className="cc-settings-header-actions">
           <button type="button" className="wf-btn-secondary text-xs" onClick={refreshOperationalStatus}><i className="ri-refresh-line" aria-hidden="true" />Atualizar status</button>
-        </div>
+        </div>}
       </div>
 
-      <div className="cc-settings-layout flex flex-col items-stretch gap-4 lg:flex-row lg:items-start lg:gap-6">
-        <aside className="cc-settings-nav hidden w-[258px] flex-shrink-0 rounded-xl border border-background-200 bg-white p-3 shadow-2xs lg:sticky lg:top-6 lg:block" aria-label="Áreas de configuração">
+      <div className="cc-settings-layout flex flex-col items-stretch gap-4 2xl:flex-row 2xl:items-start 2xl:gap-6">
+        <aside className="cc-settings-nav hidden w-[258px] flex-shrink-0 rounded-xl border border-background-200 bg-white p-3 shadow-2xs 2xl:sticky 2xl:top-6 2xl:block" aria-label="Áreas de configuração">
           {groups.map((group) => (
             <div key={group.title} className="mb-4 last:mb-0">
               <p className="px-3 pb-2 pt-2 text-xs font-semibold tracking-wide text-foreground-500">
@@ -142,7 +142,7 @@ export default function DashboardConfiguracoes() {
           ))}
         </aside>
 
-        <div className="lg:hidden">
+        <div className="2xl:hidden">
           <label className="sr-only" htmlFor="settings-section">Seção de configurações</label>
           <select
             id="settings-section"

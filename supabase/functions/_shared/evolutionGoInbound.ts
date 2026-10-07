@@ -1,10 +1,11 @@
+import { phoneFromPersonalJid, inboundMedia, type InboundMedia } from './messaging/inboundIdentity.ts';
 type Payload = Record<string, unknown>;
 const object = (value: unknown): Payload => value && typeof value === 'object' && !Array.isArray(value) ? value as Payload : {};
 const text = (value: unknown, max = 4_000): string => typeof value === 'string' ? value.trim().slice(0, max) : '';
 
 export type EvolutionGoInboundEvent =
   | { kind: 'ignored'; reason: string }
-  | { kind: 'inbound'; messageId: string; phone: string; text: string; mediaKind?: 'image' | 'audio' | 'video' | 'document'; occurredAt?: string }
+  | { kind: 'inbound'; messageId: string; phone: string; senderJid: string; text: string; mediaKind?: 'image' | 'audio' | 'video' | 'document'; media?: InboundMedia; occurredAt?: string }
   | { kind: 'receipt'; providerMessageIds: string[]; status: 'sent' | 'delivered' | 'read' | 'failed'; occurredAt?: string }
   | { kind: 'connection'; state: 'connected' | 'disconnected' | 'logged_out'; occurredAt?: string };
 
@@ -19,17 +20,7 @@ function dateValue(value: unknown): string | undefined {
   return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
 }
 
-function cleanPhone(value: unknown): string | null {
-  if (typeof value !== 'string') return null;
-  const jid = value.trim().toLowerCase();
-  if (!jid || jid.endsWith('@g.us') || jid.endsWith('@broadcast') || jid.includes('@lid')) return null;
-  const local = jid.includes('@') ? jid.split('@')[0] : jid;
-  if (!/^\+?[\d ()-]+$/.test(local)) return null;
-  const digits = local.replace(/\D/g, '');
-  return /^[1-9]\d{7,14}$/.test(digits) ? digits : null;
-}
-
-function messageContent(message: Payload): { value: string; mediaKind?: 'image' | 'audio' | 'video' | 'document' } {
+function messageContent(message: Payload): { value: string; mediaKind?: 'image' | 'audio' | 'video' | 'document'; media?: InboundMedia } {
   const direct = text(message.conversation) || text(object(message.extendedTextMessage).text);
   if (direct) return { value: direct };
   const mediaKinds = [
@@ -39,7 +30,8 @@ function messageContent(message: Payload): { value: string; mediaKind?: 'image' 
     const candidate = object(message[field]);
     if (!Object.keys(candidate).length) continue;
     const caption = text(candidate.caption);
-    return { value: caption || `[${mediaKind} recebido; conteúdo ainda não extraído. Revisão humana necessária.]`, mediaKind };
+    return { value: caption || `[${mediaKind} recebido; conteúdo ainda não extraído. Revisão humana necessária.]`, mediaKind,
+      media: inboundMedia(mediaKind, candidate.url ?? candidate.fileUrl, candidate.mimetype, candidate.fileName) };
   }
   return { value: '' };
 }
@@ -80,10 +72,12 @@ export function parseEvolutionGoEvent(value: unknown): EvolutionGoInboundEvent {
   const key = object(data.key);
   if (key.fromMe !== false || data.fromMe === true) return { kind: 'ignored', reason: 'outgoing_or_unknown_direction' };
   const messageId = text(key.id ?? data.id, 300);
-  const phone = cleanPhone(key.remoteJid ?? data.remoteJid ?? data.from ?? data.sender);
+  const senderJid = text(key.remoteJid ?? data.remoteJid ?? data.from ?? data.sender, 200);
+  if (!senderJid || /@g\.us$|@broadcast$|@newsletter$/.test(senderJid)) return { kind: 'ignored', reason: 'non_personal_chat' };
+  const phone = phoneFromPersonalJid(senderJid) ?? '';
   const content = messageContent(object(data.message ?? data));
-  if (!messageId || !phone || !content.value) return { kind: 'ignored', reason: 'message_identity_or_content_invalid' };
-  return { kind: 'inbound', messageId, phone, text: content.value, mediaKind: content.mediaKind, occurredAt };
+  if (!messageId || !content.value) return { kind: 'ignored', reason: 'message_identity_or_content_invalid' };
+  return { kind: 'inbound', messageId, phone, senderJid, text: content.value, mediaKind: content.mediaKind, media: content.media, occurredAt };
 }
 
 /** Removes credentials/QR values before persistence or diagnostic logging. */
@@ -100,7 +94,10 @@ export function sanitizeEvolutionGoPayload(value: unknown): Payload {
     provider_message_ids: parsed.kind === 'receipt' ? parsed.providerMessageIds : undefined,
     status: parsed.kind === 'receipt' ? parsed.status : undefined,
     state: parsed.kind === 'connection' ? parsed.state : undefined,
-    remote_jid: text(key.remoteJid ?? data.remoteJid, 160) || undefined,
+    remote_jid: parsed.kind === 'inbound' ? parsed.senderJid : text(key.remoteJid ?? data.remoteJid, 160) || undefined,
+    phone: parsed.kind === 'inbound' ? parsed.phone : undefined,
+    identity_requires_review: parsed.kind === 'inbound' ? !parsed.phone : undefined,
+    media: parsed.kind === 'inbound' ? parsed.media : undefined,
     from_me: key.fromMe === true || data.fromMe === true,
     timestamp: parsed.kind !== 'ignored' ? parsed.occurredAt : undefined,
     text: parsed.kind === 'inbound' ? parsed.text : undefined,

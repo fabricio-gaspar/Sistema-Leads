@@ -29,6 +29,7 @@ export interface SupressaoStore {
 // sempre ativos para não quebrar a simulação, mas a checagem é funcional.
 export function useSupressaoStore(): SupressaoStore {
   const supressoes = store.useStore();
+  const setStore = store.bindSet();
 
   const estaBloqueado = (contato: string, canal?: string): boolean => {
     const alvo = normalizar(contato);
@@ -54,12 +55,12 @@ export function useSupressaoStore(): SupressaoStore {
       origem: dados.origem,
       status: 'ativo',
     };
-    store.set((prev) => [nova, ...prev]);
+    setStore((prev) => [nova, ...prev]);
     return nova;
   };
 
   const remover = (id: string) => {
-    store.set((prev) =>
+    setStore((prev) =>
       prev.map((s) => (s.id === id ? { ...s, status: 'reativado' } : s))
     );
   };
@@ -67,7 +68,7 @@ export function useSupressaoStore(): SupressaoStore {
   const reativar = remover;
 
   const excluir = (id: string) => {
-    store.set((prev) => prev.filter((s) => s.id !== id));
+    setStore((prev) => prev.filter((s) => s.id !== id));
   };
 
   return { supressoes, estaBloqueado, adicionar, remover, reativar, excluir };

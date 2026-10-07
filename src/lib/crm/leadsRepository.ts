@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import { resolveOrganizationSession } from '@/lib/organizationSession';
+import { resolveOrganizationSession, assertOrganizationSession } from '@/lib/organizationSession';
 import { crmRowToLead, leadToCrmRow, persistentLeadId, type CrmLeadRow, type LeadHandoffPolicyRow } from '@/lib/crm/leadMapper';
 import type { Lead } from '@/mocks/leadsData';
 import { readAllPages } from './paginatedRead';
@@ -44,9 +44,11 @@ export function assertLeadUpdatePersisted(data: { id: string } | null, leadId: s
 
 export async function persistOperationalLeads(previous: Lead[], next: Lead[]): Promise<Lead[]> {
   const session = await resolveOrganizationSession();
+  assertOrganizationSession(session);
   const previousById = new Map(previous.map((lead) => [lead.id, lead]));
   const nextWithPersistentIds = next.map((lead) => ({ ...lead, id: persistentLeadId(lead.id) }));
   for (const lead of nextWithPersistentIds) {
+    assertOrganizationSession(session);
     const previousLead = previousById.get(lead.id);
     const row = leadToCrmRow(lead, session.organizationId);
     if (previousLead) {

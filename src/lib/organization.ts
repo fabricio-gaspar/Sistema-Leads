@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { organizationSlug } from '@/lib/organizationSlug';
+import { sessionContext } from '@/lib/sessionContext';
 
 export interface OrganizationBootstrapInput {
   legalName: string;
@@ -10,6 +11,8 @@ export interface OrganizationBootstrapInput {
 // This function is intentionally the only client bootstrap path for a tenant.
 // The RPC creates the organization, owner membership and settings atomically.
 export async function bootstrapOrganization(userId: string, input: OrganizationBootstrapInput): Promise<void> {
+  const context = sessionContext.get();
+  if (context.userId !== userId) throw new Error('session_context_changed');
   const legalName = input.legalName.trim();
   const displayName = input.displayName.trim();
   if (!legalName || !displayName) return;
@@ -19,6 +22,7 @@ export async function bootstrapOrganization(userId: string, input: OrganizationB
     .select('organization_id')
     .eq('user_id', userId)
     .limit(1);
+  sessionContext.assertCurrent(context);
   if (!membershipError && existingMembership && existingMembership.length > 0) return;
 
   const { error } = await supabase.rpc('create_organization', {

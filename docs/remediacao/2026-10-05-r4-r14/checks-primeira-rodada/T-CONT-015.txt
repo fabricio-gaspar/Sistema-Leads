@@ -1,0 +1,711 @@
+{
+  "engine": "PostgreSQL 17.6 on x86_64-apple-darwin23.6.0, compiled by Apple clang version 16.0.0 (clang-1600.0.26.6), 64-bit",
+  "scope": "Local temporary Unix socket 0700, no TCP or production",
+  "directory": "/var/folders/ts/wxslxg794g31zvbyfd69k1s80000gn/T/wayflex-r4-pg-SPk3YV",
+  "sequential": {
+    "scope": "Synthetic local SQL; actual R1 and R4 migrations; no remote Auth/email/Storage",
+    "migration": "supabase/migrations/20261005223638_audit_r4_team_access.sql",
+    "results": [
+      {
+        "id": "T-R4-SQL-001",
+        "name": "Prepare new canonical invite; no membership or identity created",
+        "result": "APROVADO",
+        "observed": [
+          {
+            "n": "0"
+          }
+        ]
+      },
+      {
+        "id": "T-R4-SQL-002",
+        "name": "Prepare existing identity in another org",
+        "result": "APROVADO",
+        "observed": [
+          {
+            "result": {
+              "id": "3128c824-5f2a-4071-839b-baf809f5f3a8",
+              "role": "vendedor",
+              "email": "other@synthetic.test",
+              "revision": 1,
+              "expires_at": "2026-10-05T20:35:59.871042-03:00"
+            }
+          }
+        ]
+      },
+      {
+        "id": "T-R4-SQL-003",
+        "name": "Active existing member cannot be silently demoted through invite",
+        "result": "APROVADO",
+        "observed": {
+          "code": "P0001",
+          "message": "member_already_active"
+        }
+      },
+      {
+        "id": "T-R4-SQL-004",
+        "name": "Seller cannot invite",
+        "result": "APROVADO",
+        "observed": {
+          "code": "42501",
+          "message": "organization_access_denied"
+        }
+      },
+      {
+        "id": "T-R4-SQL-005",
+        "name": "Manager cannot target other org context",
+        "result": "APROVADO",
+        "observed": {
+          "code": "42501",
+          "message": "organization_access_denied"
+        }
+      },
+      {
+        "id": "T-R4-SQL-006",
+        "name": "Stale token after disabled membership cannot invite",
+        "result": "APROVADO",
+        "observed": {
+          "code": "42501",
+          "message": "organization_access_denied"
+        }
+      },
+      {
+        "id": "T-R4-SQL-007",
+        "name": "Anon cannot execute privileged RPC",
+        "result": "APROVADO",
+        "observed": {
+          "code": "42501",
+          "message": "permission denied for function team_invite_prepare"
+        }
+      },
+      {
+        "id": "T-R4-SQL-008",
+        "name": "Direct invite/membership writes denied even to admin",
+        "result": "APROVADO",
+        "observed": {
+          "code": "42501",
+          "message": "permission denied for table organization_members"
+        }
+      },
+      {
+        "id": "T-R4-SQL-009",
+        "name": "Direct invite self-accept cannot bypass RPC",
+        "result": "APROVADO",
+        "observed": {
+          "code": "42501",
+          "message": "permission denied for table organization_invites"
+        }
+      },
+      {
+        "id": "T-R4-SQL-010",
+        "name": "Pending list only verified intended email",
+        "result": "APROVADO",
+        "observed": [
+          {
+            "n": 1
+          }
+        ]
+      },
+      {
+        "id": "T-R4-SQL-011",
+        "name": "Other email sees no pending invite",
+        "result": "APROVADO",
+        "observed": [
+          {
+            "n": 0
+          }
+        ]
+      },
+      {
+        "id": "T-R4-SQL-012",
+        "name": "Verified explicit acceptance activates correct org",
+        "result": "APROVADO",
+        "observed": [
+          {
+            "n": "1"
+          }
+        ]
+      },
+      {
+        "id": "T-R4-SQL-013",
+        "name": "Repeated same acceptance is idempotent",
+        "result": "APROVADO",
+        "observed": [
+          {
+            "result": {
+              "role": "vendedor",
+              "activated": false,
+              "organization_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+              "already_accepted": true
+            }
+          }
+        ]
+      },
+      {
+        "id": "T-R4-SQL-014",
+        "name": "Wrong verified identity cannot accept",
+        "result": "APROVADO",
+        "observed": {
+          "code": "42501",
+          "message": "invite_access_denied"
+        }
+      },
+      {
+        "id": "T-R4-SQL-015",
+        "name": "Unverified identity cannot accept",
+        "result": "APROVADO",
+        "observed": {
+          "code": "42501",
+          "message": "verified_email_required"
+        }
+      },
+      {
+        "id": "T-R4-SQL-016",
+        "name": "Expired invite fails",
+        "result": "APROVADO",
+        "observed": {
+          "code": "P0001",
+          "message": "invite_expired"
+        }
+      },
+      {
+        "id": "T-R4-SQL-017",
+        "name": "Cancelled invite fails",
+        "result": "APROVADO",
+        "observed": {
+          "code": "P0001",
+          "message": "invite_not_current"
+        }
+      },
+      {
+        "id": "T-R4-SQL-018",
+        "name": "Prior revision fails after resend",
+        "result": "APROVADO",
+        "observed": {
+          "code": "P0001",
+          "message": "invite_not_current"
+        }
+      },
+      {
+        "id": "T-R4-SQL-019",
+        "name": "Role disabled after invite prevents accept",
+        "result": "APROVADO",
+        "observed": {
+          "code": "42501",
+          "message": "member_role_unavailable"
+        }
+      },
+      {
+        "id": "T-R4-SQL-020",
+        "name": "Disabled role blocks prepare",
+        "result": "APROVADO",
+        "observed": {
+          "code": "42501",
+          "message": "member_role_unavailable"
+        }
+      },
+      {
+        "id": "T-R4-SQL-021",
+        "name": "Admin cancel is atomic and revisioned",
+        "result": "APROVADO",
+        "observed": [
+          {
+            "n": "1"
+          }
+        ]
+      },
+      {
+        "id": "T-R4-SQL-022",
+        "name": "Cancel accepted invite cannot report false success",
+        "result": "APROVADO",
+        "observed": {
+          "code": "P0001",
+          "message": "invite_already_accepted"
+        }
+      },
+      {
+        "id": "T-R4-SQL-023",
+        "name": "Cross-org administrator cannot cancel",
+        "result": "APROVADO",
+        "observed": {
+          "code": "42501",
+          "message": "organization_access_denied"
+        }
+      },
+      {
+        "id": "T-R4-SQL-024",
+        "name": "Renew cancelled record rotates revision",
+        "result": "APROVADO",
+        "observed": [
+          {
+            "result": {
+              "id": "aaaaaaaa-0000-4000-8000-000000000090",
+              "role": "vendedor",
+              "email": "invite@synthetic.test",
+              "revision": 2,
+              "expires_at": "2026-10-05T20:35:59.884181-03:00"
+            }
+          }
+        ]
+      },
+      {
+        "id": "T-R4-SQL-025",
+        "name": "Remove multiorg link preserves global Auth and other link",
+        "result": "APROVADO",
+        "observed": [
+          {
+            "n": "3"
+          }
+        ]
+      },
+      {
+        "id": "T-R4-SQL-026",
+        "name": "Remove fences local channel, leaves other org channel",
+        "result": "APROVADO",
+        "observed": [
+          {
+            "n": "1"
+          }
+        ]
+      },
+      {
+        "id": "T-R4-SQL-027",
+        "name": "Remove fences in-flight lifecycle revision",
+        "result": "APROVADO",
+        "observed": [
+          {
+            "revision": 2,
+            "state": "needs_review"
+          }
+        ]
+      },
+      {
+        "id": "T-R4-SQL-028",
+        "name": "Disable cancels local pending provisioning",
+        "result": "APROVADO",
+        "observed": [
+          {
+            "n": "2"
+          }
+        ]
+      },
+      {
+        "id": "T-R4-SQL-029",
+        "name": "Last administrator remains protected by R1",
+        "result": "APROVADO",
+        "observed": {
+          "code": "23514",
+          "message": "organization_requires_active_administrator"
+        }
+      },
+      {
+        "id": "T-R4-SQL-030",
+        "name": "Cannot remove own link",
+        "result": "APROVADO",
+        "observed": {
+          "code": "P0001",
+          "message": "member_self_deletion_protected"
+        }
+      },
+      {
+        "id": "T-R4-SQL-031",
+        "name": "Invited membership cannot bypass acceptance with enable",
+        "result": "APROVADO",
+        "observed": {
+          "code": "P0001",
+          "message": "invite_acceptance_required"
+        }
+      },
+      {
+        "id": "T-R4-SQL-032",
+        "name": "Unavailable role blocks role change",
+        "result": "APROVADO",
+        "observed": {
+          "code": "42501",
+          "message": "member_role_unavailable"
+        }
+      },
+      {
+        "id": "T-R4-SQL-033",
+        "name": "Valid role change preserved",
+        "result": "APROVADO",
+        "observed": [
+          {
+            "n": "1"
+          }
+        ]
+      },
+      {
+        "id": "T-R4-SQL-034",
+        "name": "Seller cannot weaken access policy through generic module store",
+        "result": "APROVADO",
+        "observed": {
+          "code": "42501",
+          "message": "organization_access_denied"
+        }
+      },
+      {
+        "id": "T-R4-SQL-035",
+        "name": "Generic unrelated module remains writable",
+        "result": "APROVADO",
+        "observed": [
+          {
+            "module_key": "synthetic_preference"
+          }
+        ]
+      },
+      {
+        "id": "T-R4-SQL-036",
+        "name": "Delegated team.manage remains valid",
+        "result": "APROVADO",
+        "observed": [
+          {
+            "result": {
+              "id": "4046c8cd-1d9e-4951-8767-b88ce4e0e8ba",
+              "role": "vendedor",
+              "email": "delegate@synthetic.test",
+              "revision": 1,
+              "expires_at": "2026-10-05T20:35:59.894365-03:00"
+            }
+          }
+        ]
+      },
+      {
+        "id": "T-R4-SQL-037",
+        "name": "New invited Auth creates profile, never target membership or autoaccept",
+        "result": "APROVADO",
+        "observed": [
+          {
+            "n": "0"
+          }
+        ]
+      },
+      {
+        "id": "T-R4-SQL-038",
+        "name": "Cancelled invitation cannot activate through Auth trigger",
+        "result": "APROVADO",
+        "observed": [
+          {
+            "n": "0"
+          }
+        ]
+      },
+      {
+        "id": "T-R4-SQL-039",
+        "name": "Normal independent signup preserves org/pipeline onboarding",
+        "result": "APROVADO",
+        "observed": [
+          {
+            "n": "8"
+          }
+        ]
+      },
+      {
+        "id": "T-R4-SQL-040",
+        "name": "GoTrue INSERT before invited_at after concurrent cancellation grants nothing and creates no company",
+        "result": "APROVADO",
+        "observed": [
+          {
+            "n": "0"
+          }
+        ]
+      },
+      {
+        "id": "T-R4-SQL-041",
+        "name": "Inviter loses delegated authority before acceptance",
+        "result": "APROVADO",
+        "observed": {
+          "code": "42501",
+          "message": "inviter_authority_revoked"
+        }
+      },
+      {
+        "id": "T-R4-SQL-042",
+        "name": "Existing accepted token cannot restore disabled membership",
+        "result": "APROVADO",
+        "observed": {
+          "code": "P0001",
+          "message": "invite_already_accepted"
+        }
+      },
+      {
+        "id": "T-R4-SQL-043",
+        "name": "Global inactive profile cannot accept",
+        "result": "APROVADO",
+        "observed": {
+          "code": "42501",
+          "message": "identity_inactive"
+        }
+      },
+      {
+        "id": "T-R4-SQL-044",
+        "name": "MFA not silently enabled or falsely advertised by policy",
+        "result": "APROVADO",
+        "observed": {
+          "code": "P0001",
+          "message": "mfa_enforcement_not_available"
+        }
+      },
+      {
+        "id": "T-R4-SQL-045",
+        "name": "Policy rejects malformed availability booleans",
+        "result": "APROVADO",
+        "observed": {
+          "code": "P0001",
+          "message": "invalid_security_policy_role"
+        }
+      },
+      {
+        "id": "T-R4-SQL-046",
+        "name": "Policy admin can save explicit availability",
+        "result": "APROVADO",
+        "observed": [
+          {
+            "module_key": "access_security_policy"
+          }
+        ]
+      },
+      {
+        "id": "T-R4-SQL-047",
+        "name": "Descriptive signup company metadata seeds only new company settings",
+        "result": "APROVADO",
+        "observed": [
+          {
+            "name": "Factory",
+            "cnpj": "synthetic",
+            "ui_settings": {
+              "ramo": "Synthetic",
+              "organizacao": {
+                "cnpj": "synthetic",
+                "nome": "Factory",
+                "site": "https://example.test",
+                "email": "signup@synthetic.test",
+                "endereco": "",
+                "telefone": "test",
+                "whatsapp": "",
+                "social_media": {
+                  "facebook": "",
+                  "linkedin": "",
+                  "instagram": ""
+                },
+                "nomeComercial": "Factory"
+              }
+            },
+            "sandbox_mode": true
+          }
+        ]
+      }
+    ],
+    "passed": 47,
+    "failed": 0
+  },
+  "races": [
+    {
+      "id": "T-R4-RACE-01",
+      "isolation": "READ COMMITTED",
+      "action": "cancel_first",
+      "blocked": true,
+      "outcome": {
+        "committed": false,
+        "code": "P0001",
+        "message": "invite_not_current"
+      },
+      "state": {
+        "accepted": false,
+        "cancelled": true,
+        "members": 0
+      },
+      "result": "APROVADO"
+    },
+    {
+      "id": "T-R4-RACE-02",
+      "isolation": "READ COMMITTED",
+      "action": "accept_first",
+      "blocked": true,
+      "outcome": {
+        "committed": false,
+        "code": "P0001",
+        "message": "invite_already_accepted"
+      },
+      "state": {
+        "accepted": true,
+        "cancelled": false,
+        "members": 1
+      },
+      "result": "APROVADO"
+    },
+    {
+      "id": "T-R4-RACE-03",
+      "isolation": "READ COMMITTED",
+      "action": "role_disabled_first",
+      "blocked": true,
+      "outcome": {
+        "committed": false,
+        "code": "42501",
+        "message": "member_role_unavailable"
+      },
+      "state": {
+        "accepted": false,
+        "cancelled": false,
+        "members": 0
+      },
+      "result": "APROVADO"
+    },
+    {
+      "id": "T-R4-RACE-04",
+      "isolation": "READ COMMITTED",
+      "action": "actor_disabled_first",
+      "blocked": true,
+      "outcome": {
+        "committed": false,
+        "code": "42501",
+        "message": "organization_access_denied"
+      },
+      "state": {
+        "accepted": false,
+        "cancelled": false,
+        "members": 0
+      },
+      "result": "APROVADO"
+    },
+    {
+      "id": "T-R4-RACE-05",
+      "isolation": "REPEATABLE READ",
+      "action": "cancel_first",
+      "blocked": true,
+      "outcome": {
+        "committed": false,
+        "code": "40001",
+        "message": "could not serialize access due to concurrent update"
+      },
+      "state": {
+        "accepted": false,
+        "cancelled": true,
+        "members": 0
+      },
+      "result": "APROVADO"
+    },
+    {
+      "id": "T-R4-RACE-06",
+      "isolation": "REPEATABLE READ",
+      "action": "accept_first",
+      "blocked": true,
+      "outcome": {
+        "committed": false,
+        "code": "40001",
+        "message": "could not serialize access due to concurrent update"
+      },
+      "state": {
+        "accepted": true,
+        "cancelled": false,
+        "members": 1
+      },
+      "result": "APROVADO"
+    },
+    {
+      "id": "T-R4-RACE-07",
+      "isolation": "REPEATABLE READ",
+      "action": "role_disabled_first",
+      "blocked": true,
+      "outcome": {
+        "committed": false,
+        "code": "40001",
+        "message": "could not serialize access due to concurrent update"
+      },
+      "state": {
+        "accepted": false,
+        "cancelled": false,
+        "members": 0
+      },
+      "result": "APROVADO"
+    },
+    {
+      "id": "T-R4-RACE-08",
+      "isolation": "REPEATABLE READ",
+      "action": "actor_disabled_first",
+      "blocked": true,
+      "outcome": {
+        "committed": false,
+        "code": "40001",
+        "message": "could not serialize access due to concurrent update"
+      },
+      "state": {
+        "accepted": false,
+        "cancelled": false,
+        "members": 0
+      },
+      "result": "APROVADO"
+    },
+    {
+      "id": "T-R4-RACE-09",
+      "isolation": "SERIALIZABLE",
+      "action": "cancel_first",
+      "blocked": true,
+      "outcome": {
+        "committed": false,
+        "code": "40001",
+        "message": "could not serialize access due to concurrent update"
+      },
+      "state": {
+        "accepted": false,
+        "cancelled": true,
+        "members": 0
+      },
+      "result": "APROVADO"
+    },
+    {
+      "id": "T-R4-RACE-10",
+      "isolation": "SERIALIZABLE",
+      "action": "accept_first",
+      "blocked": true,
+      "outcome": {
+        "committed": false,
+        "code": "40001",
+        "message": "could not serialize access due to concurrent update"
+      },
+      "state": {
+        "accepted": true,
+        "cancelled": false,
+        "members": 1
+      },
+      "result": "APROVADO"
+    },
+    {
+      "id": "T-R4-RACE-11",
+      "isolation": "SERIALIZABLE",
+      "action": "role_disabled_first",
+      "blocked": true,
+      "outcome": {
+        "committed": false,
+        "code": "40001",
+        "message": "could not serialize access due to concurrent update"
+      },
+      "state": {
+        "accepted": false,
+        "cancelled": false,
+        "members": 0
+      },
+      "result": "APROVADO"
+    },
+    {
+      "id": "T-R4-RACE-12",
+      "isolation": "SERIALIZABLE",
+      "action": "actor_disabled_first",
+      "blocked": true,
+      "outcome": {
+        "committed": false,
+        "code": "40001",
+        "message": "could not serialize access due to concurrent update"
+      },
+      "state": {
+        "accepted": false,
+        "cancelled": false,
+        "members": 0
+      },
+      "result": "APROVADO"
+    }
+  ],
+  "passed": 59,
+  "failed": 0
+}
+
+STDERR

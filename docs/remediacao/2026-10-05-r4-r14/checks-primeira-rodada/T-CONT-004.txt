@@ -1,0 +1,218 @@
+
+ RUN  v3.2.7 /Users/fabriciogaspar/Documents/Codex/2026-10-04/c/Sistema-Leads-live
+
+ ❯ supabase/tests/evolutionGoProvider.test.ts (10 tests | 2 failed) 21ms
+   ✓ EvolutionGoProvider > uses the instance apikey header and a stable provider id without leaking the token in the URL 7ms
+   ✓ EvolutionGoProvider > sends image using the documented media endpoint 1ms
+   ✓ EvolutionGoProvider > sends audio using the documented media endpoint 0ms
+   ✓ EvolutionGoProvider > sends video using the documented media endpoint 0ms
+   ✓ EvolutionGoProvider > sends document using the documented media endpoint 0ms
+   ✓ EvolutionGoProvider > fails closed for an unapproved or unsafe provider URL and never retries a send after a timeout 2ms
+   × EvolutionGoProvider > maps connection state and supports QR or pair-code flows supplied by the installed provider version 7ms
+     → expected { connected: true, …(4) } to deeply equal { connected: true, …(3) }
+   × EvolutionGoProvider > reads status and pairing code field casing used by Evolution GO v0.7 1ms
+     → expected { connected: true, …(4) } to deeply equal { connected: true, …(3) }
+   ✓ EvolutionGoProvider > uses Evolution GO v0.7 event names while connecting and renders the image returned in code 1ms
+   ✓ EvolutionGoProvider > sends a pairing request with only the phone and accepts the documented data.code response 0ms
+ ✓ supabase/tests/evolutionGoWorker.test.ts (5 tests) 147ms
+ ✓ supabase/tests/messagingRecoveryR6.test.ts (24 tests) 61ms
+ ✓ src/lib/crm/proposalsRepository.test.ts (2 tests) 189ms
+ ✓ supabase/tests/automationEvolutionRouting.test.ts (3 tests) 190ms
+ ✓ supabase/tests/receiptReconciliationR3.test.ts (25 tests) 209ms
+ ✓ src/lib/crm/operationalEntitiesRepository.test.ts (3 tests) 65ms
+ ✓ supabase/tests/evolutionGoWebhook.test.ts (2 tests) 22ms
+ ✓ src/lib/csv.test.ts (36 tests) 34ms
+ ✓ supabase/tests/anaOperationHandlerR11.test.ts (8 tests) 82ms
+ ✓ src/domain/commercialAnalytics.test.ts (15 tests) 27ms
+ ✓ src/domain/funnelAnalytics.test.ts (1 test) 21ms
+ ✓ supabase/tests/anaAuthorityR8.test.ts (41 tests) 508ms
+ ✓ supabase/tests/anaEvolutionInternalAuth.test.ts (3 tests) 43ms
+ ✓ src/pages/dashboard/components/ConversationActivityChart.test.ts (2 tests) 34ms
+ ✓ src/lib/crm/agendaNextAction.test.ts (17 tests) 50ms
+ ✓ src/pages/dashboard/components/SellerAttentionPanel.test.ts (2 tests) 27ms
+ ✓ src/lib/crm/appointmentsRepository.test.ts (3 tests) 32ms
+ ✓ src/pages/dashboard/atendimento/page.test.ts (1 test) 3ms
+ ✓ src/lib/crm/prospectingUi.test.ts (7 tests) 14ms
+ ✓ src/pages/dashboard/components/dashboardDecisionQueue.test.ts (3 tests) 39ms
+ ✓ supabase/tests/httpCors.test.ts (2 tests) 13ms
+ ✓ src/lib/crm/prospectingBatchRepository.test.ts (2 tests) 6ms
+ ✓ supabase/tests/catalogKnowledgeParser.test.ts (5 tests) 15ms
+ ✓ supabase/tests/runtimeSafety.test.ts (65 tests) 16ms
+ ✓ src/lib/contextIsolationR5.test.ts (31 tests) 27ms
+ ✓ supabase/tests/metaMessagingProvider.test.ts (2 tests) 17ms
+ ✓ supabase/tests/metaSignature.test.ts (2 tests) 8ms
+ ✓ supabase/tests/runtimeHandlers.test.ts (118 tests) 1368ms
+ ✓ src/hooks/templateQueueR5.test.ts (2 tests) 12ms
+ ✓ src/hooks/operationalStoresR5.test.ts (4 tests) 13ms
+ ✓ src/lib/crm/whatsappAccountsRepository.test.ts (21 tests) 25ms
+ ✓ src/lib/crm/prospectingImportDetails.test.ts (3 tests) 6ms
+ ✓ src/lib/crm/prospectingIdealProfile.test.ts (3 tests) 5ms
+ ✓ src/lib/crm/leadMapper.test.ts (5 tests) 7ms
+ ✓ src/lib/crm/leadQualificationRepository.test.ts (1 test) 7ms
+ ✓ supabase/tests/evolutionGoHandler.test.ts (36 tests) 1970ms
+   ✓ Evolution GO multi-account handler > recovers one stale Evolution GO runtime before returning a QR  1510ms
+ ✓ src/hooks/useListasStore.test.ts (1 test) 13ms
+ ✓ supabase/tests/waAkgProvider.test.ts (4 tests) 16ms
+ ✓ src/lib/authContextObserverR5.test.ts (7 tests) 11ms
+ ✓ src/lib/crm/paginatedRead.test.ts (3 tests) 9ms
+ ✓ src/lib/crm/channelLifecycle.test.ts (14 tests) 9ms
+ ✓ src/lib/crm/leadStageRepository.test.ts (2 tests) 3ms
+ ✓ supabase/tests/dailyLeadReport.test.ts (3 tests) 4ms
+ ✓ src/lib/crm/teamMembersRepository.test.ts (7 tests) 15ms
+ ✓ src/lib/crm/anaOperationRepository.test.ts (3 tests) 9ms
+ ✓ src/lib/crm/centralInboxRepository.test.ts (3 tests) 7ms
+ ✓ supabase/tests/catalogMedia.test.ts (8 tests) 6ms
+ ✓ supabase/tests/evolutionGoInbound.test.ts (8 tests) 8ms
+ ✓ src/lib/crm/waAkgOnboarding.test.ts (6 tests) 9ms
+ ✓ supabase/tests/metaWebhookParser.test.ts (4 tests) 10ms
+ ✓ src/lib/buscaManual.test.ts (5 tests) 7ms
+ ✓ src/lib/supabaseConfig.test.ts (2 tests) 4ms
+ ✓ src/lib/crm/leadPortfolio.test.ts (3 tests) 6ms
+ ✓ supabase/tests/messagingWindow.test.ts (2 tests) 10ms
+ ✓ supabase/tests/handoffPolicy.test.ts (2 tests) 3ms
+ ✓ supabase/tests/waAkgInbound.test.ts (3 tests) 7ms
+ ✓ src/lib/crm/evolutionGoOnboarding.test.ts (7 tests) 5ms
+ ✓ src/lib/crm/conversationMapper.test.ts (3 tests) 7ms
+ ✓ src/domain/pipeline.test.ts (6 tests) 5ms
+ ✓ supabase/tests/transferChannelOwnership.test.ts (8 tests) 5ms
+ ✓ src/pages/dashboard/busca-leads/components/prospectingMapGeometry.test.ts (3 tests) 5ms
+ ✓ src/lib/crm/operationalStatusPresentation.test.ts (4 tests) 8ms
+ ✓ src/lib/crm/humanMessageValidation.test.ts (3 tests) 4ms
+ ✓ src/lib/crm/kanbanRepository.test.ts (2 tests) 4ms
+ ✓ src/pages/dashboard/busca-leads/sourceSelector.test.ts (1 test) 6ms
+ ✓ src/pages/dashboard/meu-whatsapp/page.test.ts (3 tests) 8ms
+ ✓ src/lib/crm/manualLeadContact.test.ts (3 tests) 11ms
+ ✓ src/lib/whatsappRisk.test.ts (2 tests) 4ms
+ ✓ supabase/tests/anaOperationLocation.test.ts (15 tests) 5ms
+ ✓ src/lib/crm/anaOperationValidation.test.ts (12 tests) 25ms
+ ✓ src/pages/dashboard/funil/leadGovernancePlacement.test.ts (1 test) 3ms
+ ✓ src/lib/anaCommercialPlaybook.test.ts (2 tests) 3ms
+ ✓ src/lib/crm/kanbanLeadVisibility.test.ts (2 tests) 4ms
+ ✓ src/hooks/useIntegracoesStore.test.ts (4 tests) 3ms
+ ✓ src/domain/proposalPricing.test.ts (4 tests) 12ms
+ ✓ src/lib/crm/leadsRepository.test.ts (2 tests) 5ms
+ ✓ src/lib/crm/leadWorkflowRepository.test.ts (2 tests) 3ms
+ ✓ src/lib/runtimeSupabaseConfig.test.ts (2 tests) 3ms
+ ✓ src/lib/crm/catalogKnowledgeRepository.test.ts (2 tests) 3ms
+ ✓ src/lib/automacao.test.ts (1 test) 5ms
+ ✓ supabase/tests/anaOperationSettings.test.ts (2 tests) 3ms
+ ✓ src/pages/dashboard/leads/leadDeletionActions.test.ts (1 test) 3ms
+ ✓ src/lib/crm/operationalMetrics.test.ts (5 tests) 5ms
+ ✓ src/lib/organization.test.ts (2 tests) 3ms
+ ✓ src/lib/crm/handoffsRepository.test.ts (6 tests) 4ms
+ ✓ src/lib/crm/prospectingWizard.test.ts (6 tests) 5ms
+ ✓ src/components/feature/DashboardLayout.test.ts (1 test) 4ms
+ ✓ supabase/tests/manualLeadPhoneNormalization.test.ts (2 tests) 2ms
+ ✓ src/pages/dashboard/leads/components/leadPurgeConfirmation.test.ts (1 test) 2ms
+ ✓ src/lib/crm/currentAccessRepository.test.ts (2 tests) 2ms
+
+ Test Files  1 failed | 90 passed (91)
+      Tests  2 failed | 725 passed (727)
+   Start at  20:20:43
+   Duration  5.06s (transform 2.96s, setup 0ms, collect 6.56s, tests 5.68s, environment 19ms, prepare 9.12s)
+
+JSON report written to /Users/fabriciogaspar/Documents/Codex/2026-10-04/c/Sistema-Leads-live/docs/remediacao/2026-10-05-r4-r14/checks/vitest.json
+
+STDERR
+stderr | supabase/tests/messagingRecoveryR6.test.ts > R7 pinned WA-AKG upstream contract > T-R7-08 status=false at HTTP200 is a rejection
+wa_akg_upstream_rejected {
+  path: '/api/sessions/wf_aaaaaaaaaaaa4aaa8aaaaaaaaaaaaaaa_bbbbbbbbbbbb4bbb8bbbbbbbbbbbbbbb',
+  status: 200,
+  response_keys: [ 'status' ]
+}
+
+stderr | supabase/tests/evolutionGoHandler.test.ts > Evolution GO multi-account handler > requires account_id before any secret read or provider request
+evolution_go_action_failed { action: 'status', code: 'evolution_go_account_required' }
+
+stderr | supabase/tests/evolutionGoHandler.test.ts > Evolution GO multi-account handler > returns QR only to an administrator or the private-account owner and never reveals another seller account
+evolution_go_action_failed { action: 'qr', code: 'evolution_go_account_not_found' }
+
+stderr | supabase/tests/evolutionGoHandler.test.ts > Evolution GO multi-account handler > returns QR only to an administrator or the private-account owner and never reveals another seller account
+evolution_go_action_failed { action: 'qr', code: 'evolution_go_account_not_found' }
+
+stderr | supabase/tests/evolutionGoHandler.test.ts > Evolution GO multi-account handler > recovers one stale Evolution GO runtime before returning a QR
+evolution_go_upstream_rejected {
+  path: '/instance/qr',
+  status: 400,
+  response_keys: [ 'error' ],
+  error_flags: {
+    phone: false,
+    instance: false,
+    session: false,
+    authentication: false,
+    retry: true
+  }
+}
+
+stderr | supabase/tests/evolutionGoHandler.test.ts > Evolution GO multi-account handler > fails closed and does not audit activation success when account state persistence fails
+evolution_go_action_failed { action: 'activate', code: 'account_lifecycle_persistence_failed' }
+
+stderr | supabase/tests/evolutionGoHandler.test.ts > R2 lifecycle HTTP contract: evolution-go (DB transport mocked) > R2-HTTP-03 performs no remote call when durable intent fails to save
+evolution_go_action_failed { action: 'disconnect', code: 'account_lifecycle_persistence_failed' }
+
+stderr | supabase/tests/evolutionGoHandler.test.ts > R2 lifecycle HTTP contract: evolution-go (DB transport mocked) > R2-HTTP-04 never reports success when atomic final persistence fails
+evolution_go_action_failed { action: 'activate', code: 'account_lifecycle_persistence_failed' }
+
+stderr | supabase/tests/evolutionGoHandler.test.ts > R2 lifecycle HTTP contract: evolution-go (DB transport mocked) > R2-HTTP-10 denies self-service attempts to open administrative controls
+evolution_go_action_failed { action: 'set_provider_controls', code: 'permission_denied' }
+
+stderr | supabase/tests/evolutionGoHandler.test.ts > R2 lifecycle HTTP contract: wa-akg (DB transport mocked) > R2-HTTP-03 performs no remote call when durable intent fails to save
+wa_akg_action_failed { action: 'disconnect', code: 'account_lifecycle_persistence_failed' }
+
+stderr | supabase/tests/evolutionGoHandler.test.ts > R2 lifecycle HTTP contract: wa-akg (DB transport mocked) > R2-HTTP-04 never reports success when atomic final persistence fails
+wa_akg_action_failed { action: 'activate', code: 'account_lifecycle_persistence_failed' }
+
+stderr | supabase/tests/evolutionGoHandler.test.ts > R2 lifecycle HTTP contract: wa-akg (DB transport mocked) > R2-HTTP-10 denies self-service attempts to open administrative controls
+wa_akg_action_failed { action: 'set_provider_controls', code: 'permission_denied' }
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  supabase/tests/evolutionGoProvider.test.ts > EvolutionGoProvider > maps connection state and supports QR or pair-code flows supplied by the installed provider version
+AssertionError: expected { connected: true, …(4) } to deeply equal { connected: true, …(3) }
+
+- Expected
++ Received
+
+  {
++   "confirmed": true,
+    "connected": true,
+    "loggedIn": true,
+    "name": "Comercial",
+    "phone": "5511988887777@s.whatsapp.net",
+  }
+
+ ❯ supabase/tests/evolutionGoProvider.test.ts:62:5
+     60|       .mockResolvedValueOnce(new Response(JSON.stringify({ data: { pai…
+     61|     const provider = new EvolutionGoProvider({ baseUrl: 'https://evolu…
+     62|     await expect(provider.status()).resolves.toEqual({ connected: true…
+       |     ^
+     63|     await expect(provider.qr()).resolves.toMatchObject({ qrcode: 'data…
+     64|     await expect(provider.pair('5511988887777')).resolves.toBe('ABC-12…
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  supabase/tests/evolutionGoProvider.test.ts > EvolutionGoProvider > reads status and pairing code field casing used by Evolution GO v0.7
+AssertionError: expected { connected: true, …(4) } to deeply equal { connected: true, …(3) }
+
+- Expected
++ Received
+
+  {
++   "confirmed": true,
+    "connected": true,
+    "loggedIn": true,
+    "name": "Comercial GO",
+    "phone": undefined,
+  }
+
+ ❯ supabase/tests/evolutionGoProvider.test.ts:75:5
+     73|     const provider = new EvolutionGoProvider({ baseUrl: 'https://evolu…
+     74| 
+     75|     await expect(provider.status()).resolves.toEqual({ connected: true…
+       |     ^
+     76|     await expect(provider.pair('5511988887777')).resolves.toBe('876543…
+     77|   });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+

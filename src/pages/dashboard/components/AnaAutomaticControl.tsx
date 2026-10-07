@@ -7,8 +7,10 @@ import {
   type AnaOperationSnapshot,
 } from '@/lib/crm/anaOperationRepository';
 import InfoTooltip from '@/components/feature/InfoTooltip';
+import { anaLocationErrors } from '@/lib/crm/anaOperationValidation';
 
 const ERROR_COPY: Record<string, string> = {
+  ...anaLocationErrors,
   automatic_mode_not_ready: 'Conclua os pré-requisitos da Ana antes de ativar.',
   paid_prospecting_approval_required: 'Confirme os limites da prospecção nas configurações da Ana.',
   operation_schedule_missing: 'Configure a rotina da Ana antes de ativar.',
@@ -87,4 +89,3 @@ export default function AnaAutomaticControl() {
     </div>
   </section>;
 }
-

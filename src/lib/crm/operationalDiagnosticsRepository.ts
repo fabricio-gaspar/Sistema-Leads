@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { sessionContext } from '@/lib/sessionContext';
 import { detalheDoErroDeFuncao } from '@/lib/transportador';
 
 export type OperationalMode = 'setup' | 'real';
@@ -120,6 +121,7 @@ type OperationalAction = 'status' | 'set_kill_switch' | 'activate_real' | 'event
 
 const READ_ACTION_TIMEOUT_MS = 8_000;
 const readRequests = new Map<OperationalAction, Promise<unknown>>();
+sessionContext.subscribe(() => readRequests.clear());
 
 export interface OperationalSetupResult {
   message: string;
@@ -143,7 +145,9 @@ function withDeadline<T>(request: Promise<T>, timeoutMs: number, code: string): 
 }
 
 async function execute<T>(action: OperationalAction, payload: Record<string, unknown>): Promise<T> {
+  const context = sessionContext.requireReady();
   const { data, error } = await supabase.functions.invoke('operational-diagnostics', { body: { action, ...payload } });
+  sessionContext.assertCurrent(context);
   if (error || !data?.ok) throw new Error(data?.erro ?? await detalheDoErroDeFuncao(error));
   return data as T;
 }

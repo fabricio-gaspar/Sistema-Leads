@@ -70,17 +70,18 @@ const store = createBackendStore<TemplateDocumento[]>('templates_documento', STO
 
 export function useTemplatesDocumentoStore() {
   const templates = store.useStore();
+  const setStore = store.bindSet();
 
   const atualizar = (id: string, mudanca: Partial<TemplateDocumento>) => {
-    store.set((prev) => prev.map((t) => (t.id === id ? { ...t, ...mudanca } : t)));
+    setStore((prev) => prev.map((t) => (t.id === id ? { ...t, ...mudanca } : t)));
   };
 
   const adicionar = (t: TemplateDocumento) => {
-    store.set((prev) => [...prev, t]);
+    setStore((prev) => [...prev, t]);
   };
 
   const excluir = (id: string) => {
-    store.set((prev) => prev.filter((t) => t.id !== id));
+    setStore((prev) => prev.filter((t) => t.id !== id));
   };
 
   return { templates, atualizar, adicionar, excluir };

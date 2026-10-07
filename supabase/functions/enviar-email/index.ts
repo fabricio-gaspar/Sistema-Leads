@@ -1,5 +1,5 @@
-import { createAdminClient, requireUser } from './_shared/auth.ts';
-import { allowedCorsHeaders, hasAllowedOrigin, json, preflight, safeError } from './_shared/http.ts';
+import { createAdminClient, requireUser } from '../_shared/auth.ts';
+import { allowedCorsHeaders, hasAllowedOrigin, json, preflight, safeError } from '../_shared/http.ts';
 const text=(v:unknown,m=8000)=>typeof v==='string'?v.trim().slice(0,m):'';
 const email=(v:unknown)=>text(v,254).toLowerCase();
 Deno.serve(async request=>{

@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import { resolveOrganizationSession } from '@/lib/organizationSession';
+import { resolveOrganizationSession, assertOrganizationSession } from '@/lib/organizationSession';
 import { isUuid, persistentLeadId } from '@/lib/crm/leadMapper';
 import type { Tarefa } from '@/lib/tipos';
 
@@ -56,6 +56,7 @@ function rowToTask(row: CrmTaskRow): Tarefa {
 
 export async function loadOperationalTasks(): Promise<Tarefa[]> {
   const session = await resolveOrganizationSession();
+  assertOrganizationSession(session);
   const { data, error } = await supabase
     .from('lead_tasks')
     .select('*')
@@ -68,10 +69,12 @@ export async function loadOperationalTasks(): Promise<Tarefa[]> {
 
 export async function persistOperationalTasks(previous: Tarefa[], next: Tarefa[]): Promise<Tarefa[]> {
   const session = await resolveOrganizationSession();
+  assertOrganizationSession(session);
   const knownIds = new Set(previous.map((task) => task.id));
   const persisted = next.map((task) => ({ ...task, id: persistentLeadId(task.id) }));
 
   for (const task of persisted) {
+    assertOrganizationSession(session);
     const row = taskToRow(task, session.organizationId);
     const { error } = knownIds.has(task.id)
       ? await supabase.from('lead_tasks').update(row).eq('id', task.id).eq('organization_id', session.organizationId)

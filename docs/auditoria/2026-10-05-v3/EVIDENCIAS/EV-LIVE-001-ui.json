@@ -1,0 +1,73 @@
+{
+  "auditId": "WAYFLEX-V3-20261005",
+  "observedAt": "2026-10-05T21:33:52.456Z",
+  "siteVersion": 168,
+  "role": "administrador autenticado já disponível",
+  "readOnly": true,
+  "viewports": [
+    {
+      "bodyWidth": 390,
+      "documentWidth": 390,
+      "title": "Sistema de Leads | Wayflex",
+      "width": 390
+    },
+    {
+      "bodyWidth": 1024,
+      "documentWidth": 1024,
+      "title": "Sistema de Leads | Wayflex",
+      "width": 1024
+    },
+    {
+      "bodyWidth": 1440,
+      "documentWidth": 1440,
+      "title": "Sistema de Leads | Wayflex",
+      "width": 1440
+    }
+  ],
+  "viewport320": {
+    "width": 320,
+    "documentWidth": 320,
+    "bodyWidth": 320,
+    "note": "medido anteriormente nesta execução; captura estável salva"
+  },
+  "cases": [
+    {
+      "id": "T-LIVE-001",
+      "expected": "Wizard Fonte-Região-Perfil-Critérios acessível sem busca",
+      "observed": "4 etapas percorridas; termos=0; nenhum comando de consulta externa",
+      "status": "APROVADO"
+    },
+    {
+      "id": "T-LIVE-002",
+      "expected": "Sem overflow horizontal global em 320/390/1024/1440",
+      "observed": "medições e capturas; trilhas locais de rolagem não são overflow global",
+      "status": "APROVADO"
+    },
+    {
+      "id": "T-LIVE-003",
+      "expected": "Central oferece entrada da conta própria e estado vazio honesto",
+      "observed": "Conectar meu WhatsApp; canal ainda não foi criado; 0 conversas",
+      "status": "APROVADO"
+    },
+    {
+      "id": "T-LIVE-004",
+      "expected": "Ajuda de Leads abre com Enter e fecha com Escape",
+      "observed": {
+        "open": 1,
+        "closed": 0
+      },
+      "status": "APROVADO"
+    },
+    {
+      "id": "T-LIVE-005",
+      "expected": "Carteiras acessíveis sem criar dados",
+      "observed": "Leads 0; Agenda 0 na semana; Orçamentos 0",
+      "status": "APROVADO"
+    }
+  ],
+  "limits": [
+    "Um perfil; sem CRUD, envio, autenticação de outro usuário ou provider real",
+    "Sem certificação WCAG; somente reflow do Wizard e teclado da ajuda",
+    "Viewport resetado; nenhum dado de cliente alterado"
+  ]
+}

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { createBackendStore } from '@/lib/backendStore';
 import { resolveOrganizationSession } from '@/lib/organizationSession';
 import { supabase } from '@/lib/supabase';
+import { sessionContext } from '@/lib/sessionContext';
 import type { Notificacao } from '@/lib/tipos';
 
 const STORAGE_KEY = 'leadai_notificacoes_v1';
@@ -20,21 +21,26 @@ export function useNotificacoesStore(): {
   error: boolean;
 } {
   const locais = store.useStore();
+  const setStore = store.bindSet();
+  const context = sessionContext.get();
   const [remotas, setRemotas] = useState<Notificacao[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
+      sessionContext.assertCurrent(context);
       const { organizationId } = await resolveOrganizationSession();
+      sessionContext.assertCurrent(context);
       const { data, error } = await supabase.from('notifications').select('id,title,description,kind,read,link,lead_id,priority,action_required,recommended_action,status,created_at').eq('organization_id', organizationId).order('created_at', { ascending: false }).limit(100);
+      sessionContext.assertCurrent(context);
       if (error) throw error;
       setRemotas(((data || []) as NotificationRow[]).map(mapRow));
       setError(false);
     } catch {
-      setError(true);
-    } finally { setLoading(false); }
-  }, []);
+      if (sessionContext.isCurrent(context)) setError(true);
+    } finally { if (sessionContext.isCurrent(context)) setLoading(false); }
+  }, [context]);
 
   useEffect(() => {
     let disposed = false;
@@ -54,27 +60,31 @@ export function useNotificacoesStore(): {
       lida: false,
       data: new Date().toISOString(),
     };
-    store.set((prev) => [nova, ...prev]);
+    setStore((prev) => [nova, ...prev]);
     return nova;
   };
 
   const marcarLida = (id: string) => {
+    sessionContext.assertCurrent(context);
     if (UUID.test(id)) {
       setRemotas((prev) => prev.map((n) => n.id === id ? { ...n, lida: true, status: n.status === 'open' ? 'acknowledged' : n.status } : n));
       const now = new Date().toISOString();
-      void supabase.from('notifications').update({ read: true, read_at: now }).eq('id', id);
-      void supabase.from('notifications').update({ status: 'acknowledged', acknowledged_at: now }).eq('id', id).eq('status', 'open');
-    } else store.set((prev) => prev.map((n) => (n.id === id ? { ...n, lida: true } : n)));
+      void supabase.from('notifications').update({ read: true, read_at: now }).eq('id', id).eq('organization_id', context.organizationId);
+      void supabase.from('notifications').update({ status: 'acknowledged', acknowledged_at: now }).eq('id', id).eq('organization_id', context.organizationId).eq('status', 'open');
+    } else setStore((prev) => prev.map((n) => (n.id === id ? { ...n, lida: true } : n)));
   };
 
   const marcarTodasLidas = () => {
+    sessionContext.assertCurrent(context);
     setRemotas((prev) => prev.map((n) => ({ ...n, lida: true, status: n.status === 'open' ? 'acknowledged' : n.status })));
-    store.set((prev) => prev.map((n) => ({ ...n, lida: true })));
+    setStore((prev) => prev.map((n) => ({ ...n, lida: true })));
     void resolveOrganizationSession().then(async ({ organizationId }) => {
+      sessionContext.assertCurrent(context);
       const now = new Date().toISOString();
       await supabase.from('notifications').update({ read: true, read_at: now }).eq('organization_id', organizationId).eq('read', false);
+      sessionContext.assertCurrent(context);
       await supabase.from('notifications').update({ status: 'acknowledged', acknowledged_at: now }).eq('organization_id', organizationId).eq('status', 'open');
-    });
+    }).catch(() => { if (sessionContext.isCurrent(context)) setError(true); });
   };
 
   const notificacoes = useMemo(() => [...remotas, ...locais].sort((a, b) => Date.parse(b.data) - Date.parse(a.data)), [remotas, locais]);

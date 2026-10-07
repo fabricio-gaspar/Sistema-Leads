@@ -1,4 +1,4 @@
-import { useEffect, useSyncExternalStore } from 'react';
+import { createContextStore } from '@/lib/contextStore';
 import { loadOperationalFlows, persistOperationalFlows } from '@/lib/crm/operationalEntitiesRepository';
 import { isUuid } from '@/lib/crm/leadMapper';
 
@@ -80,42 +80,16 @@ export const fluxosIniciais: FluxoAutomatizacao[] = [
   },
 ];
 
-let state: FluxoAutomatizacao[] = [];
-let hydrated = false;
-let hydratePromise: Promise<void> | null = null;
-let writeQueue = Promise.resolve();
-const listeners = new Set<() => void>();
-
-const notify = () => listeners.forEach((listener) => listener());
-const getSnapshot = () => state;
-const subscribe = (listener: () => void) => {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
-};
-
-async function hydrate(): Promise<void> {
-  if (hydrated) return;
-  if (hydratePromise) return hydratePromise;
-  hydratePromise = loadOperationalFlows()
-    .then((flows) => { state = flows; hydrated = true; notify(); })
-    .catch((error) => console.error('[crm-campaigns] falha ao carregar fonte operacional', error))
-    .finally(() => { hydratePromise = null; });
-  return hydratePromise;
-}
-
-function updateState(updater: (previous: FluxoAutomatizacao[]) => FluxoAutomatizacao[]): void {
-  const previous = state;
-  const next = updater(previous).map((flow) => ({ ...flow, id: isUuid(flow.id) ? flow.id : crypto.randomUUID() }));
-  state = next;
-  notify();
-  writeQueue = writeQueue
-    .then(async () => { state = await persistOperationalFlows(previous, next); notify(); })
-    .catch((error) => { console.error('[crm-campaigns] falha ao salvar fonte operacional', error); void hydrate(); });
-}
+const store = createContextStore<FluxoAutomatizacao[]>({
+  initial: () => [],
+  load: async () => loadOperationalFlows(),
+  save: (previous, next) => persistOperationalFlows(previous, next),
+  normalize: (items) => items.map((item) => ({ ...item, id: isUuid(item.id) ? item.id : crypto.randomUUID() })),
+});
 
 export function useFluxosAutomatizacaoStore() {
-  const fluxos = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
-  useEffect(() => { void hydrate(); }, []);
+  const fluxos = store.useData();
+  const updateState = store.bindUpdate();
 
   const atualizar = (id: string, mudanca: Partial<FluxoAutomatizacao>) => {
     updateState((prev) => prev.map((f) => (f.id === id ? { ...f, ...mudanca } : f)));
@@ -134,5 +108,5 @@ export function useFluxosAutomatizacaoStore() {
 
 // Acesso imperativo ao snapshot dos fluxos (para o motor de automação).
 export function getFluxosSnapshot(): FluxoAutomatizacao[] {
-  return state;
+  return store.get();
 }

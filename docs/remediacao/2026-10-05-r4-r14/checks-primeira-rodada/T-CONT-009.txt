@@ -1,0 +1,151 @@
+{
+  "engine": "PGlite 0.3.14",
+  "migration": "20261005220138_audit_r2_account_lifecycle.sql",
+  "passed": 28,
+  "failed": 0,
+  "limits": "Schema mínimo com trigger legado real. Interleavings sequenciais controlados; erros e rollback SQL reais. Não é o banco remoto completo.",
+  "results": [
+    {
+      "id": "R2-SQL-01",
+      "status": "APROVADO",
+      "mode": "SQL real; schema mínimo e trigger legado real; sem rede externa"
+    },
+    {
+      "id": "R2-SQL-02",
+      "status": "APROVADO",
+      "mode": "SQL real; schema mínimo e trigger legado real; sem rede externa"
+    },
+    {
+      "id": "R2-SQL-03",
+      "status": "APROVADO",
+      "mode": "SQL real; schema mínimo e trigger legado real; sem rede externa"
+    },
+    {
+      "id": "R2-SQL-04",
+      "status": "APROVADO",
+      "mode": "SQL real; schema mínimo e trigger legado real; sem rede externa"
+    },
+    {
+      "id": "R2-SQL-05",
+      "status": "APROVADO",
+      "mode": "SQL real; schema mínimo e trigger legado real; sem rede externa"
+    },
+    {
+      "id": "R2-SQL-06",
+      "status": "APROVADO",
+      "mode": "SQL real; schema mínimo e trigger legado real; sem rede externa"
+    },
+    {
+      "id": "R2-SQL-BEGIN-integrations",
+      "status": "APROVADO",
+      "mode": "SQL real; schema mínimo e trigger legado real; sem rede externa"
+    },
+    {
+      "id": "R2-SQL-FINISH-integrations",
+      "status": "APROVADO",
+      "mode": "SQL real; schema mínimo e trigger legado real; sem rede externa"
+    },
+    {
+      "id": "R2-SQL-BEGIN-whatsapp_accounts",
+      "status": "APROVADO",
+      "mode": "SQL real; schema mínimo e trigger legado real; sem rede externa"
+    },
+    {
+      "id": "R2-SQL-FINISH-whatsapp_accounts",
+      "status": "APROVADO",
+      "mode": "SQL real; schema mínimo e trigger legado real; sem rede externa"
+    },
+    {
+      "id": "R2-SQL-BEGIN-audit_logs",
+      "status": "APROVADO",
+      "mode": "SQL real; schema mínimo e trigger legado real; sem rede externa"
+    },
+    {
+      "id": "R2-SQL-FINISH-audit_logs",
+      "status": "APROVADO",
+      "mode": "SQL real; schema mínimo e trigger legado real; sem rede externa"
+    },
+    {
+      "id": "R2-SQL-BEGIN-whatsapp_account_lifecycle",
+      "status": "APROVADO",
+      "mode": "SQL real; schema mínimo e trigger legado real; sem rede externa"
+    },
+    {
+      "id": "R2-SQL-FINISH-whatsapp_account_lifecycle",
+      "status": "APROVADO",
+      "mode": "SQL real; schema mínimo e trigger legado real; sem rede externa"
+    },
+    {
+      "id": "R2-SQL-15",
+      "status": "APROVADO",
+      "mode": "SQL real; schema mínimo e trigger legado real; sem rede externa"
+    },
+    {
+      "id": "R2-SQL-16",
+      "status": "APROVADO",
+      "mode": "SQL real; schema mínimo e trigger legado real; sem rede externa"
+    },
+    {
+      "id": "R2-SQL-17",
+      "status": "APROVADO",
+      "mode": "SQL real; schema mínimo e trigger legado real; sem rede externa"
+    },
+    {
+      "id": "R2-SQL-18",
+      "status": "APROVADO",
+      "mode": "SQL real; schema mínimo e trigger legado real; sem rede externa"
+    },
+    {
+      "id": "R2-SQL-19",
+      "status": "APROVADO",
+      "mode": "SQL real; schema mínimo e trigger legado real; sem rede externa"
+    },
+    {
+      "id": "R2-SQL-20",
+      "status": "APROVADO",
+      "mode": "SQL real; schema mínimo e trigger legado real; sem rede externa"
+    },
+    {
+      "id": "R2-SQL-21",
+      "status": "APROVADO",
+      "mode": "SQL real; schema mínimo e trigger legado real; sem rede externa"
+    },
+    {
+      "id": "R2-SQL-22",
+      "status": "APROVADO",
+      "mode": "SQL real; schema mínimo e trigger legado real; sem rede externa"
+    },
+    {
+      "id": "R2-SQL-23",
+      "status": "APROVADO",
+      "mode": "SQL real; schema mínimo e trigger legado real; sem rede externa"
+    },
+    {
+      "id": "R2-SQL-24",
+      "status": "APROVADO",
+      "mode": "SQL real; schema mínimo e trigger legado real; sem rede externa"
+    },
+    {
+      "id": "R2-SQL-25",
+      "status": "APROVADO",
+      "mode": "SQL real; schema mínimo e trigger legado real; sem rede externa"
+    },
+    {
+      "id": "R2-SQL-26",
+      "status": "APROVADO",
+      "mode": "SQL real; schema mínimo e trigger legado real; sem rede externa"
+    },
+    {
+      "id": "R2-SQL-27",
+      "status": "APROVADO",
+      "mode": "SQL real; schema mínimo e trigger legado real; sem rede externa"
+    },
+    {
+      "id": "R2-SQL-28",
+      "status": "APROVADO",
+      "mode": "SQL real; schema mínimo e trigger legado real; sem rede externa"
+    }
+  ]
+}
+
+STDERR

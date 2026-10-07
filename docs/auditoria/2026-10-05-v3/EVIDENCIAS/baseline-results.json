@@ -1,0 +1,110 @@
+{
+  "version": "847048429a86294aa10fa54ffdd750c04447d4fb",
+  "mode": "local; tests may use mocks; no production homology claimed",
+  "results": [
+    {
+      "id": "T-BASE-001",
+      "command": [
+        "node",
+        "node_modules/typescript/bin/tsc",
+        "--noEmit",
+        "--project",
+        "tsconfig.app.json"
+      ],
+      "startedAt": "2026-10-05T21:22:58.707Z",
+      "elapsedMs": 12148,
+      "exitCode": 0,
+      "status": "APROVADO",
+      "evidence": "T-BASE-001.log"
+    },
+    {
+      "id": "T-BASE-002",
+      "command": [
+        "node",
+        "node_modules/typescript/bin/tsc",
+        "--project",
+        "tsconfig.edge.json"
+      ],
+      "startedAt": "2026-10-05T21:23:10.857Z",
+      "elapsedMs": 2373,
+      "exitCode": 0,
+      "status": "APROVADO",
+      "evidence": "T-BASE-002.log"
+    },
+    {
+      "id": "T-BASE-003",
+      "command": [
+        "node",
+        "node_modules/eslint/bin/eslint.js",
+        "src",
+        "--ext",
+        "ts,tsx",
+        "--report-unused-disable-directives",
+        "--max-warnings",
+        "0"
+      ],
+      "startedAt": "2026-10-05T21:23:13.230Z",
+      "elapsedMs": 3541,
+      "exitCode": 0,
+      "status": "APROVADO",
+      "evidence": "T-BASE-003.log"
+    },
+    {
+      "id": "T-BASE-004",
+      "command": [
+        "node",
+        "node_modules/vitest/vitest.mjs",
+        "run",
+        "--configLoader",
+        "runner",
+        "--reporter=default",
+        "--reporter=json",
+        "--outputFile.json=/Users/fabriciogaspar/Documents/Codex/2026-10-04/c/Sistema-Leads-live/docs/auditoria/2026-10-05-v3/EVIDENCIAS/vitest-baseline.json"
+      ],
+      "startedAt": "2026-10-05T21:23:16.772Z",
+      "elapsedMs": 5336,
+      "exitCode": 0,
+      "status": "APROVADO",
+      "evidence": "T-BASE-004.log"
+    },
+    {
+      "id": "T-BASE-005",
+      "command": [
+        "node",
+        "node_modules/vite/bin/vite.js",
+        "build",
+        "--configLoader",
+        "runner"
+      ],
+      "startedAt": "2026-10-05T21:23:22.109Z",
+      "elapsedMs": 2325,
+      "exitCode": 0,
+      "status": "APROVADO",
+      "evidence": "T-BASE-005.log"
+    },
+    {
+      "id": "T-BASE-006",
+      "command": [
+        "node",
+        "scripts/build-sites-artifact.mjs"
+      ],
+      "startedAt": "2026-10-05T21:23:24.434Z",
+      "elapsedMs": 68,
+      "exitCode": 0,
+      "status": "APROVADO",
+      "evidence": "T-BASE-006.log"
+    },
+    {
+      "id": "T-BASE-007",
+      "command": [
+        "node",
+        "scripts/check-commercial-analytics.mjs"
+      ],
+      "startedAt": "2026-10-05T21:23:24.502Z",
+      "elapsedMs": 341,
+      "exitCode": 0,
+      "status": "APROVADO",
+      "evidence": "T-BASE-007.log"
+    }
+  ]
+}

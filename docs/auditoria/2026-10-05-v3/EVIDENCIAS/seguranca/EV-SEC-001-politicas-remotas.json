@@ -1,0 +1,2073 @@
+{
+  "at": "2026-10-05",
+  "project": "thgzrkppouoevapjquyu",
+  "mode": "SELECT catalog only",
+  "policies": [
+    {
+      "schemaname": "public",
+      "tablename": "agent_runs",
+      "policyname": "agent_runs_select_assigned_lead",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "((organization_id = ( SELECT current_org_id() AS current_org_id)) AND (EXISTS ( SELECT 1\n   FROM leads lead\n  WHERE ((lead.id = agent_runs.lead_id) AND (lead.organization_id = agent_runs.organization_id) AND (private.has_org_role(lead.organization_id, ( SELECT auth.uid() AS uid), ARRAY['administrador'::app_role, 'sdr'::app_role, 'ia'::app_role]) OR (lead.owner_id = ( SELECT auth.uid() AS uid)) OR (lead.assigned_to = ( SELECT auth.uid() AS uid)))))))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "ai_agent_versions",
+      "policyname": "ai_agent_versions_read_active_org",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "((organization_id = ( SELECT current_org_id() AS current_org_id)) AND private.is_active_org_member(organization_id, ( SELECT auth.uid() AS uid)))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "ai_agents",
+      "policyname": "ai_agents_read_active_org",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "((organization_id = ( SELECT current_org_id() AS current_org_id)) AND private.is_active_org_member(organization_id, ( SELECT auth.uid() AS uid)))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "ai_decisions",
+      "policyname": "operational_admin_update",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "private.is_org_admin(organization_id, ( SELECT auth.uid() AS uid))",
+      "with_check": "((organization_id = ( SELECT current_org_id() AS current_org_id)) AND private.is_org_admin(organization_id, ( SELECT auth.uid() AS uid)))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "ai_decisions",
+      "policyname": "operational_member_insert",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "((organization_id = ( SELECT current_org_id() AS current_org_id)) AND private.is_active_org_member(organization_id, ( SELECT auth.uid() AS uid)))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "ai_decisions",
+      "policyname": "operational_read",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "private.is_active_org_member(organization_id, ( SELECT auth.uid() AS uid))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "app_user_connections",
+      "policyname": "app_user_connections_service_role_only",
+      "roles": "{service_role}",
+      "cmd": "ALL",
+      "qual": "true",
+      "with_check": "true"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "appointment_reminders",
+      "policyname": "appointment_reminders_admin_delete",
+      "roles": "{authenticated}",
+      "cmd": "DELETE",
+      "qual": "private.is_org_admin(organization_id, ( SELECT auth.uid() AS uid))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "appointment_reminders",
+      "policyname": "appointment_reminders_admin_insert",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "private.is_org_admin(organization_id, ( SELECT auth.uid() AS uid))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "appointment_reminders",
+      "policyname": "appointment_reminders_admin_update",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "private.is_org_admin(organization_id, ( SELECT auth.uid() AS uid))",
+      "with_check": "private.is_org_admin(organization_id, ( SELECT auth.uid() AS uid))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "appointment_reminders",
+      "policyname": "appointment_reminders_member_read",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "private.is_org_member(organization_id, ( SELECT auth.uid() AS uid))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "appointments",
+      "policyname": "org_active_access",
+      "roles": "{authenticated}",
+      "cmd": "ALL",
+      "qual": "( SELECT private.is_active_org_member(appointments.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)",
+      "with_check": "( SELECT private.is_active_org_member(appointments.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "audit_logs",
+      "policyname": "audit_logs_admin_read",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "( SELECT private.is_org_admin(audit_logs.organization_id, ( SELECT auth.uid() AS uid)) AS is_org_admin)",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "audit_logs",
+      "policyname": "audit_logs_member_append",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "( SELECT private.is_active_org_member(audit_logs.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "automation_dead_letters",
+      "policyname": "operational_admin_update",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "private.is_org_admin(organization_id, ( SELECT auth.uid() AS uid))",
+      "with_check": "((organization_id = ( SELECT current_org_id() AS current_org_id)) AND private.is_org_admin(organization_id, ( SELECT auth.uid() AS uid)))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "automation_dead_letters",
+      "policyname": "operational_member_insert",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "((organization_id = ( SELECT current_org_id() AS current_org_id)) AND private.is_active_org_member(organization_id, ( SELECT auth.uid() AS uid)))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "automation_dead_letters",
+      "policyname": "operational_read",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "private.is_active_org_member(organization_id, ( SELECT auth.uid() AS uid))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "automation_definitions",
+      "policyname": "configuration_admin_delete",
+      "roles": "{authenticated}",
+      "cmd": "DELETE",
+      "qual": "private.is_org_admin(organization_id, ( SELECT auth.uid() AS uid))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "automation_definitions",
+      "policyname": "configuration_admin_insert",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "((organization_id = ( SELECT current_org_id() AS current_org_id)) AND private.is_org_admin(organization_id, ( SELECT auth.uid() AS uid)))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "automation_definitions",
+      "policyname": "configuration_admin_update",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "private.is_org_admin(organization_id, ( SELECT auth.uid() AS uid))",
+      "with_check": "((organization_id = ( SELECT current_org_id() AS current_org_id)) AND private.is_org_admin(organization_id, ( SELECT auth.uid() AS uid)))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "automation_definitions",
+      "policyname": "configuration_read",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "private.is_active_org_member(organization_id, ( SELECT auth.uid() AS uid))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "automation_heartbeats",
+      "policyname": "automation_heartbeats_admin_read",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "(EXISTS ( SELECT 1\n   FROM organization_members m\n  WHERE ((m.user_id = ( SELECT auth.uid() AS uid)) AND (m.role = 'administrador'::app_role) AND (m.status = 'active'::text))))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "automation_run_steps",
+      "policyname": "operational_admin_update",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "private.is_org_admin(organization_id, ( SELECT auth.uid() AS uid))",
+      "with_check": "((organization_id = ( SELECT current_org_id() AS current_org_id)) AND private.is_org_admin(organization_id, ( SELECT auth.uid() AS uid)))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "automation_run_steps",
+      "policyname": "operational_member_insert",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "((organization_id = ( SELECT current_org_id() AS current_org_id)) AND private.is_active_org_member(organization_id, ( SELECT auth.uid() AS uid)))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "automation_run_steps",
+      "policyname": "operational_read",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "private.is_active_org_member(organization_id, ( SELECT auth.uid() AS uid))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "automation_runs",
+      "policyname": "operational_admin_update",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "private.is_org_admin(organization_id, ( SELECT auth.uid() AS uid))",
+      "with_check": "((organization_id = ( SELECT current_org_id() AS current_org_id)) AND private.is_org_admin(organization_id, ( SELECT auth.uid() AS uid)))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "automation_runs",
+      "policyname": "operational_member_insert",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "((organization_id = ( SELECT current_org_id() AS current_org_id)) AND private.is_active_org_member(organization_id, ( SELECT auth.uid() AS uid)))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "automation_runs",
+      "policyname": "operational_read",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "private.is_active_org_member(organization_id, ( SELECT auth.uid() AS uid))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "call_records",
+      "policyname": "org_active_access",
+      "roles": "{authenticated}",
+      "cmd": "ALL",
+      "qual": "( SELECT private.is_active_org_member(call_records.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)",
+      "with_check": "( SELECT private.is_active_org_member(call_records.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "channel_contact_bindings",
+      "policyname": "channel_contact_bindings_service_only",
+      "roles": "{authenticated}",
+      "cmd": "ALL",
+      "qual": "false",
+      "with_check": "false"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "channel_health_samples",
+      "policyname": "phase8_health_read",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "( SELECT private.is_active_org_member(channel_health_samples.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "channel_inbound_events",
+      "policyname": "org_active_access",
+      "roles": "{authenticated}",
+      "cmd": "ALL",
+      "qual": "( SELECT private.is_active_org_member(channel_inbound_events.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)",
+      "with_check": "( SELECT private.is_active_org_member(channel_inbound_events.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "channel_policy_events",
+      "policyname": "phase8_policy_events_read",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "( SELECT private.is_active_org_member(channel_policy_events.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "company_settings",
+      "policyname": "configuration_admin_delete",
+      "roles": "{authenticated}",
+      "cmd": "DELETE",
+      "qual": "( SELECT private.is_org_admin(company_settings.organization_id, ( SELECT auth.uid() AS uid)) AS is_org_admin)",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "company_settings",
+      "policyname": "configuration_admin_update",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "( SELECT private.is_org_admin(company_settings.organization_id, ( SELECT auth.uid() AS uid)) AS is_org_admin)",
+      "with_check": "( SELECT private.is_org_admin(company_settings.organization_id, ( SELECT auth.uid() AS uid)) AS is_org_admin)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "company_settings",
+      "policyname": "configuration_admin_write",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "(( SELECT private.is_org_admin(company_settings.organization_id, ( SELECT auth.uid() AS uid)) AS is_org_admin) AND (organization_id = current_org_id()))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "company_settings",
+      "policyname": "configuration_read",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "( SELECT private.is_active_org_member(company_settings.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "consent_events",
+      "policyname": "org_active_access",
+      "roles": "{authenticated}",
+      "cmd": "ALL",
+      "qual": "( SELECT private.is_active_org_member(consent_events.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)",
+      "with_check": "( SELECT private.is_active_org_member(consent_events.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "contact_points",
+      "policyname": "org_active_access",
+      "roles": "{authenticated}",
+      "cmd": "ALL",
+      "qual": "( SELECT private.is_active_org_member(contact_points.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)",
+      "with_check": "( SELECT private.is_active_org_member(contact_points.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "contact_suppressions",
+      "policyname": "org_active_access",
+      "roles": "{authenticated}",
+      "cmd": "ALL",
+      "qual": "( SELECT private.is_active_org_member(contact_suppressions.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)",
+      "with_check": "( SELECT private.is_active_org_member(contact_suppressions.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "conversation_knowledge_events",
+      "policyname": "conversation_knowledge_events_read",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "private.can_access_lead(organization_id, lead_id, ( SELECT auth.uid() AS uid))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "conversation_read_states",
+      "policyname": "conversation_read_states_own_access",
+      "roles": "{authenticated}",
+      "cmd": "ALL",
+      "qual": "((user_id = ( SELECT auth.uid() AS uid)) AND private.is_active_org_member(organization_id, ( SELECT auth.uid() AS uid)) AND private.can_access_lead(organization_id, lead_id, ( SELECT auth.uid() AS uid)))",
+      "with_check": "((user_id = ( SELECT auth.uid() AS uid)) AND private.is_active_org_member(organization_id, ( SELECT auth.uid() AS uid)) AND private.can_access_lead(organization_id, lead_id, ( SELECT auth.uid() AS uid)))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "crm_accounts",
+      "policyname": "crm_accounts_delete",
+      "roles": "{authenticated}",
+      "cmd": "DELETE",
+      "qual": "( SELECT private.is_org_admin(crm_accounts.organization_id, ( SELECT auth.uid() AS uid)) AS is_org_admin)",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "crm_accounts",
+      "policyname": "crm_accounts_insert",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "((organization_id = ( SELECT current_org_id() AS current_org_id)) AND ( SELECT private.is_active_org_member(crm_accounts.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "crm_accounts",
+      "policyname": "crm_accounts_read",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "( SELECT private.is_active_org_member(crm_accounts.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "crm_accounts",
+      "policyname": "crm_accounts_update",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "(( SELECT private.has_org_role(crm_accounts.organization_id, ( SELECT auth.uid() AS uid), ARRAY['administrador'::app_role, 'sdr'::app_role, 'vendedor'::app_role]) AS has_org_role) OR (owner_id = ( SELECT auth.uid() AS uid)) OR (assigned_to = ( SELECT auth.uid() AS uid)))",
+      "with_check": "((organization_id = ( SELECT current_org_id() AS current_org_id)) AND (( SELECT private.has_org_role(crm_accounts.organization_id, ( SELECT auth.uid() AS uid), ARRAY['administrador'::app_role, 'sdr'::app_role, 'vendedor'::app_role]) AS has_org_role) OR (owner_id = ( SELECT auth.uid() AS uid)) OR (assigned_to = ( SELECT auth.uid() AS uid))))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "crm_contacts",
+      "policyname": "crm_contacts_delete",
+      "roles": "{authenticated}",
+      "cmd": "DELETE",
+      "qual": "( SELECT private.is_org_admin(crm_contacts.organization_id, ( SELECT auth.uid() AS uid)) AS is_org_admin)",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "crm_contacts",
+      "policyname": "crm_contacts_insert",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "((organization_id = ( SELECT current_org_id() AS current_org_id)) AND ( SELECT private.is_active_org_member(crm_contacts.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "crm_contacts",
+      "policyname": "crm_contacts_read",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "( SELECT private.is_active_org_member(crm_contacts.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "crm_contacts",
+      "policyname": "crm_contacts_update",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "(( SELECT private.has_org_role(crm_contacts.organization_id, ( SELECT auth.uid() AS uid), ARRAY['administrador'::app_role, 'sdr'::app_role, 'vendedor'::app_role, 'cx'::app_role]) AS has_org_role) OR (owner_id = ( SELECT auth.uid() AS uid)) OR (assigned_to = ( SELECT auth.uid() AS uid)))",
+      "with_check": "((organization_id = ( SELECT current_org_id() AS current_org_id)) AND (( SELECT private.has_org_role(crm_contacts.organization_id, ( SELECT auth.uid() AS uid), ARRAY['administrador'::app_role, 'sdr'::app_role, 'vendedor'::app_role, 'cx'::app_role]) AS has_org_role) OR (owner_id = ( SELECT auth.uid() AS uid)) OR (assigned_to = ( SELECT auth.uid() AS uid))))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "crm_opportunities",
+      "policyname": "phase8_org_access",
+      "roles": "{authenticated}",
+      "cmd": "ALL",
+      "qual": "( SELECT private.is_active_org_member(crm_opportunities.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)",
+      "with_check": "( SELECT private.is_active_org_member(crm_opportunities.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "crm_stage_events",
+      "policyname": "phase8_stage_events_read",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "( SELECT private.is_active_org_member(crm_stage_events.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "departments",
+      "policyname": "configuration_admin_delete",
+      "roles": "{authenticated}",
+      "cmd": "DELETE",
+      "qual": "( SELECT private.is_org_admin(departments.organization_id, ( SELECT auth.uid() AS uid)) AS is_org_admin)",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "departments",
+      "policyname": "configuration_admin_update",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "( SELECT private.is_org_admin(departments.organization_id, ( SELECT auth.uid() AS uid)) AS is_org_admin)",
+      "with_check": "( SELECT private.is_org_admin(departments.organization_id, ( SELECT auth.uid() AS uid)) AS is_org_admin)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "departments",
+      "policyname": "configuration_admin_write",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "(( SELECT private.is_org_admin(departments.organization_id, ( SELECT auth.uid() AS uid)) AS is_org_admin) AND (organization_id = current_org_id()))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "departments",
+      "policyname": "configuration_read",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "( SELECT private.is_active_org_member(departments.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "documents",
+      "policyname": "org_active_access",
+      "roles": "{authenticated}",
+      "cmd": "ALL",
+      "qual": "( SELECT private.is_active_org_member(documents.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)",
+      "with_check": "( SELECT private.is_active_org_member(documents.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "documents",
+      "policyname": "phase2_documents_delete",
+      "roles": "{authenticated}",
+      "cmd": "DELETE",
+      "qual": "(private.is_org_admin(organization_id, ( SELECT auth.uid() AS uid)) OR (uploaded_by = ( SELECT auth.uid() AS uid)))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "documents",
+      "policyname": "phase2_documents_insert",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "((organization_id = ( SELECT current_org_id() AS current_org_id)) AND (private.is_org_admin(organization_id, ( SELECT auth.uid() AS uid)) OR (uploaded_by = ( SELECT auth.uid() AS uid))))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "documents",
+      "policyname": "phase2_documents_select",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "private.is_active_org_member(organization_id, ( SELECT auth.uid() AS uid))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "documents",
+      "policyname": "phase2_documents_update",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "(private.is_org_admin(organization_id, ( SELECT auth.uid() AS uid)) OR (uploaded_by = ( SELECT auth.uid() AS uid)))",
+      "with_check": "(private.is_org_admin(organization_id, ( SELECT auth.uid() AS uid)) OR (uploaded_by = ( SELECT auth.uid() AS uid)))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "domain_events",
+      "policyname": "operational_member_insert",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "((organization_id = ( SELECT current_org_id() AS current_org_id)) AND (actor_type = 'user'::text) AND (actor_id = ( SELECT auth.uid() AS uid)) AND private.is_active_org_member(organization_id, ( SELECT auth.uid() AS uid)))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "domain_events",
+      "policyname": "operational_read",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "private.is_active_org_member(organization_id, ( SELECT auth.uid() AS uid))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "integrations",
+      "policyname": "configuration_admin_delete",
+      "roles": "{authenticated}",
+      "cmd": "DELETE",
+      "qual": "private.has_org_permission(organization_id, ( SELECT auth.uid() AS uid), 'configuration.manage'::text)",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "integrations",
+      "policyname": "configuration_admin_update",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "private.has_org_permission(organization_id, ( SELECT auth.uid() AS uid), 'configuration.manage'::text)",
+      "with_check": "private.has_org_permission(organization_id, ( SELECT auth.uid() AS uid), 'configuration.manage'::text)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "integrations",
+      "policyname": "configuration_admin_write",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "(private.has_org_permission(organization_id, ( SELECT auth.uid() AS uid), 'configuration.manage'::text) AND (organization_id = current_org_id()))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "integrations",
+      "policyname": "configuration_read",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "( SELECT private.is_active_org_member(integrations.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "knowledge_catalog_items",
+      "policyname": "knowledge_catalog_items_delete",
+      "roles": "{authenticated}",
+      "cmd": "DELETE",
+      "qual": "private.has_org_permission(organization_id, ( SELECT auth.uid() AS uid), 'configuration.manage'::text)",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "knowledge_catalog_items",
+      "policyname": "knowledge_catalog_items_insert",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "private.has_org_permission(organization_id, ( SELECT auth.uid() AS uid), 'configuration.manage'::text)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "knowledge_catalog_items",
+      "policyname": "knowledge_catalog_items_read",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "private.is_active_org_member(organization_id, ( SELECT auth.uid() AS uid))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "knowledge_catalog_items",
+      "policyname": "knowledge_catalog_items_update",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "private.has_org_permission(organization_id, ( SELECT auth.uid() AS uid), 'configuration.manage'::text)",
+      "with_check": "private.has_org_permission(organization_id, ( SELECT auth.uid() AS uid), 'configuration.manage'::text)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "knowledge_chunks",
+      "policyname": "org_active_access",
+      "roles": "{authenticated}",
+      "cmd": "ALL",
+      "qual": "( SELECT private.is_active_org_member(knowledge_chunks.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)",
+      "with_check": "( SELECT private.is_active_org_member(knowledge_chunks.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "knowledge_item_relations",
+      "policyname": "knowledge_item_relations_delete",
+      "roles": "{authenticated}",
+      "cmd": "DELETE",
+      "qual": "private.has_org_permission(organization_id, ( SELECT auth.uid() AS uid), 'configuration.manage'::text)",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "knowledge_item_relations",
+      "policyname": "knowledge_item_relations_insert",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "private.has_org_permission(organization_id, ( SELECT auth.uid() AS uid), 'configuration.manage'::text)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "knowledge_item_relations",
+      "policyname": "knowledge_item_relations_read",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "private.is_active_org_member(organization_id, ( SELECT auth.uid() AS uid))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "knowledge_item_relations",
+      "policyname": "knowledge_item_relations_update",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "private.has_org_permission(organization_id, ( SELECT auth.uid() AS uid), 'configuration.manage'::text)",
+      "with_check": "private.has_org_permission(organization_id, ( SELECT auth.uid() AS uid), 'configuration.manage'::text)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "knowledge_source_imports",
+      "policyname": "knowledge_source_imports_read",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "private.has_org_permission(organization_id, ( SELECT auth.uid() AS uid), 'configuration.manage'::text)",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "knowledge_sources",
+      "policyname": "knowledge_sources_delete",
+      "roles": "{authenticated}",
+      "cmd": "DELETE",
+      "qual": "private.has_org_permission(organization_id, ( SELECT auth.uid() AS uid), 'configuration.manage'::text)",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "knowledge_sources",
+      "policyname": "knowledge_sources_insert",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "private.has_org_permission(organization_id, ( SELECT auth.uid() AS uid), 'configuration.manage'::text)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "knowledge_sources",
+      "policyname": "knowledge_sources_read",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "private.is_active_org_member(organization_id, ( SELECT auth.uid() AS uid))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "knowledge_sources",
+      "policyname": "knowledge_sources_update",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "private.has_org_permission(organization_id, ( SELECT auth.uid() AS uid), 'configuration.manage'::text)",
+      "with_check": "private.has_org_permission(organization_id, ( SELECT auth.uid() AS uid), 'configuration.manage'::text)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "lead_assignments",
+      "policyname": "org_active_access",
+      "roles": "{authenticated}",
+      "cmd": "ALL",
+      "qual": "( SELECT private.is_active_org_member(lead_assignments.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)",
+      "with_check": "( SELECT private.is_active_org_member(lead_assignments.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "lead_handoff_policies",
+      "policyname": "lead_handoff_policies_read",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "private.can_access_lead(organization_id, lead_id, ( SELECT auth.uid() AS uid))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "lead_handoffs",
+      "policyname": "org_active_access",
+      "roles": "{authenticated}",
+      "cmd": "ALL",
+      "qual": "( SELECT private.is_active_org_member(lead_handoffs.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)",
+      "with_check": "( SELECT private.is_active_org_member(lead_handoffs.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "lead_import_batches",
+      "policyname": "operational_admin_update",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "private.is_org_admin(organization_id, ( SELECT auth.uid() AS uid))",
+      "with_check": "((organization_id = ( SELECT current_org_id() AS current_org_id)) AND private.is_org_admin(organization_id, ( SELECT auth.uid() AS uid)))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "lead_import_batches",
+      "policyname": "operational_member_insert",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "((organization_id = ( SELECT current_org_id() AS current_org_id)) AND private.is_active_org_member(organization_id, ( SELECT auth.uid() AS uid)))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "lead_import_batches",
+      "policyname": "operational_read",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "private.is_active_org_member(organization_id, ( SELECT auth.uid() AS uid))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "lead_list_members",
+      "policyname": "lead_list_members_active_org",
+      "roles": "{authenticated}",
+      "cmd": "ALL",
+      "qual": "((organization_id = ( SELECT current_org_id() AS current_org_id)) AND (EXISTS ( SELECT 1\n   FROM lead_lists list\n  WHERE ((list.id = lead_list_members.list_id) AND (list.organization_id = lead_list_members.organization_id)))))",
+      "with_check": "((organization_id = ( SELECT current_org_id() AS current_org_id)) AND (EXISTS ( SELECT 1\n   FROM lead_lists list\n  WHERE ((list.id = lead_list_members.list_id) AND (list.organization_id = lead_list_members.organization_id)))) AND (EXISTS ( SELECT 1\n   FROM leads lead\n  WHERE ((lead.id = lead_list_members.lead_id) AND (lead.organization_id = lead_list_members.organization_id)))))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "lead_lists",
+      "policyname": "lead_lists_active_org",
+      "roles": "{authenticated}",
+      "cmd": "ALL",
+      "qual": "(organization_id = ( SELECT current_org_id() AS current_org_id))",
+      "with_check": "(organization_id = ( SELECT current_org_id() AS current_org_id))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "lead_messages",
+      "policyname": "org_active_access",
+      "roles": "{authenticated}",
+      "cmd": "ALL",
+      "qual": "( SELECT private.is_active_org_member(lead_messages.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)",
+      "with_check": "( SELECT private.is_active_org_member(lead_messages.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "lead_messages",
+      "policyname": "phase2_messages_delete",
+      "roles": "{authenticated}",
+      "cmd": "DELETE",
+      "qual": "private.has_org_permission(organization_id, ( SELECT auth.uid() AS uid), 'messages.delete'::text)",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "lead_messages",
+      "policyname": "phase2_messages_insert",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "private.can_reply_to_lead(organization_id, lead_id, ( SELECT auth.uid() AS uid))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "lead_messages",
+      "policyname": "phase2_messages_select",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "private.can_access_lead(organization_id, lead_id, ( SELECT auth.uid() AS uid))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "lead_messages",
+      "policyname": "phase2_messages_update",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "private.can_reply_to_lead(organization_id, lead_id, ( SELECT auth.uid() AS uid))",
+      "with_check": "private.can_reply_to_lead(organization_id, lead_id, ( SELECT auth.uid() AS uid))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "lead_notes",
+      "policyname": "org_active_access",
+      "roles": "{authenticated}",
+      "cmd": "ALL",
+      "qual": "( SELECT private.is_active_org_member(lead_notes.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)",
+      "with_check": "( SELECT private.is_active_org_member(lead_notes.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "lead_outreach",
+      "policyname": "org_active_access",
+      "roles": "{authenticated}",
+      "cmd": "ALL",
+      "qual": "( SELECT private.is_active_org_member(lead_outreach.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)",
+      "with_check": "( SELECT private.is_active_org_member(lead_outreach.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "lead_qualifications",
+      "policyname": "lead_qualifications_accessible_select",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "( SELECT private.can_access_lead(lead_qualifications.organization_id, lead_qualifications.lead_id, ( SELECT auth.uid() AS uid)) AS can_access_lead)",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "lead_sequence_enrollments",
+      "policyname": "org_active_access",
+      "roles": "{authenticated}",
+      "cmd": "ALL",
+      "qual": "( SELECT private.is_active_org_member(lead_sequence_enrollments.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)",
+      "with_check": "( SELECT private.is_active_org_member(lead_sequence_enrollments.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "lead_source_configs",
+      "policyname": "configuration_admin_delete",
+      "roles": "{authenticated}",
+      "cmd": "DELETE",
+      "qual": "private.is_org_admin(organization_id, ( SELECT auth.uid() AS uid))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "lead_source_configs",
+      "policyname": "configuration_admin_insert",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "((organization_id = ( SELECT current_org_id() AS current_org_id)) AND private.is_org_admin(organization_id, ( SELECT auth.uid() AS uid)))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "lead_source_configs",
+      "policyname": "configuration_admin_update",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "private.is_org_admin(organization_id, ( SELECT auth.uid() AS uid))",
+      "with_check": "((organization_id = ( SELECT current_org_id() AS current_org_id)) AND private.is_org_admin(organization_id, ( SELECT auth.uid() AS uid)))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "lead_source_configs",
+      "policyname": "configuration_read",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "private.is_active_org_member(organization_id, ( SELECT auth.uid() AS uid))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "lead_stage_history",
+      "policyname": "org_active_access",
+      "roles": "{authenticated}",
+      "cmd": "ALL",
+      "qual": "( SELECT private.is_active_org_member(lead_stage_history.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)",
+      "with_check": "( SELECT private.is_active_org_member(lead_stage_history.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "lead_tasks",
+      "policyname": "org_active_access",
+      "roles": "{authenticated}",
+      "cmd": "ALL",
+      "qual": "( SELECT private.is_active_org_member(lead_tasks.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)",
+      "with_check": "( SELECT private.is_active_org_member(lead_tasks.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "leads",
+      "policyname": "phase2_leads_delete",
+      "roles": "{authenticated}",
+      "cmd": "DELETE",
+      "qual": "private.has_org_permission(organization_id, ( SELECT auth.uid() AS uid), 'leads.delete'::text)",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "leads",
+      "policyname": "phase2_leads_insert",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "((organization_id = ( SELECT current_org_id() AS current_org_id)) AND private.has_org_permission(organization_id, ( SELECT auth.uid() AS uid), 'leads.create'::text))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "leads",
+      "policyname": "phase2_leads_select",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "private.can_access_lead(organization_id, id, ( SELECT auth.uid() AS uid))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "leads",
+      "policyname": "phase2_leads_update",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "private.can_manage_lead(organization_id, id, ( SELECT auth.uid() AS uid))",
+      "with_check": "private.can_manage_lead(organization_id, id, ( SELECT auth.uid() AS uid))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "message_attachments",
+      "policyname": "org_active_access",
+      "roles": "{authenticated}",
+      "cmd": "ALL",
+      "qual": "( SELECT private.is_active_org_member(message_attachments.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)",
+      "with_check": "( SELECT private.is_active_org_member(message_attachments.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "message_status_events",
+      "policyname": "message_status_events_service_boundary",
+      "roles": "{authenticated}",
+      "cmd": "ALL",
+      "qual": "false",
+      "with_check": "false"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "messaging_outbox",
+      "policyname": "messaging_outbox_service_boundary",
+      "roles": "{authenticated}",
+      "cmd": "ALL",
+      "qual": "false",
+      "with_check": "false"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "messaging_provider_controls",
+      "policyname": "messaging_provider_controls_read",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "(private.has_org_permission(organization_id, ( SELECT auth.uid() AS uid), 'configuration.manage'::text) OR private.has_org_permission(organization_id, ( SELECT auth.uid() AS uid), 'channels.manage_all'::text))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "messaging_send_reservations",
+      "policyname": "messaging_send_reservations_backend_only",
+      "roles": "{anon,authenticated}",
+      "cmd": "ALL",
+      "qual": "false",
+      "with_check": "false"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "messaging_webhook_events",
+      "policyname": "messaging_webhook_events_service_boundary",
+      "roles": "{authenticated}",
+      "cmd": "ALL",
+      "qual": "false",
+      "with_check": "false"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "meta_onboarding_sessions",
+      "policyname": "meta_onboarding_sessions_service_boundary",
+      "roles": "{authenticated}",
+      "cmd": "ALL",
+      "qual": "false",
+      "with_check": "false"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "meta_rate_cards",
+      "policyname": "meta_rate_cards_read",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "private.is_active_org_member(organization_id, ( SELECT auth.uid() AS uid))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "notification_preferences",
+      "policyname": "notification_preferences_owner_insert",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "((user_id = ( SELECT auth.uid() AS uid)) AND (organization_id = ( SELECT current_org_id() AS current_org_id)))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "notification_preferences",
+      "policyname": "notification_preferences_owner_select",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "((user_id = ( SELECT auth.uid() AS uid)) AND (organization_id = ( SELECT current_org_id() AS current_org_id)))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "notification_preferences",
+      "policyname": "notification_preferences_owner_update",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "((user_id = ( SELECT auth.uid() AS uid)) AND (organization_id = ( SELECT current_org_id() AS current_org_id)))",
+      "with_check": "((user_id = ( SELECT auth.uid() AS uid)) AND (organization_id = ( SELECT current_org_id() AS current_org_id)))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "notifications",
+      "policyname": "notifications_owner_delete",
+      "roles": "{authenticated}",
+      "cmd": "DELETE",
+      "qual": "((user_id = ( SELECT auth.uid() AS uid)) AND (organization_id = ( SELECT current_org_id() AS current_org_id)))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "notifications",
+      "policyname": "notifications_owner_select",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "((user_id = ( SELECT auth.uid() AS uid)) AND (organization_id = ( SELECT current_org_id() AS current_org_id)) AND ( SELECT private.is_active_org_member(notifications.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "notifications",
+      "policyname": "notifications_owner_update",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "((user_id = ( SELECT auth.uid() AS uid)) AND (organization_id = ( SELECT current_org_id() AS current_org_id)))",
+      "with_check": "((user_id = ( SELECT auth.uid() AS uid)) AND (organization_id = ( SELECT current_org_id() AS current_org_id)))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "objections",
+      "policyname": "configuration_admin_delete",
+      "roles": "{authenticated}",
+      "cmd": "DELETE",
+      "qual": "( SELECT private.is_org_admin(objections.organization_id, ( SELECT auth.uid() AS uid)) AS is_org_admin)",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "objections",
+      "policyname": "configuration_admin_update",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "( SELECT private.is_org_admin(objections.organization_id, ( SELECT auth.uid() AS uid)) AS is_org_admin)",
+      "with_check": "( SELECT private.is_org_admin(objections.organization_id, ( SELECT auth.uid() AS uid)) AS is_org_admin)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "objections",
+      "policyname": "configuration_admin_write",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "(( SELECT private.is_org_admin(objections.organization_id, ( SELECT auth.uid() AS uid)) AS is_org_admin) AND (organization_id = current_org_id()))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "objections",
+      "policyname": "configuration_read",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "( SELECT private.is_active_org_member(objections.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "organization_feature_flags",
+      "policyname": "organization_feature_flags_read",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "private.is_active_org_member(organization_id, ( SELECT auth.uid() AS uid))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "organization_invites",
+      "policyname": "organization_invites_admin_access",
+      "roles": "{authenticated}",
+      "cmd": "ALL",
+      "qual": "( SELECT private.is_org_admin(organization_invites.organization_id, ( SELECT auth.uid() AS uid)) AS is_org_admin)",
+      "with_check": "( SELECT private.is_org_admin(organization_invites.organization_id, ( SELECT auth.uid() AS uid)) AS is_org_admin)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "organization_members",
+      "policyname": "organization_members_admin_delete",
+      "roles": "{authenticated}",
+      "cmd": "DELETE",
+      "qual": "( SELECT private.is_org_admin(organization_members.organization_id, ( SELECT auth.uid() AS uid)) AS is_org_admin)",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "organization_members",
+      "policyname": "organization_members_admin_insert",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "( SELECT private.is_org_admin(organization_members.organization_id, ( SELECT auth.uid() AS uid)) AS is_org_admin)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "organization_members",
+      "policyname": "organization_members_admin_update",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "( SELECT private.is_org_admin(organization_members.organization_id, ( SELECT auth.uid() AS uid)) AS is_org_admin)",
+      "with_check": "( SELECT private.is_org_admin(organization_members.organization_id, ( SELECT auth.uid() AS uid)) AS is_org_admin)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "organization_members",
+      "policyname": "organization_members_self_or_admin_select",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "((user_id = ( SELECT auth.uid() AS uid)) OR ( SELECT private.is_org_admin(organization_members.organization_id, ( SELECT auth.uid() AS uid)) AS is_org_admin))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "organization_module_data",
+      "policyname": "organization_module_data_insert_active_org",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "((organization_id = ( SELECT current_org_id() AS current_org_id)) AND (updated_by = ( SELECT auth.uid() AS uid)))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "organization_module_data",
+      "policyname": "organization_module_data_select_active_org",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "(organization_id = ( SELECT current_org_id() AS current_org_id))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "organization_module_data",
+      "policyname": "organization_module_data_update_active_org",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "(organization_id = ( SELECT current_org_id() AS current_org_id))",
+      "with_check": "((organization_id = ( SELECT current_org_id() AS current_org_id)) AND (updated_by = ( SELECT auth.uid() AS uid)))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "organizations",
+      "policyname": "organizations_active_select",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "( SELECT private.is_active_org_member(organizations.id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "organizations",
+      "policyname": "organizations_admin_update",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "( SELECT private.is_org_admin(organizations.id, ( SELECT auth.uid() AS uid)) AS is_org_admin)",
+      "with_check": "( SELECT private.is_org_admin(organizations.id, ( SELECT auth.uid() AS uid)) AS is_org_admin)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "outreach_jobs",
+      "policyname": "outreach_jobs_service_only",
+      "roles": "{authenticated}",
+      "cmd": "ALL",
+      "qual": "false",
+      "with_check": "false"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "outreach_sequence_steps",
+      "policyname": "configuration_admin_delete",
+      "roles": "{authenticated}",
+      "cmd": "DELETE",
+      "qual": "( SELECT private.is_org_admin(outreach_sequence_steps.organization_id, ( SELECT auth.uid() AS uid)) AS is_org_admin)",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "outreach_sequence_steps",
+      "policyname": "configuration_admin_update",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "( SELECT private.is_org_admin(outreach_sequence_steps.organization_id, ( SELECT auth.uid() AS uid)) AS is_org_admin)",
+      "with_check": "( SELECT private.is_org_admin(outreach_sequence_steps.organization_id, ( SELECT auth.uid() AS uid)) AS is_org_admin)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "outreach_sequence_steps",
+      "policyname": "configuration_admin_write",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "(( SELECT private.is_org_admin(outreach_sequence_steps.organization_id, ( SELECT auth.uid() AS uid)) AS is_org_admin) AND (organization_id = current_org_id()))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "outreach_sequence_steps",
+      "policyname": "configuration_read",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "( SELECT private.is_active_org_member(outreach_sequence_steps.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "outreach_sequences",
+      "policyname": "configuration_admin_delete",
+      "roles": "{authenticated}",
+      "cmd": "DELETE",
+      "qual": "( SELECT private.is_org_admin(outreach_sequences.organization_id, ( SELECT auth.uid() AS uid)) AS is_org_admin)",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "outreach_sequences",
+      "policyname": "configuration_admin_update",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "( SELECT private.is_org_admin(outreach_sequences.organization_id, ( SELECT auth.uid() AS uid)) AS is_org_admin)",
+      "with_check": "( SELECT private.is_org_admin(outreach_sequences.organization_id, ( SELECT auth.uid() AS uid)) AS is_org_admin)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "outreach_sequences",
+      "policyname": "configuration_admin_write",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "(( SELECT private.is_org_admin(outreach_sequences.organization_id, ( SELECT auth.uid() AS uid)) AS is_org_admin) AND (organization_id = current_org_id()))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "outreach_sequences",
+      "policyname": "configuration_read",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "( SELECT private.is_active_org_member(outreach_sequences.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "pipeline_stages",
+      "policyname": "pipeline_stages_admin_delete",
+      "roles": "{authenticated}",
+      "cmd": "DELETE",
+      "qual": "private.is_org_admin(organization_id, ( SELECT auth.uid() AS uid))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "pipeline_stages",
+      "policyname": "pipeline_stages_admin_insert",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "private.is_org_admin(organization_id, ( SELECT auth.uid() AS uid))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "pipeline_stages",
+      "policyname": "pipeline_stages_admin_update",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "private.is_org_admin(organization_id, ( SELECT auth.uid() AS uid))",
+      "with_check": "private.is_org_admin(organization_id, ( SELECT auth.uid() AS uid))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "pipeline_stages",
+      "policyname": "pipeline_stages_member_read",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "private.is_org_member(organization_id, ( SELECT auth.uid() AS uid))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "pipelines",
+      "policyname": "pipelines_admin_delete",
+      "roles": "{authenticated}",
+      "cmd": "DELETE",
+      "qual": "private.is_org_admin(organization_id, ( SELECT auth.uid() AS uid))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "pipelines",
+      "policyname": "pipelines_admin_insert",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "private.is_org_admin(organization_id, ( SELECT auth.uid() AS uid))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "pipelines",
+      "policyname": "pipelines_admin_update",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "private.is_org_admin(organization_id, ( SELECT auth.uid() AS uid))",
+      "with_check": "private.is_org_admin(organization_id, ( SELECT auth.uid() AS uid))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "pipelines",
+      "policyname": "pipelines_member_read",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "private.is_org_member(organization_id, ( SELECT auth.uid() AS uid))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "privacy_requests",
+      "policyname": "privacy_requests_admin_access",
+      "roles": "{authenticated}",
+      "cmd": "ALL",
+      "qual": "( SELECT private.is_org_admin(privacy_requests.organization_id, ( SELECT auth.uid() AS uid)) AS is_org_admin)",
+      "with_check": "( SELECT private.is_org_admin(privacy_requests.organization_id, ( SELECT auth.uid() AS uid)) AS is_org_admin)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "profiles",
+      "policyname": "profiles_admin_insert",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "( SELECT has_role(( SELECT auth.uid() AS uid), 'administrador'::app_role) AS has_role)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "profiles",
+      "policyname": "profiles_self_or_team_read",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "((id = ( SELECT auth.uid() AS uid)) OR (EXISTS ( SELECT 1\n   FROM organization_members m\n  WHERE ((m.user_id = profiles.id) AND private.is_active_org_member(m.organization_id, ( SELECT auth.uid() AS uid))))))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "profiles",
+      "policyname": "profiles_self_update",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "(id = ( SELECT auth.uid() AS uid))",
+      "with_check": "(id = ( SELECT auth.uid() AS uid))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "proposals",
+      "policyname": "org_active_access",
+      "roles": "{authenticated}",
+      "cmd": "ALL",
+      "qual": "( SELECT private.is_active_org_member(proposals.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)",
+      "with_check": "( SELECT private.is_active_org_member(proposals.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "proposals",
+      "policyname": "phase2_proposals_delete",
+      "roles": "{authenticated}",
+      "cmd": "DELETE",
+      "qual": "private.is_org_admin(organization_id, ( SELECT auth.uid() AS uid))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "proposals",
+      "policyname": "phase2_proposals_insert",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "((organization_id = ( SELECT current_org_id() AS current_org_id)) AND private.can_access_owned_record(organization_id, owner_id, lead_id, ( SELECT auth.uid() AS uid)))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "proposals",
+      "policyname": "phase2_proposals_select",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "private.can_access_owned_record(organization_id, owner_id, lead_id, ( SELECT auth.uid() AS uid))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "proposals",
+      "policyname": "phase2_proposals_update",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "private.can_access_owned_record(organization_id, owner_id, lead_id, ( SELECT auth.uid() AS uid))",
+      "with_check": "private.can_access_owned_record(organization_id, owner_id, lead_id, ( SELECT auth.uid() AS uid))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "prospecting_cache",
+      "policyname": "org_active_access",
+      "roles": "{authenticated}",
+      "cmd": "ALL",
+      "qual": "( SELECT private.is_active_org_member(prospecting_cache.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)",
+      "with_check": "( SELECT private.is_active_org_member(prospecting_cache.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "prospecting_runs",
+      "policyname": "prospecting_runs_admin_insert",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "((organization_id = ( SELECT current_org_id() AS current_org_id)) AND (requested_by = ( SELECT auth.uid() AS uid)) AND (status = 'quoted'::text) AND ( SELECT private.is_org_admin(prospecting_runs.organization_id, ( SELECT auth.uid() AS uid)) AS is_org_admin))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "prospecting_runs",
+      "policyname": "prospecting_runs_admin_update",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "( SELECT private.is_org_admin(prospecting_runs.organization_id, ( SELECT auth.uid() AS uid)) AS is_org_admin)",
+      "with_check": "((organization_id = ( SELECT current_org_id() AS current_org_id)) AND ( SELECT private.is_org_admin(prospecting_runs.organization_id, ( SELECT auth.uid() AS uid)) AS is_org_admin))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "prospecting_runs",
+      "policyname": "prospecting_runs_read",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "( SELECT private.is_active_org_member(prospecting_runs.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "prospecting_schedule_runs",
+      "policyname": "prospecting_schedule_runs_member_select",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "( SELECT private.is_active_org_member(prospecting_schedule_runs.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "prospecting_schedules",
+      "policyname": "prospecting_schedules_member_select",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "( SELECT private.is_active_org_member(prospecting_schedules.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "quick_replies",
+      "policyname": "configuration_admin_delete",
+      "roles": "{authenticated}",
+      "cmd": "DELETE",
+      "qual": "( SELECT private.is_org_admin(quick_replies.organization_id, ( SELECT auth.uid() AS uid)) AS is_org_admin)",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "quick_replies",
+      "policyname": "configuration_admin_update",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "( SELECT private.is_org_admin(quick_replies.organization_id, ( SELECT auth.uid() AS uid)) AS is_org_admin)",
+      "with_check": "( SELECT private.is_org_admin(quick_replies.organization_id, ( SELECT auth.uid() AS uid)) AS is_org_admin)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "quick_replies",
+      "policyname": "configuration_admin_write",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "(( SELECT private.is_org_admin(quick_replies.organization_id, ( SELECT auth.uid() AS uid)) AS is_org_admin) AND (organization_id = current_org_id()))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "quick_replies",
+      "policyname": "configuration_read",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "( SELECT private.is_active_org_member(quick_replies.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "score_weights",
+      "policyname": "configuration_admin_delete",
+      "roles": "{authenticated}",
+      "cmd": "DELETE",
+      "qual": "( SELECT private.is_org_admin(score_weights.organization_id, ( SELECT auth.uid() AS uid)) AS is_org_admin)",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "score_weights",
+      "policyname": "configuration_admin_update",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "( SELECT private.is_org_admin(score_weights.organization_id, ( SELECT auth.uid() AS uid)) AS is_org_admin)",
+      "with_check": "( SELECT private.is_org_admin(score_weights.organization_id, ( SELECT auth.uid() AS uid)) AS is_org_admin)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "score_weights",
+      "policyname": "configuration_admin_write",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "(( SELECT private.is_org_admin(score_weights.organization_id, ( SELECT auth.uid() AS uid)) AS is_org_admin) AND (organization_id = current_org_id()))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "score_weights",
+      "policyname": "configuration_read",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "( SELECT private.is_active_org_member(score_weights.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "seller_routing_profiles",
+      "policyname": "seller_routing_profiles_read",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "((private.is_active_org_member(organization_id, ( SELECT auth.uid() AS uid)) AND (user_id = ( SELECT auth.uid() AS uid))) OR private.has_org_permission(organization_id, ( SELECT auth.uid() AS uid), 'team.manage'::text) OR private.has_org_permission(organization_id, ( SELECT auth.uid() AS uid), 'configuration.manage'::text))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "service_queues",
+      "policyname": "configuration_admin_delete",
+      "roles": "{authenticated}",
+      "cmd": "DELETE",
+      "qual": "( SELECT private.is_org_admin(service_queues.organization_id, ( SELECT auth.uid() AS uid)) AS is_org_admin)",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "service_queues",
+      "policyname": "configuration_admin_update",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "( SELECT private.is_org_admin(service_queues.organization_id, ( SELECT auth.uid() AS uid)) AS is_org_admin)",
+      "with_check": "( SELECT private.is_org_admin(service_queues.organization_id, ( SELECT auth.uid() AS uid)) AS is_org_admin)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "service_queues",
+      "policyname": "configuration_admin_write",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "(( SELECT private.is_org_admin(service_queues.organization_id, ( SELECT auth.uid() AS uid)) AS is_org_admin) AND (organization_id = current_org_id()))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "service_queues",
+      "policyname": "configuration_read",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "( SELECT private.is_active_org_member(service_queues.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "services",
+      "policyname": "configuration_admin_delete",
+      "roles": "{authenticated}",
+      "cmd": "DELETE",
+      "qual": "( SELECT private.is_org_admin(services.organization_id, ( SELECT auth.uid() AS uid)) AS is_org_admin)",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "services",
+      "policyname": "configuration_admin_update",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "( SELECT private.is_org_admin(services.organization_id, ( SELECT auth.uid() AS uid)) AS is_org_admin)",
+      "with_check": "( SELECT private.is_org_admin(services.organization_id, ( SELECT auth.uid() AS uid)) AS is_org_admin)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "services",
+      "policyname": "configuration_admin_write",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "(( SELECT private.is_org_admin(services.organization_id, ( SELECT auth.uid() AS uid)) AS is_org_admin) AND (organization_id = current_org_id()))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "services",
+      "policyname": "configuration_read",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "( SELECT private.is_active_org_member(services.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "tags",
+      "policyname": "configuration_admin_delete",
+      "roles": "{authenticated}",
+      "cmd": "DELETE",
+      "qual": "( SELECT private.is_org_admin(tags.organization_id, ( SELECT auth.uid() AS uid)) AS is_org_admin)",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "tags",
+      "policyname": "configuration_admin_update",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "( SELECT private.is_org_admin(tags.organization_id, ( SELECT auth.uid() AS uid)) AS is_org_admin)",
+      "with_check": "( SELECT private.is_org_admin(tags.organization_id, ( SELECT auth.uid() AS uid)) AS is_org_admin)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "tags",
+      "policyname": "configuration_admin_write",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "(( SELECT private.is_org_admin(tags.organization_id, ( SELECT auth.uid() AS uid)) AS is_org_admin) AND (organization_id = current_org_id()))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "tags",
+      "policyname": "configuration_read",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "( SELECT private.is_active_org_member(tags.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "team_member_permissions",
+      "policyname": "team_member_permissions_manage",
+      "roles": "{authenticated}",
+      "cmd": "ALL",
+      "qual": "private.has_org_permission(organization_id, ( SELECT auth.uid() AS uid), 'team.manage'::text)",
+      "with_check": "private.has_org_permission(organization_id, ( SELECT auth.uid() AS uid), 'team.manage'::text)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "team_member_permissions",
+      "policyname": "team_member_permissions_read",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "((user_id = ( SELECT auth.uid() AS uid)) OR private.has_org_permission(organization_id, ( SELECT auth.uid() AS uid), 'team.manage'::text))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "ticket_notes",
+      "policyname": "org_active_access",
+      "roles": "{authenticated}",
+      "cmd": "ALL",
+      "qual": "( SELECT private.is_active_org_member(ticket_notes.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)",
+      "with_check": "( SELECT private.is_active_org_member(ticket_notes.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "ticket_tags",
+      "policyname": "org_active_access",
+      "roles": "{authenticated}",
+      "cmd": "ALL",
+      "qual": "( SELECT private.is_active_org_member(ticket_tags.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)",
+      "with_check": "( SELECT private.is_active_org_member(ticket_tags.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "tickets",
+      "policyname": "org_active_access",
+      "roles": "{authenticated}",
+      "cmd": "ALL",
+      "qual": "( SELECT private.is_active_org_member(tickets.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)",
+      "with_check": "( SELECT private.is_active_org_member(tickets.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "tickets",
+      "policyname": "phase2_tickets_delete",
+      "roles": "{authenticated}",
+      "cmd": "DELETE",
+      "qual": "private.is_org_admin(organization_id, ( SELECT auth.uid() AS uid))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "tickets",
+      "policyname": "phase2_tickets_insert",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "((organization_id = ( SELECT current_org_id() AS current_org_id)) AND (private.has_org_role(organization_id, ( SELECT auth.uid() AS uid), ARRAY['administrador'::app_role, 'sdr'::app_role, 'ia'::app_role, 'cx'::app_role]) OR (assigned_to = ( SELECT auth.uid() AS uid))))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "tickets",
+      "policyname": "phase2_tickets_select",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "(private.has_org_role(organization_id, ( SELECT auth.uid() AS uid), ARRAY['administrador'::app_role, 'cx'::app_role, 'ia'::app_role]) OR (assigned_to = ( SELECT auth.uid() AS uid)) OR ((lead_id IS NOT NULL) AND private.can_access_lead(organization_id, lead_id, ( SELECT auth.uid() AS uid))))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "tickets",
+      "policyname": "phase2_tickets_update",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "(private.has_org_role(organization_id, ( SELECT auth.uid() AS uid), ARRAY['administrador'::app_role, 'cx'::app_role, 'ia'::app_role]) OR (assigned_to = ( SELECT auth.uid() AS uid)) OR ((lead_id IS NOT NULL) AND private.can_access_lead(organization_id, lead_id, ( SELECT auth.uid() AS uid))))",
+      "with_check": "(private.has_org_role(organization_id, ( SELECT auth.uid() AS uid), ARRAY['administrador'::app_role, 'cx'::app_role, 'ia'::app_role]) OR (assigned_to = ( SELECT auth.uid() AS uid)) OR ((lead_id IS NOT NULL) AND private.can_access_lead(organization_id, lead_id, ( SELECT auth.uid() AS uid))))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "unanswered_questions",
+      "policyname": "org_active_access",
+      "roles": "{authenticated}",
+      "cmd": "ALL",
+      "qual": "( SELECT private.is_active_org_member(unanswered_questions.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)",
+      "with_check": "( SELECT private.is_active_org_member(unanswered_questions.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "user_roles",
+      "policyname": "user_roles_admin_delete",
+      "roles": "{authenticated}",
+      "cmd": "DELETE",
+      "qual": "( SELECT private.is_org_admin(user_roles.organization_id, ( SELECT auth.uid() AS uid)) AS is_org_admin)",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "user_roles",
+      "policyname": "user_roles_admin_insert",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "( SELECT private.is_org_admin(user_roles.organization_id, ( SELECT auth.uid() AS uid)) AS is_org_admin)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "user_roles",
+      "policyname": "user_roles_admin_update",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "( SELECT private.is_org_admin(user_roles.organization_id, ( SELECT auth.uid() AS uid)) AS is_org_admin)",
+      "with_check": "( SELECT private.is_org_admin(user_roles.organization_id, ( SELECT auth.uid() AS uid)) AS is_org_admin)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "user_roles",
+      "policyname": "user_roles_self_or_admin_read",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "((user_id = ( SELECT auth.uid() AS uid)) OR ( SELECT private.is_org_admin(user_roles.organization_id, ( SELECT auth.uid() AS uid)) AS is_org_admin))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "user_saved_views",
+      "policyname": "user_saved_views_delete_own",
+      "roles": "{authenticated}",
+      "cmd": "DELETE",
+      "qual": "((organization_id = ( SELECT current_org_id() AS current_org_id)) AND (user_id = ( SELECT auth.uid() AS uid)))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "user_saved_views",
+      "policyname": "user_saved_views_insert_own",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "((organization_id = ( SELECT current_org_id() AS current_org_id)) AND (user_id = ( SELECT auth.uid() AS uid)) AND ( SELECT private.is_active_org_member(user_saved_views.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "user_saved_views",
+      "policyname": "user_saved_views_select_own",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "((organization_id = ( SELECT current_org_id() AS current_org_id)) AND (user_id = ( SELECT auth.uid() AS uid)) AND ( SELECT private.is_active_org_member(user_saved_views.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "user_saved_views",
+      "policyname": "user_saved_views_update_own",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "((organization_id = ( SELECT current_org_id() AS current_org_id)) AND (user_id = ( SELECT auth.uid() AS uid)))",
+      "with_check": "((organization_id = ( SELECT current_org_id() AS current_org_id)) AND (user_id = ( SELECT auth.uid() AS uid)) AND ( SELECT private.is_active_org_member(user_saved_views.organization_id, ( SELECT auth.uid() AS uid)) AS is_active_org_member))"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "wa_akg_seller_provisioning_jobs",
+      "policyname": "wa_akg_seller_jobs_backend_only",
+      "roles": "{anon,authenticated}",
+      "cmd": "ALL",
+      "qual": "false",
+      "with_check": "false"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "wa_akg_webhook_events",
+      "policyname": "wa_akg_webhook_events_backend_only",
+      "roles": "{anon,authenticated}",
+      "cmd": "ALL",
+      "qual": "false",
+      "with_check": "false"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "webhook_events",
+      "policyname": "webhook_events_service_only",
+      "roles": "{authenticated}",
+      "cmd": "ALL",
+      "qual": "false",
+      "with_check": "false"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "whatsapp_accounts",
+      "policyname": "whatsapp_accounts_read",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "(private.has_org_permission(organization_id, ( SELECT auth.uid() AS uid), 'channels.manage_all'::text) OR private.has_org_permission(organization_id, ( SELECT auth.uid() AS uid), 'configuration.manage'::text) OR (is_default AND private.is_active_org_member(organization_id, ( SELECT auth.uid() AS uid))) OR ((owner_user_id = ( SELECT auth.uid() AS uid)) AND private.has_org_permission(organization_id, ( SELECT auth.uid() AS uid), 'channels.view_own'::text)))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "whatsapp_conversations",
+      "policyname": "whatsapp_conversations_read",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "(private.has_org_permission(organization_id, ( SELECT auth.uid() AS uid), 'conversations.read_all'::text) OR (private.is_active_org_member(organization_id, ( SELECT auth.uid() AS uid)) AND (owner_user_id = ( SELECT auth.uid() AS uid))) OR (private.is_active_org_member(organization_id, ( SELECT auth.uid() AS uid)) AND (EXISTS ( SELECT 1\n   FROM leads l\n  WHERE ((l.id = whatsapp_conversations.lead_id) AND (l.organization_id = whatsapp_conversations.organization_id) AND ((l.owner_id = ( SELECT auth.uid() AS uid)) OR (l.assigned_to = ( SELECT auth.uid() AS uid))))))))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "whatsapp_site_entries",
+      "policyname": "whatsapp_site_entries_manage",
+      "roles": "{authenticated}",
+      "cmd": "ALL",
+      "qual": "private.has_org_permission(organization_id, ( SELECT auth.uid() AS uid), 'website_entry.manage'::text)",
+      "with_check": "private.has_org_permission(organization_id, ( SELECT auth.uid() AS uid), 'website_entry.manage'::text)"
+    },
+    {
+      "schemaname": "public",
+      "tablename": "whatsapp_sync_state",
+      "policyname": "whatsapp_sync_state_read",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "(private.has_org_permission(organization_id, ( SELECT auth.uid() AS uid), 'channels.manage_all'::text) OR (private.is_active_org_member(organization_id, ( SELECT auth.uid() AS uid)) AND (EXISTS ( SELECT 1\n   FROM whatsapp_accounts a\n  WHERE ((a.id = whatsapp_sync_state.whatsapp_account_id) AND (a.organization_id = whatsapp_sync_state.organization_id) AND (a.owner_user_id = ( SELECT auth.uid() AS uid)))))))",
+      "with_check": null
+    },
+    {
+      "schemaname": "public",
+      "tablename": "whatsapp_templates",
+      "policyname": "whatsapp_templates_read",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "(private.has_org_permission(organization_id, ( SELECT auth.uid() AS uid), 'conversations.read_all'::text) OR (private.is_active_org_member(organization_id, ( SELECT auth.uid() AS uid)) AND (EXISTS ( SELECT 1\n   FROM whatsapp_accounts a\n  WHERE ((a.id = whatsapp_templates.whatsapp_account_id) AND (a.organization_id = whatsapp_templates.organization_id) AND (a.owner_user_id = ( SELECT auth.uid() AS uid)))))))",
+      "with_check": null
+    },
+    {
+      "schemaname": "storage",
+      "tablename": "objects",
+      "policyname": "storage_active_org_delete",
+      "roles": "{authenticated}",
+      "cmd": "DELETE",
+      "qual": "((bucket_id = ANY (ARRAY['docs'::text, 'message-media'::text])) AND ((storage.foldername(name))[1] = (( SELECT current_org_id() AS current_org_id))::text))",
+      "with_check": null
+    },
+    {
+      "schemaname": "storage",
+      "tablename": "objects",
+      "policyname": "storage_active_org_insert",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "((bucket_id = ANY (ARRAY['docs'::text, 'message-media'::text])) AND ((storage.foldername(name))[1] = (( SELECT current_org_id() AS current_org_id))::text))"
+    },
+    {
+      "schemaname": "storage",
+      "tablename": "objects",
+      "policyname": "storage_active_org_read",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "((bucket_id = ANY (ARRAY['docs'::text, 'message-media'::text])) AND ((storage.foldername(name))[1] = (( SELECT current_org_id() AS current_org_id))::text))",
+      "with_check": null
+    },
+    {
+      "schemaname": "storage",
+      "tablename": "objects",
+      "policyname": "storage_active_org_update",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "((bucket_id = ANY (ARRAY['docs'::text, 'message-media'::text])) AND ((storage.foldername(name))[1] = (( SELECT current_org_id() AS current_org_id))::text))",
+      "with_check": "((bucket_id = ANY (ARRAY['docs'::text, 'message-media'::text])) AND ((storage.foldername(name))[1] = (( SELECT current_org_id() AS current_org_id))::text))"
+    },
+    {
+      "schemaname": "storage",
+      "tablename": "objects",
+      "policyname": "storage_ana_knowledge_delete",
+      "roles": "{authenticated}",
+      "cmd": "DELETE",
+      "qual": "((bucket_id = 'ana-knowledge'::text) AND ((storage.foldername(name))[1] = (( SELECT current_org_id() AS current_org_id))::text))",
+      "with_check": null
+    },
+    {
+      "schemaname": "storage",
+      "tablename": "objects",
+      "policyname": "storage_ana_knowledge_insert",
+      "roles": "{authenticated}",
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "((bucket_id = 'ana-knowledge'::text) AND ((storage.foldername(name))[1] = (( SELECT current_org_id() AS current_org_id))::text))"
+    },
+    {
+      "schemaname": "storage",
+      "tablename": "objects",
+      "policyname": "storage_ana_knowledge_read",
+      "roles": "{authenticated}",
+      "cmd": "SELECT",
+      "qual": "((bucket_id = 'ana-knowledge'::text) AND ((storage.foldername(name))[1] = (( SELECT current_org_id() AS current_org_id))::text))",
+      "with_check": null
+    },
+    {
+      "schemaname": "storage",
+      "tablename": "objects",
+      "policyname": "storage_ana_knowledge_update",
+      "roles": "{authenticated}",
+      "cmd": "UPDATE",
+      "qual": "((bucket_id = 'ana-knowledge'::text) AND ((storage.foldername(name))[1] = (( SELECT current_org_id() AS current_org_id))::text))",
+      "with_check": "((bucket_id = 'ana-knowledge'::text) AND ((storage.foldername(name))[1] = (( SELECT current_org_id() AS current_org_id))::text))"
+    }
+  ],
+  "definitions": [
+    {
+      "nspname": "public",
+      "proname": "current_user_access",
+      "returns": "jsonb",
+      "definition": "CREATE OR REPLACE FUNCTION public.current_user_access()\n RETURNS jsonb\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public', 'private'\nAS $function$\n  with context as (\n    select p.active_organization_id as organization_id, m.role\n    from public.profiles p\n    join public.organization_members m\n      on m.organization_id = p.active_organization_id\n     and m.user_id = p.id\n     and m.status = 'active'\n    where p.id = (select auth.uid())\n    limit 1\n  ), permission_names(permission) as (\n    values\n      ('leads.read_all'), ('leads.read_assigned'), ('leads.create'), ('leads.edit_all'),\n      ('leads.edit_assigned'), ('leads.delete'), ('conversations.read_all'),\n      ('conversations.reply_all'), ('conversations.reply_assigned'), ('messages.delete'),\n      ('prospecting.manage'), ('proposals.manage'), ('configuration.manage'),\n      ('website_entry.manage'), ('team.manage'), ('audit.view'),\n      ('channels.view_own'), ('channels.connect_own'), ('channels.manage_all')\n  )\n  select case when not exists (select 1 from context) then null else jsonb_build_object(\n    'organization_id', (select organization_id from context),\n    'role', (select role::text from context),\n    'permissions', (\n      select jsonb_object_agg(permission, private.has_org_permission(\n        (select organization_id from context), (select auth.uid()), permission\n      ))\n      from permission_names\n    )\n  ) end;\n$function$\n"
+    },
+    {
+      "nspname": "public",
+      "proname": "set_active_organization",
+      "returns": "uuid",
+      "definition": "CREATE OR REPLACE FUNCTION public.set_active_organization(_organization_id uuid)\n RETURNS uuid\n LANGUAGE plpgsql\n SET search_path TO 'pg_catalog', 'public', 'private'\nAS $function$\nbegin\n  if auth.uid() is null or not private.is_org_member(_organization_id, auth.uid()) then\n    raise exception 'Organização não disponível para este usuário';\n  end if;\n  update public.profiles\n     set active_organization_id = _organization_id, updated_at = now()\n   where id = auth.uid();\n  return _organization_id;\nend;\n$function$\n"
+    },
+    {
+      "nspname": "private",
+      "proname": "can_access_lead",
+      "returns": "boolean",
+      "definition": "CREATE OR REPLACE FUNCTION private.can_access_lead(_organization_id uuid, _lead_id uuid, _user_id uuid)\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public', 'private'\nAS $function$\n  select private.is_active_org_member(_organization_id, _user_id)\n     and exists (\n       select 1\n       from public.leads l\n       where l.id = _lead_id\n         and l.organization_id = _organization_id\n         and (\n           private.has_org_permission(_organization_id, _user_id, 'leads.read_all')\n           or (\n             private.has_org_permission(_organization_id, _user_id, 'leads.read_assigned')\n             and (l.owner_id = _user_id or l.assigned_to = _user_id)\n           )\n         )\n     );\n$function$\n"
+    },
+    {
+      "nspname": "private",
+      "proname": "can_manage_lead",
+      "returns": "boolean",
+      "definition": "CREATE OR REPLACE FUNCTION private.can_manage_lead(_organization_id uuid, _lead_id uuid, _user_id uuid)\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public', 'private'\nAS $function$\n  select private.is_active_org_member(_organization_id, _user_id)\n     and exists (\n       select 1\n       from public.leads l\n       where l.id = _lead_id\n         and l.organization_id = _organization_id\n         and (\n           private.has_org_permission(_organization_id, _user_id, 'leads.edit_all')\n           or (\n             private.has_org_permission(_organization_id, _user_id, 'leads.edit_assigned')\n             and (l.owner_id = _user_id or l.assigned_to = _user_id)\n           )\n         )\n     );\n$function$\n"
+    },
+    {
+      "nspname": "private",
+      "proname": "has_org_permission",
+      "returns": "boolean",
+      "definition": "CREATE OR REPLACE FUNCTION private.has_org_permission(p_organization_id uuid, p_user_id uuid, p_permission text)\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public', 'private'\nAS $function$\n  with member as (\n    select m.role\n    from public.organization_members m\n    where m.organization_id = p_organization_id\n      and m.user_id = p_user_id\n      and m.status = 'active'\n    limit 1\n  ), explicit_permission as (\n    select p.allowed\n    from public.team_member_permissions p\n    where p.organization_id = p_organization_id\n      and p.user_id = p_user_id\n      and p.permission = p_permission\n  )\n  select exists (select 1 from member)\n    and (\n      exists (select 1 from member where role = 'administrador')\n      or coalesce(\n        (select allowed from explicit_permission),\n        case p_permission\n          when 'leads.read_all' then exists (select 1 from member where role in ('sdr', 'cx'))\n          when 'leads.read_assigned' then exists (select 1 from member where role in ('vendedor', 'sdr', 'cx'))\n          when 'leads.create' then exists (select 1 from member where role in ('vendedor', 'sdr'))\n          when 'leads.edit_all' then exists (select 1 from member where role = 'sdr')\n          when 'leads.edit_assigned' then exists (select 1 from member where role in ('vendedor', 'sdr', 'cx'))\n          when 'conversations.read_all' then exists (select 1 from member where role in ('sdr', 'cx'))\n          when 'conversations.reply_all' then exists (select 1 from member where role in ('sdr', 'cx'))\n          when 'conversations.reply_assigned' then exists (select 1 from member where role = 'vendedor')\n          when 'prospecting.manage' then exists (select 1 from member where role = 'sdr')\n          when 'proposals.manage' then exists (select 1 from member where role in ('vendedor', 'sdr'))\n          when 'channels.view_own' then exists (select 1 from member where role = 'vendedor')\n          when 'channels.connect_own' then exists (select 1 from member where role = 'vendedor')\n          else false\n        end\n      )\n    );\n$function$\n"
+    },
+    {
+      "nspname": "private",
+      "proname": "has_org_role",
+      "returns": "boolean",
+      "definition": "CREATE OR REPLACE FUNCTION private.has_org_role(_organization_id uuid, _user_id uuid, _roles app_role[])\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public', 'private'\nAS $function$\n  select _organization_id is not null\n     and _user_id is not null\n     and exists (\n       select 1\n       from public.organization_members m\n       where m.organization_id = _organization_id\n         and m.user_id = _user_id\n         and m.status = 'active'\n         and m.role = any(_roles)\n     );\n$function$\n"
+    },
+    {
+      "nspname": "private",
+      "proname": "is_active_org_member",
+      "returns": "boolean",
+      "definition": "CREATE OR REPLACE FUNCTION private.is_active_org_member(_organization_id uuid, _user_id uuid)\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public', 'private'\nAS $function$\n  select private.is_org_member(_organization_id, _user_id)\n     and exists (\n       select 1 from public.profiles p\n       where p.id = _user_id and p.active_organization_id = _organization_id\n     );\n$function$\n"
+    },
+    {
+      "nspname": "private",
+      "proname": "is_org_member",
+      "returns": "boolean",
+      "definition": "CREATE OR REPLACE FUNCTION private.is_org_member(_organization_id uuid, _user_id uuid)\n RETURNS boolean\n LANGUAGE sql\n STABLE SECURITY DEFINER\n SET search_path TO 'pg_catalog', 'public', 'private'\nAS $function$\n  select exists (\n    select 1\n    from public.organization_members m\n    where m.organization_id = _organization_id\n      and m.user_id = _user_id\n      and m.status = 'active'\n  );\n$function$\n"
+    }
+  ]
+}

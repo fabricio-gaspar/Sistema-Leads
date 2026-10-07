@@ -1,0 +1,999 @@
+{
+  "observed_at": "2026-10-05T21:26:24.925Z",
+  "operational_snapshot": [
+    {
+      "summary": {
+        "cron": [
+          {
+            "jobid": 2,
+            "active": true,
+            "jobname": "appointment-reminders-sandbox",
+            "schedule": "*/5 * * * *"
+          },
+          {
+            "jobid": 4,
+            "active": true,
+            "jobname": "lead-flow-no-reply-sweep",
+            "schedule": "*/15 * * * *"
+          },
+          {
+            "jobid": 5,
+            "active": true,
+            "jobname": "leadai-automation-worker-dispatch",
+            "schedule": "* * * * *"
+          }
+        ],
+        "accounts": [
+          {
+            "count": 1,
+            "enabled": true,
+            "provider": "zapi",
+            "connection_status": "error"
+          },
+          {
+            "count": 2,
+            "enabled": false,
+            "provider": "evolution_go",
+            "connection_status": "qr"
+          },
+          {
+            "count": 1,
+            "enabled": true,
+            "provider": "zapi",
+            "connection_status": "connected"
+          }
+        ],
+        "outreach": null,
+        "schedules": [
+          {
+            "count": 1,
+            "active": true,
+            "source_key": "apify",
+            "last_run_at": "2026-10-05T12:00:04.269+00:00"
+          }
+        ],
+        "heartbeats": [
+          {
+            "status": "never",
+            "job_name": "outreach",
+            "last_started_at": null,
+            "last_finished_at": null
+          },
+          {
+            "status": "never",
+            "job_name": "prospecting",
+            "last_started_at": null,
+            "last_finished_at": null
+          },
+          {
+            "status": "success",
+            "job_name": "automation_engine",
+            "last_started_at": "2026-10-05T21:24:01.101+00:00",
+            "last_finished_at": "2026-10-05T21:24:01.101+00:00"
+          }
+        ],
+        "observed_at": "2026-10-05T21:24:03.796633+00:00",
+        "recent_cron": [
+          {
+            "count": 12,
+            "jobid": 2,
+            "status": "succeeded",
+            "last_finished": "2026-10-05T21:20:00.165012+00:00"
+          },
+          {
+            "count": 60,
+            "jobid": 5,
+            "status": "succeeded",
+            "last_finished": "2026-10-05T21:24:00.275352+00:00"
+          },
+          {
+            "count": 4,
+            "jobid": 4,
+            "status": "succeeded",
+            "last_finished": "2026-10-05T21:15:00.373198+00:00"
+          }
+        ],
+        "integrations": [
+          {
+            "key": "ai",
+            "paused": false,
+            "enabled": true,
+            "provider": "Claude",
+            "connected": true,
+            "last_error_at": null,
+            "last_tested_at": "2026-09-29T22:45:13.403+00:00",
+            "last_success_at": "2026-09-29T22:45:13.403+00:00"
+          },
+          {
+            "key": "ai",
+            "paused": false,
+            "enabled": true,
+            "provider": "OpenAI",
+            "connected": true,
+            "last_error_at": null,
+            "last_tested_at": null,
+            "last_success_at": null
+          },
+          {
+            "key": "apify",
+            "paused": false,
+            "enabled": false,
+            "provider": "Apify",
+            "connected": false,
+            "last_error_at": null,
+            "last_tested_at": null,
+            "last_success_at": null
+          },
+          {
+            "key": "apify",
+            "paused": false,
+            "enabled": true,
+            "provider": "Apify",
+            "connected": true,
+            "last_error_at": null,
+            "last_tested_at": "2026-09-29T22:46:28.042+00:00",
+            "last_success_at": "2026-09-29T22:46:28.042+00:00"
+          },
+          {
+            "key": "cnpj_ws",
+            "paused": false,
+            "enabled": false,
+            "provider": "CNPJ.ws",
+            "connected": false,
+            "last_error_at": null,
+            "last_tested_at": null,
+            "last_success_at": null
+          },
+          {
+            "key": "cnpj_ws",
+            "paused": false,
+            "enabled": false,
+            "provider": "CNPJ.ws",
+            "connected": false,
+            "last_error_at": null,
+            "last_tested_at": null,
+            "last_success_at": null
+          },
+          {
+            "key": "email",
+            "paused": false,
+            "enabled": false,
+            "provider": "Resend",
+            "connected": false,
+            "last_error_at": null,
+            "last_tested_at": null,
+            "last_success_at": null
+          },
+          {
+            "key": "email",
+            "paused": false,
+            "enabled": true,
+            "provider": "Resend",
+            "connected": true,
+            "last_error_at": null,
+            "last_tested_at": null,
+            "last_success_at": null
+          },
+          {
+            "key": "google_calendar",
+            "paused": false,
+            "enabled": false,
+            "provider": "Google",
+            "connected": false,
+            "last_error_at": null,
+            "last_tested_at": null,
+            "last_success_at": null
+          },
+          {
+            "key": "google_calendar",
+            "paused": false,
+            "enabled": true,
+            "provider": "Google",
+            "connected": true,
+            "last_error_at": null,
+            "last_tested_at": null,
+            "last_success_at": null
+          },
+          {
+            "key": "google_places",
+            "paused": false,
+            "enabled": false,
+            "provider": "Google",
+            "connected": false,
+            "last_error_at": null,
+            "last_tested_at": null,
+            "last_success_at": null
+          },
+          {
+            "key": "google_places",
+            "paused": false,
+            "enabled": false,
+            "provider": "Google",
+            "connected": false,
+            "last_error_at": "2026-09-27T20:07:59.631+00:00",
+            "last_tested_at": null,
+            "last_success_at": null
+          },
+          {
+            "key": "resend_webhook",
+            "paused": false,
+            "enabled": false,
+            "provider": "Resend",
+            "connected": false,
+            "last_error_at": null,
+            "last_tested_at": null,
+            "last_success_at": null
+          },
+          {
+            "key": "resend_webhook",
+            "paused": false,
+            "enabled": false,
+            "provider": "Resend",
+            "connected": false,
+            "last_error_at": null,
+            "last_tested_at": null,
+            "last_success_at": null
+          },
+          {
+            "key": "scheduler",
+            "paused": false,
+            "enabled": true,
+            "provider": "LeadAI",
+            "connected": true,
+            "last_error_at": null,
+            "last_tested_at": "2026-10-05T21:24:01.101+00:00",
+            "last_success_at": "2026-10-05T21:24:01.101+00:00"
+          },
+          {
+            "key": "scheduler",
+            "paused": false,
+            "enabled": false,
+            "provider": "LeadAI",
+            "connected": false,
+            "last_error_at": null,
+            "last_tested_at": null,
+            "last_success_at": null
+          },
+          {
+            "key": "whatsapp",
+            "paused": false,
+            "enabled": true,
+            "provider": "Z-API",
+            "connected": true,
+            "last_error_at": null,
+            "last_tested_at": null,
+            "last_success_at": null
+          },
+          {
+            "key": "whatsapp",
+            "paused": false,
+            "enabled": true,
+            "provider": "Z-API",
+            "connected": false,
+            "last_error_at": "2026-10-04T19:28:30.594+00:00",
+            "last_tested_at": "2026-09-27T19:57:42.961+00:00",
+            "last_success_at": "2026-09-27T19:57:42.961+00:00"
+          },
+          {
+            "key": "whatsapp_evolution_go[account]",
+            "paused": true,
+            "enabled": false,
+            "provider": "Evolution GO",
+            "connected": false,
+            "last_error_at": null,
+            "last_tested_at": null,
+            "last_success_at": null
+          },
+          {
+            "key": "whatsapp_evolution_go[account]",
+            "paused": true,
+            "enabled": false,
+            "provider": "Evolution GO",
+            "connected": false,
+            "last_error_at": null,
+            "last_tested_at": "2026-10-04T20:53:51.414+00:00",
+            "last_success_at": "2026-10-04T20:53:51.414+00:00"
+          },
+          {
+            "key": "zapi_webhook",
+            "paused": false,
+            "enabled": false,
+            "provider": "Z-API",
+            "connected": false,
+            "last_error_at": null,
+            "last_tested_at": null,
+            "last_success_at": null
+          },
+          {
+            "key": "zapi_webhook",
+            "paused": false,
+            "enabled": true,
+            "provider": "Z-API",
+            "connected": false,
+            "last_error_at": null,
+            "last_tested_at": "2026-09-29T13:14:18.693+00:00",
+            "last_success_at": "2026-09-27T19:57:42.961+00:00"
+          }
+        ],
+        "company_states": [
+          {
+            "active": true,
+            "ai_model": "sandbox",
+            "can_use_ia": true,
+            "ai_provider": "openai",
+            "sandbox_mode": true,
+            "ana_operation_mode": "simulation",
+            "ana_operation_enabled": false
+          },
+          {
+            "active": true,
+            "ai_model": "claude-sonnet-4-5-20250929",
+            "can_use_ia": true,
+            "ai_provider": "claude",
+            "sandbox_mode": false,
+            "ana_operation_mode": "automatic",
+            "ana_operation_enabled": true
+          },
+          {
+            "active": true,
+            "ai_model": "claude-sonnet-4-5-20250929",
+            "can_use_ia": true,
+            "ai_provider": "openai",
+            "sandbox_mode": true,
+            "ana_operation_mode": "simulation",
+            "ana_operation_enabled": false
+          }
+        ],
+        "provider_controls": [
+          {
+            "provider": "meta_cloud",
+            "daily_limit": 100,
+            "kill_switch": true,
+            "send_enabled": false,
+            "inbound_enabled": false,
+            "max_delay_seconds": 30,
+            "min_delay_seconds": 10,
+            "automation_enabled": false
+          },
+          {
+            "provider": "meta_cloud",
+            "daily_limit": 100,
+            "kill_switch": true,
+            "send_enabled": false,
+            "inbound_enabled": false,
+            "max_delay_seconds": 30,
+            "min_delay_seconds": 10,
+            "automation_enabled": false
+          },
+          {
+            "provider": "meta_cloud",
+            "daily_limit": 100,
+            "kill_switch": true,
+            "send_enabled": false,
+            "inbound_enabled": false,
+            "max_delay_seconds": 30,
+            "min_delay_seconds": 10,
+            "automation_enabled": false
+          },
+          {
+            "provider": "zapi",
+            "daily_limit": 100,
+            "kill_switch": false,
+            "send_enabled": true,
+            "inbound_enabled": true,
+            "max_delay_seconds": 30,
+            "min_delay_seconds": 10,
+            "automation_enabled": true
+          },
+          {
+            "provider": "evolution_go",
+            "daily_limit": 100,
+            "kill_switch": true,
+            "send_enabled": false,
+            "inbound_enabled": false,
+            "max_delay_seconds": 30,
+            "min_delay_seconds": 10,
+            "automation_enabled": false
+          },
+          {
+            "provider": "evolution_go",
+            "daily_limit": 100,
+            "kill_switch": true,
+            "send_enabled": false,
+            "inbound_enabled": false,
+            "max_delay_seconds": 30,
+            "min_delay_seconds": 10,
+            "automation_enabled": false
+          },
+          {
+            "provider": "evolution_go",
+            "daily_limit": 100,
+            "kill_switch": true,
+            "send_enabled": false,
+            "inbound_enabled": false,
+            "max_delay_seconds": 30,
+            "min_delay_seconds": 10,
+            "automation_enabled": false
+          },
+          {
+            "provider": "wa_akg",
+            "daily_limit": 100,
+            "kill_switch": true,
+            "send_enabled": false,
+            "inbound_enabled": false,
+            "max_delay_seconds": 30,
+            "min_delay_seconds": 10,
+            "automation_enabled": false
+          },
+          {
+            "provider": "wa_akg",
+            "daily_limit": 100,
+            "kill_switch": true,
+            "send_enabled": false,
+            "inbound_enabled": false,
+            "max_delay_seconds": 30,
+            "min_delay_seconds": 10,
+            "automation_enabled": false
+          },
+          {
+            "provider": "wa_akg",
+            "daily_limit": 100,
+            "kill_switch": true,
+            "send_enabled": false,
+            "inbound_enabled": false,
+            "max_delay_seconds": 30,
+            "min_delay_seconds": 10,
+            "automation_enabled": false
+          }
+        ]
+      }
+    }
+  ],
+  "scoped_snapshot": [
+    {
+      "summary": {
+        "companies": [
+          {
+            "active": true,
+            "ai_model": "sandbox",
+            "ai_provider": "openai",
+            "sandbox_mode": true,
+            "ana_operation_mode": "simulation",
+            "organization_alias": "128f7aee",
+            "ana_operation_enabled": false
+          },
+          {
+            "active": true,
+            "ai_model": "claude-sonnet-4-5-20250929",
+            "ai_provider": "claude",
+            "sandbox_mode": false,
+            "ana_operation_mode": "automatic",
+            "organization_alias": "8fb43d41",
+            "ana_operation_enabled": true
+          },
+          {
+            "active": true,
+            "ai_model": "claude-sonnet-4-5-20250929",
+            "ai_provider": "openai",
+            "sandbox_mode": true,
+            "ana_operation_mode": "simulation",
+            "organization_alias": "4cabe35a",
+            "ana_operation_enabled": false
+          }
+        ],
+        "lead_count": 0,
+        "observed_at": "2026-10-05T21:26:07.043139+00:00",
+        "integrations": [
+          {
+            "key": "whatsapp_evolution_go:[account]",
+            "paused": true,
+            "enabled": false,
+            "provider": "Evolution GO",
+            "connected": false,
+            "last_tested_at": null,
+            "last_success_at": null,
+            "organization_alias": "8fb43d41"
+          },
+          {
+            "key": "whatsapp",
+            "paused": false,
+            "enabled": true,
+            "provider": "Z-API",
+            "connected": false,
+            "last_tested_at": "2026-09-27T19:57:42.961+00:00",
+            "last_success_at": "2026-09-27T19:57:42.961+00:00",
+            "organization_alias": "8fb43d41"
+          },
+          {
+            "key": "ai",
+            "paused": false,
+            "enabled": true,
+            "provider": "Claude",
+            "connected": true,
+            "last_tested_at": "2026-09-29T22:45:13.403+00:00",
+            "last_success_at": "2026-09-29T22:45:13.403+00:00",
+            "organization_alias": "8fb43d41"
+          },
+          {
+            "key": "ai",
+            "paused": false,
+            "enabled": true,
+            "provider": "OpenAI",
+            "connected": true,
+            "last_tested_at": null,
+            "last_success_at": null,
+            "organization_alias": "128f7aee"
+          },
+          {
+            "key": "apify",
+            "paused": false,
+            "enabled": true,
+            "provider": "Apify",
+            "connected": true,
+            "last_tested_at": "2026-09-29T22:46:28.042+00:00",
+            "last_success_at": "2026-09-29T22:46:28.042+00:00",
+            "organization_alias": "8fb43d41"
+          },
+          {
+            "key": "whatsapp",
+            "paused": false,
+            "enabled": true,
+            "provider": "Z-API",
+            "connected": true,
+            "last_tested_at": null,
+            "last_success_at": null,
+            "organization_alias": "128f7aee"
+          },
+          {
+            "key": "email",
+            "paused": false,
+            "enabled": true,
+            "provider": "Resend",
+            "connected": true,
+            "last_tested_at": null,
+            "last_success_at": null,
+            "organization_alias": "128f7aee"
+          },
+          {
+            "key": "google_places",
+            "paused": false,
+            "enabled": false,
+            "provider": "Google",
+            "connected": false,
+            "last_tested_at": null,
+            "last_success_at": null,
+            "organization_alias": "128f7aee"
+          },
+          {
+            "key": "apify",
+            "paused": false,
+            "enabled": false,
+            "provider": "Apify",
+            "connected": false,
+            "last_tested_at": null,
+            "last_success_at": null,
+            "organization_alias": "128f7aee"
+          },
+          {
+            "key": "cnpj_ws",
+            "paused": false,
+            "enabled": false,
+            "provider": "CNPJ.ws",
+            "connected": false,
+            "last_tested_at": null,
+            "last_success_at": null,
+            "organization_alias": "128f7aee"
+          },
+          {
+            "key": "google_calendar",
+            "paused": false,
+            "enabled": true,
+            "provider": "Google",
+            "connected": true,
+            "last_tested_at": null,
+            "last_success_at": null,
+            "organization_alias": "128f7aee"
+          },
+          {
+            "key": "scheduler",
+            "paused": false,
+            "enabled": false,
+            "provider": "LeadAI",
+            "connected": false,
+            "last_tested_at": null,
+            "last_success_at": null,
+            "organization_alias": "128f7aee"
+          },
+          {
+            "key": "zapi_webhook",
+            "paused": false,
+            "enabled": false,
+            "provider": "Z-API",
+            "connected": false,
+            "last_tested_at": null,
+            "last_success_at": null,
+            "organization_alias": "128f7aee"
+          },
+          {
+            "key": "resend_webhook",
+            "paused": false,
+            "enabled": false,
+            "provider": "Resend",
+            "connected": false,
+            "last_tested_at": null,
+            "last_success_at": null,
+            "organization_alias": "128f7aee"
+          },
+          {
+            "key": "email",
+            "paused": false,
+            "enabled": false,
+            "provider": "Resend",
+            "connected": false,
+            "last_tested_at": null,
+            "last_success_at": null,
+            "organization_alias": "8fb43d41"
+          },
+          {
+            "key": "cnpj_ws",
+            "paused": false,
+            "enabled": false,
+            "provider": "CNPJ.ws",
+            "connected": false,
+            "last_tested_at": null,
+            "last_success_at": null,
+            "organization_alias": "8fb43d41"
+          },
+          {
+            "key": "google_calendar",
+            "paused": false,
+            "enabled": false,
+            "provider": "Google",
+            "connected": false,
+            "last_tested_at": null,
+            "last_success_at": null,
+            "organization_alias": "8fb43d41"
+          },
+          {
+            "key": "resend_webhook",
+            "paused": false,
+            "enabled": false,
+            "provider": "Resend",
+            "connected": false,
+            "last_tested_at": null,
+            "last_success_at": null,
+            "organization_alias": "8fb43d41"
+          },
+          {
+            "key": "zapi_webhook",
+            "paused": false,
+            "enabled": true,
+            "provider": "Z-API",
+            "connected": false,
+            "last_tested_at": "2026-09-29T13:14:18.693+00:00",
+            "last_success_at": "2026-09-27T19:57:42.961+00:00",
+            "organization_alias": "8fb43d41"
+          },
+          {
+            "key": "whatsapp_evolution_go:[account]",
+            "paused": true,
+            "enabled": false,
+            "provider": "Evolution GO",
+            "connected": false,
+            "last_tested_at": "2026-10-04T20:53:51.414+00:00",
+            "last_success_at": "2026-10-04T20:53:51.414+00:00",
+            "organization_alias": "8fb43d41"
+          },
+          {
+            "key": "google_places",
+            "paused": false,
+            "enabled": false,
+            "provider": "Google",
+            "connected": false,
+            "last_tested_at": null,
+            "last_success_at": null,
+            "organization_alias": "8fb43d41"
+          },
+          {
+            "key": "scheduler",
+            "paused": false,
+            "enabled": true,
+            "provider": "LeadAI",
+            "connected": true,
+            "last_tested_at": "2026-10-05T21:26:01.016+00:00",
+            "last_success_at": "2026-10-05T21:26:01.016+00:00",
+            "organization_alias": "8fb43d41"
+          }
+        ],
+        "wa_akg_events": 0,
+        "outreach_count": 0,
+        "wa_akg_accounts": 0,
+        "meta_outbox_count": 0,
+        "wa_akg_provisioning": 0,
+        "evolution_event_count": 0
+      }
+    }
+  ],
+  "provider_controls": [
+    {
+      "organization_alias": "128f7aee",
+      "provider": "evolution_go",
+      "inbound_enabled": false,
+      "send_enabled": false,
+      "automation_enabled": false,
+      "kill_switch": true
+    },
+    {
+      "organization_alias": "128f7aee",
+      "provider": "meta_cloud",
+      "inbound_enabled": false,
+      "send_enabled": false,
+      "automation_enabled": false,
+      "kill_switch": true
+    },
+    {
+      "organization_alias": "128f7aee",
+      "provider": "wa_akg",
+      "inbound_enabled": false,
+      "send_enabled": false,
+      "automation_enabled": false,
+      "kill_switch": true
+    },
+    {
+      "organization_alias": "4cabe35a",
+      "provider": "evolution_go",
+      "inbound_enabled": false,
+      "send_enabled": false,
+      "automation_enabled": false,
+      "kill_switch": true
+    },
+    {
+      "organization_alias": "4cabe35a",
+      "provider": "meta_cloud",
+      "inbound_enabled": false,
+      "send_enabled": false,
+      "automation_enabled": false,
+      "kill_switch": true
+    },
+    {
+      "organization_alias": "4cabe35a",
+      "provider": "wa_akg",
+      "inbound_enabled": false,
+      "send_enabled": false,
+      "automation_enabled": false,
+      "kill_switch": true
+    },
+    {
+      "organization_alias": "8fb43d41",
+      "provider": "evolution_go",
+      "inbound_enabled": false,
+      "send_enabled": false,
+      "automation_enabled": false,
+      "kill_switch": true
+    },
+    {
+      "organization_alias": "8fb43d41",
+      "provider": "meta_cloud",
+      "inbound_enabled": false,
+      "send_enabled": false,
+      "automation_enabled": false,
+      "kill_switch": true
+    },
+    {
+      "organization_alias": "8fb43d41",
+      "provider": "wa_akg",
+      "inbound_enabled": false,
+      "send_enabled": false,
+      "automation_enabled": false,
+      "kill_switch": true
+    },
+    {
+      "organization_alias": "8fb43d41",
+      "provider": "zapi",
+      "inbound_enabled": true,
+      "send_enabled": true,
+      "automation_enabled": true,
+      "kill_switch": false
+    }
+  ],
+  "function_comparisons": [
+    {
+      "function": "wa-akg",
+      "version": 1,
+      "remoteFile": "wa-akg/index.ts",
+      "localFile": "supabase/functions/wa-akg/index.ts",
+      "localExists": true,
+      "identical": true,
+      "localOutputTruncated": false
+    },
+    {
+      "function": "wa-akg",
+      "version": 1,
+      "remoteFile": "_shared/auth.ts",
+      "localFile": "supabase/functions/_shared/auth.ts",
+      "localExists": true,
+      "identical": true,
+      "localOutputTruncated": false
+    },
+    {
+      "function": "wa-akg",
+      "version": 1,
+      "remoteFile": "_shared/permissions.ts",
+      "localFile": "supabase/functions/_shared/permissions.ts",
+      "localExists": true,
+      "identical": true,
+      "localOutputTruncated": false
+    },
+    {
+      "function": "wa-akg",
+      "version": 1,
+      "remoteFile": "_shared/http.ts",
+      "localFile": "supabase/functions/_shared/http.ts",
+      "localExists": true,
+      "identical": false,
+      "localOutputTruncated": false
+    },
+    {
+      "function": "wa-akg",
+      "version": 1,
+      "remoteFile": "_shared/messaging/WaAkgProvider.ts",
+      "localFile": "supabase/functions/_shared/messaging/WaAkgProvider.ts",
+      "localExists": true,
+      "identical": true,
+      "localOutputTruncated": false
+    },
+    {
+      "function": "wa-akg",
+      "version": 1,
+      "remoteFile": "deno.json",
+      "localFile": "supabase/functions/deno.json",
+      "localExists": true,
+      "identical": true,
+      "localOutputTruncated": false
+    },
+    {
+      "function": "webhook-wa-akg",
+      "version": 1,
+      "remoteFile": "webhook-wa-akg/index.ts",
+      "localFile": "supabase/functions/webhook-wa-akg/index.ts",
+      "localExists": true,
+      "identical": true,
+      "localOutputTruncated": false
+    },
+    {
+      "function": "webhook-wa-akg",
+      "version": 1,
+      "remoteFile": "_shared/auth.ts",
+      "localFile": "supabase/functions/_shared/auth.ts",
+      "localExists": true,
+      "identical": true,
+      "localOutputTruncated": false
+    },
+    {
+      "function": "webhook-wa-akg",
+      "version": 1,
+      "remoteFile": "_shared/permissions.ts",
+      "localFile": "supabase/functions/_shared/permissions.ts",
+      "localExists": true,
+      "identical": true,
+      "localOutputTruncated": false
+    },
+    {
+      "function": "webhook-wa-akg",
+      "version": 1,
+      "remoteFile": "_shared/http.ts",
+      "localFile": "supabase/functions/_shared/http.ts",
+      "localExists": true,
+      "identical": false,
+      "localOutputTruncated": false
+    },
+    {
+      "function": "webhook-wa-akg",
+      "version": 1,
+      "remoteFile": "_shared/waAkgInbound.ts",
+      "localFile": "supabase/functions/_shared/waAkgInbound.ts",
+      "localExists": true,
+      "identical": true,
+      "localOutputTruncated": false
+    },
+    {
+      "function": "webhook-wa-akg",
+      "version": 1,
+      "remoteFile": "deno.json",
+      "localFile": "supabase/functions/deno.json",
+      "localExists": true,
+      "identical": true,
+      "localOutputTruncated": false
+    },
+    {
+      "function": "wa-akg-worker",
+      "version": 1,
+      "remoteFile": "wa-akg-worker/index.ts",
+      "localFile": "supabase/functions/wa-akg-worker/index.ts",
+      "localExists": true,
+      "identical": true,
+      "localOutputTruncated": false
+    },
+    {
+      "function": "wa-akg-worker",
+      "version": 1,
+      "remoteFile": "_shared/auth.ts",
+      "localFile": "supabase/functions/_shared/auth.ts",
+      "localExists": true,
+      "identical": true,
+      "localOutputTruncated": false
+    },
+    {
+      "function": "wa-akg-worker",
+      "version": 1,
+      "remoteFile": "_shared/permissions.ts",
+      "localFile": "supabase/functions/_shared/permissions.ts",
+      "localExists": true,
+      "identical": true,
+      "localOutputTruncated": false
+    },
+    {
+      "function": "wa-akg-worker",
+      "version": 1,
+      "remoteFile": "_shared/http.ts",
+      "localFile": "supabase/functions/_shared/http.ts",
+      "localExists": true,
+      "identical": false,
+      "localOutputTruncated": false
+    },
+    {
+      "function": "wa-akg-worker",
+      "version": 1,
+      "remoteFile": "_shared/messaging/WaAkgProvider.ts",
+      "localFile": "supabase/functions/_shared/messaging/WaAkgProvider.ts",
+      "localExists": true,
+      "identical": true,
+      "localOutputTruncated": false
+    },
+    {
+      "function": "wa-akg-worker",
+      "version": 1,
+      "remoteFile": "deno.json",
+      "localFile": "supabase/functions/deno.json",
+      "localExists": true,
+      "identical": true,
+      "localOutputTruncated": false
+    },
+    {
+      "function": "enviar-email",
+      "version": 2,
+      "remoteFile": "index.ts",
+      "localFile": "supabase/functions/enviar-email/index.ts",
+      "localExists": true,
+      "identical": true,
+      "localOutputTruncated": false
+    },
+    {
+      "function": "enviar-email",
+      "version": 2,
+      "remoteFile": "_shared/auth.ts",
+      "localFile": "supabase/functions/_shared/auth.ts",
+      "localExists": true,
+      "identical": false,
+      "localOutputTruncated": false
+    },
+    {
+      "function": "enviar-email",
+      "version": 2,
+      "remoteFile": "_shared/http.ts",
+      "localFile": "supabase/functions/_shared/http.ts",
+      "localExists": true,
+      "identical": false,
+      "localOutputTruncated": false
+    },
+    {
+      "function": "enviar-email",
+      "version": 2,
+      "remoteFile": "deno.json",
+      "localFile": "supabase/functions/deno.json",
+      "localExists": true,
+      "identical": false,
+      "localOutputTruncated": false
+    }
+  ]
+}

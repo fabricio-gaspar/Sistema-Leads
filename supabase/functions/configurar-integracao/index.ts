@@ -77,12 +77,15 @@ Deno.serve(async (request) => {
         .select('id,provider,connected,enabled,paused,last_tested_at,last_error')
         .eq('organization_id', organizationId).eq('key', canal).maybeSingle();
       if (currentError || !current) throw new Error('integration_not_found');
-      if (body.enabled === true && (current.connected !== true || current.paused === true || Boolean(current.last_error) || !current.last_tested_at)) {
+      if (body.enabled === true && (current.connected !== true || Boolean(current.last_error) || !current.last_tested_at)) {
         throw new Error('integration_validation_required');
       }
       const now = new Date().toISOString();
       const { error: integrationError } = await admin.from('integrations').update({
         enabled: body.enabled,
+        // A pausa existe para interromper o uso, não para apagar a configuração.
+        // Uma reativação validada precisa limpar esse bloqueio explícito.
+        paused: body.enabled ? false : current.paused,
         updated_at: now,
         status_detail: body.enabled ? 'Uso operacional habilitado após validação confirmada.' : 'Uso operacional desativado; configuração preservada.',
       }).eq('id', current.id).eq('organization_id', organizationId);
@@ -101,7 +104,7 @@ Deno.serve(async (request) => {
         detail: body.enabled ? 'Uso operacional habilitado após validação.' : 'Uso operacional desativado sem remover credenciais.',
         entity_table: 'integrations',
         entity_id: current.id,
-        event_data: { enabled: body.enabled, previous_enabled: current.enabled },
+        event_data: { enabled: body.enabled, previous_enabled: current.enabled, previous_paused: current.paused },
       });
       return json({ ok: true, enabled: body.enabled }, 200, headers);
     }

@@ -41,7 +41,7 @@ describe('late inbound messages do not roll back the transferred channel', () =>
   const handlers = [
     '../functions/webhook-whatsapp/index.ts',
     '../functions/webhook-meta-whatsapp/index.ts',
-    '../functions/evolution-go-worker/index.ts',
+    '../migrations/20261005223517_audit_r6_r7_messaging_recovery.sql',
   ].map((path) => readFileSync(new URL(path, import.meta.url), 'utf8'));
 
   it.each(handlers)('guards the active account in every inbound handler', (source) => {

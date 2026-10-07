@@ -36,6 +36,7 @@ let auditLogs: Row[];
 let edgeEnv: Record<string, string | undefined>;
 let handler: (request: Request) => Promise<Response>;
 let fetchMock: ReturnType<typeof vi.fn>;
+let remoteStarted: boolean;
 
 const ok = (data: unknown): Result => ({ data, error: null });
 
@@ -78,6 +79,37 @@ function updateRows(rows: Row[], query: Query): Row[] {
 function execute(query: Query): Result {
   calls.push({ ...query, filters: { ...query.filters }, value: query.value ? { ...query.value } : undefined });
   if (query.operation === 'rpc') {
+    if (query.table === 'claim_whatsapp_provisioning') {
+      const job = jobs.find(row => row.id === query.value?.p_job_id && ['queued','failed'].includes(String(row.state)));
+      if (!job) return ok(null);
+      job.state = 'processing'; remoteStarted = false;
+      return ok({ ...job, operation_id: 'synthetic-operation', revision: 1, account_id: job.whatsapp_account_id });
+    }
+    if (query.table === 'check_whatsapp_provisioning') {
+      remoteStarted ||= query.value?.p_mutating === true;
+      return ok({ current: true });
+    }
+    if (query.table === 'save_whatsapp_provisioning_secret') {
+      secrets.set(sellerIntegrationId, { ...(query.value?.p_secret as Row) }); return ok(true);
+    }
+    if (query.table === 'finish_whatsapp_provisioning') {
+      const result = query.value?.p_result as Row;
+      const status = result.success ? 'completed' : remoteStarted ? 'needs_review' : 'failed';
+      Object.assign(jobs[0], { state: result.success ? 'awaiting_qr' : status, last_error_code: result.error_code ?? null });
+      return ok({ state: status });
+    }
+    const event = events.find(row => row.id === query.value?.p_event_id);
+    if (query.table === 'claim_whatsapp_webhook_event') {
+      if (!event || event.processing_status !== 'queued') return ok(null);
+      Object.assign(event, { processing_status: 'processing', lease_id: 'synthetic-lease' }); return ok({ ...event });
+    }
+    if (query.table === 'finish_whatsapp_webhook_event') {
+      Object.assign(event ?? {}, { processing_status: query.value?.p_state, error_code: query.value?.p_error_code }); return ok(true);
+    }
+    if (query.table === 'persist_whatsapp_inbound') {
+      Object.assign(event ?? {}, { processing_status: 'ignored', error_code: 'whatsapp_inbound_route_disabled' });
+      return ok({ review: true, reason: 'whatsapp_inbound_route_disabled' });
+    }
     if (query.table === 'read_integration_secret') {
       return ok(secrets.get(String(query.value?.p_integration)) ?? {});
     }
@@ -204,7 +236,7 @@ beforeEach(() => {
     },
   ];
   integrations = [
-    { id: corporateIntegrationId, organization_id: organizationId, provider: 'Evolution GO', configuration: {} },
+    { id: corporateIntegrationId, organization_id: organizationId, provider: 'Evolution GO', configuration: { server_validation: { status: 'passed' } } },
     { id: sellerIntegrationId, organization_id: organizationId, provider: 'Evolution GO', configuration: {}, enabled: false, connected: false, paused: true },
   ];
   secrets = new Map([
@@ -232,6 +264,29 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('Evolution GO seller provisioning worker', () => {
+  it('does not treat a legacy server without validation state as approved', async () => {
+    integrations[0].configuration = {};
+    await import('../functions/evolution-go-worker/index');
+
+    const response = await handler(workerRequest());
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ ok: true, provisioned: 0, provisioning_failed: 1 });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(jobs[0]).toMatchObject({ state: 'failed', last_error_code: 'evolution_go_server_validation_required' });
+  });
+
+  it('does not provision a seller while the new corporate server validation is pending', async () => {
+    integrations[0].configuration = { server_validation: { status: 'not_tested' } };
+    await import('../functions/evolution-go-worker/index');
+
+    const response = await handler(workerRequest());
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ ok: true, provisioned: 0, provisioning_failed: 1 });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(jobs[0]).toMatchObject({ state: 'failed', last_error_code: 'evolution_go_server_validation_required' });
+    expect(calls.filter((call) => call.table === 'read_integration_secret')).toHaveLength(0);
+  });
+
   it('uses only the organization corporate Vault credentials and stores the provider-issued ID', async () => {
     await import('../functions/evolution-go-worker/index');
 
@@ -267,7 +322,7 @@ describe('Evolution GO seller provisioning worker', () => {
     expect(JSON.stringify({ body, auditLogs, calls })).not.toContain('synthetic-global-key-must-not-leak');
   });
 
-  it('falls back only when the complete legacy environment pair is configured', async () => {
+  it('does not bypass the corporate Vault with legacy environment credentials', async () => {
     secrets.set(corporateIntegrationId, {});
     edgeEnv.EVOLUTION_GO_BASE_URL = 'https://evo-eisenflow.kz3solucoes.cloud';
     edgeEnv.EVOLUTION_GO_GLOBAL_API_KEY = 'synthetic-legacy-global-key-must-not-leak';
@@ -276,9 +331,9 @@ describe('Evolution GO seller provisioning worker', () => {
     const response = await handler(workerRequest());
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ ok: true, provisioned: 1 });
-    const providerRequest = fetchMock.mock.calls.find(([url]) => new URL(String(url)).pathname === '/instance/create');
-    expect((providerRequest?.[1] as RequestInit).headers).toMatchObject({ apikey: 'synthetic-legacy-global-key-must-not-leak' });
+    expect(await response.json()).toMatchObject({ ok: true, provisioned: 0, provisioning_failed: 1 });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(jobs[0]).toMatchObject({ state: 'failed', last_error_code: 'evolution_go_global_credentials_missing' });
   });
 
   it('fails safely without contacting Evolution when neither corporate Vault nor legacy environment credentials are complete', async () => {
@@ -345,7 +400,7 @@ describe('Evolution GO seller provisioning worker', () => {
     expect(await response.json()).toMatchObject({ ok: true, processed: 0, failed: 0 });
     expect(events[0]).toMatchObject({
       processing_status: 'ignored',
-      error_code: 'evolution_go_account_disabled',
+      error_code: 'whatsapp_inbound_route_disabled',
     });
     expect(fetchMock).not.toHaveBeenCalled();
   });

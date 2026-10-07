@@ -1,0 +1,20 @@
+PASS Revisão não entra no pipeline
+PASS Contato pendente não retira lead atribuído
+PASS Arquivados não entram nos indicadores
+PASS Ganhos e perdas permanecem distintos
+PASS Base zero não gera percentual
+PASS Janela inclusiva e comparação sem sobreposição
+PASS Fuso de São Paulo preserva a data do cadastro
+PASS Ano bissexto preservado
+PASS Desconto aplicado uma vez e arredondado em centavos
+PASS Rascunho não infla previsão, aceite é separado
+PASS Totais por origem incluem propostas de leads antigos
+PASS Backlog independe da idade do cadastro
+PASS Falha e fila não são envios aceitos
+PASS Etapa atual não inventa conversão histórica
+PASS Preço desconhecido não é gratuidade
+PASS Paginação aceita limite menor do servidor
+PASS Página com falha não retorna total parcial
+17 verificações determinísticas concluídas; sem rede ou dados operacionais.
+
+STDERR

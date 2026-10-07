@@ -59,9 +59,10 @@ describe('EvolutionGoProvider', () => {
       .mockResolvedValueOnce(new Response(JSON.stringify({ data: { qrcode: 'data:image/png;base64,synthetic', code: '123-456' } }), { status: 200 }))
       .mockResolvedValueOnce(new Response(JSON.stringify({ data: { pairingCode: 'ABC-123' } }), { status: 200 }));
     const provider = new EvolutionGoProvider({ baseUrl: 'https://evolution.wayflex.example', instanceToken: 'token', allowedOrigins, fetchImpl: fetchMock });
-    await expect(provider.status()).resolves.toEqual({ connected: true, loggedIn: true, phone: '5511988887777@s.whatsapp.net', name: 'Comercial' });
+    await expect(provider.status()).resolves.toEqual({ connected: true, loggedIn: true, phone: '5511988887777@s.whatsapp.net', name: 'Comercial', confirmed: true });
     await expect(provider.qr()).resolves.toMatchObject({ qrcode: 'data:image/png;base64,synthetic', pairingCode: '123-456' });
     await expect(provider.pair('5511988887777')).resolves.toBe('ABC-123');
+    expect(String(fetchMock.mock.calls[1][0])).toBe('https://evolution.wayflex.example/instance/qr');
   });
 
   it('reads status and pairing code field casing used by Evolution GO v0.7', async () => {
@@ -71,8 +72,24 @@ describe('EvolutionGoProvider', () => {
       .mockResolvedValueOnce(new Response(JSON.stringify({ data: { PairingCode: '87654321' } }), { status: 200 }));
     const provider = new EvolutionGoProvider({ baseUrl: 'https://evolution.wayflex.example', instanceToken: 'token', allowedOrigins, fetchImpl: fetchMock });
 
-    await expect(provider.status()).resolves.toEqual({ connected: true, loggedIn: true, phone: undefined, name: 'Comercial GO' });
+    await expect(provider.status()).resolves.toEqual({ connected: true, loggedIn: true, phone: undefined, name: 'Comercial GO', confirmed: true });
     await expect(provider.pair('5511988887777')).resolves.toBe('87654321');
+  });
+
+  it.each([
+    { label: 'absent fields', data: {}, connected: false, loggedIn: false, confirmed: false },
+    { label: 'explicitly disconnected', data: { connected: false, loggedIn: false }, connected: false, loggedIn: false, confirmed: true },
+    { label: 'incomplete connection', data: { connected: true }, connected: true, loggedIn: false, confirmed: false },
+    { label: 'string booleans', data: { connected: 'true', loggedIn: 'true' }, connected: false, loggedIn: false, confirmed: false },
+    { label: 'malformed original casing', data: { Connected: true, LoggedIn: 'true' }, connected: true, loggedIn: false, confirmed: false },
+  ])('requires explicit boolean evidence for status confirmation: $label', async ({ data, connected, loggedIn, confirmed }) => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ data }), { status: 200 }));
+    const provider = new EvolutionGoProvider({ baseUrl: 'https://evolution.wayflex.example', instanceToken: 'token', allowedOrigins, fetchImpl: fetchMock });
+
+    await expect(provider.status()).resolves.toEqual({ connected, loggedIn, phone: undefined, name: undefined, confirmed });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(String(fetchMock.mock.calls[0][0])).toBe('https://evolution.wayflex.example/instance/status');
+    expect(fetchMock.mock.calls[0][1]?.method).toBe('GET');
   });
 
   it('uses Evolution GO v0.7 event names while connecting and renders the image returned in code', async () => {
@@ -86,8 +103,18 @@ describe('EvolutionGoProvider', () => {
     await expect(provider.qr()).resolves.toMatchObject({ qrcode: 'data:image/png;base64,synthetic' });
     expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({
       webhookUrl: 'https://crm.wayflex.example/webhook',
+      immediate: true,
       subscribe: ['MESSAGE', 'SEND_MESSAGE', 'READ_RECEIPT', 'CONNECTION', 'QRCODE'],
     });
+  });
+
+  it('can explicitly defer the runtime only when a caller requests it', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ data: {} }), { status: 200 }));
+    const provider = new EvolutionGoProvider({ baseUrl: 'https://evolution.wayflex.example', instanceToken: 'token', allowedOrigins, fetchImpl: fetchMock });
+
+    await provider.connect({ webhookUrl: 'https://crm.wayflex.example/webhook', immediate: false });
+
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toMatchObject({ immediate: false });
   });
 
   it('sends a pairing request with only the phone and accepts the documented data.code response', async () => {
@@ -96,5 +123,16 @@ describe('EvolutionGoProvider', () => {
 
     await expect(provider.pair('+55 (11) 98888-7777')).resolves.toBe('12345678');
     expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({ phone: '5511988887777' });
+  });
+
+  it.each([
+    ['no QR code available. Please wait a moment and try again', 'evolution_go_qr_pending'],
+    ['failed to start instance: upstream detail', 'evolution_go_qr_start_failed'],
+    ['invalid QR code format', 'evolution_go_qr_invalid_format'],
+    ['session already logged in', 'evolution_go_instance_already_connected'],
+  ])('classifies the documented QR rejection without exposing the provider body: %s', async (upstream, expected) => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ error: upstream }), { status: 400 }));
+    const provider = new EvolutionGoProvider({ baseUrl: 'https://evolution.wayflex.example', instanceToken: 'token', allowedOrigins, fetchImpl: fetchMock });
+    await expect(provider.qr()).rejects.toThrow(expected);
   });
 });

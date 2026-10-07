@@ -27,6 +27,7 @@ export interface EvolutionGoStatus {
   loggedIn: boolean;
   phone?: string;
   name?: string;
+  confirmed?: boolean;
 }
 
 export interface EvolutionGoQrCode {
@@ -60,6 +61,19 @@ function upstreamErrorFlags(payload: ObjectValue): Record<string, boolean> {
     authentication: /auth|token|apikey|api key|credential/.test(values),
     retry: /retry|again|aguarde|wait|later/.test(values),
   };
+}
+
+function qrFailureCode(path: string, status: number, payload: ObjectValue): string | null {
+  if (path !== '/instance/qr' || status !== 400) return null;
+  const error = typeof payload.error === 'string' ? payload.error : payload.message;
+  if (typeof error !== 'string') return null;
+  // These are the fixed errors returned by Evolution GO 0.7.2. Never return
+  // the upstream body: a reverse proxy may include credentials in it.
+  if (error === 'session already logged in') return 'evolution_go_instance_already_connected';
+  if (error.startsWith('failed to start instance:')) return 'evolution_go_qr_start_failed';
+  if (error === 'invalid QR code format') return 'evolution_go_qr_invalid_format';
+  if (error === 'no QR code available. Please wait a moment and try again') return 'evolution_go_qr_pending';
+  return null;
 }
 
 function safeRecipient(value: string): string {
@@ -201,6 +215,8 @@ export class EvolutionGoProvider implements MessagingProvider {
         response_keys: Object.keys(payload).sort(),
         error_flags: upstreamErrorFlags(payload),
       });
+      const qrCode = qrFailureCode(path, response.status, payload);
+      if (qrCode) throw new Error(qrCode);
       throw new Error(`evolution_go_request_rejected_${providerCode}`);
     }
     return payload;
@@ -233,6 +249,7 @@ export class EvolutionGoProvider implements MessagingProvider {
       loggedIn: data.loggedIn === true || data.LoggedIn === true,
       phone: stringValue(data.myJid ?? data.MyJid ?? data.phone ?? data.Phone),
       name: stringValue(data.name ?? data.Name),
+      confirmed: typeof (data.connected ?? data.Connected) === 'boolean' && typeof (data.loggedIn ?? data.LoggedIn) === 'boolean',
     };
   }
 
@@ -246,16 +263,20 @@ export class EvolutionGoProvider implements MessagingProvider {
       // Keep the subscription narrowly scoped to the families this CRM uses.
       body: JSON.stringify({
         webhookUrl,
+        // Compatible builds may use this flag; Evolution GO 0.7.2 starts the
+        // client on /instance/connect independently of it.
+        immediate: options.immediate !== false,
         subscribe: options.subscribe === false ? [] : ['MESSAGE', 'SEND_MESSAGE', 'READ_RECEIPT', 'CONNECTION', 'QRCODE'],
       }),
     });
   }
 
   async qr(): Promise<EvolutionGoQrCode> {
-    // QR codes have a short lifetime. A unique benign query parameter and
-    // explicit no-store directives prevent a CDN/reverse proxy from returning
-    // an already-expired code to the operator.
-    const payload = await this.request(`/instance/qr?request=${crypto.randomUUID()}`, {
+    // QR codes have a short lifetime. Cache directives prevent a CDN/reverse
+    // proxy from returning an expired image. Do not add a cache-busting query
+    // parameter here: Evolution GO 0.7.x validates this route strictly and
+    // rejects unexpected query parameters with HTTP 400.
+    const payload = await this.request('/instance/qr', {
       method: 'GET',
       cache: 'no-store',
       headers: { 'Cache-Control': 'no-store, no-cache, max-age=0', Pragma: 'no-cache' },

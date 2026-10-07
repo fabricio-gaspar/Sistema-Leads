@@ -1,4 +1,5 @@
 import type { WaAkgChannelStatus } from '@/lib/crm/whatsappAccountsRepository';
+import { channelLifecycleBlocked } from './channelLifecycle';
 
 /**
  * A seller may complete their own QR ceremony, but the Central is only ready
@@ -8,7 +9,7 @@ import type { WaAkgChannelStatus } from '@/lib/crm/whatsappAccountsRepository';
  */
 export function isWaAkgOperational(status: WaAkgChannelStatus | null | undefined): boolean {
   return Boolean(
-    status?.account?.enabled
+    !channelLifecycleBlocked(status?.lifecycle) && status?.account?.enabled
       && status.account.connectionStatus === 'connected'
       && status.integration?.connected === true
       && status.integration.enabled === true

@@ -42,7 +42,7 @@ async function candidatesForOrganization(admin: ReturnType<typeof createAdminCli
   if (error) throw new Error('test_lead_candidates_read_failed');
 
   const selected = (leads ?? []).map((lead) => ({ lead, reason: candidateReason(lead as Record<string, unknown>) }))
-    .filter((item): item is { lead: Record<string, unknown>; reason: string } => Boolean(item.reason));
+    .filter((item): item is typeof item & { reason: string } => Boolean(item.reason));
   const ids = selected.map((item) => text(item.lead.id, 80)).filter(Boolean);
   if (!ids.length) return [];
 

@@ -1,7 +1,13 @@
 import { supabase } from '@/lib/supabase';
+import { canonicalStageKeys, isTerminalStage, type CanonicalStageKey } from '@/lib/crm/leadStageRepository';
 
-export const handoffStages = ['novo', 'apresentado', 'qualificando', 'reuniao', 'orcamento'] as const;
-export type HandoffStage = typeof handoffStages[number];
+export type HandoffStage = Exclude<CanonicalStageKey, 'ganho' | 'perdido'>;
+
+// Ganho e Perdido permanecem fora da transferência automática: são resultados
+// finais confirmados individualmente pelo orçamento no servidor.
+export const handoffStages = canonicalStageKeys.filter(
+  (stage): stage is HandoffStage => !isTerminalStage(stage),
+);
 
 export async function configureLeadHandoffPolicy(input: {
   leadIds: string[];

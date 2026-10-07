@@ -1,0 +1,25 @@
+{
+  "scope": "Checks locais R2; nenhuma publicação/SQL remoto/gateway",
+  "checks": [
+    {
+      "command": "/Users/fabriciogaspar/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node node_modules/eslint/bin/eslint.js supabase/functions/_shared/accountLifecycle.ts supabase/functions/wa-akg/index.ts supabase/functions/evolution-go/index.ts supabase/tests/evolutionGoHandler.test.ts",
+      "exit_code": 0,
+      "output": ""
+    },
+    {
+      "command": "/Users/fabriciogaspar/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node node_modules/typescript/bin/tsc --project tsconfig.edge.json --pretty false",
+      "exit_code": 0,
+      "output": ""
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "output": ""
+    },
+    {
+      "command": "shasum -a 256 supabase/functions/_shared/accountLifecycle.ts supabase/functions/wa-akg/index.ts supabase/functions/evolution-go/index.ts supabase/migrations/20261005220138_audit_r2_account_lifecycle.sql supabase/tests/evolutionGoHandler.test.ts",
+      "exit_code": 0,
+      "output": "5c222bca0381fbb8d34ee92270b666c1deab784baa9c3228e4008a8d441233c1  supabase/functions/_shared/accountLifecycle.ts\nd8cff0d0f08e0354a4f090a70186bf8c10f2d48c3006b4cc1471fd010a3b0b99  supabase/functions/wa-akg/index.ts\nfee84527164f6f20dff81131af496d9a93918b51f703255aa5c1fed4dc91f01a  supabase/functions/evolution-go/index.ts\n4e837194a669e60c9fe5b78b0fbfb3c588ef4c819727b6a3fc7376eb25a007a5  supabase/migrations/20261005220138_audit_r2_account_lifecycle.sql\nd4aa972b0fed0d953fd5dfe9155eb0ccff1d4c640688535af85722ca02473d53  supabase/tests/evolutionGoHandler.test.ts\n"
+    }
+  ]
+}

@@ -1,6 +1,8 @@
 import { supabase } from '@/lib/supabase';
 import { detalheDoErroDeFuncao } from '@/lib/transportador';
 import { resolveOrganizationSession } from '@/lib/organizationSession';
+import { assertChannelActionCompleted } from './channelLifecycle';
+import { sessionContext } from '@/lib/sessionContext';
 
 export type WhatsappConnectionStatus =
   | 'unconfigured'
@@ -105,6 +107,7 @@ export interface AccountsResponse {
 
 const ACCOUNTS_READ_TIMEOUT_MS = 8_000;
 let accountsReadInFlight: Promise<AccountsResponse> | null = null;
+sessionContext.subscribe(() => { accountsReadInFlight = null; });
 
 function withDeadline<T>(request: Promise<T>, timeoutMs: number, code: string): Promise<T> {
   return new Promise<T>((resolve, reject) => {
@@ -126,6 +129,7 @@ async function invoke<T extends Record<string, unknown>>(body: Record<string, un
 }
 
 export interface EvolutionGoChannelStatus {
+  lifecycle?: import('./channelLifecycle').ChannelLifecycle | null;
   configured: boolean;
   canManage: boolean;
   canConnect: boolean;
@@ -154,6 +158,12 @@ export interface EvolutionGoChannelStatus {
     lastSuccessAt: string | null;
     lastError: string | null;
     baseUrlConfigured: boolean;
+    serverConfigured?: boolean;
+    serverValidation?: null | {
+      status: 'not_tested' | 'passed' | 'failed';
+      checkedAt: string | null;
+      errorCode: string | null;
+    };
     instanceName: string | null;
     version: string | null;
   };
@@ -182,6 +192,36 @@ export interface EvolutionGoAccountsResponse {
   canManage: boolean;
 }
 
+export interface EvolutionGoRecoveryInspection {
+  ok: true;
+  instance_name: string;
+  job_state: string;
+  provider_id: string | null;
+  provider_connected: boolean;
+  stored_id_matches: boolean;
+  token_accepted: boolean;
+}
+
+async function invokeEvolutionGoRecovery<T>(body: Record<string, unknown>): Promise<T> {
+  const { data, error } = await supabase.functions.invoke('evolution-go-recovery', { body });
+  if (error || !data?.ok) {
+    const code = await channelInvocationError(data, error);
+    throw new Error(code || 'recovery_unavailable');
+  }
+  return data as T;
+}
+
+export function inspectEvolutionGoInstance(accountId: string): Promise<EvolutionGoRecoveryInspection> {
+  return invokeEvolutionGoRecovery({ action: 'inspect', account_id: accountId });
+}
+
+export function replaceEvolutionGoInstance(accountId: string, instanceName: string, providerId: string): Promise<{
+  ok: true; instance_name: string; provider_id: string; token_confirmed: true; messaging_enabled: false;
+}> {
+  return invokeEvolutionGoRecovery({ action: 'replace', account_id: accountId,
+    confirm_instance_name: instanceName, confirm_remote_id: providerId });
+}
+
 export interface EvolutionGoAccountInput {
   accountType: 'corporate' | 'seller';
   ownerUserId?: string;
@@ -201,12 +241,28 @@ function evolutionGoConfigurationPayload(input: EvolutionGoConfigurationInput): 
   return payload;
 }
 
+async function channelInvocationError(data: unknown, error: unknown): Promise<string> {
+  const payload = data as { error?: unknown } | null;
+  if (typeof payload?.error === 'string') return payload.error;
+  // FunctionsHttpError exposes non-2xx JSON through context, not data. Keep a
+  // clone so the existing fallback can still inspect the response if needed.
+  const context = (error as { context?: Response } | null)?.context;
+  if (context && typeof context.clone === 'function') {
+    try {
+      const failure = await context.clone().json() as { error?: unknown };
+      if (typeof failure?.error === 'string') return failure.error;
+    } catch { /* Use the established transport fallback for non-JSON errors. */ }
+  }
+  return detalheDoErroDeFuncao(error);
+}
+
 async function invokeEvolutionGo<T extends Record<string, unknown>>(body: Record<string, unknown>): Promise<T> {
   const { data, error } = await supabase.functions.invoke('evolution-go', { body });
   if (error || !data?.ok) {
-    const code = typeof data?.error === 'string' ? data.error : await detalheDoErroDeFuncao(error);
+    const code = await channelInvocationError(data, error);
     throw new Error(code || 'evolution_go_operation_failed');
   }
+  assertChannelActionCompleted(body.action, data.lifecycle);
   return data as T;
 }
 
@@ -243,6 +299,16 @@ export function saveEvolutionGoConfiguration(accountId: string, input: Evolution
   });
 }
 
+export function saveEvolutionGoServer(accountId: string, input: { baseUrl: string; globalApiKey: string }): Promise<EvolutionGoChannelStatus> {
+  return invokeEvolutionGo<EvolutionGoChannelStatus & Record<string, unknown>>({
+    action: 'save_server', account_id: accountId, base_url: input.baseUrl, global_api_key: input.globalApiKey,
+  });
+}
+
+export function testEvolutionGoServer(accountId: string): Promise<EvolutionGoChannelStatus> {
+  return invokeEvolutionGo<EvolutionGoChannelStatus & Record<string, unknown>>({ action: 'test_server', account_id: accountId });
+}
+
 export function createEvolutionGoInstance(accountId: string, input: EvolutionGoConfigurationInput = {}): Promise<EvolutionGoChannelStatus> {
   return invokeEvolutionGo<EvolutionGoChannelStatus & Record<string, unknown>>({
     action: 'create_instance', account_id: accountId, ...evolutionGoConfigurationPayload({
@@ -272,6 +338,7 @@ export function requestEvolutionGoPairingCode(accountId: string, phone: string):
 }
 
 export interface WaAkgChannelStatus {
+  lifecycle?: import('./channelLifecycle').ChannelLifecycle | null;
   configured: boolean;
   canManage: boolean;
   canConnect: boolean;
@@ -320,9 +387,10 @@ export interface WaAkgChannelStatus {
 async function invokeWaAkg<T extends Record<string, unknown>>(body: Record<string, unknown>): Promise<T> {
   const { data, error } = await supabase.functions.invoke('wa-akg', { body });
   if (error || !data?.ok) {
-    const code = typeof data?.error === 'string' ? data.error : await detalheDoErroDeFuncao(error);
+    const code = await channelInvocationError(data, error);
     throw new Error(code || 'wa_akg_operation_failed');
   }
+  assertChannelActionCompleted(body.action, data.lifecycle);
   return data as T;
 }
 
@@ -361,6 +429,39 @@ export function requestWaAkgPairingCode(accountId: string, phone: string): Promi
   return invokeWaAkg({ action: 'pair', account_id: accountId, phone });
 }
 
+export interface ChannelRecoveryResult {
+  lifecycle: import('./channelLifecycle').ChannelLifecycle;
+  recovery: {
+    eligible: boolean;
+    reason: string;
+    observedConnected: boolean | null;
+    observedAt: string | null;
+    requiresAdmin: true;
+    retainsLocalCutoff: true;
+    reconciled?: boolean;
+  };
+}
+
+export async function reviewChannelLifecycle(
+  provider: 'wa_akg' | 'evolution_go', accountId: string,
+  reconciliation?: { expectedRevision: number; reason: string },
+): Promise<ChannelRecoveryResult> {
+  const context = sessionContext.requireReady();
+  if (reconciliation && (!Number.isInteger(reconciliation.expectedRevision) || reconciliation.reason.trim().length < 8 || reconciliation.reason.trim().length > 500)) {
+    throw new Error('lifecycle_recovery_reason_required');
+  }
+  const body = { action: reconciliation ? 'lifecycle_reconcile' : 'lifecycle_diagnose', account_id: accountId,
+    ...(reconciliation ? { expected_revision: reconciliation.expectedRevision, reason: reconciliation.reason.trim() } : {}) };
+  const { data, error } = await supabase.functions.invoke(provider === 'wa_akg' ? 'wa-akg' : 'evolution-go', { body });
+  sessionContext.assertCurrent(context);
+  if (error || !data?.ok) throw new Error(await channelInvocationError(data, error) || 'lifecycle_recovery_failed');
+  if (!Number.isInteger(data.lifecycle?.revision) || data.recovery?.retainsLocalCutoff !== true || data.recovery?.requiresAdmin !== true
+    || typeof data.recovery?.eligible !== 'boolean' || (reconciliation && data.recovery?.reconciled !== true)) {
+    throw new Error('lifecycle_recovery_unconfirmed');
+  }
+  return data as ChannelRecoveryResult;
+}
+
 export function saveWaAkgControls(accountId: string, input: {
   minDelaySeconds: number; maxDelaySeconds: number; burstLimit: number; dailyLimit: number;
 }): Promise<WaAkgChannelStatus> {
@@ -372,9 +473,10 @@ export function saveWaAkgControls(accountId: string, input: {
 }
 
 export function loadWhatsappAccounts(): Promise<AccountsResponse> {
+  const context = sessionContext.requireReady();
   if (accountsReadInFlight) return accountsReadInFlight;
   const request = withDeadline(
-    invoke<AccountsResponse & Record<string, unknown>>({ action: 'list' }),
+    invoke<AccountsResponse & Record<string, unknown>>({ action: 'list' }).then((result) => { sessionContext.assertCurrent(context); return result; }),
     ACCOUNTS_READ_TIMEOUT_MS,
     'whatsapp_accounts_request_timeout',
   );

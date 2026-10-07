@@ -1,3 +1,4 @@
+import { escapeCsvCell } from '@/lib/csv';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import AccessibleDialog from '@/components/feature/AccessibleDialog';
@@ -419,7 +420,7 @@ export default function KanbanCRM() {
 
   const exportItems = (items: KanbanPortfolioItem[]) => {
     if (!items.length) return;
-    const quote = (value: unknown) => `"${String(value ?? '').replaceAll('"', '""')}"`;
+    const quote = escapeCsvCell;
     const header = ['Nome', 'Empresa', 'Telefone', 'WhatsApp', 'E-mail', 'Segmento', 'Cidade', 'UF', 'Aderência', 'Etapa', 'Responsável', 'Origem'];
     const rows = items.map(({ lead, stage }) => [lead.nome, lead.empresa, lead.telefone, lead.whatsapp, lead.email, lead.segmento, lead.cidade, lead.estado, lead.score, stageLabels[stage], lead.responsavel, lead.origem].map(quote).join(','));
     const url = URL.createObjectURL(new Blob([[header.map(quote).join(','), ...rows].join('\n')], { type: 'text/csv;charset=utf-8' }));

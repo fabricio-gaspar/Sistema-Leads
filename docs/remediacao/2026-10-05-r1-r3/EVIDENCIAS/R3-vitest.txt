@@ -1,0 +1,10 @@
+RUN  v3.2.7 /Users/fabriciogaspar/Documents/Codex/2026-10-04/c/Sistema-Leads-live
+
+ ✓ supabase/tests/waAkgInbound.test.ts (3 tests) 4ms
+ ✓ supabase/tests/receiptReconciliationR3.test.ts (25 tests) 151ms
+ ✓ supabase/tests/runtimeHandlers.test.ts (108 tests) 515ms
+
+ Test Files  3 passed (3)
+      Tests  136 passed (136)
+   Start at  19:11:52
+   Duration  946ms (transform 642ms, setup 0ms, collect 524ms, tests 670ms, environment 1ms, prepare 198ms)

@@ -1,5 +1,47 @@
 # Mapa de arquitetura
 
+## 07/10/2026 — QR Evolution GO v25
+
+Central autenticada → Edge QR (JWT + organização + proprietário + conexão/webhook preparados) → **uma** chamada GET /instance/qr → imagem temporária ou erro sanitizado. Não chama connect nem faz retries automáticos. O provedor pode iniciar runtime e abrir pool PostgreSQL nesse GET. Falha de capacidade se resolve na hospedagem; QR não habilita mensageria. O checkout conserva guardas adicionais de lifecycle ainda não implantadas integralmente no remoto.
+
+
+## Criação direta de usuário — 07/10/2026 — LOCAL
+
+`Configurações > Usuários` → `createTeamMember` → Edge `team-members#create` (JWT, `team.manage`) → RPC service-role `team_direct_create_preflight` (admin ativo, papel permitido, trigger Auth seguro, trigger Evolution GO para vendedor) → `auth.admin.createUser` somente para e-mail novo → RPC service-role `team_direct_create_attach` (perfil + vínculo atômico, auditado) → trigger `sync_evolution_go_seller_membership` cria conta/integração desligadas e job por organização/vendedor → Edge consulta e acorda o worker. Nenhuma credencial de instância ou senha é retornada. Produção ainda não recebeu R4/lifecycle nem este contrato; a tela não deve ser publicada isoladamente.
+
+## WhatsApp exclusivo por Evolution GO — 07/10/2026
+
+`Configurações > Canais` → `EvolutionGoPanel` é a única superfície operacional de WhatsApp. `whatsapp-accounts` v10 retorna somente contas `evolution_go`; ações de Z-API, Meta e WA-AKG falham fechadas. A migration de exclusividade desliga controles, contas padrão/habilitadas e integrações antigas sem apagar dados históricos. O outbox continua bloqueado enquanto a conta Evolution correspondente não estiver conectada e habilitada.
+
+## Evolution GO multi-tenant — 06/10/2026 — LOCAL, não implantada
+
+`organization_members` (papel/status) → trigger de lifecycle → conta Evolution GO privada + integração desabilitada + **job único `(organization_id,user_id)`** → `team-members` apenas lê/acorda o job → `evolution-go-worker` processa a fila. O vendedor usa `my_account` e ações de pareamento somente para a própria conta; QR, credenciais e contas de terceiros não retornam ao navegador. A inativação/desconexão corta a rota sem apagar `lead_messages`, conversas ou histórico. Validação local: 769 Vitest/93 arquivos, type-check app/Edge, lint, build/artefato, PGlite 6/6 e PostgreSQL nativo 2/2. Não houve migration/deploy no Supabase/Edge/Site/GitHub, QR, chamada a provedor, mensagem ou dado de cliente. Release bloqueada por drift remoto, staging/homologação coordenada, QR Evolution 400/500 e política de senha/Auth pendente.
+
+## Evolution GO principal — 05/10/2026 — LOCAL, não implantada
+
+Convite aceito → `team-members` → `enqueue_evolution_go_seller_provisioning` (conta/integração desabilitadas + job durável) → `evolution-go-worker` → painel individual Evolution GO na Central. Webhook Evolution GO → worker de entrada → mensagem/lead → `ana-run`; a Ana resolve a conta com `resolve_lead_whatsapp_account` → outbox → `automation-worker` → adaptador `EvolutionGoProvider`, sujeito a controles e snapshot canônicos. Na transferência humana, lista e ação preferem a conta individual Evolution GO conectada sem reatribuir silenciosamente vínculos existentes. WA-AKG continua como contingência administrativa. Código local e testes: `docs/remediacao/2026-10-05-evolution-go-primary/RESULTADO_FINAL.md`; produção permanece NO-GO.
+
+
+## Continuação R4–R12 — 05/10/2026 — LOCAL, não implantada
+
+Auth/convite → vínculo canônico explícito → contexto frontend por user/org/generation → OrganizationGate → stores cercados e sem cache operacional compartilhado. Administração empresarial não gerencia senha/identidade Auth global.
+
+WA/Evolution: ações manuais e provisionamento automático → mesmo ledger/token/revisão → cutoff persistido → etapa externa cercada → conclusão CAS. Diagnóstico administrativo só consulta; encerra operação read-only comprovada mantendo disabled/gates. Entrada → transação local única (mensagem/mídia/projeções) → lease de consequência → Ana; falha incerta vai para revisão, sem POST repetido. Contrato upstream WA-AKG não homologado mantém bloqueio.
+
+Ana: política comercial + fontes/documentos/chunks canônicos → snapshot de IDs/digest → decisão → revalidação de lead/política/fontes antes de efeito e pós-freeBusy → worker revalida snapshot antes de dispatch. Catálogo de conhecimento permanece distinto da tabela de preços. Sem autoridade automática para aprovação/envio final de orçamento.
+
+Agenda: próxima ação → RPC invoker/RLS → pai bloqueado + barreira física privada por org/responsável → filho/link atômicos + UUID estável. Conflito limitado à carteira visível; não é calendário global exclusivo. Rotina de prospecção → cidade/UF/termo obrigatórios no handler e guards SQL. Código remoto permanece anterior; ver `docs/remediacao/2026-10-05-r4-r14/` para limites/evidência.
+
+## Remediação R1/R2/R3 — 05/10/2026 — LOCAL, não implantada
+
+R1 mantém as tabelas existentes: helpers privados e policies aplicam organização/carteira/proprietário ao acesso; trigger de último administrador serializa por escrita MVCC na organização. R2 acrescenta somente ledger privado de orquestração: UI → handlers WA/Evolution → intenção/corte local → etapas remotas cercadas por revisão/token → conclusão CAS. Flags canônicas em conta/integração continuam a autoridade; conectar conta não abre o gate global. R3 separa recibo autenticado do gate de entrada: identidade organização/conta/provedor → RPC monotônica → projeções locais, sem disparar Ana/saída. `ana-run` permanece a única autoridade automática.
+
+Limite: workers de provisionamento automático ainda não participam do ledger; reconciliação humana de resultado incerto permanece pendente R6. Relatório e manifestos em `docs/remediacao/2026-10-05-r1-r3/RESULTADO_FINAL.md`. Não existe implantação remota deste delta.
+
+## Wizard da Busca de Leads — 05/10/2026
+
+`BuscaLeads` → `prospectingWizard` (validação local de Fonte, Região, Perfil e Critérios) → intenção humana ainda não persistida. Somente o clique final **Testar com 10 empresas** chama `executarBusca` → `prospectar-leads` → provedor real. A fonte chega de `useFontesStore` e continua elegível apenas quando o adaptador existe e a configuração está conectada/ativa. A resposta mantém o caminho já existente de revisão → `prospectingBatchRepository` → `import_prospecting_batch`; o Wizard não cria tabela, Edge Function, fila ou fonte paralela.
+
 ## Kanban operacional — 28/09/2026
 
 `KanbanPage` → `kanbanRepository.loadKanbanPortfolio` → `get_kanban_portfolio` (SECURITY INVOKER/RLS) → `leads` + tarefas + qualificação + listas + histórico. O contrato retorna uma página e os contadores no mesmo snapshot lógico; não há leitura por cartão. `user_saved_views` guarda apenas a preferência do usuário/organização. Mudanças de etapa continuam em `transition_lead_stage`; o undo estreito usa `undo_recent_lead_stage_transition`. O drawer só lê `lead_stage_history`, `lead_messages`, `lead_notes` e tarefas; automações permanecem com `ana-run` e o worker existentes.

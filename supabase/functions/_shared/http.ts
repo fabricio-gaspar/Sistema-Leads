@@ -1,3 +1,33 @@
+const DEFAULT_ALLOWED_ORIGINS = [
+  'https://leadai-crm-preview.fabricio926564.chatgpt.site',
+  // The local preview is used by the same authenticated application during
+  // homologation. It is an exact origin, never a wildcard.
+  'http://127.0.0.1:4173',
+] as const;
+
+function parseOrigins(value: string): string[] {
+  return [...new Set(value.split(',').map((origin) => origin.trim()).filter(Boolean))];
+}
+
+function configuredAllowedOrigins(): string[] {
+  // ALLOWED_ORIGINS supersedes the previous singular variable and supports an
+  // explicit comma-separated allow-list. While only ALLOWED_ORIGIN exists,
+  // retain it in addition to the two known application origins so that a
+  // production configuration cannot accidentally disable local homologation.
+  const configuredList = Deno.env.get('ALLOWED_ORIGINS');
+  // A configuração explícita restringe origens adicionais, mas não pode
+  // remover os dois ambientes homologados e conhecidos deste aplicativo.
+  if (configuredList) return [...new Set([...DEFAULT_ALLOWED_ORIGINS, ...parseOrigins(configuredList)])];
+
+  const legacyOrigin = Deno.env.get('ALLOWED_ORIGIN');
+  return [...new Set([...DEFAULT_ALLOWED_ORIGINS, ...(legacyOrigin ? parseOrigins(legacyOrigin) : [])])];
+}
+
+function requestOriginIsAllowed(request: Request): boolean {
+  const requestOrigin = request.headers.get('origin');
+  return !requestOrigin || configuredAllowedOrigins().includes(requestOrigin);
+}
+
 export function json(body: unknown, status = 200, headers: HeadersInit = {}): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -6,18 +36,14 @@ export function json(body: unknown, status = 200, headers: HeadersInit = {}): Re
 }
 
 export function allowedCorsHeaders(request: Request): HeadersInit {
-  // The published panel is the only browser origin allowed when an explicit
-  // environment override has not been configured yet. This keeps Functions
-  // callable from the panel without falling back to a wildcard CORS policy.
-  const configuredOrigin = Deno.env.get('ALLOWED_ORIGIN') ?? 'https://leadai-crm-preview.fabricio926564.chatgpt.site';
   const requestOrigin = request.headers.get('origin');
 
-  if (!configuredOrigin || !requestOrigin || requestOrigin !== configuredOrigin) {
+  if (!requestOrigin || !requestOriginIsAllowed(request)) {
     return {};
   }
 
   return {
-    'Access-Control-Allow-Origin': configuredOrigin,
+    'Access-Control-Allow-Origin': requestOrigin,
     'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     Vary: 'Origin',
@@ -25,9 +51,7 @@ export function allowedCorsHeaders(request: Request): HeadersInit {
 }
 
 export function hasAllowedOrigin(request: Request): boolean {
-  const requestOrigin = request.headers.get('origin');
-  const configuredOrigin = Deno.env.get('ALLOWED_ORIGIN') ?? 'https://leadai-crm-preview.fabricio926564.chatgpt.site';
-  return !requestOrigin || requestOrigin === configuredOrigin;
+  return requestOriginIsAllowed(request);
 }
 
 export function preflight(request: Request): Response | null {

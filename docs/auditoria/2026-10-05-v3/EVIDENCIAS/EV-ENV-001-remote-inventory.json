@@ -1,0 +1,989 @@
+{
+  "audit_id": "WAYFLEX-V3-20261005",
+  "observed_at": "2026-10-05T21:24:02.155Z",
+  "project": {
+    "id": "thgzrkppouoevapjquyu",
+    "name": "Sistema de Leads",
+    "status": "ACTIVE_HEALTHY",
+    "database": {
+      "host": "db.thgzrkppouoevapjquyu.supabase.co",
+      "version": "17.6.1.155",
+      "postgres_engine": "17",
+      "release_channel": "ga"
+    }
+  },
+  "branches": [
+    {
+      "name": "main",
+      "project_ref": "thgzrkppouoevapjquyu",
+      "is_default": true,
+      "status": "MIGRATIONS_FAILED",
+      "preview_project_status": "ACTIVE_HEALTHY"
+    }
+  ],
+  "site": {
+    "id": "appgprj_6a905559159c8191a61fb776b9a4c531",
+    "version": 168,
+    "status": "active",
+    "access_mode": "public",
+    "url": "https://leadai-crm-preview.fabricio926564.chatgpt.site"
+  },
+  "deployment": {
+    "id": "appgdep_6ac3d1bec3e48191ba29a2d5559426a8",
+    "status": "succeeded",
+    "version_id": "appgprj_6a905559159c8191a61fb776b9a4c531~appgver_83b25bbb86208191ab76b9bf2a340e90",
+    "updated_at": "2026-10-05T16:36:12.541676+00:00"
+  },
+  "functions": [
+    {
+      "name": "lead-workflow",
+      "version": 5,
+      "status": "ACTIVE",
+      "verify_jwt": true,
+      "updated_at": 1790024050987,
+      "ezbr_sha256": "5d1acb61bcdb772a34e03eff7b0084b3ee796a577af0d7e54862939aac3d2616"
+    },
+    {
+      "name": "ana-ia",
+      "version": 10,
+      "status": "ACTIVE",
+      "verify_jwt": true,
+      "updated_at": 1790175562100,
+      "ezbr_sha256": "7fa89967af8814e015639686227efcbcd7befae329d8f8040e2a819e278d9b9a"
+    },
+    {
+      "name": "webhook-whatsapp",
+      "version": 19,
+      "status": "ACTIVE",
+      "verify_jwt": false,
+      "updated_at": 1790346195443,
+      "ezbr_sha256": "96550c85a6e756917eae6bccee12799b043146354837119deccec114b7b22435"
+    },
+    {
+      "name": "automation-worker",
+      "version": 38,
+      "status": "ACTIVE",
+      "verify_jwt": false,
+      "updated_at": 1791163383510,
+      "ezbr_sha256": "d28f6179dbb3df24251dd59023698ba57523825df9f9b8252b9da88e4bf09499"
+    },
+    {
+      "name": "enviar-whatsapp",
+      "version": 12,
+      "status": "ACTIVE",
+      "verify_jwt": true,
+      "updated_at": 1791163391146,
+      "ezbr_sha256": "4b58cfd37c9807d4de2e7a2d8e53c2649b146b9f51dbee4835865d95fda815e9"
+    },
+    {
+      "name": "enviar-email",
+      "version": 2,
+      "status": "ACTIVE",
+      "verify_jwt": true,
+      "updated_at": 1788992471955,
+      "ezbr_sha256": "5b34b80a1f52b8972b50cb3d844c42e0091936d300a06c53d1ad96d7b720a399"
+    },
+    {
+      "name": "testar-integracao",
+      "version": 17,
+      "status": "ACTIVE",
+      "verify_jwt": true,
+      "updated_at": 1791052446959,
+      "ezbr_sha256": "188f561cbbfd3e421aff1561aafb961a3c5978e9dfb6dbdb6969455bf709cfc4"
+    },
+    {
+      "name": "configurar-integracao",
+      "version": 19,
+      "status": "ACTIVE",
+      "verify_jwt": true,
+      "updated_at": 1790693557274,
+      "ezbr_sha256": "fc21a1bd5ce65f168e8491d81f874eb617869c7ed3d888a137fa407981786b30"
+    },
+    {
+      "name": "prospectar-leads",
+      "version": 16,
+      "status": "ACTIVE",
+      "verify_jwt": true,
+      "updated_at": 1790464909934,
+      "ezbr_sha256": "c60cb0446bcac4a97ed9681c64174b4ac876b5b7f3a415ebff3b37df2bdc60b1"
+    },
+    {
+      "name": "ana-run",
+      "version": 39,
+      "status": "ACTIVE",
+      "verify_jwt": true,
+      "updated_at": 1791163388748,
+      "ezbr_sha256": "4e9c06eb9f8b7065c74be3445d18b14a475e77757694cde2503216d45306a9ff"
+    },
+    {
+      "name": "gerar-prompt-busca",
+      "version": 1,
+      "status": "ACTIVE",
+      "verify_jwt": true,
+      "updated_at": 1788204118744,
+      "ezbr_sha256": "7c9473d9c36b4b3551d457cb0587ead47881f14f51533ac38cb2c42c3b3d0f09"
+    },
+    {
+      "name": "base-ana-ingest",
+      "version": 3,
+      "status": "ACTIVE",
+      "verify_jwt": true,
+      "updated_at": 1788992394012,
+      "ezbr_sha256": "60664d05a9265fcdfc1865059a9eed48fa78b38b2003ff3d0d65204f3b41446a"
+    },
+    {
+      "name": "operational-diagnostics",
+      "version": 18,
+      "status": "ACTIVE",
+      "verify_jwt": true,
+      "updated_at": 1790346228142,
+      "ezbr_sha256": "6a846b8b5594679a4a93438696dd19076cf9cff74f2ef2dcfd6eb968fb406e28"
+    },
+    {
+      "name": "team-members",
+      "version": 18,
+      "status": "ACTIVE",
+      "verify_jwt": true,
+      "updated_at": 1791163385958,
+      "ezbr_sha256": "5b4b70976be1fc75eb2d235015cebd2713e4d0e8e811562be0cb68689e3edd88"
+    },
+    {
+      "name": "cleanup-test-leads",
+      "version": 1,
+      "status": "ACTIVE",
+      "verify_jwt": true,
+      "updated_at": 1789047940605,
+      "ezbr_sha256": "19dd099db746160f9beca37a39f871921a473de0a02bb0a942d448c5b6f309ec"
+    },
+    {
+      "name": "enviar-teste-whatsapp",
+      "version": 3,
+      "status": "ACTIVE",
+      "verify_jwt": true,
+      "updated_at": 1790346207804,
+      "ezbr_sha256": "8f061ddf9f572bedeee81df943d81df209acb270d28e21e9869ec017d77edea2"
+    },
+    {
+      "name": "ana-operations",
+      "version": 5,
+      "status": "ACTIVE",
+      "verify_jwt": true,
+      "updated_at": 1790533740130,
+      "ezbr_sha256": "029f79d11fc9ab53226d2a79c365abe7e03df48650f11cced3de91fdf91435d1"
+    },
+    {
+      "name": "lead-governance",
+      "version": 2,
+      "status": "ACTIVE",
+      "verify_jwt": true,
+      "updated_at": 1791204971331,
+      "ezbr_sha256": "d613c93b13ad10ccf9729014003247cc5f7696a523af1819d08d4ab6522fb88c"
+    },
+    {
+      "name": "site-whatsapp-entry",
+      "version": 2,
+      "status": "ACTIVE",
+      "verify_jwt": true,
+      "updated_at": 1790692214460,
+      "ezbr_sha256": "093e2c5d4742a0eb2d9ef199b5ed06c211b6d601a2b6ab4b8d3e825310e5f23d"
+    },
+    {
+      "name": "catalog-knowledge",
+      "version": 6,
+      "status": "ACTIVE",
+      "verify_jwt": true,
+      "updated_at": 1790172376174,
+      "ezbr_sha256": "def676e25cab7c78ae6ff3f9fa9f5cdeb23e25a6414e093e045b3d467cabc1a2"
+    },
+    {
+      "name": "whatsapp-accounts",
+      "version": 8,
+      "status": "ACTIVE",
+      "verify_jwt": false,
+      "updated_at": 1791163393475,
+      "ezbr_sha256": "a518802095e6f683366cb9effb26e43a6c12ec58df887d57ea935c6177b7d4df"
+    },
+    {
+      "name": "webhook-meta-whatsapp",
+      "version": 2,
+      "status": "ACTIVE",
+      "verify_jwt": false,
+      "updated_at": 1790283563305,
+      "ezbr_sha256": "7f6e321b95177d3e0f070c923136230cb911f0e0eb7fcb729faf9cd64eb6202f"
+    },
+    {
+      "name": "meta-whatsapp-onboarding",
+      "version": 1,
+      "status": "ACTIVE",
+      "verify_jwt": true,
+      "updated_at": 1790283350143,
+      "ezbr_sha256": "ea3add7d580406a7ff2a7291fe344e2be543c3159f395bd2122b0b213bfb26b7"
+    },
+    {
+      "name": "meta-whatsapp-messages",
+      "version": 1,
+      "status": "ACTIVE",
+      "verify_jwt": true,
+      "updated_at": 1790283354937,
+      "ezbr_sha256": "1ae131f52ac3ccbc14b42ce79b9089ea2f2de373dd3982904f761ccce9173aed"
+    },
+    {
+      "name": "meta-whatsapp-worker",
+      "version": 2,
+      "status": "ACTIVE",
+      "verify_jwt": false,
+      "updated_at": 1790283569395,
+      "ezbr_sha256": "4982198b919dfed3c8bd58b77dcec302787cbfa71699aa0880c0eeb254f28e7f"
+    },
+    {
+      "name": "knowledge-publish",
+      "version": 1,
+      "status": "ACTIVE",
+      "verify_jwt": true,
+      "updated_at": 1790695676047,
+      "ezbr_sha256": "bce77515a9973aa4529fd57e1284f114533cbbc9e3a9a58afc1170cdd11607fc"
+    },
+    {
+      "name": "ana-policy",
+      "version": 1,
+      "status": "ACTIVE",
+      "verify_jwt": true,
+      "updated_at": 1790697874499,
+      "ezbr_sha256": "ff0a023bb4721ddc6c51fd076789f9782a3585ddb77615afc09153e6725010ee"
+    },
+    {
+      "name": "evolution-go",
+      "version": 20,
+      "status": "ACTIVE",
+      "verify_jwt": true,
+      "updated_at": 1791159093248,
+      "ezbr_sha256": "898f44345fc5697afde16957f31c11375c7fe3aefbdc233394415f69430336f6"
+    },
+    {
+      "name": "webhook-evolution-go",
+      "version": 3,
+      "status": "ACTIVE",
+      "verify_jwt": false,
+      "updated_at": 1791150059409,
+      "ezbr_sha256": "4d03693e36fbf2bda2b773653f8c3511761d2f85600a06f4446e03898f6e4bd3"
+    },
+    {
+      "name": "evolution-go-worker",
+      "version": 4,
+      "status": "ACTIVE",
+      "verify_jwt": false,
+      "updated_at": 1791150061848,
+      "ezbr_sha256": "47c2242c08b7481a6c9542a2d58c513896af4db75cdadd6408aa7ca508106550"
+    },
+    {
+      "name": "wa-akg",
+      "version": 1,
+      "status": "ACTIVE",
+      "verify_jwt": true,
+      "updated_at": 1791163364307,
+      "ezbr_sha256": "b4e5facdb8877e6a48aa68e0afb293f2cbae813643630b89d6034546ae5d8e83"
+    },
+    {
+      "name": "webhook-wa-akg",
+      "version": 1,
+      "status": "ACTIVE",
+      "verify_jwt": false,
+      "updated_at": 1791163366746,
+      "ezbr_sha256": "87ed8af7152317aae107feb138afe9e9902e64c1e16f45e087a0c48139017b6d"
+    },
+    {
+      "name": "wa-akg-worker",
+      "version": 1,
+      "status": "ACTIVE",
+      "verify_jwt": false,
+      "updated_at": 1791163369226,
+      "ezbr_sha256": "6f42ef52261823d8e3849cfed69c84e39d8b96e5d40bfd02d0444bd71ae7d426"
+    }
+  ],
+  "migrations": [
+    {
+      "version": "20260811001327",
+      "name": "49fcae01-e7c1-49a8-bf14-75046dfdd3c6"
+    },
+    {
+      "version": "20260811133722",
+      "name": "10299de0-9cb8-471c-b0f0-d0851d721baa"
+    },
+    {
+      "version": "20260811141835",
+      "name": "a47e8ec4-0c4d-468c-8c45-f108dacb20b2"
+    },
+    {
+      "version": "20260811142020",
+      "name": "00e46d0d-a170-4232-b441-398eeffada58"
+    },
+    {
+      "version": "20260811142111",
+      "name": "7cf6cfda-08bb-45e9-aafb-e4e2db340383"
+    },
+    {
+      "version": "20260811142215",
+      "name": "a7118105-ed75-4887-840e-e2d98475cbde"
+    },
+    {
+      "version": "20260811150015",
+      "name": "9581231f-b628-4fae-aabd-a971616ecf4a"
+    },
+    {
+      "version": "20260811150205",
+      "name": "3f209e79-8d4c-4111-b8c5-7785acdb5ad9"
+    },
+    {
+      "version": "20260811150718",
+      "name": "32911650-ef96-43a6-8c54-0bdf4ba5e82c"
+    },
+    {
+      "version": "20260811165555",
+      "name": "72f30612-d3a5-40dc-b3ed-5593b0aca1f7"
+    },
+    {
+      "version": "20260811165921",
+      "name": "5cdb6bd9-e498-4e83-b2a9-21adc520af4a"
+    },
+    {
+      "version": "20260811170021",
+      "name": "6b2a72e3-9745-44c4-ab05-30c88c9eb843"
+    },
+    {
+      "version": "20260811170102",
+      "name": "a0739ad6-6b6f-42d9-8d0b-f5fa50b4b74c"
+    },
+    {
+      "version": "20260811170638",
+      "name": "c2132635-961a-4b7b-989e-485a5c1f771e"
+    },
+    {
+      "version": "20260812224754",
+      "name": "secure_multitenant_sandbox_foundation"
+    },
+    {
+      "version": "20260812225009",
+      "name": "harden_function_execute_privileges"
+    },
+    {
+      "version": "20260812225055",
+      "name": "fix_invite_activation_order"
+    },
+    {
+      "version": "20260812231132",
+      "name": "index_foreign_keys"
+    },
+    {
+      "version": "20260812231248",
+      "name": "optimize_auth_rls_initplans"
+    },
+    {
+      "version": "20260812231415",
+      "name": "consolidate_membership_read_policies"
+    },
+    {
+      "version": "20260812234521",
+      "name": "fix_membership_audit_trigger"
+    },
+    {
+      "version": "20260813130731",
+      "name": "complete_commercial_core"
+    },
+    {
+      "version": "20260813130834",
+      "name": "optimize_commercial_core_policies"
+    },
+    {
+      "version": "20260813131900",
+      "name": "reconcile_runtime_schema"
+    },
+    {
+      "version": "20260813132241",
+      "name": "reconcile_handoff_contract"
+    },
+    {
+      "version": "20260813202917",
+      "name": "commercial_autonomy_foundation"
+    },
+    {
+      "version": "20260813203207",
+      "name": "automation_contract_and_templates"
+    },
+    {
+      "version": "20260813203611",
+      "name": "commercial_domain_event_triggers"
+    },
+    {
+      "version": "20260813204540",
+      "name": "optimize_autonomy_rls_and_indexes"
+    },
+    {
+      "version": "20260813205117",
+      "name": "seed_safe_sandbox_scenario"
+    },
+    {
+      "version": "20260814215455",
+      "name": "5ab20099-3d5d-42ad-9b38-b3b1698c43a5"
+    },
+    {
+      "version": "20260814215558",
+      "name": "293be5f2-2076-47a4-9008-366345777973"
+    },
+    {
+      "version": "20260814215637",
+      "name": "f79092f0-bb5e-425a-95cd-af5875433d03"
+    },
+    {
+      "version": "20260814215653",
+      "name": "7f9d7a46-48f1-423f-95e1-97a106b1018c"
+    },
+    {
+      "version": "20260814220528",
+      "name": "fcf847c4-0444-42a8-9700-7c233170d4d0"
+    },
+    {
+      "version": "20260817195604",
+      "name": "repair_multitenant_security_foundation"
+    },
+    {
+      "version": "20260817195805",
+      "name": "consolidate_identity_policies"
+    },
+    {
+      "version": "20260817200056",
+      "name": "fix_returning_rls_policies"
+    },
+    {
+      "version": "20260817200236",
+      "name": "seed_missing_lead_sources"
+    },
+    {
+      "version": "20260817202933",
+      "name": "prospecting_preflight_governance"
+    },
+    {
+      "version": "20260817203548",
+      "name": "protect_preflight_cache_snapshot"
+    },
+    {
+      "version": "20260817203804",
+      "name": "optimize_prospecting_preflight_rls"
+    },
+    {
+      "version": "20260817205209",
+      "name": "commercial_lead_lifecycle_queue"
+    },
+    {
+      "version": "20260818121437",
+      "name": "crm_accounts_contacts_foundation"
+    },
+    {
+      "version": "20260818122230",
+      "name": "voice_outcomes_and_attribution"
+    },
+    {
+      "version": "20260818123244",
+      "name": "index_crm_identity_foreign_keys"
+    },
+    {
+      "version": "20260820191048",
+      "name": "3a265dc9-db92-4e0b-9fe2-6a6af9700e03"
+    },
+    {
+      "version": "20260820191113",
+      "name": "bfb8674e-b063-47f6-927d-f847e0b261fa"
+    },
+    {
+      "version": "20260821143528",
+      "name": "create_app_user_connections"
+    },
+    {
+      "version": "20260821143708",
+      "name": "app_user_connections_service_role_policy"
+    },
+    {
+      "version": "20260821231358",
+      "name": "leadai_operational_hardening"
+    },
+    {
+      "version": "20260822125316",
+      "name": "fix_lead_search_security"
+    },
+    {
+      "version": "20260822125507",
+      "name": "harden_current_org_id"
+    },
+    {
+      "version": "20260822133342",
+      "name": "harden_lead_search_runtime"
+    },
+    {
+      "version": "20260822184813",
+      "name": "integration_control_center"
+    },
+    {
+      "version": "20260827124047",
+      "name": "reconcile_phase_7_appointments_metadata"
+    },
+    {
+      "version": "20260827124229",
+      "name": "remove_duplicate_phase_7_appointments_index"
+    },
+    {
+      "version": "20260828124837",
+      "name": "phase_12_reconcile_security"
+    },
+    {
+      "version": "20260828130723",
+      "name": "phase_12_ana_server_boundary"
+    },
+    {
+      "version": "20260828182438",
+      "name": "reconcile_ana_quote_preparation"
+    },
+    {
+      "version": "20260831190509",
+      "name": "ana_orchestrator_runtime"
+    },
+    {
+      "version": "20260831191901",
+      "name": "ana_existing_leads_safe_mode"
+    },
+    {
+      "version": "20260903142959",
+      "name": "finalize_wayflex_security_and_scope"
+    },
+    {
+      "version": "20260903143232",
+      "name": "secure_ana_configuration"
+    },
+    {
+      "version": "20260903144141",
+      "name": "finalize_ana_runtime"
+    },
+    {
+      "version": "20260903144625",
+      "name": "align_openai_integration"
+    },
+    {
+      "version": "20260903165056",
+      "name": "reconcile_operational_frontend"
+    },
+    {
+      "version": "20260903211121",
+      "name": "index_reconciled_operational_tables"
+    },
+    {
+      "version": "20260904203407",
+      "name": "normalize_zapi_phone_and_ana_knowledge_memory"
+    },
+    {
+      "version": "20260904205301",
+      "name": "import_wayflex_approved_ana_memory"
+    },
+    {
+      "version": "20260906123543",
+      "name": "allow_claude_provider"
+    },
+    {
+      "version": "20260906130254",
+      "name": "ana_approved_knowledge_library"
+    },
+    {
+      "version": "20260909174739",
+      "name": "categorize_operational_integrations"
+    },
+    {
+      "version": "20260909182343",
+      "name": "add_server_side_automation_dispatch"
+    },
+    {
+      "version": "20260909200350",
+      "name": "production_readiness_phase0_canonical_runtime_pipeline"
+    },
+    {
+      "version": "20260909200447",
+      "name": "production_readiness_phase1_diagnostics"
+    },
+    {
+      "version": "20260909200709",
+      "name": "production_readiness_phase2_real_mode_gate"
+    },
+    {
+      "version": "20260909200815",
+      "name": "production_readiness_phase3_security_performance"
+    },
+    {
+      "version": "20260909201144",
+      "name": "production_readiness_phase4_legacy_pipeline_bridge"
+    },
+    {
+      "version": "20260909201441",
+      "name": "production_readiness_phase5_phone_identity"
+    },
+    {
+      "version": "20260909201540",
+      "name": "production_readiness_phase6_channel_contact_binding"
+    },
+    {
+      "version": "20260909201648",
+      "name": "production_readiness_phase6b_fix_phone_resolver"
+    },
+    {
+      "version": "20260909201721",
+      "name": "production_readiness_phase6c_active_conversation_resolution"
+    },
+    {
+      "version": "20260909202555",
+      "name": "production_readiness_phase7_inbound_resolution_diagnostics"
+    },
+    {
+      "version": "20260909204601",
+      "name": "production_readiness_phase8_security_index_cleanup"
+    },
+    {
+      "version": "20260909205802",
+      "name": "production_readiness_phase9_initialize_canonical_stage"
+    },
+    {
+      "version": "20260909210540",
+      "name": "production_readiness_phase10_single_operational_mode_authority"
+    },
+    {
+      "version": "20260909210636",
+      "name": "production_readiness_phase11_operational_readiness_security_invoker"
+    },
+    {
+      "version": "20260909221458",
+      "name": "hybrid_knowledge_search_and_operational_indexes"
+    },
+    {
+      "version": "20260909222719",
+      "name": "commercial_workflow_integrity_constraints"
+    },
+    {
+      "version": "20260909231814",
+      "name": "atomic_handoff_operations"
+    },
+    {
+      "version": "20260909232209",
+      "name": "fix_atomic_handoff_audit_actor"
+    },
+    {
+      "version": "20260909232713",
+      "name": "restore_message_proposal_rls_base"
+    },
+    {
+      "version": "20260909233057",
+      "name": "align_proposal_runtime_contract"
+    },
+    {
+      "version": "20260910134209",
+      "name": "purge_selected_test_leads"
+    },
+    {
+      "version": "20260910182135",
+      "name": "fix_test_lead_cleanup_ambiguity"
+    },
+    {
+      "version": "20260910182236",
+      "name": "preserve_immutable_logs_in_test_cleanup"
+    },
+    {
+      "version": "20260910182420",
+      "name": "allow_real_mode_with_registered_zapi_webhook"
+    },
+    {
+      "version": "20260910221525",
+      "name": "reconcile_handoffs_and_human_messages_20260910"
+    },
+    {
+      "version": "20260910221534",
+      "name": "enforce_ana_cadence_policy_20260910"
+    },
+    {
+      "version": "20260910221544",
+      "name": "reserve_whatsapp_direct_test_20260910"
+    },
+    {
+      "version": "20260910225346",
+      "name": "refresh_wayflex_official_ana_catalog"
+    },
+    {
+      "version": "20260911122344",
+      "name": "sync_legacy_scheduler_heartbeat"
+    },
+    {
+      "version": "20260911205122",
+      "name": "enable_lead_messages_realtime"
+    },
+    {
+      "version": "20260913173405",
+      "name": "enforce_lead_contact_approval_and_scoring_indexes"
+    },
+    {
+      "version": "20260913174113",
+      "name": "reconcile_provider_accepted_outreach"
+    },
+    {
+      "version": "20260913174227",
+      "name": "fix_provider_acceptance_reconciliation"
+    },
+    {
+      "version": "20260913174320",
+      "name": "finalize_provider_acceptance_reconciliation"
+    },
+    {
+      "version": "20260913174711",
+      "name": "harden_handoff_contact_approval"
+    },
+    {
+      "version": "20260913174751",
+      "name": "fix_atomic_message_sql_special_forms"
+    },
+    {
+      "version": "20260913184402",
+      "name": "ana_autonomous_operation_and_commercial_alerts"
+    },
+    {
+      "version": "20260913184658",
+      "name": "commercial_alert_preferences"
+    },
+    {
+      "version": "20260913185032",
+      "name": "fix_commercial_alert_app_roles"
+    },
+    {
+      "version": "20260913185119",
+      "name": "index_ana_operation_foreign_keys"
+    },
+    {
+      "version": "20260914203238",
+      "name": "member_identity_deletion"
+    },
+    {
+      "version": "20260916205958",
+      "name": "lead_governance_permissions_and_site_whatsapp"
+    },
+    {
+      "version": "20260917150914",
+      "name": "fix_whatsapp_direct_test_reservation_special_forms"
+    },
+    {
+      "version": "20260917175303",
+      "name": "fix_pending_manual_lead_phone_identity"
+    },
+    {
+      "version": "20260917202503",
+      "name": "daily_whatsapp_lead_reports"
+    },
+    {
+      "version": "20260918185000",
+      "name": "handoff_assignee_and_whatsapp_alerts"
+    },
+    {
+      "version": "20260918194743",
+      "name": "commercial_knowledge_catalog"
+    },
+    {
+      "version": "20260918200258",
+      "name": "index_commercial_knowledge_foreign_keys"
+    },
+    {
+      "version": "20260918201112",
+      "name": "consolidate_commercial_knowledge_policies"
+    },
+    {
+      "version": "20260922142724",
+      "name": "ana_automatic_routing_and_validation"
+    },
+    {
+      "version": "20260922143539",
+      "name": "prospecting_schedule_assignment_fk_indexes"
+    },
+    {
+      "version": "20260923145752",
+      "name": "catalog_media_whatsapp_queue"
+    },
+    {
+      "version": "20260923195949",
+      "name": "explicit_central_handoff_assignee"
+    },
+    {
+      "version": "20260923214152",
+      "name": "multi_whatsapp_seller_accounts"
+    },
+    {
+      "version": "20260923214542",
+      "name": "multi_whatsapp_fk_indexes"
+    },
+    {
+      "version": "20260924205357",
+      "name": "meta_coexistence_foundation"
+    },
+    {
+      "version": "20260924205458",
+      "name": "meta_coexistence_hardening"
+    },
+    {
+      "version": "20260924205858",
+      "name": "meta_coexistence_message_integrity"
+    },
+    {
+      "version": "20260925142124",
+      "name": "whatsapp_provider_activation_controls"
+    },
+    {
+      "version": "20260925160307",
+      "name": "prospecting_resume_atomic_results"
+    },
+    {
+      "version": "20260925160943",
+      "name": "prospecting_cache_transition_recovery"
+    },
+    {
+      "version": "20260925191831",
+      "name": "validate_active_lead_assignee"
+    },
+    {
+      "version": "20260925191946",
+      "name": "prioritize_lead_assignee_validation"
+    },
+    {
+      "version": "20260925194854",
+      "name": "import_prospecting_batch_atomic"
+    },
+    {
+      "version": "20260926115800",
+      "name": "catalog_qualification_guides"
+    },
+    {
+      "version": "20260926120904",
+      "name": "lead_technical_dossier"
+    },
+    {
+      "version": "20260926225535",
+      "name": "prospecting_run_idempotency"
+    },
+    {
+      "version": "20260926231632",
+      "name": "prospecting_legacy_recovery"
+    },
+    {
+      "version": "20260927122315",
+      "name": "canonical_stage_transitions_and_history"
+    },
+    {
+      "version": "20260927122749",
+      "name": "persist_lead_archival"
+    },
+    {
+      "version": "20260927124323",
+      "name": "proposal_delivery_projection"
+    },
+    {
+      "version": "20260927124532",
+      "name": "index_leads_archived_by"
+    },
+    {
+      "version": "20260927130334",
+      "name": "dashboard_ana_automatic_control"
+    },
+    {
+      "version": "20260927180537",
+      "name": "preserve_whatsapp_connection_state_when_provider_paused"
+    },
+    {
+      "version": "20260927193211",
+      "name": "fix_whatsapp_account_resolver_ambiguity"
+    },
+    {
+      "version": "20260927195241",
+      "name": "fix_proposal_delivery_outreach_ordering"
+    },
+    {
+      "version": "20260928171925",
+      "name": "kanban_operational_portfolio"
+    },
+    {
+      "version": "20260928172341",
+      "name": "kanban_saved_views_fk_index"
+    },
+    {
+      "version": "20260928185708",
+      "name": "central_atendimento_inbox"
+    },
+    {
+      "version": "20260928191132",
+      "name": "central_atendimento_realtime"
+    },
+    {
+      "version": "20260928191315",
+      "name": "central_atendimento_read_state_fk_indexes"
+    },
+    {
+      "version": "20260928191616",
+      "name": "central_atendimento_channel_provider"
+    },
+    {
+      "version": "20260928192037",
+      "name": "central_atendimento_inbox_counts"
+    },
+    {
+      "version": "20260929114225",
+      "name": "agenda_operational_workspace"
+    },
+    {
+      "version": "20260929172150",
+      "name": "users_access_lifecycle"
+    },
+    {
+      "version": "20260929224104",
+      "name": "fix_central_inbox_bounds"
+    },
+    {
+      "version": "20260929224214",
+      "name": "fix_central_inbox_least"
+    },
+    {
+      "version": "20261003194220",
+      "name": "evolution_go_channel_foundation"
+    },
+    {
+      "version": "20261003230245",
+      "name": "transfer_whatsapp_channel_with_assignee"
+    },
+    {
+      "version": "20261003230257",
+      "name": "evolution_go_seller_auto_provisioning"
+    },
+    {
+      "version": "20261003233405",
+      "name": "index_evolution_go_seller_provisioning_foreign_keys"
+    },
+    {
+      "version": "20261004182302",
+      "name": "harden_member_data_purge"
+    },
+    {
+      "version": "20261004184933",
+      "name": "revoke_member_auth_sessions"
+    },
+    {
+      "version": "20261004190328",
+      "name": "remove_unsafe_storage_purge"
+    },
+    {
+      "version": "20261004190937",
+      "name": "list_user_owned_storage"
+    },
+    {
+      "version": "20261005012004",
+      "name": "wa_akg_provider_foundation"
+    },
+    {
+      "version": "20261005012505",
+      "name": "wa_akg_security_indexes"
+    }
+  ]
+}

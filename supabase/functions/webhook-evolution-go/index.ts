@@ -51,7 +51,9 @@ Deno.serve(async (request) => {
       .select('id,enabled').eq('organization_id', integration.organization_id).eq('integration_id', integrationId)
       .eq('provider', 'evolution_go').is('archived_at', null).maybeSingle();
     if (accountError || !account) return json({ accepted: false, error: 'whatsapp_account_not_ready' }, 409);
-    if (parsed.kind !== 'connection') {
+    // Receipts authenticate against the same account but do not admit inbound
+    // messages or automation. Reconcile historical sends even after a pause.
+    if (parsed.kind !== 'connection' && parsed.kind !== 'receipt') {
       if (account.enabled !== true || integration.enabled !== true || integration.connected !== true || integration.paused === true) {
         // Authenticate first, then acknowledge callbacks for a disabled account
         // without persisting customer data. Provider controls are organization-

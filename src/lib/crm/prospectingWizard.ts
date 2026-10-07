@@ -44,3 +44,13 @@ export function validateProspectingWizardStep(
 export function nextProspectingWizardStep(step: ProspectingWizardStep): ProspectingWizardStep {
   return Math.min(step + 1, 4) as ProspectingWizardStep;
 }
+
+export function prospectingWizardBlockReason(step: ProspectingWizardStep, draft: ProspectingWizardDraft, busy = false): string | null {
+  if (busy) return 'Aguarde a consulta em andamento.';
+  for (const required of PROSPECTING_WIZARD_STEPS) {
+    if (required.id > step) break;
+    const reason = validateProspectingWizardStep(required.id, draft);
+    if (reason) return reason;
+  }
+  return null;
+}

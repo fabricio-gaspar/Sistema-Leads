@@ -1,0 +1,194 @@
+{
+  "evidence": "EV-UI-001",
+  "executedAt": "2026-10-05T21:27:42.976Z",
+  "commit": "847048429a86294aa10fa54ffdd750c04447d4fb",
+  "fixtures": "A/B sintéticos; stubs locais; nenhum acesso ao backend",
+  "hashes": {
+    "src/lib/csv.ts": "b8c886c76a769407b56e87b78b8fed9fc0aa609111e6085d946ec5fcd0e35c9f",
+    "src/pages/dashboard/leads/page.tsx": "1083ee12d48c409741f63160cc57097a6c91500c18369124c8bd519c12aa7a81",
+    "src/pages/dashboard/kanban/page.tsx": "433a3c1b6859baa4dba8db1ebfd2be5226b8a401347617c77f006398257d546b",
+    "src/hooks/useLeadsStore.ts": "05894365efda169e2b1afa23e6df7438b88d99a3d0468a4f265df2544dd5473c",
+    "src/hooks/useListasStore.ts": "f309ef35f6970328dbebdfad61136ae1f961cd307a82024c72df12d2277e0493",
+    "src/lib/backendStore.ts": "057a635b69c63f104996d14f5e546672c29eef3ec273af7560929ef3a90a9eeb",
+    "src/pages/dashboard/agenda/page.tsx": "c15897f3ff01a92ad1e77181eb2f92feac704cc62cb3ae201a915c30e447b4d3",
+    "src/lib/crm/appointmentsRepository.ts": "fe2bcba255d5fe3a246b28ba2f47b4d90e268b466a4e489b00916f4ae262e53e",
+    "src/pages/dashboard/busca-leads/page.tsx": "d9512c75bdf484aae17b0a83845293edca9c112918f66d34b0d9beb5970e92f1",
+    "src/components/feature/CommercialAnalytics.tsx": "ef0998da624e69877a91ec6308889c6bf2f75176f3f1a28303dd87bd719a6b31"
+  },
+  "results": [
+    {
+      "id": "T-UI-001",
+      "scenario": "CSV com quebra de linha em campo entre aspas",
+      "modality": "contrato simulado local; fonte de produção carregada",
+      "expected": [
+        [
+          "Empresa",
+          "linha 1\r\nlinha 2"
+        ]
+      ],
+      "observed": [
+        [
+          "Empresa",
+          "linha 1"
+        ],
+        [
+          "linha 2"
+        ]
+      ],
+      "status": "REPROVADO"
+    },
+    {
+      "id": "T-UI-002",
+      "scenario": "CSV com aspas escapadas",
+      "modality": "contrato simulado local; fonte de produção carregada",
+      "expected": "Peça \"A\" aprovada",
+      "observed": "Peça A aprovada",
+      "status": "REPROVADO"
+    },
+    {
+      "id": "T-UI-003",
+      "scenario": "CSV simples separado por ponto e vírgula",
+      "modality": "contrato simulado local; fonte de produção carregada",
+      "expected": [
+        "Empresa",
+        "São Paulo"
+      ],
+      "observed": [
+        "Empresa",
+        "São Paulo"
+      ],
+      "status": "APROVADO"
+    },
+    {
+      "id": "T-UI-004",
+      "scenario": "Exportação Leads neutraliza fórmula de planilha",
+      "modality": "contrato simulado local; fonte de produção carregada",
+      "expected": "Campo textual que não inicia fórmula após decodificação CSV",
+      "observed": {
+        "csv": "\"=1+1\"",
+        "value": "=1+1"
+      },
+      "status": "REPROVADO"
+    },
+    {
+      "id": "T-UI-005",
+      "scenario": "Exportação Kanban neutraliza fórmula de planilha",
+      "modality": "contrato simulado local; fonte de produção carregada",
+      "expected": "Campo textual que não inicia fórmula após decodificação CSV",
+      "observed": {
+        "csv": "\"=1+1\"",
+        "value": "=1+1"
+      },
+      "status": "REPROVADO"
+    },
+    {
+      "id": "T-UI-006",
+      "scenario": "leads: remontar consumidor com sessão B depois da sessão A",
+      "modality": "contrato simulado local; fonte de produção carregada",
+      "expected": "Fonte B recarregada ou estado anterior apagado",
+      "observed": {
+        "initial": [
+          {
+            "id": "synthetic-A",
+            "nome": "Dado sintético da organização A"
+          }
+        ],
+        "afterSessionChange": [
+          {
+            "id": "synthetic-A",
+            "nome": "Dado sintético da organização A"
+          }
+        ],
+        "repositoryCalls": 1
+      },
+      "status": "REPROVADO"
+    },
+    {
+      "id": "T-UI-007",
+      "scenario": "lists: remontar consumidor com sessão B depois da sessão A",
+      "modality": "contrato simulado local; fonte de produção carregada",
+      "expected": "Fonte B recarregada ou estado anterior apagado",
+      "observed": {
+        "initial": [
+          {
+            "id": "synthetic-A",
+            "nome": "Dado sintético da organização A"
+          }
+        ],
+        "afterSessionChange": [
+          {
+            "id": "synthetic-A",
+            "nome": "Dado sintético da organização A"
+          }
+        ],
+        "repositoryCalls": 1
+      },
+      "status": "REPROVADO"
+    },
+    {
+      "id": "T-UI-008",
+      "scenario": "Cache legado não pode semear conteúdo de A na nova organização B",
+      "modality": "contrato simulado local; fonte de produção carregada",
+      "expected": "Estado vazio/B e nenhuma escrita de A para B",
+      "observed": {
+        "initial": [
+          {
+            "id": "synthetic-notification-A",
+            "titulo": "Notificação sintética de A"
+          }
+        ],
+        "attemptedWrites": [
+          {
+            "organization_id": "synthetic-org-B",
+            "module_key": "notificacoes",
+            "data": [
+              {
+                "id": "synthetic-notification-A",
+                "titulo": "Notificação sintética de A"
+              }
+            ],
+            "updated_by": "synthetic-user-B",
+            "updated_at": "2026-10-05T21:27:42.899Z"
+          }
+        ]
+      },
+      "status": "REPROVADO"
+    },
+    {
+      "id": "T-UI-009",
+      "scenario": "Agenda: Criar próxima ação deve produzir compromisso válido",
+      "modality": "contrato simulado local; fonte de produção carregada",
+      "expected": "Fim posterior ao início e criação confirmada",
+      "observed": {
+        "startsAt": "2026-10-06T13:00:00.000Z",
+        "endsAt": "2026-10-06T13:00:00.000Z",
+        "validation": "appointment_datetime_invalid",
+        "notice": "Não foi possível criar a próxima ação.",
+        "saved": false
+      },
+      "status": "REPROVADO"
+    },
+    {
+      "id": "T-UI-010",
+      "scenario": "Busca: handler impede consultar provedor sem termos",
+      "modality": "contrato simulado local; fonte de produção carregada",
+      "expected": {
+        "apiCalls": 0,
+        "error": "prospecting_terms_required"
+      },
+      "observed": {
+        "apiCalls": 0,
+        "error": "prospecting_terms_required"
+      },
+      "status": "APROVADO"
+    },
+    {
+      "id": "T-UI-011",
+      "scenario": "Indicador rotulado Mensagens hoje representa apenas o dia corrente",
+      "modality": "contrato simulado local; fonte de produção carregada",
+      "expected": 2,
+      "observed": 7,
+      "status": "REPROVADO"
+    }
+  ]
+}

@@ -19,16 +19,60 @@ vi.mock('@/lib/organizationSession', () => ({
 import {
   createEvolutionGoAccount,
   createEvolutionGoInstance,
+  inspectEvolutionGoInstance,
   loadEvolutionGoAccounts,
   loadMyEvolutionGoAccount,
   requestEvolutionGoPairingCode,
   requestEvolutionGoQr,
+  replaceEvolutionGoInstance,
   runEvolutionGoAction,
   saveEvolutionGoConfiguration,
+  saveEvolutionGoServer,
+  testEvolutionGoServer,
+  loadMyWaAkgAccount,
+  requestWaAkgQr,
+  runWaAkgAction,
+  reviewChannelLifecycle,
 } from './whatsappAccountsRepository';
+import { sessionContext } from '@/lib/sessionContext';
 
 const accountId = '11111111-1111-4111-8111-111111111111';
 const ownerUserId = '22222222-2222-4222-8222-222222222222';
+
+describe('R6 explicit administrative recovery client', () => {
+  const diagnosis = { lifecycle: { state: 'needs_review', revision: 7, desiredAction: 'activate', errorCode: null },
+    recovery: { eligible: true, reason: 'read_only', observedConnected: true, observedAt: null, requiresAdmin: true, retainsLocalCutoff: true } };
+  beforeEach(() => { invokeMock.mockReset(); sessionContext.replace(ownerUserId, accountId); });
+  afterEach(() => { sessionContext.replace(null); });
+  it.each(['wa_akg','evolution_go'] as const)('diagnoses %s without connect, QR or activation', async (provider) => {
+    invokeMock.mockResolvedValue({ data: { ok: true, ...diagnosis }, error: null });
+    await expect(reviewChannelLifecycle(provider, accountId)).resolves.toMatchObject(diagnosis);
+    expect(invokeMock).toHaveBeenCalledExactlyOnceWith(provider.replaceAll('_','-'), { body: { action: 'lifecycle_diagnose', account_id: accountId } });
+  });
+  it('reconciles only the observed revision and requires retained cutoff', async () => {
+    invokeMock.mockResolvedValue({ data: { ok: true, ...diagnosis, recovery: {...diagnosis.recovery,reconciled:true} }, error: null });
+    await reviewChannelLifecycle('wa_akg', accountId, {expectedRevision:7,reason:' Consulta revisada '});
+    expect(invokeMock).toHaveBeenCalledExactlyOnceWith('wa-akg',{body:{action:'lifecycle_reconcile',account_id:accountId,expected_revision:7,reason:'Consulta revisada'}});
+  });
+  it('rejects a generic success that does not confirm recovery', async () => {
+    invokeMock.mockResolvedValue({data:{ok:true,...diagnosis},error:null});
+    await expect(reviewChannelLifecycle('wa_akg',accountId,{expectedRevision:7,reason:'Consulta revisada'})).rejects.toThrow('lifecycle_recovery_unconfirmed');
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+  });
+  it('does not retry an uncertain result', async () => {
+    invokeMock.mockRejectedValue(new Error('Failed to fetch'));
+    await expect(reviewChannelLifecycle('wa_akg',accountId,{expectedRevision:7,reason:'Consulta revisada'})).rejects.toThrow('Failed to fetch');
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+  });
+  it('discards a response after organization switch', async () => {
+    invokeMock.mockImplementation(async()=>{sessionContext.replace(ownerUserId,'another-org');return {data:{ok:true,...diagnosis},error:null};});
+    await expect(reviewChannelLifecycle('wa_akg',accountId)).rejects.toThrow('session_context_changed');
+  });
+  it('rejects empty audit justification before network', async () => {
+    await expect(reviewChannelLifecycle('wa_akg',accountId,{expectedRevision:7,reason:'short'})).rejects.toThrow('lifecycle_recovery_reason_required');
+    expect(invokeMock).not.toHaveBeenCalled();
+  });
+});
 
 function ok(data: Record<string, unknown> = {}) {
   invokeMock.mockResolvedValueOnce({ data: { ok: true, ...data }, error: null });
@@ -41,6 +85,33 @@ describe('Evolution GO multi-account repository', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+  it.each([
+    ['WA-AKG activate', () => runWaAkgAction('activate', accountId)],
+    ['Evolution activate', () => runEvolutionGoAction('activate', accountId)],
+    ['WA-AKG QR', () => requestWaAkgQr(accountId)],
+    ['Evolution QR', () => requestEvolutionGoQr(accountId)],
+  ])('does not mistake a pending acknowledgement for successful %s', async (_label, call) => {
+    ok({ lifecycle: { state: 'pending', revision: 2, desiredAction: 'activate', errorCode: null } });
+    await expect(call()).rejects.toThrow('account_lifecycle_pending');
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('allows read-only inspection of a pending WA-AKG account', async () => {
+    ok({ account: null, lifecycle: { state: 'pending', revision: 2, desiredAction: 'connect', errorCode: null } });
+    await expect(loadMyWaAkgAccount()).resolves.toMatchObject({ lifecycle: { state: 'pending' } });
+  });
+
+  it.each([
+    ['WA-AKG', () => runWaAkgAction('connect', accountId)],
+    ['Evolution', () => runEvolutionGoAction('connect', accountId)],
+  ])('surfaces a %s HTTP 409 lifecycle code without inventing success or consuming the response', async (_label, call) => {
+    const context = new Response(JSON.stringify({ ok: false, error: 'account_lifecycle_needs_review' }), { status: 409 });
+    invokeMock.mockResolvedValueOnce({ data: null, error: { context } });
+    await expect(call()).rejects.toThrow('account_lifecycle_needs_review');
+    expect(context.bodyUsed).toBe(false);
+    expect(invokeMock).toHaveBeenCalledTimes(1);
   });
 
   it('loads the authorized collection without requesting secrets or QR data', async () => {
@@ -59,6 +130,40 @@ describe('Evolution GO multi-account repository', () => {
     expect(body).not.toHaveProperty('account_id');
     expect(body).not.toHaveProperty('global_api_key');
     expect(body).not.toHaveProperty('instance_token');
+  });
+
+  it('inspects a seller instance without submitting credentials or changing provider state', async () => {
+    ok({ instance_name: 'wf-test', provider_id: 'remote-id', provider_connected: false,
+      token_accepted: false, job_state: 'awaiting_qr' });
+    await expect(inspectEvolutionGoInstance(accountId)).resolves.toMatchObject({ token_accepted: false });
+    expect(invokeMock).toHaveBeenCalledExactlyOnceWith('evolution-go-recovery', {
+      body: { action: 'inspect', account_id: accountId },
+    });
+  });
+
+  it('submits only the explicitly confirmed seller instance for replacement, once', async () => {
+    ok({ instance_name: 'wf-test', provider_id: 'new-id', token_confirmed: true,
+      messaging_enabled: false });
+    await expect(replaceEvolutionGoInstance(accountId, 'wf-test', 'old-id'))
+      .resolves.toMatchObject({ token_confirmed: true, messaging_enabled: false });
+    expect(invokeMock).toHaveBeenCalledExactlyOnceWith('evolution-go-recovery', {
+      body: { action: 'replace', account_id: accountId, confirm_instance_name: 'wf-test',
+        confirm_remote_id: 'old-id' },
+    });
+  });
+
+  it.each([
+    ['save_server', () => saveEvolutionGoServer(accountId, { baseUrl: 'https://example.test', globalApiKey: 'test-key' })],
+    ['test_server', () => testEvolutionGoServer(accountId)],
+  ])('propagates unsupported deployed %s without retrying or claiming success', async (action, call) => {
+    const context = new Response(JSON.stringify({ ok: false, error: 'unsupported_action' }), { status: 400 });
+    invokeMock.mockResolvedValueOnce({ data: null, error: { context } });
+
+    await expect(call()).rejects.toThrow('unsupported_action');
+    expect(invokeMock).toHaveBeenCalledExactlyOnceWith('evolution-go', {
+      body: expect.objectContaining({ action, account_id: accountId }),
+    });
+    expect(context.bodyUsed).toBe(false);
   });
 
   it('creates a seller account with a client-generated id and explicit owner', async () => {

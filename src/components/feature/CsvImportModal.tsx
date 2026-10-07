@@ -1,5 +1,6 @@
-import { useRef, useState } from 'react';
-import { parseCsv, detectarMapeamento } from '@/lib/csv';
+import { useEffect, useId, useRef, useState } from 'react';
+import { CSV_MAX_BYTES, CsvParseError, parseCsv, detectarMapeamento } from '@/lib/csv';
+import AccessibleDialog from './AccessibleDialog';
 
 export interface CampoImportacao {
   chave: string;
@@ -39,6 +40,10 @@ export default function CsvImportModal({
   onClose,
 }: CsvImportModalProps) {
   const fileRef = useRef<HTMLInputElement>(null);
+  const fieldId = useId();
+  const readerRef = useRef<FileReader | null>(null);
+  const readGeneration = useRef(0);
+  useEffect(() => () => { readGeneration.current += 1; readerRef.current?.abort(); }, []);
   const [arquivoNome, setArquivoNome] = useState('');
   const [cabecalho, setCabecalho] = useState<string[]>([]);
   const [linhas, setLinhas] = useState<string[][]>([]);
@@ -50,10 +55,19 @@ export default function CsvImportModal({
 
   const aoSelecionar = (arquivo: File) => {
     if (alteracoesBloqueadas) return;
+    const generation = ++readGeneration.current;
+    readerRef.current?.abort();
     setErro('');
     setResultado(null);
+    setArquivoNome('');
+    setCabecalho([]);
+    setLinhas([]);
+    setMapeamento({});
+    if (arquivo.size > CSV_MAX_BYTES) { setErro('O arquivo CSV deve ter no máximo 5 MB.'); return; }
     const leitor = new FileReader();
+    readerRef.current = leitor;
     leitor.onload = () => {
+      if (readGeneration.current !== generation) return;
       try {
         const { cabecalho: cab, linhas: lns } = parseCsv(String(leitor.result || ''));
         if (cab.length === 0 || lns.length === 0) {
@@ -66,11 +80,11 @@ export default function CsvImportModal({
         setLinhas(lns);
         setArquivoNome(arquivo.name);
         setMapeamento(detectarMapeamento(cab, campos));
-      } catch {
-        setErro('Não foi possível ler o arquivo. Verifique o formato CSV.');
+      } catch (error) {
+        setErro(error instanceof CsvParseError ? error.message : 'Não foi possível ler o arquivo. Verifique o formato CSV.');
       }
     };
-    leitor.onerror = () => setErro('Falha ao ler o arquivo.');
+    leitor.onerror = () => { if (readGeneration.current === generation) setErro('Falha ao ler o arquivo.'); };
     leitor.readAsText(arquivo);
   };
 
@@ -122,6 +136,8 @@ export default function CsvImportModal({
 
   const reiniciar = () => {
     if (alteracoesBloqueadas) return;
+    readGeneration.current += 1;
+    readerRef.current?.abort();
     setArquivoNome('');
     setCabecalho([]);
     setLinhas([]);
@@ -131,7 +147,7 @@ export default function CsvImportModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-foreground-950/50 flex items-center justify-center p-4" onClick={() => { if (!importando) onClose(); }}>
+    <AccessibleDialog title={titulo} onClose={() => { if (!importando) onClose(); }} className="w-full max-w-2xl">
       <div className="bg-background-50 rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="px-6 py-4 border-b border-background-200/70 flex items-center justify-between sticky top-0 bg-background-50 z-10">
           <div>
@@ -219,11 +235,12 @@ export default function CsvImportModal({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {campos.map((c) => (
                     <div key={c.chave} className="flex items-center gap-2">
-                      <label className="w-32 flex-shrink-0 text-sm text-foreground-700">
+                      <label htmlFor={`${fieldId}-${c.chave}`} className="w-32 flex-shrink-0 text-sm text-foreground-700">
                         {c.rotulo}
                         {c.obrigatorio && <span className="text-accent-600"> *</span>}
                       </label>
                       <select
+                        id={`${fieldId}-${c.chave}`}
                         value={mapeamento[c.chave] !== undefined ? String(mapeamento[c.chave]) : ''}
                         onChange={(e) =>
                           setMapeamento((prev) => ({
@@ -322,7 +339,7 @@ export default function CsvImportModal({
             </button>
             <button
               onClick={importar}
-              disabled={linhas.length === 0 || importando}
+              disabled={linhas.length === 0 || importando || obrigatoriasFaltando.length > 0}
               className="px-5 py-2.5 bg-primary-500 hover:bg-primary-600 disabled:bg-primary-300 text-background-50 rounded-lg text-sm font-bold cursor-pointer whitespace-nowrap"
             >
               {importando ? <i className="ri-loader-4-line mr-1.5 animate-spin"></i> : <i className="ri-download-2-line mr-1.5"></i>}
@@ -331,6 +348,6 @@ export default function CsvImportModal({
           </div>
         )}
       </div>
-    </div>
+    </AccessibleDialog>
   );
 }

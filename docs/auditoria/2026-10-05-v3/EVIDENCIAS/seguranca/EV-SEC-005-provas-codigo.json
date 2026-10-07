@@ -1,0 +1,137 @@
+{
+  "version": "847048429a86294aa10fa54ffdd750c04447d4fb",
+  "fixture": "synthetic only",
+  "results": [
+    {
+      "id": "T-SEC-012",
+      "scenario": "Alteração de empresa/permissão do mesmo usuário com cache carregado",
+      "expected": "nova RPC deve retornar empresa B/vendedor sem team.manage",
+      "observed": {
+        "rpcCalls": 1,
+        "access": {
+          "organizationId": "synthetic-A",
+          "role": "administrador",
+          "permissions": {
+            "team.manage": true
+          }
+        }
+      },
+      "result": "REPROVADO",
+      "modality": "contrato simulado; código de produção real transpilado; sem rede"
+    },
+    {
+      "id": "T-SEC-013",
+      "scenario": "Admin A redefine senha Auth de membro que também pertence à empresa B",
+      "expected": "negar mutação global de identidade compartilhada ou exigir autoridade externa à empresa",
+      "observed": {
+        "status": 200,
+        "body": {
+          "ok": true,
+          "sessions_revoked": true
+        },
+        "calls": [
+          {
+            "table": "profiles",
+            "operation": "select",
+            "filters": {
+              "id": "11111111-1111-4111-8111-111111111111"
+            }
+          },
+          {
+            "table": "organization_members",
+            "operation": "select",
+            "filters": {
+              "organization_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+              "user_id": "22222222-2222-4222-8222-222222222222"
+            }
+          },
+          {
+            "operation": "AUTH_GLOBAL_UPDATE",
+            "id": "22222222-2222-4222-8222-222222222222",
+            "fields": [
+              "password"
+            ]
+          },
+          {
+            "operation": "rpc",
+            "name": "revoke_user_auth_sessions",
+            "args": {
+              "p_user_id": "22222222-2222-4222-8222-222222222222"
+            }
+          },
+          {
+            "table": "audit_logs",
+            "operation": "insert",
+            "filters": {}
+          }
+        ],
+        "fixture": "target belongs to A and B; no other-organization lookup was requested"
+      },
+      "result": "REPROVADO",
+      "modality": "contrato simulado; código de produção real transpilado; sem rede"
+    },
+    {
+      "id": "T-SEC-014",
+      "scenario": "API atribui papel marcado indisponível na política",
+      "expected": "negar atribuição de vendedor com availableRoles.vendedor=false",
+      "observed": {
+        "status": 200,
+        "body": {
+          "ok": true
+        },
+        "calls": [
+          {
+            "table": "profiles",
+            "operation": "select",
+            "filters": {
+              "id": "11111111-1111-4111-8111-111111111111"
+            }
+          },
+          {
+            "table": "organization_members",
+            "operation": "select",
+            "filters": {
+              "organization_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+              "user_id": "22222222-2222-4222-8222-222222222222"
+            }
+          },
+          {
+            "table": "organization_members",
+            "operation": "update",
+            "filters": {
+              "organization_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+              "user_id": "22222222-2222-4222-8222-222222222222"
+            },
+            "payload": {
+              "role": "vendedor",
+              "updated_at": "2026-10-05T21:27:16.662Z"
+            }
+          },
+          {
+            "table": "audit_logs",
+            "operation": "insert",
+            "filters": {}
+          }
+        ],
+        "changedRole": "vendedor"
+      },
+      "result": "REPROVADO",
+      "modality": "contrato simulado; código de produção real transpilado; sem rede"
+    },
+    {
+      "id": "T-SEC-015",
+      "scenario": "Operação administrativa com sessão aal1 e política requireMfa=true",
+      "expected": "recusar operação sensível até segundo fator",
+      "observed": {
+        "status": 200,
+        "body": {
+          "ok": true,
+          "sessions_revoked": true
+        },
+        "policyReads": 0
+      },
+      "result": "REPROVADO",
+      "modality": "contrato simulado; código de produção real transpilado; sem rede"
+    }
+  ]
+}

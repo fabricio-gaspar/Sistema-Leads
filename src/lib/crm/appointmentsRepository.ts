@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase';
-import { resolveOrganizationSession } from '@/lib/organizationSession';
+import { assertOrganizationSession, resolveOrganizationSession } from '@/lib/organizationSession';
 import { isUuid } from '@/lib/crm/leadMapper';
+import { prepareAgendaNextAction, type NextActionIntent } from './agendaNextAction';
 
 export const agendaTypes = ['reuniao', 'ligacao', 'followup', 'tarefa', 'outro'] as const;
 export const agendaStatuses = ['pending', 'confirmed', 'completed', 'cancelled', 'no_show'] as const;
@@ -180,6 +181,23 @@ export async function createOperationalAppointment(input: AgendaAppointment): Pr
   const { data, error } = await supabase.from('appointments').insert({ id: input.id, organization_id: session.organizationId, user_id: session.userId, ...editableRow(input) })
     .select('id,lead_id,title,starts_at,ends_at,status,notes,meeting_url,provider,external_id,metadata,created_at,updated_at').single();
   if (error) throw error;
+  return mapRow(createMapperRow(data, input));
+}
+
+export async function createAgendaNextAction(parent: AgendaAppointment, intent: NextActionIntent): Promise<AgendaAppointment> {
+  const session = await resolveOrganizationSession();
+  const input = prepareAgendaNextAction(parent, intent);
+  if (!isUuid(parent.id) || !isUuid(intent.requestId)) throw new Error('appointment_next_action_invalid');
+  const { data, error } = await supabase.rpc('create_agenda_next_action', {
+    p_parent_id: parent.id, p_request_id: intent.requestId, p_expected_updated_at: parent.updatedAt,
+    p_title: input.title, p_starts_at: input.startsAt, p_duration_minutes: intent.durationMinutes,
+    p_allow_conflict: intent.allowConflict,
+  });
+  assertOrganizationSession(session);
+  if (error) throw error;
+  if (!data || typeof data !== 'object' || data.id !== intent.requestId || data.organization_id !== session.organizationId) {
+    throw new Error('appointment_next_action_unconfirmed');
+  }
   return mapRow(createMapperRow(data, input));
 }
 

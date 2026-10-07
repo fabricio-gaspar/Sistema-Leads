@@ -1,5 +1,9 @@
 # Conhecimento comercial estruturado
 
+## 05/10/2026 — R8 local, homologação pendente
+
+Política commercial_catalog_policy é consumida pela Ana com knowledge_usage e fonte/item/documento/chunk canônicos. Snapshots de conhecimento dos jobs guardam IDs/digest do contexto, não textos/segredos; o payload do job também contém a mensagem preparada. Mudanças de autoridade/conteúdo exigem nova revisão antes de efeito. Conhecimento em knowledge_catalog_items não é tabela de preços services/proposal_items. Template não se torna aprovado por ter blocos. Orçamento, preço/desconto/prazo finais e Ganho continuam humanos. Sem sincronização implícita entre catálogos e sem envio final autônomo. Ver relatório R8 e testes integrados, ainda não há deploy.
+
 ## Fonte operacional
 
 - `knowledge_sources` registra origem, escopo, estado e erro de sincronização.

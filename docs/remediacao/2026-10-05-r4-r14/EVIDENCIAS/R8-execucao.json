@@ -1,0 +1,48 @@
+{
+  "lote": "R8",
+  "date": "2026-10-05",
+  "baseline": "aeeb24b2f9970b7b36b32b661c4534a368357662",
+  "mode": "local synthetic runtime; real handler and helpers; no remote business data",
+  "newTests": {
+    "anaAuthorityR8": 41,
+    "runtimeHandlersR8": 2,
+    "total": 43
+  },
+  "combinedFinal": {
+    "command": "/Users/fabriciogaspar/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node node_modules/vitest/vitest.mjs run src/lib/contextIsolationR5.test.ts src/lib/authContextObserverR5.test.ts src/hooks/operationalStoresR5.test.ts src/hooks/templateQueueR5.test.ts src/hooks/useListasStore.test.ts src/lib/crm/currentAccessRepository.test.ts src/hooks/useIntegracoesStore.test.ts src/lib/crm/leadsRepository.test.ts src/lib/crm/proposalsRepository.test.ts src/lib/crm/operationalEntitiesRepository.test.ts src/lib/crm/whatsappAccountsRepository.test.ts supabase/tests/anaAuthorityR8.test.ts supabase/tests/runtimeHandlers.test.ts",
+    "exit_code": 0,
+    "files": 13,
+    "tests": 238,
+    "passed": 238,
+    "note": "Includes R5 and existing/integrator regressions; not 238 new R8 cases."
+  },
+  "checks": [
+    {
+      "command": "node node_modules/typescript/bin/tsc --project tsconfig.edge.json",
+      "exit_code": 0
+    },
+    {
+      "command": "node node_modules/typescript/bin/tsc --noEmit --project tsconfig.app.json",
+      "exit_code": 0
+    },
+    {
+      "command": "node node_modules/eslint/bin/eslint.js src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+      "exit_code": 0
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0
+    }
+  ],
+  "independentReview": "REVISAO_R8.md; reviewer reran 41+118 cases",
+  "limitations": [
+    "No real AI/Calendar/message/provider calls. SQL/PostgREST behavior is mocked here; not a replacement for integrated DB validation.",
+    "Knowledge source imports without a canonical source_id fail closed.",
+    "Distributed effects accepted after last successful guard cannot be undone; no claim of atomic provider+DB transaction.",
+    "UI runtime/E2E for catalog/default template remains for integration; no real customer modifications."
+  ],
+  "production_mutations": false,
+  "commit": false,
+  "push": false,
+  "deploy": false
+}

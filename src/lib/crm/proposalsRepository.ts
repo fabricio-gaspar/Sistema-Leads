@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import { resolveOrganizationSession } from '@/lib/organizationSession';
+import { resolveOrganizationSession, assertOrganizationSession, type OrganizationSession } from '@/lib/organizationSession';
 import { isUuid } from '@/lib/crm/leadMapper';
 import type { ItemProposta, Proposta } from '@/mocks/propostasData';
 import { readAllPages } from './paginatedRead';
@@ -73,8 +73,8 @@ export async function loadOperationalProposals(organizationId?: string): Promise
   return rows.sort((a, b) => b.created_at.localeCompare(a.created_at)).map((row) => rowToProposal(row, row.lead_id ? leadById.get(row.lead_id) : undefined));
 }
 
-async function save(proposal: Proposta, isNew: boolean): Promise<void> {
-  const session = await resolveOrganizationSession();
+async function save(proposal: Proposta, isNew: boolean, session: OrganizationSession): Promise<void> {
+  assertOrganizationSession(session);
   if (!proposal.leadId || !isUuid(proposal.leadId)) throw new Error('proposal_lead_required');
   const values = {
     organization_id: session.organizationId, number: proposal.numero, lead_id: proposal.leadId, client: proposal.empresa,
@@ -90,13 +90,15 @@ async function save(proposal: Proposta, isNew: boolean): Promise<void> {
 }
 
 export async function persistOperationalProposals(previous: Proposta[], next: Proposta[]): Promise<Proposta[]> {
+  const session = await resolveOrganizationSession();
+  assertOrganizationSession(session);
   const previousById = new Map(previous.map((proposal) => [proposal.id, proposal]));
   const persisted = next.map((proposal) => ({ ...proposal, id: persistentProposalId(proposal.id) }));
   const nextIds = new Set(persisted.map((proposal) => proposal.id));
-  for (const proposal of persisted) await save(proposal, !previousById.has(proposal.id));
-  const session = await resolveOrganizationSession();
+  for (const proposal of persisted) await save(proposal, !previousById.has(proposal.id), session);
   for (const proposal of previous) {
     if (!nextIds.has(proposal.id) && isUuid(proposal.id)) {
+      assertOrganizationSession(session);
       const { error } = await supabase.from('proposals').update({ status: 'archived', updated_at: new Date().toISOString() })
         .eq('id', proposal.id).eq('organization_id', session.organizationId);
       if (error) throw error;

@@ -1,0 +1,56 @@
+Command: /Users/fabriciogaspar/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node node_modules/vitest/vitest.mjs run supabase/tests/evolutionGoHandler.test.ts --configLoader runner
+Exit: 0
+
+ RUN  v3.2.7 /Users/fabriciogaspar/Documents/Codex/2026-10-04/c/Sistema-Leads-live
+
+stderr | supabase/tests/evolutionGoHandler.test.ts > Evolution GO multi-account handler > requires account_id before any secret read or provider request
+evolution_go_action_failed { action: 'status', code: 'evolution_go_account_required' }
+
+stderr | supabase/tests/evolutionGoHandler.test.ts > Evolution GO multi-account handler > returns QR only to an administrator or the private-account owner and never reveals another seller account
+evolution_go_action_failed { action: 'qr', code: 'evolution_go_account_not_found' }
+
+stderr | supabase/tests/evolutionGoHandler.test.ts > Evolution GO multi-account handler > returns QR only to an administrator or the private-account owner and never reveals another seller account
+evolution_go_action_failed { action: 'qr', code: 'evolution_go_account_not_found' }
+
+stderr | supabase/tests/evolutionGoHandler.test.ts > Evolution GO multi-account handler > recovers one stale Evolution GO runtime before returning a QR
+evolution_go_upstream_rejected {
+  path: '/instance/qr',
+  status: 400,
+  response_keys: [ 'error' ],
+  error_flags: {
+    phone: false,
+    instance: false,
+    session: false,
+    authentication: false,
+    retry: true
+  }
+}
+
+stderr | supabase/tests/evolutionGoHandler.test.ts > Evolution GO multi-account handler > fails closed and does not audit activation success when account state persistence fails
+evolution_go_action_failed { action: 'activate', code: 'account_lifecycle_persistence_failed' }
+
+stderr | supabase/tests/evolutionGoHandler.test.ts > R2 lifecycle HTTP contract: evolution-go (DB transport mocked) > R2-HTTP-03 performs no remote call when durable intent fails to save
+evolution_go_action_failed { action: 'disconnect', code: 'account_lifecycle_persistence_failed' }
+
+stderr | supabase/tests/evolutionGoHandler.test.ts > R2 lifecycle HTTP contract: evolution-go (DB transport mocked) > R2-HTTP-04 never reports success when atomic final persistence fails
+evolution_go_action_failed { action: 'activate', code: 'account_lifecycle_persistence_failed' }
+
+stderr | supabase/tests/evolutionGoHandler.test.ts > R2 lifecycle HTTP contract: evolution-go (DB transport mocked) > R2-HTTP-10 denies self-service attempts to open administrative controls
+evolution_go_action_failed { action: 'set_provider_controls', code: 'permission_denied' }
+
+stderr | supabase/tests/evolutionGoHandler.test.ts > R2 lifecycle HTTP contract: wa-akg (DB transport mocked) > R2-HTTP-03 performs no remote call when durable intent fails to save
+wa_akg_action_failed { action: 'disconnect', code: 'account_lifecycle_persistence_failed' }
+
+stderr | supabase/tests/evolutionGoHandler.test.ts > R2 lifecycle HTTP contract: wa-akg (DB transport mocked) > R2-HTTP-04 never reports success when atomic final persistence fails
+wa_akg_action_failed { action: 'activate', code: 'account_lifecycle_persistence_failed' }
+
+stderr | supabase/tests/evolutionGoHandler.test.ts > R2 lifecycle HTTP contract: wa-akg (DB transport mocked) > R2-HTTP-10 denies self-service attempts to open administrative controls
+wa_akg_action_failed { action: 'set_provider_controls', code: 'permission_denied' }
+
+ ✓ supabase/tests/evolutionGoHandler.test.ts (36 tests) 1654ms
+   ✓ Evolution GO multi-account handler > recovers one stale Evolution GO runtime before returning a QR  1504ms
+
+ Test Files  1 passed (1)
+      Tests  36 passed (36)
+   Start at  19:20:02
+   Duration  1.93s (transform 97ms, setup 0ms, collect 56ms, tests 1.65s, environment 0ms, prepare 51ms)

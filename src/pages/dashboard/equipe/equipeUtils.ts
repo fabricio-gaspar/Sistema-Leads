@@ -1,3 +1,4 @@
+import { escapeCsvCell } from '@/lib/csv';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import type { Conversa } from '@/mocks/atendimentoData';
@@ -120,11 +121,7 @@ export function calcularMetricas(
 }
 
 
-function csvCampo(v: string | number) {
-  const s = String(v);
-  if (/[;"\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
-  return s;
-}
+const csvCampo = escapeCsvCell;
 
 function baixarArquivo(nome: string, conteudo: string | Blob, mime: string) {
   const blob = conteudo instanceof Blob ? conteudo : new Blob([conteudo], { type: mime });

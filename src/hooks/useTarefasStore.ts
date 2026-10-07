@@ -1,52 +1,12 @@
-import { useEffect, useSyncExternalStore } from 'react';
+import { createContextStore } from '@/lib/contextStore';
 import type { Tarefa } from '@/lib/tipos';
 import { loadOperationalTasks, persistOperationalTasks } from '@/lib/crm/tasksRepository';
 
-let state: Tarefa[] = [];
-let hydrated = false;
-let hydratePromise: Promise<void> | null = null;
-let writeQueue = Promise.resolve();
-let latestPersistenceError: unknown = null;
-const listeners = new Set<() => void>();
-
-const notify = () => listeners.forEach((listener) => listener());
-const subscribe = (listener: () => void) => {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
-};
-
-async function hydrate(): Promise<void> {
-  if (hydrated) return;
-  if (hydratePromise) return hydratePromise;
-  hydratePromise = loadOperationalTasks()
-    .then((tasks) => {
-      state = tasks;
-      hydrated = true;
-      notify();
-    })
-    .catch((error) => console.error('[crm-tasks] falha ao carregar fonte operacional', error))
-    .finally(() => { hydratePromise = null; });
-  return hydratePromise;
-}
-
-function updateState(updater: (previous: Tarefa[]) => Tarefa[]): void {
-  const previous = state;
-  const next = updater(previous);
-  state = next;
-  notify();
-  writeQueue = writeQueue
-    .then(async () => {
-      state = await persistOperationalTasks(previous, next);
-      latestPersistenceError = null;
-      notify();
-    })
-    .catch((error) => {
-      console.error('[crm-tasks] falha ao salvar fonte operacional', error);
-      latestPersistenceError = error;
-      hydrated = false;
-      void hydrate();
-    });
-}
+const store = createContextStore<Tarefa[]>({
+  initial: () => [],
+  load: async () => loadOperationalTasks(),
+  save: (previous, next) => persistOperationalTasks(previous, next),
+});
 
 export function useTarefasStore(): {
   tarefas: Tarefa[];
@@ -54,8 +14,8 @@ export function useTarefasStore(): {
   concluir: (id: string) => void;
   alternar: (id: string) => void;
 } {
-  const tarefas = useSyncExternalStore(subscribe, () => state, () => state);
-  useEffect(() => { void hydrate(); }, []);
+  const tarefas = store.useData();
+  const updateState = store.bindUpdate();
 
   const criar = (dados: Omit<Tarefa, 'id' | 'criadaEm' | 'concluida'>): Tarefa => {
     const nova: Tarefa = {
@@ -80,15 +40,8 @@ export function useTarefasStore(): {
 }
 
 export function getTarefasSnapshot(): Tarefa[] {
-  return state;
+  return store.get();
 }
 
 /** Wait for an optimistic task mutation before confirming it in the UI. */
-export async function waitForTarefasPersistence(): Promise<void> {
-  await writeQueue;
-  if (latestPersistenceError) {
-    const error = latestPersistenceError;
-    latestPersistenceError = null;
-    throw error;
-  }
-}
+export const waitForTarefasPersistence = store.wait;

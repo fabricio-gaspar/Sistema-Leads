@@ -46,14 +46,13 @@ function UsageSwitch({ enabled, disabled, loading, label, onClick }: { enabled: 
 
 function ProviderCard({ integration, sourceStatus, pending, onConfigure, onTest, onToggle, onDiagnostic }: { integration: OperationalIntegration; sourceStatus?: string; pending: string | null; onConfigure: () => void; onTest: () => void; onToggle: () => void; onDiagnostic: () => void }) {
   const health = healthFor(integration);
-  const isConfigured = integration.connected || integration.enabled;
-  const canToggleOn = integration.connected && !integration.paused && !integration.lastError;
+  const isConfigured = integration.configured;
   const isLoading = pending === integration.remoteKey;
   // The public integration payload does not expose a configured fallback.
   // Never infer one from the selected primary provider.
   const fallback: string | null = null;
   return <article className="rounded-2xl border border-background-200 bg-white p-5 shadow-[0_5px_18px_rgba(20,31,38,0.03)]">
-    <div className="flex flex-col gap-4 sm:flex-row sm:items-start"><span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-background-100 text-xl text-foreground-800"><i className={icons[integration.remoteKey]} aria-hidden="true" /></span><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h3 className="text-base font-semibold text-foreground-950">{names[integration.remoteKey]}</h3><span className="rounded-full bg-[#EEF3FF] px-2.5 py-1 text-[11px] font-semibold text-[#4564A4]">{scopes[integration.remoteKey]}</span></div><p className="mt-1 text-sm text-foreground-500">{descriptions[integration.remoteKey]}</p></div><div className="flex shrink-0 items-center gap-3"><span className="text-xs font-semibold text-foreground-500">Uso operacional</span><UsageSwitch enabled={integration.enabled && !integration.paused} disabled={!canToggleOn && !integration.enabled} loading={isLoading} label={`Uso operacional de ${names[integration.remoteKey]}`} onClick={onToggle} /></div></div>
+    <div className="flex flex-col gap-4 sm:flex-row sm:items-start"><span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-background-100 text-xl text-foreground-800"><i className={icons[integration.remoteKey]} aria-hidden="true" /></span><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h3 className="text-base font-semibold text-foreground-950">{names[integration.remoteKey]}</h3><span className="rounded-full bg-[#EEF3FF] px-2.5 py-1 text-[11px] font-semibold text-[#4564A4]">{scopes[integration.remoteKey]}</span></div><p className="mt-1 text-sm text-foreground-500">{descriptions[integration.remoteKey]}</p></div><div className="flex shrink-0 items-center gap-3"><span className="text-xs font-semibold text-foreground-500">Uso operacional</span><UsageSwitch enabled={integration.enabled && !integration.paused} loading={isLoading} label={`Uso operacional de ${names[integration.remoteKey]}`} onClick={onToggle} /></div></div>
     <div className="mt-5 flex flex-col gap-3 border-t border-background-200/70 pt-4 lg:flex-row lg:items-center"><div className="flex flex-1 flex-wrap items-center gap-x-5 gap-y-2 text-xs text-foreground-500"><span><i className="ri-links-line mr-1.5" />Conexão: <strong className="font-semibold text-foreground-800">{integration.connected ? 'validada' : 'atenção'}</strong></span><span><i className="ri-calendar-line mr-1.5" />Último teste: <strong className="font-semibold text-foreground-800">{date(integration.lastTestedAt)}</strong></span>{fallback && <span><i className="ri-database-2-line mr-1.5" />Fallback: <strong className="font-semibold text-foreground-800">{fallback}</strong></span>}{sourceStatus && <span><i className="ri-search-line mr-1.5" />Fonte de busca: <strong className="font-semibold text-foreground-800">{sourceStatus}</strong></span>}</div><HealthBadge tone={health.tone}>{health.label}</HealthBadge></div>
     {!integration.connected && <p className="mt-3 rounded-lg bg-background-50 px-3 py-2 text-xs text-foreground-500">{health.detail}</p>}
     {integration.lastError && <p className="mt-3 rounded-lg bg-[#FFF4F2] px-3 py-2 text-xs text-[#8B3027]">{integration.lastError}</p>}
@@ -83,7 +82,29 @@ export default function ApisProvidersTab() {
 
   const messageFor = (error: unknown) => { const code = error instanceof Error ? error.message : ''; if (code === 'integration_validation_required') return 'Valide a conexão novamente antes de ativar o uso operacional.'; if (code === 'permission_denied') return 'Seu usuário não possui permissão para alterar este provedor.'; return 'Não foi possível concluir a ação. O estado visual foi revertido pelo backend.'; };
   const test = async (integration: OperationalIntegration) => { setPending(integration.remoteKey); setNotice(null); try { const { data, error } = await supabase.functions.invoke('testar-integracao', { body: { canal: integration.remoteKey } }); if (error || !data?.pronto) throw new Error(error ? await detalheDoErroDeFuncao(error) : data?.erro || data?.detalhe); await refresh(); setNotice({ tone: 'success', text: `${names[integration.remoteKey]} validado contra o serviço real. Nenhuma mensagem foi enviada.` }); } catch (error) { await refresh(); setNotice({ tone: 'error', text: messageFor(error) }); } finally { setPending(null); } };
-  const toggle = async (integration: OperationalIntegration) => { const enabling = !integration.enabled || integration.paused; if (!enabling && !window.confirm(`Desativar ${names[integration.remoteKey]} interrompe seu uso operacional, mas preserva a configuração. Continuar?`)) return; if (enabling && (!integration.connected || integration.paused || integration.lastError)) { setNotice({ tone: 'error', text: 'A ativação está bloqueada até a credencial e a validação serem confirmadas.' }); return; } setPending(integration.remoteKey); setNotice(null); try { const { data, error } = await supabase.functions.invoke('configurar-integracao', { body: { action: 'set_usage', canal: integration.remoteKey, enabled: enabling } }); if (error || !data?.ok) throw new Error(error ? await detalheDoErroDeFuncao(error) : data?.erro || 'integration_usage_save_failed'); await refresh(); setNotice({ tone: 'success', text: enabling ? `${names[integration.remoteKey]} ativado para uso operacional.` : `${names[integration.remoteKey]} desativado; configuração preservada.` }); } catch (error) { await refresh(); setNotice({ tone: 'error', text: messageFor(error) }); } finally { setPending(null); } };
+  const toggle = async (integration: OperationalIntegration) => {
+    const enabling = !integration.enabled || integration.paused;
+    if (enabling && !integration.configured) {
+      setNotice({ tone: 'error', text: `Configure ${names[integration.remoteKey]} antes de ativar o uso operacional.` });
+      setConfiguring(integration);
+      return;
+    }
+    if (!enabling && !window.confirm(`Desativar ${names[integration.remoteKey]} interrompe seu uso operacional, mas preserva a configuração. Continuar?`)) return;
+    if (enabling && (!integration.connected || integration.lastError || !integration.lastTestedAt)) {
+      setNotice({ tone: 'error', text: 'A ativação está bloqueada até a credencial e a validação serem confirmadas.' });
+      return;
+    }
+    setPending(integration.remoteKey); setNotice(null);
+    try {
+      const { data, error } = await supabase.functions.invoke('configurar-integracao', { body: { action: 'set_usage', canal: integration.remoteKey, enabled: enabling } });
+      if (error || !data?.ok) throw new Error(error ? await detalheDoErroDeFuncao(error) : data?.erro || 'integration_usage_save_failed');
+      await refresh();
+      setNotice({ tone: 'success', text: enabling ? `${names[integration.remoteKey]} ativado para uso operacional.` : `${names[integration.remoteKey]} desativado; configuração preservada.` });
+    } catch (error) {
+      await refresh();
+      setNotice({ tone: 'error', text: messageFor(error) });
+    } finally { setPending(null); }
+  };
   const validateAll = async () => { for (const provider of providers) await test(provider); };
 
   return <div className="space-y-5" data-testid="apis-providers-tab">

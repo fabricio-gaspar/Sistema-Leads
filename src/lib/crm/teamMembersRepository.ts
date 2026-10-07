@@ -1,16 +1,12 @@
 import { supabase } from '@/lib/supabase';
 import { resolveOrganizationSession } from '@/lib/organizationSession';
 import { detalheDoErroDeFuncao } from '@/lib/transportador';
+import { sessionContext, broadcastContextInvalidation } from '@/lib/sessionContext';
+import { clearCurrentAccess } from '@/lib/crm/currentAccessRepository';
 
 export type TeamRole = 'administrador' | 'vendedor' | 'sdr' | 'cx';
-export const teamPermissions = [
-  'leads.read_all', 'leads.read_assigned', 'leads.create', 'leads.edit_all',
-  'leads.edit_assigned', 'leads.delete', 'conversations.read_all',
-  'conversations.reply_all', 'conversations.reply_assigned', 'messages.delete',
-  'prospecting.manage', 'proposals.manage', 'configuration.manage',
-  'website_entry.manage', 'team.manage', 'audit.view', 'channels.view_own',
-  'channels.connect_own', 'channels.manage_all',
-] as const;
+export { organizationPermissions as teamPermissions, defaultPermissionsForRole } from '../../../supabase/functions/_shared/permissionDefinitions';
+import { organizationPermissions as teamPermissions } from '../../../supabase/functions/_shared/permissionDefinitions';
 export type TeamPermission = typeof teamPermissions[number];
 
 export const teamPermissionLabel: Record<TeamPermission, string> = {
@@ -114,13 +110,30 @@ export async function loadTeamMembers(): Promise<TeamMember[]> {
 }
 
 async function mutate<T extends Record<string, unknown> = Record<string, unknown>>(action: string, payload: Record<string, unknown>): Promise<T> {
-  const { data, error } = await supabase.functions.invoke('team-members', { body: { action, ...payload } });
+  const context = sessionContext.get();
+  const functionName = action === 'remove' ? 'team-member-evolution-removal' : 'team-members';
+  const { data, error } = await supabase.functions.invoke(functionName, { body: { action, ...payload } });
+  sessionContext.assertCurrent(context);
   if (error || !data?.ok) throw new Error(data?.erro ?? await detalheDoErroDeFuncao(error));
+  if (['update_role', 'set_status', 'remove', 'permissions_set'].includes(action)) {
+    clearCurrentAccess();
+    broadcastContextInvalidation('refresh');
+  }
   return data as T;
 }
 
-export async function inviteTeamMember(input: { name: string; email: string; role: TeamRole }): Promise<void> {
-  await mutate('invite', input);
+export async function inviteTeamMember(input: { name: string; email: string; role: TeamRole }): Promise<Record<string, unknown>> {
+  return mutate('invite', input);
+}
+
+export async function createTeamMember(input: { name: string; email: string; password: string; role: TeamRole }): Promise<{
+  user_id: string;
+  role: TeamRole;
+  provisioning_state: string | null;
+  provisioning_warning: string | null;
+  message: string;
+}> {
+  return mutate('create', input);
 }
 
 export interface DailyLeadReportSettings {
@@ -138,20 +151,8 @@ export interface HandoffWhatsappAlertSettings {
   phoneSuffix: string | null;
 }
 
-export async function createTeamMember(input: { name: string; email: string; password: string; role: TeamRole }): Promise<void> {
-  await mutate('create', input);
-}
-
 export async function updateTeamRole(userId: string, role: TeamRole): Promise<void> {
   await mutate('update_role', { user_id: userId, role });
-}
-
-export async function updateTeamMemberProfile(userId: string, input: { name: string; email: string }): Promise<void> {
-  await mutate('update_member', { user_id: userId, name: input.name, email: input.email });
-}
-
-export async function resetTeamMemberPassword(userId: string, password: string): Promise<void> {
-  await mutate('reset_password', { user_id: userId, password });
 }
 
 export async function setTeamMemberStatus(userId: string, enabled: boolean): Promise<void> {
@@ -159,7 +160,8 @@ export async function setTeamMemberStatus(userId: string, enabled: boolean): Pro
 }
 
 export async function removeTeamMember(userId: string): Promise<void> {
-  await mutate('remove', { user_id: userId });
+  const result = await mutate<{ identity_deleted?: boolean }>('remove', { user_id: userId });
+  if (result.identity_deleted !== true) throw new Error('member_identity_deletion_unconfirmed');
 }
 
 export async function loadTeamMemberPermissions(userId: string): Promise<{ role: TeamRole; permissions: Record<TeamPermission, boolean> }> {
@@ -231,8 +233,8 @@ export async function cancelOrganizationInvite(inviteId: string): Promise<void> 
   await mutate('invite_cancel', { invite_id: inviteId });
 }
 
-export async function resendOrganizationInvite(inviteId: string): Promise<void> {
-  await mutate('invite_resend', { invite_id: inviteId });
+export async function resendOrganizationInvite(inviteId: string): Promise<Record<string, unknown>> {
+  return mutate('invite_resend', { invite_id: inviteId });
 }
 
 export async function loadAccessSecurityPolicy(): Promise<AccessSecurityPolicy> {
@@ -257,7 +259,7 @@ export async function loadTeamAccessAudit(): Promise<AccessAuditEvent[]> {
     .in('action', [
       'team.member_created', 'team.member_invited', 'team.member_enabled', 'team.member_disabled',
       'team.member_role_changed', 'team.member_updated', 'team.member_password_reset',
-      'team.member_permissions_changed', 'team.member_deleted',
+      'team.member_permissions_changed', 'team.member_deleted', 'team.member_removed', 'team.invite_accepted',
       'team.invite_cancelled', 'team.invite_resent', 'team.security_policy_changed', 'team.sessions_revoked',
     ])
     .order('occurred_at', { ascending: false })
@@ -271,4 +273,13 @@ export async function loadTeamAccessAudit(): Promise<AccessAuditEvent[]> {
     occurredAt: String(row.occurred_at ?? new Date().toISOString()),
     eventData: row.event_data && typeof row.event_data === 'object' ? row.event_data as Record<string, unknown> : {},
   }));
+}
+
+export interface PendingTeamInvite { id: string; organization_id: string; organization_name: string; email: string; role: TeamRole; revision: number; expires_at: string }
+export async function loadPendingTeamInvites(): Promise<PendingTeamInvite[]> {
+  const data = await mutate('pending_invites', {});
+  return (data.invites ?? []) as PendingTeamInvite[];
+}
+export async function acceptTeamInvite(invite: Pick<PendingTeamInvite, 'id' | 'revision'>): Promise<void> {
+  await mutate('activate_invite', { invite_id: invite.id, revision: invite.revision });
 }

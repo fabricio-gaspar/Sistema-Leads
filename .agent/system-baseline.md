@@ -1,5 +1,121 @@
 # Baseline do sistema
 
+## 07/10/2026 — QR: saturação PostgreSQL e mitigação remota
+
+Logs da instância atual do Flavio confirmam `pq: sorry, too many clients already` ao criar o cliente WhatsApp. Edge v25 aplicada isoladamente sobre v24: uma chamada QR, sem connect redundante/retries, erro sanitizado. 67 testes locais + 8 do bundle remoto, tipos Edge e diff check passaram. E2E como Flavio retorna erro específico e nenhum QR, com saturação confirmada às 18:07 BRT. Cofre aponta ID atual; job guarda ID histórico. Falta acesso de hospedagem para corrigir PostgreSQL/pools. Não houve mensagem, recriação ou publicação do Site.
+
+
+## Evolution GO administrativo somente em Canais — 07/10/2026
+
+O mesmo `EvolutionGoPanel` administrativo era montado em Canais e Usuários. A montagem em Usuários foi removida no checkout local, preservando o painel de servidor/conectores em Canais, a gestão de equipe em Usuários e o pareamento individual na Central. A prévia autenticada e testes focados confirmaram a separação; Site oficial não foi publicado neste ajuste.
+
+## Usuários: criação direta restaurada no checkout — 07/10/2026
+
+O formulário local voltou a criar identidade nova com nome/e-mail, papel e senha inicial. `team-members#create` verifica backend e só então cria Auth; a RPC `team_direct_create_attach` registra perfil/vínculo e deixa o gatilho Evolution GO enfileirar o vendedor na mesma transação. Contas globais já existentes não são alteradas. O banco oficial ainda não possui o bootstrap Auth compatível nem o gatilho de vendedor; `team-members` v19 e o Site oficial continuam no fluxo anterior. Não houve usuário/instância/QR real criado; senha inicial não tem troca obrigatória automática.
+
+## Evolution GO: QR local seguro, runtime remoto pendente — 07/10/2026
+
+- A conta individual e a instância do vendedor existem, mas o gateway remoto segue em `close` e `/instance/qr` falha com HTTP 400. O diagnóstico exato de inicialização depende do log da instância. O trigger multi-tenant ainda não foi aplicado ao Supabase oficial.
+- O código local `1bd2786` lê QR sem reiniciar a conexão nem criar outra intenção de lifecycle, classifica erros oficiais sem vazar resposta bruta e preserva o bloqueio após desativação. Isso não está publicado na Edge, no Site nem homologado por scan. Mensageria permanece desligada.
+
+## Evolution GO como canal exclusivo — 07/10/2026
+
+- A migração `20261007193000_evolution_go_exclusive_channels` foi aplicada ao Supabase oficial. Ela desabilita entrada, saída e automação de Z-API, Meta e WA-AKG, remove seu status padrão e pausa as integrações; não exclui contas, credenciais, conversas, mensagens, recibos ou auditoria.
+- `whatsapp-accounts` v10 lista somente Evolution GO e recusa as ações legadas. Configurações > Canais passou a exibir apenas o servidor e os conectores Evolution GO. A prévia autenticada confirmou a remoção visual; 198 testes focados, type-check do app/Edge e diff check passaram.
+- O Evolution GO continua desativado e o pareamento não foi alterado: o runtime remoto da instância individual ainda retorna QR HTTP 400 no estado `close`. Não houve mensagem, automação, lead ou dado de cliente alterado. O Site oficial não foi publicado neste lote.
+
+## Evolution GO: instância individual substituída, QR pendente — 06/10/2026
+
+A recuperação `evolution-go-recovery` v2, com JWT e guarda administrativa/tenant, substituiu somente a instância desconectada do vendedor autorizado. O novo ID `77c6344c-23d0-48a9-81e6-9c0a5177b2f8` é reconhecido com o token do Vault; a conta permanece desativada, integração pausada e job `awaiting_qr`. O vendedor iniciou conexão, mas o runtime Evolution GO retornou QR 400 e reconnect 500; nenhum QR útil ou pareamento foi confirmado. A função `evolution-go` v22 não foi alterada devido a drift remoto/local. O Site oficial permanece inalterado; monitoramento automático ainda não foi ligado.
+
+## Evolution GO: nome local não garante instância remota — 06/10/2026
+
+A conta individual do vendedor pode preservar `instance_name`, token e estado `awaiting_qr` no Supabase quando a instância não está mais no Evolution GO. Caso observado: Manager vazio e `GET /instance/status` com HTTP 401. A validação da chave global não confirma sessões individuais. A prévia local identifica o nome como reservado e bloqueia novo QR após 401; o lifecycle remoto de criação por vínculo ainda não foi aplicado.
+
+## Evolution GO: servidor corporativo autenticado, canal inativo — 06/10/2026
+
+O contrato administrativo `save_server`/`test_server` está ativo em `evolution-go` v22, com URL/chave guardadas no Vault; `evolution-go-worker` v5 exige validação corporativa aprovada antes de provisionar. O painel local abre os campos protegidos e autenticou o servidor remoto com a credencial já salva. Banco: `server_validation=passed`, `enabled=false`, `connected=false`, `paused=true`. O Site oficial não recebeu o frontend deste lote; lifecycle multi-tenant e QR seguem sem homologação/deploy coordenado. Nenhum WhatsApp foi conectado ou mensagem enviada.
+
+## Evolution GO multi-tenant: checkpoint local — 06/10/2026
+
+- O lifecycle local usa trigger de vínculo para manter uma conta privada/integracão desabilitada e **um job durável por organização/vendedor**; o worker processa esse job e o vendedor só consulta/pareia a própria conta. Desconectar ou desativar o vínculo não exclui conversas, mensagens ou histórico.
+- Aceite local: **769 Vitest/93 arquivos**, type-check app e Edge, lint, build/artefato, PGlite **6/6** e PostgreSQL nativo **2/2** aprovados. Nenhum QR, chamada a provedor, mensagem, automação ou dado de cliente foi usado.
+- Estado de entrega: não aplicado ao Supabase, Edge, Site ou GitHub. Drift remoto e a homologação coordenada/staging continuam bloqueios; o gateway Evolution apresenta QR 400/500 e requer correção/homologação antes de qualquer release. A política de proteção contra senhas vazadas/Auth permanece pendente.
+
+## Casca visual do CRM alinhada à referência — 06/10/2026
+
+- `48478de` aplica somente a composição visual observada na referência: sidebar clara e agrupada, topbar compacto, superfícies brancas com bordas discretas, cards de métricas uniformes e chamadas primárias verdes com contraste AA. Não incorpora módulos, métricas, nomes, rotas ou comportamentos que não existiam no WayFlex.
+- A busca de telas já existente permanece limitada às rotas permitidas ao usuário e ganhou apresentação textual no cabeçalho; resultado vazio não muda o breadcrumb. A taxonomia canônica e os gates de permissão continuam iguais. Em Configurações, o seletor continua ativo abaixo de 2xl para impedir duas barras laterais de comprimirem o conteúdo.
+- Aceite local: type-check frontend, lint, Vitest 93 arquivos/746 testes, build Vite/artefato Sites e `git diff --check` aprovados; Configurações e Dashboard revistos no desktop. Banco, Edge, Site, mensagens, automações e dados de cliente permanecem inalterados.
+
+## Leads → Kanban: roteamento sem ativação da Ana — 06/10/2026
+
+- A causa da ausência de leads importados da Ana no Kanban era objetiva: `get_kanban_portfolio` exige `modo_atendimento` e `owner_id`/`assigned_to`, enquanto a importação conserva **Ana (IA)** sem um usuário técnico de rota. O fluxo anterior tentava suprir isso acionando `lead-workflow/start_ai`, que também podia alterar consentimento, automação e canal.
+- `3665f52` mantém o Kanban como visão do mesmo `lead_id`: para Ana sem rota, `assignKanbanRoutingUser` muda somente `responsavelId`, que o repositório traduz para `owner_id` e `assigned_to`; métricas, origem, etapa, modo e dados da busca não são alterados. Lead humano sem responsável fica bloqueado; um lead já roteado informa que já está no Kanban, sem novo cartão. A ação também está disponível no menu da linha.
+- Aceite autenticado: um lead existente da Busca entrou em **Kanban > Novo**, manteve **Busca de leads** e **43/100** após recarga. A segunda tentativa não criou duplicidade; console limpo. Vitest 93/741, type-check frontend, lint, build/artefato Sites e `git diff --check` passaram. Não houve mensagem, automação, migration, Edge ou publicação do Site; a única escrita foi o vínculo técnico do lead autorizado.
+
+## Leads → Kanban: classificação de atendimento preservada — 05/10/2026
+
+- A opção repetida de **Ana (IA)/Humano** no diálogo de envio ao Kanban podia sobrescrever o modo e o responsável persistidos no passo de importação da Busca de Leads. O lote `968a753` remove essa reclassificação do diálogo.
+- A seleção agora é separada pelo modo já salvo: cada lead Ana pode passar pela confirmação de canal/autorização e receber, opcionalmente, uma regra de transferência automática; cada lead humano mantém seu responsável e é encaminhado sem troca de modo. Lead sem classificação fica bloqueado com motivo explícito.
+- Aceite local: 93 arquivos/739 testes Vitest, type-check frontend, lint, build/artefato Sites e `git diff --check`. A prévia autenticada confirmou o resumo de configuração preservada para um lead Ana e foi cancelada antes de qualquer escrita. Banco, Edge e Site não foram alterados.
+
+## Leads → Kanban e pipeline comercial — 05/10/2026
+
+- A ação em massa para abrir o fluxo existente de Kanban estava ausente da carteira de Leads, embora `enviarParaKanban` e seu diálogo já estivessem implementados. `a20a420` restaura somente o acionador, com checagem de que os leads selecionados pertencem à carteira editável do operador.
+- `leadStageRepository` passou a publicar a lista canônica de sete etapas para Leads e para a política de transferência. Ganho e Perdido são visíveis no seletor, mas seguem resultados terminais: o frontend os identifica e o servidor conserva a conclusão individual por orçamento, motivo e aceite.
+- Aceite local: Vitest completo 92/736, type-check frontend, lint, build/artefato Sites e `git diff --check`; inspeção autenticada abriu e cancelou o diálogo sem envio, automação ou mudança de dados. Banco, Edge e Site não foram alterados.
+
+## Importação Busca → Leads — 06/10/2026
+
+- A RPC `import_prospecting_batch` recusava toda importação da Busca porque o mapeador inclui `uf` e a allowlist da função não. O erro era `prospecting_import_invalid_lead_fields`/22023, não uma ausência de permissão.
+- `b2da2ad` e a migration oficial `20261006011920_fix_prospecting_batch_state` aceitam e persistem somente `uf`, preservando a transação atômica, `SECURITY INVOKER`, RBAC e idempotência.
+- O mesmo lote de 20 leads escolhido pelo operador foi confirmado em Leads com São Paulo/SP. Nenhuma mensagem ou automação ocorreu; somente a lista e os 20 leads selecionados foram criados. Site oficial inalterado.
+
+## Busca de Leads — Critérios e quantidade — 05/10/2026
+
+- A regressão foi limitada ao Wizard: o preflight remoto de `prospectar-leads` v16 recusava a origem local e a interface mantinha a consulta em 10 fixos sem expor a quantidade. O fluxo de importação e as demais áreas não foram modificados.
+- `86cd668` restaura quantidade de 1–100 e a passa por `executarBusca(leadsDia)` ao contrato já existente `filters.volumeMaximo`. A única aplicação remota foi `prospectar-leads` v17; não houve migration nem deploy do Site.
+- E2E autenticado solicitou 20 por Apify/Google Maps e a revisão recebeu 20; preflight 204, execução assíncrona 202 e resultado 200. Nenhum lead foi importado ao CRM, mensagem enviada ou automação acionada.
+
+## 05/10/2026 — Diagnóstico operacional: CORS de homologação restaurado
+
+- `operational-diagnostics` v19 está ativo no projeto Supabase. O helper CORS preserva a origem local homologada exata mesmo quando `ALLOWED_ORIGINS` contém uma lista explícita; não foi usado curinga nem liberada outra origem.
+- A rota autenticada de Status operacional carregou com dados reais em `http://127.0.0.1:4173/dashboard/configuracoes?tab=operacao`; consulta manual repetida permaneceu estável. Type-check frontend/Edge, lint, build e diff check aprovados.
+- Escopo: somente leitura de diagnóstico e CORS. Nenhuma migration, Site, mensagem, QR, automação, fila ou dado de cliente foi alterado. O NO-GO dos demais fluxos permanece.
+
+## 05/10/2026 — R4–R14: remediação local validada e GitHub atualizado; produção NO-GO
+
+- Produto local `225a379e096efa4eb3fb543759edd71ad50ef581`; snapshot GitHub `4f7f4514613ca64461cda3d1ffcf004ac1c79d4f`, filho do remoto `118b131b47d56cda8615f24b00c332eabe3d2805`. Push não forçado e árvore igual `804172b06e122a8e9ec41374c21151c4f3b98f4c` confirmados. Checkpoint documental final identificado no histórico/entrega; nenhum branch/worktree/projeto novo.
+- Concluídos localmente: convites e vínculos empresariais R4, contexto/filas de stores R5, recuperação/provisionamento/entrada R6, guardas de contrato R7, política e autoridade Ana R8, CSV/Agenda R9, reprodução R10, cidade/diagnóstico R11 e interações R12. Estado completo por requisito e limites em `docs/remediacao/2026-10-05-r4-r14/RESULTADO_FINAL.md`; não equivale a todos R4–R14 concluídos em produção.
+- Validação final: 21/21 comandos, 732 testes/91 arquivos, 17 smoke, 245 SQL sequenciais únicos + 54 disputas nativas, 11 Chrome. 579 hashes estáveis, também conferidos contra o index antes do commit. Primeira rodada com duas expectativas antigas reprovadas preservada; correção e rodada completa final aprovadas. Sem duplicar contagem PGlite/PostgreSQL.
+- LOCAL validado / GITHUB salvo / banco, Edge e Site NÃO implantados. Última inspeção histórica do Site v168; não reinspecionado neste lote. Nenhuma mensagem, QR, evento Calendar, automação, busca paga ou cliente alterado; não se desligou silenciosamente operação previamente habilitada.
+- Bloqueios reais: gateway WA-AKG examinado não desliga o bot pelo contrato usado; exige versão corrigida/homologada além de VPS/HTTPS. Staging/identidades/destinos protegidos indisponíveis, escolha CRM interno/SaaS e autoridade/MFA não definida, bundles/histórico de migrations divergentes. MFA obrigatório e WCAG integral não implementados/certificados.
+- Próxima ação: obter essas dependências, comparar definições reais e preparar aplicação seletiva coordenada banco/Edge/frontend com compensação; executar homologação integrada antes de liberar. Não repetir remediação/auditoria já concluída, não executar db push/replay/repair integral e não publicar frontend isoladamente. Arquivos pnpm preexistentes preservados fora do Git.
+
+## 05/10/2026 — R1/R2/R3 locais validados e salvos no GitHub; produção preservada
+
+- Autorização de remediação recebida; substitui a antiga espera por autorização abaixo. Produto local `2a48e6546bcbeef3b935fc5d77cd81c5ac65900d`; snapshot GitHub `a07409610e2cac48882f6c6975ed3d516a0a615b`, árvore igual e push sem force confirmado. Commit documental final identificado no histórico/entrega.
+- R1: carteira/Storage/documentos/supressão/último admin. R2: corte local antes do gateway, revisão/token/CAS, gate global separado, provisionamento manual por etapa e UI sem falso sucesso. R3: SQL/escopo/ordem de recibos e callbacks tardios sem reabrir saída. Subconjunto R10: todas as Edge Functions cobertas pelo type-check; nove diagnósticos corrigidos.
+- Aceite local: 13 comandos, 500 testes/79 arquivos, 17 smoke, tipos/lint/build/artefato Sites; SQL com 107 casos sequenciais + 24 concorrentes reais. Manifesto de 534 fontes sem alteração durante a rodada. Relatório: `docs/remediacao/2026-10-05-r1-r3/RESULTADO_FINAL.md`.
+- LOCAL validado; GITHUB salvo; banco/Edge/Site NÃO aplicados/publicados neste lote. Última versão verificada do Site: v168 (não reinspecionada neste lote). Nenhuma mensagem, QR, automação, busca paga ou alteração de cliente. Não se alterou a operação anteriormente habilitada.
+- NO-GO global mantido: recuperação de resultado incerto e provisionamento automático fora do ledger permanecem R6; demais R4–R14, salvo subconjunto de tipos, e homologação integrada/externa continuam pendentes. Próxima etapa R4/R5, depois R6 com ambiente isolado; não repetir auditoria completa nem publicar/ativar automaticamente. Evidências V3 históricas preservadas; pnpm preexistente fora dos commits.
+
+## Auditoria V3 — 05/10/2026 — NO-GO, sem remediação
+
+- Código auditado `847048429a86294aa10fa54ffdd750c04447d4fb`; GitHub inicial `9fdfb554ed5e23b1edc5b7e5250bd8df84cbad7d` com a mesma árvore. Site oficial v168, fonte isolada `87b9b8309eb8fc0fa4d47611c7a1315598fc4f76`, não alterado.
+- Auditoria no acesso seguro disponível: 421 testes existentes e17 smoke passaram; 40 assertivas novas tiveram 7 aprovações/33 reprovações; typecheck integral Edge encontrou9 diagnósticos. UI autenticada Wizard/Central/estados vazios e reflow320/390/1024/1440 conferidos sem negócios.
+- Bloqueadores: policies de carteira/Storage/supressão, último admin/convites, gate global por vendedor, concorrência/retomada, SQL de recibos inválido remoto, caches de sessão, flags comerciais sem consumo e próxima ação de Agenda. Relatório e evidências em `docs/auditoria/2026-10-05-v3/RELATORIO_AUDITORIA.md`.
+- Apenas docs/testes/checkpoint alterados. Nenhuma mensagem, cliente, busca paga, integração, cron, migration ou publicação alterado pelo agente. A operação real previamente habilitada não foi desligada silenciosamente.
+- Homologação externa permanece incompleta. Próxima ação: autorização explícita de remediação dos lotes R1/R2/R3 do plano; depois sandbox/gateway/perfis/destinos para E2E. Não repetir auditoria completa nem publicar todo checkout.
+
+## Wizard da Busca de Leads — 05/10/2026 — LOCAL VALIDADO, SITE PENDENTE
+
+- A entrada manual passou a seguir **Fonte → Região → Perfil → Critérios**, com validação somente do passo atual, resumo do que já foi escolhido e retorno linear. A fonte é escolhida uma vez no primeiro passo; o seletor duplicado foi removido da configuração.
+- A consulta continua limitada ao comando explícito **Testar com 10 empresas**. `executarBusca` ainda revalida modo operacional, fonte conectada/ativa, cidade e termos; revisão, classificação, importação atômica e histórico preservam os contratos anteriores.
+- Código no commit `b01f600`. Vitest focado (**3 arquivos / 12 testes**), type-check, lint sem warnings, build/artefato Sites e `git diff --check` passaram. Nenhum provedor, lead, importação, mensagem ou automação foi acionado.
+- O Site oficial segue na última versão publicada porque a origem protegida do Sites ainda não aceita escrita por este canal. Falta publicar e inspecionar o fluxo autenticado; a prévia nova sem runtime-config público não é usada como prova de UI autenticada.
+
 ## Agenda comercial operacional — 29/09/2026
 
 - `/dashboard/agenda` passou a consultar o portfólio paginado em `get_agenda_portfolio`, uma RPC `SECURITY INVOKER` que preserva a RLS e aplica texto normalizado, telefone, responsável, tipo, status, origem, segmento, confirmação, próxima ação, atalhos e período no servidor.

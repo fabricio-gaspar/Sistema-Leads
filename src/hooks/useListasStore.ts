@@ -1,4 +1,4 @@
-import { useEffect, useSyncExternalStore } from 'react';
+import { createContextStore } from '@/lib/contextStore';
 import { loadOperationalLists, persistOperationalLists } from '@/lib/crm/operationalEntitiesRepository';
 
 // Listas nomeadas criadas pela Busca de Leads.
@@ -20,76 +20,21 @@ export interface ListaDeLeads {
   status: StatusLista;
 }
 
-let state: ListaDeLeads[] = [];
-let hydrated = false;
-let hydratePromise: Promise<void> | null = null;
-let writeQueue = Promise.resolve();
-let latestPersistenceError: unknown = null;
-const listeners = new Set<() => void>();
-
-const notify = () => listeners.forEach((listener) => listener());
-const getSnapshot = () => state;
-const subscribe = (listener: () => void) => {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
-};
-
-async function hydrate(): Promise<void> {
-  if (hydrated) return;
-  if (hydratePromise) return hydratePromise;
-  hydratePromise = loadOperationalLists()
-    .then((lists) => { state = lists; hydrated = true; notify(); })
-    .catch((error) => console.error('[crm-lists] falha ao carregar fonte operacional', error))
-    .finally(() => { hydratePromise = null; });
-  return hydratePromise;
-}
-
-/** Recarrega listas após uma importação transacional feita pelo backend. */
-export async function refreshListsStore(): Promise<void> {
-  const lists = await loadOperationalLists();
-  state = lists;
-  hydrated = true;
-  latestPersistenceError = null;
-  notify();
-}
-
-function updateState(updater: (previous: ListaDeLeads[]) => ListaDeLeads[]): void {
-  const previous = state;
-  const next = updater(previous);
-  state = next;
-  notify();
-  writeQueue = writeQueue
-    .then(async () => {
-      state = await persistOperationalLists(previous, next);
-      latestPersistenceError = null;
-      notify();
-    })
-    .catch(async (error) => {
-      console.error('[crm-lists] falha ao salvar fonte operacional', error);
-      latestPersistenceError = error;
-      // A lista pode ter sido gravada parcialmente. Releia o servidor antes de
-      // permitir que a interface considere a importação concluída.
-      hydrated = false;
-      await hydrate();
-    });
-}
-
-export async function waitForListsPersistence(): Promise<void> {
-  await writeQueue;
-  if (latestPersistenceError) {
-    const error = latestPersistenceError;
-    latestPersistenceError = null;
-    throw error;
-  }
-}
+const store = createContextStore<ListaDeLeads[]>({
+  initial: () => [],
+  load: async () => loadOperationalLists(),
+  save: (previous, next) => persistOperationalLists(previous, next),
+});
+export const refreshListsStore = store.refresh;
+export const waitForListsPersistence = store.wait;
 
 export function useListasStore(): {
   listas: ListaDeLeads[];
   criar: (lista: Omit<ListaDeLeads, 'id' | 'criadaEm'>) => ListaDeLeads;
   atualizar: (id: string, patch: Partial<ListaDeLeads>) => void;
 } {
-  const listas = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
-  useEffect(() => { void hydrate(); }, []);
+  const listas = store.useData();
+  const updateState = store.bindUpdate();
 
   const criar = (lista: Omit<ListaDeLeads, 'id' | 'criadaEm'>): ListaDeLeads => {
     const nova: ListaDeLeads = {
@@ -109,5 +54,5 @@ export function useListasStore(): {
 }
 
 export function getListasSnapshot(): ListaDeLeads[] {
-  return state;
+  return store.get();
 }

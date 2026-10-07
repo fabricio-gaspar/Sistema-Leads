@@ -12,7 +12,10 @@ describe('seletor de APIs da Busca de Leads', () => {
     expect(page).toContain('Fonte selecionada:');
     expect(page).toContain('const [etapa, setEtapa] = useState(1)');
     expect(page).toContain('validateProspectingWizardStep');
-    expect(page).toContain('Testar com 10 empresas');
+    expect(page).toContain('aria-label="Quantidade de leads"');
+    expect(page).toContain('PROSPECTING_VOLUME_PRESETS');
+    expect(page).toContain('void executarBusca(leadsDia)');
+    expect(page).toContain('volumeMaximo: requestedVolume');
     expect(page).not.toContain('Apify · fonte habilitada');
     expect(page).not.toContain('Buscar no Apify');
   });

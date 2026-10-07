@@ -16,21 +16,22 @@ export interface PipelineStore {
 
 export function usePipelineStore(): PipelineStore {
   const stages = store.useStore();
+  const setStore = store.bindSet();
 
   const atualizar = (id: string, mudanca: Partial<PipelineStage>) => {
-    store.set((prev) => prev.map((s) => (s.id === id ? { ...s, ...mudanca } : s)));
+    setStore((prev) => prev.map((s) => (s.id === id ? { ...s, ...mudanca } : s)));
   };
 
   const adicionar = (stage: PipelineStage) => {
-    store.set((prev) => [...prev, stage]);
+    setStore((prev) => [...prev, stage]);
   };
 
   const excluir = (id: string) => {
-    store.set((prev) => prev.filter((s) => s.id !== id));
+    setStore((prev) => prev.filter((s) => s.id !== id));
   };
 
   const reordenar = (novo: PipelineStage[]) => {
-    store.set(() => novo);
+    setStore(() => novo);
   };
 
   return { stages, atualizar, adicionar, excluir, reordenar };

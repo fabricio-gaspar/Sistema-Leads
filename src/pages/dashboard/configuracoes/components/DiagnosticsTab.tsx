@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { loadOperationalDiagnostics, type OperationalDiagnostics, type OperationalEvent } from '@/lib/crm/operationalDiagnosticsRepository';
+import { summarizeOperationalSample } from '@/lib/crm/operationalMetrics';
 
 function date(value: string | null | undefined): string { return value ? new Date(value).toLocaleString('pt-BR') : '—'; }
 
@@ -15,8 +16,19 @@ export default function DiagnosticsTab() {
   useEffect(() => { void refresh(); }, [refresh]);
   if (loading) return <div className="wf-surface p-6 text-sm text-foreground-500">Carregando diagnóstico real…</div>;
   if (!data) return <div className="wf-surface p-6 text-sm text-accent-700">{error}</div>;
+  const sample = summarizeOperationalSample(data.runs, data.jobs, data.status.whatsappMonitoring.updatedAt);
+  const seconds = (ms: number | null) => ms === null ? 'Sem amostra válida' : `${(ms / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} s`;
   return <div className="space-y-5">
     <section className="wf-surface p-5"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-semibold uppercase tracking-[.12em] text-primary-700">Monitoramento operacional</p><h2 className="mt-1 font-heading text-xl font-bold text-foreground-950">Diagnóstico e auditoria</h2><p className="mt-1 text-sm text-foreground-500">Eventos reais da Ana, fila, canal e integrações. Nenhum registro de demonstração é exibido aqui.</p></div><button type="button" className="wf-btn-secondary text-xs" onClick={() => void refresh()}><i className="ri-refresh-line" />Atualizar</button></div><div className="mt-5 grid gap-3 sm:grid-cols-4"><Metric label="Fila pendente" value={data.summary.queuedJobs} tone="primary" /><Metric label="Aguardando reconciliação" value={data.summary.reconciliationJobs} tone={data.summary.reconciliationJobs ? 'danger' : 'neutral'} /><Metric label="Falhas na fila" value={data.summary.failedJobs} tone={data.summary.failedJobs ? 'danger' : 'neutral'} /><Metric label="Alertas de risco" value={data.summary.openRiskEvents} tone={data.summary.openRiskEvents ? 'danger' : 'neutral'} /></div></section>
+    <section className="wf-surface space-y-3 p-5" aria-label="Amostra de desempenho observado">
+      <h3 className="font-semibold">Desempenho observado — amostra recente</h3>
+      <p className="text-xs text-foreground-500">Até 50 registros recentes de cada tipo, observados em {date(sample.observedAt)}. Heartbeat confirma presença do worker, não conclusão ou entrega. Os tempos abaixo incluem processamento/espera; não medem latência de rede nem comprovam um SLA.</p>
+      <dl className="grid gap-3 sm:grid-cols-3">
+        <div><dt className="text-xs">Ana: tempo p95 até conclusão</dt><dd className="font-semibold">{seconds(sample.p95CompletionMs)}</dd><p className="text-xs">{sample.durationCount} intervalos válidos de {sample.runCount} execuções observadas</p></div>
+        <div><dt className="text-xs">Falhas da Ana na amostra</dt><dd className="font-semibold">{sample.failedRuns} de {sample.runCount}</dd><p className="text-xs">Status failed/error; não é taxa global de disponibilidade</p></div>
+        <div><dt className="text-xs">Maior espera pendente observada</dt><dd className="font-semibold">{seconds(sample.oldestDueSampleMs)}</dd><p className="text-xs">Recorte de {sample.jobsSampleCount} jobs; agendamentos futuros excluídos</p></div>
+      </dl>
+    </section>
     {data.risks.length > 0 && <section className="rounded-xl border border-accent-200 bg-accent-50 p-4"><p className="text-sm font-semibold text-accent-900">Canal sob atenção</p>{data.risks.map((risk) => <p key={risk.id} className="mt-1 text-xs text-accent-800">{risk.channel}: {risk.reason}</p>)}</section>}
     <div className="grid gap-5 xl:grid-cols-2"><EventList title="Fila de saída" items={data.jobs} label={(item) => `${item.channel || 'canal'} · ${item.status || 'sem status'} · tentativa ${item.attempt ?? 0}`} /><EventList title="Entrega por mensagem" items={data.outreach} label={(item) => `${item.channel || 'canal'} · ${item.status || 'sem status'}${item.provider ? ` · ${item.provider}` : ''}`} /></div>
     <div className="grid gap-5 xl:grid-cols-3"><EventList title="Execuções da Ana" items={data.runs} label={(item) => `${item.event || 'Execução'} · ${item.status || 'sem status'}`} /><EventList title="Entradas de canal" items={data.inbound} label={(item) => `${item.provider || 'Canal'} · ${item.event_type || 'evento'} · ${item.status || 'sem status'}`} /><EventList title="Auditoria" items={data.audit} label={(item) => `${item.actor_name || 'Sistema'} · ${item.action || 'evento'}`} /></div>

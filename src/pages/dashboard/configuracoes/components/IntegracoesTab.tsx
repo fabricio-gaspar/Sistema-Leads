@@ -143,7 +143,7 @@ function WhatsAppTestModal({ integration, onClose, onCompleted }: { integration:
   </div>;
 }
 
-export default function IntegracoesTab({ category }: { category?: OperationalIntegration['operationalCategory'] }) {
+export default function IntegracoesTab({ category, layout = 'grid' }: { category?: OperationalIntegration['operationalCategory']; layout?: 'grid' | 'single' }) {
   const { integracoes, recarregar } = useIntegracoesStore();
   const { fontes, definirAtivacao, recarregar: recarregarFontes } = useFontesStore();
   const [configuring, setConfiguring] = useState<OperationalIntegration | null>(null);
@@ -226,7 +226,7 @@ export default function IntegracoesTab({ category }: { category?: OperationalInt
         <i className={refreshing ? 'ri-loader-4-line animate-spin' : 'ri-refresh-line'} />{refreshing ? 'Atualizando…' : 'Atualizar status'}
       </button>
     </div>
-    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+    <div className={layout === 'single' ? 'grid grid-cols-1 gap-3' : 'grid gap-3 md:grid-cols-2 xl:grid-cols-3'}>
       {visibleIntegrations.map((integration) => {
         const meta = statusMeta[integration.status];
         const anaConfiguration = integration.anaProviderConfiguration;

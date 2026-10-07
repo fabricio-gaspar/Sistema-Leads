@@ -1,0 +1,79 @@
+{
+  "environment": "PGlite in-memory, synthetic schema and fixtures, no network",
+  "version": "PostgreSQL 17.5 on aarch64-unknown-linux-gnu, compiled by emcc (Emscripten gcc/clang-like replacement + linker emulating GNU ld) 3.1.74 (1092ec30a3fb1d46b1782ff1b4db5094d3d06ae5), 32-bit",
+  "migration": "/Users/fabriciogaspar/Documents/Codex/2026-10-04/c/Sistema-Leads-live/supabase/migrations/20261005220139_audit_r3_receipt_reconciliation.sql",
+  "passed": 14,
+  "failed": 0,
+  "results": [
+    {
+      "id": "T-R3-SQL-000",
+      "result": "PASS",
+      "scenario": "preserved pre-fix function reproduces COALESCE SQLSTATE42883"
+    },
+    {
+      "id": "T-R3-SQL-001",
+      "result": "PASS",
+      "scenario": "read, then older delivered/sent/failed never downgrade; repeat read is unchanged"
+    },
+    {
+      "id": "T-R3-SQL-002",
+      "result": "PASS",
+      "scenario": "normal sent → delivered → read transition fills timestamps once"
+    },
+    {
+      "id": "T-R3-SQL-003",
+      "result": "PASS",
+      "scenario": "same provider ID in other account or organization is untouched"
+    },
+    {
+      "id": "T-R3-SQL-004",
+      "result": "PASS",
+      "scenario": "account from another organization or missing account fails closed"
+    },
+    {
+      "id": "T-R3-SQL-005",
+      "result": "PASS",
+      "scenario": "unknown ID is a no-op, not a synthetic outbound message"
+    },
+    {
+      "id": "T-R3-SQL-006",
+      "result": "PASS",
+      "scenario": "receipt provider must match original account"
+    },
+    {
+      "id": "T-R3-SQL-007",
+      "result": "PASS",
+      "scenario": "linked message from another account aborts and rolls back outreach update"
+    },
+    {
+      "id": "T-R3-SQL-008",
+      "result": "PASS",
+      "scenario": "failed and replied terminal states preserve existing contract"
+    },
+    {
+      "id": "T-R3-SQL-009",
+      "result": "PASS",
+      "scenario": "ambiguous same-account IDs reject atomically"
+    },
+    {
+      "id": "T-R3-SQL-010",
+      "result": "PASS",
+      "scenario": "partial batch returns only known target for caller review"
+    },
+    {
+      "id": "T-R3-SQL-011",
+      "result": "PASS",
+      "scenario": "legacy five-argument API is fixed and preserved without broader grants"
+    },
+    {
+      "id": "T-R3-SQL-012",
+      "result": "PASS",
+      "scenario": "both APIs deny anon/authenticated and remain invoker with empty search_path"
+    },
+    {
+      "id": "T-R3-SQL-013",
+      "result": "PASS",
+      "scenario": "null status and empty message IDs are invalid"
+    }
+  ]
+}

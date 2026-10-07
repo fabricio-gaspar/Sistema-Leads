@@ -91,11 +91,9 @@ async function enforceWindow(admin: Admin, job: Row, request: ProviderSendReques
 async function processJob(admin: Admin, job: Row, workerId: string) {
   const organizationId = asText(job.organization_id, 80);
   const jobId = asText(job.id, 80);
-  const { data: claimed, error: claimError } = await admin.from('messaging_outbox').update({
-    status: 'processing', locked_at: new Date().toISOString(), locked_by: workerId,
-  }).eq('id', jobId).in('status', ['queued', 'failed']).select('id').maybeSingle();
+  const { data: claimed, error: claimError } = await admin.rpc('claim_meta_outbox', { p_job_id: jobId, p_worker_id: workerId });
   if (claimError) throw new Error('meta_outbox_claim_failed');
-  if (!claimed?.id) return { id: jobId, status: 'skipped', reason: 'already_claimed' };
+  if (!asObject(claimed).id) return { id: jobId, status: 'skipped', reason: 'already_claimed' };
   await providerReady(admin, organizationId, asText(job.origin, 40));
 
   const [{ data: account, error: accountError }, { data: lead, error: leadError }] = await Promise.all([
@@ -120,16 +118,19 @@ async function processJob(admin: Admin, job: Row, workerId: string) {
     phoneNumberId: asText(credentials.phone_number_id, 80),
     graphApiVersion: asText(credentials.graph_api_version, 20),
   });
+  await enforceWindow(admin, job, request);
+  const fence = await admin.rpc('begin_meta_outbox_dispatch', { p_job_id: jobId, p_worker_id: workerId });
+  if (fence.error || fence.data !== true) throw new Error('meta_dispatch_fence_failed');
   const result = await provider.send(request);
-  const { error: outboxError } = await admin.from('messaging_outbox').update({
+  const { data: savedAcceptance, error: outboxError } = await admin.from('messaging_outbox').update({
     status: 'sent',
     provider_message_id: result.providerMessageId,
     provider_status_at: result.acceptedAt,
     last_error_code: null,
     locked_at: null,
     locked_by: null,
-  }).eq('id', jobId).eq('locked_by', workerId);
-  if (outboxError) throw new Error('meta_outbox_acceptance_save_failed');
+  }).eq('id', jobId).eq('organization_id', organizationId).eq('status', 'processing').eq('locked_by', workerId).select('id').maybeSingle();
+  if (outboxError || !savedAcceptance) throw new Error('meta_outbox_acceptance_save_failed');
   if (job.lead_message_id) {
     await admin.from('lead_messages').update({
       provider_message_id: result.providerMessageId,
@@ -162,25 +163,31 @@ async function processJob(admin: Admin, job: Row, workerId: string) {
 async function recordFailure(admin: Admin, job: Row, error: unknown, workerId: string) {
   const attempt = Number(job.attempt_count ?? 0) + 1;
   const code = safeError(error).replace(/[^a-z0-9_]/gi, '_').toLowerCase().slice(0, 160) || 'meta_dispatch_failed';
+  const { data: current, error: readError } = await admin.from('messaging_outbox')
+    .select('dispatch_started_at,status,locked_by').eq('id', job.id).eq('organization_id', job.organization_id).maybeSingle();
+  if (readError || !current) throw new Error('meta_failure_state_read_failed');
+  if (current.locked_by !== workerId || current.status !== 'processing') return { id: job.id, status: 'skipped', reason: 'lease_lost' };
+  const uncertain = Boolean(current.dispatch_started_at);
   const terminal = attempt >= 5 || [
     'lead_opted_out', 'lead_not_found', 'meta_account_lead_mismatch',
     'meta_template_required_outside_service_window', 'meta_template_not_approved',
     'meta_outbox_acceptance_save_failed',
   ].includes(code);
   const delayMinutes = Math.min(60, 2 ** Math.max(0, attempt - 1));
-  await admin.from('messaging_outbox').update({
-    status: terminal ? 'dead_letter' : 'failed',
+  const failureSave = await admin.from('messaging_outbox').update({
+    status: uncertain ? 'reconciliation_required' : terminal ? 'dead_letter' : 'failed',
     attempt_count: attempt,
-    last_error_code: code,
+    last_error_code: uncertain ? 'meta_delivery_unknown_reconciliation_required' : code,
     run_at: new Date(Date.now() + delayMinutes * 60_000).toISOString(),
     locked_at: null,
     locked_by: null,
-  }).eq('id', job.id).eq('locked_by', workerId);
-  if (job.lead_message_id && terminal) {
+  }).eq('id', job.id).eq('organization_id', job.organization_id).eq('status', 'processing').eq('locked_by', workerId);
+  if (failureSave.error) throw new Error('meta_failure_state_save_failed');
+  if (job.lead_message_id && terminal && !uncertain) {
     await admin.from('lead_messages').update({ type: 'failed', delivery_status: 'failed' })
       .eq('id', job.lead_message_id).eq('organization_id', job.organization_id);
   }
-  return { id: job.id, status: terminal ? 'dead_letter' : 'failed', error: code };
+  return { id: job.id, status: uncertain ? 'reconciliation_required' : terminal ? 'dead_letter' : 'failed', error: code };
 }
 
 Deno.serve(async (request) => {
@@ -194,7 +201,7 @@ Deno.serve(async (request) => {
     const admin = createAdminClient();
     const workerId = `meta-worker:${crypto.randomUUID()}`;
     let query = admin.from('messaging_outbox').select('*')
-      .in('status', ['queued', 'failed']).lte('run_at', new Date().toISOString())
+      .in('status', ['queued', 'failed', 'processing']).lte('run_at', new Date().toISOString())
       .order('run_at', { ascending: true }).limit(jobId ? 1 : 10);
     if (jobId) query = query.eq('id', jobId);
     const { data: jobs, error } = await query;
@@ -212,4 +219,3 @@ Deno.serve(async (request) => {
     return json({ ok: false, error: safeError(error) }, 500);
   }
 });
-

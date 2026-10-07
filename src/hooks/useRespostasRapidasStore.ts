@@ -20,17 +20,18 @@ const store = createBackendStore<RespostaRapida[]>('respostas_rapidas', STORAGE_
 
 export function useRespostasRapidasStore() {
   const respostas = store.useStore();
+  const setStore = store.bindSet();
 
   const atualizar = (id: string, mudanca: Partial<RespostaRapida>) => {
-    store.set((prev) => prev.map((r) => (r.id === id ? { ...r, ...mudanca } : r)));
+    setStore((prev) => prev.map((r) => (r.id === id ? { ...r, ...mudanca } : r)));
   };
 
   const adicionar = (r: RespostaRapida) => {
-    store.set((prev) => [...prev, r]);
+    setStore((prev) => [...prev, r]);
   };
 
   const excluir = (id: string) => {
-    store.set((prev) => prev.filter((r) => r.id !== id));
+    setStore((prev) => prev.filter((r) => r.id !== id));
   };
 
   return { respostas, atualizar, adicionar, excluir };

@@ -1,0 +1,273 @@
+{
+  "command": "/Users/fabriciogaspar/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node docs/remediacao/2026-10-05-r1-r3/r2-concurrent.mjs /tmp/wayflex-security-audit.vU7Foe/node_modules/@embedded-postgres/darwin-arm64/native/bin /tmp/wayflex-security-audit.vU7Foe/node_modules/pg/lib/index.js",
+  "exit_code": 0,
+  "evidence": {
+    "engine": "PostgreSQL 17.6 on x86_64-apple-darwin23.6.0, compiled by Apple clang version 16.0.0 (clang-1600.0.26.6), 64-bit",
+    "scope": "Fresh synthetic PostgreSQL cluster; private Unix socket; no TCP; no production",
+    "directory": "/var/folders/ts/wxslxg794g31zvbyfd69k1s80000gn/T/wayflex-r2-pg-xUtG4l",
+    "sequential": {
+      "migration": "20261005220138_audit_r2_account_lifecycle.sql",
+      "passed": 28,
+      "failed": 0,
+      "limits": "Schema mínimo com trigger legado real. Interleavings sequenciais controlados; erros e rollback SQL reais. Não é o banco remoto completo.",
+      "results": [
+        {
+          "id": "R2-SQL-01",
+          "status": "APROVADO",
+          "mode": "SQL real; schema mínimo e trigger legado real; sem rede externa"
+        },
+        {
+          "id": "R2-SQL-02",
+          "status": "APROVADO",
+          "mode": "SQL real; schema mínimo e trigger legado real; sem rede externa"
+        },
+        {
+          "id": "R2-SQL-03",
+          "status": "APROVADO",
+          "mode": "SQL real; schema mínimo e trigger legado real; sem rede externa"
+        },
+        {
+          "id": "R2-SQL-04",
+          "status": "APROVADO",
+          "mode": "SQL real; schema mínimo e trigger legado real; sem rede externa"
+        },
+        {
+          "id": "R2-SQL-05",
+          "status": "APROVADO",
+          "mode": "SQL real; schema mínimo e trigger legado real; sem rede externa"
+        },
+        {
+          "id": "R2-SQL-06",
+          "status": "APROVADO",
+          "mode": "SQL real; schema mínimo e trigger legado real; sem rede externa"
+        },
+        {
+          "id": "R2-SQL-BEGIN-integrations",
+          "status": "APROVADO",
+          "mode": "SQL real; schema mínimo e trigger legado real; sem rede externa"
+        },
+        {
+          "id": "R2-SQL-FINISH-integrations",
+          "status": "APROVADO",
+          "mode": "SQL real; schema mínimo e trigger legado real; sem rede externa"
+        },
+        {
+          "id": "R2-SQL-BEGIN-whatsapp_accounts",
+          "status": "APROVADO",
+          "mode": "SQL real; schema mínimo e trigger legado real; sem rede externa"
+        },
+        {
+          "id": "R2-SQL-FINISH-whatsapp_accounts",
+          "status": "APROVADO",
+          "mode": "SQL real; schema mínimo e trigger legado real; sem rede externa"
+        },
+        {
+          "id": "R2-SQL-BEGIN-audit_logs",
+          "status": "APROVADO",
+          "mode": "SQL real; schema mínimo e trigger legado real; sem rede externa"
+        },
+        {
+          "id": "R2-SQL-FINISH-audit_logs",
+          "status": "APROVADO",
+          "mode": "SQL real; schema mínimo e trigger legado real; sem rede externa"
+        },
+        {
+          "id": "R2-SQL-BEGIN-whatsapp_account_lifecycle",
+          "status": "APROVADO",
+          "mode": "SQL real; schema mínimo e trigger legado real; sem rede externa"
+        },
+        {
+          "id": "R2-SQL-FINISH-whatsapp_account_lifecycle",
+          "status": "APROVADO",
+          "mode": "SQL real; schema mínimo e trigger legado real; sem rede externa"
+        },
+        {
+          "id": "R2-SQL-15",
+          "status": "APROVADO",
+          "mode": "SQL real; schema mínimo e trigger legado real; sem rede externa"
+        },
+        {
+          "id": "R2-SQL-16",
+          "status": "APROVADO",
+          "mode": "SQL real; schema mínimo e trigger legado real; sem rede externa"
+        },
+        {
+          "id": "R2-SQL-17",
+          "status": "APROVADO",
+          "mode": "SQL real; schema mínimo e trigger legado real; sem rede externa"
+        },
+        {
+          "id": "R2-SQL-18",
+          "status": "APROVADO",
+          "mode": "SQL real; schema mínimo e trigger legado real; sem rede externa"
+        },
+        {
+          "id": "R2-SQL-19",
+          "status": "APROVADO",
+          "mode": "SQL real; schema mínimo e trigger legado real; sem rede externa"
+        },
+        {
+          "id": "R2-SQL-20",
+          "status": "APROVADO",
+          "mode": "SQL real; schema mínimo e trigger legado real; sem rede externa"
+        },
+        {
+          "id": "R2-SQL-21",
+          "status": "APROVADO",
+          "mode": "SQL real; schema mínimo e trigger legado real; sem rede externa"
+        },
+        {
+          "id": "R2-SQL-22",
+          "status": "APROVADO",
+          "mode": "SQL real; schema mínimo e trigger legado real; sem rede externa"
+        },
+        {
+          "id": "R2-SQL-23",
+          "status": "APROVADO",
+          "mode": "SQL real; schema mínimo e trigger legado real; sem rede externa"
+        },
+        {
+          "id": "R2-SQL-24",
+          "status": "APROVADO",
+          "mode": "SQL real; schema mínimo e trigger legado real; sem rede externa"
+        },
+        {
+          "id": "R2-SQL-25",
+          "status": "APROVADO",
+          "mode": "SQL real; schema mínimo e trigger legado real; sem rede externa"
+        },
+        {
+          "id": "R2-SQL-26",
+          "status": "APROVADO",
+          "mode": "SQL real; schema mínimo e trigger legado real; sem rede externa"
+        },
+        {
+          "id": "R2-SQL-27",
+          "status": "APROVADO",
+          "mode": "SQL real; schema mínimo e trigger legado real; sem rede externa"
+        },
+        {
+          "id": "R2-SQL-28",
+          "status": "APROVADO",
+          "mode": "SQL real; schema mínimo e trigger legado real; sem rede externa"
+        }
+      ]
+    },
+    "races": [
+      {
+        "id": "R2-PG-C1",
+        "isolation": "READ COMMITTED",
+        "olderAction": "activate",
+        "secondWaitedForLock": true,
+        "outcome": {
+          "success": true,
+          "result": {
+            "state": "pending",
+            "admitted": false,
+            "revision": 2,
+            "error_code": null,
+            "desired_action": "deactivate"
+          }
+        },
+        "flags": {
+          "enabled": false,
+          "integration_enabled": false,
+          "paused": true
+        },
+        "status": "APROVADO"
+      },
+      {
+        "id": "R2-PG-C2",
+        "isolation": "READ COMMITTED",
+        "olderAction": "refresh_status",
+        "secondWaitedForLock": true,
+        "outcome": {
+          "success": true,
+          "result": {
+            "state": "pending",
+            "admitted": false,
+            "revision": 1,
+            "error_code": null,
+            "desired_action": "deactivate"
+          }
+        },
+        "flags": {
+          "enabled": false,
+          "integration_enabled": false,
+          "paused": true
+        },
+        "status": "APROVADO"
+      },
+      {
+        "id": "R2-PG-C3",
+        "isolation": "REPEATABLE READ",
+        "olderAction": "activate",
+        "secondWaitedForLock": true,
+        "outcome": {
+          "success": false,
+          "code": "40001",
+          "error": "could not serialize access due to concurrent update"
+        },
+        "flags": {
+          "enabled": false,
+          "integration_enabled": false,
+          "paused": true
+        },
+        "status": "APROVADO"
+      },
+      {
+        "id": "R2-PG-C4",
+        "isolation": "REPEATABLE READ",
+        "olderAction": "refresh_status",
+        "secondWaitedForLock": true,
+        "outcome": {
+          "success": false,
+          "code": "40001",
+          "error": "could not serialize access due to concurrent update"
+        },
+        "flags": {
+          "enabled": false,
+          "integration_enabled": false,
+          "paused": true
+        },
+        "status": "APROVADO"
+      },
+      {
+        "id": "R2-PG-C5",
+        "isolation": "SERIALIZABLE",
+        "olderAction": "activate",
+        "secondWaitedForLock": true,
+        "outcome": {
+          "success": false,
+          "code": "40001",
+          "error": "could not serialize access due to concurrent update"
+        },
+        "flags": {
+          "enabled": false,
+          "integration_enabled": false,
+          "paused": true
+        },
+        "status": "APROVADO"
+      },
+      {
+        "id": "R2-PG-C6",
+        "isolation": "SERIALIZABLE",
+        "olderAction": "refresh_status",
+        "secondWaitedForLock": true,
+        "outcome": {
+          "success": false,
+          "code": "40001",
+          "error": "could not serialize access due to concurrent update"
+        },
+        "flags": {
+          "enabled": false,
+          "integration_enabled": false,
+          "paused": true
+        },
+        "status": "APROVADO"
+      }
+    ],
+    "passed": 34,
+    "failed": 0
+  }
+}

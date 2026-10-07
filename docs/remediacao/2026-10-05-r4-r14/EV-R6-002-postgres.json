@@ -1,0 +1,277 @@
+{
+  "engine": "PostgreSQL 17.6 on x86_64-apple-darwin23.6.0, compiled by Apple clang version 16.0.0 (clang-1600.0.26.6), 64-bit",
+  "scope": "Synthetic cluster, Unix socket0700, no TCP/provider/production",
+  "directory": "/var/folders/ts/wxslxg794g31zvbyfd69k1s80000gn/T/wayflex-r6-pg-ak606c",
+  "sequential": {
+    "passed": 40,
+    "failed": 0,
+    "limits": "SQL real com schema mínimo, constraints de metadata e trigger legado real. Nenhum banco remoto operacional ou provedor.",
+    "results": [
+      {
+        "id": "R6-IN-wa_akg-atomic",
+        "status": "APROVADO"
+      },
+      {
+        "id": "R6-IN-wa_akg-lease",
+        "status": "APROVADO"
+      },
+      {
+        "id": "R6-IN-wa_akg-unknown",
+        "status": "APROVADO"
+      },
+      {
+        "id": "R6-IN-wa_akg-orphan",
+        "status": "APROVADO"
+      },
+      {
+        "id": "R6-IN-evolution_go-atomic",
+        "status": "APROVADO"
+      },
+      {
+        "id": "R6-IN-evolution_go-lease",
+        "status": "APROVADO"
+      },
+      {
+        "id": "R6-IN-evolution_go-unknown",
+        "status": "APROVADO"
+      },
+      {
+        "id": "R6-IN-evolution_go-orphan",
+        "status": "APROVADO"
+      },
+      {
+        "id": "R6-IN-rollback-channel_inbound_events",
+        "status": "APROVADO"
+      },
+      {
+        "id": "R6-IN-rollback-lead_messages",
+        "status": "APROVADO"
+      },
+      {
+        "id": "R6-IN-rollback-message_attachments",
+        "status": "APROVADO"
+      },
+      {
+        "id": "R6-IN-LID",
+        "status": "APROVADO"
+      },
+      {
+        "id": "R6-IN-human-cutoff",
+        "status": "APROVADO"
+      },
+      {
+        "id": "R6-IN-direct-denied",
+        "status": "APROVADO"
+      },
+      {
+        "id": "R6-REC-wa_akg",
+        "status": "APROVADO"
+      },
+      {
+        "id": "R6-REC-wa_akg-mutation",
+        "status": "APROVADO"
+      },
+      {
+        "id": "R6-PROV-wa_akg-serialized",
+        "status": "APROVADO"
+      },
+      {
+        "id": "R6-PROV-wa_akg-success",
+        "status": "APROVADO"
+      },
+      {
+        "id": "R6-PROV-wa_akg-uncertain",
+        "status": "APROVADO"
+      },
+      {
+        "id": "R6-PROV-wa_akg-member-revoked",
+        "status": "APROVADO"
+      },
+      {
+        "id": "R6-REC-evolution_go",
+        "status": "APROVADO"
+      },
+      {
+        "id": "R6-REC-evolution_go-mutation",
+        "status": "APROVADO"
+      },
+      {
+        "id": "R6-PROV-evolution_go-serialized",
+        "status": "APROVADO"
+      },
+      {
+        "id": "R6-PROV-evolution_go-success",
+        "status": "APROVADO"
+      },
+      {
+        "id": "R6-PROV-evolution_go-uncertain",
+        "status": "APROVADO"
+      },
+      {
+        "id": "R6-PROV-evolution_go-member-revoked",
+        "status": "APROVADO"
+      },
+      {
+        "id": "R6-REC-revision",
+        "status": "APROVADO"
+      },
+      {
+        "id": "R6-REC-owner-denied",
+        "status": "APROVADO"
+      },
+      {
+        "id": "R6-META-orphan-false",
+        "status": "APROVADO"
+      },
+      {
+        "id": "R6-META-orphan-true",
+        "status": "APROVADO"
+      },
+      {
+        "id": "R7-enqueue-preserves-review",
+        "status": "APROVADO"
+      },
+      {
+        "id": "R6-PROV-cutoff-before-dispatch-never-rearms",
+        "status": "APROVADO"
+      },
+      {
+        "id": "R6-IN-wrong-scope",
+        "status": "APROVADO"
+      },
+      {
+        "id": "R6-IN-null-lease",
+        "status": "APROVADO"
+      },
+      {
+        "id": "R6-REC-audit-rollback",
+        "status": "APROVADO"
+      },
+      {
+        "id": "R6-REC-missing-evidence",
+        "status": "APROVADO"
+      },
+      {
+        "id": "R6-PROV-orphan-quarantine-keeps-token",
+        "status": "APROVADO"
+      },
+      {
+        "id": "R6-PROV-audit-rollback",
+        "status": "APROVADO"
+      },
+      {
+        "id": "R6-PROV-finish-rechecks-owner",
+        "status": "APROVADO"
+      },
+      {
+        "id": "R6-PROV-finish-rechecks-integration",
+        "status": "APROVADO"
+      }
+    ]
+  },
+  "races": [
+    {
+      "scenario": "event_claim",
+      "isolation": "READ COMMITTED",
+      "waitedForDatabaseLock": true,
+      "outcome": {
+        "ok": true,
+        "result": null
+      },
+      "status": "APROVADO"
+    },
+    {
+      "scenario": "provision_vs_cutoff",
+      "isolation": "READ COMMITTED",
+      "waitedForDatabaseLock": true,
+      "outcome": {
+        "ok": true,
+        "result": {
+          "state": "pending",
+          "admitted": false,
+          "revision": 2,
+          "error_code": null,
+          "desired_action": "deactivate"
+        }
+      },
+      "status": "APROVADO"
+    },
+    {
+      "scenario": "recovery_vs_cutoff",
+      "isolation": "READ COMMITTED",
+      "waitedForDatabaseLock": true,
+      "outcome": {
+        "ok": true,
+        "result": {
+          "state": "completed",
+          "admitted": false,
+          "revision": 3,
+          "desired_action": "deactivate"
+        }
+      },
+      "status": "APROVADO"
+    },
+    {
+      "scenario": "event_claim",
+      "isolation": "REPEATABLE READ",
+      "waitedForDatabaseLock": true,
+      "outcome": {
+        "ok": false,
+        "code": "40001"
+      },
+      "status": "APROVADO"
+    },
+    {
+      "scenario": "provision_vs_cutoff",
+      "isolation": "REPEATABLE READ",
+      "waitedForDatabaseLock": true,
+      "outcome": {
+        "ok": false,
+        "code": "40001"
+      },
+      "status": "APROVADO"
+    },
+    {
+      "scenario": "recovery_vs_cutoff",
+      "isolation": "REPEATABLE READ",
+      "waitedForDatabaseLock": true,
+      "outcome": {
+        "ok": false,
+        "code": "40001"
+      },
+      "status": "APROVADO"
+    },
+    {
+      "scenario": "event_claim",
+      "isolation": "SERIALIZABLE",
+      "waitedForDatabaseLock": true,
+      "outcome": {
+        "ok": false,
+        "code": "40001"
+      },
+      "status": "APROVADO"
+    },
+    {
+      "scenario": "provision_vs_cutoff",
+      "isolation": "SERIALIZABLE",
+      "waitedForDatabaseLock": true,
+      "outcome": {
+        "ok": false,
+        "code": "40001"
+      },
+      "status": "APROVADO"
+    },
+    {
+      "scenario": "recovery_vs_cutoff",
+      "isolation": "SERIALIZABLE",
+      "waitedForDatabaseLock": true,
+      "outcome": {
+        "ok": false,
+        "code": "40001"
+      },
+      "status": "APROVADO"
+    }
+  ],
+  "passed": 49,
+  "failed": 0
+}

@@ -1,69 +1,15 @@
-import { useEffect, useSyncExternalStore } from 'react';
+import { createContextStore } from '@/lib/contextStore';
 import type { Conversa, Mensagem } from '@/mocks/atendimentoData';
 import type { Lead } from '@/mocks/leadsData';
 import { loadOperationalConversations, persistOperationalConversations } from '@/lib/crm/conversationsRepository';
 import { persistentLeadId } from '@/lib/crm/leadMapper';
 
-let state: Conversa[] = [];
-let hydrated = false;
-let loadStatus: 'loading' | 'ready' | 'error' = 'loading';
-let hydratePromise: Promise<void> | null = null;
-let writeQueue = Promise.resolve();
-const listeners = new Set<() => void>();
-
-const notify = () => listeners.forEach((listener) => listener());
-const getLoadStatus = () => loadStatus;
-const subscribe = (listener: () => void) => {
-  listeners.add(listener);
-  return () => listeners.delete(listener);
-};
-
-async function hydrate(): Promise<void> {
-  if (hydrated) return;
-  if (hydratePromise) return hydratePromise;
-  loadStatus = 'loading';
-  notify();
-  hydratePromise = loadOperationalConversations()
-    .then((conversations) => {
-      state = conversations;
-      hydrated = true;
-      loadStatus = 'ready';
-      notify();
-    })
-    .catch((error) => {
-      console.error('[crm-conversations] falha ao carregar fonte operacional', error);
-      loadStatus = 'error';
-      notify();
-    })
-    .finally(() => {
-      hydratePromise = null;
-    });
-  return hydratePromise;
-}
-
-function withPersistentIds(conversations: Conversa[]): Conversa[] {
-  return conversations.map((conversation) => ({
-    ...conversation,
-    id: persistentLeadId(conversation.id),
-    mensagens: conversation.mensagens.map((message) => ({ ...message, id: persistentLeadId(message.id) })),
-  }));
-}
-
-function updateState(updater: (previous: Conversa[]) => Conversa[]): void {
-  const previous = state;
-  const next = withPersistentIds(updater(previous));
-  state = next;
-  notify();
-  writeQueue = writeQueue
-    .then(async () => {
-      state = await persistOperationalConversations(previous, next);
-      notify();
-    })
-    .catch((error) => {
-      console.error('[crm-conversations] falha ao salvar fonte operacional', error);
-      void hydrate();
-    });
-}
+const store = createContextStore<Conversa[]>({
+  initial: () => [],
+  load: async () => loadOperationalConversations(),
+  save: (previous, next) => persistOperationalConversations(previous, next),
+  normalize: (items) => items.map((item) => ({ ...item, id: persistentLeadId(item.id), mensagens: item.mensagens.map((message) => ({ ...message, id: persistentLeadId(message.id) })) })),
+});
 
 export function useConversasStore(): {
   conversas: Conversa[];
@@ -72,8 +18,8 @@ export function useConversasStore(): {
   atualizar: (id: string, patch: Partial<Conversa>) => void;
   criarConversa: (lead: Lead) => Conversa;
 } {
-  const conversas = useSyncExternalStore(subscribe, () => state, () => state);
-  useEffect(() => { void hydrate(); }, []);
+  const conversas = store.useData();
+  const updateState = store.bindUpdate();
 
   const adicionarMensagem = (id: string, msg: Mensagem, opts?: { notificarCliente?: boolean }) => {
     const notificarCliente = opts?.notificarCliente ?? true;
@@ -124,16 +70,11 @@ export function useConversasStore(): {
 }
 
 export function getConversasSnapshot(): Conversa[] {
-  return state;
+  return store.get();
 }
 
 export function useConversasLoadStatus(): 'loading' | 'ready' | 'error' {
-  const status = useSyncExternalStore(subscribe, getLoadStatus, getLoadStatus);
-  useEffect(() => { void hydrate(); }, []);
-  return status;
+  return store.useStatus();
 }
 
-export async function refreshConversasStore(): Promise<void> {
-  hydrated = false;
-  await hydrate();
-}
+export const refreshConversasStore = store.refresh;

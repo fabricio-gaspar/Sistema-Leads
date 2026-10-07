@@ -94,11 +94,13 @@ export default function MetaCoexistencePanel({
   accounts,
   canManage,
   onConnected,
+  showUnavailableWhenDisabled = false,
 }: {
   member?: TeamMember;
   accounts: WhatsappAccount[];
   canManage: boolean;
   onConnected: () => Promise<void>;
+  showUnavailableWhenDisabled?: boolean;
 }) {
   const [enabled, setEnabled] = useState(false);
   const [checking, setChecking] = useState(true);
@@ -155,7 +157,13 @@ export default function MetaCoexistencePanel({
     }
   };
 
-  if (checking || !enabled) return null;
+  if (checking) return showUnavailableWhenDisabled ? <section aria-busy="true" className="rounded-2xl border border-background-200 bg-background-50 p-4 text-xs text-foreground-500">Consultando a disponibilidade da conexão oficial da Meta…</section> : null;
+  if (!enabled) return showUnavailableWhenDisabled ? <section role="status" className="rounded-2xl border border-dashed border-background-300 bg-background-50 p-4">
+    <div className="flex items-start gap-3">
+      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#e8eeff] text-xl text-[#0866ff]"><i className="ri-meta-line" aria-hidden="true" /></span>
+      <div><p className="text-sm font-semibold text-foreground-900">Aguardando homologação da Meta</p><p className="mt-1 text-xs leading-5 text-foreground-600">A conexão oficial permanece bloqueada até a homologação do canal. Nenhum número, sessão ou canal atual será alterado enquanto isso.</p></div>
+    </div>
+  </section> : null;
   return <section className="rounded-2xl border border-background-200 bg-white p-4">
     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
       <div className="flex min-w-0 gap-3">

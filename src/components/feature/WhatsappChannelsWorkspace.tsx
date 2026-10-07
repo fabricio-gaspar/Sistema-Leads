@@ -48,13 +48,17 @@ function formatWhen(value: string | null, fallback = 'Ainda não confirmado') {
 }
 
 function providerName(account: WhatsappAccount) {
+  if (account.provider === 'wa_akg') return 'WA-AKG';
+  if (account.provider === 'evolution_go') return 'Evolution GO';
   return account.provider === 'meta_cloud' ? 'Meta WhatsApp Cloud API' : 'Z-API';
 }
 
 function providerMode(account: WhatsappAccount) {
   return account.provider === 'meta_cloud'
     ? 'Coexistência'
-    : 'Canal corporativo';
+    : account.accountType === 'seller'
+      ? 'Canal do vendedor'
+      : 'Canal corporativo';
 }
 
 function checkIcon(check: WhatsappChannelCheck) {

@@ -144,10 +144,12 @@ async function persistWebhookEvent(
 async function processReceipt(
   admin: Admin,
   organizationId: string,
+  whatsappAccountId: string,
   event: Row,
   receipt: Extract<ZapiEvent, { kind: 'receipt' }>,
 ): Promise<Response> {
-  const { data, error } = await admin.rpc('reconcile_whatsapp_receipt', {
+  const { data, error } = await admin.rpc('reconcile_whatsapp_receipt_for_account', {
+    p_whatsapp_account_id: whatsappAccountId,
     p_organization_id: organizationId,
     p_provider_message_ids: receipt.providerMessageIds,
     p_expected_message_count: receipt.expectedMessageCount,
@@ -241,26 +243,30 @@ Deno.serve(async (request) => {
       .eq('integration_id', integration.id).is('archived_at', null).maybeSingle();
     if (accountError || !whatsappAccount) return json({ error: 'whatsapp_account_not_ready' }, 409);
 
-    const { data: providerControl, error: providerControlError } = await admin.from('messaging_provider_controls')
-      .select('inbound_enabled,kill_switch').eq('organization_id', integration.organization_id).eq('provider', 'zapi').maybeSingle();
-    if (providerControlError) throw new Error('provider_control_read_failed');
-    const hasExplicitProviderControl = providerControl
-      && typeof providerControl.inbound_enabled === 'boolean'
-      && typeof providerControl.kill_switch === 'boolean';
-    if (hasExplicitProviderControl && (providerControl.inbound_enabled !== true || providerControl.kill_switch === true)) {
-      // Confirmamos o callback para que o provedor não repita tentativas, porém
-      // não persistimos nem roteamos a mensagem e jamais reativamos a conta.
-      return acceptedWebhook({ accepted: true, ignored: true, reason: 'whatsapp_provider_disabled' });
+    const normalized = parseZapiEvent(payload);
+    // An authenticated receipt only reconciles historical output for this
+    // account. Closing inbound must not discard it or reopen any business flow.
+    if (normalized.kind !== 'receipt') {
+      const { data: providerControl, error: providerControlError } = await admin.from('messaging_provider_controls')
+        .select('inbound_enabled,kill_switch').eq('organization_id', integration.organization_id).eq('provider', 'zapi').maybeSingle();
+      if (providerControlError) throw new Error('provider_control_read_failed');
+      const hasExplicitProviderControl = providerControl
+        && typeof providerControl.inbound_enabled === 'boolean'
+        && typeof providerControl.kill_switch === 'boolean';
+      if (hasExplicitProviderControl && (providerControl.inbound_enabled !== true || providerControl.kill_switch === true)) {
+        // Confirmamos o callback para que o provedor não repita tentativas, porém
+        // não persistimos nem roteamos a mensagem e jamais reativamos a conta.
+        return acceptedWebhook({ accepted: true, ignored: true, reason: 'whatsapp_provider_disabled' });
+      }
     }
 
     authenticatedAdmin = admin;
     eventOrg = integration.organization_id;
-    const normalized = parseZapiEvent(payload);
     const payloadSha = await sha256(raw);
     const suppliedId = [payload.message_id, payload.messageId, payload.id]
       .find((value) => typeof value === 'string' && value.length > 0 && value.length < 256) as string | undefined;
     const externalId = normalized.kind === 'receipt'
-      ? `receipt:${normalized.status}:${await sha256(normalized.providerMessageIds.slice().sort().join('|'))}`
+      ? `receipt:${whatsappAccount.id}:${normalized.status}:${await sha256(JSON.stringify(normalized.providerMessageIds.slice().sort()))}`
       : suppliedId ?? payloadSha;
     const eventType = text(payload.type, 120) || 'message';
     const persisted = await persistWebhookEvent(admin, {
@@ -277,7 +283,7 @@ Deno.serve(async (request) => {
     const event = persisted.event;
     eventId = String(event.id);
 
-    if (normalized.kind === 'receipt') return await processReceipt(admin, integration.organization_id, event, normalized);
+    if (normalized.kind === 'receipt') return await processReceipt(admin, integration.organization_id, whatsappAccount.id, event, normalized);
     if (normalized.kind === 'ignored') {
       const { error } = await admin.from('webhook_events').update({
         status: 'ignored', processed_at: new Date().toISOString(), error: normalized.reason,

@@ -168,7 +168,7 @@ export default function WhatsappProviderControlPanel() {
     }
   };
 
-  if (loading) return <div className="grid gap-4 lg:grid-cols-2"><div className="h-60 animate-pulse rounded-2xl bg-background-100" /><div className="h-60 animate-pulse rounded-2xl bg-background-100" /></div>;
+  if (loading) return <div className="cc-channel-provider-choice-grid grid gap-4"><div className="h-60 animate-pulse rounded-2xl bg-background-100" /><div className="h-60 animate-pulse rounded-2xl bg-background-100" /></div>;
 
   return <section aria-label="Provedor corporativo do WhatsApp">
     <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
@@ -177,7 +177,7 @@ export default function WhatsappProviderControlPanel() {
     </div>
     {error && <p role="alert" className="mb-3 rounded-xl border border-accent-200 bg-accent-50 px-3 py-2 text-xs text-accent-800">{error}</p>}
     {notice && <p role="status" className="mb-3 rounded-xl border border-primary-200 bg-primary-50 px-3 py-2 text-xs text-primary-800">{notice}</p>}
-    <div className="grid gap-4 lg:grid-cols-2">
+    <div className="cc-channel-provider-choice-grid grid gap-4">
       {(['zapi', 'meta_cloud'] as Provider[]).map((provider) => <ProviderCard
         key={provider}
         provider={provider}

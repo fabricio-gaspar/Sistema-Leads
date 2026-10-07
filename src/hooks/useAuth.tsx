@@ -1,9 +1,9 @@
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, Fragment, useCallback, useContext, useEffect, useState, useSyncExternalStore } from 'react';
 import type { ReactNode } from 'react';
 import { supabase } from '@/lib/supabase';
-import { bootstrapOrganization } from '@/lib/organization';
-import { loadOperationalCompanySettings, persistOperationalCompanySettings } from '@/lib/crm/organizationSettingsRepository';
-import { getEmpresaSettingsSnapshot } from '@/hooks/useEmpresaSettingsStore';
+import { sessionContext, broadcastContextInvalidation } from '@/lib/sessionContext';
+import { resolveOrganizationSession } from '@/lib/organizationSession';
+import { acceptsAuthenticatedEvents, beginAuthIntent, observeAuthContext } from '@/lib/authContextObserver';
 import type { User } from '@supabase/supabase-js';
 
 // Usuário exposto pela aplicação. Mantém os mesmos campos que o antigo mock,
@@ -40,6 +40,9 @@ export interface RegisterData {
 interface AuthContextValue {
   user: AppUser | null;
   loading: boolean;
+  organizationReady: boolean;
+  organizationError: string | null;
+  refreshOrganization: () => Promise<void>;
   login: (email: string, password: string) => Promise<{ ok: boolean; error?: string }>;
   register: (data: RegisterData) => Promise<{ ok: boolean; error?: string; precisaConfirmar?: boolean }>;
   resetPassword: (email: string) => Promise<{ ok: boolean; error?: string }>;
@@ -63,104 +66,47 @@ function toAppUser(u: User): AppUser {
   };
 }
 
-// Persiste os dados iniciais no domínio da organização, sem usar blobs legados.
-async function seedOrganizationSettings(email: string, company: CompanyDados): Promise<void> {
-  try {
-    const current = await loadOperationalCompanySettings(getEmpresaSettingsSnapshot());
-    if (current.organizacao.nome.trim()) return;
-    await persistOperationalCompanySettings({
-      ...current,
-      organizacao: {
-        ...current.organizacao,
-        nome: company.nome,
-        nomeComercial: company.nome,
-        cnpj: company.cnpj,
-        site: company.site,
-        email,
-        telefone: company.telefone,
-        endereco: company.endereco,
-        whatsapp: company.whatsapp,
-        social_media: company.social_media,
-        fusoHorario: current.organizacao.fusoHorario || 'America/Sao_Paulo',
-        idioma: current.organizacao.idioma || 'pt-BR',
-        assinaturaComercial: current.organizacao.assinaturaComercial || '',
-      },
-      ramo: current.ramo || company.segmento,
-    });
-  } catch (e) {
-    console.error('[useAuth] erro ao persistir dados iniciais da organização', e);
-  }
-}
-
-async function provisionOrganization(userId: string, company: CompanyDados): Promise<void> {
-  try {
-    await bootstrapOrganization(userId, {
-      legalName: company.nome,
-      displayName: company.nome,
-      timezone: 'America/Sao_Paulo',
-    });
-  } catch (error) {
-    // Keeps legacy environments usable until the Phase 1 migration is applied.
-    // Registration itself remains owned by Supabase Auth.
-    console.warn('[useAuth] organização ainda não provisionada', error);
-  }
-}
-
-// Cobre o caso de confirmação de e-mail: o usuário entra depois de confirmar.
-async function sincronizarEmpresa(user: User): Promise<void> {
-  const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
-  if (meta.empresa && typeof meta.empresa === 'object') {
-    await provisionOrganization(user.id, meta.empresa as CompanyDados);
-    await seedOrganizationSettings(user.email ?? '', meta.empresa as CompanyDados);
-  }
-}
-
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AppUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [organizationError, setOrganizationError] = useState<string | null>(null);
+  const context = useSyncExternalStore(sessionContext.subscribe, sessionContext.get, sessionContext.get);
 
-  useEffect(() => {
-    let ativo = true;
-
-    supabase.auth.getSession().then(({ data }) => {
-      if (!ativo) return;
-      if (data.session?.user) {
-        setUser(toAppUser(data.session.user));
-        void sincronizarEmpresa(data.session.user);
-      }
-      setLoading(false);
-    });
-
-    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (session?.user) {
-        setUser(toAppUser(session.user));
-        void sincronizarEmpresa(session.user);
-      } else {
-        setUser(null);
-      }
-      setLoading(false);
-    });
-
-    return () => {
-      ativo = false;
-      sub.subscription.unsubscribe();
-    };
+  const refreshOrganization = useCallback(async () => {
+    const current = sessionContext.get();
+    const pending = sessionContext.replace(current.userId);
+    setOrganizationError(null);
+    try {
+      await resolveOrganizationSession();
+    } catch (error) {
+      if (sessionContext.isCurrent(pending)) setOrganizationError('Não foi possível confirmar o acesso à organização.');
+      throw error;
+    }
   }, []);
 
+  useEffect(() => observeAuthContext({
+    identity: (next) => setUser(next ? toAppUser(next) : null),
+    organizationError: setOrganizationError,
+    loading: setLoading,
+  }), []);
+
   const login = async (email: string, password: string) => {
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    beginAuthIntent('login');
+    setUser(null);
+    setOrganizationError(null);
+    broadcastContextInvalidation('signout');
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) return { ok: false, error: error.message };
-    // Um convite não concede acesso antes do aceite. No primeiro login do
-    // convidado, a função server-side transforma o vínculo pendente em ativo,
-    // marca o convite como aceito e registra a auditoria. Falhas transitórias
-    // aqui não bloqueiam usuários que já possuem acesso válido.
-    if (data.user) {
-      await supabase.functions.invoke('team-members', { body: { action: 'activate_invite' } });
-    }
+    if (!acceptsAuthenticatedEvents()) return { ok: false, error: 'A sessão foi encerrada durante o login.' };
+    broadcastContextInvalidation('refresh');
+    // Invites are accepted explicitly in PendingInvitesGate, never as a login side effect.
     return { ok: true };
   };
 
   const register = async (data: RegisterData) => {
+    beginAuthIntent('register');
+    setUser(null);
+    broadcastContextInvalidation('signout');
     const { data: result, error } = await supabase.auth.signUp({
       email: data.email,
       password: data.password,
@@ -174,12 +120,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     });
     if (error) return { ok: false, error: error.message };
 
-    // Sem confirmação de e-mail, já existe sessão: persiste os dados da empresa agora.
+    if (!acceptsAuthenticatedEvents()) return { ok: false, error: 'A sessão foi encerrada durante o cadastro.' };
+    if (result.session) broadcastContextInvalidation('refresh');
+    // Canonical Auth trigger owns provisioning; pending invite never seeds another tenant.
     const precisaConfirmar = !result.session;
-    if (result.session?.user) {
-      await provisionOrganization(result.session.user.id, data.company);
-      await seedOrganizationSettings(data.email, data.company);
-    }
     return { ok: true, precisaConfirmar };
   };
 
@@ -193,13 +137,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = async () => {
-    await supabase.auth.signOut();
+    beginAuthIntent('logout');
+    setLoading(false);
     setUser(null);
+    setOrganizationError(null);
+    broadcastContextInvalidation('signout');
+    const { error } = await supabase.auth.signOut();
+    if (error) throw error;
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, resetPassword, logout }}>
-      {children}
+    <AuthContext.Provider value={{ user, loading, organizationReady: Boolean(context.organizationId && context.userId === user?.id), organizationError, refreshOrganization, login, register, resetPassword, logout }}>
+      <Fragment key={context.generation}>{children}</Fragment>
     </AuthContext.Provider>
   );
 }

@@ -1,0 +1,67 @@
+
+ RUN  v3.2.7 /Users/fabriciogaspar/Documents/Codex/2026-10-04/c/Sistema-Leads-live
+
+ ✓ supabase/tests/transferChannelOwnership.test.ts (8 tests) 5ms
+ ✓ supabase/tests/evolutionGoInbound.test.ts (8 tests) 8ms
+ ✓ supabase/tests/waAkgProvider.test.ts (4 tests) 12ms
+stderr | supabase/tests/evolutionGoHandler.test.ts > Evolution GO multi-account handler > requires account_id before any secret read or provider request
+evolution_go_action_failed { action: 'status', code: 'evolution_go_account_required' }
+
+stderr | supabase/tests/evolutionGoHandler.test.ts > Evolution GO multi-account handler > returns QR only to an administrator or the private-account owner and never reveals another seller account
+evolution_go_action_failed { action: 'qr', code: 'evolution_go_account_not_found' }
+
+stderr | supabase/tests/evolutionGoHandler.test.ts > Evolution GO multi-account handler > returns QR only to an administrator or the private-account owner and never reveals another seller account
+evolution_go_action_failed { action: 'qr', code: 'evolution_go_account_not_found' }
+
+stderr | supabase/tests/messagingRecoveryR6.test.ts > R7 pinned WA-AKG upstream contract > T-R7-08 status=false at HTTP200 is a rejection
+wa_akg_upstream_rejected {
+  path: '/api/sessions/wf_aaaaaaaaaaaa4aaa8aaaaaaaaaaaaaaa_bbbbbbbbbbbb4bbb8bbbbbbbbbbbbbbb',
+  status: 200,
+  response_keys: [ 'status' ]
+}
+
+ ✓ supabase/tests/evolutionGoWorker.test.ts (5 tests) 115ms
+stderr | supabase/tests/evolutionGoHandler.test.ts > Evolution GO multi-account handler > recovers one stale Evolution GO runtime before returning a QR
+evolution_go_upstream_rejected {
+  path: '/instance/qr',
+  status: 400,
+  response_keys: [ 'error' ],
+  error_flags: {
+    phone: false,
+    instance: false,
+    session: false,
+    authentication: false,
+    retry: true
+  }
+}
+
+ ✓ supabase/tests/messagingRecoveryR6.test.ts (23 tests) 99ms
+ ✓ supabase/tests/receiptReconciliationR3.test.ts (25 tests) 306ms
+stderr | supabase/tests/evolutionGoHandler.test.ts > Evolution GO multi-account handler > fails closed and does not audit activation success when account state persistence fails
+evolution_go_action_failed { action: 'activate', code: 'account_lifecycle_persistence_failed' }
+
+stderr | supabase/tests/evolutionGoHandler.test.ts > R2 lifecycle HTTP contract: evolution-go (DB transport mocked) > R2-HTTP-03 performs no remote call when durable intent fails to save
+evolution_go_action_failed { action: 'disconnect', code: 'account_lifecycle_persistence_failed' }
+
+stderr | supabase/tests/evolutionGoHandler.test.ts > R2 lifecycle HTTP contract: evolution-go (DB transport mocked) > R2-HTTP-04 never reports success when atomic final persistence fails
+evolution_go_action_failed { action: 'activate', code: 'account_lifecycle_persistence_failed' }
+
+stderr | supabase/tests/evolutionGoHandler.test.ts > R2 lifecycle HTTP contract: evolution-go (DB transport mocked) > R2-HTTP-10 denies self-service attempts to open administrative controls
+evolution_go_action_failed { action: 'set_provider_controls', code: 'permission_denied' }
+
+stderr | supabase/tests/evolutionGoHandler.test.ts > R2 lifecycle HTTP contract: wa-akg (DB transport mocked) > R2-HTTP-03 performs no remote call when durable intent fails to save
+wa_akg_action_failed { action: 'disconnect', code: 'account_lifecycle_persistence_failed' }
+
+stderr | supabase/tests/evolutionGoHandler.test.ts > R2 lifecycle HTTP contract: wa-akg (DB transport mocked) > R2-HTTP-04 never reports success when atomic final persistence fails
+wa_akg_action_failed { action: 'activate', code: 'account_lifecycle_persistence_failed' }
+
+stderr | supabase/tests/evolutionGoHandler.test.ts > R2 lifecycle HTTP contract: wa-akg (DB transport mocked) > R2-HTTP-10 denies self-service attempts to open administrative controls
+wa_akg_action_failed { action: 'set_provider_controls', code: 'permission_denied' }
+
+ ✓ supabase/tests/evolutionGoHandler.test.ts (36 tests) 1698ms
+   ✓ Evolution GO multi-account handler > recovers one stale Evolution GO runtime before returning a QR  1510ms
+
+ Test Files  7 passed (7)
+      Tests  109 passed (109)
+   Start at  20:04:22
+   Duration  2.61s (transform 805ms, setup 0ms, collect 1.24s, tests 2.24s, environment 1ms, prepare 783ms)
