@@ -2,6 +2,142 @@
   "schema_version": 1,
   "requirements": [
     {
+      "id": "REQ-EVOLUTION-GO-FLAVIO-QR-CAPACITY-20261007",
+      "description": "Resolver falha de sessão/QR e testar com Flavio, sem mensagens ou exclusão de histórico",
+      "module": "evolution_go_qr",
+      "status": "PARCIAL",
+      "evidence": "PostgreSQL da Evolution GO saturado confirmado nos logs. Edge v25 elimina connect redundante e retries do QR; 67 testes locais e 8 do bundle remoto passaram, tipos e fonte publicada verificados. E2E como Flavio ainda falha com uma chamada HTTP400, sem QR. Falta acesso à hospedagem para corrigir pools/conexões do PostgreSQL; API Tester não administra esse banco.",
+      "last_validation": "2026-10-07"
+    },
+    {
+      "id": "REQ-USERS-NO-INVITE-FULL-DELETE-20261007",
+      "description": "Criar usuário diretamente com papel e senha; ao excluir, liberar o e-mail e remover referências pessoais e Evolution GO no escopo aprovado",
+      "module": "configuracoes_usuarios_auth_evolution_go",
+      "status": "PARCIAL",
+      "evidence": "A prévia local removeu abas/filtros/consulta administrativa de convites; cadastro direto local com senha e papel permanece. 10 testes focados, type-check, lint, build e inspeção autenticada passaram. Backend oficial não tem contrato de criação direta; remoção v3 mantém Auth. Identidade Flavio ainda ocupa e-mail, sem membership/job/conta, e tem convite histórico aceito. A purga de dados comerciais e a exclusão real do Flavio aguardam escolha explícita; nenhuma mutação remota foi feita.",
+      "last_validation": "2026-10-07"
+    },
+    {
+      "id": "REQ-FLAVIO-EXISTING-IDENTITY-EVOLUTION-TEST-20261007",
+      "description": "Recuperar a identidade existente de Flavio como vendedor, provisionar a instância Evolution GO e testar pareamento sem enviar mensagens reais",
+      "module": "usuarios_auth_evolution_go",
+      "status": "BLOQUEADO",
+      "evidence": "Login da identidade existente passou, mas não há vínculo, conta ou job Evolution GO. O Manager recarregado mostrou zero instâncias. Backend oficial team-members v20 não tem pending_invites nem RPCs R4; invite antigo pode excluir a identidade preexistente em compensação. Nenhum vínculo/convite foi submetido; exige contrato seguro coordenado, homologação e correção independente do QR HTTP 400.",
+      "last_validation": "2026-10-07"
+    },
+    {
+      "id": "REQ-USERS-DIRECT-CREATE-EVOLUTION-GO-20261007",
+      "description": "Criar usuário novo em Configurações com papel e senha inicial, vinculando vendedor automaticamente à fila/conta Evolution GO sem sobrescrever identidade global existente",
+      "module": "configuracoes_usuarios_auth_evolution_go",
+      "status": "PARCIAL",
+      "evidence": "Formulário e Edge local restaurados a partir da implementação anterior, agora com preflight e RPC service-role transacional; PGlite 11/11 e lifecycle 6/6, Vitest 136/136, tipos app/Edge, lint, build e prévia autenticada sem submissão. Remoto confirmado sem trigger Auth compatível, sem trigger Evolution GO e com team-members v19; migration/Edge/Site não aplicados. Senha inicial não tem troca obrigatória automática; não houve criação/login/QR real.",
+      "last_validation": "2026-10-07"
+    },
+    {
+      "id": "REQ-EVOLUTION-GO-SELLER-INSTANCE-QR-20261006",
+      "description": "Criar a instância Evolution GO de cada vendedor e permitir QR apenas após existência e token válidos no servidor",
+      "module": "evolution_go_seller_lifecycle",
+      "status": "BLOQUEADO",
+      "evidence": "A instância substituta existe no Manager e segue desconectada. A Edge oficial evolution-go v24 ainda registra /instance/qr HTTP 400; conta/integração desativadas e job awaiting_qr. O código local 1bd2786 separa QR de mutação de lifecycle e preserva erros específicos seguros; 99 testes focados/9 arquivos, tipos, lint, build e PGlite 6/6 passaram. Sem log interno da instância, QR real, scan, vendedor autenticado para homologação, trigger multi-tenant aplicado ou release coordenada, o fluxo ponta a ponta continua bloqueado. Site/Edge/migration não foram publicados neste lote.",
+      "last_validation": "2026-10-07"
+    },
+    {
+      "id": "REQ-EVOLUTION-GO-ADMIN-SERVER-CARD-20261006",
+      "description": "Permitir ao administrador abrir os campos de URL HTTPS e chave master do Evolution GO, preservar segredos no Vault e validar o acesso real sem liberar mensageria",
+      "module": "configuracoes_canais_evolution_go",
+      "status": "CONCLUÍDO",
+      "evidence": "evolution-go v22 expõe e executa save_server/test_server; worker v5 bloqueia provisionamento sem validação corporativa passada e Vault completo. Prévia autenticada abriu o formulário e autenticou GET /instance/all com segredo já guardado; atualização manteve Pronta para conectar. Banco: server_validation=passed, enabled=false, connected=false, paused=true. 59 testes focados, type-check Edge e diff check passaram. Site oficial, QR, pareamento e mensageria não publicados/liberados.",
+      "last_validation": "2026-10-06"
+    },
+    {
+      "id": "REQ-EVOLUTION-GO-MULTITENANT-LIFECYCLE-20261006",
+      "description": "Manter lifecycle Evolution GO multi-tenant por vínculo: job único por vendedor, self-service apenas do titular e preservação do histórico após desconexão",
+      "module": "evolution_go_tenant_lifecycle",
+      "status": "PARCIAL",
+      "evidence": "Implementação e validação somente locais: trigger de organization_members cria/reconcilia conta privada, integração desabilitada e job único por organization_id/user_id; Edge observa/acorda somente job existente. 769 Vitest/93 arquivos, type-check app/Edge, lint, build/artefato, PGlite 6/6 e PostgreSQL nativo 2/2 aprovados. Não houve migration/deploy Supabase/Edge/Site/GitHub, QR, chamada a provedor, mensagem ou alteração de dado de cliente. Release bloqueada por drift remoto, staging/homologação coordenada e QR Evolution 400/500; Leaked Password Protection/Auth password policy permanece pendente.",
+      "last_validation": "2026-10-06"
+    },
+    {
+      "id": "REQ-EVOLUTION-GO-SERVER-ACTION-20261006",
+      "description": "Diagnosticar e corrigir a recusa ao salvar/testar o servidor Evolution GO sem reenviar credenciais ou liberar mensageria indevidamente",
+      "module": "configuracoes_evolution_go",
+      "status": "CONCLUÍDO",
+      "evidence": "A causa original foi evolution-go v21 sem save_server/test_server. Contrato administrativo aplicado seletivamente em evolution-go v22 e gate de validação no worker v5. Formulário aberto na prévia autenticada e teste real GET /instance/all passou com credencial já no Vault; banco confirmou validation=passed e integração desativada/desconectada/pausada. QR, lifecycle multi-tenant completo e Site continuam pendentes fora deste requisito.",
+      "last_validation": "2026-10-06"
+    },
+    {
+      "id": "REQ-EVOLUTION-GO-ADMIN-SELLER-SPLIT-20261006",
+      "description": "Restringir Configurações Evolution GO à validação do servidor e controle de conectores, deixando dados não secretos e pareamento na tela do próprio vendedor",
+      "module": "configuracoes_canais_central_evolution_go",
+      "status": "CONCLUÍDO_LOCAL_PENDENTE_HOMOLOGAÇÃO",
+      "evidence": "Painel compartilhado separa os modos sem alterar backend. Prévia administrativa autenticada confirmou servidor e conectores sem QR; 325 testes frontend, cinco focados, type-check, lint e build passaram. Tela autenticada de vendedor e servidor real ainda pendentes; Site inalterado. A suíte completa encontra importação npm: de Supabase não resolvida nos testes Edge locais.",
+      "last_validation": "2026-10-06"
+    },
+    {
+      "id": "REQ-EVOLUTION-GO-USERS-VISIBILITY-20261006",
+      "description": "Exibir em Configurações > Usuários o gerenciador Evolution GO já existente, com leitura autenticada das contas e dos membros na prévia local",
+      "module": "configuracoes_usuarios_evolution_go",
+      "status": "NÃO APLICÁVEL",
+      "evidence": "Implementação histórica 7f95c82 foi superada por pedido explícito de 07/10/2026 para remover o painel administrativo duplicado de Usuários. O mesmo painel permanece em Canais; a gestão de membros e papéis continua em Usuários. Site oficial não publicado neste ajuste.",
+      "last_validation": "2026-10-07"
+    },
+    {
+      "id": "REQ-EVOLUTION-GO-ADMIN-ONLY-CHANNELS-20261007",
+      "description": "Mostrar servidor e conectores Evolution GO somente em Configurações > Canais, sem duplicar o painel administrativo em Usuários",
+      "module": "configuracoes_canais_usuarios_evolution_go",
+      "status": "PARCIAL",
+      "evidence": "Importação e montagem do EvolutionGoPanel removidas apenas de UsersAccessWorkspace. WhatsAppEntriesTab mantém o painel em Canais; prévia autenticada confirmou ambos os estados. Dois testes focados, type-check, lint direcionado, build Vite e diff check aprovados. Frontend local validado; Site oficial ainda não publicado.",
+      "last_validation": "2026-10-07"
+    },
+    {
+      "id": "REQ-LAYOUT-REFERENCE-CONCEPT-20261006",
+      "description": "Alinhar a casca visual e Configurações à hierarquia da referência, sem criar, remover ou renomear módulos, telas, rotas ou regras do CRM",
+      "module": "frontend_shell_configuracoes",
+      "status": "CONCLUÍDO_LOCAL_PENDENTE_PUBLICAÇÃO",
+      "evidence": "48478de aplica sidebar clara agrupada, topbar compacto, cards discretos, contraste AA e busca de telas já existente no cabeçalho; Configurações retém seletor compacto até 2xl para evitar compressão. Taxonomia, nomes, rotas, permissões e handlers foram preservados. Type-check, lint, Vitest 93/746, build/artefato, diff check e prévia local desktop aprovados; nenhuma escrita operacional.",
+      "last_validation": "2026-10-06"
+    },
+    {
+      "id": "REQ-CONFIG-CONTINGENCY-PROVIDERS-20261006",
+      "description": "Operar exclusivamente com Evolution GO e retirar Z-API, Meta, WA-AKG e entrada pública do site dos fluxos ativos, preservando histórico e configuração legada para auditoria",
+      "module": "configuracoes_canais_evolution_go_exclusivo",
+      "status": "CONCLUÍDO_SUPABASE_PREVIA_LOCAL_SITE_PENDENTE",
+      "evidence": "20261007193000_evolution_go_exclusive_channels desativou controles, contas padrão/habilitadas e integrações legadas sem excluir registros. whatsapp-accounts v10 filtra a leitura para Evolution GO e recusa ações legadas. A prévia autenticada mostrou somente Evolution GO; 198 testes focados, type-check app/Edge e diff check passaram. QR Evolution segue bloqueado pelo runtime remoto em close.",
+      "last_validation": "2026-10-07"
+    },
+    {
+      "id": "REQ-CONFIG-CARD-LAYOUT-20261006",
+      "description": "Organizar os cards de Configurações por responsabilidade, preservar as ações e tornar Canais e Status operacional utilizáveis em desktop e mobile sem alterar regras de negócio",
+      "module": "configuracoes_frontend",
+      "status": "CONCLUÍDO_LOCAL_PENDENTE_PUBLICAÇÃO",
+      "evidence": "2b7ddd9 separa Canais em Configuração, Diagnóstico e Histórico, remove ações globais repetidas e usa descrições por seção. A tabela de Status operacional passa a cards rotulados em mobile. Vitest 93/743, type-check frontend, lint, build/artefato, diff check e revisão visual autenticada local em mobile/desktop aprovados; sem escrita operacional.",
+      "last_validation": "2026-10-06"
+    },
+    {
+      "id": "REQ-CONFIG-PROVIDER-USAGE-20261006",
+      "description": "Permitir que Configurações > APIs abra a configuração ao ativar um provedor não configurado e persista corretamente a ativação ou desativação do uso operacional sem apagar credenciais",
+      "module": "configuracoes_integracoes",
+      "status": "CONCLUÍDO_LOCAL_PENDENTE_PUBLICAÇÃO",
+      "evidence": "a7bba77: useIntegracoesStore expõe a marca pública configured; ApisProvidersTab abre o modal de configuração em vez de desabilitar o switch; configurar-integracao#set_usage reativa um provedor validado pausado, preserva credenciais e sincroniza lead_source_configs. Vitest 93/743, type-check frontend/Edge, lint, build/artefato e prévia autenticada sem escrita operacional aprovados.",
+      "last_validation": "2026-10-06"
+    },
+    {
+      "id": "REQ-LEADS-KANBAN-20261005",
+      "description": "Expor o envio individual ou em massa de Leads ao Kanban, preservar classificação, métricas e origem importadas, sem ativar a Ana, e impedir duplicação do mesmo lead no portfólio",
+      "module": "leads_kanban",
+      "status": "CONCLUÍDO",
+      "evidence": "a20a420, 968a753 e 3665f52; a ação por menu e a seleção em massa reutilizam o registro leads. Para Ana sem rota, persistem somente owner_id/assigned_to do operador; humano sem responsável é bloqueado. Um fluxo autenticado encaminhou um lead existente ao Kanban > Novo, preservou Busca de leads e score 43/100 após reload; novo envio confirmou que já estava no Kanban sem duplicar. Vitest 93/741, type-check frontend, lint, build/artefato e diff check aprovados; Ganho/Perdido continuam sob o contrato de orçamento",
+      "last_validation": "2026-10-06"
+    },
+    {
+      "id": "REQ-OPS-CORS-20261005",
+      "description": "Exibir o Status operacional na prévia homologada sem ampliar origens nem alterar operações",
+      "module": "operational_diagnostics",
+      "status": "CONCLUÍDO",
+      "evidence": "operational-diagnostics v19; preflight 204 da origem local exata e validação autenticada da tela com atualização manual",
+      "last_validation": "2026-10-05"
+    },
+    {
       "id": "REQ-EGO-01-20261005",
       "description": "Provisionar vendedor novo por RPC e fila Evolution GO, sem habilitar envio automaticamente",
       "module": "mensageria_integracoes",
@@ -173,8 +309,8 @@
       "id": "REQ-071",
       "description": "Organizar o preenchimento da Busca de Leads em um Wizard passo a passo sem alterar a consulta real, a revisão ou a importação",
       "module": "prospeccao",
-      "status": "implemented_validated_pending_site_publication",
-      "evidence": "Commit b01f600 separa a intenção humana em Fonte, Região, Perfil e Critérios, com validação do passo atual, retorno linear e resumo persistente. A fonte continua limitada a adaptadores conectados/ativos; executarBusca mantém as guardas operacionais, a consulta só ocorre em Testar com 10 empresas e a revisão/importação existentes não foram alteradas. Vitest focado: 3 arquivos/12 testes; type-check, lint sem warnings, build/artefato Sites e diff check passaram. Nenhum provedor, lead, importação ou automação foi acionado. Publicação e inspeção autenticada do Site aguardam o canal seguro de escrita da origem.",
+      "status": "implemented_validated_local_edge_applied_site_pending",
+      "evidence": "Commit b01f600 separou Fonte, Região, Perfil e Critérios. Regressões posteriores: 86cd668 restaura quantidade 1–100 para filters.volumeMaximo e prospectar-leads v17 restaura preflight CORS. b2da2ad e a migration oficial 20261006011920 corrigem o contrato da importação: uf produzida pelo mapeador é aceita e persistida pela RPC atômica. E2E autenticado real: Apify/Google Maps retornou 20; o lote selecionado foi importado e Leads exibiu 20 registros com São Paulo/SP. Testes focados, type-check frontend/Edge, lint, build e diff check passaram. Nenhuma mensagem ou automação foi acionada; Site não publicado.",
       "last_validation": "2026-10-05"
     },
     {
@@ -407,7 +543,7 @@
       "module": "prospeccao",
       "status": "implemented_pending_site_publish",
       "evidence": "RPC SECURITY INVOKER aplicada no Supabase oficial; transações revertidas validaram 2 leads/2 vínculos, retry sem duplicação, rollback total e recusa RBAC. Type-check frontend/Edge, lint, 40 arquivos/255 testes e build passaram. Importação humana ponta a ponta adiada pelo operador.",
-      "last_validation": "2026-09-25"
+      "last_validation": "2026-10-05"
     },
     {
       "id": "REQ-040",
@@ -422,7 +558,7 @@
       "description": "Confirmar a persistência da importação Busca para Leads e lista, com erro visível e sem repetição cega",
       "module": "prospeccao",
       "status": "confirmed",
-      "evidence": "Duas importações controladas autenticadas persistiram após recarga; lead_lists e membros conferidos no Supabase. v121 preserva fonte/categoria/localização, não inventa porte, bloqueia dois duplicados e conta membros reais. Falha de lista e recuperação cobertas por regressão. Type-check, lint, 38 arquivos/252 testes e build passaram. Limites: operação em lote ainda não é transação única; nova busca paga não executada; responsáveis reais pertencem à etapa 3 original.",
+      "evidence": "A importação usa uma RPC SECURITY INVOKER e atômica. Em 06/10 a falha real prospecting_import_invalid_lead_fields foi rastreada até uf ausente no allowlist/persistência. A migration oficial 20261006011920 e b2da2ad preservam organização, leads.create, idempotência e grants; E2E autenticado repetiu o lote selecionado e gravou 20 leads e uma lista, confirmados visualmente em Leads com São Paulo/SP. Nenhuma mensagem ou automação foi acionada.",
       "last_validation": "2026-09-25"
     },
     {
