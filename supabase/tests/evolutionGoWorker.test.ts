@@ -236,7 +236,7 @@ beforeEach(() => {
     },
   ];
   integrations = [
-    { id: corporateIntegrationId, organization_id: organizationId, provider: 'Evolution GO', configuration: {} },
+    { id: corporateIntegrationId, organization_id: organizationId, provider: 'Evolution GO', configuration: { server_validation: { status: 'passed' } } },
     { id: sellerIntegrationId, organization_id: organizationId, provider: 'Evolution GO', configuration: {}, enabled: false, connected: false, paused: true },
   ];
   secrets = new Map([
@@ -264,6 +264,29 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('Evolution GO seller provisioning worker', () => {
+  it('does not treat a legacy server without validation state as approved', async () => {
+    integrations[0].configuration = {};
+    await import('../functions/evolution-go-worker/index');
+
+    const response = await handler(workerRequest());
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ ok: true, provisioned: 0, provisioning_failed: 1 });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(jobs[0]).toMatchObject({ state: 'failed', last_error_code: 'evolution_go_server_validation_required' });
+  });
+
+  it('does not provision a seller while the new corporate server validation is pending', async () => {
+    integrations[0].configuration = { server_validation: { status: 'not_tested' } };
+    await import('../functions/evolution-go-worker/index');
+
+    const response = await handler(workerRequest());
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ ok: true, provisioned: 0, provisioning_failed: 1 });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(jobs[0]).toMatchObject({ state: 'failed', last_error_code: 'evolution_go_server_validation_required' });
+    expect(calls.filter((call) => call.table === 'read_integration_secret')).toHaveLength(0);
+  });
+
   it('uses only the organization corporate Vault credentials and stores the provider-issued ID', async () => {
     await import('../functions/evolution-go-worker/index');
 
@@ -299,7 +322,7 @@ describe('Evolution GO seller provisioning worker', () => {
     expect(JSON.stringify({ body, auditLogs, calls })).not.toContain('synthetic-global-key-must-not-leak');
   });
 
-  it('falls back only when the complete legacy environment pair is configured', async () => {
+  it('does not bypass the corporate Vault with legacy environment credentials', async () => {
     secrets.set(corporateIntegrationId, {});
     edgeEnv.EVOLUTION_GO_BASE_URL = 'https://evo-eisenflow.kz3solucoes.cloud';
     edgeEnv.EVOLUTION_GO_GLOBAL_API_KEY = 'synthetic-legacy-global-key-must-not-leak';
@@ -308,9 +331,9 @@ describe('Evolution GO seller provisioning worker', () => {
     const response = await handler(workerRequest());
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ ok: true, provisioned: 1 });
-    const providerRequest = fetchMock.mock.calls.find(([url]) => new URL(String(url)).pathname === '/instance/create');
-    expect((providerRequest?.[1] as RequestInit).headers).toMatchObject({ apikey: 'synthetic-legacy-global-key-must-not-leak' });
+    expect(await response.json()).toMatchObject({ ok: true, provisioned: 0, provisioning_failed: 1 });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(jobs[0]).toMatchObject({ state: 'failed', last_error_code: 'evolution_go_global_credentials_missing' });
   });
 
   it('fails safely without contacting Evolution when neither corporate Vault nor legacy environment credentials are complete', async () => {
