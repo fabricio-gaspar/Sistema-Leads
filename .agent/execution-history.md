@@ -1,5 +1,156 @@
 # Histórico resumido de execução
 
+## 07/10/2026 — Versionamento/publicação: validação concluída
+
+- Checkout e `main` preservados, HEAD `574c930`. GitHub `main` conferido por connector/fetch: `7a3a6c0b1b6330e89ef547a33363789cbfb63399`; histórico sem ancestral comum, `origin` é Sites. Nenhum remote alterado, branch criado ou force push.
+- 198 testes focados, SQL 11+9, type-check app/Edge, lint, build Vite/artefato Sites e diff check passaram. Após alinhar duas expectativas obsoletas de `DashboardLayout.test.ts` ao destino/menu unificado da Central, a suíte completa passou: 800/800 testes em 97 arquivos.
+- Manifesto e consulta confirmam Site real ativo/público, versão 168 e URL oficial. O commit/push e a publicação deste lote seguem para a etapa seguinte; permanece o bloqueio de publicação isolada do frontend de cadastro direto com backend incompatível. Sem credenciais no delta verificado; pnpm alternativo/provisório permaneceu fora do staging.
+
+
+## 07/10/2026 — QR Flavio diagnosticado; mitigação Edge v25
+
+Capturada resposta dos logs apesar de falha visual do API Tester. O ID do Vault é o atual e difere do job histórico. Logs atuais confirmam saturação PostgreSQL, inclusive após teste final como Flavio. Removidos retries no checkout; publicado delta v24→v25 apenas no QR/classificação de erros. 67 testes locais + 8 do bundle remoto, tipos Edge e diff check passaram; fonte remota relida. QR real FALHOU. Acesso ao painel da hospedagem/SSH solicitado; API Tester fornecido não administra PostgreSQL. Sem mensagem, automação, cliente ou instância alterada.
+
+
+## 07/10/2026 — Remoção do convite administrativo e pré-flight de exclusão total
+
+No checkout atual, Configurações → Usuários foi simplificado para o cadastro direto existente e as abas/filtros/consulta de convites foram removidos apenas da prévia local. Teste de regressão novo: 1; suíte focada: 10/10; type-check, lint direcionado, Vite build, diff check e inspeção autenticada passaram. O banco oficial foi consultado somente para contagens e FKs: Flavio ainda tem Auth, sessão, perfil, convite antigo aceito e reivindicação finalizada, mas nenhum vínculo ou job/conta Evolution GO. A exclusão de Auth e de registros comerciais aguarda resposta sobre escopo e alvo; nada foi apagado, criado ou publicado. O bundle de cadastro direto continua não aplicado no backend oficial.
+
+## 07/10/2026 — Teste de recuperação do vendedor Flavio interrompido com segurança
+
+O mesmo e-mail já tinha identidade Auth confirmada, sem vínculo organizacional nem conta/job Evolution GO. A senha informada autenticou em navegador separado, mas a UI parou em Convites pendentes. Após atualização, o Manager Evolution GO mostrou zero instâncias; a reivindicação da remoção anterior está `finalized`. Inspeção do Supabase oficial: `team-members` v20 não tem `pending_invites`; as RPCs R4 não estão aplicadas; o caminho remoto de convite possui compensação que pode excluir uma identidade Auth existente. Um botão local de recuperação foi preparado, porém retirado antes do envio ao descobrir o risco. Nenhum convite, senha, vínculo, instância, mensagem ou dado de cliente foi alterado. Próxima ação: homologar um contrato de recuperação de identidade existente sem exclusão compensatória e o lifecycle Evolution GO, depois repetir o teste; QR remoto ainda requer diagnóstico próprio.
+
+## 07/10/2026 — Painel administrativo Evolution GO sem duplicidade em Usuários
+
+`UsersAccessWorkspace` e `WhatsAppEntriesTab` montavam o mesmo `EvolutionGoPanel` administrativo. A pedido do usuário, a montagem foi removida somente de Configurações → Usuários; Configurações → Canais mantém servidor e conectores, e a Central conserva o pareamento individual do vendedor. Dois testes focados, type-check, lint direcionado, build Vite, diff check e inspeção autenticada da prévia local passaram. Apenas frontend local: sem alteração de banco, Edge, Site, instância, mensagens ou clientes.
+
+## 07/10/2026 — Exclusão segura de membro e instância Evolution GO
+
+Falha real identificada: `team-members` v19 atualizava `audit_logs` imutável após purgar parte dos dados do vendedor. Fluxo isolado implantado: migrations `20261007181410_team_member_evolution_removal` e `20261007182226_team_member_evolution_removal_metadata`, Edge `team-member-evolution-removal` v3 e proxy de `remove` em `team-members` v20; histórico, contatos e tombstone da conta são preservados. O segundo ajuste aceita metadado ainda vazio em contas não pareadas; v3 valida exclusividade do conector antes de desativá-lo. Vitest focado, type-check, lint, build, privilégios e prévia do diálogo aprovados. Flavio não foi excluído no teste: Auth/membership ainda 1/1, leads 20, remoção reivindicada 0. Login global não é apagado neste contrato; aguarda decisão explícita. Site oficial não recebeu frontend novo; nenhuma mensagem ou automação foi disparada.
+
+## 07/10/2026 — Cadastro direto em Usuários (local)
+
+Comparado `225a379` com HEAD `52ac6fe`: a remoção do formulário com senha e o bloqueio `create` explicam a regressão. Implementação local restrita ao fluxo Usuários/Auth/vínculo vendedor, com RPC transacional e preflight que impede criação parcial por backend incompatível. Supabase oficial consultado somente para leitura: sem gatilho Evolution GO, sem bootstrap Auth compatível e `team-members` v19. Testes focados e PGlite passaram; prévia mostrou campos sem submissão. Nenhum deploy ou dado real alterado. Próxima etapa: homologação isolada/release coordenada depois do diagnóstico QR.
+
+## 2026-10-07 — Tentativa autorizada de ler logs Evolution GO
+
+- A consulta aos logs da instância vinculada foi autorizada. O Manager mostrou apenas sua interface estática; `/swagger/doc.json` e a busca de instâncias expiraram em 30 segundos, e o detalhe exibiu ausência após erro de rede. Consulta HTTPS independente também expirou sem status. Nenhum log da instância pôde ser lido; ausência remota não foi confirmada.
+- Sem alteração de instância, token, banco, Edge, Site, clientes, mensagens ou automações. Próximo passo: recuperar a API Evolution GO na hospedagem e então consultar os logs da instância antes de qualquer nova tentativa de QR.
+
+## 2026-10-07 — Falha do QR Evolution GO, correção local isolada
+
+- Foi confirmada na Edge oficial v24 a recusa HTTP 400 de `/instance/qr`; o Manager mostra a única instância do vendedor em `close`. O código local tinha outro defeito: fazia `POST /instance/connect` na ação de QR, então uma falha posterior do QR podia virar `needs_review` e esconder a causa. A fonte Go 0.7.2 mostra erros distintos e que a própria rota QR inicia a instância quando falta cliente.
+- `1bd2786` separa o QR temporário da intenção mutante, preserva isolamento/guarda administrativa e mostra erro seguro e específico. 99 testes focados/9 arquivos, type-check app/Edge, lint, build, PGlite 6/6 e diff check passaram. A sessão local aberta é administrativa; login/scan do vendedor e QR real não foram homologados.
+- Não houve deploy de Edge/migration/Site, envio, automação ou alteração de dados de clientes. Próximo: diagnóstico dos logs do runtime remoto, staging coordenado e E2E com vendedor/celular consentidos; não ativar canal com base apenas nos testes locais.
+
+## 2026-10-07 — Navegação Evolution GO unificada na Central de Atendimento
+
+- O menu lateral passou a expor uma única entrada: **Central de Atendimento**. A entrada **Meu WhatsApp** deixou de ser exibida, mas sua URL antiga continua compatível e redireciona para a Central.
+- A nova porta `AtendimentoEntry` mantém a separação de RBAC: quem tem permissão de conversas monta a Central completa, com histórico, handoff humano e Ana; quem tem apenas permissão do próprio canal monta somente o painel individual Evolution GO. Nenhuma permissão de conversa foi ampliada.
+- O onboarding após login também passa a abrir a Central. Foram atualizados os textos administrativos para não orientar vendedores a um item de menu inexistente. Não houve alteração de banco, Edge Function, QR, instância, Ana, mensagens, automação, dado de cliente ou Site.
+- Validação: type-check do app, ESLint direcionado, Vitest focado (3 arquivos / 10 testes), build/artefato e `git diff --check` aprovados. A prévia autenticada confirmou um único item no menu, o painel Evolution GO dentro da Central, Central/Ana preservadas e o redirecionamento legado. Código local: `3d68349`.
+
+## 2026-10-06 — Substituição autorizada da instância Evolution GO individual
+
+- A Edge administrativa isolada `evolution-go-recovery` v2 confirmou organização, vendedor, servidor, estado desativado, nome/ID remoto e token recusado; excluiu a instância desconectada antiga `949dfffe-00d5-4110-bf64-85f107a8bb24` e criou uma nova `77c6344c-23d0-48a9-81e6-9c0a5177b2f8` para a mesma conta. Novo token e segredo de webhook foram guardados no Vault, sem expor os valores. Início e conclusão auditados.
+- A leitura posterior confirmou ID novo e token aceito; vendedor iniciou conexão e webhook foi registrado. QR falhou: logs da Edge `evolution-go` v22 mostram `/instance/qr` 400 e `/instance/reconnect` 500 (sinal de sessão). Conector, saída, entrada e Ana permanecem bloqueados; nenhum celular pareado e nenhuma mensagem real enviada. Não repetir exclusão/criação para tratar erro de runtime do QR.
+- 41 testes focados, type-check app/Edge, lint, build e diff check passaram. A suíte geral ficou 521 aprovados / 249 falhas por resolução local de `npm:` nos testes Edge. Site oficial inalterado. Próxima ação: diagnosticar o runtime remoto do QR e reconciliar o bundle `evolution-go` v22 divergente antes de um hotfix cirúrgico; não ligar autorrecriação automática até existir monitor multi-tenant idempotente homologado.
+
+## 2026-10-06 — Revalidação do vínculo individual Evolution GO
+
+- O Manager autenticado passou a exibir uma instância desconectada com o nome reservado do vendedor, mas ID e impressão digital do token diferentes dos guardados no Vault. `Validar status` ainda retornou HTTP 401; o vínculo do vendedor permanece ativo e a conta/canal continuam desligados. Nenhuma instância, segredo, job ou conversa foi alterada.
+- A exclusão/recriação e o monitor de autorreparo não foram executados porque há agora uma instância remota com o mesmo nome: um POST ou DELETE cego pode apagar sessão ou duplicar vínculo. Escolha do titular entre preservar/reconciliar e excluir/recriar foi solicitada. Depois, implementar recuperação idempotente e homologar antes de agendar a verificação automática; novo QR exigirá leitura pelo vendedor.
+
+## 2026-10-06 — Diagnóstico do QR Evolution GO do vendedor
+
+- Consulta ao job/conta/segredo (somente presença e igualdade, sem ler valores) e logs remotos confirmou `awaiting_qr` antigo e HTTP 401 do token individual em `/instance/status`. Manager autenticado está vazio; a chave global autentica `/instance/all`. Trigger Evolution GO remoto ausente e `team-members` v19 ainda usa wake-up WA-AKG.
+- Frontend local passou a mostrar o erro real, rotular o nome como reservado e impedir QR/pareamento repetidos após 401. Prévia autenticada, 39 testes focados, type-check e diff check aprovados. Nenhuma instância, QR, mensagem, automação, migration, Edge ou Site foi aplicada neste lote.
+- Próxima ação: release coordenada de lifecycle e reconciliação administrativa do job/servidor antes de uma única tentativa de criação.
+
+## 2026-10-06 — Botões administrativos do servidor Evolution GO restaurados
+
+- Comparação dirigida da Edge remota v21 com o contrato local identificou `save_server`/`test_server` ausentes. Implantação seletiva preservou a função remota e adicionou as ações e metadados públicos em `evolution-go` v22; o worker v5 recebeu gate de validação corporativa aprovada e removeu o fallback de ambiente.
+- A prévia autenticada abriu os campos URL HTTPS/chave global e executou teste real `GET /instance/all` com a credencial já no Vault. Resultado: servidor autenticado, estado persistente após atualizar, integração ainda desativada/desconectada/pausada. 59 testes focados, type-check Edge e diff check aprovados; sem QR, mensagem, automação, migration ou Site.
+- Próxima ação: homologar separadamente lifecycle multi-tenant e QR antes de qualquer liberação operacional ou publicação do frontend no Site.
+
+## 2026-10-06 — Checkpoint local do lifecycle multi-tenant Evolution GO
+
+- O ciclo de vendedor foi consolidado no checkout: o trigger do vínculo cria/reconcilia somente a conta privada, integração desabilitada e **job único por organização/usuário**; o worker é acordado a partir do job já durável. O vendedor tem self-service exclusivamente para a própria conta/pareamento, sem segredos. Histórico de conversa e mensagens permanece preservado após desconexão ou desativação.
+- Validação consolidada: **769 Vitest/93 arquivos**, type-check app e Edge, lint, build/artefato, PGlite **6/6**, PostgreSQL nativo **2/2** e diff check aprovados. Nenhum QR real, chamada a provedor, mensagem, automação ou dado de cliente foi criado/alterado.
+- Não houve aplicação ao Supabase, Edge, Site ou GitHub. O bloqueio não é de UI local: há drift remoto de schema/bundles/Edge e é necessária homologação coordenada em staging com identidades/números consentidos. O gateway Evolution ainda retorna QR 400/500 e a política de proteção contra senhas vazadas/Auth permanece pendente; não publicar lote isolado.
+
+## 2026-10-06 — Diagnóstico de `save_server` Evolution GO
+
+- Leitura da função oficial v21 confirmou ausência de `save_server`/`test_server`; logs remotos confirmaram `unsupported_action` para duas tentativas `save_server`. A recusa ocorre antes do contato com o provedor e foi escondida pela mensagem genérica do frontend. O worker remoto v4 não aplica o novo gate `server_validation`, impedindo publicação isolada segura do endpoint.
+- O código local detecta a falta do contrato no estado remoto, bloqueia configuração/teste e mostra aviso específico; se ainda receber `unsupported_action`, não repete a solicitação. A prévia autenticada mostrou **Backend incompatível** e ambos os botões desabilitados. 29 testes focados, 329 testes frontend, type-check, lint, build e diff check aprovados. Nenhuma credencial foi reenviada pelo agente; nenhuma Edge Function, worker, Site, mensagem, QR, automação ou dado de cliente foi alterado.
+- Próxima ação: homologação isolada da função e do worker com gate de validação, aplicação coordenada e teste real de `save_server`/`test_server` antes de afirmar conexão.
+
+## 2026-10-06 — Evolution GO: servidor no administrador, pareamento no vendedor
+
+- O painel compartilhado passou a separar por modo: Configurações → Canais mostra configuração/teste do servidor corporativo e estado/controle dos conectores; Central → Meu WhatsApp mostra conta, instância não secreta, orientação e ações de pareamento somente para o próprio vendedor. Não houve modificação de API, banco ou contratos de permissão.
+- Prévia autenticada de Configurações confirmou o cartão do servidor acima dos conectores e ausência de QR e ações de pareamento administrativo. Type-check, lint, build, 325 testes frontend e cinco focados passaram. A suíte completa foi bloqueada em testes Edge preexistentes pela importação `npm:@supabase/supabase-js@2.57.4` não resolvida pelo Vitest local. Site/Edge inalterados; nenhuma conexão, mensagem, automação ou escrita de cliente.
+- Próxima ação: homologar a tela com sessão de vendedor e servidor Evolution GO isolado, depois coordenar release de frontend/backend conforme o NO-GO de produção vigente.
+
+## 2026-10-06 — Evolution GO visível em Configurações → Usuários
+
+- `7f95c82` reutiliza o gerenciador administrativo existente na aba Membros; nenhum fluxo, permissão, segredo ou regra de mensageria foi duplicado.
+- A prévia autenticada revelou preflight 403 nas funções remotas `evolution-go` e `team-members`, apesar do helper local já corrigido. Ambas receberam somente o `_shared/http.ts` já publicado em `operational-diagnostics` v19: `evolution-go` v21 e `team-members` v19, com JWT preservado. Após recarga, a tela exibiu contas reais e quatro membros.
+- Type-check frontend/Edge, lint direcionado, build Vite, 48 testes focados e diff check aprovados. Site oficial permanece inalterado; QR, pareamento, mensagens, automações e dados de cliente não foram acionados. Homologação integrada continua pendente.
+
+## 2026-10-06 — Conceito visual de referência aplicado localmente
+
+- A referência foi consultada somente para hierarquia, ordem visual e estilo. `48478de` adapta o shell já existente: sidebar clara agrupada, topbar compacto, cards e superfícies mais leves, chamadas primárias verdes com contraste validado e navegação de telas já existente reposicionada no cabeçalho.
+- Não foram criados nem renomeados módulos, telas, rotas, permissões, dados ou ações. **Dashboard, Busca de Leads, Leads, Kanban, Central de Atendimento, Agenda, Orçamentos, Funil, Relatórios e Configurações** mantêm exatamente a taxonomia atual; Configurações preserva os nomes e usa o seletor compacto até 2xl para não disputar largura com a barra lateral global.
+- Validação: type-check frontend, lint, Vitest completo 93 arquivos/746 testes, Vite build/artefato Sites e `git diff --check` aprovados. Prévia local de Configurações e Dashboard conferida no desktop; busca de telas confirmou resultado e estado vazio sem alterar o breadcrumb. Sem banco, Edge, mensagens, automações, dados de cliente ou publicação do Site.
+
+## 2026-10-06 — Configurações: contingência de provedores reorganizada localmente
+
+- O defeito foi isolado em **Canais > Provedores legados e contingência**: um `details` fechado escondia toda a área; Z-API e Meta apontavam para âncoras sem alvo; os breakpoints de grades aninhadas comprimiam cards ao lado da barra lateral.
+- `26c1626` converte a área em três estágios sempre visíveis, cria os destinos reais de configuração, preserva todos os handlers existentes, evita coluna estreita para Z-API e coloca WA-AKG como contingência individual em largura integral. Meta passa a informar claramente que está aguardando homologação quando o gate estiver desabilitado; nenhuma regra ou gate foi alterado.
+- Validação: Vitest completo 93 arquivos/743 testes, type-check frontend, lint dos arquivos afetados, Vite build/artefato Sites e `git diff --check` aprovados. Prévia autenticada conferida em desktop e 390x844, sem overflow horizontal; o atalho Z-API navegou ao card. Sem conexão, validação, mensagem, automação, dado de cliente, migration, Edge ou publicação do Site.
+
+## 2026-10-06 — Configurações: disposição responsiva dos cards corrigida localmente
+
+- A intervenção ficou limitada ao frontend de Configurações. Canais acumulava configuração, diagnóstico, histórico e contingências na mesma sequência; a ação do cabeçalho era repetida. Em Status operacional, a tabela preservava largura mínima e extrapolava a viewport mobile.
+- `2b7ddd9` divide Canais em **Configuração**, **Diagnóstico** e **Histórico**, deixa a contingência recolhida e mantém as ações no contexto correto. A tabela operacional passa a cartões com rótulos e menu de ações preservado no mobile. O estado gravado **Não configurada** é separado visualmente do rascunho **Ativa ao salvar**.
+- Validação: Vitest completo 93 arquivos/743 testes, type-check frontend, lint do módulo, Vite build/artefato Sites e `git diff --check` aprovados. Prévia autenticada conferida em Canais (mobile e desktop), Diagnóstico (mobile) e Status operacional (mobile), sem overflow horizontal. Nenhum dado, regra, integração, backend, automação, mensagem, migration, Edge ou Site foi alterado.
+
+## 2026-10-06 — Configurações: uso operacional de provedores corrigido localmente
+
+- A causa ficou restrita ao cartão de APIs: o switch era desabilitado antes de poder abrir o modal quando não existia configuração. Paralelamente, `configurar-integracao set_usage` rejeitava um provedor validado apenas por estar pausado.
+- `a7bba77` adiciona o indicador público de configuração, abre o modal sem escrita no primeiro caso e, no backend, permite a reativação limpando somente `paused`. A desativação mantém credenciais e propaga o uso para `lead_source_configs` quando aplicável.
+- Validação: Vitest completo 93 arquivos/743 testes, type-check frontend e Edge, lint, build/artefato Sites e `git diff --check` aprovados. Na prévia autenticada, Google Places abriu a configuração e foi cancelado, sem erros no console. Nenhuma mensagem, automação, dado de cliente, migration, Edge ou publicação do Site.
+
+## 2026-10-06 — Leads → Kanban: vínculo técnico sem ativação da Ana
+
+- O diagnóstico foi limitado ao caminho **Busca de Leads → Leads → Kanban**. A RPC `get_kanban_portfolio` já é a fonte do quadro e filtra pelo mesmo registro de `leads` quando `modo_atendimento` e `owner_id`/`assigned_to` estão definidos; não havia necessidade de criar cartão ou endpoint novo.
+- `3665f52` substitui a ativação `lead-workflow/start_ai` durante o envio por uma persistência mínima do usuário técnico de rota, somente para leads Ana sem vínculo. A ação por linha foi adicionada ao menu existente; humanos sem responsável e leads sem modo seguem bloqueados. O reenvio é idempotente no frontend e informa que o registro já está no Kanban.
+- Validação autenticada em ambiente real: um lead existente entrou em **Novo** e continuou com **Busca de leads** e **43/100** após reload; a segunda confirmação criou zero duplicados. Console sem erros. Vitest completo 93/741, type-check, lint, build/artefato e diff check aprovados. Nenhuma mensagem, automação, migration, Edge ou publicação do Site; a única escrita foi `owner_id`/`assigned_to` do lead autorizado.
+
+## 05/10/2026 — Ação de Kanban e etapas da carteira de Leads restauradas
+
+- A análise dirigida encontrou `enviarParaKanban` e seu modal ativos, porém sem acionador na barra de seleção. `a20a420` adicionou o botão **Enviar para o Kanban** e reutilizou o fluxo existente, conferindo a permissão de edição da seleção antes de abrir o modal.
+- A lista canônica agora alimenta filtro, alteração de etapa e transferência. As sete etapas ficam visíveis; Ganho/Perdido continuam explícitos como término governado pelo orçamento, não uma atualização em massa ou automática.
+- Validação sem escrita comercial: 92 arquivos/736 testes, type-check frontend, lint, build/artefato Sites, diff check e inspeção autenticada local. O modal foi aberto com um lead selecionado e cancelado; não houve envio, ativação da Ana, mensagem nem mudança de estágio.
+
+## 06/10/2026 — Importação da Busca para Leads corrigida
+
+- Logs do banco confirmaram `prospecting_import_invalid_lead_fields`: a RPC de lote rejeitava `uf`, embora `leadToCrmRow` a gere para a localidade. Não era falha de RBAC.
+- `b2da2ad` adiciona a migration `20261006011920_fix_prospecting_batch_state`, aplicada ao Supabase oficial. Apenas `uf` passou a ser aceito/persistido; transação, RLS invocadora, grants e idempotência foram preservados.
+- Repetido o mesmo lote de 20 selecionado pelo operador: importação navegou para Leads, que exibiu 20 registros e uma lista aguardando revisão, todos com São Paulo/SP. Não houve mensagem, automação ou alteração fora do lote selecionado.
+
+## 05/10/2026 — Correção cirúrgica da Busca de Leads
+
+- Causa reproduzida no caminho Critérios → Edge: `prospectar-leads` v16 devolvia preflight 403 para `http://127.0.0.1:4173`; a tela mostrava erro genérico. A quantidade existia apenas como estado e o botão chamava uma constante de 10.
+- `86cd668` expõe e valida quantidade 1–100, encaminha-a por `filters.volumeMaximo` e usa o valor no comando do Passo 4. Publicada somente `prospectar-leads` v17, com JWT mantido; não houve migration ou Site deploy.
+- Fluxo autenticado completo com Apify/Google Maps, termo de critério e quantidade 20: OPTIONS 204, POST/polling 202 e resposta 200; revisão exibiu 20 encontrados, 20 elegíveis e 0 duplicados. A recarga recuperou a revisão salva. Sem importação de CRM, mensagem ou automação.
+
+## 05/10/2026 — Correção isolada do Status operacional
+
+- Diagnóstico reproduzido: o preflight de `operational-diagnostics` para a origem local retornava 403 porque `ALLOWED_ORIGINS` substituía, em vez de complementar, as origens homologadas. Alterado somente `_shared/http.ts` e publicado `operational-diagnostics` v19 com JWT preservado.
+- Provas: preflight 204 com origem exata, type-check frontend/Edge, lint, build e diff check aprovados; tela autenticada e o botão **Atualizar status** carregaram a visão operacional. Não houve escrita de negócio.
+- Limite: a leitura apresenta 10 componentes que exigem atenção; isso é estado real das integrações e não foi alterado nem usado para ativar a Ana ou mensageria.
+
 ## 05/10/2026 — Evolution GO principal, delta local validado; produção NO-GO
 
 - Produto `5671f44` no checkout existente; snapshot GitHub `a22ee34896d67c08794f1d7eded0302af9f0be53` com pai remoto preservado e árvore local/remota igual. Convite de vendedor → RPC/worker Evolution GO; primeiro acesso/QR pela Central; preferência SQL para novos vínculos e transferência; status específico sem check genérico. WA-AKG preservado para contingência, vínculos existentes não migrados.
@@ -1437,3 +1588,41 @@
 - O endpoint de Evolution ganhou a leitura `my_account`; a rota Meu WhatsApp passa a mostrar somente a conta individual pertencente ao usuário autenticado, com Conectar, validar status, QR temporário e código de pareamento. Não entrega conta corporativa, conta de terceiros, URL, chave, token ou configuração administrativa.
 - Publicadas no Supabase oficial `evolution-go-worker` v3 e `evolution-go` v6. Validação local: type-check frontend/Edge, lint direcionado, build/artefato Sites, 37 testes focados Evolution/Meu WhatsApp e 106 testes de handlers aprovados; `git diff --check` aprovado. Nenhuma instância individual real foi criada neste lote.
 - A publicação do frontend está pendente de concluir o canal seguro de gravação da origem do Site. Próxima homologação: criar, com confirmação explícita, um usuário de papel **Vendedor**, observar a fila chegar a `awaiting_qr` e parear sua própria conta na rota Meu WhatsApp.
+## 2026-10-05 — Kanban preserva Ana/Humano e responsável vindos da importação
+
+- O diálogo aberto em **Leads → Enviar para o Kanban** deixava o operador escolher Ana/Humano uma segunda vez e podia sobrescrever a classificação persistida pela Busca de Leads. O fluxo agora usa a configuração de cada lead como fonte de verdade.
+- A seleção mista é particionada sem duplicar ativação: leads Ana preservam os gates de autorização/canal e podem receber transferência automática opcional; leads humanos mantêm modo e responsável. Sem modo definido, o envio é bloqueado com mensagem explícita.
+- Testes: 93 arquivos/739 testes Vitest, type-check frontend, lint, build/artefato Sites e diff check aprovados. Na prévia autenticada, um lead Ana exibiu o resumo preservado e os controles de segurança, sem botões de reclassificação; a ação foi cancelada. Não houve envio, automação, alteração de lead, migration, Edge ou publicação do Site.
+
+## 2026-10-07 — QR individual Evolution GO: validação remota interrompida pelo runtime
+
+- Publicadas `evolution-go` v24 e `whatsapp-accounts` v9. A primeira passou a iniciar a conexão
+  com `immediate: true` e a tratar a primeira resposta 400 do QR apenas com novas leituras seguras;
+  a segunda passou a aceitar a origem local homologada exata, sem wildcard.
+- Validação local: type-check Edge e 62 testes focados (Evolution GO, CORS e handler) passaram;
+  `git diff --check` passou. Validação autenticada: a sessão do vendedor chamou `qr`; o backend
+  tentou cinco leituras em cerca de 35 s e recebeu HTTP 400 em todas. O endpoint remoto
+  `/instance/reconnect` já havia retornado HTTP 500 e não é mais usado nesse caminho.
+- Nenhuma mensagem, automação, lead, dado de cliente, QR válido ou pareamento foi criado. A causa
+  pendente é o runtime remoto Evolution GO em estado `close`, que requer intervenção no servidor.
+
+## 07/10/2026 — Evolution GO como único canal operacional
+
+- Escopo: remover os canais legados da área Configurações → Canais e bloquear suas rotas operacionais, sem apagar histórico, credenciais protegidas ou conversas persistidas.
+- UI: `WhatsAppEntriesTab` agora apresenta somente o painel `EvolutionGoPanel`, com a política de canal exclusivo e a preservação explícita de registros históricos.
+- Supabase: aplicada `20261007193000_evolution_go_exclusive_channels`; pós-validação: 2 contas legadas com 0 habilitadas e 0 padrão, 7 controles legados com 0 roteáveis e 4 integrações legadas com 0 operacionais. As 2 contas Evolution GO foram preservadas e seguem desativadas.
+- Edge: `whatsapp-accounts` v10 foi publicada preservando o contrato de autenticação existente, listando somente Evolution GO e recusando as ações legadas de configuração, token, atualização e ativação.
+- Validação local: 5 arquivos/198 testes focados, type-check frontend/Edge, lint direcionado, build e `git diff --check`. Prévia autenticada de Configurações → Canais confirmou ausência de cartões e ações Z-API, Meta, WA-AKG e entrada pública. Nenhuma mensagem, automação ou dado de cliente foi alterado. O Site oficial não foi publicado neste lote.
+
+## 07/10/2026 — Ajuste visual factual do painel Evolution GO
+
+- Escopo estrito: somente a apresentação administrativa de Evolution GO em Configurações → Canais. Não houve mudança de API, banco, permissões, regras de provisão, QR, automação ou canais.
+- A tela ganhou resumo operacional alimentado pelo estado real (servidor, instâncias individuais, conexões confirmadas e última validação), cartão de servidor com ações existentes, checklist factual e cartões de instâncias vinculadas em largura total.
+- Não foram criados campos como porta, segredo de webhook, totais de vendedores, URLs expostas ou indicadores sem fonte no contrato atual. A prévia autenticada mostrou: acesso validado, uma instância individual vinculada e zero conexões confirmadas.
+- Validação: type-check frontend, lint direcionado, 53 testes focados e diff check aprovados; inspeção visual da prévia local confirmada. Site oficial inalterado.
+
+## 07/10/2026 — Layout de conexão Evolution GO na Central de Atendimento
+
+- Escopo estrito: apenas a apresentação do painel individual no topo da Central de Atendimento. A página passa `surface="central"` ao mesmo `EvolutionGoPanel`; não foi criado outro fluxo, endpoint, estado ou credencial.
+- Para a conta individual autenticada, o painel separa QR/código e ações existentes à esquerda de cartões reais de validação, instruções de pareamento e dados da própria conexão à direita. QR, token, chave global e informações de outras contas continuam protegidos.
+- A inspeção autenticada atual foi feita com o administrador `fabricio`, que não possui conta individual, portanto exibiu corretamente o estado vazio e não foi possível observar QR de vendedor sem usar credenciais de outra pessoa. Nenhuma conexão, QR, código ou mensagem foi gerada.
