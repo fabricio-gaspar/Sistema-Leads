@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { acceptTeamInvite, defaultPermissionsForRole, findActiveAssignee, inviteTeamMember, loadPendingTeamInvites, teamPermissions, updateTeamRole, type TeamMember } from './teamMembersRepository';
+import { acceptTeamInvite, createTeamMember, defaultPermissionsForRole, findActiveAssignee, inviteTeamMember, loadPendingTeamInvites, removeTeamMember, teamPermissions, updateTeamRole, type TeamMember } from './teamMembersRepository';
 import { sessionContext } from '@/lib/sessionContext';
 const mocks = vi.hoisted(() => ({ invoke: vi.fn(), clear: vi.fn() }));
 vi.mock('@/lib/supabase', () => ({ supabase: { functions: { invoke: mocks.invoke } } }));
@@ -22,6 +22,13 @@ describe('findActiveAssignee', () => {
 });
 
 describe('R4 team access client contracts', () => {
+  it('sends direct role and temporary password only to the protected creation action', async () => {
+    mocks.invoke.mockResolvedValue({ data: { ok: true, user_id: 'new-user', role: 'vendedor', provisioning_state: 'queued', provisioning_warning: null, message: 'Criado' }, error: null });
+    expect(await createTeamMember({ name: 'Synthetic', email: 'synthetic@example.test', password: 'temporary-secret', role: 'vendedor' })).toMatchObject({ provisioning_state: 'queued' });
+    expect(mocks.invoke).toHaveBeenCalledWith('team-members', { body: {
+      action: 'create', name: 'Synthetic', email: 'synthetic@example.test', password: 'temporary-secret', role: 'vendedor',
+    } });
+  });
   it('returns delivery failure honestly instead of claiming email sent', async () => {
     mocks.invoke.mockResolvedValue({ data: { ok: true, delivery: 'failed', message: 'SMTP unavailable' }, error: null });
     expect(await inviteTeamMember({ name: 'Synthetic', email: 'synthetic@example.test', role: 'vendedor' })).toMatchObject({ delivery: 'failed' });
@@ -43,6 +50,19 @@ describe('R4 team access client contracts', () => {
   it('invalidates cached access after a role mutation', async () => {
     mocks.invoke.mockResolvedValue({ data: { ok: true }, error: null });
     await updateTeamRole('target', 'cx'); expect(mocks.clear).toHaveBeenCalledTimes(1);
+  });
+  it('routes deletion through the isolated Evolution GO removal handler', async () => {
+    mocks.invoke.mockResolvedValue({ data: { ok: true, membership_removed: true, history_preserved: true, identity_deleted: true }, error: null });
+    await removeTeamMember(member.userId);
+    expect(mocks.invoke).toHaveBeenCalledWith('team-member-evolution-removal', {
+      body: { action: 'remove', user_id: member.userId },
+    });
+    expect(mocks.clear).toHaveBeenCalledTimes(1);
+  });
+  it('does not confirm deletion unless the login identity was removed', async () => {
+    mocks.invoke.mockResolvedValue({ data: { ok: true, membership_removed: true, history_preserved: true }, error: null });
+    await expect(removeTeamMember(member.userId)).rejects.toThrow('member_identity_deletion_unconfirmed');
+    expect(mocks.clear).toHaveBeenCalledTimes(1);
   });
   it('shares the exact canonical 19 permissions and actual CX/SDR scope', () => {
     expect(teamPermissions).toHaveLength(19);
