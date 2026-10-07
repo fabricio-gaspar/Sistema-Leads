@@ -26,13 +26,18 @@ export function isEvolutionGoAutomationReady(status: EvolutionGoChannelStatus | 
 }
 
 /**
- * Sellers are directed to their private connection screen on the first
- * dashboard visit of a browser session whenever the server has not yet
- * confirmed an operational private channel. A missing account is treated as
- * provisioning pending, not as a successful connection.
+ * Pairing and operational authorization are different states. The dashboard
+ * should open the private connection screen only for the authenticated
+ * seller's connectable account when its physical WhatsApp session is not
+ * connected. Administrative gates may remain deliberately disabled after a
+ * successful scan and must not trigger another pairing redirect.
  */
-export function evolutionGoSellerNeedsOnboarding(status: EvolutionGoChannelStatus | null | undefined): boolean {
-  return !isEvolutionGoOperational(status);
+export function evolutionGoSellerNeedsPairing(status: EvolutionGoChannelStatus | null | undefined): boolean {
+  return Boolean(
+    status?.account?.accountType === 'seller'
+      && status.canConnect
+      && status.account.connectionStatus !== 'connected',
+  );
 }
 
 export function evolutionGoOnboardingSessionKey(userId: string): string {
