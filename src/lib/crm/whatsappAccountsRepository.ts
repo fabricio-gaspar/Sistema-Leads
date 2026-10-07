@@ -158,6 +158,12 @@ export interface EvolutionGoChannelStatus {
     lastSuccessAt: string | null;
     lastError: string | null;
     baseUrlConfigured: boolean;
+    serverConfigured?: boolean;
+    serverValidation?: null | {
+      status: 'not_tested' | 'passed' | 'failed';
+      checkedAt: string | null;
+      errorCode: string | null;
+    };
     instanceName: string | null;
     version: string | null;
   };
@@ -184,6 +190,36 @@ export interface EvolutionGoConfigurationInput {
 export interface EvolutionGoAccountsResponse {
   accounts: EvolutionGoChannelStatus[];
   canManage: boolean;
+}
+
+export interface EvolutionGoRecoveryInspection {
+  ok: true;
+  instance_name: string;
+  job_state: string;
+  provider_id: string | null;
+  provider_connected: boolean;
+  stored_id_matches: boolean;
+  token_accepted: boolean;
+}
+
+async function invokeEvolutionGoRecovery<T>(body: Record<string, unknown>): Promise<T> {
+  const { data, error } = await supabase.functions.invoke('evolution-go-recovery', { body });
+  if (error || !data?.ok) {
+    const code = await channelInvocationError(data, error);
+    throw new Error(code || 'recovery_unavailable');
+  }
+  return data as T;
+}
+
+export function inspectEvolutionGoInstance(accountId: string): Promise<EvolutionGoRecoveryInspection> {
+  return invokeEvolutionGoRecovery({ action: 'inspect', account_id: accountId });
+}
+
+export function replaceEvolutionGoInstance(accountId: string, instanceName: string, providerId: string): Promise<{
+  ok: true; instance_name: string; provider_id: string; token_confirmed: true; messaging_enabled: false;
+}> {
+  return invokeEvolutionGoRecovery({ action: 'replace', account_id: accountId,
+    confirm_instance_name: instanceName, confirm_remote_id: providerId });
 }
 
 export interface EvolutionGoAccountInput {
@@ -261,6 +297,16 @@ export function saveEvolutionGoConfiguration(accountId: string, input: Evolution
   return invokeEvolutionGo<EvolutionGoChannelStatus & Record<string, unknown>>({
     action: 'save', account_id: accountId, ...evolutionGoConfigurationPayload(input),
   });
+}
+
+export function saveEvolutionGoServer(accountId: string, input: { baseUrl: string; globalApiKey: string }): Promise<EvolutionGoChannelStatus> {
+  return invokeEvolutionGo<EvolutionGoChannelStatus & Record<string, unknown>>({
+    action: 'save_server', account_id: accountId, base_url: input.baseUrl, global_api_key: input.globalApiKey,
+  });
+}
+
+export function testEvolutionGoServer(accountId: string): Promise<EvolutionGoChannelStatus> {
+  return invokeEvolutionGo<EvolutionGoChannelStatus & Record<string, unknown>>({ action: 'test_server', account_id: accountId });
 }
 
 export function createEvolutionGoInstance(accountId: string, input: EvolutionGoConfigurationInput = {}): Promise<EvolutionGoChannelStatus> {
