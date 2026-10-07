@@ -1,5 +1,114 @@
 # Problemas conhecidos
 
+## 07/10/2026 — Causa atual do QR: limite de conexões PostgreSQL na Evolution GO
+
+**CONFIRMADO:** `Failed to create container ... pq: sorry, too many clients already` nos logs da instância atual `bfdf104f-c113-4530-bd73-4e5e83cc00fb`, reprodução final 18:07:27 BRT. Edge v25 já elimina connect redundante e retries do QR, sem corrigir a saturação externa. É necessário acesso ao painel de hospedagem/SSH para tratar pools/conexões/limites e recuperar o serviço. API Tester não administra o banco. O ID antigo do job diverge do Vault correto; essa divergência explica logs vazios do ID antigo, mas não o HTTP 400 com token aceito. Nenhuma instância foi substituída.
+
+
+## 07/10/2026 — Exclusão total de usuário ainda não definida nem aplicada
+
+O pedido atual substitui o convite por cadastro direto e quer liberar o e-mail após excluir o usuário. A interface local de Usuários não mostra mais abas/filtros de convites, mas o backend oficial ainda não suporta o cadastro direto coordenado. A remoção oficial v3 conserva a identidade Auth, por isso o e-mail de Flavio continua ocupado. Há referências comerciais e de autoria em tabelas com `ON DELETE SET NULL`/`CASCADE`; apagar Auth pode afetar dados históricos ou compartilhados. Foi solicitada escolha explícita sobre o alcance da purga e sobre agir agora na identidade Flavio. Sem essa definição, não apagar Auth, conversas, contatos ou leads, nem publicar fluxo de exclusão que prometa esse resultado.
+
+## 07/10/2026 — Recuperação de Flavio bloqueada pelo contrato remoto de acesso
+
+Leitura atual: Auth global confirmado e login com a credencial fornecida funcionou; não há vínculo em `organization_members`, conta individual nem job Evolution GO. A reivindicação de remoção consta `finalized`; o Manager recarregado mostrou zero instâncias. A tela local de login cai em Convites pendentes, mas `team-members` remoto v20 não oferece `pending_invites`, e as RPCs R4 `team_invite_prepare`/`team_invite_accept` não estão aplicadas. O convite remoto antigo usa compensação `admin.auth.admin.deleteUser` após falha de vínculo/provisionamento, perigosa para identidade preexistente. Nenhum convite, vínculo, nova instância ou alteração de senha foi realizado nesta tentativa. Não usar a ação remota `invite` para recuperar a conta; exige contrato coordenado e homologado antes da operação real.
+
+## 07/10/2026 — Cadastro direto e provisionamento por vendedor ausentes no remoto
+
+No Supabase oficial, `team-members` v20 ainda não implementa a criação direta segura do checkout; `organization_members` só tem gatilho de auditoria; o gatilho Auth não trata o marcador de bootstrap do novo usuário. A correção local e a migration `20261007160000_team_direct_create.sql` foram validadas sinteticamente, mas não aplicadas. Publicar somente a tela causaria falha ao criar; publicar somente a Edge poderia gerar identidade parcial. Exige staging e release coordenada de R4, lifecycle Evolution GO, contrato de criação e frontend; o QR real ainda falha no provedor.
+
+## Evolution GO — API remota em timeout durante consulta de logs — 07/10/2026
+
+- O Manager carregou a casca estática, mas o API Tester expirou ao buscar `/swagger/doc.json` e a tela de instâncias registrou timeout de 30 segundos no console. O detalhe da instância também falhou por rede; a mensagem de ausência não é evidência de exclusão. Logs do runtime e causa exata do QR HTTP 400 seguem não verificados.
+- Nenhuma ação mutante foi feita. Requer disponibilidade do serviço/proxy Evolution GO antes de consultar os logs e prosseguir com QR; não recriar instância por timeout.
+
+## Evolution GO — runtime remoto ainda não produz QR — 07/10/2026
+
+- O servidor mantém uma instância individual desconectada; a Edge oficial `evolution-go` v24 registra `/instance/qr` HTTP 400. Sem o log específico da instância, o motivo interno do WhatsApp runtime permanece não confirmado. Não recriar instância por esse sintoma nem declarar QR/pareamento concluído.
+- `1bd2786` corrige somente o caminho local: QR é uma leitura após conexão já registrada, não outra mutação de lifecycle; erros oficiais do QR são classificados sem expor detalhes. A Edge v24 remota não recebeu esse patch. Trigger multi-tenant e `team-members` ainda exigem release coordenada; Site e mensageria continuam inalterados.
+
+## Evolution GO — QR continua falhando após substituição válida da instância — 06/10/2026
+
+- A instância antiga do vendedor foi excluída e substituída com autorização; o novo ID `77c6344c-23d0-48a9-81e6-9c0a5177b2f8` consta no provedor e seu token guardado é aceito. A conta permanece desativada e a conexão iniciada apenas aguarda QR.
+- Logs reais de `evolution-go` v22: `/instance/qr` 400 seguido da recuperação automática `/instance/reconnect` 500 com sinal de sessão. Não é mais uma falha de credencial/ausência da instância. O bundle remoto da Edge diverge do checkout local; não publicar o arquivo local inteiro nem recriar outra instância às cegas. Exige diagnóstico do runtime do servidor e patch coordenado da estratégia de QR, seguido de homologação. As entradas históricas abaixo descrevem estados anteriores superados.
+- O monitor com autorrecriação geral continua **não instalado**. Só a recuperação administrativa manual e delimitada foi implantada; distinguir instância realmente ausente de falha de QR/timeout antes de qualquer automação multi-tenant.
+
+## Evolution GO — instância remota existe, mas vínculo/token divergentes — 06/10/2026
+
+- O Manager agora lista `wf-a1ea4d913d09-86457c84639c` desconectada. O ID remoto e o token não coincidem com o Vault do WayFlex (comparação por hash, sem divulgar segredo); `Validar status` permanece em HTTP 401. O registro anterior de instância ausente é histórico e foi superado por essa leitura posterior.
+- A criação/removal automática está bloqueada para este conflito: não há reconciliação idempotente implantada, e excluir a instância atual pode apagar uma sessão recuperável. Conta e integração continuam desligadas; nenhuma mensagem foi enviada. É necessária escolha explícita sobre preservar a instância e adotá-la com segurança ou descartá-la, seguida de implementação/homologação do monitor e novo pareamento pelo vendedor.
+
+## Evolution GO — QR do vendedor bloqueado por instância ausente — 06/10/2026
+
+- Job `wf-a1ea4d913d09-86457c84639c` consta `awaiting_qr` desde 04/10 no Supabase, mas Manager autenticado mostra zero instâncias; `qr` falha em `GET /instance/status` com HTTP 401. URL do segredo individual coincide com a URL corporativa; ambos têm material de chave no Vault. A causa histórica do desaparecimento não pode ser afirmada sem logs antigos.
+- O trigger remoto de `organization_members` para Evolution GO não está implantado e `team-members` v19 ainda acorda o worker WA-AKG na criação de vendedor. O código local de lifecycle multi-tenant não equivale à operação remota. Não forçar `POST /instance/create` ou redefinir segredo/job sem consulta administrativa e reconciliação de resultado incerto.
+- A prévia local agora apresenta o erro específico e impede repetição de QR nessa sessão. A correção operacional ainda exige release coordenada e recriação única auditada quando a ausência for comprovada; Site oficial inalterado.
+
+## Evolution GO — configuração do servidor restaurada; QR ainda não homologado — 06/10/2026
+
+- `evolution-go` v22 e `evolution-go-worker` v5 substituem o contrato remoto incompatível descrito nos registros históricos abaixo. A prévia local abre o formulário administrativo e o teste real do servidor passou com segredo já no Vault; o canal continua desativado e pausado. A ausência de `save_server`/`test_server` não é mais bloqueio atual.
+- Persistem fora deste escopo o drift do lifecycle multi-tenant, a homologação de QR/pareamento com identidade e número consentidos e a publicação do Site. Autenticar o servidor não comprova instância provisionada, celular pareado ou mensageria pronta.
+
+## Evolution GO multi-tenant — release bloqueada por drift e homologação coordenada — 06/10/2026
+
+- O lifecycle local foi validado com trigger de vínculo, job único por organização/vendedor, worker durável, self-service restrito ao titular e preservação de histórico após desconexão. Foram aprovados 769 Vitest/93 arquivos, type-check app/Edge, lint, build/artefato, PGlite 6/6 e PostgreSQL nativo 2/2.
+- Isso não foi aplicado ao Supabase/migrations, Edge, Site ou GitHub; não houve QR real, mensagem, automação ou alteração de dado de cliente. O estado não deve ser declarado publicado ou homologado externamente.
+- Bloqueio real: drift entre schema/bundles/Edges remotos e o checkout, ausência de staging/identidades/números consentidos para uma homologação coordenada e gateway Evolution retornando QR 400/500. A política de proteção contra senhas vazadas/Auth também permanece pendente e fora deste lote. Não fazer deploy parcial, replay amplo de migrations ou retry cego de QR.
+
+## Evolution GO — função remota não reconhece salvar/testar servidor — confirmado em 06/10/2026
+
+- A Edge Function oficial `evolution-go` v21 não inclui `save_server` nem `test_server`, embora o frontend local já envie esses comandos. Os logs registraram `unsupported_action` para `save_server`; o provedor Evolution GO não foi consultado nessa tentativa. O frontend local agora bloqueia os controles quando o contrato remoto está ausente e explica o descompasso sem pedir repetição cega da chave.
+- A função `evolution-go-worker` ativa v4 ainda não usa `server_validation` como bloqueio de provisionamento. Não publicar apenas o endpoint de gravação/teste nem tratar a URL/chave como inválidas sem resposta do provedor. Requer homologação integrada e aplicação seletiva coordenada; Site oficial permanece inalterado.
+
+## Evolution GO — homologação integrada pendente em 06/10/2026
+
+- A separação visual entre administrador e vendedor foi validada localmente, mas a tela do vendedor ainda requer inspeção com identidade de vendedor e o teste do servidor depende de uma instância isolada. O Site oficial permanece inalterado por NO-GO de produção.
+- A suíte Vitest completa encontra importações `npm:` do Supabase não resolvidas nos testes de Edge neste ambiente. Os 325 testes do frontend, incluindo cinco focados, passaram; não atribuir esta falha ao ajuste de interface nem declarar suíte completa aprovada.
+
+## Configurações — provedores legados e contingência ocultos ou comprimidos — resolvido localmente em 06/10/2026
+
+- WA-AKG, Z-API e Meta ficavam dentro de um painel recolhido por padrão. Os atalhos corporativos não tinham destino correspondente e a combinação da barra lateral com grades aninhadas reduzia alguns cards a uma coluna estreita.
+- `26c1626` deixa a área aberta, em três estágios claros: escolha do canal corporativo, configuração/validação e contingência individual. Z-API e Meta têm destinos reais; WA-AKG ganha largura integral; Meta exibe indisponibilidade explícita quando seu gate ainda não está homologado. Nada foi ativado nem teve o gate alterado.
+- A prévia autenticada foi conferida em desktop e 390x844, sem cards ocultos ou overflow horizontal. O atalho da Z-API alcançou a configuração; não houve conexão, validação, mensagem, automação, alteração de cliente, migration, Edge ou publicação do Site.
+
+## Configurações — cards de Canais e Status operacional difíceis de usar — resolvido localmente em 06/10/2026
+
+- A área Canais misturava configuração, diagnóstico e auditoria em uma única sequência, enquanto as ações globais duplicavam as ações do próprio canal. No mobile, a tabela de Status operacional mantinha uma largura mínima e cortava informações e menus.
+- `2b7ddd9` organiza Canais em **Configuração**, **Diagnóstico** e **Histórico**, deixa contingência legada recolhida e preserva cada ação no seu contexto. A tabela de Status passa a cards rotulados no mobile; nenhuma regra, rota, chamada, banco ou estado operacional foi alterado.
+- A prévia autenticada foi revisada em mobile e desktop; não houve overflow horizontal, envio, automação, mensagem, escrita de cliente, migration, Edge ou publicação do Site.
+
+## Configurações — ativação de provedor sem configuração — resolvido localmente em 06/10/2026
+
+- O controle de uso operacional ficava desabilitado quando o provedor ainda não tinha credencial, portanto não podia abrir o fluxo de configuração. Um provedor validado, porém pausado, também era recusado pelo backend na reativação.
+- `a7bba77` abre o modal de configuração sem persistir nada quando faltar configuração; após configuração/teste válidos, a ativação limpa somente a pausa operacional. A desativação continua a salvar o uso como inativo sem tocar credenciais.
+- A prévia autenticada confirmou a abertura e o cancelamento de **Configurar Google Places** sem escrita. Os contratos locais cobrem ativar/desativar, a sincronização de fontes de busca e a preservação do cofre. Edge e Site não foram publicados.
+
+## Leads — Ana importada não aparecia no Kanban — resolvido localmente em 06/10/2026
+
+- O filtro da RPC do Kanban exige modo de atendimento e responsável técnico. A Busca importava **Ana (IA)** sem `owner_id`/`assigned_to`; o diálogo tentava ativar a Ana para preencher essa condição, misturando o simples envio ao Kanban com automação e consentimento.
+- `3665f52` atualiza somente o vínculo técnico do mesmo lead quando ele é Ana e ainda não tem rota. Não cria cartão/lead separado, não inicia Ana ou WhatsApp e não muda score, origem, modo ou etapa. Humano sem responsável recebe bloqueio explícito; reenvio mostra que o lead já está no Kanban.
+- O fluxo autenticado enviou um lead existente e, após recarregar, confirmou um único cartão em **Novo**, com score 43/100 e origem preservada. A segunda tentativa não duplicou. Site oficial permanece inalterado.
+
+## Leads — ação Enviar para o Kanban ausente — resolvido localmente em 05/10/2026
+
+- O diálogo e o comando já existiam, mas não havia um botão na barra dos leads selecionados para alcançá-los. O acionador foi restaurado em `a20a420` e a validação autenticada confirmou abertura e cancelamento sem disparar o fluxo.
+- O seletor agora revela as sete etapas canônicas. Ganho e Perdido são resultados finais e continuam bloqueados para mudança em massa ou automática pelo contrato do orçamento; isso evita um falso avanço sem aceite/motivo. Site oficial permanece inalterado.
+
+## Busca de Leads — importação recusada por UF — resolvido em 06/10/2026
+
+- A RPC tratava `uf` como campo não permitido, apesar de o mapeador legítimo enviar o estado. A migration `20261006011920_fix_prospecting_batch_state` corrigiu exclusivamente a allowlist e a persistência de `uf`.
+- A repetição autenticada do lote do operador concluiu e abriu Leads com 20 registros. O Site oficial não foi publicado nesta correção de banco.
+
+## Busca de Leads — regressão Critérios/quantidade resolvida — 05/10/2026
+
+- O bloqueio CORS remoto e o limite visual fixo de 10 foram corrigidos no escopo do Wizard. A função `prospectar-leads` v17 aceitou a origem homologada e uma busca real com limite 20 retornou 20 resultados para revisão.
+- O Site oficial permanece em v168 e não contém este ajuste de frontend. Não publicar a aplicação inteira como consequência desta correção; uma publicação isolada continua exigindo autorização e validação próprias.
+
+## 05/10/2026 — Status operacional indisponível na prévia local — resolvido
+
+- O preflight da origem `http://127.0.0.1:4173` era rejeitado quando a configuração remota tinha `ALLOWED_ORIGINS` explícito. O helper agora mantém as origens homologadas estritas ao combinar a configuração; `operational-diagnostics` v19 foi aplicado.
+- A validação autenticada exibiu o diagnóstico e a atualização manual sem acionar qualquer operação. Os componentes pendentes continuaram pendentes; não representam uma falha da tela.
+
 ## 05/10/2026 — Evolution GO principal ainda sem release
 
 - A nova seleção de Evolution GO está validada somente localmente. Catálogo remoto confirma RPC e funções compatíveis, mas não comprova o contrato externo, segredo, QR, callback, entrega ou operação da Ana em ambiente isolado.
@@ -369,3 +478,21 @@ As notas históricas abaixo permanecem como evidência, mas o checkpoint atual �
 - A homologação autenticada de concorrência, handoff, tarefa, bloqueio, entrega/falha de mensagem,
   RLS cruzada e mobile exige um lead de teste e operadores explicitamente autorizados. Nenhuma
   dessas ações foi feita sobre um lead comercial nesta etapa.
+## 05/10/2026 — Classificação duplicada no envio ao Kanban — resolvido localmente
+
+- O diálogo de envio oferecia Ana/Humano depois de a Busca de Leads já ter persistido modo e responsável. Isso poderia trocar a classificação ou o responsável por efeito do encaminhamento.
+- `968a753` passou a preservar a definição por lead e limita a configuração opcional de transferência ao subconjunto Ana. A correção está validada localmente; Site oficial permanece inalterado.
+
+## 07/10/2026 — Bloqueio externo: runtime da instância Evolution GO não produz QR
+
+- A instância individual vinculada ao vendedor existe e a credencial é aceita, mas o Manager mostra
+  estado `close`. Na função `evolution-go` v24, o fluxo autenticado iniciou a conexão e realizou
+  cinco leituras de QR durante aproximadamente 35 segundos; o provedor respondeu HTTP 400 em todas.
+- O endpoint remoto `/instance/reconnect` responde HTTP 500 durante a inicialização e foi removido
+  da recuperação automática. Não recriar ou excluir a instância novamente até que o administrador
+  do servidor Evolution GO recupere o runtime e confirme que `/instance/qr` devolve um QR válido.
+
+## 07/10/2026 — Evolution GO exclusivo; pareamento continua dependente do runtime remoto
+
+- Z-API, Meta Cloud e WA-AKG foram retirados dos caminhos operacionais: os controles foram desabilitados, as contas legadas deixaram de ser padrão/habilitadas e a API de contas passou a rejeitar ações legadas. Os registros históricos foram preservados.
+- Evolution GO não foi ativado como compensação: as duas contas Evolution continuam desativadas até o servidor remoto voltar a produzir um QR válido. O bloqueio de QR descrito acima permanece a única pendência para pareamento.
