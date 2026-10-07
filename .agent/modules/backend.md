@@ -1,5 +1,9 @@
 # Backend
 
+## 06/10/2026 — Evolution GO multi-tenant local, sem aplicação remota
+
+`team-members` observa o job já criado pelo vínculo e só acorda o worker quando ele existe; não recria instância após o vendedor estar ativo. `evolution-go` recusa criação/configuração manual de conta seller, preservando conta corporativa/admin e o convite/autodefinição segura de senha. O lifecycle por trigger mantém job único por organização/usuário, self-service só do titular e histórico pós-desconexão. Validação: 769 Vitest/93 arquivos, type-check app/Edge, lint, build/artefato, PGlite 6/6 e PostgreSQL nativo 2/2. Não aplicado a migrations/Supabase/Edge/Site/GitHub; sem QR, chamada a provedor, mensagem ou dado de cliente. Drift remoto, QR Evolution 400/500 e política de senha/Auth pendente exigem staging/homologação coordenada.
+
 ## 05/10/2026 — R4/R6/R8/R11 locais
 
 Administração de equipe controla vínculo/convite, não identidade global Auth. Entrada usa etapa local atômica e lease; provisionamento automático compartilha ledger de lifecycle; recuperação só encerra consulta comprovada por GET/CAS e mantém corte. Ana/worker revalidam contexto comercial e autorização antes dos efeitos; pedido de orçamento continua rascunho humano. Rotina paga exige cidade, uma UF e termo no handler e guard SQL. Sem deploy; contratos e limites em `docs/remediacao/2026-10-05-r4-r14/`.
