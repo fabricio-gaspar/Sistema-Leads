@@ -10,6 +10,7 @@ export type OperationalIntegration = Omit<Integracao, 'status'> & {
   remoteKey: 'whatsapp' | 'ai' | 'apify' | 'google_places';
   operationalCategory: 'prospecting' | 'communication' | 'intelligence' | 'scheduling' | 'system';
   connected: boolean;
+  configured: boolean;
   enabled: boolean;
   paused: boolean;
   lastError: string | null;
@@ -46,6 +47,7 @@ function pendingDescriptor(key: SupportedKey): OperationalIntegration {
     remoteKey: key,
     operationalCategory: key === 'whatsapp' ? 'communication' : key === 'ai' ? 'intelligence' : 'prospecting',
     connected: false,
+    configured: false,
     enabled: false,
     paused: false,
     lastError: null,
@@ -100,7 +102,7 @@ async function loadFromBackend(context: SessionContext): Promise<OperationalInte
     .from('integrations')
     // Nunca hidratar o JSON inteiro no navegador: este recorte transporta
     // somente o estado público da Ana, sem a referência do cofre ou chaves.
-    .select('key,category,connected,enabled,paused,status_detail,last_error,last_tested_at,ana_provider:configuration->>provedor_principal,ana_model:configuration->>modelo_principal,ana_openai_model:configuration->>openai_model,ana_claude_model:configuration->>claude_model,ana_openai_configured:configuration->>openai_configurado,ana_claude_configured:configuration->>claude_configurado')
+    .select('key,category,connected,enabled,paused,status_detail,last_error,last_tested_at,configured:configuration->>configured,ana_provider:configuration->>provedor_principal,ana_model:configuration->>modelo_principal,ana_openai_model:configuration->>openai_model,ana_claude_model:configuration->>claude_model,ana_openai_configured:configuration->>openai_configurado,ana_claude_configured:configuration->>claude_configurado')
     .eq('organization_id', organizationId)
     .in('key', [...supportedKeys]);
   sessionContext.assertCurrent(context);
@@ -129,6 +131,10 @@ async function loadFromBackend(context: SessionContext): Promise<OperationalInte
       ultimoTeste: remote.last_tested_at ? new Date(remote.last_tested_at).toLocaleString('pt-BR') : 'Nunca testada',
       descricao: integrationStatusDetail(statusInput, remote.status_detail || descriptor.descricao),
       connected: Boolean(remote.connected),
+      // Registros antigos podem não ter a marca pública `configured`, mas uma
+      // conexão já confirmada ou um uso já habilitado também prova que não é
+      // necessário abrir novamente o formulário de credenciais.
+      configured: publicBoolean(remote.configured) || Boolean(remote.connected) || Boolean(remote.enabled),
       enabled: Boolean(remote.enabled),
       paused: Boolean(remote.paused),
       lastError: remote.last_error ?? null,
