@@ -1,5 +1,45 @@
 # Frontend
 
+## 06/10/2026 — Evolution GO: self-service do vendedor condicionado ao lifecycle local
+
+O contrato local mantém o vendedor limitado à própria conta/pareamento, sem QR de terceiros ou segredos; a conta só fica disponível após o job multi-tenant durável criado pelo vínculo. Desconexão/desativação não apaga o histórico. A validação consolidada registrou 769 Vitest/93 arquivos, type-check app/Edge, lint, build/artefato, PGlite 6/6 e PostgreSQL nativo 2/2; não houve QR real, chamada a provedor, mensagem, dado de cliente, migration aplicada, deploy ou publicação. Drift remoto, staging coordenado, QR Evolution 400/500 e política de senha/Auth pendente impedem release isolada.
+
+## 06/10/2026 — Evolution GO: papéis separados no painel compartilhado
+
+`EvolutionGoPanel.tsx` agora deixa Configurações com o formulário/teste do servidor corporativo e estado/controle dos conectores, sem QR, código ou conexão de sessão. A Central de Atendimento em modo vendedor mantém o pareamento individual e exibe conta, instância não secreta e instruções. Backend e permissões existentes foram preservados; Site não publicado.
+
+## 06/10/2026 — Gerenciador Evolution GO visível em Usuários
+
+`UsersAccessWorkspace.tsx` reutiliza `EvolutionGoPanel mode="administration"` na seção Membros de Configurações → Usuários. O painel existente continua verificando permissão e lendo metadados reais pelo backend; nenhuma ação de QR, configuração ou envio foi executada. Prévia local autenticada validada; Site oficial não publicado.
+
+## 06/10/2026 — Conceito visual de referência no shell do CRM
+
+`DashboardLayout.tsx`, `wayflex-visual.css` e `wayflex-redesign.css` passam a compor a mesma hierarquia leve da referência usando somente os elementos existentes: sidebar clara por grupos, topbar compacto, busca de telas já existente, cards com borda discreta e ações primárias verdes acessíveis. `page.tsx` e `command-center.css` de Configurações mantêm os mesmos grupos e rótulos, com seletor compacto até 2xl. Nenhuma rota, permissão, handler, integração ou regra de negócio mudou; Site não publicado.
+
+## 06/10/2026 — Configurações: provedores de contingência sempre visíveis
+
+`WhatsAppEntriesTab.tsx` substitui o painel recolhido por estágios permanentes para seleção corporativa, configuração/validação e WA-AKG individual; também resolve âncoras após a renderização para Z-API, Meta e WA-AKG. `IntegracoesTab.tsx` aceita apresentação de coluna única no contexto estreito, enquanto `WhatsappProviderControlPanel.tsx` e `command-center.css` usam grade baseada na largura disponível. `MetaCoexistencePanel.tsx` mostra indisponibilidade explícita apenas quando o consumidor pede essa apresentação; o gate de homologação continua fechado. A prévia autenticada confirmou o layout em desktop e mobile sem overflow; Site não publicado.
+
+## 06/10/2026 — Configurações: cards de Canais e Status operacional organizados
+
+`src/pages/dashboard/configuracoes/page.tsx` mantém a navegação agrupada e usa uma descrição contextual por seção. `WhatsAppEntriesTab.tsx` separa Configuração, Diagnóstico e Histórico, preservando os mesmos handlers e ações; o estado salvo **Não configurada** não é mais confundido com o rascunho **Ativa ao salvar**. `OperationalStatusTab.tsx` só adiciona rótulos semânticos para a apresentação responsiva, enquanto `command-center.css` converte as linhas da tabela em cards no mobile. A prévia autenticada confirmou Canais/Diagnóstico e Status sem corte horizontal; Site não publicado.
+
+## 06/10/2026 — Configurações → APIs abre configuração e atualiza uso operacional
+
+`src/pages/dashboard/configuracoes/components/ApisProvidersTab.tsx` separa a ausência de configuração da indisponibilidade operacional. Ao pedir ativação sem configuração, abre `ConfigureModal` e não escreve estado parcial. Com configuração validada, reutiliza `configurar-integracao set_usage`; ao desativar, preserva todos os dados e atualiza a tela pela leitura canônica. A prévia abriu e cancelou a configuração de Google Places sem erro de console; Site não publicado.
+
+## 06/10/2026 — Leads → Kanban roteia o mesmo registro sem ativar a Ana
+
+`src/pages/dashboard/leads/page.tsx` oferece **Enviar ao Kanban** no menu de cada linha e na seleção em massa. O diálogo não pede consentimento, handoff ou ação da Ana: ele informa o vínculo necessário, os registros já visíveis e os bloqueios mínimos. `src/lib/crm/kanbanDispatchPlan.ts` identifica Ana sem rota, humano incompleto e registros já roteados; `assignKanbanRoutingUser` preserva todos os dados, mudando somente `responsavelId`. A validação autenticada confirmou um cartão único em Novo após reload, sem mensagem ou automação; Site não publicado.
+
+## 05/10/2026 — Leads → Kanban preserva a classificação importada
+
+`src/pages/dashboard/leads/page.tsx` não oferece mais Ana/Humano como nova escolha no envio ao Kanban. `src/lib/crm/kanbanDispatchPlan.ts` separa a seleção pelos modos já persistidos: Ana mantém os gates de canal/autorização e a transferência automática opcional; humano conserva o responsável importado. O diálogo local mostrou esse resumo para um lead Ana e foi cancelado; Site não publicado.
+
+## 05/10/2026 — Leads → Kanban, local validado
+
+`src/pages/dashboard/leads/page.tsx` reutiliza o fluxo existente `enviarParaKanban`: a barra de leads selecionados agora expõe o acionador e bloqueia somente uma seleção que o operador não pode editar. `src/lib/crm/leadStageRepository.ts` é a fonte canônica de chaves/rótulos/terminais para os seletores; Ganho e Perdido são exibidos, porém continuam protegidos como resultados do orçamento. A validação autenticada abriu e cancelou o diálogo sem fazer escrita; Site não publicado.
+
 ## 05/10/2026 — deltas R5/R9/R12 locais, não publicados
 
 Auth → sessionContext (user/org/generation) → OrganizationGate → stores por contexto. Respostas antigas e setters anteriores são recusados; não há seed operacional por localStorage. Convites têm aceite explícito fora do CRM. CSV/exports usam parser e escape central; próxima ação da Agenda usa RPC idempotente; tooltip/CSV usam interação e diálogo acessíveis; CTAs do Wizard compartilham motivo. Recovery de canal é administrativo, explícito e não ativa transporte. Ver `docs/remediacao/2026-10-05-r4-r14/` e manifesto final; não publicar frontend sem backend/migrations compatíveis.
