@@ -10,16 +10,15 @@ import { refreshLeadsStore, useLeadsStore, waitForLeadsPersistence } from '@/hoo
 import { useTarefasStore, waitForTarefasPersistence } from '@/hooks/useTarefasStore';
 import { useSavedViews } from '@/hooks/useSavedViews';
 import { useLocalStorageState } from '@/hooks/useLocalStorageState';
-import { etapasCRM, segmentos } from '@/mocks/leadsData';
+import { segmentos } from '@/mocks/leadsData';
 import type { Lead } from '@/mocks/leadsData';
-import { canonicalStageKeyFromLabel, CommercialTransitionError, transitionOperationalLeadStage } from '@/lib/crm/leadStageRepository';
+import { canonicalStageKeyFromLabel, canonicalStageOptions, CommercialTransitionError, isTerminalStage, transitionOperationalLeadStage } from '@/lib/crm/leadStageRepository';
 import { useListasStore } from '@/hooks/useListasStore';
 import { useAuth } from '@/hooks/useAuth';
 import { useCurrentAccess } from '@/hooks/useCurrentAccess';
 import { loadTeamMembers, type TeamMember } from '@/lib/crm/teamMembersRepository';
-import { approvedAnaWhatsAppChannel, pendingManualLeadContact } from '@/lib/crm/manualLeadContact';
-import { configureLeadHandoffPolicy, handoffStages, type HandoffStage } from '@/lib/crm/handoffPolicyRepository';
-import { activateLeadWithAna } from '@/lib/crm/leadWorkflowRepository';
+import { pendingManualLeadContact } from '@/lib/crm/manualLeadContact';
+import { assignKanbanRoutingUser, buildKanbanDispatchPlan } from '@/lib/crm/kanbanDispatchPlan';
 import { useLeadsLoadStatus } from '@/hooks/useLeadsStore';
 import DataReadNotice from '@/components/feature/DataReadNotice';
 import { loadLeadQualifications, type LeadQualification } from '@/lib/crm/leadQualificationRepository';
@@ -36,10 +35,6 @@ import {
   type LeadQuickView,
   type PotentialLeadDuplicate,
 } from '@/lib/crm/leadPortfolio';
-
-const handoffStageLabels: Record<HandoffStage, string> = {
-  novo: 'Novo', apresentado: 'Apresentado', qualificando: 'Qualificando', reuniao: 'Reunião', orcamento: 'Orçamento',
-};
 
 const etapaCores: Record<string, string> = {
   'Novo': 'bg-background-200 text-foreground-600',
@@ -150,11 +145,6 @@ export default function Leads() {
   const [editarModal, setEditarModal] = useState<Lead | null>(null);
   const [editForm, setEditForm] = useState({ nome: '', empresa: '', cidade: '', estado: '', email: '', telefone: '', responsavel: '', responsavelId: '', tags: '' });
   const [membros, setMembros] = useState<TeamMember[]>([]);
-  const [handoffEtapa, setHandoffEtapa] = useState('');
-  const [handoffAssigneeId, setHandoffAssigneeId] = useState('');
-  const [handoffNotifyWhatsapp, setHandoffNotifyWhatsapp] = useState(false);
-  const [modoSelecionado, setModoSelecionado] = useState<'IA' | 'HUMANO' | null>(null);
-  const [aprovacaoKanban, setAprovacaoKanban] = useState({ confirmada: false, origem: '' });
   const [stageChangePending, setStageChangePending] = useState<string | null>(null);
   const [qualificacoes, setQualificacoes] = useState<Map<string, LeadQualification>>(new Map());
   const [qualificacoesStatus, setQualificacoesStatus] = useState<'idle' | 'loading' | 'error'>('idle');
@@ -323,111 +313,41 @@ export default function Leads() {
     }
   };
 
-  // Aprova os leads selecionados e persiste modo + responsável antes de
-  // acionar a Ana no backend.
-  const enviarParaKanban = async (ids: string[], modo: 'IA' | 'HUMANO', etapaHandoff?: HandoffStage) => {
+  const resetEnvioParaKanban = () => {
+    setEnvioAlvo(null);
+  };
+
+  // O Kanban é uma carteira dos próprios leads. Este envio não inicia Ana,
+  // não cria um segundo registro e não muda a classificação da importação.
+  const enviarParaKanban = async (ids: string[]) => {
     if (ids.length === 0) return;
     if (!user?.id) {
       mostrarToast('Sua sessão não possui um responsável válido. Entre novamente antes de enviar ao Kanban.');
       return;
     }
-    const exigeNovaAprovacao = modo === 'IA' && ids.some((id) => { const lead = leads.find((item) => item.id === id); return lead?.contactApprovalStatus !== 'approved' || !lead.whatsapp; });
-    if (exigeNovaAprovacao && (!aprovacaoKanban.confirmada || !aprovacaoKanban.origem.trim())) {
-      mostrarToast('Confirme o WhatsApp, a autorização e informe a origem antes de ativar a Ana.');
+    const targetLeads = leads.filter((lead) => ids.includes(lead.id));
+    if (targetLeads.length !== new Set(ids).size) {
+      mostrarToast('Um ou mais leads não estão mais disponíveis. Atualize a página antes de enviar ao Kanban.');
       return;
     }
-    if (modo === 'IA' && ids.some((id) => {
-      const lead = leads.find((item) => item.id === id);
-      return !lead || !approvedAnaWhatsAppChannel(lead);
-    })) {
-      mostrarToast('Informe um telefone/WhatsApp válido antes de ativar a Ana.');
+    const plan = buildKanbanDispatchPlan(targetLeads, ids);
+    if (plan.unresolvedLeadIds.length) {
+      mostrarToast('Há lead(s) sem modo de atendimento ou responsável técnico definido. Revise a importação antes de enviar ao Kanban.');
       return;
     }
-    const handoffMember = membros.find((member) => member.userId === handoffAssigneeId);
-    // A transfer policy is only persisted when the operator selected a stage
-    // and a human assignee. "Ana conduz tudo" is handled by the single
-    // activation command below, so it cannot leave the UI waiting on an
-    // unrelated browser RPC before Ana is called.
-    if (modo === 'IA' && etapaHandoff) {
-      try {
-        await configureLeadHandoffPolicy({
-          leadIds: ids,
-          assigneeUserId: etapaHandoff ? handoffAssigneeId || null : null,
-          stage: etapaHandoff ?? null,
-          notifyWhatsapp: etapaHandoff ? handoffNotifyWhatsapp : false,
-        });
-      } catch (error) {
-        const code = error instanceof Error ? error.message : '';
-        const message = code.includes('handoff_whatsapp_not_configured')
-          ? 'O vendedor não possui WhatsApp de aviso configurado. Configure em Usuários antes de ativar este aviso.'
-          : code.includes('handoff_assignee_cannot_reply')
-            ? 'O usuário escolhido não tem permissão para responder conversas.'
-            : code.includes('handoff_assignee')
-              ? 'Escolha um vendedor ativo para receber a transferência.'
-              : 'Não foi possível gravar a regra de transferência. A Ana não foi acionada.';
-        mostrarToast(message);
-        return;
-      }
+    if (!plan.needsRoutingLeadIds.length) {
+      mostrarToast(`${ids.length} lead(s) já estão no Kanban. Nenhum registro novo foi criado.`);
+      setSelecionados([]);
+      resetEnvioParaKanban();
+      return;
     }
     const idsSet = new Set(ids);
-    if (modo === 'IA') {
-      const result = await Promise.allSettled(ids.map((leadId) => {
-        const lead = leads.find((item) => item.id === leadId);
-        const activation = lead ? approvedAnaWhatsAppChannel(lead) : null;
-        return activateLeadWithAna({
-          leadId,
-          whatsapp: activation?.whatsapp ?? '',
-          approvalReason: lead?.contactApprovalStatus === 'approved' && lead.contactApprovalReason
-            ? lead.contactApprovalReason
-            : aprovacaoKanban.origem,
-          clearHandoffPolicy: !etapaHandoff,
-        });
-      }));
-      try {
-        await refreshLeadsStore();
-      } catch {
-        mostrarToast('A Ana foi acionada, mas não foi possível atualizar a tela. Atualize a página para consultar o estado atual.');
-        return;
-      }
-      const processados = result.filter((item) => item.status === 'fulfilled' && item.value.ana?.ok && !item.value.ana?.skipped).length;
-      const falhas = result.filter((item) => item.status === 'rejected' || (item.status === 'fulfilled' && (!item.value.ana?.ok || item.value.ana?.skipped)));
-      if (falhas.length) {
-        const first = falhas[0];
-        const code = first.status === 'rejected' && first.reason instanceof Error ? first.reason.message : '';
-        const message = code === 'invalid_whatsapp'
-          ? 'O WhatsApp informado não é válido. A Ana não foi acionada.'
-          : code === 'contact_approval_reason_required'
-            ? 'Informe a origem da autorização antes de ativar a Ana.'
-            : 'O lead foi preparado para o Kanban, mas a Ana não iniciou. Consulte o Registro do Sistema para o motivo.';
-        mostrarToast(message);
-        return;
-      }
-      listas.listas.forEach((lista) => {
-        if (lista.status === 'pendente' && lista.leadIds.length > 0 && lista.leadIds.every((lid) => idsSet.has(lid))) {
-          listas.atualizar(lista.id, { status: 'ativada' });
-        }
-      });
-      mostrarToast(`${ids.length} lead(s) enviados ao Kanban${processados ? ` · ${processados} processado(s) pela Ana` : ''}.`);
-      setSelecionados([]);
-      setEnvioAlvo(null);
-      setModoSelecionado(null);
-      setAprovacaoKanban({ confirmada: false, origem: '' });
-      return;
-    }
-    setLeads((current) => current.map((lead) => {
-      if (!idsSet.has(lead.id)) return lead;
-      return {
-        ...lead,
-        aguardandoAtivacao: false, modoAtendimento: modo, responsavelId: etapaHandoff ? handoffAssigneeId : lead.responsavelId || user.id,
-        responsavel: etapaHandoff ? handoffMember?.name || lead.responsavel : lead.responsavel === 'Ana (IA)' || !lead.responsavel ? 'Você' : lead.responsavel,
-        etapa: 'Novo', etapaHandoff, automacaoStatus: 'AGUARDANDO_HUMANO',
-        handoffWhatsappAtivo: etapaHandoff ? handoffNotifyWhatsapp : false,
-      };
-    }));
+    const routingIds = new Set(plan.needsRoutingLeadIds);
+    setLeads((current) => current.map((lead) => routingIds.has(lead.id) ? assignKanbanRoutingUser(lead, user.id) : lead));
     try {
       await waitForLeadsPersistence();
     } catch {
-      mostrarToast('A ativação não foi gravada no servidor. A Ana não foi acionada e nenhum envio foi feito. Tente novamente ou consulte o Registro do Sistema.');
+      mostrarToast('O Kanban não confirmou o vínculo técnico do lead. Nenhuma automação foi iniciada; atualize a página e tente novamente.');
       return;
     }
     listas.listas.forEach((lista) => {
@@ -435,12 +355,10 @@ export default function Leads() {
         listas.atualizar(lista.id, { status: 'ativada' });
       }
     });
-    mostrarToast(`${ids.length} lead(s) enviados ao Kanban para atendimento humano.`);
+    const jaNoKanban = plan.alreadyInKanbanLeadIds.length;
+    mostrarToast(`${plan.needsRoutingLeadIds.length} lead(s) enviado(s) ao Kanban${jaNoKanban ? ` · ${jaNoKanban} já estava(m) disponível(is)` : ''}.`);
     setSelecionados([]);
-    setEnvioAlvo(null);
-    setModoSelecionado(null);
-    setAprovacaoKanban({ confirmada: false, origem: '' });
-    setHandoffEtapa(''); setHandoffAssigneeId(''); setHandoffNotifyWhatsapp(false);
+    resetEnvioParaKanban();
   };
 
   const criarLead = async (confirmarPossivelDuplicidade = false) => {
@@ -500,7 +418,6 @@ export default function Leads() {
     setNovoLead({ nome: '', empresa: '', email: '', telefone: '', segmento: 'Tecnologia', cidade: '', estado: '', modo: 'IA' });
     if (novo.modoAtendimento === 'IA') {
       setEnvioAlvo([novo.id]);
-      setModoSelecionado('IA');
       mostrarToast('Lead criado. Confirme o canal e a autorização para ativar a Ana.');
       return;
     }
@@ -607,12 +524,40 @@ export default function Leads() {
   const segmentosDisponiveis = useMemo(() => Array.from(new Set(leads.map((lead) => lead.segmento).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pt-BR')), [leads]);
   const origensDisponiveis = useMemo(() => Array.from(new Set(leads.map((lead) => lead.origem).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pt-BR')), [leads]);
   const listasDisponiveis = useMemo(() => Array.from(new Set(Array.from(listaPorLead.values()))).sort((a, b) => a.localeCompare(b, 'pt-BR')), [listaPorLead]);
+  const leadsDoEnvioParaKanban = useMemo(() => {
+    const targetIds = new Set(envioAlvo ?? []);
+    return leads.filter((lead) => targetIds.has(lead.id));
+  }, [envioAlvo, leads]);
+  const planoEnvioParaKanban = useMemo(
+    () => buildKanbanDispatchPlan(leadsDoEnvioParaKanban, envioAlvo ?? []),
+    [envioAlvo, leadsDoEnvioParaKanban],
+  );
+  const responsaveisHumanosNoEnvio = useMemo(() => Array.from(new Set(
+    leadsDoEnvioParaKanban
+      .filter((lead) => planoEnvioParaKanban.humanLeadIds.includes(lead.id))
+      .map((lead) => lead.responsavel || 'Sem responsável'),
+  )), [leadsDoEnvioParaKanban, planoEnvioParaKanban.humanLeadIds]);
   const listasPendentes = listas.listas.filter((lista) => lista.status === 'pendente' && lista.leadIds.length > 0);
   const canEditAll = access?.permissions['leads.edit_all'] === true;
   const canEditLead = (lead: Lead) => canEditAll || (access?.permissions['leads.edit_assigned'] === true && lead.responsavelId === user?.id);
   const canDelete = access?.permissions['leads.delete'] === true;
   const canCreate = access?.permissions['leads.create'] === true;
   const columnVisible = (column: LeadColumn) => colunasVisiveis.includes(column);
+
+  const abrirEnvioParaKanban = (input?: unknown) => {
+    const leadIds = Array.isArray(input) ? input.filter((id): id is string => typeof id === 'string') : selecionados;
+    const targets = leads.filter((lead) => leadIds.includes(lead.id));
+    if (!targets.length) {
+      mostrarToast('Selecione ao menos um lead para enviar ao Kanban.');
+      return;
+    }
+    if (targets.some((lead) => !canEditLead(lead))) {
+      mostrarToast('Você só pode enviar ao Kanban leads que pode editar. Ajuste a seleção ou solicite acesso à carteira.');
+      return;
+    }
+    resetEnvioParaKanban();
+    setEnvioAlvo(targets.map((lead) => lead.id));
+  };
 
   const openLeadPurge = (leadIds: string[]) => {
     if (!canDelete) {
@@ -830,7 +775,7 @@ export default function Leads() {
 
       {listasPendentes.length > 0 && <section className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary-200 bg-primary-50 px-4 py-3" aria-label="Listas aguardando revisão">
         <div className="flex items-center gap-2 text-sm text-primary-900"><i className="ri-list-check-3-line text-lg" /><span><strong>{listasPendentes.length}</strong> {listasPendentes.length === 1 ? 'lista recebida aguarda' : 'listas recebidas aguardam'} revisão antes do Kanban.</span></div>
-        <button type="button" onClick={() => setEnvioAlvo(listasPendentes.flatMap((lista) => lista.leadIds))} className="text-sm font-semibold text-primary-800 hover:text-primary-950">Revisar <i className="ri-arrow-right-line" /></button>
+        <button type="button" onClick={() => abrirEnvioParaKanban(listasPendentes.flatMap((lista) => lista.leadIds))} className="text-sm font-semibold text-primary-800 hover:text-primary-950">Revisar <i className="ri-arrow-right-line" /></button>
       </section>}
 
       {qualificacoesStatus === 'error' && <div role="status" className="mb-4 rounded-lg border border-accent-200 bg-accent-50 px-4 py-3 text-sm text-accent-900">Não foi possível consultar os resumos de qualificação agora. As próximas ações cadastradas como tarefas continuam visíveis.</div>}
@@ -847,7 +792,7 @@ export default function Leads() {
 
         <div className="grid gap-2 border-b border-background-200 p-4 lg:grid-cols-[minmax(240px,1fr)_185px_185px_185px_auto_auto]">
           <label className="relative min-w-0"><span className="sr-only">Buscar por lead, empresa, telefone ou e-mail</span><i className="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-foreground-400" /><input value={buscaDigitada} onChange={(event) => { setBuscaDigitada(event.target.value); setPagina(1); }} placeholder="Buscar por lead, empresa, telefone ou e-mail" className="w-full rounded-lg border border-background-300 bg-white py-2.5 pl-9 pr-3 text-sm text-foreground-900 outline-none focus:border-primary-500" /></label>
-          <select aria-label="Todas as etapas" value={etapaFiltro} onChange={(event) => { setEtapaFiltro(event.target.value); setPagina(1); }} className="rounded-lg border border-background-300 bg-white px-3 py-2.5 text-sm text-foreground-700"><option value="Todas">Todas as etapas</option>{etapasCRM.map((stage) => <option key={stage} value={stage}>{stage}</option>)}</select>
+          <select aria-label="Todas as etapas" value={etapaFiltro} onChange={(event) => { setEtapaFiltro(event.target.value); setPagina(1); }} className="rounded-lg border border-background-300 bg-white px-3 py-2.5 text-sm text-foreground-700"><option value="Todas">Todas as etapas</option>{canonicalStageOptions.map((stage) => <option key={stage.key} value={stage.label}>{stage.label}</option>)}</select>
           <select aria-label="Todos os segmentos" value={segmentoFiltro} onChange={(event) => { setSegmentoFiltro(event.target.value); setPagina(1); }} className="rounded-lg border border-background-300 bg-white px-3 py-2.5 text-sm text-foreground-700"><option value="Todos">Todos os segmentos</option>{segmentosDisponiveis.map((segment) => <option key={segment} value={segment}>{segment}</option>)}</select>
           <select aria-label="Todos os responsáveis" value={responsavelFiltro} onChange={(event) => { setResponsavelFiltro(event.target.value); setPagina(1); }} className="rounded-lg border border-background-300 bg-white px-3 py-2.5 text-sm text-foreground-700"><option value="Todos">Todos os responsáveis</option>{responsaveisDisponiveis.map((owner) => <option key={owner} value={owner}>{owner}</option>)}</select>
           <button type="button" onClick={() => setFiltrosAvancados((open) => !open)} aria-expanded={filtrosAvancados} className={`inline-flex items-center justify-center gap-2 rounded-lg border px-3 py-2.5 text-sm font-semibold ${filtrosAvancados ? 'border-primary-300 bg-primary-50 text-primary-800' : 'border-background-300 bg-white text-foreground-700 hover:bg-background-100'}`}><i className="ri-equalizer-2-line" />Mais filtros</button>
@@ -874,7 +819,7 @@ export default function Leads() {
       </section>
 
       <section className="mt-5 overflow-hidden rounded-xl border border-background-200 bg-white shadow-2xs">
-        {selecionados.length > 0 ? <div className="flex flex-wrap items-center gap-2 border-b border-primary-200 bg-primary-50 px-4 py-3"><span className="mr-2 text-sm font-semibold text-primary-900">{selecionados.length} selecionado(s)</span>{canEditAll && <select defaultValue="" onChange={(event) => { if (event.target.value) { void atribuirResponsavel(selecionados, event.target.value); event.target.value = ''; } }} className="rounded-lg border border-primary-200 bg-white px-3 py-2 text-sm text-foreground-700"><option value="" disabled>Atribuir responsável…</option>{membros.map((member) => <option key={member.userId} value={member.userId}>{member.name}</option>)}</select>}<select disabled={stageChangePending === 'bulk'} defaultValue="" onChange={(event) => { if (event.target.value) { void mudarEtapaEmMassa(event.target.value); event.target.value = ''; } }} className="rounded-lg border border-primary-200 bg-white px-3 py-2 text-sm text-foreground-700"><option value="" disabled>Alterar etapa…</option>{etapasCRM.filter((stage) => !['Ganho', 'Perdido'].includes(stage)).map((stage) => <option key={stage} value={stage}>{stage}</option>)}</select><button type="button" onClick={exportarSelecionados} className="rounded-lg border border-primary-200 bg-white px-3 py-2 text-sm font-semibold text-primary-800 hover:bg-primary-100"><i className="ri-download-2-line mr-1" />Exportar</button><button type="button" onClick={() => void arquivarSelecionados()} className="rounded-lg border border-accent-200 bg-white px-3 py-2 text-sm font-semibold text-accent-700 hover:bg-accent-50"><i className="ri-archive-line mr-1" />Arquivar</button>{canDelete && <button type="button" onClick={() => openLeadPurge(selecionados)} className="rounded-lg border border-accent-300 bg-white px-3 py-2 text-sm font-semibold text-accent-700 hover:bg-accent-50"><i className="ri-delete-bin-6-line mr-1" />Excluir definitivamente</button>}<button type="button" onClick={() => setSelecionados([])} className="px-2 py-2 text-sm font-semibold text-foreground-600 hover:text-foreground-900">Limpar seleção</button></div> : <p className="border-b border-background-200 bg-background-50 px-4 py-3 text-sm text-foreground-500"><i className="ri-information-line mr-1.5" />Selecione leads para atribuir responsável, alterar etapa, exportar, arquivar ou excluir.</p>}
+        {selecionados.length > 0 ? <div className="flex flex-wrap items-center gap-2 border-b border-primary-200 bg-primary-50 px-4 py-3"><span className="mr-2 text-sm font-semibold text-primary-900">{selecionados.length} selecionado(s)</span>{canEditAll && <select defaultValue="" onChange={(event) => { if (event.target.value) { void atribuirResponsavel(selecionados, event.target.value); event.target.value = ''; } }} className="rounded-lg border border-primary-200 bg-white px-3 py-2 text-sm text-foreground-700"><option value="" disabled>Atribuir responsável…</option>{membros.map((member) => <option key={member.userId} value={member.userId}>{member.name}</option>)}</select>}<select aria-describedby="bulk-stage-governance" disabled={stageChangePending === 'bulk'} defaultValue="" onChange={(event) => { if (event.target.value) { void mudarEtapaEmMassa(event.target.value); event.target.value = ''; } }} className="rounded-lg border border-primary-200 bg-white px-3 py-2 text-sm text-foreground-700"><option value="" disabled>Alterar etapa…</option>{canonicalStageOptions.map((stage) => <option key={stage.key} value={stage.label} disabled={isTerminalStage(stage.key)}>{isTerminalStage(stage.key) ? `${stage.label} — concluir no orçamento` : stage.label}</option>)}</select><span id="bulk-stage-governance" className="sr-only">Ganho e Perdido são etapas finais e devem ser concluídos individualmente pelo orçamento.</span><button type="button" onClick={abrirEnvioParaKanban} className="rounded-lg border border-primary-300 bg-white px-3 py-2 text-sm font-semibold text-primary-800 hover:bg-primary-100"><i className="ri-kanban-view-2-line mr-1" />Enviar para o Kanban</button><button type="button" onClick={exportarSelecionados} className="rounded-lg border border-primary-200 bg-white px-3 py-2 text-sm font-semibold text-primary-800 hover:bg-primary-100"><i className="ri-download-2-line mr-1" />Exportar</button><button type="button" onClick={() => void arquivarSelecionados()} className="rounded-lg border border-accent-200 bg-white px-3 py-2 text-sm font-semibold text-accent-700 hover:bg-accent-50"><i className="ri-archive-line mr-1" />Arquivar</button>{canDelete && <button type="button" onClick={() => openLeadPurge(selecionados)} className="rounded-lg border border-accent-300 bg-white px-3 py-2 text-sm font-semibold text-accent-700 hover:bg-accent-50"><i className="ri-delete-bin-6-line mr-1" />Excluir definitivamente</button>}<button type="button" onClick={() => setSelecionados([])} className="px-2 py-2 text-sm font-semibold text-foreground-600 hover:text-foreground-900">Limpar seleção</button></div> : <p className="border-b border-background-200 bg-background-50 px-4 py-3 text-sm text-foreground-500"><i className="ri-information-line mr-1.5" />Selecione leads para enviar ao Kanban, atribuir responsável, alterar etapa, exportar, arquivar ou excluir.</p>}
         <div className="overflow-x-auto"><table className="w-full min-w-[1220px] text-sm"><thead><tr className="border-b border-background-200 bg-background-100/60 text-left text-[11px] font-semibold uppercase tracking-wide text-foreground-500"><th className="w-12 px-4 py-3"><input aria-label="Selecionar leads desta página" type="checkbox" checked={leadsDaPagina.length > 0 && leadsDaPagina.every((lead) => selecionados.includes(lead.id))} onChange={(event) => setSelecionados((current) => event.target.checked ? [...new Set([...current, ...leadsDaPagina.map((lead) => lead.id)])] : current.filter((id) => !leadsDaPagina.some((lead) => lead.id === id)))} className="h-4 w-4 accent-primary-600" /></th><th className="min-w-[180px] px-4 py-3">Lead / empresa</th>{columnVisible('contact') && <th className="min-w-[170px] px-4 py-3">Contato</th>}{columnVisible('segment-location') && <th className="min-w-[150px] px-4 py-3">Segmento / local</th>}{columnVisible('fit') && <th className="min-w-[120px] px-4 py-3">Aderência</th>}{columnVisible('stage') && <th className="min-w-[145px] px-4 py-3">Etapa</th>}{columnVisible('last-interaction') && <th className="min-w-[155px] px-4 py-3">Última interação</th>}{columnVisible('next-action') && <th className="min-w-[175px] px-4 py-3">Próxima ação</th>}{columnVisible('owner') && <th className="min-w-[150px] px-4 py-3">Responsável</th>}<th className="w-12 px-4 py-3"><span className="sr-only">Ações</span></th></tr></thead><tbody>
           {loadStatus === 'loading' && <tr><td colSpan={3 + colunasVisiveis.length} className="px-4 py-12 text-center text-foreground-500"><i className="ri-loader-4-line mr-2 inline-block animate-spin" />Carregando carteira operacional…</td></tr>}
           {loadStatus !== 'loading' && leadsDaPagina.map((lead) => {
@@ -885,11 +830,11 @@ export default function Leads() {
               {columnVisible('contact') && <td className="px-4 py-4 text-xs text-foreground-600">{hasContact ? <div className="space-y-1">{lead.telefone && <p><i className="ri-phone-line mr-1 text-foreground-400" />{lead.telefone}</p>}{lead.whatsapp && <p className="text-primary-700"><i className="ri-whatsapp-line mr-1" />WhatsApp identificado</p>}{lead.email && <p className="truncate"><i className="ri-mail-line mr-1 text-foreground-400" />{lead.email}</p>}</div> : <div><span className="inline-flex rounded-full bg-accent-100 px-2 py-1 text-[11px] font-semibold text-accent-800">Sem contato</span>{canEdit && <button type="button" onClick={(event) => { event.stopPropagation(); abrirEdicao(lead); }} className="mt-1.5 block text-xs font-semibold text-primary-700 hover:text-primary-900">Adicionar contato</button>}</div>}</td>}
               {columnVisible('segment-location') && <td className="px-4 py-4"><p className="text-sm text-foreground-800">{lead.segmento || 'Segmento não informado'}</p><p className="mt-1 text-xs text-foreground-500">{lead.cidade && lead.estado ? `${lead.cidade} · ${lead.estado}` : 'Local não informado'}</p></td>}
               {columnVisible('fit') && <td className="px-4 py-4"><div className="flex items-center gap-1"><span className="font-semibold text-foreground-900">{lead.score}/100</span><InfoTooltip text={lead.scoreExplanation || 'O detalhamento do score não está disponível para este registro.'} label={`Critérios da aderência de ${lead.empresa || lead.nome}`} /></div><div className="mt-2 h-1.5 w-28 overflow-hidden rounded-full bg-background-200"><span className="block h-full rounded-full bg-primary-500" style={{ width: `${Math.max(0, Math.min(100, lead.score))}%` }} /></div></td>}
-              {columnVisible('stage') && <td className="px-4 py-4" onClick={(event) => event.stopPropagation()}><select value={lead.etapa} disabled={!canEdit || stageChangePending === lead.id} onChange={(event) => void mudarEtapa(lead.id, event.target.value)} className={`rounded-md border-0 px-2.5 py-1.5 text-xs font-semibold ${etapaCores[lead.etapa] ?? 'bg-background-200 text-foreground-600'} disabled:cursor-not-allowed disabled:opacity-60`}>{etapasCRM.map((stage) => <option key={stage} value={stage}>{stage}</option>)}</select></td>}
+              {columnVisible('stage') && <td className="px-4 py-4" onClick={(event) => event.stopPropagation()}><select value={lead.etapa} disabled={!canEdit || stageChangePending === lead.id} onChange={(event) => void mudarEtapa(lead.id, event.target.value)} className={`rounded-md border-0 px-2.5 py-1.5 text-xs font-semibold ${etapaCores[lead.etapa] ?? 'bg-background-200 text-foreground-600'} disabled:cursor-not-allowed disabled:opacity-60`}>{canonicalStageOptions.map((stage) => <option key={stage.key} value={stage.label} disabled={isTerminalStage(stage.key)}>{isTerminalStage(stage.key) ? `${stage.label} — concluir no orçamento` : stage.label}</option>)}</select></td>}
               {columnVisible('last-interaction') && <td className="px-4 py-4 text-xs text-foreground-600">{lead.ultimaInteracao && lead.ultimaInteracao !== '—' ? <span>{lead.ultimaInteracao}</span> : <div><p className="text-accent-700">Sem interação</p><button type="button" onClick={(event) => { event.stopPropagation(); navigate(`/dashboard/atendimento?leadId=${lead.id}`); }} className="mt-1 text-xs font-semibold text-primary-700 hover:text-primary-900">Registrar</button></div>}</td>}
               {columnVisible('next-action') && <td className="px-4 py-4 text-xs">{action ? <div><p className="max-w-[180px] font-medium text-foreground-800">{action.text}</p>{action.dueAt && <p className={`mt-1 ${isPortfolioDateOverdue(action.dueAt) ? 'font-semibold text-accent-700' : 'text-foreground-500'}`}><i className={`${isPortfolioDateOverdue(action.dueAt) ? 'ri-alarm-warning-line' : 'ri-calendar-line'} mr-1`} />{isPortfolioDateOverdue(action.dueAt) ? 'Atrasada · ' : ''}{formatPortfolioDate(action.dueAt)}</p>}</div> : <div><p className="text-accent-700">Não definida</p>{canEdit && <button type="button" onClick={(event) => { event.stopPropagation(); setTarefaLead(lead); setNovaTarefa({ titulo: `Retomar contato com ${lead.nome || lead.empresa}`, dataLimite: '', prioridade: 'MEDIA' }); }} className="mt-1 text-xs font-semibold text-primary-700 hover:text-primary-900">Adicionar</button>}</div>}</td>}
               {columnVisible('owner') && <td className="px-4 py-4" onClick={(event) => event.stopPropagation()}><div className="flex items-center gap-2"><span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary-100 text-[11px] font-bold text-primary-800">{(lead.responsavel || '?').split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase()}</span>{canEditAll ? <select aria-label={`Responsável por ${lead.empresa || lead.nome}`} value={lead.responsavelId ?? '__ana__'} onChange={(event) => { if (event.target.value !== '__ana__') void atribuirResponsavel([lead.id], event.target.value); }} className="max-w-[120px] bg-transparent text-xs font-medium text-foreground-700"><option value="__ana__">{lead.responsavel || 'Ana (IA)'}</option>{membros.filter((member) => member.userId !== lead.responsavelId).map((member) => <option key={member.userId} value={member.userId}>{member.name}</option>)}</select> : <span className="text-xs font-medium text-foreground-700">{lead.responsavel || 'Sem responsável'}</span>}</div></td>}
-              <td className="relative px-4 py-4" onClick={(event) => event.stopPropagation()}><button type="button" aria-label={`Ações de ${lead.empresa || lead.nome}`} aria-expanded={menuAbertoId === lead.id} onClick={() => setMenuAbertoId((current) => current === lead.id ? null : lead.id)} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-foreground-500 hover:bg-background-100 hover:text-foreground-900"><i className="ri-more-2-fill" /></button>{menuAbertoId === lead.id && <div className="absolute right-4 top-12 z-20 w-44 rounded-xl border border-background-200 bg-white p-1.5 shadow-lg"><button type="button" onClick={() => { setDetalhe(lead); setMenuAbertoId(null); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-foreground-700 hover:bg-background-100"><i className="ri-eye-line" />Ver detalhes</button>{canEdit && <button type="button" onClick={() => { abrirEdicao(lead); setMenuAbertoId(null); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-foreground-700 hover:bg-background-100"><i className="ri-edit-line" />Editar</button>}{canEdit && <button type="button" onClick={() => { void (lead.arquivado ? restaurarLead(lead.id) : arquivarLead(lead.id)); setMenuAbertoId(null); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-foreground-700 hover:bg-background-100"><i className={lead.arquivado ? 'ri-arrow-go-back-line' : 'ri-archive-line'} />{lead.arquivado ? 'Restaurar' : 'Arquivar'}</button>}{canDelete && <button type="button" onClick={() => { openLeadPurge([lead.id]); setMenuAbertoId(null); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-accent-700 hover:bg-accent-50"><i className="ri-delete-bin-line" />Excluir definitivamente</button>}</div>}</td></tr>;
+              <td className="relative px-4 py-4" onClick={(event) => event.stopPropagation()}><button type="button" aria-label={`Ações de ${lead.empresa || lead.nome}`} aria-expanded={menuAbertoId === lead.id} onClick={() => setMenuAbertoId((current) => current === lead.id ? null : lead.id)} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-foreground-500 hover:bg-background-100 hover:text-foreground-900"><i className="ri-more-2-fill" /></button>{menuAbertoId === lead.id && <div className="absolute right-4 top-12 z-20 w-48 rounded-xl border border-background-200 bg-white p-1.5 shadow-lg"><button type="button" onClick={() => { setDetalhe(lead); setMenuAbertoId(null); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-foreground-700 hover:bg-background-100"><i className="ri-eye-line" />Ver detalhes</button>{canEdit && <button type="button" onClick={() => { abrirEnvioParaKanban([lead.id]); setMenuAbertoId(null); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-primary-800 hover:bg-primary-50"><i className="ri-kanban-view-2-line" />Enviar ao Kanban</button>}{canEdit && <button type="button" onClick={() => { abrirEdicao(lead); setMenuAbertoId(null); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-foreground-700 hover:bg-background-100"><i className="ri-edit-line" />Editar</button>}{canEdit && <button type="button" onClick={() => { void (lead.arquivado ? restaurarLead(lead.id) : arquivarLead(lead.id)); setMenuAbertoId(null); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-foreground-700 hover:bg-background-100"><i className={lead.arquivado ? 'ri-arrow-go-back-line' : 'ri-archive-line'} />{lead.arquivado ? 'Restaurar' : 'Arquivar'}</button>}{canDelete && <button type="button" onClick={() => { openLeadPurge([lead.id]); setMenuAbertoId(null); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-accent-700 hover:bg-accent-50"><i className="ri-delete-bin-line" />Excluir definitivamente</button>}</div>}</td></tr>;
           })}
           {loadStatus !== 'loading' && filtrados.length === 0 && <tr><td colSpan={3 + colunasVisiveis.length} className="px-4 py-12 text-center text-foreground-500"><i className="ri-search-line mb-2 block text-2xl text-foreground-400" />{leads.length === 0 ? 'Nenhum lead cadastrado ainda.' : 'Nenhum lead encontrado com os filtros selecionados.'}</td></tr>}
         </tbody></table></div>
@@ -920,92 +865,39 @@ export default function Leads() {
         </div>
       </AccessibleDialog>}
 
-      {/* Modal de escolha de modo (Ana ou Humano) ao enviar para o Kanban */}
+      {/* O Kanban exibe o próprio lead: não há cartão paralelo nem ativação da Ana neste envio. */}
       {envioAlvo && (
-        <AccessibleDialog title="Encaminhar leads" className="fixed inset-0 z-50 bg-foreground-950/50 flex items-center justify-center p-4" onClose={() => { setEnvioAlvo(null); setModoSelecionado(null); setAprovacaoKanban({ confirmada: false, origem: '' }); setHandoffEtapa(''); setHandoffAssigneeId(''); setHandoffNotifyWhatsapp(false); }}>
+        <AccessibleDialog title="Encaminhar leads" className="fixed inset-0 z-50 bg-foreground-950/50 flex items-center justify-center p-4" onClose={resetEnvioParaKanban}>
           <div className="bg-background-50 rounded-xl max-w-lg w-full" onClick={(e) => e.stopPropagation()}>
             <div className="px-6 py-4 border-b border-background-200/70 flex items-center justify-between">
               <div>
                 <h3 className="font-heading font-bold text-foreground-950">Enviar para o Kanban</h3>
                 <p className="text-sm text-foreground-500">{envioAlvo.length} lead(s) selecionado(s)</p>
               </div>
-              <button onClick={() => { setEnvioAlvo(null); setModoSelecionado(null); setAprovacaoKanban({ confirmada: false, origem: '' }); setHandoffEtapa(''); setHandoffAssigneeId(''); setHandoffNotifyWhatsapp(false); }} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-background-100 cursor-pointer">
+              <button onClick={resetEnvioParaKanban} className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-background-100 cursor-pointer">
                 <i className="ri-close-line text-lg"></i>
               </button>
             </div>
             <div className="p-6">
-              <p className="text-sm text-foreground-600 mb-4">
-                Escolha quem assume o atendimento deste(s) lead(s) no funil:
+              <p className="text-sm text-foreground-600">
+                A classificação, a origem e as métricas já importadas serão preservadas. Este envio não inicia a Ana, não envia mensagens e não cria outro lead.
               </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <button
-                  onClick={() => setModoSelecionado('IA')}
-                  className={`flex flex-col items-start gap-2 p-4 rounded-xl border-2 transition-colors cursor-pointer text-left ${
-                    modoSelecionado === 'IA'
-                      ? 'border-secondary-400 bg-secondary-50 ring-2 ring-secondary-300'
-                      : 'border-background-300 bg-background-50 hover:bg-background-100 hover:border-background-400'
-                  }`}
-                >
-                  <span className="w-10 h-10 rounded-lg bg-secondary-500 text-background-50 flex items-center justify-center">
-                    <i className="ri-robot-line text-lg"></i>
-                  </span>
-                  <div>
-                    <p className="font-semibold text-foreground-900 text-sm">Ana (IA)</p>
-                    <p className="text-xs text-foreground-500 mt-1">
-                      A Ana conduz as etapas autorizadas e transfere preço, prazo, compromisso técnico e fechamento para aprovação humana.
-                    </p>
-                  </div>
-                </button>
-                <button
-                  onClick={() => setModoSelecionado('HUMANO')}
-                  className={`flex flex-col items-start gap-2 p-4 rounded-xl border-2 transition-colors cursor-pointer text-left ${
-                    modoSelecionado === 'HUMANO'
-                      ? 'border-accent-400 bg-accent-50 ring-2 ring-accent-300'
-                      : 'border-background-300 bg-background-50 hover:bg-background-100 hover:border-background-400'
-                  }`}
-                >
-                  <span className="w-10 h-10 rounded-lg bg-accent-500 text-background-50 flex items-center justify-center">
-                    <i className="ri-user-line text-lg"></i>
-                  </span>
-                  <div>
-                    <p className="font-semibold text-foreground-900 text-sm">Humano</p>
-                    <p className="text-xs text-foreground-500 mt-1">
-                      Cria uma tarefa de primeiro contato para um vendedor da equipe assumir manualmente.
-                    </p>
-                  </div>
-                </button>
+              <div className="mt-4 rounded-xl border border-background-200 bg-background-100/60 p-4 text-sm">
+                <p className="font-semibold text-foreground-900">Configuração preservada</p>
+                <ul className="mt-2 space-y-1.5 text-foreground-700">
+                  {planoEnvioParaKanban.anaLeadIds.length > 0 && <li><i className="ri-robot-line mr-1.5 text-secondary-700" />Ana (IA): {planoEnvioParaKanban.anaLeadIds.length} lead(s)</li>}
+                  {planoEnvioParaKanban.humanLeadIds.length > 0 && <li><i className="ri-user-line mr-1.5 text-accent-700" />Humano: {planoEnvioParaKanban.humanLeadIds.length} lead(s){responsaveisHumanosNoEnvio.length ? ` · ${responsaveisHumanosNoEnvio.join(', ')}` : ''}</li>}
+                  {planoEnvioParaKanban.needsRoutingLeadIds.length > 0 && <li><i className="ri-route-line mr-1.5 text-primary-700" />{planoEnvioParaKanban.needsRoutingLeadIds.length} lead(s) será(ão) vinculado(s) à carteira do Kanban.</li>}
+                  {planoEnvioParaKanban.alreadyInKanbanLeadIds.length > 0 && <li><i className="ri-checkbox-circle-line mr-1.5 text-primary-700" />{planoEnvioParaKanban.alreadyInKanbanLeadIds.length} lead(s) já está(ão) no Kanban; nenhum duplicado será criado.</li>}
+                  {planoEnvioParaKanban.unresolvedLeadIds.length > 0 && <li className="font-medium text-accent-800"><i className="ri-alert-line mr-1.5" />{planoEnvioParaKanban.unresolvedLeadIds.length} lead(s) sem modo de atendimento ou responsável técnico precisa(m) ser revisado(s) antes do envio.</li>}
+                </ul>
               </div>
-
-              {modoSelecionado === 'IA' && (
-                <div className="mt-4 pt-4 border-t border-background-100">
-                  {envioAlvo.some((id) => { const lead = leads.find((item) => item.id === id); return lead?.contactApprovalStatus !== 'approved' || !lead.whatsapp; }) && <div className="mb-4 rounded-xl border border-accent-200 bg-accent-50 p-4"><label className="flex cursor-pointer items-start gap-2 text-xs text-accent-900"><input type="checkbox" checked={aprovacaoKanban.confirmada} onChange={(e) => setAprovacaoKanban((current) => ({ ...current, confirmada: e.target.checked }))} className="mt-0.5" /><span>Confirmo que os números selecionados são WhatsApp e que os destinatários autorizaram o contato da Wayflex.</span></label>{aprovacaoKanban.confirmada && <input type="text" value={aprovacaoKanban.origem} onChange={(e) => setAprovacaoKanban((current) => ({ ...current, origem: e.target.value }))} placeholder="Origem da autorização: formulário, evento, solicitação…" className="mt-3 w-full rounded-lg border border-accent-200 bg-white px-3 py-2 text-sm text-foreground-900" />}</div>}
-                  <label className="block text-xs font-semibold text-foreground-600 mb-1.5 flex items-center gap-1.5">
-                    <i className="ri-robot-line text-secondary-600"></i>
-                    Até qual etapa a Ana atende antes de transferir pro humano?
-                  </label>
-                  <select
-                    value={handoffEtapa}
-                    onChange={(e) => setHandoffEtapa(e.target.value)}
-                    className="w-full px-4 py-2.5 bg-background-50 border border-background-300 rounded-lg text-sm text-foreground-900 cursor-pointer"
-                  >
-                    <option value="">Até o fim do funil (Ana conduz tudo)</option>
-                    {handoffStages.map((stage) => (
-                      <option key={stage} value={stage}>{handoffStageLabels[stage]}</option>
-                    ))}
-                  </select>
-                  {handoffEtapa && <div className="mt-3 space-y-3 rounded-xl border border-background-200 bg-background-100/60 p-3">
-                    <label className="block text-xs font-semibold text-foreground-600">Vendedor que assumirá a transferência<select value={handoffAssigneeId} onChange={(event) => setHandoffAssigneeId(event.target.value)} className="mt-1.5 w-full rounded-lg border border-background-300 bg-background-50 px-3 py-2 text-sm text-foreground-900"><option value="">Selecione um usuário ativo</option>{membros.map((member) => <option key={member.userId} value={member.userId}>{member.name} · {member.role}</option>)}</select></label>
-                    <label className="flex items-start gap-2 text-xs text-foreground-700"><input type="checkbox" checked={handoffNotifyWhatsapp} onChange={(event) => setHandoffNotifyWhatsapp(event.target.checked)} className="mt-0.5" /><span><strong>Enviar aviso interno por WhatsApp</strong><span className="mt-0.5 block text-foreground-500">O número é configurado em Usuários &gt; Aviso de transferência. O aviso não entra no histórico do lead.</span></span></label>
-                  </div>}
-                  <p className="text-[11px] text-foreground-400 mt-1.5">Ao atingir a etapa escolhida, a Ana pausa, cria a tarefa e transfere ao vendedor definido. A regra é gravada no servidor.</p>
-                </div>
-              )}
             </div>
             <div className="px-6 py-4 border-t border-background-200/70 flex justify-end gap-2">
-              <button onClick={() => { setEnvioAlvo(null); setModoSelecionado(null); setAprovacaoKanban({ confirmada: false, origem: '' }); setHandoffEtapa(''); setHandoffAssigneeId(''); setHandoffNotifyWhatsapp(false); }} className="px-4 py-2.5 border border-background-300 text-foreground-700 rounded-lg text-sm font-semibold hover:bg-background-100 cursor-pointer whitespace-nowrap">Cancelar</button>
+              <button onClick={resetEnvioParaKanban} className="px-4 py-2.5 border border-background-300 text-foreground-700 rounded-lg text-sm font-semibold hover:bg-background-100 cursor-pointer whitespace-nowrap">Cancelar</button>
               <button
-                onClick={() => modoSelecionado && enviarParaKanban(envioAlvo, modoSelecionado, modoSelecionado === 'IA' && handoffEtapa ? handoffEtapa as HandoffStage : undefined)}
-                disabled={!modoSelecionado || (modoSelecionado === 'IA' && Boolean(handoffEtapa) && !handoffAssigneeId) || (modoSelecionado === 'IA' && envioAlvo.some((id) => { const lead = leads.find((item) => item.id === id); return lead?.contactApprovalStatus !== 'approved' || !lead.whatsapp; }) && (!aprovacaoKanban.confirmada || !aprovacaoKanban.origem.trim()))}
+                onClick={() => void enviarParaKanban(envioAlvo)}
+                disabled={planoEnvioParaKanban.unresolvedLeadIds.length > 0}
                 className="inline-flex items-center gap-2 px-5 py-2.5 bg-primary-500 hover:bg-primary-600 disabled:bg-primary-300 disabled:cursor-not-allowed text-background-50 rounded-lg text-sm font-bold cursor-pointer whitespace-nowrap"
               >
                 <i className="ri-send-plane-2-line"></i>
