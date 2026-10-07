@@ -22,6 +22,13 @@ function memberEmail(value: unknown): string {
   return email;
 }
 
+function memberPassword(value: unknown): string {
+  if (typeof value !== 'string' || value.length < 8 || value.length > 128) {
+    throw new Error('invalid_member_password');
+  }
+  return value;
+}
+
 function reportTimeZone(value: unknown): string {
   const candidate = text(value, 80) || 'America/Sao_Paulo';
   try {
@@ -111,40 +118,36 @@ function isExistingAuthUser(error: unknown): boolean {
 
 type SellerProvisioning = {
   jobId: string;
-  whatsappAccountId: string;
-  integrationId: string;
-  instanceName: string;
   state: string;
 };
 
+const sellerProvisioningStates = new Set([
+  'queued', 'processing', 'awaiting_qr', 'completed', 'failed', 'needs_review', 'cancelled',
+]);
+
 /**
- * The database transaction creates only local, disabled records and a durable
- * queue entry. The worker is the sole process that talks to Evolution GO, so
- * a failed HTTP call can never leave an account without an auditable job.
+ * The membership transaction owns creation of the local seller account and
+ * durable queue entry. This function deliberately only reads that job: an Edge
+ * retry must never recreate an account after the membership is active.
  */
-async function enqueueSellerProvisioning(
+async function sellerProvisioningForMember(
   admin: ReturnType<typeof createAdminClient>,
-  input: { organizationId: string; userId: string; actorId: string; source: 'direct_create' | 'invite'; inviteId?: string },
-): Promise<SellerProvisioning> {
-  const { data, error } = await admin.rpc('enqueue_evolution_go_seller_provisioning', {
-    p_organization_id: input.organizationId,
-    p_user_id: input.userId,
-    p_created_by: input.actorId,
-    p_source: input.source,
-    p_invite_id: input.inviteId ?? null,
-  });
-  const row = Array.isArray(data) ? data[0] : data;
-  if (error || !row || typeof row !== 'object') throw new Error('evolution_go_provisioning_enqueue_failed');
-  const candidate = row as Record<string, unknown>;
-  const jobId = text(candidate.job_id, 80);
-  const whatsappAccountId = text(candidate.whatsapp_account_id, 80);
-  const integrationId = text(candidate.integration_id, 80);
-  const instanceName = text(candidate.instance_name, 120);
+  input: { organizationId: string; userId: string },
+): Promise<SellerProvisioning | null> {
+  const { data, error } = await admin.from('evolution_go_seller_provisioning_jobs')
+    .select('id,state')
+    .eq('organization_id', input.organizationId)
+    .eq('user_id', input.userId)
+    .maybeSingle();
+  if (error) throw new Error('evolution_go_provisioning_lookup_failed');
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
+  const candidate = data as Record<string, unknown>;
+  const jobId = text(candidate.id, 80);
   const state = text(candidate.state, 40);
-  if (!jobId || !whatsappAccountId || !integrationId || !instanceName || !state) {
-    throw new Error('evolution_go_provisioning_enqueue_failed');
+  if (!jobId || !sellerProvisioningStates.has(state)) {
+    throw new Error('evolution_go_provisioning_lookup_failed');
   }
-  return { jobId, whatsappAccountId, integrationId, instanceName, state };
+  return { jobId, state };
 }
 
 function wakeSellerProvisioningWorker(jobId: string): void {
@@ -163,6 +166,22 @@ function wakeSellerProvisioningWorker(jobId: string): void {
   runtime?.waitUntil(pending);
 }
 
+async function wakeSellerProvisioningForMember(
+  admin: ReturnType<typeof createAdminClient>,
+  input: { organizationId: string; userId: string },
+) {
+  try {
+    const provisioning = await sellerProvisioningForMember(admin, input);
+    if (!provisioning) return { provisioningState: null, provisioningWarning: 'seller_provisioning_missing' };
+    if (['queued', 'failed', 'processing'].includes(provisioning.state)) {
+      wakeSellerProvisioningWorker(provisioning.jobId);
+    }
+    return { provisioningState: provisioning.state, provisioningWarning: null };
+  } catch {
+    return { provisioningState: null, provisioningWarning: 'seller_provisioning_pending_review' };
+  }
+}
+
 Deno.serve(async (request) => {
   const options = preflight(request); if (options) return options;
   if (!hasAllowedOrigin(request)) return json({ ok: false, erro: 'origin_not_allowed' }, 403);
@@ -175,6 +194,26 @@ Deno.serve(async (request) => {
     const { user, client } = await requireUser(request);
     const admin = createAdminClient();
 
+    // Keep older clients safe as well: removal is owned by the isolated
+    // provider-reconciliation endpoint, never by the generic member RPC.
+    if (action === 'remove') {
+      const origin = request.headers.get('origin');
+      const endpoint = new URL('/functions/v1/team-member-evolution-removal', Deno.env.get('SUPABASE_URL'));
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          Authorization: request.headers.get('authorization') ?? '',
+          apikey: Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+          'Content-Type': 'application/json',
+          ...(origin ? { Origin: origin } : {}),
+        },
+        body: JSON.stringify({ action: 'remove', user_id: body.user_id }),
+        signal: AbortSignal.timeout(60_000),
+      });
+      const payload = await response.json().catch(() => ({ ok: false, erro: 'member_removal_unconfirmed' }));
+      return json(payload, response.status, headers);
+    }
+
     if (action === 'pending_invites') {
       const { data, error } = await client.rpc('team_pending_invites');
       if (error) throw error;
@@ -185,19 +224,16 @@ Deno.serve(async (request) => {
       if (!inviteId || !Number.isSafeInteger(body.revision) || Number(body.revision) < 1) throw new Error('invite_revision_required');
       const { data, error } = await client.rpc('team_invite_accept', { p_id: inviteId, p_revision: body.revision });
       if (error || !data?.organization_id) throw error ?? new Error('invite_acceptance_failed');
-      let provisioning: SellerProvisioning | null = null;
+      let provisioningState: string | null = null;
       let provisioningWarning: string | null = null;
       if (data.role === 'vendedor') {
-        try {
-          provisioning = await enqueueSellerProvisioning(admin, {
-            organizationId: data.organization_id, userId: user.id, actorId: user.id, source: 'invite', inviteId,
-          });
-        } catch { provisioningWarning = 'seller_provisioning_pending_review'; }
+        ({ provisioningState, provisioningWarning } = await wakeSellerProvisioningForMember(admin, {
+          organizationId: data.organization_id, userId: user.id,
+        }));
       }
-      if (provisioning) wakeSellerProvisioningWorker(provisioning.jobId);
-      return json({ ok: true, ...data, provisioning_warning: provisioningWarning }, 200, headers);
+      return json({ ok: true, ...data, provisioning_state: provisioningState, provisioning_warning: provisioningWarning }, 200, headers);
     }
-    if (action === 'create' || action === 'update_member' || action === 'reset_password') {
+    if (action === 'update_member' || action === 'reset_password') {
       throw new Error('global_identity_self_service_required');
     }
 
@@ -205,6 +241,58 @@ Deno.serve(async (request) => {
     if (profileError || !profile?.active_organization_id) throw new Error('organization_context_required');
     const organizationId = profile.active_organization_id;
     await requireOrganizationPermission(admin, organizationId, user.id, 'team.manage');
+
+    if (action === 'create') {
+      const name = text(body.name, 120);
+      const email = memberEmail(body.email);
+      const role = memberRole(body.role);
+      const password = memberPassword(body.password);
+      if (!name) throw new Error('invalid_member_name');
+
+      // Refuse before creating an Auth identity if the coordinated database
+      // contract, role policy or seller lifecycle trigger is unavailable.
+      const { data: readiness, error: readinessError } = await admin.rpc('team_direct_create_preflight', {
+        p_org: organizationId, p_actor: user.id, p_role: role,
+      });
+      if (readinessError || readiness?.ready !== true) {
+        throw new Error('member_creation_backend_unavailable');
+      }
+
+      const { data: created, error: createError } = await admin.auth.admin.createUser({
+        email, password, email_confirm: true,
+        user_metadata: { name, wayflex_invitation: true, wayflex_direct_create: true },
+      });
+      if (createError || !created.user) {
+        if (isExistingAuthUser(createError)) throw new Error('member_email_already_registered');
+        throw new Error('member_creation_failed');
+      }
+
+      const { data: attached, error: attachError } = await admin.rpc('team_direct_create_attach', {
+        p_org: organizationId, p_actor: user.id, p_user: created.user.id,
+        p_email: email, p_name: name, p_role: role,
+      });
+      // Never delete a new global identity as compensation after an ambiguous
+      // database response: another tenant may have legitimately attached it.
+      if (attachError || attached?.user_id !== created.user.id) {
+        throw new Error('member_creation_pending_review');
+      }
+
+      const provisioning = role === 'vendedor'
+        ? await wakeSellerProvisioningForMember(admin, { organizationId, userId: created.user.id })
+        : { provisioningState: null, provisioningWarning: null };
+      const provisioningNeedsReview = Boolean(provisioning.provisioningWarning)
+        || ['needs_review', 'cancelled', 'failed'].includes(provisioning.provisioningState ?? '');
+      return json({
+        ok: true, user_id: created.user.id, role,
+        provisioning_state: provisioning.provisioningState,
+        provisioning_warning: provisioning.provisioningWarning,
+        message: role === 'vendedor'
+          ? provisioningNeedsReview
+            ? 'Usuário criado. O vínculo Evolution GO precisa de revisão antes do QR Code.'
+            : 'Usuário criado. A instância individual Evolution GO foi vinculada e será preparada pelo servidor.'
+          : 'Usuário criado com o papel selecionado.',
+      }, 201, headers);
+    }
 
     if (action === 'policy_get') {
       return json({ ok: true, policy: await loadSecurityPolicy(admin, organizationId) }, 200, headers);
@@ -270,7 +358,6 @@ Deno.serve(async (request) => {
     const { data: current, error: currentError } = await admin.from('organization_members').select('role,status')
       .eq('organization_id', organizationId).eq('user_id', targetUserId).maybeSingle();
     if (currentError || !current) throw currentError ?? new Error('member_not_found');
-    if (action === 'remove' && targetUserId === user.id) throw new Error('member_self_deletion_protected');
 
     if (action === 'permissions_get') {
       const { data: rows, error } = await admin.from('team_member_permissions')
@@ -376,13 +463,21 @@ Deno.serve(async (request) => {
     }
 
     if (action === 'set_status' && typeof body.enabled !== 'boolean') throw new Error('member_status_required');
+    const requestedRole = action === 'update_role' ? memberRole(body.role) : null;
     const { data, error } = await client.rpc('team_member_change', {
       p_org: organizationId, p_user: targetUserId, p_action: action,
-      p_role: action === 'update_role' ? memberRole(body.role) : null,
+      p_role: requestedRole,
       p_enabled: action === 'set_status' ? body.enabled : null,
     });
     if (error) throw error;
-    return json({ ok: true, ...data }, 200, headers);
+    const sellerActivated = (action === 'update_role' && requestedRole === 'vendedor'
+      && current.role !== 'vendedor' && current.status === 'active')
+      || (action === 'set_status' && body.enabled === true && current.status !== 'active' && current.role === 'vendedor');
+    const provisioning = sellerActivated
+      ? await wakeSellerProvisioningForMember(admin, { organizationId, userId: targetUserId })
+      : { provisioningState: null, provisioningWarning: null };
+    return json({ ok: true, ...data, provisioning_state: provisioning.provisioningState,
+      provisioning_warning: provisioning.provisioningWarning }, 200, headers);
   } catch (error) {
     return json({ ok: false, erro: safeError(error) }, 400, headers);
   }
