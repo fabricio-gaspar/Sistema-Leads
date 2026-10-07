@@ -11,7 +11,7 @@ import { useCurrentAccess } from '@/hooks/useCurrentAccess';
 import { hasAnyPermission } from '@/lib/crm/currentAccessRepository';
 import { roleLabel, type TeamPermission } from '@/lib/crm/teamMembersRepository';
 import { loadMyEvolutionGoAccount } from '@/lib/crm/whatsappAccountsRepository';
-import { evolutionGoOnboardingSessionKey, evolutionGoSellerNeedsOnboarding } from '@/lib/crm/evolutionGoOnboarding';
+import { evolutionGoOnboardingSessionKey, evolutionGoSellerNeedsPairing } from '@/lib/crm/evolutionGoOnboarding';
 import './wayflex-visual.css';
 import './wayflex-redesign.css';
 
@@ -43,7 +43,7 @@ const navSections: NavSection[] = [
     title: 'Atendimento',
     items: [
       { label: 'Kanban', path: '/dashboard/kanban', icon: 'ri-layout-masonry-line', anyOf: ['leads.read_all', 'leads.read_assigned'] },
-      { label: 'Central de Atendimento', path: '/dashboard/atendimento', icon: 'ri-customer-service-2-line', anyOf: ['conversations.read_all', 'conversations.reply_all', 'conversations.reply_assigned'] },
+      { label: 'Central de Atendimento', path: '/dashboard/atendimento', icon: 'ri-customer-service-2-line', anyOf: ['conversations.read_all', 'conversations.reply_all', 'conversations.reply_assigned', 'channels.view_own', 'channels.connect_own'] },
       { label: 'Agenda', path: '/dashboard/agenda', icon: 'ri-calendar-event-line', anyOf: ['conversations.read_all', 'conversations.reply_all', 'conversations.reply_assigned'] },
     ],
   },
@@ -138,11 +138,10 @@ export default function DashboardLayout() {
       .filter((section) => section.items.length > 0);
   }, [access, navQuery]);
 
-  const sellerCanConnectOwnWhatsapp = access?.role === 'vendedor'
-    && hasAnyPermission(access, ['channels.connect_own']);
+  const canConnectOwnWhatsapp = hasAnyPermission(access, ['channels.connect_own']);
 
   useEffect(() => {
-    if (loading || accessLoading || !user || !sellerCanConnectOwnWhatsapp || location.pathname !== '/dashboard') return;
+    if (loading || accessLoading || !user || !canConnectOwnWhatsapp || location.pathname !== '/dashboard') return;
 
     const sessionKey = evolutionGoOnboardingSessionKey(user.id);
     try {
@@ -157,17 +156,17 @@ export default function DashboardLayout() {
     let active = true;
     void loadMyEvolutionGoAccount()
       .then((status) => {
-        if (!active || !evolutionGoSellerNeedsOnboarding(status)) return;
+        if (!active || !evolutionGoSellerNeedsPairing(status)) return;
         try { window.sessionStorage.setItem(sessionKey, 'shown'); } catch { /* storage is optional */ }
         navigate('/dashboard/atendimento', { replace: true });
       })
       // The normal Dashboard must remain available if the connection read is
-      // temporarily unavailable. The seller can still use the Central to
-      // retry the private QR connection safely.
+      // temporarily unavailable. The seller can still use the unified Central to
+      // retry the private QR connection safely from the unified Central.
       .catch(() => undefined);
 
     return () => { active = false; };
-  }, [accessLoading, loading, location.pathname, navigate, sellerCanConnectOwnWhatsapp, user]);
+  }, [accessLoading, canConnectOwnWhatsapp, loading, location.pathname, navigate, user]);
 
   if (loading) {
     return (
@@ -189,8 +188,7 @@ export default function DashboardLayout() {
   const naoLidas = notif.naoLidas;
   const tarefasPendentes = tarefas.tarefas.filter((t) => !t.concluida).length;
   const badgeAtencao = naoLidas + tarefasPendentes;
-  const allowedItems = filteredSections.flatMap((section) => section.items);
-  const currentPage = allowedItems.find((item) => item.path === location.pathname) ?? navItems[0];
+  const currentPage = navItems.find((item) => item.path === location.pathname) ?? navItems[0];
   const canConfigure = hasAnyPermission(access, ['configuration.manage']);
 
   return (
@@ -227,7 +225,7 @@ export default function DashboardLayout() {
           </button>
         </div>
 
-        {sidebarOpen && (
+        {isMobile && sidebarOpen && (
           <div className="px-3 pt-3">
             <label className="relative block">
               <span className="sr-only">Buscar uma tela</span>
@@ -321,7 +319,7 @@ export default function DashboardLayout() {
       </aside>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="wf-shell-content flex-1 flex flex-col overflow-hidden">
         {/* Top Header */}
         <header className="wf-topbar bg-background-50 border-b border-background-200/70 px-4 py-3 xl:px-6 flex items-center justify-between gap-4 flex-shrink-0">
           <div className="flex items-center gap-4">
@@ -339,9 +337,35 @@ export default function DashboardLayout() {
               <i className="ri-arrow-right-s-line text-foreground-300" aria-hidden="true" />
               <span className="font-semibold text-foreground-800">{currentPage.label}</span>
             </nav>
+            <div className="wf-global-search relative hidden min-w-[15rem] lg:block">
+              <label className="sr-only" htmlFor="global-screen-search">Buscar uma tela</label>
+              <i className="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-sm" aria-hidden="true" />
+              <input
+                id="global-screen-search"
+                value={navQuery}
+                onChange={(event) => setNavQuery(event.target.value)}
+                placeholder="Buscar uma tela"
+                className="w-full pl-9 pr-3"
+              />
+              {navQuery.trim() && (
+                <div className="wf-global-search-results" aria-label="Telas encontradas" aria-live="polite">
+                  {filteredSections.length > 0 ? filteredSections.map((section) => (
+                    <div key={section.title}>
+                      <p>{section.title}</p>
+                      {section.items.map((item) => (
+                        <Link key={item.path} to={item.path} onClick={() => setNavQuery('')} className="wf-global-search-result">
+                          <i className={item.icon} aria-hidden="true" />
+                          <span>{item.label}</span>
+                        </Link>
+                      ))}
+                    </div>
+                  )) : <p className="wf-global-search-empty">Nenhuma tela encontrada.</p>}
+                </div>
+              )}
+            </div>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="wf-topbar-actions flex items-center gap-2 sm:gap-3">
             {canConfigure && <ModoExecucaoToggle />}
 
             {canConfigure && <SaudeWhatsappIndicator />}
