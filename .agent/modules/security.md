@@ -1,5 +1,9 @@
 # Segurança
 
+## 07/10/2026 — Exceção controlada para criação de identidade nova
+
+O administrador ativo da organização pode criar uma **nova** identidade Auth com senha inicial após preflight service-role. Contas globais existentes não são adotadas, editadas ou redefinidas; permissão `team.manage` delegada a outro papel não basta. A RPC restrita ao service role confirma perfil/vínculo em uma transação e rejeita bootstrap Auth incompatível. A senha não entra em perfil/auditoria/resposta. A troca após o primeiro acesso ainda não é obrigatória. Código e migration apenas locais; o gatilho Auth remoto não é compatível.
+
 ## 05/10/2026 — R4/R5 e revisão independente locais
 
 Convite possui revisão, expiração/cancelamento e aceite por usuário de email confirmado; papéis configurados são validados no backend. Metadata declarativa não concede papel/empresa. Operações sobre senha/identidade global foram removidas da administração de vínculo. MFA de UI não é enforcement Auth; proteção de senha vazada continua aviso remoto. Sessão frontend é cercada por identidade/empresa/geração, sem substituir RLS. Agenda restringe carteira. Nenhuma alteração em Auth/cliente real; ver R4/R5/R9 e revisões em `docs/remediacao/2026-10-05-r4-r14/`.
