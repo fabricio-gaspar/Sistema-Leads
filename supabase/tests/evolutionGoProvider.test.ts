@@ -103,8 +103,18 @@ describe('EvolutionGoProvider', () => {
     await expect(provider.qr()).resolves.toMatchObject({ qrcode: 'data:image/png;base64,synthetic' });
     expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({
       webhookUrl: 'https://crm.wayflex.example/webhook',
+      immediate: true,
       subscribe: ['MESSAGE', 'SEND_MESSAGE', 'READ_RECEIPT', 'CONNECTION', 'QRCODE'],
     });
+  });
+
+  it('can explicitly defer the runtime only when a caller requests it', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ data: {} }), { status: 200 }));
+    const provider = new EvolutionGoProvider({ baseUrl: 'https://evolution.wayflex.example', instanceToken: 'token', allowedOrigins, fetchImpl: fetchMock });
+
+    await provider.connect({ webhookUrl: 'https://crm.wayflex.example/webhook', immediate: false });
+
+    expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toMatchObject({ immediate: false });
   });
 
   it('sends a pairing request with only the phone and accepts the documented data.code response', async () => {
@@ -113,5 +123,16 @@ describe('EvolutionGoProvider', () => {
 
     await expect(provider.pair('+55 (11) 98888-7777')).resolves.toBe('12345678');
     expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({ phone: '5511988887777' });
+  });
+
+  it.each([
+    ['no QR code available. Please wait a moment and try again', 'evolution_go_qr_pending'],
+    ['failed to start instance: upstream detail', 'evolution_go_qr_start_failed'],
+    ['invalid QR code format', 'evolution_go_qr_invalid_format'],
+    ['session already logged in', 'evolution_go_instance_already_connected'],
+  ])('classifies the documented QR rejection without exposing the provider body: %s', async (upstream, expected) => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ error: upstream }), { status: 400 }));
+    const provider = new EvolutionGoProvider({ baseUrl: 'https://evolution.wayflex.example', instanceToken: 'token', allowedOrigins, fetchImpl: fetchMock });
+    await expect(provider.qr()).rejects.toThrow(expected);
   });
 });
