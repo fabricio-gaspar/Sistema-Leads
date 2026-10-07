@@ -25,7 +25,7 @@ describe('CORS das Edge Functions', () => {
     }
   });
 
-  it('respeita uma lista explícita de origens e recusa origens fora dela', async () => {
+  it('mantém as origens homologadas ao adicionar uma lista explícita e recusa origens fora dela', async () => {
     stubEnv({ ALLOWED_ORIGINS: `${productionOrigin}, https://crm.example.com` });
     const { hasAllowedOrigin, preflight } = await import('../functions/_shared/http.ts');
 
@@ -38,8 +38,15 @@ describe('CORS das Edge Functions', () => {
       headers: { Origin: 'https://crm.example.com' },
     });
 
-    expect(hasAllowedOrigin(localRequest)).toBe(false);
-    expect(preflight(localRequest)?.status).toBe(403);
+    expect(hasAllowedOrigin(localRequest)).toBe(true);
+    expect(preflight(localRequest)?.status).toBe(204);
     expect(hasAllowedOrigin(allowedRequest)).toBe(true);
+
+    const rejectedRequest = new Request('https://example.invalid/function', {
+      method: 'OPTIONS',
+      headers: { Origin: 'https://untrusted.example.com' },
+    });
+    expect(hasAllowedOrigin(rejectedRequest)).toBe(false);
+    expect(preflight(rejectedRequest)?.status).toBe(403);
   });
 });
