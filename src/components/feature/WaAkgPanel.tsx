@@ -19,6 +19,7 @@ import {
 
 type Mode = 'administration' | 'self-service';
 type Surface = 'whatsapp' | 'central';
+type Presentation = 'primary' | 'contingency';
 type Status = WaAkgChannelStatus & { account: NonNullable<WaAkgChannelStatus['account']> };
 type Notice = { tone: 'success' | 'error'; text: string };
 
@@ -57,9 +58,13 @@ function badge(status: Status | null) {
   return { label: 'Desconectado', css: 'bg-[#EEF1F3] text-[#68757D]' };
 }
 
-export default function WaAkgPanel({ mode = 'administration', surface = 'whatsapp' }: { mode?: Mode; surface?: Surface }) {
+export default function WaAkgPanel({ mode = 'administration', surface = 'whatsapp', presentation = 'primary' }: { mode?: Mode; surface?: Surface; presentation?: Presentation }) {
   const selfService = mode === 'self-service';
   const inCentral = surface === 'central';
+  const administrationEyebrow = presentation === 'contingency' ? 'Canal de contingência' : 'Canal principal';
+  const administrationDescription = presentation === 'contingency'
+    ? 'Canal alternativo com sessão isolada por vendedor. A conexão continua protegida até as validações administrativas serem concluídas.'
+    : 'Uma sessão isolada por vendedor, com QR próprio, fila persistente e automação centralizada na Ana.';
   const navigate = useNavigate();
   const [accounts, setAccounts] = useState<Status[]>([]);
   const [selectedId, setSelectedId] = useState('');
@@ -219,7 +224,7 @@ export default function WaAkgPanel({ mode = 'administration', surface = 'whatsap
 
   return <section id={selfService ? (inCentral ? 'central-whatsapp-account' : 'my-wa-akg-account') : 'wa-akg-configuration'} className="wf-surface overflow-hidden">
     <header className="flex flex-col gap-3 border-b border-background-200 px-5 py-4 sm:flex-row sm:items-start sm:justify-between">
-      <div className="flex gap-3"><span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#E8F7EF] text-xl text-[#168654]"><i className="ri-whatsapp-line" /></span><div><p className="wf-eyebrow">{selfService ? 'Canal individual' : 'Canal principal'}</p><h2 className="mt-1 text-lg font-bold text-foreground-950">{selfService ? (inCentral ? 'Conectar meu WhatsApp' : 'Meu WhatsApp') : 'WA-AKG + Ana'}</h2><p className="mt-1 text-xs leading-5 text-foreground-500">{selfService ? (inCentral ? 'Conecte seu número aqui. Recebimento e envio dependem de autorização administrativa; a conexão não libera a Ana.' : 'Conecte seu número; suas conversas aparecem na Central de Atendimento.') : 'Uma sessão isolada por vendedor, com QR próprio, fila persistente e automação centralizada na Ana.'}</p></div></div>
+      <div className="flex gap-3"><span className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#E8F7EF] text-xl text-[#168654]"><i className="ri-whatsapp-line" /></span><div><p className="wf-eyebrow">{selfService ? 'Canal individual' : administrationEyebrow}</p><h2 className="mt-1 text-lg font-bold text-foreground-950">{selfService ? (inCentral ? 'Conectar meu WhatsApp' : 'Meu WhatsApp') : 'WA-AKG + Ana'}</h2><p className="mt-1 text-xs leading-5 text-foreground-500">{selfService ? (inCentral ? 'Conecte seu número aqui. Recebimento e envio dependem de autorização administrativa; a conexão não libera a Ana.' : 'Conecte seu número; suas conversas aparecem na Central de Atendimento.') : administrationDescription}</p></div></div>
       <div className="flex gap-2"><button type="button" className="wf-btn-secondary text-xs" disabled={Boolean(busy)} onClick={() => void refresh()}><i className={busy === 'refresh' ? 'ri-loader-4-line animate-spin' : 'ri-refresh-line'} />Atualizar</button>{canManage && <button type="button" className="wf-btn-primary text-xs" onClick={() => setGatewayOpen((value) => !value)}><i className="ri-settings-3-line" />Configurar gateway</button>}</div>
     </header>
 
@@ -233,7 +238,7 @@ export default function WaAkgPanel({ mode = 'administration', surface = 'whatsap
       {canManage && <div className="flex flex-col gap-2 rounded-xl border border-background-200 bg-background-50 p-3 sm:flex-row sm:items-end"><label className="flex-1 text-xs font-medium text-foreground-700">Criar canal individual<select className="mt-1.5 w-full rounded-lg border border-background-200 bg-white px-3 py-2 text-sm" value={ownerUserId} onChange={(event) => setOwnerUserId(event.target.value)}><option value="">Selecione o vendedor</option>{members.map((member) => <option key={member.userId} value={member.userId}>{member.name} · {member.email}</option>)}</select></label><button type="button" className="wf-btn-secondary text-xs disabled:opacity-60" disabled={Boolean(busy) || !ownerUserId} onClick={() => void createSeller()}><i className="ri-user-add-line" />Criar conta</button></div>}
 
       {accounts.length === 0 ? <div className="rounded-xl border border-dashed border-background-300 bg-background-50 p-7 text-center"><i className="ri-qr-code-line text-3xl text-foreground-300" /><p className="mt-2 font-semibold text-foreground-800">{selfService ? 'Seu canal ainda não foi criado' : 'Nenhuma conta WA-AKG'}</p><p className="mx-auto mt-1 max-w-xl text-xs leading-5 text-foreground-500">{selfService ? 'Quando o administrador criar seu acesso, a sessão será provisionada automaticamente e o QR aparecerá aqui.' : 'Configure o gateway e crie uma conta individual para cada vendedor.'}</p></div> : <>
-        {!selfService && <div className="flex gap-2 overflow-x-auto pb-1">{accounts.map((item) => <button key={item.account.id} type="button" onClick={() => { setSelectedId(item.account.id); setQr(null); setPairingCode(''); }} className={`min-w-56 rounded-xl border p-3 text-left ${item.account.id === selected?.account.id ? 'border-primary-300 bg-primary-50' : 'border-background-200 bg-white'}`}><span className="block truncate text-sm font-semibold text-foreground-900">{item.account.label}</span><span className="mt-1 block text-[11px] text-foreground-500">{item.account.accountType === 'seller' ? 'Vendedor individual' : 'Configuração do gateway'}</span></button>)}</div>}
+        {!selfService && <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">{accounts.map((item) => <button key={item.account.id} type="button" onClick={() => { setSelectedId(item.account.id); setQr(null); setPairingCode(''); }} className={`min-w-0 rounded-xl border p-3 text-left ${item.account.id === selected?.account.id ? 'border-primary-300 bg-primary-50' : 'border-background-200 bg-white'}`}><span className="block truncate text-sm font-semibold text-foreground-900">{item.account.label}</span><span className="mt-1 block text-[11px] text-foreground-500">{item.account.accountType === 'seller' ? 'Vendedor individual' : 'Configuração do gateway'}</span></button>)}</div>}
 
         {selected && <article className="rounded-xl border border-background-200 p-4"><div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex flex-wrap items-center gap-2"><h3 className="font-semibold text-foreground-950">{selected.account.label}</h3><span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${selectedBadge.css}`}>{selectedBadge.label}</span></div><p className="mt-1 text-xs text-foreground-500">{selected.account.accountType === 'seller' ? 'Sessão privada; mensagens saem pelo número deste vendedor.' : 'Conta administrativa; não envia até ser explicitamente ativada.'}</p></div><div className="flex flex-wrap gap-2">{canManage && selected.account.accountType === 'seller' && !selected.configured && <button type="button" className="wf-btn-primary text-xs" disabled={Boolean(busy)} onClick={() => void run('provision', () => provisionWaAkgAccount(selected.account.id), 'Sessão criada. O vendedor já pode abrir a Central e ler o QR Code.')}><i className="ri-cloud-line" />{busy === 'provision' ? 'Provisionando…' : 'Provisionar sessão'}</button>}<button type="button" className="wf-btn-secondary text-xs" disabled={Boolean(busy)} onClick={() => void run('status', () => runWaAkgAction('refresh_status', selected.account.id), 'Status atualizado diretamente do WA-AKG.')}><i className="ri-refresh-line" />Atualizar status</button></div></div>
 
