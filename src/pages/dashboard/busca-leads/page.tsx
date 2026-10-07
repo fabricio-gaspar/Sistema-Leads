@@ -53,7 +53,9 @@ import {
 const estados = ['SP', 'RJ', 'MG', 'PR', 'SC', 'RS', 'BA', 'PE', 'GO', 'DF'];
 const fasesBusca = ['Iniciando a busca', 'Aguardando resposta da fonte', 'Preparando a revisão'];
 const PROSPECTING_REQUEST_STORAGE_KEY = 'wayflex.prospecting.pending-request.v1';
-const SAMPLE_SIZE = 10;
+const DEFAULT_PROSPECTING_VOLUME = 10;
+const MAX_PROSPECTING_VOLUME = 100;
+const PROSPECTING_VOLUME_PRESETS = [10, 20, 50, 100] as const;
 
 type SampleClassification = 'adequada' | 'fora_do_perfil' | 'duplicada' | 'sem_contato_util';
 const SAMPLE_CLASSIFICATIONS: Array<{ id: SampleClassification; label: string }> = [
@@ -225,7 +227,7 @@ export default function BuscaLeads() {
   const [termosBusca, setTermosBusca] = useState<string[]>([]);
   const [novoTermo, setNovoTermo] = useState('');
   const [segmentoSugestao, setSegmentoSugestao] = useState('');
-  const [leadsDia, setLeadsDia] = useState(30);
+  const [leadsDia, setLeadsDia] = useState(DEFAULT_PROSPECTING_VOLUME);
   const [temSite, setTemSite] = useState<boolean | null>(null);
   const [temWhatsApp, setTemWhatsApp] = useState<boolean | null>(null);
   const [temEmail, setTemEmail] = useState<boolean | null>(null);
@@ -313,6 +315,7 @@ export default function BuscaLeads() {
     terms: termosAplicados,
   }), [cidade, fonteSelecionada, ofertaEmpresa, termosAplicados]);
   const wizardBlockReason = prospectingWizardBlockReason(wizardStep, wizardDraft, buscando);
+  const searchActionLabel = `Buscar ${leadsDia} ${leadsDia === 1 ? 'lead' : 'leads'}`;
 
   useEffect(() => {
     if (wizardError && !validateProspectingWizardStep(wizardStep, wizardDraft)) {
@@ -537,7 +540,7 @@ export default function BuscaLeads() {
     try { window.sessionStorage.removeItem(`${PROSPECTING_REQUEST_STORAGE_KEY}:${context.userId}:${context.organizationId}`); } catch { /* armazenamento indisponível */ }
   };
 
-  const testarAmostra = () => { void executarBusca(SAMPLE_SIZE); };
+  const buscarLeads = () => { void executarBusca(leadsDia); };
 
   const aguardarResultadoApify = async (sourceKey: string, runId: string): Promise<ProspectingResponse> => {
     for (let attempt = 0; attempt < 30; attempt += 1) {
@@ -614,6 +617,9 @@ export default function BuscaLeads() {
     } as Record<string, string>)[fonteNome] || '';
 
     try {
+      if (!Number.isInteger(requestedVolume) || requestedVolume < 1 || requestedVolume > MAX_PROSPECTING_VOLUME) {
+        throw new Error('prospecting_volume_invalid');
+      }
       if (operationalMode !== 'real') throw new Error('operational_mode_protected');
       if (!fontesDisponiveis.some((item) => item.id === fonteSelecionada)) throw new Error('source_disabled');
       if (!sourceKey) throw new Error('source_not_configured');
@@ -697,6 +703,7 @@ export default function BuscaLeads() {
       prospecting_run_reservation_failed: 'Não foi possível reservar esta busca com segurança. Nenhum novo pedido foi enviado ao provedor.',
       prospecting_city_required: 'Informe a cidade antes de buscar.',
       prospecting_terms_required: 'Adicione pelo menos um termo de busca para evitar uma consulta ampla e imprecisa.',
+      prospecting_volume_invalid: `Informe uma quantidade entre 1 e ${MAX_PROSPECTING_VOLUME} leads.`,
       prospecting_run_not_started: `A fonte não confirmou o início da execução. A busca não foi enviada para revisão.`,
       prospecting_run_not_found: `A execução não pertence à empresa ativa ou não está mais disponível para consulta.`,
       prospecting_run_not_pending: `A execução já não está pendente. Atualize a página antes de iniciar uma nova busca.`,
@@ -759,7 +766,7 @@ export default function BuscaLeads() {
 
     setWizardError(null);
     if (wizardStep === 4) {
-      testarAmostra();
+      buscarLeads();
       return;
     }
 
@@ -1251,6 +1258,17 @@ export default function BuscaLeads() {
                   {wizardStep === 4 && (
                   <>
                   <section className="rounded-2xl border border-background-200/80 bg-white p-4 shadow-sm">
+                    <div className="mb-3 flex items-start gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary-100 text-primary-700"><i className="ri-group-line" aria-hidden="true" /></span><div><h3 className="text-sm font-heading font-bold text-foreground-900">Quantidade de leads</h3><p className="mt-0.5 text-xs text-foreground-500">Defina o limite da busca antes de consultar a fonte.</p></div></div>
+                    <label className="block text-xs font-semibold text-foreground-700" htmlFor="prospecting-volume">Quantos leads deseja buscar?
+                      <input id="prospecting-volume" aria-label="Quantidade de leads" type="number" min={1} max={MAX_PROSPECTING_VOLUME} step={1} value={leadsDia} onChange={(event) => { const volume = Number(event.target.value); if (Number.isFinite(volume)) setLeadsDia(Math.max(1, Math.min(MAX_PROSPECTING_VOLUME, Math.trunc(volume)))); }} className="mt-1.5 w-full rounded-lg border border-background-300 bg-background-50 px-3 py-2 text-sm text-foreground-900" />
+                    </label>
+                    <div className="mt-3 flex flex-wrap gap-2" aria-label="Sugestões de quantidade">
+                      {PROSPECTING_VOLUME_PRESETS.map((volume) => <button key={volume} type="button" aria-pressed={leadsDia === volume} onClick={() => setLeadsDia(volume)} className={`rounded-lg border px-3 py-1.5 text-xs font-semibold ${leadsDia === volume ? 'border-primary-400 bg-primary-50 text-primary-800' : 'border-background-300 bg-white text-foreground-700 hover:border-primary-300'}`}>{volume} leads</button>)}
+                    </div>
+                    <p className="mt-2 text-xs leading-5 text-foreground-500">O provedor aceita de 1 a {MAX_PROSPECTING_VOLUME} leads por busca; o limite escolhido segue no payload e na revisão.</p>
+                  </section>
+
+                  <section className="rounded-2xl border border-background-200/80 bg-white p-4 shadow-sm">
                     <div className="mb-3 flex items-start gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary-100 text-primary-700"><i className="ri-equalizer-2-line" aria-hidden="true" /></span><div><h3 className="text-sm font-heading font-bold text-foreground-900">3. Critérios de qualificação</h3><p className="mt-0.5 text-xs text-foreground-500">Defina o que precisa estar presente para entrar na amostra.</p></div></div>
                     <div className="flex flex-wrap gap-x-5 gap-y-2 text-xs font-medium text-foreground-700">
                       <label className="inline-flex cursor-pointer items-center gap-2"><input type="checkbox" checked={temSite === true} onChange={() => setTemSite(temSite === true ? null : true)} /> Site informado</label>
@@ -1285,10 +1303,11 @@ export default function BuscaLeads() {
                       <div className="flex justify-between py-2"><dt className="text-background-400">Perfil</dt><dd className="font-semibold">{tipoEmpresaAlvoLabel}</dd></div>
                       <div className="flex justify-between py-2"><dt className="text-background-400">Segmentos</dt><dd className="font-semibold">{segmentosCliente.length}</dd></div>
                       <div className="flex justify-between py-2"><dt className="text-background-400">Termos</dt><dd className="font-semibold">{termosAplicados.length}</dd></div>
+                      <div className="flex justify-between py-2"><dt className="text-background-400">Quantidade</dt><dd className="font-semibold">{leadsDia} lead{leadsDia === 1 ? '' : 's'}</dd></div>
                       <div className="flex justify-between py-2"><dt className="text-background-400">Obrigatórios</dt><dd className="font-semibold">{[temSite, temWhatsApp, temEmail].filter(Boolean).length}</dd></div>
                     </dl>
-                    <div className="mt-4 border-t border-white/10 pt-4"><p className="flex items-center gap-2 text-xs font-semibold text-primary-200"><span className="h-2 w-2 rounded-full bg-primary-400" />{wizardStep === 4 ? 'Pronto para validar a amostra' : `Próximo: ${PROSPECTING_WIZARD_STEPS.find((step) => step.id === nextProspectingWizardStep(wizardStep))?.label}`}</p><p className="mt-1 text-xs leading-5 text-background-300">A primeira consulta real continua limitada a 10 empresas.</p></div>
-                    <button type="button" onClick={avancar} aria-describedby={wizardBlockReason ? 'wizard-block-reason' : undefined} disabled={wizardStep !== 4 || Boolean(wizardBlockReason)} className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-primary-500 px-3 py-2.5 text-sm font-heading font-bold text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:bg-primary-800">{buscando ? <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />Buscando...</> : <><i className="ri-search-eye-line" aria-hidden="true" />Testar com 10 empresas</>}</button>
+                    <div className="mt-4 border-t border-white/10 pt-4"><p className="flex items-center gap-2 text-xs font-semibold text-primary-200"><span className="h-2 w-2 rounded-full bg-primary-400" />{wizardStep === 4 ? 'Pronto para buscar' : `Próximo: ${PROSPECTING_WIZARD_STEPS.find((step) => step.id === nextProspectingWizardStep(wizardStep))?.label}`}</p><p className="mt-1 text-xs leading-5 text-background-300">A consulta real respeitará o limite selecionado de {leadsDia} lead{leadsDia === 1 ? '' : 's'}.</p></div>
+                    <button type="button" onClick={avancar} aria-describedby={wizardBlockReason ? 'wizard-block-reason' : undefined} disabled={wizardStep !== 4 || Boolean(wizardBlockReason)} className="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-primary-500 px-3 py-2.5 text-sm font-heading font-bold text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:bg-primary-800">{buscando ? <><span className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />Buscando...</> : <><i className="ri-search-eye-line" aria-hidden="true" />{searchActionLabel}</>}</button>
                     <button type="button" onClick={() => { setHistoricoAberto(true); setAba('salvas'); }} className="mt-2 w-full rounded-lg border border-white/25 px-3 py-2 text-xs font-semibold text-white hover:bg-white/10">Ver buscas salvas</button>
                   </section>
                   <section className="rounded-2xl border border-background-200 bg-white p-4"><h3 className="flex items-center gap-2 text-sm font-heading font-bold text-foreground-900"><i className="ri-lightbulb-flash-line text-primary-600" aria-hidden="true" />Como a amostra melhora a busca</h3><ol className="mt-3 space-y-3 text-xs leading-5 text-foreground-600"><li className="flex gap-2"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary-100 font-bold text-primary-700">1</span>Valide o público encontrado.</li><li className="flex gap-2"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary-100 font-bold text-primary-700">2</span>Classifique os resultados fora do perfil.</li><li className="flex gap-2"><span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-primary-100 font-bold text-primary-700">3</span>Ajuste termos antes da busca completa.</li></ol></section>
@@ -1302,7 +1321,7 @@ export default function BuscaLeads() {
                   <p className="mt-0.5 text-xs text-foreground-500">{wizardStep === 4 ? 'A consulta só começa após este comando.' : 'Nenhuma busca é realizada enquanto você preenche.'}</p>
                 </div>
                 <button type="button" onClick={avancar} aria-describedby={wizardBlockReason ? 'wizard-block-reason' : undefined} disabled={Boolean(wizardBlockReason)} className="inline-flex items-center gap-2 rounded-lg bg-primary-500 px-5 py-2.5 text-sm font-bold text-white hover:bg-primary-600 disabled:cursor-not-allowed disabled:bg-primary-300">
-                  {wizardStep === 2 ? 'Continuar para o perfil' : wizardStep === 3 ? 'Continuar para os critérios' : buscando ? 'Buscando...' : 'Testar com 10 empresas'}
+                  {wizardStep === 2 ? 'Continuar para o perfil' : wizardStep === 3 ? 'Continuar para os critérios' : buscando ? 'Buscando...' : searchActionLabel}
                   {!buscando && <i className={wizardStep === 4 ? 'ri-search-eye-line' : 'ri-arrow-right-line'} aria-hidden="true" />}
                 </button>
               </div>
