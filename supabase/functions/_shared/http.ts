@@ -15,7 +15,9 @@ function configuredAllowedOrigins(): string[] {
   // retain it in addition to the two known application origins so that a
   // production configuration cannot accidentally disable local homologation.
   const configuredList = Deno.env.get('ALLOWED_ORIGINS');
-  if (configuredList) return parseOrigins(configuredList);
+  // A configuração explícita restringe origens adicionais, mas não pode
+  // remover os dois ambientes homologados e conhecidos deste aplicativo.
+  if (configuredList) return [...new Set([...DEFAULT_ALLOWED_ORIGINS, ...parseOrigins(configuredList)])];
 
   const legacyOrigin = Deno.env.get('ALLOWED_ORIGIN');
   return [...new Set([...DEFAULT_ALLOWED_ORIGINS, ...(legacyOrigin ? parseOrigins(legacyOrigin) : [])])];
