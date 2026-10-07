@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   evolutionGoOnboardingSessionKey,
-  evolutionGoSellerNeedsOnboarding,
+  evolutionGoSellerNeedsPairing,
   isEvolutionGoAutomationReady,
   isEvolutionGoOperational,
 } from './evolutionGoOnboarding';
@@ -60,23 +60,32 @@ describe('Evolution GO seller onboarding', () => {
   it('recognizes a fully confirmed private channel as operational', () => {
     expect(isEvolutionGoOperational(status())).toBe(true);
     expect(isEvolutionGoAutomationReady(status())).toBe(true);
-    expect(evolutionGoSellerNeedsOnboarding(status())).toBe(false);
+    expect(evolutionGoSellerNeedsPairing(status())).toBe(false);
   });
 
-  it('keeps QR, inactive and globally protected channels in onboarding', () => {
+  it('sends only a connectable own seller account that lacks a physical connection to pairing', () => {
     const awaitingQr = status({ account: { ...status().account!, connectionStatus: 'qr' } });
+    const disconnected = status({ account: { ...status().account!, connectionStatus: 'disconnected' } });
     const inactive = status({ account: { ...status().account!, enabled: false } });
     const protectedChannel = status({ controls: { ...status().controls!, sendEnabled: false } });
 
-    expect(evolutionGoSellerNeedsOnboarding(awaitingQr)).toBe(true);
-    expect(evolutionGoSellerNeedsOnboarding(inactive)).toBe(true);
-    expect(evolutionGoSellerNeedsOnboarding(protectedChannel)).toBe(true);
+    expect(evolutionGoSellerNeedsPairing(awaitingQr)).toBe(true);
+    expect(evolutionGoSellerNeedsPairing(disconnected)).toBe(true);
+    expect(evolutionGoSellerNeedsPairing(inactive)).toBe(false);
+    expect(evolutionGoSellerNeedsPairing(protectedChannel)).toBe(false);
+    expect(isEvolutionGoOperational(inactive)).toBe(false);
+    expect(isEvolutionGoOperational(protectedChannel)).toBe(false);
     expect(isEvolutionGoOperational(status({ controls: { ...status().controls!, automationEnabled: false } }))).toBe(true);
     expect(isEvolutionGoAutomationReady(status({ controls: { ...status().controls!, automationEnabled: false } }))).toBe(false);
   });
 
-  it('treats a still-provisioning account as onboarding pending and scopes its session key to the user', () => {
-    expect(evolutionGoSellerNeedsOnboarding(status({ account: null, integration: null, controls: null }))).toBe(true);
+  it('does not infer seller eligibility from a missing, corporate, or view-only account', () => {
+    expect(evolutionGoSellerNeedsPairing(status({ account: null, integration: null, controls: null }))).toBe(false);
+    expect(evolutionGoSellerNeedsPairing(status({ account: { ...status().account!, accountType: 'corporate' } }))).toBe(false);
+    expect(evolutionGoSellerNeedsPairing(status({ canConnect: false, account: { ...status().account!, connectionStatus: 'qr' } }))).toBe(false);
+  });
+
+  it('scopes the onboarding session key to the user', () => {
     expect(evolutionGoOnboardingSessionKey('seller-a')).toBe('wayflex.evolution-go-onboarding:seller-a');
     expect(evolutionGoOnboardingSessionKey('seller-a')).not.toBe(evolutionGoOnboardingSessionKey('seller-b'));
   });
