@@ -111,7 +111,8 @@ export async function loadTeamMembers(): Promise<TeamMember[]> {
 
 async function mutate<T extends Record<string, unknown> = Record<string, unknown>>(action: string, payload: Record<string, unknown>): Promise<T> {
   const context = sessionContext.get();
-  const { data, error } = await supabase.functions.invoke('team-members', { body: { action, ...payload } });
+  const functionName = action === 'remove' ? 'team-member-evolution-removal' : 'team-members';
+  const { data, error } = await supabase.functions.invoke(functionName, { body: { action, ...payload } });
   sessionContext.assertCurrent(context);
   if (error || !data?.ok) throw new Error(data?.erro ?? await detalheDoErroDeFuncao(error));
   if (['update_role', 'set_status', 'remove', 'permissions_set'].includes(action)) {
@@ -123,6 +124,16 @@ async function mutate<T extends Record<string, unknown> = Record<string, unknown
 
 export async function inviteTeamMember(input: { name: string; email: string; role: TeamRole }): Promise<Record<string, unknown>> {
   return mutate('invite', input);
+}
+
+export async function createTeamMember(input: { name: string; email: string; password: string; role: TeamRole }): Promise<{
+  user_id: string;
+  role: TeamRole;
+  provisioning_state: string | null;
+  provisioning_warning: string | null;
+  message: string;
+}> {
+  return mutate('create', input);
 }
 
 export interface DailyLeadReportSettings {
@@ -149,7 +160,8 @@ export async function setTeamMemberStatus(userId: string, enabled: boolean): Pro
 }
 
 export async function removeTeamMember(userId: string): Promise<void> {
-  await mutate('remove', { user_id: userId });
+  const result = await mutate<{ identity_deleted?: boolean }>('remove', { user_id: userId });
+  if (result.identity_deleted !== true) throw new Error('member_identity_deletion_unconfirmed');
 }
 
 export async function loadTeamMemberPermissions(userId: string): Promise<{ role: TeamRole; permissions: Record<TeamPermission, boolean> }> {
