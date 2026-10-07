@@ -44,10 +44,9 @@ export default function Dashboard() {
   const [liveUpdates, setLiveUpdates] = useState(true);
   const [panelPreferencesOpen, setPanelPreferencesOpen] = useState(false);
   const { access } = useCurrentAccess();
-  const sellerOwnWhatsapp = access?.role === 'vendedor'
-    && hasAnyPermission(access, ['channels.connect_own']);
-  const whatsappWorkspaceLink = sellerOwnWhatsapp ? '/dashboard/atendimento' : '/dashboard/configuracoes?tab=canais';
-  const whatsappWorkspaceLabel = sellerOwnWhatsapp ? 'Conectar WhatsApp' : 'Ver canal';
+  const canUseOwnWhatsapp = hasAnyPermission(access, ['channels.view_own', 'channels.connect_own']);
+  const whatsappWorkspaceLink = canUseOwnWhatsapp ? '/dashboard/meu-whatsapp' : '/dashboard/configuracoes?tab=canais';
+  const whatsappWorkspaceLabel = canUseOwnWhatsapp ? 'Meu WhatsApp' : 'Ver canal';
 
   useEffect(() => {
     let disposed = false;
@@ -103,7 +102,7 @@ export default function Dashboard() {
 
   const operationalItems = [
     { label: 'Ana', icon: 'ri-robot-2-line', ...diagnosticStatus(operacao?.status.killSwitch ? 'Pausada' : operacao?.status.productionReady ? 'Pronta' : 'Pendente', operacao?.status.productionReady && !operacao.status.killSwitch ? 'positive' : 'attention'), detail: 'Prontidão e pausa operacional da Ana. Estar pronta não é prova de envio ou entrega.', link: '/dashboard/configuracoes?tab=ana' },
-    { label: 'WhatsApp', icon: 'ri-whatsapp-line', ...diagnosticStatus(whatsappMonitoring?.state === 'stable' ? 'Estável' : whatsappMonitoring?.state === 'paused' ? 'Pausado' : whatsappMonitoring?.state === 'attention' ? 'Requer atenção' : whatsappMonitoring?.state === 'unavailable' ? 'Indisponível' : 'Não configurado', whatsappMonitoring?.state === 'stable' ? 'positive' : whatsappMonitoring?.state === 'unavailable' ? 'critical' : 'attention'), detail: sellerOwnWhatsapp ? 'Conecte ou valide sua conta Evolution GO na Central. O indicador resume o canal da empresa.' : whatsappMonitoring?.detail ?? 'Estado do canal confirmado pelo backend.', link: whatsappWorkspaceLink },
+    { label: 'WhatsApp', icon: 'ri-whatsapp-line', ...diagnosticStatus(whatsappMonitoring?.state === 'stable' ? 'Estável' : whatsappMonitoring?.state === 'paused' ? 'Pausado' : whatsappMonitoring?.state === 'attention' ? 'Requer atenção' : whatsappMonitoring?.state === 'unavailable' ? 'Indisponível' : 'Não configurado', whatsappMonitoring?.state === 'stable' ? 'positive' : whatsappMonitoring?.state === 'unavailable' ? 'critical' : 'attention'), detail: canUseOwnWhatsapp ? 'Conecte ou valide somente sua conta Evolution GO em Meu WhatsApp. O indicador resume o canal da empresa.' : whatsappMonitoring?.detail ?? 'Estado do canal confirmado pelo backend.', link: whatsappWorkspaceLink },
     { label: 'Busca', icon: 'ri-map-pin-search-line', ...diagnosticStatus(apify?.label ?? 'Não configurada', apify?.tone ?? 'neutral'), detail: apifyIntegration?.detail ?? 'Estado da integração de busca Apify.', link: '/dashboard/configuracoes?tab=apis' },
     { label: 'Processamento', icon: 'ri-pulse-line', ...diagnosticStatus(processing.label, processing.tone), detail: processing.detail, link: '/dashboard/configuracoes?tab=operacao' },
   ];
