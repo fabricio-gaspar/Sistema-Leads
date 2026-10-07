@@ -132,7 +132,7 @@ async function recordFor(admin: Admin, organizationId: string, accountId: string
   if (error) throw new Error('evolution_go_account_lookup_failed');
   if (!account) return null;
   const { data: integration, error: integrationError } = await admin.from('integrations')
-    .select('id,key,label,provider,connected,enabled,paused,last_tested_at,last_success_at,last_error,status_detail,configuration')
+    .select('id,key,label,provider,connected,enabled,paused,last_tested_at,last_success_at,last_error,status_detail,configuration,updated_at')
     .eq('id', account.integration_id).eq('organization_id', organizationId).maybeSingle();
   if (integrationError || !integration) throw new Error('evolution_go_integration_lookup_failed');
   const integrationProvider = text(integration.provider, 80).toLowerCase().replace(/[^a-z0-9]+/g, '_');
@@ -259,6 +259,7 @@ async function createRecord(
 
 function publicStatus(record: AccountRecord, actor: ActorContext) {
   const configuration = object(record.integration.configuration);
+  const serverValidation = object(configuration.server_validation);
   const controls = record.controls ?? {
     inbound_enabled: false,
     send_enabled: false,
@@ -295,6 +296,14 @@ function publicStatus(record: AccountRecord, actor: ActorContext) {
       // the only public diagnostic identifier.
       lastError: record.account.last_error_code ?? null,
       baseUrlConfigured: Boolean(configuration.base_url_configured),
+      serverConfigured: accountType(record.account) === 'corporate'
+        && configuration.base_url_configured === true
+        && (configuration.global_api_key_configured === true || configuration.configured === true),
+      serverValidation: accountType(record.account) === 'corporate' && actor.canManage ? {
+        status: serverValidation.status === 'passed' || serverValidation.status === 'failed' ? serverValidation.status : 'not_tested',
+        checkedAt: text(serverValidation.checked_at, 40) || null,
+        errorCode: text(serverValidation.error_code, 100) || null,
+      } : null,
       instanceName: configuration.instance_name ?? null,
       version: configuration.provider_version ?? null,
     },
@@ -378,39 +387,26 @@ async function prepareUnauthenticatedRuntime(
   await step(() => provider.connect({
     webhookUrl,
     subscribe: true,
-    immediate: false,
+    // Retained for compatible servers. Evolution GO 0.7.2 starts the client
+    // from /instance/connect regardless of this optional request field.
+    immediate: true,
   }), true);
   return 'ready';
 }
 
-const QR_STARTUP_RETRY_DELAY_MS = 1_500;
-const QR_STARTUP_MAX_ATTEMPTS = 5;
-
 /**
- * The GO service can acknowledge `/instance/connect` before its WhatsApp
- * client has produced the first code. During that short window it returns a
- * retryable 400 from the read-only QR endpoint. Retrying this GET is safe and
- * avoids making an operator manually race the provider's startup sequence.
+ * Despite being a GET, Evolution GO's QR endpoint can start a WhatsApp client
+ * and open a database pool when no client exists. An unavailable QR therefore
+ * must not trigger automatic retries: a saturated database would receive a
+ * new startup attempt each time. The operator can retry after server recovery.
  */
-async function freshQr(provider: EvolutionGoProvider, webhookUrl: string, step: LifecycleStep) {
-  let lastError: unknown;
-  for (let attempt = 0; attempt < QR_STARTUP_MAX_ATTEMPTS; attempt += 1) {
-    try {
-      return await step(() => provider.qr());
-    } catch (error) {
-      lastError = error;
-      if (safeError(error) !== 'evolution_go_request_rejected_400' || attempt + 1 === QR_STARTUP_MAX_ATTEMPTS) throw error;
-      if (attempt === 0) {
-        // A stale, pre-connection client can keep returning a retryable QR
-        // error indefinitely. Reset it once, then restore the webhook before
-        // polling again. This is scoped to the current seller instance.
-        await step(() => provider.reconnect(), true);
-        await step(() => provider.connect({ webhookUrl, subscribe: true, immediate: false }), true);
-      }
-      await new Promise<void>((resolve) => setTimeout(resolve, QR_STARTUP_RETRY_DELAY_MS));
-    }
+async function freshQr(provider: EvolutionGoProvider) {
+  try {
+    return await provider.qr();
+  } catch (error) {
+    if (safeError(error) === 'evolution_go_qr_pending') throw new Error('evolution_go_qr_runtime_not_ready');
+    throw error;
   }
-  throw lastError instanceof Error ? lastError : new Error('evolution_go_qr_unavailable');
 }
 
 /** Creates an Evolution GO instance once. Deliberately never retries a POST: an
@@ -453,6 +449,17 @@ async function createInstance(body: Row, existingSecret: Row, defaultName: strin
   };
 }
 
+async function markServerValidationPending(admin: Admin, actor: ActorContext, record: AccountRecord) {
+  const { error } = await admin.from('integrations').update({
+    configuration: {
+      ...object(record.integration.configuration),
+      server_validation: { status: 'not_tested', checked_at: null, error_code: null },
+    },
+    updated_at: new Date().toISOString(),
+  }).eq('id', record.integration.id).eq('organization_id', actor.organizationId);
+  if (error) throw new Error('evolution_go_server_configuration_save_failed');
+}
+
 async function saveConfiguration(admin: Admin, body: Row, actor: ActorContext, record: AccountRecord) {
   const label = text(body.label, 120) || text(record.account.label, 120) || 'WhatsApp Evolution GO';
   const existing = await secretFor(admin, String(record.integration.id));
@@ -469,6 +476,9 @@ async function saveConfiguration(admin: Admin, body: Row, actor: ActorContext, r
   const retryAttempts = Math.min(Math.max(Number(body.retry_attempts ?? existing.retry_attempts ?? 0), 0), 3);
   if (!baseUrlInput || !globalApiKey || !instanceToken || !instanceName) throw new Error('evolution_go_credentials_required');
   const baseUrl = normalizeEvolutionGoBaseUrl(baseUrlInput, allowedOrigins());
+  const serverCredentialsChanged = baseUrl !== text(existing.base_url, 500)
+    || globalApiKey !== text(existing.global_api_key, 1_000);
+  if (serverCredentialsChanged) await markServerValidationPending(admin, actor, record);
   const webhookSecret = text(existing.webhook_secret, 256) || randomSecret();
   const credentials = {
     base_url: baseUrl,
@@ -504,6 +514,8 @@ async function saveConfiguration(admin: Admin, body: Row, actor: ActorContext, r
       ...persistedConfiguration,
       configured: true,
       base_url_configured: true,
+      global_api_key_configured: true,
+      ...(serverCredentialsChanged ? { server_validation: { status: 'not_tested', checked_at: null, error_code: null } } : {}),
       instance_name: instanceName,
       provider_version: '0.7.2',
       timeout_ms: timeoutMs,
@@ -525,6 +537,96 @@ async function saveConfiguration(admin: Admin, body: Row, actor: ActorContext, r
   if (integrationError || accountError) {
     throw new Error('evolution_go_configuration_state_save_failed');
   }
+  return await recordFor(admin, actor.organizationId, String(record.account.id));
+}
+
+/** Store only the organization's corporate gateway settings, without creating
+ * an instance, connecting WhatsApp, or opening any messaging gate. */
+async function saveServerConfiguration(admin: Admin, body: Row, actor: ActorContext, record: AccountRecord) {
+  if (accountType(record.account) !== 'corporate') throw new Error('evolution_go_corporate_account_required');
+  if (record.account.enabled === true || record.integration.enabled === true || record.integration.connected === true) {
+    throw new Error('evolution_go_server_change_requires_inactive_account');
+  }
+  const existing = await secretFor(admin, String(record.integration.id));
+  const baseUrlInput = text(body.base_url, 500) || text(existing.base_url, 500);
+  const globalApiKey = text(body.global_api_key, 1_000) || text(existing.global_api_key, 1_000);
+  if (!baseUrlInput || !globalApiKey) throw new Error('evolution_go_server_credentials_required');
+  const baseUrl = normalizeEvolutionGoBaseUrl(baseUrlInput, allowedOrigins());
+  // Close the provisioning gate before changing the Vault secret. A concurrent
+  // worker can otherwise use a new key under an old successful test.
+  await markServerValidationPending(admin, actor, record);
+  const { error: secretError } = await admin.rpc('store_integration_secret', {
+    p_integration: record.integration.id,
+    p_secret: { ...existing, base_url: baseUrl, global_api_key: globalApiKey },
+  });
+  if (secretError) throw new Error('evolution_go_credentials_save_failed');
+  const { data: stored, error: readError } = await admin.from('integrations')
+    .select('configuration').eq('id', record.integration.id).eq('organization_id', actor.organizationId).maybeSingle();
+  if (readError || !stored) throw new Error('evolution_go_secret_reference_read_failed');
+  const { error: updateError } = await admin.from('integrations').update({
+    configuration: {
+      ...object(stored.configuration),
+      base_url_configured: true,
+      global_api_key_configured: true,
+      server_validation: { status: 'not_tested', checked_at: null, error_code: null },
+    },
+    connected: false,
+    enabled: false,
+    paused: true,
+    status_detail: 'Servidor cadastrado com segurança. Teste o acesso antes de preparar instâncias.',
+    updated_at: new Date().toISOString(),
+  }).eq('id', record.integration.id).eq('organization_id', actor.organizationId);
+  if (updateError) throw new Error('evolution_go_server_configuration_save_failed');
+  return await recordFor(admin, actor.organizationId, String(record.account.id));
+}
+
+/** GET /instance/all uses the global key and does not pair, send, or mutate
+ * the provider. Validate only the response envelope; never log or persist the list. */
+async function testServerConnection(admin: Admin, actor: ActorContext, record: AccountRecord) {
+  if (accountType(record.account) !== 'corporate') throw new Error('evolution_go_corporate_account_required');
+  const secret = await secretFor(admin, String(record.integration.id));
+  const baseUrlInput = text(secret.base_url, 500);
+  const globalApiKey = text(secret.global_api_key, 1_000);
+  if (!baseUrlInput || !globalApiKey) throw new Error('evolution_go_server_credentials_required');
+  const baseUrl = normalizeEvolutionGoBaseUrl(baseUrlInput, allowedOrigins());
+  let errorCode: string | null = null;
+  try {
+    const response = await fetch(new URL('/instance/all', baseUrl), {
+      method: 'GET',
+      headers: { apikey: globalApiKey, Accept: 'application/json' },
+      signal: AbortSignal.timeout(10_000),
+      redirect: 'error',
+    });
+    if (response.status === 401 || response.status === 403) errorCode = 'evolution_go_server_auth_failed';
+    else if (response.status === 404) errorCode = 'evolution_go_server_contract_mismatch';
+    else if (!response.ok) errorCode = `evolution_go_server_http_${response.status}`;
+    else if (!response.headers.get('content-type')?.toLowerCase().includes('application/json')) {
+      errorCode = 'evolution_go_server_invalid_response';
+    } else {
+      const envelope = object(await response.json().catch(() => null));
+      if (envelope.message !== 'success' || !Array.isArray(envelope.data)) {
+        errorCode = 'evolution_go_server_invalid_response';
+      }
+    }
+  } catch {
+    errorCode = 'evolution_go_server_unreachable';
+  }
+  const checkedAt = new Date().toISOString();
+  const { data: updated, error: updateError } = await admin.from('integrations').update({
+    configuration: {
+      ...object(record.integration.configuration),
+      server_validation: { status: errorCode ? 'failed' : 'passed', checked_at: checkedAt, error_code: errorCode },
+    },
+    last_tested_at: checkedAt,
+    ...(errorCode ? { last_error: errorCode, last_error_at: checkedAt } : {
+      last_success_at: checkedAt, last_error: null, last_error_at: null,
+    }),
+    status_detail: errorCode ? 'O teste do servidor falhou. Revise o diagnóstico antes de conectar vendedores.'
+      : 'Servidor Evolution GO autenticado. Instâncias individuais ainda exigem provisionamento e pareamento.',
+    updated_at: checkedAt,
+  }).eq('id', record.integration.id).eq('organization_id', actor.organizationId)
+    .eq('updated_at', record.integration.updated_at).select('id').maybeSingle();
+  if (updateError || !updated) throw new Error('evolution_go_server_test_save_failed');
   return await recordFor(admin, actor.organizationId, String(record.account.id));
 }
 
@@ -569,29 +671,23 @@ Deno.serve(async (request) => {
 
     if (action === 'create_account') {
       if (!actor.canManage) throw new Error('permission_denied');
-      if (await recordFor(admin, actor.organizationId, accountId)) throw new Error('evolution_go_account_already_exists');
       const type = body.account_type === 'seller' ? 'seller' : body.account_type === 'corporate' ? 'corporate' : '';
       if (!type) throw new Error('evolution_go_account_type_required');
-      const ownerUserId = type === 'seller' ? uuid(body.owner_user_id) : null;
-      if (type === 'seller' && !ownerUserId) throw new Error('evolution_go_account_owner_required');
-      if (ownerUserId) {
-        const { data: owner, error: ownerError } = await admin.from('organization_members')
-          .select('status').eq('organization_id', actor.organizationId).eq('user_id', ownerUserId).maybeSingle();
-        if (ownerError || !owner || owner.status !== 'active') throw new Error('evolution_go_account_owner_inactive');
-      }
-      const label = text(body.label, 120)
-        || (type === 'seller' ? 'WhatsApp Evolution GO pessoal' : 'WhatsApp Evolution GO corporativo');
-      const record = await createRecord(admin, actor, { accountId, type, ownerUserId, label });
+      // Seller accounts are created with their membership and durable
+      // provisioning job.  Letting this endpoint create one would bypass the
+      // tenant/user binding that later protects QR and conversation history.
+      if (type === 'seller') throw new Error('evolution_go_seller_provisioned_by_membership');
+      if (await recordFor(admin, actor.organizationId, accountId)) throw new Error('evolution_go_account_already_exists');
+      const label = text(body.label, 120) || 'WhatsApp Evolution GO corporativo';
+      const record = await createRecord(admin, actor, { accountId, type, ownerUserId: null, label });
       await audit(admin, {
         organizationId: actor.organizationId,
         userId: actor.userId,
         actorName: actor.actorName,
         action: 'whatsapp.evolution_go_account_created',
         entityId: accountId,
-        detail: type === 'seller'
-          ? 'Conta Evolution GO privada criada para o proprietário informado.'
-          : 'Conta Evolution GO corporativa compartilhada criada.',
-        data: { account_type: type, owner_user_id: ownerUserId },
+        detail: 'Conta Evolution GO corporativa compartilhada criada.',
+        data: { account_type: type, owner_user_id: null },
       });
       return json({ ok: true, ...publicStatus(record, actor) }, 200, headers);
     }
@@ -602,12 +698,40 @@ Deno.serve(async (request) => {
       return json({ ok: true, ...publicStatus(record, actor), lifecycle }, 200, headers);
     }
 
+    if (action === 'save_server' || action === 'test_server') {
+      const current = await accessibleRecord(admin, actor, accountId, 'manage');
+      const updated = action === 'save_server'
+        ? await saveServerConfiguration(admin, body, actor, current)
+        : await testServerConnection(admin, actor, current);
+      if (!updated) throw new Error('evolution_go_record_missing');
+      await audit(admin, { organizationId: actor.organizationId, userId: actor.userId,
+        actorName: actor.actorName, action: action === 'save_server'
+          ? 'whatsapp.evolution_go_server_configured' : 'whatsapp.evolution_go_server_tested',
+        entityId: accountId, detail: action === 'save_server'
+          ? 'Configuração protegida do servidor Evolution GO atualizada.'
+          : 'Acesso administrativo ao servidor Evolution GO verificado sem envio de mensagens.',
+        data: action === 'test_server'
+          ? { status: object(object(updated.integration.configuration).server_validation).status }
+          : undefined });
+      return json({ ok: true, ...publicStatus(updated, actor) }, 200, headers);
+    }
+
     if (action === 'save' || action === 'create_instance') {
       const current = await accessibleRecord(admin, actor, accountId, 'manage');
+      // Private seller instances come exclusively from the membership
+      // provisioning transaction.  Their owner may later pair/connect, but
+      // cannot create or replace the instance through an admin-style flow.
+      if (accountType(current.account) === 'seller') {
+        throw new Error('evolution_go_seller_provisioned_by_membership');
+      }
       const result = await runAccountLifecycle(admin, { organizationId: actor.organizationId, accountId,
         provider: 'evolution_go', actorId: actor.userId }, action, async (step) => {
         let configuration = body;
         if (action === 'create_instance') {
+          const validationStatus = text(object(object(current.integration.configuration).server_validation).status, 30);
+          if (validationStatus && validationStatus !== 'passed') {
+            throw new Error('evolution_go_server_validation_required');
+          }
           const existingSecret = await secretFor(admin, String(current.integration.id));
           const created = await step(() => createInstance(body, existingSecret,
             text(current.account.label, 120) || 'WhatsApp Evolution GO'), true);
@@ -642,6 +766,31 @@ Deno.serve(async (request) => {
     }
     if (!ACCOUNT_ACTIONS.has(action)) throw new Error('unsupported_action');
     const record = await accessibleRecord(admin, actor, accountId, 'connect');
+    if (action === 'qr') {
+      // Connect/provisioning has already registered the webhook. Do not call
+      // connect again: the QR endpoint can itself start a missing runtime.
+      // Never release messaging gates as part of obtaining the temporary QR.
+      const before = await accountLifecycleStatus(admin, lifecycleContext);
+      if (before.state === 'pending' || before.state === 'in_flight' || before.state === 'needs_review') {
+        const needsReview = before.state === 'needs_review';
+        return json({ ok: false, error: needsReview ? 'account_lifecycle_needs_review' : 'account_lifecycle_pending',
+          lifecycle: before }, needsReview ? 409 : 202, { ...headers, 'Cache-Control': 'no-store' });
+      }
+      if (before.desiredAction === 'deactivate') throw new Error('evolution_go_connection_start_required');
+      if (record.account.connection_status !== 'qr' || !record.account.webhook_registered_at) {
+        throw new Error('evolution_go_connection_start_required');
+      }
+      const provider = providerFrom(await secretFor(admin, String(record.integration.id)));
+      const qr = await freshQr(provider);
+      if (!qr.qrcode?.startsWith('data:image/')) throw new Error('evolution_go_qr_unavailable');
+      const after = await accountLifecycleStatus(admin, lifecycleContext);
+      const current = await recordFor(admin, actor.organizationId, accountId);
+      if (after.revision !== before.revision || after.state !== before.state
+        || current?.account.connection_status !== 'qr' || !current.account.webhook_registered_at) {
+        throw new Error('evolution_go_connection_start_required');
+      }
+      return json({ ok: true, qr }, 200, { ...headers, 'Cache-Control': 'no-store' });
+    }
     const result = await runAccountLifecycle(admin, lifecycleContext, action, async (step) => {
       const secret = await secretFor(admin, String(record.integration.id));
       const provider = providerFrom(secret);
@@ -649,7 +798,7 @@ Deno.serve(async (request) => {
         const webhookSecret = text(secret.webhook_secret, 256);
         if (!webhookSecret) throw new Error('evolution_go_credentials_incomplete');
         await step(() => provider.connect({
-          webhookUrl: callbackUrl(String(record.integration.id), webhookSecret), subscribe: true, immediate: false,
+          webhookUrl: callbackUrl(String(record.integration.id), webhookSecret), subscribe: true, immediate: true,
         }), true);
         return { connectionStatus: 'qr', webhookRegistered: true };
       }
@@ -667,17 +816,12 @@ Deno.serve(async (request) => {
         if (action === 'activate' && !connected) throw new Error('evolution_go_connection_validation_required');
         return { connected, phoneSuffix: phoneSuffix(current.phone) };
       }
-      if (action === 'qr' || action === 'pair') {
+      if (action === 'pair') {
         const webhookSecret = text(secret.webhook_secret, 256);
         if (!webhookSecret) throw new Error('evolution_go_credentials_incomplete');
         const webhookUrl = callbackUrl(String(record.integration.id), webhookSecret);
         const runtime = await prepareUnauthenticatedRuntime(provider, webhookUrl, step);
         if (runtime === 'already_connected') throw new Error('evolution_go_instance_already_connected');
-        if (action === 'qr') {
-          const qr = await freshQr(provider, webhookUrl, step);
-          if (!qr.qrcode?.startsWith('data:image/')) throw new Error('evolution_go_qr_unavailable');
-          return { connectionStatus: 'qr', webhookRegistered: true, payload: { qr } };
-        }
         let pairingCode: string;
         try { pairingCode = await step(() => provider.pair(text(body.phone, 32)), true); }
         catch (error) {
