@@ -99,6 +99,7 @@ function integration(id: string, label: string, enabled = false): Row {
     last_tested_at: '2026-10-03T12:00:00.000Z',
     last_success_at: '2026-10-03T12:00:00.000Z',
     last_error: null,
+    updated_at: '2026-10-03T12:00:00.000Z',
     status_detail: enabled ? 'Operacional' : 'Protegido',
     configuration: {
       configured: true,
@@ -325,6 +326,9 @@ beforeEach(() => {
   });
   fetchMock = vi.fn(async (url: string | URL) => {
     const path = new URL(String(url)).pathname;
+    if (path === '/instance/all') return new Response(JSON.stringify({ message: 'success', data: [] }), {
+      status: 200, headers: { 'Content-Type': 'application/json' },
+    });
     const data = path.endsWith('/instance/qr')
       ? { qrcode: 'data:image/png;base64,synthetic-qr', code: 'QR-CODE' }
       : path.endsWith('/instance/pair')
@@ -336,6 +340,123 @@ beforeEach(() => {
 });
 
 describe('Evolution GO multi-account handler', () => {
+  it('stores corporate server credentials without creating an instance or enabling routing, then validates read-only access', async () => {
+    state.userId = administratorId;
+    state.permissions = { 'channels.manage_all': true };
+    accounts.find((item) => item.id === secondCorporateAccountId)!.connection_status = 'unconfigured';
+    integrations.find((item) => item.id === secondCorporateIntegrationId)!.connected = false;
+    await import('../functions/evolution-go/index');
+
+    const saved = await handler(request('save_server', { account_id: secondCorporateAccountId,
+      base_url: 'https://evo-eisenflow.kz3solucoes.cloud', global_api_key: 'new-synthetic-global-key-must-not-leak' }));
+    expect(saved.status).toBe(200);
+    expect(await saved.json()).toMatchObject({ account: { enabled: false }, integration: {
+      enabled: false, connected: false, paused: true, serverConfigured: true,
+      serverValidation: { status: 'not_tested' },
+    } });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(secrets.get(secondCorporateIntegrationId)).toMatchObject({
+      global_api_key: 'new-synthetic-global-key-must-not-leak',
+      instance_token: 'synthetic-instance-token-must-not-leak',
+    });
+    const status = await handler(request('status', { account_id: secondCorporateAccountId }));
+    expect(JSON.stringify(await status.json())).not.toContain('new-synthetic-global-key-must-not-leak');
+
+    const tested = await handler(request('test_server', { account_id: secondCorporateAccountId }));
+    expect(tested.status).toBe(200);
+    expect(await tested.json()).toMatchObject({ account: { enabled: false }, integration: {
+      enabled: false, connected: false, serverValidation: { status: 'passed' },
+    } });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const [url, options] = fetchMock.mock.calls[0] as [URL, RequestInit];
+    expect(new URL(String(url)).pathname).toBe('/instance/all');
+    expect(options).toMatchObject({ method: 'GET', headers: {
+      apikey: 'new-synthetic-global-key-must-not-leak', Accept: 'application/json',
+    } });
+    expect(accounts.find((item) => item.id === secondCorporateAccountId)).toMatchObject({ enabled: false });
+  });
+
+  it('reports invalid global credentials without exposing them or opening seller access', async () => {
+    state.userId = administratorId;
+    state.permissions = { 'channels.manage_all': true };
+    fetchMock.mockResolvedValueOnce(new Response('', { status: 401 }));
+    await import('../functions/evolution-go/index');
+
+    const response = await handler(request('test_server', { account_id: secondCorporateAccountId }));
+    const body = await response.json();
+    expect(response.status).toBe(200);
+    expect(body.integration).toMatchObject({ serverValidation: {
+      status: 'failed', errorCode: 'evolution_go_server_auth_failed',
+    } });
+    expect(JSON.stringify(body)).not.toContain('synthetic-global-key-must-not-leak');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(accounts.find((item) => item.id === secondCorporateAccountId)).toMatchObject({ enabled: false });
+  });
+
+  it('does not approve an unrelated JSON endpoint as an Evolution GO server', async () => {
+    state.userId = administratorId;
+    state.permissions = { 'channels.manage_all': true };
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ ok: true }), {
+      status: 200, headers: { 'Content-Type': 'application/json' },
+    }));
+    await import('../functions/evolution-go/index');
+    const response = await handler(request('test_server', { account_id: secondCorporateAccountId }));
+    expect(await response.json()).toMatchObject({ integration: { serverValidation: {
+      status: 'failed', errorCode: 'evolution_go_server_invalid_response',
+    } } });
+  });
+
+  it('does not allow a seller to read or change corporate server credentials', async () => {
+    await import('../functions/evolution-go/index');
+    for (const action of ['save_server', 'test_server']) {
+      const response = await handler(request(action, { account_id: secondCorporateAccountId,
+        global_api_key: 'untrusted-client-value' }));
+      expect(response.status).toBe(400);
+    }
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(calls.filter((call) => call.table === 'read_integration_secret')).toHaveLength(0);
+  });
+
+  it('blocks instance creation after a server is saved until its access test passes', async () => {
+    state.userId = administratorId;
+    state.permissions = { 'channels.manage_all': true };
+    integrations.find((item) => item.id === secondCorporateIntegrationId)!.configuration = {
+      configured: true, server_validation: { status: 'not_tested' },
+    };
+    await import('../functions/evolution-go/index');
+    const response = await handler(request('create_instance', { account_id: secondCorporateAccountId }));
+    expect(response.status).toBeGreaterThanOrEqual(400);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('invalidates an earlier server test if legacy instance configuration replaces the global key', async () => {
+    state.userId = administratorId;
+    state.permissions = { 'channels.manage_all': true };
+    integrations.find((item) => item.id === secondCorporateIntegrationId)!.configuration = {
+      configured: true, server_validation: { status: 'passed', checked_at: '2026-10-03T12:00:00.000Z' },
+    };
+    await import('../functions/evolution-go/index');
+    const response = await handler(request('save', { account_id: secondCorporateAccountId,
+      global_api_key: 'rotated-synthetic-key' }));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ integration: {
+      serverValidation: { status: 'not_tested' },
+    } });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects changing a live corporate server without modifying its stored secret', async () => {
+    state.userId = administratorId;
+    state.permissions = { 'channels.manage_all': true };
+    await import('../functions/evolution-go/index');
+    const before = { ...secrets.get(corporateIntegrationId) };
+    const response = await handler(request('save_server', { account_id: corporateAccountId,
+      global_api_key: 'should-not-be-stored' }));
+    expect(response.status).toBeGreaterThanOrEqual(400);
+    expect(secrets.get(corporateIntegrationId)).toEqual(before);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('persists the provider-issued ID after creating an instance without unsupported fields', async () => {
     state.userId = administratorId;
     state.permissions = { 'channels.manage_all': true };
@@ -407,6 +528,9 @@ describe('Evolution GO multi-account handler', () => {
   });
 
   it('returns QR only to an administrator or the private-account owner and never reveals another seller account', async () => {
+    accounts.find((item) => item.id === corporateAccountId)!.connection_status = 'qr';
+    accounts.find((item) => item.id === ownerAccountId)!.connection_status = 'qr';
+    accounts.find((item) => item.id === otherAccountId)!.connection_status = 'qr';
     fetchMock.mockImplementation(async (url: string | URL) => {
       const path = new URL(String(url)).pathname;
       const data = path.endsWith('/instance/status')
@@ -472,6 +596,7 @@ describe('Evolution GO multi-account handler', () => {
   });
 
   it('requests a fresh QR even while Evolution GO still reports its startup status as disconnected', async () => {
+    accounts.find((item) => item.id === ownerAccountId)!.connection_status = 'qr';
     fetchMock.mockImplementation(async (url: string | URL) => {
       const path = new URL(String(url)).pathname;
       if (path.endsWith('/instance/status')) {
@@ -490,11 +615,13 @@ describe('Evolution GO multi-account handler', () => {
     expect(response.status, JSON.stringify(await response.clone().json())).toBe(200);
     expect(await response.json()).toMatchObject({ ok: true, qr: { qrcode: 'data:image/png;base64,fresh-qr' } });
     expect(fetchMock.mock.calls.map(([url]) => new URL(String(url)).pathname)).toEqual([
-      '/instance/status', '/instance/connect', '/instance/qr',
+      '/instance/qr',
     ]);
+    expect(lifecycle.get(ownerAccountId)).toBeUndefined();
   });
 
-  it('recovers one stale Evolution GO runtime before returning a QR', async () => {
+  it('does not amplify a missing QR into repeated runtime and database startups', async () => {
+    accounts.find((item) => item.id === ownerAccountId)!.connection_status = 'qr';
     let qrCalls = 0;
     fetchMock.mockImplementation(async (url: string | URL) => {
       const path = new URL(String(url)).pathname;
@@ -504,7 +631,7 @@ describe('Evolution GO multi-account handler', () => {
       if (path.endsWith('/instance/qr')) {
         qrCalls += 1;
         return qrCalls === 1
-          ? new Response(JSON.stringify({ error: 'try again' }), { status: 400 })
+          ? new Response(JSON.stringify({ error: 'no QR code available. Please wait a moment and try again' }), { status: 400 })
           : new Response(JSON.stringify({ data: { code: 'data:image/png;base64,recovered-qr' } }), { status: 200 });
       }
       return new Response(JSON.stringify({ data: {} }), { status: 200 });
@@ -513,14 +640,65 @@ describe('Evolution GO multi-account handler', () => {
 
     const response = await handler(request('qr', { account_id: ownerAccountId }));
 
-    expect(response.status, JSON.stringify(await response.clone().json())).toBe(200);
-    expect(await response.json()).toMatchObject({ ok: true, qr: { qrcode: 'data:image/png;base64,recovered-qr' } });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ ok: false, error: 'evolution_go_qr_runtime_not_ready' });
     expect(fetchMock.mock.calls.map(([url]) => new URL(String(url)).pathname)).toEqual([
-      '/instance/status', '/instance/connect', '/instance/qr', '/instance/reconnect', '/instance/connect', '/instance/qr',
+      '/instance/qr',
     ]);
+    expect(qrCalls).toBe(1);
+    expect(lifecycle.get(ownerAccountId)).toBeUndefined();
   });
 
-  it('creates corporate and seller accounts in the canonical tables with the correct ownership', async () => {
+  it('does not retry a server-side QR startup failure or expose the upstream detail', async () => {
+    accounts.find((item) => item.id === ownerAccountId)!.connection_status = 'qr';
+    fetchMock.mockImplementation(async (url: string | URL) => {
+      const path = new URL(String(url)).pathname;
+      if (path.endsWith('/instance/status')) {
+        return new Response(JSON.stringify({ data: { Connected: false, LoggedIn: false } }), { status: 200 });
+      }
+      if (path.endsWith('/instance/qr')) {
+        return new Response(JSON.stringify({ error: 'failed to start instance: private upstream detail' }), { status: 400 });
+      }
+      return new Response(JSON.stringify({ data: {} }), { status: 200 });
+    });
+    await import('../functions/evolution-go/index');
+
+    const response = await handler(request('qr', { account_id: ownerAccountId }));
+    const body = await response.json();
+
+    expect(response.status).toBeGreaterThanOrEqual(400);
+    expect(body.error).toBe('evolution_go_qr_start_failed');
+    expect(JSON.stringify(body)).not.toContain('private upstream detail');
+    expect(fetchMock.mock.calls.map(([url]) => new URL(String(url)).pathname)).toEqual([
+      '/instance/qr',
+    ]);
+    expect(lifecycle.get(ownerAccountId)).toBeUndefined();
+  });
+
+  it('refuses QR before a registered connection without contacting Evolution GO', async () => {
+    accounts.find((item) => item.id === ownerAccountId)!.connection_status = 'configured';
+    await import('../functions/evolution-go/index');
+
+    const response = await handler(request('qr', { account_id: ownerAccountId }));
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ ok: false, error: 'evolution_go_connection_start_required' });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('does not expose QR after the administrative cutoff', async () => {
+    accounts.find((item) => item.id === ownerAccountId)!.connection_status = 'qr';
+    lifecycle.set(ownerAccountId, { revision: 2, state: 'completed', desired_action: 'deactivate' });
+    await import('../functions/evolution-go/index');
+
+    const response = await handler(request('qr', { account_id: ownerAccountId }));
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ ok: false, error: 'evolution_go_connection_start_required' });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('creates only corporate accounts manually; seller accounts are provisioned by membership', async () => {
     state.userId = administratorId;
     state.permissions = { 'channels.manage_all': true };
     await import('../functions/evolution-go/index');
@@ -538,15 +716,39 @@ describe('Evolution GO multi-account handler', () => {
       account_type: 'corporate', owner_user_id: null, provider: 'evolution_go', is_default: false,
     });
 
-    expect((await handler(request('create_account', {
+    const sellerResponse = await handler(request('create_account', {
       account_id: newSellerId,
       account_type: 'seller',
       owner_user_id: newSellerOwnerId,
       label: 'Privada vendedor',
-    }))).status).toBe(200);
-    expect(accounts.find((item) => item.id === newSellerId)).toMatchObject({
-      account_type: 'seller', owner_user_id: newSellerOwnerId, provider: 'evolution_go', is_default: false,
+    }));
+    expect(sellerResponse.status).toBe(400);
+    expect(await sellerResponse.json()).toMatchObject({
+      ok: false, error: 'evolution_go_seller_provisioned_by_membership',
     });
+    expect(accounts.find((item) => item.id === newSellerId)).toBeUndefined();
+  });
+
+  it('refuses manual seller instance configuration before lifecycle, secret, or provider access', async () => {
+    state.userId = administratorId;
+    state.permissions = { 'channels.manage_all': true };
+    await import('../functions/evolution-go/index');
+
+    for (const action of ['save', 'create_instance']) {
+      const response = await handler(request(action, {
+        account_id: ownerAccountId,
+        base_url: 'https://evo.example.invalid',
+        global_api_key: 'synthetic-global-key-must-not-leak',
+      }));
+      expect(response.status).toBe(400);
+      expect(await response.json()).toMatchObject({
+        ok: false, error: 'evolution_go_seller_provisioned_by_membership',
+      });
+    }
+
+    expect(calls.some((call) => call.table === 'read_integration_secret')).toBe(false);
+    expect(calls.some((call) => call.table.includes('whatsapp_account_lifecycle'))).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('lets the owner activate their own account without changing administrative provider gates', async () => {
@@ -730,14 +932,19 @@ describe.each(['evolution-go', 'wa-akg'] as const)('R2 lifecycle HTTP contract: 
     expect(calls.some(call => call.table === 'read_integration_secret')).toBe(false);
   });
 
-  it('R2-HTTP-07 fences a management writer while activation is in-flight', async () => {
+  it('R2-HTTP-07 fences a WA-AKG writer while activation is in-flight and refuses manual Evolution seller creation', async () => {
     state.userId = administratorId;
     state.permissions = { 'channels.manage_all': true };
     lifecycle.set(ownerAccountId, { revision: 1, operation_id: 'synthetic-locked-token', state: 'in_flight', desired_action: 'activate' });
     await load();
     const action = endpoint === 'wa-akg' ? 'provision' : 'create_instance';
     const response = await handler(request(action, { account_id: ownerAccountId }));
-    expect(response.status).toBe(202);
+    if (endpoint === 'wa-akg') {
+      expect(response.status).toBe(202);
+    } else {
+      expect(response.status).toBe(400);
+      expect(await response.json()).toMatchObject({ error: 'evolution_go_seller_provisioned_by_membership' });
+    }
     expect(fetchMock).not.toHaveBeenCalled();
     expect(calls.some(call => ['read_integration_secret', 'store_integration_secret'].includes(call.table))).toBe(false);
   });
