@@ -10,7 +10,6 @@ import InvitesPage from '@/components/auth/InvitesPage';
 const NotFound = lazy(() => import('../pages/NotFound'));
 const Dashboard = lazy(() => import('../pages/dashboard/page'));
 const BuscaLeads = lazy(() => import('../pages/dashboard/busca-leads/page'));
-const Atendimento = lazy(() => import('../pages/dashboard/atendimento/page'));
 const Leads = lazy(() => import('../pages/dashboard/leads/page'));
 const DashboardConfiguracoes = lazy(() => import('../pages/dashboard/configuracoes/page'));
 const KanbanCRM = lazy(() => import('../pages/dashboard/kanban/page'));
@@ -21,6 +20,7 @@ const Orcamentos = lazy(() => import('../pages/dashboard/orcamentos/page'));
 const RegistroSistema = lazy(() => import('../pages/dashboard/registro-sistema/page'));
 const Equipe = lazy(() => import('../pages/dashboard/equipe/page'));
 const MeuWhatsapp = lazy(() => import('../pages/dashboard/meu-whatsapp/page'));
+const AtendimentoEntry = lazy(() => import('../pages/dashboard/atendimento/AtendimentoEntry'));
 const DashboardLayout = lazy(() => import('../components/feature/DashboardLayout'));
 const PermissionRoute = lazy(() => import('../components/feature/PermissionRoute'));
 
@@ -64,7 +64,7 @@ const routes: RouteObject[] = [
       },
       {
         path: "atendimento",
-        element: <PermissionRoute anyOf={['conversations.read_all', 'conversations.reply_all', 'conversations.reply_assigned']}><Atendimento /></PermissionRoute>,
+        element: <PermissionRoute anyOf={['conversations.read_all', 'conversations.reply_all', 'conversations.reply_assigned', 'channels.view_own', 'channels.connect_own']}><AtendimentoEntry /></PermissionRoute>,
       },
       {
         path: "leads",
