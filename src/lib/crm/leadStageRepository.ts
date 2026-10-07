@@ -4,15 +4,31 @@ import { resolveOrganizationSession } from '@/lib/organizationSession';
 export const canonicalStageKeys = ['novo', 'apresentado', 'qualificando', 'reuniao', 'orcamento', 'ganho', 'perdido'] as const;
 export type CanonicalStageKey = (typeof canonicalStageKeys)[number];
 
-const stageKeyByLabel: Record<string, CanonicalStageKey> = {
-  Novo: 'novo',
-  Apresentado: 'apresentado',
-  Qualificando: 'qualificando',
-  'Reunião': 'reuniao',
-  'Orçamento': 'orcamento',
-  Ganho: 'ganho',
-  Perdido: 'perdido',
-};
+export const terminalStageKeys = ['ganho', 'perdido'] as const;
+export type TerminalStageKey = (typeof terminalStageKeys)[number];
+
+export const canonicalStageLabels = {
+  novo: 'Novo',
+  apresentado: 'Apresentado',
+  qualificando: 'Qualificando',
+  reuniao: 'Reunião',
+  orcamento: 'Orçamento',
+  ganho: 'Ganho',
+  perdido: 'Perdido',
+} as const satisfies Record<CanonicalStageKey, string>;
+
+export const canonicalStageOptions = canonicalStageKeys.map((key) => ({
+  key,
+  label: canonicalStageLabels[key],
+}));
+
+export function isTerminalStage(stage: CanonicalStageKey): stage is TerminalStageKey {
+  return terminalStageKeys.includes(stage as TerminalStageKey);
+}
+
+const stageKeyByLabel: Record<string, CanonicalStageKey> = Object.fromEntries(
+  Object.entries(canonicalStageLabels).map(([key, label]) => [label, key]),
+) as Record<string, CanonicalStageKey>;
 
 export function canonicalStageKeyFromLabel(label: string): CanonicalStageKey | null {
   return stageKeyByLabel[label] ?? null;
