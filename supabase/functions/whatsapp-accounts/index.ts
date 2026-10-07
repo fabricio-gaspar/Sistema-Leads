@@ -33,6 +33,18 @@ const WHATSAPP_AUDIT_ACTIONS = [
   'webhook.unmatched',
 ] as const;
 
+// Evolution GO is the only supported WhatsApp transport. The legacy account
+// records stay intact for audit/history, but this endpoint must never expose
+// a way to configure, connect, enable or route through them again.
+const ACTIVE_WHATSAPP_PROVIDER = 'evolution_go';
+const LEGACY_PROVIDER_ACTIONS = new Set([
+  'configure',
+  'connector_token',
+  'refresh_status',
+  'set_provider_enabled',
+  'set_enabled',
+]);
+
 function asObject(value: unknown): Row {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as Row : {};
 }
@@ -265,7 +277,7 @@ async function registerWebhooks(integrationId: string, credentials: Row): Promis
 async function listAccounts(admin: Admin, organizationId: string, userId: string, manage: boolean) {
   let query = admin.from('whatsapp_accounts')
     .select('id,integration_id,owner_user_id,label,provider,account_type,is_default,enabled,connection_status,connected_phone_suffix,connected_at,status_checked_at,webhook_registered_at,expires_at,last_error_code,onboarding_status,sync_status,messaging_mode,daily_message_goal,verified_name,quality_rating,display_phone_number,phone_number_id,created_at,updated_at')
-    .eq('organization_id', organizationId).is('archived_at', null).order('is_default', { ascending: false }).order('label');
+    .eq('organization_id', organizationId).eq('provider', ACTIVE_WHATSAPP_PROVIDER).is('archived_at', null).order('is_default', { ascending: false }).order('label');
   if (!manage) query = query.eq('owner_user_id', userId);
   const { data: accounts, error } = await query;
   if (error) throw new Error('whatsapp_accounts_read_failed');
@@ -279,7 +291,7 @@ async function listAccounts(admin: Admin, organizationId: string, userId: string
       ? admin.from('profiles').select('id,name,email').in('id', ownerIds)
       : Promise.resolve({ data: [], error: null }),
     admin.from('messaging_provider_controls').select('provider,inbound_enabled,send_enabled,automation_enabled,kill_switch,reason,updated_at')
-      .eq('organization_id', organizationId).in('provider', ['zapi', 'meta_cloud', 'evolution_go', 'wa_akg']),
+      .eq('organization_id', organizationId).eq('provider', ACTIVE_WHATSAPP_PROVIDER),
     admin.from('audit_logs').select('id,action,detail,actor_name,occurred_at,created_at,entity_table,entity_id,event_data')
       .eq('organization_id', organizationId).in('action', WHATSAPP_AUDIT_ACTIONS).order('created_at', { ascending: false }).limit(100),
     integrationIds.length
@@ -329,7 +341,7 @@ async function listAccounts(admin: Admin, organizationId: string, userId: string
     };
   });
   const savedControls = new Map((controlsRead.data ?? []).map((control) => [control.provider, control]));
-  const providerControls = (['zapi', 'meta_cloud', 'evolution_go', 'wa_akg'] as const).map((provider) => {
+  const providerControls = ([ACTIVE_WHATSAPP_PROVIDER] as const).map((provider) => {
     const control = savedControls.get(provider);
     const fallbackActive = presentedAccounts.some((account) => account.provider === provider && account.enabled && account.connected);
     const inboundEnabled = control?.inbound_enabled === true || (!control && fallbackActive);
@@ -393,6 +405,8 @@ Deno.serve(async (request) => {
     const admin = createAdminClient();
     const { organizationId, actorName } = await organizationContext(admin, user.id);
     const manage = await canManageAccounts(admin, organizationId, user.id);
+
+    if (LEGACY_PROVIDER_ACTIONS.has(action)) throw new Error('legacy_whatsapp_provider_retired');
 
     if (action === 'list') {
       if (!manage) await requireOrganizationPermission(admin, organizationId, user.id, 'channels.view_own');
