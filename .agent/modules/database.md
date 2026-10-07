@@ -1,5 +1,13 @@
 # Banco de dados
 
+## Lifecycle Evolution GO multi-tenant local — 06/10/2026
+
+A migration local mantém o trigger de vínculo como autoridade: vendedor ativo cria/reconcilia conta privada, integração desabilitada e **um job Evolution GO por organização/usuário**; inativação cancela rota/job sem excluir conversas, mensagens ou histórico. PGlite 6/6 e PostgreSQL nativo 2/2, além de 769 Vitest/93 arquivos, type-check app/Edge, lint e build/artefato, passaram localmente. A migration não foi aplicada ao Supabase; nem Edge, Site ou GitHub foram publicados e não houve QR, chamada a provedor, mensagem ou dado de cliente. A homologação segue bloqueada por drift remoto, staging coordenado, gateway QR 400/500 e política de senha/Auth pendente.
+
+## Importação atômica de prospecção — 06/10/2026
+
+`20261006011920_fix_prospecting_batch_state` mantém `import_prospecting_batch` como `SECURITY INVOKER`, com `leads.create`, lote idempotente e uma única transação para lista, leads e vínculos. O contrato agora inclui `uf` produzido pelo mapeador e a grava em `leads.uf` entre cidade e porte; outros campos continuam rejeitados. A migration foi aplicada ao projeto oficial e o lote autenticado de 20 leads foi confirmado no módulo Leads.
+
 ## 05/10/2026 — novas migrations locais R4/R6/R9/R11
 
 As quatro migrations `20261005223517`, `20261005223557`, `20261005223638`, `20261005225107` permanecem NÃO aplicadas remotamente. Respectivamente: entrada/lease/recovery/provisionamento; próxima ação Agenda atômica + carteira + barreira MVCC privada; convite/aceite/vínculo/papel; cidade/UF/termo da rotina. Históricos local/remoto divergem: comparar definições, não fazer push/replay integral. Relatórios, catálogos read-only e provas SQL/concorrência em `docs/remediacao/2026-10-05-r4-r14/`. Fixture sintética não é restauração de backup.
