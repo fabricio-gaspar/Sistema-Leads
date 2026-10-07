@@ -18,6 +18,11 @@ supabase/functions/.env
 *.log
 .eslintcache
 
+# This repository uses npm and the tracked package-lock.json. These files are
+# local pnpm artifacts and must not introduce a second dependency lock.
+pnpm-lock.yaml
+pnpm-workspace.yaml
+
 # Local Sites publication artifacts
 .sites-runtime/
 git-noop-editor.cmd

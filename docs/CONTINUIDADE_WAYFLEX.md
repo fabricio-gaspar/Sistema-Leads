@@ -1,5 +1,12 @@
 # Checkpoint — WayFlex CRM
 
+## 07/10/2026 — Higiene do Git e pré-verificação do GitHub
+
+- Antes deste lote, `main`, `origin/main` e a referência consultada diretamente no GitHub apontavam para `cbb3de57cd912b43e9bb20628959105765c61329` (`feat: finalize validated WayFlex release`).
+- Os únicos itens fora do índice eram `pnpm-lock.yaml` e `pnpm-workspace.yaml`. A inspeção não encontrou segredos, mas confirmou que são artefatos locais de pnpm, sem histórico no repositório, enquanto o projeto usa `package-lock.json` como lock canônico. O lock pnpm diverge das versões rastreadas; ele não será publicado.
+- `.gitignore` passa a preservar esses dois arquivos somente no checkout local, impedindo que um segundo gerenciador de dependências ou atualizações transitivas não validadas entrem por engano em commits futuros. Nenhum arquivo foi apagado, nenhuma dependência foi instalada e nenhum ambiente externo foi alterado.
+- Validação deste delta: inspeção de status, histórico/remote, varredura de credenciais nos dois artefatos, `git diff --check` e parse dos checkpoints JSON. Após o push, confirmar a referência remota novamente. Site, Supabase, Evolution GO, mensagens, automações e dados de clientes ficam inalterados.
+
 ## 07/10/2026 — Commit/GitHub/preview: validação concluída
 
 - Checkout `main`/HEAD `574c930` preservado; GitHub `main` continua `7a3a6c0b1b6330e89ef547a33363789cbfb63399`. Históricos sem ancestral comum, origin do Sites; não houve push, alteração de remote, force ou commit novo.
