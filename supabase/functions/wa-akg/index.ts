@@ -374,6 +374,20 @@ Deno.serve(async (request) => {
       });
       return json({ ok: result.status === 200, ...result, ...(result.status === 409 ? { error: 'account_lifecycle_needs_review' } : {}) }, result.status, headers);
     }
+    // This endpoint deliberately bypasses the lifecycle ledger: it makes one
+    // authenticated GET to the scoped gateway session and must never start,
+    // stop, reconnect, pair, or alter the durable channel state.
+    if (action === 'inspect_runtime') {
+      const record = await accessible(admin, actor, accountId, 'view');
+      const { provider } = await providerFor(admin, actor.organizationId, record);
+      const state = await provider.status();
+      const lifecycle = await accountLifecycleStatus(admin, { organizationId: actor.organizationId,
+        accountId, provider: 'wa_akg', actorId: actor.userId });
+      return json({ ok: true, ...publicStatus(record, actor), lifecycle, runtime: {
+        reachable: true, state: state.state, connected: state.connected,
+        confirmed: state.confirmed === true, checkedAt: new Date().toISOString(),
+      } }, 200, { ...headers, 'Cache-Control': 'no-store' });
+    }
     if (action === 'provision') {
       const current = await accessible(admin, actor, accountId, 'manage');
       const result = await runAccountLifecycle(admin, { organizationId: actor.organizationId, accountId,

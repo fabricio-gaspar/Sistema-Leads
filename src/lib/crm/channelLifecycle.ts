@@ -19,7 +19,7 @@ export function channelLifecycleMessage(lifecycle: ChannelLifecycle | null | und
 
 /** An HTTP 202 acknowledgement is not a completed connection or a fresh QR. */
 export function assertChannelActionCompleted(action: unknown, lifecycle: ChannelLifecycle | null | undefined): void {
-  if (action === 'list' || action === 'status' || action === 'my_account') return;
+  if (action === 'list' || action === 'status' || action === 'my_account' || action === 'inspect_runtime') return;
   if (!channelLifecycleBlocked(lifecycle)) return;
   throw new Error(lifecycle?.state === 'pending' || lifecycle?.state === 'in_flight'
     ? 'account_lifecycle_pending' : 'account_lifecycle_needs_review');

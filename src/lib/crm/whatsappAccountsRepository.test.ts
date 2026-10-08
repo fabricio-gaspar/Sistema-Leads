@@ -30,6 +30,7 @@ import {
   saveEvolutionGoServer,
   testEvolutionGoServer,
   loadMyWaAkgAccount,
+  inspectWaAkgRuntime,
   requestWaAkgQr,
   runWaAkgAction,
   reviewChannelLifecycle,
@@ -101,6 +102,18 @@ describe('Evolution GO multi-account repository', () => {
   it('allows read-only inspection of a pending WA-AKG account', async () => {
     ok({ account: null, lifecycle: { state: 'pending', revision: 2, desiredAction: 'connect', errorCode: null } });
     await expect(loadMyWaAkgAccount()).resolves.toMatchObject({ lifecycle: { state: 'pending' } });
+  });
+
+  it('inspects the selected WA-AKG session without requesting a QR or changing its lifecycle', async () => {
+    ok({ account: { id: accountId }, runtime: { reachable: true, state: 'CONNECTED', connected: true, confirmed: true } });
+    await expect(inspectWaAkgRuntime(accountId)).resolves.toMatchObject({ runtime: { state: 'CONNECTED' } });
+    expect(invokeMock).toHaveBeenCalledExactlyOnceWith('wa-akg', { body: { action: 'inspect_runtime', account_id: accountId } });
+  });
+
+  it('sends an explicit logout only for the selected WA-AKG account', async () => {
+    ok({ account: { id: accountId } });
+    await runWaAkgAction('logout', accountId);
+    expect(invokeMock).toHaveBeenCalledExactlyOnceWith('wa-akg', { body: { action: 'logout', account_id: accountId } });
   });
 
   it.each([
