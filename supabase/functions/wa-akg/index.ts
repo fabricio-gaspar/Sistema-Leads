@@ -386,6 +386,11 @@ Deno.serve(async (request) => {
       return json({ ok: true, ...publicStatus(record, actor), lifecycle, runtime: {
         reachable: true, state: state.state, connected: state.connected,
         confirmed: state.confirmed === true, checkedAt: new Date().toISOString(),
+        // An authenticated provider status proves these hops. Docker internals
+        // are intentionally not represented as if they were remotely observable.
+        layers: { edge: 'ok', tunnelGuard: 'ok', gateway: 'ok',
+          crm: record.integration.enabled === true && record.integration.paused !== true ? 'ok' : 'attention',
+          lifecycle: lifecycle.state === 'completed' || lifecycle.state === 'idle' ? 'ok' : 'attention' },
       } }, 200, { ...headers, 'Cache-Control': 'no-store' });
     }
     if (action === 'provision') {

@@ -388,6 +388,7 @@ export interface WaAkgChannelStatus {
     connected: boolean;
     confirmed: boolean;
     checkedAt: string;
+    layers?: { edge: 'ok'; tunnelGuard: 'ok'; gateway: 'ok'; crm: 'ok' | 'attention'; lifecycle: 'ok' | 'attention' };
   };
 }
 
