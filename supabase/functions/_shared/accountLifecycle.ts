@@ -95,8 +95,13 @@ export async function recoverAccountLifecycle(admin: Admin, context: LifecycleCo
   const diagnosis = await rpc(admin, 'diagnose_whatsapp_account_lifecycle', params(context));
   const observed = await observe(); // GET only; never connect/start/pair/QR
   const observation = { ...observed, observed_at: new Date().toISOString() };
-  const eligible = diagnosis.can_reconcile_read_only === true && observed.confirmed;
-  const recovery: Row = { eligible, reason: observed.confirmed ? diagnosis.reason : 'provider_state_not_confirmed',
+  // A completed GET is safe to reconcile. A failed disconnect is also terminally
+  // disproven when the provider still confirms the same session is connected:
+  // closing that ledger entry must never re-run the disconnect.
+  const preservedDisconnect = diagnosis.operation_action === 'disconnect' && observed.confirmed && observed.connected;
+  const eligible = observed.confirmed && (diagnosis.can_reconcile_read_only === true || preservedDisconnect);
+  const recovery: Row = { eligible, reason: !observed.confirmed ? 'provider_state_not_confirmed'
+    : preservedDisconnect ? 'disconnect_preserved_connected' : diagnosis.reason,
     observedConnected: observed.confirmed ? observed.connected : null, observedAt: observation.observed_at,
     requiresAdmin: true, retainsLocalCutoff: true };
   if (input.action !== 'lifecycle_reconcile') return { lifecycle: present(diagnosis), recovery, status: 200 };
