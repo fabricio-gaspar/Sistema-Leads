@@ -22,3 +22,4 @@ supabase/functions/.env
 .sites-runtime/
 git-noop-editor.cmd
 wayflex-site-*.tar.gz
+work/
