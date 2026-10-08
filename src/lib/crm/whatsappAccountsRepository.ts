@@ -382,6 +382,13 @@ export interface WaAkgChannelStatus {
     burstWindowSeconds: number;
     dailyLimit: number;
   };
+  runtime?: {
+    reachable: boolean;
+    state: string;
+    connected: boolean;
+    confirmed: boolean;
+    checkedAt: string;
+  };
 }
 
 async function invokeWaAkg<T extends Record<string, unknown>>(body: Record<string, unknown>): Promise<T> {
@@ -400,6 +407,11 @@ export function loadWaAkgAccounts(): Promise<{ accounts: WaAkgChannelStatus[]; c
 
 export function loadMyWaAkgAccount(): Promise<WaAkgChannelStatus> {
   return invokeWaAkg<WaAkgChannelStatus & Record<string, unknown>>({ action: 'my_account' });
+}
+
+/** Read-only live probe. It never starts, stops, or reconnects a session. */
+export function inspectWaAkgRuntime(accountId: string): Promise<WaAkgChannelStatus> {
+  return invokeWaAkg<WaAkgChannelStatus & Record<string, unknown>>({ action: 'inspect_runtime', account_id: accountId });
 }
 
 export function configureWaAkgGateway(input: { label: string; baseUrl: string; apiKey: string }): Promise<WaAkgChannelStatus> {
