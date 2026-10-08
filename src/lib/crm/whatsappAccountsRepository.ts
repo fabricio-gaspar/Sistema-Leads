@@ -472,6 +472,20 @@ export function saveWaAkgControls(accountId: string, input: {
   });
 }
 
+/**
+ * Provider-wide gates are deliberately explicit. The backend refuses an open
+ * policy until the selected seller account is connected and locally enabled.
+ */
+export function setWaAkgProviderControls(accountId: string, input: {
+  inboundEnabled: boolean; sendEnabled: boolean; automationEnabled: boolean; killSwitch: boolean;
+}): Promise<WaAkgChannelStatus> {
+  return invokeWaAkg<WaAkgChannelStatus & Record<string, unknown>>({
+    action: 'set_provider_controls', account_id: accountId,
+    inbound_enabled: input.inboundEnabled, send_enabled: input.sendEnabled,
+    automation_enabled: input.automationEnabled, kill_switch: input.killSwitch,
+  });
+}
+
 export function loadWhatsappAccounts(): Promise<AccountsResponse> {
   const context = sessionContext.requireReady();
   if (accountsReadInFlight) return accountsReadInFlight;

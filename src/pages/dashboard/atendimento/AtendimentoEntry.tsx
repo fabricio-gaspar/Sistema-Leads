@@ -1,14 +1,14 @@
 import { useCurrentAccess } from '@/hooks/useCurrentAccess';
 import { hasAnyPermission } from '@/lib/crm/currentAccessRepository';
 import type { TeamPermission } from '@/lib/crm/teamMembersRepository';
-import EvolutionGoPanel from '@/components/feature/EvolutionGoPanel';
+import WaAkgPanel from '@/components/feature/WaAkgPanel';
 import Atendimento from './page';
 
 const conversationPermissions: TeamPermission[] = ['conversations.read_all', 'conversations.reply_all', 'conversations.reply_assigned'];
 
 /**
  * One navigation entry serves both roles without broadening conversation access.
- * Sellers who can only manage their own channel get the private Evolution GO
+ * Sellers who can only manage their own channel get the private WA-AKG
  * pairing area; conversation-capable users mount the full Central workspace.
  */
 export default function AtendimentoEntry() {
@@ -28,6 +28,6 @@ export default function AtendimentoEntry() {
         <p className="mt-1 text-sm text-foreground-500">Conecte seu WhatsApp individual para receber conversas atribuídas a você. Conversas, Ana e histórico continuam protegidos pelas permissões de atendimento.</p>
       </div>
     </header>
-    <EvolutionGoPanel mode="self-service" surface="central" />
+    <WaAkgPanel mode="self-service" surface="central" />
   </div>;
 }
