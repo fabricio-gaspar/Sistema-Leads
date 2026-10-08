@@ -441,6 +441,10 @@ export function requestWaAkgPairingCode(accountId: string, phone: string): Promi
   return invokeWaAkg({ action: 'pair', account_id: accountId, phone });
 }
 
+export function syncWaAkgRecentConversations(accountId: string): Promise<{ sync: { policy: { days: number; contactLimit: number; messageLimit: number }; contacts: number; messages: number; inserted: number; review: number; truncated: { contacts: boolean; messages: boolean } } }> {
+  return invokeWaAkg({ action: 'sync_recent', account_id: accountId });
+}
+
 export interface ChannelRecoveryResult {
   lifecycle: import('./channelLifecycle').ChannelLifecycle;
   recovery: {

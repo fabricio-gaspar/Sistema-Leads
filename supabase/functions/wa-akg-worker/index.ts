@@ -108,7 +108,34 @@ async function processReceipt(admin: Admin, event: Row, payload: Row) {
 }
 
 async function processInbound(admin: Admin, event: Row, _payload: Row) {
-  return processInboundWork(admin, 'wa_akg', event);
+  const payload = object(event.sanitized_payload);
+  await upsertObservedContact(admin, event, payload);
+  const result = await processInboundWork(admin, 'wa_akg', event);
+  const leadId = text(result.lead_id, 80);
+  if (leadId) await admin.rpc('apply_whatsapp_directory_name', { p_organization_id: event.organization_id, p_account_id: event.whatsapp_account_id, p_lead_id: leadId });
+  return result;
+}
+
+async function upsertObservedContact(admin: Admin, event: Row, payload: Row) {
+  const phone = text(payload.phone, 20), remoteJid = text(payload.remote_jid, 200);
+  const name = text(payload.whatsapp_name, 160);
+  if (!/^[1-9][0-9]{7,14}$/.test(phone) || !/^[1-9][0-9]{7,14}(:[0-9]{1,5})?@(s\.whatsapp\.net|c\.us)$/.test(remoteJid)) return;
+  const { error } = await admin.from('whatsapp_contact_directory').upsert({ organization_id: event.organization_id,
+    whatsapp_account_id: event.whatsapp_account_id, remote_jid: remoteJid, phone, whatsapp_name: name || null,
+    last_synced_at: new Date().toISOString() }, { onConflict: 'organization_id,whatsapp_account_id,remote_jid' });
+  if (error) throw new Error('wa_akg_contact_directory_save_failed');
+}
+
+async function processOutbound(admin: Admin, event: Row, payload: Row) {
+  const { account } = await accountIntegration(admin, event);
+  const args = { p_organization_id: event.organization_id, p_account_id: account.id,
+    p_message_id: text(payload.message_id, 300), p_remote_jid: text(payload.remote_jid, 200), p_from_me: true,
+    p_text: text(payload.text, 4096), p_occurred_at: text(payload.occurred_at, 80) || new Date().toISOString() };
+  const { data, error } = await admin.rpc('persist_wa_akg_synced_message', args);
+  if (error || !data) throw new Error('wa_akg_outbound_persistence_failed');
+  const result = object(data);
+  if (result.review === true) { await markEvent(admin, event, 'needs_review', { error_code: text(result.reason, 100) || 'outbound_identity_unresolved' }); return; }
+  await markEvent(admin, event, 'processed');
 }
 
 async function processEvent(admin: Admin, event: Row): Promise<Row> {
@@ -117,6 +144,7 @@ async function processEvent(admin: Admin, event: Row): Promise<Row> {
   try {
     const payload = object(claimed.sanitized_payload);
     if (claimed.event_kind === 'inbound') return await processInbound(admin, claimed, payload);
+    else if (claimed.event_kind === 'outbound') await processOutbound(admin, claimed, payload);
     else if (claimed.event_kind === 'receipt') await processReceipt(admin, claimed, payload);
     else if (claimed.event_kind === 'connection') await processConnection(admin, claimed, payload);
     else await markEvent(admin, claimed, 'ignored', { error_code: 'unsupported_event_kind' });

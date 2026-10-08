@@ -184,6 +184,43 @@ async function storeSecret(admin: Admin, integrationId: string, value: Row): Pro
   if (error) throw new Error('wa_akg_secret_save_failed');
 }
 
+function phoneFromJid(value: string): string {
+  const match = value.match(/^([1-9][0-9]{7,14})(?::[0-9]{1,5})?@(s\.whatsapp\.net|c\.us)$/i);
+  return match?.[1] ?? '';
+}
+
+async function syncRecentConversations(admin: Admin, actor: Actor, record: RecordSet) {
+  if (record.account.connection_status !== 'connected') throw new Error('wa_akg_connection_validation_required');
+  const { provider } = await providerFor(admin, actor.organizationId, record);
+  const state = await provider.status();
+  if (!state.connected) throw new Error('wa_akg_connection_validation_required');
+  const snapshot = await provider.crmSyncSnapshot();
+  const now = new Date().toISOString();
+  const contacts = snapshot.contacts.map((item) => ({
+    organization_id: actor.organizationId, whatsapp_account_id: record.account.id, remote_jid: item.remoteJid,
+    phone: phoneFromJid(item.remoteJid), agenda_name: item.agendaName || null, whatsapp_name: item.whatsappName || null,
+    public_name: item.publicName || null, last_synced_at: now,
+  })).filter((item) => item.phone);
+  if (contacts.length) {
+    const { error } = await admin.from('whatsapp_contact_directory').upsert(contacts, { onConflict: 'organization_id,whatsapp_account_id,remote_jid' });
+    if (error) throw new Error('wa_akg_contact_directory_save_failed');
+  }
+  let inserted = 0, review = 0;
+  // Oldest first keeps the Central timeline coherent. Each write is idempotent
+  // on the scoped provider message id, so a retry cannot duplicate history.
+  for (const message of [...snapshot.messages].reverse()) {
+    const { data, error } = await admin.rpc('persist_wa_akg_synced_message', {
+      p_organization_id: actor.organizationId, p_account_id: record.account.id, p_message_id: message.messageId,
+      p_remote_jid: message.remoteJid, p_from_me: message.fromMe, p_text: message.text || '', p_occurred_at: message.occurredAt,
+    });
+    if (error) throw new Error('wa_akg_history_persistence_failed');
+    const result = object(data);
+    if (result.inserted === true) inserted += 1;
+    if (result.review === true) review += 1;
+  }
+  return { policy: snapshot.policy, contacts: contacts.length, messages: snapshot.messages.length, inserted, review, truncated: snapshot.truncated };
+}
+
 async function provision(admin: Admin, actor: Actor, record: RecordSet, step: LifecycleStep): Promise<RecordSet> {
   if (record.account.account_type !== 'seller') throw new Error('wa_akg_seller_account_required');
   const gateway = await corporateCredentials(admin, actor.organizationId);
@@ -351,6 +388,10 @@ Deno.serve(async (request) => {
 
     const record = await accessible(admin, actor, accountId, 'connect');
     const lifecycleContext = { organizationId: actor.organizationId, accountId, provider: 'wa_akg' as const, actorId: actor.userId };
+    if (action === 'sync_recent') {
+      const sync = await syncRecentConversations(admin, actor, record);
+      return json({ ok: true, ...publicStatus(record, actor), sync }, 200, headers);
+    }
     if (action === 'save_controls') {
       if (!actor.canManage) throw new Error('permission_denied');
       const minDelay = Math.min(Math.max(Number(body.min_delay_seconds) || 10, 10), 300);

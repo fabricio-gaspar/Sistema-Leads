@@ -2,7 +2,8 @@ import { phoneFromPersonalJid, inboundMedia, type InboundMedia } from './messagi
 type Row = Record<string, unknown>;
 
 export type WaAkgInboundEvent =
-  | { kind: 'inbound'; externalId: string; messageId: string; phone: string; senderJid: string; text: string; occurredAt: string; messageType: string; media?: InboundMedia }
+  | { kind: 'inbound'; externalId: string; messageId: string; phone: string; senderJid: string; text: string; occurredAt: string; messageType: string; whatsappName?: string; media?: InboundMedia }
+  | { kind: 'outbound'; externalId: string; messageId: string; phone: string; remoteJid: string; text: string; occurredAt: string; messageType: string }
   | { kind: 'receipt'; externalId: string; providerMessageIds: string[]; status: 'sent' | 'delivered' | 'read' | 'failed'; occurredAt: string }
   | { kind: 'connection'; externalId: string; state: 'connected' | 'disconnected' | 'qr'; occurredAt: string }
   | { kind: 'ignored'; reason: string; externalId: string; occurredAt: string };
@@ -74,13 +75,14 @@ export function parseWaAkgEvent(input: unknown): WaAkgInboundEvent {
     };
   }
 
-  if (event !== 'message.received') {
+  if (!['message.received', 'message.sent'].includes(event)) {
     return { kind: 'ignored', reason: 'event_not_supported', externalId, occurredAt };
   }
-  if (key.fromMe === true || data.fromMe === true) {
+  const sent = event === 'message.sent';
+  if (!sent && (key.fromMe === true || data.fromMe === true)) {
     return { kind: 'ignored', reason: 'outbound_echo', externalId, occurredAt };
   }
-  const jid = text(key.remoteJid ?? data.from ?? data.remoteJid, 200);
+  const jid = text(key.remoteJid ?? (sent ? data.receiver : data.from) ?? data.remoteJid, 200);
   if (!jid || /@g\.us$|@broadcast$|status@broadcast$|@newsletter$/.test(jid)) {
     return { kind: 'ignored', reason: 'non_personal_chat', externalId, occurredAt };
   }
@@ -101,8 +103,11 @@ export function parseWaAkgEvent(input: unknown): WaAkgInboundEvent {
   }
   const messageId = text(key.id ?? data.id, 300);
   if (!messageId) return { kind: 'ignored', reason: 'message_id_missing', externalId, occurredAt };
+  if (sent) return { kind: 'outbound', externalId, messageId, phone, remoteJid: jid,
+    text: body || `[${media?.kind ?? 'mensagem'} enviada; revisão humana necessária.]`, occurredAt, messageType };
   return { kind: 'inbound', externalId, messageId, phone, senderJid: jid,
-    text: body || `[${media?.kind} recebido; revisão humana necessária.]`, occurredAt, messageType, media };
+    text: body || `[${media?.kind} recebido; revisão humana necessária.]`, occurredAt, messageType,
+    whatsappName: text(data.pushName ?? payload.pushName, 160) || undefined, media };
 }
 
 /** Only the normalized fields required by the worker are persisted. */
@@ -110,8 +115,11 @@ export function sanitizeWaAkgPayload(input: unknown): Row {
   const parsed = parseWaAkgEvent(input);
   return parsed.kind === 'inbound'
     ? { kind: parsed.kind, external_id: parsed.externalId, message_id: parsed.messageId, phone: parsed.phone,
-      remote_jid: parsed.senderJid, identity_requires_review: !parsed.phone, media: parsed.media,
+      remote_jid: parsed.senderJid, identity_requires_review: !parsed.phone, whatsapp_name: parsed.whatsappName ?? null, media: parsed.media,
       text: parsed.text, occurred_at: parsed.occurredAt, message_type: parsed.messageType }
+    : parsed.kind === 'outbound'
+      ? { kind: parsed.kind, external_id: parsed.externalId, message_id: parsed.messageId, phone: parsed.phone,
+        remote_jid: parsed.remoteJid, text: parsed.text, occurred_at: parsed.occurredAt, message_type: parsed.messageType }
     : parsed.kind === 'receipt'
       ? { kind: parsed.kind, external_id: parsed.externalId, provider_message_ids: parsed.providerMessageIds, status: parsed.status, occurred_at: parsed.occurredAt }
       : parsed.kind === 'connection'
