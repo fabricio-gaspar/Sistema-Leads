@@ -17,8 +17,9 @@ import { useListasStore } from '@/hooks/useListasStore';
 import { useAuth } from '@/hooks/useAuth';
 import { useCurrentAccess } from '@/hooks/useCurrentAccess';
 import { loadTeamMembers, type TeamMember } from '@/lib/crm/teamMembersRepository';
-import { pendingManualLeadContact } from '@/lib/crm/manualLeadContact';
+import { approvedAnaWhatsAppChannel, pendingManualLeadContact } from '@/lib/crm/manualLeadContact';
 import { assignKanbanRoutingUser, buildKanbanDispatchPlan } from '@/lib/crm/kanbanDispatchPlan';
+import { activateLeadWithAna } from '@/lib/crm/leadWorkflowRepository';
 import { useLeadsLoadStatus } from '@/hooks/useLeadsStore';
 import DataReadNotice from '@/components/feature/DataReadNotice';
 import { loadLeadQualifications, type LeadQualification } from '@/lib/crm/leadQualificationRepository';
@@ -138,6 +139,9 @@ export default function Leads() {
   const [selecionados, setSelecionados] = useState<string[]>([]);
   const [envioAlvo, setEnvioAlvo] = useState<string[] | null>(null);
   const [detalhe, setDetalhe] = useState<Lead | null>(null);
+  const [ativacaoAnaLead, setAtivacaoAnaLead] = useState<Lead | null>(null);
+  const [confirmacaoAtivacaoAna, setConfirmacaoAtivacaoAna] = useState(false);
+  const [ativandoAna, setAtivandoAna] = useState(false);
   const [toast, setToast] = useState('');
   const [novoModal, setNovoModal] = useState(false);
   const [novoLead, setNovoLead] = useState({ nome: '', empresa: '', email: '', telefone: '', segmento: 'Tecnologia', cidade: '', estado: '', modo: 'IA' as 'IA' | 'HUMANO' });
@@ -317,6 +321,53 @@ export default function Leads() {
     setEnvioAlvo(null);
   };
 
+  const abrirAtivacaoAna = (lead: Lead) => {
+    if (!canEditLead(lead)) {
+      mostrarToast('Você só pode autorizar a Ana para leads da sua carteira.');
+      return;
+    }
+    if (lead.modoAtendimento !== 'IA') {
+      mostrarToast('Este lead está em atendimento humano. Altere o modo antes de iniciar a Ana.');
+      return;
+    }
+    if (!approvedAnaWhatsAppChannel({ whatsapp: lead.whatsapp, telefone: lead.telefone })) {
+      mostrarToast('Informe um telefone válido antes de autorizar o primeiro contato por WhatsApp.');
+      return;
+    }
+    setConfirmacaoAtivacaoAna(false);
+    setAtivacaoAnaLead(lead);
+  };
+
+  const confirmarAtivacaoAna = async () => {
+    if (!ativacaoAnaLead || !confirmacaoAtivacaoAna) return;
+    const channel = approvedAnaWhatsAppChannel({ whatsapp: ativacaoAnaLead.whatsapp, telefone: ativacaoAnaLead.telefone });
+    if (!channel) {
+      mostrarToast('Informe um telefone válido antes de autorizar o primeiro contato por WhatsApp.');
+      return;
+    }
+    setAtivandoAna(true);
+    try {
+      const result = await activateLeadWithAna({
+        leadId: ativacaoAnaLead.id,
+        whatsapp: channel.whatsapp,
+        approvalReason: 'Autorização explícita registrada pelo responsável no CRM para primeiro contato por WhatsApp.',
+      });
+      await refreshLeadsStore();
+      setDetalhe(null);
+      setAtivacaoAnaLead(null);
+      mostrarToast(result.ana?.skipped
+        ? 'Contato autorizado e Ana iniciada, mas o envio foi protegido pelas regras do canal.'
+        : 'Contato autorizado e Ana iniciada pelo fluxo seguro. A entrega será confirmada na Central.');
+    } catch (error) {
+      const code = error instanceof Error ? error.message : '';
+      mostrarToast(code === 'invalid_whatsapp'
+        ? 'O número de WhatsApp informado não é válido.'
+        : 'Não foi possível iniciar a Ana. Nenhuma mensagem foi enviada; revise as permissões e tente novamente.');
+    } finally {
+      setAtivandoAna(false);
+    }
+  };
+
   // O Kanban é uma carteira dos próprios leads. Este envio não inicia Ana,
   // não cria um segundo registro e não muda a classificação da importação.
   const enviarParaKanban = async (ids: string[]) => {
@@ -417,7 +468,7 @@ export default function Leads() {
     setPossiveisDuplicados(null);
     setNovoLead({ nome: '', empresa: '', email: '', telefone: '', segmento: 'Tecnologia', cidade: '', estado: '', modo: 'IA' });
     if (novo.modoAtendimento === 'IA') {
-      setEnvioAlvo([novo.id]);
+      abrirAtivacaoAna(novo);
       mostrarToast('Lead criado. Confirme o canal e a autorização para ativar a Ana.');
       return;
     }
@@ -834,7 +885,7 @@ export default function Leads() {
               {columnVisible('last-interaction') && <td className="px-4 py-4 text-xs text-foreground-600">{lead.ultimaInteracao && lead.ultimaInteracao !== '—' ? <span>{lead.ultimaInteracao}</span> : <div><p className="text-accent-700">Sem interação</p><button type="button" onClick={(event) => { event.stopPropagation(); navigate(`/dashboard/atendimento?leadId=${lead.id}`); }} className="mt-1 text-xs font-semibold text-primary-700 hover:text-primary-900">Registrar</button></div>}</td>}
               {columnVisible('next-action') && <td className="px-4 py-4 text-xs">{action ? <div><p className="max-w-[180px] font-medium text-foreground-800">{action.text}</p>{action.dueAt && <p className={`mt-1 ${isPortfolioDateOverdue(action.dueAt) ? 'font-semibold text-accent-700' : 'text-foreground-500'}`}><i className={`${isPortfolioDateOverdue(action.dueAt) ? 'ri-alarm-warning-line' : 'ri-calendar-line'} mr-1`} />{isPortfolioDateOverdue(action.dueAt) ? 'Atrasada · ' : ''}{formatPortfolioDate(action.dueAt)}</p>}</div> : <div><p className="text-accent-700">Não definida</p>{canEdit && <button type="button" onClick={(event) => { event.stopPropagation(); setTarefaLead(lead); setNovaTarefa({ titulo: `Retomar contato com ${lead.nome || lead.empresa}`, dataLimite: '', prioridade: 'MEDIA' }); }} className="mt-1 text-xs font-semibold text-primary-700 hover:text-primary-900">Adicionar</button>}</div>}</td>}
               {columnVisible('owner') && <td className="px-4 py-4" onClick={(event) => event.stopPropagation()}><div className="flex items-center gap-2"><span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary-100 text-[11px] font-bold text-primary-800">{(lead.responsavel || '?').split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase()}</span>{canEditAll ? <select aria-label={`Responsável por ${lead.empresa || lead.nome}`} value={lead.responsavelId ?? '__ana__'} onChange={(event) => { if (event.target.value !== '__ana__') void atribuirResponsavel([lead.id], event.target.value); }} className="max-w-[120px] bg-transparent text-xs font-medium text-foreground-700"><option value="__ana__">{lead.responsavel || 'Ana (IA)'}</option>{membros.filter((member) => member.userId !== lead.responsavelId).map((member) => <option key={member.userId} value={member.userId}>{member.name}</option>)}</select> : <span className="text-xs font-medium text-foreground-700">{lead.responsavel || 'Sem responsável'}</span>}</div></td>}
-              <td className="relative px-4 py-4" onClick={(event) => event.stopPropagation()}><button type="button" aria-label={`Ações de ${lead.empresa || lead.nome}`} aria-expanded={menuAbertoId === lead.id} onClick={() => setMenuAbertoId((current) => current === lead.id ? null : lead.id)} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-foreground-500 hover:bg-background-100 hover:text-foreground-900"><i className="ri-more-2-fill" /></button>{menuAbertoId === lead.id && <div className="absolute right-4 top-12 z-20 w-48 rounded-xl border border-background-200 bg-white p-1.5 shadow-lg"><button type="button" onClick={() => { setDetalhe(lead); setMenuAbertoId(null); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-foreground-700 hover:bg-background-100"><i className="ri-eye-line" />Ver detalhes</button>{canEdit && <button type="button" onClick={() => { abrirEnvioParaKanban([lead.id]); setMenuAbertoId(null); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-primary-800 hover:bg-primary-50"><i className="ri-kanban-view-2-line" />Enviar ao Kanban</button>}{canEdit && <button type="button" onClick={() => { abrirEdicao(lead); setMenuAbertoId(null); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-foreground-700 hover:bg-background-100"><i className="ri-edit-line" />Editar</button>}{canEdit && <button type="button" onClick={() => { void (lead.arquivado ? restaurarLead(lead.id) : arquivarLead(lead.id)); setMenuAbertoId(null); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-foreground-700 hover:bg-background-100"><i className={lead.arquivado ? 'ri-arrow-go-back-line' : 'ri-archive-line'} />{lead.arquivado ? 'Restaurar' : 'Arquivar'}</button>}{canDelete && <button type="button" onClick={() => { openLeadPurge([lead.id]); setMenuAbertoId(null); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-accent-700 hover:bg-accent-50"><i className="ri-delete-bin-line" />Excluir definitivamente</button>}</div>}</td></tr>;
+              <td className="relative px-4 py-4" onClick={(event) => event.stopPropagation()}><button type="button" aria-label={`Ações de ${lead.empresa || lead.nome}`} aria-expanded={menuAbertoId === lead.id} onClick={() => setMenuAbertoId((current) => current === lead.id ? null : lead.id)} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-foreground-500 hover:bg-background-100 hover:text-foreground-900"><i className="ri-more-2-fill" /></button>{menuAbertoId === lead.id && <div className="absolute right-4 top-12 z-20 w-56 rounded-xl border border-background-200 bg-white p-1.5 shadow-lg"><button type="button" onClick={() => { setDetalhe(lead); setMenuAbertoId(null); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-foreground-700 hover:bg-background-100"><i className="ri-eye-line" />Ver detalhes</button>{canEdit && <button type="button" onClick={() => { abrirEnvioParaKanban([lead.id]); setMenuAbertoId(null); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-primary-800 hover:bg-primary-50"><i className="ri-kanban-view-2-line" />Enviar ao Kanban</button>}{canEdit && lead.modoAtendimento === 'IA' && lead.contactApprovalStatus !== 'approved' && <button type="button" onClick={() => { abrirAtivacaoAna(lead); setMenuAbertoId(null); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-secondary-800 hover:bg-secondary-50"><i className="ri-robot-2-line" />Autorizar e iniciar Ana</button>}{canEdit && <button type="button" onClick={() => { abrirEdicao(lead); setMenuAbertoId(null); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-foreground-700 hover:bg-background-100"><i className="ri-edit-line" />Editar</button>}{canEdit && <button type="button" onClick={() => { void (lead.arquivado ? restaurarLead(lead.id) : arquivarLead(lead.id)); setMenuAbertoId(null); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-foreground-700 hover:bg-background-100"><i className={lead.arquivado ? 'ri-arrow-go-back-line' : 'ri-archive-line'} />{lead.arquivado ? 'Restaurar' : 'Arquivar'}</button>}{canDelete && <button type="button" onClick={() => { openLeadPurge([lead.id]); setMenuAbertoId(null); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-accent-700 hover:bg-accent-50"><i className="ri-delete-bin-line" />Excluir definitivamente</button>}</div>}</td></tr>;
           })}
           {loadStatus !== 'loading' && filtrados.length === 0 && <tr><td colSpan={3 + colunasVisiveis.length} className="px-4 py-12 text-center text-foreground-500"><i className="ri-search-line mb-2 block text-2xl text-foreground-400" />{leads.length === 0 ? 'Nenhum lead cadastrado ainda.' : 'Nenhum lead encontrado com os filtros selecionados.'}</td></tr>}
         </tbody></table></div>
@@ -902,6 +953,40 @@ export default function Leads() {
               >
                 <i className="ri-send-plane-2-line"></i>
                 Enviar para o Kanban
+              </button>
+            </div>
+          </div>
+        </AccessibleDialog>
+      )}
+
+      {ativacaoAnaLead && (
+        <AccessibleDialog title="Autorizar primeiro contato da Ana" className="fixed inset-0 z-[60] bg-foreground-950/50 flex items-center justify-center p-4" onClose={() => !ativandoAna && setAtivacaoAnaLead(null)}>
+          <div className="w-full max-w-lg rounded-xl bg-background-50" onClick={(event) => event.stopPropagation()}>
+            <div className="flex items-start justify-between gap-4 border-b border-background-200/70 px-6 py-4">
+              <div>
+                <h3 className="font-heading font-bold text-foreground-950">Autorizar WhatsApp e iniciar Ana</h3>
+                <p className="mt-1 text-sm text-foreground-600">A autorização será registrada antes de qualquer ação automática.</p>
+              </div>
+              <button aria-label="Fechar autorização" disabled={ativandoAna} onClick={() => setAtivacaoAnaLead(null)} className="flex h-8 w-8 items-center justify-center rounded-lg hover:bg-background-100 disabled:cursor-not-allowed">
+                <i className="ri-close-line text-lg" />
+              </button>
+            </div>
+            <div className="space-y-4 px-6 py-5">
+              <div className="rounded-xl border border-background-200 bg-background-100/60 p-4 text-sm">
+                <p className="font-semibold text-foreground-900">{ativacaoAnaLead.nome || ativacaoAnaLead.empresa}</p>
+                <p className="mt-1 text-foreground-700">WhatsApp: {approvedAnaWhatsAppChannel({ whatsapp: ativacaoAnaLead.whatsapp, telefone: ativacaoAnaLead.telefone })?.whatsapp || 'não informado'}</p>
+              </div>
+              <p className="text-sm leading-6 text-foreground-700">Ao confirmar, o CRM aprova este canal para o primeiro contato e encaminha o lead para a Ana pelo fluxo seguro. A confirmação do envio e da entrega permanece no histórico da Central.</p>
+              <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-secondary-200 bg-secondary-50 p-4 text-sm text-foreground-800">
+                <input type="checkbox" checked={confirmacaoAtivacaoAna} disabled={ativandoAna} onChange={(event) => setConfirmacaoAtivacaoAna(event.target.checked)} className="mt-0.5 h-4 w-4 accent-secondary-600" />
+                <span>Confirmo que este número pode receber a primeira apresentação da empresa por WhatsApp.</span>
+              </label>
+            </div>
+            <div className="flex justify-end gap-2 border-t border-background-200/70 px-6 py-4">
+              <button disabled={ativandoAna} onClick={() => setAtivacaoAnaLead(null)} className="rounded-lg border border-background-300 px-4 py-2.5 text-sm font-semibold text-foreground-700 hover:bg-background-100 disabled:cursor-not-allowed">Cancelar</button>
+              <button disabled={!confirmacaoAtivacaoAna || ativandoAna} onClick={() => void confirmarAtivacaoAna()} className="inline-flex items-center gap-2 rounded-lg bg-secondary-500 px-5 py-2.5 text-sm font-bold text-background-50 hover:bg-secondary-600 disabled:cursor-not-allowed disabled:bg-secondary-300">
+                <i className={ativandoAna ? 'ri-loader-4-line animate-spin' : 'ri-robot-2-line'} />
+                {ativandoAna ? 'Iniciando Ana…' : 'Autorizar e iniciar Ana'}
               </button>
             </div>
           </div>
@@ -1007,6 +1092,13 @@ export default function Leads() {
                 >
                   <i className="ri-delete-bin-6-line" />
                   Excluir definitivamente
+                </button>}
+                {canEditLead(detalhe) && detalhe.modoAtendimento === 'IA' && detalhe.contactApprovalStatus !== 'approved' && <button
+                  onClick={() => abrirAtivacaoAna(detalhe)}
+                  className="inline-flex items-center gap-1.5 px-4 py-2.5 bg-secondary-500 hover:bg-secondary-600 text-background-50 rounded-lg text-sm font-semibold cursor-pointer whitespace-nowrap"
+                >
+                  <i className="ri-robot-2-line" />
+                  Autorizar e iniciar Ana
                 </button>}
                 <button
                   onClick={() => setDetalhe(null)}
