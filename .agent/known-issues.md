@@ -1,5 +1,10 @@
 # Problemas conhecidos
 
+## 09/10/2026 — WA-AKG: aguarda novo pareamento do telefone autorizado
+
+- O gateway confirmou que o dispositivo anteriormente vinculado tinha final diferente do telefone esperado. Ele foi desvinculado sem apagar conta ou histórico.
+- A ativação automática por permissão está publicada na Edge v10, mas sua prova ponta a ponta depende da leitura do QR pelo telefone autorizado e da confirmação do final correto. Até lá, entrada, saída e Ana permanecem desligadas.
+
 ## 09/10/2026 — WA-AKG: reconciliação de estado resolvida; entrega continua separada
 
 - Resolvido: a divergência entre gateway CONNECTED e CRM em qr foi corrigida na Edge wa-akg-worker v9 e confirmada visualmente na tela publicada para fabricio.

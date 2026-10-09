@@ -39,7 +39,7 @@
 - Consumes: `runAccountLifecycle(admin, { organizationId, accountId, provider, actorId }, 'activate', work)` from `_shared/accountLifecycle.ts`.
 - Produces: a reconciliation that records provider-confirmed connection data and enables the account only through the existing lifecycle contract when owner permissions are sufficient.
 
-- [ ] **Step 1: Write failing tests for the eligible owner and denied owners**
+- [x] **Step 1: Write failing tests for the eligible owner and denied owners**
 
 Extend the worker fixture with `owner_user_id` and mocks for `hasOrganizationPermission` and `runAccountLifecycle`. Add separate tests that assert:
 
@@ -59,7 +59,7 @@ it('keeps a confirmed session blocked when the owner lacks an own-channel permis
 
 Add a third test for an inactive/missing owner and a fourth test that asserts the provider-control table is never updated.
 
-- [ ] **Step 2: Run the focused test and verify RED**
+- [x] **Step 2: Run the focused test and verify RED**
 
 Run:
 ```bash
@@ -69,7 +69,7 @@ $NODE node_modules/vitest/vitest.mjs run supabase/tests/waAkgWorkerConnectionSyn
 
 Expected: FAIL because confirmed sessions are still persisted as disabled and no lifecycle activation is requested.
 
-- [ ] **Step 3: Implement the minimum permission-aware activation**
+- [x] **Step 3: Implement the minimum permission-aware activation**
 
 In `reconcileConnectedSessions`:
 
@@ -82,7 +82,7 @@ In `reconcileConnectedSessions`:
 
 Do not alter `processConnection`: a webhook alone is not enough to automatically enable an account; the existing direct provider confirmation remains required.
 
-- [ ] **Step 4: Run focused regression tests and verify GREEN**
+- [x] **Step 4: Run focused regression tests and verify GREEN**
 
 Run:
 ```bash
@@ -94,7 +94,7 @@ $NODE node_modules/eslint/bin/eslint.js supabase/functions/wa-akg-worker/index.t
 
 Expected: all focused tests, Edge type-check and targeted lint pass.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add supabase/functions/wa-akg-worker/index.ts supabase/tests/waAkgWorkerConnectionSync.test.ts
@@ -116,7 +116,7 @@ git commit -m "feat: activate connected wa-akg accounts by permission"
 - Consumes: the tested Edge source from Task 1.
 - Produces: a versioned Edge deployment and factual evidence that distinguishes activation state, policy state and message delivery.
 
-- [ ] **Step 1: Run the full suite before deployment**
+- [x] **Step 1: Run the full suite before deployment**
 
 Run:
 ```bash
@@ -127,7 +127,7 @@ git diff --check
 
 Expected: all tests pass; any pre-existing failure is recorded without suppression.
 
-- [ ] **Step 2: Deploy only `wa-akg-worker` from the active remote bundle base**
+- [x] **Step 2: Deploy only `wa-akg-worker` from the active remote bundle base**
 
 Read the active function bundle first, replace only `wa-akg-worker/index.ts` with the tested source, preserve `verify_jwt: false` and its custom worker authentication, then deploy the function. Do not deploy the frontend, migrations or unrelated Edge Functions.
 

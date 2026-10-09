@@ -1,5 +1,14 @@
 {
   "schema_version": 1,
+  "wa_akg_permission_aware_activation_20261009": {
+    "red_green": "The owner-permission lifecycle test failed before the worker consulted permissions and passed after the minimum implementation.",
+    "focused_vitest": "32 passed: waAkgWorkerConnectionSync, messagingRecoveryR6 and waAkgProvider",
+    "full_vitest": "643 passed, 91 files",
+    "edge_typecheck": "passed; tsc --project tsconfig.edge.json",
+    "targeted_lint": "passed; zero warnings",
+    "diff_check": "passed",
+    "deployment": "wa-akg-worker v10 ACTIVE; live paired-account activation intentionally not exercised because the incorrect device was unlinked"
+  },
   "wa_akg_connected_session_reconciliation_20261009": {
     "red_green_test": "New waAkgWorkerConnectionSync test failed before implementation and passed after provider-confirmed reconciliation and device-suffix normalization.",
     "focused_vitest": "30 passed: waAkgWorkerConnectionSync, messagingRecoveryR6 and waAkgProvider",

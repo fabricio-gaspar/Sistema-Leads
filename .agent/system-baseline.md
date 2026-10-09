@@ -1,5 +1,11 @@
 # Baseline do sistema
 
+## 09/10/2026 — WA-AKG: ativação automática respeita permissões existentes
+
+- A Edge wa-akg-worker v10 ativa automaticamente uma sessão WA-AKG confirmada somente quando o proprietário da conta está ativo e já possui channels.view_own e channels.connect_own. A ativação usa o ciclo de vida durável existente; não cria permissões nem libera outro usuário.
+- A política global do provedor continua como teto para entrada, resposta humana e Ana. O pareamento não a altera e não ativa a Ana. Respostas humanas continuam verificando as permissões de conversas em cada ação.
+- Validação local: 643/643 Vitest, type-check Edge, lint dirigido e diff check. A prova E2E após pareamento correto permanece pendente: o dispositivo de final divergente foi desvinculado, e o estado atual mantém conta/integracão bloqueadas e kill switch ativo.
+
 ## 09/10/2026 — WA-AKG: sessão conectada reconciliada automaticamente
 
 - A sessão individual de fabricio já estava confirmada pelo gateway, porém os eventos de restauração/histórico não trouxeram um connection.update utilizável para retirar o CRM de qr. O worker agora reconcilia somente contas WA-AKG locais inativas, exige o session_id determinístico e confirmação direta de CONNECTED antes de gravar a promoção.

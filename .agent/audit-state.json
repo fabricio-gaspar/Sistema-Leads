@@ -1,5 +1,13 @@
 {
   "schema_version": 1,
+  "wa_akg_permission_aware_activation_20261009": {
+    "design": "A confirmed seller session can be activated only when its active owner has channels.view_own and channels.connect_own. Existing RBAC continues to decide Central and reply access per action.",
+    "edge_function": "wa-akg-worker v10 ACTIVE; bundle includes the existing account lifecycle module and preserves verify_jwt=false custom worker authentication.",
+    "policy_boundary": "messaging_provider_controls remains organization-wide and was not changed by the worker. Ana is never enabled by pairing.",
+    "validation": "Focused 32/32 and full Vitest 643/643 passed; Edge type-check, targeted lint and diff check passed before deployment.",
+    "runtime_state": "After unlinking the wrong device, account is disconnected and disabled; integration disconnected/disabled/paused; inbound, send and automation false; kill switch true.",
+    "not_verified": "No currently authorized phone is paired, so live auto-activation after a correct scan remains pending; no message was sent."
+  },
   "wa_akg_connected_session_reconciliation_20261009": {
     "cause": "The provider had restored the linked session and confirmed CONNECTED, but did not emit a usable connection.update webhook while replaying history, leaving the CRM persisted at qr.",
     "resolution": "wa-akg-worker v9 now probes only locally inactive WA-AKG seller sessions with the expected scoped session id and promotes them only after the provider confirms CONNECTED.",

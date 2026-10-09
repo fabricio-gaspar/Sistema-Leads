@@ -1,5 +1,11 @@
 # Histórico resumido de execução
 
+## 09/10/2026 — Ativação WA-AKG por permissões existentes
+
+- Implementada e publicada a Edge wa-akg-worker v10 com ativação automática de conta individual somente após confirmação direta da sessão e validação do proprietário ativo com channels.view_own e channels.connect_own. A transição reutiliza o lifecycle durável; falhas de permissão, membro ou lifecycle mantêm a conta bloqueada.
+- A mudança não grava nem flexibiliza messaging_provider_controls. Entrada, resposta humana e Ana continuam condicionadas ao teto administrativo global e às autorizações de cada ação.
+- Teste red/green, 32 testes focados, 643/643 Vitest, type-check Edge, lint dirigido e diff check passaram. Não foi feita ativação E2E com telefone porque o dispositivo de final divergente foi desvinculado; estado final seguro: conta/integracão desabilitadas/pausadas, controles falsos e kill switch ativo.
+
 ## 09/10/2026 — Reconciliação automática de CONNECTED do WA-AKG
 
 - Causa comprovada: após o pareamento, o gateway confirmava a sessão individual conectada, mas não emitia connection.update utilizável durante o replay de histórico; por isso o CRM continuava em qr e sem final de número.

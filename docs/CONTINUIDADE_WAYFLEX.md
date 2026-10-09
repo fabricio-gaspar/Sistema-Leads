@@ -1,5 +1,11 @@
 # Checkpoint — WayFlex CRM
 
+## 09/10/2026 — WA-AKG: ativação automática limitada às permissões do proprietário
+
+- Foi publicada a Edge wa-akg-worker v10. Após confirmação direta do gateway, ela ativa a conta individual somente se o proprietário estiver ativo e já tiver channels.view_own e channels.connect_own; o ciclo de vida existente audita e persiste a transição.
+- A política global de entrada, envio e Ana não é modificada pelo pareamento. Ela permanece como teto administrativo; permissões de conversa continuam sendo verificadas por ação.
+- O dispositivo de final divergente foi desvinculado. Estado pós-verificação: conexão desconectada, conta e integração desabilitadas/pausadas, entrada/envio/Ana desligados e kill switch ativo. Não houve mensagem, QR novo, Ana ou automação. Próxima ação: parear o telefone autorizado e confirmar o final antes de um teste de entrada controlado.
+
 ## 09/10/2026 — WA-AKG: CRM passou a reconciliar CONNECTED automaticamente
 
 - A sessão de fabricio foi confirmada pelo gateway, mas o CRM permanecia em qr porque o replay de histórico não emitia connection.update utilizável. A correção na Edge wa-akg-worker v9 faz uma leitura segura somente para sessões WA-AKG locais inativas e as promove apenas quando o gateway confirma a sessão determinística como CONNECTED.

@@ -18,6 +18,14 @@
       "last_validation": "2026-10-09"
     },
     {
+      "id": "REQ-WA-AKG-PERMISSION-AWARE-ACTIVATION-20261009",
+      "description": "Após conexão confirmada, habilitar automaticamente apenas o canal do proprietário ativo que já possui as permissões próprias de visualização e conexão, preservando a política global e a Ana.",
+      "module": "configuracoes_canais_wa_akg",
+      "status": "PUBLICADO_COM_E2E_DE_PAREAMENTO_PENDENTE",
+      "evidence": "wa-akg-worker v10 usa o lifecycle existente para ativar somente após confirmação direta do gateway e channels.view_own + channels.connect_own. Sem permissão ou proprietário válido, mantém bloqueado. Não altera messaging_provider_controls. 643/643 Vitest, type-check Edge, lint e diff check passaram.",
+      "last_validation": "2026-10-09"
+    },
+    {
       "id": "REQ-EVOLUTION-GO-FLAVIO-QR-CAPACITY-20261007",
       "description": "Resolver falha de sessão/QR e testar com Flavio, sem mensagens ou exclusão de histórico",
       "module": "evolution_go_qr",
