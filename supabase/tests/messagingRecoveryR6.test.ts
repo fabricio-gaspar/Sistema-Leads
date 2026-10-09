@@ -1,7 +1,7 @@
 import { afterEach,beforeEach,describe,expect,it,vi } from 'vitest';
 import { processInboundWork } from '../functions/_shared/inboundWork.ts';
 import { runProvisioningWork } from '../functions/_shared/provisioningWork.ts';
-import { recoverAccountLifecycle } from '../functions/_shared/accountLifecycle.ts';
+import { recoverAccountLifecycle,recoverWaAkgProvisioning } from '../functions/_shared/accountLifecycle.ts';
 import { WaAkgProvider,waAkgSessionName } from '../functions/_shared/messaging/WaAkgProvider.ts';
 import { parseWaAkgEvent,sanitizeWaAkgPayload } from '../functions/_shared/waAkgInbound.ts';
 type Row=Record<string,any>;
@@ -20,7 +20,9 @@ beforeEach(()=>{
    claim_whatsapp_provisioning:{id:'job',operation_id:'operation',revision:1},check_whatsapp_provisioning:{current:true},
    save_whatsapp_provisioning_secret:true,finish_whatsapp_provisioning:{state:'completed'},
    diagnose_whatsapp_account_lifecycle:{state:'in_flight',revision:1,can_reconcile_read_only:true,reason:'read_only_operation'},
-   reconcile_whatsapp_account_lifecycle:{state:'completed',revision:2,desired_action:'reconciled_disabled'}};
+   reconcile_whatsapp_account_lifecycle:{state:'completed',revision:2,desired_action:'reconciled_disabled'},
+   diagnose_wa_akg_provision_recovery:{state:'needs_review',revision:21,can_reconcile_provision:true,reason:'provision_completion_observed'},
+   reconcile_wa_akg_provision_recovery:{state:'completed',revision:22,desired_action:'provision_reconciled_disabled'}};
   if(!(name in values))throw Error('unexpected_rpc');return {data:values[name],error:null};
  })};
  vi.stubGlobal('Deno',{env:{get:(n:string)=>({SUPABASE_URL:'https://example.invalid',SUPABASE_SERVICE_ROLE_KEY:'synthetic',META_WORKER_TOKEN:'worker'} as Row)[n]},serve:(h:typeof handler)=>{handler=h;}});
@@ -44,6 +46,16 @@ describe('R6 durable stage orchestration — mocked transport',()=>{
  it('T-R6-HTTP-08 pending ledger admits no automatic provisioning effect',async()=>{rpcOverride=n=>n==='claim_whatsapp_provisioning'?{data:null,error:null}:undefined;const work=vi.fn();expect(await runProvisioningWork(state.admin as never,'wa_akg',{id:'job'},work)).toEqual({skipped:true});expect(work).not.toHaveBeenCalled();});
  it('T-R6-HTTP-09 recovery sends server observation, reason and expected revision to CAS',async()=>{const observe=vi.fn(async()=>({confirmed:true,connected:true}));const result=await recoverAccountLifecycle(state.admin as never,context,{action:'lifecycle_reconcile',expected_revision:1,reason:'Motivo sintético validado'},observe);expect(result.lifecycle.state).toBe('completed');expect(result.recovery.retainsLocalCutoff).toBe(true);expect(calls.at(-1)?.p).toMatchObject({p_expected_revision:1,p_observation:{confirmed:true,connected:true}});expect(fetchMock).not.toHaveBeenCalled();});
  it('T-R6-HTTP-10 observed connected never releases an uncertain mutation',async()=>{rpcOverride=n=>n==='diagnose_whatsapp_account_lifecycle'?{data:{revision:2,state:'needs_review',can_reconcile_read_only:false,reason:'external_mutation_terminality_unproven'},error:null}:undefined;const result=await recoverAccountLifecycle(state.admin as never,context,{action:'lifecycle_reconcile',expected_revision:2,reason:'Sem prova de terminalidade'},async()=>({confirmed:true,connected:true}));expect(result.status).toBe(409);expect(calls.some(c=>c.name==='reconcile_whatsapp_account_lifecycle')).toBe(false);});
+ it('T-R6-HTTP-11 reconciles a provision only after QR state, webhook ownership, and safety are independently confirmed',async()=>{
+  const result=await recoverWaAkgProvisioning(state.admin as never,context,{action:'provision_reconcile',expected_revision:21,reason:'Sessão e webhook conferidos para pareamento'},async()=>({confirmed:true,connected:false,state:'SCAN_QR',webhookOwned:true,safetyConfirmed:true}));
+  expect(result.lifecycle).toMatchObject({state:'completed',revision:22,desiredAction:'provision_reconciled_disabled'});
+  expect(calls.at(-1)).toMatchObject({name:'reconcile_wa_akg_provision_recovery',p:{p_expected_revision:21,p_observation:{confirmed:true,connected:false,state:'SCAN_QR',webhook_owned:true,safety_confirmed:true}}});
+  expect(fetchMock).not.toHaveBeenCalled();
+ });
+ it('T-R6-HTTP-12 refuses provision recovery if the session is connected or any ownership proof is missing',async()=>{
+  const result=await recoverWaAkgProvisioning(state.admin as never,context,{action:'provision_reconcile',expected_revision:21,reason:'Sem evidência suficiente para concluir'},async()=>({confirmed:true,connected:true,state:'CONNECTED',webhookOwned:true,safetyConfirmed:true}));
+  expect(result.status).toBe(409);expect(calls.some(c=>c.name==='reconcile_wa_akg_provision_recovery')).toBe(false);
+ });
 });
 
 describe('R7 pinned WA-AKG upstream contract',()=>{
