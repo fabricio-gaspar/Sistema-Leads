@@ -20,6 +20,12 @@ describe('WA-AKG channel repository', () => {
     expect(invokeMock).toHaveBeenCalledExactlyOnceWith('wa-akg', { body: { action: 'lifecycle_diagnose', account_id: accountId } });
   });
 
+  it('uses the distinct provision recovery contract without starting or regenerating a session', async () => {
+    invokeMock.mockResolvedValue({ data: { ok: true, ...diagnosis }, error: null });
+    await expect(reviewChannelLifecycle('wa_akg', accountId, undefined, 'provision')).resolves.toMatchObject(diagnosis);
+    expect(invokeMock).toHaveBeenCalledExactlyOnceWith('wa-akg', { body: { action: 'provision_diagnose', account_id: accountId } });
+  });
+
   it('requires a confirmed reconciliation response', async () => {
     invokeMock.mockResolvedValue({ data: { ok: true, ...diagnosis }, error: null });
     await expect(reviewChannelLifecycle('wa_akg', accountId, { expectedRevision: 7, reason: 'Consulta revisada' })).rejects.toThrow('lifecycle_recovery_unconfirmed');

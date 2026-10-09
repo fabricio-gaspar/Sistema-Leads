@@ -108,3 +108,50 @@ export async function recoverAccountLifecycle(admin: Admin, context: LifecycleCo
     p_expected_revision: revision, p_reason: reason, p_observation: observation });
   return { lifecycle: present(completed), recovery: { ...recovery, reconciled: true }, status: 200 };
 }
+
+type WaAkgProvisionObservation = {
+  confirmed: boolean; connected: boolean; state: string; webhookOwned: boolean; safetyConfirmed: boolean;
+};
+
+/**
+ * A provision can be reconciled only after the provider proves the already-created
+ * session is the expected isolated session, has its exact callback ownership, and
+ * remains safe for manual pairing. This does not start a session, create a QR, or
+ * release any local messaging gate.
+ */
+export async function recoverWaAkgProvisioning(admin: Admin, context: LifecycleContext, input: Row,
+  observe: () => Promise<WaAkgProvisionObservation>,
+): Promise<{ lifecycle: LifecycleResult; recovery: Row; status: number }> {
+  const diagnosis = await rpc(admin, 'diagnose_wa_akg_provision_recovery', params(context));
+  const observed = await observe();
+  const qrReady = !observed.connected && ['SCAN_QR', 'QR'].includes(observed.state);
+  const eligible = diagnosis.can_reconcile_provision === true && observed.confirmed && qrReady
+    && observed.webhookOwned && observed.safetyConfirmed;
+  const observation = {
+    confirmed: observed.confirmed,
+    connected: observed.connected,
+    state: observed.state,
+    webhook_owned: observed.webhookOwned,
+    safety_confirmed: observed.safetyConfirmed,
+    observed_at: new Date().toISOString(),
+  };
+  const recovery: Row = {
+    eligible,
+    reason: eligible ? 'provision_completion_observed' : (observed.confirmed ? diagnosis.reason : 'provider_state_not_confirmed'),
+    observedConnected: observed.confirmed ? observed.connected : null,
+    observedAt: observation.observed_at,
+    requiresAdmin: true,
+    retainsLocalCutoff: true,
+  };
+  if (input.action !== 'provision_reconcile') return { lifecycle: present(diagnosis), recovery, status: 200 };
+  if (!eligible) return { lifecycle: present(diagnosis), recovery, status: 409 };
+  const revision = Number(input.expected_revision);
+  const reason = typeof input.reason === 'string' ? input.reason.trim() : '';
+  if (!Number.isSafeInteger(revision) || revision < 0 || reason.length < 8 || reason.length > 500) {
+    throw new Error('account_lifecycle_recovery_input_invalid');
+  }
+  const completed = await rpc(admin, 'reconcile_wa_akg_provision_recovery', {
+    ...params(context), p_expected_revision: revision, p_reason: reason, p_observation: observation,
+  });
+  return { lifecycle: present(completed), recovery: { ...recovery, reconciled: true }, status: 200 };
+}

@@ -268,12 +268,16 @@ export interface ChannelRecoveryResult {
 export async function reviewChannelLifecycle(
   provider: 'wa_akg', accountId: string,
   reconciliation?: { expectedRevision: number; reason: string },
+  recoveryKind: 'read_only' | 'provision' = 'read_only',
 ): Promise<ChannelRecoveryResult> {
   const context = sessionContext.requireReady();
   if (reconciliation && (!Number.isInteger(reconciliation.expectedRevision) || reconciliation.reason.trim().length < 8 || reconciliation.reason.trim().length > 500)) {
     throw new Error('lifecycle_recovery_reason_required');
   }
-  const body = { action: reconciliation ? 'lifecycle_reconcile' : 'lifecycle_diagnose', account_id: accountId,
+  const action = recoveryKind === 'provision'
+    ? (reconciliation ? 'provision_reconcile' : 'provision_diagnose')
+    : (reconciliation ? 'lifecycle_reconcile' : 'lifecycle_diagnose');
+  const body = { action, account_id: accountId,
     ...(reconciliation ? { expected_revision: reconciliation.expectedRevision, reason: reconciliation.reason.trim() } : {}) };
   const { data, error } = await supabase.functions.invoke('wa-akg', { body });
   sessionContext.assertCurrent(context);

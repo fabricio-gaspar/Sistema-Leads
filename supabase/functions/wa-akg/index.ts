@@ -1,7 +1,7 @@
 import { createAdminClient, hasOrganizationPermission, requireUser } from '../_shared/auth.ts';
 import { allowedCorsHeaders, hasAllowedOrigin, json, preflight, safeError } from '../_shared/http.ts';
 import { WaAkgProvider, normalizeWaAkgBaseUrl, waAkgSessionName } from '../_shared/messaging/WaAkgProvider.ts';
-import { accountLifecycleStatus, recoverAccountLifecycle, runAccountLifecycle, setAccountProviderControls, type LifecycleStep } from '../_shared/accountLifecycle.ts';
+import { accountLifecycleStatus, recoverAccountLifecycle, recoverWaAkgProvisioning, runAccountLifecycle, setAccountProviderControls, type LifecycleStep } from '../_shared/accountLifecycle.ts';
 
 type Admin = ReturnType<typeof createAdminClient>;
 type Row = Record<string, unknown>;
@@ -353,6 +353,26 @@ Deno.serve(async (request) => {
         const { provider } = await providerFor(admin, actor.organizationId, record);
         const status = await provider.status();
         return { confirmed: status.confirmed === true, connected: status.connected };
+      });
+      return json({ ok: result.status === 200, ...result, ...(result.status === 409 ? { error: 'account_lifecycle_needs_review' } : {}) }, result.status, headers);
+    }
+    if (action === 'provision_diagnose' || action === 'provision_reconcile') {
+      const record = await accessible(admin, actor, accountId, 'manage');
+      const result = await recoverWaAkgProvisioning(admin, { organizationId: actor.organizationId, accountId,
+        provider: 'wa_akg', actorId: actor.userId }, body, async () => {
+        const { provider, secret } = await providerFor(admin, actor.organizationId, record);
+        const status = await provider.status();
+        const state = status.state;
+        if (!status.confirmed || status.connected || !['SCAN_QR', 'QR'].includes(state)) {
+          return { confirmed: status.confirmed === true, connected: status.connected, state, webhookOwned: false, safetyConfirmed: false };
+        }
+        try {
+          await provider.verifyOwnedSession(callbackUrl(String(record.integration.id)), text(secret.webhook_secret, 256));
+          await provider.assertSafety();
+          return { confirmed: true, connected: false, state, webhookOwned: true, safetyConfirmed: true };
+        } catch {
+          return { confirmed: true, connected: false, state, webhookOwned: false, safetyConfirmed: false };
+        }
       });
       return json({ ok: result.status === 200, ...result, ...(result.status === 409 ? { error: 'account_lifecycle_needs_review' } : {}) }, result.status, headers);
     }
