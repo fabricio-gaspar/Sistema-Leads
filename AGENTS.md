@@ -17,3 +17,18 @@ Este é o projeto existente; não criar outro Site nem substituir a stack.
 - Documentos de continuidade fazem parte deste repositório; não duplicar o código em outro armazenamento.
 - Atualizar a memória técnica em `.agent/` ao concluir e validar cada lote. Não registrar
   commit, teste, integração ou publicação sem evidência real.
+
+## Organização de produto e interface
+
+- Antes de criar ou mover telas, consultar `docs/MAPA_PRODUTO_PERMISSOES.md` e
+  `docs/DESIGN_SYSTEM_WAYFLEX.md`: tarefa → perfil → escopo → permissão → superfície.
+- Em tarefas de organização visual, usar `.agents/skills/wayflex-product-ui/SKILL.md`.
+  Ela complementa o AGENT OS; não substitui regras de segurança ou skills locais não inspecionadas.
+- `administrador` é papel da empresa; não conceder administração global por inferência.
+  Consultar a definição canônica de permissões, sem duplicar sua lógica em documentos ou CSS.
+- Conectar o próprio WhatsApp é autoatendimento autorizado. Gerir canais de terceiros,
+  credenciais e políticas é administração. Reorganizar a interface não amplia permissões.
+- Na Central, priorizar conversa e próximo passo; consultar
+  `docs/REDESIGN_ATENDIMENTO_2026-10-09.md` antes de implementar o redesenho proposto.
+- Distinguir documentação aplicada, código implementado, testes executados e Site publicado.
+  Checkpoint deste lote: `.agent/modules/product-ui.md`.
