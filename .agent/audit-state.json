@@ -1,5 +1,18 @@
 {
   "schema_version": 1,
+  "wa_akg_tunnel_recovery_20261009": {
+    "cause": "The accountless Cloudflare Quick Tunnel hostname expired while its container remained running.",
+    "recovery": "Only the protected tunnel container was recreated; the exact new origin was stored in the Edge allowlist and the existing Vault secret without exposing or replacing the API key.",
+    "runtime_proof": "CRM secure diagnostic observed the gateway reachable and the fabricio seller session in SCAN_QR; account status is qr, the phone remains unconfirmed, and Ana remains protected.",
+    "ui_guard": "QR generation is disabled whenever the account lifecycle is blocked, preventing a clickable no-op during administrative review.",
+    "monitor": "Active 15-minute heartbeat monitor reports only material route, gateway, or session degradation and never repairs, pairs, sends, activates Ana, or changes controls.",
+    "durable_limit": "A named Cloudflare Tunnel with a stable DNS hostname still requires the owner's Cloudflare zone and tunnel credential; Quick Tunnels cannot promise stable URLs.",
+    "qr_generated": false,
+    "phone_paired": false,
+    "messages_sent": false,
+    "ana_enabled": false,
+    "next_action": "Owner manually generates and scans the QR with phone final 1875, then refreshes status before any controlled inbound test."
+  },
   "wa_akg_provision_recovery_20261009": {
     "code_commit": "83b5335",
     "github_main": "83b5335",

@@ -1,5 +1,13 @@
 # Checkpoint — WayFlex CRM
 
+## 09/10/2026 — WA-AKG: rota pública recuperada e prevenção de QR inerte
+
+- A falha do botão de QR foi rastreada até a origem pública: o container do Cloudflare Quick Tunnel continuava em execução, mas seu hostname temporário deixou de resolver. O gateway e a sessão WhatsApp não foram reiniciados.
+- O túnel protegido foi recriado, a nova origem exata foi registrada em `WA_AKG_ALLOWED_ORIGINS` e somente a URL foi atualizada no segredo já existente no Vault; a chave não foi lida, impressa nem substituída. Diagnóstico do CRM confirmou gateway acessível e sessão `SCAN_QR` para `fabricio`. A conta segue em `qr`, número não confirmado, política de envio inalterada e Ana protegida.
+- O QR não foi aberto nem lido pelo agente. A próxima ação humana é gerar o QR no CRM, fazer a leitura somente pelo telefone autorizado e atualizar o status.
+- A interface agora desabilita **Gerar novo QR** quando o lifecycle estiver bloqueado, evitando a aparência de que o clique funcionou. Teste focado, type-check, lint direcionado, build Vite/artefato Sites e diff check passaram localmente.
+- Foi criado um monitor recorrente de 15 minutos, silencioso enquanto está estável e sem ações corretivas. Ele não reinicia Docker, não reconecta, não gera QR, não envia mensagens, não habilita a Ana e não altera dados. A prevenção durável ainda requer um Cloudflare Named Tunnel e hostname DNS estável do proprietário; Quick Tunnels não possuem garantia de disponibilidade.
+
 ## 07/10/2026 — Higiene do Git e pré-verificação do GitHub
 
 - Antes deste lote, `main`, `origin/main` e a referência consultada diretamente no GitHub apontavam para `cbb3de57cd912b43e9bb20628959105765c61329` (`feat: finalize validated WayFlex release`).
