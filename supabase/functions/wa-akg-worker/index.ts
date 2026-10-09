@@ -1,6 +1,7 @@
-import { createAdminClient } from '../_shared/auth.ts';
+import { createAdminClient, hasOrganizationPermission } from '../_shared/auth.ts';
 import { json, safeError } from '../_shared/http.ts';
 import { WaAkgProvider, normalizeWaAkgBaseUrl, waAkgSessionName } from '../_shared/messaging/WaAkgProvider.ts';
+import { runAccountLifecycle } from '../_shared/accountLifecycle.ts';
 import { runProvisioningWork } from '../_shared/provisioningWork.ts';
 import { claimInboundWork, finishInboundWork, processInboundWork } from '../_shared/inboundWork.ts';
 
@@ -195,9 +196,10 @@ async function globalCredentials(admin: Admin, organizationId: string): Promise<
  */
 async function reconcileConnectedSessions(admin: Admin, organizationId?: string): Promise<number> {
   let query = admin.from('whatsapp_accounts')
-    .select('id,organization_id,integration_id,connection_status')
+    .select('id,organization_id,integration_id,owner_user_id,connection_status')
     .eq('provider', 'wa_akg').eq('account_type', 'seller').is('archived_at', null)
-    .in('connection_status', ['configured', 'qr', 'disconnected']).order('status_checked_at', { ascending: true }).limit(20);
+    .eq('enabled', false).in('connection_status', ['configured', 'qr', 'disconnected', 'connected'])
+    .order('status_checked_at', { ascending: true }).limit(20);
   if (organizationId) query = query.eq('organization_id', organizationId);
   const { data, error } = await query;
   if (error) throw new Error('wa_akg_connection_reconciliation_read_failed');
@@ -235,6 +237,25 @@ async function reconcileConnectedSessions(admin: Admin, organizationId?: string)
         }).eq('id', integrationId).eq('organization_id', organization),
       ]);
       if (accountUpdate.error || integrationUpdate.error) throw new Error('wa_akg_connection_reconciliation_save_failed');
+      const ownerUserId = text(candidate.owner_user_id, 80);
+      if (!UUID.test(ownerUserId)) {
+        reconciled += 1;
+        continue;
+      }
+      const [canViewOwn, canConnectOwn] = await Promise.all([
+        hasOrganizationPermission(admin, organization, ownerUserId, 'channels.view_own'),
+        hasOrganizationPermission(admin, organization, ownerUserId, 'channels.connect_own'),
+      ]);
+      if (!canViewOwn || !canConnectOwn) {
+        reconciled += 1;
+        continue;
+      }
+      const activation = await runAccountLifecycle(admin, {
+        organizationId: organization, accountId, provider: 'wa_akg', actorId: ownerUserId,
+      }, 'activate', async () => ({
+        connected: true, connectionStatus: 'connected', phoneSuffix: phoneSuffix(status.phone) ?? undefined,
+      }));
+      if (activation.status !== 200) continue;
       reconciled += 1;
     } catch {
       // A failed probe must not downgrade an existing session or trigger a retrying mutation.

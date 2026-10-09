@@ -8,10 +8,15 @@ const org = 'a1ea4d91-3d09-4052-9759-3009b442e6cb';
 const accountId = 'c828ecce-b41f-4816-95e3-83440a86b428';
 const accountIntegrationId = '17fb9960-6f9c-4b6f-95da-92cb370e58df';
 const gatewayIntegrationId = 'eb1d83c2-dbed-4292-82a5-ab579fa627f9';
+const ownerUserId = '22d7bd65-941f-46c9-a31f-6ea17436d4f3';
 const sessionId = 'wf_a1ea4d913d09405297593009b442e6cb_c828ecceb41f481695e383440a86b428';
 
 let handler: (request: Request) => Promise<Response>;
 let calls: Query[];
+let hasPermission: ReturnType<typeof vi.fn>;
+let runLifecycle: ReturnType<typeof vi.fn>;
+let deniedPermission: string | null;
+let candidateOwnerId: string | null;
 
 function ok(data: unknown): Result { return { data, error: null }; }
 
@@ -31,7 +36,10 @@ function queryFor(table: string) {
     calls.push({ ...query, filters: { ...query.filters } });
     if (table === 'wa_akg_webhook_events' || table === 'wa_akg_seller_provisioning_jobs') return Promise.resolve(ok([])).then(resolve);
     if (table === 'whatsapp_accounts' && query.operation === 'select' && query.filters.account_type === 'seller') {
-      return Promise.resolve(ok([{ id: accountId, integration_id: accountIntegrationId, organization_id: org, connection_status: 'qr', enabled: false }])).then(resolve);
+      return Promise.resolve(ok([{
+        id: accountId, integration_id: accountIntegrationId, organization_id: org,
+        owner_user_id: candidateOwnerId, connection_status: 'qr', enabled: false,
+      }])).then(resolve);
     }
     if (table === 'whatsapp_accounts' && query.operation === 'select' && query.filters.account_type === 'corporate') {
       return Promise.resolve(ok({ integration_id: gatewayIntegrationId })).then(resolve);
@@ -44,6 +52,10 @@ function queryFor(table: string) {
 beforeEach(() => {
   vi.resetModules();
   calls = [];
+  deniedPermission = null;
+  candidateOwnerId = ownerUserId;
+  hasPermission = vi.fn(async (_admin, _organizationId, _userId, permission) => permission !== deniedPermission);
+  runLifecycle = vi.fn(async () => ({ lifecycle: { state: 'completed' }, payload: {}, status: 200 }));
   vi.stubGlobal('Deno', {
     env: { get: (name: string) => ({
       SUPABASE_SERVICE_ROLE_KEY: 'synthetic-service-role',
@@ -58,6 +70,7 @@ beforeEach(() => {
     } }), { status: 200 });
   }));
   vi.doMock('../functions/_shared/auth.ts', () => ({
+    hasOrganizationPermission: hasPermission,
     createAdminClient: () => ({
       from: queryFor,
       rpc: (name: string, input: Row) => {
@@ -71,10 +84,13 @@ beforeEach(() => {
       },
     }),
   }));
+  vi.doMock('../functions/_shared/accountLifecycle.ts', () => ({
+    runAccountLifecycle: runLifecycle,
+  }));
 });
 
 describe('WA-AKG worker connection synchronization', () => {
-  it('promotes a confirmed connected session and stores only the phone suffix without enabling operation', async () => {
+  it('activates a confirmed session only through the owner permission lifecycle', async () => {
     await import('../functions/wa-akg-worker/index.ts');
 
     const response = await handler(new Request('https://example.test/wa-akg-worker', {
@@ -89,5 +105,46 @@ describe('WA-AKG worker connection synchronization', () => {
     });
     const integrationUpdate = calls.find((call) => call.table === 'integrations' && call.operation === 'update');
     expect(integrationUpdate?.value).toMatchObject({ connected: true, enabled: false, paused: true });
+    expect(hasPermission).toHaveBeenCalledWith(expect.anything(), org, ownerUserId, 'channels.view_own');
+    expect(hasPermission).toHaveBeenCalledWith(expect.anything(), org, ownerUserId, 'channels.connect_own');
+    expect(runLifecycle).toHaveBeenCalledWith(
+      expect.anything(),
+      { organizationId: org, accountId, provider: 'wa_akg', actorId: ownerUserId },
+      'activate',
+      expect.any(Function),
+    );
+    expect(calls.some((call) => call.table === 'messaging_provider_controls')).toBe(false);
+  });
+
+  it('keeps a confirmed session blocked when the owner lacks an own-channel permission', async () => {
+    deniedPermission = 'channels.connect_own';
+    await import('../functions/wa-akg-worker/index.ts');
+
+    const response = await handler(new Request('https://example.test/wa-akg-worker', {
+      method: 'POST', headers: { Authorization: 'Bearer synthetic-service-role' },
+      body: JSON.stringify({ organization_id: org }),
+    }));
+
+    expect(response.status).toBe(200);
+    expect(runLifecycle).not.toHaveBeenCalled();
+    const accountUpdate = calls.find((call) => call.table === 'whatsapp_accounts' && call.operation === 'update');
+    expect(accountUpdate?.value).toMatchObject({ connection_status: 'connected', enabled: false });
+    const integrationUpdate = calls.find((call) => call.table === 'integrations' && call.operation === 'update');
+    expect(integrationUpdate?.value).toMatchObject({ connected: true, enabled: false, paused: true });
+    expect(calls.some((call) => call.table === 'messaging_provider_controls')).toBe(false);
+  });
+
+  it('keeps a confirmed session blocked when its owner is absent', async () => {
+    candidateOwnerId = null;
+    await import('../functions/wa-akg-worker/index.ts');
+
+    const response = await handler(new Request('https://example.test/wa-akg-worker', {
+      method: 'POST', headers: { Authorization: 'Bearer synthetic-service-role' },
+      body: JSON.stringify({ organization_id: org }),
+    }));
+
+    expect(response.status).toBe(200);
+    expect(hasPermission).not.toHaveBeenCalled();
+    expect(runLifecycle).not.toHaveBeenCalled();
   });
 });
