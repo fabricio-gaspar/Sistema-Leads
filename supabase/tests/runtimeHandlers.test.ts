@@ -162,10 +162,10 @@ describe('R4 team membership and identity boundary — mocked HTTP', () => {
     expect(state.createUser).not.toHaveBeenCalled();
     expect(calls.some(q => q.table === 'team_direct_create_attach')).toBe(false);
   });
-  it('creates only a new seller identity, attaches it atomically and wakes the existing Evolution GO job', async () => {
+  it('creates only a new seller identity, attaches it atomically and wakes the existing WA-AKG job', async () => {
     override = q => q.table === 'team_direct_create_preflight' ? ok({ ready: true })
       : q.table === 'team_direct_create_attach' ? ok({ user_id: target, role: 'vendedor' })
-        : q.table === 'evolution_go_seller_provisioning_jobs' ? ok({ id: target, state: 'queued' }) : undefined;
+        : q.table === 'wa_akg_seller_provisioning_jobs' ? ok({ id: target, state: 'queued' }) : undefined;
     await import('../functions/team-members/index');
     const response = await handler(request('create', { name: 'Synthetic', email: 'synthetic@example.test', password: 'synthetic-password', role: 'vendedor' }));
     expect(response.status).toBe(201);
@@ -180,7 +180,7 @@ describe('R4 team membership and identity boundary — mocked HTTP', () => {
       p_org: org, p_actor: 'owner', p_user: target, p_role: 'vendedor',
     });
     expect(calls.findIndex(q => q.table === 'team_direct_create_preflight')).toBeLessThan(calls.findIndex(q => q.table === 'team_direct_create_attach'));
-    expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/evolution-go-worker'))).toBe(true);
+    expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/wa-akg-worker'))).toBe(true);
     expect(state.deleteUser).not.toHaveBeenCalled();
   });
   it('does not adopt or reset an existing global account with the requested email', async () => {
@@ -209,13 +209,13 @@ describe('R4 team membership and identity boundary — mocked HTTP', () => {
     expect(state.deleteUser).not.toHaveBeenCalled(); expect(state.updateUser).not.toHaveBeenCalled(); expect(state.storageRemove).not.toHaveBeenCalled();
     expect(calls.some(q => q.table === 'revoke_user_auth_sessions')).toBe(false);
   });
-  it('forwards removal to the isolated Evolution GO endpoint without touching Auth or history', async () => {
+  it('forwards removal to the isolated WA-AKG endpoint without touching Auth or history', async () => {
     fetchMock.mockResolvedValue(new Response(JSON.stringify({ ok: true, membership_removed: true, history_preserved: true }), { status: 200 }));
     await import('../functions/team-members/index');
     const response = await handler(request('remove'));
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ ok: true, history_preserved: true });
-    expect(fetchMock.mock.calls[0]?.[0].toString()).toContain('/functions/v1/team-member-evolution-removal');
+    expect(fetchMock.mock.calls[0]?.[0].toString()).toContain('/functions/v1/team-member-wa-akg-removal');
     expect(calls.some(q => q.table === 'team_member_change')).toBe(false);
     expect(state.deleteUser).not.toHaveBeenCalled();
     expect(state.storageRemove).not.toHaveBeenCalled();
@@ -246,20 +246,19 @@ describe('R4 team membership and identity boundary — mocked HTTP', () => {
     override = q => q.table === 'team_invite_accept' ? { data: null, error: { message: 'invite_not_current' } } : undefined;
     await import('../functions/team-members/index');
     expect((await handler(request('activate_invite', { invite_id: target, revision: 1 }))).status).toBe(400);
-    expect(calls.some(q => q.table === 'evolution_go_seller_provisioning_jobs')).toBe(false); expect(state.deleteUser).not.toHaveBeenCalled();
+    expect(calls.some(q => q.table === 'wa_akg_seller_provisioning_jobs')).toBe(false); expect(state.deleteUser).not.toHaveBeenCalled();
   });
   it('accepted seller reports a missing transaction-created job without rolling back identity', async () => {
     override = q => q.table === 'team_invite_accept' ? ok({ activated: true, organization_id: org, role: 'vendedor' }) : undefined;
     await import('../functions/team-members/index');
     const response = await handler(request('activate_invite', { invite_id: target, revision: 1 }));
     expect(await response.json()).toMatchObject({ ok: true, provisioning_state: null, provisioning_warning: 'seller_provisioning_missing' });
-    expect(calls.some(q => q.table === 'enqueue_evolution_go_seller_provisioning')).toBe(false);
     expect(state.deleteUser).not.toHaveBeenCalled(); expect(fetchMock).not.toHaveBeenCalled();
   });
-  it('accepted seller reads the transaction-created Evolution GO job and wakes only its worker', async () => {
+  it('accepted seller reads the transaction-created WA-AKG job and wakes only its worker', async () => {
     override = q => q.table === 'team_invite_accept'
       ? ok({ activated: true, organization_id: org, role: 'vendedor' })
-      : q.table === 'evolution_go_seller_provisioning_jobs'
+      : q.table === 'wa_akg_seller_provisioning_jobs'
         ? ok({ id: target, state: 'queued' })
         : undefined;
     await import('../functions/team-members/index');
@@ -268,18 +267,16 @@ describe('R4 team membership and identity boundary — mocked HTTP', () => {
     const responseBody = await response.json();
     expect(responseBody).toMatchObject({ ok: true, provisioning_state: 'queued', provisioning_warning: null });
     expect(JSON.stringify(responseBody)).not.toMatch(/whatsapp_account_id|integration_id|instance_name|job_id/);
-    expect(calls.find(q => q.table === 'evolution_go_seller_provisioning_jobs')?.filters).toMatchObject({
-      organization_id: org, user_id: 'owner',
+    expect(calls.find(q => q.table === 'wa_akg_seller_provisioning_jobs')?.filters).toMatchObject({
+      organization_id: org, owner_user_id: 'owner',
     });
-    expect(calls.some(q => q.table === 'enqueue_evolution_go_seller_provisioning')).toBe(false);
     expect(calls.some(q => q.table === 'enqueue_wa_akg_seller_provisioning')).toBe(false);
-    expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/evolution-go-worker'))).toBe(true);
-    expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/wa-akg-worker'))).toBe(false);
+    expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/wa-akg-worker'))).toBe(true);
   });
   it('returns a safe awaiting-QR state without waking the worker again', async () => {
     override = q => q.table === 'team_invite_accept'
       ? ok({ activated: true, organization_id: org, role: 'vendedor' })
-      : q.table === 'evolution_go_seller_provisioning_jobs'
+      : q.table === 'wa_akg_seller_provisioning_jobs'
         ? ok({ id: target, state: 'awaiting_qr' })
         : undefined;
     await import('../functions/team-members/index');
@@ -298,7 +295,7 @@ describe('R4 team membership and identity boundary — mocked HTTP', () => {
       ? ok(current)
       : q.table === 'team_member_change'
         ? ok({ deleted_identity: false, membership_removed: false })
-        : q.table === 'evolution_go_seller_provisioning_jobs'
+        : q.table === 'wa_akg_seller_provisioning_jobs'
           ? ok({ id: target, state: 'queued' })
           : undefined;
     await import('../functions/team-members/index');
@@ -308,13 +305,12 @@ describe('R4 team membership and identity boundary — mocked HTTP', () => {
     expect(body).toMatchObject({ ok: true, provisioning_state: 'queued', provisioning_warning: null });
     expect(JSON.stringify(body)).not.toMatch(/whatsapp_account_id|integration_id|instance_name|job_id/);
     const mutationIndex = calls.findIndex(q => q.table === 'team_member_change');
-    const jobIndex = calls.findIndex(q => q.table === 'evolution_go_seller_provisioning_jobs');
+    const jobIndex = calls.findIndex(q => q.table === 'wa_akg_seller_provisioning_jobs');
     expect(jobIndex).toBeGreaterThan(mutationIndex);
-    expect(calls.find(q => q.table === 'evolution_go_seller_provisioning_jobs')?.filters).toMatchObject({
-      organization_id: org, user_id: target,
+    expect(calls.find(q => q.table === 'wa_akg_seller_provisioning_jobs')?.filters).toMatchObject({
+      organization_id: org, owner_user_id: target,
     });
-    expect(calls.some(q => q.table === 'enqueue_evolution_go_seller_provisioning')).toBe(false);
-    expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/evolution-go-worker'))).toBe(true);
+    expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/wa-akg-worker'))).toBe(true);
   });
   it('does not wake a job when disabling seller access', async () => {
     override = q => q.table === 'organization_members'
@@ -326,7 +322,7 @@ describe('R4 team membership and identity boundary — mocked HTTP', () => {
     const response = await handler(request('set_status', { enabled: false }));
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ ok: true, provisioning_state: null, provisioning_warning: null });
-    expect(calls.some(q => q.table === 'evolution_go_seller_provisioning_jobs')).toBe(false);
+    expect(calls.some(q => q.table === 'wa_akg_seller_provisioning_jobs')).toBe(false);
     expect(fetchMock).not.toHaveBeenCalled();
   });
   it('administrator effective permissions remain total despite misleading old false overrides', async () => {
@@ -855,7 +851,6 @@ describe('R4 invitation delivery — mocked Auth, no emails sent', () => {
     const response = await handler(new Request('https://example.invalid/team-members', { method: 'POST', headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'invite', name: 'Synthetic', email: 'existing@example.test', role: 'vendedor' }) }));
     expect(response.status).toBe(200); expect(await response.json()).toMatchObject({ ok: true, delivery });
     expect(inviteUserByEmail).toHaveBeenCalledTimes(1); expect(state.deleteUser).not.toHaveBeenCalled();
-    expect(calls.some(q => q.table === 'enqueue_evolution_go_seller_provisioning')).toBe(false);
     expect(calls.some(q => q.table === 'organization_members' && q.operation !== 'select')).toBe(false);
     expect(calls.some(q => q.table === 'organization_invites' && q.operation === 'delete')).toBe(false);
   });

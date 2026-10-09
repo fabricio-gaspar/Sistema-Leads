@@ -4,7 +4,7 @@ import { assertChannelActionCompleted, channelLifecycleBlocked, channelLifecycle
 const lifecycle = (state: ChannelLifecycle['state']): ChannelLifecycle => ({ state, revision: 2, desiredAction: 'connect', errorCode: null });
 
 describe('channel lifecycle consumer contract', () => {
-  it.each(['account_lifecycle_pending', 'account_lifecycle_needs_review', 'account_lifecycle_persistence_failed', 'wa_akg_connection_validation_required', 'evolution_go_connection_validation_required', 'Failed to fetch'])('reloads canonical status once after %s without repeating the action', async (code) => {
+  it.each(['account_lifecycle_pending', 'account_lifecycle_needs_review', 'account_lifecycle_persistence_failed', 'wa_akg_connection_validation_required', 'Failed to fetch'])('reloads canonical status once after %s without repeating the action', async (code) => {
     const refresh = vi.fn().mockResolvedValue(undefined);
     await refreshAfterLifecycleError(new Error(code), refresh);
     expect(refresh).toHaveBeenCalledTimes(1);

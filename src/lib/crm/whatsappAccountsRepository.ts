@@ -15,7 +15,7 @@ export type WhatsappConnectionStatus =
 
 export interface WhatsappAccount {
   id: string;
-  provider: 'zapi' | 'meta_cloud' | 'evolution_go' | 'wa_akg';
+  provider: 'zapi' | 'meta_cloud' | 'wa_akg';
   ownerUserId: string | null;
   ownerName: string | null;
   ownerEmail: string | null;
@@ -45,7 +45,7 @@ export interface WhatsappAccount {
 }
 
 export interface WhatsappProviderControl {
-  provider: 'zapi' | 'meta_cloud' | 'evolution_go' | 'wa_akg';
+  provider: 'zapi' | 'meta_cloud' | 'wa_akg';
   inboundEnabled: boolean;
   sendEnabled: boolean;
   automationEnabled: boolean;
@@ -128,119 +128,6 @@ async function invoke<T extends Record<string, unknown>>(body: Record<string, un
   return data as T;
 }
 
-export interface EvolutionGoChannelStatus {
-  lifecycle?: import('./channelLifecycle').ChannelLifecycle | null;
-  configured: boolean;
-  canManage: boolean;
-  canConnect: boolean;
-  canViewQr: boolean;
-  account: null | {
-    id: string;
-    label: string;
-    accountType: 'corporate' | 'seller';
-    ownerUserId: string | null;
-    enabled: boolean;
-    isDefault: boolean;
-    connectionStatus: WhatsappConnectionStatus;
-    phoneSuffix: string | null;
-    connectedAt: string | null;
-    checkedAt: string | null;
-    webhookRegisteredAt: string | null;
-    errorCode: string | null;
-  };
-  integration: null | {
-    id: string;
-    connected: boolean;
-    enabled: boolean;
-    paused: boolean;
-    statusDetail: string | null;
-    lastTestedAt: string | null;
-    lastSuccessAt: string | null;
-    lastError: string | null;
-    baseUrlConfigured: boolean;
-    serverConfigured?: boolean;
-    serverValidation?: null | {
-      status: 'not_tested' | 'passed' | 'failed';
-      checkedAt: string | null;
-      errorCode: string | null;
-    };
-    instanceName: string | null;
-    version: string | null;
-  };
-  controls: null | {
-    inboundEnabled: boolean;
-    sendEnabled: boolean;
-    automationEnabled: boolean;
-    killSwitch: boolean;
-    reason: string | null;
-  };
-}
-
-export interface EvolutionGoConfigurationInput {
-  label?: string;
-  baseUrl?: string;
-  globalApiKey?: string;
-  instanceToken?: string;
-  instanceName?: string;
-  instanceId?: string;
-  timeoutMs?: number;
-  retryAttempts?: number;
-}
-
-export interface EvolutionGoAccountsResponse {
-  accounts: EvolutionGoChannelStatus[];
-  canManage: boolean;
-}
-
-export interface EvolutionGoRecoveryInspection {
-  ok: true;
-  instance_name: string;
-  job_state: string;
-  provider_id: string | null;
-  provider_connected: boolean;
-  stored_id_matches: boolean;
-  token_accepted: boolean;
-}
-
-async function invokeEvolutionGoRecovery<T>(body: Record<string, unknown>): Promise<T> {
-  const { data, error } = await supabase.functions.invoke('evolution-go-recovery', { body });
-  if (error || !data?.ok) {
-    const code = await channelInvocationError(data, error);
-    throw new Error(code || 'recovery_unavailable');
-  }
-  return data as T;
-}
-
-export function inspectEvolutionGoInstance(accountId: string): Promise<EvolutionGoRecoveryInspection> {
-  return invokeEvolutionGoRecovery({ action: 'inspect', account_id: accountId });
-}
-
-export function replaceEvolutionGoInstance(accountId: string, instanceName: string, providerId: string): Promise<{
-  ok: true; instance_name: string; provider_id: string; token_confirmed: true; messaging_enabled: false;
-}> {
-  return invokeEvolutionGoRecovery({ action: 'replace', account_id: accountId,
-    confirm_instance_name: instanceName, confirm_remote_id: providerId });
-}
-
-export interface EvolutionGoAccountInput {
-  accountType: 'corporate' | 'seller';
-  ownerUserId?: string;
-  label: string;
-}
-
-function evolutionGoConfigurationPayload(input: EvolutionGoConfigurationInput): Record<string, unknown> {
-  const payload: Record<string, unknown> = {};
-  if (input.label !== undefined) payload.label = input.label;
-  if (input.baseUrl !== undefined) payload.base_url = input.baseUrl;
-  if (input.globalApiKey !== undefined) payload.global_api_key = input.globalApiKey;
-  if (input.instanceToken !== undefined) payload.instance_token = input.instanceToken;
-  if (input.instanceName !== undefined) payload.instance_name = input.instanceName;
-  if (input.instanceId !== undefined) payload.instance_id = input.instanceId;
-  if (input.timeoutMs !== undefined) payload.timeout_ms = input.timeoutMs;
-  if (input.retryAttempts !== undefined) payload.retry_attempts = input.retryAttempts;
-  return payload;
-}
-
 async function channelInvocationError(data: unknown, error: unknown): Promise<string> {
   const payload = data as { error?: unknown } | null;
   if (typeof payload?.error === 'string') return payload.error;
@@ -254,87 +141,6 @@ async function channelInvocationError(data: unknown, error: unknown): Promise<st
     } catch { /* Use the established transport fallback for non-JSON errors. */ }
   }
   return detalheDoErroDeFuncao(error);
-}
-
-async function invokeEvolutionGo<T extends Record<string, unknown>>(body: Record<string, unknown>): Promise<T> {
-  const { data, error } = await supabase.functions.invoke('evolution-go', { body });
-  if (error || !data?.ok) {
-    const code = await channelInvocationError(data, error);
-    throw new Error(code || 'evolution_go_operation_failed');
-  }
-  assertChannelActionCompleted(body.action, data.lifecycle);
-  return data as T;
-}
-
-export function loadEvolutionGoAccounts(): Promise<EvolutionGoAccountsResponse> {
-  return invokeEvolutionGo<EvolutionGoAccountsResponse & Record<string, unknown>>({ action: 'list' });
-}
-
-/**
- * Uses the authenticated server-side identity instead of accepting an account
- * id. This prevents the self-service screen from ever receiving corporate or
- * another seller's account metadata.
- */
-export function loadMyEvolutionGoAccount(): Promise<EvolutionGoChannelStatus> {
-  return invokeEvolutionGo<EvolutionGoChannelStatus & Record<string, unknown>>({ action: 'my_account' });
-}
-
-export function loadEvolutionGoStatus(accountId: string): Promise<EvolutionGoChannelStatus> {
-  return invokeEvolutionGo<EvolutionGoChannelStatus & Record<string, unknown>>({ action: 'status', account_id: accountId });
-}
-
-export function createEvolutionGoAccount(input: EvolutionGoAccountInput): Promise<EvolutionGoChannelStatus> {
-  return invokeEvolutionGo<EvolutionGoChannelStatus & Record<string, unknown>>({
-    action: 'create_account',
-    account_id: crypto.randomUUID(),
-    account_type: input.accountType,
-    owner_user_id: input.accountType === 'seller' ? input.ownerUserId : null,
-    label: input.label,
-  });
-}
-
-export function saveEvolutionGoConfiguration(accountId: string, input: EvolutionGoConfigurationInput): Promise<EvolutionGoChannelStatus> {
-  return invokeEvolutionGo<EvolutionGoChannelStatus & Record<string, unknown>>({
-    action: 'save', account_id: accountId, ...evolutionGoConfigurationPayload(input),
-  });
-}
-
-export function saveEvolutionGoServer(accountId: string, input: { baseUrl: string; globalApiKey: string }): Promise<EvolutionGoChannelStatus> {
-  return invokeEvolutionGo<EvolutionGoChannelStatus & Record<string, unknown>>({
-    action: 'save_server', account_id: accountId, base_url: input.baseUrl, global_api_key: input.globalApiKey,
-  });
-}
-
-export function testEvolutionGoServer(accountId: string): Promise<EvolutionGoChannelStatus> {
-  return invokeEvolutionGo<EvolutionGoChannelStatus & Record<string, unknown>>({ action: 'test_server', account_id: accountId });
-}
-
-export function createEvolutionGoInstance(accountId: string, input: EvolutionGoConfigurationInput = {}): Promise<EvolutionGoChannelStatus> {
-  return invokeEvolutionGo<EvolutionGoChannelStatus & Record<string, unknown>>({
-    action: 'create_instance', account_id: accountId, ...evolutionGoConfigurationPayload({
-      label: input.label,
-      baseUrl: input.baseUrl,
-      globalApiKey: input.globalApiKey,
-      instanceName: input.instanceName,
-      timeoutMs: input.timeoutMs,
-      retryAttempts: input.retryAttempts,
-    }),
-  });
-}
-
-export function runEvolutionGoAction(
-  action: 'connect' | 'refresh_status' | 'reconnect' | 'disconnect' | 'logout' | 'activate' | 'deactivate',
-  accountId: string,
-): Promise<EvolutionGoChannelStatus> {
-  return invokeEvolutionGo<EvolutionGoChannelStatus & Record<string, unknown>>({ action, account_id: accountId });
-}
-
-export function requestEvolutionGoQr(accountId: string): Promise<{ qr: { qrcode: string | null; code: string | null; expiresAt: string | null } }> {
-  return invokeEvolutionGo({ action: 'qr', account_id: accountId });
-}
-
-export function requestEvolutionGoPairingCode(accountId: string, phone: string): Promise<{ pairingCode: string | null }> {
-  return invokeEvolutionGo({ action: 'pair', account_id: accountId, phone });
 }
 
 export interface WaAkgChannelStatus {
@@ -382,6 +188,13 @@ export interface WaAkgChannelStatus {
     burstWindowSeconds: number;
     dailyLimit: number;
   };
+  runtime?: {
+    reachable: boolean;
+    state: string;
+    connected: boolean;
+    confirmed: boolean;
+    checkedAt: string;
+  };
 }
 
 async function invokeWaAkg<T extends Record<string, unknown>>(body: Record<string, unknown>): Promise<T> {
@@ -402,6 +215,11 @@ export function loadMyWaAkgAccount(): Promise<WaAkgChannelStatus> {
   return invokeWaAkg<WaAkgChannelStatus & Record<string, unknown>>({ action: 'my_account' });
 }
 
+/** Read-only live probe. It never starts, stops, or reconnects a session. */
+export function inspectWaAkgRuntime(accountId: string): Promise<WaAkgChannelStatus> {
+  return invokeWaAkg<WaAkgChannelStatus & Record<string, unknown>>({ action: 'inspect_runtime', account_id: accountId });
+}
+
 export function configureWaAkgGateway(input: { label: string; baseUrl: string; apiKey: string }): Promise<WaAkgChannelStatus> {
   return invokeWaAkg<WaAkgChannelStatus & Record<string, unknown>>({ action: 'configure_gateway', label: input.label, base_url: input.baseUrl, api_key: input.apiKey });
 }
@@ -419,6 +237,11 @@ export function runWaAkgAction(
   accountId: string,
 ): Promise<WaAkgChannelStatus> {
   return invokeWaAkg<WaAkgChannelStatus & Record<string, unknown>>({ action, account_id: accountId });
+}
+
+/** Removes only the WhatsApp device pairing; CRM account and history stay intact. */
+export function unlinkWaAkgDevice(accountId: string): Promise<WaAkgChannelStatus> {
+  return invokeWaAkg<WaAkgChannelStatus & Record<string, unknown>>({ action: 'logout', account_id: accountId });
 }
 
 export function requestWaAkgQr(accountId: string): Promise<{ qr: { qrcode: string | null; code: string | null; expiresAt: string | null } }> {
@@ -443,7 +266,7 @@ export interface ChannelRecoveryResult {
 }
 
 export async function reviewChannelLifecycle(
-  provider: 'wa_akg' | 'evolution_go', accountId: string,
+  provider: 'wa_akg', accountId: string,
   reconciliation?: { expectedRevision: number; reason: string },
 ): Promise<ChannelRecoveryResult> {
   const context = sessionContext.requireReady();
@@ -452,7 +275,7 @@ export async function reviewChannelLifecycle(
   }
   const body = { action: reconciliation ? 'lifecycle_reconcile' : 'lifecycle_diagnose', account_id: accountId,
     ...(reconciliation ? { expected_revision: reconciliation.expectedRevision, reason: reconciliation.reason.trim() } : {}) };
-  const { data, error } = await supabase.functions.invoke(provider === 'wa_akg' ? 'wa-akg' : 'evolution-go', { body });
+  const { data, error } = await supabase.functions.invoke('wa-akg', { body });
   sessionContext.assertCurrent(context);
   if (error || !data?.ok) throw new Error(await channelInvocationError(data, error) || 'lifecycle_recovery_failed');
   if (!Number.isInteger(data.lifecycle?.revision) || data.recovery?.retainsLocalCutoff !== true || data.recovery?.requiresAdmin !== true
@@ -469,6 +292,20 @@ export function saveWaAkgControls(accountId: string, input: {
     action: 'save_controls', account_id: accountId,
     min_delay_seconds: input.minDelaySeconds, max_delay_seconds: input.maxDelaySeconds,
     burst_limit: input.burstLimit, daily_limit: input.dailyLimit,
+  });
+}
+
+/**
+ * Provider-wide gates are deliberately explicit. The backend refuses an open
+ * policy until the selected seller account is connected and locally enabled.
+ */
+export function setWaAkgProviderControls(accountId: string, input: {
+  inboundEnabled: boolean; sendEnabled: boolean; automationEnabled: boolean; killSwitch: boolean;
+}): Promise<WaAkgChannelStatus> {
+  return invokeWaAkg<WaAkgChannelStatus & Record<string, unknown>>({
+    action: 'set_provider_controls', account_id: accountId,
+    inbound_enabled: input.inboundEnabled, send_enabled: input.sendEnabled,
+    automation_enabled: input.automationEnabled, kill_switch: input.killSwitch,
   });
 }
 

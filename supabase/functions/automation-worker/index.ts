@@ -32,7 +32,6 @@ import {
   type DailyLeadReportStage,
 } from "../_shared/dailyLeadReport.ts";
 import { parseZapiEvent } from "../_shared/zapiInbound.ts";
-import { EvolutionGoProvider } from "../_shared/messaging/EvolutionGoProvider.ts";
 import { WaAkgProvider } from "../_shared/messaging/WaAkgProvider.ts";
 import { assertAnaKnowledgeSnapshot } from "../_shared/anaKnowledgeFence.ts";
 
@@ -696,7 +695,7 @@ export async function automaticDispatchBlock(
       asText(canonicalRoute.account_id, 80) !== expectedWhatsappAccountId
       || asText(canonicalRoute.integration_id, 80) !== expectedIntegrationId
     ) return 'whatsapp_account_changed';
-    if (['evolution_go', 'wa_akg'].includes(asText(account.provider, 40))) {
+    if (asText(account.provider, 40) === 'wa_akg') {
       const controlledProvider = asText(account.provider, 40);
       const { data: controls, error: controlsError } = await admin.from('messaging_provider_controls')
         .select('send_enabled,automation_enabled,kill_switch')
@@ -1152,17 +1151,6 @@ async function sendWhatsappImage(
   return { provider: "zapi", messageId: receipt.messageId };
 }
 
-/** Keep outbound Evolution requests pinned to the administrator-approved tenant. */
-const PROVISIONED_EVOLUTION_GO_ORIGIN = "https://evo-eisenflow.kz3solucoes.cloud";
-
-function evolutionAllowedOrigins(): string[] {
-  const origins = (Deno.env.get("EVOLUTION_GO_ALLOWED_ORIGINS") ?? "")
-    .split(",")
-    .map((value) => value.trim())
-    .filter(Boolean);
-  return origins.length ? origins : [PROVISIONED_EVOLUTION_GO_ORIGIN];
-}
-
 function waAkgAllowedOrigins(): string[] {
   return (Deno.env.get("WA_AKG_ALLOWED_ORIGINS") ?? "")
     .split(",").map((value) => value.trim()).filter(Boolean);
@@ -1183,28 +1171,6 @@ async function loadWaAkgGatewaySecret(admin: Admin, organizationId: string): Pro
   const apiKey = asText(stored.api_key, 1_000) || asText(Deno.env.get('WA_AKG_API_KEY'), 1_000);
   if (!baseUrl || !apiKey) throw new Error('wa_akg_gateway_not_configured');
   return { base_url: baseUrl, api_key: apiKey };
-}
-
-async function sendEvolutionGoWhatsapp(
-  credentials: Record<string, unknown>,
-  recipient: string,
-  message: string,
-  idempotencyKey: string,
-  media?: { kind: "image" | "audio" | "video" | "document"; url: string; filename?: string },
-) {
-  const provider = new EvolutionGoProvider({
-    baseUrl: asText(credentials.base_url, 500),
-    instanceToken: asText(credentials.instance_token, 1_000),
-    allowedOrigins: evolutionAllowedOrigins(),
-    timeoutMs: Number(credentials.timeout_ms) || undefined,
-  });
-  const receipt = await provider.send(media
-    ? {
-      to: recipient, kind: media.kind, idempotencyKey,
-      text: message, media: { link: media.url, caption: message, filename: media.filename },
-    }
-    : { to: recipient, kind: "text", text: message, idempotencyKey });
-  return { provider: "evolution_go", messageId: receipt.providerMessageId };
 }
 
 async function sendWaAkgWhatsapp(
@@ -1775,32 +1741,6 @@ async function processAnaOperations(admin: Admin, organizationId: string, schedu
   return { status: 'completed', imported, approved, rejected, digest_created: digestCreated };
 }
 
-/** Drains due Evolution GO callbacks from the durable queue on the existing
- * server scheduler. A failure here is reported but never blocks commercial
- * outreach processing. */
-async function processEvolutionGoCallbacks(admin: Admin, organizationId: string) {
-  const { count, error } = await admin.from('evolution_go_webhook_events')
-    .select('*', { count: 'exact', head: true }).eq('organization_id', organizationId)
-    .in('processing_status', ['queued', 'failed', 'processing']).lte('next_retry_at', new Date().toISOString());
-  if (error) return { status: 'read_failed', queued: 0, processed: 0, failed: 0 };
-  if (!count) return { status: 'idle', queued: 0, processed: 0, failed: 0 };
-  const serviceJwt = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-  const baseUrl = Deno.env.get('SUPABASE_URL');
-  if (!serviceJwt || !baseUrl) return { status: 'runtime_unavailable', queued: count, processed: 0, failed: 0 };
-  try {
-    const response = await fetch(`${baseUrl}/functions/v1/evolution-go-worker`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${serviceJwt}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ organization_id: organizationId }), signal: AbortSignal.timeout(45_000),
-    });
-    const result = asObject(await response.json().catch(() => null));
-    if (!response.ok || result.ok !== true) return { status: 'worker_failed', queued: count, processed: 0, failed: count };
-    return { status: 'processed', queued: count, processed: Number(result.processed ?? 0), failed: Number(result.failed ?? 0) };
-  } catch {
-    return { status: 'worker_timeout', queued: count, processed: 0, failed: 0 };
-  }
-}
-
 Deno.serve(async (request) => {
   const pf = preflight(request);
   if (pf) return pf;
@@ -1930,9 +1870,6 @@ Deno.serve(async (request) => {
     const handoffWhatsappNotifications = serverScheduler
       ? await processHandoffWhatsappNotifications(admin, orgId)
       : { status: 'manual_skip', queued: 0, sent: 0, failed: 0, reconciliationRequired: 0 };
-    const evolutionGoWebhooks = serverScheduler
-      ? await processEvolutionGoCallbacks(admin, orgId)
-      : { status: 'manual_skip', queued: 0, processed: 0, failed: 0 };
     let waAkgQueues: Record<string, unknown> = { status: 'manual_skip' };
     const blocked =
       reads[0].data?.active !== true ? "company_not_active" : null;
@@ -2250,7 +2187,7 @@ Deno.serve(async (request) => {
             if (accountError || !account) throw new Error("whatsapp_account_integration_mismatch");
             if (account.enabled !== true || account.connection_status !== 'connected') throw new Error('whatsapp_account_not_ready');
             whatsappProvider = asText(account.provider, 40) || "zapi";
-            if (['evolution_go', 'wa_akg'].includes(whatsappProvider)) {
+            if (whatsappProvider === 'wa_akg') {
               const { data: controls, error: controlsError } = await admin.from('messaging_provider_controls')
                 .select('send_enabled,automation_enabled,kill_switch')
                 .eq('organization_id', orgId).eq('provider', whatsappProvider).maybeSingle();
@@ -2653,18 +2590,8 @@ Deno.serve(async (request) => {
           dispatchStarted = true;
           const receipt =
             channel === "whatsapp"
-              ? whatsappProvider === "evolution_go"
-                ? await sendEvolutionGoWhatsapp(
-                  asObject(credentials),
-                  recipient,
-                  message,
-                  job.id,
-                  catalogImageMedia
-                    ? { kind: "image", url: catalogImageMedia.imageUrl }
-                    : requestedEvolutionMedia(payload) ?? undefined,
-                )
-                : whatsappProvider === "wa_akg"
-                  ? await sendWaAkgWhatsapp(
+              ? whatsappProvider === "wa_akg"
+                ? await sendWaAkgWhatsapp(
                     waAkgCredentials ?? {}, recipient, message, job.id,
                     catalogImageMedia
                       ? { kind: "image", url: catalogImageMedia.imageUrl }
@@ -2877,7 +2804,6 @@ Deno.serve(async (request) => {
         ana_operations: anaOperations,
         daily_whatsapp_reports: dailyWhatsappReports,
         handoff_whatsapp_notifications: handoffWhatsappNotifications,
-        evolution_go_webhooks: evolutionGoWebhooks,
         wa_akg_queues: waAkgQueues,
       },
       200,

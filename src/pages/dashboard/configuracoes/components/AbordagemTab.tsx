@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { templatesAbordagem } from '@/mocks/businessData';
 
 const canais = [
-  { id: 'whatsapp', nome: 'WhatsApp', icone: 'ri-whatsapp-line', desc: 'Primeiro contato automático via Evolution GO' },
+  { id: 'whatsapp', nome: 'WhatsApp', icone: 'ri-whatsapp-line', desc: 'Primeiro contato automático via WA-AKG' },
   { id: 'email', nome: 'E-mail', icone: 'ri-mail-line', desc: 'Follow-up transacional via Resend' },
   { id: 'telefone', nome: 'Telefone', icone: 'ri-phone-line', desc: 'Tarefa humana de ligação / VoIP' },
 ];

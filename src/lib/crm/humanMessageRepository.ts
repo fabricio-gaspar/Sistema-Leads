@@ -27,7 +27,7 @@ export async function queueHumanMessage(input: {
   recipient: string;
   text: string;
   requestId: string;
-  provider?: 'zapi' | 'meta_cloud' | 'evolution_go' | 'wa_akg' | null;
+  provider?: 'zapi' | 'meta_cloud' | 'wa_akg' | null;
   knowledgeContent?: HumanMessageKnowledgeContent | null;
 }): Promise<HumanMessageResult> {
   if (input.channel !== 'whatsapp') {

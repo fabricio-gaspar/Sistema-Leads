@@ -293,7 +293,7 @@ export function matchesIntegrationWebhookSecret(
   const secret = asObject(storedSecret);
   if (secureEqual(supplied, asText(secret.webhook_token, 1_000))) return true;
   const key = asText(integrationKey, 200).toLowerCase();
-  return (key.startsWith('whatsapp_evolution_go:') || key.startsWith('whatsapp_wa_akg:'))
+  return key.startsWith('whatsapp_wa_akg:')
     && secureEqual(supplied, asText(secret.webhook_secret, 1_000));
 }
 

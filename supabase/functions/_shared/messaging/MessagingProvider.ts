@@ -1,4 +1,4 @@
-export type MessagingProviderName = 'zapi' | 'meta_cloud' | 'evolution_go' | 'wa_akg';
+export type MessagingProviderName = 'zapi' | 'meta_cloud' | 'wa_akg';
 export type MessageOrigin = 'customer' | 'business_app' | 'panel' | 'ana' | 'template' | 'system';
 export type MessageKind = 'text' | 'template' | 'image' | 'audio' | 'video' | 'document';
 export type DeliveryStatus = 'sent' | 'delivered' | 'read' | 'failed';

@@ -33,10 +33,10 @@ const WHATSAPP_AUDIT_ACTIONS = [
   'webhook.unmatched',
 ] as const;
 
-// Evolution GO is the only supported WhatsApp transport. The legacy account
+// WA-AKG is the only supported WhatsApp transport. The legacy account
 // records stay intact for audit/history, but this endpoint must never expose
 // a way to configure, connect, enable or route through them again.
-const ACTIVE_WHATSAPP_PROVIDER = 'evolution_go';
+const ACTIVE_WHATSAPP_PROVIDER = 'wa_akg';
 const LEGACY_PROVIDER_ACTIONS = new Set([
   'configure',
   'connector_token',

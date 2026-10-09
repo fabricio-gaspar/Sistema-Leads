@@ -175,6 +175,10 @@
   --font-heading: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Plus Jakarta Sans', sans-serif;
   --font-body: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Plus Jakarta Sans', sans-serif;
   --font-label: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Plus Jakarta Sans', sans-serif;
+  --wf-radius-control: .5rem;
+  --wf-radius-surface: .75rem;
+  --wf-shadow-surface: 0 1px 2px rgb(20 33 28 / .045);
+  --wf-focus-ring: 0 0 0 3px rgb(22 134 84 / .16);
 
   /* Dashboard WayFlex: branco e cinza frio para superfícies operacionais. */
   --background-50: 1 0 89.88;
@@ -994,4 +998,63 @@ tbody tr:hover { background: #fafbfc; }
   opacity: 0;
   overflow: hidden;
   pointer-events: none;
+}
+
+/* Contrato visual canônico: primitivas compartilhadas, sem alterar fluxo ou dados. */
+.wf-surface,
+.wf-card,
+.wf-settings-section,
+.wf-toolbar,
+.wf-table-shell {
+  border-color: #e3e8e5;
+  border-radius: var(--wf-radius-surface);
+  box-shadow: var(--wf-shadow-surface);
+}
+
+.wf-btn-primary,
+.wf-btn-secondary,
+.wf-icon-button {
+  border-radius: var(--wf-radius-control);
+  transition-property: color, background-color, border-color, box-shadow, opacity, transform;
+  transition-duration: 150ms;
+  transition-timing-function: ease;
+}
+
+.wf-btn-primary {
+  background: #168654;
+  box-shadow: 0 1px 2px rgb(22 134 84 / .20);
+}
+
+.wf-btn-primary:hover { background: #116b43; }
+
+.wf-btn-secondary {
+  border-color: #e3e8e5;
+  background: #f5f7f6;
+  color: #27332e;
+}
+
+.wf-btn-secondary:hover { border-color: #d5ddd9; background: #edf1ef; }
+
+.wf-btn-primary:focus-visible,
+.wf-btn-secondary:focus-visible,
+.wf-icon-button:focus-visible,
+.wf-tabs > button:focus-visible {
+  outline: 2px solid #168654;
+  outline-offset: 2px;
+  box-shadow: var(--wf-focus-ring);
+}
+
+.wf-kanban-toolbar {
+  display: grid;
+  gap: .75rem;
+}
+
+.wf-kanban-board {
+  overscroll-behavior-x: contain;
+  scrollbar-gutter: stable;
+}
+
+@media (max-width: 639px) {
+  .wf-kanban-toolbar { padding: .75rem; }
+  .wf-kanban-board { margin-inline: -.25rem; }
 }

@@ -3,7 +3,7 @@ import type { createAdminClient } from './auth.ts';
 type Admin = ReturnType<typeof createAdminClient>;
 type Row = Record<string, unknown>;
 export type LifecycleContext = {
-  organizationId: string; accountId: string; provider: 'wa_akg' | 'evolution_go'; actorId: string;
+  organizationId: string; accountId: string; provider: 'wa_akg'; actorId: string;
 };
 export type LifecycleResult = {
   state: string; revision: number; desiredAction: string | null; errorCode: string | null;
@@ -60,7 +60,7 @@ export async function runAccountLifecycle(
     // Never persist arbitrary provider response/error text (credentials and phone data).
     const message = error instanceof Error ? error.message : '';
     const code = message === 'account_lifecycle_superseded' ? message
-      : /^(wa_akg|evolution_go)_[a-z0-9_]{1,90}$/.test(message) ? message : 'account_lifecycle_remote_failed';
+      : /^wa_akg_[a-z0-9_]{1,90}$/.test(message) ? message : 'account_lifecycle_remote_failed';
     const finished = await rpc(admin, 'finish_whatsapp_account_lifecycle', {
       ...operation, p_result: { success: false, uncertain: mutationStarted, error_code: code },
     });

@@ -230,7 +230,7 @@ async function provision(admin: Admin, actor: Actor, record: RecordSet, step: Li
   ]));
   if (integrationUpdate.error || accountUpdate.error) throw new Error('wa_akg_provision_state_save_failed');
   const { error: jobUpdateError } = await step(async () => admin.from('wa_akg_seller_provisioning_jobs').update({
-    state: 'completed', completed_at: now, last_error: null, locked_at: null, locked_by: null,
+    state: 'completed', completed_at: now, error_code: null, locked_at: null, locked_by: null,
   }).eq('organization_id', actor.organizationId).eq('account_id', record.account.id)
     .in('state', ['queued', 'processing', 'failed', 'needs_review']));
   if (jobUpdateError) throw new Error('wa_akg_provision_job_complete_failed');
@@ -327,6 +327,25 @@ Deno.serve(async (request) => {
       const lifecycle = await accountLifecycleStatus(admin, { organizationId: actor.organizationId, accountId, provider: 'wa_akg', actorId: actor.userId });
       return json({ ok: true, ...publicStatus(record, actor), lifecycle }, 200, headers);
     }
+    if (action === 'inspect_runtime') {
+      const record = await accessible(admin, actor, accountId, 'view');
+      const checkedAt = new Date().toISOString();
+      try {
+        const { provider } = await providerFor(admin, actor.organizationId, record);
+        const state = await provider.status();
+        return json({ ok: true, ...publicStatus(record, actor), runtime: {
+          reachable: true, state: state.state, connected: state.connected,
+          confirmed: state.confirmed === true, checkedAt,
+        } }, 200, { ...headers, 'Cache-Control': 'no-store' });
+      } catch {
+        // Provider errors can include network details, so monitoring exposes only
+        // the availability result and never raw upstream failure text.
+        return json({ ok: true, ...publicStatus(record, actor), runtime: {
+          reachable: false, state: 'UNAVAILABLE', connected: false,
+          confirmed: false, checkedAt,
+        } }, 200, { ...headers, 'Cache-Control': 'no-store' });
+      }
+    }
     if (action === 'lifecycle_diagnose' || action === 'lifecycle_reconcile') {
       const record = await accessible(admin, actor, accountId, 'manage');
       const result = await recoverAccountLifecycle(admin, { organizationId: actor.organizationId, accountId,
@@ -381,6 +400,14 @@ Deno.serve(async (request) => {
         }
         if (action === 'disconnect' || action === 'logout') {
           await step(() => action === 'logout' ? provider.logout() : provider.stop(), true);
+          if (action === 'logout') {
+            await step(async () => {
+              const { error } = await admin.rpc('clear_wa_akg_device', {
+                p_organization_id: actor.organizationId, p_account_id: accountId, p_provider: 'wa_akg',
+              });
+              if (error) throw new Error('wa_akg_device_unlink_persistence_failed');
+            }, true);
+          }
           return { connected: false };
         }
         if (action === 'activate' || action === 'refresh_status') {

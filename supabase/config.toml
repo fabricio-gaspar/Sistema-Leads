@@ -17,17 +17,6 @@ verify_jwt = false
 [functions.webhook-meta-whatsapp]
 verify_jwt = false
 
-# Evolution GO cannot sign webhooks in its current documented API. The callback
-# therefore validates a per-integration secret itself and only queues a
-# sanitized, idempotent event after that check.
-[functions.webhook-evolution-go]
-verify_jwt = false
-
-# This worker accepts only its rotation-capable internal token. It may be
-# invoked by the webhook background task or a scheduled internal request.
-[functions.evolution-go-worker]
-verify_jwt = false
-
 # WA-AKG signs the exact raw JSON body with the per-session webhook secret.
 # The public callback validates that HMAC and persists only normalized fields.
 [functions.webhook-wa-akg]

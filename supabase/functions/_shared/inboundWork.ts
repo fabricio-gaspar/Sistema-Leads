@@ -1,7 +1,7 @@
 import type { createAdminClient } from './auth.ts';
 type Admin = ReturnType<typeof createAdminClient>;
 type Row = Record<string, unknown>;
-type Provider = 'wa_akg' | 'evolution_go';
+type Provider = 'wa_akg';
 const object = (value: unknown): Row => value && typeof value === 'object' && !Array.isArray(value) ? value as Row : {};
 
 const params = (provider: Provider, event: Row) => ({ p_provider: provider, p_event_id: event.id, p_lease_id: event.lease_id });
