@@ -4,7 +4,7 @@ import type { WaAkgCrmContact, WaAkgProvider } from './messaging/WaAkgProvider.t
 const text = (value: unknown, max = 200): string => typeof value === 'string' ? value.trim().slice(0, max) : '';
 const personalJid = /^([1-9][0-9]{7,14})(?::[0-9]{1,5})?@(s\.whatsapp\.net|c\.us)$/;
 
-export type WaAkgContactSyncResult = { imported: number; skipped: number; truncated: boolean; status: 'complete' | 'partial' };
+export type WaAkgContactSyncResult = { imported: number; matched: number; skipped: number; truncated: boolean; status: 'complete' | 'partial' };
 
 function directoryRow(organizationId: string, accountId: string, value: WaAkgCrmContact) {
   const remoteJid = text(value.remoteJid, 200);
@@ -36,6 +36,11 @@ export async function syncWaAkgContactDirectory(
     });
     if (error) throw new Error('wa_akg_contact_directory_save_failed');
   }
+  const { data: matched, error: matchingError } = await admin.rpc('apply_whatsapp_directory_names', {
+    p_organization_id: input.organizationId,
+    p_account_id: input.accountId,
+  });
+  if (matchingError) throw new Error('wa_akg_contact_directory_matching_failed');
   const status = snapshot.truncated || snapshot.contacts.length > 1_000 ? 'partial' : 'complete';
   const { error: stateError } = await admin.from('whatsapp_sync_state').upsert({
     whatsapp_account_id: input.accountId,
@@ -44,6 +49,5 @@ export async function syncWaAkgContactDirectory(
     metadata: { imported_contacts: rows.length, skipped_contacts: snapshot.contacts.length - rows.length, provider_truncated: snapshot.truncated === true },
   }, { onConflict: 'whatsapp_account_id' });
   if (stateError) throw new Error('wa_akg_contact_sync_state_save_failed');
-  return { imported: rows.length, skipped: snapshot.contacts.length - rows.length, truncated: status === 'partial', status };
+  return { imported: rows.length, matched: Number(matched) || 0, skipped: snapshot.contacts.length - rows.length, truncated: status === 'partial', status };
 }
-

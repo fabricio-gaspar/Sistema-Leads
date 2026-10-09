@@ -4,7 +4,7 @@ import { runWaAkgAction } from '@/lib/crm/whatsappAccountsRepository';
 type Row = Record<string, unknown>;
 
 export type WaAkgDirectoryContact = { phone: string; name: string; lastSyncedAt: string | null };
-export type WaAkgDirectorySync = { imported: number; skipped: number; truncated: boolean; status: 'complete' | 'partial' };
+export type WaAkgDirectorySync = { imported: number; matched: number; skipped: number; truncated: boolean; status: 'complete' | 'partial' };
 
 const text = (value: unknown): string => typeof value === 'string' ? value.trim() : '';
 
@@ -22,9 +22,9 @@ export async function syncWaAkgContactDirectory(accountId: string): Promise<WaAk
   const sync = result.sync && typeof result.sync === 'object' && !Array.isArray(result.sync) ? result.sync as Row : {};
   return {
     imported: Number.isFinite(Number(sync.imported)) ? Number(sync.imported) : 0,
+    matched: Number.isFinite(Number(sync.matched)) ? Number(sync.matched) : 0,
     skipped: Number.isFinite(Number(sync.skipped)) ? Number(sync.skipped) : 0,
     truncated: sync.truncated === true,
     status: sync.status === 'partial' ? 'partial' : 'complete',
   };
 }
-

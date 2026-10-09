@@ -45,9 +45,10 @@ export default function WaAkgContactDirectory({ administrator }: Props) {
       const result = await syncWaAkgContactDirectory(selectedId);
       const next = await loadWaAkgContactDirectory(selectedId);
       setContacts(next);
+      const identification = result.matched ? ` ${result.matched} conversa${result.matched === 1 ? '' : 's'} existente${result.matched === 1 ? '' : 's'} identificada${result.matched === 1 ? '' : 's'}.` : '';
       setNotice(result.status === 'partial'
-        ? `Sincronização parcial: ${result.imported} contatos atualizados. O gateway informou limite de leitura.`
-        : `Agenda sincronizada: ${result.imported} contatos atualizados.`);
+        ? `Sincronização parcial: ${result.imported} contatos atualizados. O gateway informou limite de leitura.${identification}`
+        : `Agenda sincronizada: ${result.imported} contatos atualizados.${identification}`);
     } catch {
       setNotice('A agenda não pôde ser sincronizada. A conexão e as conversas existentes não foram alteradas.');
     } finally { setSyncing(false); }
@@ -62,4 +63,3 @@ export default function WaAkgContactDirectory({ administrator }: Props) {
     <div className="mt-3 max-h-52 overflow-y-auto rounded-xl border border-background-200 bg-white"><table className="w-full text-left text-xs"><thead className="sticky top-0 bg-background-50 text-foreground-500"><tr><th className="px-3 py-2 font-semibold">Contato</th><th className="px-3 py-2 font-semibold">Telefone</th></tr></thead><tbody>{contacts.length ? contacts.map((contact) => <tr key={contact.phone} className="border-t border-background-100"><td className="px-3 py-2 text-foreground-900">{contact.name}</td><td className="px-3 py-2 text-foreground-600">{displayPhone(contact.phone)}</td></tr>) : <tr><td colSpan={2} className="px-3 py-6 text-center text-foreground-500">Nenhum contato sincronizado ainda.</td></tr>}</tbody></table></div>
   </section>;
 }
-
