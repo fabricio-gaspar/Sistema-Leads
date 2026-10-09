@@ -36,6 +36,18 @@ export interface WaAkgQrCode {
   qrcode: string;
 }
 
+export interface WaAkgCrmContact {
+  agendaName: string;
+  whatsappName: string;
+  publicName: string;
+  remoteJid: string;
+}
+
+export interface WaAkgCrmSync {
+  contacts: WaAkgCrmContact[];
+  truncated: boolean;
+}
+
 const object = (value: unknown): JsonObject => value && typeof value === 'object' && !Array.isArray(value)
   ? value as JsonObject
   : {};
@@ -225,6 +237,18 @@ export class WaAkgProvider implements MessagingProvider {
       name: text(me.name ?? me.notify ?? data.name, 160) || undefined,
       confirmed: data.sessionId === this.session && ['CONNECTED','DISCONNECTED','STOPPED','SCAN_QR','QR','CONNECTING','LOGGED_OUT'].includes(state),
     };
+  }
+
+  /** Read the bounded, session-scoped contact directory. This never sends or changes a session. */
+  async crmSync(): Promise<WaAkgCrmSync> {
+    const payload = await this.request(`/api/sessions/${encodeURIComponent(this.session)}/crm-sync`, { method: 'GET', cache: 'no-store' });
+    const contacts = Array.isArray(payload.contacts) ? payload.contacts.map(object).map((entry) => ({
+      agendaName: text(entry.agendaName, 160),
+      whatsappName: text(entry.whatsappName, 160),
+      publicName: text(entry.publicName, 160),
+      remoteJid: text(entry.remoteJid, 200),
+    })) : [];
+    return { contacts, truncated: payload.truncated === true };
   }
 
   async qr(): Promise<WaAkgQrCode> {

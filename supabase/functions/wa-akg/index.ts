@@ -2,6 +2,7 @@ import { createAdminClient, hasOrganizationPermission, requireUser } from '../_s
 import { allowedCorsHeaders, hasAllowedOrigin, json, preflight, safeError } from '../_shared/http.ts';
 import { WaAkgProvider, normalizeWaAkgBaseUrl, waAkgSessionName } from '../_shared/messaging/WaAkgProvider.ts';
 import { accountLifecycleStatus, recoverAccountLifecycle, recoverWaAkgProvisioning, runAccountLifecycle, setAccountProviderControls, type LifecycleStep } from '../_shared/accountLifecycle.ts';
+import { syncWaAkgContactDirectory } from '../_shared/waAkgContactSync.ts';
 
 type Admin = ReturnType<typeof createAdminClient>;
 type Row = Record<string, unknown>;
@@ -388,7 +389,12 @@ Deno.serve(async (request) => {
       return json({ ok: result.status < 400, ...publicStatus(updated, actor), lifecycle: result.lifecycle, ...result.payload }, result.status, headers);
     }
 
-    const record = await accessible(admin, actor, accountId, 'connect');
+    const record = await accessible(admin, actor, accountId, action === 'sync_contacts' ? 'view' : 'connect');
+    if (action === 'sync_contacts') {
+      const { provider } = await providerFor(admin, actor.organizationId, record);
+      const sync = await syncWaAkgContactDirectory(admin, { organizationId: actor.organizationId, accountId, provider });
+      return json({ ok: true, ...publicStatus(record, actor), sync }, 200, { ...headers, 'Cache-Control': 'no-store' });
+    }
     const lifecycleContext = { organizationId: actor.organizationId, accountId, provider: 'wa_akg' as const, actorId: actor.userId };
     if (action === 'save_controls') {
       if (!actor.canManage) throw new Error('permission_denied');
