@@ -1,5 +1,11 @@
 # Histórico resumido de execução
 
+## 09/10/2026 — WA-AKG: recuperação segura publicada e confirmada
+
+- Commit `83b5335` foi validado localmente (43 testes focados, type-check app/Edge, lint, build e diff check), enviado ao GitHub e sincronizado na fonte isolada do Site. O Site público existente foi preservado e a versão 180 publicou com sucesso.
+- A migration de recuperação restrita e a Edge `wa-akg` foram aplicadas. O diagnóstico consultou o gateway sem iniciar sessão, gerar QR ou enviar mensagens e confirmou sessão desconectada pronta para QR, webhook e proteções. A reconciliação auditada levou somente a conta para `qr` e preservou conta, histórico, integração desligada/pausada e Ana protegida.
+- Consulta posterior confirmou lifecycle `completed` na revisão 22; painel mostrou gateway acessível e `SCAN_QR`. Não houve QR, pareamento, mensagem, ativação da Ana ou teste de entrega. Próxima ação é exclusiva do titular: gerar QR, escanear no telefone pretendido e atualizar o status antes de um teste controlado de entrada.
+
 ## 07/10/2026 — Versionamento/publicação: validação concluída
 
 - Checkout e `main` preservados, HEAD `574c930`. GitHub `main` conferido por connector/fetch: `7a3a6c0b1b6330e89ef547a33363789cbfb63399`; histórico sem ancestral comum, `origin` é Sites. Nenhum remote alterado, branch criado ou force push.

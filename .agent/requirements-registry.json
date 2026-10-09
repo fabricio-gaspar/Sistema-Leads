@@ -2,6 +2,14 @@
   "schema_version": 1,
   "requirements": [
     {
+      "id": "REQ-WA-AKG-SAFE-PROVISION-RECOVERY-20261009",
+      "description": "Recuperar uma provisão WA-AKG concluída de forma incerta somente após prova independente do gateway, preservando conta, histórico e bloqueios operacionais",
+      "module": "configuracoes_canais_wa_akg",
+      "status": "CONCLUÍDO_SEM_PAREAMENTO",
+      "evidence": "Commit 83b5335; migration 20261009123000 aplicada; Edge wa-akg atualizada; Site v180 publicado. Diagnóstico leu gateway acessível, sessão SCAN_QR, webhook e proteções; reconciliação deixou conta em qr, conta/integração disabled, integração paused e lifecycle completed revisão 22. 43 testes focados, type-check app/Edge, lint, build e diff check passaram. QR, scan, mensagens e Ana não foram acionados.",
+      "last_validation": "2026-10-09"
+    },
+    {
       "id": "REQ-EVOLUTION-GO-FLAVIO-QR-CAPACITY-20261007",
       "description": "Resolver falha de sessão/QR e testar com Flavio, sem mensagens ou exclusão de histórico",
       "module": "evolution_go_qr",

@@ -1,5 +1,10 @@
 # Problemas conhecidos
 
+## 09/10/2026 — WA-AKG: pareamento ainda depende da leitura do titular
+
+- A recuperação segura foi concluída e manteve bloqueios: a conta está em `qr`, a integração permanece desabilitada/pausada, a Ana está protegida e o gateway informa `SCAN_QR`. O QR não foi gerado nem exposto, nenhum telefone foi pareado e nenhuma mensagem foi enviada.
+- Não tratar o status de sessão como entrega ponta a ponta. Após a leitura do QR pelo número pretendido, é obrigatório atualizar o status e confirmar o número antes de considerar um teste de entrada controlado. Saída humana e Ana seguem fora de escopo até liberação explícita.
+
 ## 07/10/2026 — Causa atual do QR: limite de conexões PostgreSQL na Evolution GO
 
 **CONFIRMADO:** `Failed to create container ... pq: sorry, too many clients already` nos logs da instância atual `bfdf104f-c113-4530-bd73-4e5e83cc00fb`, reprodução final 18:07:27 BRT. Edge v25 já elimina connect redundante e retries do QR, sem corrigir a saturação externa. É necessário acesso ao painel de hospedagem/SSH para tratar pools/conexões/limites e recuperar o serviço. API Tester não administra o banco. O ID antigo do job diverge do Vault correto; essa divergência explica logs vazios do ID antigo, mas não o HTTP 400 com token aceito. Nenhuma instância foi substituída.

@@ -1,5 +1,15 @@
 {
   "schema_version": 1,
+  "wa_akg_provision_recovery_20261009": {
+    "focused_vitest": "43 passed: messagingRecoveryR6, whatsappAccountsRepository, waAkgProvider and waAkgOnboarding",
+    "frontend_typecheck": "passed; tsc --noEmit --project tsconfig.app.json",
+    "edge_typecheck": "passed; tsc --project tsconfig.edge.json",
+    "targeted_lint": "passed",
+    "vite_build": "passed; Sites Worker artifact packaged",
+    "git_diff_check": "passed",
+    "production_state": "migration applied; wa-akg deployed; Site v180 published; lifecycle completed revision 22 with account/integration disabled and paused",
+    "external_e2e": "not run; no QR generated, phone paired, message sent or Ana enabled"
+  },
   "versioning_publication_20261007": {
     "focused_vitest": "198 passed, 6 files",
     "full_vitest": "800 passed, 97 files; DashboardLayout expectations aligned to the unified Central",

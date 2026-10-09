@@ -1,5 +1,11 @@
 # Baseline do sistema
 
+## 09/10/2026 — WA-AKG: recuperação segura para novo pareamento
+
+- O ciclo de `provision` de `fabricio` estava em revisão após a conclusão remota incerta. O novo contrato só libera a recuperação quando a leitura independente confirma gateway acessível, sessão desconectada em `SCAN_QR`/`QR`, webhook próprio e proteções ativas. Não reinicia o gateway, não gera QR, não conecta telefone e não libera mensagens ou Ana.
+- A migration `20261009123000_wa_akg_provision_recovery.sql`, a Edge `wa-akg` e o Site v180 estão publicados. A leitura pós-recuperação confirmou `connection_status=qr`, conta e integração desabilitadas, integração pausada e lifecycle `completed` na revisão 22. O gateway está acessível e a sessão em `SCAN_QR`.
+- QR, pareamento, mensagem de entrada/saída e Ana continuam deliberadamente não testados/ativados. Próxima ação: o titular gera QR no painel, lê com o telefone pretendido e atualiza o status antes de qualquer teste controlado de entrada.
+
 ## 07/10/2026 — QR: saturação PostgreSQL e mitigação remota
 
 Logs da instância atual do Flavio confirmam `pq: sorry, too many clients already` ao criar o cliente WhatsApp. Edge v25 aplicada isoladamente sobre v24: uma chamada QR, sem connect redundante/retries, erro sanitizado. 67 testes locais + 8 do bundle remoto, tipos Edge e diff check passaram. E2E como Flavio retorna erro específico e nenhum QR, com saturação confirmada às 18:07 BRT. Cofre aponta ID atual; job guarda ID histórico. Falta acesso de hospedagem para corrigir PostgreSQL/pools. Não houve mensagem, recriação ou publicação do Site.

@@ -1,5 +1,18 @@
 {
   "schema_version": 1,
+  "wa_akg_provision_recovery_20261009": {
+    "code_commit": "83b5335",
+    "github_main": "83b5335",
+    "migration": "20261009123000_wa_akg_provision_recovery.sql applied",
+    "edge_function": "wa-akg deployed with provision_diagnose/provision_reconcile",
+    "site": "version 180 published successfully",
+    "runtime_proof": "gateway accessible; session SCAN_QR; account connection qr; account/integration disabled; integration paused; lifecycle completed revision 22",
+    "qr_generated": false,
+    "phone_paired": false,
+    "messages_sent": false,
+    "ana_enabled": false,
+    "next_action": "Owner generates a QR, scans it on the intended phone, then refreshes status; only after confirmed connection should a controlled inbound test be considered."
+  },
   "versioning_publication_20261007": {
     "local_head": "574c930",
     "branch": "main",
