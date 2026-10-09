@@ -9,11 +9,11 @@ describe('Central de Atendimento WhatsApp entry', () => {
     const layout = readFileSync(resolve('src/components/feature/DashboardLayout.tsx'), 'utf8');
     const router = readFileSync(resolve('src/router/config.tsx'), 'utf8');
 
-    expect(page).toContain("import EvolutionGoPanel from '@/components/feature/EvolutionGoPanel'");
-    expect(page).toContain('<EvolutionGoPanel mode="self-service" surface="central" />');
+    expect(page).toContain("import WaAkgPanel from '@/components/feature/WaAkgPanel'");
+    expect(page).toContain('<WaAkgPanel mode="self-service" surface="central" />');
     expect(entry).toContain('hasAnyPermission(access, conversationPermissions)');
     expect(entry).toContain('<Atendimento />');
-    expect(entry).toContain('<EvolutionGoPanel mode="self-service" surface="central" />');
+    expect(entry).toContain('<WaAkgPanel mode="self-service" surface="central" />');
     expect(layout).not.toContain("{ label: 'Meu WhatsApp'");
     expect(layout).toContain("navigate('/dashboard/atendimento', { replace: true })");
     expect(router).toContain('<AtendimentoEntry />');

@@ -107,7 +107,7 @@ Deno.serve(async (request) => {
     if (operationalAccountError || !operationalAccount || operationalAccount.enabled !== true || operationalAccount.connection_status !== 'connected') {
       throw new Error('whatsapp_account_not_ready');
     }
-    if (['evolution_go', 'wa_akg'].includes(String(operationalAccount.provider))) {
+    if (String(operationalAccount.provider) === 'wa_akg') {
       const controlledProvider = String(operationalAccount.provider);
       const { data: controls, error: controlsError } = await admin.from('messaging_provider_controls')
         .select('send_enabled,kill_switch').eq('organization_id', organizationId).eq('provider', controlledProvider).maybeSingle();

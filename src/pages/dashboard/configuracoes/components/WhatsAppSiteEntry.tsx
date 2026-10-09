@@ -75,8 +75,8 @@ export default function WhatsAppSiteEntry() {
     <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
       <div>
         <p className="text-xs font-semibold uppercase tracking-[.12em] text-primary-700">Entrada do site</p>
-        <h4 className="mt-1 text-base font-semibold text-foreground-950">Falar pelo WhatsApp a partir do site</h4>
-        <p className="mt-1 max-w-3xl text-sm leading-6 text-foreground-500">Gere o botão do seu site. Quando o visitante enviar a primeira mensagem, o Wayflex cria ou encontra o contato e registra a conversa na Central para atendimento humano. A entrada não ativa a Ana nem dispara mensagens automáticas.</p>
+        <h4 className="mt-1 text-base font-semibold text-foreground-950">Falar com a Ana pelo WhatsApp</h4>
+        <p className="mt-1 max-w-3xl text-sm leading-6 text-foreground-500">Gere o botão do seu site. Quando o visitante enviar a mensagem, o Wayflex cria ou encontra o lead, registra a conversa na Central e entrega o atendimento para a Ana.</p>
       </div>
       <span className={`inline-flex w-fit rounded-full px-2.5 py-1 text-xs font-semibold ${entry?.active ? 'bg-primary-50 text-primary-800' : 'bg-background-100 text-foreground-600'}`}>{entry?.active ? 'Ativa' : 'Pausada'}</span>
     </div>

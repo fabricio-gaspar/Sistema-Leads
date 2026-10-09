@@ -36,13 +36,6 @@ export interface WaAkgQrCode {
   qrcode: string;
 }
 
-export interface WaAkgCrmSyncSnapshot {
-  policy: { days: number; contactLimit: number; messageLimit: number };
-  contacts: Array<{ remoteJid: string; remoteJidAlt?: string | null; agendaName?: string | null; whatsappName?: string | null; publicName?: string | null }>;
-  messages: Array<{ messageId: string; remoteJid: string; fromMe: boolean; text?: string | null; occurredAt: string; messageType?: string | null; whatsappName?: string | null }>;
-  truncated: { contacts: boolean; messages: boolean };
-}
-
 const object = (value: unknown): JsonObject => value && typeof value === 'object' && !Array.isArray(value)
   ? value as JsonObject
   : {};
@@ -258,24 +251,6 @@ export class WaAkgProvider implements MessagingProvider {
     const code = text(data.code ?? data.pairingCode ?? payload.code ?? payload.pairingCode, 120);
     if (!code) throw new Error('wa_akg_pair_response_invalid');
     return code;
-  }
-
-  /** A bounded, read-only snapshot for an explicit CRM import. */
-  async crmSyncSnapshot(): Promise<WaAkgCrmSyncSnapshot> {
-    const payload = await this.request(`/api/sessions/${encodeURIComponent(this.session)}/crm-sync`, { method: 'GET', cache: 'no-store' }, 30_000);
-    const policy = object(payload.policy);
-    const contacts = Array.isArray(payload.contacts) ? payload.contacts.map(object) : [];
-    const messages = Array.isArray(payload.messages) ? payload.messages.map(object) : [];
-    const truncated = object(payload.truncated);
-    return {
-      policy: { days: Number(policy.days) || 30, contactLimit: Number(policy.contactLimit) || 1_000, messageLimit: Number(policy.messageLimit) || 500 },
-      contacts: contacts.map((item) => ({ remoteJid: text(item.remoteJid, 200), remoteJidAlt: text(item.remoteJidAlt, 200) || null,
-        agendaName: text(item.agendaName, 160) || null, whatsappName: text(item.whatsappName, 160) || null, publicName: text(item.publicName, 160) || null })).filter((item) => item.remoteJid),
-      messages: messages.map((item) => ({ messageId: text(item.messageId, 300), remoteJid: text(item.remoteJid, 200), fromMe: item.fromMe === true,
-        text: text(item.text, 4_096) || null, occurredAt: text(item.occurredAt, 80), messageType: text(item.messageType, 40) || null, whatsappName: text(item.whatsappName, 160) || null }))
-        .filter((item) => item.messageId && item.remoteJid && item.occurredAt),
-      truncated: { contacts: truncated.contacts === true, messages: truncated.messages === true },
-    };
   }
 
   async configureSafety(): Promise<void> {

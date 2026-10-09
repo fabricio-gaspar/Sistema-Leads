@@ -9,7 +9,7 @@ const reasonCopy: Record<string, string> = {
 
 /** Explicit administrative review. No automatic diagnose, retry, QR, connect or activation. */
 export default function ChannelLifecycleRecovery({ provider, accountId, disabled = false, onReconciled, review = reviewChannelLifecycle }: {
-  provider: 'wa_akg' | 'evolution_go'; accountId: string; disabled?: boolean;
+  provider: 'wa_akg'; accountId: string; disabled?: boolean;
   onReconciled: () => Promise<void>; review?: typeof reviewChannelLifecycle;
 }) {
   const [diagnosis, setDiagnosis] = useState<ChannelRecoveryResult | null>(null);

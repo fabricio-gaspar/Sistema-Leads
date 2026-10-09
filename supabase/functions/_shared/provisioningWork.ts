@@ -1,7 +1,7 @@
 import type { createAdminClient } from './auth.ts';
 type Admin = ReturnType<typeof createAdminClient>;
 type Row = Record<string, unknown>;
-type Provider = 'wa_akg' | 'evolution_go';
+type Provider = 'wa_akg';
 const object = (value: unknown): Row => value && typeof value === 'object' && !Array.isArray(value) ? value as Row : {};
 export type ProvisioningStep = <T>(name: string, work: () => Promise<T>, mutating?: boolean) => Promise<T>;
 
@@ -26,7 +26,7 @@ export async function runProvisioningWork(admin: Admin, provider: Provider, job:
   try { result = { ...await work(ticket, step, saveSecret), success: true }; }
   catch (error) {
     const message = error instanceof Error ? error.message : '';
-    result = { success: false, error_code: /^(wa_akg|evolution_go|whatsapp_provisioning)_[a-z0-9_]{1,90}$/.test(message)
+    result = { success: false, error_code: /^(wa_akg|whatsapp_provisioning)_[a-z0-9_]{1,90}$/.test(message)
       ? message : 'whatsapp_provisioning_remote_failed' };
   }
   // If this transaction fails, retain the durable token. Never redo the POST.

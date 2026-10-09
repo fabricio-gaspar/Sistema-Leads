@@ -51,10 +51,10 @@ describe('R4 team access client contracts', () => {
     mocks.invoke.mockResolvedValue({ data: { ok: true }, error: null });
     await updateTeamRole('target', 'cx'); expect(mocks.clear).toHaveBeenCalledTimes(1);
   });
-  it('routes deletion through the isolated Evolution GO removal handler', async () => {
+  it('routes deletion through the isolated WA-AKG removal handler', async () => {
     mocks.invoke.mockResolvedValue({ data: { ok: true, membership_removed: true, history_preserved: true, identity_deleted: true }, error: null });
     await removeTeamMember(member.userId);
-    expect(mocks.invoke).toHaveBeenCalledWith('team-member-evolution-removal', {
+    expect(mocks.invoke).toHaveBeenCalledWith('team-member-wa-akg-removal', {
       body: { action: 'remove', user_id: member.userId },
     });
     expect(mocks.clear).toHaveBeenCalledTimes(1);

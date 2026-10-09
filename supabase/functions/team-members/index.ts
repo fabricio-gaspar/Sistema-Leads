@@ -134,18 +134,18 @@ async function sellerProvisioningForMember(
   admin: ReturnType<typeof createAdminClient>,
   input: { organizationId: string; userId: string },
 ): Promise<SellerProvisioning | null> {
-  const { data, error } = await admin.from('evolution_go_seller_provisioning_jobs')
+  const { data, error } = await admin.from('wa_akg_seller_provisioning_jobs')
     .select('id,state')
     .eq('organization_id', input.organizationId)
-    .eq('user_id', input.userId)
+    .eq('owner_user_id', input.userId)
     .maybeSingle();
-  if (error) throw new Error('evolution_go_provisioning_lookup_failed');
+  if (error) throw new Error('wa_akg_provisioning_lookup_failed');
   if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
   const candidate = data as Record<string, unknown>;
   const jobId = text(candidate.id, 80);
   const state = text(candidate.state, 40);
   if (!jobId || !sellerProvisioningStates.has(state)) {
-    throw new Error('evolution_go_provisioning_lookup_failed');
+    throw new Error('wa_akg_provisioning_lookup_failed');
   }
   return { jobId, state };
 }
@@ -156,7 +156,7 @@ function wakeSellerProvisioningWorker(jobId: string): void {
   if (!baseUrl || !serviceRole) return;
   // The job is durable; this is only a low-latency wake-up. If the task cannot
   // run, the scheduler will process it later rather than silently dropping it.
-  const pending = fetch(`${baseUrl}/functions/v1/evolution-go-worker`, {
+  const pending = fetch(`${baseUrl}/functions/v1/wa-akg-worker`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${serviceRole}`, 'Content-Type': 'application/json' },
     body: JSON.stringify({ provisioning_job_id: jobId }),
@@ -198,7 +198,7 @@ Deno.serve(async (request) => {
     // provider-reconciliation endpoint, never by the generic member RPC.
     if (action === 'remove') {
       const origin = request.headers.get('origin');
-      const endpoint = new URL('/functions/v1/team-member-evolution-removal', Deno.env.get('SUPABASE_URL'));
+      const endpoint = new URL('/functions/v1/team-member-wa-akg-removal', Deno.env.get('SUPABASE_URL'));
       const response = await fetch(endpoint, {
         method: 'POST',
         headers: {
@@ -288,8 +288,8 @@ Deno.serve(async (request) => {
         provisioning_warning: provisioning.provisioningWarning,
         message: role === 'vendedor'
           ? provisioningNeedsReview
-            ? 'Usuário criado. O vínculo Evolution GO precisa de revisão antes do QR Code.'
-            : 'Usuário criado. A instância individual Evolution GO foi vinculada e será preparada pelo servidor.'
+            ? 'Usuário criado. O vínculo WA-AKG precisa de revisão antes do QR Code.'
+            : 'Usuário criado. A sessão individual WA-AKG será preparada pelo servidor.'
           : 'Usuário criado com o papel selecionado.',
       }, 201, headers);
     }

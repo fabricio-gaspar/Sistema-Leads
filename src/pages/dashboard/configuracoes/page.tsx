@@ -113,8 +113,8 @@ export default function DashboardConfiguracoes() {
         </div>}
       </div>
 
-      <div className="cc-settings-layout flex flex-col items-stretch gap-4 2xl:flex-row 2xl:items-start 2xl:gap-6">
-        <aside className="cc-settings-nav hidden w-[258px] flex-shrink-0 rounded-xl border border-background-200 bg-white p-3 shadow-2xs 2xl:sticky 2xl:top-6 2xl:block" aria-label="Áreas de configuração">
+      <div className="cc-settings-layout flex flex-col items-stretch gap-4 xl:flex-row xl:items-start xl:gap-6">
+        <aside className="cc-settings-nav hidden w-[258px] flex-shrink-0 rounded-xl border border-background-200 bg-white p-3 shadow-2xs xl:sticky xl:top-6 xl:block" aria-label="Áreas de configuração">
           {groups.map((group) => (
             <div key={group.title} className="mb-4 last:mb-0">
               <p className="px-3 pb-2 pt-2 text-xs font-semibold tracking-wide text-foreground-500">
@@ -142,7 +142,7 @@ export default function DashboardConfiguracoes() {
           ))}
         </aside>
 
-        <div className="2xl:hidden">
+        <div className="xl:hidden">
           <label className="sr-only" htmlFor="settings-section">Seção de configurações</label>
           <select
             id="settings-section"

@@ -488,7 +488,7 @@ export default function KanbanCRM() {
         </div>
       </header>
 
-      <section className="rounded-xl border border-background-200 bg-white p-3 shadow-sm">
+      <section className="wf-surface wf-kanban-toolbar p-3">
         <div className="flex flex-col gap-2 lg:flex-row">
           <label className="relative min-w-0 flex-1"><span className="sr-only">Buscar no Kanban</span><i className="ri-search-line absolute left-3 top-1/2 -translate-y-1/2 text-foreground-500" /><input value={queryDraft} onChange={(event) => setQueryDraft(event.target.value)} placeholder="Buscar por lead, empresa, telefone ou e-mail" className="h-10 w-full rounded-lg border border-background-300 bg-background-50 pl-9 pr-3 text-sm text-foreground-900 outline-none ring-primary-300 focus:ring-2" /></label>
           <KanbanViewsMenu<ViewConfiguration> views={views} activeViewId={activeViewId} dirty={dirtyView} onLoad={loadView} onCreate={saveView} onRename={renameView} onUpdate={updateView} onSetDefault={setDefaultView} onDelete={deleteView} />
@@ -525,7 +525,7 @@ export default function KanbanCRM() {
       {portfolioError ? <section className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-950"><div className="flex items-center justify-between gap-4"><span>{portfolioError}</span><button type="button" onClick={refreshBoard} className="wf-btn-secondary">Atualizar</button></div></section> : (
         <>
           {loadStatus === 'error' && <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">A carteira geral não foi atualizada, mas o quadro usa a consulta operacional do servidor.</p>}
-          {viewMode === 'kanban' ? <section ref={boardRef} className="mt-5 overflow-x-auto rounded-xl border border-background-200 bg-background-50 p-3" aria-label="Quadro Kanban">
+          {viewMode === 'kanban' ? <section ref={boardRef} className="wf-kanban-board mt-5 overflow-x-auto rounded-xl border border-background-200 bg-background-50 p-3" aria-label="Quadro Kanban">
             {portfolioLoading && <div className="absolute sr-only" aria-live="polite">Atualizando quadro</div>}
             {portfolio && portfolio.total > BOARD_LIMIT && <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">O quadro exibe os primeiros {BOARD_LIMIT} leads ordenados. Refine os filtros para operar toda a carteira.</p>}
             <div className="grid min-w-[1440px] grid-cols-6 gap-3">

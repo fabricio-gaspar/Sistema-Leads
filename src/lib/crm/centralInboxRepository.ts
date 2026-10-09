@@ -154,7 +154,7 @@ export type CentralTransferTarget = {
   role: string;
   accountId: string | null;
   accountLabel: string | null;
-  provider: 'zapi' | 'meta_cloud' | 'evolution_go' | 'wa_akg' | null;
+  provider: 'zapi' | 'meta_cloud' | 'wa_akg' | null;
   phoneSuffix: string | null;
   connectionStatus: string;
   channelReady: boolean;
@@ -394,10 +394,10 @@ export async function markCentralConversationUnread(leadId: string): Promise<boo
  * Resolves only the provider already pinned to the lead. This intentionally
  * does not expose account credentials or select a different WhatsApp account.
  */
-export async function loadCentralChannelProvider(leadId: string): Promise<'zapi' | 'meta_cloud' | 'evolution_go' | 'wa_akg' | null> {
+export async function loadCentralChannelProvider(leadId: string): Promise<'zapi' | 'meta_cloud' | 'wa_akg' | null> {
   const { data, error } = await supabase.rpc('central_get_conversation_channel_provider', { p_lead_id: leadId });
   if (error) throw error;
-  return data === 'meta_cloud' || data === 'zapi' || data === 'evolution_go' || data === 'wa_akg' ? data : null;
+  return data === 'meta_cloud' || data === 'zapi' || data === 'wa_akg' ? data : null;
 }
 
 export async function loadCentralTransferTargets(leadId: string): Promise<CentralTransferTarget[]> {
@@ -406,7 +406,7 @@ export async function loadCentralTransferTargets(leadId: string): Promise<Centra
   return asArray(data).map((value) => {
     const row = asRecord(value);
     const provider = asString(row.account_provider);
-    const normalizedProvider: CentralTransferTarget['provider'] = provider === 'zapi' || provider === 'meta_cloud' || provider === 'evolution_go' || provider === 'wa_akg'
+    const normalizedProvider: CentralTransferTarget['provider'] = provider === 'zapi' || provider === 'meta_cloud' || provider === 'wa_akg'
       ? provider
       : null;
     return {

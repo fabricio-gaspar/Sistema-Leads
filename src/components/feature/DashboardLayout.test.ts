@@ -6,14 +6,13 @@ describe('Dashboard personal WhatsApp pairing', () => {
   it('checks only the authenticated user account once per session before opening the unified Central', () => {
     const layout = readFileSync(resolve('src/components/feature/DashboardLayout.tsx'), 'utf8');
 
-    expect(layout).toContain('loadMyEvolutionGoAccount');
-    expect(layout).toContain('evolutionGoSellerNeedsPairing(status)');
+    expect(layout).toContain('loadMyWaAkgAccount');
+    expect(layout).toContain('waAkgSellerNeedsOnboarding(status)');
     expect(layout).not.toContain("access?.role === 'vendedor'");
     expect(layout).toContain("['channels.connect_own']");
-    expect(layout).toContain('evolutionGoOnboardingSessionKey(user.id)');
+    expect(layout).toContain('waAkgOnboardingSessionKey(user.id)');
     expect(layout).toContain("window.sessionStorage.getItem(sessionKey) === 'shown'");
     expect(layout).toContain("navigate('/dashboard/atendimento', { replace: true })");
-    expect(layout).not.toContain('evolutionGoSellerNeedsOnboarding');
   });
 
   it('keeps the unified Central discoverable through the same own-account permissions', () => {
@@ -55,8 +54,8 @@ describe('Dashboard navigation shell', () => {
   it('keeps Configurações on its compact selector before the two sidebars can compete for width', () => {
     const settings = readFileSync(resolve('src/pages/dashboard/configuracoes/page.tsx'), 'utf8');
 
-    expect(settings).toContain('2xl:flex-row');
-    expect(settings).toContain('2xl:block');
-    expect(settings).toContain('className="2xl:hidden"');
+    expect(settings).toContain('xl:flex-row');
+    expect(settings).toContain('xl:block');
+    expect(settings).toContain('className="xl:hidden"');
   });
 });

@@ -20,7 +20,7 @@ interface WhatsappAccountRow {
   id: string;
   label: string;
   connected_phone_suffix: string | null;
-  provider: 'zapi' | 'meta_cloud' | 'evolution_go' | 'wa_akg';
+  provider: 'zapi' | 'meta_cloud' | 'wa_akg';
 }
 
 interface MessageRow {

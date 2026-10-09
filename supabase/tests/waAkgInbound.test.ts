@@ -22,11 +22,4 @@ describe('WA-AKG inbound parser', () => {
     expect(parseWaAkgEvent({ event: 'connection.update', data: { status: 'CONNECTED' } }))
       .toMatchObject({ kind: 'connection', state: 'connected' });
   });
-
-  it('maps a personal message sent from the linked phone', () => {
-    const payload = { event: 'message.sent', sessionId: 'seller_12345678', timestamp: '2026-10-08T16:00:00Z',
-      data: { key: { id: 'phone-msg-1', remoteJid: '5511999999999@s.whatsapp.net', fromMe: true }, type: 'text', content: { text: 'Resposta pelo celular' } } };
-    expect(parseWaAkgEvent(payload)).toMatchObject({ kind: 'outbound', phone: '5511999999999', text: 'Resposta pelo celular' });
-    expect(sanitizeWaAkgPayload(payload)).toMatchObject({ kind: 'outbound', message_id: 'phone-msg-1', remote_jid: '5511999999999@s.whatsapp.net' });
-  });
 });

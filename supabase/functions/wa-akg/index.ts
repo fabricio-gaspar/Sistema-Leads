@@ -184,43 +184,6 @@ async function storeSecret(admin: Admin, integrationId: string, value: Row): Pro
   if (error) throw new Error('wa_akg_secret_save_failed');
 }
 
-function phoneFromJid(value: string): string {
-  const match = value.match(/^([1-9][0-9]{7,14})(?::[0-9]{1,5})?@(s\.whatsapp\.net|c\.us)$/i);
-  return match?.[1] ?? '';
-}
-
-async function syncRecentConversations(admin: Admin, actor: Actor, record: RecordSet) {
-  if (record.account.connection_status !== 'connected') throw new Error('wa_akg_connection_validation_required');
-  const { provider } = await providerFor(admin, actor.organizationId, record);
-  const state = await provider.status();
-  if (!state.connected) throw new Error('wa_akg_connection_validation_required');
-  const snapshot = await provider.crmSyncSnapshot();
-  const now = new Date().toISOString();
-  const contacts = snapshot.contacts.map((item) => ({
-    organization_id: actor.organizationId, whatsapp_account_id: record.account.id, remote_jid: item.remoteJid,
-    phone: phoneFromJid(item.remoteJid), agenda_name: item.agendaName || null, whatsapp_name: item.whatsappName || null,
-    public_name: item.publicName || null, last_synced_at: now,
-  })).filter((item) => item.phone);
-  if (contacts.length) {
-    const { error } = await admin.from('whatsapp_contact_directory').upsert(contacts, { onConflict: 'organization_id,whatsapp_account_id,remote_jid' });
-    if (error) throw new Error('wa_akg_contact_directory_save_failed');
-  }
-  let inserted = 0, review = 0;
-  // Oldest first keeps the Central timeline coherent. Each write is idempotent
-  // on the scoped provider message id, so a retry cannot duplicate history.
-  for (const message of [...snapshot.messages].reverse()) {
-    const { data, error } = await admin.rpc('persist_wa_akg_synced_message', {
-      p_organization_id: actor.organizationId, p_account_id: record.account.id, p_message_id: message.messageId,
-      p_remote_jid: message.remoteJid, p_from_me: message.fromMe, p_text: message.text || '', p_occurred_at: message.occurredAt,
-    });
-    if (error) throw new Error('wa_akg_history_persistence_failed');
-    const result = object(data);
-    if (result.inserted === true) inserted += 1;
-    if (result.review === true) review += 1;
-  }
-  return { policy: snapshot.policy, contacts: contacts.length, messages: snapshot.messages.length, inserted, review, truncated: snapshot.truncated };
-}
-
 async function provision(admin: Admin, actor: Actor, record: RecordSet, step: LifecycleStep): Promise<RecordSet> {
   if (record.account.account_type !== 'seller') throw new Error('wa_akg_seller_account_required');
   const gateway = await corporateCredentials(admin, actor.organizationId);
@@ -267,7 +230,7 @@ async function provision(admin: Admin, actor: Actor, record: RecordSet, step: Li
   ]));
   if (integrationUpdate.error || accountUpdate.error) throw new Error('wa_akg_provision_state_save_failed');
   const { error: jobUpdateError } = await step(async () => admin.from('wa_akg_seller_provisioning_jobs').update({
-    state: 'completed', completed_at: now, last_error: null, locked_at: null, locked_by: null,
+    state: 'completed', completed_at: now, error_code: null, locked_at: null, locked_by: null,
   }).eq('organization_id', actor.organizationId).eq('account_id', record.account.id)
     .in('state', ['queued', 'processing', 'failed', 'needs_review']));
   if (jobUpdateError) throw new Error('wa_akg_provision_job_complete_failed');
@@ -364,6 +327,25 @@ Deno.serve(async (request) => {
       const lifecycle = await accountLifecycleStatus(admin, { organizationId: actor.organizationId, accountId, provider: 'wa_akg', actorId: actor.userId });
       return json({ ok: true, ...publicStatus(record, actor), lifecycle }, 200, headers);
     }
+    if (action === 'inspect_runtime') {
+      const record = await accessible(admin, actor, accountId, 'view');
+      const checkedAt = new Date().toISOString();
+      try {
+        const { provider } = await providerFor(admin, actor.organizationId, record);
+        const state = await provider.status();
+        return json({ ok: true, ...publicStatus(record, actor), runtime: {
+          reachable: true, state: state.state, connected: state.connected,
+          confirmed: state.confirmed === true, checkedAt,
+        } }, 200, { ...headers, 'Cache-Control': 'no-store' });
+      } catch {
+        // Provider errors can include network details, so monitoring exposes only
+        // the availability result and never raw upstream failure text.
+        return json({ ok: true, ...publicStatus(record, actor), runtime: {
+          reachable: false, state: 'UNAVAILABLE', connected: false,
+          confirmed: false, checkedAt,
+        } }, 200, { ...headers, 'Cache-Control': 'no-store' });
+      }
+    }
     if (action === 'lifecycle_diagnose' || action === 'lifecycle_reconcile') {
       const record = await accessible(admin, actor, accountId, 'manage');
       const result = await recoverAccountLifecycle(admin, { organizationId: actor.organizationId, accountId,
@@ -373,25 +355,6 @@ Deno.serve(async (request) => {
         return { confirmed: status.confirmed === true, connected: status.connected };
       });
       return json({ ok: result.status === 200, ...result, ...(result.status === 409 ? { error: 'account_lifecycle_needs_review' } : {}) }, result.status, headers);
-    }
-    // This endpoint deliberately bypasses the lifecycle ledger: it makes one
-    // authenticated GET to the scoped gateway session and must never start,
-    // stop, reconnect, pair, or alter the durable channel state.
-    if (action === 'inspect_runtime') {
-      const record = await accessible(admin, actor, accountId, 'view');
-      const { provider } = await providerFor(admin, actor.organizationId, record);
-      const state = await provider.status();
-      const lifecycle = await accountLifecycleStatus(admin, { organizationId: actor.organizationId,
-        accountId, provider: 'wa_akg', actorId: actor.userId });
-      return json({ ok: true, ...publicStatus(record, actor), lifecycle, runtime: {
-        reachable: true, state: state.state, connected: state.connected,
-        confirmed: state.confirmed === true, checkedAt: new Date().toISOString(),
-        // An authenticated provider status proves these hops. Docker internals
-        // are intentionally not represented as if they were remotely observable.
-        layers: { edge: 'ok', tunnelGuard: 'ok', gateway: 'ok',
-          crm: record.integration.enabled === true && record.integration.paused !== true ? 'ok' : 'attention',
-          lifecycle: lifecycle.state === 'completed' || lifecycle.state === 'idle' ? 'ok' : 'attention' },
-      } }, 200, { ...headers, 'Cache-Control': 'no-store' });
     }
     if (action === 'provision') {
       const current = await accessible(admin, actor, accountId, 'manage');
@@ -407,10 +370,6 @@ Deno.serve(async (request) => {
 
     const record = await accessible(admin, actor, accountId, 'connect');
     const lifecycleContext = { organizationId: actor.organizationId, accountId, provider: 'wa_akg' as const, actorId: actor.userId };
-    if (action === 'sync_recent') {
-      const sync = await syncRecentConversations(admin, actor, record);
-      return json({ ok: true, ...publicStatus(record, actor), sync }, 200, headers);
-    }
     if (action === 'save_controls') {
       if (!actor.canManage) throw new Error('permission_denied');
       const minDelay = Math.min(Math.max(Number(body.min_delay_seconds) || 10, 10), 300);
@@ -441,6 +400,14 @@ Deno.serve(async (request) => {
         }
         if (action === 'disconnect' || action === 'logout') {
           await step(() => action === 'logout' ? provider.logout() : provider.stop(), true);
+          if (action === 'logout') {
+            await step(async () => {
+              const { error } = await admin.rpc('clear_wa_akg_device', {
+                p_organization_id: actor.organizationId, p_account_id: accountId, p_provider: 'wa_akg',
+              });
+              if (error) throw new Error('wa_akg_device_unlink_persistence_failed');
+            }, true);
+          }
           return { connected: false };
         }
         if (action === 'activate' || action === 'refresh_status') {
