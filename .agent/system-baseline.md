@@ -1,5 +1,11 @@
 # Baseline do sistema
 
+## 09/10/2026 — WA-AKG: sessão conectada reconciliada automaticamente
+
+- A sessão individual de fabricio já estava confirmada pelo gateway, porém os eventos de restauração/histórico não trouxeram um connection.update utilizável para retirar o CRM de qr. O worker agora reconcilia somente contas WA-AKG locais inativas, exige o session_id determinístico e confirmação direta de CONNECTED antes de gravar a promoção.
+- A Edge wa-akg-worker v9 está ativa. No ciclo automático seguinte, o banco registrou connection_status=connected e confirmou apenas o final do número; a tela publicada exibiu **Conectado**, connected, **Final 1875** e o botão **Desconectar dispositivo**.
+- Proteções preservadas: conta e integração continuam desabilitadas/pausadas e a Ana segue protegida. Não houve novo QR, reconexão, mensagem, automação ou alteração de dados de clientes.
+
 ## 09/10/2026 — WA-AKG: recuperação segura para novo pareamento
 
 - O ciclo de `provision` de `fabricio` estava em revisão após a conclusão remota incerta. O novo contrato só libera a recuperação quando a leitura independente confirma gateway acessível, sessão desconectada em `SCAN_QR`/`QR`, webhook próprio e proteções ativas. Não reinicia o gateway, não gera QR, não conecta telefone e não libera mensagens ou Ana.

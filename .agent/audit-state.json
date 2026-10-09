@@ -1,5 +1,14 @@
 {
   "schema_version": 1,
+  "wa_akg_connected_session_reconciliation_20261009": {
+    "cause": "The provider had restored the linked session and confirmed CONNECTED, but did not emit a usable connection.update webhook while replaying history, leaving the CRM persisted at qr.",
+    "resolution": "wa-akg-worker v9 now probes only locally inactive WA-AKG seller sessions with the expected scoped session id and promotes them only after the provider confirms CONNECTED.",
+    "runtime_proof": "The automated worker persisted connection_status=connected and the expected phone suffix; the published CRM visibly shows Conectado, connected, Final 1875 and the disconnect control.",
+    "safety": "Account and integration remain disabled/paused; Ana remains protected. The reconciliation never generates QR, reconnects a device, sends messages, or enables automation.",
+    "edge_function": "wa-akg-worker v9 ACTIVE; verify_jwt remains false because the existing custom worker authentication is preserved.",
+    "validation": "641/641 Vitest, Edge type-check, targeted lint and diff check passed.",
+    "next_action": "Keep the existing monitor as observation-only. A controlled inbound test remains a separate owner-authorized step."
+  },
   "wa_akg_tunnel_recovery_20261009": {
     "cause": "The accountless Cloudflare Quick Tunnel hostname expired while its container remained running.",
     "recovery": "Only the protected tunnel container was recreated; the exact new origin was stored in the Edge allowlist and the existing Vault secret without exposing or replacing the API key.",

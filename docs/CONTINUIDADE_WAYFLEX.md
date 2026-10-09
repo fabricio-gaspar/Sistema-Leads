@@ -1,5 +1,11 @@
 # Checkpoint — WayFlex CRM
 
+## 09/10/2026 — WA-AKG: CRM passou a reconciliar CONNECTED automaticamente
+
+- A sessão de fabricio foi confirmada pelo gateway, mas o CRM permanecia em qr porque o replay de histórico não emitia connection.update utilizável. A correção na Edge wa-akg-worker v9 faz uma leitura segura somente para sessões WA-AKG locais inativas e as promove apenas quando o gateway confirma a sessão determinística como CONNECTED.
+- Pós-publicação: o ciclo automático persistiu connected e confirmou o final **1875**; a prévia publicada mostra **Conectado · protegido**, connected, **Final 1875** e **Desconectar dispositivo**.
+- Conta e integração continuam desabilitadas/pausadas, Ana protegida. Não foram gerados QR, reconectados dispositivos, enviadas mensagens ou ativadas automações. Próxima ação opcional e independente: teste de entrada controlado com autorização do titular.
+
 ## 09/10/2026 — WA-AKG: rota pública recuperada e prevenção de QR inerte
 
 - A falha do botão de QR foi rastreada até a origem pública: o container do Cloudflare Quick Tunnel continuava em execução, mas seu hostname temporário deixou de resolver. O gateway e a sessão WhatsApp não foram reiniciados.

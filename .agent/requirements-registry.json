@@ -10,6 +10,14 @@
       "last_validation": "2026-10-09"
     },
     {
+      "id": "REQ-WA-AKG-CONNECTED-RECONCILIATION-20261009",
+      "description": "Refletir automaticamente no CRM uma sessão WA-AKG já confirmada pelo gateway e confirmar apenas o final do telefone, sem liberar operação.",
+      "module": "configuracoes_canais_wa_akg",
+      "status": "CONCLUÍDO_COM_BLOQUEIOS_PRESERVADOS",
+      "evidence": "A causa foi ausência de connection.update utilizável durante o replay de histórico. wa-akg-worker v9 consulta somente sessões locais inativas e promove qr/configured/disconnected para connected após confirmação direta do gateway e do session id determinístico. O CRM publicado mostra Conectado e Final 1875. Conta e integração continuam disabled/paused e Ana protegida. Vitest completo 641/641, Edge type-check, lint e diff check passaram.",
+      "last_validation": "2026-10-09"
+    },
+    {
       "id": "REQ-EVOLUTION-GO-FLAVIO-QR-CAPACITY-20261007",
       "description": "Resolver falha de sessão/QR e testar com Flavio, sem mensagens ou exclusão de histórico",
       "module": "evolution_go_qr",

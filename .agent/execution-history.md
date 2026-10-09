@@ -1,5 +1,12 @@
 # Histórico resumido de execução
 
+## 09/10/2026 — Reconciliação automática de CONNECTED do WA-AKG
+
+- Causa comprovada: após o pareamento, o gateway confirmava a sessão individual conectada, mas não emitia connection.update utilizável durante o replay de histórico; por isso o CRM continuava em qr e sem final de número.
+- A fonte remota ativa do worker foi usada como base para evitar regressão no processamento de histórico. A Edge wa-akg-worker v9 acrescenta uma reconciliação monotônica: consulta apenas contas WA-AKG locais inativas, valida o session id determinístico, exige confirmação direta do gateway e grava somente connected e o final normalizado do número.
+- Verificação: teste red/green novo; 30 testes focados e 641/641 Vitest passaram; Edge type-check, lint dirigido e diff check passaram. A execução automática persistiu a conexão e a tela publicada mostrou **Conectado**, connected e **Final 1875**.
+- Segurança: conta e integração seguem desabilitadas/pausadas; Ana protegida. Não houve QR, novo pareamento, envio, automação ou mudança de dados de clientes.
+
 ## 09/10/2026 — WA-AKG: recuperação segura publicada e confirmada
 
 - Commit `83b5335` foi validado localmente (43 testes focados, type-check app/Edge, lint, build e diff check), enviado ao GitHub e sincronizado na fonte isolada do Site. O Site público existente foi preservado e a versão 180 publicou com sucesso.

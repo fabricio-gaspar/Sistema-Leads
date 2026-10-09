@@ -1,5 +1,14 @@
 {
   "schema_version": 1,
+  "wa_akg_connected_session_reconciliation_20261009": {
+    "red_green_test": "New waAkgWorkerConnectionSync test failed before implementation and passed after provider-confirmed reconciliation and device-suffix normalization.",
+    "focused_vitest": "30 passed: waAkgWorkerConnectionSync, messagingRecoveryR6 and waAkgProvider",
+    "full_vitest": "641 passed, 91 files",
+    "edge_typecheck": "passed; tsc --project tsconfig.edge.json",
+    "targeted_lint": "passed; zero warnings",
+    "diff_check": "passed",
+    "production": "wa-akg-worker v9 ACTIVE; automated worker confirmed CRM connected state while preserving account/integration disabled and paused"
+  },
   "wa_akg_provision_recovery_20261009": {
     "focused_vitest": "43 passed: messagingRecoveryR6, whatsappAccountsRepository, waAkgProvider and waAkgOnboarding",
     "frontend_typecheck": "passed; tsc --noEmit --project tsconfig.app.json",

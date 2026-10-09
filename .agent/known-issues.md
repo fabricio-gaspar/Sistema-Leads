@@ -1,5 +1,10 @@
 # Problemas conhecidos
 
+## 09/10/2026 — WA-AKG: reconciliação de estado resolvida; entrega continua separada
+
+- Resolvido: a divergência entre gateway CONNECTED e CRM em qr foi corrigida na Edge wa-akg-worker v9 e confirmada visualmente na tela publicada para fabricio.
+- Limite que permanece: estado conectado não prova entrega ponta a ponta. Qualquer teste de entrada ou saída deve continuar controlado e autorizado separadamente; Ana e a conta seguem protegidas/desabilitadas.
+
 ## 09/10/2026 — WA-AKG: pareamento ainda depende da leitura do titular
 
 - A recuperação segura foi concluída e manteve bloqueios: a conta está em `qr`, a integração permanece desabilitada/pausada, a Ana está protegida e o gateway informa `SCAN_QR`. O QR não foi gerado nem exposto, nenhum telefone foi pareado e nenhuma mensagem foi enviada.
