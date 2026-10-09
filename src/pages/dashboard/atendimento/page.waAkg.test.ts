@@ -11,6 +11,7 @@ describe('Central de Atendimento > conexão WA-AKG', () => {
     expect(panel).toContain("type Surface = 'whatsapp' | 'central'");
     expect(panel).toContain('Conectar o telefone');
     expect(panel).toContain('Gerar novo QR');
+    expect(panel).toContain("!selected.canViewQr || channelLifecycleBlocked(selected.lifecycle)");
     expect(panel).toContain('Operação automática segura');
     expect(panel).toContain('A URL e a chave ficam somente no cofre do backend');
   });
