@@ -7,9 +7,10 @@ const migration = readFileSync(
 );
 
 describe('catalog WhatsApp queue migration', () => {
-  it('qualifies the partial-index predicate that collides with RETURNS TABLE message_id', () => {
-    expect(migration).toContain('insert into public.message_attachments as attachment');
-    expect(migration).toContain('where attachment.message_id is not null and attachment.external_url is not null');
+  it('avoids ON CONFLICT predicate resolution against RETURNS TABLE message_id', () => {
+    expect(migration).toContain('insert into public.message_attachments (');
+    expect(migration).toContain('exception when unique_violation then');
+    expect(migration).not.toContain('on conflict (organization_id, message_id, external_url)');
     expect(migration).not.toContain('where message_id is not null and external_url is not null do nothing');
     expect(migration).toContain('on conflict on constraint conversation_knowledge_events_message_id_item_id_event_type_key do nothing');
     expect(migration).not.toContain('on conflict (message_id, item_id, event_type) do nothing');

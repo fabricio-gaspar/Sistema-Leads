@@ -67,12 +67,19 @@ begin
     where id = v_queue.job_id;
 
   if p_send_image then
-    insert into public.message_attachments as attachment (
-      organization_id, lead_id, message_id, media_type, file_name, external_url
-    ) values (
-      p_organization_id, p_lead_id, v_queue.message_id, 'image', left(v_item.name, 240), v_item.image_url
-    ) on conflict (organization_id, message_id, external_url)
-      where attachment.message_id is not null and attachment.external_url is not null do nothing;
+    -- The unique rule is a partial unique index, not a named constraint. An
+    -- ON CONFLICT predicate here collides with the RETURNS TABLE message_id
+    -- output variable even when the target table is aliased. Keep the insert
+    -- idempotent with a narrow unique-violation handler instead.
+    begin
+      insert into public.message_attachments (
+        organization_id, lead_id, message_id, media_type, file_name, external_url
+      ) values (
+        p_organization_id, p_lead_id, v_queue.message_id, 'image', left(v_item.name, 240), v_item.image_url
+      );
+    exception when unique_violation then
+      null;
+    end;
   end if;
 
   insert into public.conversation_knowledge_events (
