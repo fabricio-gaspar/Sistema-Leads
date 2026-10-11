@@ -67,4 +67,30 @@ describe('WaAkgProvider', () => {
     expect(init.headers).toMatchObject({ 'X-API-Key': 'secret' });
     expect(String(url)).not.toContain('secret');
   });
+
+  it('normalizes WA-AKG contact aliases and prefers a phone JID over a LID', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
+      success: true,
+      contacts: [{
+        name: 'Nome salvo na agenda',
+        verifiedName: 'Nome verificado',
+        jid: '1234567890@lid',
+        remoteJidAlt: '5511999999999@s.whatsapp.net',
+      }],
+      truncated: false,
+    }), { status: 200 }));
+    const provider = new WaAkgProvider({
+      baseUrl: 'https://wa.example.com', apiKey: 'secret', sessionId: 'seller_12345678', allowedOrigins, fetchImpl: fetchMock,
+    });
+
+    await expect(provider.crmSync()).resolves.toEqual({
+      contacts: [{
+        agendaName: 'Nome salvo na agenda',
+        whatsappName: 'Nome verificado',
+        publicName: '',
+        remoteJid: '5511999999999@s.whatsapp.net',
+      }],
+      truncated: false,
+    });
+  });
 });

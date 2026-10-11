@@ -54,6 +54,37 @@ const object = (value: unknown): JsonObject => value && typeof value === 'object
 const text = (value: unknown, limit = 1_000): string => typeof value === 'string'
   ? value.trim().slice(0, limit)
   : '';
+const firstText = (...values: unknown[]): string => {
+  for (const value of values) {
+    const normalized = text(value);
+    if (normalized) return normalized;
+  }
+  return '';
+};
+
+const personalJid = (value: string): boolean => /^[1-9][0-9]{7,14}(?::[0-9]{1,5})?@(s\.whatsapp\.net|c\.us)$/.test(value);
+
+function contactRemoteJid(entry: JsonObject): string {
+  const candidates = [
+    entry.remoteJid,
+    entry.remote_jid,
+    entry.jid,
+    entry.remoteJidAlt,
+    entry.remote_jid_alt,
+  ].map((value) => text(value, 200)).filter(Boolean);
+  return candidates.find(personalJid) ?? candidates[0] ?? '';
+}
+
+function contactNames(entry: JsonObject): Pick<WaAkgCrmContact, 'agendaName' | 'whatsappName' | 'publicName'> {
+  const name = (...values: unknown[]) => firstText(...values).slice(0, 160);
+  return {
+    // WA-AKG versions expose address-book names as either agendaName or name/notify.
+    agendaName: name(entry.agendaName, entry.agenda_name, entry.name, entry.notify),
+    // Keep verified/push names as a WhatsApp fallback when no explicit field exists.
+    whatsappName: name(entry.whatsappName, entry.whatsapp_name, entry.verifiedName, entry.verified_name, entry.pushName, entry.push_name),
+    publicName: name(entry.publicName, entry.public_name, entry.profileName, entry.profile_name),
+  };
+}
 
 function isPrivateIpv4(hostname: string): boolean {
   const parts = hostname.split('.').map(Number);
@@ -243,10 +274,8 @@ export class WaAkgProvider implements MessagingProvider {
   async crmSync(): Promise<WaAkgCrmSync> {
     const payload = await this.request(`/api/sessions/${encodeURIComponent(this.session)}/crm-sync`, { method: 'GET', cache: 'no-store' });
     const contacts = Array.isArray(payload.contacts) ? payload.contacts.map(object).map((entry) => ({
-      agendaName: text(entry.agendaName, 160),
-      whatsappName: text(entry.whatsappName, 160),
-      publicName: text(entry.publicName, 160),
-      remoteJid: text(entry.remoteJid, 200),
+      ...contactNames(entry),
+      remoteJid: contactRemoteJid(entry),
     })) : [];
     return { contacts, truncated: payload.truncated === true };
   }
