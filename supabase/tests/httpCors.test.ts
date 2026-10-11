@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const productionOrigin = 'https://leadai-crm-preview.fabricio926564.chatgpt.site';
+const prospectOrigin = 'https://prospect.wfdigital.com.br';
 const localOrigin = 'http://127.0.0.1:4173';
 
 function stubEnv(values: Record<string, string | undefined> = {}) {
@@ -14,7 +15,7 @@ describe('CORS das Edge Functions', () => {
     stubEnv();
     const { allowedCorsHeaders, hasAllowedOrigin, preflight } = await import('../functions/_shared/http.ts');
 
-    for (const origin of [productionOrigin, localOrigin]) {
+    for (const origin of [productionOrigin, prospectOrigin, localOrigin]) {
       const request = new Request('https://example.invalid/function', {
         method: 'OPTIONS',
         headers: { Origin: origin },
