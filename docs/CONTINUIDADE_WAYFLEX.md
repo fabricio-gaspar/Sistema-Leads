@@ -2283,3 +2283,10 @@ webhook em ambiente controlado.
 - Em Central de Atendimento → Conhecimento → Produtos, itens ativos agora podem ser arrastados para a conversa ou enviados pelo botão **Enviar produto agora**. O arrastar prepara o conteúdo no compositor; o envio só ocorre após a confirmação no botão de envio.
 - O envio direto usa a mesma fila segura de `enviar-whatsapp`, com idempotência, validação de organização, opt-out, canal conectado e registro em `conversation_knowledge_events`. Nenhuma credencial ou chamada direta ao provedor foi adicionada ao navegador.
 - Validação local: 13 testes focados, type-check, lint direcionado, build Vite e `git diff --check` aprovados. Nenhuma mensagem real foi disparada durante a validação.
+
+## 11/10/2026 — Correção do assumir atendimento humano e envio de produto
+
+- O diagnóstico autenticado do lead `ea6a969e-f87b-44ce-8e7f-30c498b60549` confirmou a causa: o lead já estava em `modo_atendimento=humano`, mas o handoff criado por **Assumir** permanecia `pending`. As RPCs da Central priorizavam esse status e devolviam `waiting_human`, bloqueando o compositor e o envio de produtos.
+- A migration `20261011233000_fix_operator_takeover_state` instala um trigger que normaliza somente `operator_takeover` pendente para `accepted` e repara os registros antigos que já estão em modo humano. Transferências para outro atendente continuam pendentes.
+- A migration foi aplicada no Supabase oficial `thgzrkppouoevapjquyu`. A verificação remota confirmou o handoff de Vanessa como `accepted`, o lead como `humano`/`ai_paused=true` e a trigger instalada. Após recarregar o Site oficial, a Central exibiu `Atendimento humano`; o botão de produto ficou habilitado e o envio não foi acionado.
+- Validação local: contrato SQL focado (2 testes), handoffs/central inbox (11 testes), sem mensagem real. Type-check, lint, build e publicação do Site ainda são a próxima etapa antes de declarar o lote completo.
