@@ -1244,30 +1244,12 @@
     "commit": "f96eb092fca4bb6c27ead4072f04b3c27e206b3c",
     "edge_function": "operational-diagnostics v19",
     "commands": [
-      {
-        "command": "tsc --noEmit --project tsconfig.app.json",
-        "status": "passed"
-      },
-      {
-        "command": "tsc --noEmit --project tsconfig.edge.json",
-        "status": "passed"
-      },
-      {
-        "command": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
-        "status": "passed"
-      },
-      {
-        "command": "vite build",
-        "status": "passed"
-      },
-      {
-        "command": "curl OPTIONS operational-diagnostics with Origin http://127.0.0.1:4173",
-        "status": "passed; 204 and exact allow-origin"
-      },
-      {
-        "command": "authenticated Status operacional initial load and manual refresh",
-        "status": "passed; diagnostic rendered; no operational mutation"
-      }
+      { "command": "tsc --noEmit --project tsconfig.app.json", "status": "passed" },
+      { "command": "tsc --noEmit --project tsconfig.edge.json", "status": "passed" },
+      { "command": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0", "status": "passed" },
+      { "command": "vite build", "status": "passed" },
+      { "command": "curl OPTIONS operational-diagnostics with Origin http://127.0.0.1:4173", "status": "passed; 204 and exact allow-origin" },
+      { "command": "authenticated Status operacional initial load and manual refresh", "status": "passed; diagnostic rendered; no operational mutation" }
     ],
     "site_deployed": false,
     "customer_data_changed": false,
@@ -1291,30 +1273,12 @@
   },
   "evolution_go_exclusive_channels_20261007": {
     "commands": [
-      {
-        "command": "vitest run WhatsAppEntriesTab, whatsappAccountsRepository, evolutionGoHandler, automationEvolutionRouting, runtimeHandlers",
-        "status": "passed; 5 files; 198 tests"
-      },
-      {
-        "command": "tsc --noEmit --project tsconfig.app.json",
-        "status": "passed"
-      },
-      {
-        "command": "tsc --project tsconfig.edge.json",
-        "status": "passed"
-      },
-      {
-        "command": "git diff --check",
-        "status": "passed"
-      },
-      {
-        "command": "authenticated local Configurações > Canais",
-        "status": "passed; only Evolution GO visible"
-      },
-      {
-        "command": "Supabase post-migration control query",
-        "status": "passed; 0 legacy routable or operational"
-      }
+      { "command": "vitest run WhatsAppEntriesTab, whatsappAccountsRepository, evolutionGoHandler, automationEvolutionRouting, runtimeHandlers", "status": "passed; 5 files; 198 tests" },
+      { "command": "tsc --noEmit --project tsconfig.app.json", "status": "passed" },
+      { "command": "tsc --project tsconfig.edge.json", "status": "passed" },
+      { "command": "git diff --check", "status": "passed" },
+      { "command": "authenticated local Configurações > Canais", "status": "passed; only Evolution GO visible" },
+      { "command": "Supabase post-migration control query", "status": "passed; 0 legacy routable or operational" }
     ],
     "site_deployed": false,
     "real_messages_sent": false,
@@ -1340,15 +1304,5 @@
     "visual_review": "not rerun for remediation; consumer logic and static source-contract tests only",
     "external_end_to_end": "not executed; synthetic local databases and mocked HTTP; no provider business request or customer mutation",
     "report": "docs/remediacao/2026-10-05-r1-r3/RESULTADO_FINAL.md"
-  },
-  "dashboard_redesign_20261011": {
-    "frontend_typecheck": "passed; npm run type-check",
-    "lint": "passed; npm run lint; zero warnings",
-    "vitest": "passed; npm test; 92 files / 644 tests",
-    "build": "passed; npm run build; Vite and Sites artifact generated locally",
-    "diff_check": "passed; git diff --check",
-    "visual_review": "not run; managed Sites container has no control-browser; preview server/browser fallback prohibited by Sites workflow",
-    "site_version_deployed": false,
-    "backend_database_or_customer_data_changed": false
   }
 }

@@ -42,6 +42,7 @@ export default function Dashboard() {
   const [operacao, setOperacao] = useState<OperationalDiagnostics | null>(null);
   const [diagnosticError, setDiagnosticError] = useState(false);
   const [liveUpdates, setLiveUpdates] = useState(true);
+  const [panelPreferencesOpen, setPanelPreferencesOpen] = useState(false);
   const { access } = useCurrentAccess();
   const canUseOwnWhatsapp = hasAnyPermission(access, ['channels.view_own', 'channels.connect_own']);
   const whatsappWorkspaceLink = canUseOwnWhatsapp ? '/dashboard/meu-whatsapp' : '/dashboard/configuracoes?tab=canais';
@@ -91,7 +92,7 @@ export default function Dashboard() {
     if (operacao.summary.failedJobs > 0) operationalAlerts.push({ id: 'jobs', title: `${operacao.summary.failedJobs} falha${operacao.summary.failedJobs === 1 ? '' : 's'} na fila`, detail: 'Processamento requer revisão antes de reexecutar uma ação.', link: '/dashboard/registro-sistema', action: 'Ver fila', icon: 'ri-alert-line', tone: 'danger' });
     if (apify && apify.tone !== 'positive') operationalAlerts.push({ id: 'search', title: 'Busca precisa validar', detail: apifyIntegration?.detail || 'A integração de busca precisa de uma nova validação.', link: '/dashboard/configuracoes?tab=apis', action: 'Revalidar', icon: 'ri-map-pin-search-line', tone: 'warning' });
   }
-  const freshness = diagnosticError ? 'Leitura indisponível' : !liveUpdates ? 'Atualização pausada' : operacao ? 'Atualização automática a cada 60 s' : 'Conectando ao diagnóstico';
+  const freshness = diagnosticError ? 'Atualização pausada' : !liveUpdates ? 'Atualização pausada' : operacao ? 'Atualização automática a cada 60 s' : 'Conectando ao diagnóstico';
 
   const processing = operacao?.summary.failedJobs
     ? { label: `${operacao.summary.failedJobs} falha(s)`, tone: 'critical' as StatusTone, detail: 'Existem falhas registradas na fila operacional. Consulte os registros antes de repetir qualquer ação.' }
@@ -107,33 +108,12 @@ export default function Dashboard() {
   ];
 
   return <div className="wf-page wf-overview wf-commercial-dashboard">
-    <header className="wf-page-header wf-dashboard-header">
-      <div className="wf-dashboard-heading">
-        <p className="wf-eyebrow">Dashboard</p>
-        <div className="wf-dashboard-title-row">
-          <h1 className="wf-page-title">Visão geral</h1>
-          <InfoTooltip text="Este painel reúne os dados comerciais e a saúde operacional confirmados pelo sistema. A saúde é atualizada automaticamente a cada 60 segundos." label="Sobre a Dashboard" align="start" />
-        </div>
-        <p className="wf-dashboard-summary">Indicadores comerciais, próximos passos e saúde operacional.</p>
-      </div>
-      <div className="wf-dashboard-header-actions">
-        <div className="wf-dashboard-refresh-control">
-          <div className="wf-dashboard-refresh-copy">
-            <span className={`wf-dashboard-refresh-dot ${diagnosticError ? 'is-error' : liveUpdates ? 'is-active' : ''}`} aria-hidden="true" />
-            <span><strong>Atualização automática</strong><small>{freshness}</small></span>
-          </div>
-          <button
-            type="button"
-            role="switch"
-            aria-checked={liveUpdates}
-            aria-label={liveUpdates ? 'Pausar atualização do diagnóstico operacional' : 'Retomar atualização do diagnóstico operacional'}
-            onClick={() => setLiveUpdates((value) => !value)}
-            className={`wf-dashboard-refresh-switch ${liveUpdates ? 'is-on' : ''}`}
-          ><span /></button>
-        </div>
-        <Link to="/dashboard/agenda" className="wf-btn-secondary wf-dashboard-agenda-link"><i className="ri-calendar-line" aria-hidden="true" />Minha agenda</Link>
-      </div>
+    <header className="wf-page-header">
+      <div><p className="wf-eyebrow">Dashboard</p><div className="mt-1 flex items-center gap-2"><h1 className="wf-page-title">Visão geral</h1><span className="text-sm text-foreground-500">Operação comercial em tempo real.</span><InfoTooltip text="Indicadores comerciais e condição operacional. A atualização é declarada como polling de 60 segundos; não há stream simulado nesta tela." label="Sobre a Dashboard" align="start" /></div></div>
+      <div className="flex flex-wrap items-center justify-end gap-2"><span className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-semibold ${diagnosticError ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-primary-100 bg-primary-50 text-primary-800'}`}><span className="h-2 w-2 rounded-full bg-current" />{freshness}</span><label className="inline-flex items-center gap-2 rounded-lg border border-background-200 bg-white px-3 py-2 text-xs font-semibold text-foreground-700"><span>Atualização ao vivo</span><button type="button" role="switch" aria-checked={liveUpdates} onClick={() => setLiveUpdates((value) => !value)} className={`relative h-5 w-9 rounded-full ${liveUpdates ? 'bg-primary-600' : 'bg-background-300'}`}><span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition ${liveUpdates ? 'left-4' : 'left-0.5'}`} /></button><span>{liveUpdates ? 'Ativa' : 'Desativada'}</span></label><button type="button" onClick={() => setPanelPreferencesOpen((open) => !open)} className="wf-btn-secondary text-xs"><i className="ri-layout-grid-line" />Personalizar painel</button><Link to="/dashboard/agenda" className="wf-btn-secondary text-xs"><i className="ri-calendar-line" />Minha agenda</Link></div>
     </header>
+
+    {panelPreferencesOpen && <section className="wf-surface mb-4 flex flex-wrap items-center gap-3 p-4 text-xs text-foreground-600"><strong className="text-foreground-900">Painel padrão</strong><span>Os widgets exibidos usam dados reais. A personalização persistente será habilitada quando houver preferência auditável por usuário.</span><button type="button" onClick={() => setPanelPreferencesOpen(false)} className="ml-auto wf-btn-secondary text-xs">Fechar</button></section>}
 
     {operationalAlerts.length > 0 && <section className="mb-4 grid gap-3 xl:grid-cols-3" aria-label="Alertas prioritários">{operationalAlerts.slice(0, 3).map((alert) => <article key={alert.id} className={`rounded-xl border p-4 ${alert.tone === 'danger' ? 'border-red-200 bg-red-50' : 'border-amber-200 bg-amber-50'}`}><div className="flex items-start gap-3"><i className={`${alert.icon} mt-0.5 text-xl ${alert.tone === 'danger' ? 'text-red-700' : 'text-amber-700'}`} /><div className="min-w-0 flex-1"><h2 className="text-sm font-bold text-foreground-950">{alert.title}</h2><p className="mt-1 text-xs leading-5 text-foreground-700">{alert.detail}</p><Link to={alert.link} className="mt-3 inline-flex text-xs font-bold text-foreground-900 underline">{alert.action}<i className="ri-arrow-right-line ml-1" /></Link></div></div></article>)}</section>}
 

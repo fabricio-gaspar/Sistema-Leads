@@ -44,8 +44,8 @@
   },
   "baseline_version": 10,
   "baseline_commit": "1dc6275b8c7d70de953b66397a8c89f5e97bc15b",
-  "last_audited_commit": "be5cbbe14b82747d41d4c9f42d4d1c257f6021ba",
-  "current_head_at_update": "be5cbbe14b82747d41d4c9f42d4d1c257f6021ba",
+  "last_audited_commit": "52ac6fe8a51e4e114043b05b170374a109a02860",
+  "current_head_at_update": "52ac6fe8a51e4e114043b05b170374a109a02860",
   "flavio_recovery_preflight_20261007": {
     "base_commit": "52ac6fe8a51e4e114043b05b170374a109a02860",
     "status": "BLOCKED_BEFORE_MUTATION",
@@ -411,7 +411,7 @@
   },
   "full_audit_required": false,
   "baseline_status": "Evolution_GO_primary_local_delta_validated; prior_R1_R12_remediation_preserved; global_NO_GO; no_production_deployment",
-  "updated_at": "2026-10-11",
+  "updated_at": "2026-10-06",
   "audit_v3": {
     "id": "WAYFLEX-V3-20261005",
     "mode": "AUDITORIA_E_TESTES",
@@ -426,7 +426,7 @@
     "production_mutations": false,
     "homologation_complete": false
   },
-  "next_action": "Usar a prévia autenticada por um caminho suportado quando disponível; conferir Dashboard desktop/tablet/mobile, estados vazios/erro e demais telas principais. Resolver o NO-GO coordenado antes de publicar frontend; não publicar isoladamente.",
+  "next_action": "Evolution GO principal está apenas no checkout e GitHub. Obter homologação isolada e identidades/números consentidos; reconciliar seletivamente migrations e bundles R1–R12; validar provisionamento, QR, callback, Ana/humano, recibos e cortes; planejar release coordenada banco/Edge/Site. Não fazer db push integral, publicar só frontend, enviar mensagens reais ou ativar automações como teste. WA-AKG permanece contingência bloqueada pelo gateway não homologado.",
   "evolution_go_primary_20261005": {
     "product_commit": "5671f44",
     "github_product_snapshot": "a22ee34896d67c08794f1d7eded0302af9f0be53",
@@ -485,30 +485,5 @@
     "customer_data_changed": false,
     "remote_access": "read-only metadata/catalogs/advisors and one Edge bundle; no customer records",
     "remaining": "Full integrated homologation, corrected WA-AKG gateway and hosting, product/authority/MFA choices, selective schema/bundle reconciliation, broader accessibility; production remains NO-GO"
-  },
-  "dashboard_redesign_20261011": {
-    "base_commit": "be5cbbe14b82747d41d4c9f42d4d1c257f6021ba",
-    "status": "LOCAL_VALIDADO; NAO_PUBLICADO; NO_GO; REVISAO_VISUAL_PENDENTE",
-    "scope": "Dashboard, CommercialAnalytics e primitives visuais globais compartilhados; sem alteração de regras ou serviços",
-    "validation": "npm run type-check, npm run lint, npm test (92 arquivos/644 testes), npm run build (Vite/artefato Sites) e git diff --check aprovados",
-    "visual_review": "not run: control-browser unavailable in managed Sites container; do not start local preview or use an alternate browser path",
-    "site_published": false,
-    "real_messages_sent": false,
-    "automations_triggered": false,
-    "customer_data_changed": false,
-    "file_sha256": {
-      "src/pages/dashboard/page.tsx": "fa2169c74af10f787af2ea24a962a43805ed33839c17b170631248f04aa5ec4a",
-      "src/components/feature/CommercialAnalytics.tsx": "33c78377b2d2530078d118a3e80057bff9d9b9dff0e9f40178cefd4376fa2933",
-      "src/components/feature/wayflex-redesign.css": "82f73b12ca7b35e2d36e7c40f17631588151beb9b3189a6e88c09e2e410e1efb",
-      "src/components/feature/CommercialAnalytics.test.ts": "7ab387e5f4cc2926317c6867f172af58e2d06c4abd14ff8252abcbe4c7b51359",
-      "src/lib/csv.test.ts": "853b1815585bd5dbfadcbd3add7f7a650f7bcd88e3b5fb05dce2b3851fa3219a",
-      "docs/CONTINUIDADE_WAYFLEX.md": "9d6edeec03bbe156f856e87d7afd932b2b2603cceec228921b0f38cc95e68264",
-      ".agent/system-baseline.md": "32cc1459f79b329bbdf74ef4471b19edab01affd1eb5f183dcc6d5df03285a3f",
-      ".agent/known-issues.md": "93b8cdc52e542574cf6046144868314acfdcef3533bc6f2f05dc8ea037c21e8d",
-      ".agent/modules/frontend.md": "d0c55bf801fbb07cbd63a4e645fb2d7da34caf5dff94eebc0d2fe8701c503bbd",
-      ".agent/execution-history.md": "63cc737abd4311d8071d14d1e237f34e28c25b16c17b2459166a61053607884d",
-      ".agent/requirements-registry.json": "1eb49c3302d8fefdfadb2e03cd74b144969b1e61752495d0c0ddef71c700a26f",
-      ".agent/test-baseline.json": "1933a09f9e5008469b548841975c51f7925e6709aa7ccd0717c3e38eb056342c"
-    }
   }
 }

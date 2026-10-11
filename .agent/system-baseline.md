@@ -1,9 +1,5 @@
 # Baseline do sistema
 
-## 11/10/2026 — Redesign local da Dashboard
-
-Dashboard refinada sobre o snapshot real de `CommercialAnalytics`: quatro KPIs operacionais, período à vista, filtros secundários recolhidos, pipeline em largura total e detalhamento acessível em Relatórios/Funil. Cabeçalho e formulários/botões compartilhados receberam ajustes de consistência e responsividade. Type-check, lint, 92 arquivos/644 testes, build/artefato Sites e diff check passaram. Sem mudanças de backend, banco, Supabase/RLS, permissões ou rotas. Captura autenticada não foi possível neste container gerenciado sem `control-browser`; produção segue NO-GO e sem deploy isolado.
-
 ## 07/10/2026 — QR: saturação PostgreSQL e mitigação remota
 
 Logs da instância atual do Flavio confirmam `pq: sorry, too many clients already` ao criar o cliente WhatsApp. Edge v25 aplicada isoladamente sobre v24: uma chamada QR, sem connect redundante/retries, erro sanitizado. 67 testes locais + 8 do bundle remoto, tipos Edge e diff check passaram. E2E como Flavio retorna erro específico e nenhum QR, com saturação confirmada às 18:07 BRT. Cofre aponta ID atual; job guarda ID histórico. Falta acesso de hospedagem para corrigir PostgreSQL/pools. Não houve mensagem, recriação ou publicação do Site.

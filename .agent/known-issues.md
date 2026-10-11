@@ -1,9 +1,5 @@
 # Problemas conhecidos
 
-## 11/10/2026 — Revisão visual do redesign pendente
-
-**PENDENTE DE EVIDÊNCIA VISUAL:** o redesign foi validado por type-check, lint, 92 arquivos/644 testes, build do artefato e diff check. A prévia autenticada em desktop/tablet/celular não foi executada porque o container gerenciado não oferece o `control-browser` exigido pelo fluxo Sites; não iniciar servidor nem usar navegador alternativo neste ambiente. A publicação continua bloqueada pelo NO-GO global (não publicar apenas frontend). Próxima etapa: abrir a versão em staging autenticado por um caminho suportado e conferir responsividade, estados vazio/erro e telas principais antes do release coordenado.
-
 ## 07/10/2026 — Causa atual do QR: limite de conexões PostgreSQL na Evolution GO
 
 **CONFIRMADO:** `Failed to create container ... pq: sorry, too many clients already` nos logs da instância atual `bfdf104f-c113-4530-bd73-4e5e83cc00fb`, reprodução final 18:07:27 BRT. Edge v25 já elimina connect redundante e retries do QR, sem corrigir a saturação externa. É necessário acesso ao painel de hospedagem/SSH para tratar pools/conexões/limites e recuperar o serviço. API Tester não administra o banco. O ID antigo do job diverge do Vault correto; essa divergência explica logs vazios do ID antigo, mas não o HTTP 400 com token aceito. Nenhuma instância foi substituída.

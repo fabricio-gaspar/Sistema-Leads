@@ -438,8 +438,8 @@
       "description": "Consolidar a Dashboard em uma visão comercial compacta sem duplicar a operação",
       "module": "dashboard",
       "status": "confirmed",
-      "evidence": "Redesign local 11/10/2026 sobre o contrato confirmado: quatro KPIs reais, filtros secundários recolhidos, pipeline canônico, atividade e saúde factual; botão de personalização sem persistência removido. Type-check, lint, Vitest completo 92 arquivos/644 testes, build/artefato Sites e diff check passaram. Captura autenticada desktop/tablet/mobile não executada por indisponibilidade do control-browser gerenciado; nenhuma rota, dado, regra, automação, mensagem ou permissão foi alterada. Site não publicado devido ao NO-GO global.",
-      "last_validation": "2026-10-11"
+      "evidence": "Site v131, commit a3d29da; quatro KPIs compactos, até cinco decisões deduplicadas, pipeline canônico, atividade e saúde factual. Type-check, lint, 43 arquivos/265 testes, build e revisão desktop/móvel passaram. Sem mudança de rotas, dados, regras, automações ou mensagens.",
+      "last_validation": "2026-09-26"
     },
     {
       "id": "REQ-051",
@@ -454,8 +454,8 @@
       "description": "Aplicar a linguagem visual WayFlex Command Center ao CRM sem alterar a operação homologada",
       "module": "frontend",
       "status": "implemented_validated_pending_site_publish",
-      "evidence": "Command Center aplicado ao Dashboard, Busca, Leads, Kanban, Central, Catálogo real, Ana, Configurações, Orçamentos, Agenda, Relatórios e Equipe. Quatro KPIs, prioridade sem dupla contagem, pipeline, cinco ações e seis serviços com dados confirmados; carga/erro explícitos. Type-check frontend/Edge e build passaram; oito asserções apareceram como aprovadas, mas Vitest não encerrou. Nenhuma regra, mensagem ou ativação foi alterada. Incremento visual local em 11/10/2026: primitives globais ajustam cabeçalhos, botões secundários e campos nas telas CRM; Dashboard consolidada em quatro KPIs e filtros compactos. Type-check, lint, 92 arquivos/644 testes, build/artefato e diff check passaram; inspeção visual pendente por falta do control-browser e publicação isolada bloqueada pelo NO-GO.",
-      "last_validation": "2026-10-11"
+      "evidence": "Command Center aplicado ao Dashboard, Busca, Leads, Kanban, Central, Catálogo real, Ana, Configurações, Orçamentos, Agenda, Relatórios e Equipe. Quatro KPIs, prioridade sem dupla contagem, pipeline, cinco ações e seis serviços com dados confirmados; carga/erro explícitos. Type-check frontend/Edge e build passaram; oito asserções apareceram como aprovadas, mas Vitest não encerrou. Nenhuma regra, mensagem ou ativação foi alterada.",
+      "last_validation": "2026-09-26"
     },
     {
       "id": "REQ-049",
