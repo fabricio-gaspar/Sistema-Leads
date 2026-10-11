@@ -2,6 +2,7 @@ import { createAdminClient, hasOrganizationPermission, requireUser } from '../_s
 import { allowedCorsHeaders, hasAllowedOrigin, json, preflight, safeError } from '../_shared/http.ts';
 import { WaAkgProvider, normalizeWaAkgBaseUrl, waAkgSessionName } from '../_shared/messaging/WaAkgProvider.ts';
 import { accountLifecycleStatus, recoverAccountLifecycle, recoverWaAkgProvisioning, runAccountLifecycle, setAccountProviderControls, type LifecycleStep } from '../_shared/accountLifecycle.ts';
+import { syncWaAkgContactDirectory } from '../_shared/waAkgContactSync.ts';
 
 type Admin = ReturnType<typeof createAdminClient>;
 type Row = Record<string, unknown>;
@@ -24,7 +25,8 @@ function randomSecret(): string {
 }
 
 function phoneSuffix(value: string | undefined): string | null {
-  const digits = (value ?? '').replace(/\D/g, '');
+  const bareJid = (value ?? '').split(':', 1)[0] ?? '';
+  const digits = bareJid.replace(/\D/g, '');
   return digits.length >= 4 ? digits.slice(-4) : null;
 }
 
@@ -388,7 +390,12 @@ Deno.serve(async (request) => {
       return json({ ok: result.status < 400, ...publicStatus(updated, actor), lifecycle: result.lifecycle, ...result.payload }, result.status, headers);
     }
 
-    const record = await accessible(admin, actor, accountId, 'connect');
+    const record = await accessible(admin, actor, accountId, action === 'sync_contacts' ? 'view' : 'connect');
+    if (action === 'sync_contacts') {
+      const { provider } = await providerFor(admin, actor.organizationId, record);
+      const sync = await syncWaAkgContactDirectory(admin, { organizationId: actor.organizationId, accountId, provider });
+      return json({ ok: true, ...publicStatus(record, actor), sync }, 200, { ...headers, 'Cache-Control': 'no-store' });
+    }
     const lifecycleContext = { organizationId: actor.organizationId, accountId, provider: 'wa_akg' as const, actorId: actor.userId };
     if (action === 'save_controls') {
       if (!actor.canManage) throw new Error('permission_denied');
@@ -410,9 +417,36 @@ Deno.serve(async (request) => {
       }
       const result = await runAccountLifecycle(admin, lifecycleContext, action, async (step) => {
         // Credential lookup intentionally follows the durable local cutoff.
-        const { provider } = await providerFor(admin, actor.organizationId, record);
+        const { provider, secret } = await providerFor(admin, actor.organizationId, record);
+        if (action === 'refresh_status' || action === 'activate') {
+          await step(async () => {
+            await provider.registerWebhook(
+              callbackUrl(String(record.integration.id)),
+              text(secret.webhook_secret, 256),
+            );
+            const now = new Date().toISOString();
+            const { error } = await admin.from('whatsapp_accounts').update({
+              webhook_registered_at: now,
+              last_error_code: null,
+              updated_at: now,
+            }).eq('id', accountId).eq('organization_id', actor.organizationId);
+            if (error) throw new Error('wa_akg_webhook_state_save_failed');
+          }, true);
+        }
         if (['connect', 'reconnect', 'qr', 'pair', 'activate'].includes(action)) {
-          await step(() => provider.assertSafety());
+          try {
+            await step(() => provider.assertSafety());
+          } catch (error) {
+            // Existing sessions created before the safety contract was enforced can
+            // legitimately fail the read-only gate. QR/pairing are the recovery
+            // boundary: repair the provider to the same fail-closed values used by
+            // provisioning, then verify them before touching the device session.
+            if (['qr', 'pair'].includes(action) && safeError(error) === 'wa_akg_safety_not_confirmed') {
+              await step(() => provider.configureSafety(), true);
+            } else {
+              throw error;
+            }
+          }
         }
         if (action === 'connect' || action === 'reconnect') {
           await step(() => action === 'connect' ? provider.start() : provider.restart(), true);

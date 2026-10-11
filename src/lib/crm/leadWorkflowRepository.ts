@@ -19,6 +19,16 @@ interface AnaLeadActivationResponse {
   ana?: { ok?: boolean; skipped?: boolean; reason?: string };
 }
 
+export interface AnaLeadActivationRequest {
+  action: 'start_ai';
+  lead_id: string;
+  whatsapp: string;
+  approve_whatsapp_contact: true;
+  approval_reason: string;
+  request_id: string;
+  clear_handoff_policy: boolean;
+}
+
 /**
  * Keeps only digits because the provider and the inbound matcher use the
  * normalized phone identity. The country code is deliberately not inferred:
@@ -28,7 +38,7 @@ export function normalizeWhatsAppForActivation(value: string): string {
   return value.replace(/\D/g, '');
 }
 
-export async function activateLeadWithAna(input: AnaLeadActivationInput): Promise<AnaLeadActivationResponse> {
+export function buildAnaActivationRequest(input: AnaLeadActivationInput): AnaLeadActivationRequest {
   const whatsapp = normalizeWhatsAppForActivation(input.whatsapp);
   if (whatsapp.length < 10 || whatsapp.length > 15) {
     throw new Error('invalid_whatsapp');
@@ -38,16 +48,22 @@ export async function activateLeadWithAna(input: AnaLeadActivationInput): Promis
     throw new Error('contact_approval_reason_required');
   }
 
+  return {
+    action: 'start_ai',
+    lead_id: input.leadId,
+    whatsapp,
+    approve_whatsapp_contact: true,
+    approval_reason: approvalReason,
+    request_id: input.requestId ?? crypto.randomUUID(),
+    clear_handoff_policy: input.clearHandoffPolicy === true,
+  };
+}
+
+export async function activateLeadWithAna(input: AnaLeadActivationInput): Promise<AnaLeadActivationResponse> {
+  const request = buildAnaActivationRequest(input);
+
   const { data, error } = await supabase.functions.invoke('lead-workflow', {
-    body: {
-      action: 'start_ai',
-      lead_id: input.leadId,
-      whatsapp,
-      approve_whatsapp_contact: true,
-      approval_reason: approvalReason,
-      request_id: input.requestId ?? crypto.randomUUID(),
-      clear_handoff_policy: input.clearHandoffPolicy === true,
-    },
+    body: request,
   });
   if (error) {
     throw new Error('lead_activation_unavailable');

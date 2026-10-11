@@ -233,7 +233,7 @@ export function provisionWaAkgAccount(accountId: string): Promise<WaAkgChannelSt
 }
 
 export function runWaAkgAction(
-  action: 'connect' | 'refresh_status' | 'reconnect' | 'disconnect' | 'logout' | 'activate' | 'deactivate',
+  action: 'connect' | 'refresh_status' | 'reconnect' | 'disconnect' | 'logout' | 'activate' | 'deactivate' | 'sync_contacts',
   accountId: string,
 ): Promise<WaAkgChannelStatus> {
   return invokeWaAkg<WaAkgChannelStatus & Record<string, unknown>>({ action, account_id: accountId });

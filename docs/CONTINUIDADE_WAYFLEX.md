@@ -1,5 +1,12 @@
 # Checkpoint — WayFlex CRM
 
+## 09/10/2026 — Central WA-AKG: permissão de listagem restaurada
+
+- Causa confirmada: a Central registrava entradas WA-AKG, mas a listagem autenticada falhava porque `authenticated` não tinha `EXECUTE` na função privada de filtro `can_read_wa_akg_central_lead`.
+- Foi aplicada a migration oficial `20261009203616_restore_wa_akg_central_filter_execute`. Ela concede exclusivamente essa execução ao papel autenticado; a função preserva as validações de empresa, administrador e proprietário do dispositivo.
+- Evidência: teste red confirmou a permissão ausente; teste green confirmou o grant. Após recarregar a Central autenticada, a lista exibiu sete conversas e a entrada de teste controlado. Nenhuma sessão, contato, mensagem de saída ou regra da Ana foi alterada.
+- Próxima ação opcional: enviar uma nova mensagem de entrada e confirmar a atualização automática sem recarregar a página.
+
 ## 09/10/2026 — WA-AKG: ativação automática limitada às permissões do proprietário
 
 - Foi publicada a Edge wa-akg-worker v10. Após confirmação direta do gateway, ela ativa a conta individual somente se o proprietário estiver ativo e já tiver channels.view_own e channels.connect_own; o ciclo de vida existente audita e persiste a transição.

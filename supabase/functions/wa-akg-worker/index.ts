@@ -4,6 +4,7 @@ import { WaAkgProvider, normalizeWaAkgBaseUrl, waAkgSessionName } from '../_shar
 import { runAccountLifecycle } from '../_shared/accountLifecycle.ts';
 import { runProvisioningWork } from '../_shared/provisioningWork.ts';
 import { claimInboundWork, finishInboundWork, processInboundWork } from '../_shared/inboundWork.ts';
+import { syncWaAkgContactDirectory } from '../_shared/waAkgContactSync.ts';
 
 type Admin = ReturnType<typeof createAdminClient>;
 type Row = Record<string, unknown>;
@@ -83,6 +84,20 @@ async function processConnection(admin: Admin, event: Row, payload: Row) {
     }).eq('id', event.integration_id).eq('organization_id', event.organization_id),
   ]);
   if (accountUpdate.error || integrationUpdate.error) throw new Error('wa_akg_connection_state_save_failed');
+  if (connected) {
+    const { account } = await accountIntegration(admin, event);
+    const [gateway, secretRead] = await Promise.all([
+      globalCredentials(admin, String(event.organization_id)),
+      admin.rpc('read_integration_secret', { p_integration: account.integration_id }),
+    ]);
+    if (secretRead.error) throw new Error('wa_akg_contact_sync_secret_read_failed');
+    const secret = object(secretRead.data);
+    const sessionId = text(secret.session_id, 120) || waAkgSessionName(String(event.organization_id), String(account.id));
+    await syncWaAkgContactDirectory(admin, {
+      organizationId: String(event.organization_id), accountId: String(account.id),
+      provider: new WaAkgProvider({ ...gateway, sessionId, allowedOrigins: allowedOrigins(), timeoutMs: 15_000 }),
+    });
+  }
   await markEvent(admin, event, 'processed');
 }
 
