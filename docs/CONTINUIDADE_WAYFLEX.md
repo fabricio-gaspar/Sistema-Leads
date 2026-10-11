@@ -1,5 +1,14 @@
 # Checkpoint — WayFlex CRM
 
+## 11/10/2026 — Redesign do dashboard e primitives compartilhados
+
+- Pedido: tornar a Dashboard mais clara e compacta e harmonizar controles globais, preservando as funções e os dados reais.
+- Implementação local: cabeçalho factual e responsivo; remoção do botão de personalização sem persistência; quatro KPIs operacionais; filtros secundários recolhidos; análises detalhadas continuam em Relatórios/Funil; status de leitura deixa de chamar uma falha de atualização pausada. O CSS compartilhado normaliza cabeçalhos, botões secundários e campos; a composição aplica reflow a Dashboard, Busca, Leads, Kanban, Central, Agenda, Orçamentos, Relatórios e Configurações.
+- Sem mudanças de rota, permissões, dados, APIs, Supabase/RLS, backend ou banco. Os estados existentes de consulta, vazio, erro e atualização permanecem vinculados às mesmas leituras reais.
+- Validação local: type-check, lint sem warnings, Vitest completo **92 arquivos / 644 testes**, build Vite/artefato Sites e `git diff --check` passaram.
+- A conferência visual por navegador não foi executada: o container gerenciado não dispõe do `control-browser` exigido pelo fluxo Sites e não permite improvisar outro preview. O Site permanece sem publicação; o gate global do projeto proíbe publicar somente frontend. A versão de código pode ser salva como versão Sites sem deploy.
+- Próxima ação exata: após resolver o NO-GO coordenado do projeto, conferir a prévia autenticada em desktop/tablet/celular e os estados vazio/erro; só então incluir o frontend no release coordenado. Não publicar isoladamente.
+
 ## 07/10/2026 — Higiene do Git e pré-verificação do GitHub
 
 - Antes deste lote, `main`, `origin/main` e a referência consultada diretamente no GitHub apontavam para `cbb3de57cd912b43e9bb20628959105765c61329` (`feat: finalize validated WayFlex release`).

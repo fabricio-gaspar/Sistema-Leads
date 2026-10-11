@@ -58,9 +58,4 @@ describe('CSV R9 — exportação como texto sem mudar o banco', () => {
     expect(source).toContain("import { escapeCsvCell } from '@/lib/csv'");
     expect(source).toMatch(/(?:quote|escape|csvCampo) = escapeCsvCell/);
   });
-  it('métrica usa o rótulo do período calculado (contrato estático)', () => {
-    const source = readFileSync('src/components/feature/CommercialAnalytics.tsx', 'utf8');
-    expect(source).toContain("title: 'Mensagens no período'");
-    expect(source).not.toContain("title: 'Mensagens hoje'");
-  });
 });

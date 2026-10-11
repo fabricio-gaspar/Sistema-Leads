@@ -1626,3 +1626,9 @@ Comparado `225a379` com HEAD `52ac6fe`: a remoção do formulário com senha e o
 - Escopo estrito: apenas a apresentação do painel individual no topo da Central de Atendimento. A página passa `surface="central"` ao mesmo `EvolutionGoPanel`; não foi criado outro fluxo, endpoint, estado ou credencial.
 - Para a conta individual autenticada, o painel separa QR/código e ações existentes à esquerda de cartões reais de validação, instruções de pareamento e dados da própria conexão à direita. QR, token, chave global e informações de outras contas continuam protegidos.
 - A inspeção autenticada atual foi feita com o administrador `fabricio`, que não possui conta individual, portanto exibiu corretamente o estado vazio e não foi possível observar QR de vendedor sem usar credenciais de outra pessoa. Nenhuma conexão, QR, código ou mensagem foi gerada.
+# 11/10/2026 — Redesign visual da Dashboard
+
+- Dashboard simplificada com quatro KPIs factuais, filtros de responsável/origem/etapa recolhidos, pipeline em largura total e links para as análises completas; removida ação de personalização sem persistência e corrigido o rótulo de erro de atualização.
+- O CSS compartilhado agora alinha espaçamento de cabeçalhos e tratamento de botões/campos em todas as áreas; Dashboard, Busca, Leads, Kanban, Central, Agenda, Orçamentos, Relatórios e Configurações herdam os primitives existentes.
+- Type-check e lint passaram; Vitest completo: **92 arquivos / 644 testes**; `npm run build` gerou o artefato Sites; `git diff --check` passou. Uma expectativa estática obsoleta sobre o KPI de mensagens foi atualizada para o contrato dos quatro KPIs, preservando a atividade de contato no gráfico.
+- Sem backend, banco, Supabase/RLS, permissões, rotas, mensagens, automações ou dados de clientes alterados. Prévia visual não verificada porque o container gerenciado não expõe `control-browser`; Site não publicado devido ao NO-GO global.

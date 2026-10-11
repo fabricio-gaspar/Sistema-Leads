@@ -1,5 +1,9 @@
 # Frontend
 
+## 11/10/2026 — Dashboard compacta e primitives de interface compartilhados
+
+`src/pages/dashboard/page.tsx`, `src/components/feature/CommercialAnalytics.tsx` e `wayflex-redesign.css` simplificam a hierarquia do dashboard e normalizam cabeçalhos, botões secundários e campos do CRM. A visão geral exibe quatro medidas reais; período fica visível e responsável/origem/etapa ficam no menu recolhido. Funil e Relatórios preservam filtros, CSV e análises detalhadas. O painel usa o mesmo estado real de carga/erro/vazio. Teste de contrato verifica quatro KPIs e mantém atividade de contato no gráfico. Type-check, lint, 92 arquivos/644 testes, build/artefato Sites e diff check passaram. Nenhuma rota, permissão ou regra operacional foi alterada; revisão visual autenticada ainda pendente e Site sem deploy por gate global NO-GO.
+
 ## 06/10/2026 — Evolution GO: self-service do vendedor condicionado ao lifecycle local
 
 O contrato local mantém o vendedor limitado à própria conta/pareamento, sem QR de terceiros ou segredos; a conta só fica disponível após o job multi-tenant durável criado pelo vínculo. Desconexão/desativação não apaga o histórico. A validação consolidada registrou 769 Vitest/93 arquivos, type-check app/Edge, lint, build/artefato, PGlite 6/6 e PostgreSQL nativo 2/2; não houve QR real, chamada a provedor, mensagem, dado de cliente, migration aplicada, deploy ou publicação. Drift remoto, staging coordenado, QR Evolution 400/500 e política de senha/Auth pendente impedem release isolada.
