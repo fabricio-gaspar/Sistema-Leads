@@ -18,6 +18,7 @@ import ConversationKnowledgePanel, { type PreparedKnowledgeContent } from './com
 import WaAkgPanel from '@/components/feature/WaAkgPanel';
 import WaAkgContactDirectory from './components/WaAkgContactDirectory';
 import { useCurrentAccess } from '@/hooks/useCurrentAccess';
+import { deliveryLabel } from '@/lib/crm/deliveryStatus';
 
 type RealtimeState = 'connecting' | 'live' | 'unavailable';
 type SideTab = 'lead' | 'qualification' | 'knowledge' | 'more';
@@ -36,7 +37,6 @@ const initials = (value: string) => value.split(/\s+/).filter(Boolean).slice(0, 
 const atTime = (value?: string | null) => value ? new Date(value).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }) : '—';
 const atDateTime = (value?: string | null) => value ? new Date(value).toLocaleString('pt-BR', { dateStyle: 'short', timeStyle: 'short' }) : 'Não informado';
 const valueOf = (value: unknown) => typeof value === 'string' && value.trim() ? value.trim() : null;
-function deliveryLabel(value: string | null) { return ({ queued: 'Na fila', pending: 'Na fila', sent: 'Aceita pelo canal', delivered: 'Entregue', read: 'Lida', failed: 'Falhou', reconciliation_required: 'Em reconciliação', received: 'Recebida', text: 'Registrada' } as Record<string, string>)[value ?? ''] ?? 'Registrada'; }
 
 export default function Atendimento() {
   const { access } = useCurrentAccess();

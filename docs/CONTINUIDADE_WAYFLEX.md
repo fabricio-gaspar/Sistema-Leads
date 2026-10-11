@@ -2270,3 +2270,10 @@ webhook em ambiente controlado.
 - Flavio já possui identidade Auth confirmada e a senha informada pelo administrador autenticou; porém não há vínculo com a empresa, conta individual ou job Evolution GO. O Manager atualizado mostrou nenhuma instância e a reivindicação anterior de remoção consta finalizada. Não se criou outro usuário nem se alterou senha.
 - A recuperação foi interrompida antes de gravar qualquer convite/vínculo: `team-members` remoto v20 não implementa `pending_invites`, as RPCs R4 de convite não existem e a ação remota antiga pode excluir a identidade Auth preexistente ao compensar erro de provisionamento. O controle local de recuperação preparado foi retirado da prévia antes de qualquer envio.
 - Próxima ação exata: homologar e implantar conjuntamente o contrato seguro para identidade existente, R4 e lifecycle Evolution GO; então vincular o vendedor e testar QR. O QR HTTP 400 do runtime remoto permanece um bloqueio independente. Sem convite, instância, mensagem, automação, lead ou dado de cliente alterado neste teste.
+
+## 11/10/2026 — Ana fora do horário e projeção de status da fila
+
+- A resposta automática da Ana estava sendo adiada por `businessHoursOnly=true`; a política da versão ativa foi alterada para permitir processamento fora do horário comercial.
+- A migração `20261011220000_project_outreach_job_delivery_status` projeta o estado de `outreach_jobs` em `lead_messages.delivery_status`, incluindo mensagens já enfileiradas e novas transições da fila. A Central passa a exibir `Na fila`/`Aceita pelo canal` em vez de inferir `Registrada` de um rascunho.
+- Validação remota: trigger e função de projeção instalados; configuração ativa confirmada como `businessHoursOnly=false`; a mensagem pendente de Vanessa permanece `queued` e não foi disparada durante a validação.
+- Validação local: teste focado, type-check, lint direcionado e build Vite aprovados. Nenhuma mensagem real foi enviada.
