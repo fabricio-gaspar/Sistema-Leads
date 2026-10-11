@@ -19,4 +19,18 @@ describe('Central de Atendimento WhatsApp entry', () => {
     expect(router).toContain('<AtendimentoEntry />');
     expect(router).toContain('channels.connect_own');
   });
+
+  it('permite enviar produto selecionado ou preparar o produto por arrastar e soltar', () => {
+    const page = readFileSync(resolve('src/pages/dashboard/atendimento/page.tsx'), 'utf8');
+    const panel = readFileSync(resolve('src/pages/dashboard/atendimento/components/ConversationKnowledgePanel.tsx'), 'utf8');
+    const drag = readFileSync(resolve('src/pages/dashboard/atendimento/components/knowledgeDrag.ts'), 'utf8');
+
+    expect(panel).toContain('Enviar produto agora');
+    expect(panel).toContain('draggable={item.type === \'product\'}');
+    expect(panel).toContain('onSend={onSend');
+    expect(drag).toContain('application/x-wayflex-knowledge');
+    expect(page).toContain('onDrop={dropKnowledge}');
+    expect(page).toContain('onSendKnowledge');
+    expect(page).toContain('send({ knowledge: prepared, text: prepared.text, internal: false, proposal: null })');
+  });
 });

@@ -2277,3 +2277,9 @@ webhook em ambiente controlado.
 - A migração `20261011220000_project_outreach_job_delivery_status` projeta o estado de `outreach_jobs` em `lead_messages.delivery_status`, incluindo mensagens já enfileiradas e novas transições da fila. A Central passa a exibir `Na fila`/`Aceita pelo canal` em vez de inferir `Registrada` de um rascunho.
 - Validação remota: trigger e função de projeção instalados; configuração ativa confirmada como `businessHoursOnly=false`; a mensagem pendente de Vanessa permanece `queued` e não foi disparada durante a validação.
 - Validação local: teste focado, type-check, lint direcionado e build Vite aprovados. Nenhuma mensagem real foi enviada.
+
+## 11/10/2026 — Produtos da Central com envio e arrastar/soltar
+
+- Em Central de Atendimento → Conhecimento → Produtos, itens ativos agora podem ser arrastados para a conversa ou enviados pelo botão **Enviar produto agora**. O arrastar prepara o conteúdo no compositor; o envio só ocorre após a confirmação no botão de envio.
+- O envio direto usa a mesma fila segura de `enviar-whatsapp`, com idempotência, validação de organização, opt-out, canal conectado e registro em `conversation_knowledge_events`. Nenhuma credencial ou chamada direta ao provedor foi adicionada ao navegador.
+- Validação local: 13 testes focados, type-check, lint direcionado, build Vite e `git diff --check` aprovados. Nenhuma mensagem real foi disparada durante a validação.
