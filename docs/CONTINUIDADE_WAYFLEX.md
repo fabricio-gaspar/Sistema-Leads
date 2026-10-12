@@ -4,7 +4,7 @@
 
 - O worker do artefato Sites passou a aplicar `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy` e `Permissions-Policy` nas respostas estáticas e no `runtime-config.js`.
 - Validação local: sintaxe do script, build Vite, artefato Sites e `git diff --check` aprovados. O lint isolado do script continua apontando apenas os dois globais preexistentes (`process` e `console`).
-- Estado: **LOCAL VALIDADO / PUBLICAÇÃO PENDENTE**. Próxima ação: commit, push normal e publicação do Site existente; verificar os cabeçalhos pela rota `/login`.
+- Estado: **PUBLICADO E VALIDADO**. Commit `24594f0`; GitHub `main` e Site existente atualizados. Cabeçalhos confirmados pela rota `/login`.
 
 ## 12/10/2026 — Correções dos cinco achados da validação online
 
