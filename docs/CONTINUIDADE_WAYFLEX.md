@@ -2290,3 +2290,12 @@ webhook em ambiente controlado.
 - A migration `20261011233000_fix_operator_takeover_state` instala um trigger que normaliza somente `operator_takeover` pendente para `accepted` e repara os registros antigos que já estão em modo humano. Transferências para outro atendente continuam pendentes.
 - A migration foi aplicada no Supabase oficial `thgzrkppouoevapjquyu`. A verificação remota confirmou o handoff de Vanessa como `accepted`, o lead como `humano`/`ai_paused=true` e a trigger instalada. Após recarregar o Site oficial, a Central exibiu `Atendimento humano`; o botão de produto ficou habilitado e o envio não foi acionado.
 - Validação local: contrato SQL focado (2 testes), handoffs/central inbox (11 testes), sem mensagem real. Type-check, lint, build e publicação do Site ainda são a próxima etapa antes de declarar o lote completo.
+
+## 11/10/2026 — Central de Atendimento: composição compacta e estados factuais
+
+- A conversa passou a ser o foco da Central: resumo de Meu WhatsApp compacto, agenda recolhível e contexto em drawer nos espaços intermediários/mobile; desktop amplo mantém lista, conversa e contexto sem comprimir o compositor.
+- Os sinalizadores de Gateway, Sessão, Canal, Ana e última consulta refletem gates reais. `Liberado` só aparece com conexão, integração, envio e recebimento efetivamente habilitados; pendências continuam visíveis e detalhes técnicos permanecem acessíveis.
+- Foram preservados `leadId`, handlers de atendimento humano/Ana, agenda, conhecimento, produtos, QR e permissões existentes. Este lote não alterou banco, Edge Functions, gateway, credenciais, QR, Ana, dados nem enviou mensagens reais.
+- Código sincronizado no GitHub: `f88abf7` e correção complementar `bc4eb75`. Validações: 10 arquivos/37 testes focados e Vitest completo 97 arquivos/664 testes, type-check, lint, build Vite e `git diff --check` aprovados.
+- **PUBLICADO:** Site existente versão **188**, commit de origem `d65f1db9be0142746debb6f13cb97fed7e43b55d`, deploy `appgdep_6acc30daf2788191957acf0b81625608` com estado `succeeded`, em `https://prospect.wfdigital.com.br/dashboard/atendimento`; a audiência pública existente foi preservada. A leitura HTTP da rota e o hash do módulo publicado da Central conferem com o pacote validado.
+- Próxima ação exata: homologar visualmente uma sessão autenticada limpa nos viewports desktop e mobile, sem enviar mensagens, gerar QR ou alterar canais.

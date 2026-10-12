@@ -39,3 +39,21 @@ Próxima ação: no checkout original, reconciliar este lote com alterações lo
 reset/force; usar a skill wayflex-product-ui, medir a Central autenticada e implementar
 `docs/REDESIGN_ATENDIMENTO_2026-10-09.md` em pequenos deltas. Preservar backend e gates,
 executar testes proporcionais e publicar apenas no Site existente após validação.
+
+## 11/10/2026 — Central compacta publicada
+
+### Escopo aplicado
+
+- A área de conversa foi priorizada; Meu WhatsApp e a agenda passam a ocupar superfícies compactas e o contexto vira drawer no espaço intermediário ou mobile.
+- O status de Gateway, Sessão, Canal, Ana e consulta foi separado visualmente e deriva dos gates existentes. Não há selo de disponibilidade quando envio, recebimento, integração ou proteção ainda bloqueiam a operação.
+- Foram mantidos `leadId`, handlers, rascunhos, permissões, QR, agenda, conhecimento e os fluxos de Ana/humano. Não houve mudança de regra, banco, Edge, canal, segredo, QR, mensagem ou dado de cliente.
+
+### Evidência
+
+- GitHub `main`: `f88abf7` e `bc4eb75`.
+- Validação: 10 arquivos/37 testes focados; Vitest completo 97 arquivos/664 testes; type-check, lint, build Vite e `git diff --check` aprovados.
+- Site existente publicado: versão 188, fonte `d65f1db9be0142746debb6f13cb97fed7e43b55d`, deploy `appgdep_6acc30daf2788191957acf0b81625608` `succeeded`. A rota oficial e o módulo estático da Central foram conferidos por leitura HTTP contra o pacote produzido.
+
+### Limite e próxima ação
+
+O navegador autenticado já aberto não foi recarregado para não perder eventual rascunho do operador. Falta somente uma homologação visual em sessão limpa nos breakpoints definidos no redesenho; ela não é necessária para confirmar a publicação, mas continua necessária para declarar QA visual completo.
