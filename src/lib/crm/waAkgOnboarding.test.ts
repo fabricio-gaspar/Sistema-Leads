@@ -4,6 +4,7 @@ import {
   isWaAkgDeviceLinked,
   isWaAkgOperational,
   waAkgOnboardingSessionKey,
+  waAkgSellerShouldOpenOnboarding,
   waAkgSellerNeedsDeviceOnboarding,
   waAkgSellerNeedsOnboarding,
 } from './waAkgOnboarding';
@@ -32,6 +33,7 @@ describe('WA-AKG seller onboarding', () => {
 
   it('treats a server-confirmed connected device as linked even while operational gates remain protected', () => {
     expect(isWaAkgDeviceLinked(status({ account: { ...status().account!, enabled: false } }))).toBe(true);
+    expect(isWaAkgDeviceLinked(status({ runtime: { reachable: true, state: 'LOGGED_OUT', connected: false, confirmed: false, checkedAt: '2026-10-12T12:00:00.000Z' } }))).toBe(false);
     expect(waAkgSellerNeedsDeviceOnboarding(status({ account: { ...status().account!, connectionStatus: 'qr' } }))).toBe(true);
     expect(waAkgSellerNeedsDeviceOnboarding(status({ account: { ...status().account!, connectionStatus: 'disconnected' } }))).toBe(true);
   });
@@ -39,5 +41,9 @@ describe('WA-AKG seller onboarding', () => {
   it('keeps the once-per-session onboarding marker scoped to each seller', () => {
     expect(waAkgOnboardingSessionKey('seller-a')).toBe('wayflex.wa-akg-onboarding:seller-a');
     expect(waAkgOnboardingSessionKey('seller-a')).not.toBe(waAkgOnboardingSessionKey('seller-b'));
+  });
+
+  it('opens onboarding when the first status read fails instead of silently skipping setup', () => {
+    expect(waAkgSellerShouldOpenOnboarding(null, true)).toBe(true);
   });
 });

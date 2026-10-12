@@ -7,7 +7,8 @@ describe('Dashboard personal WhatsApp pairing', () => {
     const layout = readFileSync(resolve('src/components/feature/DashboardLayout.tsx'), 'utf8');
 
     expect(layout).toContain('loadMyWaAkgAccount');
-    expect(layout).toContain('waAkgSellerNeedsDeviceOnboarding(status)');
+    expect(layout).toContain('waAkgSellerShouldOpenOnboarding(runtimeStatus)');
+    expect(layout).toContain('inspectWaAkgRuntime');
     expect(layout).toContain('WaAkgOnboardingDialog');
     expect(layout).not.toContain("access?.role === 'vendedor'");
     expect(layout).toContain("['channels.connect_own']");

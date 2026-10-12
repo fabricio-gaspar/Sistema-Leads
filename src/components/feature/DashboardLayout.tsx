@@ -10,8 +10,8 @@ import ModoExecucaoToggle from '@/components/feature/ModoExecucaoToggle';
 import { useCurrentAccess } from '@/hooks/useCurrentAccess';
 import { hasAnyPermission } from '@/lib/crm/currentAccessRepository';
 import { roleLabel, type TeamPermission } from '@/lib/crm/teamMembersRepository';
-import { loadMyWaAkgAccount } from '@/lib/crm/whatsappAccountsRepository';
-import { waAkgSellerNeedsDeviceOnboarding } from '@/lib/crm/waAkgOnboarding';
+import { inspectWaAkgRuntime, loadMyWaAkgAccount } from '@/lib/crm/whatsappAccountsRepository';
+import { waAkgSellerShouldOpenOnboarding } from '@/lib/crm/waAkgOnboarding';
 import WaAkgOnboardingDialog from '@/components/feature/WaAkgOnboardingDialog';
 import './wayflex-visual.css';
 import './wayflex-redesign.css';
@@ -150,13 +150,22 @@ export default function DashboardLayout() {
 
     let active = true;
     void loadMyWaAkgAccount()
-      .then((status) => {
-        if (!active || !waAkgSellerNeedsDeviceOnboarding(status)) return;
-        setWaAkgOnboardingOpen(true);
+      .then(async (status) => {
+        if (!status.account?.id) {
+          if (active) setWaAkgOnboardingOpen(true);
+          return;
+        }
+        try {
+          const runtimeStatus = await inspectWaAkgRuntime(status.account.id);
+          if (active && waAkgSellerShouldOpenOnboarding(runtimeStatus)) setWaAkgOnboardingOpen(true);
+        } catch {
+          // An unknown live state must not silently skip the setup ceremony.
+          if (active) setWaAkgOnboardingOpen(true);
+        }
       })
-      // A temporary status read must not lock the CRM. The seller can retry from
-      // the Central or reload the panel when the private account is available.
-      .catch(() => undefined);
+      // A temporary status read must not lock the CRM. The dialog itself
+      // exposes the retry/reconnect action while the dashboard stays usable.
+      .catch(() => { if (active) setWaAkgOnboardingOpen(true); });
 
     return () => { active = false; };
   }, [accessLoading, canConnectOwnWhatsapp, loading, location.pathname, user]);

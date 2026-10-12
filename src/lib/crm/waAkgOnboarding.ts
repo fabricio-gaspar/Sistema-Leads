@@ -28,13 +28,25 @@ export function isWaAkgOperational(status: WaAkgChannelStatus | null | undefined
 export function isWaAkgDeviceLinked(status: WaAkgChannelStatus | null | undefined): boolean {
   return Boolean(
     !channelLifecycleBlocked(status?.lifecycle)
-      && status?.account?.connectionStatus === 'connected',
+      && status?.account?.connectionStatus === 'connected'
+      && (status.runtime === undefined || (status.runtime.connected && status.runtime.confirmed)),
   );
 }
 
 /** The first-access dialog is about pairing, never about operational gates. */
 export function waAkgSellerNeedsDeviceOnboarding(status: WaAkgChannelStatus | null | undefined): boolean {
   return !isWaAkgDeviceLinked(status);
+}
+
+/**
+ * A failed first read is an unknown connection state, not permission to skip
+ * the ceremony. The dialog can surface the retry/reconnect action itself.
+ */
+export function waAkgSellerShouldOpenOnboarding(
+  status: WaAkgChannelStatus | null | undefined,
+  statusReadFailed = false,
+): boolean {
+  return statusReadFailed || waAkgSellerNeedsDeviceOnboarding(status);
 }
 
 /** A missing account is provisioning pending, never a successful connection. */
