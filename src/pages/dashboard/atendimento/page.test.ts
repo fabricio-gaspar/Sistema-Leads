@@ -42,6 +42,17 @@ describe('Central de Atendimento WhatsApp entry', () => {
     expect(page).toContain("window.addEventListener('pageshow'");
   });
 
+  it('shows a floating decision prompt for protected inbound contacts', () => {
+    const page = readFileSync(resolve('src/pages/dashboard/atendimento/page.tsx'), 'utf8');
+
+    expect(page).toContain('promptForInboundContact');
+    expect(page).toContain('Nova mensagem recebida');
+    expect(page).toContain('Manter como contato');
+    expect(page).toContain('Tornar lead');
+    expect(page).toContain('decideWaAkgContact');
+    expect(page).toContain('protegido da prospecção');
+  });
+
   it('prioritizes the conversation and leaves channel and agenda tools compact until needed', () => {
     const page = readFileSync(resolve('src/pages/dashboard/atendimento/page.tsx'), 'utf8');
     const panel = readFileSync(resolve('src/components/feature/WaAkgPanel.tsx'), 'utf8');
