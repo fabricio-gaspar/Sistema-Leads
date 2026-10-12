@@ -1,6 +1,7 @@
 import { createAdminClient, requireOrganizationPermission, requireOrganizationRole, requireUser } from '../_shared/auth.ts';
 import { allowedCorsHeaders, hasAllowedOrigin, json, preflight, safeError } from '../_shared/http.ts';
 import { assertProspectingFilters, normalizeHandoffWhatsappNotification, prospectingFiltersIssue } from './settings.ts';
+import { resolveWaAkgOperational } from '../_shared/waAkgOperational.ts';
 
 type OperationMode = 'simulation' | 'supervised' | 'automatic';
 type InitialAssignmentMode = 'ana' | 'human' | 'team';
@@ -118,13 +119,20 @@ function normalizeSettings(value: unknown) {
 }
 
 async function readiness(admin: ReturnType<typeof createAdminClient>, organizationId: string, candidateFilters?: unknown) {
-  const [{ data: company }, { data: integrations }, { data: runtime }, { data: agent }] = await Promise.all([
+  const [{ data: company }, { data: integrations }, { data: runtime }, { data: agent }, { data: whatsappAccounts }, { data: providerControls }] = await Promise.all([
     admin.from('company_settings').select('active,sandbox_mode,can_use_ia,ai_actions_enabled').eq('organization_id', organizationId).maybeSingle(),
-    admin.from('integrations').select('key,connected,enabled,paused').eq('organization_id', organizationId).in('key', ['ai','apify','scheduler','whatsapp','zapi_webhook']),
+    // Read the WA-AKG backing integration as well as the legacy operational
+    // rows. The provider resolver below is the authority for WhatsApp status.
+    admin.from('integrations').select('id,key,provider,connected,enabled,paused,last_tested_at,last_success_at,last_error,status_detail').eq('organization_id', organizationId),
     admin.from('organization_module_data').select('data').eq('organization_id', organizationId).eq('module_key', 'configuracao_runtime').maybeSingle(),
     admin.from('ai_agents').select('active_version_id').eq('organization_id', organizationId).eq('key', 'ana').maybeSingle(),
+    admin.from('whatsapp_accounts').select('id,integration_id,provider,enabled,connection_status,status_checked_at,updated_at,connected_phone_suffix,last_error_code,archived_at').eq('organization_id', organizationId),
+    admin.from('messaging_provider_controls').select('provider,inbound_enabled,send_enabled,automation_enabled,kill_switch,reason').eq('organization_id', organizationId).eq('provider', 'wa_akg'),
   ]);
   const available = new Map((integrations ?? []).map((item) => [item.key, item.connected === true && item.enabled === true && item.paused === false]));
+  const activeWaAkgAccounts = (whatsappAccounts ?? []).filter((account) => account.archived_at == null);
+  const waAkg = resolveWaAkgOperational(activeWaAkgAccounts, integrations ?? [], providerControls ?? []);
+  const waAkgConfigured = activeWaAkgAccounts.some((account) => account.provider === 'wa_akg');
   let filters = candidateFilters;
   if (filters === undefined) {
     const { data: schedule, error } = await admin.from('prospecting_schedules').select('filters').eq('organization_id', organizationId)
@@ -139,8 +147,8 @@ async function readiness(admin: ReturnType<typeof createAdminClient>, organizati
     ai: company?.can_use_ia === true && company?.ai_actions_enabled === true && available.get('ai') === true,
     apify: available.get('apify') === true,
     scheduler: available.get('scheduler') === true,
-    whatsappOutbound: available.get('whatsapp') === true,
-    whatsappInbound: available.get('zapi_webhook') === true,
+    whatsappOutbound: waAkgConfigured ? waAkg.enabled : available.get('whatsapp') === true,
+    whatsappInbound: waAkgConfigured ? waAkg.enabled : available.get('zapi_webhook') === true,
     killSwitchOff: asObject(runtime?.data).killSwitchGlobal === false,
   };
   return { checks, automaticReady: Object.values(checks).every(Boolean) };
