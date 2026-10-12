@@ -3,7 +3,7 @@
 ## 12/10/2026 — Resolução de nomes dos contatos recebidos
 
 - Diagnóstico remoto confirmou dois leads com `Contato não identificado`: ambos tinham linha no diretório do dispositivo, mas o matching comparava telefone bruto; um caso só coincidia após `normalize_phone_identity`. O lead atualmente aberto no painel tinha linha correspondente, porém sem nome fornecido pelo gateway.
-- A migration `20261012130000_wa_akg_contact_name_resolution.sql` normaliza `apply_whatsapp_directory_name(s)`, resolve nomes no insert/update de leads, repara leads quando a agenda é sincronizada e executa backfill somente em placeholders. A proteção da Ana e o histórico de mensagens não são alterados.
+- A migration `20261012130000_wa_akg_contact_name_resolution.sql` normaliza `apply_whatsapp_directory_name(s)`, resolve nomes no insert/update de leads, repara leads quando a agenda é sincronizada e executa backfill somente em placeholders. Quando o provedor não entrega nome, a Central exibe o telefone como identidade factual em vez de `Contato não identificado`. A proteção da Ana e o histórico de mensagens não são alterados.
 - A correção SQL foi aplicada diretamente no Supabase oficial `thgzrkppouoevapjquyu` e verificada: os placeholders com nome disponível foram reduzidos de 2 para 1; o restante não possui nome no payload nem na linha de diretório, portanto permanece sem nome inventado. Triggers de resolução e função normalizada estão presentes.
 - Validação local: 34 testes focados (proteção, resolução de nomes, inbound e recuperação R6/R7) aprovados; nenhum envio de mensagem foi realizado. O frontend não mudou, portanto não houve nova versão do Site.
 

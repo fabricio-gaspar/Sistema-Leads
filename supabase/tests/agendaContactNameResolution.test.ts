@@ -18,5 +18,6 @@ describe('WA-AKG contact name resolution migration', () => {
     expect(sql).toContain("coalesce(l.contact, '') in ('', 'Contato não identificado')");
     expect(sql).toContain('whatsapp_contact_directory_name_resolution');
     expect(sql).toContain('create trigger leads_wa_akg_contact_name_resolution');
+    expect(sql).toContain("nullif(pg_catalog.btrim(phone), ''), 'Contato não informado'");
   });
 });

@@ -202,4 +202,26 @@ update public.leads l
    and public.normalize_phone_identity(coalesce(l.whatsapp_identity, l.phone_identity, l.whatsapp, l.phone)) = preferred.phone
    and coalesce(l.contact, '') in ('', 'Contato não identificado');
 
+-- When the provider has no name at all, Central should still show a stable
+-- identity instead of the generic placeholder. The phone is factual and is
+-- used only for presentation; the lead contact column remains untouched.
+do $migration$
+declare
+  list_definition text;
+  detail_definition text;
+  list_old constant text := $$coalesce(nullif(pg_catalog.btrim(contact), ''), 'Contato não informado')$$;
+  list_new constant text := $$coalesce(nullif(pg_catalog.btrim(contact), ''), nullif(pg_catalog.btrim(phone), ''), 'Contato não informado')$$;
+  detail_old constant text := $$coalesce(nullif(pg_catalog.btrim(l.contact), ''), 'Contato não informado')$$;
+  detail_new constant text := $$coalesce(nullif(pg_catalog.btrim(l.contact), ''), nullif(pg_catalog.btrim(l.phone), ''), 'Contato não informado')$$;
+begin
+  select pg_get_functiondef('public.central_list_conversations(text,jsonb,integer,integer)'::regprocedure) into list_definition;
+  if list_definition is null or position(list_old in list_definition) = 0 then raise exception 'central_list_contact_contract_changed'; end if;
+  execute replace(list_definition, list_old, list_new);
+
+  select pg_get_functiondef('public.central_get_conversation_detail(uuid,timestamp with time zone,integer)'::regprocedure) into detail_definition;
+  if detail_definition is null or position(detail_old in detail_definition) = 0 then raise exception 'central_detail_contact_contract_changed'; end if;
+  execute replace(detail_definition, detail_old, detail_new);
+end;
+$migration$;
+
 commit;
