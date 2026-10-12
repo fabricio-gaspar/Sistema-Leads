@@ -1,5 +1,11 @@
 # Checkpoint — WayFlex CRM
 
+## 12/10/2026 — Cabeçalhos de segurança do Site
+
+- O worker do artefato Sites passou a aplicar `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy` e `Permissions-Policy` nas respostas estáticas e no `runtime-config.js`.
+- Validação local: sintaxe do script, build Vite, artefato Sites e `git diff --check` aprovados. O lint isolado do script continua apontando apenas os dois globais preexistentes (`process` e `console`).
+- Estado: **LOCAL VALIDADO / PUBLICAÇÃO PENDENTE**. Próxima ação: commit, push normal e publicação do Site existente; verificar os cabeçalhos pela rota `/login`.
+
 ## 12/10/2026 — Correções dos cinco achados da validação online
 
 - Corrigida a apresentação de contatos: Kanban, Leads, drawer e alertas usam nome resolvido ou telefone factual, sem exibir `Contato não identificado` quando há um número disponível.

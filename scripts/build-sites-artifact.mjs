@@ -71,15 +71,25 @@ function isNavigationRequest(request) {
   return request.headers.get('accept')?.includes('text/html') && !url.pathname.includes('.');
 }
 
+function secureHeaders(headers = {}) {
+  return {
+    'x-content-type-options': 'nosniff',
+    'x-frame-options': 'SAMEORIGIN',
+    'referrer-policy': 'strict-origin-when-cross-origin',
+    'permissions-policy': 'camera=(), microphone=(), geolocation=(), payment=()',
+    ...headers,
+  };
+}
+
 export default {
   async fetch(request, env) {
     let path = decodeURIComponent(new URL(request.url).pathname);
     if (path === '/runtime-config.js') {
       return new Response(runtimeConfigScript(env), {
-        headers: {
+        headers: secureHeaders({
           'content-type': 'application/javascript; charset=utf-8',
           'cache-control': 'no-store',
-        },
+        }),
       });
     }
     if (path === '/' || (!assets[path] && isNavigationRequest(request))) path = '/index.html';
@@ -87,10 +97,10 @@ export default {
     if (!asset) return new Response('Not found', { status: 404 });
 
     return new Response(request.method === 'HEAD' ? null : decodeBase64(asset.body), {
-      headers: {
+      headers: secureHeaders({
         'content-type': asset.type,
         'cache-control': asset.immutable ? 'public, max-age=31536000, immutable' : 'no-store',
-      },
+      }),
     });
   },
 };
