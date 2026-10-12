@@ -272,12 +272,30 @@ export class WaAkgProvider implements MessagingProvider {
 
   /** Read the bounded, session-scoped contact directory. This never sends or changes a session. */
   async crmSync(): Promise<WaAkgCrmSync> {
-    const payload = await this.request(`/api/sessions/${encodeURIComponent(this.session)}/crm-sync`, { method: 'GET', cache: 'no-store' });
-    const contacts = Array.isArray(payload.contacts) ? payload.contacts.map(object).map((entry) => ({
-      ...contactNames(entry),
-      remoteJid: contactRemoteJid(entry),
-    })) : [];
-    return { contacts, truncated: payload.truncated === true };
+    let payload: JsonObject;
+    let usedLegacyRoute = false;
+    try {
+      payload = await this.request(`/api/sessions/${encodeURIComponent(this.session)}/crm-sync`, { method: 'GET', cache: 'no-store' });
+    } catch (error) {
+      const code = error instanceof Error ? error.message : '';
+      if (!['wa_akg_request_rejected_404', 'wa_akg_request_rejected_405'].includes(code)) throw error;
+      // Older WA-AKG deployments do not expose crm-sync yet. The contacts route
+      // is read-only and returns the same address-book fields, so keep agenda
+      // refresh usable while the gateway is upgraded.
+      usedLegacyRoute = true;
+      payload = await this.request(`/api/contacts/${encodeURIComponent(this.session)}?limit=all`, { method: 'GET', cache: 'no-store' });
+    }
+    const rawContacts = Array.isArray(payload.contacts) ? payload.contacts : Array.isArray(payload.data) ? payload.data : [];
+    const contacts = rawContacts.map(object).map((entry) => {
+      const normalized = usedLegacyRoute
+        ? { ...entry, agendaName: entry.name, whatsappName: entry.notify, publicName: entry.verifiedName }
+        : entry;
+      return { ...contactNames(normalized), remoteJid: contactRemoteJid(normalized) };
+    });
+    const meta = object(payload.meta);
+    const truncated = payload.truncated === true || object(payload.truncated).contacts === true
+      || Number(meta.totalPages) > 1 || Number(meta.total) > rawContacts.length;
+    return { contacts, truncated };
   }
 
   async qr(): Promise<WaAkgQrCode> {

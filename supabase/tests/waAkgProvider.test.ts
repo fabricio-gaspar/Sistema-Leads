@@ -93,4 +93,23 @@ describe('WaAkgProvider', () => {
       truncated: false,
     });
   });
+
+  it('falls back to the legacy contacts route when crm-sync is not available', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ status: false, error: 'Method Not Allowed' }), { status: 405 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        status: true,
+        data: [{ name: 'Agenda legada', notify: 'WhatsApp legada', verifiedName: 'Empresa', jid: '5511777777777@s.whatsapp.net' }],
+        meta: { total: 1, totalPages: 1 },
+      }), { status: 200 }));
+    const provider = new WaAkgProvider({
+      baseUrl: 'https://wa.example.com', apiKey: 'secret', sessionId: 'seller_12345678', allowedOrigins, fetchImpl: fetchMock,
+    });
+
+    await expect(provider.crmSync()).resolves.toEqual({
+      contacts: [{ agendaName: 'Agenda legada', whatsappName: 'WhatsApp legada', publicName: 'Empresa', remoteJid: '5511777777777@s.whatsapp.net' }],
+      truncated: false,
+    });
+    expect(fetchMock.mock.calls[1][0]).toBe('https://wa.example.com/api/contacts/seller_12345678?limit=all');
+  });
 });

@@ -33,4 +33,12 @@ describe('Central de Atendimento WhatsApp entry', () => {
     expect(page).toContain('onSendKnowledge');
     expect(page).toContain('send({ knowledge: prepared, text: prepared.text, internal: false, proposal: null })');
   });
+
+  it('keeps the conversation fresh when realtime is delayed or the tab returns', () => {
+    const page = readFileSync(resolve('src/pages/dashboard/atendimento/page.tsx'), 'utf8');
+
+    expect(page).toContain("realtime === 'live' ? 15_000 : 10_000");
+    expect(page).toContain("document.addEventListener('visibilitychange'");
+    expect(page).toContain("window.addEventListener('pageshow'");
+  });
 });
