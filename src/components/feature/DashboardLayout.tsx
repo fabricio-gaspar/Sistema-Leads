@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation, Outlet, Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useNotificacoesStore } from '@/hooks/useNotificacoesStore';
@@ -11,7 +11,8 @@ import { useCurrentAccess } from '@/hooks/useCurrentAccess';
 import { hasAnyPermission } from '@/lib/crm/currentAccessRepository';
 import { roleLabel, type TeamPermission } from '@/lib/crm/teamMembersRepository';
 import { loadMyWaAkgAccount } from '@/lib/crm/whatsappAccountsRepository';
-import { waAkgOnboardingSessionKey, waAkgSellerNeedsOnboarding } from '@/lib/crm/waAkgOnboarding';
+import { waAkgSellerNeedsDeviceOnboarding } from '@/lib/crm/waAkgOnboarding';
+import WaAkgOnboardingDialog from '@/components/feature/WaAkgOnboardingDialog';
 import './wayflex-visual.css';
 import './wayflex-redesign.css';
 
@@ -117,6 +118,7 @@ export default function DashboardLayout() {
   const [notifOpen, setNotifOpen] = useState(false);
   const [painelAba, setPainelAba] = useState<'notificacoes' | 'tarefas'>('notificacoes');
   const sellerOnboardingAttempt = useRef<string | null>(null);
+  const [waAkgOnboardingOpen, setWaAkgOnboardingOpen] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const { user, loading, logout } = useAuth();
@@ -141,32 +143,29 @@ export default function DashboardLayout() {
   const canConnectOwnWhatsapp = hasAnyPermission(access, ['channels.connect_own']);
 
   useEffect(() => {
-    if (loading || accessLoading || !user || !canConnectOwnWhatsapp || location.pathname !== '/dashboard') return;
+    if (loading || accessLoading || !user || !canConnectOwnWhatsapp || !location.pathname.startsWith('/dashboard')) return;
 
-    const sessionKey = waAkgOnboardingSessionKey(user.id);
-    try {
-      if (window.sessionStorage.getItem(sessionKey) === 'shown') return;
-    } catch {
-      // A browser with blocked session storage can still use the in-memory
-      // guard below; this must never prevent the seller from opening the CRM.
-    }
-    if (sellerOnboardingAttempt.current === sessionKey) return;
-    sellerOnboardingAttempt.current = sessionKey;
+    if (sellerOnboardingAttempt.current === user.id) return;
+    sellerOnboardingAttempt.current = user.id;
 
     let active = true;
     void loadMyWaAkgAccount()
       .then((status) => {
-        if (!active || !waAkgSellerNeedsOnboarding(status)) return;
-        try { window.sessionStorage.setItem(sessionKey, 'shown'); } catch { /* storage is optional */ }
-        navigate('/dashboard/atendimento', { replace: true });
+        if (!active || !waAkgSellerNeedsDeviceOnboarding(status)) return;
+        setWaAkgOnboardingOpen(true);
       })
-      // The normal Dashboard must remain available if the connection read is
-      // temporarily unavailable. The seller can still use the unified Central to
-      // retry the private QR connection safely from the unified Central.
+      // A temporary status read must not lock the CRM. The seller can retry from
+      // the Central or reload the panel when the private account is available.
       .catch(() => undefined);
 
     return () => { active = false; };
-  }, [accessLoading, canConnectOwnWhatsapp, loading, location.pathname, navigate, user]);
+  }, [accessLoading, canConnectOwnWhatsapp, loading, location.pathname, user]);
+
+  const closeWaAkgOnboarding = useCallback(() => setWaAkgOnboardingOpen(false), []);
+  const completeWaAkgOnboarding = useCallback(() => {
+    setWaAkgOnboardingOpen(false);
+    navigate('/dashboard/atendimento', { replace: true });
+  }, [navigate]);
 
   if (loading) {
     return (
@@ -532,6 +531,7 @@ export default function DashboardLayout() {
           <Outlet />
         </main>
       </div>
+      {waAkgOnboardingOpen && <WaAkgOnboardingDialog onClose={closeWaAkgOnboarding} onConnected={completeWaAkgOnboarding} />}
     </div>
   );
 }

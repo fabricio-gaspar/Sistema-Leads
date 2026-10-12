@@ -1,5 +1,11 @@
 # Histórico resumido de execução
 
+## 12/10/2026 — Modal de pareamento WA-AKG no primeiro acesso
+
+- Implementado no frontend existente: ao entrar em qualquer rota do painel, usuários com `channels.connect_own` e dispositivo ainda não vinculado recebem um modal acessível sobre o sistema, com instância individual, QR temporário, atualização, preparação explícita do pareamento e opção de continuar sem conectar.
+- O callback de conexão usa o estado confirmado da conta para fechar o modal e abrir a Central. A verificação de dispositivo conectado não depende dos gates de envio, recebimento ou Ana; esses controles continuam protegidos pelo backend.
+- Teste red/green focado, suíte completa 98/666, type-check frontend/Edge, lint, build Vite/artefato Sites e `git diff --check` aprovados. Sem QR real, mensagem, automação, migration, Edge publicada ou dado de cliente alterado.
+
 ## 09/10/2026 — Ativação WA-AKG por permissões existentes
 
 - Implementada e publicada a Edge wa-akg-worker v10 com ativação automática de conta individual somente após confirmação direta da sessão e validação do proprietário ativo com channels.view_own e channels.connect_own. A transição reutiliza o lifecycle durável; falhas de permissão, membro ou lifecycle mantêm a conta bloqueada.

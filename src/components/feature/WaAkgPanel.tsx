@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { loadTeamMembers, type TeamMember } from '@/lib/crm/teamMembersRepository';
-import { isWaAkgOperational } from '@/lib/crm/waAkgOnboarding';
+import { isWaAkgDeviceLinked, isWaAkgOperational } from '@/lib/crm/waAkgOnboarding';
 import { centralChannelState } from '@/lib/crm/waAkgCentralStatus';
 import { channelLifecycleBlocked, channelLifecycleMessage, refreshAfterLifecycleError } from '@/lib/crm/channelLifecycle';
 import ChannelLifecycleRecovery from './ChannelLifecycleRecovery';
@@ -22,7 +22,7 @@ import {
 } from '@/lib/crm/whatsappAccountsRepository';
 
 type Mode = 'administration' | 'self-service';
-type Surface = 'whatsapp' | 'central';
+type Surface = 'whatsapp' | 'central' | 'onboarding';
 type Presentation = 'primary' | 'contingency';
 type Status = WaAkgChannelStatus & { account: NonNullable<WaAkgChannelStatus['account']> };
 type Notice = { tone: 'success' | 'error'; text: string };
@@ -77,9 +77,10 @@ function checkedAt(value?: string) {
   return Number.isNaN(date.getTime()) ? 'Ainda não verificado' : date.toLocaleString('pt-BR');
 }
 
-export default function WaAkgPanel({ mode = 'administration', surface = 'whatsapp', presentation = 'primary' }: { mode?: Mode; surface?: Surface; presentation?: Presentation }) {
+export default function WaAkgPanel({ mode = 'administration', surface = 'whatsapp', presentation = 'primary', onConnected }: { mode?: Mode; surface?: Surface; presentation?: Presentation; onConnected?: () => void }) {
   const selfService = mode === 'self-service';
   const inCentral = surface === 'central';
+  const inOnboarding = surface === 'onboarding';
   const administrationEyebrow = presentation === 'contingency' ? 'Canal de contingência' : 'Canal principal';
   const administrationDescription = presentation === 'contingency'
     ? 'Canal alternativo com sessão isolada por vendedor. A conexão continua protegida até as validações administrativas serem concluídas.'
@@ -159,13 +160,17 @@ export default function WaAkgPanel({ mode = 'administration', surface = 'whatsap
     try {
       const next = await inspectWaAkgRuntime(accountId);
       replace(next);
+      if (selfService && inOnboarding && isWaAkgDeviceLinked(next) && !redirecting.current) {
+        redirecting.current = true;
+        onConnected?.();
+      }
       if (announce) setNotice({ tone: next.runtime?.reachable ? 'success' : 'error', text: next.runtime?.reachable
         ? 'Gateway consultado diretamente; o estado exibido é o estado atual da sessão.'
         : 'O gateway não respondeu à consulta. Nenhuma sessão foi iniciada ou alterada.' });
     } catch (error) {
       if (announce) setNotice({ tone: 'error', text: errorMessage(error) });
     } finally { setBusy(''); }
-  }, [replace]);
+  }, [inOnboarding, onConnected, replace, selfService]);
 
   useEffect(() => {
     if (statusUnconfirmed || !selected?.configured || selected.account.accountType !== 'seller') return;
@@ -179,10 +184,12 @@ export default function WaAkgPanel({ mode = 'administration', surface = 'whatsap
       replace(next);
       setNotice({ tone: 'success', text: key === 'activate'
         ? 'Conta habilitada. Recebimento, envio e Ana continuam sujeitos à liberação administrativa separada.' : success });
-      if (selfService && !inCentral && (key === 'status' || key === 'activate') && hasAccount(next)
-        && isWaAkgOperational(next) && !redirecting.current) {
+      const linked = hasAccount(next) && isWaAkgDeviceLinked(next);
+      const readyForCentral = hasAccount(next) && isWaAkgOperational(next);
+      if (selfService && ((inOnboarding && linked) || (!inOnboarding && !inCentral && (key === 'status' || key === 'activate') && readyForCentral)) && !redirecting.current) {
         redirecting.current = true;
-        window.setTimeout(() => navigate('/dashboard/atendimento', { replace: true }), 700);
+        if (inOnboarding) onConnected?.();
+        else window.setTimeout(() => navigate('/dashboard/atendimento', { replace: true }), 700);
       }
     }
     catch (error) {
@@ -224,16 +231,19 @@ export default function WaAkgPanel({ mode = 'administration', surface = 'whatsap
       void runWaAkgAction('refresh_status', accountId).then((next) => {
         if (cancelled || !hasAccount(next)) return;
         replace(next);
-        if (isWaAkgOperational(next) && !redirecting.current) {
+        const linked = isWaAkgDeviceLinked(next);
+        const readyForCentral = isWaAkgOperational(next);
+        if ((inOnboarding ? linked : readyForCentral) && !redirecting.current) {
           redirecting.current = true;
           setQr(null);
           setNotice({ tone: 'success', text: 'WhatsApp conectado. Abrindo a Central de Atendimento…' });
-          window.setTimeout(() => navigate('/dashboard/atendimento', { replace: true }), 700);
+          if (inOnboarding) onConnected?.();
+          else window.setTimeout(() => navigate('/dashboard/atendimento', { replace: true }), 700);
         }
       }).catch(() => undefined);
     }, 3_000);
     return () => { cancelled = true; window.clearInterval(poll); };
-  }, [inCentral, navigate, replace, selected, selfService, statusUnconfirmed]);
+  }, [inCentral, inOnboarding, navigate, onConnected, replace, selected, selfService, statusUnconfirmed]);
 
   const saveGateway = async () => {
     if (!gateway.baseUrl.trim() || !gateway.apiKey.trim()) return;
@@ -270,6 +280,43 @@ export default function WaAkgPanel({ mode = 'administration', surface = 'whatsap
   };
 
   if (loading) return <section className="wf-surface p-6 text-sm text-foreground-500"><i className="ri-loader-4-line mr-2 animate-spin" />Carregando seu canal WA-AKG…</section>;
+
+  if (inOnboarding) {
+    const instanceName = selected?.integration?.sessionName || selected?.account.label || 'Sua instância';
+    const connected = Boolean(selected && isWaAkgDeviceLinked(selected));
+    return <section id="wa-akg-first-access" className="overflow-hidden bg-background-50">
+      {selected ? <>
+        <div className="flex items-start gap-3 rounded-xl border border-primary-200 bg-primary-50/60 p-4">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#E8F7EF] text-lg text-[#168654]"><i className="ri-whatsapp-line" /></span>
+          <div className="min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-primary-700">Primeiro acesso</p>
+            <h2 className="mt-1 text-lg font-bold text-foreground-950">Vincule seu WhatsApp</h2>
+            <p className="mt-1 text-sm leading-6 text-foreground-600">Leia o QR Code abaixo no telefone que você usa para atender. O sistema ficará pronto para a Central assim que a conexão for confirmada.</p>
+          </div>
+        </div>
+
+        <div className="mt-4 rounded-xl border border-background-200 bg-white p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div><p className="text-xs text-foreground-500">Instância do usuário</p><p className="mt-1 break-all font-semibold text-foreground-950">{instanceName}</p></div>
+            <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${connected ? 'bg-[#E8F7EF] text-[#147445]' : selected.account.connectionStatus === 'qr' ? 'bg-[#FFF1D8] text-[#965A12]' : 'bg-background-100 text-foreground-600'}`}>{connected ? 'Dispositivo conectado' : selected.account.connectionStatus === 'qr' ? 'Aguardando leitura' : 'Preparar conexão'}</span>
+          </div>
+          <dl className="mt-4 grid gap-3 text-xs sm:grid-cols-2">
+            <div className="rounded-lg bg-background-50 p-3"><dt className="text-foreground-500">Número vinculado</dt><dd className="mt-1 font-semibold text-foreground-900">{selected.account.phoneSuffix ? `Final ${selected.account.phoneSuffix}` : 'A confirmar após a leitura'}</dd></div>
+            <div className="rounded-lg bg-background-50 p-3"><dt className="text-foreground-500">Permissão</dt><dd className="mt-1 font-semibold text-foreground-900">Somente seu dispositivo</dd></div>
+          </dl>
+        </div>
+
+        {channelLifecycleMessage(selected.lifecycle) && <p role="status" className="mt-4 rounded-xl border border-background-200 bg-background-50 px-3 py-2 text-xs text-foreground-700">{channelLifecycleMessage(selected.lifecycle)}</p>}
+        {notice && <p role={notice.tone === 'error' ? 'alert' : 'status'} className={`mt-4 rounded-xl border px-3 py-2 text-xs ${notice.tone === 'success' ? 'border-[#B9E4CB] bg-[#EFFAF3] text-[#176B43]' : 'border-[#E8B8B1] bg-[#FFF4F2] text-[#8B3027]'}`}>{notice.text}</p>}
+
+        <div className="mt-4 rounded-xl border border-background-200 bg-white p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="text-sm font-semibold text-foreground-900">Escaneie para conectar</h3><p className="mt-1 text-xs leading-5 text-foreground-500">WhatsApp → Aparelhos conectados → Conectar aparelho.</p></div><button type="button" className="wf-btn-secondary text-xs" disabled={Boolean(busy)} onClick={() => void refresh()}><i className={busy === 'refresh' ? 'ri-loader-4-line animate-spin' : 'ri-refresh-line'} />Atualizar</button></div>
+          {qr ? <div className="mt-4 flex justify-center rounded-xl border border-background-200 bg-background-50 p-4"><img src={qr} alt="QR Code temporário para vincular seu WhatsApp" className="aspect-square w-64 max-w-full object-contain" /></div> : <div className="mt-4 rounded-xl border border-dashed border-background-300 bg-background-50 p-6 text-center"><i className={`${busy === 'qr' ? 'ri-loader-4-line animate-spin' : 'ri-qr-code-line'} text-3xl text-foreground-300`} /><p className="mt-2 text-sm font-semibold text-foreground-800">{busy === 'qr' ? 'Gerando QR Code…' : selected.account.connectionStatus === 'qr' ? 'O QR Code será exibido em instantes.' : 'Prepare o pareamento para gerar o QR Code.'}</p><p className="mt-1 text-xs leading-5 text-foreground-500">O QR Code é temporário e não é armazenado no navegador.</p></div>}
+          <div className="mt-4 flex flex-wrap gap-2">{selected.account.connectionStatus !== 'qr' && !connected && <button type="button" className="wf-btn-primary text-xs" disabled={Boolean(busy) || !selected.canConnect || channelLifecycleBlocked(selected.lifecycle)} onClick={() => void run('connect', () => runWaAkgAction('connect', selected.account.id), 'Pareamento preparado. Aguarde o QR Code temporário.')}>{busy === 'connect' ? 'Preparando…' : 'Preparar pareamento'}</button>}{selected.account.connectionStatus === 'qr' && <button type="button" className="wf-btn-primary text-xs" disabled={Boolean(busy) || !selected.canViewQr || channelLifecycleBlocked(selected.lifecycle)} onClick={() => void loadQr()}>{busy === 'qr' ? 'Gerando…' : qr ? 'Gerar novo QR Code' : 'Gerar QR Code'}</button>}{connected && <span className="inline-flex items-center gap-2 rounded-lg bg-[#E8F7EF] px-3 py-2 text-xs font-semibold text-[#147445]"><i className="ri-checkbox-circle-line" />Conexão confirmada</span>}</div>
+        </div>
+      </> : <div className="rounded-xl border border-dashed border-background-300 bg-background-50 p-7 text-center"><i className="ri-admin-line text-3xl text-foreground-300" /><h2 className="mt-2 text-sm font-semibold text-foreground-900">Sua instância ainda não está pronta</h2><p className="mx-auto mt-1 max-w-md text-xs leading-5 text-foreground-500">O administrador precisa concluir o provisionamento do seu canal. Você pode continuar no CRM e tentar novamente quando a instância estiver disponível.</p></div>}
+    </section>;
+  }
 
   return <section id={selfService ? (inCentral ? 'central-whatsapp-account' : 'my-wa-akg-account') : 'wa-akg-configuration'} className="wf-surface overflow-hidden">
     <header className="flex flex-col gap-3 border-b border-background-200 px-5 py-4 sm:flex-row sm:items-start sm:justify-between">

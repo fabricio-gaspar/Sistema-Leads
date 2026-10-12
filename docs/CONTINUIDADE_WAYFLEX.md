@@ -1,5 +1,13 @@
 # Checkpoint — WayFlex CRM
 
+## 12/10/2026 — Pareamento WA-AKG no primeiro acesso
+
+- O shell autenticado agora consulta somente a conta WA-AKG do usuário com `channels.connect_own` e abre um modal bloqueante de configuração inicial quando o dispositivo ainda não está conectado. O CRM permanece visível ao fundo e pode ser retomado pelo botão de continuação.
+- O modal mostra a instância individual não secreta, o final do número quando confirmado, estados de preparação/QR/conectado, renovação explícita do QR e mensagens de erro. A leitura automática do QR ocorre apenas quando o backend já informa `qr`; a preparação da sessão continua sendo uma ação explícita.
+- A vinculação física foi separada das liberações operacionais: conexão confirmada fecha o modal e leva à Central, mas não habilita envio, recebimento ou Ana. O contrato de permissões e a consulta server-side permanecem inalterados.
+- Validação local: ciclo TDD red/green, 98 arquivos/666 testes, type-check frontend/Edge, lint e build Vite/artefato Sites aprovados; nenhum QR real, dispositivo, mensagem, automação, migration ou dado de cliente foi alterado.
+- Estado: **LOCAL VALIDADO / PUBLICAÇÃO PENDENTE**. A publicação deve usar o Site existente somente após reconciliação normal do histórico da fonte, sem reset ou force push.
+
 ## 09/10/2026 — Central WA-AKG: permissão de listagem restaurada
 
 - Causa confirmada: a Central registrava entradas WA-AKG, mas a listagem autenticada falhava porque `authenticated` não tinha `EXECUTE` na função privada de filtro `can_read_wa_akg_central_lead`.

@@ -3,15 +3,16 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 describe('Dashboard personal WhatsApp pairing', () => {
-  it('checks only the authenticated user account once per session before opening the unified Central', () => {
+  it('opens a blocking first-access dialog for the authenticated user account', () => {
     const layout = readFileSync(resolve('src/components/feature/DashboardLayout.tsx'), 'utf8');
 
     expect(layout).toContain('loadMyWaAkgAccount');
-    expect(layout).toContain('waAkgSellerNeedsOnboarding(status)');
+    expect(layout).toContain('waAkgSellerNeedsDeviceOnboarding(status)');
+    expect(layout).toContain('WaAkgOnboardingDialog');
     expect(layout).not.toContain("access?.role === 'vendedor'");
     expect(layout).toContain("['channels.connect_own']");
-    expect(layout).toContain('waAkgOnboardingSessionKey(user.id)');
-    expect(layout).toContain("window.sessionStorage.getItem(sessionKey) === 'shown'");
+    expect(layout).toContain('setWaAkgOnboardingOpen(true)');
+    expect(layout).toContain('completeWaAkgOnboarding');
     expect(layout).toContain("navigate('/dashboard/atendimento', { replace: true })");
   });
 

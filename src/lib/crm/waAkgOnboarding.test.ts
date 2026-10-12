@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { WaAkgChannelStatus } from '@/lib/crm/whatsappAccountsRepository';
-import { isWaAkgOperational, waAkgOnboardingSessionKey, waAkgSellerNeedsOnboarding } from './waAkgOnboarding';
+import {
+  isWaAkgDeviceLinked,
+  isWaAkgOperational,
+  waAkgOnboardingSessionKey,
+  waAkgSellerNeedsDeviceOnboarding,
+  waAkgSellerNeedsOnboarding,
+} from './waAkgOnboarding';
 
 const status = (overrides: Partial<WaAkgChannelStatus> = {}): WaAkgChannelStatus => ({
   configured: true,
@@ -22,6 +28,12 @@ describe('WA-AKG seller onboarding', () => {
     expect(waAkgSellerNeedsOnboarding(status())).toBe(false);
     expect(waAkgSellerNeedsOnboarding(status({ account: null }))).toBe(true);
     expect(waAkgSellerNeedsOnboarding(status({ controls: { ...status().controls!, sendEnabled: false } }))).toBe(true);
+  });
+
+  it('treats a server-confirmed connected device as linked even while operational gates remain protected', () => {
+    expect(isWaAkgDeviceLinked(status({ account: { ...status().account!, enabled: false } }))).toBe(true);
+    expect(waAkgSellerNeedsDeviceOnboarding(status({ account: { ...status().account!, connectionStatus: 'qr' } }))).toBe(true);
+    expect(waAkgSellerNeedsDeviceOnboarding(status({ account: { ...status().account!, connectionStatus: 'disconnected' } }))).toBe(true);
   });
 
   it('keeps the once-per-session onboarding marker scoped to each seller', () => {
