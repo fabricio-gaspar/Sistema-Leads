@@ -11,10 +11,16 @@ function EventList({ title, items, label }: { title: string; items: OperationalE
 export default function DiagnosticsTab() {
   const [data, setData] = useState<OperationalDiagnostics | null>(null);
   const [loading, setLoading] = useState(true);
+  const [slowLoading, setSlowLoading] = useState(false);
   const [error, setError] = useState('');
   const refresh = useCallback(async () => { setLoading(true); try { setData(await loadOperationalDiagnostics()); setError(''); } catch { setError('Não foi possível carregar os registros operacionais.'); } finally { setLoading(false); } }, []);
   useEffect(() => { void refresh(); }, [refresh]);
-  if (loading) return <div className="wf-surface p-6 text-sm text-foreground-500">Carregando diagnóstico real…</div>;
+  useEffect(() => {
+    if (!loading) { setSlowLoading(false); return undefined; }
+    const timer = window.setTimeout(() => setSlowLoading(true), 2500);
+    return () => window.clearTimeout(timer);
+  }, [loading]);
+  if (loading) return <div className="wf-surface flex flex-wrap items-center justify-between gap-3 p-6 text-sm text-foreground-500" role="status" aria-live="polite" aria-busy="true"><span>{slowLoading ? 'O diagnóstico está demorando mais que o esperado. Nenhum dado foi alterado.' : 'Carregando diagnóstico real…'}</span><button type="button" className="wf-btn-secondary text-xs" onClick={() => void refresh()}><i className="ri-refresh-line" />Tentar novamente</button></div>;
   if (!data) return <div className="wf-surface p-6 text-sm text-accent-700">{error}</div>;
   const sample = summarizeOperationalSample(data.runs, data.jobs, data.status.whatsappMonitoring.updatedAt);
   const seconds = (ms: number | null) => ms === null ? 'Sem amostra válida' : `${(ms / 1000).toLocaleString('pt-BR', { maximumFractionDigits: 1 })} s`;

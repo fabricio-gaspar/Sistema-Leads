@@ -1,6 +1,7 @@
 import type { Notificacao } from '@/lib/tipos';
 import type { Lead } from '@/mocks/leadsData';
 import { stageFromLegacy } from '@/domain/pipeline';
+import { factualLeadDisplayName } from '@/lib/crm/contactIdentity';
 
 export type AttentionItem = { id: string; title: string; detail: string; action: string; to: string; leadId?: string };
 export type AttentionGroup = { id: string; title: string; description: string; icon: string; tone: string; items: AttentionItem[] };
@@ -16,7 +17,7 @@ const notificationItem = (item: Notificacao): AttentionItem => ({
 
 const leadItem = (lead: Lead, action: string): AttentionItem => ({
   id: lead.id,
-  title: lead.nome || lead.empresa,
+  title: factualLeadDisplayName(lead),
   detail: lead.empresa && lead.nome ? lead.empresa : 'Lead em acompanhamento',
   action,
   to: `/dashboard/atendimento?leadId=${lead.id}`,

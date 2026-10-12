@@ -6,11 +6,12 @@ import { useIntegracoesStore, type OperationalIntegration } from '@/hooks/useInt
 import { loadOperationalDiagnostics, type OperationalDiagnostics } from '@/lib/crm/operationalDiagnosticsRepository';
 import { supabase } from '@/lib/supabase';
 import { detalheDoErroDeFuncao } from '@/lib/transportador';
+import { countRequiredIntegrationAttention, hasOptionalIntegrationAttention } from '@/lib/crm/integrationAttention';
 
 type ApiView = 'overview' | 'ai' | 'prospecting' | 'history';
 type HealthTone = 'positive' | 'attention' | 'critical' | 'neutral';
 
-const names: Record<string, string> = { ai: 'OpenAI e Claude', apify: 'Apify — Google Maps', google_places: 'Google Places' };
+const names: Record<string, string> = { ai: 'IA da Ana', apify: 'Apify — Google Maps', google_places: 'Google Places' };
 const descriptions: Record<string, string> = {
   ai: 'Responde e prepara atendimentos.',
   apify: 'Extrai leads do Google Maps.',
@@ -77,7 +78,8 @@ export default function ApisProvidersTab() {
   const ai = providers.find((item) => item.remoteKey === 'ai');
   const prospecting = providers.filter((item) => item.remoteKey !== 'ai');
   const sourceByKey = new Map(fontes.map((source) => [source.sourceKey, source]));
-  const actionRequired = providers.filter((item) => item.status === 'validation_due' || item.status === 'error' || item.status === 'not_configured').length;
+  const actionRequired = countRequiredIntegrationAttention(providers);
+  const optionalAttention = hasOptionalIntegrationAttention(providers);
   const selectedDiagnostic = providers.find((item) => item.remoteKey === diagnosticKey) || null;
 
   const messageFor = (error: unknown) => { const code = error instanceof Error ? error.message : ''; if (code === 'integration_validation_required') return 'Valide a conexão novamente antes de ativar o uso operacional.'; if (code === 'permission_denied') return 'Seu usuário não possui permissão para alterar este provedor.'; return 'Não foi possível concluir a ação. O estado visual foi revertido pelo backend.'; };
@@ -110,6 +112,7 @@ export default function ApisProvidersTab() {
   return <div className="space-y-5" data-testid="apis-providers-tab">
     <header className="flex flex-col gap-3 border-b border-background-200/70 pb-5 sm:flex-row sm:items-end sm:justify-between"><div><p className="wf-eyebrow">Configurações</p><h2 className="mt-1 text-2xl font-semibold tracking-tight text-foreground-950">APIs e provedores</h2><p className="mt-1 text-sm text-foreground-500">Credenciais, validação e uso operacional.</p></div><div className="flex flex-wrap gap-2"><Link to="/dashboard/configuracoes?tab=registro" className="wf-btn-secondary text-xs"><i className="ri-history-line" />Registro de auditoria</Link><button type="button" className="wf-btn-primary text-xs" disabled={Boolean(pending)} onClick={() => void validateAll()}><i className="ri-play-line" />Validar tudo</button></div></header>
     {actionRequired > 0 && <div className="flex flex-col gap-3 rounded-xl border border-[#F0C171] bg-[#FFF8E9] px-4 py-3 text-[#8B5A1D] sm:flex-row sm:items-center"><i className="ri-error-warning-fill text-xl" aria-hidden="true" /><div className="flex-1"><p className="text-sm font-semibold text-[#744514]">{actionRequired} integrações exigem ação</p><p className="mt-0.5 text-xs">Revise credenciais e execute uma nova validação antes de ativar o uso operacional.</p></div><button type="button" className="wf-btn-secondary text-xs" onClick={() => setView('overview')}>Revisar agora <i className="ri-arrow-right-line" /></button></div>}
+    {actionRequired === 0 && optionalAttention && <div className="flex items-start gap-3 rounded-xl border border-background-200 bg-background-50 px-4 py-3 text-foreground-600"><i className="ri-information-line mt-0.5 text-lg" aria-hidden="true" /><p className="text-xs">Há uma fonte opcional aguardando configuração. Isso não bloqueia a Ana nem a busca principal; configure-a somente se sua operação precisar desse recurso.</p></div>}
     {notice && <div role="status" className={`rounded-xl border px-3.5 py-3 text-sm ${notice.tone === 'success' ? 'border-[#B9E4CB] bg-[#EFFAF3] text-[#176B43]' : 'border-[#E8B8B1] bg-[#FFF4F2] text-[#8B3027]'}`}>{notice.text}</div>}
     <nav className="flex flex-wrap items-center justify-between gap-3 border-b border-background-200" aria-label="Seções de APIs"><div className="flex gap-5"><button type="button" className={`border-b-2 px-1 pb-3 text-sm font-semibold ${view === 'overview' ? 'border-primary-600 text-primary-700' : 'border-transparent text-foreground-500'}`} onClick={() => setView('overview')}>Visão geral</button><button type="button" className={`border-b-2 px-1 pb-3 text-sm font-semibold ${view === 'ai' ? 'border-primary-600 text-primary-700' : 'border-transparent text-foreground-500'}`} onClick={() => setView('ai')}>IA da Ana</button><button type="button" className={`border-b-2 px-1 pb-3 text-sm font-semibold ${view === 'prospecting' ? 'border-primary-600 text-primary-700' : 'border-transparent text-foreground-500'}`} onClick={() => setView('prospecting')}>Busca de Leads</button><button type="button" className={`border-b-2 px-1 pb-3 text-sm font-semibold ${view === 'history' ? 'border-primary-600 text-primary-700' : 'border-transparent text-foreground-500'}`} onClick={() => setView('history')}>Histórico</button></div><div className="hidden items-center gap-4 text-[11px] text-foreground-500 md:flex"><span><i className="ri-toggle-line mr-1 text-[#168654]" />Uso operacional</span><span><i className="ri-checkbox-circle-fill mr-1 text-[#168654]" />Saúde técnica: ok</span><span><i className="ri-error-warning-fill mr-1 text-[#D68411]" />Atenção</span><span><i className="ri-close-circle-fill mr-1 text-[#BD3D32]" />Problema</span></div></nav>
     {(view === 'overview' || view === 'ai') && ai && <section><h3 className="mb-3 text-lg font-semibold text-foreground-950">IA da Ana</h3><ProviderCard integration={ai} pending={pending} onConfigure={() => setConfiguring(ai)} onTest={() => void test(ai)} onToggle={() => void toggle(ai)} onDiagnostic={() => setDiagnosticKey(ai.remoteKey)} /></section>}

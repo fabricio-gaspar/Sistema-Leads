@@ -1,5 +1,13 @@
 # Checkpoint — WayFlex CRM
 
+## 12/10/2026 — Correções dos cinco achados da validação online
+
+- Corrigida a apresentação de contatos: Kanban, Leads, drawer e alertas usam nome resolvido ou telefone factual, sem exibir `Contato não identificado` quando há um número disponível.
+- APIs passaram a separar dependências essenciais (IA da Ana e Apify) de fonte opcional (Google Places), evitando o alerta global incorreto; a tela da Ana agora diferencia carregamento, estado não confirmado e versão ainda não publicada, mantendo a ativação protegida.
+- O Registro de auditoria ganhou estado de carregamento lento com tentativa explícita de atualização, sem alterar dados. O teste real de WhatsApp continua bloqueado por segurança; apenas testes locais/sandbox foram executados.
+- Validação local: suíte Vitest 109 arquivos / 698 testes, type-check frontend e Edge, lint dos arquivos alterados, build Vite, artefato Sites e `git diff --check` aprovados. Lint amplo ainda acusa 59 falhas preexistentes em arquivos não tocados; nenhuma Edge Function, migration, credencial, canal ou mensagem foi alterada.
+- Estado: **LOCAL VALIDADO / PUBLICAÇÃO PENDENTE**. Próxima ação: commit seletivo, push normal para `main` e publicação no Site existente; confirmar a UI online sem enviar mensagens reais.
+
 ## 12/10/2026 — IA contextual para Busca de Leads
 
 - Foi adicionada a entrada **IA · Preencher busca** na Busca de Leads. Ela abre uma revisão contextual que usa somente o perfil comercial da organização e os filtros já escolhidos para sugerir cidade, perfil, segmentos, termos e critérios de qualificação.

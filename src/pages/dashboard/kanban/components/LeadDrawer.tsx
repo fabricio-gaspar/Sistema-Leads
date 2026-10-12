@@ -9,6 +9,7 @@ import {
   type KanbanPortfolioItem,
   type KanbanTimelineItem,
 } from '@/lib/crm/kanbanRepository';
+import { factualLeadCompany, factualLeadDisplayName } from '@/lib/crm/contactIdentity';
 
 const labels: Record<CanonicalStageKey, string> = {
   novo: 'Novo', apresentado: 'Apresentado', qualificando: 'Qualificando', reuniao: 'Reunião',
@@ -80,16 +81,18 @@ export default function LeadDrawer({ item, team, canEdit, canAssign, onClose, on
     ? 'Sem contato' : whatsapp ? 'WhatsApp identificado' : phone ? 'Telefone identificado' : 'E-mail encontrado';
   const scoreDetail = lead.scoreExplanation || 'Não há detalhamento de aderência persistido para este lead.';
   const currentOwner = team.find((member) => member.userId === lead.responsavelId);
+  const displayName = factualLeadDisplayName(lead);
+  const companyName = factualLeadCompany(lead, displayName);
 
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-foreground-950/45" onMouseDown={onClose}>
-      <aside role="dialog" aria-modal="true" aria-label={`Detalhes de ${lead.nome || lead.empresa}`} className="flex h-full w-full max-w-xl flex-col bg-white shadow-2xl" onMouseDown={(event) => event.stopPropagation()}>
+      <aside role="dialog" aria-modal="true" aria-label={`Detalhes de ${displayName}`} className="flex h-full w-full max-w-xl flex-col bg-white shadow-2xl" onMouseDown={(event) => event.stopPropagation()}>
         <header className="border-b border-background-200 px-5 py-4">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0">
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-foreground-500">Detalhes do lead</p>
-              <h2 className="mt-1 truncate font-heading text-xl font-bold text-foreground-950">{lead.nome || lead.empresa}</h2>
-              {lead.nome && <p className="mt-0.5 truncate text-sm text-foreground-600">{lead.empresa || 'Empresa não informada'}</p>}
+              <h2 className="mt-1 truncate font-heading text-xl font-bold text-foreground-950">{displayName}</h2>
+              {companyName && <p className="mt-0.5 truncate text-sm text-foreground-600">{companyName}</p>}
               <div className="mt-3 flex flex-wrap gap-2">
                 <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${stageClass[stage]}`}>{labels[stage]}</span>
                 <span className="rounded-full bg-background-100 px-2.5 py-1 text-xs font-medium text-foreground-700">{contactStatus}</span>
