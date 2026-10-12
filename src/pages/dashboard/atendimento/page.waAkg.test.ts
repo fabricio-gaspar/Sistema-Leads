@@ -14,5 +14,8 @@ describe('Central de Atendimento > conexão WA-AKG', () => {
     expect(panel).toContain("!selected.canViewQr || channelLifecycleBlocked(selected.lifecycle)");
     expect(panel).toContain('Operação automática segura');
     expect(panel).toContain('A URL e a chave ficam somente no cofre do backend');
+    expect(panel).toContain('Status do meu canal');
+    expect(panel).toContain('centralDetailsVisible');
+    expect(panel).toContain('Gerenciar conexão');
   });
 });

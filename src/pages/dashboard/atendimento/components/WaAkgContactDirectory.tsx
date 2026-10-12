@@ -13,6 +13,7 @@ export default function WaAkgContactDirectory({ administrator }: Props) {
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [notice, setNotice] = useState('');
+  const [expanded, setExpanded] = useState(false);
 
   const selected = useMemo(() => accounts.find((entry) => entry.account?.id === selectedId) ?? null, [accounts, selectedId]);
   const refreshAccounts = useCallback(async () => {
@@ -54,12 +55,19 @@ export default function WaAkgContactDirectory({ administrator }: Props) {
     } finally { setSyncing(false); }
   };
 
-  if (loading) return <section className="rounded-2xl border border-background-200 bg-background-50 p-4 text-sm text-foreground-500">Carregando diretório privado…</section>;
-  return <section className="rounded-2xl border border-background-200 bg-background-50 p-4" aria-label="Agenda sincronizada do WhatsApp">
-    <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-sm font-bold text-foreground-950">Agenda sincronizada</h2><p className="mt-1 text-xs leading-5 text-foreground-500">Os contatos são separados por dispositivo. A sincronização apenas lê a agenda e não envia mensagens.</p></div><button type="button" className="wf-btn-secondary text-xs" disabled={!selectedId || syncing} onClick={() => void sync()}><i className={syncing ? 'ri-loader-4-line animate-spin' : 'ri-refresh-line'} />{syncing ? 'Sincronizando…' : 'Atualizar agenda'}</button></div>
-    {administrator && accounts.length > 1 && <label className="mt-3 block max-w-sm text-xs font-semibold text-foreground-700">Usuário / dispositivo<select className="mt-1 w-full wf-select" value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>{accounts.map((entry) => <option key={entry.account?.id} value={entry.account?.id ?? ''}>{entry.account?.label ?? 'Conta sem rótulo'}</option>)}</select></label>}
-    {selected && <p className="mt-3 text-xs text-foreground-600">Exibindo somente os contatos de <strong>{selected.account?.label}</strong>.</p>}
-    {notice && <p role="status" className="mt-3 rounded-lg bg-background-100 px-3 py-2 text-xs text-foreground-700">{notice}</p>}
-    <div className="mt-3 max-h-52 overflow-y-auto rounded-xl border border-background-200 bg-white"><table className="w-full text-left text-xs"><thead className="sticky top-0 bg-background-50 text-foreground-500"><tr><th className="px-3 py-2 font-semibold">Contato</th><th className="px-3 py-2 font-semibold">Telefone</th></tr></thead><tbody>{contacts.length ? contacts.map((contact) => <tr key={contact.phone} className="border-t border-background-100"><td className="px-3 py-2 text-foreground-900">{contact.name}</td><td className="px-3 py-2 text-foreground-600">{displayPhone(contact.phone)}</td></tr>) : <tr><td colSpan={2} className="px-3 py-6 text-center text-foreground-500">Nenhum contato sincronizado ainda.</td></tr>}</tbody></table></div>
+  if (loading) return <section className="wf-surface wf-central-directory p-4 text-sm text-foreground-500">Carregando diretório privado…</section>;
+  const contactLabel = contacts.length === 1 ? '1 contato disponível' : `${contacts.length} contatos disponíveis`;
+
+  return <section className="wf-surface wf-central-directory overflow-hidden" aria-label="Agenda do WhatsApp">
+    <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+      <div className="flex min-w-0 items-center gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary-50 text-primary-700"><i className="ri-contacts-book-2-line" /></span><div><h2 className="text-sm font-bold text-foreground-950">Agenda do WhatsApp</h2><p className="mt-0.5 text-xs text-foreground-500">{selected ? `${contactLabel} neste dispositivo` : 'Selecione um dispositivo para consultar os contatos'}</p></div></div>
+      <div className="flex flex-wrap items-center gap-2"><button type="button" className="wf-btn-secondary text-xs" disabled={!selectedId || syncing} onClick={() => void sync()}><i className={syncing ? 'ri-loader-4-line animate-spin' : 'ri-refresh-line'} />{syncing ? 'Sincronizando…' : 'Atualizar agenda'}</button><button type="button" className="wf-btn-secondary text-xs" aria-expanded={expanded} aria-controls="wa-akg-contact-list" onClick={() => setExpanded((value) => !value)}><i className={expanded ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line'} />{expanded ? 'Ocultar contatos' : 'Mostrar contatos'}</button></div>
+    </div>
+    <div className="border-t border-background-200 px-4 py-3">
+      {administrator && accounts.length > 1 && <label className="block max-w-sm text-xs font-semibold text-foreground-700">Usuário / dispositivo<select className="mt-1 w-full wf-select" value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>{accounts.map((entry) => <option key={entry.account?.id} value={entry.account?.id ?? ''}>{entry.account?.label ?? 'Conta sem rótulo'}</option>)}</select></label>}
+      {selected && <p className={`${administrator && accounts.length > 1 ? 'mt-2' : ''} text-xs text-foreground-600`}>Exibindo somente os contatos de <strong>{selected.account?.label}</strong>.</p>}
+      {notice && <p role="status" className="mt-2 rounded-lg bg-background-100 px-3 py-2 text-xs text-foreground-700">{notice}</p>}
+      {expanded && <div id="wa-akg-contact-list" className="mt-3 max-h-60 overflow-y-auto rounded-xl border border-background-200 bg-white"><table className="w-full text-left text-xs"><thead className="sticky top-0 bg-background-50 text-foreground-500"><tr><th className="px-3 py-2 font-semibold">Contato</th><th className="px-3 py-2 font-semibold">Telefone</th></tr></thead><tbody>{contacts.length ? contacts.map((contact) => <tr key={contact.phone} className="border-t border-background-100"><td className="px-3 py-2 text-foreground-900">{contact.name}</td><td className="px-3 py-2 text-foreground-600">{displayPhone(contact.phone)}</td></tr>) : <tr><td colSpan={2} className="px-3 py-6 text-center text-foreground-500">Nenhum contato sincronizado ainda.</td></tr>}</tbody></table></div>}
+    </div>
   </section>;
 }

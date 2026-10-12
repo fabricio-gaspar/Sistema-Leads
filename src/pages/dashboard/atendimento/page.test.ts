@@ -41,4 +41,22 @@ describe('Central de Atendimento WhatsApp entry', () => {
     expect(page).toContain("document.addEventListener('visibilitychange'");
     expect(page).toContain("window.addEventListener('pageshow'");
   });
+
+  it('prioritizes the conversation and leaves channel and agenda tools compact until needed', () => {
+    const page = readFileSync(resolve('src/pages/dashboard/atendimento/page.tsx'), 'utf8');
+    const panel = readFileSync(resolve('src/components/feature/WaAkgPanel.tsx'), 'utf8');
+    const directory = readFileSync(resolve('src/pages/dashboard/atendimento/components/WaAkgContactDirectory.tsx'), 'utf8');
+    const styles = readFileSync(resolve('src/components/feature/wayflex-redesign.css'), 'utf8');
+
+    expect(styles).toContain('grid-template-columns:18rem minmax(0,1fr) !important');
+    expect(styles).toContain('grid-template-columns:18rem minmax(480px,1fr) 19rem !important');
+    expect(styles).toContain("button[aria-label='Abrir contexto']");
+    expect(page).toContain('Abrir contexto');
+    expect(panel).toContain('Status do meu canal');
+    expect(panel).toContain('Gerenciar conexão');
+    expect(panel).toContain('aria-expanded={centralDetailsVisible}');
+    expect(directory).toContain('Agenda do WhatsApp');
+    expect(directory).toContain('Mostrar contatos');
+    expect(directory).toContain('aria-expanded={expanded}');
+  });
 });
