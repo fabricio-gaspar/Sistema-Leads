@@ -6,7 +6,8 @@
 - A sugestão não inicia consulta em fonte externa, não importa leads e não envia mensagens. A busca real continua exigindo a revisão do operador e o clique explícito em **Buscar**.
 - O contrato novo da Edge `gerar-prompt-busca` exige sessão autenticada e papel comercial autorizado, lê o contexto comercial somente no servidor, normaliza rigorosamente a resposta do modelo e não devolve credenciais, QR Codes, mensagens ou configuração bruta ao navegador. Se o provedor de IA não estiver disponível, a interface oferece sugestão local determinística baseada no perfil cadastrado.
 - Validação local: 17 testes focados, type-check frontend/Edge, lint direcionado, build Vite/artefato Sites e `git diff --check` aprovados. Nenhuma busca paga, dado de cliente, mensagem, Ana, canal ou agenda foi acionado durante a validação.
-- Estado: **LOCAL VALIDADO / PUBLICAÇÃO PENDENTE**. A confirmação operacional do modelo depende da Edge publicada e de um uso autenticado; não foi feita chamada real ao provedor nesta etapa.
+- Publicação parcial: commit `fac68a1` foi enviado ao GitHub e a Edge `gerar-prompt-busca` está **ACTIVE v9**, com JWT obrigatório e o novo contrato de filtros. A confirmação operacional do modelo depende de um uso autenticado; não foi feita chamada real ao provedor nesta etapa.
+- O Site existente não foi atualizado: o repositório-fonte do Site divergiu do checkout e o workflow oficial recusou qualquer sobrescrita. Nenhum force push, reset ou novo Site foi criado. Próxima ação: reconciliar o histórico da fonte do Site e então salvar/deployar o artefato validado para `https://prospect.wfdigital.com.br`.
 
 ## 12/10/2026 — Resolução de nomes dos contatos recebidos
 
