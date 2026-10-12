@@ -110,8 +110,8 @@
 .wf-central-channel-status strong.is-warning { color:#9a5b12; }
 .wf-central-channel-status strong.is-neutral { color:#51605a; }
 .wf-app .wf-central-directory { box-shadow:0 5px 16px rgb(36 58 47 / .025); }
-.wf-app .wf-page--inbox > .grid { min-height:35rem !important; }
-@media (min-width:1024px) { .wf-app .wf-page--inbox > .grid { height:calc(100dvh - 14rem) !important; grid-template-columns:18rem minmax(0,1fr) !important; } }
+.wf-app .wf-page--inbox > .grid { position:relative; min-height:620px !important; }
+@media (min-width:1024px) { .wf-app .wf-page--inbox > .grid { height:max(620px,calc(100dvh - 14rem)) !important; grid-template-columns:18rem minmax(0,1fr) !important; } }
 @media (min-width:1024px) and (max-width:1535px) { .wf-app .wf-page--inbox > .grid > aside[aria-label='Contexto do lead'].hidden { display:none !important; } .wf-app .wf-page--inbox > .grid > aside[aria-label='Contexto do lead'].flex { position:absolute; inset:0 0 0 auto; z-index:20; display:flex !important; width:min(100%,24.375rem); min-height:0 !important; box-shadow:-14px 0 28px rgb(26 42 33 / .14); } .wf-app .wf-page--inbox button[aria-label='Abrir contexto'] { display:inline-flex !important; } .wf-app .wf-page--inbox > .grid > aside[aria-label='Contexto do lead'] > header { display:flex !important; } }
 @media (min-width:1536px) { .wf-app .wf-page--inbox > .grid { grid-template-columns:18rem minmax(480px,1fr) 19rem !important; } .wf-app .wf-page--inbox > .grid > aside[aria-label='Contexto do lead'] { min-height:0 !important; } }
 .wf-app .wf-page--kanban [aria-label='Etapas do pipeline'] { scrollbar-color:#a4b09f #edf1ee; scrollbar-width:thin; }

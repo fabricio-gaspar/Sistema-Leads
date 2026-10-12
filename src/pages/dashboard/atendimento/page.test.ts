@@ -50,13 +50,25 @@ describe('Central de Atendimento WhatsApp entry', () => {
 
     expect(styles).toContain('grid-template-columns:18rem minmax(0,1fr) !important');
     expect(styles).toContain('grid-template-columns:18rem minmax(480px,1fr) 19rem !important');
+    expect(styles).toContain('position:relative');
+    expect(styles).toContain('height:max(620px,calc(100dvh - 14rem)) !important');
     expect(styles).toContain("button[aria-label='Abrir contexto']");
     expect(page).toContain('Abrir contexto');
+    expect(page).toContain('aria-controls="central-lead-context"');
+    expect(page).toContain('aria-expanded={contextOpen}');
+    expect(page).toContain('id="central-lead-context"');
+    expect(page).toContain("event.key === 'Escape'");
+    expect(page).toContain("setAttribute('aria-label', 'Fechar contexto')");
     expect(panel).toContain('Status do meu canal');
     expect(panel).toContain('Gerenciar conexão');
     expect(panel).toContain('aria-expanded={centralDetailsVisible}');
+    expect(panel).toContain('centralChannelState(selected, statusUnconfirmed)');
+    expect(panel).toContain('aria-label="Telefone para gerar código de pareamento"');
+    expect(panel).toContain('aspect-square w-64 max-w-full object-contain');
     expect(directory).toContain('Agenda do WhatsApp');
     expect(directory).toContain('Mostrar contatos');
     expect(directory).toContain('aria-expanded={expanded}');
+    expect(directory).toContain('tabIndex={0}');
+    expect(directory).toContain('overflow-x-auto');
   });
 });
