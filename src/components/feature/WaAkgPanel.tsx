@@ -289,7 +289,6 @@ export default function WaAkgPanel({ mode = 'administration', surface = 'whatsap
   if (loading) return <section className="wf-surface p-6 text-sm text-foreground-500"><i className="ri-loader-4-line mr-2 animate-spin" />Carregando seu canal WA-AKG…</section>;
 
   if (inOnboarding) {
-    const instanceName = selected?.integration?.sessionName || selected?.account.label || 'Sua instância';
     const connected = Boolean(selected && isWaAkgDeviceLinked(selected));
     return <section id="wa-akg-first-access" className="overflow-hidden bg-background-50">
       {selected ? <>
@@ -304,7 +303,7 @@ export default function WaAkgPanel({ mode = 'administration', surface = 'whatsap
 
         <div className="mt-4 rounded-xl border border-background-200 bg-white p-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
-            <div><p className="text-xs text-foreground-500">Instância do usuário</p><p className="mt-1 break-all font-semibold text-foreground-950">{instanceName}</p></div>
+            <div><p className="text-xs text-foreground-500">Conexão do seu dispositivo</p><p className="mt-1 font-semibold text-foreground-950">QR Code temporário e protegido</p></div>
             <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${connected ? 'bg-[#E8F7EF] text-[#147445]' : selected.account.connectionStatus === 'qr' ? 'bg-[#FFF1D8] text-[#965A12]' : 'bg-background-100 text-foreground-600'}`}>{connected ? 'Dispositivo conectado' : selected.account.connectionStatus === 'qr' ? 'Aguardando leitura' : 'Preparar conexão'}</span>
           </div>
           <dl className="mt-4 grid gap-3 text-xs sm:grid-cols-2">
