@@ -1,6 +1,7 @@
 import { createAdminClient, requireOrganizationRole, requireUser } from '../_shared/auth.ts';
 import { allowedCorsHeaders, hasAllowedOrigin, json, preflight, safeError } from '../_shared/http.ts';
 import { zapiBaseUrl } from '../_shared/runtimeSafety.ts';
+import { resolveWaAkgOperational } from '../_shared/waAkgOperational.ts';
 
 type Action = 'status' | 'set_kill_switch' | 'activate_real' | 'events' | 'configure_whatsapp_webhook' | 'activate_scheduler';
 type WebhookDiagnosticState = 'not_configured' | 'credentials_changed' | 'waiting_callback' | 'lead_not_matched' | 'unsupported_callback' | 'processing_failed' | 'homologated';
@@ -116,10 +117,10 @@ async function operationalStatus(admin: ReturnType<typeof createAdminClient>, or
     admin.from('lead_outreach').select('*', { count: 'exact', head: true }).eq('organization_id', organizationId).eq('channel', 'whatsapp').not('delivered_at', 'is', null).gte('delivered_at', oneDayAgo),
     admin.from('outreach_jobs').select('*', { count: 'exact', head: true }).eq('organization_id', organizationId).eq('channel', 'whatsapp').eq('status', 'failed').gte('run_at', oneDayAgo),
     admin.from('channel_policy_events').select('id,risk_level,action,reason,created_at').eq('organization_id', organizationId).eq('channel', 'whatsapp').is('resolved_at', null).order('created_at', { ascending: false }).limit(20),
-    admin.from('whatsapp_accounts').select('id,integration_id,provider,account_type,is_default,enabled,connection_status,status_checked_at,updated_at,verified_name,label')
+    admin.from('whatsapp_accounts').select('id,integration_id,provider,account_type,is_default,enabled,connection_status,status_checked_at,updated_at,verified_name,label,connected_phone_suffix,last_error_code')
       .eq('organization_id', organizationId).is('archived_at', null),
     admin.from('messaging_provider_controls').select('provider,inbound_enabled,send_enabled,automation_enabled,kill_switch,reason,updated_at')
-      .eq('organization_id', organizationId).in('provider', ['zapi', 'meta_cloud']),
+      .eq('organization_id', organizationId).in('provider', ['zapi', 'meta_cloud', 'wa_akg']),
   ]);
   if ([
     companyRead,
@@ -198,7 +199,24 @@ async function operationalStatus(admin: ReturnType<typeof createAdminClient>, or
   };
   const zapiProvider = providerIntegration('zapi');
   const metaProvider = providerIntegration('meta_cloud');
-  const activeProvider = [zapiProvider, metaProvider].find((item) => item.enabled) ?? null;
+  const waAkgSnapshot = resolveWaAkgOperational(whatsappAccounts, integrations, providerControls);
+  const waAkgProvider = waAkgSnapshot.present ? {
+    key: waAkgSnapshot.key,
+    label: waAkgSnapshot.label,
+    category: waAkgSnapshot.category,
+    provider: waAkgSnapshot.provider,
+    connected: waAkgSnapshot.connected,
+    enabled: waAkgSnapshot.enabled,
+    paused: waAkgSnapshot.paused,
+    last_tested_at: waAkgSnapshot.lastTestedAt,
+    last_success_at: waAkgSnapshot.lastSuccessAt,
+    last_error: waAkgSnapshot.lastError,
+    status_detail: waAkgSnapshot.statusDetail,
+    configuration: { phone_suffix: waAkgSnapshot.phoneSuffix },
+  } : null;
+  // WA-AKG is the sole active transport. Legacy rows remain visible for audit
+  // but can never win the operational status when this account is present.
+  const activeProvider = waAkgProvider ?? [zapiProvider, metaProvider].find((item) => item.enabled) ?? null;
   const activeWhatsappPolicies = policyRead.data ?? [];
   const sentLastHour = (sentHourRead.count ?? 0) + (dailyReportHourRead.count ?? 0);
   const sentLast24Hours = (sentDayRead.count ?? 0) + (dailyReportDayRead.count ?? 0);
@@ -263,6 +281,14 @@ async function operationalStatus(admin: ReturnType<typeof createAdminClient>, or
     phoneSuffix: testLeadPhone.replace(/\D/g, '').slice(-4),
   } : null;
   const webhookDiagnostic = (() => {
+    if (waAkgProvider) return {
+      state: waAkgProvider.enabled ? 'homologated' as WebhookDiagnosticState
+        : waAkgProvider.connected ? 'waiting_callback' as WebhookDiagnosticState : 'not_configured' as WebhookDiagnosticState,
+      registeredAt: waAkgProvider.last_tested_at,
+      lastEventAt: waAkgProvider.last_success_at,
+      detail: waAkgProvider.status_detail,
+      testLead: null,
+    };
     if (registrationInvalidated) return {
       state: 'credentials_changed' as WebhookDiagnosticState,
       registeredAt,
@@ -331,12 +357,12 @@ async function operationalStatus(admin: ReturnType<typeof createAdminClient>, or
         ? (activeProvider?.status_detail || 'Canal validado nas últimas 24 horas.')
         : activeProvider
           ? `${activeProvider.label} precisa de uma validação recente.`
-          : 'Ative e valide Z-API ou Meta WhatsApp Cloud API antes de liberar mensagens.',
+          : 'Conecte e valide o canal WA-AKG antes de liberar mensagens.',
     },
     {
       id: 'whatsapp_webhook',
       label: activeProvider?.key === 'whatsapp_meta' ? 'Respostas da Meta homologadas' : 'Respostas do WhatsApp homologadas',
-      ok: activeProvider?.key === 'whatsapp_meta' ? false : isOnline(whatsappWebhook),
+      ok: activeProvider?.key === 'whatsapp_meta' ? false : activeProvider?.key.startsWith('whatsapp_wa_akg:') ? isOnline(activeProvider) : isOnline(whatsappWebhook),
       detail: activeProvider?.key === 'whatsapp_meta'
         ? 'A Meta está ativa, mas a entrada ainda precisa ser homologada com um callback real antes de liberar a Ana automaticamente.'
         : webhookDiagnostic.detail,
@@ -362,7 +388,7 @@ async function operationalStatus(admin: ReturnType<typeof createAdminClient>, or
     productionReady: checks.every((check) => check.ok),
     checks,
     webhookDiagnostic,
-    integrations: [...integrations, zapiProvider, metaProvider].map((item) => ({
+    integrations: [...integrations, ...(waAkgProvider && !integrations.some((item) => item.key === waAkgProvider.key) ? [waAkgProvider] : []), zapiProvider, metaProvider].map((item) => ({
       key: item.key, label: item.label, category: item.category, provider: item.provider, connected: item.connected === true,
       enabled: item.enabled === true, paused: item.paused === true, lastTestedAt: item.last_tested_at,
       lastSuccessAt: item.last_success_at, lastError: item.last_error, detail: item.status_detail,
