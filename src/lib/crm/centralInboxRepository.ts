@@ -169,6 +169,15 @@ const asString = (value: unknown): string | null => typeof value === 'string' &&
 const asNumber = (value: unknown): number => typeof value === 'number' && Number.isFinite(value) ? value : 0;
 const asBool = (value: unknown): boolean => value === true;
 
+/** Prefer the resolved name, but never render a received contact as anonymous
+ * when the backend still returns the legacy placeholder. A phone is factual
+ * identity data, not a guessed name. */
+function contactLabel(row: UnknownRecord, prefix = ''): string {
+  const name = asString(row[`${prefix}contact`]);
+  if (name && name !== 'Contato não identificado' && name !== 'Contato não informado') return name;
+  return asString(row[`${prefix}phone`]) ?? asString(row[`${prefix}whatsapp`]) ?? name ?? 'Contato não informado';
+}
+
 function channel(value: unknown): CentralChannel {
   return value === 'email' || value === 'instagram' ? value : 'whatsapp';
 }
@@ -228,7 +237,7 @@ export function mapCentralInboxPage(payload: unknown): CentralInboxPage {
       return {
         leadId: asString(row.lead_id) ?? '',
         protocol: asString(row.protocol) ?? '—',
-        contact: asString(row.contact) ?? 'Contato não informado',
+        contact: contactLabel(row),
         company: asString(row.company) ?? 'Empresa não informada',
         channel: channel(row.channel),
         stage: asString(row.stage) ?? 'novo',
@@ -271,7 +280,7 @@ export function mapCentralConversationDetail(payload: unknown): CentralConversat
     conversation: {
       leadId,
       protocol: asString(conversationRow.protocol) ?? '—',
-      contact: asString(conversationRow.contact) ?? 'Contato não informado',
+      contact: contactLabel(conversationRow),
       company: asString(conversationRow.company) ?? 'Empresa não informada',
       phone: asString(conversationRow.phone),
       whatsapp: asString(conversationRow.whatsapp),

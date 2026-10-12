@@ -32,4 +32,20 @@ describe('central inbox mapper', () => {
     expect(mapCentralInboxCounts({ all: 42, unread: 7, waiting: 4, mine: 3 }))
       .toEqual({ all: 42, unread: 7, waiting: 4, mine: 3 });
   });
+
+  it('uses the factual phone when an older backend row still has the anonymous placeholder', () => {
+    const page = mapCentralInboxPage({
+      total: 1, has_more: false,
+      items: [{ lead_id: '33333333-3333-4333-8333-333333333333', contact: 'Contato não identificado', phone: '+5511999999999', whatsapp: null }],
+    });
+    expect(page.items[0].contact).toBe('+5511999999999');
+  });
+
+  it('keeps a resolved agenda name ahead of phone identity', () => {
+    const detail = mapCentralConversationDetail({
+      conversation: { lead_id: '44444444-4444-4444-8444-444444444444', contact: 'Vanessa', phone: '+5511888888888', channel: 'whatsapp' },
+      messages: [], has_more_messages: false, tasks: [], notes: [], activities: [],
+    });
+    expect(detail?.conversation.contact).toBe('Vanessa');
+  });
 });

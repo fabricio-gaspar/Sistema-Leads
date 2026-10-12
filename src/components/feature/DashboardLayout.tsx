@@ -298,7 +298,7 @@ export default function DashboardLayout() {
             {sidebarOpen && (
               <div className="flex-1 min-w-0 text-left">
                 <p className="wf-sidebar-user-name text-sm font-medium truncate">{user.name}</p>
-                <p className="text-foreground-400 text-xs truncate">{access ? roleLabel[access.role] : user.role}</p>
+                <p className="text-foreground-400 text-xs truncate">{access ? roleLabel[access.role] : accessLoading ? 'Verificando acesso…' : user.role}</p>
               </div>
             )}
             {sidebarOpen && (
