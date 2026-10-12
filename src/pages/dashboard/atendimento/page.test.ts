@@ -67,6 +67,9 @@ describe('Central de Atendimento WhatsApp entry', () => {
     expect(panel).toContain('aspect-square w-64 max-w-full object-contain');
     expect(directory).toContain('Agenda do WhatsApp');
     expect(directory).toContain('Mostrar contatos');
+    expect(directory).toContain('Contatos sincronizados ficam fora da Ana');
+    expect(directory).toContain('Manter como contato');
+    expect(directory).toContain('Tornar lead');
     expect(directory).toContain('aria-expanded={expanded}');
     expect(directory).toContain('tabIndex={0}');
     expect(directory).toContain('overflow-x-auto');

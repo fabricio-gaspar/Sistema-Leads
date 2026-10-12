@@ -2307,3 +2307,11 @@ webhook em ambiente controlado.
 - Código sincronizado no GitHub: `f88abf7` e correção complementar `bc4eb75`. Validações: 10 arquivos/37 testes focados e Vitest completo 97 arquivos/664 testes, type-check, lint, build Vite e `git diff --check` aprovados.
 - **PUBLICADO:** Site existente versão **188**, commit de origem `d65f1db9be0142746debb6f13cb97fed7e43b55d`, deploy `appgdep_6acc30daf2788191957acf0b81625608` com estado `succeeded`, em `https://prospect.wfdigital.com.br/dashboard/atendimento`; a audiência pública existente foi preservada. A leitura HTTP da rota e o hash do módulo publicado da Central conferem com o pacote validado.
 - Próxima ação exata: homologar visualmente uma sessão autenticada limpa nos viewports desktop e mobile, sem enviar mensagens, gerar QR ou alterar canais.
+
+## 12/10/2026 — Proteção de contatos da agenda contra a Ana
+
+- A migration `20261012120000_wa_akg_agenda_contact_protection` foi aplicada no Supabase oficial: cada contato sincronizado começa como `unclassified`/`unverified`, permanece fora da Ana e só muda com uma decisão explícita de **Manter como contato** ou **Tornar lead**.
+- A proteção agora é de backend: trigger em `leads` força atendimento humano e pausa a Ana para contatos não autorizados; trigger em `outreach_jobs` cancela filas automáticas não manuais com `contact_protection_required`; a decisão fica auditada e preserva histórico.
+- A migration `20261012123000_wa_akg_directory_lead_link` mantém o contato sincronizado ligado ao lead existente quando houver correspondência, evitando duplicação ao promover um contato.
+- A Central exibe o estado de proteção e os dois comandos de decisão. **Tornar lead** apenas autoriza o cadastro e começa em modo humano; a ativação da Ana continua sendo uma decisão separada.
+- Validação remota estrutural: 7 colunas, 4 funções, 2 triggers e 1.137 contatos com estado seguro padrão confirmados. Validação local: 7 testes focados, type-check, lint, build Vite e `git diff --check` aprovados. Nenhuma mensagem real foi enviada.
