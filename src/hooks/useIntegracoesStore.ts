@@ -19,10 +19,11 @@ export type OperationalIntegration = Omit<Integracao, 'status'> & {
 };
 
 export type AnaProviderConfiguration = {
-  provider: 'openai' | 'claude';
+  provider: 'openai' | 'claude' | 'freellm';
   model: string;
   openaiModel: string | null;
   claudeModel: string | null;
+  freellmModel: string | null;
   openaiConfigured: boolean;
   claudeConfigured: boolean;
   selectedModelValidated: false;
@@ -62,12 +63,12 @@ function asObject(value: unknown): Record<string, unknown> {
     : {};
 }
 
-function allowedModel(provider: 'openai' | 'claude', value: unknown): string | null {
+function allowedModel(provider: 'openai' | 'claude' | 'freellm', value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const model = value.trim();
   const models = provider === 'openai'
     ? ['gpt-4.1-mini', 'gpt-4.1', 'gpt-4o-mini']
-    : ['claude-sonnet-5', 'claude-haiku-4-5', 'claude-opus-5'];
+    : provider === 'claude' ? ['claude-sonnet-5', 'claude-haiku-4-5', 'claude-opus-5'] : ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'qwen2.5-72b-instruct'];
   return models.includes(model) ? model : null;
 }
 
@@ -78,14 +79,16 @@ function publicBoolean(value: unknown): boolean {
 function anaProviderConfiguration(value: unknown): AnaProviderConfiguration | null {
   const configuration = asObject(value);
   const provider = configuration.ana_provider;
-  if (provider !== 'openai' && provider !== 'claude') return null;
-  const model = allowedModel(provider, configuration.ana_model);
+  if (provider !== 'openai' && provider !== 'claude' && provider !== 'freellm' && provider !== 'freellmapi') return null;
+  const normalizedProvider = provider === 'freellmapi' ? 'freellm' : provider;
+  const model = allowedModel(normalizedProvider, configuration.ana_model);
   if (!model) return null;
   return {
-    provider,
+    provider: normalizedProvider,
     model,
     openaiModel: allowedModel('openai', configuration.ana_openai_model),
     claudeModel: allowedModel('claude', configuration.ana_claude_model),
+    freellmModel: allowedModel('freellm', configuration.ana_freellm_model),
     openaiConfigured: publicBoolean(configuration.ana_openai_configured),
     claudeConfigured: publicBoolean(configuration.ana_claude_configured),
     // A configuração pública não é prova de chamada ao modelo. O backend só
@@ -102,7 +105,7 @@ async function loadFromBackend(context: SessionContext): Promise<OperationalInte
     .from('integrations')
     // Nunca hidratar o JSON inteiro no navegador: este recorte transporta
     // somente o estado público da Ana, sem a referência do cofre ou chaves.
-    .select('key,category,connected,enabled,paused,status_detail,last_error,last_tested_at,configured:configuration->>configured,ana_provider:configuration->>provedor_principal,ana_model:configuration->>modelo_principal,ana_openai_model:configuration->>openai_model,ana_claude_model:configuration->>claude_model,ana_openai_configured:configuration->>openai_configurado,ana_claude_configured:configuration->>claude_configurado')
+    .select('key,category,connected,enabled,paused,status_detail,last_error,last_tested_at,configured:configuration->>configured,ana_provider:configuration->>provedor_principal,ana_model:configuration->>modelo_principal,ana_openai_model:configuration->>openai_model,ana_claude_model:configuration->>claude_model,ana_freellm_model:configuration->>freellm_model,ana_openai_configured:configuration->>openai_configurado,ana_claude_configured:configuration->>claude_configurado')
     .eq('organization_id', organizationId)
     .in('key', [...supportedKeys]);
   sessionContext.assertCurrent(context);

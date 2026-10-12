@@ -196,18 +196,19 @@ export const integracoes: Integracao[] = [
   },
   {
     id: 'int-6',
-    nome: 'IA da Ana (OpenAI e Claude)',
+    nome: 'IA da Ana (OpenAI, Claude e FreeLLMAPI)',
     icone: 'ri-brain-line',
     categoria: 'Inteligência',
     status: 'conectado',
     ultimoTeste: 'há 2 min',
-    descricao: 'Motor comercial da Ana. Configure OpenAI e/ou Claude; as chaves ficam somente no cofre do Backend.',
+    descricao: 'Motor comercial da Ana. FreeLLMAPI usa os segredos da VPS; OpenAI e Claude permanecem como fallback.',
     campos: [
-      { id: 'provedor_principal', rotulo: 'Provedor principal', tipo: 'selecao', opcoes: ['OpenAI', 'Claude'], obrigatorio: true, ajuda: 'Escolha qual IA a Ana usa primeiro.' },
+      { id: 'provedor_principal', rotulo: 'Provedor principal', tipo: 'selecao', opcoes: ['OpenAI', 'Claude', 'FreeLLMAPI'], obrigatorio: true, ajuda: 'Escolha qual IA a Ana usa primeiro. FreeLLMAPI só ficará ativo após configurar os segredos no backend.' },
       { id: 'openai_key', rotulo: 'API Key OpenAI (opcional)', tipo: 'senha', placeholder: 'sk-...', ajuda: 'OpenAI é o provedor principal quando configurado.' },
       { id: 'openai_model', rotulo: 'Modelo OpenAI', tipo: 'selecao', opcoes: ['gpt-4.1-mini', 'gpt-4.1', 'gpt-4o-mini'], ajuda: 'Modelo usado quando OpenAI for escolhida.' },
       { id: 'claude_key', rotulo: 'API Key Claude (opcional)', tipo: 'senha', placeholder: 'sk-ant-...', ajuda: 'Claude é usado quando a OpenAI não estiver configurada ou estiver indisponível.' },
       { id: 'claude_model', rotulo: 'Modelo Claude', tipo: 'selecao', opcoes: ['claude-sonnet-5', 'claude-haiku-4-5', 'claude-opus-5'], ajuda: 'Modelo usado quando Claude for escolhida.' },
+      { id: 'freellm_model', rotulo: 'Modelo FreeLLMAPI', tipo: 'selecao', opcoes: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'qwen2.5-72b-instruct'], ajuda: 'O endpoint da VPS precisa ser compatível com a API OpenAI.' },
     ],
   },
   {
