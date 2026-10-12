@@ -4,7 +4,10 @@ import { allowedCorsHeaders, hasAllowedOrigin, json, preflight, safeError } from
 const AI_MODELS = {
   openai: ['gpt-4.1-mini', 'gpt-4.1', 'gpt-4o-mini'],
   claude: ['claude-sonnet-5', 'claude-haiku-4-5', 'claude-opus-5'],
-  freellm: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'qwen2.5-72b-instruct'],
+  // Models exposed by the FreeLLMAPI gateway. `free-router` is the stable
+  // gateway route and must remain selectable even when the upstream model
+  // changes.
+  freellm: ['free-router', 'llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'qwen2.5-72b-instruct'],
 } as const;
 const APIFY_GOOGLE_MAPS_ACTOR = 'compass/google-maps-extractor';
 
