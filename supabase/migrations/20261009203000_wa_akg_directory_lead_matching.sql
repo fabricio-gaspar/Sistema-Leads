@@ -61,4 +61,3 @@ grant execute on function public.apply_whatsapp_directory_name(uuid, uuid, uuid)
 grant execute on function public.apply_whatsapp_directory_names(uuid, uuid) to service_role;
 
 commit;
-

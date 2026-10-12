@@ -1,5 +1,24 @@
 # Histórico resumido de execução
 
+## 09/10/2026 — Ativação WA-AKG por permissões existentes
+
+- Implementada e publicada a Edge wa-akg-worker v10 com ativação automática de conta individual somente após confirmação direta da sessão e validação do proprietário ativo com channels.view_own e channels.connect_own. A transição reutiliza o lifecycle durável; falhas de permissão, membro ou lifecycle mantêm a conta bloqueada.
+- A mudança não grava nem flexibiliza messaging_provider_controls. Entrada, resposta humana e Ana continuam condicionadas ao teto administrativo global e às autorizações de cada ação.
+- Teste red/green, 32 testes focados, 643/643 Vitest, type-check Edge, lint dirigido e diff check passaram. Não foi feita ativação E2E com telefone porque o dispositivo de final divergente foi desvinculado; estado final seguro: conta/integracão desabilitadas/pausadas, controles falsos e kill switch ativo.
+
+## 09/10/2026 — Reconciliação automática de CONNECTED do WA-AKG
+
+- Causa comprovada: após o pareamento, o gateway confirmava a sessão individual conectada, mas não emitia connection.update utilizável durante o replay de histórico; por isso o CRM continuava em qr e sem final de número.
+- A fonte remota ativa do worker foi usada como base para evitar regressão no processamento de histórico. A Edge wa-akg-worker v9 acrescenta uma reconciliação monotônica: consulta apenas contas WA-AKG locais inativas, valida o session id determinístico, exige confirmação direta do gateway e grava somente connected e o final normalizado do número.
+- Verificação: teste red/green novo; 30 testes focados e 641/641 Vitest passaram; Edge type-check, lint dirigido e diff check passaram. A execução automática persistiu a conexão e a tela publicada mostrou **Conectado**, connected e **Final 1875**.
+- Segurança: conta e integração seguem desabilitadas/pausadas; Ana protegida. Não houve QR, novo pareamento, envio, automação ou mudança de dados de clientes.
+
+## 09/10/2026 — WA-AKG: recuperação segura publicada e confirmada
+
+- Commit `83b5335` foi validado localmente (43 testes focados, type-check app/Edge, lint, build e diff check), enviado ao GitHub e sincronizado na fonte isolada do Site. O Site público existente foi preservado e a versão 180 publicou com sucesso.
+- A migration de recuperação restrita e a Edge `wa-akg` foram aplicadas. O diagnóstico consultou o gateway sem iniciar sessão, gerar QR ou enviar mensagens e confirmou sessão desconectada pronta para QR, webhook e proteções. A reconciliação auditada levou somente a conta para `qr` e preservou conta, histórico, integração desligada/pausada e Ana protegida.
+- Consulta posterior confirmou lifecycle `completed` na revisão 22; painel mostrou gateway acessível e `SCAN_QR`. Não houve QR, pareamento, mensagem, ativação da Ana ou teste de entrega. Próxima ação é exclusiva do titular: gerar QR, escanear no telefone pretendido e atualizar o status antes de um teste controlado de entrada.
+
 ## 07/10/2026 — Versionamento/publicação: validação concluída
 
 - Checkout e `main` preservados, HEAD `574c930`. GitHub `main` conferido por connector/fetch: `7a3a6c0b1b6330e89ef547a33363789cbfb63399`; histórico sem ancestral comum, `origin` é Sites. Nenhum remote alterado, branch criado ou force push.

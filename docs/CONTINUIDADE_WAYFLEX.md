@@ -1,5 +1,32 @@
 # Checkpoint — WayFlex CRM
 
+## 09/10/2026 — Central WA-AKG: permissão de listagem restaurada
+
+- Causa confirmada: a Central registrava entradas WA-AKG, mas a listagem autenticada falhava porque `authenticated` não tinha `EXECUTE` na função privada de filtro `can_read_wa_akg_central_lead`.
+- Foi aplicada a migration oficial `20261009203616_restore_wa_akg_central_filter_execute`. Ela concede exclusivamente essa execução ao papel autenticado; a função preserva as validações de empresa, administrador e proprietário do dispositivo.
+- Evidência: teste red confirmou a permissão ausente; teste green confirmou o grant. Após recarregar a Central autenticada, a lista exibiu sete conversas e a entrada de teste controlado. Nenhuma sessão, contato, mensagem de saída ou regra da Ana foi alterada.
+- Próxima ação opcional: enviar uma nova mensagem de entrada e confirmar a atualização automática sem recarregar a página.
+
+## 09/10/2026 — WA-AKG: ativação automática limitada às permissões do proprietário
+
+- Foi publicada a Edge wa-akg-worker v10. Após confirmação direta do gateway, ela ativa a conta individual somente se o proprietário estiver ativo e já tiver channels.view_own e channels.connect_own; o ciclo de vida existente audita e persiste a transição.
+- A política global de entrada, envio e Ana não é modificada pelo pareamento. Ela permanece como teto administrativo; permissões de conversa continuam sendo verificadas por ação.
+- O dispositivo de final divergente foi desvinculado. Estado pós-verificação: conexão desconectada, conta e integração desabilitadas/pausadas, entrada/envio/Ana desligados e kill switch ativo. Não houve mensagem, QR novo, Ana ou automação. Próxima ação: parear o telefone autorizado e confirmar o final antes de um teste de entrada controlado.
+
+## 09/10/2026 — WA-AKG: CRM passou a reconciliar CONNECTED automaticamente
+
+- A sessão de fabricio foi confirmada pelo gateway, mas o CRM permanecia em qr porque o replay de histórico não emitia connection.update utilizável. A correção na Edge wa-akg-worker v9 faz uma leitura segura somente para sessões WA-AKG locais inativas e as promove apenas quando o gateway confirma a sessão determinística como CONNECTED.
+- Pós-publicação: o ciclo automático persistiu connected e confirmou o final **1875**; a prévia publicada mostra **Conectado · protegido**, connected, **Final 1875** e **Desconectar dispositivo**.
+- Conta e integração continuam desabilitadas/pausadas, Ana protegida. Não foram gerados QR, reconectados dispositivos, enviadas mensagens ou ativadas automações. Próxima ação opcional e independente: teste de entrada controlado com autorização do titular.
+
+## 09/10/2026 — WA-AKG: rota pública recuperada e prevenção de QR inerte
+
+- A falha do botão de QR foi rastreada até a origem pública: o container do Cloudflare Quick Tunnel continuava em execução, mas seu hostname temporário deixou de resolver. O gateway e a sessão WhatsApp não foram reiniciados.
+- O túnel protegido foi recriado, a nova origem exata foi registrada em `WA_AKG_ALLOWED_ORIGINS` e somente a URL foi atualizada no segredo já existente no Vault; a chave não foi lida, impressa nem substituída. Diagnóstico do CRM confirmou gateway acessível e sessão `SCAN_QR` para `fabricio`. A conta segue em `qr`, número não confirmado, política de envio inalterada e Ana protegida.
+- O QR não foi aberto nem lido pelo agente. A próxima ação humana é gerar o QR no CRM, fazer a leitura somente pelo telefone autorizado e atualizar o status.
+- A interface agora desabilita **Gerar novo QR** quando o lifecycle estiver bloqueado, evitando a aparência de que o clique funcionou. Teste focado, type-check, lint direcionado, build Vite/artefato Sites e diff check passaram localmente.
+- Foi criado um monitor recorrente de 15 minutos, silencioso enquanto está estável e sem ações corretivas. Ele não reinicia Docker, não reconecta, não gera QR, não envia mensagens, não habilita a Ana e não altera dados. A prevenção durável ainda requer um Cloudflare Named Tunnel e hostname DNS estável do proprietário; Quick Tunnels não possuem garantia de disponibilidade.
+
 ## 07/10/2026 — Higiene do Git e pré-verificação do GitHub
 
 - Antes deste lote, `main`, `origin/main` e a referência consultada diretamente no GitHub apontavam para `cbb3de57cd912b43e9bb20628959105765c61329` (`feat: finalize validated WayFlex release`).
@@ -2243,3 +2270,23 @@ webhook em ambiente controlado.
 - Flavio já possui identidade Auth confirmada e a senha informada pelo administrador autenticou; porém não há vínculo com a empresa, conta individual ou job Evolution GO. O Manager atualizado mostrou nenhuma instância e a reivindicação anterior de remoção consta finalizada. Não se criou outro usuário nem se alterou senha.
 - A recuperação foi interrompida antes de gravar qualquer convite/vínculo: `team-members` remoto v20 não implementa `pending_invites`, as RPCs R4 de convite não existem e a ação remota antiga pode excluir a identidade Auth preexistente ao compensar erro de provisionamento. O controle local de recuperação preparado foi retirado da prévia antes de qualquer envio.
 - Próxima ação exata: homologar e implantar conjuntamente o contrato seguro para identidade existente, R4 e lifecycle Evolution GO; então vincular o vendedor e testar QR. O QR HTTP 400 do runtime remoto permanece um bloqueio independente. Sem convite, instância, mensagem, automação, lead ou dado de cliente alterado neste teste.
+
+## 11/10/2026 — Ana fora do horário e projeção de status da fila
+
+- A resposta automática da Ana estava sendo adiada por `businessHoursOnly=true`; a política da versão ativa foi alterada para permitir processamento fora do horário comercial.
+- A migração `20261011220000_project_outreach_job_delivery_status` projeta o estado de `outreach_jobs` em `lead_messages.delivery_status`, incluindo mensagens já enfileiradas e novas transições da fila. A Central passa a exibir `Na fila`/`Aceita pelo canal` em vez de inferir `Registrada` de um rascunho.
+- Validação remota: trigger e função de projeção instalados; configuração ativa confirmada como `businessHoursOnly=false`; a mensagem pendente de Vanessa permanece `queued` e não foi disparada durante a validação.
+- Validação local: teste focado, type-check, lint direcionado e build Vite aprovados. Nenhuma mensagem real foi enviada.
+
+## 11/10/2026 — Produtos da Central com envio e arrastar/soltar
+
+- Em Central de Atendimento → Conhecimento → Produtos, itens ativos agora podem ser arrastados para a conversa ou enviados pelo botão **Enviar produto agora**. O arrastar prepara o conteúdo no compositor; o envio só ocorre após a confirmação no botão de envio.
+- O envio direto usa a mesma fila segura de `enviar-whatsapp`, com idempotência, validação de organização, opt-out, canal conectado e registro em `conversation_knowledge_events`. Nenhuma credencial ou chamada direta ao provedor foi adicionada ao navegador.
+- Validação local: 13 testes focados, type-check, lint direcionado, build Vite e `git diff --check` aprovados. Nenhuma mensagem real foi disparada durante a validação.
+
+## 11/10/2026 — Correção do assumir atendimento humano e envio de produto
+
+- O diagnóstico autenticado do lead `ea6a969e-f87b-44ce-8e7f-30c498b60549` confirmou a causa: o lead já estava em `modo_atendimento=humano`, mas o handoff criado por **Assumir** permanecia `pending`. As RPCs da Central priorizavam esse status e devolviam `waiting_human`, bloqueando o compositor e o envio de produtos.
+- A migration `20261011233000_fix_operator_takeover_state` instala um trigger que normaliza somente `operator_takeover` pendente para `accepted` e repara os registros antigos que já estão em modo humano. Transferências para outro atendente continuam pendentes.
+- A migration foi aplicada no Supabase oficial `thgzrkppouoevapjquyu`. A verificação remota confirmou o handoff de Vanessa como `accepted`, o lead como `humano`/`ai_paused=true` e a trigger instalada. Após recarregar o Site oficial, a Central exibiu `Atendimento humano`; o botão de produto ficou habilitado e o envio não foi acionado.
+- Validação local: contrato SQL focado (2 testes), handoffs/central inbox (11 testes), sem mensagem real. Type-check, lint, build e publicação do Site ainda são a próxima etapa antes de declarar o lote completo.

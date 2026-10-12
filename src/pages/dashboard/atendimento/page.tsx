@@ -160,7 +160,23 @@ export default function Atendimento() {
     }).catch(() => { if (!disposed) setRealtime('unavailable'); });
     return () => { disposed = true; if (timer !== null) window.clearTimeout(timer); if (channel) void supabase.removeChannel(channel); };
   }, [loadInbox, refreshSelected]);
-  useEffect(() => { const interval = window.setInterval(() => { void loadInbox(false); void refreshSelected(); }, realtime === 'live' ? 60_000 : 15_000); const focus = () => { void loadInbox(false); void refreshSelected(); }; window.addEventListener('focus', focus); return () => { window.clearInterval(interval); window.removeEventListener('focus', focus); }; }, [loadInbox, realtime, refreshSelected]);
+  useEffect(() => {
+    const refresh = () => {
+      if (document.visibilityState === 'hidden') return;
+      void loadInbox(false);
+      void refreshSelected();
+    };
+    const interval = window.setInterval(refresh, realtime === 'live' ? 15_000 : 10_000);
+    window.addEventListener('focus', refresh);
+    window.addEventListener('pageshow', refresh);
+    document.addEventListener('visibilitychange', refresh);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener('focus', refresh);
+      window.removeEventListener('pageshow', refresh);
+      document.removeEventListener('visibilitychange', refresh);
+    };
+  }, [loadInbox, realtime, refreshSelected]);
 
   const choose = (leadId: string) => { setSelectedId(leadId); setUrl({ leadId }); setMobilePanel('conversation'); setMoreOpen(false); };
   const runHandoff = async (kind: 'takeover' | 'transfer' | 'return', operation: () => Promise<unknown>, successText?: string): Promise<boolean> => {

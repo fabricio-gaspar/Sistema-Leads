@@ -1,5 +1,20 @@
 # Problemas conhecidos
 
+## 09/10/2026 — WA-AKG: aguarda novo pareamento do telefone autorizado
+
+- O gateway confirmou que o dispositivo anteriormente vinculado tinha final diferente do telefone esperado. Ele foi desvinculado sem apagar conta ou histórico.
+- A ativação automática por permissão está publicada na Edge v10, mas sua prova ponta a ponta depende da leitura do QR pelo telefone autorizado e da confirmação do final correto. Até lá, entrada, saída e Ana permanecem desligadas.
+
+## 09/10/2026 — WA-AKG: reconciliação de estado resolvida; entrega continua separada
+
+- Resolvido: a divergência entre gateway CONNECTED e CRM em qr foi corrigida na Edge wa-akg-worker v9 e confirmada visualmente na tela publicada para fabricio.
+- Limite que permanece: estado conectado não prova entrega ponta a ponta. Qualquer teste de entrada ou saída deve continuar controlado e autorizado separadamente; Ana e a conta seguem protegidas/desabilitadas.
+
+## 09/10/2026 — WA-AKG: pareamento ainda depende da leitura do titular
+
+- A recuperação segura foi concluída e manteve bloqueios: a conta está em `qr`, a integração permanece desabilitada/pausada, a Ana está protegida e o gateway informa `SCAN_QR`. O QR não foi gerado nem exposto, nenhum telefone foi pareado e nenhuma mensagem foi enviada.
+- Não tratar o status de sessão como entrega ponta a ponta. Após a leitura do QR pelo número pretendido, é obrigatório atualizar o status e confirmar o número antes de considerar um teste de entrada controlado. Saída humana e Ana seguem fora de escopo até liberação explícita.
+
 ## 07/10/2026 — Causa atual do QR: limite de conexões PostgreSQL na Evolution GO
 
 **CONFIRMADO:** `Failed to create container ... pq: sorry, too many clients already` nos logs da instância atual `bfdf104f-c113-4530-bd73-4e5e83cc00fb`, reprodução final 18:07:27 BRT. Edge v25 já elimina connect redundante e retries do QR, sem corrigir a saturação externa. É necessário acesso ao painel de hospedagem/SSH para tratar pools/conexões/limites e recuperar o serviço. API Tester não administra o banco. O ID antigo do job diverge do Vault correto; essa divergência explica logs vazios do ID antigo, mas não o HTTP 400 com token aceito. Nenhuma instância foi substituída.

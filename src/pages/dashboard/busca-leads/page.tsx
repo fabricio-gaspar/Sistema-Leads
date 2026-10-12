@@ -42,6 +42,7 @@ import {
   termsFromIdealProfile,
   type ProspectingTargetProfile,
 } from '@/lib/crm/prospectingIdealProfile';
+import { PROSPECTING_QUICK_PROCESSES, type ProspectingQuickProcess } from '@/lib/crm/prospectingQuickProcesses';
 import {
   PROSPECTING_WIZARD_STEPS,
   nextProspectingWizardStep,
@@ -481,6 +482,25 @@ export default function BuscaLeads() {
     }
     setTermosBusca(next);
     setErroBusca(null);
+  };
+
+  const aplicarProcessoRapido = (processo: ProspectingQuickProcess) => {
+    setOfertaEmpresa(processo.offer);
+    setTipoEmpresaAlvo(processo.targetProfile);
+    setSegmentosCliente(processo.customerSegments);
+    setTermosBusca(processo.terms);
+    setLeadsDia(processo.volume);
+    setTemSite(processo.requireSite);
+    setTemWhatsApp(processo.requireWhatsApp);
+    setTemEmail(processo.requireEmail);
+    setNovoTermo('');
+    setSegmentoSugestao('');
+    setWizardError(null);
+    setErroBusca(null);
+    setResultado(null);
+    setEtapa(2);
+    setWizardStep(4);
+    setAba('busca');
   };
 
   const alternarSegmentoCliente = (segment: string) => {
@@ -1176,6 +1196,31 @@ export default function BuscaLeads() {
           {/* ETAPA 2: Filtros */}
           {etapa === 2 && (
             <div className="space-y-5">
+              {wizardStep === 2 && (
+                <section className="rounded-2xl border border-primary-200 bg-primary-50/50 p-4" aria-labelledby="quick-processes-title">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary-700">Atalho de prospecção</p>
+                      <h2 id="quick-processes-title" className="mt-1 text-base font-heading font-bold text-foreground-900">Processos rápidos Wayflex</h2>
+                      <p className="mt-1 max-w-3xl text-sm text-foreground-600">Aplique um exemplo pronto. Ele mantém sua cidade, preenche um único termo e não inicia uma busca automaticamente.</p>
+                    </div>
+                    <span className="rounded-full border border-primary-200 bg-white px-3 py-1.5 text-xs font-semibold text-primary-800">10 leads · site informado</span>
+                  </div>
+                  {(['materials', 'applications'] as const).map((group) => {
+                    const processes = PROSPECTING_QUICK_PROCESSES.filter((process) => process.group === group);
+                    return <div key={group} className="mt-4">
+                      <h3 className="text-xs font-semibold text-foreground-700">{group === 'materials' ? 'Materiais, acessórios e produtos' : 'Setores de aplicação'}</h3>
+                      <div className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                        {processes.map((process) => <button key={process.id} type="button" onClick={() => aplicarProcessoRapido(process)} className="rounded-xl border border-background-200 bg-white p-3 text-left transition-colors hover:border-primary-300 hover:bg-primary-50">
+                          <span className="block text-sm font-semibold text-foreground-900">{process.label}</span>
+                          <span className="mt-1 block text-xs leading-5 text-foreground-600">{process.description}</span>
+                          <span className="mt-2 inline-block rounded-full bg-background-100 px-2 py-1 text-[11px] font-semibold text-foreground-600">{process.terms[0]}</span>
+                        </button>)}
+                      </div>
+                    </div>;
+                  })}
+                </section>
+              )}
               <section className="rounded-2xl border border-primary-100 bg-primary-50/60 p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>

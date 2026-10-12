@@ -16,6 +16,22 @@ describe('WA-AKG inbound parser', () => {
     expect(parseWaAkgEvent({ event: 'message.received', data: { key: { id: '2', remoteJid: '5511999999999@s.whatsapp.net', fromMe: true } } })).toMatchObject({ kind: 'ignored', reason: 'outbound_echo' });
   });
 
+  it('accepts a personal message sent by the linked phone', () => {
+    const payload = {
+      event: 'message.sent', sessionId: 'seller_12345678', timestamp: '2026-10-04T15:02:00Z',
+      data: {
+        key: { id: 'wamid-out-1', remoteJid: '5511888888888@s.whatsapp.net', fromMe: true },
+        receiver: '5511888888888@s.whatsapp.net', type: 'TEXT', content: 'Resposta do vendedor',
+      },
+    };
+    expect(parseWaAkgEvent(payload)).toMatchObject({
+      kind: 'outbound', messageId: 'wamid-out-1', remoteJid: '5511888888888@s.whatsapp.net', text: 'Resposta do vendedor',
+    });
+    expect(sanitizeWaAkgPayload(payload)).toMatchObject({
+      kind: 'outbound', message_id: 'wamid-out-1', remote_jid: '5511888888888@s.whatsapp.net', text: 'Resposta do vendedor',
+    });
+  });
+
   it('maps receipts and connection state', () => {
     expect(parseWaAkgEvent({ event: 'message.status', data: { key: { id: 'msg-1' }, status: 'READ' } }))
       .toMatchObject({ kind: 'receipt', providerMessageIds: ['msg-1'], status: 'read' });

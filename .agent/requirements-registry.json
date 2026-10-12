@@ -2,6 +2,30 @@
   "schema_version": 1,
   "requirements": [
     {
+      "id": "REQ-WA-AKG-SAFE-PROVISION-RECOVERY-20261009",
+      "description": "Recuperar uma provisão WA-AKG concluída de forma incerta somente após prova independente do gateway, preservando conta, histórico e bloqueios operacionais",
+      "module": "configuracoes_canais_wa_akg",
+      "status": "CONCLUÍDO_SEM_PAREAMENTO",
+      "evidence": "Commit 83b5335; migration 20261009123000 aplicada; Edge wa-akg atualizada; Site v180 publicado. Diagnóstico leu gateway acessível, sessão SCAN_QR, webhook e proteções; reconciliação deixou conta em qr, conta/integração disabled, integração paused e lifecycle completed revisão 22. 43 testes focados, type-check app/Edge, lint, build e diff check passaram. QR, scan, mensagens e Ana não foram acionados.",
+      "last_validation": "2026-10-09"
+    },
+    {
+      "id": "REQ-WA-AKG-CONNECTED-RECONCILIATION-20261009",
+      "description": "Refletir automaticamente no CRM uma sessão WA-AKG já confirmada pelo gateway e confirmar apenas o final do telefone, sem liberar operação.",
+      "module": "configuracoes_canais_wa_akg",
+      "status": "CONCLUÍDO_COM_BLOQUEIOS_PRESERVADOS",
+      "evidence": "A causa foi ausência de connection.update utilizável durante o replay de histórico. wa-akg-worker v9 consulta somente sessões locais inativas e promove qr/configured/disconnected para connected após confirmação direta do gateway e do session id determinístico. O CRM publicado mostra Conectado e Final 1875. Conta e integração continuam disabled/paused e Ana protegida. Vitest completo 641/641, Edge type-check, lint e diff check passaram.",
+      "last_validation": "2026-10-09"
+    },
+    {
+      "id": "REQ-WA-AKG-PERMISSION-AWARE-ACTIVATION-20261009",
+      "description": "Após conexão confirmada, habilitar automaticamente apenas o canal do proprietário ativo que já possui as permissões próprias de visualização e conexão, preservando a política global e a Ana.",
+      "module": "configuracoes_canais_wa_akg",
+      "status": "PUBLICADO_COM_E2E_DE_PAREAMENTO_PENDENTE",
+      "evidence": "wa-akg-worker v10 usa o lifecycle existente para ativar somente após confirmação direta do gateway e channels.view_own + channels.connect_own. Sem permissão ou proprietário válido, mantém bloqueado. Não altera messaging_provider_controls. 643/643 Vitest, type-check Edge, lint e diff check passaram.",
+      "last_validation": "2026-10-09"
+    },
+    {
       "id": "REQ-EVOLUTION-GO-FLAVIO-QR-CAPACITY-20261007",
       "description": "Resolver falha de sessão/QR e testar com Flavio, sem mensagens ou exclusão de histórico",
       "module": "evolution_go_qr",

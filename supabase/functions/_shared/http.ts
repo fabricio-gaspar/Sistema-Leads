@@ -1,5 +1,6 @@
 const DEFAULT_ALLOWED_ORIGINS = [
   'https://leadai-crm-preview.fabricio926564.chatgpt.site',
+  'https://prospect.wfdigital.com.br',
   // The local preview is used by the same authenticated application during
   // homologation. It is an exact origin, never a wildcard.
   'http://127.0.0.1:4173',

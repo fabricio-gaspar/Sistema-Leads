@@ -47,4 +47,69 @@ describe('WaAkgProvider', () => {
     await expect(provider.pair('55 (11) 99999-9999')).resolves.toBe('1234-5678');
     expect(JSON.parse(String(fetchMock.mock.calls[1][1].body))).toEqual({ phoneNumber: '5511999999999' });
   });
+
+  it('reads the scoped CRM contact snapshot without exposing the API key in the URL', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
+      status: true,
+      contacts: [{ agendaName: 'Contato da agenda', whatsappName: 'Nome WhatsApp', publicName: 'Nome público', remoteJid: '5511999999999@s.whatsapp.net' }],
+      truncated: false,
+    }), { status: 200 }));
+    const provider = new WaAkgProvider({
+      baseUrl: 'https://wa.example.com', apiKey: 'secret', sessionId: 'seller_12345678', allowedOrigins, fetchImpl: fetchMock,
+    });
+    await expect(provider.crmSync()).resolves.toEqual({
+      contacts: [{ agendaName: 'Contato da agenda', whatsappName: 'Nome WhatsApp', publicName: 'Nome público', remoteJid: '5511999999999@s.whatsapp.net' }],
+      truncated: false,
+    });
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe('https://wa.example.com/api/sessions/seller_12345678/crm-sync');
+    expect(init.method).toBe('GET');
+    expect(init.headers).toMatchObject({ 'X-API-Key': 'secret' });
+    expect(String(url)).not.toContain('secret');
+  });
+
+  it('normalizes WA-AKG contact aliases and prefers a phone JID over a LID', async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({
+      success: true,
+      contacts: [{
+        name: 'Nome salvo na agenda',
+        verifiedName: 'Nome verificado',
+        jid: '1234567890@lid',
+        remoteJidAlt: '5511999999999@s.whatsapp.net',
+      }],
+      truncated: false,
+    }), { status: 200 }));
+    const provider = new WaAkgProvider({
+      baseUrl: 'https://wa.example.com', apiKey: 'secret', sessionId: 'seller_12345678', allowedOrigins, fetchImpl: fetchMock,
+    });
+
+    await expect(provider.crmSync()).resolves.toEqual({
+      contacts: [{
+        agendaName: 'Nome salvo na agenda',
+        whatsappName: 'Nome verificado',
+        publicName: '',
+        remoteJid: '5511999999999@s.whatsapp.net',
+      }],
+      truncated: false,
+    });
+  });
+
+  it('falls back to the legacy contacts route when crm-sync is not available', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ status: false, error: 'Method Not Allowed' }), { status: 405 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        status: true,
+        data: [{ name: 'Agenda legada', notify: 'WhatsApp legada', verifiedName: 'Empresa', jid: '5511777777777@s.whatsapp.net' }],
+        meta: { total: 1, totalPages: 1 },
+      }), { status: 200 }));
+    const provider = new WaAkgProvider({
+      baseUrl: 'https://wa.example.com', apiKey: 'secret', sessionId: 'seller_12345678', allowedOrigins, fetchImpl: fetchMock,
+    });
+
+    await expect(provider.crmSync()).resolves.toEqual({
+      contacts: [{ agendaName: 'Agenda legada', whatsappName: 'WhatsApp legada', publicName: 'Empresa', remoteJid: '5511777777777@s.whatsapp.net' }],
+      truncated: false,
+    });
+    expect(fetchMock.mock.calls[1][0]).toBe('https://wa.example.com/api/contacts/seller_12345678?limit=all');
+  });
 });
