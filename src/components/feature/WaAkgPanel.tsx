@@ -103,6 +103,8 @@ export default function WaAkgPanel({ mode = 'administration', surface = 'whatsap
   const [centralToolsOpen, setCentralToolsOpen] = useState(false);
   const autoQr = useRef('');
   const redirecting = useRef(false);
+  const qrRequestInFlight = useRef(false);
+  const runtimeRefreshInFlight = useRef(false);
 
   const refresh = useCallback(async () => {
     setBusy('refresh');
@@ -200,7 +202,8 @@ export default function WaAkgPanel({ mode = 'administration', surface = 'whatsap
   };
 
   const loadQr = useCallback(async () => {
-    if (statusUnconfirmed || !selected?.canViewQr || channelLifecycleBlocked(selected.lifecycle)) return;
+    if (qrRequestInFlight.current || statusUnconfirmed || !selected?.canViewQr || channelLifecycleBlocked(selected.lifecycle)) return;
+    qrRequestInFlight.current = true;
     setBusy('qr'); setNotice(null); setPairingCode('');
     try {
       const result = await requestWaAkgQr(selected.account.id);
@@ -212,7 +215,7 @@ export default function WaAkgPanel({ mode = 'administration', surface = 'whatsap
       await refreshAfterLifecycleError(error, refresh);
       setNotice({ tone: 'error', text: errorMessage(error) });
     }
-    finally { setBusy(''); }
+    finally { qrRequestInFlight.current = false; setBusy(''); }
   }, [selected, refresh, statusUnconfirmed]);
 
   useEffect(() => {
@@ -228,6 +231,8 @@ export default function WaAkgPanel({ mode = 'administration', surface = 'whatsap
     const accountId = selected.account.id;
     let cancelled = false;
     const poll = window.setInterval(() => {
+      if (runtimeRefreshInFlight.current) return;
+      runtimeRefreshInFlight.current = true;
       void runWaAkgAction('refresh_status', accountId).then((next) => {
         if (cancelled || !hasAccount(next)) return;
         replace(next);
@@ -240,7 +245,9 @@ export default function WaAkgPanel({ mode = 'administration', surface = 'whatsap
           if (inOnboarding) onConnected?.();
           else window.setTimeout(() => navigate('/dashboard/atendimento', { replace: true }), 700);
         }
-      }).catch(() => undefined);
+      }).catch(() => undefined).finally(() => {
+        runtimeRefreshInFlight.current = false;
+      });
     }, 3_000);
     return () => { cancelled = true; window.clearInterval(poll); };
   }, [inCentral, inOnboarding, navigate, onConnected, replace, selected, selfService, statusUnconfirmed]);

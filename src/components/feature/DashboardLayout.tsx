@@ -191,7 +191,8 @@ export default function DashboardLayout() {
   const canConfigure = hasAnyPermission(access, ['configuration.manage']);
 
   return (
-    <div className="wf-app flex h-screen bg-background-100">
+    <>
+      <div className="wf-app flex h-screen bg-background-100">
       {sidebarOpen && <button aria-label="Fechar menu" onClick={() => setSidebarOpen(false)} className="fixed inset-0 z-20 bg-foreground-950/20 backdrop-blur-[1px] lg:hidden" />}
       {/* Sidebar */}
       <aside
@@ -531,7 +532,8 @@ export default function DashboardLayout() {
           <Outlet />
         </main>
       </div>
+      </div>
       {waAkgOnboardingOpen && <WaAkgOnboardingDialog onClose={closeWaAkgOnboarding} onConnected={completeWaAkgOnboarding} />}
-    </div>
+    </>
   );
 }

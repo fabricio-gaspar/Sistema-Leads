@@ -9,10 +9,15 @@ describe('WA-AKG first-access dialog', () => {
 
     expect(dialog).toContain('role="dialog"');
     expect(dialog).toContain('aria-modal="true"');
+    expect(dialog).toContain('aria-hidden');
+    expect(dialog).toContain("setAttribute('inert', '')");
+    expect(dialog).toContain("event.key !== 'Tab'");
     expect(dialog).toContain('surface="onboarding"');
     expect(panel).toContain("surface === 'onboarding'");
     expect(panel).toContain('Instância');
     expect(panel).toContain('Preparar pareamento');
     expect(panel).toContain('onConnected');
+    expect(panel).toContain('qrRequestInFlight');
+    expect(panel).toContain('runtimeRefreshInFlight');
   });
 });
