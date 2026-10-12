@@ -6,7 +6,7 @@
 - APIs passaram a separar dependências essenciais (IA da Ana e Apify) de fonte opcional (Google Places), evitando o alerta global incorreto; a tela da Ana agora diferencia carregamento, estado não confirmado e versão ainda não publicada, mantendo a ativação protegida.
 - O Registro de auditoria ganhou estado de carregamento lento com tentativa explícita de atualização, sem alterar dados. O teste real de WhatsApp continua bloqueado por segurança; apenas testes locais/sandbox foram executados.
 - Validação local: suíte Vitest 109 arquivos / 698 testes, type-check frontend e Edge, lint dos arquivos alterados, build Vite, artefato Sites e `git diff --check` aprovados. Lint amplo ainda acusa 59 falhas preexistentes em arquivos não tocados; nenhuma Edge Function, migration, credencial, canal ou mensagem foi alterada.
-- Estado: **LOCAL VALIDADO / PUBLICAÇÃO PENDENTE**. Próxima ação: commit seletivo, push normal para `main` e publicação no Site existente; confirmar a UI online sem enviar mensagens reais.
+- Estado: **PUBLICADO E VALIDADO**. Commit funcional `610edfb`; histórico reconciliado no merge `e7794eb`; GitHub `main` e Site existente atualizados na versão 198. A confirmação online foi limitada a rotas HTTP; nenhum envio real de WhatsApp foi executado.
 
 ## 12/10/2026 — IA contextual para Busca de Leads
 
