@@ -22,12 +22,12 @@ function errorMessage(code: string, name: string) {
     source_credentials_missing: `Revise as credenciais de ${name} e salve novamente.`,
     source_not_configured: `${name} ainda não foi configurada.`,
     provider_error: `${name} recusou a validação. Confira chave, permissões e conta.`,
-    ai_provider_required: 'Escolha OpenAI ou Claude como provedor principal.',
+    ai_provider_required: 'Escolha OpenAI, Claude ou FreeLLMAPI como provedor principal.',
     ai_provider_key_required: 'Informe a chave do provedor principal selecionado.',
     ai_model_required: 'Escolha um modelo permitido para o provedor principal.',
     ai_model_not_allowed: 'O modelo informado não está entre as opções permitidas nesta tela.',
     ai_provider_key_missing: 'A chave do provedor principal não foi encontrada no cofre.',
-    ai_provider_invalid: 'O provedor principal salvo não é válido. Configure OpenAI ou Claude novamente.',
+    ai_provider_invalid: 'O provedor principal salvo não é válido. Configure OpenAI, Claude ou FreeLLMAPI novamente.',
     organization_access_denied: 'Seu usuário não possui permissão administrativa para configurar esta conexão.',
     test_phone_invalid: 'Informe um número de WhatsApp válido, com DDD. O DDI 55 é adicionado automaticamente quando necessário.',
     test_message_required: 'Escreva a mensagem de teste antes de enviar.',
@@ -55,9 +55,10 @@ export function ConfigureModal({ integration, onClose, onSaved }: { integration:
     const configuration = integration.anaProviderConfiguration;
     if (integration.remoteKey !== 'ai' || !configuration) return {};
     return {
-      provedor_principal: configuration.provider === 'openai' ? 'OpenAI' : 'Claude',
+      provedor_principal: configuration.provider === 'openai' ? 'OpenAI' : configuration.provider === 'claude' ? 'Claude' : 'FreeLLMAPI',
       ...(configuration.openaiModel ? { openai_model: configuration.openaiModel } : {}),
       ...(configuration.claudeModel ? { claude_model: configuration.claudeModel } : {}),
+      ...(configuration.freellmModel ? { freellm_model: configuration.freellmModel } : {}),
     };
   });
   const [saving, setSaving] = useState(false);
@@ -66,9 +67,9 @@ export function ConfigureModal({ integration, onClose, onSaved }: { integration:
     const missing = integration.campos.filter((field) => field.obrigatorio && !values[field.id]?.trim()).map((field) => field.rotulo);
     if (integration.remoteKey === 'apify' && !values.actor_id?.trim() && !values.task_id?.trim()) missing.push('Actor ID ou Task ID');
     const selectedProvider = values.provedor_principal?.trim().toLowerCase();
-    if (integration.remoteKey === 'ai' && (selectedProvider === 'openai' || selectedProvider === 'claude')) {
-      const modelField = selectedProvider === 'openai' ? 'openai_model' : 'claude_model';
-      if (!values[modelField]?.trim()) missing.push(`Modelo ${selectedProvider === 'openai' ? 'OpenAI' : 'Claude'}`);
+    if (integration.remoteKey === 'ai' && ['openai', 'claude', 'freellmapi', 'freellm'].includes(selectedProvider)) {
+      const modelField = selectedProvider === 'openai' ? 'openai_model' : selectedProvider === 'claude' ? 'claude_model' : 'freellm_model';
+      if (!values[modelField]?.trim()) missing.push(`Modelo ${selectedProvider === 'openai' ? 'OpenAI' : selectedProvider === 'claude' ? 'Claude' : 'FreeLLMAPI'}`);
     }
     if (missing.length) { setError(`Preencha: ${[...new Set(missing)].join(', ')}.`); return; }
     setSaving(true); setError('');
