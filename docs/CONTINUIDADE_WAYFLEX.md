@@ -1,5 +1,21 @@
 # Checkpoint — WayFlex CRM
 
+## 12/10/2026 — IA contextual para Busca de Leads
+
+- Foi adicionada a entrada **IA · Preencher busca** na Busca de Leads. Ela abre uma revisão contextual que usa somente o perfil comercial da organização e os filtros já escolhidos para sugerir cidade, perfil, segmentos, termos e critérios de qualificação.
+- A sugestão não inicia consulta em fonte externa, não importa leads e não envia mensagens. A busca real continua exigindo a revisão do operador e o clique explícito em **Buscar**.
+- O contrato novo da Edge `gerar-prompt-busca` exige sessão autenticada e papel comercial autorizado, lê o contexto comercial somente no servidor, normaliza rigorosamente a resposta do modelo e não devolve credenciais, QR Codes, mensagens ou configuração bruta ao navegador. Se o provedor de IA não estiver disponível, a interface oferece sugestão local determinística baseada no perfil cadastrado.
+- Validação local: 17 testes focados, type-check frontend/Edge, lint direcionado, build Vite/artefato Sites e `git diff --check` aprovados. Nenhuma busca paga, dado de cliente, mensagem, Ana, canal ou agenda foi acionado durante a validação.
+- Publicação concluída: commit `fac68a1` foi enviado ao GitHub e a Edge `gerar-prompt-busca` está **ACTIVE v9**, com JWT obrigatório e o novo contrato de filtros. A confirmação operacional do modelo depende de um uso autenticado; não foi feita chamada real ao provedor nesta etapa.
+- O histórico da fonte do Site foi reconciliado em uma cópia isolada, preservando os ajustes independentes de WA-AKG. A versão **194** foi salva e publicada com sucesso no Site existente, cuja URL ativa é `https://prospect.wfdigital.com.br`. Nenhum force push, reset, Site novo, migração, canal ou dado de cliente foi alterado.
+
+## 12/10/2026 — Resolução de nomes dos contatos recebidos
+
+- Diagnóstico remoto confirmou dois leads com `Contato não identificado`: ambos tinham linha no diretório do dispositivo, mas o matching comparava telefone bruto; um caso só coincidia após `normalize_phone_identity`. O lead atualmente aberto no painel tinha linha correspondente, porém sem nome fornecido pelo gateway.
+- A migration `20261012130000_wa_akg_contact_name_resolution.sql` normaliza `apply_whatsapp_directory_name(s)`, resolve nomes no insert/update de leads, repara leads quando a agenda é sincronizada e executa backfill somente em placeholders. Quando o provedor não entrega nome, a Central exibe o telefone como identidade factual em vez de `Contato não identificado`. A proteção da Ana e o histórico de mensagens não são alterados.
+- A correção SQL foi aplicada diretamente no Supabase oficial `thgzrkppouoevapjquyu` e verificada: os placeholders com nome disponível foram reduzidos de 2 para 1; o restante não possui nome no payload nem na linha de diretório, portanto permanece sem nome inventado. Triggers de resolução e função normalizada estão presentes.
+- Validação local: 34 testes focados (proteção, resolução de nomes, inbound e recuperação R6/R7) aprovados; nenhum envio de mensagem foi realizado. O frontend não mudou, portanto não houve nova versão do Site.
+
 ## 12/10/2026 — Pareamento WA-AKG no primeiro acesso
 
 - O shell autenticado agora consulta somente a conta WA-AKG do usuário com `channels.connect_own` e abre um modal bloqueante de configuração inicial quando o dispositivo ainda não está conectado. O CRM permanece visível ao fundo e pode ser retomado pelo botão de continuação.
@@ -2307,3 +2323,11 @@ webhook em ambiente controlado.
 - Código sincronizado no GitHub: `f88abf7` e correção complementar `bc4eb75`. Validações: 10 arquivos/37 testes focados e Vitest completo 97 arquivos/664 testes, type-check, lint, build Vite e `git diff --check` aprovados.
 - **PUBLICADO:** Site existente versão **188**, commit de origem `d65f1db9be0142746debb6f13cb97fed7e43b55d`, deploy `appgdep_6acc30daf2788191957acf0b81625608` com estado `succeeded`, em `https://prospect.wfdigital.com.br/dashboard/atendimento`; a audiência pública existente foi preservada. A leitura HTTP da rota e o hash do módulo publicado da Central conferem com o pacote validado.
 - Próxima ação exata: homologar visualmente uma sessão autenticada limpa nos viewports desktop e mobile, sem enviar mensagens, gerar QR ou alterar canais.
+
+## 12/10/2026 — Proteção de contatos da agenda contra a Ana
+
+- A migration `20261012120000_wa_akg_agenda_contact_protection` foi aplicada no Supabase oficial: cada contato sincronizado começa como `unclassified`/`unverified`, permanece fora da Ana e só muda com uma decisão explícita de **Manter como contato** ou **Tornar lead**.
+- A proteção agora é de backend: trigger em `leads` força atendimento humano e pausa a Ana para contatos não autorizados; trigger em `outreach_jobs` cancela filas automáticas não manuais com `contact_protection_required`; a decisão fica auditada e preserva histórico.
+- A migration `20261012123000_wa_akg_directory_lead_link` mantém o contato sincronizado ligado ao lead existente quando houver correspondência, evitando duplicação ao promover um contato.
+- A Central exibe o estado de proteção e os dois comandos de decisão. **Tornar lead** apenas autoriza o cadastro e começa em modo humano; a ativação da Ana continua sendo uma decisão separada.
+- Validação remota estrutural: 7 colunas, 4 funções, 2 triggers e 1.137 contatos com estado seguro padrão confirmados. Validação local: 7 testes focados, type-check, lint, build Vite e `git diff --check` aprovados. Nenhuma mensagem real foi enviada.

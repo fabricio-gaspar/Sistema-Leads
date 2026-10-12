@@ -4,6 +4,10 @@ import { allowedCorsHeaders, hasAllowedOrigin, json, preflight, safeError } from
 const AI_MODELS = {
   openai: ['gpt-4.1-mini', 'gpt-4.1', 'gpt-4o-mini'],
   claude: ['claude-sonnet-5', 'claude-haiku-4-5', 'claude-opus-5'],
+  // Models exposed by the FreeLLMAPI gateway. `free-router` is the stable
+  // gateway route and must remain selectable even when the upstream model
+  // changes.
+  freellm: ['free-router', 'llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'qwen2.5-72b-instruct'],
 } as const;
 const APIFY_GOOGLE_MAPS_ACTOR = 'compass/google-maps-extractor';
 
@@ -20,7 +24,7 @@ function asText(value: unknown, maximum = 1_000): string {
 }
 
 function isAiProvider(value: string): value is AiProvider {
-  return value === 'openai' || value === 'claude';
+  return value === 'openai' || value === 'claude' || value === 'freellm' || value === 'freellmapi';
 }
 
 function acceptedModel(provider: AiProvider, submitted: string, stored: string): string {
@@ -127,7 +131,7 @@ Deno.serve(async (request) => {
       whatsapp: { label: 'WhatsApp (Z-API)', provider: 'Z-API', detail: 'Mensageria WhatsApp.', category: 'communication' },
       apify: { label: 'Apify — Google Maps', provider: 'Apify', detail: 'Busca real por Actor ou Task autorizado.', category: 'prospecting' },
       google_places: { label: 'Google Places', provider: 'Google Places', detail: 'Busca real de empresas por texto e localização.', category: 'prospecting' },
-      ai: { label: 'IA da Ana', provider: 'OpenAI / Claude', detail: 'Provedor comercial da Ana, configurado no cofre.', category: 'intelligence' },
+      ai: { label: 'IA da Ana', provider: 'OpenAI / Claude / FreeLLMAPI', detail: 'Provedor comercial da Ana, configurado com segurança no backend.', category: 'intelligence' },
     };
     const definition = labels[canal];
     const { data: existing, error } = await admin.from('integrations').select('id,configuration').eq('organization_id', organizationId).eq('key', canal).maybeSingle();
@@ -190,8 +194,9 @@ Deno.serve(async (request) => {
       const claudeKey = asText(credenciais.claude_key, 1_000) || asText(previousCredentials.claude_key, 1_000);
       const openaiModel = acceptedModel('openai', asText(credenciais.openai_model, 100), asText(previousCredentials.openai_model, 100));
       const claudeModel = acceptedModel('claude', asText(credenciais.claude_model, 100), asText(previousCredentials.claude_model, 100));
-      const provider = selectedAiProvider as AiProvider;
-      selectedAiModel = provider === 'openai' ? openaiModel : claudeModel;
+      const freellmModel = acceptedModel('freellm', asText(credenciais.freellm_model, 100), asText(previousCredentials.freellm_model, 100));
+      const provider = (selectedAiProvider === 'freellmapi' ? 'freellm' : selectedAiProvider) as AiProvider;
+      selectedAiModel = provider === 'openai' ? openaiModel : provider === 'claude' ? claudeModel : freellmModel;
       if (!selectedAiModel) throw new Error('ai_model_required');
       if (provider === 'openai' && !openaiKey) throw new Error('ai_provider_key_required');
       if (provider === 'claude' && !claudeKey) throw new Error('ai_provider_key_required');
@@ -204,6 +209,7 @@ Deno.serve(async (request) => {
         provedor_principal: provider,
         openai_model: openaiModel,
         claude_model: claudeModel,
+        freellm_model: freellmModel,
       };
       const secretRef = storedSecretReference(asObject(integration.configuration));
       aiPublicConfiguration = {
@@ -215,12 +221,13 @@ Deno.serve(async (request) => {
         claude_model: claudeModel || null,
         openai_configurado: Boolean(openaiKey),
         claude_configurado: Boolean(claudeKey),
+        freellm_configurado: provider === 'freellm' ? 'Aguardando segredos do backend.' : false,
         // A configuração nunca se passa por homologação: o teste atual verifica
         // credencial/provedor, não uma chamada ao modelo selecionado.
         modelo_principal_validado: false,
       };
       const { error: publicConfigurationError } = await admin.from('integrations').update({
-        provider: provider === 'openai' ? 'OpenAI' : 'Claude',
+        provider: provider === 'openai' ? 'OpenAI' : provider === 'claude' ? 'Claude' : 'FreeLLMAPI',
         configuration: aiPublicConfiguration,
         connected: false,
         enabled: false,

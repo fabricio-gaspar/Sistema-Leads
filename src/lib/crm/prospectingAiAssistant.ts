@@ -104,4 +104,3 @@ export function buildLocalProspectingAiPlan(current: ProspectingAiDraft): Prospe
     rationale: 'Use os termos curados do perfil comercial ou ajuste os filtros antes de executar a busca.',
   }, current);
 }
-

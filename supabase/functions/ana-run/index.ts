@@ -8,13 +8,14 @@ import { readAnaKnowledgeFence, assertAnaKnowledgeSnapshot } from '../_shared/an
 import { assertAnaEffectAllowed, type AnaEffectExpectation } from '../_shared/anaEffectFence.ts';
 import { validatedAnaMeetingRequest as meetingRequest } from '../_shared/anaMeetingRequest.ts';
 import { knowledgeUsage } from '../_shared/commercialCatalogPolicy.ts';
+import { callFreeLlm } from '../_shared/freellm.ts';
 
 const EVENTS = new Set(['lead.created', 'message.received', 'stage.changed', 'meeting.done', 'timeout.48h', 'manual.run', 'cadence.followup']);
 const MODES = new Set(['ia', 'humano']);
 const STAGES = ['novo', 'apresentado', 'qualificando', 'reuniao', 'orcamento', 'fechado'] as const;
 type AnaStage = (typeof STAGES)[number];
 type AnaMode = 'ia' | 'humano';
-type AiProvider = 'openai' | 'claude';
+type AiProvider = 'openai' | 'claude' | 'freellm';
 
 const DEFAULT_PROMPT = `Você é a Ana, assistente virtual comercial da empresa deste CRM. Responda em pt-BR, direta e exclusivamente em JSON válido.
 Funil rígido: Novo → Apresentado → Qualificando → Reunião → Orçamento → Ganho/Perdido.
@@ -502,16 +503,30 @@ function canUseClaudeFallback(error: unknown): boolean {
   return /^(openai_network_error|openai_408|openai_409|openai_429|openai_5\d\d)$/.test(safeError(error));
 }
 
+function canUseProviderFallback(error: unknown): boolean {
+  return /^(freellm_network_error|freellm_timeout|freellm_400|freellm_401|freellm_403|freellm_404|freellm_408|freellm_409|freellm_429|freellm_5\d\d)$/.test(safeError(error));
+}
+
 async function callAi(system: string, context: Record<string, unknown>, storedCredentials: Record<string, unknown> = {}): Promise<{ provider: AiProvider; decision: unknown }> {
   // Never borrow another organization's/global provider credentials.
   const openAiKey = asText(storedCredentials.openai_key, 1_000);
   const claudeKey = asText(storedCredentials.claude_key, 1_000);
-  const preferred = asText(storedCredentials.provedor_principal, 20).toLowerCase();
   const openAiModel = asText(storedCredentials.openai_model, 100);
   const claudeModel = asText(storedCredentials.claude_model, 100);
-  if (!openAiKey && !claudeKey) throw new Error('ai_provider_not_configured');
-  if (preferred === 'claude' && claudeKey) {
-    return { provider: 'claude', decision: await callClaude(claudeKey, system, context, claudeModel || 'claude-sonnet-5') };
+  const freeLlmUrl = asText(Deno.env.get('FREELLM_API_URL'), 1_000);
+  const freeLlmKey = asText(Deno.env.get('FREELLM_API_KEY'), 1_000);
+  const freeLlmModel = asText(storedCredentials.freellm_model, 100) || asText(Deno.env.get('FREELLM_MODEL'), 100);
+  const freeLlmReady = Boolean(freeLlmUrl && freeLlmKey);
+  if (!openAiKey && !claudeKey && !freeLlmReady) throw new Error('ai_provider_not_configured');
+  // Deterministic priority: FreeLLMAPI is the primary route, followed by
+  // OpenAI and Claude. A configured preference can still disable a provider,
+  // but it cannot silently promote a paid provider above the free gateway.
+  if (freeLlmReady) {
+    try {
+      return { provider: 'freellm', decision: await callFreeLlm(freeLlmKey, freeLlmUrl, system, ANA_REQUEST(context), freeLlmModel || 'free-router') };
+    } catch (error) {
+      if (!canUseProviderFallback(error) && !openAiKey && !claudeKey) throw error;
+    }
   }
   if (openAiKey) {
     try { return { provider: 'openai', decision: await callOpenAI(openAiKey, system, context, openAiModel) }; }
@@ -519,7 +534,8 @@ async function callAi(system: string, context: Record<string, unknown>, storedCr
       if (!claudeKey || !canUseClaudeFallback(error)) throw error;
     }
   }
-  return { provider: 'claude', decision: await callClaude(claudeKey!, system, context, claudeModel) };
+  if (claudeKey) return { provider: 'claude', decision: await callClaude(claudeKey, system, context, claudeModel || 'claude-sonnet-5') };
+  throw new Error('ai_provider_not_configured');
 }
 
 async function scheduleGoogleMeeting(

@@ -98,4 +98,3 @@ export function companyProspectingContext(value: unknown): Record<string, string
     city: text(company.city, text(ui.regiao, '', 120), 120),
   };
 }
-

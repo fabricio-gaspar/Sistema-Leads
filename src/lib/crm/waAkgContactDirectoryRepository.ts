@@ -14,8 +14,34 @@ export type WaAkgDirectoryContact = {
   decisionRevision: number;
 };
 export type WaAkgDirectorySync = { imported: number; matched: number; skipped: number; truncated: boolean; status: 'complete' | 'partial' };
+export type WaAkgContactPolicy = {
+  leadId: string;
+  accountId: string;
+  phone: string;
+  name: string;
+  state: WaAkgContactState | 'unknown';
+};
 
 const text = (value: unknown): string => typeof value === 'string' ? value.trim() : '';
+const normalizePhone = (value: string): string => value.replace(/\D/g, '');
+
+/** Read-only lookup used by the Central's inbound decision prompt. */
+export async function loadWaAkgContactPolicyForLead(leadId: string): Promise<WaAkgContactPolicy | null> {
+  const { data, error } = await supabase
+    .from('leads')
+    .select('whatsapp_account_id, phone, whatsapp, contact')
+    .eq('id', leadId)
+    .maybeSingle();
+  if (error) throw error;
+  const row = data as { whatsapp_account_id?: string | null; phone?: string | null; whatsapp?: string | null; contact?: string | null } | null;
+  const accountId = text(row?.whatsapp_account_id);
+  const phone = text(row?.whatsapp) || text(row?.phone);
+  if (!accountId || !phone) return null;
+  const directory = await loadWaAkgContactDirectory(accountId);
+  const match = directory.find((entry) => normalizePhone(entry.phone) === normalizePhone(phone));
+  if (!match) return null;
+  return { leadId, accountId, phone: match.phone, name: match.name || text(row?.contact) || 'Contato da agenda', state: match.state };
+}
 
 export async function loadWaAkgContactDirectory(accountId: string): Promise<WaAkgDirectoryContact[]> {
   const { data, error } = await supabase.rpc('central_list_wa_akg_contact_directory', { p_account_id: accountId, p_limit: 250 });
