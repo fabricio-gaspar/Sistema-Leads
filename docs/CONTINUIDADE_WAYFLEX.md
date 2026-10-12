@@ -1,5 +1,13 @@
 # Checkpoint — WayFlex CRM
 
+## 12/10/2026 — IA contextual para Busca de Leads
+
+- Foi adicionada a entrada **IA · Preencher busca** na Busca de Leads. Ela abre uma revisão contextual que usa somente o perfil comercial da organização e os filtros já escolhidos para sugerir cidade, perfil, segmentos, termos e critérios de qualificação.
+- A sugestão não inicia consulta em fonte externa, não importa leads e não envia mensagens. A busca real continua exigindo a revisão do operador e o clique explícito em **Buscar**.
+- O contrato novo da Edge `gerar-prompt-busca` exige sessão autenticada e papel comercial autorizado, lê o contexto comercial somente no servidor, normaliza rigorosamente a resposta do modelo e não devolve credenciais, QR Codes, mensagens ou configuração bruta ao navegador. Se o provedor de IA não estiver disponível, a interface oferece sugestão local determinística baseada no perfil cadastrado.
+- Validação local: 17 testes focados, type-check frontend/Edge, lint direcionado, build Vite/artefato Sites e `git diff --check` aprovados. Nenhuma busca paga, dado de cliente, mensagem, Ana, canal ou agenda foi acionado durante a validação.
+- Estado: **LOCAL VALIDADO / PUBLICAÇÃO PENDENTE**. A confirmação operacional do modelo depende da Edge publicada e de um uso autenticado; não foi feita chamada real ao provedor nesta etapa.
+
 ## 12/10/2026 — Resolução de nomes dos contatos recebidos
 
 - Diagnóstico remoto confirmou dois leads com `Contato não identificado`: ambos tinham linha no diretório do dispositivo, mas o matching comparava telefone bruto; um caso só coincidia após `normalize_phone_identity`. O lead atualmente aberto no painel tinha linha correspondente, porém sem nome fornecido pelo gateway.

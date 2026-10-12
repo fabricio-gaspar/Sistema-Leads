@@ -12,6 +12,7 @@ import { findActiveAssignee, loadTeamMembers, roleLabel, type TeamMember } from 
 import { temperaturaDe, tempBadge } from '@/mocks/enriquecimentoData';
 import type { PreviewLead } from '@/mocks/enriquecimentoData';
 import PromptAgent from '@/pages/dashboard/busca-leads/components/PromptAgent';
+import ProspectingAiAssistantDialog from '@/pages/dashboard/busca-leads/components/ProspectingAiAssistantDialog';
 import LeadPreviewDrawer from '@/pages/dashboard/busca-leads/components/LeadPreviewDrawer';
 import ProspectingMap from '@/pages/dashboard/busca-leads/components/ProspectingMap';
 import CsvImportModal from '@/components/feature/CsvImportModal';
@@ -50,6 +51,7 @@ import {
   prospectingWizardBlockReason,
   type ProspectingWizardStep,
 } from '@/lib/crm/prospectingWizard';
+import { type ProspectingAiPlan } from '@/lib/crm/prospectingAiAssistant';
 
 const estados = ['SP', 'RJ', 'MG', 'PR', 'SC', 'RS', 'BA', 'PE', 'GO', 'DF'];
 const fasesBusca = ['Iniciando a busca', 'Aguardando resposta da fonte', 'Preparando a revisão'];
@@ -215,6 +217,7 @@ const camposLeadImport: CampoImportacao[] = [
 export default function BuscaLeads() {
   const navigate = useNavigate();
   const [aba, setAba] = useState<'agente' | 'busca' | 'importar' | 'salvas'>('busca');
+  const [iaBuscaAberta, setIaBuscaAberta] = useState(false);
   const [etapa, setEtapa] = useState(1);
   const [wizardStep, setWizardStep] = useState<ProspectingWizardStep>(1);
   const [wizardError, setWizardError] = useState<string | null>(null);
@@ -501,6 +504,28 @@ export default function BuscaLeads() {
     setEtapa(2);
     setWizardStep(4);
     setAba('busca');
+  };
+
+  const aplicarPlanoDaIa = (plano: ProspectingAiPlan) => {
+    setCidade(plano.city);
+    setEstado(plano.state);
+    setOfertaEmpresa(plano.offer);
+    setTipoEmpresaAlvo(plano.targetProfile);
+    setSegmentosCliente(plano.customerSegments);
+    setTermosBusca(plano.terms);
+    setLeadsDia(plano.volume);
+    setTemSite(plano.requireSite ? true : null);
+    setTemWhatsApp(plano.requireWhatsApp ? true : null);
+    setTemEmail(plano.requireEmail ? true : null);
+    setNovoTermo('');
+    setSegmentoSugestao('');
+    setErroBusca(null);
+    setWizardError(null);
+    setResultado('Filtros sugeridos pela IA foram aplicados. Revise-os e clique em Buscar para iniciar uma consulta real.');
+    setAba('busca');
+    setEtapa(fonteSelecionada ? 2 : 1);
+    setWizardStep(fonteSelecionada ? 4 : 1);
+    setIaBuscaAberta(false);
   };
 
   const alternarSegmentoCliente = (segment: string) => {
@@ -1068,9 +1093,12 @@ export default function BuscaLeads() {
           <div className="mt-1 flex items-center gap-2"><h1 className="wf-page-title">Busca de Leads</h1><InfoTooltip text="A busca usa apenas fontes configuradas. Todo resultado passa por revisão antes da importação." label="Sobre Busca de Leads" align="start" /></div>
           <p className="wf-page-description">Defina o cliente ideal, teste uma amostra e importe apenas leads qualificados.</p>
         </div>
-        <span className="inline-flex w-fit items-center gap-2 rounded-full border border-background-200 bg-white px-3 py-2 text-xs font-semibold text-foreground-600">
-          <i className="ri-shield-check-line text-primary-700" aria-hidden="true" /> Importação sob revisão
-        </span>
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" onClick={() => setIaBuscaAberta(true)} className="inline-flex w-fit items-center gap-2 rounded-full border border-primary-200 bg-primary-50 px-3 py-2 text-xs font-semibold text-primary-800 hover:bg-primary-100"><i className="ri-sparkling-2-line" aria-hidden="true" />IA · Preencher busca</button>
+          <span className="inline-flex w-fit items-center gap-2 rounded-full border border-background-200 bg-white px-3 py-2 text-xs font-semibold text-foreground-600">
+            <i className="ri-shield-check-line text-primary-700" aria-hidden="true" /> Importação sob revisão
+          </span>
+        </div>
       </header>
 
       <div className="wf-tabs max-w-full overflow-x-auto" aria-label="Modo de prospecção">
@@ -1711,6 +1739,23 @@ export default function BuscaLeads() {
           onAbordar={abordarLead}
         />
       )}
+
+      {iaBuscaAberta && <ProspectingAiAssistantDialog
+        currentFilters={{
+          city: cidade,
+          state: estado,
+          offer: ofertaEmpresa,
+          targetProfile: tipoEmpresaAlvo,
+          customerSegments: segmentosCliente,
+          terms: termosBusca,
+          volume: leadsDia,
+          requireSite: temSite === true,
+          requireWhatsApp: temWhatsApp === true,
+          requireEmail: temEmail === true,
+        }}
+        onClose={() => setIaBuscaAberta(false)}
+        onApply={aplicarPlanoDaIa}
+      />}
     </div>
   );
 }
