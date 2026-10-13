@@ -120,7 +120,7 @@ async function operationalStatus(admin: ReturnType<typeof createAdminClient>, or
     admin.from('whatsapp_accounts').select('id,integration_id,provider,account_type,is_default,enabled,connection_status,status_checked_at,updated_at,verified_name,label,connected_phone_suffix,last_error_code')
       .eq('organization_id', organizationId).is('archived_at', null),
     admin.from('messaging_provider_controls').select('provider,inbound_enabled,send_enabled,automation_enabled,kill_switch,reason,updated_at')
-      .eq('organization_id', organizationId).in('provider', ['zapi', 'meta_cloud', 'wa_akg']),
+      .eq('organization_id', organizationId).eq('provider', 'wa_akg'),
   ]);
   if ([
     companyRead,
@@ -214,9 +214,9 @@ async function operationalStatus(admin: ReturnType<typeof createAdminClient>, or
     status_detail: waAkgSnapshot.statusDetail,
     configuration: { phone_suffix: waAkgSnapshot.phoneSuffix },
   } : null;
-  // WA-AKG is the sole active transport. Legacy rows remain visible for audit
-  // but can never win the operational status when this account is present.
-  const activeProvider = waAkgProvider ?? [zapiProvider, metaProvider].find((item) => item.enabled) ?? null;
+  // WA-AKG is the sole operational transport. Legacy rows remain historical
+  // data only and never participate in readiness or status decisions.
+  const activeProvider = waAkgProvider;
   const activeWhatsappPolicies = policyRead.data ?? [];
   const sentLastHour = (sentHourRead.count ?? 0) + (dailyReportHourRead.count ?? 0);
   const sentLast24Hours = (sentDayRead.count ?? 0) + (dailyReportDayRead.count ?? 0);
@@ -289,6 +289,13 @@ async function operationalStatus(admin: ReturnType<typeof createAdminClient>, or
       detail: waAkgProvider.status_detail,
       testLead: null,
     };
+    return {
+      state: 'not_configured' as WebhookDiagnosticState,
+      registeredAt: null,
+      lastEventAt: null,
+      detail: 'Conecte o dispositivo pelo WA-AKG para habilitar a entrada de mensagens e a operação da Ana.',
+      testLead: null,
+    };
     if (registrationInvalidated) return {
       state: 'credentials_changed' as WebhookDiagnosticState,
       registeredAt,
@@ -317,20 +324,20 @@ async function operationalStatus(admin: ReturnType<typeof createAdminClient>, or
       detail: 'A Z-API aceitou o cadastro, mas ainda não entregou nenhum callback ao WayFlex desde esse momento. Não há falha da Ana nem do cadastro do lead a corrigir no sistema.',
       testLead: testLeadSummary,
     };
-    if (latestWebhookEvent.error === 'lead_not_matched') return {
+    if (latestWebhookEvent?.error === 'lead_not_matched') return {
       state: 'lead_not_matched' as WebhookDiagnosticState,
       registeredAt,
-      lastEventAt: latestWebhookEvent.created_at ?? null,
+      lastEventAt: latestWebhookEvent?.created_at ?? null,
       detail: 'A Z-API entregou uma mensagem, mas ela não corresponde a nenhum WhatsApp cadastrado em Leads. Use o mesmo número do lead antes de repetir o teste.',
       testLead: testLeadSummary,
     };
-    if (latestWebhookEvent.status === 'ignored') return {
+    if (latestWebhookEvent?.status === 'ignored') return {
       state: 'unsupported_callback' as WebhookDiagnosticState,
       registeredAt,
-      lastEventAt: latestWebhookEvent.created_at ?? null,
-      detail: latestWebhookEvent.error === 'non_direct_conversation'
+      lastEventAt: latestWebhookEvent?.created_at ?? null,
+      detail: latestWebhookEvent?.error === 'non_direct_conversation'
         ? 'A Z-API recebeu o teste, mas ele veio de um grupo, lista ou canal. Para homologar, envie uma mensagem em conversa individual do número cadastrado no lead.'
-        : latestWebhookEvent.error === 'outgoing_or_unknown_direction'
+        : latestWebhookEvent?.error === 'outgoing_or_unknown_direction'
           ? 'A Z-API recebeu um evento de saída. Para homologar, o lead precisa enviar uma mensagem ao número conectado, e não o contrário.'
           : 'A Z-API entregou um callback que não é uma mensagem direta de texto de um lead. Envie uma mensagem comum, individual e recebida de um lead cadastrado.',
       testLead: testLeadSummary,
@@ -338,7 +345,7 @@ async function operationalStatus(admin: ReturnType<typeof createAdminClient>, or
     return {
       state: 'processing_failed' as WebhookDiagnosticState,
       registeredAt,
-      lastEventAt: latestWebhookEvent.created_at ?? null,
+      lastEventAt: latestWebhookEvent?.created_at ?? null,
       detail: 'A mensagem chegou ao WayFlex, mas o processamento não foi concluído. Consulte o Registro do Sistema antes de repetir o teste.',
       testLead: testLeadSummary,
     };
@@ -388,7 +395,7 @@ async function operationalStatus(admin: ReturnType<typeof createAdminClient>, or
     productionReady: checks.every((check) => check.ok),
     checks,
     webhookDiagnostic,
-    integrations: [...integrations, ...(waAkgProvider && !integrations.some((item) => item.key === waAkgProvider.key) ? [waAkgProvider] : []), zapiProvider, metaProvider].map((item) => ({
+    integrations: [...integrations.filter((item) => item.key !== 'zapi_webhook' && item.key !== 'whatsapp_zapi' && !['zapi', 'z-api', 'evolution', 'evolution_go'].includes(String(item.provider ?? '').toLowerCase())), ...(waAkgProvider && !integrations.some((item) => item.key === waAkgProvider.key) ? [waAkgProvider] : []), metaProvider].map((item) => ({
       key: item.key, label: item.label, category: item.category, provider: item.provider, connected: item.connected === true,
       enabled: item.enabled === true, paused: item.paused === true, lastTestedAt: item.last_tested_at,
       lastSuccessAt: item.last_success_at, lastError: item.last_error, detail: item.status_detail,
@@ -687,8 +694,7 @@ Deno.serve(async (request) => {
     await requireOrganizationRole(admin, user.id, organizationId, ['owner', 'admin', 'manager']);
 
     if (action === 'configure_whatsapp_webhook') {
-      const message = await configureWhatsAppWebhook(admin, organizationId, { id: user.id, name: profile.name ?? null });
-      return json({ ok: true, message, status: await operationalStatus(admin, organizationId) }, 200, headers);
+      throw new Error('channel_not_supported');
     }
 
     if (action === 'activate_scheduler') {

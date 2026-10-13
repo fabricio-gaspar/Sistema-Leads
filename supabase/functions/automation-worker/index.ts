@@ -13,7 +13,6 @@ import {
 import {
   anaResponseSucceeded,
   automationBlockReason,
-  zapiBaseUrl,
 } from "../_shared/runtimeSafety.ts";
 import {
   readCatalogImageMedia,
@@ -31,7 +30,6 @@ import {
   validDailyReportTime,
   type DailyLeadReportStage,
 } from "../_shared/dailyLeadReport.ts";
-import { parseZapiEvent } from "../_shared/zapiInbound.ts";
 import { WaAkgProvider } from "../_shared/messaging/WaAkgProvider.ts";
 import { assertAnaKnowledgeSnapshot } from "../_shared/anaKnowledgeFence.ts";
 
@@ -89,62 +87,10 @@ async function reconcileEarlyWhatsappReceipts(
   organizationId: string,
   providerMessageId: string,
 ): Promise<{ matched: number; processed: number }> {
-  const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1_000).toISOString();
-  const { data, error } = await admin
-    .from("webhook_events")
-    .select("id,payload,whatsapp_account_id")
-    .eq("organization_id", organizationId)
-    .in("provider", ["zapi", "z-api"])
-    .eq("status", "failed")
-    .in("error", ["outbound_message_not_matched", "receipt_targets_pending"])
-    .gte("created_at", since)
-    .order("created_at", { ascending: true })
-    .limit(100);
-  if (error) throw new Error("early_receipt_lookup_failed");
-
-  let matched = 0;
-  let processed = 0;
-  for (const candidate of Array.isArray(data) ? data : []) {
-    const event = asObject(candidate);
-    const eventId = asText(event.id, 80);
-    const receiptAccountId = asText(event.whatsapp_account_id, 80);
-    const receipt = parseZapiEvent(event.payload);
-    // A legacy event without its authenticated account cannot safely attribute
-    // a provider ID. Leave it pending review instead of guessing the route.
-    if (!eventId || !isUuid(receiptAccountId) || receipt.kind !== "receipt" || !receipt.providerMessageIds.includes(providerMessageId)) continue;
-    matched += 1;
-    const { data: reconciledData, error: reconciliationError } = await admin.rpc(
-      "reconcile_whatsapp_receipt_for_account",
-      {
-        p_whatsapp_account_id: receiptAccountId,
-        p_organization_id: organizationId,
-        p_provider_message_ids: receipt.providerMessageIds,
-        p_expected_message_count: receipt.expectedMessageCount,
-        p_status: receipt.status,
-        p_occurred_at: receipt.occurredAt,
-      },
-    );
-    if (reconciliationError) throw new Error("early_receipt_reconciliation_failed");
-    const reconciledRows = (Array.isArray(reconciledData)
-      ? reconciledData
-      : reconciledData
-        ? [reconciledData]
-        : []).map(asObject).filter((row) => Object.keys(row).length > 0);
-    if (!reconciledRows.length) continue;
-    const partial = reconciledRows.length < receipt.expectedMessageCount;
-    const changed = reconciledRows.some((row) => row.changed === true);
-    const first = reconciledRows[0];
-    const { error: updateError } = await admin.from("webhook_events").update({
-      status: partial ? "failed" : "processed",
-      error: partial ? "receipt_targets_pending" : changed ? null : "receipt_already_reconciled",
-      processed_at: new Date().toISOString(),
-      lead_id: first.lead_id ?? null,
-      outreach_id: first.outreach_id ?? null,
-    }).eq("id", eventId).eq("organization_id", organizationId).eq("status", "failed");
-    if (updateError) throw new Error("early_receipt_state_persist_failed");
-    if (!partial) processed += 1;
-  }
-  return { matched, processed };
+  // WA-AKG owns receipt reconciliation. Do not inspect or mutate payloads
+  // produced by any retired provider here.
+  void admin; void organizationId; void providerMessageId;
+  return { matched: 0, processed: 0 };
 }
 
 type AnaPolicy = {
@@ -1097,58 +1043,20 @@ async function maintainKnowledgeEmbeddings(admin: Admin, org: string) {
 }
 
 async function sendWhatsapp(
-  credentials: Record<string, unknown>,
-  recipient: string,
-  message: string,
-) {
-  const id = asText(credentials.instancia_id, 300),
-    token = asText(credentials.token, 500),
-    client = asText(credentials.client_token, 500);
-  if (!id || !token || !client)
-    throw new Error("channel_credentials_incomplete");
-  const r = await fetch(
-    `${zapiBaseUrl(credentials.url_base)}/instances/${encodeURIComponent(id)}/token/${encodeURIComponent(token)}/send-text`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Client-Token": client },
-      body: JSON.stringify({ phone: recipient, message }),
-      signal: AbortSignal.timeout(20000),
-      redirect: "error",
-    },
-  );
-  if (!r.ok) throw new Error(`provider_http_${r.status}`);
-  const receipt = (await r.json()) as { messageId?: unknown };
-  if (typeof receipt.messageId !== "string" || !receipt.messageId)
-    throw new Error("provider_receipt_missing");
-  return { provider: "zapi", messageId: receipt.messageId };
+  _credentials: Record<string, unknown>,
+  _recipient: string,
+  _message: string,
+): Promise<{ provider: string; messageId: string }> {
+  throw new Error("whatsapp_provider_not_supported");
 }
 
 async function sendWhatsappImage(
-  credentials: Record<string, unknown>,
-  recipient: string,
-  image: string,
-  caption: string,
-) {
-  const id = asText(credentials.instancia_id, 300),
-    token = asText(credentials.token, 500),
-    client = asText(credentials.client_token, 500);
-  if (!id || !token || !client)
-    throw new Error("channel_credentials_incomplete");
-  const r = await fetch(
-    `${zapiBaseUrl(credentials.url_base)}/instances/${encodeURIComponent(id)}/token/${encodeURIComponent(token)}/send-image`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Client-Token": client },
-      body: JSON.stringify({ phone: recipient, image, caption }),
-      signal: AbortSignal.timeout(20000),
-      redirect: "error",
-    },
-  );
-  if (!r.ok) throw new Error(`provider_http_${r.status}`);
-  const receipt = (await r.json()) as { messageId?: unknown };
-  if (typeof receipt.messageId !== "string" || !receipt.messageId)
-    throw new Error("provider_receipt_missing");
-  return { provider: "zapi", messageId: receipt.messageId };
+  _credentials: Record<string, unknown>,
+  _recipient: string,
+  _image: string,
+  _caption: string,
+): Promise<{ provider: string; messageId: string }> {
+  throw new Error("whatsapp_provider_not_supported");
 }
 
 function waAkgAllowedOrigins(): string[] {
@@ -1212,7 +1120,7 @@ async function processWaAkgQueues(organizationId: string): Promise<Record<string
   }
 }
 
-function requestedEvolutionMedia(payload: Record<string, unknown>): { kind: "image" | "audio" | "video" | "document"; url: string; filename?: string } | null {
+function requestedProviderMedia(payload: Record<string, unknown>): { kind: "image" | "audio" | "video" | "document"; url: string; filename?: string } | null {
   const media = asObject(payload.provider_media);
   const kind = asText(media.kind, 20);
   const url = asText(media.url, 2_000);
@@ -1436,7 +1344,8 @@ async function processDailyWhatsappReports(admin: Admin, organizationId: string)
     admin.from('notification_preferences')
       .select('user_id,daily_lead_report_phone,daily_lead_report_time,timezone')
       .eq('organization_id', organizationId).eq('daily_lead_report_enabled', true),
-    admin.from('integrations').select('id,connected,enabled,paused').eq('organization_id', organizationId).eq('key', 'whatsapp').maybeSingle(),
+    admin.from('whatsapp_accounts').select('id,integration_id,enabled,connection_status').eq('organization_id', organizationId)
+      .eq('provider', 'wa_akg').eq('account_type', 'corporate').is('archived_at', null).maybeSingle(),
     admin.from('channel_policy_events').select('id').eq('organization_id', organizationId).eq('channel', 'whatsapp')
       .eq('action', 'pause').is('resolved_at', null).limit(1).maybeSingle(),
   ]);
@@ -1453,16 +1362,18 @@ async function processDailyWhatsappReports(admin: Admin, organizationId: string)
   }).filter((item) => item.due);
   if (!due.length) return empty('idle');
   const whatsapp = whatsappRead.data;
-  const channelUnavailable = !whatsapp?.connected || !whatsapp?.enabled || whatsapp?.paused || Boolean(riskRead.data);
+  const channelUnavailable = whatsapp?.connection_status !== 'connected' || whatsapp?.enabled !== true || Boolean(riskRead.data);
   if (channelUnavailable) {
     await Promise.all(due.map(({ preference }) => setDailyReportPreferenceState(admin, organizationId, preference.user_id, 'blocked', {
-      error: whatsapp?.paused || riskRead.data ? 'whatsapp_policy_pause_active' : 'whatsapp_channel_unavailable',
+      error: riskRead.data ? 'whatsapp_policy_pause_active' : 'whatsapp_channel_unavailable',
     }).catch(() => undefined)));
     return { ...empty('blocked'), due: due.length };
   }
   if (!whatsapp) return { ...empty('blocked'), due: due.length };
-  const { data: credentials, error: credentialsError } = await admin.rpc('read_integration_secret', { p_integration: whatsapp.id });
-  if (credentialsError) {
+  let credentials: Record<string, unknown>;
+  try {
+    credentials = await loadWaAkgGatewaySecret(admin, organizationId);
+  } catch {
     await Promise.all(due.map(({ preference }) => setDailyReportPreferenceState(admin, organizationId, preference.user_id, 'blocked', { error: 'whatsapp_credentials_unavailable' }).catch(() => undefined)));
     return { ...empty('integration_unavailable'), due: due.length };
   }
@@ -1505,7 +1416,7 @@ async function processDailyWhatsappReports(admin: Admin, organizationId: string)
       deliveryId = reservation.id;
       await setDailyReportPreferenceState(admin, organizationId, preference.user_id, 'sending');
       dispatchStarted = true;
-      const receipt = await sendWhatsapp(asObject(credentials), phone, content);
+      const receipt = await sendWaAkgWhatsapp(credentials, phone, content, reservation.id);
       providerAccepted = true;
       const sentAt = new Date().toISOString();
       const { error: deliveryError } = await admin.from('daily_lead_report_deliveries').update({
@@ -1518,7 +1429,7 @@ async function processDailyWhatsappReports(admin: Admin, organizationId: string)
         actor_name: 'Sistema',
         actor_type: 'system',
         action: 'notification.daily_report_provider_accepted',
-        detail: 'Resumo diário aceito pela Z-API para entrega ao usuário configurado.',
+        detail: 'Resumo diário aceito pelo WA-AKG para entrega ao usuário configurado.',
         entity_table: 'daily_lead_report_deliveries',
         entity_id: deliveryId,
         event_data: { user_id: preference.user_id, local_day: localDay, phone_suffix: phone.slice(-4) },
@@ -1559,15 +1470,17 @@ async function processHandoffWhatsappNotifications(admin: Admin, organizationId:
   if (!(deliveries ?? []).length) return empty('idle');
   const [companyRead, whatsappRead, riskRead] = await Promise.all([
     admin.from('company_settings').select('active,sandbox_mode').eq('organization_id', organizationId).maybeSingle(),
-    admin.from('integrations').select('id,connected,enabled,paused').eq('organization_id', organizationId).eq('key', 'whatsapp').maybeSingle(),
+    admin.from('whatsapp_accounts').select('id,integration_id,enabled,connection_status').eq('organization_id', organizationId)
+      .eq('provider', 'wa_akg').eq('account_type', 'corporate').is('archived_at', null).maybeSingle(),
     admin.from('channel_policy_events').select('id').eq('organization_id', organizationId).eq('channel', 'whatsapp').eq('action', 'pause').is('resolved_at', null).limit(1).maybeSingle(),
   ]);
   if (companyRead.error || whatsappRead.error || riskRead.error) throw new Error('handoff_notification_runtime_read_failed');
   if (companyRead.data?.active !== true || companyRead.data?.sandbox_mode !== false) return { ...empty('real_mode_required'), queued: deliveries!.length };
   const whatsapp = whatsappRead.data;
-  if (!whatsapp?.connected || !whatsapp.enabled || whatsapp.paused || riskRead.data) return { ...empty('blocked'), queued: deliveries!.length };
-  const { data: credentials, error: credentialsError } = await admin.rpc('read_integration_secret', { p_integration: whatsapp.id });
-  if (credentialsError) return { ...empty('integration_unavailable'), queued: deliveries!.length };
+  if (whatsapp?.connection_status !== 'connected' || whatsapp.enabled !== true || riskRead.data) return { ...empty('blocked'), queued: deliveries!.length };
+  let credentials: Record<string, unknown>;
+  try { credentials = await loadWaAkgGatewaySecret(admin, organizationId); }
+  catch { return { ...empty('integration_unavailable'), queued: deliveries!.length }; }
   let sent = 0; let failed = 0; let reconciliationRequired = 0;
   for (const delivery of deliveries ?? []) {
     const { data: claimed, error: claimError } = await admin.from('handoff_whatsapp_deliveries').update({ status: 'sending', attempted_at: new Date().toISOString(), updated_at: new Date().toISOString(), error: null }).eq('id', delivery.id).eq('organization_id', organizationId).eq('status', 'queued').select('id').maybeSingle();
@@ -1586,12 +1499,12 @@ async function processHandoffWhatsappNotifications(admin: Admin, organizationId:
       const stage = asText(lead.ana_stage, 40) || 'atual';
       const message = `Wayflex: ${subject} foi transferido para você na etapa ${stage}. Motivo: ${reason} Abra a Central de Atendimento para assumir.`;
       dispatchStarted = true;
-      const receipt = await sendWhatsapp(asObject(credentials), delivery.recipient_phone, message);
+      const receipt = await sendWaAkgWhatsapp(credentials, delivery.recipient_phone, message, delivery.id);
       providerAccepted = true;
       const sentAt = new Date().toISOString();
       const { error: sentError } = await admin.from('handoff_whatsapp_deliveries').update({ status: 'sent', provider_message_id: receipt.messageId, sent_at: sentAt, updated_at: sentAt, error: null }).eq('id', delivery.id).eq('organization_id', organizationId).eq('status', 'sending');
       if (sentError) throw new Error('handoff_notification_acceptance_persist_failed');
-      await admin.from('audit_logs').insert({ organization_id: organizationId, actor_name: 'Sistema', actor_type: 'system', action: 'notification.handoff_provider_accepted', detail: 'Aviso interno de transferência aceito pela Z-API.', entity_table: 'handoff_whatsapp_deliveries', entity_id: delivery.id, event_data: { handoff_id: delivery.handoff_id, user_id: delivery.recipient_user_id, phone_suffix: delivery.recipient_phone.slice(-4) } });
+      await admin.from('audit_logs').insert({ organization_id: organizationId, actor_name: 'Sistema', actor_type: 'system', action: 'notification.handoff_provider_accepted', detail: 'Aviso interno de transferência aceito pelo WA-AKG.', entity_table: 'handoff_whatsapp_deliveries', entity_id: delivery.id, event_data: { handoff_id: delivery.handoff_id, user_id: delivery.recipient_user_id, phone_suffix: delivery.recipient_phone.slice(-4) } });
       sent += 1;
     } catch (error) {
       const status = dispatchStarted ? 'reconciliation_required' : 'failed';
@@ -2113,13 +2026,32 @@ Deno.serve(async (request) => {
           providerMessageId: string | null = null;
         let waAkgSlotReserved = false;
         let waAkgSlotAccountId = '';
-        let whatsappProvider = "zapi";
+        let whatsappProvider = "wa_akg";
         try {
           if (!["whatsapp", "email"].includes(channel))
             throw new Error("channel_not_supported");
-          const requestedIntegrationId = channel === "whatsapp"
+          let requestedIntegrationId = channel === "whatsapp"
             ? asText(payload.integration_id, 80)
             : "";
+          let requestedAccountId = channel === "whatsapp"
+            ? asText(payload.whatsapp_account_id, 80)
+            : "";
+          // Jobs created before the account-bound queue contract may not carry
+          // routing fields. Resolve them once through the canonical RPC rather
+          // than guessing a provider or falling back to a legacy credential.
+          if (channel === "whatsapp" && (!requestedIntegrationId || !requestedAccountId)) {
+            const { data: routeRows, error: routeError } = await admin.rpc("resolve_lead_whatsapp_account", {
+              p_organization_id: orgId,
+              p_lead_id: job.lead_id,
+            });
+            const route = asObject(Array.isArray(routeRows) ? routeRows[0] : routeRows);
+            if (routeError) throw new Error("whatsapp_account_resolution_failed");
+            requestedIntegrationId ||= asText(route.integration_id, 80);
+            requestedAccountId ||= asText(route.account_id, 80);
+          }
+          if (channel === "whatsapp" && !requestedIntegrationId) {
+            throw new Error("whatsapp_integration_id_required");
+          }
           if (channel === "whatsapp" && requestedIntegrationId && !isUuid(requestedIntegrationId)) {
             throw new Error("whatsapp_integration_id_invalid");
           }
@@ -2174,7 +2106,6 @@ Deno.serve(async (request) => {
             { data: integration },
           ] = initial;
           if (channel === "whatsapp" && requestedIntegrationId) {
-            const requestedAccountId = asText(payload.whatsapp_account_id, 80);
             if (!isUuid(requestedAccountId)) throw new Error("whatsapp_account_id_invalid");
             const { data: account, error: accountError } = await admin
               .from("whatsapp_accounts")
@@ -2186,17 +2117,16 @@ Deno.serve(async (request) => {
               .maybeSingle();
             if (accountError || !account) throw new Error("whatsapp_account_integration_mismatch");
             if (account.enabled !== true || account.connection_status !== 'connected') throw new Error('whatsapp_account_not_ready');
-            whatsappProvider = asText(account.provider, 40) || "zapi";
-            if (whatsappProvider === 'wa_akg') {
-              const { data: controls, error: controlsError } = await admin.from('messaging_provider_controls')
-                .select('send_enabled,automation_enabled,kill_switch')
-                .eq('organization_id', orgId).eq('provider', whatsappProvider).maybeSingle();
-              if (controlsError) throw new Error(`${whatsappProvider}_control_read_failed`);
-              if (!controls || controls.send_enabled !== true || controls.kill_switch === true) {
-                throw new Error(`${whatsappProvider}_send_not_ready`);
-              }
-              if (!manual && controls.automation_enabled !== true) throw new Error(`${whatsappProvider}_automation_not_ready`);
+            if (account.provider !== 'wa_akg') throw new Error('whatsapp_provider_not_supported');
+            whatsappProvider = 'wa_akg';
+            const { data: controls, error: controlsError } = await admin.from('messaging_provider_controls')
+              .select('send_enabled,automation_enabled,kill_switch')
+              .eq('organization_id', orgId).eq('provider', whatsappProvider).maybeSingle();
+            if (controlsError) throw new Error(`${whatsappProvider}_control_read_failed`);
+            if (!controls || controls.send_enabled !== true || controls.kill_switch === true) {
+              throw new Error(`${whatsappProvider}_send_not_ready`);
             }
+            if (!manual && controls.automation_enabled !== true) throw new Error(`${whatsappProvider}_automation_not_ready`);
           }
           const controlledSandboxTest =
             manual &&
@@ -2487,7 +2417,7 @@ Deno.serve(async (request) => {
                 owner_id: lead.owner_id,
                 channel,
                 whatsapp_account_id: channel === "whatsapp"
-                  ? asText(payload.whatsapp_account_id, 80) || null
+                  ? requestedAccountId || null
                   : null,
                 status: "pending",
                 provider,
@@ -2524,7 +2454,7 @@ Deno.serve(async (request) => {
                 80,
               ),
               expectedIntegrationId: requestedIntegrationId || undefined,
-              expectedWhatsappAccountId: asText(payload.whatsapp_account_id, 80) || undefined,
+              expectedWhatsappAccountId: requestedAccountId || undefined,
               allowMeetingHandoffAcknowledgement: meetingHandoffAcknowledgement,
             });
             if (finalBlock) {
@@ -2558,7 +2488,7 @@ Deno.serve(async (request) => {
 
           let waAkgCredentials: Record<string, unknown> | null = null;
           if (channel === 'whatsapp' && whatsappProvider === 'wa_akg') {
-            waAkgSlotAccountId = asText(payload.whatsapp_account_id, 80);
+            waAkgSlotAccountId = requestedAccountId;
             if (!isUuid(waAkgSlotAccountId)) throw new Error('whatsapp_account_id_invalid');
             const { data: slotData, error: slotError } = await admin.rpc('reserve_whatsapp_send_slot', {
               p_organization_id: orgId,
@@ -2595,16 +2525,9 @@ Deno.serve(async (request) => {
                     waAkgCredentials ?? {}, recipient, message, job.id,
                     catalogImageMedia
                       ? { kind: "image", url: catalogImageMedia.imageUrl }
-                      : requestedEvolutionMedia(payload) ?? undefined,
+                      : requestedProviderMedia(payload) ?? undefined,
                   )
-                : catalogImageMedia
-                  ? await sendWhatsappImage(
-                    asObject(credentials),
-                    recipient,
-                    catalogImageMedia.imageUrl,
-                    message,
-                  )
-                  : await sendWhatsapp(asObject(credentials), recipient, message)
+                : await sendWhatsapp(asObject(credentials), recipient, message)
               : await sendEmail(
                   asObject(credentials),
                   asObject(integration.configuration),
@@ -2689,7 +2612,7 @@ Deno.serve(async (request) => {
                 noReplyDeadlineAt: noReplyDeadlineAt!,
                 policy: anaPolicy,
                 integrationId: requestedIntegrationId || undefined,
-                whatsappAccountId: asText(payload.whatsapp_account_id, 80) || undefined,
+                whatsappAccountId: requestedAccountId || undefined,
               });
             } catch {
               cadence = { scheduled: 0, error: "cadence_schedule_persist_failed" };

@@ -15,7 +15,7 @@ export type WhatsappConnectionStatus =
 
 export interface WhatsappAccount {
   id: string;
-  provider: 'zapi' | 'meta_cloud' | 'wa_akg';
+  provider: 'meta_cloud' | 'wa_akg';
   ownerUserId: string | null;
   ownerName: string | null;
   ownerEmail: string | null;
@@ -45,7 +45,7 @@ export interface WhatsappAccount {
 }
 
 export interface WhatsappProviderControl {
-  provider: 'zapi' | 'meta_cloud' | 'wa_akg';
+  provider: 'meta_cloud' | 'wa_akg';
   inboundEnabled: boolean;
   sendEnabled: boolean;
   automationEnabled: boolean;
@@ -361,7 +361,11 @@ export function refreshWhatsappAccount(accountId: string): Promise<{
   connectionStatus: WhatsappConnectionStatus;
   connectedPhoneSuffix: string | null;
 }> {
-  return invoke({ action: 'refresh_status', account_id: accountId });
+  return runWaAkgAction('refresh_status', accountId).then((status) => ({
+    connected: status.account?.connectionStatus === 'connected' && status.integration?.connected === true,
+    connectionStatus: status.account?.connectionStatus ?? 'error',
+    connectedPhoneSuffix: status.account?.phoneSuffix ?? null,
+  }));
 }
 
 export async function setWhatsappAccountEnabled(accountId: string, enabled: boolean): Promise<void> {
@@ -373,15 +377,16 @@ export async function setWhatsappAccountEnabled(accountId: string, enabled: bool
  * no backend: não expõe credenciais e não remove a sessão remota do provedor.
  */
 export async function setWhatsappProviderEnabled(
-  provider: 'zapi' | 'meta_cloud',
+  provider: 'wa_akg',
   enabled: boolean,
   accountId?: string,
 ): Promise<void> {
-  await invoke({
-    action: 'set_provider_enabled',
-    provider,
-    enabled,
-    account_id: accountId,
+  if (!accountId) throw new Error('whatsapp_account_required');
+  await setWaAkgProviderControls(accountId, {
+    inboundEnabled: enabled,
+    sendEnabled: enabled,
+    automationEnabled: enabled,
+    killSwitch: !enabled,
   });
 }
 

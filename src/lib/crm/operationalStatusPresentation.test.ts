@@ -9,15 +9,15 @@ import {
 } from './operationalStatusPresentation';
 
 describe('operational status presentation', () => {
-  it('preserva o diagnóstico de callback sem lead como entrada pendente', () => {
+  it('não apresenta uma rota legada como entrada operacional', () => {
     expect(presentIntegrationStatus({
-      key: 'zapi_webhook',
+      key: 'legacy_webhook',
       connected: false,
       enabled: true,
       paused: false,
       lastError: 'lead_not_matched',
       lastTestedAt: null,
-    })).toMatchObject({ status: 'pending', label: 'Entrada pendente', tone: 'attention' });
+    })).toMatchObject({ status: 'error', label: 'Erro de conexão', tone: 'critical' });
   });
 
   it('separa fonte ativa, fonte pausada e fonte com falha', () => {
@@ -35,7 +35,7 @@ describe('operational status presentation', () => {
       lastError: null,
       lastTestedAt: '2026-09-18T10:41:30.000Z',
     };
-    expect(integrationStatusDetail(stale, 'Conexão Z-API validada.', new Date('2026-09-22T12:00:00.000Z').getTime()))
+    expect(integrationStatusDetail(stale, 'Conexão WA-AKG validada.', new Date('2026-09-22T12:00:00.000Z').getTime()))
       .toContain('validação venceu');
   });
 

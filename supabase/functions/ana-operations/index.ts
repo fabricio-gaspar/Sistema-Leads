@@ -147,8 +147,8 @@ async function readiness(admin: ReturnType<typeof createAdminClient>, organizati
     ai: company?.can_use_ia === true && company?.ai_actions_enabled === true && available.get('ai') === true,
     apify: available.get('apify') === true,
     scheduler: available.get('scheduler') === true,
-    whatsappOutbound: waAkgConfigured ? waAkg.enabled : available.get('whatsapp') === true,
-    whatsappInbound: waAkgConfigured ? waAkg.enabled : available.get('zapi_webhook') === true,
+    whatsappOutbound: waAkgConfigured ? waAkg.enabled : false,
+    whatsappInbound: waAkgConfigured ? waAkg.enabled : false,
     killSwitchOff: asObject(runtime?.data).killSwitchGlobal === false,
   };
   return { checks, automaticReady: Object.values(checks).every(Boolean) };

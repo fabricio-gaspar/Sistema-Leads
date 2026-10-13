@@ -52,7 +52,7 @@ export interface ResultadoEnvioApi {
 // Extrai a mensagem real de um erro retornado por `supabase.functions.invoke`.
 // Em erros HTTP (non-2xx), o Supabase lança um `FunctionsHttpError` cujo `context`
 // é um `Response` com o corpo JSON que a Edge Function devolveu (ex.: o `detalhe`
-// do porquê a Z-API recusou). Sem isso, só veríamos a mensagem genérica
+// do motivo pelo qual o gateway recusou). Sem isso, só veríamos a mensagem genérica
 // "Edge Function returned a non-2xx status code".
 export async function detalheDoErroDeFuncao(error: unknown): Promise<string> {
   const e = error as { context?: Response; message?: string } | null | undefined;

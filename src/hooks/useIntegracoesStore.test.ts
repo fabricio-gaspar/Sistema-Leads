@@ -20,7 +20,7 @@ describe('integrationDisplayStatus', () => {
     expect(integrationDisplayStatus({ connected: true, enabled: true, paused: false, lastError: 'provider_error', lastTestedAt: freshValidation }, now)).toBe('error');
   });
 
-  it('não apresenta o webhook da Z-API como erro de credencial quando o callback chegou sem lead correspondente', () => {
-    expect(integrationDisplayStatus({ key: 'zapi_webhook', connected: false, enabled: true, paused: false, lastError: 'lead_not_matched', lastTestedAt: freshValidation }, now)).toBe('pending');
+  it('mantém uma rota legada fora do estado operacional', () => {
+    expect(integrationDisplayStatus({ key: 'legacy_webhook', connected: false, enabled: true, paused: false, lastError: 'lead_not_matched', lastTestedAt: freshValidation }, now)).toBe('error');
   });
 });

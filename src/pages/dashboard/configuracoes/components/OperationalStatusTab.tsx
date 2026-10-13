@@ -38,7 +38,7 @@ interface ComponentRow extends ComponentDefinition {
 const COMPONENTS: ComponentDefinition[] = [
   { id: 'automation-scheduler', group: 'Automação', label: 'Agendador de automações', description: 'Heartbeat do agendador; a conclusão das tarefas é verificada nos registros.', icon: 'ri-calendar-schedule-line', keys: ['scheduler'], checkIds: ['scheduler'], action: 'scheduler' },
   { id: 'automation-worker', group: 'Automação', label: 'Worker 24/7', description: 'Heartbeat do worker; não comprova envio, entrega ou conclusão de buscas.', icon: 'ri-settings-5-line', keys: ['scheduler'], checkIds: ['scheduler'], action: 'scheduler' },
-  { id: 'whatsapp', group: 'Atendimento', label: 'WhatsApp', description: 'Envia e recebe mensagens pelo WA-AKG.', icon: 'ri-whatsapp-line', keys: ['whatsapp_wa_akg:', 'whatsapp'], checkIds: ['whatsapp'], href: '/dashboard/configuracoes?tab=canais' },
+  { id: 'whatsapp', group: 'Atendimento', label: 'WhatsApp', description: 'Envia e recebe mensagens pelo WA-AKG.', icon: 'ri-whatsapp-line', keys: ['whatsapp_wa_akg:'], checkIds: ['whatsapp'], href: '/dashboard/configuracoes?tab=canais' },
   { id: 'email', group: 'Atendimento', label: 'E-mail', description: 'Envia mensagens transacionais.', icon: 'ri-mail-line', keys: ['email', 'resend'], href: '/dashboard/configuracoes?tab=canais' },
   { id: 'wa-akg-webhook', group: 'Atendimento', label: 'Webhook WA-AKG', description: 'Recebe eventos do canal e respostas dos leads; é registrado durante o provisionamento seguro.', icon: 'ri-webhook-line', keys: ['wa_akg_webhook'], href: '/dashboard/configuracoes?tab=canais' },
   { id: 'resend-webhook', group: 'Atendimento', label: 'Webhook Resend', description: 'Recebe eventos de e-mail.', icon: 'ri-share-line', keys: ['resend_webhook'] },

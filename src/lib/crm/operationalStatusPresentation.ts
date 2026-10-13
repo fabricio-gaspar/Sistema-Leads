@@ -63,10 +63,9 @@ export function hasFreshIntegrationValidation(value: string | null, now = Date.n
  * sem nova validação; esse é o mesmo prazo usado pelo diagnóstico server-side.
  */
 export function integrationDisplayStatus(input: IntegrationStatusInput, now = Date.now()): IntegrationDisplayStatus {
-  if (input.key === 'zapi_webhook' && input.enabled && input.lastError === 'lead_not_matched') return 'pending';
   if (input.lastError) return 'error';
   if (input.paused) return 'paused';
-  if (!input.connected) return input.key === 'zapi_webhook' && input.enabled ? 'pending' : 'not_configured';
+  if (!input.connected) return 'not_configured';
   if (!input.enabled) return 'inactive';
   return hasFreshIntegrationValidation(input.lastTestedAt, now) ? 'validated' : 'validation_due';
 }
@@ -111,10 +110,8 @@ export function operationalIcon(key: string): string {
   const icons: Record<string, string> = {
     whatsapp: 'ri-whatsapp-line',
     whatsapp_wa_akg: 'ri-whatsapp-line',
-    whatsapp_zapi: 'ri-whatsapp-line',
     whatsapp_meta: 'ri-meta-line',
     wa_akg_webhook: 'ri-webhook-line',
-    zapi_webhook: 'ri-chat-check-line',
     ai: 'ri-brain-line',
     apify: 'ri-map-pin-search-line',
     google_places: 'ri-google-line',
@@ -128,10 +125,8 @@ export function operationalIconTone(key: string): string {
   const tones: Record<string, string> = {
     whatsapp: 'bg-[#25D366]/10 text-[#128C3E]',
     whatsapp_wa_akg: 'bg-[#E8F7EF] text-[#168654]',
-    whatsapp_zapi: 'bg-[#25D366]/10 text-[#128C3E]',
     whatsapp_meta: 'bg-[#0866FF]/10 text-[#0866FF]',
     wa_akg_webhook: 'bg-[#E8F7EF] text-[#168654]',
-    zapi_webhook: 'bg-[#25D366]/10 text-[#128C3E]',
     ai: 'bg-primary-50 text-primary-700',
     apify: 'bg-[#FF6B35]/10 text-[#C2410C]',
     google_places: 'bg-[#4285F4]/10 text-[#2563EB]',

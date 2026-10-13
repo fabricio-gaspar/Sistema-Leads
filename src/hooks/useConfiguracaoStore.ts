@@ -3,6 +3,7 @@ import type { ConfiguracaoRuntime } from '@/lib/tipos';
 import { automacaoConfig } from '@/mocks/automacaoData';
 import { horariosAtendimento } from '@/mocks/horariosData';
 import { regrasComerciais } from '@/mocks/comercialData';
+import { normalizeOperationalConfig, OPERATIONAL_CONFIG_MODULE_KEY } from '@/lib/crm/operationalConfig';
 
 const STORAGE_KEY = 'leadai_config_runtime_v1';
 
@@ -42,11 +43,13 @@ const configInicial: ConfiguracaoRuntime = {
     ia: { estado: 'DESLIGADO', temCredenciais: false },
   },
   contatosTeste: [],
-  provedorWhatsapp: 'zapi',
+  // WA-AKG is the only supported WhatsApp transport. Legacy provider values
+  // are intentionally not seeded into the organization runtime document.
+  provedorWhatsapp: 'wa_akg',
   alertaRiscoBloqueio: 70,
 };
 
-const store = createBackendStore<ConfiguracaoRuntime>('configuracao_runtime',STORAGE_KEY, configInicial);
+const store = createBackendStore<ConfiguracaoRuntime>(OPERATIONAL_CONFIG_MODULE_KEY, STORAGE_KEY, configInicial);
 
 // Defaults are merged on read. Importing this module never writes operational data.
 
@@ -54,16 +57,16 @@ export function useConfiguracaoStore(): {
   config: ConfiguracaoRuntime;
   atualizar: (patch: Partial<ConfiguracaoRuntime>) => void;
 } {
-  const config = store.useStore();
+  const config = normalizeOperationalConfig(store.useStore());
   const setStore = store.bindSet();
 
   const atualizar = (patch: Partial<ConfiguracaoRuntime>) => {
-    setStore((prev) => ({ ...prev, ...patch }));
+    setStore((prev) => normalizeOperationalConfig({ ...prev, ...patch }));
   };
 
   return { config, atualizar };
 }
 
 export function getConfigSnapshot(): ConfiguracaoRuntime {
-  return store.get();
+  return normalizeOperationalConfig(store.get());
 }
