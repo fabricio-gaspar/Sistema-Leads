@@ -1,5 +1,6 @@
 import { createAdminClient } from '../_shared/auth.ts';
 import { json, safeError } from '../_shared/http.ts';
+import { enqueueAnaJob, processNextAnaJob } from '../_shared/anaQueue.ts';
 import { sha256Hex, verifyMetaSignature } from '../_shared/messaging/metaSignature.ts';
 import { parseMetaWebhook, type MetaWebhookEvent } from '../_shared/messaging/metaWebhookParser.ts';
 
@@ -239,28 +240,26 @@ async function processMessage(
 
 async function dispatchAna(admin: Admin, account: Row, lead: Row, sourceMessageId: string) {
   if (lead.modo_atendimento !== 'ia' || lead.ai_paused === true || lead.opt_out === true) return;
-  const internalSecret = Deno.env.get('WHATSAPP_WEBHOOK_SHARED_SECRET');
-  const serviceRole = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-  const supabaseUrl = Deno.env.get('SUPABASE_URL');
   const integrationId = asText(account.integration_id, 80);
-  if (!internalSecret || !serviceRole || !supabaseUrl || !integrationId) throw new Error('meta_ana_internal_configuration_missing');
-  const response = await fetch(`${supabaseUrl}/functions/v1/ana-run`, {
-    method: 'POST',
-    headers: {
-      Authorization: `Bearer ${serviceRole}`,
-      'Content-Type': 'application/json',
-      'x-internal-worker-secret': internalSecret,
-    },
-    body: JSON.stringify({
-      organization_id: account.organization_id,
-      lead_id: lead.id,
-      event: 'message.received',
-      source_integration_id: integrationId,
-      source_message_id: sourceMessageId,
-    }),
-    signal: AbortSignal.timeout(25_000),
+  const organizationId = asText(account.organization_id, 80);
+  const leadId = asText(lead.id, 80);
+  if (!organizationId || !leadId || !integrationId || !sourceMessageId) {
+    throw new Error('meta_ana_queue_context_invalid');
+  }
+  const job = await enqueueAnaJob(admin, {
+    organizationId,
+    leadId,
+    event: 'message.received',
+    mode: 'ia',
+    requestId: `meta_cloud:${asText(account.id, 80)}:${sourceMessageId}`,
+    sourceMessageId,
+    sourceIntegrationId: integrationId,
+    context: { channel: 'whatsapp', provider: 'meta_cloud' },
   });
-  if (!response.ok) throw new Error('meta_ana_dispatch_failed');
+  // Persisting the job is the completion boundary for the provider webhook.
+  // A timeout or ambiguous result remains in the queue for review/recovery
+  // rather than making a second model request on the next provider retry.
+  await processNextAnaJob(admin, typeof job.id === 'string' ? job.id : null);
 }
 
 async function processStatus(admin: Admin, event: Extract<MetaWebhookEvent, { kind: 'status' }>, account: Row) {

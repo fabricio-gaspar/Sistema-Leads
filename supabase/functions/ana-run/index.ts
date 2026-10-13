@@ -504,10 +504,23 @@ function canUseClaudeFallback(error: unknown): boolean {
 }
 
 function canUseProviderFallback(error: unknown): boolean {
-  return /^(freellm_network_error|freellm_timeout|freellm_400|freellm_401|freellm_403|freellm_404|freellm_408|freellm_409|freellm_429|freellm_5\d\d)$/.test(safeError(error));
+  // Invalid URL, model, authentication or authorization are configuration
+  // failures, not availability failures. They must stay visible instead of
+  // silently consuming a paid provider.
+  return /^(freellm_network_error|freellm_timeout|freellm_408|freellm_409|freellm_429|freellm_5\d\d)$/.test(safeError(error));
 }
 
-async function callAi(system: string, context: Record<string, unknown>, storedCredentials: Record<string, unknown> = {}): Promise<{ provider: AiProvider; decision: unknown }> {
+function allowsPaidProviderFallback(configuration: Record<string, unknown>): boolean {
+  const fallback = asObject(configuration.providerFallback);
+  return fallback.allowPaidFallback === true && fallback.approvedByAdministrator === true;
+}
+
+async function callAi(
+  system: string,
+  context: Record<string, unknown>,
+  storedCredentials: Record<string, unknown> = {},
+  configuration: Record<string, unknown> = {},
+): Promise<{ provider: AiProvider; decision: unknown }> {
   // Never borrow another organization's/global provider credentials.
   const openAiKey = asText(storedCredentials.openai_key, 1_000);
   const claudeKey = asText(storedCredentials.claude_key, 1_000);
@@ -525,7 +538,7 @@ async function callAi(system: string, context: Record<string, unknown>, storedCr
     try {
       return { provider: 'freellm', decision: await callFreeLlm(freeLlmKey, freeLlmUrl, system, ANA_REQUEST(context), freeLlmModel || 'free-router') };
     } catch (error) {
-      if (!canUseProviderFallback(error) && !openAiKey && !claudeKey) throw error;
+      if (!allowsPaidProviderFallback(configuration) || !canUseProviderFallback(error)) throw error;
     }
   }
   if (openAiKey) {
@@ -626,16 +639,68 @@ async function scheduleGoogleMeeting(
   return { externalId, meetingUrl: asText(event.hangoutLink, 1_000) || asText(event.htmlLink, 1_000) || null };
 }
 
+type AnaEffectType = 'qualification' | 'lead_transition' | 'outbound_queue' | 'handoff' | 'proposal' | 'calendar';
+
+/**
+ * A retry may safely repeat a completed effect only when its durable record
+ * says so. A previous `planned` effect has an unknown outcome and is sent to
+ * review rather than duplicating a commercial action or external request.
+ */
+async function applyAnaEffect<T>(
+  admin: ReturnType<typeof createAdminClient>,
+  input: { organizationId: string; leadId: string; runId: string; jobId: string | null; type: AnaEffectType; payload?: Record<string, unknown> },
+  action: () => Promise<T>,
+): Promise<{ replayed: boolean; value?: T }> {
+  const effectKey = `${input.runId}:${input.type}`;
+  const { data: previous, error: previousError } = await admin.from('ana_effects')
+    .select('id,status').eq('organization_id', input.organizationId).eq('effect_key', effectKey).maybeSingle();
+  if (previousError) throw new Error('ana_effect_read_failed');
+  if (previous?.status === 'completed') return { replayed: true };
+  if (previous?.status) throw new Error('ana_effect_reconciliation_required');
+  const { error: plannedError } = await admin.from('ana_effects').insert({
+    organization_id: input.organizationId, lead_id: input.leadId, ana_job_id: input.jobId,
+    agent_run_id: input.runId, effect_key: effectKey, effect_type: input.type,
+    status: 'planned', payload: input.payload ?? {},
+  });
+  if (plannedError) {
+    if (plannedError.code === '23505') throw new Error('ana_effect_reconciliation_required');
+    throw new Error('ana_effect_plan_failed');
+  }
+  try {
+    const value = await action();
+    const { error: completeError } = await admin.from('ana_effects').update({
+      status: 'completed', completed_at: new Date().toISOString(),
+    }).eq('organization_id', input.organizationId).eq('effect_key', effectKey).eq('status', 'planned');
+    if (completeError) throw new Error('ana_effect_complete_failed');
+    return { replayed: false, value };
+  } catch (error) {
+    await admin.from('ana_effects').update({
+      status: 'failed', error_code: errorCode(error), payload: { ...(input.payload ?? {}), failure: safeError(error) },
+    }).eq('organization_id', input.organizationId).eq('effect_key', effectKey).eq('status', 'planned');
+    throw error;
+  }
+}
+
+function retryableAnaFailure(error: unknown, effectsStarted: boolean): boolean {
+  if (effectsStarted) return false;
+  return /^(freellm_network_error|freellm_timeout|freellm_408|freellm_409|freellm_429|freellm_5\d\d|openai_network_error|openai_408|openai_409|openai_429|openai_5\d\d|claude_network_error|claude_408|claude_409|claude_429|claude_5\d\d)$/.test(errorCode(error));
+}
+
 Deno.serve(async (request) => {
   const options = preflight(request); if (options) return options;
   if (!hasAllowedOrigin(request)) return json({ ok: false, erro: 'origin_not_allowed' }, 403);
   const headers = allowedCorsHeaders(request);
   if (request.method !== 'POST') return json({ ok: false, erro: 'method_not_allowed' }, 405, headers);
 
-  let admin: ReturnType<typeof createAdminClient> | null = null;
+  // Initialized before any repository access. The definite assignment keeps
+  // the execution path typed as server-side only; the catch still guards an
+  // early parsing/authentication failure at runtime.
+  let admin!: ReturnType<typeof createAdminClient>;
   let runId: string | null = null;
-  let organizationId: string | null = null;
+  let organizationId!: string;
   let activeLeadId: string | null = null;
+  let anaJobId: string | null = null;
+  let effectsStarted = false;
   try {
     const body = asObject(await request.json());
     const event = normalizeEvent(body.event);
@@ -686,18 +751,46 @@ Deno.serve(async (request) => {
       // Existing cron owns a transactional lock + handoff + task. Do not race it here.
       return json({ ok: true, skipped: true, reason: 'timeout_owned_by_server_scheduler' }, 200, headers);
     }
-    const messageId = asText(body.message_id, 600) || asText(executionContext.inbound_event_id, 600);
+    // `inbound_event_id` identifies the webhook receipt, not the message that
+    // was persisted for the lead. Never use it as a conversation selector.
+    const messageId = asText(body.message_id, 600);
     const requestId = asText(body.request_id, 160);
+    if (event === 'message.received' && !isUuid(messageId)) {
+      throw new Error('ana_inbound_message_id_required');
+    }
     if (event !== 'message.received' && !requestId) throw new Error('ana_request_id_required');
+    const requestedJobId = asText(body.ana_job_id, 80);
+    const requestedJobLeaseId = asText(body.ana_job_lease_id, 80);
+    if (Boolean(requestedJobId) !== Boolean(requestedJobLeaseId) || (requestedJobId && (!internal || !isUuid(requestedJobId) || !isUuid(requestedJobLeaseId)))) {
+      throw new Error('ana_job_context_invalid');
+    }
+    if (requestedJobId) {
+      const { data: jobData, error: jobError } = await admin.rpc('validate_ana_job_lease', {
+        p_job_id: requestedJobId, p_lease_id: requestedJobLeaseId,
+      });
+      const job = asObject(jobData);
+      if (jobError || job.organization_id !== organizationId || job.lead_id !== leadId
+        || job.event !== event || job.modo !== modo || job.request_id !== requestId
+        || (messageId && job.source_message_id !== messageId)) {
+        throw new Error('ana_job_lease_invalid');
+      }
+      anaJobId = requestedJobId;
+    }
     const idempotencyKey = `${requestedDryRun ? 'simulation:' : ''}${anaEventKey(event, leadId, messageId, requestId)}`;
 
-    const { data: previousRun, error: previousError } = await admin.from('agent_runs').select('id,status,result,error_code,error_message')
+    const { data: previousRun, error: previousError } = await admin.from('agent_runs').select('id,status,result,error_code,error_message,retryable,lease_id,lease_expires_at,attempt_count')
       .eq('organization_id', organizationId).eq('idempotency_key', idempotencyKey).maybeSingle();
     if (previousError) throw previousError;
-    if (previousRun && internal && body.retry_failed === true && previousRun.status === 'failed') {
+    const canRetryFailed = previousRun?.status === 'failed' && previousRun.retryable === true && internal && body.retry_failed === true;
+    const canRecoverExpired = previousRun?.status === 'running' && anaJobId
+      && (!previousRun.lease_expires_at || Date.parse(String(previousRun.lease_expires_at)) <= Date.now());
+    if (previousRun && (canRetryFailed || canRecoverExpired)) {
       const { data: claimedRetry, error: retryError } = await admin.from('agent_runs').update({
-        status: 'running', result: {}, error_code: null, error_message: null, completed_at: null,
-      }).eq('id', previousRun.id).eq('organization_id', organizationId).eq('status', 'failed').select('id').maybeSingle();
+        status: 'running', result: {}, error_code: null, error_message: null, retryable: false,
+        completed_at: null, lease_id: requestedJobLeaseId || null,
+        lease_expires_at: requestedJobLeaseId ? new Date(Date.now() + 60_000).toISOString() : null,
+        attempt_count: Number(previousRun.attempt_count ?? 0) + 1,
+      }).eq('id', previousRun.id).eq('organization_id', organizationId).eq('status', previousRun.status).select('id').maybeSingle();
       if (retryError) throw retryError;
       if (!claimedRetry) return json({ ok: false, duplicate: true, in_progress: true }, 409, headers);
       runId = previousRun.id as string;
@@ -710,6 +803,8 @@ Deno.serve(async (request) => {
       const { data: run, error: runError } = await admin.from('agent_runs').insert({
         organization_id: organizationId, lead_id: leadId, actor_id: actorId, event, modo, status: 'running',
         input_context: executionContext, idempotency_key: idempotencyKey,
+        attempt_count: 1, lease_id: requestedJobLeaseId || null,
+        lease_expires_at: requestedJobLeaseId ? new Date(Date.now() + 60_000).toISOString() : null,
       }).select('id').single();
       if (runError?.code === '23505') {
         const { data: concurrentRun, error: concurrentError } = await admin.from('agent_runs')
@@ -722,6 +817,8 @@ Deno.serve(async (request) => {
       if (runError || !run) throw runError ?? new Error('agent_run_not_created');
       runId = run.id as string;
     }
+    if (!runId) throw new Error('agent_run_not_created');
+    const confirmedRunId = runId;
 
     const activeChannel = canonicalChannel(lead.active_channel);
     let whatsappAccount: Record<string, unknown> | null = null;
@@ -768,6 +865,9 @@ Deno.serve(async (request) => {
     const contextReads = await Promise.all([
       admin.from('company_settings').select('name,description,segment,website,phone,email,active,sandbox_mode,can_use_ia,ai_actions_enabled,ana_operation_enabled,ana_operation_mode,ui_settings').eq('organization_id', organizationId).maybeSingle(),
       admin.from('lead_messages').select('id,sender,sender_name,type,text,sent_at').eq('organization_id', organizationId).eq('lead_id', leadId).order('sent_at', { ascending: false }).limit(20),
+      event === 'message.received' && isUuid(messageId)
+        ? admin.from('lead_messages').select('id,sender,sender_name,type,text,sent_at').eq('organization_id', organizationId).eq('lead_id', leadId).eq('id', messageId).maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
       channelRead,
       admin.from('ai_agents').select('active_version_id').eq('organization_id', organizationId).eq('key', 'ana').maybeSingle(),
       admin.from('knowledge_catalog_items').select('id,item_type,name,short_description,technical_description,category,material,applications,keywords,image_url').eq('organization_id', organizationId).eq('status', 'active').eq('ana_enabled', true).not('image_url', 'is', null).limit(80),
@@ -779,7 +879,7 @@ Deno.serve(async (request) => {
       admin.from('organization_module_data').select('data').eq('organization_id', organizationId).eq('module_key', 'configuracao_runtime').maybeSingle(),
     ]);
     for (const read of contextReads) if (read.error) throw new Error('ana_context_read_failed');
-    const [{ data: company }, { data: messages }, { data: initialChannel }, { data: agent }, { data: catalogItemsRaw }, { data: knowledge }, { data: appointments }, { data: suppressions }, { data: aiIntegration }, { data: runtime }] = contextReads;
+    const [{ data: company }, { data: messages }, { data: exactInbound }, { data: initialChannel }, { data: agent }, { data: catalogItemsRaw }, { data: knowledge }, { data: appointments }, { data: suppressions }, { data: aiIntegration }, { data: runtime }] = contextReads;
     let channel = initialChannel;
     const operationMode = company?.ana_operation_enabled === true ? asText(company.ana_operation_mode, 20) : 'automatic';
     const supervised = operationMode === 'supervised';
@@ -788,7 +888,7 @@ Deno.serve(async (request) => {
     const blocked = automationBlockReason({ company, ai: aiIntegration, runtime: runtime?.data ?? null, lead, dryRun, requiresApprovedContact: event !== 'message.received' });
     if (blocked) {
       const result = { skipped: true, reason: blocked, status_canal: 'bloqueado', mensagem_sugerida: '', acoes: [] };
-      const { error } = await admin.from('agent_runs').update({ status: 'skipped', result, completed_at: new Date().toISOString() }).eq('id', runId).eq('organization_id', organizationId);
+      const { error } = await admin.from('agent_runs').update({ status: 'skipped', result, retryable: false, lease_id: null, lease_expires_at: null, completed_at: new Date().toISOString() }).eq('id', runId).eq('organization_id', organizationId);
       if (error) throw error;
       return json({ ok: true, run_id: runId, ...result }, 200, headers);
     }
@@ -825,7 +925,7 @@ Deno.serve(async (request) => {
                 : null;
       if (reason) {
         const result = { skipped: true, reason, status_canal: 'cadencia_bloqueada', mensagem_sugerida: '', acoes: [] };
-        const { error } = await admin.from('agent_runs').update({ status: 'skipped', result, completed_at: new Date().toISOString() })
+        const { error } = await admin.from('agent_runs').update({ status: 'skipped', result, retryable: false, lease_id: null, lease_expires_at: null, completed_at: new Date().toISOString() })
           .eq('id', runId).eq('organization_id', organizationId);
         if (error) throw error;
         return json({ ok: true, run_id: runId, ...result }, 200, headers);
@@ -843,7 +943,7 @@ Deno.serve(async (request) => {
         mensagem_sugerida: '',
         acoes: [],
       };
-      const { error } = await admin.from('agent_runs').update({ status: 'skipped', result, completed_at: new Date().toISOString() })
+      const { error } = await admin.from('agent_runs').update({ status: 'skipped', result, retryable: false, lease_id: null, lease_expires_at: null, completed_at: new Date().toISOString() })
         .eq('id', runId).eq('organization_id', organizationId);
       if (error) throw error;
       return json({ ok: true, run_id: runId, ...result }, 200, headers);
@@ -881,7 +981,13 @@ Deno.serve(async (request) => {
     }
     const timeout = false; // An inbound response is never an expired no-reply event.
     const chronologicalMessages = (messages ?? []).slice().reverse();
-    const latestInboundMessage = chronologicalMessages.slice().reverse().find((message) => message.sender === 'lead') ?? null;
+    const exactInboundMessage = exactInbound && asObject(exactInbound).sender === 'lead'
+      ? asObject(exactInbound)
+      : null;
+    if (event === 'message.received' && !exactInboundMessage) throw new Error('ana_inbound_message_not_found');
+    const latestInboundMessage = exactInboundMessage
+      ?? chronologicalMessages.slice().reverse().find((message) => message.sender === 'lead')
+      ?? null;
     const initialPresentation = event === 'lead.created' && currentStage === 'novo' && chronologicalMessages.length === 0;
     const sensitiveInbound = requiresHumanReview(latestInboundMessage?.text);
     const configurationTrigger = configuredHandoffTrigger(agentConfiguration.handoffTriggers, latestInboundMessage?.text);
@@ -960,6 +1066,7 @@ Deno.serve(async (request) => {
         DEFAULT_PROMPT,
         baseContext,
         asObject(aiCredentials),
+        agentConfiguration,
       );
       aiProvider = ai.provider;
       decision = parseDecision(ai.decision, currentStage);
@@ -979,7 +1086,12 @@ Deno.serve(async (request) => {
       if (!requestedMeeting) schedulingFailure = 'Pedido de reunião sem data e horário explícitos ou válidos.';
       else {
         try {
-          meetingApplied = await scheduleGoogleMeeting(admin, organizationId, runId, lead as Record<string, unknown>, requestedMeeting, assertEffect);
+          effectsStarted = true;
+          const calendarEffect = await applyAnaEffect(admin, {
+            organizationId, leadId, runId, jobId: anaJobId, type: 'calendar',
+            payload: { starts_at: requestedMeeting.startsAt, ends_at: requestedMeeting.endsAt },
+          }, () => scheduleGoogleMeeting(admin, organizationId, confirmedRunId, lead as Record<string, unknown>, requestedMeeting, assertEffect));
+          meetingApplied = calendarEffect.value ?? null;
         } catch (error) {
           schedulingFailure = `Agendamento não confirmado: ${safeError(error)}.`;
         }
@@ -1057,7 +1169,7 @@ Deno.serve(async (request) => {
     }
     if (dryRun) {
       const result = { ...decision, dry_run: true, acoes_aplicadas: [], status_canal: 'simulacao_sem_alteracoes', provedor_ia: aiProvider };
-      const { error } = await admin.from('agent_runs').update({ status: 'completed', result, completed_at: new Date().toISOString() }).eq('id', runId).eq('organization_id', organizationId);
+      const { error } = await admin.from('agent_runs').update({ status: 'completed', result, retryable: false, lease_id: null, lease_expires_at: null, completed_at: new Date().toISOString() }).eq('id', runId).eq('organization_id', organizationId);
       if (error) throw error;
       return json({ ok: true, run_id: runId, ...result }, 200, headers);
     }
@@ -1069,17 +1181,27 @@ Deno.serve(async (request) => {
       dispatchKnowledgeSnapshot = expanded.snapshot;
     }
     const inboundEvidence = latestInboundMessage && typeof latestInboundMessage === 'object' ? latestInboundMessage as Record<string, unknown> : null;
-    await persistCommercialQualification(admin, organizationId, leadId, runId, asText(inboundEvidence?.id, 80) || null, decision, inboundEvidence);
+    effectsStarted = true;
+    await applyAnaEffect(admin, {
+      organizationId, leadId, runId, jobId: anaJobId, type: 'qualification',
+      payload: { source_message_id: asText(inboundEvidence?.id, 80) || null },
+    }, () => persistCommercialQualification(admin, organizationId, leadId, confirmedRunId, asText(inboundEvidence?.id, 80) || null, decision, inboundEvidence));
     if (supervised) {
       if (decision.mensagem_sugerida) {
-        await assertEffect();
-        const { error: draftError } = await admin.from('lead_messages').insert({
-          organization_id: organizationId, lead_id: leadId, sender: 'ana', sender_name: 'Ana', type: 'pending_approval', text: decision.mensagem_sugerida, sent_at: null,
+        effectsStarted = true;
+        await applyAnaEffect(admin, {
+          organizationId, leadId, runId, jobId: anaJobId, type: 'outbound_queue',
+          payload: { channel: activeChannel, message_kind: 'pending_approval' },
+        }, async () => {
+          await assertEffect();
+          const { error: draftError } = await admin.from('lead_messages').insert({
+            organization_id: organizationId, lead_id: leadId, sender: 'ana', sender_name: 'Ana', type: 'pending_approval', text: decision.mensagem_sugerida, sent_at: null,
+          });
+          if (draftError) throw draftError;
         });
-        if (draftError) throw draftError;
       }
       const result = { ...decision, supervised: true, acoes_aplicadas: [], status_canal: 'aguardando_aprovacao', provedor_ia: aiProvider };
-      const { error } = await admin.from('agent_runs').update({ status: 'completed', result, completed_at: new Date().toISOString() }).eq('id', runId).eq('organization_id', organizationId);
+      const { error } = await admin.from('agent_runs').update({ status: 'completed', result, retryable: false, lease_id: null, lease_expires_at: null, completed_at: new Date().toISOString() }).eq('id', runId).eq('organization_id', organizationId);
       if (error) throw error;
       return json({ ok: true, run_id: runId, ...result }, 200, headers);
     }
@@ -1096,13 +1218,28 @@ Deno.serve(async (request) => {
       last_contact: event === 'message.received' ? new Date().toISOString() : lead.last_contact,
       no_reply_deadline_at: event === 'message.received' ? null : lead.no_reply_deadline_at,
     };
-    await assertEffect();
-    let leadWrite = admin.from('leads').update(update).eq('id', leadId).eq('organization_id', organizationId)
-      .eq('ai_paused', false).eq('modo_atendimento', 'ia').eq('opt_out', false).eq('owner_id', lead.owner_id);
-    leadWrite = lead.last_contact ? leadWrite.eq('last_contact', lead.last_contact) : leadWrite.is('last_contact', null);
-    if (lead.updated_at) leadWrite = leadWrite.eq('updated_at', lead.updated_at);
-    const { data: updatedLead, error: updateError } = await leadWrite.select('id,updated_at').maybeSingle();
-    if (updateError) throw updateError;
+    effectsStarted = true;
+    const leadEffect = await applyAnaEffect(admin, {
+      organizationId, leadId, runId, jobId: anaJobId, type: 'lead_transition',
+      payload: { from_stage: currentStage, to_stage: decision.proximo_estagio, requires_human: needsHuman },
+    }, async () => {
+      await assertEffect();
+      let leadWrite = admin.from('leads').update(update).eq('id', leadId).eq('organization_id', organizationId)
+        .eq('ai_paused', false).eq('modo_atendimento', 'ia').eq('opt_out', false).eq('owner_id', lead.owner_id);
+      leadWrite = lead.last_contact ? leadWrite.eq('last_contact', lead.last_contact) : leadWrite.is('last_contact', null);
+      if (lead.updated_at) leadWrite = leadWrite.eq('updated_at', lead.updated_at);
+      const { data: updatedLead, error: updateError } = await leadWrite.select('id,updated_at').maybeSingle();
+      if (updateError) throw updateError;
+      if (!updatedLead) throw new Error('lead_changed_during_decision');
+      return updatedLead;
+    });
+    let updatedLead = leadEffect.value;
+    if (!updatedLead && leadEffect.replayed) {
+      const { data: recoveredLead, error: recoveryError } = await admin.from('leads')
+        .select('id,updated_at').eq('id', leadId).eq('organization_id', organizationId).maybeSingle();
+      if (recoveryError || !recoveredLead) throw new Error('ana_effect_reconciliation_required');
+      updatedLead = recoveredLead;
+    }
     if (!updatedLead) throw new Error('lead_changed_during_decision');
     effectExpected.lead = { ...effectExpected.lead, ...update, updated_at: updatedLead.updated_at ?? lead.updated_at };
     effectExpected.ownHandoff = needsHuman;
@@ -1110,18 +1247,23 @@ Deno.serve(async (request) => {
     const appliedActions: Array<Record<string, unknown>> = [];
     if (meetingApplied) appliedActions.push({ tipo: 'agendar_reuniao', status: 'confirmado', external_id: meetingApplied.externalId, meeting_url: meetingApplied.meetingUrl });
     if (decision.mensagem_sugerida && (!needsHuman || meetingAcknowledgement)) {
-      await assertEffect();
-      await assertAnaKnowledgeSnapshot(admin, organizationId, dispatchKnowledgeSnapshot);
-      const { data: message, error: messageError } = await admin.from('lead_messages').insert({
+      effectsStarted = true;
+      const outboundEffect = await applyAnaEffect(admin, {
+        organizationId, leadId, runId, jobId: anaJobId, type: 'outbound_queue',
+        payload: { channel: activeChannel, message_kind: 'ana_response' },
+      }, async () => {
+        await assertEffect();
+        await assertAnaKnowledgeSnapshot(admin, organizationId, dispatchKnowledgeSnapshot);
+        const { data: message, error: messageError } = await admin.from('lead_messages').insert({
         organization_id: organizationId, lead_id: leadId, sender: 'ana', sender_name: 'Ana',
         type: channelConnected ? 'draft' : 'pending_channel', text: decision.mensagem_sugerida, sent_at: null,
         ...(activeChannel === 'whatsapp' && whatsappAccount?.account_id
           ? { whatsapp_account_id: whatsappAccount.account_id }
           : {}),
-      }).select('id').single();
-      if (messageError || !message) throw messageError ?? new Error('message_not_created');
-      let catalogImageMedia: { catalogItemId: string; itemName: string; presentationFormat: 'commercial' | 'technical' | 'document' } | null = null;
-      if (catalogImageCandidate) {
+        }).select('id').single();
+        if (messageError || !message) throw messageError ?? new Error('message_not_created');
+        let catalogImageMedia: { catalogItemId: string; itemName: string; presentationFormat: 'commercial' | 'technical' | 'document' } | null = null;
+        if (catalogImageCandidate) {
         const imageUrl = safePublicImageUrl(catalogImageCandidate.imageUrl);
         if (!imageUrl) throw new Error('catalog_media_url_not_allowed');
         const presentationFormat = intent === 'duvida_tecnica'
@@ -1159,8 +1301,8 @@ Deno.serve(async (request) => {
           itemName: catalogImageCandidate.name,
           presentationFormat,
         };
-      }
-      if (channelConnected && !applicableSuppressions.length) {
+        }
+        if (channelConnected && !applicableSuppressions.length) {
         await assertEffect();
         await assertAnaKnowledgeSnapshot(admin, organizationId, dispatchKnowledgeSnapshot);
         const cadencePayload = event === 'cadence.followup'
@@ -1206,40 +1348,55 @@ Deno.serve(async (request) => {
           },
         }, { onConflict: 'idempotency_key', ignoreDuplicates: true });
         if (queueError) throw queueError;
-      }
-      appliedActions.push({
+        }
+        return {
         tipo: 'enviar_mensagem',
         status: channelConnected && !applicableSuppressions.length ? 'enfileirado' : 'pendente_canal',
         ...(catalogImageMedia ? { catalog_media: { item_id: catalogImageMedia.catalogItemId, item_name: catalogImageMedia.itemName } } : {}),
+        };
       });
+      appliedActions.push(outboundEffect.value ?? { tipo: 'enviar_mensagem', status: 'ja_registrado' });
     }
     if (needsHuman) {
-      await assertEffect();
       const handoffAssigneeId = stageLimitReached ? handoffPolicy?.assignee_user_id : lead.owner_id;
       if (!handoffAssigneeId) throw new Error('handoff_assignee_required');
-      const { data: createdHandoff, error: handoffError } = await admin.from('lead_handoffs').insert({ organization_id: organizationId, lead_id: leadId, to_user_id: handoffAssigneeId, assigned_to: handoffAssigneeId, status: 'pending', reason: decision.motivo || 'Revisar atendimento da Ana.', summary: decision.motivo || 'Revisar atendimento da Ana.', due_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(), context: { run_id: runId, event, score: decision.score, stage_limit_reached: stageLimitReached } }).select('id').maybeSingle();
-      if (handoffError && handoffError.code !== '23505') throw handoffError;
-      if (!handoffError) {
-        const { error: taskError } = await admin.from('lead_tasks').insert({ organization_id: organizationId, lead_id: leadId, owner_id: handoffAssigneeId, owner_label: actorName || 'Responsável', text: decision.motivo || 'Revisar atendimento da Ana.', due_at: new Date().toISOString(), completed: false, metadata: { agent_run_id: runId, handoff_id: createdHandoff?.id ?? null, stage_limit_reached: stageLimitReached } });
-        if (taskError) throw taskError;
-        const { error: handoffEventError } = await admin.from('domain_events').insert({
-          organization_id: organizationId, event_name: 'lead.handoff.requested', entity_type: 'lead', entity_id: leadId,
-          actor_type: 'ai', actor_id: null, idempotency_key: `${runId}:lead.handoff.requested`,
-          payload: { handoff_id: createdHandoff?.id ?? null, summary: decision.motivo || 'Revisar atendimento da Ana.', next_action: 'Assumir o atendimento', stage_limit_reached: stageLimitReached }, occurred_at: new Date().toISOString(),
-        });
-        if (handoffEventError) throw handoffEventError;
-      }
-      appliedActions.push({ tipo: 'handoff', status: handoffError ? 'ja_existente' : 'criado' });
+      effectsStarted = true;
+      const handoffEffect = await applyAnaEffect(admin, {
+        organizationId, leadId, runId, jobId: anaJobId, type: 'handoff',
+        payload: { assignee_user_id: handoffAssigneeId, stage_limit_reached: stageLimitReached },
+      }, async () => {
+        await assertEffect();
+        const { data: createdHandoff, error: handoffError } = await admin.from('lead_handoffs').insert({ organization_id: organizationId, lead_id: leadId, to_user_id: handoffAssigneeId, assigned_to: handoffAssigneeId, status: 'pending', reason: decision.motivo || 'Revisar atendimento da Ana.', summary: decision.motivo || 'Revisar atendimento da Ana.', due_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(), context: { run_id: runId, event, score: decision.score, stage_limit_reached: stageLimitReached } }).select('id').maybeSingle();
+        if (handoffError && handoffError.code !== '23505') throw handoffError;
+        if (!handoffError) {
+          const { error: taskError } = await admin.from('lead_tasks').insert({ organization_id: organizationId, lead_id: leadId, owner_id: handoffAssigneeId, owner_label: actorName || 'Responsável', text: decision.motivo || 'Revisar atendimento da Ana.', due_at: new Date().toISOString(), completed: false, metadata: { agent_run_id: runId, handoff_id: createdHandoff?.id ?? null, stage_limit_reached: stageLimitReached } });
+          if (taskError) throw taskError;
+          const { error: handoffEventError } = await admin.from('domain_events').insert({
+            organization_id: organizationId, event_name: 'lead.handoff.requested', entity_type: 'lead', entity_id: leadId,
+            actor_type: 'ai', actor_id: null, idempotency_key: `${runId}:lead.handoff.requested`,
+            payload: { handoff_id: createdHandoff?.id ?? null, summary: decision.motivo || 'Revisar atendimento da Ana.', next_action: 'Assumir o atendimento', stage_limit_reached: stageLimitReached }, occurred_at: new Date().toISOString(),
+          });
+          if (handoffEventError) throw handoffEventError;
+        }
+        return { status: handoffError ? 'ja_existente' : 'criado' };
+      });
+      appliedActions.push({ tipo: 'handoff', status: handoffEffect.value?.status ?? 'ja_registrado' });
     }
     if (decision.acoes.some((action) => action.tipo === 'gerar_orcamento')) {
-      const { data: latest, error: proposalReadError } = await admin.from('proposals').select('id').eq('organization_id', organizationId).eq('lead_id', leadId).in('status', ['draft', 'pending']).limit(1).maybeSingle();
-      if (proposalReadError) throw proposalReadError;
-      if (!latest) {
-        await assertEffect();
-        const { error: proposalError } = await admin.from('proposals').insert({ organization_id: organizationId, lead_id: leadId, number: `ANA-${new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)}`, client: lead.company, items: [], value: 0, creator: 'ana', creator_name: 'Ana', owner_id: lead.owner_id, status: 'pending', need_approval: true });
-        if (proposalError) throw proposalError;
-      }
-      appliedActions.push({ tipo: 'gerar_orcamento', status: 'rascunho' });
+      effectsStarted = true;
+      const proposalEffect = await applyAnaEffect(admin, {
+        organizationId, leadId, runId, jobId: anaJobId, type: 'proposal',
+        payload: { requires_approval: true },
+      }, async () => {
+        const { data: latest, error: proposalReadError } = await admin.from('proposals').select('id').eq('organization_id', organizationId).eq('lead_id', leadId).in('status', ['draft', 'pending']).limit(1).maybeSingle();
+        if (proposalReadError) throw proposalReadError;
+        if (!latest) {
+          await assertEffect();
+          const { error: proposalError } = await admin.from('proposals').insert({ organization_id: organizationId, lead_id: leadId, number: `ANA-${new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)}`, client: lead.company, items: [], value: 0, creator: 'ana', creator_name: 'Ana', owner_id: lead.owner_id, status: 'pending', need_approval: true });
+          if (proposalError) throw proposalError;
+        }
+      });
+      appliedActions.push({ tipo: 'gerar_orcamento', status: proposalEffect.replayed ? 'ja_registrado' : 'rascunho' });
     }
 
     const result = {
@@ -1257,18 +1414,22 @@ Deno.serve(async (request) => {
         source: catalogMediaSource,
       },
     };
-    const { error: completedError } = await admin.from('agent_runs').update({ status: 'completed', result, completed_at: new Date().toISOString() }).eq('id', runId).eq('organization_id', organizationId);
+    const { error: completedError } = await admin.from('agent_runs').update({ status: 'completed', result, retryable: false, lease_id: null, lease_expires_at: null, completed_at: new Date().toISOString() }).eq('id', runId).eq('organization_id', organizationId);
     if (completedError) throw completedError;
     await admin.from('audit_logs').insert({ organization_id: organizationId, actor_id: actorId, actor_name: actorName, actor_type: internal ? 'system' : 'user', action: 'ana.run.completed', detail: `Ana processou ${event}.`, entity_table: 'leads', entity_id: leadId, event_data: { run_id: runId, modo, needs_human: needsHuman } });
     return json({ ok: true, run_id: runId, ...result }, 200, headers);
   } catch (error) {
     const code = errorCode(error);
-    if (admin && runId) await admin.from('agent_runs').update({ status: 'failed', error_code: code, error_message: safeError(error), completed_at: new Date().toISOString() }).eq('id', runId);
+    const retryable = retryableAnaFailure(error, effectsStarted);
+    if (admin && runId) await admin.from('agent_runs').update({
+      status: 'failed', error_code: code, error_message: safeError(error), retryable,
+      lease_id: null, lease_expires_at: null, completed_at: new Date().toISOString(),
+    }).eq('id', runId);
     if (admin && organizationId && activeLeadId && runId) await admin.from('domain_events').upsert({
       organization_id: organizationId, event_name: 'lead.analysis.failed', entity_type: 'lead', entity_id: activeLeadId,
       actor_type: 'ai', actor_id: null, idempotency_key: `${runId}:lead.analysis.failed`,
       payload: { reason: 'A análise automática falhou e requer revisão humana.', next_action: 'Abrir a conversa', error_code: code },
     }, { onConflict: 'organization_id,idempotency_key', ignoreDuplicates: true });
-    return json({ ok: false, erro: code }, 400, headers);
+    return json({ ok: false, erro: code, retryable, run_id: runId }, 400, headers);
   }
 });

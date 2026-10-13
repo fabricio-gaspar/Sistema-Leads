@@ -4,19 +4,21 @@ import { runProvisioningWork } from '../functions/_shared/provisioningWork.ts';
 import { recoverAccountLifecycle,recoverWaAkgProvisioning } from '../functions/_shared/accountLifecycle.ts';
 import { WaAkgProvider,waAkgSessionName } from '../functions/_shared/messaging/WaAkgProvider.ts';
 import { parseWaAkgEvent,sanitizeWaAkgPayload } from '../functions/_shared/waAkgInbound.ts';
-type Row=Record<string,any>;
+type Row=Record<string,unknown>;
 const state=vi.hoisted(()=>({admin:{} as Row}));
 vi.mock('../functions/_shared/auth.ts',()=>({createAdminClient:()=>state.admin}));
-const org='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',account='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
-const event={id:'event',organization_id:org,whatsapp_account_id:account,integration_id:'integration',lease_id:'lease',sanitized_payload:{message_id:'same-message',text:'texto sintético'}};
+const org='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',account='bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',leadId='cccccccc-cccc-4ccc-8ccc-cccccccccccc',integrationId='dddddddd-dddd-4ddd-8ddd-dddddddddddd',messageId='eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',jobId='ffffffff-ffff-4fff-8fff-ffffffffffff',leaseId='a1111111-1111-4111-8111-111111111111',runId='b1111111-1111-4111-8111-111111111111';
+const event={id:'event',organization_id:org,whatsapp_account_id:account,integration_id:integrationId,lease_id:'lease',sanitized_payload:{message_id:'same-message',text:'texto sintético'}};
 const context={organizationId:org,accountId:account,provider:'wa_akg' as const,actorId:'admin'};
 let calls:Row[],rpcOverride:((name:string,p:Row)=>Row|undefined)|undefined,handler:(r:Request)=>Promise<Response>,fetchMock:ReturnType<typeof vi.fn>;
 beforeEach(()=>{
  vi.resetModules();calls=[];rpcOverride=undefined;
  state.admin={rpc:vi.fn(async(name:string,p:Row)=>{
   calls.push({name,p});const overridden=rpcOverride?.(name,p);if(overridden)return overridden;
-  const values:Row={persist_whatsapp_inbound:{persisted:true,lead_id:'lead',inbound_id:'inbound'},read_integration_secret:{webhook_secret:'synthetic-secret'},
-   begin_whatsapp_inbound_dispatch:{dispatch:true,mode:'ia'},finish_whatsapp_webhook_event:true,
+  const values:Row={persist_whatsapp_inbound:{persisted:true,lead_id:leadId,inbound_id:'inbound',message_id:messageId},read_integration_secret:{webhook_secret:'synthetic-secret'},
+   begin_whatsapp_inbound_dispatch:{dispatch:true,mode:'ia'},finish_whatsapp_webhook_event:true,enqueue_ana_job:{id:jobId},
+   claim_ana_job:{id:jobId,lease_id:leaseId,organization_id:org,lead_id:leadId,source_message_id:messageId,source_integration_id:integrationId,event:'message.received',modo:'ia',request_id:`wa_akg:${account}:same-message`,input_context:{},attempt_count:1},finish_ana_job:true,
+   fail_ana_job:{status:'needs_review'},
    claim_whatsapp_provisioning:{id:'job',operation_id:'operation',revision:1},check_whatsapp_provisioning:{current:true},
    save_whatsapp_provisioning_secret:true,finish_whatsapp_provisioning:{state:'completed'},
    diagnose_whatsapp_account_lifecycle:{state:'in_flight',revision:1,can_reconcile_read_only:true,reason:'read_only_operation'},
@@ -25,8 +27,8 @@ beforeEach(()=>{
    reconcile_wa_akg_provision_recovery:{state:'completed',revision:22,desired_action:'provision_reconciled_disabled'}};
   if(!(name in values))throw Error('unexpected_rpc');return {data:values[name],error:null};
  })};
- vi.stubGlobal('Deno',{env:{get:(n:string)=>({SUPABASE_URL:'https://example.invalid',SUPABASE_SERVICE_ROLE_KEY:'synthetic',META_WORKER_TOKEN:'worker'} as Row)[n]},serve:(h:typeof handler)=>{handler=h;}});
- fetchMock=vi.fn(async()=>new Response('{"ok":true}',{status:200}));vi.stubGlobal('fetch',fetchMock);
+ vi.stubGlobal('Deno',{env:{get:(n:string)=>({SUPABASE_URL:'https://example.invalid',SUPABASE_SERVICE_ROLE_KEY:'synthetic',WHATSAPP_WEBHOOK_SHARED_SECRET:'synthetic-secret',META_WORKER_TOKEN:'worker'} as Row)[n]},serve:(h:typeof handler)=>{handler=h;}});
+ fetchMock=vi.fn(async()=>new Response(`{"ok":true,"run_id":"${runId}"}`,{status:200}));vi.stubGlobal('fetch',fetchMock);
 });
 afterEach(()=>vi.unstubAllGlobals());
 describe('R6 durable stage orchestration — mocked transport',()=>{
@@ -37,10 +39,10 @@ describe('R6 durable stage orchestration — mocked transport',()=>{
  });
  it('T-R6-HTTP-01 local failure never dispatches Ana',async()=>{rpcOverride=n=>n==='persist_whatsapp_inbound'?{data:null,error:{message:'injected'}}:undefined;await expect(processInboundWork(state.admin as never,'wa_akg',event)).rejects.toThrow('persistence_failed');expect(fetchMock).not.toHaveBeenCalled();});
  it('T-R6-HTTP-02 reviewed identity preserves no dispatch',async()=>{rpcOverride=n=>n==='persist_whatsapp_inbound'?{data:{review:true,reason:'sender_identity_unresolved'},error:null}:undefined;expect(await processInboundWork(state.admin as never,'wa_akg',event)).toEqual({review:true});expect(fetchMock).not.toHaveBeenCalled();});
- it('T-R6-HTTP-03 missing secret does not persist dispatch intent',async()=>{rpcOverride=n=>n==='read_integration_secret'?{data:{},error:null}:undefined;await expect(processInboundWork(state.admin as never,'wa_akg',event)).rejects.toThrow('credential_missing');expect(calls.some(c=>c.name==='begin_whatsapp_inbound_dispatch')).toBe(false);expect(fetchMock).not.toHaveBeenCalled();});
+ it('T-R6-HTTP-03 persisted inbound is enqueued before the model request',async()=>{await expect(processInboundWork(state.admin as never,'wa_akg',event)).resolves.toMatchObject({processed:true,ana_job_id:jobId});expect(calls.find(c=>c.name==='enqueue_ana_job')?.p).toMatchObject({p_source_message_id:messageId,p_source_integration_id:integrationId});expect(calls.find(c=>c.name==='finish_whatsapp_webhook_event')?.p.p_state).toBe('processed');});
  it('T-R6-HTTP-04 latest human/gate fence prevents dispatch',async()=>{rpcOverride=n=>n==='begin_whatsapp_inbound_dispatch'?{data:{dispatch:false},error:null}:undefined;await processInboundWork(state.admin as never,'wa_akg',event);expect(fetchMock).not.toHaveBeenCalled();expect(calls.at(-1)?.p.p_state).toBe('processed');});
- it('T-R6-HTTP-05 WA-AKG timeout after persisted dispatch becomes review',async()=>{fetchMock.mockRejectedValue(Error('synthetic transport timeout'));await processInboundWork(state.admin as never,'wa_akg',event);expect(fetchMock).toHaveBeenCalledTimes(1);expect(calls.at(-1)?.p.p_state).toBe('needs_review');const body=JSON.parse(String(fetchMock.mock.calls[0][1].body));expect(body.request_id).toBe(`wa_akg:${account}:same-message`);expect(body).not.toHaveProperty('retry_failed');});
- it('T-R6-HTTP-06 an in-flight duplicate is not successful completion',async()=>{fetchMock.mockResolvedValue(new Response('{"duplicate":true,"processing":true}',{status:200}));await processInboundWork(state.admin as never,'wa_akg',event);expect(calls.at(-1)?.p.p_state).toBe('needs_review');});
+ it('T-R6-HTTP-05 unknown Ana response is quarantined without replaying the provider webhook',async()=>{fetchMock.mockRejectedValue(Error('synthetic transport timeout'));await processInboundWork(state.admin as never,'wa_akg',event);expect(fetchMock).toHaveBeenCalledTimes(1);expect(calls.find(c=>c.name==='fail_ana_job')?.p).toMatchObject({p_error_code:'ana_run_response_unknown',p_retryable:false});expect(calls.find(c=>c.name==='finish_whatsapp_webhook_event')?.p.p_state).toBe('processed');const body=JSON.parse(String(fetchMock.mock.calls[0][1].body));expect(body).toMatchObject({message_id:messageId,retry_failed:false});});
+ it('T-R6-HTTP-06 an in-flight duplicate becomes Ana review, never webhook success',async()=>{fetchMock.mockResolvedValue(new Response('{"duplicate":true,"processing":true}',{status:200}));await processInboundWork(state.admin as never,'wa_akg',event);expect(calls.find(c=>c.name==='fail_ana_job')?.p.p_retryable).toBe(false);expect(calls.find(c=>c.name==='finish_whatsapp_webhook_event')?.p.p_state).toBe('processed');});
  it('T-R6-HTTP-07 provisioning fences every subsequent effect after cutoff',async()=>{let checked=0;rpcOverride=(n)=>n==='check_whatsapp_provisioning'&&++checked===2?{data:null,error:{message:'superseded'}}:n==='finish_whatsapp_provisioning'?{data:{state:'needs_review'},error:null}:undefined;
   const effect=vi.fn(async()=>undefined);const result=await runProvisioningWork(state.admin as never,'wa_akg',{id:'job'},async(_job,step)=>{await step('create',effect,true);await step('start',effect,true);return {};});expect(effect).toHaveBeenCalledTimes(1);expect(result).toEqual({failed:true,review:true});});
  it('T-R6-HTTP-08 pending ledger admits no automatic provisioning effect',async()=>{rpcOverride=n=>n==='claim_whatsapp_provisioning'?{data:null,error:null}:undefined;const work=vi.fn();expect(await runProvisioningWork(state.admin as never,'wa_akg',{id:'job'},work)).toEqual({skipped:true});expect(work).not.toHaveBeenCalled();});

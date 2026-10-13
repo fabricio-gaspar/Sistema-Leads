@@ -21,6 +21,7 @@ const leadId = 'b1111111-1111-4111-8111-111111111111';
 const integrationId = 'c1111111-1111-4111-8111-111111111111';
 const whatsappAccountId = 'e2222222-2222-4222-8222-222222222222';
 const anaConfigurationVersionId = 'd1111111-1111-4111-8111-111111111111';
+const inboundMessageId = 'f1111111-1111-4111-8111-111111111111';
 const readyCompany = { active: true, sandbox_mode: false, can_use_ia: true, ai_actions_enabled: true };
 const readyIntegration = { id: integrationId, organization_id: org, provider: 'wa_akg', enabled: true, connected: true, paused: false };
 const readyLead = { id: leadId, organization_id: org, owner_id: 'owner', assigned_to: 'owner', modo_atendimento: 'ia', ai_paused: false, opt_out: false, contact_approval_status: 'approved', ana_stage: 'novo', score: 0, active_channel: 'whatsapp', phone: '(11) 99999-0000', first_inbound_at: null, whatsapp_account_id: whatsappAccountId };
@@ -100,7 +101,10 @@ function execute(query: Query): Result {
       : ok({ id: whatsappAccountId, integration_id: integrationId, provider: 'wa_akg', owner_user_id: null, is_default: true, enabled: true, connection_status: 'connected', archived_at: null });
     case 'messaging_provider_controls': return ok({ provider: 'wa_akg', inbound_enabled: true, send_enabled: true, automation_enabled: true, kill_switch: false });
     case 'agent_runs': return ok(null);
-    case 'lead_messages': return ok([{ sender: 'lead', type: 'received', text: 'Qual o valor?', sent_at: '2026-09-08T00:00:00Z' }]);
+    case 'lead_messages': {
+      const inbound = { id: inboundMessageId, sender: 'lead', type: 'received', text: 'Qual o valor?', sent_at: '2026-09-08T00:00:00Z' };
+      return 'id' in query.filters ? ok(inbound) : ok([inbound]);
+    }
     case 'ai_agents': return ok({ active_version_id: anaConfigurationVersionId });
     case 'ai_agent_versions': return ok({ configuration: readyAnaConfiguration });
     default: return ok([]);
@@ -886,7 +890,7 @@ describe('Team member access security policy', () => {
 afterEach(() => vi.unstubAllGlobals());
 
 function anaRequest(patch: Row = {}) {
-  return new Request('https://example.invalid/ana-run', { method: 'POST', headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' }, body: JSON.stringify({ lead_id: leadId, event: 'message.received', message_id: 'synthetic-inbound-1', ...patch }) });
+  return new Request('https://example.invalid/ana-run', { method: 'POST', headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' }, body: JSON.stringify({ lead_id: leadId, event: 'message.received', message_id: inboundMessageId, ...patch }) });
 }
 function expectNoBusinessWrites() {
   expect(calls.filter((call) => ['insert', 'update', 'upsert'].includes(call.operation) && call.table !== 'agent_runs')).toEqual([]);
@@ -899,6 +903,10 @@ function openAiDecisionResponse(decision: Row) {
 
 function safeInbound(text = 'Gostaria de conhecer as soluções disponíveis.') {
   return [{ sender: 'lead', type: 'received', text, sent_at: '2026-09-08T00:00:00Z' }];
+}
+function inboundRead(query: Query, text?: string): Result {
+  const inbound = { id: inboundMessageId, ...safeInbound(text)[0] };
+  return 'id' in query.filters ? ok(inbound) : ok([inbound]);
 }
 
 function configuredOpenAiSecret() {
@@ -960,7 +968,7 @@ describe('Ana handler safety — mocked persistence, no real providers', () => {
   it('keeps a supervised reply and meeting request pending approval without calling Calendar or the outbound queue', async () => {
     override = (q) => {
       if (q.table === 'company_settings' && q.operation === 'select') return ok({ ...readyCompany, ana_operation_enabled: true, ana_operation_mode: 'supervised' });
-      if (q.table === 'lead_messages' && q.operation === 'select') return ok([{ id: 'a1111111-1111-4111-8111-111111111111', ...safeInbound()[0] }]);
+      if (q.table === 'lead_messages' && q.operation === 'select') return inboundRead(q);
       if (q.table === 'read_integration_secret') return ok(configuredOpenAiSecret());
       return undefined;
     };
@@ -1028,7 +1036,7 @@ describe('Ana handler safety — mocked persistence, no real providers', () => {
   });
   it('hands off a model decision below the active configuration confidence threshold without queueing it', async () => {
     override = (q) => {
-      if (q.table === 'lead_messages' && q.operation === 'select') return ok(safeInbound());
+      if (q.table === 'lead_messages' && q.operation === 'select') return inboundRead(q);
       if (q.table === 'read_integration_secret') return ok(configuredOpenAiSecret());
       return undefined;
     };
@@ -1050,7 +1058,7 @@ describe('Ana handler safety — mocked persistence, no real providers', () => {
   });
   it('keeps a model-requested proposal in human review and never queues its response', async () => {
     override = (q) => {
-      if (q.table === 'lead_messages' && q.operation === 'select') return ok(safeInbound());
+      if (q.table === 'lead_messages' && q.operation === 'select') return inboundRead(q);
       if (q.table === 'read_integration_secret') return ok(configuredOpenAiSecret());
       if (q.table === 'proposals' && q.operation === 'select') return ok(null);
       return undefined;
@@ -1074,7 +1082,7 @@ describe('Ana handler safety — mocked persistence, no real providers', () => {
   });
   it('fails closed when a model proposes unsafe commercial content', async () => {
     override = (q) => {
-      if (q.table === 'lead_messages' && q.operation === 'select') return ok(safeInbound());
+      if (q.table === 'lead_messages' && q.operation === 'select') return inboundRead(q);
       if (q.table === 'read_integration_secret') return ok(configuredOpenAiSecret());
       return undefined;
     };
@@ -1102,7 +1110,7 @@ describe('Ana handler safety — mocked persistence, no real providers', () => {
         description: 'Soluções técnicas aprovadas.',
         ai_prompt: legacyPrompt,
       });
-      if (q.table === 'lead_messages' && q.operation === 'select') return ok(safeInbound());
+      if (q.table === 'lead_messages' && q.operation === 'select') return inboundRead(q);
       if (q.table === 'read_integration_secret') return ok(configuredOpenAiSecret());
       return undefined;
     };
