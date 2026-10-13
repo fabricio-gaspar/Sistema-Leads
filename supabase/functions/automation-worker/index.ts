@@ -10,10 +10,8 @@ import {
   preflight,
   safeError,
 } from "../_shared/http.ts";
-import {
-  anaResponseSucceeded,
-  automationBlockReason,
-} from "../_shared/runtimeSafety.ts";
+import { automationBlockReason } from "../_shared/runtimeSafety.ts";
+import { enqueueAnaJob, processNextAnaJob } from "../_shared/anaQueue.ts";
 import {
   readCatalogImageMedia,
   safePublicImageUrl,
@@ -882,51 +880,47 @@ async function processAnaCadenceJob(
       }
     }
 
-    const baseUrl = Deno.env.get("SUPABASE_URL");
-    const serviceJwt = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    const internalCredential = Deno.env.get("WHATSAPP_WEBHOOK_SHARED_SECRET");
-    if (!baseUrl || !serviceJwt || !internalCredential)
-      throw new Error("cadence_internal_auth_not_configured");
-    const response = await fetch(`${baseUrl}/functions/v1/ana-run`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${serviceJwt}`,
-        "Content-Type": "application/json",
-        "x-internal-worker-secret": internalCredential,
-      },
-      body: JSON.stringify({
-        event: "cadence.followup",
-        lead_id: job.lead_id,
-        modo: "ia",
-        organization_id: organizationId,
-        request_id: `cadence:${job.id}`,
-        retry_failed: true,
-        contexto: {
-          cadence: {
-            step: asText(payload.step, 20),
-            target_channel: targetChannel,
-            source_job_id: asText(payload.source_job_id, 80),
-            source_message_id: asText(payload.source_message_id, 80),
-            initial_sent_at: asText(payload.initial_sent_at, 64),
-            expected_last_contact: expectedLastContact,
-            no_reply_deadline_at: deadlineAt,
-            configuration_version_id: configurationVersionId,
-          },
+    // Cadence is an autonomous entry point too. Put it through the same
+    // durable queue as inbound messages, so a timeout cannot create a second
+    // model run while the outcome of the first one is unknown.
+    const anaJob = await enqueueAnaJob(admin, {
+      organizationId,
+      leadId: job.lead_id,
+      event: "cadence.followup",
+      mode: "ia",
+      requestId: `cadence:${job.id}`,
+      context: {
+        cadence: {
+          step: asText(payload.step, 20),
+          target_channel: targetChannel,
+          source_job_id: asText(payload.source_job_id, 80),
+          source_message_id: asText(payload.source_message_id, 80),
+          initial_sent_at: asText(payload.initial_sent_at, 64),
+          expected_last_contact: expectedLastContact,
+          no_reply_deadline_at: deadlineAt,
+          configuration_version_id: configurationVersionId,
         },
-      }),
-      signal: AbortSignal.timeout(45_000),
+      },
     });
-    const result = await response.json().catch(() => null);
-    if (anaResponseSucceeded(response.status, result)) {
-      if (asObject(result).skipped === true) {
-        const reason = asText(asObject(result).reason, 120) || "ana_cadence_skipped";
-        await cancelCadenceJob(admin, organizationId, job.id, reason);
-        return { status: "cancelled", reason };
-      }
+    const execution = await processNextAnaJob(
+      admin,
+      typeof anaJob.id === "string" ? anaJob.id : null,
+    );
+    if (execution.status === "skipped") {
+      const reason = asText(execution.reason, 120) || "ana_cadence_skipped";
+      await cancelCadenceJob(admin, organizationId, job.id, reason);
+      return { status: "cancelled", reason };
+    }
+    if (execution.status === "completed") {
       await completeCadenceJob(admin, organizationId, job.id);
       return { status: "completed" };
     }
-    throw new Error(`ana_cadence_not_completed_${response.status}`);
+    if (execution.status === "retry") {
+      await deferJob(admin, organizationId, job.id, "ana_cadence_retry_queued", new Date(Date.now() + 30_000).toISOString());
+      return { status: "deferred", reason: "ana_cadence_retry_queued" };
+    }
+    await cancelCadenceJob(admin, organizationId, job.id, "ana_cadence_requires_review");
+    return { status: "cancelled", reason: "ana_cadence_requires_review" };
   } catch (error) {
     const attempt = boundedInteger(job.attempt, 0, 0, 100) + 1;
     const reason = `ana_cadence_${safeError(error).slice(0, 96)}`;
@@ -1042,20 +1036,17 @@ async function maintainKnowledgeEmbeddings(admin: Admin, org: string) {
   }
 }
 
+// WA-AKG is the only supported WhatsApp gateway. Keep this explicit fallback
+// for malformed/legacy rows so they fail closed instead of selecting a hidden
+// provider or sending through an obsolete integration.
 async function sendWhatsapp(
-  _credentials: Record<string, unknown>,
-  _recipient: string,
-  _message: string,
+  credentials: Record<string, unknown>,
+  recipient: string,
+  message: string,
 ): Promise<{ provider: string; messageId: string }> {
-  throw new Error("whatsapp_provider_not_supported");
-}
-
-async function sendWhatsappImage(
-  _credentials: Record<string, unknown>,
-  _recipient: string,
-  _image: string,
-  _caption: string,
-): Promise<{ provider: string; messageId: string }> {
+  void credentials;
+  void recipient;
+  void message;
   throw new Error("whatsapp_provider_not_supported");
 }
 
@@ -1646,12 +1637,32 @@ async function processAnaOperations(admin: Admin, organizationId: string, schedu
     }
     if (anaOwnsLead && contactIsApproved) {
       approved += 1;
-      const internalCredential = Deno.env.get('WHATSAPP_WEBHOOK_SHARED_SECRET');
-      if (internalCredential) await fetch(`${baseUrl}/functions/v1/ana-run`, { method: 'POST', headers: { Authorization: `Bearer ${serviceJwt}`, 'Content-Type': 'application/json', 'x-internal-worker-secret': internalCredential }, body: JSON.stringify({ event: 'lead.created', lead_id: inserted.id, modo: 'ia', organization_id: organizationId, request_id: `operation:${run.id}:${inserted.id}` }), signal: AbortSignal.timeout(45_000) }).catch(() => undefined);
+      const job = await enqueueAnaJob(admin, {
+        organizationId,
+        leadId: inserted.id,
+        event: 'lead.created',
+        mode: 'ia',
+        requestId: `operation:${run.id}:${inserted.id}`,
+        context: { source: 'automation-worker-prospecting-operation', operation_run_id: run.id },
+      });
+      await processNextAnaJob(admin, typeof job.id === 'string' ? job.id : null);
     }
   }
   await admin.from('prospecting_schedule_runs').update({ status: 'completed', prospecting_run_id: result.runId, result_cache_id: result.cacheId, candidate_count: result.leads.length, imported_count: imported, approved_count: approved, rejected_count: rejected, completed_at: new Date().toISOString(), next_run_at: null, locked_at: null, locked_by: null, result: { source: 'apify', candidate_count: result.leads.length, imported, approved, rejected } }).eq('id', run.id).eq('organization_id', organizationId);
   return { status: 'completed', imported, approved, rejected, digest_created: digestCreated };
+}
+
+// The scheduler is the recovery path for Ana jobs whose original webhook
+// request ended early. Each call claims at most one leased job, preserving the
+// FIFO barrier per lead established by the database.
+async function drainAnaQueue(admin: ReturnType<typeof createAdminClient>, limit = 12) {
+  const results: Array<Record<string, unknown>> = [];
+  for (let count = 0; count < limit; count += 1) {
+    const result = await processNextAnaJob(admin);
+    if (result.idle === true) break;
+    results.push(result);
+  }
+  return { processed: results.length, results };
 }
 
 Deno.serve(async (request) => {
@@ -1777,6 +1788,9 @@ Deno.serve(async (request) => {
     const anaOperations = serverScheduler && schedulerToken
       ? await processAnaOperations(admin, orgId, schedulerToken)
       : { status: 'manual_skip', digest_created: 0 };
+    const anaQueue = serverScheduler && (body.run === 'all' || body.run === 'outreach')
+      ? await drainAnaQueue(admin)
+      : { processed: 0, results: [], status: 'manual_skip' };
     const dailyWhatsappReports = serverScheduler
       ? await processDailyWhatsappReports(admin, orgId)
       : { status: 'manual_skip', due: 0, sent: 0, failed: 0, reconciliationRequired: 0 };
@@ -2725,6 +2739,7 @@ Deno.serve(async (request) => {
         knowledge_embeddings: knowledgeMaintenance,
         reconciled_provider_acceptances: reconciledProviderAcceptances,
         ana_operations: anaOperations,
+        ana_queue: anaQueue,
         daily_whatsapp_reports: dailyWhatsappReports,
         handoff_whatsapp_notifications: handoffWhatsappNotifications,
         wa_akg_queues: waAkgQueues,

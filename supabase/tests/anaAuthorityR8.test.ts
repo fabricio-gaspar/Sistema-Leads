@@ -3,9 +3,10 @@ import { readAnaKnowledgeFence, assertAnaKnowledgeSnapshot } from '../functions/
 import { normalizeCommercialCatalogPolicy } from '../functions/_shared/commercialCatalogPolicy';
 import { validatedAnaMeetingRequest } from '../functions/_shared/anaMeetingRequest';
 
-type Row = Record<string, any>;
+type Row = Record<string, unknown>;
 type Query = { table: string; operation: string; value?: Row; filters: Row; single: boolean; columns: string };
-const state = vi.hoisted(() => ({ admin: {} as any }));
+type AdminMock = { from: (table: string) => Row; rpc: ReturnType<typeof vi.fn> };
+const state = vi.hoisted(() => ({ admin: {} as AdminMock }));
 vi.mock('../functions/_shared/auth.ts', () => ({ createAdminClient: () => state.admin,
   requireUser: async () => ({ user: { id: 'owner' }, client: state.admin }), requireOrganizationRole: async () => undefined }));
 const org = 'a1111111-1111-4111-8111-111111111111';
@@ -14,6 +15,7 @@ const versionId = 'c1111111-1111-4111-8111-111111111111';
 const docId = 'd1111111-1111-4111-8111-111111111111';
 const itemId = 'e1111111-1111-4111-8111-111111111111';
 const sourceId = 'f1111111-1111-4111-8111-111111111111';
+const inboundMessageId = 'a2222222-2222-4222-8222-222222222222';
 let db: Record<string, Row[]>; let writes: Query[]; let reads: Query[];
 let handler: (request: Request) => Promise<Response>; let network: ReturnType<typeof vi.fn>;
 let inbound: string; let decision: Row;
@@ -80,10 +82,10 @@ beforeEach(() => {
   }); vi.stubGlobal('fetch', network);
 });
 afterEach(() => vi.unstubAllGlobals());
-async function run() {
-  db.lead_messages = [{ id: 'inbound', organization_id: org, lead_id: leadId, sender: 'lead', text: inbound, sent_at: '2026-10-05T10:00:01Z' }];
+async function run(extraMessages: Row[] = []) {
+  db.lead_messages = [{ id: inboundMessageId, organization_id: org, lead_id: leadId, sender: 'lead', text: inbound, sent_at: '2026-10-05T10:00:01Z' }, ...extraMessages];
   await import('../functions/ana-run/index');
-  return handler(new Request('https://example.invalid/ana-run', { method: 'POST', headers: { Authorization: 'Bearer synthetic' }, body: JSON.stringify({ lead_id: leadId, event: 'message.received', message_id: 'synthetic-inbound' }) }));
+  return handler(new Request('https://example.invalid/ana-run', { method: 'POST', headers: { Authorization: 'Bearer synthetic' }, body: JSON.stringify({ lead_id: leadId, event: 'message.received', message_id: inboundMessageId }) }));
 }
 function seedKnowledge(type = 'product') {
   db.documents = [{ id: docId, organization_id: org, name: 'Synthetic doc', status: 'active', source_type: 'commercial_catalog', metadata: { commercial_item_id: itemId } }];
@@ -100,6 +102,12 @@ const modelContext = () => {
 };
 
 describe('R8 actual Ana handler — synthetic DB and provider transports', () => {
+  it('T-R8-016: processes the persisted event message, never a newer inbound message', async () => {
+    inbound = 'Mensagem do evento que deve ser respondida.';
+    const result = await run([{ id: 'b2222222-2222-4222-8222-222222222222', organization_id: org, lead_id: leadId, sender: 'lead', text: 'Mensagem mais nova que ainda está na fila.', sent_at: '2026-10-05T10:00:02Z' }]);
+    expect(result.status, await result.text()).toBe(200);
+    expect(modelContext().latest_inbound_message).toMatchObject({ id: inboundMessageId, text: inbound });
+  });
   it.each([false, true])('T-R8-012: first WhatsApp binding adopts only its own delta; concurrent human=%s', async humanChanged => {
     db.leads[0].active_channel = 'whatsapp'; db.leads[0].phone = '5511999999999';
     db.ai_agent_versions[0].configuration.allowedChannels = ['whatsapp'];
