@@ -468,7 +468,7 @@ export default function KanbanCRM() {
   const setDefaultView = async (id: string) => { await setDefaultKanbanSavedView(id); setViews((items) => items.map((item) => ({ ...item, isDefault: item.id === id }))); showToast('Visão padrão atualizada.'); };
   const loadView = (view: KanbanSavedView<ViewConfiguration>) => { setFilters(view.configuration.filters); setQueryDraft(view.configuration.filters.query); setViewMode(view.configuration.mode); setPage(1); setActiveViewId(view.id); setSavedSnapshot(JSON.stringify(view.configuration)); };
 
-  const columns = (filters.showClosed ? canonicalStageKeys : canonicalStageKeys.filter((stage) => stage !== 'perdido')) as CanonicalStageKey[];
+  const columns: readonly CanonicalStageKey[] = canonicalStageKeys;
   const totalPages = Math.max(1, Math.ceil((portfolio?.total || 0) / PAGE_SIZE));
 
   return (
@@ -529,7 +529,7 @@ export default function KanbanCRM() {
           {viewMode === 'kanban' ? <section ref={boardRef} className="wf-kanban-board mt-5 overflow-x-auto rounded-xl border border-background-200 bg-background-50 p-3" aria-label="Quadro Kanban">
             {portfolioLoading && <div className="absolute sr-only" aria-live="polite">Atualizando quadro</div>}
             {portfolio && portfolio.total > BOARD_LIMIT && <p className="mb-3 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">O quadro exibe os primeiros {BOARD_LIMIT} leads ordenados. Refine os filtros para operar toda a carteira.</p>}
-            <div className="grid min-w-[1440px] grid-cols-6 gap-3">
+            <div className="wf-kanban-board__grid grid min-w-[1540px] grid-cols-7 gap-3">
               {columns.map((stage) => {
                 const cards = currentItems.filter((item) => displayStage(item) === stage);
                 return <section key={stage} onDragOver={(event) => { if (draggedId) { event.preventDefault(); setDragDestination(stage); } }} onDragLeave={() => setDragDestination((current) => current === stage ? null : current)} onDrop={(event) => { event.preventDefault(); const item = currentItems.find((candidate) => candidate.lead.id === draggedId); setDraggedId(null); setDragDestination(null); if (item) void move(item, stage); }} className={`min-h-[560px] rounded-xl border p-2 ${dragDestination === stage ? 'border-primary-500 bg-primary-50/60' : 'border-background-200 bg-white'}`}>

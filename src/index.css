@@ -179,6 +179,11 @@
   --wf-radius-surface: .75rem;
   --wf-shadow-surface: 0 1px 2px rgb(20 33 28 / .045);
   --wf-focus-ring: 0 0 0 3px rgb(22 134 84 / .16);
+  --wf-space-3: .75rem;
+  --wf-text-meta: .75rem;
+  --wf-status-success: #17734a;
+  --wf-status-warning: #9a5b12;
+  --wf-status-danger: #ae3c33;
 
   /* Dashboard WayFlex: branco e cinza frio para superfícies operacionais. */
   --background-50: 1 0 89.88;
@@ -1052,9 +1057,26 @@ tbody tr:hover { background: #fafbfc; }
 .wf-kanban-board {
   overscroll-behavior-x: contain;
   scrollbar-gutter: stable;
+  scrollbar-color: #a4b09f #edf1ee;
+  scrollbar-width: thin;
+}
+
+.wf-kanban-board__grid {
+  scroll-snap-type: x proximity;
+}
+
+.wf-kanban-board__grid > section {
+  scroll-snap-align: start;
+}
+
+.wf-page--leads .overflow-x-auto {
+  overscroll-behavior-x: contain;
+  scrollbar-color: #a4b09f #edf1ee;
+  scrollbar-width: thin;
 }
 
 @media (max-width: 639px) {
   .wf-kanban-toolbar { padding: .75rem; }
   .wf-kanban-board { margin-inline: -.25rem; }
+  .wf-page--leads .overflow-x-auto { margin-inline: -.25rem; }
 }

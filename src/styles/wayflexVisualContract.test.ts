@@ -9,6 +9,9 @@ describe('WayFlex visual contract', () => {
     expect(css).toContain('--wf-radius-surface: .75rem');
     expect(css).toContain('--wf-shadow-surface:');
     expect(css).toContain('--wf-focus-ring:');
+    expect(css).toContain('--wf-text-meta: .75rem');
+    expect(css).toContain('--wf-space-3: .75rem');
+    expect(css).toContain('--wf-status-success:');
   });
 
   it('uses explicit transitions for the shared interactive primitives', () => {
