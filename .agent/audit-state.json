@@ -1,46 +1,5 @@
 {
   "schema_version": 1,
-  "enviar_whatsapp_cors_20261011": {
-    "cause": "The public CRM origin https://prospect.wfdigital.com.br was absent from the shared Edge allowlist; browser preflight OPTIONS requests to enviar-whatsapp returned 403 before queue creation.",
-    "edge_function": "enviar-whatsapp v20 ACTIVE with verify_jwt=true",
-    "change": "Added the exact prospect origin to DEFAULT_ALLOWED_ORIGINS and covered it in httpCors.test.ts.",
-    "validation": "Focused CORS 2/2; frontend and Edge type-check; git diff check; remote OPTIONS returned 204 with Access-Control-Allow-Origin matching the prospect origin.",
-    "real_messages_sent": false,
-    "customer_data_changed": false,
-    "site_deployed": false,
-    "github_commit": "c275ee5",
-    "status": "EDGE_APLICADA_E_CORS_CONFIRMADO",
-    "next_action": "Retry the selected product from the live Central; observe queue acceptance separately from gateway delivery."
-  },
-  "catalog_queue_message_id_ambiguity_20261011": {
-    "cause": "The image branch of queue_human_whatsapp_catalog_message used an unqualified partial-index predicate for message_id while the RPC exposes message_id in RETURNS TABLE; PostgreSQL rejected the call before the queue could be returned.",
-    "migration": "20261011235000_fix_catalog_message_id_ambiguity applied to the official Supabase project",
-    "change": "Qualified the target as message_attachments alias attachment in the ON CONFLICT predicate; preserved the catalog queue signature, image metadata, idempotency and service_role grant.",
-    "validation": "Focused catalog SQL/media tests 9/9; Edge type-check; production function definition confirms qualified predicate and service_role EXECUTE.",
-    "real_messages_sent": false,
-    "customer_data_changed": false,
-    "site_deployed": false,
-    "status": "SUPABASE_APLICADO_E_FUNCAO_VERIFICADA",
-    "next_action": "Retry the selected product in the live Central; verify queue acceptance before checking gateway delivery."
-  },
-  "prospecting_quick_processes_20261010": {
-    "scope": "Busca de Leads: processos rápidos somente de preenchimento do wizard, sem chamada automática ao provedor.",
-    "catalog": "13 exemplos: borracha, silicone, poliuretano, vedação, manutenção e setores de aplicação. Cada exemplo usa um termo único, 10 leads, site obrigatório e WhatsApp/e-mail não obrigatórios.",
-    "safety": "A cidade já escolhida é preservada; o operador ainda precisa clicar em Buscar. Não houve busca externa, importação, mensagem, automação, banco ou integração alterada.",
-    "validation": "Red: novo teste falhou porque o catálogo ainda não existia. Green: 3 arquivos focados/12 testes e suíte completa 92 arquivos/649 testes passaram; type-check, lint direcionado, Vite build e diff check passaram.",
-    "site_deployed": false,
-    "visual_review": "not_run",
-    "status": "LOCAL_VALIDADO_PENDENTE_DE_PUBLICACAO"
-  },
-  "central_inbox_wa_akg_execute_repair_20261009": {
-    "cause": "The authenticated role had schema usage but no EXECUTE privilege on private.can_read_wa_akg_central_lead, which the Central list and detail functions invoke under the user role.",
-    "migration": "20261009203616_restore_wa_akg_central_filter_execute applied to the official Supabase project",
-    "delta": "Granted EXECUTE only to authenticated on the existing private predicate. The predicate still enforces organization, administrator, and seller-account ownership.",
-    "validation": "Red check confirmed EXECUTE=false before the migration; green check confirmed EXECUTE=true after it. Authenticated Central reload displayed seven conversations and the controlled inbound test record.",
-    "safety": "No WA-AKG session, gateway, contact directory, Ana, outbound message, or customer record was changed by this permission repair.",
-    "status": "APLICADO_E_VALIDADO_VISUALMENTE",
-    "next_action": "Optional: send one new inbound test and confirm it appears automatically without a page reload."
-  },
   "wa_akg_permission_aware_activation_20261009": {
     "design": "A confirmed seller session can be activated only when its active owner has channels.view_own and channels.connect_own. Existing RBAC continues to decide Central and reply access per action.",
     "edge_function": "wa-akg-worker v10 ACTIVE; bundle includes the existing account lifecycle module and preserves verify_jwt=false custom worker authentication.",
