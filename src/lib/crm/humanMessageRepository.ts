@@ -27,7 +27,7 @@ export async function queueHumanMessage(input: {
   recipient: string;
   text: string;
   requestId: string;
-  provider?: 'zapi' | 'meta_cloud' | 'wa_akg' | null;
+  provider?: 'meta_cloud' | 'wa_akg' | null;
   knowledgeContent?: HumanMessageKnowledgeContent | null;
 }): Promise<HumanMessageResult> {
   if (input.channel !== 'whatsapp') {
@@ -35,7 +35,7 @@ export async function queueHumanMessage(input: {
   }
   if (input.provider === 'meta_cloud') {
     if (input.knowledgeContent) {
-      throw new Error('O conteúdo comercial ainda não foi sincronizado para esta conta Meta. Envie o texto ou use a conta Z-API homologada.');
+      throw new Error('O conteúdo comercial ainda não foi sincronizado para esta conta Meta. Envie o texto ou use o canal WA-AKG homologado.');
     }
     const { data, error } = await supabase.functions.invoke('meta-whatsapp-messages', {
       body: {

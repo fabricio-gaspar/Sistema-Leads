@@ -10,6 +10,7 @@ import {
   preflight,
   safeError,
 } from "../_shared/http.ts";
+import { freeLlmEndpoint } from "../_shared/freellm.ts";
 
 const PROVIDER_REQUEST_TIMEOUT_MS = 5_000;
 
@@ -24,40 +25,6 @@ const obj = (v: unknown): Record<string, unknown> =>
 const txt = (v: unknown, m = 1000) =>
   typeof v === "string" ? v.trim().slice(0, m) : "";
 const validEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
-function zapiDetail(code: string) {
-  const d: Record<string, string> = {
-    zapi_credentials_incomplete:
-      "Informe ID da instância, Token da Instância e Client Token.",
-    zapi_client_token_rejected: "A Z-API recusou o Client Token.",
-    zapi_instance_token_rejected: "A Z-API recusou o Token da Instância.",
-    zapi_instance_id_rejected: "A Z-API não reconheceu o ID da instância.",
-    zapi_instance_not_connected:
-      "A instância existe, mas o WhatsApp ainda não está conectado.",
-    zapi_phone_offline: "O celular vinculado à instância está offline.",
-    zapi_http_429: "A Z-API limitou temporariamente os testes.",
-  };
-  return d[code] ?? "A Z-API recusou a validação.";
-}
-async function payload(r: Response) {
-  const raw = await r.text();
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return raw;
-  }
-}
-function zapiCode(status: number, p: unknown) {
-  if (status !== 400) return `zapi_http_${status}`;
-  const m = JSON.stringify(p ?? "").toLowerCase();
-  if (/client.?token|security.?token|seguran/.test(m))
-    return "zapi_client_token_rejected";
-  if (/instance.?id|inst.ncia.*not found|inst.ncia.*invalid/.test(m))
-    return "zapi_instance_id_rejected";
-  if (/instance.?token|token.*inst.ncia|token.*invalid/.test(m))
-    return "zapi_instance_token_rejected";
-  return "zapi_http_400";
-}
 function providerDetail(code: string, provider: string) {
   const map: Record<string, string> = {
     integration_credentials_missing:
@@ -78,6 +45,12 @@ function providerDetail(code: string, provider: string) {
       "O Google Calendar ainda não possui token OAuth válido para esta empresa.",
     calendar_token_rejected:
       "O Google Calendar recusou ou expirou a autorização.",
+    freellm_credentials_missing:
+      "O FreeLLMAPI ainda não está disponível no gateway isolado da VPS.",
+    ai_provider_401: "O provedor da Ana recusou a chave configurada.",
+    ai_provider_403: "O provedor da Ana bloqueou esta chave.",
+    ai_provider_404: "O endpoint do provedor da Ana não expôs uma rota compatível.",
+    ai_provider_429: "O provedor da Ana limitou temporariamente a validação.",
     cnpj_provider_unavailable:
       "A consulta pública CNPJ.ws não respondeu corretamente.",
     provider_timeout:
@@ -106,7 +79,6 @@ Deno.serve(async (request) => {
     const canal = String(body.canal ?? "").trim();
     if (
       ![
-        "whatsapp",
         "ai",
         "apify",
         "google_places",
@@ -163,54 +135,10 @@ Deno.serve(async (request) => {
     );
     const credentials = obj(secret);
     let response: Response | null = null;
-    let whatsappOperational = true;
-    if (canal === "whatsapp") {
-      const { data: providerControl, error: providerControlError } = await admin
-        .from("messaging_provider_controls")
-        .select("inbound_enabled,send_enabled,automation_enabled,kill_switch")
-        .eq("organization_id", org)
-        .eq("provider", "zapi")
-        .maybeSingle();
-      if (providerControlError) throw new Error("provider_control_read_failed");
-      const hasExplicitProviderControl = providerControl
-        && typeof providerControl.inbound_enabled === "boolean"
-        && typeof providerControl.send_enabled === "boolean"
-        && typeof providerControl.automation_enabled === "boolean"
-        && typeof providerControl.kill_switch === "boolean";
-      whatsappOperational = !hasExplicitProviderControl || (providerControl.inbound_enabled === true
-        && providerControl.send_enabled === true
-        && providerControl.automation_enabled === true
-        && providerControl.kill_switch !== true);
-      const instance = txt(credentials.instancia_id, 300),
-        token = txt(credentials.token, 500),
-        client = txt(credentials.client_token, 500),
-        base = (
-          txt(credentials.url_base, 500) || "https://api.z-api.io"
-        ).replace(/\/$/, "");
-      if (!instance || !token || !client)
-        throw new Error("zapi_credentials_incomplete");
-      response = await fetch(
-        `${base}/instances/${encodeURIComponent(instance)}/token/${encodeURIComponent(token)}/status`,
-        {
-          headers: {
-            "Content-Type": "application/json",
-            "Client-Token": client,
-          },
-          signal: AbortSignal.timeout(PROVIDER_REQUEST_TIMEOUT_MS),
-        },
-      );
-      const p = (await payload(response)) as {
-        connected?: boolean;
-        smartphoneConnected?: boolean;
-      } | null;
-      if (!response.ok) throw new Error(zapiCode(response.status, p));
-      if (!p || typeof p !== "object") throw new Error("zapi_http_400");
-      if (!p.connected) throw new Error("zapi_instance_not_connected");
-      if (!p.smartphoneConnected) throw new Error("zapi_phone_offline");
-    } else if (canal === "ai") {
+    if (canal === "ai") {
       if (secretError || !secret)
         throw new Error("integration_credentials_missing");
-      const preferred = txt(credentials.provedor_principal, 30).toLowerCase();
+      const preferred = txt(credentials.provedor_principal, 30).toLowerCase() || "freellm";
       if (preferred === "claude") {
         const key = txt(credentials.claude_key, 1000);
         if (!key) throw new Error("integration_credentials_missing");
@@ -218,6 +146,31 @@ Deno.serve(async (request) => {
           headers: { "x-api-key": key, "anthropic-version": "2023-06-01" },
           signal: AbortSignal.timeout(PROVIDER_REQUEST_TIMEOUT_MS),
         });
+      } else if (preferred === "freellm" || preferred === "freellmapi") {
+        const key = txt(Deno.env.get("FREELLM_API_KEY"), 1_000);
+        const base = txt(Deno.env.get("FREELLM_API_URL"), 1_000);
+        if (!key || !base) throw new Error("freellm_credentials_missing");
+        const root = base.replace(/\/+$/, "").replace(/\/v1$/i, "");
+        response = await fetch(`${root}/v1/models`, {
+          headers: { Authorization: `Bearer ${key}` },
+          signal: AbortSignal.timeout(PROVIDER_REQUEST_TIMEOUT_MS),
+        });
+        // Some self-hosted gateways expose only chat completions. A one-token
+        // dry-run still proves the configured model route without sending any
+        // WhatsApp message or mutating CRM data.
+        if (response.status === 404) {
+          response = await fetch(freeLlmEndpoint(base), {
+            method: "POST",
+            headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+            body: JSON.stringify({
+              model: txt(credentials.freellm_model, 100) || txt(Deno.env.get("FREELLM_MODEL"), 100) || "free-router",
+              messages: [{ role: "user", content: "Responda apenas OK." }],
+              max_tokens: 1,
+              temperature: 0,
+            }),
+            signal: AbortSignal.timeout(PROVIDER_REQUEST_TIMEOUT_MS),
+          });
+        }
       } else {
         const key = txt(credentials.openai_key, 1000);
         if (!key) throw new Error("integration_credentials_missing");
@@ -320,15 +273,9 @@ Deno.serve(async (request) => {
     }
     const now = new Date().toISOString();
     const ambienteRealAtivo = false;
-    const ambienteRealMensagem = canal === "whatsapp"
-      ? "A validação do canal não altera o Ambiente Real. Use o assistente de ativação para uma mudança de operação auditada."
-      : null;
+    const ambienteRealMensagem = null;
     const detail =
-      canal === "whatsapp"
-        ? whatsappOperational
-          ? "Conexão Z-API validada. O canal está conectado; esta verificação não envia mensagens nem ativa o Ambiente Real."
-          : "Conexão Z-API validada, mas o provedor permanece desativado no WayFlex. Esta verificação não enviou mensagens."
-        : canal === "ai"
+      canal === "ai"
           ? "Credencial do provedor principal da Ana validada sem gerar mensagem."
           : canal === "email"
             ? "Resend validado para envio real da Wayflex."
@@ -342,8 +289,8 @@ Deno.serve(async (request) => {
         // A connection test proves technical health; it must not silently
         // turn a provider on for production use. The operational switch is
         // changed only by configurar-integracao#set_usage.
-        enabled: canal === "whatsapp" ? whatsappOperational : i.enabled,
-        paused: canal === "whatsapp" ? !whatsappOperational : i.paused,
+        enabled: i.enabled,
+        paused: i.paused,
         status_detail: detail,
         last_tested_at: now,
         last_success_at: now,
@@ -390,10 +337,8 @@ Deno.serve(async (request) => {
         pronto: true,
         provedor: provider,
         detalhe: detail,
-        canalPronto: canal === "whatsapp" ? whatsappOperational : true,
-        bloqueioOperacional: canal === "whatsapp" && !whatsappOperational
-          ? "whatsapp_provider_disabled"
-          : null,
+        canalPronto: true,
+        bloqueioOperacional: null,
         ambienteRealAtivo,
         ambienteRealMensagem,
       },
@@ -402,9 +347,7 @@ Deno.serve(async (request) => {
     );
   } catch (error) {
     const code = externalRequestFailed(error) ? "provider_timeout" : safeError(error),
-      detail = code.startsWith("zapi_")
-        ? zapiDetail(code)
-        : providerDetail(code, provider);
+      detail = providerDetail(code, provider);
     if (admin && authorized && org && id)
       await admin
         .from("integrations")

@@ -22,7 +22,7 @@ const integrationId = 'c1111111-1111-4111-8111-111111111111';
 const whatsappAccountId = 'e2222222-2222-4222-8222-222222222222';
 const anaConfigurationVersionId = 'd1111111-1111-4111-8111-111111111111';
 const readyCompany = { active: true, sandbox_mode: false, can_use_ia: true, ai_actions_enabled: true };
-const readyIntegration = { id: integrationId, organization_id: org, provider: 'zapi', enabled: true, connected: true, paused: false };
+const readyIntegration = { id: integrationId, organization_id: org, provider: 'wa_akg', enabled: true, connected: true, paused: false };
 const readyLead = { id: leadId, organization_id: org, owner_id: 'owner', assigned_to: 'owner', modo_atendimento: 'ia', ai_paused: false, opt_out: false, contact_approval_status: 'approved', ana_stage: 'novo', score: 0, active_channel: 'whatsapp', phone: '(11) 99999-0000', first_inbound_at: null, whatsapp_account_id: whatsappAccountId };
 const readyAnaConfiguration = {
   dailyMessageLimit: 5,
@@ -57,6 +57,8 @@ function execute(query: Query): Result {
   if (query.operation === 'rpc') {
     if (query.table === 'resolve_whatsapp_lead_for_account') return ok([{ lead_id: leadId, reason: 'account_identity' }]);
     if (query.table === 'resolve_lead_whatsapp_account') return ok([{ account_id: whatsappAccountId, integration_id: integrationId, owner_user_id: null, is_default: true, connection_status: 'connected' }]);
+    if (query.table === 'reserve_whatsapp_send_slot') return ok([{ allowed: true, reason: 'wa_akg_slot_reserved', not_before: new Date().toISOString() }]);
+    if (query.table === 'complete_whatsapp_send_slot') return ok({ ok: true });
     if (query.table === 'reserve_ana_outbound_policy') return ok([{ allowed: true, reason: 'ana_policy_reserved', used_count: 1 }]);
     if (query.table === 'record_outreach_provider_acceptance') {
       acceptedLeadState = {
@@ -95,7 +97,8 @@ function execute(query: Query): Result {
     case 'integrations': return ok(readyIntegration);
     case 'whatsapp_accounts': return 'owner_user_id' in query.filters
       ? ok([])
-      : ok({ id: whatsappAccountId, integration_id: integrationId, owner_user_id: null, is_default: true, enabled: true, connection_status: 'connected', archived_at: null });
+      : ok({ id: whatsappAccountId, integration_id: integrationId, provider: 'wa_akg', owner_user_id: null, is_default: true, enabled: true, connection_status: 'connected', archived_at: null });
+    case 'messaging_provider_controls': return ok({ provider: 'wa_akg', inbound_enabled: true, send_enabled: true, automation_enabled: true, kill_switch: false });
     case 'agent_runs': return ok(null);
     case 'lead_messages': return ok([{ sender: 'lead', type: 'received', text: 'Qual o valor?', sent_at: '2026-09-08T00:00:00Z' }]);
     case 'ai_agents': return ok({ active_version_id: anaConfigurationVersionId });
@@ -135,7 +138,7 @@ beforeEach(() => {
     storage: { from: () => ({ remove: state.storageRemove }) },
     auth: { admin: { createUser: state.createUser, deleteUser: state.deleteUser, updateUserById: state.updateUser } },
   };
-  vi.stubGlobal('Deno', { env: { get: (name: string) => ({ SUPABASE_URL: 'https://example.invalid', SUPABASE_SERVICE_ROLE_KEY: 'synthetic-service-jwt', WHATSAPP_WEBHOOK_SHARED_SECRET: 'synthetic-internal-secret' } as Record<string, string>)[name] }, serve: (callback: typeof handler) => { handler = callback; } });
+  vi.stubGlobal('Deno', { env: { get: (name: string) => ({ SUPABASE_URL: 'https://example.invalid', SUPABASE_SERVICE_ROLE_KEY: 'synthetic-service-jwt', WHATSAPP_WEBHOOK_SHARED_SECRET: 'synthetic-internal-secret', WA_AKG_ALLOWED_ORIGINS: 'https://wa.example.test' } as Record<string, string>)[name] }, serve: (callback: typeof handler) => { handler = callback; } });
   fetchMock = vi.fn(async () => { throw new Error('Unexpected external call in safety test'); });
   vi.stubGlobal('fetch', fetchMock);
 });
@@ -1146,193 +1149,14 @@ const callback = { type: 'ReceivedCallback', messageId: 'synthetic-zapi-message'
 function webhookRequest(payload: Row = callback) {
   return new Request(`https://example.invalid/webhook-whatsapp?integration_id=${integrationId}`, { method: 'POST', headers: { 'x-leadai-webhook-secret': 'synthetic-internal-secret' }, body: JSON.stringify(payload) });
 }
-describe('Webhook handler contract — synthetic callbacks', () => {
-  it('does not rerun or overwrite a duplicate callback', async () => {
-    override = (q) => q.table === 'webhook_events' && q.operation === 'upsert' ? ok(null) : undefined;
+describe('Retired legacy WhatsApp webhook', () => {
+  it('rejects the removed webhook route without invoking providers or persistence', async () => {
     await import('../functions/webhook-whatsapp/index');
     const response = await handler(webhookRequest());
-    expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ value: true, accepted: true, duplicate: true });
+    expect(response.status).toBe(410);
+    expect(await response.json()).toMatchObject({ error: 'channel_not_supported' });
     expect(fetchMock).not.toHaveBeenCalled();
-    expect(calls.some((q) => q.table === 'lead_messages')).toBe(false);
-  });
-  it('stores inbound with a valid state and calls Ana with JWT plus internal auth', async () => {
-    fetchMock.mockResolvedValue(new Response(JSON.stringify({ ok: true, skipped: true, reason: 'sandbox_mode' }), { status: 200 }));
-    await import('../functions/webhook-whatsapp/index');
-    expect(await (await handler(webhookRequest())).json()).toMatchObject({ processed: true, skipped: true });
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock.mock.calls[0][1]).toMatchObject({ headers: { Authorization: 'Bearer synthetic-service-jwt', 'x-internal-worker-secret': 'synthetic-internal-secret' } });
-    expect(calls.find((q) => q.table === 'channel_inbound_events' && q.operation === 'upsert')?.value?.status).toBe('received');
-    expect(calls.find((q) => q.table === 'lead_messages' && q.operation === 'insert')?.value?.provider_message_id).toBe(callback.messageId);
-  });
-  it('does not equate HTTP 200 with a successful Ana run', async () => {
-    fetchMock.mockResolvedValue(new Response(JSON.stringify({ ok: false }), { status: 200 }));
-    await import('../functions/webhook-whatsapp/index');
-    expect(await (await handler(webhookRequest())).json()).toMatchObject({ processed: false });
-    expect(calls.find((q) => q.table === 'channel_inbound_events' && q.operation === 'update')?.value?.status).toBe('failed');
-  });
-  it('does not pick one of two leads sharing a phone number', async () => {
-    override = (q) => q.table === 'resolve_whatsapp_lead_for_account' ? ok([{ lead_id: null, reason: 'ambiguous_identity' }]) : undefined;
-    await import('../functions/webhook-whatsapp/index');
-    expect(await (await handler(webhookRequest())).json()).toMatchObject({ accepted: true, matched: false, resolution: 'ambiguous_identity' });
-    expect(calls.find((q) => q.table === 'webhook_events' && q.operation === 'update')?.value).toMatchObject({ status: 'failed', error: 'lead_identity_ambiguous' });
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-  it('records unmatched without the invalid unmatched status', async () => {
-    override = (q) => q.table === 'resolve_whatsapp_lead_for_account' ? ok([{ lead_id: null, reason: 'not_found' }]) : undefined;
-    await import('../functions/webhook-whatsapp/index');
-    expect(await (await handler(webhookRequest())).json()).toMatchObject({ matched: false });
-    expect(calls.find((q) => q.table === 'webhook_events' && q.operation === 'update')?.value).toMatchObject({ status: 'failed', error: 'lead_not_matched' });
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-  it('creates a lead only for a matching active site-entry marker and hides the marker from the conversation', async () => {
-    override = (q) => {
-      if (q.table === 'resolve_whatsapp_lead_for_account') return ok([{ lead_id: null, reason: 'not_found' }]);
-      if (q.table === 'whatsapp_site_entries') return ok({ id: 'site-entry-1', source_label: 'Formulário institucional' });
-      return undefined;
-    };
-    fetchMock.mockResolvedValue(new Response(JSON.stringify({ ok: true, skipped: true, reason: 'sandbox_mode' }), { status: 200 }));
-    await import('../functions/webhook-whatsapp/index');
-    const response = await handler(webhookRequest({
-      ...callback,
-      messageId: 'synthetic-website-entry',
-      text: { message: 'Preciso de uma vedação industrial [WF:ABCDEF123456]' },
-    }));
-
-    expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ matched: true, processed: true, resolution: 'site_entry_created' });
-    expect(calls.find((q) => q.table === 'leads' && q.operation === 'insert')?.value).toMatchObject({
-      company: 'Contato do site',
-      origin: 'Formulário institucional',
-      source_record_id: 'website-whatsapp:site-entry-1',
-    });
-    expect(calls.find((q) => q.table === 'lead_messages' && q.operation === 'insert')?.value?.text)
-      .toBe('Preciso de uma vedação industrial');
-  });
-  it('ignores outgoing echoes without running Ana', async () => {
-    await import('../functions/webhook-whatsapp/index');
-    const response = await handler(webhookRequest({ ...callback, fromMe: true }));
-    expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ value: true, accepted: true, ignored: true });
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-  it('does not claim an inbound callback that another handler is already processing', async () => {
-    override = (q) => {
-      if (q.table === 'channel_inbound_events' && q.operation === 'upsert') return ok(null);
-      if (q.table === 'channel_inbound_events' && q.operation === 'select') return ok({ id: 'inbound-in-progress', status: 'received', error: null });
-      return undefined;
-    };
-    await import('../functions/webhook-whatsapp/index');
-    const response = await handler(webhookRequest());
-    expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({
-      value: true,
-      accepted: true,
-      duplicate: true,
-      processed: false,
-      processing: true,
-      requires_reconciliation: true,
-    });
-    expect(calls.some((q) => q.table === 'channel_inbound_events' && q.operation === 'update')).toBe(false);
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-  it('reclaims an inbound callback only when its prior attempt explicitly failed', async () => {
-    override = (q) => {
-      if (q.table === 'channel_inbound_events' && q.operation === 'upsert') return ok(null);
-      if (q.table === 'channel_inbound_events' && q.operation === 'select') return ok({ id: 'inbound-failed', status: 'failed', error: 'synthetic_error' });
-      return undefined;
-    };
-    fetchMock.mockResolvedValue(new Response(JSON.stringify({ ok: true, skipped: true, reason: 'sandbox_mode' }), { status: 200 }));
-    await import('../functions/webhook-whatsapp/index');
-    const response = await handler(webhookRequest());
-    expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ value: true, accepted: true, processed: true });
-    const claim = calls.find((q) => q.table === 'channel_inbound_events' && q.operation === 'update' && q.value?.status === 'received');
-    expect(claim?.filters).toMatchObject({ id: 'inbound-failed', status: 'failed' });
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-  });
-  it('reconciles a receipt through the database without invoking Ana or an outbound provider', async () => {
-    override = (q) => q.table === 'reconcile_whatsapp_receipt_for_account' && q.operation === 'rpc'
-      ? ok([{ outreach_id: 'outreach-1', lead_id: leadId, current_status: 'read', changed: true }])
-      : undefined;
-    await import('../functions/webhook-whatsapp/index');
-    const response = await handler(webhookRequest({
-      type: 'MessageStatusCallback', status: 'READ', ids: ['synthetic-provider-message'], momment: 1_772_494_009_341,
-    }));
-    expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({
-      value: true,
-      accepted: true,
-      matched: true,
-      processed: true,
-      status: 'read',
-      expected_count: 1,
-    });
-    expect(calls.find((q) => q.table === 'reconcile_whatsapp_receipt_for_account' && q.operation === 'rpc')?.value).toMatchObject({
-      p_organization_id: org,
-      p_whatsapp_account_id: whatsappAccountId,
-      p_provider_message_ids: ['synthetic-provider-message'],
-      p_expected_message_count: 1,
-      p_status: 'read',
-    });
-    expect(calls.some((q) => q.table === 'lead_outreach')).toBe(false);
-    expect(calls.some((q) => q.table === 'channel_inbound_events')).toBe(false);
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-  it('accepts an unmatched receipt for reconciliation without retrying or sending anything', async () => {
-    override = (q) => q.table === 'reconcile_whatsapp_receipt_for_account' && q.operation === 'rpc' ? ok([]) : undefined;
-    await import('../functions/webhook-whatsapp/index');
-    const response = await handler(webhookRequest({ type: 'DeliveryCallback', messageId: 'synthetic-unmatched-receipt' }));
-    expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({
-      value: true,
-      accepted: true,
-      matched: false,
-      reason: 'outbound_message_not_matched',
-    });
-    expect(fetchMock).not.toHaveBeenCalled();
-    expect(calls.some((q) => q.table === 'outreach_jobs')).toBe(false);
-    expect(calls.some((q) => q.table === 'lead_messages')).toBe(false);
-  });
-  it('acknowledges an ambiguous receipt for manual reconciliation without invoking any sender', async () => {
-    override = (q) => q.table === 'reconcile_whatsapp_receipt_for_account' && q.operation === 'rpc'
-      ? { data: null, error: { message: 'receipt_identity_ambiguous' } }
-      : undefined;
-    await import('../functions/webhook-whatsapp/index');
-    const response = await handler(webhookRequest({ type: 'DeliveryCallback', messageId: 'synthetic-ambiguous-receipt' }));
-    expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({
-      value: true,
-      accepted: true,
-      processed: false,
-      requires_reconciliation: true,
-      error: 'receipt_identity_ambiguous',
-    });
-    expect(fetchMock).not.toHaveBeenCalled();
-    expect(calls.some((q) => q.table === 'outreach_jobs')).toBe(false);
-  });
-  it('keeps a partial receipt pending while preserving the provider acknowledgement', async () => {
-    override = (q) => q.table === 'reconcile_whatsapp_receipt_for_account' && q.operation === 'rpc'
-      ? ok([{ outreach_id: 'outreach-1', lead_id: leadId, current_status: 'delivered', changed: true }])
-      : undefined;
-    await import('../functions/webhook-whatsapp/index');
-    const response = await handler(webhookRequest({
-      type: 'MessageStatusCallback', status: 'RECEIVED', ids: ['provider-1', 'provider-2'], momment: 1_772_494_009_341,
-    }));
-    expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({
-      value: true,
-      accepted: true,
-      matched: true,
-      processed: false,
-      expected_count: 2,
-      matched_count: 1,
-    });
-    expect(calls.find((q) => q.table === 'webhook_events' && q.operation === 'update')?.value).toMatchObject({
-      status: 'failed',
-      error: 'receipt_targets_pending',
-    });
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(calls).toHaveLength(0);
   });
 });
 
@@ -1436,7 +1260,10 @@ describe('Worker safety handler', () => {
       const custom = extra?.(q);
       if (custom) return custom;
       if (q.table === 'outreach_jobs' && q.operation === 'select') return q.filters.status === 'queued' ? ok([job]) : { ...ok(null), count: 0 };
-      if (q.table === 'read_integration_secret') return ok({ instancia_id: 'synthetic-instance', token: 'synthetic-token', client_token: 'synthetic-client' });
+      if (q.table === 'messaging_provider_controls' && q.operation === 'select') return ok({ provider: 'wa_akg', send_enabled: true, automation_enabled: true, kill_switch: false });
+      if (q.table === 'reserve_whatsapp_send_slot' && q.operation === 'rpc') return ok([{ allowed: true, reason: 'wa_akg_slot_reserved', not_before: new Date().toISOString() }]);
+      if (q.table === 'complete_whatsapp_send_slot' && q.operation === 'rpc') return ok({ ok: true });
+      if (q.table === 'read_integration_secret') return ok({ base_url: 'https://wa.example.test', api_key: 'synthetic-key', session_id: `wf_${org.replaceAll('-', '')}_${whatsappAccountId.replaceAll('-', '')}` });
       if (q.table === 'agent_runs' && q.operation === 'select') return ok({ id: 'synthetic-run', status: 'completed', result: { status_canal: 'enfileirado' } });
       if (q.table === 'lead_messages' && q.operation === 'select') return ok({ id: 'synthetic-draft', text: 'Mensagem sintética', type: 'draft' });
       return undefined;
@@ -1485,12 +1312,12 @@ describe('Worker safety handler', () => {
   });
   it('records provider acceptance consistently without claiming delivery/read', async () => {
     setupQueue();
-    fetchMock.mockResolvedValue(new Response(JSON.stringify({ messageId: 'synthetic-receipt' }), { status: 200 }));
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ success: true, data: { key: { id: 'synthetic-receipt' } } }), { status: 200 }));
     await import('../functions/automation-worker/index');
     expect(await (await handler(workerRequest())).json()).toMatchObject({ ok: true, sent_jobs: 1 });
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(calls.find((q) => q.table === 'record_outreach_provider_acceptance' && q.operation === 'rpc')?.value).toMatchObject({
-      p_provider: 'zapi',
+      p_provider: 'wa_akg',
       p_provider_message_id: 'synthetic-receipt',
       p_no_reply_deadline_at: expect.any(String),
     });
@@ -1498,7 +1325,7 @@ describe('Worker safety handler', () => {
     expect(cadenceJobs).toHaveLength(1);
     expect(cadenceJobs[0].value?.payload).toMatchObject({ kind: 'ana_cadence', step: 'first' });
   });
-  it('reconciles an early WhatsApp receipt after provider acceptance without resending', async () => {
+  it('delegates early WhatsApp receipts to the WA-AKG gateway without resending', async () => {
     const earlyReceipt = {
       id: 'early-receipt-event',
       whatsapp_account_id: whatsappAccountId,
@@ -1506,29 +1333,21 @@ describe('Worker safety handler', () => {
     };
     setupQueue((q) => {
       if (q.table === 'webhook_events' && q.operation === 'select') return ok([earlyReceipt]);
-      if (q.table === 'reconcile_whatsapp_receipt_for_account' && q.operation === 'rpc') {
-        return ok([{ outreach_id: 'synthetic-job', lead_id: leadId, current_status: 'read', changed: true }]);
-      }
       return undefined;
     });
-    fetchMock.mockResolvedValue(new Response(JSON.stringify({ messageId: 'synthetic-receipt' }), { status: 200 }));
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ success: true, data: { key: { id: 'synthetic-receipt' } } }), { status: 200 }));
     await import('../functions/automation-worker/index');
     expect(await (await handler(workerRequest())).json()).toMatchObject({ ok: true, sent_jobs: 1 });
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(calls.find((q) => q.table === 'reconcile_whatsapp_receipt_for_account' && q.operation === 'rpc')?.value).toMatchObject({
-      p_organization_id: org, p_whatsapp_account_id: whatsappAccountId,
-      p_provider_message_ids: ['synthetic-receipt'], p_status: 'read',
-    });
-    expect(calls.find((q) => q.table === 'webhook_events' && q.operation === 'update')?.value).toMatchObject({
-      status: 'processed', lead_id: leadId, outreach_id: 'synthetic-job',
-    });
-    expect(calls.find((q) => q.table === 'audit_logs' && q.operation === 'insert' && q.value?.action === 'whatsapp.early_receipt_reconciled')).toBeTruthy();
+    expect(calls.some((q) => q.table === 'reconcile_whatsapp_receipt_for_account' && q.operation === 'rpc')).toBe(false);
+    expect(calls.some((q) => q.table === 'webhook_events' && q.operation === 'update')).toBe(false);
+    expect(calls.some((q) => q.table === 'audit_logs' && q.operation === 'insert' && q.value?.action === 'whatsapp.early_receipt_reconciled')).toBe(false);
   });
   it('does not guess an account for a legacy early receipt without ownership', async () => {
     setupQueue((q) => q.table === 'webhook_events' && q.operation === 'select'
       ? ok([{ id: 'legacy-early-receipt', payload: { type: 'MessageStatusCallback', status: 'READ', ids: ['synthetic-receipt'] } }])
       : undefined);
-    fetchMock.mockResolvedValue(new Response(JSON.stringify({ messageId: 'synthetic-receipt' }), { status: 200 }));
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ success: true, data: { key: { id: 'synthetic-receipt' } } }), { status: 200 }));
     await import('../functions/automation-worker/index');
     expect(await (await handler(workerRequest())).json()).toMatchObject({ ok: true, sent_jobs: 1 });
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -1547,7 +1366,7 @@ describe('Worker safety handler', () => {
       }
       return undefined;
     });
-    fetchMock.mockResolvedValue(new Response(JSON.stringify({ messageId: 'synthetic-receipt' }), { status: 200 }));
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ success: true, data: { key: { id: 'synthetic-receipt' } } }), { status: 200 }));
     await import('../functions/automation-worker/index');
     expect(await (await handler(workerRequest())).json()).toMatchObject({ ok: true, sent_jobs: 1 });
     expect(calls.some((q) => q.table === 'outreach_jobs' && q.operation === 'upsert')).toBe(false);
@@ -1562,11 +1381,11 @@ describe('Worker safety handler', () => {
     };
     override = (q) => {
       if (q.table === 'outreach_jobs' && q.operation === 'select') return q.filters.status === 'queued' ? ok([manualJob]) : { ...ok(null), count: 0 };
-      if (q.table === 'read_integration_secret') return ok({ instancia_id: 'synthetic-instance', token: 'synthetic-token', client_token: 'synthetic-client' });
+      if (q.table === 'read_integration_secret') return ok({ base_url: 'https://wa.example.test', api_key: 'synthetic-key', session_id: `wf_${org.replaceAll('-', '')}_${whatsappAccountId.replaceAll('-', '')}` });
       if (q.table === 'lead_messages' && q.operation === 'select') return ok({ id: 'synthetic-human-message', text: 'Mensagem humana sintética', sender: 'human', type: 'queued' });
       return undefined;
     };
-    fetchMock.mockResolvedValue(new Response(JSON.stringify({ messageId: 'synthetic-human-receipt' }), { status: 200 }));
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ success: true, data: { key: { id: 'synthetic-human-receipt' } } }), { status: 200 }));
     await import('../functions/automation-worker/index');
     expect(await (await handler(workerRequest())).json()).toMatchObject({ ok: true, sent_jobs: 1 });
     expect(calls.some((q) => q.table === 'agent_runs' && q.operation === 'select')).toBe(false);
@@ -1584,11 +1403,11 @@ describe('Worker safety handler', () => {
     };
     override = (q) => {
       if (q.table === 'outreach_jobs' && q.operation === 'select') return q.filters.status === 'queued' && q.filters.id === leadId ? ok([selectedJob]) : { ...ok(null), count: 0 };
-      if (q.table === 'read_integration_secret') return ok({ instancia_id: 'synthetic-instance', token: 'synthetic-token', client_token: 'synthetic-client' });
+      if (q.table === 'read_integration_secret') return ok({ base_url: 'https://wa.example.test', api_key: 'synthetic-key', session_id: `wf_${org.replaceAll('-', '')}_${whatsappAccountId.replaceAll('-', '')}` });
       if (q.table === 'lead_messages' && q.operation === 'select') return ok({ id: 'synthetic-immediate-message', text: 'Mensagem humana imediata', sender: 'human', type: 'queued' });
       return undefined;
     };
-    fetchMock.mockResolvedValue(new Response(JSON.stringify({ messageId: 'synthetic-immediate-receipt' }), { status: 200 }));
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ success: true, data: { key: { id: 'synthetic-immediate-receipt' } } }), { status: 200 }));
     await import('../functions/automation-worker/index');
     const response = await handler(new Request('https://example.invalid/automation-worker', {
       method: 'POST', headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
@@ -1609,11 +1428,11 @@ describe('Worker safety handler', () => {
     override = (q) => {
       if (q.table === 'company_settings') return ok({ ...readyCompany, sandbox_mode: true });
       if (q.table === 'outreach_jobs' && q.operation === 'select') return q.filters.status === 'queued' ? ok([controlledJob]) : { ...ok(null), count: 0 };
-      if (q.table === 'read_integration_secret') return ok({ instancia_id: 'synthetic-instance', token: 'synthetic-token', client_token: 'synthetic-client' });
+      if (q.table === 'read_integration_secret') return ok({ base_url: 'https://wa.example.test', api_key: 'synthetic-key', session_id: `wf_${org.replaceAll('-', '')}_${whatsappAccountId.replaceAll('-', '')}` });
       if (q.table === 'lead_messages' && q.operation === 'select') return ok({ id: 'synthetic-controlled-message', text: 'Oi de teste', sender: 'human', type: 'queued' });
       return undefined;
     };
-    fetchMock.mockResolvedValue(new Response(JSON.stringify({ messageId: 'synthetic-controlled-receipt' }), { status: 200 }));
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ success: true, data: { key: { id: 'synthetic-controlled-receipt' } } }), { status: 200 }));
     await import('../functions/automation-worker/index');
     expect(await (await handler(workerRequest())).json()).toMatchObject({ ok: true, sent_jobs: 1 });
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -1629,7 +1448,7 @@ describe('Worker safety handler', () => {
   });
   it('preserves the receipt when persistence fails after provider acceptance', async () => {
     setupQueue((q) => q.table === 'record_outreach_provider_acceptance' && q.operation === 'rpc' ? { data: null, error: { message: 'synthetic database outage' } } : undefined);
-    fetchMock.mockResolvedValue(new Response(JSON.stringify({ messageId: 'synthetic-receipt' }), { status: 200 }));
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ success: true, data: { key: { id: 'synthetic-receipt' } } }), { status: 200 }));
     await import('../functions/automation-worker/index');
     expect(await (await handler(workerRequest())).json()).toMatchObject({ failed_jobs: 1 });
     expect(fetchMock).toHaveBeenCalledTimes(1);
@@ -1735,7 +1554,7 @@ describe('Worker safety handler', () => {
       });
       return undefined;
     });
-    fetchMock.mockResolvedValue(new Response(JSON.stringify({ messageId: 'synthetic-first-follow-up-receipt' }), { status: 200 }));
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ success: true, data: { key: { id: 'synthetic-first-follow-up-receipt' } } }), { status: 200 }));
     await import('../functions/automation-worker/index');
     expect(await (await handler(workerRequest())).json()).toMatchObject({ ok: true, sent_jobs: 1 });
     const cadenceJobs = calls.filter((q) => q.table === 'outreach_jobs' && q.operation === 'upsert');
@@ -1767,102 +1586,25 @@ describe('Worker safety handler', () => {
       if (q.table === 'leads' && q.operation === 'select') return ok({ ...readyLead, last_contact: secondSentAt, no_reply_deadline_at: deadlineAt });
       return undefined;
     });
-    fetchMock.mockResolvedValue(new Response(JSON.stringify({ messageId: 'synthetic-second-follow-up-receipt' }), { status: 200 }));
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ success: true, data: { key: { id: 'synthetic-second-follow-up-receipt' } } }), { status: 200 }));
     await import('../functions/automation-worker/index');
     expect(await (await handler(workerRequest())).json()).toMatchObject({ ok: true, sent_jobs: 1 });
     expect(calls.some((q) => q.table === 'outreach_jobs' && q.operation === 'upsert')).toBe(false);
   });
 });
 
-describe('Z-API credential configuration contract', () => {
-  it('preserves the webhook credential while saving Z-API settings without mutating the provider webhook', async () => {
-    override = (q) => {
-      if (q.table === 'integrations' && q.operation === 'select') return ok({ id: integrationId, configuration: {} });
-      if (q.table === 'read_integration_secret' && q.operation === 'rpc') {
-        return ok({ webhook_token: 'synthetic-existing-webhook-token' });
-      }
-      return undefined;
-    };
-    await import('../functions/configurar-integracao/index');
-    const request = new Request('https://example.invalid/configurar-integracao', {
-      method: 'POST',
-      headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        canal: 'whatsapp',
-        credenciais: {
-          instancia_id: 'synthetic-instance',
-          token: 'synthetic-instance-token',
-          client_token: 'synthetic-client-token',
-          url_base: 'https://api.z-api.io',
-        },
-      }),
-    });
-    const response = await handler(request);
-    expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ ok: true });
-    expect(calls.find((q) => q.table === 'store_integration_secret' && q.operation === 'rpc')?.value).toMatchObject({
-      p_integration: integrationId,
-      p_secret: expect.objectContaining({
-        instancia_id: 'synthetic-instance',
-        webhook_token: 'synthetic-existing-webhook-token',
-      }),
-    });
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  it('marks the inbound registration pending when the Z-API callback route changes', async () => {
-    const webhookIntegrationId = 'f1111111-1111-4111-8111-111111111111';
-    override = (q) => {
-      if (q.table === 'integrations' && q.operation === 'select') {
-        if (q.filters.key === 'whatsapp') return ok({ id: integrationId, configuration: {} });
-        if (q.filters.key === 'zapi_webhook') return ok({
-          id: webhookIntegrationId,
-          configuration: {
-            registered_at: '2026-09-17T12:00:00.000Z',
-            registration_complete: true,
-            registration_endpoints: ['update-webhook-received'],
-          },
-        });
-      }
-      if (q.table === 'read_integration_secret' && q.operation === 'rpc') {
-        return ok({
-          instancia_id: 'old-instance',
-          token: 'old-instance-token',
-          client_token: 'synthetic-client-token',
-          url_base: 'https://api.z-api.io',
-          webhook_token: 'synthetic-existing-webhook-token',
-        });
-      }
-      return undefined;
-    };
+describe('Retired legacy WhatsApp configuration', () => {
+  it('rejects attempts to configure the removed provider path', async () => {
     await import('../functions/configurar-integracao/index');
     const response = await handler(new Request('https://example.invalid/configurar-integracao', {
       method: 'POST',
       headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        canal: 'whatsapp',
-        credenciais: {
-          instancia_id: 'new-instance',
-          token: 'new-instance-token',
-          client_token: 'synthetic-client-token',
-          url_base: 'https://api.z-api.io',
-        },
-      }),
+      body: JSON.stringify({ canal: 'whatsapp', credenciais: { url_base: 'https://legacy.invalid' } }),
     }));
-    expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ ok: true, mensagem: expect.stringContaining('Recadastre agora a entrada') });
-    expect(calls.find((q) => q.table === 'integrations' && q.operation === 'update' && q.filters.id === webhookIntegrationId)?.value)
-      .toMatchObject({
-        connected: false,
-        last_error: 'whatsapp_credentials_changed',
-        configuration: expect.objectContaining({
-          registration_complete: false,
-          registration_invalidation_reason: 'whatsapp_credentials_changed',
-        }),
-      });
-    expect(calls.find((q) => q.table === 'audit_logs' && q.operation === 'insert')?.value)
-      .toMatchObject({ event_data: expect.objectContaining({ webhook_registration_invalidated: true }) });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ ok: false, erro: 'channel_not_supported' });
     expect(fetchMock).not.toHaveBeenCalled();
+    expect(calls.some((q) => q.table === 'store_integration_secret')).toBe(false);
   });
 });
 
@@ -2028,64 +1770,21 @@ describe('Ana provider configuration contract', () => {
   });
 });
 
-describe('Z-API status validation contract', () => {
-  it('uses the documented status headers and does not send a message', async () => {
-    override = (q) => {
-      if (q.table === 'read_integration_secret') return ok({
-        instancia_id: 'synthetic-instance', token: 'synthetic-instance-token', client_token: 'synthetic-client-token', url_base: 'https://api.z-api.io',
-      });
-      return undefined;
-    };
-    fetchMock.mockResolvedValue(new Response(JSON.stringify({ connected: true, smartphoneConnected: true }), { status: 200 }));
-    await import('../functions/testar-integracao/index');
-    const request = new Request('https://example.invalid/testar-integracao', {
-      method: 'POST',
-      headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
-      body: JSON.stringify({ canal: 'whatsapp' }),
-    });
-    const response = await handler(request);
-    expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ ok: true, pronto: true, ambienteRealAtivo: false });
-    expect(fetchMock).toHaveBeenCalledWith(
-      'https://api.z-api.io/instances/synthetic-instance/token/synthetic-instance-token/status',
-      expect.objectContaining({ headers: { 'Content-Type': 'application/json', 'Client-Token': 'synthetic-client-token' } }),
-    );
-    expect(fetchMock.mock.calls[0][1].headers).not.toHaveProperty('Accept');
-    expect(calls.some((q) => q.table === 'company_settings' && q.operation === 'update')).toBe(false);
-  });
-
-  it('keeps a valid remote session separate from an administratively disabled provider', async () => {
-    override = (q) => {
-      if (q.table === 'read_integration_secret') return ok({
-        instancia_id: 'synthetic-instance', token: 'synthetic-instance-token', client_token: 'synthetic-client-token', url_base: 'https://api.z-api.io',
-      });
-      if (q.table === 'messaging_provider_controls' && q.operation === 'select') {
-        return ok({ inbound_enabled: false, send_enabled: false, automation_enabled: false, kill_switch: true });
-      }
-      return undefined;
-    };
-    fetchMock.mockResolvedValue(new Response(JSON.stringify({ connected: true, smartphoneConnected: true }), { status: 200 }));
+describe('Retired legacy WhatsApp status validation', () => {
+  it('rejects status checks for the removed provider path without contacting it', async () => {
     await import('../functions/testar-integracao/index');
     const response = await handler(new Request('https://example.invalid/testar-integracao', {
       method: 'POST',
       headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
       body: JSON.stringify({ canal: 'whatsapp' }),
     }));
-
-    expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({
-      ok: true,
-      pronto: true,
-      canalPronto: false,
-      bloqueioOperacional: 'whatsapp_provider_disabled',
-    });
-    expect(calls.find((q) => q.table === 'integrations' && q.operation === 'update')?.value)
-      .toMatchObject({ connected: true, enabled: false, paused: true });
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ ok: false, erro: 'unsupported_channel' });
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });
 
-describe('Z-API direct test message contract', () => {
+describe.skip('Retired legacy direct test message contract (historical)', () => {
   const directTestRequestId = 'd1111111-1111-4111-8111-111111111111';
   const providerStatusReady = () => new Response(JSON.stringify({ connected: true, smartphoneConnected: true }), { status: 200 });
 
@@ -2114,7 +1813,7 @@ describe('Z-API direct test message contract', () => {
     };
     fetchMock
       .mockResolvedValueOnce(providerStatusReady())
-      .mockResolvedValueOnce(new Response(JSON.stringify({ messageId: 'synthetic-direct-receipt' }), { status: 200 }));
+      .mockResolvedValueOnce(new Response(JSON.stringify({ success: true, data: { key: { id: 'synthetic-direct-receipt' } } }), { status: 200 }));
     await import('../functions/enviar-teste-whatsapp/index');
     const response = await handler(directTestRequest());
     expect(response.status).toBe(200);
@@ -2193,7 +1892,7 @@ describe('Z-API direct test message contract', () => {
     };
     fetchMock
       .mockResolvedValueOnce(providerStatusReady())
-      .mockResolvedValueOnce(new Response(JSON.stringify({ messageId: 'synthetic-direct-receipt' }), { status: 200 }));
+      .mockResolvedValueOnce(new Response(JSON.stringify({ success: true, data: { key: { id: 'synthetic-direct-receipt' } } }), { status: 200 }));
     await import('../functions/enviar-teste-whatsapp/index');
     const response = await handler(directTestRequest());
     expect(response.status).toBe(202);
@@ -2235,6 +1934,21 @@ describe('Z-API direct test message contract', () => {
     expect(response.status).toBe(400);
     expect(await response.json()).toMatchObject({ ok: false, erro: 'test_request_id_invalid' });
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('Retired legacy direct WhatsApp test', () => {
+  it('rejects the removed direct-send route before reading credentials or sending', async () => {
+    await import('../functions/enviar-teste-whatsapp/index');
+    const response = await handler(new Request('https://example.invalid/enviar-teste-whatsapp', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone: '5511999990000', message: 'Teste controlado' }),
+    }));
+    expect(response.status).toBe(410);
+    expect(await response.json()).toMatchObject({ erro: 'channel_not_supported' });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(calls).toHaveLength(0);
   });
 });
 
@@ -2291,7 +2005,7 @@ describe('Test lead cleanup contract', () => {
   });
 });
 
-describe('Operational mode authority', () => {
+describe.skip('Retired legacy operational mode authority (historical)', () => {
   const recent = new Date().toISOString();
   const zapiCallbackEndpoints = [
     'update-webhook-received',
@@ -2522,5 +2236,47 @@ describe('Operational mode authority', () => {
       state: 'unsupported_callback',
       detail: expect.stringContaining('grupo'),
     });
+  });
+});
+
+describe('WA-AKG operational authority', () => {
+  it('rejects the retired legacy webhook configuration action', async () => {
+    await import('../functions/operational-diagnostics/index');
+    const response = await handler(new Request('https://example.invalid/operational-diagnostics', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'configure_whatsapp_webhook' }),
+    }));
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ ok: false, erro: 'channel_not_supported' });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('keeps real activation blocked until the WA-AKG account is connected', async () => {
+    override = (q) => {
+      if (q.table === 'company_settings' && q.operation === 'select') return ok({ ...readyCompany, sandbox_mode: true });
+      if (q.table === 'integrations' && q.operation === 'select') return ok([
+        { ...readyIntegration, key: 'ai', provider: 'openai', label: 'IA', last_tested_at: new Date().toISOString(), last_error: null },
+        { ...readyIntegration, key: 'scheduler', label: 'Worker', last_tested_at: new Date().toISOString(), last_error: null },
+      ]);
+      if (q.table === 'whatsapp_accounts' && q.operation === 'select') return ok([]);
+      if (q.table === 'messaging_provider_controls' && q.operation === 'select') return ok(null);
+      if (q.table === 'webhook_events' && q.operation === 'select') return ok([]);
+      return undefined;
+    };
+    await import('../functions/operational-diagnostics/index');
+    const response = await handler(new Request('https://example.invalid/operational-diagnostics', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'activate_real' }),
+    }));
+    expect(response.status).toBe(200);
+    const payload = await response.json();
+    expect(payload).toMatchObject({ ok: true, activated: false, status: { mode: 'setup' } });
+    expect(payload.remaining).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: 'whatsapp', ok: false }),
+      expect.objectContaining({ id: 'whatsapp_webhook', ok: false }),
+    ]));
+    expect(calls.some((q) => q.table === 'company_settings' && q.operation === 'update')).toBe(false);
   });
 });

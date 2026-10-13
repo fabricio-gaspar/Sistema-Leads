@@ -107,13 +107,12 @@ Deno.serve(async (request) => {
     if (operationalAccountError || !operationalAccount || operationalAccount.enabled !== true || operationalAccount.connection_status !== 'connected') {
       throw new Error('whatsapp_account_not_ready');
     }
-    if (String(operationalAccount.provider) === 'wa_akg') {
-      const controlledProvider = String(operationalAccount.provider);
-      const { data: controls, error: controlsError } = await admin.from('messaging_provider_controls')
-        .select('send_enabled,kill_switch').eq('organization_id', organizationId).eq('provider', controlledProvider).maybeSingle();
-      if (controlsError) throw new Error(`${controlledProvider}_control_read_failed`);
-      if (!controls || controls.send_enabled !== true || controls.kill_switch === true) throw new Error(`${controlledProvider}_send_not_ready`);
-    }
+    if (String(operationalAccount.provider) !== 'wa_akg') throw new Error('whatsapp_provider_not_supported');
+    const controlledProvider = 'wa_akg';
+    const { data: controls, error: controlsError } = await admin.from('messaging_provider_controls')
+      .select('send_enabled,kill_switch').eq('organization_id', organizationId).eq('provider', controlledProvider).maybeSingle();
+    if (controlsError) throw new Error(`${controlledProvider}_control_read_failed`);
+    if (!controls || controls.send_enabled !== true || controls.kill_switch === true) throw new Error(`${controlledProvider}_send_not_ready`);
     const { data: blockingPolicy } = await admin.from('channel_policy_events')
       .select('id,risk_level,action').eq('organization_id', organizationId).eq('channel', 'whatsapp')
       .is('resolved_at', null).in('action', ['pause', 'throttle']).order('created_at', { ascending: false }).limit(1).maybeSingle();

@@ -22,7 +22,9 @@ function execute(query:Query) {
   switch(query.table){
     case 'profiles':data={active_organization_id:org,name:'Synthetic'};break;
     case 'company_settings':data={active:true,sandbox_mode:false,can_use_ia:true,ai_actions_enabled:true,ana_operation_mode:'automatic'};break;
-    case 'integrations':data=['ai','apify','scheduler','whatsapp','zapi_webhook'].map(key=>({key,connected:true,enabled:true,paused:false}));break;
+    case 'integrations':data=['ai','apify','scheduler','whatsapp','zapi_webhook'].map(key=>({id:key==='whatsapp'?'synthetic-wa-integration':key,key,provider:key==='whatsapp'?'wa_akg':undefined,connected:true,enabled:true,paused:false}));break;
+    case 'whatsapp_accounts':data=[{id:'synthetic-wa-account',integration_id:'synthetic-wa-integration',provider:'wa_akg',enabled:true,connection_status:'connected',status_checked_at:new Date().toISOString(),updated_at:new Date().toISOString(),archived_at:null}];break;
+    case 'messaging_provider_controls':data=[{provider:'wa_akg',inbound_enabled:true,send_enabled:true,automation_enabled:true,kill_switch:false}];break;
     case 'organization_module_data':data={data:{killSwitchGlobal:false}};break;
     case 'ai_agents':data={active_version_id:'synthetic-version'};break;
     case 'prospecting_schedules':data={id:'latest-schedule',filters:query.filters.id==='old-schedule'?oldFilters:scheduleFilters,paid_prospecting_approved:true,timezone:'America/Sao_Paulo',run_time:'09:00',weekdays:[1],initial_assignment_mode:'ana'};break;

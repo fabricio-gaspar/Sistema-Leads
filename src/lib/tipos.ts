@@ -64,9 +64,9 @@ export interface ModuloEstado {
 }
 
 // Provedor usado para a saída real de WhatsApp pela Ana.
-// WA-AKG é o canal principal por vendedor; os demais permanecem apenas para
-// migração e contingência controlada.
-export type ProvedorWhatsapp = 'wa_akg' | 'zapi' | 'meta';
+// WA-AKG é o transporte operacional do CRM. Meta fica reservado para a
+// coexistência homologada; provedores legados não fazem parte do contrato.
+export type ProvedorWhatsapp = 'wa_akg' | 'meta';
 
 export interface EventoHistorico {
   id: string;

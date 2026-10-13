@@ -7,7 +7,7 @@ import { integrationDisplayStatus, integrationStatusDetail, type IntegrationDisp
 
 export type OperationalIntegration = Omit<Integracao, 'status'> & {
   status: IntegrationDisplayStatus;
-  remoteKey: 'whatsapp' | 'ai' | 'apify' | 'google_places';
+  remoteKey: 'ai' | 'apify' | 'google_places';
   operationalCategory: 'prospecting' | 'communication' | 'intelligence' | 'scheduling' | 'system';
   connected: boolean;
   configured: boolean;
@@ -24,16 +24,16 @@ export type AnaProviderConfiguration = {
   openaiModel: string | null;
   claudeModel: string | null;
   freellmModel: string | null;
+  freellmConfigured: boolean;
   openaiConfigured: boolean;
   claudeConfigured: boolean;
   selectedModelValidated: false;
 };
 
-const supportedKeys = ['whatsapp', 'ai', 'apify', 'google_places'] as const;
+const supportedKeys = ['ai', 'apify', 'google_places'] as const;
 type SupportedKey = typeof supportedKeys[number];
 
 const descriptorByKey: Record<SupportedKey, Integracao> = {
-  whatsapp: integrationDescriptors.find((item) => item.id === 'int-1')!,
   ai: integrationDescriptors.find((item) => item.id === 'int-6')!,
   apify: integrationDescriptors.find((item) => item.id === 'int-7')!,
   google_places: integrationDescriptors.find((item) => item.id === 'int-8')!,
@@ -46,7 +46,7 @@ function pendingDescriptor(key: SupportedKey): OperationalIntegration {
     status: 'not_configured',
     ultimoTeste: 'Nunca testada',
     remoteKey: key,
-    operationalCategory: key === 'whatsapp' ? 'communication' : key === 'ai' ? 'intelligence' : 'prospecting',
+    operationalCategory: key === 'ai' ? 'intelligence' : 'prospecting',
     connected: false,
     configured: false,
     enabled: false,
@@ -68,7 +68,7 @@ function allowedModel(provider: 'openai' | 'claude' | 'freellm', value: unknown)
   const model = value.trim();
   const models = provider === 'openai'
     ? ['gpt-4.1-mini', 'gpt-4.1', 'gpt-4o-mini']
-    : provider === 'claude' ? ['claude-sonnet-5', 'claude-haiku-4-5', 'claude-opus-5'] : ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'qwen2.5-72b-instruct'];
+    : provider === 'claude' ? ['claude-sonnet-5', 'claude-haiku-4-5', 'claude-opus-5'] : ['free-router', 'llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'qwen2.5-72b-instruct'];
   return models.includes(model) ? model : null;
 }
 
@@ -89,6 +89,7 @@ function anaProviderConfiguration(value: unknown): AnaProviderConfiguration | nu
     openaiModel: allowedModel('openai', configuration.ana_openai_model),
     claudeModel: allowedModel('claude', configuration.ana_claude_model),
     freellmModel: allowedModel('freellm', configuration.ana_freellm_model),
+    freellmConfigured: publicBoolean(configuration.ana_freellm_configured),
     openaiConfigured: publicBoolean(configuration.ana_openai_configured),
     claudeConfigured: publicBoolean(configuration.ana_claude_configured),
     // A configuração pública não é prova de chamada ao modelo. O backend só
@@ -105,7 +106,7 @@ async function loadFromBackend(context: SessionContext): Promise<OperationalInte
     .from('integrations')
     // Nunca hidratar o JSON inteiro no navegador: este recorte transporta
     // somente o estado público da Ana, sem a referência do cofre ou chaves.
-    .select('key,category,connected,enabled,paused,status_detail,last_error,last_tested_at,configured:configuration->>configured,ana_provider:configuration->>provedor_principal,ana_model:configuration->>modelo_principal,ana_openai_model:configuration->>openai_model,ana_claude_model:configuration->>claude_model,ana_freellm_model:configuration->>freellm_model,ana_openai_configured:configuration->>openai_configurado,ana_claude_configured:configuration->>claude_configurado')
+    .select('key,category,connected,enabled,paused,status_detail,last_error,last_tested_at,configured:configuration->>configured,ana_provider:configuration->>provedor_principal,ana_model:configuration->>modelo_principal,ana_openai_model:configuration->>openai_model,ana_claude_model:configuration->>claude_model,ana_freellm_model:configuration->>freellm_model,ana_openai_configured:configuration->>openai_configurado,ana_claude_configured:configuration->>claude_configurado,ana_freellm_configured:configuration->>freellm_configurado')
     .eq('organization_id', organizationId)
     .in('key', [...supportedKeys]);
   sessionContext.assertCurrent(context);
@@ -129,7 +130,7 @@ async function loadFromBackend(context: SessionContext): Promise<OperationalInte
       remoteKey: key,
       operationalCategory: (remote.category === 'prospecting' || remote.category === 'communication' || remote.category === 'intelligence' || remote.category === 'scheduling' || remote.category === 'system')
         ? remote.category
-        : (key === 'whatsapp' ? 'communication' : key === 'ai' ? 'intelligence' : 'prospecting'),
+        : (key === 'ai' ? 'intelligence' : 'prospecting'),
       status: integrationDisplayStatus(statusInput),
       ultimoTeste: remote.last_tested_at ? new Date(remote.last_tested_at).toLocaleString('pt-BR') : 'Nunca testada',
       descricao: integrationStatusDetail(statusInput, remote.status_detail || descriptor.descricao),

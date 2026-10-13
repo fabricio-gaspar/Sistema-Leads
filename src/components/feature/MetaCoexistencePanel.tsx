@@ -86,7 +86,7 @@ function errorMessage(error: unknown): string {
     meta_phone_already_connected: 'Este número já está conectado a uma conta Meta.',
     meta_owner_or_phone_already_connected: 'O usuário ou o número já possui uma conta operacional.',
   };
-  return copy[code] ?? 'A conexão Meta não foi concluída. O canal Z-API atual foi preservado.';
+  return copy[code] ?? 'A conexão Meta não foi concluída. O canal WA-AKG atual foi preservado.';
 }
 
 export default function MetaCoexistencePanel({

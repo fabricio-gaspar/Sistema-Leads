@@ -41,22 +41,6 @@ function storedSecretReference(configuration: Record<string, unknown>): string |
     : null;
 }
 
-function zapiCallbackRouteChanged(previous: Record<string, unknown>, next: Record<string, unknown>): boolean {
-  const previousInstance = asText(previous.instancia_id, 300);
-  const nextInstance = asText(next.instancia_id, 300);
-  const previousToken = asText(previous.token, 500);
-  const nextToken = asText(next.token, 500);
-  const previousBase = asText(previous.url_base, 500).replace(/\/+$/, '').toLowerCase();
-  const nextBase = asText(next.url_base, 500).replace(/\/+$/, '').toLowerCase();
-
-  // A registration stays valid when credentials are saved unchanged. If the
-  // provider route changes, however, its callbacks may still point at the old
-  // instance. Keep that state visible without logging either credential.
-  return (Boolean(previousInstance && nextInstance) && previousInstance !== nextInstance)
-    || (Boolean(previousToken && nextToken) && previousToken !== nextToken)
-    || (Boolean(previousBase && nextBase) && previousBase !== nextBase);
-}
-
 Deno.serve(async (request) => {
   const options = preflight(request); if (options) return options;
   if (!hasAllowedOrigin(request)) return json({ ok: false, erro: 'origin_not_allowed' }, 403);
@@ -66,7 +50,8 @@ Deno.serve(async (request) => {
     const body = await request.json() as { action?: string; canal?: string; enabled?: unknown; credenciais?: Record<string, unknown> };
     const action = String(body.action ?? 'save').trim();
     const canal = String(body.canal ?? '').trim();
-    if (!['whatsapp', 'apify', 'google_places', 'ai'].includes(canal)) throw new Error('unsupported_channel');
+    if (canal === 'whatsapp') throw new Error('channel_not_supported');
+    if (!['apify', 'google_places', 'ai'].includes(canal)) throw new Error('unsupported_channel');
     const { user } = await requireUser(request);
     const admin = createAdminClient();
     const { data: profile } = await admin.from('profiles').select('active_organization_id,name').eq('id', user.id).maybeSingle();
@@ -114,21 +99,16 @@ Deno.serve(async (request) => {
     }
 
     const credenciais = asObject(body.credenciais);
-    const instanceId = asText(credenciais.instancia_id, 300);
-    const token = asText(credenciais.token, 500);
-    const clientToken = asText(credenciais.client_token, 500);
     const apifyToken = asText(credenciais.api_token, 1_000);
     const actorId = asText(credenciais.actor_id, 300);
     const taskId = asText(credenciais.task_id, 300);
     const useGoogleMapsActor = canal === 'apify' && credenciais.usar_actor_google_maps === true;
     const googleApiKey = asText(credenciais.api_key, 1_000);
-    if (canal === 'whatsapp' && (!instanceId || !token || !clientToken)) throw new Error('zapi_credentials_required');
     if (canal === 'apify' && !useGoogleMapsActor && (!apifyToken || (!actorId && !taskId))) throw new Error('apify_credentials_required');
     if (canal === 'google_places' && !googleApiKey) throw new Error('google_places_credentials_required');
-    const selectedAiProvider = asText(credenciais.provedor_principal, 30).toLowerCase();
+    const selectedAiProvider = asText(credenciais.provedor_principal, 30).toLowerCase() || 'freellm';
     if (canal === 'ai' && !isAiProvider(selectedAiProvider)) throw new Error('ai_provider_required');
     const labels: Record<string, { label: string; provider: string; detail: string; category: string }> = {
-      whatsapp: { label: 'WhatsApp (Z-API)', provider: 'Z-API', detail: 'Mensageria WhatsApp.', category: 'communication' },
       apify: { label: 'Apify — Google Maps', provider: 'Apify', detail: 'Busca real por Actor ou Task autorizado.', category: 'prospecting' },
       google_places: { label: 'Google Places', provider: 'Google Places', detail: 'Busca real de empresas por texto e localização.', category: 'prospecting' },
       ai: { label: 'IA da Ana', provider: 'OpenAI / Claude / FreeLLMAPI', detail: 'Provedor comercial da Ana, configurado com segurança no backend.', category: 'intelligence' },
@@ -140,34 +120,13 @@ Deno.serve(async (request) => {
     if (inserted?.error) throw new Error('integration_create_failed');
     const integration = existing ?? inserted?.data;
     if (!integration) throw new Error('integration_not_found');
-    // The webhook URL contains this credential. Rotating it when the operator
-    // merely saves the Z-API settings leaves the provider calling the old URL
-    // and the callback is rejected before it can be audited. Keep a valid
-    // existing token; a new token is needed only for the first configuration.
-    const storedWhatsAppSecret = canal === 'whatsapp' && existing
-      ? await admin.rpc('read_integration_secret', { p_integration: integration.id })
-      : { data: null, error: null };
-    if (storedWhatsAppSecret.error) throw new Error('integration_secret_read_failed');
-    const existingWhatsAppCredentials = asObject(storedWhatsAppSecret.data);
-    const existingWebhookToken = asText(existingWhatsAppCredentials.webhook_token, 128);
     let selectedAiModel = '';
     let aiPublicConfiguration: Record<string, unknown> | null = null;
-    let credentials: Record<string, unknown> = canal === 'whatsapp'
-      ? {
-        instancia_id: instanceId,
-        token,
-        client_token: clientToken,
-        numero_origem: String(credenciais.numero_origem ?? '').trim(),
-        url_base: String(credenciais.url_base ?? 'https://api.z-api.io').trim(),
-        webhook_token: existingWebhookToken || crypto.randomUUID().replace(/-/g, ''),
-      }
-      : canal === 'apify'
-        ? { api_token: apifyToken, actor_id: actorId, task_id: taskId, input_json: String(credenciais.input_json ?? '').trim() }
-        : canal === 'google_places'
-          ? { api_key: googleApiKey }
-          : {};
-    const whatsappCallbackRouteChanged = canal === 'whatsapp'
-      && zapiCallbackRouteChanged(existingWhatsAppCredentials, credentials);
+    let credentials: Record<string, unknown> = canal === 'apify'
+      ? { api_token: apifyToken, actor_id: actorId, task_id: taskId, input_json: String(credenciais.input_json ?? '').trim() }
+      : canal === 'google_places'
+        ? { api_key: googleApiKey }
+        : {};
 
     if (canal === 'apify' && useGoogleMapsActor) {
       const { data: storedSecret, error: storedSecretError } = await admin.rpc('read_integration_secret', { p_integration: integration.id });
@@ -194,7 +153,7 @@ Deno.serve(async (request) => {
       const claudeKey = asText(credenciais.claude_key, 1_000) || asText(previousCredentials.claude_key, 1_000);
       const openaiModel = acceptedModel('openai', asText(credenciais.openai_model, 100), asText(previousCredentials.openai_model, 100));
       const claudeModel = acceptedModel('claude', asText(credenciais.claude_model, 100), asText(previousCredentials.claude_model, 100));
-      const freellmModel = acceptedModel('freellm', asText(credenciais.freellm_model, 100), asText(previousCredentials.freellm_model, 100));
+      const freellmModel = acceptedModel('freellm', asText(credenciais.freellm_model, 100), asText(previousCredentials.freellm_model, 100) || 'free-router');
       const provider = (selectedAiProvider === 'freellmapi' ? 'freellm' : selectedAiProvider) as AiProvider;
       selectedAiModel = provider === 'openai' ? openaiModel : provider === 'claude' ? claudeModel : freellmModel;
       if (!selectedAiModel) throw new Error('ai_model_required');
@@ -221,7 +180,9 @@ Deno.serve(async (request) => {
         claude_model: claudeModel || null,
         openai_configurado: Boolean(openaiKey),
         claude_configurado: Boolean(claudeKey),
-        freellm_configurado: provider === 'freellm' ? 'Aguardando segredos do backend.' : false,
+        freellm_configurado: provider === 'freellm'
+          ? Boolean(asText(Deno.env.get('FREELLM_API_URL'), 1_000) && asText(Deno.env.get('FREELLM_API_KEY'), 1_000))
+          : false,
         // A configuração nunca se passa por homologação: o teste atual verifica
         // credencial/provedor, não uma chamada ao modelo selecionado.
         modelo_principal_validado: false,
@@ -238,56 +199,11 @@ Deno.serve(async (request) => {
     }
     const { error: secretError } = await admin.rpc('store_integration_secret', { p_integration: integration.id, p_secret: credentials });
     if (secretError) throw new Error('integration_secret_save_failed');
-    // Salvar credenciais não pode depender da configuração de callbacks do
-    // provedor. A Z-API aceitou a instância, mas devolveu HTTP 400 para o
-    // endpoint legado `update-every-webhooks`; tratar isso como falha de
-    // salvamento deixava as chaves gravadas no cofre e a interface informando
-    // o contrário. A homologação inbound é uma etapa própria: só será marcada
-    // como pronta depois de um callback real controlado.
-    let webhookRegistrationInvalidated = false;
-    if (whatsappCallbackRouteChanged) {
-      const { data: webhook, error: webhookLookupError } = await admin.from('integrations')
-        .select('id,configuration').eq('organization_id', organizationId).eq('key', 'zapi_webhook').maybeSingle();
-      if (webhookLookupError) {
-        console.error('whatsapp_webhook_invalidation_lookup_failed', { integrationId: integration.id });
-      } else if (webhook) {
-        const now = new Date().toISOString();
-        const { error: webhookUpdateError } = await admin.from('integrations').update({
-          connected: false,
-          enabled: true,
-          paused: false,
-          last_tested_at: null,
-          last_success_at: null,
-          last_error: 'whatsapp_credentials_changed',
-          last_error_at: now,
-          status_detail: 'As credenciais da instância Z-API foram alteradas. Recadastre a entrada antes de esperar novas respostas.',
-          configuration: {
-            ...asObject(webhook.configuration),
-            registration_complete: false,
-            registration_invalidated_at: now,
-            registration_invalidation_reason: 'whatsapp_credentials_changed',
-          },
-          updated_at: now,
-        }).eq('id', webhook.id).eq('organization_id', organizationId);
-        if (webhookUpdateError) {
-          // The Vault write already succeeded. Avoid telling the operator the
-          // credential save failed after the fact; the diagnostics still block
-          // inbound automation until a verified callback arrives.
-          console.error('whatsapp_webhook_invalidation_save_failed', { integrationId: integration.id });
-        } else {
-          webhookRegistrationInvalidated = true;
-        }
-      }
-    }
 
     const publicConfiguration = canal === 'apify'
       ? { actor_id: asText(credentials.actor_id, 300) || null, task_id: asText(credentials.task_id, 300) || null }
       : aiPublicConfiguration ?? {};
-    // store_integration_secret já atualiza a integração e preserva a referência
-    // do cofre. Uma segunda atualização era redundante e podia falhar depois de
-    // as credenciais terem sido salvas, prendendo o usuário no modal.
-    // Somente provedores de busca aparecem em Fontes de Prospecção. WhatsApp
-    // é um canal de atendimento e não pode ser gravado nessa tabela.
+    // Somente provedores de busca aparecem em Fontes de Prospecção.
     if (canal === 'apify' || canal === 'google_places') {
       const { data: sourceConfig, error: sourceLookupError } = await admin.from('lead_source_configs').select('id').eq('organization_id', organizationId).eq('source_key', canal).maybeSingle();
       if (sourceLookupError) throw new Error('integration_source_config_lookup_failed');
@@ -300,13 +216,11 @@ Deno.serve(async (request) => {
       }
     }
     const nonSecretFields = new Set(['token', 'api_token', 'api_key', 'client_token', 'openai_key', 'claude_key', 'webhook_token']);
-    const { error: auditError } = await admin.from('audit_logs').insert({ organization_id: organizationId, actor_id: user.id, actor_name: profile.name, actor_type: 'user', action: `integration.${canal}_configured`, detail: useGoogleMapsActor ? 'Actor Google Maps atualizado no cofre seguro; valide a conexão antes de prospectar.' : `Credenciais de ${definition.provider} guardadas no cofre seguro.`, entity_table: 'integrations', entity_id: integration.id, event_data: { provider: canal === 'ai' ? selectedAiProvider : definition.provider, model: canal === 'ai' ? selectedAiModel : null, configured_fields: Object.keys(credentials).filter((key) => !nonSecretFields.has(key) && Boolean(credentials[key])), webhook_registration_invalidated: webhookRegistrationInvalidated, ...(useGoogleMapsActor ? { actor_strategy: 'google_maps' } : {}) } });
+    const { error: auditError } = await admin.from('audit_logs').insert({ organization_id: organizationId, actor_id: user.id, actor_name: profile.name, actor_type: 'user', action: `integration.${canal}_configured`, detail: useGoogleMapsActor ? 'Actor Google Maps atualizado no cofre seguro; valide a conexão antes de prospectar.' : `Credenciais de ${definition.provider} guardadas no cofre seguro.`, entity_table: 'integrations', entity_id: integration.id, event_data: { provider: canal === 'ai' ? selectedAiProvider : definition.provider, model: canal === 'ai' ? selectedAiModel : null, configured_fields: Object.keys(credentials).filter((key) => !nonSecretFields.has(key) && Boolean(credentials[key])), ...(useGoogleMapsActor ? { actor_strategy: 'google_maps' } : {}) } });
     if (auditError) console.error('integration_audit_log_failed', { canal, integrationId: integration.id });
     const mensagem = useGoogleMapsActor
       ? 'Actor Google Maps atualizado com segurança. Valide a conexão para ativar a fonte.'
-      : webhookRegistrationInvalidated
-        ? 'Credenciais guardadas com segurança. Recadastre agora a entrada da Z-API antes de esperar novas respostas.'
-        : 'Credenciais guardadas com segurança. Valide a conexão para ativar a fonte.';
+      : 'Credenciais guardadas com segurança. Valide a conexão para ativar a fonte.';
     return json({ ok: true, mensagem }, 200, headers);
   } catch (error) { return json({ ok: false, erro: safeError(error) }, 400, headers); }
 });
