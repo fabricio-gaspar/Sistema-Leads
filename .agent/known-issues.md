@@ -1,5 +1,11 @@
 # Problemas conhecidos
 
+## 14/10/2026 — Apify configurado localmente; credenciais e conectores sociais pendentes
+
+- O cliente oficial está integrado no backend, mas nenhum token, Actor ou Task real foi gravado neste lote. Sem essa configuração administrativa, uma busca real permanece corretamente bloqueada.
+- LinkedIn e Instagram não foram apresentados como conectores funcionais: o cliente Apify é apenas o transporte; cada busca exige um Actor/Task compatível, esquema de entrada, permissão e validação próprios. Usar um Actor de Google Maps nesses canais seria incorreto.
+- O pacote ainda não foi publicado nas Edge Functions/Site nem sincronizado com o GitHub neste lote. A próxima ação segura é validar o Actor/Task fornecido pelo administrador em ambiente autorizado e só então preparar uma publicação coordenada.
+
 ## 09/10/2026 — WA-AKG: aguarda novo pareamento do telefone autorizado
 
 - O gateway confirmou que o dispositivo anteriormente vinculado tinha final diferente do telefone esperado. Ele foi desvinculado sem apagar conta ou histórico.

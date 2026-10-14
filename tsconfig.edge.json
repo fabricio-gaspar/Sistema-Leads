@@ -9,7 +9,10 @@
     "noEmit": true,
     "allowImportingTsExtensions": true,
     "baseUrl": ".",
-    "paths": { "npm:@supabase/supabase-js@2.57.4": ["node_modules/@supabase/supabase-js/dist/module/index.d.ts"] }
+    "paths": {
+      "npm:@supabase/supabase-js@2.57.4": ["node_modules/@supabase/supabase-js/dist/module/index.d.ts"],
+      "npm:apify-client@2.25.0/browser": ["node_modules/apify-client/dist/index.d.ts"]
+    }
   },
   "include": [
     "supabase/tests/edge-globals.d.ts",

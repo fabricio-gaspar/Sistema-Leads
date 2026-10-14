@@ -1312,6 +1312,21 @@
     "real_messages_sent": false,
     "automations_triggered": false
   },
+  "apify_client_20261014": {
+    "commands": [
+      { "command": "vitest run", "status": "passed; 121 files; 714 tests; 16 skipped" },
+      { "command": "tsc --project tsconfig.edge.json --noEmit", "status": "passed" },
+      { "command": "tsc --project tsconfig.app.json --noEmit", "status": "passed" },
+      { "command": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0 plus changed Edge/shared files", "status": "passed" },
+      { "command": "vite build and scripts/build-sites-artifact.mjs", "status": "passed; preexisting runtime-config.js type=module warning" },
+      { "command": "git diff --check", "status": "passed" }
+    ],
+    "site_deployed": false,
+    "edge_functions_deployed": false,
+    "external_calls": false,
+    "real_messages_sent": false,
+    "paid_searches": false
+  },
   "previous_remediation_validation": {
     "stage": "R1_R2_R3_local_remediation_global_NO_GO",
     "frontend_typecheck": "passed",

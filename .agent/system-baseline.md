@@ -1,5 +1,12 @@
 # Baseline do sistema
 
+## 14/10/2026 — Cliente oficial da Apify no fluxo de prospecção
+
+- `apify-client@2.25.0` está fixado no runtime de dependências e encapsulado em `supabase/functions/_shared/apifyClient.ts`. O token permanece server-side, vindo das credenciais da integração; o frontend não importa o pacote nem recebe o segredo.
+- `prospectar-leads` usa o cliente oficial para iniciar Actor/Task, consultar run e ler dataset. O POST de início não tem retry automático; leituras mantêm retry limitado. `testar-integracao` valida o Actor/Task configurado e converte falhas do provedor em códigos sanitizados.
+- O contrato continua genérico para a fonte Apify/Google Maps existente. Nenhum Actor de LinkedIn/Instagram foi inventado ou ativado; esses perfis exigem Actor/Task, credencial e autorização reais.
+- Aceite local: 121 arquivos Vitest, 714 testes aprovados e 16 skips esperados; type-check app/Edge, lint direcionado, build Vite/artefato Sites e diff check. Sem chamadas externas, buscas pagas, mensagens, migrations ou deploy remoto.
+
 ## 09/10/2026 — WA-AKG: ativação automática respeita permissões existentes
 
 - A Edge wa-akg-worker v10 ativa automaticamente uma sessão WA-AKG confirmada somente quando o proprietário da conta está ativo e já possui channels.view_own e channels.connect_own. A ativação usa o ciclo de vida durável existente; não cria permissões nem libera outro usuário.

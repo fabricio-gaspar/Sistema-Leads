@@ -10,6 +10,7 @@ import {
   preflight,
   safeError,
 } from "../_shared/http.ts";
+import { validateApifyConfiguration } from "../_shared/apifyClient.ts";
 import { freeLlmEndpoint } from "../_shared/freellm.ts";
 
 const PROVIDER_REQUEST_TIMEOUT_MS = 5_000;
@@ -36,6 +37,7 @@ function providerDetail(code: string, provider: string) {
     apify_resource_forbidden:
       "A conta Apify não tem acesso ao Actor/Task configurado.",
     apify_rate_limited: "A Apify limitou temporariamente as chamadas.",
+    apify_provider_error: "A Apify devolveu um erro transitório ou incompatível; tente validar novamente.",
     google_places_key_rejected:
       "A chave do Google Places foi recusada ou a API não está habilitada.",
     email_credentials_incomplete:
@@ -181,32 +183,7 @@ Deno.serve(async (request) => {
       }
       if (!response.ok) throw new Error(`ai_provider_${response.status}`);
     } else if (canal === "apify") {
-      const token = txt(credentials.api_token || credentials.token, 500),
-        actor = txt(credentials.actor_id, 300),
-        task = txt(credentials.task_id, 300);
-      if (!token || (!actor && !task))
-        throw new Error("source_credentials_missing");
-      let r = await fetch(
-        `https://api.apify.com/v2/users/me?token=${encodeURIComponent(token)}`,
-        { signal: AbortSignal.timeout(PROVIDER_REQUEST_TIMEOUT_MS) },
-      );
-      if (r.status === 401 || r.status === 403)
-        throw new Error("apify_token_rejected");
-      if (r.status === 429) throw new Error("apify_rate_limited");
-      if (!r.ok) throw new Error(`apify_http_${r.status}`);
-      const path = task
-        ? `/v2/actor-tasks/${encodeURIComponent(task)}`
-        : `/v2/acts/${encodeURIComponent(actor)}`;
-      r = await fetch(
-        `https://api.apify.com${path}?token=${encodeURIComponent(token)}`,
-        { signal: AbortSignal.timeout(PROVIDER_REQUEST_TIMEOUT_MS) },
-      );
-      if (r.status === 404) throw new Error("apify_actor_not_found");
-      if (r.status === 401 || r.status === 403)
-        throw new Error("apify_resource_forbidden");
-      if (r.status === 429) throw new Error("apify_rate_limited");
-      if (!r.ok) throw new Error(`apify_http_${r.status}`);
-      response = r;
+      await validateApifyConfiguration(credentials);
     } else if (canal === "google_places") {
       const key = txt(credentials.api_key, 1000);
       if (!key) throw new Error("source_credentials_missing");

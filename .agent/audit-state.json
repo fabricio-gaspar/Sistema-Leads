@@ -1,5 +1,20 @@
 {
   "schema_version": 1,
+  "apify_client_20261014": {
+    "scope": "Cliente oficial Apify no backend do fluxo de Busca de Leads; validação e execução de Actor/Task sem segredo no frontend.",
+    "dependency": "apify-client@2.25.0",
+    "files": ["supabase/functions/_shared/apifyClient.ts", "supabase/functions/_shared/apifyErrors.ts"],
+    "validation": "Vitest completo 121 arquivos/714 testes aprovados, 16 skips esperados; type-check app/Edge, lint direcionado, Vite build, artefato Sites e git diff --check aprovados.",
+    "token_used": false,
+    "external_calls": false,
+    "paid_search": false,
+    "messages_sent": false,
+    "migration_applied": false,
+    "edge_functions_deployed": false,
+    "site_deployed": false,
+    "status": "LOCAL_VALIDADO_PENDENTE_DE_PUBLICACAO",
+    "next_action": "Configurar token e Actor/Task reais no cofre pela tela de APIs; validar em ambiente autorizado e publicar somente após aprovação explícita."
+  },
   "wa_akg_contact_identity_v2_20261014": {
     "code_commit": "9b44534c0410d70ac4bdd1a27bdaeb87fdba9395",
     "github_main_after_sync": "718b31261e8a9b29660071ea437e62fd446b09a0",

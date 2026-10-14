@@ -1,5 +1,6 @@
 import { createAdminClient, requireOrganizationRole, requireUser } from '../_shared/auth.ts';
 import { allowedCorsHeaders, hasAllowedOrigin, json, preflight, safeError } from '../_shared/http.ts';
+import { getApifyRun, listApifyItems, startApifyRun } from '../_shared/apifyClient.ts';
 import { readJson, requiredString } from '../_shared/validation.ts';
 
 type Filters = {
@@ -163,47 +164,26 @@ function apifyInput(credentials: Record<string, unknown>, filters: Filters) {
   return { ...configured, searchStringsArray, locationQuery: locationQuery(filters), maxCrawledPlacesPerSearch: Math.max(1, Math.floor(volume / searchStringsArray.length)) };
 }
 
-function apifyToken(credentials: Record<string, unknown>) { return text(credentials.api_token || credentials.token, 500); }
 function apifyFailure(status: string) { return `apify_run_${status.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`; }
 function providerStartWasRejected(message: string) {
   // Uma resposta de start sem identificador pode representar um POST aceito
   // cujo retorno foi corrompido. Ela é ambígua e jamais autoriza um novo POST.
-  return /^(apify_auth_rejected|apify_actor_not_found|source_credentials_missing|source_input_invalid)$/.test(message);
-}
-
-async function apifyResponse(url: string, token: string, init?: RequestInit) {
-  const response = await fetch(`${url}${url.includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}`, { ...init, signal: AbortSignal.timeout(25_000) });
-  if (response.status === 401 || response.status === 403) throw new Error('apify_auth_rejected');
-  if (response.status === 404) throw new Error('apify_actor_not_found');
-  if (response.status === 429) throw new Error('apify_rate_limited');
-  if (!response.ok) throw new Error(`apify_http_${response.status}`);
-  return object(await response.json());
+  return /^(apify_auth_rejected|apify_token_rejected|apify_resource_forbidden|apify_actor_not_found|source_credentials_missing|source_input_invalid)$/.test(message);
 }
 
 async function startApify(credentials: Record<string, unknown>, filters: Filters) {
-  const token = apifyToken(credentials), actor = text(credentials.actor_id, 300), task = text(credentials.task_id, 300);
-  if (!token || (!actor && !task)) throw new Error('source_credentials_missing');
-  const path = task ? `/v2/actor-tasks/${encodeURIComponent(task)}/runs` : `/v2/acts/${encodeURIComponent(actor)}/runs`;
-  const body = await apifyResponse(`https://api.apify.com${path}`, token, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(apifyInput(credentials, filters)) });
-  const data = object(body.data), providerRunId = text(data.id, 300);
-  if (!providerRunId) throw new Error('provider_invalid_response');
-  return { providerRunId, status: text(data.status, 80).toUpperCase(), datasetId: text(data.defaultDatasetId, 300) };
+  const run = await startApifyRun(credentials, apifyInput(credentials, filters));
+  return { providerRunId: run.id, status: run.status, datasetId: run.defaultDatasetId };
 }
 
 async function apifyRun(credentials: Record<string, unknown>, providerRunId: string) {
-  const token = apifyToken(credentials); if (!token) throw new Error('source_credentials_missing');
-  const body = await apifyResponse(`https://api.apify.com/v2/actor-runs/${encodeURIComponent(providerRunId)}`, token);
-  const data = object(body.data);
-  return { status: text(data.status, 80).toUpperCase(), datasetId: text(data.defaultDatasetId, 300) };
+  const run = await getApifyRun(credentials, providerRunId);
+  return { status: run.status, datasetId: run.defaultDatasetId };
 }
 
 async function apifyItems(credentials: Record<string, unknown>, datasetId: string, filters: Filters) {
-  const token = apifyToken(credentials); if (!token || !datasetId) throw new Error('provider_invalid_response');
-  const response = await fetch(`https://api.apify.com/v2/datasets/${encodeURIComponent(datasetId)}/items?clean=true&limit=${filters.volumeMaximo}&token=${encodeURIComponent(token)}`, { signal: AbortSignal.timeout(25_000) });
-  if (!response.ok) throw new Error(`apify_dataset_${response.status}`);
-  const items: unknown = await response.json();
-  if (!Array.isArray(items)) throw new Error('provider_invalid_response');
-  return items.slice(0, filters.volumeMaximo).map((item) => normalizeApify(item, filters)).filter((item): item is NonNullable<typeof item> => item !== null);
+  const items = await listApifyItems(credentials, datasetId, filters.volumeMaximo ?? 30);
+  return items.map((item) => normalizeApify(item, filters)).filter((item): item is NonNullable<typeof item> => item !== null);
 }
 
 async function callGoogle(credentials: Record<string, unknown>, filters: Filters) {

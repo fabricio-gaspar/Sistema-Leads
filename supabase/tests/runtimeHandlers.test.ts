@@ -50,6 +50,10 @@ let handler: (request: Request) => Promise<Response>;
 let fetchMock: ReturnType<typeof vi.fn>;
 let acceptedLeadState: Row;
 const ok = (data: unknown): Result => ({ data, error: null });
+const providerResponse = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
+  status,
+  headers: { 'content-type': 'application/json' },
+});
 
 function execute(query: Query): Result {
   calls.push({ ...query, filters: { ...query.filters } });
@@ -365,8 +369,8 @@ describe('Prospecting handler persistence contract', () => {
       return undefined;
     };
     fetchMock
-      .mockResolvedValueOnce(new Response(JSON.stringify({ data: { id: 'provider-run', status: 'SUCCEEDED', defaultDatasetId: 'dataset-id' } }), { status: 200 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify([{
+      .mockResolvedValueOnce(providerResponse({ data: { id: 'provider-run', status: 'SUCCEEDED', defaultDatasetId: 'dataset-id' } }))
+      .mockResolvedValueOnce(providerResponse([{
         title: 'Borracharia de teste',
         placeId: 'maps-place-1',
         categoryName: 'Borracharia',
@@ -374,7 +378,7 @@ describe('Prospecting handler persistence contract', () => {
         state: 'São Paulo',
         emails: ['contato@example.invalid'],
         location: { lat: '-23.5505', lng: '-46.6333' },
-      }]), { status: 200 }));
+      }]));
 
     await import('../functions/prospectar-leads/index');
     const response = await handler(new Request('https://example.invalid/prospectar-leads', {
@@ -395,7 +399,8 @@ describe('Prospecting handler persistence contract', () => {
       p_idempotency_key: 'manual:owner:11111111-1111-4111-8111-111111111111',
     });
     expect(fetchMock).toHaveBeenCalledTimes(2);
-    expect(JSON.parse((fetchMock.mock.calls[0]?.[1] as RequestInit).body as string)).toMatchObject({ searchStringsArray: ['Indústria'], maxCrawledPlacesPerSearch: 30 });
+    const startRequest = fetchMock.mock.calls[0]?.[0] as Request;
+    expect(JSON.parse(await startRequest.clone().text())).toMatchObject({ searchStringsArray: ['Indústria'], maxCrawledPlacesPerSearch: 30 });
     expect(calls.find((q) => q.table === 'finalize_prospecting_run' && q.operation === 'rpc')?.value)
       .toMatchObject({ p_run_id: 'reserved-run', p_results: [{ source_record_id: 'maps-place-1' }] });
   });
@@ -407,7 +412,7 @@ describe('Prospecting handler persistence contract', () => {
       if (q.table === 'read_integration_secret' && q.operation === 'rpc') return ok({ api_token: 'synthetic-apify-token', actor_id: 'synthetic-google-maps-actor' });
       return undefined;
     };
-    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ data: { id: 'provider-run', status: 'RUNNING', defaultDatasetId: 'dataset-id' } }), { status: 200 }));
+    fetchMock.mockResolvedValueOnce(providerResponse({ data: { id: 'provider-run', status: 'RUNNING', defaultDatasetId: 'dataset-id' } }));
 
     await import('../functions/prospectar-leads/index');
     const response = await handler(new Request('https://example.invalid/prospectar-leads', {
@@ -454,7 +459,7 @@ describe('Prospecting handler persistence contract', () => {
       }]);
       return undefined;
     };
-    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ data: { id: 'provider-run', status: 'RUNNING', defaultDatasetId: 'dataset-id' } }), { status: 200 }));
+    fetchMock.mockResolvedValueOnce(providerResponse({ data: { id: 'provider-run', status: 'RUNNING', defaultDatasetId: 'dataset-id' } }));
 
     await import('../functions/prospectar-leads/index');
     const response = await handler(new Request('https://example.invalid/prospectar-leads', {
@@ -464,8 +469,9 @@ describe('Prospecting handler persistence contract', () => {
 
     expect(response.status).toBe(202);
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('/v2/actor-runs/provider-run');
-    expect((fetchMock.mock.calls[0]?.[1] as RequestInit | undefined)?.method).not.toBe('POST');
+    const runRequest = fetchMock.mock.calls[0]?.[0] as Request;
+    expect(runRequest.url).toContain('/v2/actor-runs/provider-run');
+    expect(runRequest.method).not.toBe('POST');
   });
 
   it('recovers a proved legacy provider run without starting another actor', async () => {
@@ -479,7 +485,7 @@ describe('Prospecting handler persistence contract', () => {
       }]);
       return undefined;
     };
-    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ data: { id: 'provider-run', status: 'RUNNING', defaultDatasetId: 'dataset-id' } }), { status: 200 }));
+    fetchMock.mockResolvedValueOnce(providerResponse({ data: { id: 'provider-run', status: 'RUNNING', defaultDatasetId: 'dataset-id' } }));
 
     await import('../functions/prospectar-leads/index');
     const response = await handler(new Request('https://example.invalid/prospectar-leads', {
@@ -490,8 +496,9 @@ describe('Prospecting handler persistence contract', () => {
     expect(response.status).toBe(202);
     expect(calls.find((q) => q.table === 'prospecting_runs' && q.operation === 'update')?.value)
       .toMatchObject({ provider_start_state: 'accepted' });
-    expect(String(fetchMock.mock.calls[0]?.[0])).toContain('/v2/actor-runs/provider-run');
-    expect((fetchMock.mock.calls[0]?.[1] as RequestInit | undefined)?.method).not.toBe('POST');
+    const runRequest = fetchMock.mock.calls[0]?.[0] as Request;
+    expect(runRequest.url).toContain('/v2/actor-runs/provider-run');
+    expect(runRequest.method).not.toBe('POST');
   });
 
   it('does not call Apify again when the provider start is unconfirmed', async () => {
@@ -524,7 +531,7 @@ describe('Prospecting handler persistence contract', () => {
       if (q.table === 'read_integration_secret' && q.operation === 'rpc') return ok({ api_token: 'synthetic-apify-token', actor_id: 'synthetic-google-maps-actor' });
       return undefined;
     };
-    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ data: { status: 'RUNNING' } }), { status: 200 }));
+    fetchMock.mockResolvedValueOnce(providerResponse({ data: { status: 'RUNNING' } }));
 
     await import('../functions/prospectar-leads/index');
     const response = await handler(new Request('https://example.invalid/prospectar-leads', {
@@ -547,7 +554,7 @@ describe('Prospecting handler persistence contract', () => {
       if (q.table === 'read_integration_secret' && q.operation === 'rpc') return ok({ api_token: 'synthetic-apify-token', actor_id: 'synthetic-google-maps-actor' });
       return undefined;
     };
-    fetchMock.mockResolvedValueOnce(new Response('{}', { status: 400 }));
+    fetchMock.mockResolvedValueOnce(providerResponse({}, 400));
 
     await import('../functions/prospectar-leads/index');
     const response = await handler(new Request('https://example.invalid/prospectar-leads', {
@@ -569,7 +576,7 @@ describe('Prospecting handler persistence contract', () => {
       if (q.table === 'prospecting_runs' && q.operation === 'update') return ok(null);
       return undefined;
     };
-    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ data: { id: 'provider-run', status: 'RUNNING', defaultDatasetId: 'dataset-id' } }), { status: 200 }));
+    fetchMock.mockResolvedValueOnce(providerResponse({ data: { id: 'provider-run', status: 'RUNNING', defaultDatasetId: 'dataset-id' } }));
 
     await import('../functions/prospectar-leads/index');
     const response = await handler(new Request('https://example.invalid/prospectar-leads', {
@@ -621,8 +628,8 @@ describe('Prospecting handler persistence contract', () => {
       return undefined;
     };
     fetchMock
-      .mockResolvedValueOnce(new Response(JSON.stringify({ data: { id: 'provider-run', status: 'SUCCEEDED', defaultDatasetId: 'dataset-id' } }), { status: 200 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify([{ title: 'Empresa concluída', placeId: 'maps-place-2', location: { lat: -23.5, lng: -46.6 } }]), { status: 200 }));
+      .mockResolvedValueOnce(providerResponse({ data: { id: 'provider-run', status: 'SUCCEEDED', defaultDatasetId: 'dataset-id' } }))
+      .mockResolvedValueOnce(providerResponse([{ title: 'Empresa concluída', placeId: 'maps-place-2', location: { lat: -23.5, lng: -46.6 } }]));
 
     await import('../functions/prospectar-leads/index');
     const response = await handler(new Request('https://example.invalid/prospectar-leads', {
@@ -735,7 +742,7 @@ describe('Prospecting handler persistence contract', () => {
       if (q.table === 'prospecting_runs' && q.operation === 'select') return ok({ id: 'existing-run', source_key: 'apify', source_config_id: 'source-config', status: 'running', filters: { volumeMaximo: 5 }, provider_run_id: 'provider-run', requested_by: 'owner' });
       return undefined;
     };
-    fetchMock.mockResolvedValueOnce(new Response('{}', { status: 429 }));
+    fetchMock.mockImplementation(async () => providerResponse({}, 429));
     await import('../functions/prospectar-leads/index');
     const response = await handler(new Request('https://example.invalid/prospectar-leads', {
       method: 'POST', headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
@@ -757,8 +764,8 @@ describe('Prospecting handler persistence contract', () => {
       return undefined;
     };
     fetchMock
-      .mockResolvedValueOnce(new Response(JSON.stringify({ data: { id: 'provider-run', status: 'SUCCEEDED', defaultDatasetId: 'dataset-id' } }), { status: 200 }))
-      .mockResolvedValueOnce(new Response(JSON.stringify([{ title: 'Sem identificação' }, { title: 'Empresa com ID', placeId: 'maps-place-3' }]), { status: 200 }));
+      .mockResolvedValueOnce(providerResponse({ data: { id: 'provider-run', status: 'SUCCEEDED', defaultDatasetId: 'dataset-id' } }))
+      .mockResolvedValueOnce(providerResponse([{ title: 'Sem identificação' }, { title: 'Empresa com ID', placeId: 'maps-place-3' }]));
     await import('../functions/prospectar-leads/index');
     const response = await handler(new Request('https://example.invalid/prospectar-leads', {
       method: 'POST', headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },

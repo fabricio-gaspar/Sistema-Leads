@@ -1,5 +1,12 @@
 # Checkpoint — WayFlex CRM
 
+## 14/10/2026 — Cliente oficial da Apify instalado no backend
+
+- O pacote oficial `apify-client` foi fixado em `2.25.0` no `package.json` e no `package-lock.json`. A integração usa o cliente somente em Edge Functions, com o token vindo do cofre/backend; nenhum segredo foi adicionado ao código, navegador ou documentação.
+- `prospectar-leads` passou a iniciar/consultar runs e ler datasets pela API oficial, sem retry automático no POST de início para evitar duplicação/cobrança em resposta ambígua. `testar-integracao` valida o Actor/Task configurado e traduz erros 401/403/404/429/timeout para códigos sanitizados.
+- A validação local passou: 121 arquivos Vitest, 714 testes aprovados e 16 skips esperados; type-check frontend/Edge, lint direcionado, build Vite, artefato Sites e `git diff --check`. Não houve token real, busca paga, chamada externa, migration, Edge deploy, mensagem ou alteração de cliente.
+- Estado: **LOCAL_VALIDADO / PUBLICAÇÃO PENDENTE**. A configuração funcional ainda exige que o administrador informe um token e Actor/Task válidos em Configurações → APIs; o lote não inventa conectores separados para LinkedIn/Instagram nem executa buscas sem credenciais/autorização.
+
 ## 12/10/2026 — Cabeçalhos de segurança do Site
 
 - O worker do artefato Sites passou a aplicar `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy` e `Permissions-Policy` nas respostas estáticas e no `runtime-config.js`.

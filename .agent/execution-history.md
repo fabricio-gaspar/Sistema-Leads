@@ -1651,3 +1651,9 @@ Comparado `225a379` com HEAD `52ac6fe`: a remoção do formulário com senha e o
 - Escopo estrito: apenas a apresentação do painel individual no topo da Central de Atendimento. A página passa `surface="central"` ao mesmo `EvolutionGoPanel`; não foi criado outro fluxo, endpoint, estado ou credencial.
 - Para a conta individual autenticada, o painel separa QR/código e ações existentes à esquerda de cartões reais de validação, instruções de pareamento e dados da própria conexão à direita. QR, token, chave global e informações de outras contas continuam protegidos.
 - A inspeção autenticada atual foi feita com o administrador `fabricio`, que não possui conta individual, portanto exibiu corretamente o estado vazio e não foi possível observar QR de vendedor sem usar credenciais de outra pessoa. Nenhuma conexão, QR, código ou mensagem foi gerada.
+## 2026-10-14 — Cliente oficial da Apify instalado localmente
+
+- A dependência `apify-client@2.25.0` foi adicionada com lockfile canônico `package-lock.json`. O adaptador server-side centraliza validação de Actor/Task, início de run, leitura de run/dataset e classificação sanitizada de erros; o POST de início não repete automaticamente uma chamada ambígua.
+- O frontend não importa a dependência e nenhum token foi lido ou salvo. LinkedIn/Instagram permanecem fora do escopo operacional até existir Actor/Task e autorização reais para cada fonte.
+- Validação: Vitest 121 arquivos/714 testes aprovados/16 skips; type-check app/Edge, lint direcionado, build Vite, artefato Sites e `git diff --check`. Sem chamadas externas, busca paga, mensagem, migration, Edge deploy ou Site.
+- Estado: LOCAL_VALIDADO; publicação pendente de configuração real e aprovação explícita.
