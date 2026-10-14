@@ -1,4 +1,7 @@
-import { ApifyClient } from 'npm:apify-client@2.25.0/browser';
+// The browser bundle does not expose the named ApifyClient export in the
+// Supabase Edge runtime. Use the package's server entrypoint so the function
+// can boot and validate credentials without a 503 BOOT_ERROR.
+import { ApifyClient } from 'npm:apify-client@2.25.0';
 import { apifyErrorCode } from './apifyErrors.ts';
 
 export type ApifyRunSummary = {

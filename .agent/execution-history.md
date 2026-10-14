@@ -1,5 +1,12 @@
 # Histórico resumido de execução
 
+## 2026-10-14 — Google Maps: boot da validação corrigido
+
+- Evidência remota confirmou `BOOT_ERROR` na `testar-integracao` v26: o bundle browser de `apify-client@2.25.0` não exportava `ApifyClient`, causando preflight 503 e o estado visual **Validação vencida**.
+- O import foi trocado para o entrypoint server-side e o alias do type-check foi alinhado. A Edge `testar-integracao` v27 foi publicada com JWT obrigatório.
+- Teste autenticado sem busca paga: preflight 204, resposta 200 e cartão Google Maps em **Pronto**. Consulta read-only confirmou `connected=true`, sem erro e fonte conectada. Google Places continua aguardando uma chave própria; o link da Apify filtrado por LinkedIn não foi usado como credencial.
+- Validação local: type-check frontend/Edge, 4 testes focados, lint frontend, build/artefato e diff check aprovados. Sem token exposto, run pago, mensagem, migration ou dado de cliente. Site não recebeu nova versão porque o artefato frontend não mudou.
+
 ## 12/10/2026 — Modal de pareamento WA-AKG no primeiro acesso
 
 - Implementado no frontend existente: ao entrar em qualquer rota do painel, usuários com `channels.connect_own` e dispositivo ainda não vinculado recebem um modal acessível sobre o sistema, com instância individual, QR temporário, atualização, preparação explícita do pareamento e opção de continuar sem conectar.

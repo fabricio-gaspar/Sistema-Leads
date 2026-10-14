@@ -1,5 +1,14 @@
 # Checkpoint — WayFlex CRM
 
+## 14/10/2026 — Validação do Google Maps corrigida no Edge
+
+- Causa confirmada nos logs remotos: `testar-integracao` v26 falhava no boot com `BOOT_ERROR` porque `npm:apify-client@2.25.0/browser` não exporta `ApifyClient`; o preflight retornava HTTP 503 e o painel mantinha **Validação vencida**.
+- Correção mínima: o adaptador `supabase/functions/_shared/apifyClient.ts` usa o entrypoint server-side `npm:apify-client@2.25.0`; o alias correspondente foi ajustado em `tsconfig.edge.json`. Nenhum token foi lido ou registrado, nenhum run pago foi iniciado e nenhum dado de cliente foi alterado.
+- A Edge `testar-integracao` foi publicada como v27 ACTIVE com JWT obrigatório. Teste autenticado no painel retornou preflight 204 e resposta 200; o cartão Google Maps mostrou **Pronto**, conexão validada e último teste em `14/10/2026 20:30`. Consulta read-only confirmou `connected=true`, `last_error=null` e `connection_status=connected`.
+- O cartão **Google** continua separado e pendente (`google_places`, `source_credentials_missing`). O link fornecido (`console.apify.com/store-search?refine=LINKEDIN`) é catálogo de Actors filtrado por LinkedIn, não uma chave do Google Places nem um Actor/Task configurado; não foi usado como credencial.
+- Validação local: type-check Edge e frontend, Vitest focado (4 testes), lint frontend, build Vite/artefato Sites e `git diff --check` aprovados. Site não precisou de nova versão porque a alteração foi exclusivamente na Edge; a versão pública existente permaneceu funcional.
+- Estado: **EDGE APLICADA / GOOGLE MAPS VALIDADO / GOOGLE PLACES PENDENTE DE CHAVE / SITE SEM ALTERAÇÃO DE ARTEFATO**. Próxima ação: fornecer a chave do Google Places diretamente em Configurações → APIs, sem enviá-la no chat, caso o conector Google seja necessário.
+
 ## 14/10/2026 — Cliente oficial da Apify instalado no backend
 
 - O pacote oficial `apify-client` foi fixado em `2.25.0` no `package.json` e no `package-lock.json`. A integração usa o cliente somente em Edge Functions, com o token vindo do cofre/backend; nenhum segredo foi adicionado ao código, navegador ou documentação.

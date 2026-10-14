@@ -1,5 +1,17 @@
 {
   "schema_version": 1,
+  "apify_validation_boot_fix_20261014": {
+    "code_files": ["supabase/functions/_shared/apifyClient.ts", "tsconfig.edge.json"],
+    "cause_confirmed": "testar-integracao v26 emitted BOOT_ERROR because npm:apify-client@2.25.0/browser does not export ApifyClient; browser preflight returned HTTP 503.",
+    "edge_function": "testar-integracao v27 ACTIVE; verify_jwt=true",
+    "remote_validation": "Authenticated Google Maps validation returned preflight 204 and response 200; database shows connected=true, last_error=null, source connection_status=connected.",
+    "local_validation": "Edge/app type-check, focused Vitest 4/4, frontend lint, Vite/Sites artifact build and git diff check passed.",
+    "safety": "No token read or logged, no paid Apify run, search, message, migration or customer data mutation.",
+    "google_places": "Still pending source_credentials_missing; user-provided Apify LinkedIn store URL is not a Google Places key or configured Actor/Task.",
+    "site_deployed": false,
+    "status": "EDGE_APLICADA_E_GOOGLE_MAPS_VALIDADO",
+    "next_action": "If Google Places is required, enter its API key directly in Configurações > APIs and validate there; never send the key in chat."
+  },
   "apify_client_20261014": {
     "code_commit": "cb0fa800b34ddbd1b25877fccee1f5799a35fc31",
     "scope": "Cliente oficial Apify no backend do fluxo de Busca de Leads; validação e execução de Actor/Task sem segredo no frontend.",
