@@ -83,9 +83,12 @@ export default defineConfig({
     },
   },
   resolve: {
-    alias: {
-      "@": fileURLToPath(new URL('./src', import.meta.url)),
-    },
+    alias: [
+      { find: '@', replacement: fileURLToPath(new URL('./src', import.meta.url)) },
+      // Supabase Edge uses the npm: specifier directly. This local alias keeps
+      // Vitest's Vite resolver able to load the same pinned browser bundle.
+      { find: 'npm:apify-client@2.25.0/browser', replacement: fileURLToPath(new URL('./node_modules/apify-client/dist/bundle.js', import.meta.url)) },
+    ],
   },
   server: {
     port: 3000,
