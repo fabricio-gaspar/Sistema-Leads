@@ -2,6 +2,7 @@
   "schema_version": 1,
   "wa_akg_contact_identity_v2_20261014": {
     "code_commit": "9b44534c0410d70ac4bdd1a27bdaeb87fdba9395",
+    "github_main_after_sync": "718b31261e8a9b29660071ea437e62fd446b09a0",
     "scope": "Identidade canônica de contatos WA-AKG, decisão humana persistida na Central e cerca server-side da Ana.",
     "validation": "Vitest completo 117 arquivos/714 testes aprovados, 16 skips esperados; type-check frontend e Edge, lint direcionado, build Vite, artefato Sites e diff check aprovados. O contrato da migration cobre também a projeção da decisão v2 na lista de agenda.",
     "remote_readonly_evidence": "No projeto oficial, as RPCs v2, a política privada wa_akg_contact_policy e a fila ana_jobs não estão aplicadas.",
@@ -10,7 +11,7 @@
     "site_deployed": false,
     "real_messages_sent": false,
     "customer_data_changed": false,
-    "status": "LOCAL_VALIDADO; GITHUB_SYNC_PENDENTE; SITE_BLOQUEADO_POR_CONTRATO_REMOTO_AUSENTE",
+    "status": "LOCAL_VALIDADO; GITHUB_SINCRONIZADO; SITE_BLOQUEADO_POR_CONTRATO_REMOTO_AUSENTE",
     "next_action": "Homologar em staging a fila durável e a migration de identidade v2, publicar em conjunto ana-run e wa-akg-worker, validar inbound/dismiss/promote sem envio real e somente então publicar o Site."
   },
   "enviar_whatsapp_cors_20261011": {
@@ -140,9 +141,9 @@
     "next_action": "Resolve whether commercial history is purged and whether the existing Flavio identity is in scope; then implement and homologate coordinated Auth cleanup and direct-create backend before release."
   },
   "baseline_version": 11,
-  "baseline_commit": "9b44534c0410d70ac4bdd1a27bdaeb87fdba9395",
+  "baseline_commit": "718b31261e8a9b29660071ea437e62fd446b09a0",
   "last_audited_commit": "9b44534c0410d70ac4bdd1a27bdaeb87fdba9395",
-  "current_head_at_update": "9b44534c0410d70ac4bdd1a27bdaeb87fdba9395",
+  "current_head_at_update": "718b31261e8a9b29660071ea437e62fd446b09a0",
   "flavio_recovery_preflight_20261007": {
     "base_commit": "52ac6fe8a51e4e114043b05b170374a109a02860",
     "status": "BLOCKED_BEFORE_MUTATION",
@@ -173,7 +174,7 @@
     "working_tree": "preexisting uncommitted user removal/direct-create work preserved; this UI removal remains uncommitted",
     "next_action": "Review and selectively publish the pending frontend only after separating it from unrelated uncommitted work; do not claim official Site update from local preview."
   },
-  "working_tree_status": "audit_checkpoint_pending; supabase_cli_temp_not_staged; no_remote_mutation",
+  "working_tree_status": "supabase_cli_temp_not_staged; no_remote_mutation; site_release_blocked_for_backend_contract",
   "users_direct_create_20261007": {
     "base_commit": "52ac6fe8a51e4e114043b05b170374a109a02860",
     "file_sha256": {
@@ -523,7 +524,7 @@
     "production_mutations": false,
     "homologation_complete": false
   },
-  "next_action": "Sincronizar os commits validados com GitHub. Não publicar este frontend isoladamente: homologar primeiro a fila durável e a migration WA-AKG v2 em staging, publicar ana-run e wa-akg-worker como conjunto, executar E2E autenticado sem mensagem real e somente então publicar o Site existente.",
+  "next_action": "Não publicar este frontend isoladamente: homologar primeiro a fila durável e a migration WA-AKG v2 em staging, publicar ana-run e wa-akg-worker como conjunto, executar E2E autenticado sem mensagem real e somente então publicar o Site existente.",
   "evolution_go_primary_20261005": {
     "product_commit": "5671f44",
     "github_product_snapshot": "a22ee34896d67c08794f1d7eded0302af9f0be53",
