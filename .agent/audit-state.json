@@ -1,5 +1,59 @@
 {
   "schema_version": 1,
+  "wa_akg_contact_identity_v2_20261014": {
+    "code_commit": "9b44534c0410d70ac4bdd1a27bdaeb87fdba9395",
+    "scope": "Identidade canônica de contatos WA-AKG, decisão humana persistida na Central e cerca server-side da Ana.",
+    "validation": "Vitest completo 117 arquivos/714 testes aprovados, 16 skips esperados; type-check frontend e Edge, lint direcionado, build Vite, artefato Sites e diff check aprovados. O contrato da migration cobre também a projeção da decisão v2 na lista de agenda.",
+    "remote_readonly_evidence": "No projeto oficial, as RPCs v2, a política privada wa_akg_contact_policy e a fila ana_jobs não estão aplicadas.",
+    "migration_applied": false,
+    "edge_functions_deployed": false,
+    "site_deployed": false,
+    "real_messages_sent": false,
+    "customer_data_changed": false,
+    "status": "LOCAL_VALIDADO; GITHUB_SYNC_PENDENTE; SITE_BLOQUEADO_POR_CONTRATO_REMOTO_AUSENTE",
+    "next_action": "Homologar em staging a fila durável e a migration de identidade v2, publicar em conjunto ana-run e wa-akg-worker, validar inbound/dismiss/promote sem envio real e somente então publicar o Site."
+  },
+  "enviar_whatsapp_cors_20261011": {
+    "cause": "The public CRM origin https://prospect.wfdigital.com.br was absent from the shared Edge allowlist; browser preflight OPTIONS requests to enviar-whatsapp returned 403 before queue creation.",
+    "edge_function": "enviar-whatsapp v20 ACTIVE with verify_jwt=true",
+    "change": "Added the exact prospect origin to DEFAULT_ALLOWED_ORIGINS and covered it in httpCors.test.ts.",
+    "validation": "Focused CORS 2/2; frontend and Edge type-check; git diff check; remote OPTIONS returned 204 with Access-Control-Allow-Origin matching the prospect origin.",
+    "real_messages_sent": false,
+    "customer_data_changed": false,
+    "site_deployed": false,
+    "github_commit": "c275ee5",
+    "status": "EDGE_APLICADA_E_CORS_CONFIRMADO",
+    "next_action": "Retry the selected product from the live Central; observe queue acceptance separately from gateway delivery."
+  },
+  "catalog_queue_message_id_ambiguity_20261011": {
+    "cause": "The image branch of queue_human_whatsapp_catalog_message used an unqualified partial-index predicate for message_id while the RPC exposes message_id in RETURNS TABLE; PostgreSQL rejected the call before the queue could be returned.",
+    "migration": "20261011235000_fix_catalog_message_id_ambiguity applied to the official Supabase project",
+    "change": "Qualified the target as message_attachments alias attachment in the ON CONFLICT predicate; preserved the catalog queue signature, image metadata, idempotency and service_role grant.",
+    "validation": "Focused catalog SQL/media tests 9/9; Edge type-check; production function definition confirms qualified predicate and service_role EXECUTE.",
+    "real_messages_sent": false,
+    "customer_data_changed": false,
+    "site_deployed": false,
+    "status": "SUPABASE_APLICADO_E_FUNCAO_VERIFICADA",
+    "next_action": "Retry the selected product in the live Central; verify queue acceptance before checking gateway delivery."
+  },
+  "prospecting_quick_processes_20261010": {
+    "scope": "Busca de Leads: processos rápidos somente de preenchimento do wizard, sem chamada automática ao provedor.",
+    "catalog": "13 exemplos: borracha, silicone, poliuretano, vedação, manutenção e setores de aplicação. Cada exemplo usa um termo único, 10 leads, site obrigatório e WhatsApp/e-mail não obrigatórios.",
+    "safety": "A cidade já escolhida é preservada; o operador ainda precisa clicar em Buscar. Não houve busca externa, importação, mensagem, automação, banco ou integração alterada.",
+    "validation": "Red: novo teste falhou porque o catálogo ainda não existia. Green: 3 arquivos focados/12 testes e suíte completa 92 arquivos/649 testes passaram; type-check, lint direcionado, Vite build e diff check passaram.",
+    "site_deployed": false,
+    "visual_review": "not_run",
+    "status": "LOCAL_VALIDADO_PENDENTE_DE_PUBLICACAO"
+  },
+  "central_inbox_wa_akg_execute_repair_20261009": {
+    "cause": "The authenticated role had schema usage but no EXECUTE privilege on private.can_read_wa_akg_central_lead, which the Central list and detail functions invoke under the user role.",
+    "migration": "20261009203616_restore_wa_akg_central_filter_execute applied to the official Supabase project",
+    "delta": "Granted EXECUTE only to authenticated on the existing private predicate. The predicate still enforces organization, administrator, and seller-account ownership.",
+    "validation": "Red check confirmed EXECUTE=false before the migration; green check confirmed EXECUTE=true after it. Authenticated Central reload displayed seven conversations and the controlled inbound test record.",
+    "safety": "No WA-AKG session, gateway, contact directory, Ana, outbound message, or customer record was changed by this permission repair.",
+    "status": "APLICADO_E_VALIDADO_VISUALMENTE",
+    "next_action": "Optional: send one new inbound test and confirm it appears automatically without a page reload."
+  },
   "wa_akg_permission_aware_activation_20261009": {
     "design": "A confirmed seller session can be activated only when its active owner has channels.view_own and channels.connect_own. Existing RBAC continues to decide Central and reply access per action.",
     "edge_function": "wa-akg-worker v10 ACTIVE; bundle includes the existing account lifecycle module and preserves verify_jwt=false custom worker authentication.",
@@ -85,10 +139,10 @@
     "customer_data_deleted": false,
     "next_action": "Resolve whether commercial history is purged and whether the existing Flavio identity is in scope; then implement and homologate coordinated Auth cleanup and direct-create backend before release."
   },
-  "baseline_version": 10,
-  "baseline_commit": "1dc6275b8c7d70de953b66397a8c89f5e97bc15b",
-  "last_audited_commit": "52ac6fe8a51e4e114043b05b170374a109a02860",
-  "current_head_at_update": "52ac6fe8a51e4e114043b05b170374a109a02860",
+  "baseline_version": 11,
+  "baseline_commit": "9b44534c0410d70ac4bdd1a27bdaeb87fdba9395",
+  "last_audited_commit": "9b44534c0410d70ac4bdd1a27bdaeb87fdba9395",
+  "current_head_at_update": "9b44534c0410d70ac4bdd1a27bdaeb87fdba9395",
   "flavio_recovery_preflight_20261007": {
     "base_commit": "52ac6fe8a51e4e114043b05b170374a109a02860",
     "status": "BLOCKED_BEFORE_MUTATION",
@@ -119,7 +173,7 @@
     "working_tree": "preexisting uncommitted user removal/direct-create work preserved; this UI removal remains uncommitted",
     "next_action": "Review and selectively publish the pending frontend only after separating it from unrelated uncommitted work; do not claim official Site update from local preview."
   },
-  "working_tree_status": "users_direct_create_local_uncommitted; remote_team_members_v19; remote_seller_trigger_absent; edge_site_unchanged; preexisting_untracked_pnpm_preserved",
+  "working_tree_status": "audit_checkpoint_pending; supabase_cli_temp_not_staged; no_remote_mutation",
   "users_direct_create_20261007": {
     "base_commit": "52ac6fe8a51e4e114043b05b170374a109a02860",
     "file_sha256": {
@@ -454,7 +508,7 @@
   },
   "full_audit_required": false,
   "baseline_status": "Evolution_GO_primary_local_delta_validated; prior_R1_R12_remediation_preserved; global_NO_GO; no_production_deployment",
-  "updated_at": "2026-10-06",
+  "updated_at": "2026-10-14",
   "audit_v3": {
     "id": "WAYFLEX-V3-20261005",
     "mode": "AUDITORIA_E_TESTES",
@@ -469,7 +523,7 @@
     "production_mutations": false,
     "homologation_complete": false
   },
-  "next_action": "Evolution GO principal está apenas no checkout e GitHub. Obter homologação isolada e identidades/números consentidos; reconciliar seletivamente migrations e bundles R1–R12; validar provisionamento, QR, callback, Ana/humano, recibos e cortes; planejar release coordenada banco/Edge/Site. Não fazer db push integral, publicar só frontend, enviar mensagens reais ou ativar automações como teste. WA-AKG permanece contingência bloqueada pelo gateway não homologado.",
+  "next_action": "Sincronizar os commits validados com GitHub. Não publicar este frontend isoladamente: homologar primeiro a fila durável e a migration WA-AKG v2 em staging, publicar ana-run e wa-akg-worker como conjunto, executar E2E autenticado sem mensagem real e somente então publicar o Site existente.",
   "evolution_go_primary_20261005": {
     "product_commit": "5671f44",
     "github_product_snapshot": "a22ee34896d67c08794f1d7eded0302af9f0be53",
