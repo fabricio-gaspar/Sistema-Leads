@@ -1,6 +1,7 @@
 {
   "schema_version": 1,
   "apify_client_20261014": {
+    "code_commit": "cb0fa800b34ddbd1b25877fccee1f5799a35fc31",
     "scope": "Cliente oficial Apify no backend do fluxo de Busca de Leads; validação e execução de Actor/Task sem segredo no frontend.",
     "dependency": "apify-client@2.25.0",
     "files": ["supabase/functions/_shared/apifyClient.ts", "supabase/functions/_shared/apifyErrors.ts"],
@@ -156,9 +157,9 @@
     "next_action": "Resolve whether commercial history is purged and whether the existing Flavio identity is in scope; then implement and homologate coordinated Auth cleanup and direct-create backend before release."
   },
   "baseline_version": 11,
-  "baseline_commit": "718b31261e8a9b29660071ea437e62fd446b09a0",
-  "last_audited_commit": "9b44534c0410d70ac4bdd1a27bdaeb87fdba9395",
-  "current_head_at_update": "718b31261e8a9b29660071ea437e62fd446b09a0",
+  "baseline_commit": "cb0fa800b34ddbd1b25877fccee1f5799a35fc31",
+  "last_audited_commit": "cb0fa800b34ddbd1b25877fccee1f5799a35fc31",
+  "current_head_at_update": "cb0fa800b34ddbd1b25877fccee1f5799a35fc31",
   "flavio_recovery_preflight_20261007": {
     "base_commit": "52ac6fe8a51e4e114043b05b170374a109a02860",
     "status": "BLOCKED_BEFORE_MUTATION",
@@ -189,7 +190,7 @@
     "working_tree": "preexisting uncommitted user removal/direct-create work preserved; this UI removal remains uncommitted",
     "next_action": "Review and selectively publish the pending frontend only after separating it from unrelated uncommitted work; do not claim official Site update from local preview."
   },
-  "working_tree_status": "supabase_cli_temp_not_staged; no_remote_mutation; site_release_blocked_for_backend_contract",
+  "working_tree_status": "apify_local_commit_cb0fa80; supabase_cli_temp_not_staged; no_remote_mutation; site_release_pending",
   "users_direct_create_20261007": {
     "base_commit": "52ac6fe8a51e4e114043b05b170374a109a02860",
     "file_sha256": {
