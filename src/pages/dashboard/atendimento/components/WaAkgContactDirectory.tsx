@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { loadWaAkgAccounts, type WaAkgChannelStatus } from '@/lib/crm/whatsappAccountsRepository';
-import { decideWaAkgContact, loadWaAkgContactDirectory, syncWaAkgContactDirectory, type WaAkgDirectoryContact } from '@/lib/crm/waAkgContactDirectoryRepository';
+import { loadWaAkgContactDirectory, syncWaAkgContactDirectory, type WaAkgDirectoryContact } from '@/lib/crm/waAkgContactDirectoryRepository';
 
 type Props = { administrator: boolean };
 
 const displayPhone = (value: string) => value.replace(/(\d{2})(\d{2})(\d{5})(\d{4})$/, '+$1 ($2) $3-$4');
 
 export default function WaAkgContactDirectory({ administrator }: Props) {
+  const navigate = useNavigate();
   const [accounts, setAccounts] = useState<WaAkgChannelStatus[]>([]);
   const [selectedId, setSelectedId] = useState('');
   const [contacts, setContacts] = useState<WaAkgDirectoryContact[]>([]);
@@ -14,7 +16,6 @@ export default function WaAkgContactDirectory({ administrator }: Props) {
   const [syncing, setSyncing] = useState(false);
   const [notice, setNotice] = useState('');
   const [expanded, setExpanded] = useState(false);
-  const [decidingPhone, setDecidingPhone] = useState('');
 
   const selected = useMemo(() => accounts.find((entry) => entry.account?.id === selectedId) ?? null, [accounts, selectedId]);
   const refreshAccounts = useCallback(async () => {
@@ -56,26 +57,6 @@ export default function WaAkgContactDirectory({ administrator }: Props) {
     } finally { setSyncing(false); }
   };
 
-  const decide = async (contact: WaAkgDirectoryContact, decision: 'keep' | 'promote') => {
-    if (!selectedId) return;
-    setDecidingPhone(contact.phone);
-    setNotice('');
-    try {
-      await decideWaAkgContact(selectedId, contact.phone, decision, contact.leadId);
-      setContacts((current) => current.map((entry) => entry.phone === contact.phone ? {
-        ...entry,
-        state: decision === 'promote' ? 'lead_authorized' : 'agenda_protected',
-        evidenceState: 'operator_confirmed',
-        decisionRevision: entry.decisionRevision + 1,
-      } : entry));
-      setNotice(decision === 'promote'
-        ? `${contact.name} foi autorizado como lead. A Ana continua pausada até você ativá-la.`
-        : `${contact.name} permanece protegido como contato da agenda e será atendido por humano.`);
-    } catch {
-      setNotice('Não foi possível salvar a decisão. O contato continua protegido por segurança.');
-    } finally { setDecidingPhone(''); }
-  };
-
   if (loading) return <section className="wf-surface wf-central-directory p-4 text-sm text-foreground-500">Carregando diretório privado…</section>;
   const contactLabel = contacts.length === 1 ? '1 contato disponível' : `${contacts.length} contatos disponíveis`;
 
@@ -87,9 +68,9 @@ export default function WaAkgContactDirectory({ administrator }: Props) {
     <div className="border-t border-background-200 px-4 py-3">
       {administrator && accounts.length > 1 && <label className="block max-w-sm text-xs font-semibold text-foreground-700">Usuário / dispositivo<select className="mt-1 w-full wf-select" value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>{accounts.map((entry) => <option key={entry.account?.id} value={entry.account?.id ?? ''}>{entry.account?.label ?? 'Conta sem rótulo'}</option>)}</select></label>}
       {selected && <p className={`${administrator && accounts.length > 1 ? 'mt-2' : ''} text-xs text-foreground-600`}>Exibindo somente os contatos de <strong>{selected.account?.label}</strong>.</p>}
-      <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">Contatos sincronizados ficam fora da Ana até uma decisão explícita. Use <strong>Tornar lead</strong> somente quando quiser autorizá-los para o funil.</p>
+      <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">Contatos sincronizados ficam fora da Ana até uma decisão explícita. A classificação acontece na Central ao receber a primeira mensagem, com responsável e modo de atendimento definidos.</p>
       {notice && <p role="status" className="mt-2 rounded-lg bg-background-100 px-3 py-2 text-xs text-foreground-700">{notice}</p>}
-      {expanded && <div id="wa-akg-contact-list" tabIndex={0} aria-label="Lista de contatos sincronizados" className="mt-3 max-h-72 overflow-x-auto overflow-y-auto rounded-xl border border-background-200 bg-white"><table className="min-w-[52rem] w-full text-left text-xs"><thead className="sticky top-0 bg-background-50 text-foreground-500"><tr><th className="px-3 py-2 font-semibold">Contato</th><th className="px-3 py-2 font-semibold">Telefone</th><th className="px-3 py-2 font-semibold">Proteção</th><th className="px-3 py-2 font-semibold">Ação</th></tr></thead><tbody>{contacts.length ? contacts.map((contact) => { const busy = decidingPhone === contact.phone; const protectedContact = contact.state !== 'lead_authorized'; return <tr key={contact.phone} className="border-t border-background-100"><td className="break-words px-3 py-2 text-foreground-900">{contact.name}</td><td className="px-3 py-2 text-foreground-600">{displayPhone(contact.phone)}</td><td className="px-3 py-2"><span className={`inline-flex rounded-full px-2 py-1 text-[11px] font-semibold ${contact.state === 'lead_authorized' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-800'}`}>{contact.state === 'agenda_protected' ? 'Contato protegido' : contact.state === 'lead_authorized' ? 'Lead autorizado' : 'A classificar · Ana pausada'}</span></td><td className="px-3 py-2"><div className="flex flex-wrap gap-2"><button type="button" className="wf-btn-secondary text-[11px]" disabled={busy || !protectedContact} onClick={() => void decide(contact, 'keep')}>Manter como contato</button><button type="button" className="wf-btn-primary text-[11px]" disabled={busy || !protectedContact} onClick={() => void decide(contact, 'promote')}>{busy ? 'Salvando…' : 'Tornar lead'}</button></div></td></tr>; }) : <tr><td colSpan={4} className="px-3 py-6 text-center text-foreground-500">Nenhum contato sincronizado ainda.</td></tr>}</tbody></table></div>}
+      {expanded && <div id="wa-akg-contact-list" tabIndex={0} aria-label="Lista de contatos sincronizados" className="mt-3 max-h-72 overflow-x-auto overflow-y-auto rounded-xl border border-background-200 bg-white"><table className="min-w-[52rem] w-full text-left text-xs"><thead className="sticky top-0 bg-background-50 text-foreground-500"><tr><th className="px-3 py-2 font-semibold">Contato</th><th className="px-3 py-2 font-semibold">Telefone</th><th className="px-3 py-2 font-semibold">Proteção</th><th className="px-3 py-2 font-semibold">Ação</th></tr></thead><tbody>{contacts.length ? contacts.map((contact) => <tr key={contact.phone} className="border-t border-background-100"><td className="break-words px-3 py-2 text-foreground-900">{contact.name}</td><td className="px-3 py-2 text-foreground-600">{displayPhone(contact.phone)}</td><td className="px-3 py-2"><span className={`inline-flex rounded-full px-2 py-1 text-[11px] font-semibold ${contact.state === 'lead_authorized' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-800'}`}>{contact.state === 'agenda_protected' ? 'Contato protegido' : contact.state === 'lead_authorized' ? 'Lead autorizado' : 'A classificar · Ana pausada'}</span></td><td className="px-3 py-2">{contact.leadId ? <button type="button" className="wf-btn-secondary text-[11px]" onClick={() => navigate(`/dashboard/atendimento?leadId=${contact.leadId}`)}>Abrir conversa</button> : <span className="text-[11px] text-foreground-500">Aguarda primeira mensagem</span>}</td></tr>) : <tr><td colSpan={4} className="px-3 py-6 text-center text-foreground-500">Nenhum contato sincronizado ainda.</td></tr>}</tbody></table></div>}
     </div>
   </section>;
 }

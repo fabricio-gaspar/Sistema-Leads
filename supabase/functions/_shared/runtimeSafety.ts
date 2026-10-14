@@ -6,7 +6,21 @@ export interface CompanySafety {
   ai_actions_enabled?: boolean | null;
 }
 export interface IntegrationSafety { connected?: boolean | null; enabled?: boolean | null; paused?: boolean | null }
-export interface LeadSafety { owner_id?: string | null; modo_atendimento?: string | null; ai_paused?: boolean | null; opt_out?: boolean | null; contact_approval_status?: string | null }
+export interface LeadSafety {
+  owner_id?: string | null;
+  modo_atendimento?: string | null;
+  ai_paused?: boolean | null;
+  opt_out?: boolean | null;
+  contact_approval_status?: string | null;
+  source_metadata?: unknown | null;
+}
+
+function isWaAkgContactOnly(sourceMetadata: unknown): boolean {
+  return typeof sourceMetadata === 'object'
+    && sourceMetadata !== null
+    && !Array.isArray(sourceMetadata)
+    && (sourceMetadata as Record<string, unknown>).wa_akg_contact_only === true;
+}
 
 export function automationBlockReason(input: {
   company: CompanySafety | null;
@@ -23,6 +37,7 @@ export function automationBlockReason(input: {
   if (!input.runtime || input.runtime.killSwitchGlobal !== false) return 'kill_switch_or_config_missing';
   if (!input.ai || input.ai.enabled !== true || input.ai.connected !== true || input.ai.paused !== false) return 'ai_integration_not_ready';
   if (input.lead !== undefined) {
+    if (isWaAkgContactOnly(input.lead?.source_metadata)) return 'wa_akg_contact_protected';
     if (!input.lead?.owner_id) return 'lead_owner_required';
     if (input.lead.modo_atendimento !== 'ia') return 'human_mode';
     if (input.lead.ai_paused !== false) return 'lead_paused';
@@ -45,12 +60,4 @@ export function anaEventKey(event: string, leadId: string, messageId: string, re
 export function anaResponseSucceeded(status: number, body: unknown): boolean {
   return status >= 200 && status < 300 && typeof body === 'object' && body !== null
     && 'ok' in body && body.ok === true;
-}
-
-export function zapiBaseUrl(value: unknown): string {
-  const url = new URL(typeof value === 'string' && value ? value : 'https://api.z-api.io');
-  if (url.origin !== 'https://api.z-api.io' || url.pathname !== '/' || url.search || url.hash || url.username || url.password) {
-    throw new Error('provider_url_not_allowed');
-  }
-  return url.origin;
 }

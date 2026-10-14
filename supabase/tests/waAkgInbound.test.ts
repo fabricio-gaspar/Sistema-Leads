@@ -11,6 +11,57 @@ describe('WA-AKG inbound parser', () => {
     expect(sanitizeWaAkgPayload(payload)).not.toHaveProperty('sessionId');
   });
 
+  it('uses a documented alternate personal JID for a LID and keeps only the safe sender name', () => {
+    const payload = {
+      event: 'message.received', sessionId: 'seller_12345678', webhook_secret: 'must-not-persist',
+      data: {
+        key: {
+          id: 'wamid-lid-1', remoteJid: '123456789012345@lid',
+          remoteJidAlt: '5511999999999:17@s.whatsapp.net', fromMe: false,
+        },
+        pushName: '  Fernanda Cliente  ',
+        type: 'text', content: { text: 'Preciso de atendimento' },
+      },
+    };
+
+    expect(parseWaAkgEvent(payload)).toMatchObject({
+      kind: 'inbound', phone: '5511999999999', senderJid: '5511999999999:17@s.whatsapp.net',
+      senderName: 'Fernanda Cliente',
+    });
+    const sanitized = sanitizeWaAkgPayload(payload);
+    expect(sanitized).toMatchObject({
+      kind: 'inbound', remote_jid: '5511999999999:17@s.whatsapp.net', phone: '5511999999999',
+      sender_name: 'Fernanda Cliente', identity_requires_review: false,
+    });
+    expect(sanitized).not.toHaveProperty('sessionId');
+    expect(sanitized).not.toHaveProperty('webhook_secret');
+  });
+
+  it('keeps an opaque LID unresolved when no documented personal-JID alternative is present', () => {
+    const payload = {
+      event: 'message.received',
+      data: {
+        key: { id: 'wamid-lid-no-alternate', remoteJid: '123456789012345@lid', fromMe: false },
+        phone: '5511988888888',
+        pushName: 'Contato do WhatsApp',
+        type: 'text', content: { text: 'Olá' },
+      },
+    };
+
+    expect(parseWaAkgEvent(payload)).toMatchObject({
+      kind: 'inbound',
+      phone: '',
+      senderJid: '123456789012345@lid',
+      senderName: 'Contato do WhatsApp',
+    });
+    expect(sanitizeWaAkgPayload(payload)).toMatchObject({
+      kind: 'inbound',
+      phone: '',
+      remote_jid: '123456789012345@lid',
+      identity_requires_review: true,
+    });
+  });
+
   it('ignores groups and echoes', () => {
     expect(parseWaAkgEvent({ event: 'message.received', data: { key: { id: '1', remoteJid: '120@g.us' } } })).toMatchObject({ kind: 'ignored', reason: 'non_personal_chat' });
     expect(parseWaAkgEvent({ event: 'message.received', data: { key: { id: '2', remoteJid: '5511999999999@s.whatsapp.net', fromMe: true } } })).toMatchObject({ kind: 'ignored', reason: 'outbound_echo' });

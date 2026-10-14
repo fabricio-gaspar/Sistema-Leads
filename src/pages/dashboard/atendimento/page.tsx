@@ -20,8 +20,9 @@ import WaAkgPanel from '@/components/feature/WaAkgPanel';
 import WaAkgContactDirectory from './components/WaAkgContactDirectory';
 import { useCurrentAccess } from '@/hooks/useCurrentAccess';
 import { deliveryLabel } from '@/lib/crm/deliveryStatus';
-import { decideWaAkgContact, loadWaAkgContactPolicyForLead } from '@/lib/crm/waAkgContactDirectoryRepository';
-import { buildContactDecisionPrompt, type ContactDecisionPrompt } from '@/lib/crm/contactDecisionPrompt';
+import AccessibleDialog from '@/components/feature/AccessibleDialog';
+import { decideWaAkgContactV2, dismissWaAkgContactDecisionPrompt, loadPendingWaAkgContactDecision, type WaAkgContactInitialMode } from '@/lib/crm/waAkgContactDirectoryRepository';
+import type { ContactDecisionPrompt } from '@/lib/crm/contactDecisionPrompt';
 
 type RealtimeState = 'connecting' | 'live' | 'unavailable';
 type SideTab = 'lead' | 'qualification' | 'knowledge' | 'more';
@@ -90,6 +91,9 @@ export default function Atendimento() {
   const [contactPrompt, setContactPrompt] = useState<ContactDecisionPrompt | null>(null);
   const [contactPromptBusy, setContactPromptBusy] = useState(false);
   const [contactPromptError, setContactPromptError] = useState('');
+  const [contactPromotionOpen, setContactPromotionOpen] = useState(false);
+  const [contactPromptOwnerId, setContactPromptOwnerId] = useState('');
+  const [contactPromptMode, setContactPromptMode] = useState<WaAkgContactInitialMode>('human');
   const messagesRef = useRef<HTMLDivElement>(null);
   const contextPanelRef = useRef<HTMLElement>(null);
   const contextTriggerRef = useRef<HTMLElement | null>(null);
@@ -98,7 +102,7 @@ export default function Atendimento() {
   const listRefreshToken = useRef(0);
   const itemsRef = useRef<CentralInboxItem[]>([]);
   const pendingMessageRequests = useRef(new Map<string, string>());
-  const seenInboundMessageIds = useRef(new Set<string>());
+  const contactPromptLoading = useRef(false);
 
   const conversation = detail?.conversation ?? null;
   const humanOwns = conversation?.mode === 'human';
@@ -146,16 +150,17 @@ export default function Atendimento() {
   }, [loadInbox]);
   const refreshSelected = useCallback(async () => { if (selectedId) await loadDetail(selectedId); }, [loadDetail, selectedId]);
 
-  const promptForInboundContact = useCallback(async (leadId: string, messageId: string) => {
-    if (!leadId || seenInboundMessageIds.current.has(messageId)) return;
-    seenInboundMessageIds.current.add(messageId);
+  const loadContactDecisionPrompt = useCallback(async () => {
+    if (contactPromptLoading.current) return;
+    contactPromptLoading.current = true;
     try {
-      const policy = await loadWaAkgContactPolicyForLead(leadId);
-      const prompt = policy ? buildContactDecisionPrompt(policy) : null;
-      if (prompt) { setContactPrompt(prompt); setContactPromptError(''); }
+      const prompt = await loadPendingWaAkgContactDecision();
+      if (!prompt) return;
+      setContactPrompt((current) => current ?? prompt);
+      setContactPromptError('');
     } catch {
       // A failed read must never turn into an automatic lead or Ana activation.
-    }
+    } finally { contactPromptLoading.current = false; }
   }, []);
 
   useEffect(() => { const timer = window.setTimeout(() => { setDebouncedQuery(query); setUrl({ q: query.trim() || null }); }, 350); return () => window.clearTimeout(timer); }, [query, setUrl]);
@@ -164,6 +169,8 @@ export default function Atendimento() {
   useEffect(() => { if (!selectedId && items[0]) setSelectedId(items[0].leadId); }, [items, selectedId]);
   useEffect(() => { if (selectedId) void loadDetail(selectedId); else setDetail(null); }, [selectedId]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { const node = messagesRef.current; if (!node || !detail) return; const changed = lastSelected.current !== detail.conversation.leadId; if (changed || stickBottom.current) node.scrollTo({ top: node.scrollHeight, behavior: changed ? 'auto' : 'smooth' }); lastSelected.current = detail.conversation.leadId; }, [detail]);
+  useEffect(() => { void loadContactDecisionPrompt(); }, [loadContactDecisionPrompt]);
+  useEffect(() => { setContactPromotionOpen(false); setContactPromptOwnerId(''); setContactPromptMode('human'); }, [contactPrompt?.messageId]);
   useEffect(() => { let active = true; void loadTeamMembers().then((members) => { if (active) setTeamMembers(members.filter((member) => member.status === 'active')); }).catch(() => { if (active) setTeamError('Não foi possível carregar responsáveis ativos.'); }); return () => { active = false; }; }, []);
   useEffect(() => {
     let disposed = false; let timer: number | null = null; let channel: ReturnType<typeof supabase.channel> | null = null;
@@ -175,7 +182,7 @@ export default function Atendimento() {
           const row = payload.new as Record<string, unknown>;
           const sender = typeof row.sender === 'string' ? row.sender.toLowerCase() : '';
           if (payload.eventType === 'INSERT' && ['lead', 'contact', 'cliente'].includes(sender)) {
-            void promptForInboundContact(typeof row.lead_id === 'string' ? row.lead_id : '', typeof row.id === 'string' ? row.id : `${row.lead_id ?? ''}:${row.created_at ?? ''}`);
+            void loadContactDecisionPrompt();
           }
           schedule();
         })
@@ -186,12 +193,13 @@ export default function Atendimento() {
         .subscribe((status) => { if (!disposed) setRealtime(status === 'SUBSCRIBED' ? 'live' : ['CHANNEL_ERROR', 'TIMED_OUT', 'CLOSED'].includes(status) ? 'unavailable' : 'connecting'); });
     }).catch(() => { if (!disposed) setRealtime('unavailable'); });
     return () => { disposed = true; if (timer !== null) window.clearTimeout(timer); if (channel) void supabase.removeChannel(channel); };
-  }, [loadInbox, promptForInboundContact, refreshSelected]);
+  }, [loadContactDecisionPrompt, loadInbox, refreshSelected]);
   useEffect(() => {
     const refresh = () => {
       if (document.visibilityState === 'hidden') return;
       void loadInbox(false);
       void refreshSelected();
+      void loadContactDecisionPrompt();
     };
     const interval = window.setInterval(refresh, realtime === 'live' ? 15_000 : 10_000);
     window.addEventListener('focus', refresh);
@@ -203,7 +211,7 @@ export default function Atendimento() {
       window.removeEventListener('pageshow', refresh);
       document.removeEventListener('visibilitychange', refresh);
     };
-  }, [loadInbox, realtime, refreshSelected]);
+  }, [loadContactDecisionPrompt, loadInbox, realtime, refreshSelected]);
 
   useEffect(() => {
     if (mobilePanel !== 'context') return;
@@ -309,14 +317,42 @@ export default function Atendimento() {
     catch (error) { setFeedback({ tone: 'error', text: error instanceof Error ? error.message : 'A tarefa não foi salva.' }); }
     finally { setAction(null); }
   };
-  const decideIncomingContact = async (decision: 'keep' | 'promote') => {
+  const dismissIncomingContact = async () => {
     if (!contactPrompt || contactPromptBusy) return;
     setContactPromptBusy(true); setContactPromptError('');
     try {
-      await decideWaAkgContact(contactPrompt.accountId, contactPrompt.phone, decision, contactPrompt.leadId);
+      const result = await dismissWaAkgContactDecisionPrompt(contactPrompt);
+      if (!result.dismissed) throw new Error('O aviso ainda não foi marcado como revisado.');
       setContactPrompt(null);
-      setFeedback({ tone: 'success', text: decision === 'promote' ? `${contactPrompt.name} foi autorizado como lead. A Ana continua pausada até ativação.` : `${contactPrompt.name} permanece protegido como contato privado.` });
+      setContactPromotionOpen(false);
+    } catch (error) {
+      setContactPromptError(error instanceof Error ? error.message : 'Não foi possível fechar este aviso. O contato continua protegido.');
+    } finally { setContactPromptBusy(false); }
+  };
+  const decideIncomingContact = async (decision: 'keep' | 'promote') => {
+    if (!contactPrompt || contactPromptBusy) return;
+    if (decision === 'promote' && !contactPromptOwnerId) {
+      setContactPromptError('Selecione o responsável antes de tornar o contato um lead.');
+      return;
+    }
+    setContactPromptBusy(true); setContactPromptError('');
+    try {
+      await decideWaAkgContactV2({
+        accountId: contactPrompt.accountId,
+        phone: contactPrompt.phone,
+        decision,
+        ownerUserId: decision === 'promote' ? contactPromptOwnerId : null,
+        initialMode: decision === 'promote' ? contactPromptMode : 'human',
+        expectedRevision: contactPrompt.decisionRevision,
+        requestId: crypto.randomUUID(),
+      });
+      setContactPrompt(null);
+      setContactPromotionOpen(false);
+      setFeedback({ tone: 'success', text: decision === 'promote'
+        ? `${contactPrompt.name} foi autorizado como lead em atendimento ${contactPromptMode === 'ana' ? 'com a Ana' : 'humano'}.`
+        : `${contactPrompt.name} permanece protegido como contato privado.` });
       await Promise.all([loadInbox(false), selectedId === contactPrompt.leadId ? refreshSelected() : Promise.resolve()]);
+      window.setTimeout(() => { void loadContactDecisionPrompt(); }, 0);
     } catch (error) {
       setContactPromptError(error instanceof Error ? error.message : 'Não foi possível salvar a decisão. O contato continua protegido.');
     } finally { setContactPromptBusy(false); }
@@ -343,7 +379,7 @@ export default function Atendimento() {
       <main onDragOver={(event) => { if (event.dataTransfer.types.includes(knowledgeDragMime)) { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; setKnowledgeDropActive(true); } }} onDragLeave={(event) => { if (event.currentTarget === event.target) setKnowledgeDropActive(false); }} onDrop={dropKnowledge} className={`${mobilePanel === 'conversation' ? 'flex' : 'hidden'} relative min-h-[620px] flex-col border-r border-background-200 lg:flex`} aria-label="Conversa ativa">{knowledgeDropActive && <div className="pointer-events-none absolute inset-3 z-10 flex items-center justify-center rounded-2xl border-2 border-dashed border-primary-500 bg-primary-50/90 text-sm font-bold text-primary-900"><span><i className="ri-send-plane-2-line mr-2" />Solte para preparar o produto no envio</span></div>}{!selectedId && <EmptyConversation onBack={() => setMobilePanel('list')} />}{selectedId && detailLoading && !detail && <div className="flex flex-1 items-center justify-center text-sm text-foreground-500"><i className="ri-loader-4-line mr-2 animate-spin" />Carregando conversa…</div>}{selectedId && detailError && !detail && <div className="m-4 rounded-xl border border-accent-200 bg-accent-50 p-4 text-sm text-accent-900">{detailError}<button type="button" onClick={() => void refreshSelected()} className="mt-3 wf-btn-secondary">Tentar novamente</button></div>}{conversation && <><ConversationHeader conversation={conversation} busy={action === 'takeover' || action === 'transfer'} contextOpen={mobilePanel === 'context'} onBack={() => setMobilePanel('list')} onContext={openContext} onAssume={assume} onTransfer={() => void openTransfer()} onMore={() => setMoreOpen((value) => !value)} />{moreOpen && <ConversationMenu human={humanOwns} blocked={conversation.blocked} onBlock={() => { setBlockOpen(true); setMoreOpen(false); }} onReturn={() => void runHandoff('return', () => returnConversationToAna(conversation.leadId))} onUnread={async () => { try { const marked = await markCentralConversationUnread(conversation.leadId); setFeedback({ tone: marked ? 'success' : 'warning', text: marked ? 'Conversa marcada como não lida.' : 'Não há mensagem recebida para marcar.' }); await loadInbox(false); } catch { setFeedback({ tone: 'error', text: 'Não foi possível atualizar o estado de leitura.' }); } setMoreOpen(false); }} onCopy={async () => { try { await navigator.clipboard.writeText(conversation.protocol); setFeedback({ tone: 'success', text: 'Protocolo copiado.' }); } catch { setFeedback({ tone: 'warning', text: 'Não foi possível copiar o protocolo.' }); } setMoreOpen(false); }} />}<div className="flex flex-wrap gap-2 border-b border-background-200 px-4 py-2.5 text-xs"><span className="rounded-md bg-background-100 px-2.5 py-1 font-semibold">{conversation.protocol}</span><span className="rounded-md bg-primary-50 px-2.5 py-1 font-semibold text-primary-800"><i className="ri-route-line mr-1" />{conversation.stageLabel}</span><span className={`rounded-md px-2.5 py-1 ${conversation.slaDueAt && new Date(conversation.slaDueAt).getTime() < Date.now() ? 'bg-accent-50 text-accent-800' : 'bg-background-100 text-foreground-600'}`}><i className="ri-time-line mr-1" />{conversation.slaDueAt ? `SLA ${atDateTime(conversation.slaDueAt)}` : 'Sem SLA configurado'}</span></div><div ref={messagesRef} onScroll={(event) => { const node = event.currentTarget; stickBottom.current = node.scrollHeight - node.clientHeight - node.scrollTop < 64; }} className="flex-1 overflow-y-auto bg-background-100/35 px-4 py-5">{detail?.hasMoreMessages && <div className="mb-5 text-center"><button type="button" onClick={() => void loadOlder()} disabled={olderLoading} className="rounded-full border border-background-300 bg-background-50 px-3 py-1.5 text-xs font-semibold">{olderLoading ? 'Carregando…' : 'Carregar mensagens anteriores'}</button></div>}<div className="space-y-4">{detail?.messages.length ? detail.messages.map((message) => <MessageBubble key={message.id} message={message} open={messageDetails === message.id} onDetails={() => setMessageDetails((current) => current === message.id ? null : message.id)} />) : <div className="py-14 text-center text-sm text-foreground-500"><i className="ri-chat-1-line mb-2 block text-2xl" />Ainda não há mensagens registradas.</div>}</div></div><Composer enabled={composerEnabled} blocked={conversation.blocked} mode={conversation.mode} text={messageText} internal={internalNote} pending={action === 'send'} feedback={feedback} prepared={preparedKnowledge?.item.name ?? preparedProposal?.numero ?? null} onText={setMessageText} onInternal={setInternalNote} onQuick={(text) => { if (!composerEnabled) { setFeedback({ tone: 'warning', text: 'Assuma o atendimento para responder manualmente.' }); return; } setInternalNote(false); setMessageText(text); }} onSend={() => void send()} /></>}</main>
       <aside ref={contextPanelRef} id="central-lead-context" tabIndex={-1} onKeyDown={(event) => { if (event.key === 'Escape') { event.preventDefault(); closeContext(); } }} className={`${mobilePanel === 'context' ? 'flex' : 'hidden'} min-h-[620px] flex-col bg-background-50 xl:flex`} aria-label="Contexto do lead">{conversation ? <ContextPanel detail={detail!} activeTab={sideTab} onTab={setSideTab} onBack={closeContext} onOpenLead={() => navigate(`/dashboard/leads?leadId=${encodeURIComponent(conversation.leadId)}`)} onOpenKanban={() => navigate(`/dashboard/kanban?leadId=${encodeURIComponent(conversation.leadId)}`)} onTask={() => setTaskOpen(true)} onAgenda={() => navigate(`/dashboard/agenda?leadId=${encodeURIComponent(conversation.leadId)}&new=1`)} onKnowledge={prepareKnowledge} onSendKnowledge={(prepared) => void sendKnowledge(prepared)} knowledgeContext={latestInbound} proposals={proposals} onProposal={prepareProposal} onBudget={() => navigate(`/dashboard/orcamentos?leadId=${encodeURIComponent(conversation.leadId)}&new=1`)} /> : <div className="p-5 text-sm text-foreground-500">Selecione uma conversa para ver o contexto.</div>}</aside>
     </div>
-    {contactPrompt && <ContactDecisionToast prompt={contactPrompt} busy={contactPromptBusy} error={contactPromptError} onKeep={() => void decideIncomingContact('keep')} onPromote={() => void decideIncomingContact('promote')} onClose={() => setContactPrompt(null)} />}{transferOpen && <TransferDialog targets={transferTargets} selected={transferTargetId} reason={transferReason} error={transferError || teamError} loading={transferLoading} busy={action === 'transfer'} onSelected={(value) => { setTransferTargetId(value); setTransferError(''); }} onReason={setTransferReason} onClose={() => { if (action !== 'transfer') setTransferOpen(false); }} onConfirm={() => void confirmTransfer()} />}{blockOpen && <BlockDialog name={conversation?.contact ?? 'este contato'} busy={action === 'block'} onClose={() => setBlockOpen(false)} onConfirm={() => void confirmBlock()} />}{taskOpen && <TaskDialog text={taskText} date={taskDate} busy={action === 'task'} onText={setTaskText} onDate={setTaskDate} onClose={() => setTaskOpen(false)} onConfirm={() => void saveTask()} />}
+    {contactPrompt && <ContactDecisionDialog prompt={contactPrompt} busy={contactPromptBusy} error={contactPromptError} promoting={contactPromotionOpen} ownerId={contactPromptOwnerId} mode={contactPromptMode} members={teamMembers} teamError={teamError} onKeep={() => void decideIncomingContact('keep')} onStartPromotion={() => { setContactPromotionOpen(true); setContactPromptError(''); }} onOwner={(value) => { setContactPromptOwnerId(value); setContactPromptError(''); }} onMode={setContactPromptMode} onPromote={() => void decideIncomingContact('promote')} onBack={() => { if (!contactPromptBusy) { setContactPromotionOpen(false); setContactPromptError(''); } }} onClose={() => void dismissIncomingContact()} />}{transferOpen && <TransferDialog targets={transferTargets} selected={transferTargetId} reason={transferReason} error={transferError || teamError} loading={transferLoading} busy={action === 'transfer'} onSelected={(value) => { setTransferTargetId(value); setTransferError(''); }} onReason={setTransferReason} onClose={() => { if (action !== 'transfer') setTransferOpen(false); }} onConfirm={() => void confirmTransfer()} />}{blockOpen && <BlockDialog name={conversation?.contact ?? 'este contato'} busy={action === 'block'} onClose={() => setBlockOpen(false)} onConfirm={() => void confirmBlock()} />}{taskOpen && <TaskDialog text={taskText} date={taskDate} busy={action === 'task'} onText={setTaskText} onDate={setTaskDate} onClose={() => setTaskOpen(false)} onConfirm={() => void saveTask()} />}
   </div>;
 }
 
@@ -358,12 +394,44 @@ function MessageBubble({ message, open, onDetails }: { message: CentralMessage; 
 function Composer({ enabled, blocked, mode, text, internal, pending, feedback, prepared, onText, onInternal, onQuick, onSend }: { enabled: boolean; blocked: boolean; mode: CentralConversationDetail['conversation']['mode']; text: string; internal: boolean; pending: boolean; feedback: { tone: 'success' | 'warning' | 'error'; text: string } | null; prepared: string | null; onText: (value: string) => void; onInternal: (value: boolean) => void; onQuick: (text: string) => void; onSend: () => void }) { const lock = blocked ? 'Contato bloqueado: nenhum envio pode ser iniciado.' : mode === 'waiting_human' ? 'Aguardando atendente responsável.' : 'Ana está atendendo. Assuma a conversa para responder manualmente.'; return <footer className="border-t border-background-200 bg-background-50 p-3"><div className="flex gap-2 overflow-x-auto pb-2">{quickReplies.map((reply) => <button type="button" disabled={!enabled} key={reply.label} onClick={() => onQuick(reply.text)} className="shrink-0 rounded-lg border border-background-200 px-2.5 py-1.5 text-[11px] font-semibold text-foreground-700 disabled:opacity-50"><i className="ri-file-edit-line mr-1" />{reply.label}</button>)}</div>{!enabled && <div className={`mb-2 rounded-lg px-3 py-2 text-xs ${blocked ? 'bg-accent-50 text-accent-800' : 'bg-primary-50 text-primary-800'}`}><i className={blocked ? 'ri-forbid-2-line mr-1.5' : 'ri-robot-2-line mr-1.5'} />{lock}</div>}{prepared && <div className="mb-2 rounded-lg bg-primary-50 px-3 py-2 text-xs text-primary-800">Preparado para revisão: <strong>{prepared}</strong></div>}<div className="flex items-end gap-2"><label className="flex items-center gap-1.5 pb-2 text-[11px] text-foreground-600"><input type="checkbox" checked={internal} disabled={!enabled} onChange={(event) => onInternal(event.target.checked)} />Nota interna</label><textarea value={text} disabled={!enabled} onChange={(event) => onText(event.target.value)} onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') onSend(); }} placeholder={enabled ? internal ? 'Registrar uma nota para a equipe…' : 'Digite sua mensagem…' : 'Assuma o atendimento para enviar uma mensagem'} rows={2} className="min-h-[50px] flex-1 resize-none rounded-xl border border-background-200 bg-background-50 px-3 py-2 text-sm text-foreground-900 disabled:cursor-not-allowed disabled:bg-background-100" /><button type="button" disabled={!text.trim() || pending || !enabled} onClick={onSend} className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary-600 text-background-50 disabled:cursor-not-allowed disabled:bg-primary-300" aria-label="Enviar mensagem">{pending ? <i className="ri-loader-4-line animate-spin" /> : <i className="ri-send-plane-fill" />}</button></div>{feedback && <p role="status" className={`mt-2 text-xs ${feedback.tone === 'error' ? 'text-accent-700' : feedback.tone === 'warning' ? 'text-amber-700' : 'text-primary-700'}`}>{feedback.text}</p>}</footer>; }
 function ContextPanel({ detail, activeTab, onTab, onBack, onOpenLead, onOpenKanban, onTask, onAgenda, onKnowledge, onSendKnowledge, knowledgeContext, proposals, onProposal, onBudget }: { detail: CentralConversationDetail; activeTab: SideTab; onTab: (tab: SideTab) => void; onBack: () => void; onOpenLead: () => void; onOpenKanban: () => void; onTask: () => void; onAgenda: () => void; onKnowledge: (prepared: PreparedKnowledgeContent) => void; onSendKnowledge: (prepared: PreparedKnowledgeContent) => void; knowledgeContext: string; proposals: Proposta[]; onProposal: (proposal: Proposta) => void; onBudget: () => void }) { const c = detail.conversation; const fields = [{ label: 'Apresentação realizada', value: detail.messages.some((message) => ['ana', 'assistant'].includes(message.sender.toLowerCase())) ? 'Mensagem da Ana registrada' : null }, { label: 'Necessidade', value: valueOf(detail.qualification?.technicalContext.need) }, { label: 'Aplicação ou equipamento', value: valueOf(detail.qualification?.technicalContext.application) }, { label: 'Medidas, desenho ou amostra', value: valueOf(detail.qualification?.technicalContext.measurement_or_drawing) }, { label: 'Material e condição', value: valueOf(detail.qualification?.technicalContext.material_or_condition) }, { label: 'Quantidade e prazo', value: [valueOf(detail.qualification?.technicalContext.quantity), valueOf(detail.qualification?.technicalContext.deadline)].filter(Boolean).join(' · ') || null }]; const confirmed = fields.filter((field) => field.value).length; const nextTask = detail.tasks.find((task) => !task.completed); return <><header className="flex items-center justify-between border-b border-background-200 px-4 py-3 xl:hidden"><button type="button" onClick={onBack} className="rounded-lg p-2"><i className="ri-arrow-left-line" /></button><strong className="text-sm">Contexto</strong><span className="w-8" /></header><nav className="grid grid-cols-4 border-b border-background-200" aria-label="Abas do contexto">{([{ id: 'lead', label: 'Lead', icon: 'ri-user-3-line' }, { id: 'qualification', label: 'Qualificação', icon: 'ri-focus-3-line' }, { id: 'knowledge', label: 'Conhecimento', icon: 'ri-book-open-line' }, { id: 'more', label: 'Mais', icon: 'ri-more-2-line' }] as const).map((tab) => <button key={tab.id} type="button" onClick={() => onTab(tab.id)} className={`border-b-2 px-1 py-3 text-[10px] font-semibold ${activeTab === tab.id ? 'border-primary-500 text-primary-800' : 'border-transparent text-foreground-500'}`}><i className={`${tab.icon} mr-1`} />{tab.label}</button>)}</nav><div className="flex-1 overflow-y-auto p-4">{activeTab === 'lead' && <div className="space-y-3"><div className="flex gap-3"><span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-primary-100 font-bold text-primary-800">{initials(c.contact)}</span><div className="min-w-0 flex-1"><p className="truncate text-base font-bold text-foreground-950">{c.contact}</p><p className="truncate text-xs text-foreground-500">{c.company}</p></div><button type="button" onClick={onOpenLead} className="rounded-lg border border-background-200 px-2.5 py-1.5 text-[11px] font-semibold">Abrir lead</button></div><dl className="grid grid-cols-2 gap-x-3 gap-y-3 border-t border-background-100 pt-3 text-xs"><Info label="Etapa" value={c.stageLabel} /><Info label="Responsável" value={c.ownerName} /><Info label="Canal" value={c.channel === 'whatsapp' ? 'WhatsApp' : c.channel === 'email' ? 'E-mail' : 'Instagram'} /><Info label="Contato" value={c.whatsapp || c.phone || 'Não informado'} /><Info label="E-mail" value={c.email || 'Não informado'} /><Info label="Local" value={[c.city, c.uf].filter(Boolean).join(' · ') || 'Não informado'} /><Info label="Origem" value={c.origin || 'Não informada'} /></dl><div className={`rounded-xl border p-3 ${c.mode === 'ana' ? 'border-primary-200 bg-primary-50' : 'border-sky-200 bg-sky-50'}`}><strong className="text-xs text-foreground-900"><i className="ri-robot-2-line mr-1.5" />{c.mode === 'ana' ? 'Ana está atendendo' : c.mode === 'waiting_human' ? 'Aguardando atendente' : 'Atendimento humano'}</strong><p className="mt-1 text-[11px] text-foreground-600">{c.mode === 'ana' ? 'Assuma para responder como humano.' : 'O histórico permanece vinculado a este lead.'}</p></div><button type="button" onClick={onOpenKanban} className="wf-btn-secondary w-full justify-center text-xs"><i className="ri-kanban-view-2-line" />Ver no Kanban</button></div>}{activeTab === 'qualification' && <div className="space-y-3"><section className="rounded-xl border border-background-200 p-3"><div className="flex items-center justify-between"><div><strong className="text-sm text-foreground-900">Qualificação</strong><p className="mt-0.5 text-xs text-foreground-500">{confirmed} de 6 confirmados</p></div><span className="rounded-full bg-primary-50 px-2 py-1 text-xs font-bold text-primary-800">{confirmed}/6</span></div><div className="mt-3 h-2 overflow-hidden rounded-full bg-background-200"><div className="h-full rounded-full bg-primary-500" style={{ width: `${(confirmed / 6) * 100}%` }} /></div><ul className="mt-4 space-y-2.5">{fields.map((field) => <li key={field.label} className="flex gap-2 text-xs"><i className={field.value ? 'ri-checkbox-circle-fill text-primary-600' : 'ri-checkbox-blank-circle-line text-amber-500'} /><span><strong className="text-foreground-800">{field.label}</strong><span className="mt-0.5 block text-foreground-500">{field.value || 'Pendente'}</span></span></li>)}</ul></section>{detail.qualification?.summary && <p className="rounded-lg bg-background-100 p-3 text-xs leading-5 text-foreground-700">{detail.qualification.summary}</p>}{detail.qualification?.updatedAt && <p className="text-[11px] leading-4 text-foreground-500">Registro atualizado em {atDateTime(detail.qualification.updatedAt)}. A origem detalhada por campo ainda não é registrada pelo modelo atual.</p>}<button type="button" onClick={onOpenLead} className="wf-btn-secondary w-full justify-center text-xs">Abrir qualificação</button></div>}{activeTab === 'knowledge' && <ConversationKnowledgePanel context={knowledgeContext} onPrepare={onKnowledge} onSend={onSendKnowledge} />}{activeTab === 'more' && <div className="space-y-4"><section><div className="flex justify-between"><strong className="text-sm text-foreground-900">Próxima ação</strong><button type="button" onClick={onTask} className="text-xs font-semibold text-primary-700">Definir</button></div>{nextTask ? <div className="mt-2 rounded-xl border border-background-200 p-3 text-xs"><strong className="text-foreground-800">{nextTask.text}</strong><p className="mt-1 text-foreground-500">{nextTask.dueAt ? `${atDateTime(nextTask.dueAt)} · ` : 'Ainda sem prazo · '}{nextTask.ownerLabel || 'Sem responsável'}</p></div> : <p className="mt-2 rounded-xl border border-dashed border-background-300 p-3 text-xs text-foreground-500">Ainda sem prazo</p>}</section><section><div className="flex justify-between"><strong className="text-sm text-foreground-900">Orçamentos</strong><button type="button" onClick={onBudget} className="text-xs font-semibold text-primary-700">Abrir</button></div>{proposals.length ? <div className="mt-2 space-y-2">{proposals.slice(0, 3).map((proposal) => <div key={proposal.id} className="flex items-center justify-between gap-2 rounded-xl border border-background-200 p-3 text-xs"><span><strong className="block text-foreground-800">{proposal.numero}</strong><span className="text-foreground-500">{proposal.status}</span></span><button type="button" onClick={() => onProposal(proposal)} className="rounded-lg border border-primary-200 px-2 py-1 font-semibold text-primary-700">Preparar</button></div>)}</div> : <p className="mt-2 text-xs text-foreground-500">Nenhum orçamento vinculado.</p>}</section><section><strong className="text-sm text-foreground-900">Notas</strong>{detail.notes.length ? <div className="mt-2 space-y-2">{detail.notes.slice(0, 4).map((note) => <div key={note.id} className="rounded-lg bg-background-100 p-2.5 text-xs"><p className="text-foreground-700">{note.body}</p><p className="mt-1 text-[10px] text-foreground-500">{note.authorName} · {atDateTime(note.createdAt)}</p></div>)}</div> : <p className="mt-2 text-xs text-foreground-500">Sem notas registradas.</p>}</section><section><strong className="text-sm text-foreground-900">Atividades</strong>{detail.activities.length ? <div className="mt-2 space-y-2">{detail.activities.slice(0, 5).map((activity) => <p key={activity.id} className="border-l-2 border-primary-200 pl-2 text-xs text-foreground-600"><strong className="text-foreground-800">{activity.actorName}</strong> · {activity.detail || activity.action}<span className="block text-[10px] text-foreground-500">{atDateTime(activity.createdAt)}</span></p>)}</div> : <p className="mt-2 text-xs text-foreground-500">Sem atividades disponíveis para seu acesso.</p>}</section><button type="button" onClick={onAgenda} className="wf-btn-secondary w-full justify-center text-xs"><i className="ri-calendar-event-line" />Agendar reunião</button></div>}</div></>; }
 function Info({ label, value }: { label: string; value: string }) { return <div><dt className="text-[10px] font-semibold uppercase tracking-wide text-foreground-500">{label}</dt><dd className="mt-0.5 break-words text-xs text-foreground-800">{value}</dd></div>; }
-function ContactDecisionToast({ prompt, busy, error, onKeep, onPromote, onClose }: { prompt: ContactDecisionPrompt; busy: boolean; error: string; onKeep: () => void; onPromote: () => void; onClose: () => void }) {
-  return <aside className="fixed bottom-5 right-5 z-[60] w-[min(24rem,calc(100vw-2rem))] rounded-2xl border border-amber-200 bg-background-50 p-4 shadow-2xl" role="dialog" aria-live="polite" aria-label="Decisão sobre contato recebido">
-    <div className="flex items-start gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-800"><i className="ri-contacts-book-2-line" /></span><div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-2"><div><p className="text-[11px] font-semibold uppercase tracking-wide text-amber-800">Nova mensagem recebida</p><h2 className="mt-0.5 truncate text-sm font-bold text-foreground-950">{prompt.name}</h2></div><button type="button" onClick={onClose} disabled={busy} className="rounded-lg p-1 text-foreground-500 hover:bg-background-100 disabled:opacity-50" aria-label="Fechar aviso"><i className="ri-close-line" /></button></div><p className="mt-1 text-xs leading-5 text-foreground-600">Este contato está protegido da prospecção. Escolha como tratar esta conversa. Se fechar, ele continua protegido.</p><p className="mt-1 text-[11px] text-foreground-500">{prompt.state === 'agenda_protected' ? 'Contato salvo na agenda' : 'Classificação pendente'} · {prompt.phone}</p></div></div>
-    {error && <p role="alert" className="mt-3 rounded-lg bg-accent-50 px-3 py-2 text-xs text-accent-800">{error}</p>}
-    <div className="mt-3 flex flex-wrap justify-end gap-2"><button type="button" onClick={onKeep} disabled={busy} className="wf-btn-secondary text-xs disabled:opacity-50">{busy ? 'Salvando…' : 'Manter como contato'}</button><button type="button" onClick={onPromote} disabled={busy} className="wf-btn-primary text-xs disabled:opacity-50">Tornar lead</button></div>
-  </aside>;
+function ContactDecisionDialog({ prompt, busy, error, promoting, ownerId, mode, members, teamError, onKeep, onStartPromotion, onOwner, onMode, onPromote, onBack, onClose }: {
+  prompt: ContactDecisionPrompt;
+  busy: boolean;
+  error: string;
+  promoting: boolean;
+  ownerId: string;
+  mode: WaAkgContactInitialMode;
+  members: TeamMember[];
+  teamError: string;
+  onKeep: () => void;
+  onStartPromotion: () => void;
+  onOwner: (value: string) => void;
+  onMode: (value: WaAkgContactInitialMode) => void;
+  onPromote: () => void;
+  onBack: () => void;
+  onClose: () => void;
+}) {
+  const sourceLabel = prompt.state === 'agenda_protected' ? 'Contato salvo na agenda' : 'Contato da agenda — classificação pendente';
+  return <AccessibleDialog title="Decisão sobre contato recebido" className="fixed inset-0 z-[70] flex items-center justify-center bg-foreground-950/50 p-4" onClose={onClose}>
+    <section className="w-full max-w-md overflow-hidden rounded-2xl border border-background-200 bg-background-50 shadow-xl">
+      <header className="flex items-start justify-between gap-4 border-b border-background-200 px-5 py-4">
+        <div className="min-w-0"><p className="wf-eyebrow text-amber-800">NOVA MENSAGEM RECEBIDA</p><h2 className="mt-1 truncate font-heading text-xl font-bold text-foreground-950">{prompt.name}</h2><p className="mt-1 text-xs text-foreground-500">{sourceLabel} · {prompt.phone}</p></div>
+        <button type="button" onClick={onClose} disabled={busy} className="wf-icon-button disabled:opacity-50" aria-label="Fechar e manter contato protegido"><i className="ri-close-line" /></button>
+      </header>
+      {!promoting ? <div className="space-y-4 p-5">
+        <p className="text-sm leading-6 text-foreground-700">Este contato fica fora de campanhas, cadências e respostas automáticas até uma autorização explícita.</p>
+        {prompt.latestInboundText && <blockquote className="rounded-xl border border-background-200 bg-background-100 px-3 py-2.5 text-sm leading-5 text-foreground-700"><span className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-foreground-500">Última mensagem</span>{prompt.latestInboundText}</blockquote>}
+        {error && <p role="alert" className="rounded-lg bg-accent-50 px-3 py-2 text-xs text-accent-800">{error}</p>}
+      </div> : <div className="space-y-4 p-5">
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900"><strong className="block">Converter em lead</strong>O histórico será preservado. Selecione quem assumirá o atendimento e o modo inicial antes de liberar qualquer automação.</div>
+        <label className="block text-sm font-semibold text-foreground-800">Responsável<select value={ownerId} onChange={(event) => onOwner(event.target.value)} disabled={busy} className="mt-1.5 w-full wf-select"><option value="">Selecione um responsável</option>{members.map((member) => <option key={member.userId} value={member.userId}>{member.name} · {member.role}</option>)}</select></label>
+        <fieldset disabled={busy} className="space-y-2"><legend className="text-sm font-semibold text-foreground-800">Modo inicial</legend><label className="flex cursor-pointer items-start gap-2 rounded-lg border border-primary-200 bg-primary-50 p-3 text-sm text-foreground-800"><input type="radio" name="contact-decision-mode" value="human" checked={mode === 'human'} onChange={() => onMode('human')} /><span><strong className="block">Atendimento humano</strong><span className="mt-0.5 block text-xs text-foreground-600">Padrão seguro. A Ana permanece pausada.</span></span></label>{prompt.canEnableAi && <label className="flex cursor-pointer items-start gap-2 rounded-lg border border-background-200 p-3 text-sm text-foreground-800"><input type="radio" name="contact-decision-mode" value="ana" checked={mode === 'ana'} onChange={() => onMode('ana')} /><span><strong className="block">Ana para este lead</strong><span className="mt-0.5 block text-xs text-foreground-600">Só será confirmada pelo servidor se os controles do canal estiverem liberados.</span></span></label>}</fieldset>
+        {!prompt.canEnableAi && <p className="rounded-lg bg-background-100 px-3 py-2 text-xs text-foreground-600">A Ana não está disponível para esta conversão agora. O lead começa em atendimento humano.</p>}
+        {(error || teamError) && <p role="alert" className="rounded-lg bg-accent-50 px-3 py-2 text-xs text-accent-800">{error || teamError}</p>}
+      </div>}
+      <footer className="flex flex-wrap justify-end gap-2 border-t border-background-200 px-5 py-4">{promoting ? <><button type="button" onClick={onBack} disabled={busy} className="wf-btn-secondary disabled:opacity-50">Voltar</button><button type="button" onClick={onPromote} disabled={busy || !ownerId} className="wf-btn-primary disabled:opacity-50">{busy ? 'Salvando…' : 'Confirmar lead'}</button></> : <><button type="button" onClick={onKeep} disabled={busy} className="wf-btn-secondary disabled:opacity-50">{busy ? 'Salvando…' : 'Manter como contato'}</button><button type="button" onClick={onStartPromotion} disabled={busy || members.length === 0} className="wf-btn-primary disabled:opacity-50">Tornar lead</button></>}</footer>
+    </section>
+  </AccessibleDialog>;
 }
 function TransferDialog({ targets, selected, reason, error, loading, busy, onSelected, onReason, onClose, onConfirm }: { targets: CentralTransferTarget[]; selected: string; reason: string; error: string; loading: boolean; busy: boolean; onSelected: (value: string) => void; onReason: (value: string) => void; onClose: () => void; onConfirm: () => void }) {
   const target = targets.find((entry) => entry.userId === selected) ?? null;

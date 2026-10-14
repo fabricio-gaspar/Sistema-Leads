@@ -8,8 +8,12 @@ export type ContactIdentityFields = {
 const PLACEHOLDER_NAMES = new Set([
   'contato não identificado',
   'contato nao identificado',
+  'contatos não identificados',
+  'contatos nao identificados',
   'contato não informado',
   'contato nao informado',
+  'contatos não informados',
+  'contatos nao informados',
   'sem nome',
   'desconhecido',
   'unknown',

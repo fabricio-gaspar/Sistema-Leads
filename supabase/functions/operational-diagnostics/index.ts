@@ -1,16 +1,9 @@
 import { createAdminClient, requireOrganizationRole, requireUser } from '../_shared/auth.ts';
 import { allowedCorsHeaders, hasAllowedOrigin, json, preflight, safeError } from '../_shared/http.ts';
-import { zapiBaseUrl } from '../_shared/runtimeSafety.ts';
 import { resolveWaAkgOperational } from '../_shared/waAkgOperational.ts';
 
 type Action = 'status' | 'set_kill_switch' | 'activate_real' | 'events' | 'configure_whatsapp_webhook' | 'activate_scheduler';
-type WebhookDiagnosticState = 'not_configured' | 'credentials_changed' | 'waiting_callback' | 'lead_not_matched' | 'unsupported_callback' | 'processing_failed' | 'homologated';
-
-const ZAPI_WEBHOOK_ENDPOINTS = [
-  'update-webhook-received',
-  'update-webhook-delivery',
-  'update-webhook-message-status',
-] as const;
+type WebhookDiagnosticState = 'not_configured' | 'waiting_callback' | 'homologated';
 
 function asObject(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
@@ -18,12 +11,6 @@ function asObject(value: unknown): Record<string, unknown> {
 
 function asBoolean(value: unknown, fallback = false): boolean {
   return typeof value === 'boolean' ? value : fallback;
-}
-
-function textArray(value: unknown): string[] {
-  return Array.isArray(value)
-    ? [...new Set(value.filter((item): item is string => typeof item === 'string').map((item) => item.trim()).filter(Boolean))]
-    : [];
 }
 
 function safeNonNegativeNumber(value: unknown): number | null {
@@ -120,7 +107,7 @@ async function operationalStatus(admin: ReturnType<typeof createAdminClient>, or
     admin.from('whatsapp_accounts').select('id,integration_id,provider,account_type,is_default,enabled,connection_status,status_checked_at,updated_at,verified_name,label,connected_phone_suffix,last_error_code')
       .eq('organization_id', organizationId).is('archived_at', null),
     admin.from('messaging_provider_controls').select('provider,inbound_enabled,send_enabled,automation_enabled,kill_switch,reason,updated_at')
-      .eq('organization_id', organizationId).eq('provider', 'wa_akg'),
+      .eq('organization_id', organizationId).in('provider', ['wa_akg', 'meta_cloud']),
   ]);
   if ([
     companyRead,
@@ -147,8 +134,6 @@ async function operationalStatus(admin: ReturnType<typeof createAdminClient>, or
   const providerControls = Array.isArray(providerControlsRead.data) ? providerControlsRead.data : [];
   const integration = (key: string) => integrations.find((item) => item.key === key) ?? null;
   const ai = integration('ai');
-  const whatsapp = integration('whatsapp');
-  const whatsappWebhook = integration('zapi_webhook');
   const scheduler = integration('scheduler');
   const isFresh = (value: string | null | undefined) => {
     if (!value) return false;
@@ -156,49 +141,32 @@ async function operationalStatus(admin: ReturnType<typeof createAdminClient>, or
     return Number.isFinite(testedAt) && Date.now() - testedAt <= 24 * 60 * 60 * 1000;
   };
   const isOnline = (item: Pick<NonNullable<typeof ai>, 'connected' | 'enabled' | 'paused' | 'last_error' | 'last_tested_at'> | null) => Boolean(item?.connected && item?.enabled && !item?.paused && !item?.last_error && isFresh(item?.last_tested_at));
-  const accountForProvider = (provider: 'zapi' | 'meta_cloud') => whatsappAccounts.find((account) => account.provider === provider && account.is_default)
-    ?? whatsappAccounts.find((account) => account.provider === provider && account.account_type === 'corporate')
-    ?? whatsappAccounts.find((account) => account.provider === provider)
+  const metaAccount = whatsappAccounts.find((account) => account.provider === 'meta_cloud' && account.is_default)
+    ?? whatsappAccounts.find((account) => account.provider === 'meta_cloud' && account.account_type === 'corporate')
+    ?? whatsappAccounts.find((account) => account.provider === 'meta_cloud')
     ?? null;
-  const controlForProvider = (provider: 'zapi' | 'meta_cloud') => providerControls.find((control) => control.provider === provider) ?? null;
-  const providerActive = (provider: 'zapi' | 'meta_cloud') => {
-    const control = controlForProvider(provider);
-    if (control) return control.inbound_enabled === true && control.send_enabled === true
-      && control.automation_enabled === true && control.kill_switch !== true;
-    // Organizações anteriores aos controles explícitos continuam operando pela
-    // integração já homologada até que um administrador faça a escolha.
-    const account = accountForProvider(provider);
-    const backing = account?.integration_id ? integrations.find((item) => item.id === account.integration_id) : integration('whatsapp');
-    return provider === 'zapi' && (account ? account.enabled === true : true) && backing?.enabled === true && backing?.paused !== true;
-  };
-  const providerIntegration = (provider: 'zapi' | 'meta_cloud') => {
-    const account = accountForProvider(provider);
-    const backing = account?.integration_id ? integrations.find((item) => item.id === account.integration_id) : provider === 'zapi' ? integration('whatsapp') : null;
-    const active = providerActive(provider);
-    const connected = account ? account.connection_status === 'connected' && backing?.connected === true : backing?.connected === true;
-    const name = provider === 'zapi' ? 'Z-API' : 'Meta WhatsApp Cloud API';
-    const control = controlForProvider(provider);
-    return {
-      key: provider === 'zapi' ? 'whatsapp_zapi' : 'whatsapp_meta',
-      label: name,
-      category: 'communication',
-      provider: name,
-      connected,
-      enabled: active,
-      paused: false,
-      last_tested_at: account?.status_checked_at ?? backing?.last_tested_at ?? account?.updated_at ?? null,
-      last_success_at: backing?.last_success_at ?? null,
-      last_error: active ? (backing?.last_error ?? null) : null,
-      status_detail: active
-        ? `Ativo no WayFlex para entrada, saída e automações da Ana.${control?.reason ? ` ${control.reason}` : ''}`
-        : account
-          ? `Desativado no WayFlex. ${control?.reason || 'A configuração e a sessão remota foram preservadas.'}`
-          : 'Nenhuma conta conectada para este provedor.',
-      configuration: backing?.configuration ?? {},
-    };
-  };
-  const zapiProvider = providerIntegration('zapi');
-  const metaProvider = providerIntegration('meta_cloud');
+  const metaBacking = metaAccount?.integration_id ? integrations.find((item) => item.id === metaAccount.integration_id) : null;
+  const metaControl = providerControls.find((control) => control.provider === 'meta_cloud') ?? null;
+  const metaActive = metaControl
+    ? metaControl.inbound_enabled === true && metaControl.send_enabled === true
+      && metaControl.automation_enabled === true && metaControl.kill_switch !== true
+    : metaAccount?.enabled === true && metaBacking?.enabled === true && metaBacking?.paused !== true;
+  const metaProvider = metaAccount ? {
+    key: 'whatsapp_meta',
+    label: 'Meta WhatsApp Cloud API',
+    category: 'communication',
+    provider: 'Meta WhatsApp Cloud API',
+    connected: metaAccount.connection_status === 'connected' && metaBacking?.connected === true,
+    enabled: metaActive,
+    paused: metaBacking?.paused === true,
+    last_tested_at: metaAccount.status_checked_at ?? metaBacking?.last_tested_at ?? metaAccount.updated_at ?? null,
+    last_success_at: metaBacking?.last_success_at ?? null,
+    last_error: metaActive ? (metaBacking?.last_error ?? null) : null,
+    status_detail: metaActive
+      ? `Ativo no WayFlex para entrada, saída e automações da Ana.${metaControl?.reason ? ` ${metaControl.reason}` : ''}`
+      : `Desativado no WayFlex. ${metaControl?.reason || 'A configuração e a sessão remota foram preservadas.'}`,
+    configuration: metaBacking?.configuration ?? {},
+  } : null;
   const waAkgSnapshot = resolveWaAkgOperational(whatsappAccounts, integrations, providerControls);
   const waAkgProvider = waAkgSnapshot.present ? {
     key: waAkgSnapshot.key,
@@ -242,114 +210,22 @@ async function operationalStatus(admin: ReturnType<typeof createAdminClient>, or
       : whatsappMonitoringState === 'attention'
         ? 'Há falha recente ou evento de risco aberto; consulte os detalhes antes de aumentar o volume.'
         : 'Sem evento de risco aberto na leitura atual.';
-  const webhookConfiguration = asObject(whatsappWebhook?.configuration);
-  const registeredAt = typeof webhookConfiguration.registered_at === 'string' ? webhookConfiguration.registered_at : null;
-  const registrationInvalidatedAt = typeof webhookConfiguration.registration_invalidated_at === 'string'
-    ? webhookConfiguration.registration_invalidated_at
-    : null;
-  const registrationInvalidated = webhookConfiguration.registration_complete === false && registrationInvalidatedAt !== null;
-  const registeredEndpoints = textArray(webhookConfiguration.registration_endpoints);
-  const webhookRegistered = !registrationInvalidated && registeredAt !== null
-    && ZAPI_WEBHOOK_ENDPOINTS.every((endpoint) => registeredEndpoints.includes(endpoint));
-  const [webhookEventRead, testLeadRead] = await Promise.all([
-    webhookRegistered
-      // `channel_inbound_events` is intentionally created only after a lead was
-      // resolved. Read the raw, audited webhook event here as well, otherwise an
-      // unmatched callback is misleadingly reported as if Z-API never called us.
-      ? admin.from('webhook_events').select('status,error,created_at,processed_at,lead_id,event_type')
-        .eq('organization_id', organizationId).eq('provider', whatsapp?.provider || 'Z-API').eq('event_type', 'ReceivedCallback')
-        .gte('created_at', registeredAt).order('created_at', { ascending: false }).limit(1)
-      : Promise.resolve({ data: [], error: null }),
-    admin.from('leads').select('id,company,contact,phone,whatsapp,updated_at').eq('organization_id', organizationId)
-      .order('updated_at', { ascending: false }).limit(10),
-  ]);
-  if (webhookEventRead.error || testLeadRead.error) throw new Error('operational_webhook_diagnostic_read_failed');
-  const latestWebhookEvent = (webhookEventRead.data ?? [])[0] as {
-    status?: string;
-    error?: string | null;
-    created_at?: string | null;
-    processed_at?: string | null;
-    lead_id?: string | null;
-  } | undefined;
-  const testLead = (testLeadRead.data ?? []).find((lead) => typeof lead.phone === 'string' || typeof lead.whatsapp === 'string') ?? null;
-  const testLeadPhone = typeof testLead?.whatsapp === 'string' && testLead.whatsapp.trim()
-    ? testLead.whatsapp : typeof testLead?.phone === 'string' ? testLead.phone : '';
-  const testLeadLabel = testLead ? [testLead.contact, testLead.company].filter((value) => typeof value === 'string' && value.trim()).join(' · ') : null;
-  const testLeadSummary = testLead && testLeadPhone ? {
-    id: testLead.id,
-    label: testLeadLabel || 'Lead cadastrado',
-    phoneSuffix: testLeadPhone.replace(/\D/g, '').slice(-4),
-  } : null;
-  const webhookDiagnostic = (() => {
-    if (waAkgProvider) return {
+  const webhookDiagnostic = waAkgProvider
+    ? {
       state: waAkgProvider.enabled ? 'homologated' as WebhookDiagnosticState
         : waAkgProvider.connected ? 'waiting_callback' as WebhookDiagnosticState : 'not_configured' as WebhookDiagnosticState,
       registeredAt: waAkgProvider.last_tested_at,
       lastEventAt: waAkgProvider.last_success_at,
       detail: waAkgProvider.status_detail,
       testLead: null,
-    };
-    return {
+    }
+    : {
       state: 'not_configured' as WebhookDiagnosticState,
       registeredAt: null,
       lastEventAt: null,
       detail: 'Conecte o dispositivo pelo WA-AKG para habilitar a entrada de mensagens e a operação da Ana.',
       testLead: null,
     };
-    if (registrationInvalidated) return {
-      state: 'credentials_changed' as WebhookDiagnosticState,
-      registeredAt,
-      lastEventAt: null,
-      detail: 'As credenciais da instância Z-API foram alteradas depois do último cadastro de entrada. Recadastre os callbacks antes de esperar novas respostas.',
-      testLead: testLeadSummary,
-    };
-    if (webhookRegistered && isOnline(whatsappWebhook)) return {
-      state: 'homologated' as WebhookDiagnosticState,
-      registeredAt,
-      lastEventAt: latestWebhookEvent?.created_at ?? whatsappWebhook?.last_success_at ?? null,
-      detail: whatsappWebhook?.status_detail || 'Uma resposta recebida foi vinculada a um lead e processada pela Ana.',
-      testLead: null,
-    };
-    if (!webhookRegistered) return {
-      state: 'not_configured' as WebhookDiagnosticState,
-      registeredAt: null,
-      lastEventAt: null,
-      detail: 'A saída da Z-API pode estar validada; cadastre os callbacks de entrada, entrega e status de mensagem antes de homologar respostas para a Ana.',
-      testLead: null,
-    };
-    if (!latestWebhookEvent) return {
-      state: 'waiting_callback' as WebhookDiagnosticState,
-      registeredAt,
-      lastEventAt: null,
-      detail: 'A Z-API aceitou o cadastro, mas ainda não entregou nenhum callback ao WayFlex desde esse momento. Não há falha da Ana nem do cadastro do lead a corrigir no sistema.',
-      testLead: testLeadSummary,
-    };
-    if (latestWebhookEvent?.error === 'lead_not_matched') return {
-      state: 'lead_not_matched' as WebhookDiagnosticState,
-      registeredAt,
-      lastEventAt: latestWebhookEvent?.created_at ?? null,
-      detail: 'A Z-API entregou uma mensagem, mas ela não corresponde a nenhum WhatsApp cadastrado em Leads. Use o mesmo número do lead antes de repetir o teste.',
-      testLead: testLeadSummary,
-    };
-    if (latestWebhookEvent?.status === 'ignored') return {
-      state: 'unsupported_callback' as WebhookDiagnosticState,
-      registeredAt,
-      lastEventAt: latestWebhookEvent?.created_at ?? null,
-      detail: latestWebhookEvent?.error === 'non_direct_conversation'
-        ? 'A Z-API recebeu o teste, mas ele veio de um grupo, lista ou canal. Para homologar, envie uma mensagem em conversa individual do número cadastrado no lead.'
-        : latestWebhookEvent?.error === 'outgoing_or_unknown_direction'
-          ? 'A Z-API recebeu um evento de saída. Para homologar, o lead precisa enviar uma mensagem ao número conectado, e não o contrário.'
-          : 'A Z-API entregou um callback que não é uma mensagem direta de texto de um lead. Envie uma mensagem comum, individual e recebida de um lead cadastrado.',
-      testLead: testLeadSummary,
-    };
-    return {
-      state: 'processing_failed' as WebhookDiagnosticState,
-      registeredAt,
-      lastEventAt: latestWebhookEvent?.created_at ?? null,
-      detail: 'A mensagem chegou ao WayFlex, mas o processamento não foi concluído. Consulte o Registro do Sistema antes de repetir o teste.',
-      testLead: testLeadSummary,
-    };
-  })();
   const killSwitch = asBoolean(runtime.killSwitchGlobal, true);
   const checks = [
     { id: 'empresa', label: 'Empresa ativa', ok: company?.active === true, detail: company?.active === true ? 'Empresa habilitada.' : 'Empresa desativada no backend.' },
@@ -368,11 +244,9 @@ async function operationalStatus(admin: ReturnType<typeof createAdminClient>, or
     },
     {
       id: 'whatsapp_webhook',
-      label: activeProvider?.key === 'whatsapp_meta' ? 'Respostas da Meta homologadas' : 'Respostas do WhatsApp homologadas',
-      ok: activeProvider?.key === 'whatsapp_meta' ? false : activeProvider?.key.startsWith('whatsapp_wa_akg:') ? isOnline(activeProvider) : isOnline(whatsappWebhook),
-      detail: activeProvider?.key === 'whatsapp_meta'
-        ? 'A Meta está ativa, mas a entrada ainda precisa ser homologada com um callback real antes de liberar a Ana automaticamente.'
-        : webhookDiagnostic.detail,
+      label: 'Respostas do WhatsApp homologadas',
+      ok: activeProvider?.key.startsWith('whatsapp_wa_akg:') ? isOnline(activeProvider) : false,
+      detail: webhookDiagnostic.detail,
     },
     {
       id: 'scheduler',
@@ -395,7 +269,7 @@ async function operationalStatus(admin: ReturnType<typeof createAdminClient>, or
     productionReady: checks.every((check) => check.ok),
     checks,
     webhookDiagnostic,
-    integrations: [...integrations.filter((item) => item.key !== 'zapi_webhook' && item.key !== 'whatsapp_zapi' && !['zapi', 'z-api', 'evolution', 'evolution_go'].includes(String(item.provider ?? '').toLowerCase())), ...(waAkgProvider && !integrations.some((item) => item.key === waAkgProvider.key) ? [waAkgProvider] : []), metaProvider].map((item) => ({
+    integrations: [...integrations.filter((item) => item.key !== 'zapi_webhook' && item.key !== 'whatsapp_zapi' && !['zapi', 'z-api', 'evolution', 'evolution_go'].includes(String(item.provider ?? '').toLowerCase())), ...(waAkgProvider && !integrations.some((item) => item.key === waAkgProvider.key) ? [waAkgProvider] : []), ...(metaProvider ? [metaProvider] : [])].map((item) => ({
       key: item.key, label: item.label, category: item.category, provider: item.provider, connected: item.connected === true,
       enabled: item.enabled === true, paused: item.paused === true, lastTestedAt: item.last_tested_at,
       lastSuccessAt: item.last_success_at, lastError: item.last_error, detail: item.status_detail,
@@ -429,98 +303,6 @@ async function operationalStatus(admin: ReturnType<typeof createAdminClient>, or
       openRiskEvents: activeWhatsappPolicies.length,
     },
   };
-}
-
-async function configureWhatsAppWebhook(
-  admin: ReturnType<typeof createAdminClient>,
-  organizationId: string,
-  actor: { id: string; name: string | null },
-) {
-  const { data: whatsapp, error: whatsappError } = await admin.from('integrations')
-    .select('id').eq('organization_id', organizationId).eq('key', 'whatsapp').maybeSingle();
-  if (whatsappError || !whatsapp) throw new Error('whatsapp_credentials_missing');
-  const { data: credentials, error: credentialsError } = await admin.rpc('read_integration_secret', { p_integration: whatsapp.id });
-  const zapi = credentials as { instancia_id?: unknown; token?: unknown; client_token?: unknown; url_base?: unknown; webhook_token?: unknown } | null;
-  const instanceId = typeof zapi?.instancia_id === 'string' ? zapi.instancia_id.trim() : '';
-  const token = typeof zapi?.token === 'string' ? zapi.token.trim() : '';
-  const clientToken = typeof zapi?.client_token === 'string' ? zapi.client_token.trim() : '';
-  const webhookToken = typeof zapi?.webhook_token === 'string' ? zapi.webhook_token.trim() : '';
-  if (credentialsError || !instanceId || !token || !clientToken || !webhookToken) throw new Error('whatsapp_webhook_credentials_missing');
-
-  const webhook = await upsertOperationalIntegration(admin, organizationId, {
-    key: 'zapi_webhook',
-    label: 'Webhooks do WhatsApp',
-    provider: 'Z-API',
-    category: 'communication',
-    detail: 'Recebe respostas, confirmações de entrega e status de mensagens do WhatsApp.',
-  });
-  const now = new Date().toISOString();
-  const callbackUrl = `${Deno.env.get('SUPABASE_URL')}/functions/v1/webhook-whatsapp?integration_id=${encodeURIComponent(whatsapp.id)}&token=${encodeURIComponent(webhookToken)}`;
-  const registered: string[] = [];
-  try {
-    for (const endpoint of ZAPI_WEBHOOK_ENDPOINTS) {
-      const response = await fetch(`${zapiBaseUrl(typeof zapi?.url_base === 'string' ? zapi.url_base : undefined)}/instances/${encodeURIComponent(instanceId)}/token/${encodeURIComponent(token)}/${endpoint}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'Client-Token': clientToken },
-        body: JSON.stringify({ value: callbackUrl }),
-        signal: AbortSignal.timeout(20_000),
-        redirect: 'error',
-      });
-      const providerBody = await response.json().catch(() => null) as Record<string, unknown> | null;
-      if (!response.ok || providerBody?.value === false) throw new Error(`zapi_webhook_setup_${endpoint}_${response.status}`);
-      registered.push(endpoint);
-    }
-  } catch (error) {
-    const { error: partialStateError } = await admin.from('integrations').update({
-      connected: false,
-      enabled: true,
-      paused: false,
-      last_error: safeError(error).slice(0, 160),
-      last_error_at: now,
-      status_detail: 'Cadastro dos callbacks Z-API não foi concluído; nenhuma resposta da Ana foi homologada.',
-      configuration: {
-        ...asObject(webhook.configuration),
-        registration_attempted_at: now,
-        registration_endpoints: registered,
-        registration_complete: false,
-      },
-      updated_at: now,
-    }).eq('id', webhook.id).eq('organization_id', organizationId);
-    if (partialStateError) throw new Error('whatsapp_webhook_partial_state_save_failed');
-    throw error;
-  }
-  const configuration: Record<string, unknown> = {
-    ...asObject(webhook.configuration),
-    registered_at: now,
-    registration_endpoints: ZAPI_WEBHOOK_ENDPOINTS,
-    registration_complete: true,
-  };
-  delete configuration.registration_invalidated_at;
-  delete configuration.registration_invalidation_reason;
-  const { error: updateError } = await admin.from('integrations').update({
-    connected: false,
-    enabled: true,
-    paused: false,
-    last_tested_at: null,
-    last_success_at: null,
-    last_error: null,
-    status_detail: 'Callbacks Z-API cadastrados; aguardando uma mensagem direta de teste de um lead cadastrado.',
-    configuration,
-    updated_at: now,
-  }).eq('id', webhook.id).eq('organization_id', organizationId);
-  if (updateError) throw new Error('whatsapp_webhook_status_save_failed');
-  await admin.from('audit_logs').insert({
-    organization_id: organizationId,
-    actor_id: actor.id,
-    actor_name: actor.name,
-    actor_type: 'user',
-    action: 'integration.whatsapp_webhooks_registered',
-    detail: 'Callbacks de entrada, entrega e status registrados na Z-API; aguardando callback controlado.',
-    entity_table: 'integrations',
-    entity_id: webhook.id,
-    event_data: { provider: 'Z-API', endpoints: ZAPI_WEBHOOK_ENDPOINTS },
-  });
-  return 'Os callbacks de entrada, entrega e status foram cadastrados na Z-API. Agora envie uma mensagem direta de um número que já exista como lead para concluir a homologação.';
 }
 
 async function activateScheduler(
@@ -589,11 +371,6 @@ async function activateRealEnvironment(
       await activateScheduler(admin, organizationId, actor);
       actions.push('Worker 24/7 preparado automaticamente.');
     }
-  }
-
-  if (!check('whatsapp_webhook')?.ok && status.webhookDiagnostic.state === 'not_configured' && check('whatsapp')?.ok) {
-    await configureWhatsAppWebhook(admin, organizationId, actor);
-    actions.push('Entrada de respostas do WhatsApp cadastrada automaticamente.');
   }
 
   status = await operationalStatus(admin, organizationId);

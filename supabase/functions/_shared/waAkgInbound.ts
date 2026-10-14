@@ -2,7 +2,7 @@ import { phoneFromPersonalJid, inboundMedia, type InboundMedia } from './messagi
 type Row = Record<string, unknown>;
 
 export type WaAkgInboundEvent =
-  | { kind: 'inbound'; externalId: string; messageId: string; phone: string; senderJid: string; text: string; occurredAt: string; messageType: string; media?: InboundMedia }
+  | { kind: 'inbound'; externalId: string; messageId: string; phone: string; senderJid: string; senderName: string; text: string; occurredAt: string; messageType: string; media?: InboundMedia }
   | { kind: 'outbound'; externalId: string; messageId: string; remoteJid: string; text: string; occurredAt: string; messageType: string }
   | { kind: 'receipt'; externalId: string; providerMessageIds: string[]; status: 'sent' | 'delivered' | 'read' | 'failed'; occurredAt: string }
   | { kind: 'connection'; externalId: string; state: 'connected' | 'disconnected' | 'qr'; occurredAt: string }
@@ -14,6 +14,13 @@ const object = (value: unknown): Row => value && typeof value === 'object' && !A
 const text = (value: unknown, max = 4_096): string => typeof value === 'string'
   ? value.trim().slice(0, max)
   : '';
+const firstText = (values: unknown[], max = 4_096): string => {
+  for (const value of values) {
+    const candidate = text(value, max);
+    if (candidate) return candidate;
+  }
+  return '';
+};
 
 function instant(value: unknown): string {
   const raw = text(value, 80);
@@ -101,13 +108,31 @@ export function parseWaAkgEvent(input: unknown): WaAkgInboundEvent {
   if (key.fromMe === true || data.fromMe === true) {
     return { kind: 'ignored', reason: 'outbound_echo', externalId, occurredAt };
   }
-  const jid = text(key.remoteJid ?? data.from ?? data.remoteJid, 200);
-  if (!jid || /@g\.us$|@broadcast$|status@broadcast$|@newsletter$/.test(jid)) {
+  const primaryJid = firstText([key.remoteJid, data.from, data.remoteJid], 200);
+  // WA-AKG documents remoteJidAlt/remote_jid_alt as a personal-JID alternative
+  // for entries whose primary remote JID is an opaque @lid. Never trust an
+  // arbitrary phone field as an identity mapping.
+  const alternateJid = firstText([
+    key.remoteJidAlt, key.remote_jid_alt, data.remoteJidAlt, data.remote_jid_alt,
+  ], 200);
+  if ((!primaryJid && !alternateJid)
+    || /@g\.us$|@broadcast$|status@broadcast$|@newsletter$/.test(primaryJid)
+    || /@g\.us$|@broadcast$|status@broadcast$|@newsletter$/.test(alternateJid)) {
     return { kind: 'ignored', reason: 'non_personal_chat', externalId, occurredAt };
   }
+  const jid = phoneFromPersonalJid(primaryJid)
+    ? primaryJid
+    : phoneFromPersonalJid(alternateJid)
+      ? alternateJid
+      : primaryJid || alternateJid;
   const phone = phoneFromPersonalJid(jid) ?? '';
   // Preserve unresolved personal identities for human review. Do not derive a
   // phone from @lid or accept an unverified mapping supplied in arbitrary fields.
+  const senderName = firstText([
+    data.pushName, data.push_name, data.senderName, data.sender_name,
+    data.whatsappName, data.whatsapp_name, data.verifiedName, data.verified_name,
+    data.notify, data.name,
+  ], 160);
   const content = object(data.content ?? data.message);
   const messageType = text(data.type ?? payload.messageType, 40).toLowerCase() || 'text';
   const media = inboundMedia(messageType, data.fileUrl ?? content.fileUrl ?? content.url,
@@ -122,18 +147,21 @@ export function parseWaAkgEvent(input: unknown): WaAkgInboundEvent {
   }
   const messageId = text(key.id ?? data.id, 300);
   if (!messageId) return { kind: 'ignored', reason: 'message_id_missing', externalId, occurredAt };
-  return { kind: 'inbound', externalId, messageId, phone, senderJid: jid,
+  return { kind: 'inbound', externalId, messageId, phone, senderJid: jid, senderName,
     text: body || `[${media?.kind} recebido; revisão humana necessária.]`, occurredAt, messageType, media };
 }
 
 /** Only the normalized fields required by the worker are persisted. */
 export function sanitizeWaAkgPayload(input: unknown): Row {
   const parsed = parseWaAkgEvent(input);
-  return parsed.kind === 'inbound'
-    ? { kind: parsed.kind, external_id: parsed.externalId, message_id: parsed.messageId, phone: parsed.phone,
+  if (parsed.kind === 'inbound') {
+    const sanitized: Row = { kind: parsed.kind, external_id: parsed.externalId, message_id: parsed.messageId, phone: parsed.phone,
       remote_jid: parsed.senderJid, identity_requires_review: !parsed.phone, media: parsed.media,
-      text: parsed.text, occurred_at: parsed.occurredAt, message_type: parsed.messageType }
-    : parsed.kind === 'outbound'
+      text: parsed.text, occurred_at: parsed.occurredAt, message_type: parsed.messageType };
+    if (parsed.senderName) sanitized.sender_name = parsed.senderName;
+    return sanitized;
+  }
+  return parsed.kind === 'outbound'
       ? { kind: parsed.kind, external_id: parsed.externalId, message_id: parsed.messageId,
         remote_jid: parsed.remoteJid, text: parsed.text, occurred_at: parsed.occurredAt, message_type: parsed.messageType }
       : parsed.kind === 'receipt'

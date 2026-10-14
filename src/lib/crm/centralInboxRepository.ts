@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import { isPlaceholderContactName } from '@/lib/crm/contactIdentity';
 
 type UnknownRecord = Record<string, unknown>;
 
@@ -174,8 +175,11 @@ const asBool = (value: unknown): boolean => value === true;
  * identity data, not a guessed name. */
 function contactLabel(row: UnknownRecord, prefix = ''): string {
   const name = asString(row[`${prefix}contact`]);
-  if (name && name !== 'Contato não identificado' && name !== 'Contato não informado') return name;
-  return asString(row[`${prefix}phone`]) ?? asString(row[`${prefix}whatsapp`]) ?? name ?? 'Contato não informado';
+  if (!isPlaceholderContactName(name)) return name!;
+  // An unresolved external sender is still a real person, not an anonymous
+  // placeholder. Prefer the factual channel identity and otherwise make its
+  // new-contact state explicit.
+  return asString(row[`${prefix}phone`]) ?? asString(row[`${prefix}whatsapp`]) ?? 'Novo contato';
 }
 
 function channel(value: unknown): CentralChannel {

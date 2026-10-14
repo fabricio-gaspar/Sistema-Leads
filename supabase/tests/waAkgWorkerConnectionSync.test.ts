@@ -17,6 +17,7 @@ let hasPermission: ReturnType<typeof vi.fn>;
 let runLifecycle: ReturnType<typeof vi.fn>;
 let deniedPermission: string | null;
 let candidateOwnerId: string | null;
+let captureOnly: boolean;
 
 function ok(data: unknown): Result { return { data, error: null }; }
 
@@ -31,10 +32,14 @@ function queryFor(table: string) {
   }
   chain.select = () => chain;
   chain.update = (value: Row) => { query.operation = 'update'; query.value = value; return chain; };
+  chain.upsert = (value: Row) => { query.operation = 'upsert'; query.value = value; return chain; };
   chain.maybeSingle = () => chain;
   chain.then = (resolve: (result: Result) => unknown) => {
     calls.push({ ...query, filters: { ...query.filters } });
     if (table === 'wa_akg_webhook_events' || table === 'wa_akg_seller_provisioning_jobs') return Promise.resolve(ok([])).then(resolve);
+    if (table === 'messaging_provider_controls' && query.operation === 'select') {
+      return Promise.resolve(ok({ capture_only: captureOnly })).then(resolve);
+    }
     if (table === 'whatsapp_accounts' && query.operation === 'select' && query.filters.account_type === 'seller') {
       return Promise.resolve(ok([{
         id: accountId, integration_id: accountIntegrationId, organization_id: org,
@@ -54,6 +59,7 @@ beforeEach(() => {
   calls = [];
   deniedPermission = null;
   candidateOwnerId = ownerUserId;
+  captureOnly = false;
   hasPermission = vi.fn(async (_admin, _organizationId, _userId, permission) => permission !== deniedPermission);
   runLifecycle = vi.fn(async () => ({ lifecycle: { state: 'completed' }, payload: {}, status: 200 }));
   vi.stubGlobal('Deno', {
@@ -90,6 +96,23 @@ beforeEach(() => {
 });
 
 describe('WA-AKG worker connection synchronization', () => {
+  it('leaves events queued and avoids provider reconciliation during capture-only maintenance', async () => {
+    captureOnly = true;
+    await import('../functions/wa-akg-worker/index.ts');
+
+    const response = await handler(new Request('https://example.test/wa-akg-worker', {
+      method: 'POST', headers: { Authorization: 'Bearer synthetic-service-role' },
+      body: JSON.stringify({ organization_id: org }),
+    }));
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({ ok: true, capture_only: true });
+    expect(calls.some((call) => call.table === 'messaging_provider_controls')).toBe(true);
+    expect(calls.some((call) => call.table === 'wa_akg_webhook_events')).toBe(false);
+    expect(calls.some((call) => call.table === 'whatsapp_accounts')).toBe(false);
+    expect(runLifecycle).not.toHaveBeenCalled();
+  });
+
   it('activates a confirmed session only through the owner permission lifecycle', async () => {
     await import('../functions/wa-akg-worker/index.ts');
 
@@ -113,7 +136,7 @@ describe('WA-AKG worker connection synchronization', () => {
       'activate',
       expect.any(Function),
     );
-    expect(calls.some((call) => call.table === 'messaging_provider_controls')).toBe(false);
+    expect(calls.some((call) => call.table === 'messaging_provider_controls' && call.operation === 'update')).toBe(false);
   });
 
   it('keeps a confirmed session blocked when the owner lacks an own-channel permission', async () => {
@@ -131,7 +154,7 @@ describe('WA-AKG worker connection synchronization', () => {
     expect(accountUpdate?.value).toMatchObject({ connection_status: 'connected', enabled: false });
     const integrationUpdate = calls.find((call) => call.table === 'integrations' && call.operation === 'update');
     expect(integrationUpdate?.value).toMatchObject({ connected: true, enabled: false, paused: true });
-    expect(calls.some((call) => call.table === 'messaging_provider_controls')).toBe(false);
+    expect(calls.some((call) => call.table === 'messaging_provider_controls' && call.operation === 'update')).toBe(false);
   });
 
   it('keeps a confirmed session blocked when its owner is absent', async () => {
@@ -146,5 +169,35 @@ describe('WA-AKG worker connection synchronization', () => {
     expect(response.status).toBe(200);
     expect(hasPermission).not.toHaveBeenCalled();
     expect(runLifecycle).not.toHaveBeenCalled();
+  });
+
+  it('does not erase an observed contact name when a later inbound payload has no sender name', async () => {
+    const worker = await import('../functions/wa-akg-worker/index.ts');
+
+    await worker.upsertObservedContact({ from: queryFor } as never, {
+      organization_id: org, whatsapp_account_id: accountId,
+    }, {
+      phone: '5511999999999', remote_jid: '5511999999999@s.whatsapp.net',
+    });
+
+    const write = calls.find((call) => call.table === 'whatsapp_contact_directory' && call.operation === 'upsert');
+    expect(write?.value).toMatchObject({
+      organization_id: org, whatsapp_account_id: accountId,
+      phone: '5511999999999', remote_jid: '5511999999999@s.whatsapp.net',
+    });
+    expect(write?.value).not.toHaveProperty('whatsapp_name');
+  });
+
+  it('writes the sanitized sender name to the observed contact directory', async () => {
+    const worker = await import('../functions/wa-akg-worker/index.ts');
+
+    await worker.upsertObservedContact({ from: queryFor } as never, {
+      organization_id: org, whatsapp_account_id: accountId,
+    }, {
+      phone: '5511999999999', remote_jid: '5511999999999@s.whatsapp.net', sender_name: ' Fernanda Cliente ',
+    });
+
+    const write = calls.find((call) => call.table === 'whatsapp_contact_directory' && call.operation === 'upsert');
+    expect(write?.value).toMatchObject({ whatsapp_name: 'Fernanda Cliente' });
   });
 });

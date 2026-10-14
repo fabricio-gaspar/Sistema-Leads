@@ -41,6 +41,49 @@ describe('central inbox mapper', () => {
     expect(page.items[0].contact).toBe('+5511999999999');
   });
 
+  it('uses the factual phone for a legacy placeholder regardless of casing or surrounding whitespace', () => {
+    const page = mapCentralInboxPage({
+      total: 1, has_more: false,
+      items: [{
+        lead_id: '55555555-5555-4555-8555-555555555555',
+        contact: '  CONTATO NÃO IDENTIFICADO  ',
+        phone: '+5511977777777',
+      }],
+    });
+
+    expect(page.items[0].contact).toBe('+5511977777777');
+  });
+
+  it('uses the factual phone for the plural placeholder reported by the operator', () => {
+    const page = mapCentralInboxPage({
+      total: 1, has_more: false,
+      items: [{
+        lead_id: '66666666-6666-4666-8666-666666666666',
+        contact: 'Contatos não identificados',
+        whatsapp: '+5511966666666',
+      }],
+    });
+
+    expect(page.items[0].contact).toBe('+5511966666666');
+  });
+
+  it('does not leak placeholder variants when a factual WhatsApp identity exists', () => {
+    const page = mapCentralInboxPage({
+      total: 1, has_more: false,
+      items: [{ lead_id: '33333333-3333-4333-8333-333333333334', contact: 'Contato nao informado', phone: null, whatsapp: '+5511888888888' }],
+    });
+    expect(page.items[0].contact).toBe('+5511888888888');
+  });
+
+  it('labels an unresolved sender as a new contact instead of repeating an anonymous placeholder', () => {
+    const page = mapCentralInboxPage({
+      total: 1, has_more: false,
+      items: [{ lead_id: '77777777-7777-4777-8777-777777777777', contact: 'Contatos não identificados' }],
+    });
+
+    expect(page.items[0].contact).toBe('Novo contato');
+  });
+
   it('keeps a resolved agenda name ahead of phone identity', () => {
     const detail = mapCentralConversationDetail({
       conversation: { lead_id: '44444444-4444-4444-8444-444444444444', contact: 'Vanessa', phone: '+5511888888888', channel: 'whatsapp' },

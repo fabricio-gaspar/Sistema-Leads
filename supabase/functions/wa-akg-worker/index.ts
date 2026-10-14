@@ -12,6 +12,14 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 const object = (value: unknown): Row => value && typeof value === 'object' && !Array.isArray(value) ? value as Row : {};
 const text = (value: unknown, max = 4_096): string => typeof value === 'string' ? value.trim().slice(0, max) : '';
 
+async function captureOnlyForOrganization(admin: Admin, organizationId: string): Promise<boolean> {
+  if (!UUID.test(organizationId)) return false;
+  const { data, error } = await admin.from('messaging_provider_controls')
+    .select('capture_only').eq('organization_id', organizationId).eq('provider', 'wa_akg').maybeSingle();
+  if (error) throw new Error('wa_akg_capture_control_read_failed');
+  return object(data).capture_only === true;
+}
+
 function secureEqual(left: string | null, right: string | undefined): boolean {
   if (!left || !right || left.length !== right.length) return false;
   let difference = 0;
@@ -105,12 +113,19 @@ async function processReceipt(admin: Admin, event: Row, payload: Row) {
   // Authenticate ownership, not permission to send. A paused transport still
   // owns historical receipts; this path never dispatches inbound/AI/outbound.
   const { account } = await accountIntegration(admin, event);
-  const ids = Array.isArray(payload.provider_message_ids)
-    ? [...new Set(payload.provider_message_ids.filter((value): value is string => typeof value === 'string' && value.length > 0 && value.length <= 300))].slice(0, 100)
-    : [];
+  const rawIds = Array.isArray(payload.provider_message_ids) ? payload.provider_message_ids : [];
+  // Receipt IDs are an all-or-nothing identity set.  Never trim, deduplicate,
+  // or silently discard part of a provider callback: doing so could mark a
+  // partial receipt processed and leave an unobserved delivery state behind.
+  const ids = rawIds.map((value) => typeof value === 'string' ? value.trim() : '').filter(Boolean);
+  const idsAreExact = rawIds.length > 0
+    && rawIds.length <= 100
+    && ids.length === rawIds.length
+    && ids.every((value) => value.length <= 300)
+    && new Set(ids).size === ids.length;
   const status = text(payload.status, 30);
-  if (!ids.length || !['sent', 'delivered', 'read', 'failed'].includes(status)) {
-    await markEvent(admin, event, 'ignored', { error_code: 'receipt_payload_invalid' });
+  if (!idsAreExact || !['sent', 'delivered', 'read', 'failed'].includes(status)) {
+    await markEvent(admin, event, 'needs_review', { error_code: 'receipt_payload_invalid' });
     return;
   }
   const { data, error } = await admin.rpc('reconcile_whatsapp_receipt_for_account', {
@@ -131,16 +146,22 @@ async function processReceipt(admin: Admin, event: Row, payload: Row) {
 
 async function processInbound(admin: Admin, event: Row) {
   const payload = object(event.sanitized_payload);
-  await upsertObservedContact(admin, event, payload);
   const result = await processInboundWork(admin, 'wa_akg', event);
   const leadId = text(result.lead_id, 80);
-  if (leadId) await admin.rpc('apply_whatsapp_directory_name', { p_organization_id: event.organization_id, p_account_id: event.whatsapp_account_id, p_lead_id: leadId });
+  // The durable inbound procedure is the first effect boundary.  Recheck
+  // maintenance after it returns, so a callback claimed just before a capture
+  // transition cannot still write directory data or change lead display data.
+  if (leadId && !await captureOnlyForOrganization(admin, String(event.organization_id))) {
+    await upsertObservedContact(admin, event, payload);
+    await admin.rpc('apply_whatsapp_directory_name', { p_organization_id: event.organization_id, p_account_id: event.whatsapp_account_id, p_lead_id: leadId });
+  }
   return result;
 }
 
-async function upsertObservedContact(admin: Admin, event: Row, payload: Row) {
+export async function upsertObservedContact(admin: Admin, event: Row, payload: Row) {
   const phone = text(payload.phone, 20), remoteJid = text(payload.remote_jid, 200);
-  const name = text(payload.whatsapp_name, 160)
+  const name = text(payload.sender_name, 160)
+    || text(payload.whatsapp_name, 160)
     || text(payload.whatsappName, 160)
     || text(payload.push_name, 160)
     || text(payload.pushName, 160)
@@ -149,9 +170,13 @@ async function upsertObservedContact(admin: Admin, event: Row, payload: Row) {
     || text(payload.notify, 160)
     || text(payload.name, 160);
   if (!/^[1-9][0-9]{7,14}$/.test(phone) || !/^[1-9][0-9]{7,14}(:[0-9]{1,5})?@(s\.whatsapp\.net|c\.us)$/.test(remoteJid)) return;
-  const { error } = await admin.from('whatsapp_contact_directory').upsert({ organization_id: event.organization_id,
-    whatsapp_account_id: event.whatsapp_account_id, remote_jid: remoteJid, phone, whatsapp_name: name || null,
-    last_synced_at: new Date().toISOString() }, { onConflict: 'organization_id,whatsapp_account_id,remote_jid' });
+  const observedContact: Row = { organization_id: event.organization_id, whatsapp_account_id: event.whatsapp_account_id,
+    remote_jid: remoteJid, phone, last_synced_at: new Date().toISOString() };
+  // Omit the column on an unnamed inbound event so merge-upsert retains a
+  // previously observed WhatsApp name instead of overwriting it with null.
+  if (name) observedContact.whatsapp_name = name;
+  const { error } = await admin.from('whatsapp_contact_directory').upsert(observedContact,
+    { onConflict: 'organization_id,whatsapp_account_id,remote_jid' });
   if (error) throw new Error('wa_akg_contact_directory_save_failed');
 }
 
@@ -168,9 +193,17 @@ async function processOutbound(admin: Admin, event: Row, payload: Row) {
 }
 
 async function processEvent(admin: Admin, event: Row): Promise<Row> {
+  if (await captureOnlyForOrganization(admin, text(event.organization_id, 80))) return { captured: true };
   const claimed = await claimInboundWork(admin, 'wa_akg', event);
   if (!claimed) return { skipped: true };
   try {
+    // The database claim participates in the capture lock, but the worker
+    // must also stop before its first domain effect when maintenance begins
+    // immediately after that claim.
+    if (await captureOnlyForOrganization(admin, text(claimed.organization_id, 80))) {
+      await markEvent(admin, claimed, 'needs_review', { error_code: 'wa_akg_capture_only' });
+      return { captured: true };
+    }
     const payload = object(claimed.sanitized_payload);
     if (claimed.event_kind === 'inbound') return await processInbound(admin, claimed);
     else if (claimed.event_kind === 'outbound') await processOutbound(admin, claimed, payload);
@@ -232,6 +265,7 @@ async function reconcileConnectedSessions(admin: Admin, organizationId?: string)
     const accountId = text(candidate.id, 80);
     const integrationId = text(candidate.integration_id, 80);
     if (!UUID.test(organization) || !UUID.test(accountId) || !UUID.test(integrationId)) continue;
+    if (await captureOnlyForOrganization(admin, organization)) continue;
     try {
       const [gateway, secretRead] = await Promise.all([
         globalCredentials(admin, organization),
@@ -331,6 +365,9 @@ Deno.serve(async (request) => {
     const jobId = text(body.provisioning_job_id, 80);
     const organizationId = text(body.organization_id, 80);
     const admin = createAdminClient();
+    if (UUID.test(organizationId) && await captureOnlyForOrganization(admin, organizationId)) {
+      return json({ ok: true, capture_only: true, processed: 0, failed: 0, provisioned: 0, provisioning_failed: 0, reconciled: 0 });
+    }
     const now = new Date().toISOString();
     const events: Row[] = [];
     const jobs: Row[] = [];
@@ -350,12 +387,16 @@ Deno.serve(async (request) => {
       if (UUID.test(organizationId)) query = query.eq('organization_id', organizationId);
       const { data, error } = await query;
       if (error) throw new Error('wa_akg_provisioning_queue_read_failed');
-      for (const job of data ?? []) jobs.push(await processProvisioning(admin, job as Row));
+      for (const job of data ?? []) {
+        if (await captureOnlyForOrganization(admin, text((job as Row).organization_id, 80))) jobs.push({ captured: true });
+        else jobs.push(await processProvisioning(admin, job as Row));
+      }
     }
     const reconciled = await reconcileConnectedSessions(admin, UUID.test(organizationId) ? organizationId : undefined);
     return json({
       ok: true, processed: events.filter((item) => item.processed).length,
       failed: events.filter((item) => item.failed).length,
+      captured: events.filter((item) => item.captured).length + jobs.filter((item) => item.captured).length,
       provisioned: jobs.filter((item) => item.provisioned).length,
       provisioning_failed: jobs.filter((item) => item.failed).length,
       reconciled,

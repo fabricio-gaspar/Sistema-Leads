@@ -57,9 +57,11 @@ function execute(query: Query): Result {
   if (overridden) return overridden;
   if (query.operation === 'rpc') {
     if (query.table === 'resolve_whatsapp_lead_for_account') return ok([{ lead_id: leadId, reason: 'account_identity' }]);
-    if (query.table === 'resolve_lead_whatsapp_account') return ok([{ account_id: whatsappAccountId, integration_id: integrationId, owner_user_id: null, is_default: true, connection_status: 'connected' }]);
+    if (query.table === 'resolve_lead_whatsapp_account' || query.table === 'resolve_lead_automatic_whatsapp_account') return ok([{ account_id: whatsappAccountId, integration_id: integrationId, owner_user_id: null, is_default: true, connection_status: 'connected' }]);
     if (query.table === 'reserve_whatsapp_send_slot') return ok([{ allowed: true, reason: 'wa_akg_slot_reserved', not_before: new Date().toISOString() }]);
     if (query.table === 'complete_whatsapp_send_slot') return ok({ ok: true });
+    if (query.table === 'begin_wa_akg_send_dispatch') return ok([{ allowed: true, dispatch_token: 'a3333333-3333-4333-8333-333333333333' }]);
+    if (query.table === 'complete_wa_akg_send_dispatch') return ok(true);
     if (query.table === 'reserve_ana_outbound_policy') return ok([{ allowed: true, reason: 'ana_policy_reserved', used_count: 1 }]);
     if (query.table === 'record_outreach_provider_acceptance') {
       acceptedLeadState = {
@@ -998,6 +1000,21 @@ describe('Ana handler safety — mocked persistence, no real providers', () => {
     });
     expectNoBusinessWrites();
   });
+  it('does not resolve or bind a WhatsApp route while WA-AKG automation is disabled', async () => {
+    override = (q) => q.table === 'messaging_provider_controls' && q.operation === 'select'
+      ? ok({ provider: 'wa_akg', send_enabled: true, automation_enabled: false, kill_switch: false, capture_only: false })
+      : undefined;
+    await import('../functions/ana-run/index');
+    const response = await handler(anaRequest());
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      ok: true,
+      skipped: true,
+      reason: 'wa_akg_automation_not_ready',
+    });
+    expect(calls.some((q) => q.table === 'resolve_lead_whatsapp_account' && q.operation === 'rpc')).toBe(false);
+    expectNoBusinessWrites();
+  });
   it('moves an authorized new WhatsApp lead to Apresentado and queues the canonical presentation without invoking a model', async () => {
     override = (q) => q.table === 'lead_messages' && q.operation === 'select' ? ok([]) : undefined;
     await import('../functions/ana-run/index');
@@ -1269,8 +1286,10 @@ describe('Worker safety handler', () => {
       if (custom) return custom;
       if (q.table === 'outreach_jobs' && q.operation === 'select') return q.filters.status === 'queued' ? ok([job]) : { ...ok(null), count: 0 };
       if (q.table === 'messaging_provider_controls' && q.operation === 'select') return ok({ provider: 'wa_akg', send_enabled: true, automation_enabled: true, kill_switch: false });
-      if (q.table === 'reserve_whatsapp_send_slot' && q.operation === 'rpc') return ok([{ allowed: true, reason: 'wa_akg_slot_reserved', not_before: new Date().toISOString() }]);
+      if ((q.table === 'reserve_whatsapp_send_slot' || q.table === 'reserve_automatic_wa_akg_send_slot') && q.operation === 'rpc') return ok([{ allowed: true, reason: 'wa_akg_slot_reserved', not_before: new Date().toISOString() }]);
       if (q.table === 'complete_whatsapp_send_slot' && q.operation === 'rpc') return ok({ ok: true });
+      if ((q.table === 'begin_wa_akg_send_dispatch' || q.table === 'begin_automatic_wa_akg_send_dispatch') && q.operation === 'rpc') return ok([{ allowed: true, dispatch_token: 'a3333333-3333-4333-8333-333333333333' }]);
+      if (q.table === 'complete_wa_akg_send_dispatch' && q.operation === 'rpc') return ok(true);
       if (q.table === 'read_integration_secret') return ok({ base_url: 'https://wa.example.test', api_key: 'synthetic-key', session_id: `wf_${org.replaceAll('-', '')}_${whatsappAccountId.replaceAll('-', '')}` });
       if (q.table === 'agent_runs' && q.operation === 'select') return ok({ id: 'synthetic-run', status: 'completed', result: { status_canal: 'enfileirado' } });
       if (q.table === 'lead_messages' && q.operation === 'select') return ok({ id: 'synthetic-draft', text: 'Mensagem sintética', type: 'draft' });
@@ -1318,6 +1337,62 @@ describe('Worker safety handler', () => {
     expect(await (await handler(workerRequest())).json()).toMatchObject({ ok: true, sent_jobs: 0 });
     expect(fetchMock).not.toHaveBeenCalled();
   });
+  it('does not claim or dispatch queued work while WA-AKG capture-only maintenance is enabled', async () => {
+    setupQueue((q) => q.table === 'messaging_provider_controls' && q.operation === 'select'
+      ? ok({ provider: 'wa_akg', send_enabled: true, automation_enabled: true, kill_switch: false, capture_only: true })
+      : undefined);
+    await import('../functions/automation-worker/index');
+
+    const response = await handler(workerRequest());
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      ok: true, skipped: true, reason: 'wa_akg_capture_only', sent_jobs: 0,
+    });
+    expect(calls.some((q) => q.table === 'outreach_jobs' && q.operation === 'update')).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+  it('does not resolve or bind a legacy automatic WhatsApp job while WA-AKG automation is disabled', async () => {
+    setupQueue((q) => q.table === 'messaging_provider_controls' && q.operation === 'select'
+      ? ok({ provider: 'wa_akg', send_enabled: true, automation_enabled: false, kill_switch: false, capture_only: false })
+      : undefined);
+    await import('../functions/automation-worker/index');
+
+    const response = await handler(workerRequest());
+
+    expect(await response.json()).toMatchObject({ ok: true, sent_jobs: 0, failed_jobs: 1 });
+    expect(calls.some((q) => q.table === 'resolve_lead_whatsapp_account' && q.operation === 'rpc')).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(calls.filter((q) => q.table === 'outreach_jobs' && q.operation === 'update').at(-1)?.value).toMatchObject({
+      status: 'failed', error: 'wa_akg_automation_not_ready',
+    });
+  });
+  it.each(['reservation', 'dispatch'])('defers a claimed job when capture starts at the WA-AKG %s fence', async (boundary) => {
+    setupQueue((q) => {
+      if (boundary === 'reservation' && (q.table === 'reserve_whatsapp_send_slot' || q.table === 'reserve_automatic_wa_akg_send_slot') && q.operation === 'rpc') {
+        return ok([{ allowed: false, reason: 'wa_akg_capture_only', not_before: new Date().toISOString() }]);
+      }
+      if (boundary === 'dispatch' && (q.table === 'begin_wa_akg_send_dispatch' || q.table === 'begin_automatic_wa_akg_send_dispatch') && q.operation === 'rpc') {
+        return ok([{ allowed: false, reason: 'wa_akg_capture_only', dispatch_token: null }]);
+      }
+      return undefined;
+    });
+    await import('../functions/automation-worker/index');
+
+    const response = await handler(workerRequest());
+
+    expect(await response.json()).toMatchObject({
+      ok: true,
+      sent_jobs: 0,
+      failed_jobs: 0,
+      job_results: [{ id: job.id, status: 'deferred', error: 'wa_akg_capture_only' }],
+    });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(calls.find((q) => q.table === 'outreach_jobs' && q.operation === 'update' && q.value?.status === 'queued')?.value).toMatchObject({
+      error: 'wa_akg_capture_only', locked_at: null, locked_by: null,
+    });
+    expect(calls.some((q) => q.table === 'complete_wa_akg_send_dispatch' && q.operation === 'rpc')).toBe(false);
+  });
   it('records provider acceptance consistently without claiming delivery/read', async () => {
     setupQueue();
     fetchMock.mockResolvedValue(new Response(JSON.stringify({ success: true, data: { key: { id: 'synthetic-receipt' } } }), { status: 200 }));
@@ -1328,6 +1403,19 @@ describe('Worker safety handler', () => {
       p_provider: 'wa_akg',
       p_provider_message_id: 'synthetic-receipt',
       p_no_reply_deadline_at: expect.any(String),
+    });
+    expect(calls.find((q) => (q.table === 'begin_wa_akg_send_dispatch' || q.table === 'begin_automatic_wa_akg_send_dispatch') && q.operation === 'rpc')?.value).toMatchObject({
+      p_organization_id: org,
+      p_whatsapp_account_id: whatsappAccountId,
+      p_idempotency_key: job.id,
+    });
+    expect(calls.find((q) => q.table === 'complete_wa_akg_send_dispatch' && q.operation === 'rpc')?.value).toMatchObject({
+      p_organization_id: org,
+      p_whatsapp_account_id: whatsappAccountId,
+      p_idempotency_key: job.id,
+      p_dispatch_token: 'a3333333-3333-4333-8333-333333333333',
+      p_provider_message_id: 'synthetic-receipt',
+      p_outcome: 'sent',
     });
     const cadenceJobs = calls.filter((q) => q.table === 'outreach_jobs' && q.operation === 'upsert');
     expect(cadenceJobs).toHaveLength(1);
@@ -1624,7 +1712,7 @@ describe('WhatsApp channel dashboard contract', () => {
         integration_id: integrationId,
         owner_user_id: null,
         label: 'WhatsApp corporativo',
-        provider: 'zapi',
+        provider: 'meta_cloud',
         account_type: 'corporate',
         is_default: true,
         enabled: true,
@@ -1635,8 +1723,8 @@ describe('WhatsApp channel dashboard contract', () => {
         webhook_registered_at: '2026-09-28T10:00:00.000Z',
         expires_at: null,
         last_error_code: null,
-        onboarding_status: 'not_started',
-        sync_status: 'not_started',
+        onboarding_status: 'connected',
+        sync_status: 'complete',
         messaging_mode: 'suggestion',
         daily_message_goal: 0,
         verified_name: null,
@@ -1656,13 +1744,13 @@ describe('WhatsApp channel dashboard contract', () => {
         last_success_at: '2026-09-28T10:00:00.000Z',
       }]);
       if (q.table === 'messaging_provider_controls' && q.operation === 'select') return ok([{
-        provider: 'zapi', inbound_enabled: true, send_enabled: true, automation_enabled: true, kill_switch: false,
+        provider: 'meta_cloud', inbound_enabled: true, send_enabled: true, automation_enabled: true, kill_switch: false,
       }]);
       if (q.table === 'audit_logs' && q.operation === 'select') return ok([{
-        id: 'audit-accepted', action: 'outreach.whatsapp_direct_test_provider_accepted',
-        detail: 'Mensagem de teste aceita pela Z-API; entrega e leitura não foram confirmadas.',
+        id: 'audit-accepted', action: 'outreach.meta_provider_accepted',
+        detail: 'Mensagem de teste aceita pela Meta; entrega e leitura não foram confirmadas.',
         actor_name: 'Synthetic user', occurred_at: '2026-09-28T10:01:00.000Z', created_at: '2026-09-28T10:01:00.000Z',
-        entity_table: 'integrations', entity_id: integrationId, event_data: {},
+        entity_table: 'messaging_outbox', entity_id: 'synthetic-meta-outbox', event_data: { whatsapp_account_id: whatsappAccountId },
       }]);
       if (q.table === 'channel_inbound_events' && q.operation === 'select') return ok([]);
       return undefined;
