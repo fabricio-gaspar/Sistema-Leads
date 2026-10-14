@@ -2,6 +2,7 @@ import { createContextStore } from '@/lib/contextStore';
 import { sessionContext, type SessionContext } from '@/lib/sessionContext';
 import { supabase } from '@/lib/supabase';
 import { fontesLeads } from '@/mocks/fontesData';
+import { prospectingSourceDisplayName } from '@/lib/crm/prospectingSourcePresentation';
 
 export type FonteLead = Omit<(typeof fontesLeads[number]), 'sourceKey'> & {
   sourceKey?: string;
@@ -34,7 +35,7 @@ async function loadFromBackend(context: SessionContext): Promise<FonteLead[]> {
       id: descriptor?.id || `source-${row.source_key}`,
       sourceKey: row.source_key,
       remoteId: row.id,
-      nome: row.label || descriptor?.nome || row.source_key,
+      nome: prospectingSourceDisplayName(row.source_key, row.label || descriptor?.nome || row.source_key),
       tipo: descriptor?.tipo || 'API',
       endpoint: descriptor?.endpoint || 'Configurado no provedor',
       mapeamento: descriptor?.mapeamento || 'Campos definidos pelo provedor',

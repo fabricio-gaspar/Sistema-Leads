@@ -43,9 +43,9 @@ const COMPONENTS: ComponentDefinition[] = [
   { id: 'wa-akg-webhook', group: 'Atendimento', label: 'Webhook WA-AKG', description: 'Recebe eventos do canal e respostas dos leads; é registrado durante o provisionamento seguro.', icon: 'ri-webhook-line', keys: ['wa_akg_webhook'], href: '/dashboard/configuracoes?tab=canais' },
   { id: 'resend-webhook', group: 'Atendimento', label: 'Webhook Resend', description: 'Recebe eventos de e-mail.', icon: 'ri-share-line', keys: ['resend_webhook'] },
   { id: 'ana', group: 'Inteligência e prospecção', label: 'Ana', description: 'Assistente de atendimento e qualificação.', icon: 'ri-robot-2-line', checkIds: ['ia', 'whatsapp', 'whatsapp_webhook', 'scheduler'], href: '/dashboard/configuracoes?tab=ana' },
-  { id: 'apify', group: 'Inteligência e prospecção', label: 'Apify / Google Maps', description: 'Busca empresas para prospecção.', icon: 'ri-map-pin-search-line', keys: ['apify'], href: '/dashboard/configuracoes?tab=apis' },
+  { id: 'apify', group: 'Inteligência e prospecção', label: 'Google Maps', description: 'Busca empresas para prospecção.', icon: 'ri-map-pin-search-line', keys: ['apify'], href: '/dashboard/configuracoes?tab=apis' },
   { id: 'cnpj-ws', group: 'Inteligência e prospecção', label: 'CNPJ.ws', description: 'Consulta dados empresariais.', icon: 'ri-building-4-line', keys: ['cnpj_ws'], href: '/dashboard/configuracoes?tab=apis' },
-  { id: 'google-places', group: 'Inteligência e prospecção', label: 'Google Places', description: 'Enriquece locais e categorias.', icon: 'ri-map-pin-line', keys: ['google_places'], href: '/dashboard/configuracoes?tab=apis' },
+  { id: 'google-places', group: 'Inteligência e prospecção', label: 'Google', description: 'Enriquece locais e categorias.', icon: 'ri-map-pin-line', keys: ['google_places'], href: '/dashboard/configuracoes?tab=apis' },
   { id: 'google-calendar', group: 'Inteligência e prospecção', label: 'Google Calendar', description: 'Sincroniza compromissos.', icon: 'ri-calendar-line', keys: ['google_calendar'], href: '/dashboard/configuracoes?tab=apis' },
 ];
 
