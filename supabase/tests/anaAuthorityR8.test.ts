@@ -87,6 +87,15 @@ async function run(extraMessages: Row[] = []) {
   await import('../functions/ana-run/index');
   return handler(new Request('https://example.invalid/ana-run', { method: 'POST', headers: { Authorization: 'Bearer synthetic' }, body: JSON.stringify({ lead_id: leadId, event: 'message.received', message_id: inboundMessageId }) }));
 }
+async function runInternalWorker() {
+  db.lead_messages = [{ id: inboundMessageId, organization_id: org, lead_id: leadId, sender: 'lead', text: inbound, sent_at: '2026-10-05T10:00:01Z' }];
+  await import('../functions/ana-run/index');
+  return handler(new Request('https://example.invalid/ana-run', {
+    method: 'POST',
+    headers: { Authorization: 'Bearer synthetic', 'x-internal-worker-secret': 'synthetic-internal-secret' },
+    body: JSON.stringify({ organization_id: org, lead_id: leadId, event: 'message.received', message_id: inboundMessageId }),
+  }));
+}
 function seedKnowledge(type = 'product') {
   db.documents = [{ id: docId, organization_id: org, name: 'Synthetic doc', status: 'active', source_type: 'commercial_catalog', metadata: { commercial_item_id: itemId } }];
   db.knowledge_catalog_items = [{ id: itemId, organization_id: org, document_id: docId, item_type: type, name: 'Peça demonstrativa', short_description: 'Solução descritiva sem preço.', status: 'active', ana_enabled: true, source_id: sourceId, image_url: 'https://example.test/part.png' }];
@@ -102,6 +111,21 @@ const modelContext = () => {
 };
 
 describe('R8 actual Ana handler — synthetic DB and provider transports', () => {
+  it('T-R8-017: an authenticated internal worker cannot automate a WA-AKG contact-only shell', async () => {
+    db.leads[0].source_metadata = { wa_akg_contact_only: true };
+
+    const result = await runInternalWorker();
+
+    expect(result.status).toBe(200);
+    expect(await result.json()).toMatchObject({
+      ok: true,
+      skipped: true,
+      reason: 'wa_akg_contact_protected',
+    });
+    expect(reads.find((query) => query.table === 'leads')?.columns).toContain('source_metadata');
+    expect(network).not.toHaveBeenCalled();
+    expect(businessWrites()).toEqual([]);
+  });
   it('T-R8-016: processes the persisted event message, never a newer inbound message', async () => {
     inbound = 'Mensagem do evento que deve ser respondida.';
     const result = await run([{ id: 'b2222222-2222-4222-8222-222222222222', organization_id: org, lead_id: leadId, sender: 'lead', text: 'Mensagem mais nova que ainda está na fila.', sent_at: '2026-10-05T10:00:02Z' }]);
@@ -134,7 +158,7 @@ describe('R8 actual Ana handler — synthetic DB and provider transports', () =>
       expect((await pending).status).toBe(400); expect(businessWrites()).toEqual([]);
     } else { expect((await run()).status).toBe(200); expect(modelContext().knowledge).toEqual([]); }
   });
-  it.each(['pause', 'human', 'optout', 'owner', 'version', 'kill', 'operation', 'policy', 'source'])(
+  it.each(['pause', 'human', 'optout', 'owner', 'contact_only', 'version', 'kill', 'operation', 'policy', 'source'])(
     'T-R8-001: %s while model awaits prevents new business effects', async change => {
       seedKnowledge(); const entered = deferred<void>(); const model = deferred<Response>();
       network.mockImplementation(async () => { entered.resolve(); return model.promise; });
@@ -143,6 +167,7 @@ describe('R8 actual Ana handler — synthetic DB and provider transports', () =>
       if (change === 'human') db.leads[0].modo_atendimento = 'humano';
       if (change === 'optout') db.leads[0].opt_out = true;
       if (change === 'owner') db.leads[0].owner_id = 'another';
+      if (change === 'contact_only') db.leads[0].source_metadata = { wa_akg_contact_only: true };
       if (change === 'version') db.ai_agents[0].active_version_id = docId;
       if (change === 'kill') db.organization_module_data[0].data.killSwitchGlobal = true;
       if (change === 'operation') db.company_settings[0].ana_operation_enabled = false;

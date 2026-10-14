@@ -727,7 +727,7 @@ Deno.serve(async (request) => {
     }
 
     const { data: lead, error: leadError } = await admin.from('leads')
-      .select('id,organization_id,company,contact,segment,email,phone,whatsapp,score,stage,ana_stage,ana_outcome,modo_atendimento,owner_id,assigned_to,active_channel,whatsapp_account_id,ai_paused,opt_out,contact_approval_status,last_contact,no_reply_deadline_at,updated_at')
+      .select('id,organization_id,company,contact,segment,email,phone,whatsapp,score,stage,ana_stage,ana_outcome,modo_atendimento,owner_id,assigned_to,active_channel,whatsapp_account_id,ai_paused,opt_out,contact_approval_status,source_metadata,last_contact,no_reply_deadline_at,updated_at')
       .eq('id', leadId).eq('organization_id', organizationId).maybeSingle();
     if (leadError || !lead) throw new Error('lead_not_found');
     const { data: handoffPolicy, error: handoffPolicyError } = await admin.from('lead_handoff_policies')

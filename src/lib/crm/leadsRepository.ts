@@ -4,13 +4,23 @@ import { crmRowToLead, leadToCrmRow, persistentLeadId, type CrmLeadRow, type Lea
 import type { Lead } from '@/mocks/leadsData';
 import { readAllPages } from './paginatedRead';
 
+/**
+ * Protected WA-AKG contacts reuse the Central's historical-message model, which
+ * currently requires a lead id.  They are not commercial leads until an
+ * operator explicitly promotes them server-side, so never expose that internal
+ * record in commercial lists or load handoff policies for it.
+ */
+function isWaAkgContactOnly(row: CrmLeadRow): boolean {
+  return row.source_metadata?.wa_akg_contact_only === true;
+}
+
 export async function loadOperationalLeads(organizationId?: string): Promise<Lead[]> {
   const resolvedId = organizationId ?? (await resolveOrganizationSession()).organizationId;
-  const rows = await readAllPages<CrmLeadRow>((from, to) => supabase
+  const rows = (await readAllPages<CrmLeadRow>((from, to) => supabase
     .from('leads')
     .select('*')
     .eq('organization_id', resolvedId)
-    .order('id').range(from, to));
+    .order('id').range(from, to))).filter((lead) => !isWaAkgContactOnly(lead));
   const ids = rows.map((lead) => lead.id).filter((id): id is string => Boolean(id));
   const policyByLead = new Map<string, LeadHandoffPolicyRow>();
   for (let index = 0; index < ids.length; index += 100) {

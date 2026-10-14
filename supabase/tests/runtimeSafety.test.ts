@@ -15,6 +15,12 @@ describe('backend safety authority', () => {
     expect(automationBlockReason({ ...ready, lead: { ...ready.lead, contact_approval_status: 'pending' }, requiresApprovedContact: true })).toBe('contact_approval_required');
     expect(automationBlockReason({ ...ready, lead: { ...ready.lead, contact_approval_status: 'pending' } })).toBeNull();
   });
+  it('blocks a WA-AKG contact-only shell even when every other automation gate is ready', () => {
+    expect(automationBlockReason({
+      ...ready,
+      lead: { ...ready.lead, source_metadata: { wa_akg_contact_only: true } },
+    })).toBe('wa_akg_contact_protected');
+  });
   it.each([
     [{ ...ready, company: null }, 'company_inactive'],
     [{ ...ready, company: { ...ready.company, active: false } }, 'company_inactive'],

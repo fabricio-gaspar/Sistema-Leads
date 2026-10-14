@@ -6,6 +6,12 @@ export type ContactDecisionCandidate = {
   phone: string;
   name: string;
   state: ContactDecisionState;
+  /** The inbound event that caused this prompt. It is the durable dismissal key. */
+  messageId: string;
+  latestInboundText: string;
+  decisionRevision: number;
+  /** UI hint only. The server remains authoritative for an Ana activation. */
+  canEnableAi: boolean;
 };
 
 export type ContactDecisionPrompt = Omit<ContactDecisionCandidate, 'state'> & {

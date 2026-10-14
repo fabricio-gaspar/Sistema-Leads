@@ -42,15 +42,20 @@ describe('Central de Atendimento WhatsApp entry', () => {
     expect(page).toContain("window.addEventListener('pageshow'");
   });
 
-  it('shows a floating decision prompt for protected inbound contacts', () => {
+  it('loads a durable server-side decision dialog for protected inbound contacts', () => {
     const page = readFileSync(resolve('src/pages/dashboard/atendimento/page.tsx'), 'utf8');
 
-    expect(page).toContain('promptForInboundContact');
-    expect(page).toContain('Nova mensagem recebida');
+    expect(page).toContain("import AccessibleDialog from '@/components/feature/AccessibleDialog'");
+    expect(page).toContain('loadPendingWaAkgContactDecision');
+    expect(page).toContain('dismissWaAkgContactDecisionPrompt');
+    expect(page).toContain('decideWaAkgContactV2');
+    expect(page).toContain('ContactDecisionDialog');
+    expect(page).toContain('NOVA MENSAGEM RECEBIDA');
     expect(page).toContain('Manter como contato');
     expect(page).toContain('Tornar lead');
-    expect(page).toContain('decideWaAkgContact');
-    expect(page).toContain('protegido da prospecção');
+    expect(page).toContain('Selecione um responsável');
+    expect(page).toContain("setContactPromptMode('human')");
+    expect(page).toContain('fora de campanhas, cadências e respostas automáticas');
   });
 
   it('prioritizes the conversation and leaves channel and agenda tools compact until needed', () => {
@@ -79,8 +84,9 @@ describe('Central de Atendimento WhatsApp entry', () => {
     expect(directory).toContain('Agenda do WhatsApp');
     expect(directory).toContain('Mostrar contatos');
     expect(directory).toContain('Contatos sincronizados ficam fora da Ana');
-    expect(directory).toContain('Manter como contato');
-    expect(directory).toContain('Tornar lead');
+    expect(directory).not.toContain('decideWaAkgContact(');
+    expect(directory).toContain('Abrir conversa');
+    expect(directory).toContain('Aguarda primeira mensagem');
     expect(directory).toContain('aria-expanded={expanded}');
     expect(directory).toContain('tabIndex={0}');
     expect(directory).toContain('overflow-x-auto');

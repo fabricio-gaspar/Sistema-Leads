@@ -138,9 +138,10 @@ async function processInbound(admin: Admin, event: Row) {
   return result;
 }
 
-async function upsertObservedContact(admin: Admin, event: Row, payload: Row) {
+export async function upsertObservedContact(admin: Admin, event: Row, payload: Row) {
   const phone = text(payload.phone, 20), remoteJid = text(payload.remote_jid, 200);
-  const name = text(payload.whatsapp_name, 160)
+  const name = text(payload.sender_name, 160)
+    || text(payload.whatsapp_name, 160)
     || text(payload.whatsappName, 160)
     || text(payload.push_name, 160)
     || text(payload.pushName, 160)
@@ -149,9 +150,13 @@ async function upsertObservedContact(admin: Admin, event: Row, payload: Row) {
     || text(payload.notify, 160)
     || text(payload.name, 160);
   if (!/^[1-9][0-9]{7,14}$/.test(phone) || !/^[1-9][0-9]{7,14}(:[0-9]{1,5})?@(s\.whatsapp\.net|c\.us)$/.test(remoteJid)) return;
-  const { error } = await admin.from('whatsapp_contact_directory').upsert({ organization_id: event.organization_id,
-    whatsapp_account_id: event.whatsapp_account_id, remote_jid: remoteJid, phone, whatsapp_name: name || null,
-    last_synced_at: new Date().toISOString() }, { onConflict: 'organization_id,whatsapp_account_id,remote_jid' });
+  const observedContact: Row = { organization_id: event.organization_id, whatsapp_account_id: event.whatsapp_account_id,
+    remote_jid: remoteJid, phone, last_synced_at: new Date().toISOString() };
+  // Omit the column on an unnamed inbound event so merge-upsert retains a
+  // previously observed WhatsApp name instead of overwriting it with null.
+  if (name) observedContact.whatsapp_name = name;
+  const { error } = await admin.from('whatsapp_contact_directory').upsert(observedContact,
+    { onConflict: 'organization_id,whatsapp_account_id,remote_jid' });
   if (error) throw new Error('wa_akg_contact_directory_save_failed');
 }
 

@@ -31,6 +31,7 @@ function queryFor(table: string) {
   }
   chain.select = () => chain;
   chain.update = (value: Row) => { query.operation = 'update'; query.value = value; return chain; };
+  chain.upsert = (value: Row) => { query.operation = 'upsert'; query.value = value; return chain; };
   chain.maybeSingle = () => chain;
   chain.then = (resolve: (result: Result) => unknown) => {
     calls.push({ ...query, filters: { ...query.filters } });
@@ -146,5 +147,35 @@ describe('WA-AKG worker connection synchronization', () => {
     expect(response.status).toBe(200);
     expect(hasPermission).not.toHaveBeenCalled();
     expect(runLifecycle).not.toHaveBeenCalled();
+  });
+
+  it('does not erase an observed contact name when a later inbound payload has no sender name', async () => {
+    const worker = await import('../functions/wa-akg-worker/index.ts');
+
+    await worker.upsertObservedContact({ from: queryFor } as never, {
+      organization_id: org, whatsapp_account_id: accountId,
+    }, {
+      phone: '5511999999999', remote_jid: '5511999999999@s.whatsapp.net',
+    });
+
+    const write = calls.find((call) => call.table === 'whatsapp_contact_directory' && call.operation === 'upsert');
+    expect(write?.value).toMatchObject({
+      organization_id: org, whatsapp_account_id: accountId,
+      phone: '5511999999999', remote_jid: '5511999999999@s.whatsapp.net',
+    });
+    expect(write?.value).not.toHaveProperty('whatsapp_name');
+  });
+
+  it('writes the sanitized sender name to the observed contact directory', async () => {
+    const worker = await import('../functions/wa-akg-worker/index.ts');
+
+    await worker.upsertObservedContact({ from: queryFor } as never, {
+      organization_id: org, whatsapp_account_id: accountId,
+    }, {
+      phone: '5511999999999', remote_jid: '5511999999999@s.whatsapp.net', sender_name: ' Fernanda Cliente ',
+    });
+
+    const write = calls.find((call) => call.table === 'whatsapp_contact_directory' && call.operation === 'upsert');
+    expect(write?.value).toMatchObject({ whatsapp_name: 'Fernanda Cliente' });
   });
 });

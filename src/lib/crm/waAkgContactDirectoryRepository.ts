@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { runWaAkgAction } from '@/lib/crm/whatsappAccountsRepository';
+import { buildContactDecisionPrompt, type ContactDecisionPrompt } from '@/lib/crm/contactDecisionPrompt';
 
 type Row = Record<string, unknown>;
 
@@ -22,25 +23,95 @@ export type WaAkgContactPolicy = {
   state: WaAkgContactState | 'unknown';
 };
 
-const text = (value: unknown): string => typeof value === 'string' ? value.trim() : '';
-const normalizePhone = (value: string): string => value.replace(/\D/g, '');
+export type WaAkgContactDecision = 'keep' | 'promote';
+export type WaAkgContactInitialMode = 'human' | 'ana';
+export type WaAkgContactDecisionResult = {
+  leadId: string | null;
+  state: WaAkgContactState;
+  decisionRevision: number;
+};
 
-/** Read-only lookup used by the Central's inbound decision prompt. */
-export async function loadWaAkgContactPolicyForLead(leadId: string): Promise<WaAkgContactPolicy | null> {
-  const { data, error } = await supabase
-    .from('leads')
-    .select('whatsapp_account_id, phone, whatsapp, contact')
-    .eq('id', leadId)
-    .maybeSingle();
+const text = (value: unknown): string => typeof value === 'string' ? value.trim() : '';
+const number = (value: unknown): number => Number.isFinite(Number(value)) ? Number(value) : 0;
+const record = (value: unknown): Row => value && typeof value === 'object' && !Array.isArray(value) ? value as Row : {};
+
+/**
+ * The Central never derives a decision from browser directory data. The server
+ * applies tenant, channel, canonical-phone, revision and dismissal rules first.
+ */
+export async function loadPendingWaAkgContactDecision(): Promise<ContactDecisionPrompt | null> {
+  const { data, error } = await supabase.rpc('central_get_pending_wa_akg_contact_decision');
   if (error) throw error;
-  const row = data as { whatsapp_account_id?: string | null; phone?: string | null; whatsapp?: string | null; contact?: string | null } | null;
-  const accountId = text(row?.whatsapp_account_id);
-  const phone = text(row?.whatsapp) || text(row?.phone);
-  if (!accountId || !phone) return null;
-  const directory = await loadWaAkgContactDirectory(accountId);
-  const match = directory.find((entry) => normalizePhone(entry.phone) === normalizePhone(phone));
-  if (!match) return null;
-  return { leadId, accountId, phone: match.phone, name: match.name || text(row?.contact) || 'Contato da agenda', state: match.state };
+  const row = record(Array.isArray(data) ? data[0] : data);
+  const candidate = buildContactDecisionPrompt({
+    leadId: text(row.lead_id),
+    accountId: text(row.account_id),
+    phone: text(row.phone),
+    name: text(row.name) || text(row.phone) || 'Novo contato',
+    state: text(row.state) as ContactDecisionPrompt['state'],
+    messageId: text(row.message_id),
+    // `latest_inbound_text` is the v2 RPC contract. Keep `message_text` as a
+    // harmless compatibility read while an already-open browser catches up
+    // with the migration.
+    latestInboundText: text(row.latest_inbound_text) || text(row.message_text),
+    decisionRevision: number(row.decision_revision),
+    canEnableAi: row.can_enable_ai === true,
+  });
+  if (!candidate?.leadId || !candidate.accountId || !candidate.phone || !candidate.messageId) return null;
+  return candidate;
+}
+
+export async function dismissWaAkgContactDecisionPrompt(input: Pick<ContactDecisionPrompt, 'accountId' | 'phone' | 'messageId'>): Promise<{ dismissed: boolean }> {
+  const { data, error } = await supabase.rpc('central_dismiss_wa_akg_contact_decision_prompt', {
+    p_account_id: input.accountId,
+    p_phone: input.phone,
+    p_message_id: input.messageId,
+  });
+  if (error) throw error;
+  const result = record(data);
+  return { dismissed: result.dismissed !== false };
+}
+
+export async function decideWaAkgContactV2(input: {
+  accountId: string;
+  phone: string;
+  decision: WaAkgContactDecision;
+  ownerUserId?: string | null;
+  initialMode?: WaAkgContactInitialMode;
+  expectedRevision: number;
+  requestId: string;
+}): Promise<WaAkgContactDecisionResult> {
+  const ownerUserId = text(input.ownerUserId);
+  const initialMode = input.initialMode ?? 'human';
+  // UI labels stay friendly and independent from the persisted CRM enum. The
+  // RPC accepts the canonical `humano` / `ia` values only.
+  const persistedInitialMode = initialMode === 'ana' ? 'ia' : 'humano';
+  if (!text(input.accountId) || !text(input.phone) || !text(input.requestId) || !Number.isInteger(input.expectedRevision) || input.expectedRevision < 0) {
+    throw new Error('wa_akg_contact_decision_invalid');
+  }
+  if (input.decision === 'promote' && (!ownerUserId || (initialMode !== 'human' && initialMode !== 'ana'))) {
+    throw new Error('wa_akg_contact_decision_owner_and_mode_required');
+  }
+  const { data, error } = await supabase.rpc('decide_wa_akg_contact_v2', {
+    p_account_id: input.accountId,
+    p_phone: input.phone,
+    p_decision: input.decision,
+    p_owner_user_id: input.decision === 'promote' ? ownerUserId : null,
+    p_initial_mode: persistedInitialMode,
+    p_expected_revision: input.expectedRevision,
+    p_request_id: input.requestId,
+  });
+  if (error) throw error;
+  const result = record(data);
+  const state = text(result.state);
+  if (state !== 'agenda_protected' && state !== 'unclassified' && state !== 'lead_authorized') {
+    throw new Error('wa_akg_contact_decision_unconfirmed');
+  }
+  return {
+    leadId: text(result.lead_id) || null,
+    state,
+    decisionRevision: number(result.decision_revision),
+  };
 }
 
 export async function loadWaAkgContactDirectory(accountId: string): Promise<WaAkgDirectoryContact[]> {
@@ -62,17 +133,6 @@ export async function loadWaAkgContactDirectory(accountId: string): Promise<WaAk
       decisionRevision: Number.isFinite(Number(row.decision_revision)) ? Number(row.decision_revision) : 0,
     };
   }).filter((contact) => Boolean(contact.phone)) : [];
-}
-
-export async function decideWaAkgContact(accountId: string, phone: string, decision: 'keep' | 'promote', leadId?: string | null) {
-  const { data, error } = await supabase.rpc('decide_wa_akg_contact', {
-    p_account_id: accountId,
-    p_phone: phone,
-    p_decision: decision,
-    p_lead_id: leadId || null,
-  });
-  if (error) throw error;
-  return data as { state: WaAkgContactState; evidence_state: string; lead_id: string | null; decision_revision: number };
 }
 
 export async function syncWaAkgContactDirectory(accountId: string): Promise<WaAkgDirectorySync> {
