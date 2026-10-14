@@ -56,7 +56,8 @@ function variants(term: string): string[] {
 
 /**
  * The provider fetches this URL itself. Keep only public HTTPS URLs, with no
- * credentials or literal/private-host forms, before an item can reach Z-API.
+ * credentials or literal/private-host forms, before an item can reach the
+ * configured messaging gateway.
  */
 export function safePublicImageUrl(value: unknown): string | null {
   const candidate = text(value, 2_000);

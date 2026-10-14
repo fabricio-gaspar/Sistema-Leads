@@ -41,6 +41,8 @@ describe('WA-AKG contact identity v2 migration contract', () => {
     expect(sql).toContain('resolve_or_create_whatsapp_inbound_lead');
     expect(sql).toContain('begin_whatsapp_inbound_dispatch');
     expect(sql).toContain('pg_advisory_xact_lock');
+    expect(sql).toContain("('public.messaging_provider_controls', 'capture_only')");
+    expect(sql).toContain("'public.messaging_provider_controls'");
   });
 
   it('keeps the agenda fence durable without demoting an already-approved commercial lead', () => {

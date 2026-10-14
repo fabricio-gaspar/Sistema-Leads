@@ -30,7 +30,10 @@ export async function processInboundWork(admin: Admin, provider: Provider, event
   const ticket = object(dispatch.data);
   if (ticket.dispatch !== true) {
     await finishInboundWork(admin, provider, event, 'processed');
-    return { processed: true };
+    // The worker still owns safe post-persistence contact normalization even
+    // when Ana is intentionally not dispatched (human mode, approval gate,
+    // etc.). Keep the persisted lead identity instead of dropping it here.
+    return { processed: true, lead_id: saved.lead_id ?? null };
   }
   const job = await enqueueAnaJob(admin, {
     organizationId: String(event.organization_id ?? ''),
@@ -54,5 +57,5 @@ export async function processInboundWork(admin: Admin, provider: Provider, event
   // prior model request was not accepted.
   await finishInboundWork(admin, provider, event, 'processed');
   const execution = await processNextAnaJob(admin, typeof job.id === 'string' ? job.id : null);
-  return { processed: true, ana_job_id: job.id ?? null, ana: execution };
+  return { processed: true, lead_id: saved.lead_id ?? null, ana_job_id: job.id ?? null, ana: execution };
 }

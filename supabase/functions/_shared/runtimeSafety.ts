@@ -61,11 +61,3 @@ export function anaResponseSucceeded(status: number, body: unknown): boolean {
   return status >= 200 && status < 300 && typeof body === 'object' && body !== null
     && 'ok' in body && body.ok === true;
 }
-
-export function zapiBaseUrl(value: unknown): string {
-  const url = new URL(typeof value === 'string' && value ? value : 'https://api.z-api.io');
-  if (url.origin !== 'https://api.z-api.io' || url.pathname !== '/' || url.search || url.hash || url.username || url.password) {
-    throw new Error('provider_url_not_allowed');
-  }
-  return url.origin;
-}

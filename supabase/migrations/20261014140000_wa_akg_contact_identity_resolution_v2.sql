@@ -29,6 +29,9 @@ begin
   if to_regclass('private.whatsapp_inbound_work') is null then
     v_missing := array_append(v_missing, 'private.whatsapp_inbound_work');
   end if;
+  if to_regclass('public.messaging_provider_controls') is null then
+    v_missing := array_append(v_missing, 'public.messaging_provider_controls');
+  end if;
 
   if to_regprocedure('public.resolve_or_create_whatsapp_inbound_lead(uuid,uuid,text,text,timestamp with time zone)') is null then
     v_missing := array_append(v_missing, 'resolve_or_create_whatsapp_inbound_lead(uuid,uuid,text,text,timestamptz)');
@@ -75,7 +78,8 @@ begin
         ('public.lead_messages', 'conversation_id'),
         ('public.leads', 'source_metadata'),
         ('public.leads', 'contact_approval_status'),
-        ('public.outreach_jobs', 'payload')
+        ('public.outreach_jobs', 'payload'),
+        ('public.messaging_provider_controls', 'capture_only')
       ) as required_columns(table_name, column_name)
       where not exists (
         select 1
@@ -99,7 +103,8 @@ begin
         ('public.lead_messages', 'conversation_id'),
         ('public.leads', 'source_metadata'),
         ('public.leads', 'contact_approval_status'),
-        ('public.outreach_jobs', 'payload')
+        ('public.outreach_jobs', 'payload'),
+        ('public.messaging_provider_controls', 'capture_only')
       ) as required_columns(table_name, column_name)
       where not exists (
         select 1
@@ -1621,6 +1626,21 @@ begin
   if coalesce(mid, '') = '' or pg_catalog.length(mid) > 300 or coalesce(raw_body, '') = '' then
     raise exception 'whatsapp_inbound_payload_invalid';
   end if;
+  -- A maintenance capture may start after a worker has claimed the event.
+  -- Do not persist that in-flight callback or let it reach Ana; surface it for
+  -- review rather than retrying it automatically after the maintenance window.
+  if p_provider = 'wa_akg' and exists (
+    select 1
+      from public.messaging_provider_controls control_row
+     where control_row.organization_id = w.organization_id
+       and control_row.provider = 'wa_akg'
+       and control_row.capture_only
+  ) then
+    perform public.finish_whatsapp_webhook_event(
+      p_provider, p_event_id, p_lease_id, 'needs_review', 'wa_akg_capture_only'
+    );
+    return pg_catalog.jsonb_build_object('review', true, 'reason', 'wa_akg_capture_only');
+  end if;
   if not exists (
     select 1
       from public.whatsapp_accounts a
@@ -1981,6 +2001,18 @@ begin
     raise exception 'whatsapp_event_lease_lost';
   end if;
   select * into strict l from public.leads where id = w.lead_id and organization_id = w.organization_id;
+
+  -- A callback may have been persisted immediately before capture was enabled.
+  -- It remains visible to an operator, but no automated dispatch is permitted.
+  if p_provider = 'wa_akg' and exists (
+    select 1
+      from public.messaging_provider_controls control_row
+     where control_row.organization_id = w.organization_id
+       and control_row.provider = 'wa_akg'
+       and control_row.capture_only
+  ) then
+    return pg_catalog.jsonb_build_object('dispatch', false, 'reason', 'wa_akg_capture_only', 'lead_id', l.id);
+  end if;
 
   if private.wa_akg_bound_lead_requires_protection(w.organization_id, l.id)
      or private.wa_akg_contact_requires_protection(

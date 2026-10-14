@@ -14,6 +14,13 @@ function secureEqual(left: string, right: string): boolean {
   return difference === 0;
 }
 
+async function captureOnlyForOrganization(admin: ReturnType<typeof createAdminClient>, organizationId: string): Promise<boolean> {
+  const { data, error } = await admin.from('messaging_provider_controls')
+    .select('capture_only').eq('organization_id', organizationId).eq('provider', 'wa_akg').maybeSingle();
+  if (error) throw new Error('wa_akg_capture_control_read_failed');
+  return object(data).capture_only === true;
+}
+
 async function hmacHex(secret: string, body: string): Promise<string> {
   const key = await crypto.subtle.importKey('raw', new TextEncoder().encode(secret), { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
   const signature = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(body));
@@ -23,18 +30,6 @@ async function hmacHex(secret: string, body: string): Promise<string> {
 async function sha256Hex(value: string): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value));
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
-}
-
-function wakeWorker(eventId: string): void {
-  const baseUrl = Deno.env.get('SUPABASE_URL');
-  const serviceRole = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-  if (!baseUrl || !serviceRole) return;
-  const pending = fetch(`${baseUrl}/functions/v1/wa-akg-worker`, {
-    method: 'POST', headers: { Authorization: `Bearer ${serviceRole}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ event_id: eventId }), signal: AbortSignal.timeout(30_000),
-  }).catch(() => undefined);
-  const runtime = (globalThis as { EdgeRuntime?: { waitUntil: (task: Promise<unknown>) => void } }).EdgeRuntime;
-  runtime?.waitUntil(pending);
 }
 
 Deno.serve(async (request) => {
@@ -55,6 +50,7 @@ Deno.serve(async (request) => {
       .select('id,integration_id,enabled,connection_status').eq('organization_id', integration.organization_id)
       .eq('integration_id', integrationId).eq('provider', 'wa_akg').is('archived_at', null).maybeSingle();
     if (accountError || !account) return json({ ok: false, error: 'account_not_found' }, 404);
+    const captureOnly = await captureOnlyForOrganization(admin, String(integration.organization_id));
     const { data: credentials, error: secretError } = await admin.rpc('read_integration_secret', { p_integration: integrationId });
     const secret = object(credentials);
     if (secretError || !text(secret.webhook_secret, 256) || !text(secret.session_id, 120)) {
@@ -84,11 +80,20 @@ Deno.serve(async (request) => {
     }, { onConflict: 'organization_id,whatsapp_account_id,external_event_id', ignoreDuplicates: true })
       .select('id,processing_status').maybeSingle();
     if (error) throw new Error('wa_akg_webhook_persist_failed');
-    if (inserted?.id && inserted.processing_status === 'queued') wakeWorker(String(inserted.id));
-    return json({ ok: true, accepted: Boolean(inserted), duplicate: !inserted }, 202);
+    // A webhook only persists the durable event. The scheduled worker claims
+    // it later, after the database-side capture fence is checked. Keeping this
+    // endpoint side-effect free avoids a maintenance race between persistence
+    // and an in-process worker wake-up.
+    return json({
+      ok: true,
+      accepted: Boolean(inserted),
+      duplicate: !inserted,
+      captured: captureOnly,
+      queued: inserted?.processing_status === 'queued',
+    }, 202);
   } catch (error) {
     const code = safeError(error).replace(/[^a-z0-9_]/gi, '_').toLowerCase().slice(0, 120);
     console.error('wa_akg_webhook_failed', { code });
-    return json({ ok: false, error: code }, 400);
+    return json({ ok: false, error: code }, code === 'wa_akg_capture_control_read_failed' ? 503 : 400);
   }
 });

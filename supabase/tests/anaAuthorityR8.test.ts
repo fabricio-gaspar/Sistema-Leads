@@ -62,6 +62,7 @@ beforeEach(() => {
     company_settings: [{ organization_id: org, active: true, sandbox_mode: false, can_use_ia: true, ai_actions_enabled: true, ana_operation_enabled: true, ana_operation_mode: 'automatic', ui_settings: {} }],
     organization_module_data: [{ organization_id: org, module_key: 'configuracao_runtime', data: { killSwitchGlobal: false } }, { organization_id: org, module_key: 'commercial_catalog_policy', data: {} }],
     integrations: ['ai', 'email', 'google_calendar'].map(key => ({ id: `${key}-integration`, organization_id: org, key, enabled: true, connected: true, paused: false })),
+    messaging_provider_controls: [{ organization_id: org, provider: 'wa_akg', send_enabled: true, automation_enabled: true, kill_switch: false, capture_only: false }],
     ai_agents: [{ organization_id: org, key: 'ana', active_version_id: versionId }], ai_agent_versions: [{ id: versionId, organization_id: org, configuration: { allowedChannels: ['email'], handoffPolicy: { lowConfidenceThreshold: 70 } } }],
     documents: [], knowledge_catalog_items: [], knowledge_chunks: [], knowledge_sources: [],
   };

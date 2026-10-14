@@ -323,6 +323,26 @@ async function isAuthenticatedInternalRequest(
   return matchesIntegrationWebhookSecret(supplied, integration.key, storedSecret);
 }
 
+// A queue source is stronger evidence than a browser mode selection.  When a
+// WA-AKG maintenance capture is active, preserve source-bound work for human
+// review before Ana can load context, create a draft, or enqueue an effect.
+async function waAkgCaptureOnlyForSource(
+  admin: ReturnType<typeof createAdminClient>,
+  organizationId: string,
+  sourceIntegrationId: string,
+): Promise<boolean> {
+  if (!isUuid(organizationId) || !isUuid(sourceIntegrationId)) return false;
+  const { data: account, error: accountError } = await admin.from('whatsapp_accounts')
+    .select('id').eq('organization_id', organizationId).eq('integration_id', sourceIntegrationId)
+    .eq('provider', 'wa_akg').is('archived_at', null).maybeSingle();
+  if (accountError) throw new Error('wa_akg_capture_source_lookup_failed');
+  if (!account) return false;
+  const { data: controls, error: controlsError } = await admin.from('messaging_provider_controls')
+    .select('capture_only').eq('organization_id', organizationId).eq('provider', 'wa_akg').maybeSingle();
+  if (controlsError) throw new Error('wa_akg_capture_control_read_failed');
+  return asObject(controls).capture_only === true;
+}
+
 function errorCode(error: unknown): string {
   const message = safeError(error);
   return message.replace(/[^a-z0-9_]/gi, '_').toLowerCase().slice(0, 80) || 'ana_run_failed';
@@ -726,6 +746,11 @@ Deno.serve(async (request) => {
       await requireOrganizationRole(admin, user.id, organizationId, ['owner', 'admin', 'manager', 'seller', 'sdr']);
     }
 
+    const sourceIntegrationId = asText(body.source_integration_id, 80);
+    if (internal && await waAkgCaptureOnlyForSource(admin, organizationId, sourceIntegrationId)) {
+      return json({ ok: true, skipped: true, reason: 'wa_akg_capture_only' }, 200, headers);
+    }
+
     const { data: lead, error: leadError } = await admin.from('leads')
       .select('id,organization_id,company,contact,segment,email,phone,whatsapp,score,stage,ana_stage,ana_outcome,modo_atendimento,owner_id,assigned_to,active_channel,whatsapp_account_id,ai_paused,opt_out,contact_approval_status,source_metadata,last_contact,no_reply_deadline_at,updated_at')
       .eq('id', leadId).eq('organization_id', organizationId).maybeSingle();
@@ -949,6 +974,33 @@ Deno.serve(async (request) => {
       return json({ ok: true, run_id: runId, ...result }, 200, headers);
     }
     if (activeChannel === 'whatsapp' && !dryRun && !supervised) {
+      // This guard deliberately runs before resolving the account. Resolving a
+      // legacy lead can persist its new WA-AKG binding; when Ana is disabled,
+      // that operational side effect must not happen just because a queued run
+      // was claimed. Manual sends use the same resolver but remain independent
+      // from this automation-only fence.
+      const { data: waAkgControl, error: waAkgControlError } = await admin
+        .from('messaging_provider_controls')
+        .select('send_enabled,automation_enabled,kill_switch,capture_only')
+        .eq('organization_id', organizationId)
+        .eq('provider', 'wa_akg')
+        .maybeSingle();
+      if (waAkgControlError) throw new Error('wa_akg_control_read_failed');
+      if (!waAkgControl || waAkgControl.send_enabled !== true || waAkgControl.automation_enabled !== true
+        || waAkgControl.kill_switch === true || waAkgControl.capture_only === true) {
+        const result = {
+          skipped: true,
+          reason: 'wa_akg_automation_not_ready',
+          status_canal: 'bloqueado',
+          mensagem_sugerida: '',
+          acoes: [],
+        };
+        const { error } = await admin.from('agent_runs')
+          .update({ status: 'skipped', result, retryable: false, lease_id: null, lease_expires_at: null, completed_at: new Date().toISOString() })
+          .eq('id', runId).eq('organization_id', organizationId);
+        if (error) throw error;
+        return json({ ok: true, run_id: runId, ...result }, 200, headers);
+      }
       await assertAnaEffectAllowed(admin, organizationId, { lead, configurationVersionId,
         companyOperationEnabled: company?.ana_operation_enabled, companyOperationMode: company?.ana_operation_mode,
         requiresApprovedContact: event !== 'message.received' });

@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { anaEventKey, anaResponseSucceeded, automationBlockReason, zapiBaseUrl } from '../functions/_shared/runtimeSafety';
-import { parseZapiEvent, providerPhone, storedPhone } from '../functions/_shared/zapiInbound';
+import { anaEventKey, anaResponseSucceeded, automationBlockReason } from '../functions/_shared/runtimeSafety';
 
 const ready = {
   company: { active: true, sandbox_mode: false, can_use_ia: true, ai_actions_enabled: true },
@@ -52,49 +51,6 @@ describe('backend safety authority', () => {
   });
   it.each([[200, { ok: true }, true], [200, { ok: false }, false], [200, { duplicate: true }, false], [500, { ok: true }, false], [200, null, false], [202, { ok: true, skipped: true }, true]])('checks semantic completion: %#', (status, body, expected) => {
     expect(anaResponseSucceeded(status as number, body)).toBe(expected);
-  });
-  it.each(['http://api.z-api.io', 'https://evil.example', 'https://api.z-api.io.evil.example', 'https://api.z-api.io/private', 'https://user:secret@api.z-api.io', 'https://api.z-api.io?token=secret'])('rejects credential exfiltration URL %s', (url) => expect(() => zapiBaseUrl(url)).toThrow());
-  it('accepts only the official HTTPS provider origin', () => expect(zapiBaseUrl(undefined)).toBe('https://api.z-api.io'));
-});
-
-const inbound = { type: 'ReceivedCallback', fromMe: false, isGroup: false, messageId: 'SYNTHETIC-MESSAGE-1', phone: '5511999990000', text: { message: 'Quero uma peça de borracha' } };
-describe('Z-API contract — synthetic payloads only', () => {
-  it('extracts the real nested text shape', () => expect(parseZapiEvent(inbound)).toMatchObject({ kind: 'inbound', text: 'Quero uma peça de borracha', mediaRequiresReview: false }));
-  it.each([
-    { fromMe: true }, { fromMe: undefined }, { isGroup: true }, { isGroup: undefined }, { isNewsletter: true }, { broadcast: true },
-    { notification: 'PROFILE_NAME_UPDATED' }, { reaction: { value: '❤️' } }, { isEdit: true }, { waitingMessage: true },
-    { type: 'ConnectedCallback' }, { messageId: '' }, { phone: '5511999990000-group' }, { phone: '81896604192873@lid' },
-  ])('does not feed non-inbound event %# to Ana', (patch) => expect(parseZapiEvent({ ...inbound, ...patch }).kind).toBe('ignored'));
-  it('keeps provider receipts separate from inbound lead replies with their ordered status', () => {
-    expect(parseZapiEvent({ type: 'DeliveryCallback', messageId: 'provider-sent' })).toMatchObject({ kind: 'receipt', status: 'sent', expectedMessageCount: 1 });
-    expect(parseZapiEvent({ type: 'MessageStatusCallback', status: 'RECEIVED', ids: ['provider-delivered'] })).toMatchObject({ kind: 'receipt', status: 'delivered', expectedMessageCount: 1 });
-    expect(parseZapiEvent({ type: 'MessageStatusCallback', status: 'READ', ids: ['provider-read'] })).toMatchObject({ kind: 'receipt', status: 'read', expectedMessageCount: 1 });
-  });
-  it('preserves every unique ID and the exact expected batch size for receipt reconciliation', () => {
-    expect(parseZapiEvent({
-      type: 'MessageStatusCallback', status: 'READ', ids: ['provider-1', 'provider-2', 'provider-1'], moment: 1_772_494_009_341,
-    })).toMatchObject({
-      kind: 'receipt',
-      providerMessageIds: ['provider-1', 'provider-2'],
-      expectedMessageCount: 2,
-      occurredAt: '2026-03-02T23:26:49.341Z',
-    });
-  });
-  it('treats an explicit provider error as failed and rejects oversized receipt batches', () => {
-    expect(parseZapiEvent({ type: 'DeliveryCallback', messageId: 'provider-error', error: 'synthetic provider failure' })).toMatchObject({ kind: 'receipt', status: 'failed', providerError: true });
-    expect(parseZapiEvent({ type: 'MessageStatusCallback', status: 'READ', ids: Array.from({ length: 101 }, (_, index) => `provider-${index}`) })).toEqual({ kind: 'ignored', reason: 'receipt_batch_too_large' });
-  });
-  it.each(['image', 'audio', 'video', 'document', 'sticker'])('marks %s as unprocessed media, never invented text', (kind) => {
-    expect(parseZapiEvent({ ...inbound, text: undefined, [kind]: { mimeType: 'test', url: 'https://example.invalid/media' } })).toMatchObject({ kind: 'inbound', mediaRequiresReview: true, text: expect.stringContaining('ainda não extraído') });
-  });
-  it('does not drop media when there is also a caption/text', () => expect(parseZapiEvent({ ...inbound, image: { imageUrl: 'https://example.invalid/photo' } })).toMatchObject({ mediaRequiresReview: true }));
-  it('normalizes only explicit phone identities', () => {
-    expect(storedPhone('(11) 99999-0000')).toBe('5511999990000');
-    expect(storedPhone('+55 (11) 99999-0000')).toBe('5511999990000');
-    expect(storedPhone('+1 (202) 555-0123')).toBe('12025550123');
-    expect(providerPhone('5511999990000-group')).toBeNull();
-    expect(storedPhone('99999-0000')).toBe('999990000');
-    expect(storedPhone('+54 11 99999-0000')).not.toBe(storedPhone('+55 11 99999-0000'));
   });
 });
 
