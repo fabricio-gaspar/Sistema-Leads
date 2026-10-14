@@ -11,6 +11,7 @@ import {
   safeError,
 } from "../_shared/http.ts";
 import { validateApifyConfiguration } from "../_shared/apifyClient.ts";
+import { linkedInErrorCode } from "../_shared/linkedinCompanySearch.ts";
 import { freeLlmEndpoint } from "../_shared/freellm.ts";
 
 const PROVIDER_REQUEST_TIMEOUT_MS = 5_000;
@@ -36,6 +37,13 @@ function providerDetail(code: string, provider: string) {
       "O Actor/Task configurado na Apify não foi encontrado.",
     apify_resource_forbidden:
       "A conta Apify não tem acesso ao Actor/Task configurado.",
+    linkedin_credentials_required:
+      "Configure o token Apify e o Actor/Task do LinkedIn antes de validar.",
+    linkedin_token_rejected: "O token da Apify foi recusado para o conector LinkedIn.",
+    linkedin_actor_not_found: "O Actor/Task do LinkedIn não foi encontrado.",
+    linkedin_resource_forbidden: "A conta Apify não tem acesso ao Actor do LinkedIn.",
+    linkedin_rate_limited: "A Apify limitou temporariamente o conector LinkedIn.",
+    linkedin_provider_error: "O conector LinkedIn devolveu um erro incompatível.",
     apify_rate_limited: "A Apify limitou temporariamente as chamadas.",
     apify_provider_error: "A Apify devolveu um erro transitório ou incompatível; tente validar novamente.",
     google_places_key_rejected:
@@ -84,6 +92,7 @@ Deno.serve(async (request) => {
         "ai",
         "apify",
         "google_places",
+        "linkedin",
         "email",
         "google_calendar",
         "cnpj_ws",
@@ -115,7 +124,7 @@ Deno.serve(async (request) => {
     if (error || !i) throw new Error("integration_not_found");
     id = i.id;
     provider = i.provider || canal;
-    source = ["apify", "google_places", "cnpj_ws"].includes(canal)
+    source = ["apify", "google_places", "linkedin", "cnpj_ws"].includes(canal)
       ? canal
       : null;
     let sourceEnabled: boolean | null = null;
@@ -182,8 +191,13 @@ Deno.serve(async (request) => {
         });
       }
       if (!response.ok) throw new Error(`ai_provider_${response.status}`);
-    } else if (canal === "apify") {
-      await validateApifyConfiguration(credentials);
+    } else if (canal === "apify" || canal === "linkedin") {
+      try {
+        await validateApifyConfiguration(credentials);
+      } catch (error) {
+        if (canal === "linkedin") throw new Error(linkedInErrorCode(error));
+        throw error;
+      }
     } else if (canal === "google_places") {
       const key = txt(credentials.api_key, 1000);
       if (!key) throw new Error("source_credentials_missing");

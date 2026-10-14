@@ -7,7 +7,7 @@ import { integrationDisplayStatus, integrationStatusDetail, type IntegrationDisp
 
 export type OperationalIntegration = Omit<Integracao, 'status'> & {
   status: IntegrationDisplayStatus;
-  remoteKey: 'ai' | 'apify' | 'google_places';
+  remoteKey: 'ai' | 'apify' | 'google_places' | 'linkedin';
   operationalCategory: 'prospecting' | 'communication' | 'intelligence' | 'scheduling' | 'system';
   connected: boolean;
   configured: boolean;
@@ -30,13 +30,14 @@ export type AnaProviderConfiguration = {
   selectedModelValidated: false;
 };
 
-const supportedKeys = ['ai', 'apify', 'google_places'] as const;
+const supportedKeys = ['ai', 'apify', 'google_places', 'linkedin'] as const;
 type SupportedKey = typeof supportedKeys[number];
 
 const descriptorByKey: Record<SupportedKey, Integracao> = {
   ai: integrationDescriptors.find((item) => item.id === 'int-6')!,
   apify: integrationDescriptors.find((item) => item.id === 'int-7')!,
   google_places: integrationDescriptors.find((item) => item.id === 'int-8')!,
+  linkedin: integrationDescriptors.find((item) => item.id === 'int-9')!,
 };
 
 function pendingDescriptor(key: SupportedKey): OperationalIntegration {

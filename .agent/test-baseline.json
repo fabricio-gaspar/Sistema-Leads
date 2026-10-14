@@ -1,5 +1,20 @@
 {
   "schema_version": 1,
+  "linkedin_company_search_20261014": {
+    "focused_vitest": "17 passed in 5 files",
+    "frontend_typecheck": "passed; tsc --noEmit --project tsconfig.app.json",
+    "edge_typecheck": "passed; tsc --project tsconfig.edge.json",
+    "lint": "passed; eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "vite_and_sites_artifact": "passed; preexisting runtime-config.js type=module warning only",
+    "diff_check": "passed",
+    "full_vitest": "700 passed, 16 skipped, 18 blocked in runtimeHandlers by unresolved Deno npm:apify-client@2.25.0 import",
+    "external_calls": false,
+    "paid_search": false,
+    "messages_sent": false,
+    "migration_applied": false,
+    "edge_functions_deployed": false,
+    "site_deployed": false
+  },
   "apify_validation_boot_fix_20261014": {
     "focused_vitest": "4 passed: prospectingSourcePresentation and prospectingSourceLabels",
     "frontend_typecheck": "passed; tsc --noEmit --project tsconfig.app.json",

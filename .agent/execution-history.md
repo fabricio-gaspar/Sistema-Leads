@@ -1,5 +1,11 @@
 # Histórico resumido de execução
 
+## 2026-10-14 — Conector LinkedIn Company Search (LOCAL)
+
+- Implementada fonte técnica `linkedin` separada de Google Maps/Google, com configuração segura no Vault, filtros revisáveis, normalização e deduplicação de empresas e erros sanitizados.
+- Validação: 17 testes focados, type-check frontend/Edge, lint, build Vite/artefato Sites e diff check passaram. Suíte completa: 700 aprovações, 16 skips e 18 bloqueios existentes por resolução do specifier Deno `npm:apify-client@2.25.0`; nenhum fallback com axios/rede foi mantido.
+- Sem token real, run pago, migration, Edge deploy, Site, mensagem, Ana ou dado de cliente alterado. Próxima ação: administrador configurar e validar Actor/Task no painel em ambiente autorizado; só depois avaliar publicação.
+
 ## 2026-10-14 — Google Maps: boot da validação corrigido
 
 - Evidência remota confirmou `BOOT_ERROR` na `testar-integracao` v26: o bundle browser de `apify-client@2.25.0` não exportava `ApifyClient`, causando preflight 503 e o estado visual **Validação vencida**.

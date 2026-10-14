@@ -8,6 +8,10 @@ function errorMessage(code: string, name: string) {
   const messages: Record<string, string> = {
     integration_credentials_missing: `Salve as credenciais de ${name} antes de testar.`,
     apify_credentials_missing: 'A credencial da Apify não foi encontrada no cofre. Configure a fonte novamente.',
+    linkedin_credentials_required: 'Informe o token Apify e o Actor ou Task do LinkedIn para configurar esta fonte.',
+    linkedin_token_rejected: 'O token da Apify foi recusado para o conector LinkedIn.',
+    linkedin_actor_not_found: 'O Actor/Task do LinkedIn não foi encontrado.',
+    linkedin_resource_forbidden: 'A conta Apify não tem acesso ao Actor/Task do LinkedIn.',
     source_credentials_missing: `Revise as credenciais de ${name} e salve novamente.`,
     source_not_configured: `${name} ainda não foi configurada.`,
     provider_error: `${name} recusou a validação. Confira chave, permissões e conta.`,
@@ -28,7 +32,7 @@ function CredentialField({ field, value, onChange }: { field: CampoIntegracao; v
   return <label className="block text-sm font-semibold text-[#3A3A3C]"><span className="mb-1.5 block">{field.rotulo}{field.obrigatorio && <span className="ml-1 text-[#BD3D32]">*</span>}</span>{field.tipo === 'selecao' ? <select className={inputClass} value={value} onChange={(event) => onChange(event.target.value)}><option value="">Selecione…</option>{(field.opcoes || []).map((option) => <option key={option} value={option}>{option}</option>)}</select> : <input className={inputClass} type={field.tipo === 'senha' ? 'password' : 'text'} value={value} placeholder={field.placeholder} autoComplete="off" onChange={(event) => onChange(event.target.value)} />}{field.ajuda && <span className="mt-1.5 block text-xs font-normal text-[#777E89]">{field.ajuda}</span>}</label>;
 }
 
-/** Modal compartilhado apenas para APIs ativas (IA, Apify e Google Places). */
+/** Modal compartilhado para IA e fontes reais de busca configuráveis. */
 export function IntegrationConfigureModal({ integration, onClose, onSaved }: { integration: OperationalIntegration; onClose: () => void; onSaved: () => Promise<void> }) {
   const [values, setValues] = useState<Record<string, string>>(() => {
     const configuration = integration.anaProviderConfiguration;
@@ -46,7 +50,7 @@ export function IntegrationConfigureModal({ integration, onClose, onSaved }: { i
 
   const save = async () => {
     const missing = integration.campos.filter((field) => field.obrigatorio && !values[field.id]?.trim()).map((field) => field.rotulo);
-    if (integration.remoteKey === 'apify' && !values.actor_id?.trim() && !values.task_id?.trim()) missing.push('Actor ID ou Task ID');
+    if ((integration.remoteKey === 'apify' || integration.remoteKey === 'linkedin') && !values.actor_id?.trim() && !values.task_id?.trim()) missing.push('Actor ID ou Task ID');
     const selectedProvider = values.provedor_principal?.trim().toLowerCase();
     if (integration.remoteKey === 'ai' && ['openai', 'claude', 'freellmapi', 'freellm'].includes(selectedProvider)) {
       const modelField = selectedProvider === 'openai' ? 'openai_model' : selectedProvider === 'claude' ? 'claude_model' : 'freellm_model';

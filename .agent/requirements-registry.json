@@ -2,6 +2,14 @@
   "schema_version": 1,
   "requirements": [
     {
+      "id": "REQ-LINKEDIN-COMPANY-SEARCH-20261014",
+      "description": "Oferecer uma fonte LinkedIn separada de Google Maps/Google para buscar empresas via Actor/Task Apify configurável, com revisão humana, normalização, deduplicação e sem campanhas ou mensagens automáticas.",
+      "module": "busca_leads_linkedin",
+      "status": "PARCIAL",
+      "evidence": "Fonte linkedin adicionada em APIs/Fontes/Busca de Leads; token e Actor/Task são guardados no Vault; filtros de termo, localização, setor, porte, volume e modo curto/completo; resultados empresariais sem telefone/e-mail inventados e deduplicação por LinkedIn/domínio/empresa-localização. 17 testes focados, type-check app/Edge, lint, build e diff check passaram. Credencial/Actor reais, busca paga, Edge deploy, Site e publicação GitHub ainda não foram executados.",
+      "last_validation": "2026-10-14"
+    },
+    {
       "id": "REQ-APIFY-OFFICIAL-CLIENT-20261014",
       "description": "Usar o cliente oficial da Apify no backend para validar a fonte e iniciar/acompanhar runs sem expor token, duplicar POST ou criar conectores sociais fictícios.",
       "module": "busca_leads_apify",

@@ -115,6 +115,7 @@ export function operationalIcon(key: string): string {
     ai: 'ri-brain-line',
     apify: 'ri-map-pin-search-line',
     google_places: 'ri-google-line',
+    linkedin: 'ri-linkedin-box-line',
     csv: 'ri-file-upload-line',
     manual: 'ri-edit-2-line',
   };
@@ -130,6 +131,7 @@ export function operationalIconTone(key: string): string {
     ai: 'bg-primary-50 text-primary-700',
     apify: 'bg-[#FF6B35]/10 text-[#C2410C]',
     google_places: 'bg-[#4285F4]/10 text-[#2563EB]',
+    linkedin: 'bg-[#0A66C2]/10 text-[#0A66C2]',
     csv: 'bg-primary-50 text-primary-700',
     manual: 'bg-background-100 text-foreground-600',
   };
@@ -138,5 +140,5 @@ export function operationalIconTone(key: string): string {
 
 /** Somente caminhos que têm uma tela operacional disponível no CRM atual. */
 export const DASHBOARD_CHANNEL_KEYS = ['whatsapp_wa_akg:', 'whatsapp_meta'] as const;
-export const DASHBOARD_API_KEYS = ['ai', 'apify', 'google_places'] as const;
-export const DASHBOARD_SOURCE_KEYS = ['apify', 'manual', 'csv'] as const;
+export const DASHBOARD_API_KEYS = ['ai', 'apify', 'google_places', 'linkedin'] as const;
+export const DASHBOARD_SOURCE_KEYS = ['apify', 'linkedin', 'manual', 'csv'] as const;

@@ -6,6 +6,7 @@ describe('prospecting source presentation', () => {
     expect(prospectingSourceDisplayName('apify', 'Apify — Google Maps')).toBe('Google Maps');
     expect(prospectingSourceDisplayName('apify', 'Apify / Google Maps')).toBe('Google Maps');
     expect(prospectingSourceDisplayName('google_places', 'Google Places')).toBe('Google');
+    expect(prospectingSourceDisplayName('linkedin', 'LinkedIn · Company Search')).toBe('LinkedIn · Company Search');
   });
 
   it('keeps a custom label for a configured source', () => {

@@ -237,6 +237,21 @@ export const integracoes: Integracao[] = [
       { id: 'api_key', rotulo: 'API Key', tipo: 'senha', placeholder: 'AIza...', obrigatorio: true, ajuda: 'Chave do Google Cloud com a Places API (New) habilitada. Fica armazenada no Backend.' },
     ],
   },
+  {
+    id: 'int-9',
+    nome: 'LinkedIn · Company Search',
+    icone: 'ri-linkedin-box-line',
+    categoria: 'Busca de Leads',
+    status: 'pendente',
+    ultimoTeste: 'nunca',
+    descricao: 'Busca revisável de empresas no LinkedIn usando um Actor ou Task autorizado no Apify.',
+    campos: [
+      { id: 'api_token', rotulo: 'API Token Apify', tipo: 'senha', placeholder: 'apify_api_...', obrigatorio: true, ajuda: 'Token guardado somente no cofre do backend; nunca é exibido depois de salvo.' },
+      { id: 'actor_id', rotulo: 'Actor ID do LinkedIn', tipo: 'texto', placeholder: 'ex.: taHaRcqil3scbchuI', ajuda: 'Use o Actor LinkedIn Company Search Scraper aprovado. O identificador permanece configurável e não é executado automaticamente.' },
+      { id: 'task_id', rotulo: 'Task ID (opcional)', tipo: 'texto', placeholder: 'ex.: sua-conta~linkedin-company-search', ajuda: 'Use uma Task somente se ela já estiver configurada no Apify; informe Actor ou Task, não ambos.' },
+      { id: 'input_json', rotulo: 'Entrada adicional (JSON opcional)', tipo: 'texto', placeholder: '{"mode":"short"}', ajuda: 'Parâmetros extras do Actor. Os filtros revisados na tela têm prioridade e o JSON inválido é recusado.' },
+    ],
+  },
 ];
 
 export const equipe: Membro[] = [

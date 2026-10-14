@@ -35,7 +35,7 @@ describe('limitarBuscaManual', () => {
     const fontes = fontesLeads.map((fonte) => ({ ...fonte, status: 'ativo', connectionStatus: 'connected' }));
     const disponiveis = fontesAtivas(fontesApiProspeccao(fontes));
 
-    expect(disponiveis.map((fonte) => fonte.sourceKey)).toEqual(['google_places', 'apify']);
+    expect(disponiveis.map((fonte) => fonte.sourceKey)).toEqual(['google_places', 'apify', 'linkedin']);
     expect(disponiveis.map((fonte) => fonte.sourceKey)).not.toContain('ai');
     expect(disponiveis.map((fonte) => fonte.sourceKey)).not.toContain('csv');
   });

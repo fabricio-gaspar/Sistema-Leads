@@ -19,6 +19,11 @@ function errorMessage(code: string, name: string) {
   const messages: Record<string, string> = {
     integration_credentials_missing: `Salve as credenciais de ${name} antes de testar.`,
     apify_credentials_missing: 'A credencial da Apify não foi encontrada no cofre. Configure a fonte novamente.',
+    linkedin_credentials_required: 'Informe o token Apify e o Actor ou Task do LinkedIn antes de validar.',
+    linkedin_token_rejected: 'O token da Apify foi recusado para o conector LinkedIn.',
+    linkedin_actor_not_found: 'O Actor/Task do LinkedIn não foi encontrado.',
+    linkedin_resource_forbidden: 'A conta Apify não tem acesso ao Actor/Task do LinkedIn.',
+    linkedin_rate_limited: 'A Apify limitou temporariamente o conector LinkedIn.',
     source_credentials_missing: `Revise as credenciais de ${name} e salve novamente.`,
     source_not_configured: `${name} ainda não foi configurada.`,
     provider_error: `${name} recusou a validação. Confira chave, permissões e conta.`,

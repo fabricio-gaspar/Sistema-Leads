@@ -11,14 +11,15 @@ import { countRequiredIntegrationAttention, hasOptionalIntegrationAttention } fr
 type ApiView = 'overview' | 'ai' | 'prospecting' | 'history';
 type HealthTone = 'positive' | 'attention' | 'critical' | 'neutral';
 
-const names: Record<string, string> = { ai: 'IA da Ana', apify: 'Google Maps', google_places: 'Google' };
+const names: Record<string, string> = { ai: 'IA da Ana', apify: 'Google Maps', google_places: 'Google', linkedin: 'LinkedIn · Company Search' };
 const descriptions: Record<string, string> = {
   ai: 'Responde e prepara atendimentos.',
   apify: 'Extrai leads do Google Maps.',
   google_places: 'Fonte de dados de locais e empresas.',
+  linkedin: 'Busca empresas para revisão, sem ativar campanhas ou mensagens.',
 };
-const scopes: Record<string, string> = { ai: 'Ana', apify: 'Busca de Leads', google_places: 'Busca de Leads' };
-const icons: Record<string, string> = { ai: 'ri-brain-line', apify: 'ri-map-pin-search-line', google_places: 'ri-google-line' };
+const scopes: Record<string, string> = { ai: 'Ana', apify: 'Busca de Leads', google_places: 'Busca de Leads', linkedin: 'Busca de Leads' };
+const icons: Record<string, string> = { ai: 'ri-brain-line', apify: 'ri-map-pin-search-line', google_places: 'ri-google-line', linkedin: 'ri-linkedin-box-line' };
 
 function date(value: string | null | undefined): string {
   if (!value) return 'Ainda não testada';
@@ -74,7 +75,7 @@ export default function ApisProvidersTab() {
   const refresh = useCallback(async () => { await Promise.all([recarregar(), recarregarFontes()]); try { setDiagnostics(await loadOperationalDiagnostics()); } catch { /* cards continuam exibindo o estado público já carregado */ } }, [recarregar, recarregarFontes]);
   useEffect(() => { void refresh(); }, [refresh]);
 
-  const providers = useMemo(() => ['ai', 'apify', 'google_places'].map((key) => integracoes.find((item) => item.remoteKey === key)).filter(Boolean) as OperationalIntegration[], [integracoes]);
+  const providers = useMemo(() => ['ai', 'apify', 'google_places', 'linkedin'].map((key) => integracoes.find((item) => item.remoteKey === key)).filter(Boolean) as OperationalIntegration[], [integracoes]);
   const ai = providers.find((item) => item.remoteKey === 'ai');
   const prospecting = providers.filter((item) => item.remoteKey !== 'ai');
   const sourceByKey = new Map(fontes.map((source) => [source.sourceKey, source]));

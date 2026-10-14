@@ -73,6 +73,7 @@ const OUT_OF_PROFILE_REASONS = ['Segmento incorreto', 'Concorrente', 'Região in
 
 interface ProspectingRunSummary {
   id: string;
+  sourceKey?: string;
   status: string;
   startedAt: string | null;
   resultCount: number;
@@ -140,9 +141,9 @@ interface PendingCsvBatch {
   duplicateCount: number;
 }
 
-async function listarExecucoesApify(): Promise<ProspectingRunSummary[]> {
+async function listarExecucoesFonte(sourceKey = 'apify'): Promise<ProspectingRunSummary[]> {
   const { data, error } = await supabase.functions.invoke('prospectar-leads', {
-    body: { action: 'list_runs', sourceKey: 'apify', mode: 'production' },
+    body: { action: 'list_runs', sourceKey, mode: 'production' },
   });
   if (error) throw error;
   return Array.isArray(data?.runs) ? data.runs as ProspectingRunSummary[] : [];
@@ -237,6 +238,9 @@ export default function BuscaLeads() {
   const [temSite, setTemSite] = useState<boolean | null>(null);
   const [temWhatsApp, setTemWhatsApp] = useState<boolean | null>(null);
   const [temEmail, setTemEmail] = useState<boolean | null>(null);
+  const [linkedinIndustryIds, setLinkedinIndustryIds] = useState('');
+  const [linkedinCompanySize, setLinkedinCompanySize] = useState('');
+  const [linkedinScraperMode, setLinkedinScraperMode] = useState<'short' | 'full'>('short');
   const [filtrosAvancados, setFiltrosAvancados] = useState(false);
   const [buscando, setBuscando] = useState(false);
   const [resultado, setResultado] = useState<string | null>(null);
@@ -302,6 +306,8 @@ export default function BuscaLeads() {
   // A busca manual expõe somente provedores que o backend realmente executa.
   const fontesProspecao = useMemo(() => fontesApiProspeccao(fontes), [fontes]);
   const fontesDisponiveis = useMemo(() => fontesAtivas(fontesProspecao), [fontesProspecao]);
+  const fonteSelecionadaAtual = useMemo(() => fontesProspecao.find((fonte) => fonte.id === fonteSelecionada), [fontesProspecao, fonteSelecionada]);
+  const sourceKeySelecionada = fonteSelecionadaAtual?.sourceKey || '';
   const fonteUnicaAtiva = fontesDisponiveis.length === 1 ? fontesDisponiveis[0] : null;
   const gruposSugeridos = useMemo(() => findProspectingTermSuggestions(segmentoSugestao), [segmentoSugestao]);
   const termosSelecionados = useMemo(() => new Set(normalizeProspectingTerms(termosBusca).map((term) => normalizarTermoSugerido(term))), [termosBusca]);
@@ -352,16 +358,16 @@ export default function BuscaLeads() {
     if ((aba !== 'busca' && aba !== 'salvas') || !historicoAberto || historicoCarregado) return;
     let mounted = true;
     setCarregandoExecucoes(true);
-    listarExecucoesApify()
+    listarExecucoesFonte(sourceKeySelecionada || 'apify')
       .then((runs) => { if (mounted) { setExecucoes(runs); setErroExecucoes(false); setHistoricoCarregado(true); } })
       .catch(() => { if (mounted) setErroExecucoes(true); })
       .finally(() => { if (mounted) setCarregandoExecucoes(false); });
     return () => { mounted = false; };
-  }, [aba, historicoAberto, historicoCarregado]);
+  }, [aba, historicoAberto, historicoCarregado, sourceKeySelecionada]);
 
   const atualizarExecucoes = async () => {
     setCarregandoExecucoes(true);
-    try { setExecucoes(await listarExecucoesApify()); setErroExecucoes(false); setHistoricoCarregado(true); }
+    try { setExecucoes(await listarExecucoesFonte(sourceKeySelecionada || 'apify')); setErroExecucoes(false); setHistoricoCarregado(true); }
     catch { setErroExecucoes(true); }
     finally { setCarregandoExecucoes(false); }
   };
@@ -606,7 +612,7 @@ export default function BuscaLeads() {
     setResultado('Configuração ampliada aplicada. Revise os filtros e clique em Buscar para iniciar uma consulta real.');
   };
 
-  const aguardarResultadoApify = async (sourceKey: string, runId: string): Promise<ProspectingResponse> => {
+  const aguardarResultadoFonte = async (sourceKey: string, runId: string): Promise<ProspectingResponse> => {
     for (let attempt = 0; attempt < 30; attempt += 1) {
       await new Promise<void>((resolve) => window.setTimeout(resolve, 4_000));
       const { data, error } = await supabase.functions.invoke('prospectar-leads', {
@@ -616,11 +622,12 @@ export default function BuscaLeads() {
       const response = data as ProspectingResponse;
       if (!response?.pending) return response;
     }
-    throw new Error('apify_processing_timeout');
+    throw new Error(sourceKey === 'linkedin' ? 'linkedin_processing_timeout' : 'apify_processing_timeout');
   };
 
   const retomarExecucao = async (run: ProspectingRunSummary) => {
-    const fonte = fontesProspecao.find((item) => item.sourceKey === 'apify');
+    const runSourceKey = run.sourceKey || 'apify';
+    const fonte = fontesProspecao.find((item) => item.sourceKey === runSourceKey);
     if (fonte) setFonteSelecionada(fonte.id);
     setBuscando(true);
     setExecucaoAtual(run.id);
@@ -630,15 +637,15 @@ export default function BuscaLeads() {
     setAba('busca');
     try {
       const { data, error } = await supabase.functions.invoke('prospectar-leads', {
-        body: { sourceKey: 'apify', mode: 'production', ...(run.status === 'cached' ? { action: 'open_cache', cacheId: run.id } : { runId: run.id }) },
+        body: { sourceKey: runSourceKey, mode: 'production', ...(run.status === 'cached' ? { action: 'open_cache', cacheId: run.id } : { runId: run.id }) },
       });
       if (error) throw new Error(await detalheDoErroBusca(error));
       let response = data as ProspectingResponse;
-      if (response?.pending) response = await aguardarResultadoApify('apify', run.id);
+      if (response?.pending) response = await aguardarResultadoFonte(runSourceKey, run.id);
       setFaseBusca(fasesBusca[2]);
-      aplicarResultadoDaBusca(response, prospectingSourceDisplayName('apify', fonte?.nome), run.resultCount || leadsDia);
+      aplicarResultadoDaBusca(response, prospectingSourceDisplayName(runSourceKey, fonte?.nome), run.resultCount || leadsDia);
     } catch (error) {
-      setErroBusca(mensagemBuscaReal(error instanceof Error ? error.message : 'prospecting_failed', prospectingSourceDisplayName('apify', fonte?.nome)));
+      setErroBusca(mensagemBuscaReal(error instanceof Error ? error.message : 'prospecting_failed', prospectingSourceDisplayName(runSourceKey, fonte?.nome)));
     } finally {
       setBuscando(false);
       setExecucaoAtual(null);
@@ -679,6 +686,7 @@ export default function BuscaLeads() {
       'Apify — Google Maps': 'apify',
       'Importação CSV': 'csv',
       'Pesquisa assistida por IA': 'ai',
+      'LinkedIn · Company Search': 'linkedin',
     } as Record<string, string>)[fonteNome] || '';
 
     try {
@@ -701,6 +709,9 @@ export default function BuscaLeads() {
         exigeWhatsApp: temWhatsApp === true,
         exigeEmail: temEmail === true,
         volumeMaximo: requestedVolume,
+        industryIds: sourceKey === 'linkedin' ? linkedinIndustryIds.split(',').map((value) => value.trim()).filter(Boolean).slice(0, 20) : [],
+        companySize: sourceKey === 'linkedin' ? linkedinCompanySize.split(',').map((value) => value.trim()).filter(Boolean).slice(0, 10) : [],
+        scraperMode: sourceKey === 'linkedin' ? linkedinScraperMode : undefined,
       };
       const idempotencyKey = requestKeyFor(sourceKey, filters);
       setBuscando(true);
@@ -723,7 +734,7 @@ export default function BuscaLeads() {
         setExecucaoAtual(response.runId);
         if (historicoAberto) void atualizarExecucoes();
         setFaseBusca(fasesBusca[1]);
-        response = await aguardarResultadoApify(sourceKey, response.runId);
+        response = await aguardarResultadoFonte(sourceKey, response.runId);
       }
       setFaseBusca(fasesBusca[2]);
       aplicarResultadoDaBusca(response, fonteNome, requestedVolume);
@@ -731,7 +742,7 @@ export default function BuscaLeads() {
       setPreview([]);
       setSelecionados([]);
       const message = error instanceof Error ? error.message : 'prospecting_failed';
-      if (/^(source_|apify_auth_|apify_actor_|apify_http_4|provider_invalid_response|prospecting_run_not_pending)/.test(message)) clearRequestKey();
+      if (/^(source_|apify_auth_|apify_actor_|apify_http_4|linkedin_credentials_required|linkedin_token_rejected|linkedin_actor_not_found|linkedin_resource_forbidden|provider_invalid_response|prospecting_run_not_pending)/.test(message)) clearRequestKey();
       setErroBusca(mensagemBuscaReal(message, fonteNome));
     } finally {
       setBuscando(false);
@@ -761,6 +772,17 @@ export default function BuscaLeads() {
       provider_error: `O provedor de ${fonte} recusou a busca. Confira as credenciais, limites e a configuração do Actor/Task.`,
       apify_actor_incompatible: `${fonte} está configurada com um Actor que não aceita os filtros de Google Maps. Corrija o Actor em Configurações antes de buscar.`,
       apify_http_400: `${fonte} recusou o formato da busca. Use um Actor de Google Maps compatível com localização e volume de resultados.`,
+      linkedin_credentials_required: `${fonte} precisa de token Apify e Actor/Task do LinkedIn configurados no cofre.`,
+      linkedin_token_rejected: `${fonte} recusou o token Apify. Valide a credencial e as permissões do Actor.`,
+      linkedin_actor_not_found: `${fonte} não encontrou o Actor/Task configurado. Confira o identificador no painel da Apify.`,
+      linkedin_resource_forbidden: `${fonte} não tem acesso ao Actor/Task configurado. Confira a conta e o plano da Apify.`,
+      linkedin_rate_limited: `${fonte} atingiu o limite temporário da Apify. Aguarde antes de tentar novamente.`,
+      linkedin_provider_timeout: `${fonte} não respondeu no prazo seguro. A execução permanece registrada sem retry automático.`,
+      linkedin_processing_timeout: `${fonte} ainda está processando esta busca. O Registro do Sistema mantém a execução; aguarde antes de tentar novamente.`,
+      linkedin_provider_error: `${fonte} devolveu um erro incompatível. Confira o Actor/Task e a entrada adicional antes de tentar novamente.`,
+      linkedin_run_failed: `${fonte} encerrou a execução com falha. Consulte o histórico da Apify antes de tentar novamente.`,
+      linkedin_run_aborted: `${fonte} foi interrompida pelo provedor. Nenhum lead foi importado.`,
+      linkedin_run_timed_out: `${fonte} excedeu o tempo seguro de processamento. Nenhum retry automático foi enviado.`,
       apify_processing_timeout: `${fonte} ainda está processando esta busca. Aguarde alguns minutos antes de iniciar outra consulta; o Registro do Sistema mantém a execução para auditoria.`,
       prospecting_start_unconfirmed: `${fonte} recebeu uma tentativa de início cuja confirmação não foi registrada. Para evitar uma busca duplicada, o sistema não enviará outro pedido automaticamente. Abra o histórico e siga o Registro do Sistema.`,
       prospecting_request_key_required: 'Não foi possível proteger a repetição desta busca. Atualize a página e tente novamente.',
@@ -1369,7 +1391,26 @@ export default function BuscaLeads() {
                       <label className="inline-flex cursor-pointer items-center gap-2"><input type="checkbox" checked={temEmail === true} onChange={() => setTemEmail(temEmail === true ? null : true)} /> E-mail informado</label>
                     </div>
                     <button type="button" onClick={() => setFiltrosAvancados((visible) => !visible)} aria-expanded={filtrosAvancados} className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold text-foreground-600 hover:text-foreground-900"><i className={filtrosAvancados ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line'} aria-hidden="true" /> Filtros avançados</button>
-                    {filtrosAvancados && <div className="mt-3 rounded-xl border border-background-200 bg-background-50 px-3 py-2.5 text-xs leading-5 text-foreground-600">A fonte e a região já foram definidas nos passos anteriores. A duplicidade será conferida na revisão por empresa, e-mail ou telefone.</div>}
+                    {filtrosAvancados && <div className="mt-3 space-y-3 rounded-xl border border-background-200 bg-background-50 px-3 py-2.5 text-xs leading-5 text-foreground-600">
+                      <p>A fonte e a região já foram definidas nos passos anteriores. A duplicidade será conferida na revisão por empresa, e-mail ou telefone.</p>
+                      {sourceKeySelecionada === 'linkedin' && <div className="grid gap-3 border-t border-background-200 pt-3 sm:grid-cols-2">
+                        <label className="text-xs font-semibold text-foreground-700">IDs de setor (opcional)
+                          <input value={linkedinIndustryIds} onChange={(event) => setLinkedinIndustryIds(event.target.value)} placeholder="Ex.: 25, 27" className="mt-1.5 w-full rounded-lg border border-background-300 bg-white px-3 py-2 text-sm text-foreground-900" />
+                          <span className="mt-1 block text-[11px] font-normal text-foreground-500">Separe por vírgula conforme a taxonomia do Actor.</span>
+                        </label>
+                        <label className="text-xs font-semibold text-foreground-700">Porte (opcional)
+                          <input value={linkedinCompanySize} onChange={(event) => setLinkedinCompanySize(event.target.value)} placeholder="Ex.: 11-50, 51-200" className="mt-1.5 w-full rounded-lg border border-background-300 bg-white px-3 py-2 text-sm text-foreground-900" />
+                          <span className="mt-1 block text-[11px] font-normal text-foreground-500">Use os valores aceitos pelo Actor selecionado.</span>
+                        </label>
+                        <label className="text-xs font-semibold text-foreground-700 sm:col-span-2">Modo de coleta
+                          <select value={linkedinScraperMode} onChange={(event) => setLinkedinScraperMode(event.target.value === 'full' ? 'full' : 'short')} className="mt-1.5 w-full rounded-lg border border-background-300 bg-white px-3 py-2 text-sm text-foreground-900">
+                            <option value="short">Short — dados essenciais e menor custo</option>
+                            <option value="full">Full — detalhes adicionais, sujeito ao custo do Actor</option>
+                          </select>
+                        </label>
+                        <p className="sm:col-span-2 text-[11px] text-foreground-500">LinkedIn permanece em revisão: nenhum resultado vira lead, campanha ou mensagem sem sua confirmação.</p>
+                      </div>}
+                    </div>}
                     <div className="mt-4 border-t border-background-200 pt-3"><p className="text-xs font-semibold text-foreground-700">Excluir da busca</p><div className="mt-2 flex flex-wrap gap-2"><span className="rounded-full bg-background-100 px-3 py-1.5 text-xs text-foreground-600">Empresas já cadastradas no CRM</span></div><p className="mt-2 text-xs leading-5 text-foreground-500">A duplicidade é identificada na revisão por empresa, e-mail ou telefone; nenhuma lista fictícia é enviada ao provedor.</p></div>
                   </section>
 

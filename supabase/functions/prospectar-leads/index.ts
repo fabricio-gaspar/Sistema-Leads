@@ -1,17 +1,19 @@
 import { createAdminClient, requireOrganizationRole, requireUser } from '../_shared/auth.ts';
 import { allowedCorsHeaders, hasAllowedOrigin, json, preflight, safeError } from '../_shared/http.ts';
 import { getApifyRun, listApifyItems, startApifyRun } from '../_shared/apifyClient.ts';
+import { buildLinkedInActorInput, dedupeLinkedInCompanies, linkedInErrorCode, normalizeLinkedInCompany, type LinkedInCompanyFilters } from '../_shared/linkedinCompanySearch.ts';
 import { readJson, requiredString } from '../_shared/validation.ts';
 
 type Filters = {
   pais?: string; estado?: string; cidade?: string; raio?: number; atividades?: string[]; segmentos?: string[];
   portes?: string[]; cargo?: string; exigeSite?: boolean; exigeWhatsApp?: boolean; exigeEmail?: boolean; volumeMaximo?: number;
+  industryIds?: string[]; companySize?: string[]; scraperMode?: 'short' | 'full'; startPage?: number; takePages?: number;
 };
 type SourceRow = { id: string; enabled: boolean; mode: string; connection_status: string };
 type IntegrationRow = { id: string; provider: string; enabled: boolean; connected: boolean; paused: boolean };
 type ProspectingRun = {
   id: string;
-  source_key: 'apify' | 'google_places';
+  source_key: 'apify' | 'google_places' | 'linkedin';
   source_config_id: string;
   status: string;
   filters: unknown;
@@ -46,6 +48,10 @@ function normalizeFilters(value: unknown): Filters {
     raio: Math.max(1, Math.min(200, raio)), atividades: list(input.atividades), segmentos: list(input.segmentos), portes: list(input.portes),
     cargo: text(input.cargo, 80), exigeSite: input.exigeSite === true, exigeWhatsApp: input.exigeWhatsApp === true,
     exigeEmail: input.exigeEmail === true, volumeMaximo: Math.max(1, Math.min(100, volume)),
+    industryIds: list(input.industryIds, 20), companySize: list(input.companySize, 10),
+    scraperMode: input.scraperMode === 'full' ? 'full' : 'short',
+    startPage: typeof input.startPage === 'number' && Number.isFinite(input.startPage) ? Math.max(1, Math.min(100, Math.floor(input.startPage))) : 1,
+    takePages: typeof input.takePages === 'number' && Number.isFinite(input.takePages) ? Math.max(1, Math.min(10, Math.floor(input.takePages))) : 1,
   };
 }
 
@@ -86,7 +92,7 @@ function stateCode(value: string): string {
   return clean.length === 2 ? clean.toUpperCase() : brazilianStates[clean] || '';
 }
 
-type RawProspect = { id: string; name: string; phone: string; whatsapp: string; email: string; website: string; sourceUrl: string; cnpj: string; city: string; uf: string; segment: string; address: string; latitude?: number | null; longitude?: number | null };
+type RawProspect = { id: string; name: string; phone: string; whatsapp: string; email: string; website: string; sourceUrl: string; cnpj: string; city: string; uf: string; segment: string; address: string; porte?: string; latitude?: number | null; longitude?: number | null };
 
 function score(raw: RawProspect, filters: Filters) {
   const reasons: string[] = [];
@@ -113,12 +119,12 @@ function score(raw: RawProspect, filters: Filters) {
   return { overall, fit: Math.min(100, fit), contactability: Math.min(100, contactability), engagement, reason: reasons.join(' · ') || 'Empresa identificada pela fonte configurada' };
 }
 
-function external(source: 'apify' | 'google_places', raw: RawProspect, filters: Filters) {
+function external(source: 'apify' | 'google_places' | 'linkedin', raw: RawProspect, filters: Filters) {
   const telefone = raw.phone || null, whatsapp = raw.whatsapp || null, website = raw.website || null;
   const scored = score(raw, filters);
   return {
     cnpj: raw.cnpj || null, razao_social: raw.name, nome_fantasia: raw.name || null, cnae_principal: null, cnae_descricao: raw.segment || null,
-    porte: null, capital_social: null, situacao: null, data_abertura: null, telefone, whatsapp, email: raw.email || null,
+    porte: raw.porte || null, capital_social: null, situacao: null, data_abertura: null, telefone, whatsapp, email: raw.email || null,
     logradouro: raw.address || null, numero: null, bairro: null, municipio: raw.city || null, uf: stateCode(raw.uf) || null,
     cep: null, website, latitude: raw.latitude ?? null, longitude: raw.longitude ?? null, distance_km: null,
     deterministic_score: scored.overall, score: scored.overall, fit_score: scored.fit, contactability_score: scored.contactability, engagement_score: scored.engagement,
@@ -154,6 +160,39 @@ function normalizeGoogle(item: unknown, filters: Filters) {
   return external('google_places', { id: text(record.id, 300), name, phone, whatsapp: '', email: '', website: text(record.websiteUri, 1_000), sourceUrl: text(record.googleMapsUri, 1_000), cnpj: '', city: '', uf: '', segment: types, address: text(record.formattedAddress, 1_000), latitude: coordinate(location.latitude, 85), longitude: coordinate(location.longitude, 180) }, filters);
 }
 
+function linkedinFilters(filters: Filters): LinkedInCompanyFilters {
+  return {
+    searchQuery: terms(filters).join(' '),
+    locations: [filters.cidade, filters.estado, filters.pais || 'Brasil'].filter(Boolean) as string[],
+    industryIds: filters.industryIds,
+    companySize: filters.companySize?.length ? filters.companySize : filters.portes,
+    maxItems: filters.volumeMaximo ?? 30,
+    startPage: filters.startPage,
+    takePages: filters.takePages,
+    mode: filters.scraperMode,
+  };
+}
+
+function normalizeLinkedIn(item: unknown, filters: Filters) {
+  const company = normalizeLinkedInCompany(item);
+  if (!company) return null;
+  return external('linkedin', {
+    id: company.linkedinUrl,
+    name: company.name,
+    phone: company.phone || '',
+    whatsapp: '',
+    email: company.email || '',
+    website: company.website,
+    sourceUrl: company.sourceUrl,
+    cnpj: '',
+    city: company.city,
+    uf: company.state,
+    segment: company.segment,
+    porte: company.size,
+    address: '',
+  }, filters);
+}
+
 function apifyInput(credentials: Record<string, unknown>, filters: Filters) {
   let configured: Record<string, unknown> = {};
   const inputJson = text(credentials.input_json, 20_000);
@@ -164,12 +203,14 @@ function apifyInput(credentials: Record<string, unknown>, filters: Filters) {
   return { ...configured, searchStringsArray, locationQuery: locationQuery(filters), maxCrawledPlacesPerSearch: Math.max(1, Math.floor(volume / searchStringsArray.length)) };
 }
 
-function apifyFailure(status: string) { return `apify_run_${status.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`; }
+function providerFailure(sourceKey: 'apify' | 'google_places' | 'linkedin', status: string) { return `${sourceKey}_run_${status.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`; }
 function providerStartWasRejected(message: string) {
   // Uma resposta de start sem identificador pode representar um POST aceito
   // cujo retorno foi corrompido. Ela é ambígua e jamais autoriza um novo POST.
-  return /^(apify_auth_rejected|apify_token_rejected|apify_resource_forbidden|apify_actor_not_found|source_credentials_missing|source_input_invalid)$/.test(message);
+  return /^(apify_auth_rejected|apify_token_rejected|apify_resource_forbidden|apify_actor_not_found|linkedin_token_rejected|linkedin_resource_forbidden|linkedin_actor_not_found|linkedin_credentials_required|source_credentials_missing|source_input_invalid)$/.test(message);
 }
+
+function isApifySource(sourceKey: 'apify' | 'google_places' | 'linkedin'): boolean { return sourceKey === 'apify' || sourceKey === 'linkedin'; }
 
 async function startApify(credentials: Record<string, unknown>, filters: Filters) {
   const run = await startApifyRun(credentials, apifyInput(credentials, filters));
@@ -184,6 +225,27 @@ async function apifyRun(credentials: Record<string, unknown>, providerRunId: str
 async function apifyItems(credentials: Record<string, unknown>, datasetId: string, filters: Filters) {
   const items = await listApifyItems(credentials, datasetId, filters.volumeMaximo ?? 30);
   return items.map((item) => normalizeApify(item, filters)).filter((item): item is NonNullable<typeof item> => item !== null);
+}
+
+async function linkedinStart(credentials: Record<string, unknown>, filters: Filters) {
+  try {
+    const run = await startApifyRun(credentials, buildLinkedInActorInput(credentials, linkedinFilters(filters)));
+    return { providerRunId: run.id, status: run.status, datasetId: run.defaultDatasetId };
+  } catch (error) {
+    throw new Error(linkedInErrorCode(error));
+  }
+}
+
+async function linkedinItems(credentials: Record<string, unknown>, datasetId: string, filters: Filters) {
+  const items = await listApifyItems(credentials, datasetId, filters.volumeMaximo ?? 30);
+  const normalized = items.map((item) => normalizeLinkedIn(item, filters)).filter((item): item is NonNullable<typeof item> => item !== null);
+  return dedupeLinkedInCompanies(normalized.map((item) => ({
+    name: item.razao_social || '', linkedinUrl: item.source_url || '', website: item.website || '', phone: item.telefone || null,
+    email: item.email || null, city: item.municipio || '', state: item.uf || '', segment: item.cnae_descricao || '', size: item.porte || '', sourceUrl: item.source_url || '',
+  }))).map((company) => external('linkedin', {
+    id: company.linkedinUrl, name: company.name, phone: company.phone || '', whatsapp: '', email: company.email || '', website: company.website,
+    sourceUrl: company.sourceUrl, cnpj: '', city: company.city, uf: company.state, segment: company.segment, porte: company.size, address: '',
+  }, filters));
 }
 
 async function callGoogle(credentials: Record<string, unknown>, filters: Filters) {
@@ -213,8 +275,8 @@ Deno.serve(async (request) => {
   let runId: string | null = null, admin: ReturnType<typeof createAdminClient> | null = null, sourceId: string | null = null;
   let failRunOnError = false, providerStartInFlight = false;
   try {
-    const body = await readJson(request), sourceKey = requiredString(body.sourceKey, 'source_key', 80) as 'apify' | 'google_places';
-    if (!['apify', 'google_places'].includes(sourceKey)) throw new Error('source_not_supported');
+    const body = await readJson(request), sourceKey = requiredString(body.sourceKey, 'source_key', 80) as 'apify' | 'google_places' | 'linkedin';
+    if (!['apify', 'google_places', 'linkedin'].includes(sourceKey)) throw new Error('source_not_supported');
     if (body.action != null && !['list_runs', 'open_cache'].includes(String(body.action))) throw new Error('prospecting_action_not_allowed');
     if (body.mode !== 'production') throw new Error('production_mode_required');
     const requestedRunId = text(body.runId, 80);
@@ -254,13 +316,13 @@ Deno.serve(async (request) => {
       executionScopeKey = `manual:${requestedBy}`;
     }
     if (body.action === 'list_runs') {
-      if (schedulerToken || sourceKey !== 'apify') throw new Error('prospecting_action_not_allowed');
+      if (schedulerToken || !isApifySource(sourceKey)) throw new Error('prospecting_action_not_allowed');
       let runQuery = admin.from('prospecting_runs')
         .select('id,status,source_key,started_at,result_count,result_cache_id,provider_run_id,provider_start_state,last_error,filters,requested_by')
         .eq('organization_id', organizationId).eq('source_key', sourceKey);
       let cacheQuery = admin.from('prospecting_cache')
         .select('id,total_found,created_at,filters,user_id')
-        .eq('organization_id', organizationId).eq('source', 'apify')
+        .eq('organization_id', organizationId).eq('source', sourceKey)
         .gt('expires_at', new Date().toISOString());
       if (!canReadAll) {
         runQuery = runQuery.eq('requested_by', requestedBy);
@@ -278,25 +340,25 @@ Deno.serve(async (request) => {
       if (linkedError) throw new Error('prospecting_runs_unavailable');
       const linkedIds = new Set((linked ?? []).map((run) => run.result_cache_id));
       const runRows = (runs ?? []).map((run) => ({
-        id: run.id, status: run.status, startedAt: run.started_at, resultCount: run.result_count,
+        id: run.id, sourceKey: run.source_key, status: run.status, startedAt: run.started_at, resultCount: run.result_count,
         hasProvider: Boolean(run.provider_run_id), hasResults: Boolean(run.result_cache_id),
         providerStartState: run.provider_start_state,
         lastError: run.last_error, location: locationQuery(normalizeFilters(run.filters)),
         fromTeam: run.requested_by !== requestedBy,
       }));
       const historicalCaches = (caches ?? []).filter((cache) => !linkedIds.has(cache.id)).map((cache) => ({
-        id: cache.id, status: 'cached', startedAt: cache.created_at, resultCount: cache.total_found,
+        id: cache.id, sourceKey, status: 'cached', startedAt: cache.created_at, resultCount: cache.total_found,
         hasProvider: false, hasResults: true, lastError: null, fromTeam: cache.user_id !== requestedBy,
         location: [text(object(cache.filters).municipio, 120), text(object(cache.filters).uf, 2), 'Brasil'].filter(Boolean).join(', '),
       }));
       return json({ ok: true, runs: [...runRows, ...historicalCaches].sort((left, right) => String(right.startedAt).localeCompare(String(left.startedAt))) }, 200, headers);
     }
     if (body.action === 'open_cache') {
-      if (schedulerToken || sourceKey !== 'apify') throw new Error('prospecting_action_not_allowed');
+      if (schedulerToken || !isApifySource(sourceKey)) throw new Error('prospecting_action_not_allowed');
       const cacheId = text(body.cacheId, 80);
       if (!cacheId) throw new Error('prospecting_results_unavailable');
       let cacheQuery = admin.from('prospecting_cache').select('results').eq('id', cacheId)
-        .eq('organization_id', organizationId).eq('source', 'apify').gt('expires_at', new Date().toISOString());
+        .eq('organization_id', organizationId).eq('source', sourceKey).gt('expires_at', new Date().toISOString());
       if (!canReadAll) cacheQuery = cacheQuery.eq('user_id', requestedBy);
       const { data: cache, error: cacheError } = await cacheQuery.maybeSingle();
       if (cacheError || !cache || !Array.isArray(cache.results)) throw new Error('prospecting_results_unavailable');
@@ -381,7 +443,7 @@ Deno.serve(async (request) => {
     let providerState = existingRun.provider_start_state || (existingRun.provider_run_id ? 'accepted' : 'unknown');
     // Recupera com prova uma execução iniciada pela versão anterior durante a
     // troca: existe provider_run_id, mas o novo estado ainda não foi gravado.
-    if (sourceKey === 'apify' && existingRun.provider_run_id && providerState === 'ready') {
+    if (isApifySource(sourceKey) && existingRun.provider_run_id && providerState === 'ready') {
       const { data: recovered, error: recoveryError } = await admin.from('prospecting_runs').update({
         provider_start_state: 'accepted',
         provider_start_confirmed_at: new Date().toISOString(),
@@ -391,25 +453,27 @@ Deno.serve(async (request) => {
       providerState = 'accepted';
       existingRun.provider_start_state = 'accepted';
     }
-    if (sourceKey === 'apify' && providerState === 'unknown') throw new Error('prospecting_start_unconfirmed');
-    if (sourceKey === 'apify' && providerState === 'rejected') throw new Error('prospecting_run_not_pending');
-    if (sourceKey === 'apify' && providerState === 'attempting' && !providerStartClaimed) {
+    if (isApifySource(sourceKey) && providerState === 'unknown') throw new Error('prospecting_start_unconfirmed');
+    if (isApifySource(sourceKey) && providerState === 'rejected') throw new Error('prospecting_run_not_pending');
+    if (isApifySource(sourceKey) && providerState === 'attempting' && !providerStartClaimed) {
       return json({ ok: true, pending: true, runId, sourceKey, message: 'O início da busca está sendo confirmado; nenhum novo pedido foi enviado.' }, 202, headers);
     }
 
     if (existingRun.provider_run_id) {
-      if (sourceKey !== 'apify') throw new Error('prospecting_run_not_pending');
+      if (!isApifySource(sourceKey)) throw new Error('prospecting_run_not_pending');
       providerRunId = existingRun.provider_run_id;
       const provider = await apifyRun(credentials as Record<string, unknown>, providerRunId);
       if (provider.status !== 'SUCCEEDED') {
-        if (['FAILED', 'ABORTED', 'TIMED-OUT', 'TIMED_OUT'].includes(provider.status)) { failRunOnError = true; throw new Error(apifyFailure(provider.status)); }
+        if (['FAILED', 'ABORTED', 'TIMED-OUT', 'TIMED_OUT'].includes(provider.status)) { failRunOnError = true; throw new Error(providerFailure(sourceKey, provider.status)); }
         return json({ ok: true, pending: true, runId, sourceKey, message: 'A fonte ainda está processando a busca.' }, 202, headers);
       }
       datasetId = provider.datasetId;
-    } else if (sourceKey === 'apify') {
+    } else if (isApifySource(sourceKey)) {
       if (!providerStartClaimed || providerState !== 'attempting') throw new Error('prospecting_start_unconfirmed');
       providerStartInFlight = true;
-      const provider = await startApify(credentials as Record<string, unknown>, filters);
+      const provider = sourceKey === 'linkedin'
+        ? await linkedinStart(credentials as Record<string, unknown>, filters)
+        : await startApify(credentials as Record<string, unknown>, filters);
       providerRunId = provider.providerRunId;
       datasetId = provider.datasetId;
       const { data: savedProviderRun, error: updateError } = await admin.from('prospecting_runs').update({
@@ -421,7 +485,7 @@ Deno.serve(async (request) => {
       if (updateError || !savedProviderRun) throw new Error('prospecting_provider_id_not_saved');
       providerStartInFlight = false;
       if (provider.status !== 'SUCCEEDED') {
-        if (['FAILED', 'ABORTED', 'TIMED-OUT', 'TIMED_OUT'].includes(provider.status)) { failRunOnError = true; throw new Error(apifyFailure(provider.status)); }
+        if (['FAILED', 'ABORTED', 'TIMED-OUT', 'TIMED_OUT'].includes(provider.status)) { failRunOnError = true; throw new Error(providerFailure(sourceKey, provider.status)); }
         return json({ ok: true, pending: true, runId, sourceKey, message: 'A fonte iniciou a busca. Aguardando os resultados.' }, 202, headers);
       }
     } else {
@@ -438,7 +502,9 @@ Deno.serve(async (request) => {
 
     const result = sourceKey === 'apify'
       ? { providerRunId, leads: await apifyItems(credentials as Record<string, unknown>, datasetId, filters) }
-      : await callGoogle(credentials as Record<string, unknown>, filters);
+      : sourceKey === 'linkedin'
+        ? { providerRunId, leads: await linkedinItems(credentials as Record<string, unknown>, datasetId, filters) }
+        : await callGoogle(credentials as Record<string, unknown>, filters);
     const leads = result.leads.filter((lead) => (!filters.exigeWhatsApp || Boolean(lead.whatsapp)) && (!filters.exigeEmail || Boolean(lead.email)) && (!filters.exigeSite || Boolean(lead.website))).slice(0, filters.volumeMaximo);
     const { data: finalized, error: finalizeError } = await admin.rpc('finalize_prospecting_run', {
       p_run_id: runId, p_organization_id: organizationId, p_requested_by: existingRun?.requested_by || requestedBy,

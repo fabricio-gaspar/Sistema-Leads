@@ -1,5 +1,12 @@
 # Baseline do sistema
 
+## 14/10/2026 — Conector LinkedIn Company Search (LOCAL)
+
+- A fonte `linkedin` é independente de `apify`/Google Maps e `google_places`/Google. A configuração usa o Vault para token Apify e Actor/Task; nenhum segredo é retornado ao frontend.
+- A Busca de Leads oferece termo, localização, IDs de setor, porte, volume e modo curto/completo. O backend registra a execução, lê o dataset oficial da Apify, normaliza campos empresariais e deduplica sem inventar telefone/e-mail.
+- A fonte permanece desativada até validação explícita. O fluxo é de revisão; não cria campanha, não ativa Ana e não envia WhatsApp. Agendamentos continuam restritos ao `apify`/Google Maps.
+- Aceite local: 17 testes focados, type-check app/Edge, lint frontend, build Vite/artefato Sites e diff check. A suíte completa tem 18 contratos bloqueados pelo import Deno `npm:apify-client@2.25.0` no runner local; não houve rede externa nem busca paga.
+
 ## 14/10/2026 — Cliente oficial da Apify no fluxo de prospecção
 
 - `apify-client@2.25.0` está fixado no runtime de dependências e encapsulado em `supabase/functions/_shared/apifyClient.ts`. O token permanece server-side, vindo das credenciais da integração; o frontend não importa o pacote nem recebe o segredo.

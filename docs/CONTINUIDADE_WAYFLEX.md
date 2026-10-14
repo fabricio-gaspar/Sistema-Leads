@@ -1,5 +1,13 @@
 # Checkpoint — WayFlex CRM
 
+## 14/10/2026 — Conector LinkedIn Company Search implementado localmente
+
+- A fonte técnica `linkedin` foi adicionada separada de `apify` (Google Maps) e `google_places` (Google). O backend aceita token Apify e Actor/Task configuráveis, guarda o segredo no Vault e expõe ao navegador somente o identificador público do recurso.
+- `prospectar-leads` inicia, consulta e normaliza resultados do Actor/Task de empresas; filtros de termo, localização, setor, porte, volume e modo curto/completo são revisados pelo operador. Resultados são deduplicados por URL do LinkedIn, domínio e empresa/localização.
+- A fonte começa desativada e em revisão. Falhas de credencial, autorização, limite, timeout ou execução são sanitizadas; nenhuma busca paga, campanha, Ana ou mensagem é disparada automaticamente. Google Maps e Google permanecem independentes.
+- Validação local: 5 arquivos/17 testes focados, type-check frontend/Edge, lint frontend, build Vite/artefato Sites e `git diff --check` aprovados. A suíte completa teve 121 arquivos, 700 testes aprovados, 16 skips e 18 bloqueios preexistentes do runner ao resolver `npm:apify-client@2.25.0` nos contratos de runtime; não foi feito alias que causasse chamadas externas reais. O histórico e o timeout agora usam nomenclatura neutra de fonte, com tratamento específico para LinkedIn.
+- Estado: **LOCAL VALIDADO / NÃO PUBLICADO**. O conector ainda requer credencial e Actor/Task reais no painel; nenhum token foi registrado, nenhuma busca paga foi executada e nenhum dado de cliente foi alterado.
+
 ## 14/10/2026 — Validação do Google Maps corrigida no Edge
 
 - Causa confirmada nos logs remotos: `testar-integracao` v26 falhava no boot com `BOOT_ERROR` porque `npm:apify-client@2.25.0/browser` não exporta `ApifyClient`; o preflight retornava HTTP 503 e o painel mantinha **Validação vencida**.
