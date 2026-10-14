@@ -1,5 +1,16 @@
 {
   "schema_version": 1,
+  "apify_validation_boot_fix_20261014": {
+    "focused_vitest": "4 passed: prospectingSourcePresentation and prospectingSourceLabels",
+    "frontend_typecheck": "passed; tsc --noEmit --project tsconfig.app.json",
+    "edge_typecheck": "passed; tsc --project tsconfig.edge.json --noEmit",
+    "lint": "passed; eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "vite_and_sites_artifact": "passed; preexisting runtime-config.js type=module warning only",
+    "diff_check": "passed",
+    "remote_test": "testar-integracao v27 OPTIONS 204 and POST 200; Google Maps card Pronto; no search run or message",
+    "site_deployed": false,
+    "customer_data_changed": false
+  },
   "wa_akg_permission_aware_activation_20261009": {
     "red_green": "The owner-permission lifecycle test failed before the worker consulted permissions and passed after the minimum implementation.",
     "focused_vitest": "32 passed: waAkgWorkerConnectionSync, messagingRecoveryR6 and waAkgProvider",
