@@ -1,5 +1,25 @@
 {
   "schema_version": 1,
+  "linkedin_company_search_20261014": {
+    "code_commit": "97881aa",
+    "scope": "Fonte LinkedIn separada de Google Maps/Google para busca revisável de empresas via Actor/Task Apify.",
+    "implementation": [
+      "supabase/functions/_shared/linkedinCompanySearch.ts",
+      "supabase/functions/configurar-integracao/index.ts",
+      "supabase/functions/testar-integracao/index.ts",
+      "supabase/functions/prospectar-leads/index.ts"
+    ],
+    "security": "Token e input adicional ficam no Vault; somente Actor/Task público segue para configuração. Nenhuma campanha, Ana, WhatsApp ou mensagem é acionada.",
+    "validation": "5 arquivos/17 testes focados, type-check app/Edge, lint frontend, Vite build, Sites artifact e git diff check passaram. Suíte completa: 700 aprovados, 16 skips e 18 bloqueios do runner por npm:apify-client@2.25.0 não resolvido.",
+    "paid_search": false,
+    "messages_sent": false,
+    "customer_data_changed": false,
+    "migration_applied": false,
+    "edge_functions_deployed": false,
+    "site_deployed": false,
+    "status": "LOCAL_VALIDADO_PENDENTE_DE_PUBLICACAO",
+    "next_action": "Administrador configura e valida um Actor/Task LinkedIn real no painel; somente após homologação decidir publicação coordenada."
+  },
   "apify_validation_boot_fix_20261014": {
     "code_files": ["supabase/functions/_shared/apifyClient.ts", "tsconfig.edge.json"],
     "cause_confirmed": "testar-integracao v26 emitted BOOT_ERROR because npm:apify-client@2.25.0/browser does not export ApifyClient; browser preflight returned HTTP 503.",
@@ -170,8 +190,8 @@
   },
   "baseline_version": 11,
   "baseline_commit": "cb0fa800b34ddbd1b25877fccee1f5799a35fc31",
-  "last_audited_commit": "cb0fa800b34ddbd1b25877fccee1f5799a35fc31",
-  "current_head_at_update": "cb0fa800b34ddbd1b25877fccee1f5799a35fc31",
+  "last_audited_commit": "97881aa",
+  "current_head_at_update": "97881aa",
   "flavio_recovery_preflight_20261007": {
     "base_commit": "52ac6fe8a51e4e114043b05b170374a109a02860",
     "status": "BLOCKED_BEFORE_MUTATION",
