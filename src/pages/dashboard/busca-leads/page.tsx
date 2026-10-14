@@ -45,6 +45,7 @@ import {
 } from '@/lib/crm/prospectingIdealProfile';
 import { PROSPECTING_QUICK_PROCESSES, type ProspectingQuickProcess } from '@/lib/crm/prospectingQuickProcesses';
 import { adviseProspectingSearch } from '@/lib/crm/prospectingSearchAdvisor';
+import { prospectingSourceDisplayName } from '@/lib/crm/prospectingSourcePresentation';
 import {
   PROSPECTING_WIZARD_STEPS,
   nextProspectingWizardStep,
@@ -635,9 +636,9 @@ export default function BuscaLeads() {
       let response = data as ProspectingResponse;
       if (response?.pending) response = await aguardarResultadoApify('apify', run.id);
       setFaseBusca(fasesBusca[2]);
-      aplicarResultadoDaBusca(response, fonte?.nome || 'Apify — Google Maps', run.resultCount || leadsDia);
+      aplicarResultadoDaBusca(response, prospectingSourceDisplayName('apify', fonte?.nome), run.resultCount || leadsDia);
     } catch (error) {
-      setErroBusca(mensagemBuscaReal(error instanceof Error ? error.message : 'prospecting_failed', fonte?.nome || 'Apify'));
+      setErroBusca(mensagemBuscaReal(error instanceof Error ? error.message : 'prospecting_failed', prospectingSourceDisplayName('apify', fonte?.nome)));
     } finally {
       setBuscando(false);
       setExecucaoAtual(null);
@@ -674,6 +675,7 @@ export default function BuscaLeads() {
     const fonteNome = fonte?.nome || '';
     const sourceKey = fonte?.sourceKey || ({
       'Receita Federal': 'cnpj',
+      'Google Maps': 'apify',
       'Apify — Google Maps': 'apify',
       'Importação CSV': 'csv',
       'Pesquisa assistida por IA': 'ai',
@@ -962,7 +964,7 @@ export default function BuscaLeads() {
       return;
     }
     const cidadesSelecionadas = [...new Set(selecionadosLeads.map((lead) => lead.cidade).filter(Boolean))].join(', ');
-    const nomeFinal = nomeLista.trim() || `Prospecção ${cidadesSelecionadas || 'Apify'} · ${new Date().toLocaleDateString('pt-BR')}`;
+    const nomeFinal = nomeLista.trim() || `Prospecção ${cidadesSelecionadas || prospectingSourceDisplayName(fonte?.sourceKey, fonte?.nome)} · ${new Date().toLocaleDateString('pt-BR')}`;
     setErroImportacao(null);
     setResultado(null);
     const input: ProspectingBatchInput = {

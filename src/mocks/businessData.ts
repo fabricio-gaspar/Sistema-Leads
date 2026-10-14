@@ -212,7 +212,7 @@ export const integracoes: Integracao[] = [
   },
   {
     id: 'int-7',
-    nome: 'Apify — Google Maps',
+    nome: 'Google Maps',
     icone: 'ri-map-pin-search-line',
     categoria: 'Busca de Leads',
     status: 'pendente',
@@ -227,7 +227,7 @@ export const integracoes: Integracao[] = [
   },
   {
     id: 'int-8',
-    nome: 'Google Places',
+    nome: 'Google',
     icone: 'ri-google-line',
     categoria: 'Busca de Leads',
     status: 'pendente',

@@ -11,7 +11,7 @@ import { countRequiredIntegrationAttention, hasOptionalIntegrationAttention } fr
 type ApiView = 'overview' | 'ai' | 'prospecting' | 'history';
 type HealthTone = 'positive' | 'attention' | 'critical' | 'neutral';
 
-const names: Record<string, string> = { ai: 'IA da Ana', apify: 'Apify — Google Maps', google_places: 'Google Places' };
+const names: Record<string, string> = { ai: 'IA da Ana', apify: 'Google Maps', google_places: 'Google' };
 const descriptions: Record<string, string> = {
   ai: 'Responde e prepara atendimentos.',
   apify: 'Extrai leads do Google Maps.',
