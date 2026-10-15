@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
   "linkedin_company_search_20261014": {
-    "focused_vitest": "5 passed in 2 files (integrationRuntimeMode e linkedinCompanySearch); histórico local anterior: 17 passed in 5 files",
+    "focused_vitest": "8 passed in 3 files (integrationRuntimeMode, linkedinCompanySearch e adapter Apify); runtimeHandlers: 108 passed, 16 skips esperados",
     "frontend_typecheck": "passed; tsc --noEmit --project tsconfig.app.json",
     "edge_typecheck": "passed; tsc --project tsconfig.edge.json",
     "lint": "passed; eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "vite_and_sites_artifact": "passed; preexisting runtime-config.js type=module warning only",
     "diff_check": "passed",
-    "full_vitest": "700 passed, 16 skipped, 18 blocked in runtimeHandlers by unresolved Deno npm:apify-client@2.25.0 import",
+    "full_vitest": "722 passed, 16 skipped, 124 files; o adapter Apify de teste falha fechado sem fetch Vitest mockado e não permite rede externa",
     "remote_credential_validation": "passed in authenticated production UI: LinkedIn Company Search validated against provider; no Actor run",
     "remote_deployment": "configurar-integracao v30, testar-integracao v29, prospectar-leads v27 and operational-diagnostics v30 ACTIVE with JWT required",
     "remote_state": "integration connected=true/enabled=true/mode=real; source connected/enabled=true/mode=production; existing active state was not changed by the validation",

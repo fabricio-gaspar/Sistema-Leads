@@ -4,12 +4,12 @@
 
 - Publicadas `configurar-integracao` v30, `operational-diagnostics` v30 e `testar-integracao` v29; mantida `prospectar-leads` v27. O erro `integration_create_failed` foi rastreado ao CHECK de `integrations.mode`: o backend enviava `production` onde somente `real`, `sandbox` e `disabled` são válidos.
 - A alteração usa vocabulários explícitos por tabela e salva o token exclusivamente no Vault. A validação autenticada retornou sucesso do serviço real; a leitura posterior confirmou integração e fonte conectadas/ativas, estado que já existia antes do teste e não disparou uma busca.
-- Foram aprovados 5 testes focados, type-check app/Edge, lint, build/artefato Sites e diff check. Nenhum Actor foi iniciado, não houve cobrança, importação, mensagem, Ana, campanha, migration ou alteração de cliente.
+- Foram aprovados 8 testes focados, 124 arquivos Vitest com 722 aprovações e 16 skips esperados, type-check app/Edge, lint, build/artefato Sites e diff check. O adapter Apify dos testes falha fechado se não houver `fetch` mockado, impedindo chamada externa acidental. Nenhum Actor foi iniciado, não houve cobrança, importação, mensagem, Ana, campanha, migration ou alteração de cliente.
 
 ## 2026-10-14 — Conector LinkedIn Company Search (LOCAL)
 
 - Implementada fonte técnica `linkedin` separada de Google Maps/Google, com configuração segura no Vault, filtros revisáveis, normalização e deduplicação de empresas e erros sanitizados.
-- Validação: 17 testes focados, type-check frontend/Edge, lint, build Vite/artefato Sites e diff check passaram. Suíte completa: 700 aprovações, 16 skips e 18 bloqueios existentes por resolução do specifier Deno `npm:apify-client@2.25.0`; nenhum fallback com axios/rede foi mantido.
+- Validação consolidada: 124 arquivos Vitest, 722 aprovações e 16 skips esperados; type-check frontend/Edge, lint, build Vite/artefato Sites e diff check passaram. O specifier Deno agora é coberto por adapter de teste que não permite rede; nenhum fallback com axios/rede foi mantido.
 - Sem token real, run pago, migration, Edge deploy, Site, mensagem, Ana ou dado de cliente alterado. Próxima ação: administrador configurar e validar Actor/Task no painel em ambiente autorizado; só depois avaliar publicação.
 
 ## 2026-10-14 — Google Maps: boot da validação corrigido

@@ -10,7 +10,7 @@
       "supabase/functions/prospectar-leads/index.ts"
     ],
     "security": "Token e input adicional ficam no Vault; somente Actor/Task público segue para configuração. Nenhuma campanha, Ana, WhatsApp ou mensagem é acionada.",
-    "validation": "Validação atual: 5 testes focados, type-check app/Edge, lint frontend, Vite build, artefato Sites e diff check passaram. A suíte completa continua com 18 contratos bloqueados no runner local pela resolução do import Deno npm:apify-client@2.25.0; nenhum alias de teste que chamasse a rede foi mantido.",
+    "validation": "Validação atual: 8 testes focados, suíte completa Vitest com 124 arquivos, 722 aprovações e 16 skips esperados, type-check app/Edge, lint frontend, Vite build, artefato Sites e diff check passaram. O adaptador de teste do cliente Apify falha fechado sem fetch mockado e não chama rede.",
     "paid_search": false,
     "messages_sent": false,
     "customer_data_changed": false,

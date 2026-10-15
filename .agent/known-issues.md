@@ -4,14 +4,7 @@
 
 - A credencial e o Actor/Task foram validados no ambiente remoto; integração e fonte aparecem ativas no painel, sem terem sido ativadas pelo teste. Qualquer execução de busca pode gerar cobrança do provedor e exige decisão comercial controlada.
 - O Actor aprovado é de empresas: telefone e e-mail podem não existir. O fluxo não inventa esses campos, não cria campanhas e não chama Ana/WhatsApp automaticamente.
-- O runner Vitest local ainda não resolve o specifier Deno `npm:apify-client@2.25.0` nos contratos antigos de runtime; não usar alias que acione rede real. Revalidar esses 18 contratos em ambiente Edge compatível em uma evolução própria.
 - O token Apify foi compartilhado no chat para este teste. Ele deve ser revogado e recriado no Apify antes de liberar buscas operacionais.
-
-## 14/10/2026 — Apify configurado localmente; credenciais e conectores sociais pendentes
-
-- O cliente oficial está integrado no backend, mas nenhum token, Actor ou Task real foi gravado neste lote. Sem essa configuração administrativa, uma busca real permanece corretamente bloqueada.
-- LinkedIn e Instagram não foram apresentados como conectores funcionais: o cliente Apify é apenas o transporte; cada busca exige um Actor/Task compatível, esquema de entrada, permissão e validação próprios. Usar um Actor de Google Maps nesses canais seria incorreto.
-- O pacote ainda não foi publicado nas Edge Functions/Site nem sincronizado com o GitHub neste lote. A próxima ação segura é validar o Actor/Task fornecido pelo administrador em ambiente autorizado e só então preparar uma publicação coordenada.
 
 ## 09/10/2026 — WA-AKG: aguarda novo pareamento do telefone autorizado
 

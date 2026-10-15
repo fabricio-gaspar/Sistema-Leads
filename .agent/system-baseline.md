@@ -5,21 +5,21 @@
 - A gravação de credencial falhava porque `configurar-integracao` persistia `production` em `integrations.mode`, cujo CHECK aceita `real`, `sandbox` ou `disabled`. O modo correto agora é centralizado: `real` para `integrations` e `production` para `lead_source_configs`, que possui contrato distinto.
 - Foram aplicadas somente as Edges necessárias: `configurar-integracao` v30, `operational-diagnostics` v30, `testar-integracao` v29 e `prospectar-leads` v27. A UI autenticada confirmou credencial LinkedIn validada; a integração e a fonte já estavam ativas e o teste não alterou esse estado.
 - Segurança preservada: token somente no Vault; não houve run do Actor, busca paga, importação, campanha, ativação da Ana, WhatsApp ou mensagem. O token compartilhado em chat deve ser rotacionado antes de liberar uso operacional.
-- Aceite atual: 5 testes focados, type-check app/Edge, lint, build Vite/artefato Sites e diff check aprovados. A suíte completa segue parcialmente bloqueada por 18 contratos de runtime que o Vitest não consegue carregar do import Deno `npm:apify-client@2.25.0`.
+- Aceite atual: 8 testes focados, 124 arquivos Vitest com 722 aprovações e 16 skips esperados, type-check app/Edge, lint, build Vite/artefato Sites e diff check aprovados. O adapter de teste da Apify agora usa somente `fetch` simulado e falha fechado sem ele.
 
 ## 14/10/2026 — Conector LinkedIn Company Search (LOCAL)
 
 - A fonte `linkedin` é independente de `apify`/Google Maps e `google_places`/Google. A configuração usa o Vault para token Apify e Actor/Task; nenhum segredo é retornado ao frontend.
 - A Busca de Leads oferece termo, localização, IDs de setor, porte, volume e modo curto/completo. O backend registra a execução, lê o dataset oficial da Apify, normaliza campos empresariais e deduplica sem inventar telefone/e-mail.
 - A fonte permanece desativada até validação explícita. O fluxo é de revisão; não cria campanha, não ativa Ana e não envia WhatsApp. Agendamentos continuam restritos ao `apify`/Google Maps.
-- Aceite local: 17 testes focados, type-check app/Edge, lint frontend, build Vite/artefato Sites e diff check. A suíte completa tem 18 contratos bloqueados pelo import Deno `npm:apify-client@2.25.0` no runner local; não houve rede externa nem busca paga.
+- Aceite local consolidado: a suíte Vitest cobre também os contratos de runtime por adapter test-only isolado; 124 arquivos, 722 aprovações e 16 skips esperados. Não houve rede externa nem busca paga durante a validação local.
 
 ## 14/10/2026 — Cliente oficial da Apify no fluxo de prospecção
 
 - `apify-client@2.25.0` está fixado no runtime de dependências e encapsulado em `supabase/functions/_shared/apifyClient.ts`. O token permanece server-side, vindo das credenciais da integração; o frontend não importa o pacote nem recebe o segredo.
 - `prospectar-leads` usa o cliente oficial para iniciar Actor/Task, consultar run e ler dataset. O POST de início não tem retry automático; leituras mantêm retry limitado. `testar-integracao` valida o Actor/Task configurado e converte falhas do provedor em códigos sanitizados.
 - O contrato continua genérico para a fonte Apify/Google Maps existente. Nenhum Actor de LinkedIn/Instagram foi inventado ou ativado; esses perfis exigem Actor/Task, credencial e autorização reais.
-- Aceite local: 121 arquivos Vitest, 714 testes aprovados e 16 skips esperados; type-check app/Edge, lint direcionado, build Vite/artefato Sites e diff check. Sem chamadas externas, buscas pagas, mensagens, migrations ou deploy remoto.
+- Aceite local consolidado: 124 arquivos Vitest, 722 testes aprovados e 16 skips esperados; type-check app/Edge, lint direcionado, build Vite/artefato Sites e diff check. Sem chamadas externas, buscas pagas, mensagens ou migrations.
 
 ## 09/10/2026 — WA-AKG: ativação automática respeita permissões existentes
 

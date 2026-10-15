@@ -6,10 +6,11 @@ const rootDir = dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
   resolve: {
-    alias: {
-      '@': resolve(rootDir, './src'),
-      'npm:apify-client@2.25.0/browser': resolve(rootDir, './node_modules/apify-client/dist/bundle.js'),
-    },
+    alias: [
+      { find: '@', replacement: resolve(rootDir, './src') },
+      { find: 'npm:apify-client@2.25.0/browser', replacement: resolve(rootDir, './node_modules/apify-client/dist/bundle.js') },
+      { find: 'npm:apify-client@2.25.0', replacement: resolve(rootDir, './supabase/tests/fixtures/apifyClient.ts') },
+    ],
   },
   test: {
     environment: 'node',
