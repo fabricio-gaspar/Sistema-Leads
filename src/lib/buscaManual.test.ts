@@ -26,7 +26,8 @@ describe('limitarBuscaManual', () => {
 
   it('só disponibiliza uma API depois de ela estar validada e ativa no backend', () => {
     const fontes = fontesLeads.map((fonte) => ({ ...fonte, status: 'pendente', connectionStatus: 'configured' }));
-    fontes[2] = { ...fontes[2], status: 'ativo', connectionStatus: 'connected' };
+    const apify = fontes.findIndex((fonte) => fonte.sourceKey === 'apify');
+    fontes[apify] = { ...fontes[apify], status: 'ativo', connectionStatus: 'connected' };
 
     expect(fontesAtivas(fontes).map((fonte) => fonte.sourceKey)).toEqual(['apify']);
   });
@@ -35,7 +36,7 @@ describe('limitarBuscaManual', () => {
     const fontes = fontesLeads.map((fonte) => ({ ...fonte, status: 'ativo', connectionStatus: 'connected' }));
     const disponiveis = fontesAtivas(fontesApiProspeccao(fontes));
 
-    expect(disponiveis.map((fonte) => fonte.sourceKey)).toEqual(['google_places', 'apify', 'linkedin']);
+    expect(disponiveis.map((fonte) => fonte.sourceKey)).toEqual(['apify', 'linkedin']);
     expect(disponiveis.map((fonte) => fonte.sourceKey)).not.toContain('ai');
     expect(disponiveis.map((fonte) => fonte.sourceKey)).not.toContain('csv');
   });

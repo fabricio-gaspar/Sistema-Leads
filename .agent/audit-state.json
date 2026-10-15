@@ -1,5 +1,35 @@
 {
   "schema_version": 1,
+  "google_places_retirement_20261015": {
+    "baseline_commit": "36f67844105b68ba3e7a873c043ace1a3c23e114",
+    "scope": "Retirada completa do conector Google Places do fluxo ativo, preservando histórico de leads, runs e caches.",
+    "implementation": [
+      "src/hooks/useIntegracoesStore.ts",
+      "src/hooks/useFontesStore.ts",
+      "src/pages/dashboard/busca-leads/page.tsx",
+      "src/pages/dashboard/configuracoes/components/ApisProvidersTab.tsx",
+      "supabase/functions/configurar-integracao/index.ts",
+      "supabase/functions/testar-integracao/index.ts",
+      "supabase/functions/prospectar-leads/index.ts",
+      "supabase/migrations/20261015112000_retire_google_places_connector.sql",
+      "supabase/migrations/20261015114500_remove_google_places_source_flag.sql"
+    ],
+    "remote_database": "0 integrações, 0 fontes e 0 configurações de empresa ativas com google_places; segredos removidos pelo helper de cofre; 5 eventos de auditoria; histórico consultado sem runs/caches.",
+    "remote_edge": "configurar-integracao v33, testar-integracao v30 e prospectar-leads v29 ACTIVE com JWT obrigatório.",
+    "focused_vitest": "139 passed, 25 skipped, 7 files",
+    "full_vitest": "735 passed, 25 skipped, 125 files; saída 0",
+    "frontend_typecheck": "passed; tsc --noEmit --project tsconfig.app.json",
+    "edge_typecheck": "passed; tsc --noEmit --project tsconfig.edge.json",
+    "lint": "passed; eslint nos arquivos alterados com --max-warnings 0",
+    "build": "passed; Vite e artefato Sites; aviso preexistente de runtime-config.js sem type=module",
+    "diff_check": "passed",
+    "messages_sent": false,
+    "paid_search": false,
+    "customer_data_changed": false,
+    "code_commit": null,
+    "site_deployed": false,
+    "status": "EDGE_E_BANCO_APLICADOS_CODIGO_LOCAL_VALIDADO_GITHUB_SITE_PENDENTES"
+  },
   "lead_search_accuracy_20261015": {
     "baseline_commit": "8227884122f7c662ba3068248719436ec07394e4",
     "code_commit": "b8466d8a548d2cb6442bbe5729c373e188d10b24",

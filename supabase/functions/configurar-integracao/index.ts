@@ -52,7 +52,7 @@ Deno.serve(async (request) => {
     const action = String(body.action ?? 'save').trim();
     const canal = String(body.canal ?? '').trim();
     if (canal === 'whatsapp') throw new Error('channel_not_supported');
-    if (!['apify', 'google_places', 'linkedin', 'ai'].includes(canal)) throw new Error('unsupported_channel');
+    if (!['apify', 'linkedin', 'ai'].includes(canal)) throw new Error('unsupported_channel');
     const { user } = await requireUser(request);
     const admin = createAdminClient();
     const { data: profile } = await admin.from('profiles').select('active_organization_id,name').eq('id', user.id).maybeSingle();
@@ -61,7 +61,7 @@ Deno.serve(async (request) => {
     await requireOrganizationRole(admin, user.id, organizationId, ['owner', 'admin', 'manager']);
 
     if (action === 'set_usage') {
-      if (!['ai', 'apify', 'google_places', 'linkedin'].includes(canal)) throw new Error('usage_channel_not_supported');
+      if (!['ai', 'apify', 'linkedin'].includes(canal)) throw new Error('usage_channel_not_supported');
       if (typeof body.enabled !== 'boolean') throw new Error('usage_status_required');
       const { data: current, error: currentError } = await admin.from('integrations')
         .select('id,provider,connected,enabled,paused,last_tested_at,last_error')
@@ -80,7 +80,7 @@ Deno.serve(async (request) => {
         status_detail: body.enabled ? 'Uso operacional habilitado após validação confirmada.' : 'Uso operacional desativado; configuração preservada.',
       }).eq('id', current.id).eq('organization_id', organizationId);
       if (integrationError) throw new Error('integration_usage_save_failed');
-      if (['apify', 'google_places', 'linkedin'].includes(canal)) {
+      if (['apify', 'linkedin'].includes(canal)) {
         const { error: sourceError } = await admin.from('lead_source_configs').update({ enabled: body.enabled, updated_at: now })
           .eq('organization_id', organizationId).eq('source_key', canal);
         if (sourceError) throw new Error('integration_source_usage_save_failed');
@@ -104,15 +104,12 @@ Deno.serve(async (request) => {
     const actorId = asText(credenciais.actor_id, 300);
     const taskId = asText(credenciais.task_id, 300);
     const useGoogleMapsActor = canal === 'apify' && credenciais.usar_actor_google_maps === true;
-    const googleApiKey = asText(credenciais.api_key, 1_000);
     if (canal === 'apify' && !useGoogleMapsActor && (!apifyToken || (!actorId && !taskId))) throw new Error('apify_credentials_required');
     if (canal === 'linkedin' && (!apifyToken || (!actorId && !taskId))) throw new Error('linkedin_credentials_required');
-    if (canal === 'google_places' && !googleApiKey) throw new Error('google_places_credentials_required');
     const selectedAiProvider = asText(credenciais.provedor_principal, 30).toLowerCase() || 'freellm';
     if (canal === 'ai' && !isAiProvider(selectedAiProvider)) throw new Error('ai_provider_required');
     const labels: Record<string, { label: string; provider: string; detail: string; category: string }> = {
       apify: { label: 'Apify — Google Maps', provider: 'Apify', detail: 'Busca real por Actor ou Task autorizado.', category: 'prospecting' },
-      google_places: { label: 'Google Places', provider: 'Google Places', detail: 'Busca real de empresas por texto e localização.', category: 'prospecting' },
       linkedin: { label: 'LinkedIn · Company Search', provider: 'Apify / HarvestAPI', detail: 'Busca revisável de empresas no LinkedIn por Actor ou Task autorizado.', category: 'prospecting' },
       ai: { label: 'IA da Ana', provider: 'OpenAI / Claude / FreeLLMAPI', detail: 'Provedor comercial da Ana, configurado com segurança no backend.', category: 'intelligence' },
     };
@@ -127,9 +124,7 @@ Deno.serve(async (request) => {
     let aiPublicConfiguration: Record<string, unknown> | null = null;
     let credentials: Record<string, unknown> = canal === 'apify' || canal === 'linkedin'
       ? { api_token: apifyToken, actor_id: actorId, task_id: taskId, input_json: String(credenciais.input_json ?? '').trim() }
-      : canal === 'google_places'
-        ? { api_key: googleApiKey }
-        : {};
+      : {};
 
     if (canal === 'apify' && useGoogleMapsActor) {
       const { data: storedSecret, error: storedSecretError } = await admin.rpc('read_integration_secret', { p_integration: integration.id });
@@ -207,7 +202,7 @@ Deno.serve(async (request) => {
       ? { actor_id: asText(credentials.actor_id, 300) || null, task_id: asText(credentials.task_id, 300) || null }
       : aiPublicConfiguration ?? {};
     // Somente provedores de busca aparecem em Fontes de Prospecção.
-    if (canal === 'apify' || canal === 'google_places' || canal === 'linkedin') {
+    if (canal === 'apify' || canal === 'linkedin') {
       const { data: sourceConfig, error: sourceLookupError } = await admin.from('lead_source_configs').select('id').eq('organization_id', organizationId).eq('source_key', canal).maybeSingle();
       if (sourceLookupError) throw new Error('integration_source_config_lookup_failed');
       if (sourceConfig?.id) {

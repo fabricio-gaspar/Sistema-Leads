@@ -14,7 +14,7 @@ type SourceRow = { id: string; enabled: boolean; mode: string; connection_status
 type IntegrationRow = { id: string; provider: string; enabled: boolean; connected: boolean; paused: boolean };
 type ProspectingRun = {
   id: string;
-  source_key: 'apify' | 'google_places' | 'linkedin';
+  source_key: 'apify' | 'linkedin';
   source_config_id: string;
   status: string;
   filters: unknown;
@@ -120,7 +120,7 @@ function score(raw: RawProspect, filters: Filters) {
   return { overall, fit: Math.min(100, fit), contactability: Math.min(100, contactability), engagement, reason: reasons.join(' · ') || 'Empresa identificada pela fonte configurada' };
 }
 
-function external(source: 'apify' | 'google_places' | 'linkedin', raw: RawProspect, filters: Filters) {
+function external(source: 'apify' | 'linkedin', raw: RawProspect, filters: Filters) {
   const telefone = raw.phone || null, whatsapp = raw.whatsapp || null, website = raw.website || null;
   const scored = score(raw, filters);
   return {
@@ -150,15 +150,6 @@ function normalizeApify(item: unknown, filters: Filters) {
     address: stringFrom(record, ['address', 'streetAddress', 'fullAddress']) || stringFrom(address, ['full', 'label', 'address']),
     latitude: coordinate(record.latitude ?? record.lat ?? location.lat ?? location.latitude, 85), longitude: coordinate(record.longitude ?? record.lng ?? location.lng ?? location.longitude, 180),
   }, filters);
-}
-
-function normalizeGoogle(item: unknown, filters: Filters) {
-  const record = object(item), display = object(record.displayName), location = object(record.location);
-  const name = text(display.text, 1_000);
-  if (!name || !text(record.id, 300)) return null;
-  const phone = text(record.internationalPhoneNumber || record.nationalPhoneNumber, 100);
-  const types = Array.isArray(record.types) ? record.types.filter((item): item is string => typeof item === 'string').join(', ') : '';
-  return external('google_places', { id: text(record.id, 300), name, phone, whatsapp: '', email: '', website: text(record.websiteUri, 1_000), sourceUrl: text(record.googleMapsUri, 1_000), cnpj: '', city: '', uf: '', segment: types, address: text(record.formattedAddress, 1_000), latitude: coordinate(location.latitude, 85), longitude: coordinate(location.longitude, 180) }, filters);
 }
 
 function linkedinFilters(filters: Filters): LinkedInCompanyFilters {
@@ -205,14 +196,14 @@ function apifyInput(credentials: Record<string, unknown>, filters: Filters) {
   return { ...configured, searchStringsArray, locationQuery: locationQuery(filters), maxCrawledPlacesPerSearch: Math.max(1, Math.floor(volume / searchStringsArray.length)) };
 }
 
-function providerFailure(sourceKey: 'apify' | 'google_places' | 'linkedin', status: string) { return `${sourceKey}_run_${status.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`; }
+function providerFailure(sourceKey: 'apify' | 'linkedin', status: string) { return `${sourceKey}_run_${status.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`; }
 function providerStartWasRejected(message: string) {
   // Uma resposta de start sem identificador pode representar um POST aceito
   // cujo retorno foi corrompido. Ela é ambígua e jamais autoriza um novo POST.
   return /^(apify_auth_rejected|apify_token_rejected|apify_resource_forbidden|apify_actor_not_found|linkedin_token_rejected|linkedin_resource_forbidden|linkedin_actor_not_found|linkedin_credentials_required|source_credentials_missing|source_input_invalid)$/.test(message);
 }
 
-function isApifySource(sourceKey: 'apify' | 'google_places' | 'linkedin'): boolean { return sourceKey === 'apify' || sourceKey === 'linkedin'; }
+function isApifySource(sourceKey: 'apify' | 'linkedin'): boolean { return sourceKey === 'apify' || sourceKey === 'linkedin'; }
 
 async function startApify(credentials: Record<string, unknown>, filters: Filters) {
   const run = await startApifyRun(credentials, apifyInput(credentials, filters));
@@ -251,24 +242,6 @@ async function linkedinItems(credentials: Record<string, unknown>, datasetId: st
   return { rawCount: items.length, leads };
 }
 
-async function callGoogle(credentials: Record<string, unknown>, filters: Filters, providerRunId: string) {
-  const key = text(credentials.api_key, 1_000); if (!key) throw new Error('source_credentials_missing');
-  const query = `${terms(filters).join(' ')} em ${locationQuery(filters)}`, limit = Math.min(filters.volumeMaximo ?? 20, 60), results: unknown[] = [];
-  let pageToken = '';
-  while (results.length < limit) {
-    const response = await fetch('https://places.googleapis.com/v1/places:searchText', {
-      method: 'POST', headers: { 'content-type': 'application/json', 'X-Goog-Api-Key': key, 'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.internationalPhoneNumber,places.websiteUri,places.types,places.googleMapsUri,places.rating,places.location,nextPageToken' },
-      body: JSON.stringify({ textQuery: query, languageCode: 'pt-BR', regionCode: 'BR', pageSize: Math.min(20, limit - results.length), ...(pageToken ? { pageToken } : {}) }), signal: AbortSignal.timeout(30_000),
-    });
-    if (response.status === 400 || response.status === 401 || response.status === 403) throw new Error(results.length ? 'google_places_partial_response' : 'google_places_key_rejected');
-    if (response.status === 429) throw new Error(results.length ? 'google_places_partial_response' : 'google_places_rate_limited');
-    if (!response.ok) throw new Error(`google_places_http_${response.status}`);
-    const body = object(await response.json()), page = Array.isArray(body.places) ? body.places : [];
-    results.push(...page.slice(0, limit - results.length)); pageToken = text(body.nextPageToken, 1_000); if (!pageToken || !page.length) break;
-  }
-  return { providerRunId, rawCount: results.length, leads: results.slice(0, limit).map((item) => normalizeGoogle(item, filters)).filter((item): item is NonNullable<typeof item> => item !== null) };
-}
-
 async function hash(value: string) { const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value)); return Array.from(new Uint8Array(digest)).map((item) => item.toString(16).padStart(2, '0')).join(''); }
 
 async function loadRunDiagnostics(admin: ReturnType<typeof createAdminClient>, organizationId: string, runId: string) {
@@ -289,9 +262,9 @@ Deno.serve(async (request) => {
   let runId: string | null = null, admin: ReturnType<typeof createAdminClient> | null = null, sourceId: string | null = null;
   let failRunOnError = false, providerStartInFlight = false, providerStartRejected = false;
   try {
-    const body = await readJson(request), sourceKey = requiredString(body.sourceKey, 'source_key', 80) as 'apify' | 'google_places' | 'linkedin';
-    if (!['apify', 'google_places', 'linkedin'].includes(sourceKey)) throw new Error('source_not_supported');
-    if (body.action != null && !['list_runs', 'open_cache', 'close_stale_google'].includes(String(body.action))) throw new Error('prospecting_action_not_allowed');
+    const body = await readJson(request), sourceKey = requiredString(body.sourceKey, 'source_key', 80) as 'apify' | 'linkedin';
+    if (!['apify', 'linkedin'].includes(sourceKey)) throw new Error('source_not_supported');
+    if (body.action != null && !['list_runs', 'open_cache'].includes(String(body.action))) throw new Error('prospecting_action_not_allowed');
     if (body.mode !== 'production') throw new Error('production_mode_required');
     const requestedRunId = text(body.runId, 80);
     const requestedIdempotencyKey = text(body.idempotencyKey, 120);
@@ -381,37 +354,6 @@ Deno.serve(async (request) => {
       const diagnostics = linkedRun?.id ? await loadRunDiagnostics(admin, organizationId, linkedRun.id) : undefined;
       return json({ ok: true, pending: false, cacheId, sourceKey, leads: cache.results, diagnostics }, 200, headers);
     }
-    if (body.action === 'close_stale_google') {
-      if (schedulerToken || sourceKey !== 'google_places' || !requestedRunId) throw new Error('prospecting_action_not_allowed');
-      const { data: staleRun, error: staleError } = await admin.from('prospecting_runs')
-        .select('id,status,source_key,provider_run_id,result_cache_id,started_at,idempotency_key')
-        .eq('id', requestedRunId).eq('organization_id', organizationId).eq('source_key', sourceKey)
-        .eq('requested_by', requestedBy).maybeSingle();
-      if (staleError || !staleRun || staleRun.status !== 'running' || staleRun.result_cache_id) throw new Error('prospecting_run_not_pending');
-      runId = staleRun.id;
-      const startedAt = Date.parse(text(staleRun.started_at, 80));
-      if (!Number.isFinite(startedAt) || Date.now() - startedAt < 10 * 60_000) throw new Error('google_places_review_too_early');
-      const now = new Date().toISOString();
-      const { error: auditError } = await admin.from('audit_logs').insert({
-        organization_id: organizationId, actor_id: requestedBy, actor_name: actorName, actor_type: 'user',
-        action: 'prospecting.google_run_close_requested', detail: 'Operador solicitou encerrar uma execução Google não confirmada, sem repetir a consulta.',
-        entity_table: 'prospecting_runs', entity_id: runId, event_data: { sourceKey, billedOutcome: 'unknown', retryIssued: false },
-      });
-      if (auditError) throw new Error('prospecting_audit_unavailable');
-      let closeQuery = admin.from('prospecting_runs').update({
-        status: 'failed', last_error: 'google_places_unconfirmed_closed_by_user', completed_at: now, updated_at: now,
-      }).eq('id', runId).eq('organization_id', organizationId).eq('source_key', sourceKey)
-        .eq('requested_by', requestedBy).eq('status', 'running').is('result_cache_id', null);
-      closeQuery = staleRun.provider_run_id
-        ? closeQuery.eq('provider_run_id', staleRun.provider_run_id)
-        : closeQuery.is('provider_run_id', null);
-      const { data: closed, error: closeError } = await closeQuery.select('id').maybeSingle();
-      if (closeError || !closed) throw new Error('prospecting_run_not_pending');
-      const requestPrefix = `manual:${requestedBy}:`;
-      const storedKey = text(staleRun.idempotency_key, 200);
-      const requestKey = storedKey.startsWith(requestPrefix) ? storedKey.slice(requestPrefix.length) : '';
-      return json({ ok: true, closed: true, runId, requestKey: /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestKey) ? requestKey : null, auditRecorded: true }, 200, headers);
-    }
     let existingRun: ProspectingRun | null = null;
     let providerStartClaimed = false;
     if (requestedRunId) {
@@ -451,8 +393,6 @@ Deno.serve(async (request) => {
         filters.atividades = terms(filters).slice(0, 1);
         filters.segmentos = [];
       }
-      // Places does not return email addresses; reject an impossible filter before a paid call.
-      if (sourceKey === 'google_places' && filters.exigeEmail) throw new Error('source_filter_email_unavailable');
       const filtersJson = JSON.parse(JSON.stringify(filters));
       const filtersHash = await hash(`${sourceKey}:${canonicalFilterHashPayload(filters)}`);
       const { data: reserved, error: reserveError } = await admin.rpc('reserve_prospecting_run', {
@@ -558,9 +498,7 @@ Deno.serve(async (request) => {
 
     const result = sourceKey === 'apify'
       ? { providerRunId, ...await apifyItems(credentials as Record<string, unknown>, datasetId, filters) }
-      : sourceKey === 'linkedin'
-        ? { providerRunId, ...await linkedinItems(credentials as Record<string, unknown>, datasetId, filters) }
-        : await callGoogle(credentials as Record<string, unknown>, filters, providerRunId);
+      : { providerRunId, ...await linkedinItems(credentials as Record<string, unknown>, datasetId, filters) };
     const filtered = filterProspectingCandidates(result.leads, filters, filters.volumeMaximo ?? 30);
     const leads = filtered.leads;
     const diagnostics = { providerItemsRead: result.rawCount, ...filtered.diagnostics };
@@ -589,9 +527,6 @@ Deno.serve(async (request) => {
     return json({ ok: true, pending: false, runId, cacheId, sourceKey, leads: finalLeads, diagnostics }, 200, headers);
   } catch (error) {
     const message = safeError(error), now = new Date().toISOString();
-    // These responses prove that Google refused the request. A network timeout
-    // does not; keep an uncertain paid request untouched for manual review.
-    if (message === 'google_places_key_rejected' || message === 'google_places_rate_limited') failRunOnError = true;
     if (admin && runId && providerStartInFlight) {
       const rejected = providerStartWasRejected(message);
       providerStartRejected = rejected;

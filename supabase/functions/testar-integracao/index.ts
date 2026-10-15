@@ -47,8 +47,6 @@ function providerDetail(code: string, provider: string) {
     linkedin_provider_error: "O conector LinkedIn devolveu um erro incompatível.",
     apify_rate_limited: "A Apify limitou temporariamente as chamadas.",
     apify_provider_error: "A Apify devolveu um erro transitório ou incompatível; tente validar novamente.",
-    google_places_key_rejected:
-      "A chave do Google Places foi recusada ou a API não está habilitada.",
     email_credentials_incomplete:
       "Configure a chave Resend e um remetente válido da Wayflex.",
     email_key_rejected: "A Resend recusou a chave desta empresa.",
@@ -92,7 +90,6 @@ Deno.serve(async (request) => {
       ![
         "ai",
         "apify",
-        "google_places",
         "linkedin",
         "email",
         "google_calendar",
@@ -125,7 +122,7 @@ Deno.serve(async (request) => {
     if (error || !i) throw new Error("integration_not_found");
     id = i.id;
     provider = i.provider || canal;
-    source = ["apify", "google_places", "linkedin", "cnpj_ws"].includes(canal)
+    source = ["apify", "linkedin", "cnpj_ws"].includes(canal)
       ? canal
       : null;
     let sourceEnabled: boolean | null = null;
@@ -199,35 +196,6 @@ Deno.serve(async (request) => {
         if (canal === "linkedin") throw new Error(linkedInErrorCode(error));
         throw error;
       }
-    } else if (canal === "google_places") {
-      const key = txt(credentials.api_key, 1000);
-      if (!key) throw new Error("source_credentials_missing");
-      response = await fetch(
-        "https://places.googleapis.com/v1/places:searchText",
-        {
-          method: "POST",
-          headers: {
-            "content-type": "application/json",
-            "X-Goog-Api-Key": key,
-            "X-Goog-FieldMask": "places.id",
-          },
-          body: JSON.stringify({
-            textQuery: "Wayflex Brasil",
-            languageCode: "pt-BR",
-            regionCode: "BR",
-            pageSize: 1,
-          }),
-          signal: AbortSignal.timeout(PROVIDER_REQUEST_TIMEOUT_MS),
-        },
-      );
-      if (
-        response.status === 400 ||
-        response.status === 401 ||
-        response.status === 403
-      )
-        throw new Error("google_places_key_rejected");
-      if (!response.ok)
-        throw new Error(`google_places_http_${response.status}`);
     } else if (canal === "email") {
       const key = txt(credentials.resend_api_key || credentials.api_key, 1000),
         from = txt(

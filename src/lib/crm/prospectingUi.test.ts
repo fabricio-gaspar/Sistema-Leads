@@ -74,8 +74,6 @@ describe('prospecting UI safeguards', () => {
   it('releases the idempotency key after a rejected token but preserves uncertain provider starts', () => {
     expect(shouldClearProspectingRequestKey('apify_token_rejected')).toBe(true);
     expect(shouldClearProspectingRequestKey('apify_token_rejected', true)).toBe(false);
-    expect(shouldClearProspectingRequestKey('google_places_key_rejected')).toBe(true);
-    expect(shouldClearProspectingRequestKey('google_places_rate_limited')).toBe(true);
     expect(shouldClearProspectingRequestKey('prospecting_run_not_pending')).toBe(true);
     expect(shouldClearProspectingRequestKey('prospecting_start_unconfirmed')).toBe(false);
     expect(shouldClearProspectingRequestKey('linkedin_processing_timeout')).toBe(false);
@@ -99,7 +97,7 @@ describe('prospecting UI safeguards', () => {
 
   it('ignores an old history response after the operator switches sources', () => {
     expect(shouldApplyProspectingHistoryResponse('apify', 'linkedin')).toBe(false);
-    expect(shouldApplyProspectingHistoryResponse('google_places', 'google_places')).toBe(true);
+    expect(shouldApplyProspectingHistoryResponse('linkedin', 'linkedin')).toBe(true);
   });
 
   it('filters the review without changing the underlying list', () => {

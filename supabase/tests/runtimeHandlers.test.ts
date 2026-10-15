@@ -561,7 +561,7 @@ describe('Prospecting handler persistence contract', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('rejects an email-required Google Places search before reserving or billing the provider', async () => {
+  it.skip('legacy Google Places behavior is retired', async () => {
     override = (q) => {
       if (q.table === 'lead_source_configs' && q.operation === 'select') return ok({ id: 'source-config', enabled: true, mode: 'production', connection_status: 'connected' });
       if (q.table === 'integrations' && q.operation === 'select') return ok({ id: integrationId, provider: 'google_places', enabled: true, connected: true, paused: false });
@@ -579,7 +579,7 @@ describe('Prospecting handler persistence contract', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('finalizes a successful Google Places request with the ID recorded before the paid call', async () => {
+  it.skip('legacy Google Places behavior is retired', async () => {
     override = (q) => {
       if (q.table === 'lead_source_configs' && q.operation === 'select') return ok({ id: 'source-config', enabled: true, mode: 'production', connection_status: 'connected' });
       if (q.table === 'integrations' && q.operation === 'select') return ok({ id: integrationId, provider: 'google_places', enabled: true, connected: true, paused: false });
@@ -603,7 +603,19 @@ describe('Prospecting handler persistence contract', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it('marks a rejected Google Places key failed so an intentional corrected retry is possible', async () => {
+  it('rejects the retired Google Places source before reading credentials or starting a provider run', async () => {
+    await import('../functions/prospectar-leads/index');
+    const response = await handler(new Request('https://example.invalid/prospectar-leads', {
+      method: 'POST', headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sourceKey: 'google_places', mode: 'production', idempotencyKey: '77777777-7777-4777-8777-777777777782', filters: { cidade: 'São Paulo', atividades: ['Indústria'] } }),
+    }));
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ ok: false, error: 'source_not_supported' });
+    expect(calls.some((q) => q.table === 'read_integration_secret' || q.table === 'reserve_prospecting_run')).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it.skip('legacy Google Places behavior is retired', async () => {
     override = (q) => {
       if (q.table === 'lead_source_configs' && q.operation === 'select') return ok({ id: 'source-config', enabled: true, mode: 'production', connection_status: 'connected' });
       if (q.table === 'integrations' && q.operation === 'select') return ok({ id: integrationId, provider: 'google_places', enabled: true, connected: true, paused: false });
@@ -623,7 +635,7 @@ describe('Prospecting handler persistence contract', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it('keeps a partially accepted Google Places request uncertain without billing the first page twice', async () => {
+  it.skip('legacy Google Places behavior is retired', async () => {
     override = (q) => {
       if (q.table === 'lead_source_configs' && q.operation === 'select') return ok({ id: 'source-config', enabled: true, mode: 'production', connection_status: 'connected' });
       if (q.table === 'integrations' && q.operation === 'select') return ok({ id: integrationId, provider: 'google_places', enabled: true, connected: true, paused: false });
@@ -933,7 +945,7 @@ describe('Prospecting handler persistence contract', () => {
     expect(calls.some((q) => q.operation === 'update' || q.operation === 'insert')).toBe(false);
   });
 
-  it('lets the operator inspect Google Places history without starting a new billed search', async () => {
+  it.skip('legacy Google Places behavior is retired', async () => {
     override = (q) => {
       if (q.table === 'prospecting_runs' && q.operation === 'select') return ok([]);
       if (q.table === 'prospecting_cache' && q.operation === 'select' && q.filters.id === 'google-cache') return ok({ results: [{ razao_social: 'Empresa anterior' }] });
@@ -955,7 +967,7 @@ describe('Prospecting handler persistence contract', () => {
     expect(calls.some((q) => q.operation === 'update' || q.operation === 'insert')).toBe(false);
   });
 
-  it('does not advertise a Google Places request ID as a resumable provider execution', async () => {
+  it.skip('legacy Google Places behavior is retired', async () => {
     override = (q) => {
       if (q.table === 'prospecting_runs' && q.operation === 'select') return ok([{
         id: 'google-pending', source_key: 'google_places', status: 'running', started_at: '2026-10-14T12:00:00Z',
@@ -975,7 +987,7 @@ describe('Prospecting handler persistence contract', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('closes only the requester’s stale uncertain Google run without another provider call', async () => {
+  it.skip('legacy Google Places behavior is retired', async () => {
     override = (q) => {
       if (q.table === 'prospecting_runs' && q.operation === 'select') return ok({
         id: 'stale-google-run', source_key: 'google_places', status: 'running',
@@ -999,7 +1011,7 @@ describe('Prospecting handler persistence contract', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('refuses to close a recent Google request that could still be finishing', async () => {
+  it.skip('legacy Google Places behavior is retired', async () => {
     override = (q) => q.table === 'prospecting_runs' && q.operation === 'select'
       ? ok({ id: 'recent-google-run', source_key: 'google_places', status: 'running', provider_run_id: 'google-synthetic-id', result_cache_id: null, started_at: new Date().toISOString(), requested_by: 'owner' })
       : undefined;
@@ -1014,7 +1026,7 @@ describe('Prospecting handler persistence contract', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it('fails closed when the Google closure audit cannot be recorded', async () => {
+  it.skip('legacy Google Places behavior is retired', async () => {
     override = (q) => {
       if (q.table === 'prospecting_runs' && q.operation === 'select') return ok({ id: 'stale-google-run', source_key: 'google_places', status: 'running', provider_run_id: 'google-synthetic-id', result_cache_id: null, started_at: '2026-10-01T12:00:00Z', requested_by: 'owner' });
       if (q.table === 'audit_logs' && q.operation === 'insert') return { data: null, error: { message: 'audit_unavailable' } };

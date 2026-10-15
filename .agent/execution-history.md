@@ -1,5 +1,12 @@
 # Histórico resumido de execução
 
+## 15/10/2026 — Google Places retirado do produto
+
+- Removido o conector aposentado das telas de APIs/Fontes/saúde operacional, stores, Busca de Leads e contratos ativos das Edge Functions; o backend rejeita tentativas legadas sem consultar cofre ou provedor.
+- Aplicadas as migrations de retirada e de limpeza do flag de configuração. Verificado no Supabase: zero integrações/fontes/configurações ativas com `google_places`; histórico de leads/runs/caches foi preservado e não houve mensagem ou busca paga.
+- Edge Functions republicadas com JWT obrigatório: `configurar-integracao` v33, `testar-integracao` v30 e `prospectar-leads` v29. Local: 125 arquivos Vitest, 735 aprovações, 25 skips históricos; type-check, lint dirigido, build e diff check aprovados.
+- Próxima etapa segura: commit/push e publicação do Site existente; não incluir `.env`, tokens, artefatos temporários nem `supabase/.temp/cli-latest`.
+
 ## 2026-10-15 — Busca de Leads: filtros, diagnóstico e execução segura (PUBLICADO)
 
 - Confirmados: última falha remota de Google Maps/Apify por token rejeitado; Google Places usava IDs de execução divergentes, impedindo salvar resultados válidos. Corrigidos o ID, filtros factuais, aviso de fonte, termo único do LinkedIn, histórico por fonte e encerramento manual auditado de pendência Google incerta.

@@ -6,7 +6,7 @@ describe('operational integration attention', () => {
     const integrations = [
       { remoteKey: 'ai', status: 'validated' },
       { remoteKey: 'apify', status: 'validated' },
-      { remoteKey: 'google_places', status: 'not_configured' },
+      { remoteKey: 'linkedin', status: 'not_configured' },
     ];
     expect(countRequiredIntegrationAttention(integrations)).toBe(0);
     expect(hasOptionalIntegrationAttention(integrations)).toBe(true);

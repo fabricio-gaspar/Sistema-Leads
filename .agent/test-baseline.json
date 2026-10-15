@@ -1,5 +1,21 @@
 {
   "schema_version": 1,
+  "google_places_retirement_20261015": {
+    "focused_vitest": "139 passed, 25 skipped, 7 files",
+    "full_vitest": "735 passed, 25 skipped, 125 files; exit 0",
+    "frontend_typecheck": "passed; tsc --noEmit --project tsconfig.app.json",
+    "edge_typecheck": "passed; tsc --noEmit --project tsconfig.edge.json",
+    "targeted_lint": "passed; eslint all modified src files with --max-warnings 0",
+    "vite_build": "passed; preexisting runtime-config.js type=module warning only",
+    "sites_artifact": "passed; scripts/build-sites-artifact.mjs",
+    "diff_check": "passed",
+    "remote_database": "passed; 0 active integrations, 0 active source rows and 0 company settings flags for google_places",
+    "remote_edge": "passed; configurar-integracao v33, testar-integracao v30 and prospectar-leads v29 ACTIVE with verify_jwt=true",
+    "messages_sent": false,
+    "paid_search": false,
+    "customer_data_changed": false,
+    "site_deployed": false
+  },
   "lead_search_accuracy_20261015": {
     "focused_vitest": "138 aprovações focadas; 16 skips históricos esperados",
     "full_vitest": "125 arquivos, 743 aprovações, 16 skips, saída 0",

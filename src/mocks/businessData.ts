@@ -226,18 +226,6 @@ export const integracoes: Integracao[] = [
     ],
   },
   {
-    id: 'int-8',
-    nome: 'Google',
-    icone: 'ri-google-line',
-    categoria: 'Busca de Leads',
-    status: 'pendente',
-    ultimoTeste: 'nunca',
-    descricao: 'Busca textual de empresas por atividade e localização usando a API do Google Places.',
-    campos: [
-      { id: 'api_key', rotulo: 'API Key', tipo: 'senha', placeholder: 'AIza...', obrigatorio: true, ajuda: 'Chave do Google Cloud com a Places API (New) habilitada. Fica armazenada no Backend.' },
-    ],
-  },
-  {
     id: 'int-9',
     nome: 'LinkedIn · Company Search',
     icone: 'ri-linkedin-box-line',

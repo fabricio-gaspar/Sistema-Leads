@@ -1,5 +1,11 @@
 # Problemas conhecidos
 
+## 15/10/2026 — Google Places aposentado (resolvido)
+
+- O conector não faz mais parte da operação. Configurações atuais, fontes e Edge Functions não o oferecem; chamadas legadas são recusadas com `source_not_supported` sem ler segredo ou iniciar provedor.
+- Referências em migrations, auditorias, planos históricos, fixtures de leads antigos e testes `skip` são preservadas como histórico/documentação e não representam uma integração ativa. Leads históricos não foram apagados.
+- Verificação remota concluída: 0 integrações, 0 fontes e 0 flags de configuração ativos para `google_places`. O novo default de `company_settings.prospecting_sources` também não inclui a chave.
+
 ## 15/10/2026 — Busca real depende de credencial rotacionada e validação controlada
 
 - A última execução remota observada de Google Maps/Apify falhou com `apify_token_rejected` antes de iniciar o Actor. A correção local torna essa falha visível no painel, mas não restaura uma credencial inválida. Revogar o token já compartilhado em chat, criar outro e validá-lo diretamente em Configurações → APIs é uma ação administrativa necessária.

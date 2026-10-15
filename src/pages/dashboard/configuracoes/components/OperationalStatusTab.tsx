@@ -46,7 +46,6 @@ const COMPONENTS: ComponentDefinition[] = [
   { id: 'apify', group: 'Inteligência e prospecção', label: 'Google Maps', description: 'Busca empresas para prospecção.', icon: 'ri-map-pin-search-line', keys: ['apify'], href: '/dashboard/configuracoes?tab=apis' },
   { id: 'linkedin', group: 'Inteligência e prospecção', label: 'LinkedIn · Company Search', description: 'Busca empresas para revisão manual.', icon: 'ri-linkedin-box-line', keys: ['linkedin'], href: '/dashboard/configuracoes?tab=apis' },
   { id: 'cnpj-ws', group: 'Inteligência e prospecção', label: 'CNPJ.ws', description: 'Consulta dados empresariais.', icon: 'ri-building-4-line', keys: ['cnpj_ws'], href: '/dashboard/configuracoes?tab=apis' },
-  { id: 'google-places', group: 'Inteligência e prospecção', label: 'Google', description: 'Enriquece locais e categorias.', icon: 'ri-map-pin-line', keys: ['google_places'], href: '/dashboard/configuracoes?tab=apis' },
   { id: 'google-calendar', group: 'Inteligência e prospecção', label: 'Google Calendar', description: 'Sincroniza compromissos.', icon: 'ri-calendar-line', keys: ['google_calendar'], href: '/dashboard/configuracoes?tab=apis' },
 ];
 

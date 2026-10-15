@@ -696,32 +696,6 @@ export default function BuscaLeads() {
     }
   };
 
-  const encerrarPendenciaGoogle = async (run: ProspectingRunSummary) => {
-    if (run.sourceKey !== 'google_places' || run.status !== 'running') return;
-    if (!window.confirm('Esta busca do Google pode ter gerado cobrança, mas não salvou resultados. Encerrá-la não repetirá a consulta. Se quiser buscar novamente, será necessária uma nova ação sua. Deseja encerrar a pendência?')) return;
-    setBuscando(true);
-    setExecucaoAtual(run.id);
-    setAvisoHistorico(null);
-    try {
-      const { data, error } = await supabase.functions.invoke('prospectar-leads', {
-        body: { action: 'close_stale_google', sourceKey: 'google_places', mode: 'production', runId: run.id },
-      });
-      if (error) throw new Error(await detalheDoErroBusca(error));
-      if (!data?.closed) throw new Error('prospecting_run_not_pending');
-      clearRequestKeyForRun(run.id, typeof data.requestKey === 'string' ? data.requestKey : undefined);
-      setAvisoHistorico(data.auditRecorded === false
-        ? 'Pendência encerrada sem repetir a consulta, mas o registro de auditoria falhou. Avise o administrador antes de uma nova busca.'
-        : 'Pendência encerrada sem repetir a consulta. Uma nova busca só ocorrerá após seu clique em Buscar.');
-      await atualizarExecucoes('google_places');
-    } catch (error) {
-      const code = error instanceof Error ? error.message : 'prospecting_failed';
-      setAvisoHistorico(mensagemBuscaReal(code, 'Google'));
-    } finally {
-      setBuscando(false);
-      setExecucaoAtual(null);
-    }
-  };
-
   const aplicarResultadoDaBusca = (data: ProspectingResponse, fonteNome: string, requestedVolume: number) => {
     if (!data?.leads || !Array.isArray(data.leads)) throw new Error(data?.error || 'prospecting_empty_response');
     const encontrados = data.leads.map((lead, index) => prospectingLeadToPreview(lead, fonteNome, index));
@@ -769,7 +743,6 @@ export default function BuscaLeads() {
       if (!fontesDisponiveis.some((item) => item.id === fonteSelecionada)) throw new Error('source_disabled');
       if (!sourceKey) throw new Error('source_not_configured');
       if (!cidade.trim()) throw new Error('prospecting_city_required');
-      if (sourceKey === 'google_places' && temEmail === true) throw new Error('source_filter_email_unavailable');
       const terms = termsForProspectingSource(sourceKey, termosAplicados);
       if (!terms.length) throw new Error('prospecting_terms_required');
       const filters = {
@@ -881,9 +854,6 @@ export default function BuscaLeads() {
       linkedin_run_failed: `${fonte} encerrou a execução com falha. Consulte o histórico da Apify antes de tentar novamente.`,
       linkedin_run_aborted: `${fonte} foi interrompida pelo provedor. Nenhum lead foi importado.`,
       linkedin_run_timed_out: `${fonte} excedeu o tempo seguro de processamento. Nenhum retry automático foi enviado.`,
-      google_places_key_rejected: `A chave do Google foi rejeitada. Revalide a credencial em Configurações → APIs antes de iniciar outra busca.`,
-      google_places_rate_limited: `O Google limitou temporariamente esta busca. Aguarde e confira a quota antes de tentar novamente.`,
-      google_places_partial_response: `O Google aceitou parte da busca, mas não concluiu todas as páginas. A execução ficou registrada; não repita a consulta automaticamente para evitar cobrança duplicada.`,
       apify_processing_timeout: `${fonte} ainda está processando esta busca. Aguarde alguns minutos antes de iniciar outra consulta; o Registro do Sistema mantém a execução para auditoria.`,
       prospecting_start_unconfirmed: `${fonte} recebeu uma tentativa de início cuja confirmação não foi registrada. Para evitar uma busca duplicada, o sistema não enviará outro pedido automaticamente. Abra o histórico e siga o Registro do Sistema.`,
       prospecting_request_key_required: 'Não foi possível proteger a repetição desta busca. Atualize a página e tente novamente.',
@@ -895,7 +865,6 @@ export default function BuscaLeads() {
       prospecting_run_not_started: `A fonte não confirmou o início da execução. A busca não foi enviada para revisão.`,
       prospecting_run_not_found: `A execução não pertence à empresa ativa ou não está mais disponível para consulta.`,
       prospecting_run_not_pending: `A execução já não está pendente. Atualize a página antes de iniciar uma nova busca.`,
-      google_places_review_too_early: 'Esta busca ainda pode estar finalizando. Aguarde 10 minutos antes de encerrar a pendência.',
       prospecting_audit_unavailable: 'Não foi possível registrar sua decisão na auditoria. A busca não foi encerrada; tente novamente mais tarde.',
       source_input_invalid: `A entrada adicional de ${fonte} não é um JSON válido. Corrija o campo em Configurações → Integrações.`,
       provider_invalid_response: `${fonte} respondeu em um formato incompatível. Use uma Task/Actor compatível ou ajuste a entrada adicional.`,
@@ -1274,7 +1243,7 @@ export default function BuscaLeads() {
         <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-base font-heading font-bold text-foreground-900">Buscas salvas e recuperação</h2><p className="mt-1 text-sm text-foreground-500">Retome uma execução real sem iniciar uma consulta duplicada.</p></div><button type="button" onClick={() => void atualizarExecucoes()} disabled={carregandoExecucoes || buscando} className="rounded-lg border border-background-300 px-3 py-2 text-xs font-semibold text-foreground-700 hover:bg-background-100 disabled:opacity-50"><i className="ri-refresh-line mr-1" aria-hidden="true" />Atualizar</button></div>
         <label className="mt-4 block max-w-xs text-xs font-semibold text-foreground-700">Fonte do histórico
           <select value={historySourceKey} onChange={(event) => { historySourceRef.current = event.target.value; setHistorySourceKey(event.target.value); }} className="mt-1 w-full rounded-lg border border-background-300 bg-white px-3 py-2 text-sm text-foreground-900">
-            {(['apify', 'google_places', 'linkedin'] as const).map((key) => <option key={key} value={key}>{prospectingSourceDisplayName(key)}</option>)}
+            {(['apify', 'linkedin'] as const).map((key) => <option key={key} value={key}>{prospectingSourceDisplayName(key)}</option>)}
           </select>
         </label>
         {carregandoExecucoes && <p className="mt-4 text-sm text-foreground-500">Carregando execuções...</p>}
@@ -1282,7 +1251,7 @@ export default function BuscaLeads() {
         {erroExecucoes && <p role="alert" className="mt-4 text-sm text-secondary-700">Não foi possível carregar as buscas salvas. Tente atualizar.</p>}
         {!carregandoExecucoes && !erroExecucoes && !historicoCarregado && <button type="button" onClick={() => { setHistoricoAberto(true); void atualizarExecucoes(); }} className="mt-4 rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white">Carregar buscas salvas</button>}
         {historicoCarregado && !carregandoExecucoes && !erroExecucoes && execucoes.length === 0 && <p className="mt-4 text-sm text-foreground-500">Nenhuma busca disponível.</p>}
-        {execucoes.length > 0 && <div className="mt-4 space-y-2">{execucoes.map((run) => <div key={run.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-background-200 px-4 py-3"><div><p className="text-sm font-semibold text-foreground-900">{run.location || 'Local não informado'}</p><p className="mt-1 text-xs text-foreground-500">{run.startedAt ? new Date(run.startedAt).toLocaleString('pt-BR') : 'Data indisponível'} · {run.status === 'completed' ? `${run.resultCount} encontrado(s)` : run.status === 'cached' ? `${run.resultCount} resultado(s) salvos` : run.status === 'running' ? 'Em andamento' : run.status === 'failed' ? 'Falha' : 'Não concluída'}</p>{run.status === 'running' && run.sourceKey === 'google_places' && <p role="status" className="mt-1 max-w-xl text-xs text-amber-700">O Google não permite retomar esta consulta. Ela pode ter gerado cobrança; encerre a pendência somente após revisar o ocorrido.</p>}{run.status === 'running' && run.sourceKey === 'google_places' && run.fromTeam && <p className="mt-1 text-xs text-foreground-500">Somente quem iniciou esta busca pode encerrar a pendência.</p>}</div><div className="flex flex-wrap gap-2">{((run.status === 'running' && run.hasProvider) || ((run.status === 'completed' || run.status === 'cached') && run.hasResults)) && <button type="button" onClick={() => void retomarExecucao(run)} disabled={buscando} className="rounded-lg border border-primary-300 px-3 py-2 text-xs font-semibold text-primary-700 hover:bg-primary-50 disabled:opacity-50">{buscando && execucaoAtual === run.id ? 'Consultando...' : run.status === 'completed' || run.status === 'cached' ? 'Abrir revisão' : 'Retomar busca'}</button>}{run.status === 'running' && run.sourceKey === 'google_places' && !run.fromTeam && run.startedAt && Date.now() - Date.parse(run.startedAt) >= 10 * 60_000 && <button type="button" onClick={() => void encerrarPendenciaGoogle(run)} disabled={buscando} className="rounded-lg border border-amber-300 px-3 py-2 text-xs font-semibold text-amber-800 hover:bg-amber-50 disabled:opacity-50">Encerrar pendência</button>}</div></div>)}</div>}
+        {execucoes.length > 0 && <div className="mt-4 space-y-2">{execucoes.map((run) => <div key={run.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-background-200 px-4 py-3"><div><p className="text-sm font-semibold text-foreground-900">{run.location || 'Local não informado'}</p><p className="mt-1 text-xs text-foreground-500">{run.startedAt ? new Date(run.startedAt).toLocaleString('pt-BR') : 'Data indisponível'} · {run.status === 'completed' ? `${run.resultCount} encontrado(s)` : run.status === 'cached' ? `${run.resultCount} resultado(s) salvos` : run.status === 'running' ? 'Em andamento' : run.status === 'failed' ? 'Falha' : 'Não concluída'}</p></div><div className="flex flex-wrap gap-2">{((run.status === 'running' && run.hasProvider) || ((run.status === 'completed' || run.status === 'cached') && run.hasResults)) && <button type="button" onClick={() => void retomarExecucao(run)} disabled={buscando} className="rounded-lg border border-primary-300 px-3 py-2 text-xs font-semibold text-primary-700 hover:bg-primary-50 disabled:opacity-50">{buscando && execucaoAtual === run.id ? 'Consultando...' : run.status === 'completed' || run.status === 'cached' ? 'Abrir revisão' : 'Retomar busca'}</button>}</div></div>)}</div>}
       </section>}
 
       {aba === 'busca' && (
@@ -1503,7 +1472,6 @@ export default function BuscaLeads() {
                       <div className="inline-flex items-center gap-2"><label className="inline-flex cursor-pointer items-center gap-2"><input type="checkbox" checked={temWhatsApp === true} onChange={() => setTemWhatsApp(temWhatsApp === true ? null : true)} /> Telefone ou WhatsApp informado</label><InfoTooltip text="Aceita telefone comum ou WhatsApp explicitamente informado. Telefone comum permanece não verificado para envio por WhatsApp." label="Sobre a evidência de WhatsApp" /></div>
                       <label className="inline-flex cursor-pointer items-center gap-2"><input type="checkbox" checked={temEmail === true} onChange={() => setTemEmail(temEmail === true ? null : true)} /> E-mail informado</label>
                     </div>
-                    {sourceKeySelecionada === 'google_places' && temEmail === true && <p role="alert" className="mt-2 text-xs text-amber-800">Esta fonte não fornece e-mail. Desmarque esse critério para buscar.</p>}
                     {sourceKeySelecionada === 'linkedin' && termosAplicados.length > 1 && <p role="status" className="mt-2 text-xs text-amber-800">O LinkedIn pesquisa um termo por execução: será usado “{termosAplicados[0]}”. Remova ou reorganize os demais termos antes de buscar; nenhuma busca adicional será iniciada automaticamente.</p>}
                     <button type="button" onClick={() => setFiltrosAvancados((visible) => !visible)} aria-expanded={filtrosAvancados} className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold text-foreground-600 hover:text-foreground-900"><i className={filtrosAvancados ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line'} aria-hidden="true" /> Filtros avançados</button>
                     {filtrosAvancados && <div className="mt-3 space-y-3 rounded-xl border border-background-200 bg-background-50 px-3 py-2.5 text-xs leading-5 text-foreground-600">

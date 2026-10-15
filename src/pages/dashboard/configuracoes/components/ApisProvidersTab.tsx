@@ -11,15 +11,14 @@ import { countRequiredIntegrationAttention, hasOptionalIntegrationAttention } fr
 type ApiView = 'overview' | 'ai' | 'prospecting' | 'history';
 type HealthTone = 'positive' | 'attention' | 'critical' | 'neutral';
 
-const names: Record<string, string> = { ai: 'IA da Ana', apify: 'Google Maps', google_places: 'Google', linkedin: 'LinkedIn · Company Search' };
+const names: Record<string, string> = { ai: 'IA da Ana', apify: 'Google Maps', linkedin: 'LinkedIn · Company Search' };
 const descriptions: Record<string, string> = {
   ai: 'Responde e prepara atendimentos.',
   apify: 'Extrai leads do Google Maps.',
-  google_places: 'Fonte de dados de locais e empresas.',
   linkedin: 'Busca empresas para revisão, sem ativar campanhas ou mensagens.',
 };
-const scopes: Record<string, string> = { ai: 'Ana', apify: 'Busca de Leads', google_places: 'Busca de Leads', linkedin: 'Busca de Leads' };
-const icons: Record<string, string> = { ai: 'ri-brain-line', apify: 'ri-map-pin-search-line', google_places: 'ri-google-line', linkedin: 'ri-linkedin-box-line' };
+const scopes: Record<string, string> = { ai: 'Ana', apify: 'Busca de Leads', linkedin: 'Busca de Leads' };
+const icons: Record<string, string> = { ai: 'ri-brain-line', apify: 'ri-map-pin-search-line', linkedin: 'ri-linkedin-box-line' };
 
 function date(value: string | null | undefined): string {
   if (!value) return 'Ainda não testada';
@@ -65,7 +64,7 @@ function ProviderCard({ integration, sourceStatus, sourceError, pending, onConfi
     {sourceStatus === 'erro' && <p role="alert" className="mt-3 rounded-lg bg-[#FFF4F2] px-3 py-2 text-xs text-[#8B3027]">{health.detail}</p>}
     {!integration.connected && <p className="mt-3 rounded-lg bg-background-50 px-3 py-2 text-xs text-foreground-500">{health.detail}</p>}
     {integration.lastError && <p className="mt-3 rounded-lg bg-[#FFF4F2] px-3 py-2 text-xs text-[#8B3027]">{integration.lastError}</p>}
-    <div className="mt-4 flex flex-wrap gap-2"><button type="button" onClick={onConfigure} className="wf-btn-secondary text-xs"><i className="ri-settings-3-line" />Configurar</button><button type="button" disabled={isLoading || (!isConfigured && integration.remoteKey !== 'ai')} onClick={onTest} className="wf-btn-primary text-xs disabled:cursor-not-allowed disabled:opacity-50"><i className={isLoading ? 'ri-loader-4-line animate-spin' : 'ri-play-line'} />{isLoading ? 'Validando…' : 'Testar conexão'}</button><button type="button" onClick={onDiagnostic} className="wf-btn-secondary text-xs"><i className="ri-bar-chart-line" />{integration.remoteKey === 'google_places' && !isConfigured ? 'Ver motivo' : 'Diagnóstico'}</button></div>
+    <div className="mt-4 flex flex-wrap gap-2"><button type="button" onClick={onConfigure} className="wf-btn-secondary text-xs"><i className="ri-settings-3-line" />Configurar</button><button type="button" disabled={isLoading || (!isConfigured && integration.remoteKey !== 'ai')} onClick={onTest} className="wf-btn-primary text-xs disabled:cursor-not-allowed disabled:opacity-50"><i className={isLoading ? 'ri-loader-4-line animate-spin' : 'ri-play-line'} />{isLoading ? 'Validando…' : 'Testar conexão'}</button><button type="button" onClick={onDiagnostic} className="wf-btn-secondary text-xs"><i className="ri-bar-chart-line" />Diagnóstico</button></div>
   </article>;
 }
 
@@ -82,7 +81,7 @@ export default function ApisProvidersTab() {
   const refresh = useCallback(async () => { await Promise.all([recarregar(), recarregarFontes()]); try { setDiagnostics(await loadOperationalDiagnostics()); } catch { /* cards continuam exibindo o estado público já carregado */ } }, [recarregar, recarregarFontes]);
   useEffect(() => { void refresh(); }, [refresh]);
 
-  const providers = useMemo(() => ['ai', 'apify', 'google_places', 'linkedin'].map((key) => integracoes.find((item) => item.remoteKey === key)).filter(Boolean) as OperationalIntegration[], [integracoes]);
+  const providers = useMemo(() => ['ai', 'apify', 'linkedin'].map((key) => integracoes.find((item) => item.remoteKey === key)).filter(Boolean) as OperationalIntegration[], [integracoes]);
   const ai = providers.find((item) => item.remoteKey === 'ai');
   const prospecting = providers.filter((item) => item.remoteKey !== 'ai');
   const sourceByKey = new Map(fontes.map((source) => [source.sourceKey, source]));

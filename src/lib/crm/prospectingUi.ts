@@ -35,7 +35,7 @@ export function shouldClearProspectingRequestKey(code: string, recoverable = fal
   if (code === 'prospecting_run_not_pending') return true;
   if (recoverable) return false;
   // Malformed/400 start responses can represent an accepted, billable Actor.
-  return /^(source_|apify_auth_rejected|apify_token_rejected|apify_resource_forbidden|apify_actor_not_found|linkedin_credentials_required|linkedin_token_rejected|linkedin_actor_not_found|linkedin_resource_forbidden|google_places_key_rejected|google_places_rate_limited)/.test(code);
+  return /^(source_|apify_auth_rejected|apify_token_rejected|apify_resource_forbidden|apify_actor_not_found|linkedin_credentials_required|linkedin_token_rejected|linkedin_actor_not_found|linkedin_resource_forbidden)/.test(code);
 }
 
 export function termsForProspectingSource(sourceKey: string, terms: string[]): string[] {

@@ -5,7 +5,6 @@ describe('prospecting source presentation', () => {
   it('renames legacy configured provider labels without changing their source keys', () => {
     expect(prospectingSourceDisplayName('apify', 'Apify — Google Maps')).toBe('Google Maps');
     expect(prospectingSourceDisplayName('apify', 'Apify / Google Maps')).toBe('Google Maps');
-    expect(prospectingSourceDisplayName('google_places', 'Google Places')).toBe('Google');
     expect(prospectingSourceDisplayName('linkedin', 'LinkedIn · Company Search')).toBe('LinkedIn · Company Search');
   });
 

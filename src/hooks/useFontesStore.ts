@@ -65,7 +65,7 @@ export function fontesAtivas(fontes: FonteLead[]): FonteLead[] {
   return fontes.filter((fonte) => fonte.status === 'ativo' && fonte.connectionStatus === 'connected');
 }
 
-const PROSPECTING_API_KEYS = new Set(['apify', 'google_places', 'linkedin']);
+const PROSPECTING_API_KEYS = new Set(['apify', 'linkedin']);
 
 export function fontesApiProspeccao(fontes: FonteLead[]): FonteLead[] {
   return fontes.filter((fonte) => fonte.sourceKey && PROSPECTING_API_KEYS.has(fonte.sourceKey));
