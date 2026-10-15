@@ -6,7 +6,7 @@
 - A migration `20261015112000_retire_google_places_connector` removeu as integrações, fontes e segredos do cofre associados ao conector, registrando auditoria e preservando histórico de leads/runs/caches. A migration `20261015114500_remove_google_places_source_flag` removeu a chave das configurações da empresa e corrigiu o default para novas organizações.
 - Verificação remota read-only: 0 integrações `google_places`, 0 fontes `google_places`, 0 configurações de empresa com essa chave; 5 eventos de auditoria de retirada; 0 runs e 0 caches históricos no baseline consultado. Nenhuma mensagem, busca paga ou dado de cliente foi alterado.
 - Validação local: 125 arquivos Vitest, 735 testes aprovados e 25 skips históricos; type-check frontend/Edge, lint direcionado, build Vite, artefato Sites e `git diff --check` aprovados. As Edge Functions foram republicadas com JWT obrigatório: `configurar-integracao` v33, `testar-integracao` v30 e `prospectar-leads` v29.
-- Estado: **BACKEND E EDGE APLICADOS / CÓDIGO LOCAL VALIDADO / GITHUB E SITE PENDENTES**. Próximo passo: commit lógico, push fast-forward para `main` e publicação no Site existente; `supabase/.temp/cli-latest` permanece uma alteração local preexistente e não será incluída.
+- Estado: **PUBLICADO E VALIDADO**. Commit funcional `a4e642d46b6c3055dc842082cdc3aa6e6950b0f9` enviado em fast-forward ao GitHub `main`; Edge Functions ativas nas versões informadas; Site existente publicado na versão **211** em `https://prospect.wfdigital.com.br`. A rota `/login` respondeu HTTP 200 com cabeçalhos de segurança. `supabase/.temp/cli-latest` continua como alteração local preexistente e não faz parte do commit do GitHub nem do artefato público.
 
 ## 15/10/2026 — Busca de Leads: diagnóstico e correção publicada
 

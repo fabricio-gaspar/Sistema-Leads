@@ -14,7 +14,10 @@
     "messages_sent": false,
     "paid_search": false,
     "customer_data_changed": false,
-    "site_deployed": false
+    "site_deployed": true,
+    "site_version": 211,
+    "site_url": "https://prospect.wfdigital.com.br",
+    "site_login_http": 200
   },
   "lead_search_accuracy_20261015": {
     "focused_vitest": "138 aprovações focadas; 16 skips históricos esperados",

@@ -26,9 +26,11 @@
     "messages_sent": false,
     "paid_search": false,
     "customer_data_changed": false,
-    "code_commit": null,
-    "site_deployed": false,
-    "status": "EDGE_E_BANCO_APLICADOS_CODIGO_LOCAL_VALIDADO_GITHUB_SITE_PENDENTES"
+    "code_commit": "a4e642d46b6c3055dc842082cdc3aa6e6950b0f9",
+    "site_deployed": true,
+    "site_version": 211,
+    "site_url": "https://prospect.wfdigital.com.br",
+    "status": "PUBLICADO_E_VALIDADO"
   },
   "lead_search_accuracy_20261015": {
     "baseline_commit": "8227884122f7c662ba3068248719436ec07394e4",
