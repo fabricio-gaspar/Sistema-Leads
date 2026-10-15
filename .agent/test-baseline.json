@@ -1,5 +1,17 @@
 {
   "schema_version": 1,
+  "lead_search_accuracy_20261015": {
+    "focused_vitest": "138 aprovações focadas; 16 skips históricos esperados",
+    "full_vitest": "125 arquivos, 743 aprovações, 16 skips, saída 0",
+    "frontend_typecheck": "passed; tsc --noEmit --project tsconfig.app.json",
+    "edge_typecheck": "passed; tsc --noEmit --project tsconfig.edge.json",
+    "lint": "passed; eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "vite_build": "passed; somente aviso preexistente de runtime-config.js sem type=module",
+    "diff_check": "passed",
+    "provider_e2e": "not run; consulta externa poderia gerar cobrança e o último token Apify observado foi rejeitado",
+    "messages_sent": false,
+    "customer_data_changed": false
+  },
   "linkedin_company_search_20261014": {
     "focused_vitest": "8 passed in 3 files (integrationRuntimeMode, linkedinCompanySearch e adapter Apify); runtimeHandlers: 108 passed, 16 skips esperados",
     "frontend_typecheck": "passed; tsc --noEmit --project tsconfig.app.json",

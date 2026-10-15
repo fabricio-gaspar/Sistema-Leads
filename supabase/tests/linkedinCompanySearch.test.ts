@@ -13,7 +13,7 @@ describe('LinkedIn Company Search adapter', () => {
       {
         api_token: 'secret-value',
         actor_id: 'taHaRcqil3scbchuI',
-        input_json: JSON.stringify({ searchQuery: 'default', maxItems: 999, mode: 'full' }),
+        input_json: JSON.stringify({ searchQuery: 'default', maxItems: 999, mode: 'full', scraperMode: 'full' }),
       },
       {
         searchQuery: 'fabricantes de borracha',
@@ -35,8 +35,9 @@ describe('LinkedIn Company Search adapter', () => {
       maxItems: 20,
       startPage: 2,
       takePages: 1,
-      mode: 'short',
+      scraperMode: 'short',
     });
+    expect(input).not.toHaveProperty('mode');
     expect(JSON.stringify(input)).not.toContain('secret-value');
   });
 
@@ -80,5 +81,8 @@ describe('LinkedIn Company Search adapter', () => {
     expect(linkedInErrorCode(new Error('Request timed out while waiting for Actor'))).toBe('linkedin_provider_timeout');
     expect(linkedInErrorCode({ statusCode: 429 })).toBe('linkedin_rate_limited');
     expect(linkedInErrorCode({ statusCode: 403 })).toBe('linkedin_resource_forbidden');
+    expect(linkedInErrorCode(new Error('apify_token_rejected'))).toBe('linkedin_token_rejected');
+    expect(linkedInErrorCode(new Error('apify_actor_not_found'))).toBe('linkedin_actor_not_found');
+    expect(linkedInErrorCode(new Error('apify_resource_forbidden'))).toBe('linkedin_resource_forbidden');
   });
 });

@@ -1,5 +1,11 @@
 # Problemas conhecidos
 
+## 15/10/2026 — Busca real depende de credencial rotacionada e validação controlada
+
+- A última execução remota observada de Google Maps/Apify falhou com `apify_token_rejected` antes de iniciar o Actor. A correção local torna essa falha visível no painel, mas não restaura uma credencial inválida. Revogar o token já compartilhado em chat, criar outro e validá-lo diretamente em Configurações → APIs é uma ação administrativa necessária.
+- Não houve consulta paga de homologação. Google Places agora não repete uma chamada cujo resultado é incerto; uma pendência antiga só pode ser encerrada manualmente pelo autor depois de 10 minutos, com auditoria. Isso não comprova que a cobrança anterior não ocorreu.
+- A regra “telefone ou WhatsApp informado” não é verificação de que o número aceita WhatsApp. Abordagem automática e campanhas continuam sujeitas às proteções existentes.
+
 ## 14/10/2026 — LinkedIn Company Search: busca comercial e cobertura de runtime pendentes
 
 - A credencial e o Actor/Task foram validados no ambiente remoto; integração e fonte aparecem ativas no painel, sem terem sido ativadas pelo teste. Qualquer execução de busca pode gerar cobrança do provedor e exige decisão comercial controlada.

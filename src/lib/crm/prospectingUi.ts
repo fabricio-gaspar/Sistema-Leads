@@ -1,5 +1,55 @@
 export const MAX_PROSPECTING_TERMS = 10;
 
+export interface ProspectingResultDiagnostics {
+  providerItemsRead: number;
+  normalizedCount: number;
+  matchedCount: number;
+  rejectedByContact: number;
+  rejectedByEmail: number;
+  rejectedByWebsite: number;
+}
+
+export function prospectingFilterSummary(diagnostics?: ProspectingResultDiagnostics): string {
+  if (!diagnostics) return '';
+  const discarded = Math.max(0, diagnostics.normalizedCount - diagnostics.matchedCount);
+  const throughput = `${diagnostics.providerItemsRead} lidos · ${diagnostics.normalizedCount} identificados · ${diagnostics.matchedCount} elegíveis`;
+  if (!discarded) return `${throughput}.`;
+  const reasons = [
+    diagnostics.rejectedByContact > 0 ? `${diagnostics.rejectedByContact} sem telefone` : '',
+    diagnostics.rejectedByEmail > 0 ? `${diagnostics.rejectedByEmail} sem e-mail` : '',
+    diagnostics.rejectedByWebsite > 0 ? `${diagnostics.rejectedByWebsite} sem site` : '',
+  ].filter(Boolean).join(', ');
+  const overlapping = diagnostics.rejectedByContact + diagnostics.rejectedByEmail + diagnostics.rejectedByWebsite > discarded;
+  return `${throughput}. ${discarded} fora dos critérios${reasons ? `: ${reasons}` : ''}.${overlapping ? ' Os motivos podem se sobrepor.' : ''}`;
+}
+
+export function prospectingEmptyResultMessage(sourceName: string, diagnostics?: ProspectingResultDiagnostics): string {
+  if (!diagnostics) return `${sourceName} concluiu a busca sem leads para estes filtros. Nenhum lead foi importado.`;
+  if (diagnostics.providerItemsRead === 0) return `${sourceName} não encontrou empresas para o termo e a região escolhidos. Tente um termo mais amplo ou outra região; nenhuma importação foi feita.`;
+  if (diagnostics.normalizedCount === 0) return `${sourceName} devolveu ${diagnostics.providerItemsRead} registros, mas nenhum pôde ser identificado como empresa. Verifique o formato de saída da fonte; nenhuma importação foi feita.`;
+  if (diagnostics.matchedCount === 0) return `${diagnostics.normalizedCount} empresas foram descartadas pelos critérios obrigatórios. ${prospectingFilterSummary(diagnostics)} Desmarque um critério e faça uma nova busca somente após revisar o custo da fonte.`;
+  return `${sourceName} concluiu a busca sem leads revisáveis. Nenhuma importação foi feita.`;
+}
+
+export function shouldClearProspectingRequestKey(code: string, recoverable = false): boolean {
+  if (code === 'prospecting_run_not_pending') return true;
+  if (recoverable) return false;
+  // Malformed/400 start responses can represent an accepted, billable Actor.
+  return /^(source_|apify_auth_rejected|apify_token_rejected|apify_resource_forbidden|apify_actor_not_found|linkedin_credentials_required|linkedin_token_rejected|linkedin_actor_not_found|linkedin_resource_forbidden|google_places_key_rejected|google_places_rate_limited)/.test(code);
+}
+
+export function termsForProspectingSource(sourceKey: string, terms: string[]): string[] {
+  return sourceKey === 'linkedin' ? terms.slice(0, 1) : terms;
+}
+
+export function requestKeyBelongsToRun(stored: { runId?: string; key?: string } | null, runId: string, requestKey?: string): boolean {
+  return Boolean(runId && stored && (stored.runId === runId || (!stored.runId && requestKey && stored.key === requestKey)));
+}
+
+export function shouldApplyProspectingHistoryResponse(requestedSource: string, selectedSource: string): boolean {
+  return requestedSource === selectedSource;
+}
+
 function normalizeKey(value: string): string {
   return value
     .trim()

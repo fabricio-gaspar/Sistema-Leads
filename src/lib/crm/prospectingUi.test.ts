@@ -7,6 +7,12 @@ import {
   normalizeProspectingTerms,
   prepareCsvLeads,
   prospectingVolumePerTerm,
+  prospectingEmptyResultMessage,
+  prospectingFilterSummary,
+  shouldClearProspectingRequestKey,
+  requestKeyBelongsToRun,
+  shouldApplyProspectingHistoryResponse,
+  termsForProspectingSource,
 } from '@/lib/crm/prospectingUi';
 import {
   PROSPECTING_TERM_SUGGESTION_GROUPS,
@@ -50,6 +56,50 @@ describe('prospecting UI safeguards', () => {
   it('keeps every suggestion group within the same manual term limit', () => {
     expect(PROSPECTING_TERM_SUGGESTION_GROUPS.every((group) => group.terms.length <= MAX_PROSPECTING_TERMS)).toBe(true);
     expect(PROSPECTING_TERM_SUGGESTION_GROUPS.every((group) => new Set(group.terms).size === group.terms.length)).toBe(true);
+  });
+
+  it('distinguishes no provider records from records discarded by filters', () => {
+    expect(prospectingEmptyResultMessage('Google Maps', { providerItemsRead: 0, normalizedCount: 0, matchedCount: 0, rejectedByContact: 0, rejectedByEmail: 0, rejectedByWebsite: 0 }))
+      .toContain('não encontrou empresas');
+    expect(prospectingEmptyResultMessage('Google Maps', { providerItemsRead: 8, normalizedCount: 8, matchedCount: 0, rejectedByContact: 8, rejectedByEmail: 0, rejectedByWebsite: 0 }))
+      .toContain('8 empresas foram descartadas pelos critérios');
+    expect(prospectingFilterSummary({ providerItemsRead: 8, normalizedCount: 8, matchedCount: 0, rejectedByContact: 8, rejectedByEmail: 3, rejectedByWebsite: 0 }))
+      .toContain('8 fora dos critérios: 8 sem telefone, 3 sem e-mail. Os motivos podem se sobrepor.');
+    expect(prospectingFilterSummary({ providerItemsRead: 8, normalizedCount: 7, matchedCount: 7, rejectedByContact: 0, rejectedByEmail: 0, rejectedByWebsite: 0 }))
+      .toContain('8 lidos · 7 identificados · 7 elegíveis');
+    expect(prospectingEmptyResultMessage('LinkedIn', { providerItemsRead: 4, normalizedCount: 0, matchedCount: 0, rejectedByContact: 0, rejectedByEmail: 0, rejectedByWebsite: 0 }))
+      .toContain('4 registros, mas nenhum pôde ser identificado');
+  });
+
+  it('releases the idempotency key after a rejected token but preserves uncertain provider starts', () => {
+    expect(shouldClearProspectingRequestKey('apify_token_rejected')).toBe(true);
+    expect(shouldClearProspectingRequestKey('apify_token_rejected', true)).toBe(false);
+    expect(shouldClearProspectingRequestKey('google_places_key_rejected')).toBe(true);
+    expect(shouldClearProspectingRequestKey('google_places_rate_limited')).toBe(true);
+    expect(shouldClearProspectingRequestKey('prospecting_run_not_pending')).toBe(true);
+    expect(shouldClearProspectingRequestKey('prospecting_start_unconfirmed')).toBe(false);
+    expect(shouldClearProspectingRequestKey('linkedin_processing_timeout')).toBe(false);
+    expect(shouldClearProspectingRequestKey('provider_invalid_response')).toBe(false);
+    expect(shouldClearProspectingRequestKey('apify_http_400')).toBe(false);
+  });
+
+  it('signs only the one search term sent to the LinkedIn company Actor', () => {
+    expect(termsForProspectingSource('linkedin', ['borracha', 'silicone'])).toEqual(['borracha']);
+    expect(termsForProspectingSource('linkedin', ['borracha', 'poliuretano'])).toEqual(['borracha']);
+    expect(termsForProspectingSource('apify', ['borracha', 'silicone'])).toEqual(['borracha', 'silicone']);
+  });
+
+  it('releases a resumed run key only for the same recorded execution', () => {
+    expect(requestKeyBelongsToRun({ runId: 'run-a' }, 'run-a')).toBe(true);
+    expect(requestKeyBelongsToRun({ runId: 'run-b' }, 'run-a')).toBe(false);
+    expect(requestKeyBelongsToRun({}, 'run-a')).toBe(false);
+    expect(requestKeyBelongsToRun({ key: 'request-a' }, 'run-a', 'request-a')).toBe(true);
+    expect(requestKeyBelongsToRun({ key: 'request-b' }, 'run-a', 'request-a')).toBe(false);
+  });
+
+  it('ignores an old history response after the operator switches sources', () => {
+    expect(shouldApplyProspectingHistoryResponse('apify', 'linkedin')).toBe(false);
+    expect(shouldApplyProspectingHistoryResponse('google_places', 'google_places')).toBe(true);
   });
 
   it('filters the review without changing the underlying list', () => {

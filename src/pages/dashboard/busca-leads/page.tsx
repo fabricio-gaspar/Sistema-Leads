@@ -31,6 +31,13 @@ import {
   normalizeProspectingPhone,
   normalizeProspectingTerms,
   prepareCsvLeads,
+  prospectingEmptyResultMessage,
+  prospectingFilterSummary,
+  shouldClearProspectingRequestKey,
+  requestKeyBelongsToRun,
+  shouldApplyProspectingHistoryResponse,
+  termsForProspectingSource,
+  type ProspectingResultDiagnostics,
   type ProspectingReviewFilter,
 } from '@/lib/crm/prospectingUi';
 import {
@@ -55,7 +62,7 @@ import {
 } from '@/lib/crm/prospectingWizard';
 import { type ProspectingAiPlan } from '@/lib/crm/prospectingAiAssistant';
 
-const estados = ['SP', 'RJ', 'MG', 'PR', 'SC', 'RS', 'BA', 'PE', 'GO', 'DF'];
+const estados = ['AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'];
 const fasesBusca = ['Iniciando a busca', 'Aguardando resposta da fonte', 'Preparando a revisão'];
 const PROSPECTING_REQUEST_STORAGE_KEY = 'wayflex.prospecting.pending-request.v1';
 const DEFAULT_PROSPECTING_VOLUME = 10;
@@ -133,6 +140,7 @@ interface ProspectingResponse {
   error?: string;
   recoverable?: boolean;
   leads?: ProspectingLeadResponse[];
+  diagnostics?: ProspectingResultDiagnostics;
 }
 
 interface PendingCsvBatch {
@@ -225,8 +233,10 @@ export default function BuscaLeads() {
   const [wizardStep, setWizardStep] = useState<ProspectingWizardStep>(1);
   const [wizardError, setWizardError] = useState<string | null>(null);
   const [fonteSelecionada, setFonteSelecionada] = useState('');
-  const [cidade, setCidade] = useState('São Paulo');
-  const [estado, setEstado] = useState('SP');
+  const [historySourceKey, setHistorySourceKey] = useState('apify');
+  const historySourceRef = useRef('apify');
+  const [cidade, setCidade] = useState('');
+  const [estado, setEstado] = useState('');
   const [pais, setPais] = useState('Brasil');
   const [ofertaEmpresa, setOfertaEmpresa] = useState('Peças e soluções em borracha, silicone e poliuretano');
   const [tipoEmpresaAlvo, setTipoEmpresaAlvo] = useState<ProspectingTargetProfile>('potential_customers');
@@ -244,6 +254,7 @@ export default function BuscaLeads() {
   const [filtrosAvancados, setFiltrosAvancados] = useState(false);
   const [buscando, setBuscando] = useState(false);
   const [resultado, setResultado] = useState<string | null>(null);
+  const [resultadoSemLeads, setResultadoSemLeads] = useState(false);
   const [erroImportacao, setErroImportacao] = useState<string | null>(null);
   const [importando, setImportando] = useState(false);
   const [importacaoPendenteVerificacao, setImportacaoPendenteVerificacao] = useState(false);
@@ -256,6 +267,7 @@ export default function BuscaLeads() {
   const [execucoes, setExecucoes] = useState<ProspectingRunSummary[]>([]);
   const [carregandoExecucoes, setCarregandoExecucoes] = useState(false);
   const [erroExecucoes, setErroExecucoes] = useState(false);
+  const [avisoHistorico, setAvisoHistorico] = useState<string | null>(null);
   const [historicoAberto, setHistoricoAberto] = useState(false);
   const [historicoCarregado, setHistoricoCarregado] = useState(false);
   const [execucaoAtual, setExecucaoAtual] = useState<string | null>(null);
@@ -279,7 +291,7 @@ export default function BuscaLeads() {
   const [origemAutorizacao, setOrigemAutorizacao] = useState('');
 
   const [leads] = useLeadsStore();
-  const { fontes, recarregar: recarregarFontes } = useFontesStore();
+  const { fontes, status: statusFontes, recarregar: recarregarFontes } = useFontesStore();
   const { mode: operationalMode } = useOperationalMode();
   const { user } = useAuth();
   const [csvModal, setCsvModal] = useState(false);
@@ -287,8 +299,8 @@ export default function BuscaLeads() {
   const membrosAtivos = membros.filter((member) => member.status === 'active');
 
   useEffect(() => {
-    void recarregarFontes();
-    const atualizarAoRetomar = () => { void recarregarFontes(); };
+    void recarregarFontes().catch(() => undefined);
+    const atualizarAoRetomar = () => { void recarregarFontes().catch(() => undefined); };
     window.addEventListener('focus', atualizarAoRetomar);
     return () => window.removeEventListener('focus', atualizarAoRetomar);
   }, [recarregarFontes]);
@@ -308,7 +320,7 @@ export default function BuscaLeads() {
   const fontesDisponiveis = useMemo(() => fontesAtivas(fontesProspecao), [fontesProspecao]);
   const fonteSelecionadaAtual = useMemo(() => fontesProspecao.find((fonte) => fonte.id === fonteSelecionada), [fontesProspecao, fonteSelecionada]);
   const sourceKeySelecionada = fonteSelecionadaAtual?.sourceKey || '';
-  const fonteUnicaAtiva = fontesDisponiveis.length === 1 ? fontesDisponiveis[0] : null;
+  const fonteUnicaAtiva = statusFontes === 'ready' && fontesDisponiveis.length === 1 ? fontesDisponiveis[0] : null;
   const gruposSugeridos = useMemo(() => findProspectingTermSuggestions(segmentoSugestao), [segmentoSugestao]);
   const termosSelecionados = useMemo(() => new Set(normalizeProspectingTerms(termosBusca).map((term) => normalizarTermoSugerido(term))), [termosBusca]);
   const termosDoPerfil = useMemo(
@@ -342,12 +354,13 @@ export default function BuscaLeads() {
   }, [wizardDraft, wizardError, wizardStep]);
 
   useEffect(() => {
+    if (statusFontes !== 'ready') return;
     if (fonteSelecionada && !fontesDisponiveis.some((fonte) => fonte.id === fonteSelecionada)) {
       setFonteSelecionada('');
       setEtapa(1);
       setWizardStep(1);
     }
-  }, [fonteSelecionada, fontesDisponiveis]);
+  }, [fonteSelecionada, fontesDisponiveis, statusFontes]);
 
   useEffect(() => {
     if (!fonteUnicaAtiva || fonteSelecionada) return;
@@ -355,21 +368,29 @@ export default function BuscaLeads() {
   }, [fonteSelecionada, fonteUnicaAtiva]);
 
   useEffect(() => {
+    setHistoricoCarregado(false);
+    setExecucoes([]);
+  }, [historySourceKey]);
+
+  useEffect(() => {
     if ((aba !== 'busca' && aba !== 'salvas') || !historicoAberto || historicoCarregado) return;
     let mounted = true;
     setCarregandoExecucoes(true);
-    listarExecucoesFonte(sourceKeySelecionada || 'apify')
+    listarExecucoesFonte(historySourceKey)
       .then((runs) => { if (mounted) { setExecucoes(runs); setErroExecucoes(false); setHistoricoCarregado(true); } })
       .catch(() => { if (mounted) setErroExecucoes(true); })
       .finally(() => { if (mounted) setCarregandoExecucoes(false); });
     return () => { mounted = false; };
-  }, [aba, historicoAberto, historicoCarregado, sourceKeySelecionada]);
+  }, [aba, historicoAberto, historicoCarregado, historySourceKey]);
 
-  const atualizarExecucoes = async () => {
+  const atualizarExecucoes = async (sourceKey = historySourceKey) => {
+    if (!shouldApplyProspectingHistoryResponse(sourceKey, historySourceRef.current)) return;
     setCarregandoExecucoes(true);
-    try { setExecucoes(await listarExecucoesFonte(sourceKeySelecionada || 'apify')); setErroExecucoes(false); setHistoricoCarregado(true); }
-    catch { setErroExecucoes(true); }
-    finally { setCarregandoExecucoes(false); }
+    try {
+      const runs = await listarExecucoesFonte(sourceKey);
+      if (shouldApplyProspectingHistoryResponse(sourceKey, historySourceRef.current)) { setExecucoes(runs); setErroExecucoes(false); setHistoricoCarregado(true); }
+    } catch { if (shouldApplyProspectingHistoryResponse(sourceKey, historySourceRef.current)) setErroExecucoes(true); }
+    finally { if (shouldApplyProspectingHistoryResponse(sourceKey, historySourceRef.current)) setCarregandoExecucoes(false); }
   };
 
   const responsavelNome = modoAtendimento === 'IA'
@@ -599,6 +620,24 @@ export default function BuscaLeads() {
     try { window.sessionStorage.removeItem(`${PROSPECTING_REQUEST_STORAGE_KEY}:${context.userId}:${context.organizationId}`); } catch { /* armazenamento indisponível */ }
   };
 
+  const bindRequestKeyToRun = (key: string, runId: string) => {
+    const context = sessionContext.get();
+    const storageKey = `${PROSPECTING_REQUEST_STORAGE_KEY}:${context.userId}:${context.organizationId}`;
+    try {
+      const stored = JSON.parse(window.sessionStorage.getItem(storageKey) || '{}') as { signature?: string; key?: string; runId?: string };
+      if (stored.key === key) window.sessionStorage.setItem(storageKey, JSON.stringify({ ...stored, runId }));
+    } catch { /* armazenamento indisponível */ }
+  };
+
+  const clearRequestKeyForRun = (runId: string, requestKey?: string) => {
+    const context = sessionContext.get();
+    const storageKey = `${PROSPECTING_REQUEST_STORAGE_KEY}:${context.userId}:${context.organizationId}`;
+    try {
+      const stored = JSON.parse(window.sessionStorage.getItem(storageKey) || '{}') as { runId?: string; key?: string };
+      if (requestKeyBelongsToRun(stored, runId, requestKey)) window.sessionStorage.removeItem(storageKey);
+    } catch { /* armazenamento indisponível */ }
+  };
+
   const buscarLeads = () => { void executarBusca(leadsDia); };
 
   const aplicarBuscaMaisAmpla = () => {
@@ -644,13 +683,42 @@ export default function BuscaLeads() {
       if (response?.pending) response = await aguardarResultadoFonte(runSourceKey, run.id);
       setFaseBusca(fasesBusca[2]);
       aplicarResultadoDaBusca(response, prospectingSourceDisplayName(runSourceKey, fonte?.nome), run.resultCount || leadsDia);
+      if (response.runId) clearRequestKeyForRun(response.runId);
     } catch (error) {
-      setErroBusca(mensagemBuscaReal(error instanceof Error ? error.message : 'prospecting_failed', prospectingSourceDisplayName(runSourceKey, fonte?.nome)));
+      const message = error instanceof Error ? error.message : 'prospecting_failed';
+      if (/^(apify_token_rejected|apify_auth_rejected|linkedin_token_rejected|source_credentials_missing)$/.test(message)) void recarregarFontes().catch(() => undefined);
+      setErroBusca(mensagemBuscaReal(message, prospectingSourceDisplayName(runSourceKey, fonte?.nome)));
     } finally {
       setBuscando(false);
       setExecucaoAtual(null);
       setFaseBusca('');
-      if (historicoAberto) void atualizarExecucoes();
+      if (historicoAberto) void atualizarExecucoes(runSourceKey);
+    }
+  };
+
+  const encerrarPendenciaGoogle = async (run: ProspectingRunSummary) => {
+    if (run.sourceKey !== 'google_places' || run.status !== 'running') return;
+    if (!window.confirm('Esta busca do Google pode ter gerado cobrança, mas não salvou resultados. Encerrá-la não repetirá a consulta. Se quiser buscar novamente, será necessária uma nova ação sua. Deseja encerrar a pendência?')) return;
+    setBuscando(true);
+    setExecucaoAtual(run.id);
+    setAvisoHistorico(null);
+    try {
+      const { data, error } = await supabase.functions.invoke('prospectar-leads', {
+        body: { action: 'close_stale_google', sourceKey: 'google_places', mode: 'production', runId: run.id },
+      });
+      if (error) throw new Error(await detalheDoErroBusca(error));
+      if (!data?.closed) throw new Error('prospecting_run_not_pending');
+      clearRequestKeyForRun(run.id, typeof data.requestKey === 'string' ? data.requestKey : undefined);
+      setAvisoHistorico(data.auditRecorded === false
+        ? 'Pendência encerrada sem repetir a consulta, mas o registro de auditoria falhou. Avise o administrador antes de uma nova busca.'
+        : 'Pendência encerrada sem repetir a consulta. Uma nova busca só ocorrerá após seu clique em Buscar.');
+      await atualizarExecucoes('google_places');
+    } catch (error) {
+      const code = error instanceof Error ? error.message : 'prospecting_failed';
+      setAvisoHistorico(mensagemBuscaReal(code, 'Google'));
+    } finally {
+      setBuscando(false);
+      setExecucaoAtual(null);
     }
   };
 
@@ -665,15 +733,16 @@ export default function BuscaLeads() {
     setFeedbackRevisao('');
     setClassificacoesAmostra(Object.fromEntries(cruzados.map((lead) => [lead.id, lead.duplicado ? 'duplicada' : 'adequada'])));
     setMotivosForaPerfil({});
-    clearRequestKey();
     const duplicados = cruzados.filter((lead) => lead.duplicado).length;
+    const filterSummary = prospectingFilterSummary(data.diagnostics);
     setResultado(
       duplicados > 0
-        ? `${cruzados.length} leads encontrados (limite: ${requestedVolume}). ${duplicados} duplicado(s) já no funil e bloqueado(s).`
+        ? `${cruzados.length} leads encontrados (limite: ${requestedVolume}). ${duplicados} duplicado(s) já no funil e bloqueado(s). ${filterSummary}`.trim()
         : cruzados.length
-          ? `${cruzados.length} leads encontrados (limite: ${requestedVolume}), resultado real do provedor.`
-          : `${fonteNome} concluiu a busca, mas não retornou leads para estes filtros. Nenhum lead foi importado.`,
+          ? `${cruzados.length} leads encontrados (limite: ${requestedVolume}), resultado real do provedor. ${filterSummary}`.trim()
+          : prospectingEmptyResultMessage(fonteNome, data.diagnostics),
     );
+    setResultadoSemLeads(cruzados.length === 0);
     setEtapa(3);
   };
 
@@ -689,15 +758,19 @@ export default function BuscaLeads() {
       'LinkedIn · Company Search': 'linkedin',
     } as Record<string, string>)[fonteNome] || '';
 
+    let requestRecoverable = false;
+    let requestKey: string | null = null;
     try {
       if (!Number.isInteger(requestedVolume) || requestedVolume < 1 || requestedVolume > MAX_PROSPECTING_VOLUME) {
         throw new Error('prospecting_volume_invalid');
       }
       if (operationalMode !== 'real') throw new Error('operational_mode_protected');
+      if (statusFontes !== 'ready') throw new Error('sources_unavailable');
       if (!fontesDisponiveis.some((item) => item.id === fonteSelecionada)) throw new Error('source_disabled');
       if (!sourceKey) throw new Error('source_not_configured');
       if (!cidade.trim()) throw new Error('prospecting_city_required');
-      const terms = termosAplicados;
+      if (sourceKey === 'google_places' && temEmail === true) throw new Error('source_filter_email_unavailable');
+      const terms = termsForProspectingSource(sourceKey, termosAplicados);
       if (!terms.length) throw new Error('prospecting_terms_required');
       const filters = {
         pais,
@@ -713,9 +786,10 @@ export default function BuscaLeads() {
         companySize: sourceKey === 'linkedin' ? linkedinCompanySize.split(',').map((value) => value.trim()).filter(Boolean).slice(0, 10) : [],
         scraperMode: sourceKey === 'linkedin' ? linkedinScraperMode : undefined,
       };
-      const idempotencyKey = requestKeyFor(sourceKey, filters);
+      requestKey = requestKeyFor(sourceKey, filters);
       setBuscando(true);
       setResultado(null);
+      setResultadoSemLeads(false);
       setErroBusca(null);
       setFeedbackRevisao('');
       setFaseBusca(fasesBusca[0]);
@@ -723,32 +797,41 @@ export default function BuscaLeads() {
         body: {
           sourceKey,
           mode: 'production',
-          idempotencyKey,
+          idempotencyKey: requestKey,
           filters,
         },
       });
-      if (error) throw new Error(await detalheDoErroBusca(error));
+      if (error) {
+        const state = await estadoDoErroDaBusca(error);
+        requestRecoverable = state.recoverable;
+        if (state.recoverable && state.runId && requestKey) bindRequestKeyToRun(requestKey, state.runId);
+        throw new Error(await detalheDoErroBusca(error));
+      }
       let response = data as ProspectingResponse;
+      if (response?.runId && requestKey) bindRequestKeyToRun(requestKey, response.runId);
       if (response?.pending) {
         if (!response.runId) throw new Error('prospecting_run_not_started');
+        requestRecoverable = true;
         setExecucaoAtual(response.runId);
-        if (historicoAberto) void atualizarExecucoes();
+        if (historicoAberto) void atualizarExecucoes(sourceKey);
         setFaseBusca(fasesBusca[1]);
         response = await aguardarResultadoFonte(sourceKey, response.runId);
       }
       setFaseBusca(fasesBusca[2]);
       aplicarResultadoDaBusca(response, fonteNome, requestedVolume);
+      if (response.runId) clearRequestKeyForRun(response.runId);
     } catch (error) {
       setPreview([]);
       setSelecionados([]);
       const message = error instanceof Error ? error.message : 'prospecting_failed';
-      if (/^(source_|apify_auth_|apify_actor_|apify_http_4|linkedin_credentials_required|linkedin_token_rejected|linkedin_actor_not_found|linkedin_resource_forbidden|provider_invalid_response|prospecting_run_not_pending)/.test(message)) clearRequestKey();
+      if (shouldClearProspectingRequestKey(message, requestRecoverable)) clearRequestKey();
+      if (/^(apify_token_rejected|apify_auth_rejected|linkedin_token_rejected|source_credentials_missing)$/.test(message)) void recarregarFontes().catch(() => undefined);
       setErroBusca(mensagemBuscaReal(message, fonteNome));
     } finally {
       setBuscando(false);
       setExecucaoAtual(null);
       setFaseBusca('');
-      if (historicoAberto) void atualizarExecucoes();
+      if (historicoAberto) void atualizarExecucoes(sourceKey);
     }
   };
 
@@ -763,15 +846,30 @@ export default function BuscaLeads() {
     return error instanceof Error ? error.message : 'prospecting_failed';
   };
 
+  const estadoDoErroDaBusca = async (error: unknown): Promise<{ recoverable: boolean; runId?: string }> => {
+    if (error && typeof error === 'object' && 'context' in error) {
+      try {
+        const response = (error as { context?: Response }).context;
+        const body = await response?.clone().json() as { recoverable?: boolean; runId?: string } | undefined;
+        return { recoverable: body?.recoverable === true, runId: body?.runId };
+      } catch { /* sem confirmação de estado */ }
+    }
+    return { recoverable: false };
+  };
+
   const mensagemBuscaReal = (code: string, fonte: string): string => {
     const mensagens: Record<string, string> = {
       source_not_configured: `${fonte} ainda não está configurada no Backend. Abra Configurações → Integrações, salve as credenciais e teste a conexão.`,
+      sources_unavailable: 'Não foi possível confirmar o estado atual das fontes. Use “Tentar novamente” antes de iniciar uma busca.',
       source_disabled: `${fonte} está desativada. Ative a fonte e valide a conexão antes de buscar.`,
       source_credentials_missing: `As credenciais de ${fonte} não foram encontradas no cofre seguro. Configure a fonte novamente.`,
       source_not_supported: `${fonte} ainda não possui um adaptador de busca real habilitado.`,
       provider_error: `O provedor de ${fonte} recusou a busca. Confira as credenciais, limites e a configuração do Actor/Task.`,
       apify_actor_incompatible: `${fonte} está configurada com um Actor que não aceita os filtros de Google Maps. Corrija o Actor em Configurações antes de buscar.`,
       apify_http_400: `${fonte} recusou o formato da busca. Use um Actor de Google Maps compatível com localização e volume de resultados.`,
+      apify_token_rejected: `O token da Apify para ${fonte} foi rejeitado. Atualize a credencial em Configurações → APIs e teste a conexão. Consulte o histórico antes de repetir a busca: uma execução anterior pode já ter sido iniciada.`,
+      apify_auth_rejected: `A autenticação de ${fonte} foi recusada. Revalide a conexão em Configurações → APIs antes de buscar novamente.`,
+      source_filter_email_unavailable: `${fonte} não fornece e-mail nesta busca. Desmarque “E-mail informado” ou escolha outra fonte.`,
       linkedin_credentials_required: `${fonte} precisa de token Apify e Actor/Task do LinkedIn configurados no cofre.`,
       linkedin_token_rejected: `${fonte} recusou o token Apify. Valide a credencial e as permissões do Actor.`,
       linkedin_actor_not_found: `${fonte} não encontrou o Actor/Task configurado. Confira o identificador no painel da Apify.`,
@@ -783,6 +881,9 @@ export default function BuscaLeads() {
       linkedin_run_failed: `${fonte} encerrou a execução com falha. Consulte o histórico da Apify antes de tentar novamente.`,
       linkedin_run_aborted: `${fonte} foi interrompida pelo provedor. Nenhum lead foi importado.`,
       linkedin_run_timed_out: `${fonte} excedeu o tempo seguro de processamento. Nenhum retry automático foi enviado.`,
+      google_places_key_rejected: `A chave do Google foi rejeitada. Revalide a credencial em Configurações → APIs antes de iniciar outra busca.`,
+      google_places_rate_limited: `O Google limitou temporariamente esta busca. Aguarde e confira a quota antes de tentar novamente.`,
+      google_places_partial_response: `O Google aceitou parte da busca, mas não concluiu todas as páginas. A execução ficou registrada; não repita a consulta automaticamente para evitar cobrança duplicada.`,
       apify_processing_timeout: `${fonte} ainda está processando esta busca. Aguarde alguns minutos antes de iniciar outra consulta; o Registro do Sistema mantém a execução para auditoria.`,
       prospecting_start_unconfirmed: `${fonte} recebeu uma tentativa de início cuja confirmação não foi registrada. Para evitar uma busca duplicada, o sistema não enviará outro pedido automaticamente. Abra o histórico e siga o Registro do Sistema.`,
       prospecting_request_key_required: 'Não foi possível proteger a repetição desta busca. Atualize a página e tente novamente.',
@@ -794,6 +895,8 @@ export default function BuscaLeads() {
       prospecting_run_not_started: `A fonte não confirmou o início da execução. A busca não foi enviada para revisão.`,
       prospecting_run_not_found: `A execução não pertence à empresa ativa ou não está mais disponível para consulta.`,
       prospecting_run_not_pending: `A execução já não está pendente. Atualize a página antes de iniciar uma nova busca.`,
+      google_places_review_too_early: 'Esta busca ainda pode estar finalizando. Aguarde 10 minutos antes de encerrar a pendência.',
+      prospecting_audit_unavailable: 'Não foi possível registrar sua decisão na auditoria. A busca não foi encerrada; tente novamente mais tarde.',
       source_input_invalid: `A entrada adicional de ${fonte} não é um JSON válido. Corrija o campo em Configurações → Integrações.`,
       provider_invalid_response: `${fonte} respondeu em um formato incompatível. Use uma Task/Actor compatível ou ajuste a entrada adicional.`,
       organization_access_denied: 'Seu usuário não tem a permissão necessária na empresa ativa para executar buscas reais.',
@@ -1169,11 +1272,17 @@ export default function BuscaLeads() {
 
       {aba === 'salvas' && <section className="mt-5 rounded-xl border border-background-200/70 bg-white p-5" aria-label="Buscas salvas">
         <div className="flex flex-wrap items-center justify-between gap-3"><div><h2 className="text-base font-heading font-bold text-foreground-900">Buscas salvas e recuperação</h2><p className="mt-1 text-sm text-foreground-500">Retome uma execução real sem iniciar uma consulta duplicada.</p></div><button type="button" onClick={() => void atualizarExecucoes()} disabled={carregandoExecucoes || buscando} className="rounded-lg border border-background-300 px-3 py-2 text-xs font-semibold text-foreground-700 hover:bg-background-100 disabled:opacity-50"><i className="ri-refresh-line mr-1" aria-hidden="true" />Atualizar</button></div>
+        <label className="mt-4 block max-w-xs text-xs font-semibold text-foreground-700">Fonte do histórico
+          <select value={historySourceKey} onChange={(event) => { historySourceRef.current = event.target.value; setHistorySourceKey(event.target.value); }} className="mt-1 w-full rounded-lg border border-background-300 bg-white px-3 py-2 text-sm text-foreground-900">
+            {(['apify', 'google_places', 'linkedin'] as const).map((key) => <option key={key} value={key}>{prospectingSourceDisplayName(key)}</option>)}
+          </select>
+        </label>
         {carregandoExecucoes && <p className="mt-4 text-sm text-foreground-500">Carregando execuções...</p>}
+        {avisoHistorico && <p role="status" className="mt-4 text-sm text-foreground-700">{avisoHistorico}</p>}
         {erroExecucoes && <p role="alert" className="mt-4 text-sm text-secondary-700">Não foi possível carregar as buscas salvas. Tente atualizar.</p>}
         {!carregandoExecucoes && !erroExecucoes && !historicoCarregado && <button type="button" onClick={() => { setHistoricoAberto(true); void atualizarExecucoes(); }} className="mt-4 rounded-lg bg-primary-600 px-4 py-2 text-sm font-semibold text-white">Carregar buscas salvas</button>}
         {historicoCarregado && !carregandoExecucoes && !erroExecucoes && execucoes.length === 0 && <p className="mt-4 text-sm text-foreground-500">Nenhuma busca disponível.</p>}
-        {execucoes.length > 0 && <div className="mt-4 space-y-2">{execucoes.map((run) => <div key={run.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-background-200 px-4 py-3"><div><p className="text-sm font-semibold text-foreground-900">{run.location || 'Local não informado'}</p><p className="mt-1 text-xs text-foreground-500">{run.startedAt ? new Date(run.startedAt).toLocaleString('pt-BR') : 'Data indisponível'} · {run.status === 'completed' ? `${run.resultCount} encontrado(s)` : run.status === 'cached' ? `${run.resultCount} resultado(s) salvos` : run.status === 'running' ? 'Em andamento' : run.status === 'failed' ? 'Falha' : 'Não concluída'}</p></div>{((run.status === 'running' && run.hasProvider) || ((run.status === 'completed' || run.status === 'cached') && run.hasResults)) && <button type="button" onClick={() => void retomarExecucao(run)} disabled={buscando} className="rounded-lg border border-primary-300 px-3 py-2 text-xs font-semibold text-primary-700 hover:bg-primary-50 disabled:opacity-50">{buscando && execucaoAtual === run.id ? 'Consultando...' : run.status === 'completed' || run.status === 'cached' ? 'Abrir revisão' : 'Retomar busca'}</button>}</div>)}</div>}
+        {execucoes.length > 0 && <div className="mt-4 space-y-2">{execucoes.map((run) => <div key={run.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-background-200 px-4 py-3"><div><p className="text-sm font-semibold text-foreground-900">{run.location || 'Local não informado'}</p><p className="mt-1 text-xs text-foreground-500">{run.startedAt ? new Date(run.startedAt).toLocaleString('pt-BR') : 'Data indisponível'} · {run.status === 'completed' ? `${run.resultCount} encontrado(s)` : run.status === 'cached' ? `${run.resultCount} resultado(s) salvos` : run.status === 'running' ? 'Em andamento' : run.status === 'failed' ? 'Falha' : 'Não concluída'}</p>{run.status === 'running' && run.sourceKey === 'google_places' && <p role="status" className="mt-1 max-w-xl text-xs text-amber-700">O Google não permite retomar esta consulta. Ela pode ter gerado cobrança; encerre a pendência somente após revisar o ocorrido.</p>}{run.status === 'running' && run.sourceKey === 'google_places' && run.fromTeam && <p className="mt-1 text-xs text-foreground-500">Somente quem iniciou esta busca pode encerrar a pendência.</p>}</div><div className="flex flex-wrap gap-2">{((run.status === 'running' && run.hasProvider) || ((run.status === 'completed' || run.status === 'cached') && run.hasResults)) && <button type="button" onClick={() => void retomarExecucao(run)} disabled={buscando} className="rounded-lg border border-primary-300 px-3 py-2 text-xs font-semibold text-primary-700 hover:bg-primary-50 disabled:opacity-50">{buscando && execucaoAtual === run.id ? 'Consultando...' : run.status === 'completed' || run.status === 'cached' ? 'Abrir revisão' : 'Retomar busca'}</button>}{run.status === 'running' && run.sourceKey === 'google_places' && !run.fromTeam && run.startedAt && Date.now() - Date.parse(run.startedAt) >= 10 * 60_000 && <button type="button" onClick={() => void encerrarPendenciaGoogle(run)} disabled={buscando} className="rounded-lg border border-amber-300 px-3 py-2 text-xs font-semibold text-amber-800 hover:bg-amber-50 disabled:opacity-50">Encerrar pendência</button>}</div></div>)}</div>}
       </section>}
 
       {aba === 'busca' && (
@@ -1226,7 +1335,7 @@ export default function BuscaLeads() {
                 </div>
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4" role="group" aria-label="Fonte da busca">
                   {fontesProspecao.map((f) => {
-                    const pronta = fontesDisponiveis.some((fonte) => fonte.id === f.id);
+                    const pronta = statusFontes === 'ready' && fontesDisponiveis.some((fonte) => fonte.id === f.id);
                     return (
                     <button
                       key={f.id}
@@ -1250,11 +1359,14 @@ export default function BuscaLeads() {
                   )})}
                 </div>
               </div>
-              {fontesProspecao.length === 0 && <p className="text-sm text-foreground-500">Nenhuma fonte de prospecção está configurada. Configure uma em Configurações → Canais, APIs e fontes.</p>}
+              {statusFontes === 'loading' && <p role="status" className="text-sm text-foreground-500">Verificando as fontes de busca...</p>}
+              {statusFontes === 'error' && <div role="alert" className="rounded-xl border border-secondary-200 bg-secondary-50 p-4 text-sm text-secondary-800">Não foi possível consultar o estado das fontes. <button type="button" onClick={() => void recarregarFontes().catch(() => undefined)} className="font-semibold underline">Tentar novamente</button></div>}
+              {statusFontes === 'ready' && fontesProspecao.length === 0 && <p className="text-sm text-foreground-500">Nenhuma fonte de prospecção está configurada. Configure uma em Configurações → APIs.</p>}
+              {statusFontes === 'ready' && fontesProspecao.some((fonte) => fonte.status === 'erro') && <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"><p className="font-semibold">Uma fonte precisa de nova validação.</p><p className="mt-1">{fontesProspecao.some((fonte) => fonte.lastError === 'apify_token_rejected') ? 'O Google Maps teve o token Apify rejeitado na última busca. Corrija a credencial e teste a conexão antes de pesquisar.' : 'Confira o diagnóstico da fonte em Configurações → APIs.'}</p><button type="button" onClick={() => navigate('/dashboard/configuracoes?tab=apis')} className="mt-2 font-semibold underline">Abrir configurações de APIs</button></div>}
               <div className="flex justify-end">
                 <button
                   onClick={avancar}
-                  disabled={!fonteSelecionada}
+                  disabled={statusFontes !== 'ready' || !fonteSelecionada}
                   className="px-6 py-2.5 bg-primary-500 hover:bg-primary-600 disabled:bg-primary-300 text-background-50 rounded-lg text-sm font-bold cursor-pointer whitespace-nowrap"
                 >
                   Continuar para a região
@@ -1320,11 +1432,12 @@ export default function BuscaLeads() {
                       <div><h3 className="text-sm font-heading font-bold text-foreground-900">1. Região da busca</h3><p className="mt-0.5 text-xs text-foreground-500">Escolha onde as empresas devem atuar.</p></div>
                     </div>
                     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                      <label className="text-xs font-semibold text-foreground-700">Cidade
+                      <label className="text-xs font-semibold text-foreground-700">Cidade <span className="font-normal text-foreground-500">(obrigatória)</span>
                         <input type="text" value={cidade} onChange={(event) => setCidade(event.target.value)} placeholder="Ex.: São Paulo" className="mt-1.5 w-full rounded-lg border border-background-300 bg-background-50 px-3 py-2 text-sm text-foreground-900" />
                       </label>
                       <label className="text-xs font-semibold text-foreground-700">UF
                         <select value={estado} onChange={(event) => setEstado(event.target.value)} className="mt-1.5 w-full rounded-lg border border-background-300 bg-background-50 px-3 py-2 text-sm text-foreground-900">
+                          <option value="">Selecione a UF (opcional)</option>
                           {estados.map((uf) => <option key={uf} value={uf}>{uf}</option>)}
                         </select>
                       </label>
@@ -1387,9 +1500,11 @@ export default function BuscaLeads() {
                     <div className="mb-3 flex items-start gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary-100 text-primary-700"><i className="ri-equalizer-2-line" aria-hidden="true" /></span><div><h3 className="text-sm font-heading font-bold text-foreground-900">3. Critérios de qualificação</h3><p className="mt-0.5 text-xs text-foreground-500">Defina o que precisa estar presente para entrar na amostra.</p></div></div>
                     <div className="flex flex-wrap gap-x-5 gap-y-2 text-xs font-medium text-foreground-700">
                       <label className="inline-flex cursor-pointer items-center gap-2"><input type="checkbox" checked={temSite === true} onChange={() => setTemSite(temSite === true ? null : true)} /> Site informado</label>
-                      <div className="inline-flex items-center gap-2"><label className="inline-flex cursor-pointer items-center gap-2"><input type="checkbox" checked={temWhatsApp === true} onChange={() => setTemWhatsApp(temWhatsApp === true ? null : true)} /> Telefone ou WhatsApp</label><InfoTooltip text="Telefone encontrado não é tratado como WhatsApp comprovado." label="Sobre a evidência de WhatsApp" /></div>
+                      <div className="inline-flex items-center gap-2"><label className="inline-flex cursor-pointer items-center gap-2"><input type="checkbox" checked={temWhatsApp === true} onChange={() => setTemWhatsApp(temWhatsApp === true ? null : true)} /> Telefone ou WhatsApp informado</label><InfoTooltip text="Aceita telefone comum ou WhatsApp explicitamente informado. Telefone comum permanece não verificado para envio por WhatsApp." label="Sobre a evidência de WhatsApp" /></div>
                       <label className="inline-flex cursor-pointer items-center gap-2"><input type="checkbox" checked={temEmail === true} onChange={() => setTemEmail(temEmail === true ? null : true)} /> E-mail informado</label>
                     </div>
+                    {sourceKeySelecionada === 'google_places' && temEmail === true && <p role="alert" className="mt-2 text-xs text-amber-800">Esta fonte não fornece e-mail. Desmarque esse critério para buscar.</p>}
+                    {sourceKeySelecionada === 'linkedin' && termosAplicados.length > 1 && <p role="status" className="mt-2 text-xs text-amber-800">O LinkedIn pesquisa um termo por execução: será usado “{termosAplicados[0]}”. Remova ou reorganize os demais termos antes de buscar; nenhuma busca adicional será iniciada automaticamente.</p>}
                     <button type="button" onClick={() => setFiltrosAvancados((visible) => !visible)} aria-expanded={filtrosAvancados} className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold text-foreground-600 hover:text-foreground-900"><i className={filtrosAvancados ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line'} aria-hidden="true" /> Filtros avançados</button>
                     {filtrosAvancados && <div className="mt-3 space-y-3 rounded-xl border border-background-200 bg-background-50 px-3 py-2.5 text-xs leading-5 text-foreground-600">
                       <p>A fonte e a região já foram definidas nos passos anteriores. A duplicidade será conferida na revisão por empresa, e-mail ou telefone.</p>
@@ -1417,7 +1532,7 @@ export default function BuscaLeads() {
                   {orientacaoDaBusca && <section className="rounded-2xl border border-amber-200 bg-amber-50 p-4" role="status" aria-label="Recomendação para ampliar a busca">
                     <div className="flex items-start gap-3">
                       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-800"><i className="ri-filter-3-line" aria-hidden="true" /></span>
-                      <div className="min-w-0 flex-1"><h3 className="text-sm font-heading font-bold text-amber-950">Esta combinação pode retornar poucos ou nenhum lead</h3><p className="mt-1 text-xs leading-5 text-amber-900">A fonte precisa encontrar empresas para todos os termos e também localizar contato obrigatório. Para ampliar a cobertura, comece por <strong>{orientacaoDaBusca.primaryTerm}</strong> e confirme o WhatsApp apenas na revisão.</p><button type="button" onClick={aplicarBuscaMaisAmpla} className="mt-3 rounded-lg border border-amber-300 bg-white px-3 py-2 text-xs font-semibold text-amber-900 hover:bg-amber-100"><i className="ri-expand-width-line mr-1.5" aria-hidden="true" />Aplicar busca mais ampla</button><p className="mt-2 text-[11px] text-amber-800">Nenhuma consulta é iniciada por este ajuste.</p></div>
+                      <div className="min-w-0 flex-1"><h3 className="text-sm font-heading font-bold text-amber-950">Esta combinação pode retornar poucos ou nenhum lead</h3><p className="mt-1 text-xs leading-5 text-amber-900">Muitos termos reduzem a amostra por termo, e os contatos obrigatórios podem descartar empresas encontradas. Para ampliar a cobertura, comece por <strong>{orientacaoDaBusca.primaryTerm}</strong> e verifique o canal na revisão.</p><button type="button" onClick={aplicarBuscaMaisAmpla} className="mt-3 rounded-lg border border-amber-300 bg-white px-3 py-2 text-xs font-semibold text-amber-900 hover:bg-amber-100"><i className="ri-expand-width-line mr-1.5" aria-hidden="true" />Aplicar busca mais ampla</button><p className="mt-2 text-[11px] text-amber-800">Nenhuma consulta é iniciada por este ajuste.</p></div>
                     </div>
                   </section>}
 
@@ -1443,7 +1558,7 @@ export default function BuscaLeads() {
                       <div className="flex justify-between gap-3 py-2"><dt className="text-background-400">Fonte</dt><dd className="text-right font-semibold">{fontesProspecao.find((fonte) => fonte.id === fonteSelecionada)?.nome || 'Pendente'}</dd></div>
                       <div className="flex justify-between py-2"><dt className="text-background-400">Perfil</dt><dd className="font-semibold">{tipoEmpresaAlvoLabel}</dd></div>
                       <div className="flex justify-between py-2"><dt className="text-background-400">Segmentos</dt><dd className="font-semibold">{segmentosCliente.length}</dd></div>
-                      <div className="flex justify-between py-2"><dt className="text-background-400">Termos</dt><dd className="font-semibold">{termosAplicados.length}</dd></div>
+                      <div className="flex justify-between gap-3 py-2"><dt className="text-background-400">Termos enviados</dt><dd className="max-w-[65%] text-right font-semibold break-words">{termsForProspectingSource(sourceKeySelecionada, termosAplicados).join(', ') || 'Nenhum'}</dd></div>
                       <div className="flex justify-between py-2"><dt className="text-background-400">Quantidade</dt><dd className="font-semibold">{leadsDia} lead{leadsDia === 1 ? '' : 's'}</dd></div>
                       <div className="flex justify-between py-2"><dt className="text-background-400">Obrigatórios</dt><dd className="font-semibold">{[temSite, temWhatsApp, temEmail].filter(Boolean).length}</dd></div>
                     </dl>
@@ -1527,6 +1642,7 @@ export default function BuscaLeads() {
           {/* ETAPA 3: Revisão */}
           {etapa === 3 && (
             <div className="space-y-6">
+              {resultadoSemLeads && resultado && <div role="status" className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900"><span>{resultado}</span><button type="button" onClick={voltar} className="font-semibold underline">Ajustar critérios</button></div>}
               <div className="grid grid-cols-1 xl:grid-cols-5 gap-5">
               <div className="xl:col-span-3 bg-background-50 border border-background-200/70 rounded-xl overflow-hidden">
                 <div className="border-b border-background-200/70 px-4 py-3">
@@ -1757,7 +1873,7 @@ export default function BuscaLeads() {
             </div>
           )}
 
-          {resultado && (
+          {resultado && !resultadoSemLeads && (
             <div className="bg-primary-100 border border-primary-200 text-primary-800 px-4 py-3 rounded-lg text-sm flex items-center gap-2">
               <i className="ri-checkbox-circle-line"></i>
               {resultado}

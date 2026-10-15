@@ -405,6 +405,34 @@ describe('Prospecting handler persistence contract', () => {
       .toMatchObject({ p_run_id: 'reserved-run', p_results: [{ source_record_id: 'maps-place-1' }] });
   });
 
+  it('returns phone-only Google Maps records for the telephone option and reports filter counts', async () => {
+    override = (q) => {
+      if (q.table === 'lead_source_configs' && q.operation === 'select') return ok({ id: 'source-config', enabled: true, mode: 'production', connection_status: 'connected' });
+      if (q.table === 'integrations' && q.operation === 'select') return ok({ id: integrationId, provider: 'Apify', enabled: true, connected: true, paused: false });
+      if (q.table === 'read_integration_secret' && q.operation === 'rpc') return ok({ api_token: 'synthetic-apify-token', actor_id: 'synthetic-google-maps-actor' });
+      if (q.table === 'finalize_prospecting_run' && q.operation === 'rpc') return ok([{ cache_id: 'result-cache', newly_completed: true }]);
+      return undefined;
+    };
+    fetchMock
+      .mockResolvedValueOnce(providerResponse({ data: { id: 'provider-run', status: 'SUCCEEDED', defaultDatasetId: 'dataset-id' } }))
+      .mockResolvedValueOnce(providerResponse([
+        { title: 'Empresa com telefone', placeId: 'maps-phone', phone: '11999990000' },
+        { title: 'Empresa sem contato', placeId: 'maps-empty' },
+      ]));
+    await import('../functions/prospectar-leads/index');
+    const response = await handler(new Request('https://example.invalid/prospectar-leads', {
+      method: 'POST', headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sourceKey: 'apify', mode: 'production', idempotencyKey: '11111111-1111-4111-8111-111111111112', filters: { cidade: 'São Paulo', estado: 'SP', atividades: ['Indústria'], exigeWhatsApp: true, volumeMaximo: 10 } }),
+    }));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      leads: [{ source_record_id: 'maps-phone', telefone: '11999990000', whatsapp: null, channel_verification: { whatsapp: 'unverified' } }],
+      diagnostics: { providerItemsRead: 2, normalizedCount: 2, matchedCount: 1, rejectedByContact: 1 },
+    });
+    expect(calls.find((q) => q.table === 'finalize_prospecting_run' && q.operation === 'rpc')?.value)
+      .toMatchObject({ p_results: [{ source_record_id: 'maps-phone', whatsapp: null }] });
+  });
+
   it('keeps a long-running Apify execution resumable instead of holding the browser request open', async () => {
     override = (q) => {
       if (q.table === 'lead_source_configs' && q.operation === 'select') return ok({ id: 'source-config', enabled: true, mode: 'production', connection_status: 'connected' });
@@ -428,6 +456,91 @@ describe('Prospecting handler persistence contract', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it('records a rejected token during polling without discarding an accepted paid run', async () => {
+    override = (q) => {
+      if (q.table === 'lead_source_configs' && q.operation === 'select') return ok({ id: 'source-config', enabled: true, mode: 'production', connection_status: 'connected' });
+      if (q.table === 'integrations' && q.operation === 'select') return ok({ id: integrationId, provider: 'Apify', enabled: true, connected: true, paused: false });
+      if (q.table === 'read_integration_secret' && q.operation === 'rpc') return ok({ api_token: 'synthetic-apify-token', actor_id: 'synthetic-google-maps-actor' });
+      if (q.table === 'prospecting_runs' && q.operation === 'select') return ok({ id: 'existing-run', source_key: 'apify', source_config_id: 'source-config', status: 'running', filters: { cidade: 'São Paulo', estado: 'SP', volumeMaximo: 5 }, provider_run_id: 'provider-run', provider_start_state: 'accepted', requested_by: 'owner' });
+      return undefined;
+    };
+    fetchMock.mockResolvedValueOnce(providerResponse({}, 401));
+    await import('../functions/prospectar-leads/index');
+    const response = await handler(new Request('https://example.invalid/prospectar-leads', {
+      method: 'POST', headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sourceKey: 'apify', mode: 'production', runId: 'existing-run' }),
+    }));
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ error: 'apify_token_rejected', runId: 'existing-run', recoverable: true });
+    expect(calls.some((q) => q.table === 'lead_source_configs' && q.operation === 'update' && q.value?.last_error === 'apify_token_rejected')).toBe(true);
+    expect(calls.some((q) => q.table === 'prospecting_runs' && q.operation === 'update' && q.value?.status === 'failed')).toBe(false);
+  });
+
+  it('records a rejected token during result reading without creating a second run', async () => {
+    override = (q) => {
+      if (q.table === 'lead_source_configs' && q.operation === 'select') return ok({ id: 'source-config', enabled: true, mode: 'production', connection_status: 'connected' });
+      if (q.table === 'integrations' && q.operation === 'select') return ok({ id: integrationId, provider: 'Apify', enabled: true, connected: true, paused: false });
+      if (q.table === 'read_integration_secret' && q.operation === 'rpc') return ok({ api_token: 'synthetic-apify-token', actor_id: 'synthetic-google-maps-actor' });
+      if (q.table === 'prospecting_runs' && q.operation === 'select') return ok({ id: 'existing-run', source_key: 'apify', source_config_id: 'source-config', status: 'running', filters: { cidade: 'São Paulo', estado: 'SP', volumeMaximo: 5 }, provider_run_id: 'provider-run', provider_start_state: 'accepted', requested_by: 'owner' });
+      return undefined;
+    };
+    fetchMock
+      .mockResolvedValueOnce(providerResponse({ data: { id: 'provider-run', status: 'SUCCEEDED', defaultDatasetId: 'dataset-id' } }))
+      .mockResolvedValueOnce(providerResponse({}, 401));
+    await import('../functions/prospectar-leads/index');
+    const response = await handler(new Request('https://example.invalid/prospectar-leads', {
+      method: 'POST', headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sourceKey: 'apify', mode: 'production', runId: 'existing-run' }),
+    }));
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ error: 'apify_token_rejected', runId: 'existing-run', recoverable: true });
+    expect(calls.some((q) => q.table === 'lead_source_configs' && q.operation === 'update' && q.value?.last_error === 'apify_token_rejected')).toBe(true);
+    expect(calls.some((q) => q.table === 'prospecting_runs' && q.operation === 'update' && q.value?.status === 'failed')).toBe(false);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it('sends one LinkedIn company query and the documented scraper mode', async () => {
+    override = (q) => {
+      if (q.table === 'lead_source_configs' && q.operation === 'select') return ok({ id: 'source-config', enabled: true, mode: 'production', connection_status: 'connected' });
+      if (q.table === 'integrations' && q.operation === 'select') return ok({ id: integrationId, provider: 'Apify', enabled: true, connected: true, paused: false });
+      if (q.table === 'read_integration_secret' && q.operation === 'rpc') return ok({ api_token: 'synthetic-apify-token', actor_id: 'synthetic-linkedin-actor' });
+      return undefined;
+    };
+    fetchMock.mockResolvedValueOnce(providerResponse({ data: { id: 'provider-run', status: 'RUNNING', defaultDatasetId: 'dataset-id' } }));
+    await import('../functions/prospectar-leads/index');
+    const response = await handler(new Request('https://example.invalid/prospectar-leads', {
+      method: 'POST', headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sourceKey: 'linkedin', mode: 'production', idempotencyKey: '22222222-2222-4222-8222-222222222223', filters: { cidade: 'São Paulo', estado: 'SP', atividades: ['borracha', 'silicone'], volumeMaximo: 10, scraperMode: 'full' } }),
+    }));
+    expect(response.status).toBe(202);
+    const startRequest = fetchMock.mock.calls[0]?.[0] as Request;
+    const actorInput = JSON.parse(await startRequest.clone().text());
+    expect(actorInput).toMatchObject({ searchQuery: 'borracha', locations: ['São Paulo, SP, Brasil'], scraperMode: 'full', maxItems: 10 });
+    expect(actorInput).not.toHaveProperty('mode');
+    expect(calls.find((q) => q.table === 'reserve_prospecting_run' && q.operation === 'rpc')?.value)
+      .toMatchObject({ p_filters: { atividades: ['borracha'], segmentos: [] } });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('classifies a LinkedIn start rejection as a credential failure before another paid start', async () => {
+    override = (q) => {
+      if (q.table === 'lead_source_configs' && q.operation === 'select') return ok({ id: 'source-config', enabled: true, mode: 'production', connection_status: 'connected' });
+      if (q.table === 'integrations' && q.operation === 'select') return ok({ id: integrationId, provider: 'Apify', enabled: true, connected: true, paused: false });
+      if (q.table === 'read_integration_secret' && q.operation === 'rpc') return ok({ api_token: 'synthetic-apify-token', actor_id: 'synthetic-linkedin-actor' });
+      return undefined;
+    };
+    fetchMock.mockResolvedValueOnce(providerResponse({}, 401));
+    await import('../functions/prospectar-leads/index');
+    const response = await handler(new Request('https://example.invalid/prospectar-leads', {
+      method: 'POST', headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sourceKey: 'linkedin', mode: 'production', idempotencyKey: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaab', filters: { cidade: 'São Paulo', estado: 'SP', atividades: ['borracha'] } }),
+    }));
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ error: 'linkedin_token_rejected', runId: 'reserved-run', recoverable: false });
+    expect(calls.some((q) => q.table === 'lead_source_configs' && q.operation === 'update' && q.value?.last_error === 'linkedin_token_rejected')).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
   it('rejects an unbounded fresh search before reserving or calling Apify', async () => {
     override = (q) => {
       if (q.table === 'lead_source_configs' && q.operation === 'select') return ok({ id: 'source-config', enabled: true, mode: 'production', connection_status: 'connected' });
@@ -446,6 +559,89 @@ describe('Prospecting handler persistence contract', () => {
     expect(await response.json()).toMatchObject({ ok: false, error: 'prospecting_terms_required' });
     expect(calls.some((q) => q.table === 'reserve_prospecting_run')).toBe(false);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects an email-required Google Places search before reserving or billing the provider', async () => {
+    override = (q) => {
+      if (q.table === 'lead_source_configs' && q.operation === 'select') return ok({ id: 'source-config', enabled: true, mode: 'production', connection_status: 'connected' });
+      if (q.table === 'integrations' && q.operation === 'select') return ok({ id: integrationId, provider: 'google_places', enabled: true, connected: true, paused: false });
+      if (q.table === 'read_integration_secret' && q.operation === 'rpc') return ok({ api_key: 'synthetic-google-key' });
+      return undefined;
+    };
+    await import('../functions/prospectar-leads/index');
+    const response = await handler(new Request('https://example.invalid/prospectar-leads', {
+      method: 'POST', headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sourceKey: 'google_places', mode: 'production', idempotencyKey: '77777777-7777-4777-8777-777777777778', filters: { cidade: 'São Paulo', estado: 'SP', atividades: ['Indústria'], exigeEmail: true } }),
+    }));
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ ok: false, error: 'source_filter_email_unavailable' });
+    expect(calls.some((q) => q.table === 'reserve_prospecting_run')).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('finalizes a successful Google Places request with the ID recorded before the paid call', async () => {
+    override = (q) => {
+      if (q.table === 'lead_source_configs' && q.operation === 'select') return ok({ id: 'source-config', enabled: true, mode: 'production', connection_status: 'connected' });
+      if (q.table === 'integrations' && q.operation === 'select') return ok({ id: integrationId, provider: 'google_places', enabled: true, connected: true, paused: false });
+      if (q.table === 'read_integration_secret' && q.operation === 'rpc') return ok({ api_key: 'synthetic-google-key' });
+      if (q.table === 'finalize_prospecting_run' && q.operation === 'rpc') {
+        const savedId = calls.find((call) => call.table === 'prospecting_runs' && call.operation === 'update' && call.value?.provider_run_id)?.value?.provider_run_id;
+        return savedId === q.value?.p_provider_run_id
+          ? ok([{ cache_id: 'result-cache', newly_completed: true }])
+          : { data: null, error: { message: 'prospecting_run_not_pending' } };
+      }
+      return undefined;
+    };
+    fetchMock.mockResolvedValueOnce(providerResponse({ places: [{ id: 'place-1', displayName: { text: 'Empresa real' }, formattedAddress: 'Campinas, SP, Brasil' }] }));
+    await import('../functions/prospectar-leads/index');
+    const response = await handler(new Request('https://example.invalid/prospectar-leads', {
+      method: 'POST', headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sourceKey: 'google_places', mode: 'production', idempotencyKey: '77777777-7777-4777-8777-777777777779', filters: { cidade: 'Campinas', estado: 'SP', atividades: ['Indústria'], volumeMaximo: 1 } }),
+    }));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ ok: true, pending: false, sourceKey: 'google_places', leads: [{ razao_social: 'Empresa real' }] });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('marks a rejected Google Places key failed so an intentional corrected retry is possible', async () => {
+    override = (q) => {
+      if (q.table === 'lead_source_configs' && q.operation === 'select') return ok({ id: 'source-config', enabled: true, mode: 'production', connection_status: 'connected' });
+      if (q.table === 'integrations' && q.operation === 'select') return ok({ id: integrationId, provider: 'google_places', enabled: true, connected: true, paused: false });
+      if (q.table === 'read_integration_secret' && q.operation === 'rpc') return ok({ api_key: 'synthetic-google-key' });
+      return undefined;
+    };
+    fetchMock.mockResolvedValueOnce(providerResponse({}, 401));
+    await import('../functions/prospectar-leads/index');
+    const response = await handler(new Request('https://example.invalid/prospectar-leads', {
+      method: 'POST', headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sourceKey: 'google_places', mode: 'production', idempotencyKey: '77777777-7777-4777-8777-777777777780', filters: { cidade: 'Campinas', estado: 'SP', atividades: ['Indústria'], volumeMaximo: 1 } }),
+    }));
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ ok: false, error: 'google_places_key_rejected', recoverable: false });
+    expect(calls.find((q) => q.table === 'prospecting_runs' && q.operation === 'update' && q.value?.status === 'failed')?.value)
+      .toMatchObject({ status: 'failed', last_error: 'google_places_key_rejected' });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps a partially accepted Google Places request uncertain without billing the first page twice', async () => {
+    override = (q) => {
+      if (q.table === 'lead_source_configs' && q.operation === 'select') return ok({ id: 'source-config', enabled: true, mode: 'production', connection_status: 'connected' });
+      if (q.table === 'integrations' && q.operation === 'select') return ok({ id: integrationId, provider: 'google_places', enabled: true, connected: true, paused: false });
+      if (q.table === 'read_integration_secret' && q.operation === 'rpc') return ok({ api_key: 'synthetic-google-key' });
+      return undefined;
+    };
+    fetchMock
+      .mockResolvedValueOnce(providerResponse({ places: Array.from({ length: 20 }, (_, index) => ({ id: `place-${index}`, displayName: { text: `Empresa ${index}` } })), nextPageToken: 'next-page' }))
+      .mockResolvedValueOnce(providerResponse({}, 429));
+    await import('../functions/prospectar-leads/index');
+    const response = await handler(new Request('https://example.invalid/prospectar-leads', {
+      method: 'POST', headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sourceKey: 'google_places', mode: 'production', idempotencyKey: '77777777-7777-4777-8777-777777777781', filters: { cidade: 'Campinas', estado: 'SP', atividades: ['Indústria'], volumeMaximo: 21 } }),
+    }));
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ ok: false, error: 'google_places_partial_response', recoverable: true });
+    expect(calls.some((q) => q.table === 'prospecting_runs' && q.operation === 'update' && q.value?.status === 'failed')).toBe(false);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it('reuses a reserved equivalent run without posting another paid Apify start', async () => {
@@ -691,9 +887,11 @@ describe('Prospecting handler persistence contract', () => {
   });
 
   it('opens a completed run from the saved cache without starting or polling Apify again', async () => {
+    const diagnostics = { providerItemsRead: 7, normalizedCount: 6, matchedCount: 1, rejectedByContact: 5, rejectedByEmail: 0, rejectedByWebsite: 0 };
     override = (q) => {
       if (q.table === 'prospecting_runs' && q.operation === 'select') return ok({ id: 'existing-run', source_key: 'apify', source_config_id: 'source-config', status: 'completed', filters: {}, provider_run_id: 'provider-run', result_cache_id: 'cached-results' });
       if (q.table === 'prospecting_cache' && q.operation === 'select') return ok({ results: [{ razao_social: 'Empresa salva' }] });
+      if (q.table === 'audit_logs' && q.operation === 'select') return ok({ event_data: { diagnostics } });
       return undefined;
     };
     await import('../functions/prospectar-leads/index');
@@ -702,7 +900,8 @@ describe('Prospecting handler persistence contract', () => {
       body: JSON.stringify({ sourceKey: 'apify', mode: 'production', runId: 'existing-run' }),
     }));
     expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ ok: true, cacheId: 'cached-results', leads: [{ razao_social: 'Empresa salva' }] });
+    expect(await response.json()).toMatchObject({ ok: true, cacheId: 'cached-results', leads: [{ razao_social: 'Empresa salva' }], diagnostics });
+    expect(calls.find((q) => q.table === 'audit_logs' && q.operation === 'select')?.filters).toMatchObject({ organization_id: org, entity_id: 'existing-run', action: 'prospecting.completed' });
     expect(fetchMock).not.toHaveBeenCalled();
     expect(calls.some((q) => q.table === 'prospecting_runs' && q.operation === 'update')).toBe(false);
   });
@@ -732,6 +931,104 @@ describe('Prospecting handler persistence contract', () => {
       .toMatchObject({ organization_id: org, user_id: 'owner', source: 'apify' });
     expect(fetchMock).not.toHaveBeenCalled();
     expect(calls.some((q) => q.operation === 'update' || q.operation === 'insert')).toBe(false);
+  });
+
+  it('lets the operator inspect Google Places history without starting a new billed search', async () => {
+    override = (q) => {
+      if (q.table === 'prospecting_runs' && q.operation === 'select') return ok([]);
+      if (q.table === 'prospecting_cache' && q.operation === 'select' && q.filters.id === 'google-cache') return ok({ results: [{ razao_social: 'Empresa anterior' }] });
+      if (q.table === 'prospecting_cache' && q.operation === 'select') return ok([{ id: 'google-cache', total_found: 1, created_at: '2026-10-14T12:00:00Z', filters: { municipio: 'Campinas', uf: 'SP' }, user_id: 'owner' }]);
+      return undefined;
+    };
+    await import('../functions/prospectar-leads/index');
+    const requestFor = (body: Row) => new Request('https://example.invalid/prospectar-leads', {
+      method: 'POST', headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sourceKey: 'google_places', mode: 'production', ...body }),
+    });
+    const list = await handler(requestFor({ action: 'list_runs' }));
+    expect(list.status).toBe(200);
+    expect(await list.json()).toMatchObject({ runs: [{ id: 'google-cache', status: 'cached', resultCount: 1 }] });
+    const open = await handler(requestFor({ action: 'open_cache', cacheId: 'google-cache' }));
+    expect(open.status).toBe(200);
+    expect(await open.json()).toMatchObject({ leads: [{ razao_social: 'Empresa anterior' }] });
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(calls.some((q) => q.operation === 'update' || q.operation === 'insert')).toBe(false);
+  });
+
+  it('does not advertise a Google Places request ID as a resumable provider execution', async () => {
+    override = (q) => {
+      if (q.table === 'prospecting_runs' && q.operation === 'select') return ok([{
+        id: 'google-pending', source_key: 'google_places', status: 'running', started_at: '2026-10-14T12:00:00Z',
+        result_count: 0, result_cache_id: null, provider_run_id: 'google-synthetic-id',
+        provider_start_state: 'accepted', last_error: null, filters: { cidade: 'Campinas', estado: 'SP' }, requested_by: 'owner',
+      }]);
+      if (q.table === 'prospecting_cache' && q.operation === 'select') return ok([]);
+      return undefined;
+    };
+    await import('../functions/prospectar-leads/index');
+    const response = await handler(new Request('https://example.invalid/prospectar-leads', {
+      method: 'POST', headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'list_runs', sourceKey: 'google_places', mode: 'production' }),
+    }));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ runs: [{ id: 'google-pending', status: 'running', hasProvider: false }] });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('closes only the requester’s stale uncertain Google run without another provider call', async () => {
+    override = (q) => {
+      if (q.table === 'prospecting_runs' && q.operation === 'select') return ok({
+        id: 'stale-google-run', source_key: 'google_places', status: 'running',
+        provider_run_id: 'google-synthetic-id', result_cache_id: null,
+        started_at: '2026-10-01T12:00:00Z', requested_by: 'owner', idempotency_key: 'manual:owner:77777777-7777-4777-8777-777777777781',
+      });
+      return undefined;
+    };
+    await import('../functions/prospectar-leads/index');
+    const response = await handler(new Request('https://example.invalid/prospectar-leads', {
+      method: 'POST', headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'close_stale_google', sourceKey: 'google_places', mode: 'production', runId: 'stale-google-run' }),
+    }));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ ok: true, closed: true, requestKey: '77777777-7777-4777-8777-777777777781' });
+    expect(calls.find((q) => q.table === 'prospecting_runs' && q.operation === 'update')?.value)
+      .toMatchObject({ status: 'failed', last_error: 'google_places_unconfirmed_closed_by_user' });
+    expect(calls.find((q) => q.table === 'prospecting_runs' && q.operation === 'update')?.filters)
+      .toMatchObject({ organization_id: org, requested_by: 'owner', source_key: 'google_places', status: 'running', provider_run_id: 'google-synthetic-id' });
+    expect(calls.some((q) => q.table === 'audit_logs' && q.operation === 'insert')).toBe(true);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('refuses to close a recent Google request that could still be finishing', async () => {
+    override = (q) => q.table === 'prospecting_runs' && q.operation === 'select'
+      ? ok({ id: 'recent-google-run', source_key: 'google_places', status: 'running', provider_run_id: 'google-synthetic-id', result_cache_id: null, started_at: new Date().toISOString(), requested_by: 'owner' })
+      : undefined;
+    await import('../functions/prospectar-leads/index');
+    const response = await handler(new Request('https://example.invalid/prospectar-leads', {
+      method: 'POST', headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'close_stale_google', sourceKey: 'google_places', mode: 'production', runId: 'recent-google-run' }),
+    }));
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ ok: false, error: 'google_places_review_too_early' });
+    expect(calls.some((q) => q.table === 'prospecting_runs' && q.operation === 'update')).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when the Google closure audit cannot be recorded', async () => {
+    override = (q) => {
+      if (q.table === 'prospecting_runs' && q.operation === 'select') return ok({ id: 'stale-google-run', source_key: 'google_places', status: 'running', provider_run_id: 'google-synthetic-id', result_cache_id: null, started_at: '2026-10-01T12:00:00Z', requested_by: 'owner' });
+      if (q.table === 'audit_logs' && q.operation === 'insert') return { data: null, error: { message: 'audit_unavailable' } };
+      return undefined;
+    };
+    await import('../functions/prospectar-leads/index');
+    const response = await handler(new Request('https://example.invalid/prospectar-leads', {
+      method: 'POST', headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'close_stale_google', sourceKey: 'google_places', mode: 'production', runId: 'stale-google-run' }),
+    }));
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ ok: false, error: 'prospecting_audit_unavailable' });
+    expect(calls.some((q) => q.table === 'prospecting_runs' && q.operation === 'update')).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('keeps a recoverable provider error pending and leaves integration connectivity untouched', async () => {

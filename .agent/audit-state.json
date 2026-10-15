@@ -1,5 +1,18 @@
 {
   "schema_version": 1,
+  "lead_search_accuracy_20261015": {
+    "baseline_commit": "8227884122f7c662ba3068248719436ec07394e4",
+    "scope": "Diagnóstico e correção da Busca de Leads nas fontes Google Maps/Apify, Google Places e LinkedIn, com filtros, histórico e estados de erro.",
+    "confirmed_cause": "No Google Places, o identificador de execução salvo não coincidia com o retornado após a consulta; o token da fonte Google Maps/Apify foi rejeitado na última execução remota observada. Filtros de contato e de e-mail incompatível com Google Places também podiam resultar em zero leads.",
+    "implementation": ["supabase/functions/prospectar-leads/index.ts", "supabase/functions/_shared/prospectingResultFilter.ts", "src/pages/dashboard/busca-leads/page.tsx", "src/pages/dashboard/configuracoes/components/ApisProvidersTab.tsx"],
+    "validation": "Vitest: 125 arquivos, 743 aprovados e 16 skips; type-check frontend/Edge, lint frontend, build Vite e git diff --check aprovados. Testes sintéticos não executaram consultas pagas nem alteraram leads.",
+    "paid_search": false,
+    "messages_sent": false,
+    "customer_data_changed": false,
+    "migration_applied": false,
+    "status": "LOCAL_VALIDADO_PUBLICACAO_PENDENTE",
+    "next_action": "Comparar a Edge remota e o GitHub, publicar apenas o delta validado sem force, verificar o Site; depois o administrador deve rotacionar e revalidar o token Apify diretamente no cofre antes de uma busca real controlada."
+  },
   "linkedin_company_search_20261014": {
     "code_commit": "97881aa",
     "scope": "Fonte LinkedIn separada de Google Maps/Google para busca revisável de empresas via Actor/Task Apify.",

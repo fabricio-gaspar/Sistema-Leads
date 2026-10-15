@@ -1,5 +1,12 @@
 # Checkpoint — WayFlex CRM
 
+## 15/10/2026 — Busca de Leads: diagnóstico e correção local
+
+- A falha de busca atual foi separada em causas: token Apify rejeitado na última tentativa remota, filtro de contato excessivo e incompatibilidade entre IDs de execução do Google Places. O LinkedIn recebe um termo por run, como exige seu Actor; nenhum resultado de empresa passa a ser tratado como WhatsApp verificado.
+- A tela agora explica quantos registros vieram da fonte e quantos foram filtrados, mostra erro de credencial sem fingir conexão saudável e permite revisar histórico por fonte. Uma execução Google de resultado incerto não é repetida automaticamente; o autor pode encerrá-la depois de 10 minutos, com auditoria e aviso de possível cobrança.
+- Validação local: 125 arquivos Vitest, 743 testes aprovados, 16 skips; type-check app/Edge, lint, build Vite e diff check aprovados. Sem consulta paga, importação, mensagens ou alteração de dados de clientes.
+- Estado neste checkpoint: **LOCAL VALIDADO / GITHUB, EDGE E SITE PENDENTES**. Próxima ação: comparar origem remota, publicar somente a árvore validada e rotacionar/revalidar o token Apify no cofre antes de uma busca real controlada.
+
 ## 14/10/2026 — Conector LinkedIn Company Search implementado localmente
 
 - A fonte técnica `linkedin` foi adicionada separada de `apify` (Google Maps) e `google_places` (Google). O backend aceita token Apify e Actor/Task configuráveis, guarda o segredo no Vault e expõe ao navegador somente o identificador público do recurso.

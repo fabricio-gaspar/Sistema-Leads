@@ -88,6 +88,7 @@ export function buildLinkedInActorInput(credentials: LinkedInCompanyCredentials,
   const maxItems = Number.isInteger(filters.maxItems) ? filters.maxItems : 0;
   if (maxItems < 1 || maxItems > 100) throw new Error('linkedin_limit_invalid');
   const configured = configuredInput(credentials);
+  delete configured.mode; // Retired field previously sent by this adapter.
   const locations = list(filters.locations);
   const industryIds = list(filters.industryIds);
   const companySize = list(filters.companySize);
@@ -103,7 +104,7 @@ export function buildLinkedInActorInput(credentials: LinkedInCompanyCredentials,
     maxItems,
     startPage,
     takePages,
-    mode,
+    scraperMode: mode,
   };
 }
 
@@ -176,10 +177,10 @@ export function linkedInErrorCode(error: unknown): string {
   const status = typeof error === 'object' && error !== null && 'statusCode' in error ? Number((error as { statusCode?: unknown }).statusCode) : 0;
   const message = error instanceof Error ? error.message.toLowerCase() : text(error).toLowerCase();
   if (message === 'source_credentials_missing') return 'linkedin_credentials_required';
-  if (status === 401 || /unauthori[sz]|invalid token|token rejected/.test(message)) return 'linkedin_token_rejected';
-  if (status === 403 || /forbidden|access denied/.test(message)) return 'linkedin_resource_forbidden';
+  if (message === 'apify_token_rejected' || message === 'apify_auth_rejected' || status === 401 || /unauthori[sz]|invalid token|token rejected/.test(message)) return 'linkedin_token_rejected';
+  if (message === 'apify_resource_forbidden' || status === 403 || /forbidden|access denied/.test(message)) return 'linkedin_resource_forbidden';
   if (status === 429 || /rate.?limit|too many requests/.test(message)) return 'linkedin_rate_limited';
   if (/timeout|timed out|aborted/.test(message)) return 'linkedin_provider_timeout';
-  if (/not found|actor/.test(message) && status === 404) return 'linkedin_actor_not_found';
+  if (message === 'apify_actor_not_found' || status === 404) return 'linkedin_actor_not_found';
   return 'linkedin_provider_error';
 }

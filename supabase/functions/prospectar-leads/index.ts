@@ -2,6 +2,7 @@ import { createAdminClient, requireOrganizationRole, requireUser } from '../_sha
 import { allowedCorsHeaders, hasAllowedOrigin, json, preflight, safeError } from '../_shared/http.ts';
 import { getApifyRun, listApifyItems, startApifyRun } from '../_shared/apifyClient.ts';
 import { buildLinkedInActorInput, dedupeLinkedInCompanies, linkedInErrorCode, normalizeLinkedInCompany, type LinkedInCompanyFilters } from '../_shared/linkedinCompanySearch.ts';
+import { filterProspectingCandidates } from '../_shared/prospectingResultFilter.ts';
 import { readJson, requiredString } from '../_shared/validation.ts';
 
 type Filters = {
@@ -112,7 +113,7 @@ function score(raw: RawProspect, filters: Filters) {
   if (raw.email) { contactability += 25; reasons.push('e-mail encontrado'); }
   if (raw.website) contactability += 15;
   const engagement = 0;
-  if ((filters.exigeWhatsApp && !raw.whatsapp) || (filters.exigeEmail && !raw.email) || (filters.exigeSite && !raw.website)) {
+  if ((filters.exigeWhatsApp && !raw.phone && !raw.whatsapp) || (filters.exigeEmail && !raw.email) || (filters.exigeSite && !raw.website)) {
     reasons.push('um canal obrigatório não foi comprovado');
   }
   const overall = Math.round(Math.min(100, fit) * 0.65 + Math.min(100, contactability) * 0.35);
@@ -162,8 +163,9 @@ function normalizeGoogle(item: unknown, filters: Filters) {
 
 function linkedinFilters(filters: Filters): LinkedInCompanyFilters {
   return {
-    searchQuery: terms(filters).join(' '),
-    locations: [filters.cidade, filters.estado, filters.pais || 'Brasil'].filter(Boolean) as string[],
+    // This Actor accepts one search expression, not a list of alternatives.
+    searchQuery: terms(filters)[0] || '',
+    locations: [locationQuery(filters)],
     industryIds: filters.industryIds,
     companySize: filters.companySize?.length ? filters.companySize : filters.portes,
     maxItems: filters.volumeMaximo ?? 30,
@@ -224,7 +226,7 @@ async function apifyRun(credentials: Record<string, unknown>, providerRunId: str
 
 async function apifyItems(credentials: Record<string, unknown>, datasetId: string, filters: Filters) {
   const items = await listApifyItems(credentials, datasetId, filters.volumeMaximo ?? 30);
-  return items.map((item) => normalizeApify(item, filters)).filter((item): item is NonNullable<typeof item> => item !== null);
+  return { rawCount: items.length, leads: items.map((item) => normalizeApify(item, filters)).filter((item): item is NonNullable<typeof item> => item !== null) };
 }
 
 async function linkedinStart(credentials: Record<string, unknown>, filters: Filters) {
@@ -239,16 +241,17 @@ async function linkedinStart(credentials: Record<string, unknown>, filters: Filt
 async function linkedinItems(credentials: Record<string, unknown>, datasetId: string, filters: Filters) {
   const items = await listApifyItems(credentials, datasetId, filters.volumeMaximo ?? 30);
   const normalized = items.map((item) => normalizeLinkedIn(item, filters)).filter((item): item is NonNullable<typeof item> => item !== null);
-  return dedupeLinkedInCompanies(normalized.map((item) => ({
+  const leads = dedupeLinkedInCompanies(normalized.map((item) => ({
     name: item.razao_social || '', linkedinUrl: item.source_url || '', website: item.website || '', phone: item.telefone || null,
     email: item.email || null, city: item.municipio || '', state: item.uf || '', segment: item.cnae_descricao || '', size: item.porte || '', sourceUrl: item.source_url || '',
   }))).map((company) => external('linkedin', {
     id: company.linkedinUrl, name: company.name, phone: company.phone || '', whatsapp: '', email: company.email || '', website: company.website,
     sourceUrl: company.sourceUrl, cnpj: '', city: company.city, uf: company.state, segment: company.segment, porte: company.size, address: '',
   }, filters));
+  return { rawCount: items.length, leads };
 }
 
-async function callGoogle(credentials: Record<string, unknown>, filters: Filters) {
+async function callGoogle(credentials: Record<string, unknown>, filters: Filters, providerRunId: string) {
   const key = text(credentials.api_key, 1_000); if (!key) throw new Error('source_credentials_missing');
   const query = `${terms(filters).join(' ')} em ${locationQuery(filters)}`, limit = Math.min(filters.volumeMaximo ?? 20, 60), results: unknown[] = [];
   let pageToken = '';
@@ -257,27 +260,38 @@ async function callGoogle(credentials: Record<string, unknown>, filters: Filters
       method: 'POST', headers: { 'content-type': 'application/json', 'X-Goog-Api-Key': key, 'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.nationalPhoneNumber,places.internationalPhoneNumber,places.websiteUri,places.types,places.googleMapsUri,places.rating,places.location,nextPageToken' },
       body: JSON.stringify({ textQuery: query, languageCode: 'pt-BR', regionCode: 'BR', pageSize: Math.min(20, limit - results.length), ...(pageToken ? { pageToken } : {}) }), signal: AbortSignal.timeout(30_000),
     });
-    if (response.status === 400 || response.status === 401 || response.status === 403) throw new Error('google_places_key_rejected');
-    if (response.status === 429) throw new Error('google_places_rate_limited');
+    if (response.status === 400 || response.status === 401 || response.status === 403) throw new Error(results.length ? 'google_places_partial_response' : 'google_places_key_rejected');
+    if (response.status === 429) throw new Error(results.length ? 'google_places_partial_response' : 'google_places_rate_limited');
     if (!response.ok) throw new Error(`google_places_http_${response.status}`);
     const body = object(await response.json()), page = Array.isArray(body.places) ? body.places : [];
     results.push(...page.slice(0, limit - results.length)); pageToken = text(body.nextPageToken, 1_000); if (!pageToken || !page.length) break;
   }
-  return { providerRunId: `google-${crypto.randomUUID()}`, leads: results.slice(0, limit).map((item) => normalizeGoogle(item, filters)).filter((item): item is NonNullable<typeof item> => item !== null) };
+  return { providerRunId, rawCount: results.length, leads: results.slice(0, limit).map((item) => normalizeGoogle(item, filters)).filter((item): item is NonNullable<typeof item> => item !== null) };
 }
 
 async function hash(value: string) { const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value)); return Array.from(new Uint8Array(digest)).map((item) => item.toString(16).padStart(2, '0')).join(''); }
+
+async function loadRunDiagnostics(admin: ReturnType<typeof createAdminClient>, organizationId: string, runId: string) {
+  const { data, error } = await admin.from('audit_logs').select('event_data')
+    .eq('organization_id', organizationId).eq('entity_table', 'prospecting_runs')
+    .eq('entity_id', runId).eq('action', 'prospecting.completed').limit(1).maybeSingle();
+  if (error || !data) return undefined;
+  const recorded = object(object(data.event_data).diagnostics);
+  const keys = ['providerItemsRead', 'normalizedCount', 'matchedCount', 'rejectedByContact', 'rejectedByEmail', 'rejectedByWebsite'] as const;
+  if (!keys.every((key) => Number.isInteger(recorded[key]) && Number(recorded[key]) >= 0)) return undefined;
+  return Object.fromEntries(keys.map((key) => [key, recorded[key]]));
+}
 
 Deno.serve(async (request) => {
   const options = preflight(request); if (options) return options;
   if (!hasAllowedOrigin(request)) return json({ ok: false, error: 'origin_not_allowed' }, 403);
   const headers = allowedCorsHeaders(request); if (request.method !== 'POST') return json({ ok: false, error: 'method_not_allowed' }, 405, headers);
   let runId: string | null = null, admin: ReturnType<typeof createAdminClient> | null = null, sourceId: string | null = null;
-  let failRunOnError = false, providerStartInFlight = false;
+  let failRunOnError = false, providerStartInFlight = false, providerStartRejected = false;
   try {
     const body = await readJson(request), sourceKey = requiredString(body.sourceKey, 'source_key', 80) as 'apify' | 'google_places' | 'linkedin';
     if (!['apify', 'google_places', 'linkedin'].includes(sourceKey)) throw new Error('source_not_supported');
-    if (body.action != null && !['list_runs', 'open_cache'].includes(String(body.action))) throw new Error('prospecting_action_not_allowed');
+    if (body.action != null && !['list_runs', 'open_cache', 'close_stale_google'].includes(String(body.action))) throw new Error('prospecting_action_not_allowed');
     if (body.mode !== 'production') throw new Error('production_mode_required');
     const requestedRunId = text(body.runId, 80);
     const requestedIdempotencyKey = text(body.idempotencyKey, 120);
@@ -316,7 +330,7 @@ Deno.serve(async (request) => {
       executionScopeKey = `manual:${requestedBy}`;
     }
     if (body.action === 'list_runs') {
-      if (schedulerToken || !isApifySource(sourceKey)) throw new Error('prospecting_action_not_allowed');
+      if (schedulerToken) throw new Error('prospecting_action_not_allowed');
       let runQuery = admin.from('prospecting_runs')
         .select('id,status,source_key,started_at,result_count,result_cache_id,provider_run_id,provider_start_state,last_error,filters,requested_by')
         .eq('organization_id', organizationId).eq('source_key', sourceKey);
@@ -341,7 +355,7 @@ Deno.serve(async (request) => {
       const linkedIds = new Set((linked ?? []).map((run) => run.result_cache_id));
       const runRows = (runs ?? []).map((run) => ({
         id: run.id, sourceKey: run.source_key, status: run.status, startedAt: run.started_at, resultCount: run.result_count,
-        hasProvider: Boolean(run.provider_run_id), hasResults: Boolean(run.result_cache_id),
+        hasProvider: isApifySource(run.source_key) && Boolean(run.provider_run_id), hasResults: Boolean(run.result_cache_id),
         providerStartState: run.provider_start_state,
         lastError: run.last_error, location: locationQuery(normalizeFilters(run.filters)),
         fromTeam: run.requested_by !== requestedBy,
@@ -354,7 +368,7 @@ Deno.serve(async (request) => {
       return json({ ok: true, runs: [...runRows, ...historicalCaches].sort((left, right) => String(right.startedAt).localeCompare(String(left.startedAt))) }, 200, headers);
     }
     if (body.action === 'open_cache') {
-      if (schedulerToken || !isApifySource(sourceKey)) throw new Error('prospecting_action_not_allowed');
+      if (schedulerToken) throw new Error('prospecting_action_not_allowed');
       const cacheId = text(body.cacheId, 80);
       if (!cacheId) throw new Error('prospecting_results_unavailable');
       let cacheQuery = admin.from('prospecting_cache').select('results').eq('id', cacheId)
@@ -362,7 +376,41 @@ Deno.serve(async (request) => {
       if (!canReadAll) cacheQuery = cacheQuery.eq('user_id', requestedBy);
       const { data: cache, error: cacheError } = await cacheQuery.maybeSingle();
       if (cacheError || !cache || !Array.isArray(cache.results)) throw new Error('prospecting_results_unavailable');
-      return json({ ok: true, pending: false, cacheId, sourceKey, leads: cache.results }, 200, headers);
+      const { data: linkedRun } = await admin.from('prospecting_runs').select('id')
+        .eq('organization_id', organizationId).eq('source_key', sourceKey).eq('result_cache_id', cacheId).limit(1).maybeSingle();
+      const diagnostics = linkedRun?.id ? await loadRunDiagnostics(admin, organizationId, linkedRun.id) : undefined;
+      return json({ ok: true, pending: false, cacheId, sourceKey, leads: cache.results, diagnostics }, 200, headers);
+    }
+    if (body.action === 'close_stale_google') {
+      if (schedulerToken || sourceKey !== 'google_places' || !requestedRunId) throw new Error('prospecting_action_not_allowed');
+      const { data: staleRun, error: staleError } = await admin.from('prospecting_runs')
+        .select('id,status,source_key,provider_run_id,result_cache_id,started_at,idempotency_key')
+        .eq('id', requestedRunId).eq('organization_id', organizationId).eq('source_key', sourceKey)
+        .eq('requested_by', requestedBy).maybeSingle();
+      if (staleError || !staleRun || staleRun.status !== 'running' || staleRun.result_cache_id) throw new Error('prospecting_run_not_pending');
+      runId = staleRun.id;
+      const startedAt = Date.parse(text(staleRun.started_at, 80));
+      if (!Number.isFinite(startedAt) || Date.now() - startedAt < 10 * 60_000) throw new Error('google_places_review_too_early');
+      const now = new Date().toISOString();
+      const { error: auditError } = await admin.from('audit_logs').insert({
+        organization_id: organizationId, actor_id: requestedBy, actor_name: actorName, actor_type: 'user',
+        action: 'prospecting.google_run_close_requested', detail: 'Operador solicitou encerrar uma execução Google não confirmada, sem repetir a consulta.',
+        entity_table: 'prospecting_runs', entity_id: runId, event_data: { sourceKey, billedOutcome: 'unknown', retryIssued: false },
+      });
+      if (auditError) throw new Error('prospecting_audit_unavailable');
+      let closeQuery = admin.from('prospecting_runs').update({
+        status: 'failed', last_error: 'google_places_unconfirmed_closed_by_user', completed_at: now, updated_at: now,
+      }).eq('id', runId).eq('organization_id', organizationId).eq('source_key', sourceKey)
+        .eq('requested_by', requestedBy).eq('status', 'running').is('result_cache_id', null);
+      closeQuery = staleRun.provider_run_id
+        ? closeQuery.eq('provider_run_id', staleRun.provider_run_id)
+        : closeQuery.is('provider_run_id', null);
+      const { data: closed, error: closeError } = await closeQuery.select('id').maybeSingle();
+      if (closeError || !closed) throw new Error('prospecting_run_not_pending');
+      const requestPrefix = `manual:${requestedBy}:`;
+      const storedKey = text(staleRun.idempotency_key, 200);
+      const requestKey = storedKey.startsWith(requestPrefix) ? storedKey.slice(requestPrefix.length) : '';
+      return json({ ok: true, closed: true, runId, requestKey: /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestKey) ? requestKey : null, auditRecorded: true }, 200, headers);
     }
     let existingRun: ProspectingRun | null = null;
     let providerStartClaimed = false;
@@ -380,7 +428,8 @@ Deno.serve(async (request) => {
         const { data: cache, error: cacheError } = await admin.from('prospecting_cache')
           .select('results').eq('id', run.result_cache_id).eq('organization_id', organizationId).maybeSingle();
         if (cacheError || !cache || !Array.isArray(cache.results)) throw new Error('prospecting_results_unavailable');
-        return json({ ok: true, pending: false, runId, cacheId: run.result_cache_id, sourceKey, leads: cache.results }, 200, headers);
+        const diagnostics = await loadRunDiagnostics(admin, organizationId, runId);
+        return json({ ok: true, pending: false, runId, cacheId: run.result_cache_id, sourceKey, leads: cache.results, diagnostics }, 200, headers);
       }
     }
     const { data: source, error: sourceError } = await admin.from('lead_source_configs').select('id,enabled,mode,connection_status').eq('organization_id', organizationId).eq('source_key', sourceKey).maybeSingle() as { data: SourceRow | null; error: unknown };
@@ -398,6 +447,12 @@ Deno.serve(async (request) => {
       filters = normalizeFilters(body.filters);
       if (!filters.cidade?.trim()) throw new Error('prospecting_city_required');
       if (!terms(filters).length) throw new Error('prospecting_terms_required');
+      if (sourceKey === 'linkedin') {
+        filters.atividades = terms(filters).slice(0, 1);
+        filters.segmentos = [];
+      }
+      // Places does not return email addresses; reject an impossible filter before a paid call.
+      if (sourceKey === 'google_places' && filters.exigeEmail) throw new Error('source_filter_email_unavailable');
       const filtersJson = JSON.parse(JSON.stringify(filters));
       const filtersHash = await hash(`${sourceKey}:${canonicalFilterHashPayload(filters)}`);
       const { data: reserved, error: reserveError } = await admin.rpc('reserve_prospecting_run', {
@@ -436,7 +491,8 @@ Deno.serve(async (request) => {
       const { data: cache, error: cacheError } = await admin.from('prospecting_cache')
         .select('results').eq('id', existingRun.result_cache_id).eq('organization_id', organizationId).maybeSingle();
       if (cacheError || !cache || !Array.isArray(cache.results)) throw new Error('prospecting_results_unavailable');
-      return json({ ok: true, pending: false, runId, cacheId: existingRun.result_cache_id, sourceKey, leads: cache.results }, 200, headers);
+      const diagnostics = await loadRunDiagnostics(admin, organizationId, existingRun.id);
+      return json({ ok: true, pending: false, runId, cacheId: existingRun.result_cache_id, sourceKey, leads: cache.results, diagnostics }, 200, headers);
     }
     if (existingRun.status !== 'running' || !existingRun.requested_by) throw new Error('prospecting_run_not_pending');
 
@@ -501,15 +557,17 @@ Deno.serve(async (request) => {
     }
 
     const result = sourceKey === 'apify'
-      ? { providerRunId, leads: await apifyItems(credentials as Record<string, unknown>, datasetId, filters) }
+      ? { providerRunId, ...await apifyItems(credentials as Record<string, unknown>, datasetId, filters) }
       : sourceKey === 'linkedin'
-        ? { providerRunId, leads: await linkedinItems(credentials as Record<string, unknown>, datasetId, filters) }
-        : await callGoogle(credentials as Record<string, unknown>, filters);
-    const leads = result.leads.filter((lead) => (!filters.exigeWhatsApp || Boolean(lead.whatsapp)) && (!filters.exigeEmail || Boolean(lead.email)) && (!filters.exigeSite || Boolean(lead.website))).slice(0, filters.volumeMaximo);
+        ? { providerRunId, ...await linkedinItems(credentials as Record<string, unknown>, datasetId, filters) }
+        : await callGoogle(credentials as Record<string, unknown>, filters, providerRunId);
+    const filtered = filterProspectingCandidates(result.leads, filters, filters.volumeMaximo ?? 30);
+    const leads = filtered.leads;
+    const diagnostics = { providerItemsRead: result.rawCount, ...filtered.diagnostics };
     const { data: finalized, error: finalizeError } = await admin.rpc('finalize_prospecting_run', {
       p_run_id: runId, p_organization_id: organizationId, p_requested_by: existingRun?.requested_by || requestedBy,
       p_provider_run_id: result.providerRunId,
-      p_cache_filters: { source: sourceKey, uf: filters.estado || null, municipio: filters.cidade || null, keyword: terms(filters).join(' '), limit: filters.volumeMaximo },
+      p_cache_filters: { source: sourceKey, uf: filters.estado || null, municipio: filters.cidade || null, keyword: sourceKey === 'linkedin' ? terms(filters)[0] : terms(filters).join(' '), limit: filters.volumeMaximo },
       p_results: leads,
       p_name: `${sourceKey} · ${filters.cidade || filters.estado || 'Brasil'} · ${new Date().toLocaleDateString('pt-BR')}`,
     });
@@ -524,30 +582,33 @@ Deno.serve(async (request) => {
       const now = new Date().toISOString();
       const [{ error: sourceUpdateError }, { error: auditError }] = await Promise.all([
         admin.from('lead_source_configs').update({ last_success_at: now, last_error: null, last_error_at: null }).eq('id', source.id),
-        admin.from('audit_logs').insert({ organization_id: organizationId, actor_id: actorType === 'user' ? requestedBy : null, actor_name: actorName, actor_type: actorType, action: 'prospecting.completed', detail: `Busca real concluída via ${sourceKey}.`, entity_table: 'prospecting_runs', entity_id: runId, event_data: { sourceKey, resultCount: leads.length, requestedQuantity: filters.volumeMaximo, cacheId } }),
+        admin.from('audit_logs').insert({ organization_id: organizationId, actor_id: actorType === 'user' ? requestedBy : null, actor_name: actorName, actor_type: actorType, action: 'prospecting.completed', detail: `Busca real concluída via ${sourceKey}.`, entity_table: 'prospecting_runs', entity_id: runId, event_data: { sourceKey, resultCount: leads.length, requestedQuantity: filters.volumeMaximo, cacheId, diagnostics } }),
       ]);
       if (sourceUpdateError || auditError) console.error('prospecting_completion_metadata_failed', { sourceUpdateFailed: Boolean(sourceUpdateError), auditFailed: Boolean(auditError), runId });
     }
-    return json({ ok: true, pending: false, runId, cacheId, sourceKey, leads: finalLeads }, 200, headers);
+    return json({ ok: true, pending: false, runId, cacheId, sourceKey, leads: finalLeads, diagnostics }, 200, headers);
   } catch (error) {
     const message = safeError(error), now = new Date().toISOString();
+    // These responses prove that Google refused the request. A network timeout
+    // does not; keep an uncertain paid request untouched for manual review.
+    if (message === 'google_places_key_rejected' || message === 'google_places_rate_limited') failRunOnError = true;
     if (admin && runId && providerStartInFlight) {
       const rejected = providerStartWasRejected(message);
+      providerStartRejected = rejected;
       await admin.from('prospecting_runs').update({
         provider_start_state: rejected ? 'rejected' : 'unknown',
         ...(rejected ? { status: 'failed', completed_at: now } : {}),
         last_error: message,
         updated_at: now,
       }).eq('id', runId).eq('status', 'running').eq('provider_start_state', 'attempting');
-      if (rejected && sourceId) {
-        await admin.from('lead_source_configs').update({ last_error: message, last_error_at: now, updated_at: now }).eq('id', sourceId);
-      }
       failRunOnError = false;
     }
     if (admin && runId && failRunOnError) {
       await admin.from('prospecting_runs').update({ status: 'failed', last_error: message, completed_at: now, updated_at: now }).eq('id', runId).eq('status', 'running');
-      if (sourceId) await admin.from('lead_source_configs').update({ last_error: message, last_error_at: now, updated_at: now }).eq('id', sourceId);
     }
-    return json({ ok: false, error: message, runId, recoverable: Boolean(runId && !failRunOnError) }, 400, headers);
+    if (admin && sourceId && (providerStartRejected || failRunOnError || providerStartWasRejected(message))) {
+      await admin.from('lead_source_configs').update({ last_error: message, last_error_at: now, updated_at: now }).eq('id', sourceId);
+    }
+    return json({ ok: false, error: message, runId, recoverable: Boolean(runId && !failRunOnError && !providerStartRejected) }, 400, headers);
   }
 });

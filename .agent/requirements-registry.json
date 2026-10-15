@@ -2,6 +2,14 @@
   "schema_version": 1,
   "requirements": [
     {
+      "id": "REQ-LEAD-SEARCH-ACCURACY-20261015",
+      "description": "Restaurar a busca real com filtros factuais, erro de fonte visível, resultados explicáveis, histórico recuperável e execução idempotente sem repetir consultas pagas às cegas.",
+      "module": "busca_leads",
+      "status": "PARCIAL",
+      "evidence": "Corrigido localmente o ID de execução do Google Places, o contrato LinkedIn de termo único, o filtro de telefone/WhatsApp, o diagnóstico de resultados e o tratamento de erro/revisão manual. Vitest 743/743, 16 skips, type-check app/Edge, lint e build passaram. Falta publicar Edge/Site e revalidar o token Apify rotacionado; nenhuma busca paga foi executada.",
+      "last_validation": "2026-10-15"
+    },
+    {
       "id": "REQ-LINKEDIN-COMPANY-SEARCH-20261014",
       "description": "Oferecer uma fonte LinkedIn separada de Google Maps/Google para buscar empresas via Actor/Task Apify configurável, com revisão humana, normalização, deduplicação e sem campanhas ou mensagens automáticas.",
       "module": "busca_leads_linkedin",

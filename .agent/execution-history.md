@@ -1,5 +1,10 @@
 # Histórico resumido de execução
 
+## 2026-10-15 — Busca de Leads: filtros, diagnóstico e execução segura (LOCAL)
+
+- Confirmados: última falha remota de Google Maps/Apify por token rejeitado; Google Places usava IDs de execução divergentes, impedindo salvar resultados válidos. Corrigidos o ID, filtros factuais, aviso de fonte, termo único do LinkedIn, histórico por fonte e encerramento manual auditado de pendência Google incerta.
+- 125 arquivos Vitest/743 aprovações, 16 skips, type-check app/Edge, lint, build e diff check aprovados. Nenhuma busca paga, mensagem, importação ou alteração de cliente. GitHub, Edge e Site ainda não atualizados neste checkpoint. Próxima ação: pré-checar deriva remota, publicar o delta validado e revalidar credencial Apify rotacionada no cofre.
+
 ## 2026-10-14 — Validação remota do LinkedIn e correção de persistência
 
 - Publicadas `configurar-integracao` v30, `operational-diagnostics` v30 e `testar-integracao` v29; mantida `prospectar-leads` v27. O erro `integration_create_failed` foi rastreado ao CHECK de `integrations.mode`: o backend enviava `production` onde somente `real`, `sandbox` e `disabled` são válidos.

@@ -56,6 +56,7 @@ const store = createContextStore<FonteLead[]>({ initial: () => [], load: loadFro
 
 export interface FontesStore {
   fontes: FonteLead[];
+  status: 'loading' | 'ready' | 'error';
   definirAtivacao: (id: string, enabled: boolean) => Promise<void>;
   recarregar: () => Promise<void>;
 }
@@ -88,6 +89,7 @@ export function normalizarMetricasPorFonte(fontes: FonteLead[]): FonteLead[] {
 
 export function useFontesStore(): FontesStore {
   const fontes = store.useData();
+  const status = store.useStatus();
   const renderedContext = sessionContext.get();
   const definirAtivacao = async (id: string, enabled: boolean) => {
     sessionContext.assertCurrent(renderedContext);
@@ -101,5 +103,5 @@ export function useFontesStore(): FontesStore {
     if (error) throw error;
     await store.refresh();
   };
-  return { fontes, definirAtivacao, recarregar: store.refresh };
+  return { fontes, status, definirAtivacao, recarregar: store.refresh };
 }
