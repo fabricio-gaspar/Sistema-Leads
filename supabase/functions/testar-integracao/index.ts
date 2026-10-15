@@ -11,6 +11,7 @@ import {
   safeError,
 } from "../_shared/http.ts";
 import { validateApifyConfiguration } from "../_shared/apifyClient.ts";
+import { leadSourceRuntimeMode } from "../_shared/integrationRuntimeMode.ts";
 import { linkedInErrorCode } from "../_shared/linkedinCompanySearch.ts";
 import { freeLlmEndpoint } from "../_shared/freellm.ts";
 
@@ -296,7 +297,7 @@ Deno.serve(async (request) => {
         .from("lead_source_configs")
         .update({
           enabled: sourceEnabled ?? Boolean(i.enabled),
-          mode: "production",
+          mode: leadSourceRuntimeMode,
           connection_status: "connected",
           last_success_at: now,
           last_error: null,

@@ -1,8 +1,8 @@
 # Mapa de arquitetura
 
-## LinkedIn Company Search — 14/10/2026 — LOCAL, não publicado
+## LinkedIn Company Search — 14/10/2026 — Edge publicada, busca desativada
 
-`Configurações > APIs` → credenciais Apify no Vault + `lead_source_configs(linkedin)` desativado → `Busca de Leads` revisa termo/localização/setor/porte/volume → `prospectar-leads` reserva execução idempotente → Actor/Task configurável → dataset → normalização/deduplicação → revisão/importação já existente. Não há campanha, Ana, WhatsApp ou agendamento automático. `apify` continua Google Maps e `google_places` continua Google.
+`Configurações > APIs` → credenciais Apify no Vault + `lead_source_configs(linkedin)` ativa → `Busca de Leads` revisa termo/localização/setor/porte/volume → `prospectar-leads` reserva execução idempotente → Actor/Task configurável → dataset → normalização/deduplicação → revisão/importação já existente. `configurar-integracao` v30 persiste `integrations.mode=real` e `lead_source_configs.mode=production`; `testar-integracao` v29 valida a credencial sem iniciar Actor. Não há campanha, Ana, WhatsApp ou agendamento automático. `apify` continua Google Maps e `google_places` continua Google.
 
 ## 07/10/2026 — QR Evolution GO v25
 

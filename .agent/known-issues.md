@@ -1,10 +1,11 @@
 # Problemas conhecidos
 
-## 14/10/2026 — LinkedIn Company Search aguarda credencial e publicação
+## 14/10/2026 — LinkedIn Company Search: busca comercial e cobertura de runtime pendentes
 
-- O conector `linkedin` está implementado localmente, mas continua desativado até o administrador informar um token Apify e Actor/Task reais e validar o acesso no painel. O transporte `apify-client` não transforma sozinho o catálogo da Apify em uma fonte válida.
+- A credencial e o Actor/Task foram validados no ambiente remoto; integração e fonte aparecem ativas no painel, sem terem sido ativadas pelo teste. Qualquer execução de busca pode gerar cobrança do provedor e exige decisão comercial controlada.
 - O Actor aprovado é de empresas: telefone e e-mail podem não existir. O fluxo não inventa esses campos, não cria campanhas e não chama Ana/WhatsApp automaticamente.
-- O runner Vitest local ainda não resolve o specifier Deno `npm:apify-client@2.25.0` nos contratos antigos de runtime; não usar alias que acione rede real. Revalidar esses 18 contratos em ambiente Edge compatível antes da publicação.
+- O runner Vitest local ainda não resolve o specifier Deno `npm:apify-client@2.25.0` nos contratos antigos de runtime; não usar alias que acione rede real. Revalidar esses 18 contratos em ambiente Edge compatível em uma evolução própria.
+- O token Apify foi compartilhado no chat para este teste. Ele deve ser revogado e recriado no Apify antes de liberar buscas operacionais.
 
 ## 14/10/2026 — Apify configurado localmente; credenciais e conectores sociais pendentes
 

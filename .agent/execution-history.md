@@ -1,5 +1,11 @@
 # Histórico resumido de execução
 
+## 2026-10-14 — Validação remota do LinkedIn e correção de persistência
+
+- Publicadas `configurar-integracao` v30, `operational-diagnostics` v30 e `testar-integracao` v29; mantida `prospectar-leads` v27. O erro `integration_create_failed` foi rastreado ao CHECK de `integrations.mode`: o backend enviava `production` onde somente `real`, `sandbox` e `disabled` são válidos.
+- A alteração usa vocabulários explícitos por tabela e salva o token exclusivamente no Vault. A validação autenticada retornou sucesso do serviço real; a leitura posterior confirmou integração e fonte conectadas/ativas, estado que já existia antes do teste e não disparou uma busca.
+- Foram aprovados 5 testes focados, type-check app/Edge, lint, build/artefato Sites e diff check. Nenhum Actor foi iniciado, não houve cobrança, importação, mensagem, Ana, campanha, migration ou alteração de cliente.
+
 ## 2026-10-14 — Conector LinkedIn Company Search (LOCAL)
 
 - Implementada fonte técnica `linkedin` separada de Google Maps/Google, com configuração segura no Vault, filtros revisáveis, normalização e deduplicação de empresas e erros sanitizados.

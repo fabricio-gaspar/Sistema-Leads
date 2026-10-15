@@ -1,5 +1,6 @@
 import { createAdminClient, requireOrganizationRole, requireUser } from '../_shared/auth.ts';
 import { allowedCorsHeaders, hasAllowedOrigin, json, preflight, safeError } from '../_shared/http.ts';
+import { integrationRuntimeMode, leadSourceRuntimeMode } from '../_shared/integrationRuntimeMode.ts';
 
 const AI_MODELS = {
   openai: ['gpt-4.1-mini', 'gpt-4.1', 'gpt-4o-mini'],
@@ -118,7 +119,7 @@ Deno.serve(async (request) => {
     const definition = labels[canal];
     const { data: existing, error } = await admin.from('integrations').select('id,configuration').eq('organization_id', organizationId).eq('key', canal).maybeSingle();
     if (error) throw new Error('integration_lookup_failed');
-    const inserted = existing ? null : await admin.from('integrations').insert({ organization_id: organizationId, key: canal, label: definition.label, provider: definition.provider, category: definition.category, connected: false, enabled: false, paused: false, mode: 'production', status_detail: definition.detail, configuration: {} }).select('id,configuration').single();
+    const inserted = existing ? null : await admin.from('integrations').insert({ organization_id: organizationId, key: canal, label: definition.label, provider: definition.provider, category: definition.category, connected: false, enabled: false, paused: false, mode: integrationRuntimeMode, status_detail: definition.detail, configuration: {} }).select('id,configuration').single();
     if (inserted?.error) throw new Error('integration_create_failed');
     const integration = existing ?? inserted?.data;
     if (!integration) throw new Error('integration_not_found');
@@ -210,10 +211,10 @@ Deno.serve(async (request) => {
       const { data: sourceConfig, error: sourceLookupError } = await admin.from('lead_source_configs').select('id').eq('organization_id', organizationId).eq('source_key', canal).maybeSingle();
       if (sourceLookupError) throw new Error('integration_source_config_lookup_failed');
       if (sourceConfig?.id) {
-        const { error: sourceUpdateError } = await admin.from('lead_source_configs').update({ label: definition.label, enabled: false, mode: 'production', connection_status: 'configured', configuration: publicConfiguration, last_error: null, last_error_at: null, updated_at: new Date().toISOString() }).eq('id', sourceConfig.id);
+        const { error: sourceUpdateError } = await admin.from('lead_source_configs').update({ label: definition.label, enabled: false, mode: leadSourceRuntimeMode, connection_status: 'configured', configuration: publicConfiguration, last_error: null, last_error_at: null, updated_at: new Date().toISOString() }).eq('id', sourceConfig.id);
         if (sourceUpdateError) throw new Error('integration_source_config_save_failed');
       } else {
-        const { error: sourceInsertError } = await admin.from('lead_source_configs').insert({ organization_id: organizationId, source_key: canal, label: definition.label, enabled: false, mode: 'production', connection_status: 'configured', configuration: publicConfiguration, created_by: user.id });
+        const { error: sourceInsertError } = await admin.from('lead_source_configs').insert({ organization_id: organizationId, source_key: canal, label: definition.label, enabled: false, mode: leadSourceRuntimeMode, connection_status: 'configured', configuration: publicConfiguration, created_by: user.id });
         if (sourceInsertError) throw new Error('integration_source_config_save_failed');
       }
     }

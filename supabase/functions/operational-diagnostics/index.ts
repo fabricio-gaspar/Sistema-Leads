@@ -1,5 +1,6 @@
 import { createAdminClient, requireOrganizationRole, requireUser } from '../_shared/auth.ts';
 import { allowedCorsHeaders, hasAllowedOrigin, json, preflight, safeError } from '../_shared/http.ts';
+import { integrationRuntimeMode } from '../_shared/integrationRuntimeMode.ts';
 import { resolveWaAkgOperational } from '../_shared/waAkgOperational.ts';
 
 type Action = 'status' | 'set_kill_switch' | 'activate_real' | 'events' | 'configure_whatsapp_webhook' | 'activate_scheduler';
@@ -62,7 +63,7 @@ async function upsertOperationalIntegration(
     connected: false,
     enabled: false,
     paused: false,
-    mode: 'production',
+    mode: integrationRuntimeMode,
     status_detail: definition.detail,
     configuration: {},
   }).select('id,configuration').single();

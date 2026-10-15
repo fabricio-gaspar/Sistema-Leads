@@ -1,5 +1,12 @@
 # Baseline do sistema
 
+## 14/10/2026 — LinkedIn Company Search: correção de modo e validação remota
+
+- A gravação de credencial falhava porque `configurar-integracao` persistia `production` em `integrations.mode`, cujo CHECK aceita `real`, `sandbox` ou `disabled`. O modo correto agora é centralizado: `real` para `integrations` e `production` para `lead_source_configs`, que possui contrato distinto.
+- Foram aplicadas somente as Edges necessárias: `configurar-integracao` v30, `operational-diagnostics` v30, `testar-integracao` v29 e `prospectar-leads` v27. A UI autenticada confirmou credencial LinkedIn validada; a integração e a fonte já estavam ativas e o teste não alterou esse estado.
+- Segurança preservada: token somente no Vault; não houve run do Actor, busca paga, importação, campanha, ativação da Ana, WhatsApp ou mensagem. O token compartilhado em chat deve ser rotacionado antes de liberar uso operacional.
+- Aceite atual: 5 testes focados, type-check app/Edge, lint, build Vite/artefato Sites e diff check aprovados. A suíte completa segue parcialmente bloqueada por 18 contratos de runtime que o Vitest não consegue carregar do import Deno `npm:apify-client@2.25.0`.
+
 ## 14/10/2026 — Conector LinkedIn Company Search (LOCAL)
 
 - A fonte `linkedin` é independente de `apify`/Google Maps e `google_places`/Google. A configuração usa o Vault para token Apify e Actor/Task; nenhum segredo é retornado ao frontend.

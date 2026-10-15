@@ -10,15 +10,22 @@
       "supabase/functions/prospectar-leads/index.ts"
     ],
     "security": "Token e input adicional ficam no Vault; somente Actor/Task público segue para configuração. Nenhuma campanha, Ana, WhatsApp ou mensagem é acionada.",
-    "validation": "5 arquivos/17 testes focados, type-check app/Edge, lint frontend, Vite build, Sites artifact e git diff check passaram. Suíte completa: 700 aprovados, 16 skips e 18 bloqueios do runner por npm:apify-client@2.25.0 não resolvido.",
+    "validation": "Validação atual: 5 testes focados, type-check app/Edge, lint frontend, Vite build, artefato Sites e diff check passaram. A suíte completa continua com 18 contratos bloqueados no runner local pela resolução do import Deno npm:apify-client@2.25.0; nenhum alias de teste que chamasse a rede foi mantido.",
     "paid_search": false,
     "messages_sent": false,
     "customer_data_changed": false,
     "migration_applied": false,
-    "edge_functions_deployed": false,
+    "edge_functions_deployed": true,
+    "edge_versions": {
+      "configurar-integracao": 30,
+      "testar-integracao": 29,
+      "prospectar-leads": 27,
+      "operational-diagnostics": 30
+    },
+    "remote_validation": "Credencial LinkedIn persistida no Vault e validada pelo Actor configurado; integrations.mode=real, connected=true, enabled=true e lead_source_configs.connection_status=connected/source_enabled=true. A ativação já existia no painel e não foi alterada pelo teste. Não houve busca paga, campanha, Ana, WhatsApp ou mensagem.",
     "site_deployed": false,
-    "status": "LOCAL_VALIDADO_PENDENTE_DE_PUBLICACAO",
-    "next_action": "Administrador configura e valida um Actor/Task LinkedIn real no painel; somente após homologação decidir publicação coordenada."
+    "status": "EDGE_APLICADA_E_CREDENCIAL_VALIDADA_COM_FONTE_ATIVA",
+    "next_action": "Uma busca real continua sendo decisão separada, pois pode gerar cobrança; antes dela, rotacionar o token Apify que foi exposto no chat."
   },
   "apify_validation_boot_fix_20261014": {
     "code_files": ["supabase/functions/_shared/apifyClient.ts", "tsconfig.edge.json"],

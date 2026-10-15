@@ -6,7 +6,7 @@
       "description": "Oferecer uma fonte LinkedIn separada de Google Maps/Google para buscar empresas via Actor/Task Apify configurável, com revisão humana, normalização, deduplicação e sem campanhas ou mensagens automáticas.",
       "module": "busca_leads_linkedin",
       "status": "PARCIAL",
-      "evidence": "Fonte linkedin adicionada em APIs/Fontes/Busca de Leads; token e Actor/Task são guardados no Vault; filtros de termo, localização, setor, porte, volume e modo curto/completo; resultados empresariais sem telefone/e-mail inventados e deduplicação por LinkedIn/domínio/empresa-localização. 17 testes focados, type-check app/Edge, lint, build e diff check passaram. Credencial/Actor reais, busca paga, Edge deploy, Site e publicação GitHub ainda não foram executados.",
+      "evidence": "Fonte linkedin isolada de apify/Google Maps e google_places/Google; Actor/Task configurável; termo, localização, setor, porte, volume e modo curto/completo; resultados empresariais sem telefone/e-mail inventados e deduplicação por LinkedIn/domínio/empresa-localização. configurar-integracao v30, testar-integracao v29 e prospectar-leads v27 estão ativas; a UI autenticada confirmou a credencial contra o serviço real, com integração e fonte conectadas/ativas. A ativação já existia e não foi alterada pela validação. Não houve busca paga, campanha, Ana, WhatsApp ou mensagem. A busca real permanece pendente de decisão comercial controlada.",
       "last_validation": "2026-10-14"
     },
     {
@@ -14,7 +14,7 @@
       "description": "Usar o cliente oficial da Apify no backend para validar a fonte e iniciar/acompanhar runs sem expor token, duplicar POST ou criar conectores sociais fictícios.",
       "module": "busca_leads_apify",
       "status": "PARCIAL",
-      "evidence": "apify-client@2.25.0 fixado em package.json/package-lock.json; adaptador compartilhado usado por prospectar-leads e testar-integracao; erros 401/403/404/429/timeout sanitizados; 121 arquivos Vitest, 714 testes aprovados e 16 skips; type-check app/Edge, lint, build/artefato e diff check aprovados. Token/Actor/Task real, busca externa e publicação remota não foram executados.",
+      "evidence": "apify-client@2.25.0 fixado em package.json/package-lock.json; adaptador compartilhado usado por prospectar-leads e testar-integracao; erros 401/403/404/429/timeout sanitizados. A validação real de credencial passou sem executar Actor/Task. O modo de integrations foi corrigido para real, compatível com o CHECK remoto, preservando production somente em lead_source_configs. Não houve busca externa paga nem mensagem.",
       "last_validation": "2026-10-14"
     },
     {
