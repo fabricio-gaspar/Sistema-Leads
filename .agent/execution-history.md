@@ -1,9 +1,9 @@
 # Histórico resumido de execução
 
-## 2026-10-15 — Busca de Leads: filtros, diagnóstico e execução segura (LOCAL)
+## 2026-10-15 — Busca de Leads: filtros, diagnóstico e execução segura (PUBLICADO)
 
 - Confirmados: última falha remota de Google Maps/Apify por token rejeitado; Google Places usava IDs de execução divergentes, impedindo salvar resultados válidos. Corrigidos o ID, filtros factuais, aviso de fonte, termo único do LinkedIn, histórico por fonte e encerramento manual auditado de pendência Google incerta.
-- 125 arquivos Vitest/743 aprovações, 16 skips, type-check app/Edge, lint, build e diff check aprovados. Nenhuma busca paga, mensagem, importação ou alteração de cliente. GitHub, Edge e Site ainda não atualizados neste checkpoint. Próxima ação: pré-checar deriva remota, publicar o delta validado e revalidar credencial Apify rotacionada no cofre.
+- 125 arquivos Vitest/743 aprovações, 16 skips, type-check app/Edge, lint, build e diff check aprovados. Commit de código `b8466d8` enviado ao GitHub e à origem existente do Site; Edge `prospectar-leads` v28 ACTIVE com JWT obrigatório/preflight 204; Site v209 publicado e rota `/login` do domínio personalizado 200 com asset principal idêntico ao build local. Nenhuma busca paga, mensagem, importação ou alteração de cliente. Próxima ação: revogar o token Apify exposto, cadastrar outro no cofre e executar uma busca real controlada após validação.
 
 ## 2026-10-14 — Validação remota do LinkedIn e correção de persistência
 

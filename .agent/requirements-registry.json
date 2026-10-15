@@ -6,7 +6,7 @@
       "description": "Restaurar a busca real com filtros factuais, erro de fonte visível, resultados explicáveis, histórico recuperável e execução idempotente sem repetir consultas pagas às cegas.",
       "module": "busca_leads",
       "status": "PARCIAL",
-      "evidence": "Corrigido localmente o ID de execução do Google Places, o contrato LinkedIn de termo único, o filtro de telefone/WhatsApp, o diagnóstico de resultados e o tratamento de erro/revisão manual. Vitest 743/743, 16 skips, type-check app/Edge, lint e build passaram. Falta publicar Edge/Site e revalidar o token Apify rotacionado; nenhuma busca paga foi executada.",
+      "evidence": "Corrigido o ID de execução do Google Places, o contrato LinkedIn de termo único, o filtro de telefone/WhatsApp, o diagnóstico de resultados e o tratamento de erro/revisão manual. Vitest 743/743, 16 skips, type-check app/Edge, lint e build passaram. Commit de código b8466d8 no GitHub e na origem do Site; prospectar-leads v28 ACTIVE e Site v209 publicado com rota /login 200 e asset principal idêntico ao build. Pendente rotacionar/revalidar token Apify e executar uma busca real controlada; nenhuma busca paga foi executada.",
       "last_validation": "2026-10-15"
     },
     {

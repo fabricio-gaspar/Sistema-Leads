@@ -1,5 +1,11 @@
 # Baseline do sistema
 
+## 15/10/2026 — Busca de Leads: publicação técnica e limite operacional
+
+- O backend `prospectar-leads` v28 e o Site v209 contêm o commit de código `b8466d8`; a rota personalizada `/login` respondeu 200 e o asset principal coincidiu com o build local. A função continua com JWT obrigatório. Não houve busca paga, importação ou mensagem.
+- Google Places usa um único ID de execução entre reserva e finalização; falhas após resposta parcial não provocam repetição automática. O encerramento de pendência incerta exige autor, 10 minutos e auditoria. Google Maps/Apify e LinkedIn expõem erro de fonte no painel e exigem revalidação após token rejeitado.
+- A publicação técnica não resolve o token Apify rejeitado. Um novo token deve ser criado após revogar o exposto em chat, salvo diretamente no Vault e validado antes de uma busca real controlada.
+
 ## 14/10/2026 — LinkedIn Company Search: correção de modo e validação remota
 
 - A gravação de credencial falhava porque `configurar-integracao` persistia `production` em `integrations.mode`, cujo CHECK aceita `real`, `sandbox` ou `disabled`. O modo correto agora é centralizado: `real` para `integrations` e `production` para `lead_source_configs`, que possui contrato distinto.

@@ -9,6 +9,8 @@
     "vite_build": "passed; somente aviso preexistente de runtime-config.js sem type=module",
     "diff_check": "passed",
     "provider_e2e": "not run; consulta externa poderia gerar cobrança e o último token Apify observado foi rejeitado",
+    "remote_edge": "prospectar-leads v28 ACTIVE com JWT obrigatório; OPTIONS /functions/v1/prospectar-leads retornou 204",
+    "remote_site": "Site existente v209 publicado; domínio personalizado /login retornou 200 com Accept text/html e o asset principal coincidiu com o build local por SHA-256",
     "messages_sent": false,
     "customer_data_changed": false
   },
