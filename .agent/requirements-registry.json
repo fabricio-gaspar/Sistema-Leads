@@ -2,6 +2,14 @@
   "schema_version": 1,
   "requirements": [
     {
+      "id": "REQ-CSV-ANA-EXISTING-LEADS-20261015",
+      "description": "Importar CSV com deduplicação atômica e permitir que a Ana selecione até 10 leads existentes somente para revisão humana, sem busca paga ou envio automático.",
+      "module": "busca_leads_e_ana",
+      "status": "PARCIAL",
+      "evidence": "Fluxos locais implementados com chave de identidade server-side, isolamento de carteira e fila review_only. Vitest 800/800, 25 skips, type-check app/Edge, lint, build e diff check aprovados. Migrations, Edge e validação PostgreSQL/RLS concorrente ainda não foram aplicadas/executadas.",
+      "last_validation": "2026-10-15"
+    },
+    {
       "id": "REQ-LEAD-SEARCH-ACCURACY-20261015",
       "description": "Restaurar a busca real com filtros factuais, erro de fonte visível, resultados explicáveis, histórico recuperável e execução idempotente sem repetir consultas pagas às cegas.",
       "module": "busca_leads",

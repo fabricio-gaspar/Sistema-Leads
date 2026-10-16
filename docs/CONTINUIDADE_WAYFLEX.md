@@ -1,5 +1,21 @@
 # Checkpoint — WayFlex CRM
 
+## 15/10/2026 — CSV direto e fila segura de leads existentes da Ana (local)
+
+- A Busca de Leads agora encaminha um CSV validado diretamente para a lista em Leads, com reenvio idempotente, navegação somente após a confirmação da RPC e sem transformar o navegador em fonte operacional.
+- A deduplicação da importação foi endurecida localmente: telefone/WhatsApp/e-mail são normalizados no servidor, a reserva concorrente usa FK adiada dentro da transação e uma colisão fora da carteira do autor falha de modo genérico, sem anexar ou devolver o ID do lead protegido.
+- A Ana pode selecionar no máximo 10 leads existentes apenas para **revisão humana**. A seleção exige WhatsApp autorizado/conectado, proprietário ativo, contato não protegido, ausência de handoff e contexto válido. Ela não inicia busca paga, não cria `ana_jobs` e não envia mensagem real; uma entrada nova tem precedência sobre a fila.
+- Validação local: Vitest **134 arquivos, 800 aprovados e 25 skips históricos**; type-check frontend/Edge, lint direcionado, build Vite, artefato Sites e `git diff --check` aprovados. O aviso preexistente de `runtime-config.js` sem `type="module"` não interrompeu o build.
+- Estado: **LOCAL VALIDADO / NÃO APLICADO / NÃO PUBLICADO**. As migrations `20261015160000` e `20261015170000` e as Edge Functions continuam sem aplicação nesta etapa. Não houve teste PostgreSQL/RLS concorrente, mensagem, busca paga, alteração de dados de clientes, push ou publicação do Site. Próxima ação: homologar essas migrations em ambiente isolado antes de considerar o fluxo operacional.
+
+## 15/10/2026 — Busca de Leads por comprador e raio no mapa (local)
+
+- O wizard agora permite escolher produto/serviço ativo das fontes habilitadas, revisar segmentos de atuação e aplicações do catálogo como sugestões de compradores, ou informar a oferta manualmente. Não converte nome de produto/material automaticamente em termo de busca e não presume que uma aplicação técnica comprova demanda.
+- Google Maps ganhou seleção manual do centro em mapa OpenStreetMap e raio de 1–200 km. O backend usa `customGeolocation` apenas com Actor Google Maps compatível, rejeita configurações incompatíveis antes de iniciar o run e valida a distância de cada resultado; registros sem coordenadas verificáveis ficam fora do recorte, com diagnóstico. LinkedIn continua com localização textual.
+- O catálogo do wizard é lido com paginação e apenas de fontes habilitadas, inclusive ao retomar o foco da aba; acima de 1.000 ofertas elegíveis há erro explícito e entrada manual, nunca corte silencioso. A sincronização de conhecimento preserva aplicações enriquecidas quando a origem importada não as fornece. A IA recebe somente o contexto seguro do item selecionado e ainda exige revisão humana antes da busca.
+- Validação local: Vitest **130 arquivos, 768 aprovados e 25 skips históricos**; type-check frontend/Edge, lint, build Vite, artefato Sites e `git diff --check` aprovados. O aviso preexistente de `runtime-config.js` sem `type="module"` não interrompeu o build.
+- Estado: **LOCAL VALIDADO / NÃO PUBLICADO**. Sem consulta paga à Apify, envio de mensagem, mudança de dados de clientes, migration, deploy de Edge Function, push no GitHub ou publicação do Site. A prévia HTTP local não abriu por restrição do ambiente (`listen EPERM`), portanto responsividade e fluxo autenticado ainda não foram verificados visualmente. É preciso homologar o Actor/credencial e a busca real com limite/custo autorizados antes de considerar o fluxo de raio operacional online. `supabase/.temp/cli-latest` permanece alteração local preexistente e fora deste lote.
+
 ## 15/10/2026 — Google Places retirado
 
 - O conector Google Places foi desinstalado do fluxo ativo: APIs, Fontes, estados operacionais, Busca de Leads, stores, mocks de configuração e Edge Functions agora aceitam somente Google Maps/Apify, LinkedIn e IA quando aplicável. O backend rejeita `sourceKey=google_places` antes de ler credenciais ou iniciar uma busca.

@@ -1,5 +1,17 @@
 # Histórico resumido de execução
 
+## 15/10/2026 — CSV direto e fila segura da Ana (LOCAL)
+
+- CSV: seleção de arquivo, validação, lote idempotente e abertura da lista importada em Leads; identidade forte calculada no servidor por WhatsApp/telefone/e-mail, com isolamento de carteira na colisão.
+- Ana: seleção limitada a 10 leads existentes, elegíveis e não protegidos somente em `review_only`; sem busca paga, `ana_jobs` ou envio de mensagem. Entrada recebida preempte a seleção pendente.
+- Validação: Vitest 134 arquivos/800 testes aprovados, 25 skips; type-check app/Edge, lint direcionado, build Vite/artefato Sites e diff check aprovados. **Não aplicado/publicado**: migrations/Edge, teste PostgreSQL/RLS concorrente, mensagem real, push e Site.
+
+## 15/10/2026 — Busca por perfil comprador e raio (LOCAL)
+
+- Wizard simplificado com oferta do catálogo ativo, segmentos/aplicações revisados pelo usuário e mapa para escolher centro/raio de 1–200 km no Google Maps. O backend valida Actor compatível, aplica o raio aos resultados e informa exclusões sem coordenadas ou fora da área; LinkedIn mantém filtro textual.
+- Catálogo paginado somente nas fontes habilitadas, atualizado ao retomar a aba e com erro explícito após 1.000 itens elegíveis. Aplicações manuais são preservadas quando a sincronização não traz substitutas. Nenhuma busca é disparada ao gerar sugestões.
+- 130 arquivos Vitest/768 testes aprovados e 25 skips; type-check app/Edge, lint, build Vite/artefato Sites e diff check passaram. **Não publicado**: nenhum commit/push, Edge deploy, busca paga, mensagem ou dado de cliente alterado. Homologação online requer publicação coordenada e execução real controlada.
+
 ## 15/10/2026 — Google Places retirado do produto
 
 - Removido o conector aposentado das telas de APIs/Fontes/saúde operacional, stores, Busca de Leads e contratos ativos das Edge Functions; o backend rejeita tentativas legadas sem consultar cofre ou provedor.

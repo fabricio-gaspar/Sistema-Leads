@@ -71,6 +71,13 @@ describe('prospecting UI safeguards', () => {
       .toContain('4 registros, mas nenhum pôde ser identificado');
   });
 
+  it('explica rejeições por raio e ausência de coordenadas separadamente', () => {
+    const diagnostics = { providerItemsRead: 8, normalizedCount: 8, matchedCount: 0, rejectedByContact: 0, rejectedByEmail: 0, rejectedByWebsite: 0, rejectedByRadius: 5, missingCoordinates: 3 };
+    expect(prospectingFilterSummary(diagnostics)).toContain('5 fora do raio');
+    expect(prospectingFilterSummary(diagnostics)).toContain('3 sem coordenadas');
+    expect(prospectingEmptyResultMessage('Google Maps', diagnostics)).toContain('centro ou amplie o raio');
+  });
+
   it('releases the idempotency key after a rejected token but preserves uncertain provider starts', () => {
     expect(shouldClearProspectingRequestKey('apify_token_rejected')).toBe(true);
     expect(shouldClearProspectingRequestKey('apify_token_rejected', true)).toBe(false);

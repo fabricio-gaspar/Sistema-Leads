@@ -5,6 +5,31 @@ const ACTIONS = new Set(['start_ai', 'assign_human', 'record_inbound']);
 const asText = (value: unknown, max = 500) => typeof value === 'string' ? value.trim().slice(0, max) : '';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const normalizeWhatsapp = (value: string) => value.replace(/\D/g, '');
+const ELEVATED_ROLES = new Set(['owner', 'admin', 'manager']);
+const PORTFOLIO_ROLES = new Set(['seller', 'sdr']);
+
+function canonicalWorkflowRole(value: unknown): string {
+  const role = asText(value, 40).toLowerCase();
+  return ({ administrador: 'admin', gerente: 'manager', vendedor: 'seller' } as Record<string, string>)[role] ?? role;
+}
+
+async function assertLeadWorkflowActorAccess(
+  admin: ReturnType<typeof createAdminClient>,
+  actorId: string,
+  organizationId: string,
+  lead: { owner_id?: string | null; assigned_to?: string | null },
+): Promise<void> {
+  const { data: membership, error } = await admin.from('organization_members')
+    .select('role,status')
+    .eq('organization_id', organizationId)
+    .eq('user_id', actorId)
+    .maybeSingle();
+  const role = canonicalWorkflowRole(membership?.role);
+  if (error || membership?.status !== 'active') throw new Error('organization_access_denied');
+  if (ELEVATED_ROLES.has(role)) return;
+  if (PORTFOLIO_ROLES.has(role) && (lead.owner_id === actorId || lead.assigned_to === actorId)) return;
+  throw new Error('lead_access_denied');
+}
 
 Deno.serve(async (request) => {
   const options = preflight(request); if (options) return options;
@@ -30,6 +55,7 @@ Deno.serve(async (request) => {
       .select('id,company,contact,phone,whatsapp,opt_out,owner_id,assigned_to,modo_atendimento,ai_paused,contact_approval_status,contact_approval_reason')
       .eq('id', leadId).eq('organization_id', organizationId).maybeSingle();
     if (leadError || !lead) throw new Error('lead_not_found');
+    await assertLeadWorkflowActorAccess(admin, user.id, organizationId, lead);
 
     if (action === 'record_inbound') {
       // Provider callbacks are the only production evidence of an inbound reply.

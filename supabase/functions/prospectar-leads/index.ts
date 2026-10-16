@@ -3,10 +3,11 @@ import { allowedCorsHeaders, hasAllowedOrigin, json, preflight, safeError } from
 import { getApifyRun, listApifyItems, startApifyRun } from '../_shared/apifyClient.ts';
 import { buildLinkedInActorInput, dedupeLinkedInCompanies, linkedInErrorCode, normalizeLinkedInCompany, type LinkedInCompanyFilters } from '../_shared/linkedinCompanySearch.ts';
 import { filterProspectingCandidates } from '../_shared/prospectingResultFilter.ts';
+import { filterProspectsByRadius, parseProspectingGeoRadius } from '../_shared/prospectingGeo.ts';
 import { readJson, requiredString } from '../_shared/validation.ts';
 
 type Filters = {
-  pais?: string; estado?: string; cidade?: string; raio?: number; atividades?: string[]; segmentos?: string[];
+  pais?: string; estado?: string; cidade?: string; raio?: number; centerLatitude?: number; centerLongitude?: number; atividades?: string[]; segmentos?: string[];
   portes?: string[]; cargo?: string; exigeSite?: boolean; exigeWhatsApp?: boolean; exigeEmail?: boolean; volumeMaximo?: number;
   industryIds?: string[]; companySize?: string[]; scraperMode?: 'short' | 'full'; startPage?: number; takePages?: number;
 };
@@ -43,10 +44,10 @@ function secureEqual(actual: string | null, expected: string): boolean { if (!ac
 function normalizeFilters(value: unknown): Filters {
   const input = object(value);
   const volume = typeof input.volumeMaximo === 'number' && Number.isFinite(input.volumeMaximo) ? Math.floor(input.volumeMaximo) : 30;
-  const raio = typeof input.raio === 'number' && Number.isFinite(input.raio) ? Math.floor(input.raio) : 50;
+  const geo = parseProspectingGeoRadius(input, false);
   return {
     pais: text(input.pais, 80) || 'Brasil', estado: (text(input.estado, 2) || list(input.estados, 27)[0] || '').toUpperCase().slice(0, 2), cidade: text(input.cidade, 120),
-    raio: Math.max(1, Math.min(200, raio)), atividades: list(input.atividades), segmentos: list(input.segmentos), portes: list(input.portes),
+    ...(geo ?? {}), atividades: list(input.atividades), segmentos: list(input.segmentos), portes: list(input.portes),
     cargo: text(input.cargo, 80), exigeSite: input.exigeSite === true, exigeWhatsApp: input.exigeWhatsApp === true,
     exigeEmail: input.exigeEmail === true, volumeMaximo: Math.max(1, Math.min(100, volume)),
     industryIds: list(input.industryIds, 20), companySize: list(input.companySize, 10),
@@ -192,8 +193,24 @@ function apifyInput(credentials: Record<string, unknown>, filters: Filters) {
   if (inputJson) { try { configured = object(JSON.parse(inputJson)); } catch { throw new Error('source_input_invalid'); } }
   const volume = filters.volumeMaximo ?? 30;
   const searchStringsArray = terms(filters).slice(0, volume);
+  const geo = parseProspectingGeoRadius(filters as Record<string, unknown>, false);
+  if (geo) {
+    // The Google Maps Actor treats customGeolocation and text geography as alternatives.
+    // Do not let an old Vault input silently override the user's selected point.
+    for (const key of ['locationQuery', 'customGeolocation', 'startUrls', 'placeIds', 'countryCode', 'country', 'state', 'city', 'county', 'postalCode', 'latitude', 'longitude', 'lat', 'lng']) delete configured[key];
+  }
   // The Actor's limit is per search term, not per run. Keep the requested budget bounded.
-  return { ...configured, searchStringsArray, locationQuery: locationQuery(filters), maxCrawledPlacesPerSearch: Math.max(1, Math.floor(volume / searchStringsArray.length)) };
+  return {
+    ...configured, searchStringsArray,
+    ...(geo ? { customGeolocation: { type: 'Point', coordinates: [geo.centerLongitude, geo.centerLatitude], radiusKm: geo.raio } } : { locationQuery: locationQuery(filters) }),
+    maxCrawledPlacesPerSearch: Math.max(1, Math.floor(volume / searchStringsArray.length)),
+  };
+}
+
+function supportsMapRadius(credentials: Record<string, unknown>): boolean {
+  if (text(credentials.task_id, 300)) return false;
+  const actor = text(credentials.actor_id, 300).toLowerCase().replace('~', '/');
+  return actor === 'compass/google-maps-extractor' || actor === 'compass/crawler-google-places';
 }
 
 function providerFailure(sourceKey: 'apify' | 'linkedin', status: string) { return `${sourceKey}_run_${status.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`; }
@@ -252,7 +269,11 @@ async function loadRunDiagnostics(admin: ReturnType<typeof createAdminClient>, o
   const recorded = object(object(data.event_data).diagnostics);
   const keys = ['providerItemsRead', 'normalizedCount', 'matchedCount', 'rejectedByContact', 'rejectedByEmail', 'rejectedByWebsite'] as const;
   if (!keys.every((key) => Number.isInteger(recorded[key]) && Number(recorded[key]) >= 0)) return undefined;
-  return Object.fromEntries(keys.map((key) => [key, recorded[key]]));
+  const diagnostics = Object.fromEntries(keys.map((key) => [key, recorded[key]]));
+  for (const key of ['rejectedByRadius', 'missingCoordinates']) {
+    if (Number.isInteger(recorded[key]) && Number(recorded[key]) >= 0) diagnostics[key] = recorded[key];
+  }
+  return diagnostics;
 }
 
 Deno.serve(async (request) => {
@@ -386,9 +407,14 @@ Deno.serve(async (request) => {
 
     let filters: Filters, providerRunId = '', datasetId = '';
     if (!existingRun) {
+      const requestedGeo = object(body.filters);
+      if (sourceKey === 'linkedin' && ['raio', 'centerLatitude', 'centerLongitude'].some((key) => requestedGeo[key] !== undefined)) throw new Error('prospecting_radius_source_unsupported');
+      const selectedGeo = parseProspectingGeoRadius(requestedGeo);
+      if (sourceKey === 'apify' && selectedGeo && !supportsMapRadius(credentials as Record<string, unknown>)) throw new Error('prospecting_radius_actor_unsupported');
       filters = normalizeFilters(body.filters);
       if (!filters.cidade?.trim()) throw new Error('prospecting_city_required');
       if (!terms(filters).length) throw new Error('prospecting_terms_required');
+      if (sourceKey === 'apify' && terms(filters).length > (filters.volumeMaximo ?? 30)) throw new Error('prospecting_volume_below_terms');
       if (sourceKey === 'linkedin') {
         filters.atividades = terms(filters).slice(0, 1);
         filters.segmentos = [];
@@ -499,13 +525,19 @@ Deno.serve(async (request) => {
     const result = sourceKey === 'apify'
       ? { providerRunId, ...await apifyItems(credentials as Record<string, unknown>, datasetId, filters) }
       : { providerRunId, ...await linkedinItems(credentials as Record<string, unknown>, datasetId, filters) };
-    const filtered = filterProspectingCandidates(result.leads, filters, filters.volumeMaximo ?? 30);
+    const geo = parseProspectingGeoRadius(filters as Record<string, unknown>, false);
+    const geographicallyFiltered = geo ? filterProspectsByRadius(result.leads, geo) : null;
+    const filtered = filterProspectingCandidates(geographicallyFiltered?.leads ?? result.leads, filters, filters.volumeMaximo ?? 30);
     const leads = filtered.leads;
-    const diagnostics = { providerItemsRead: result.rawCount, ...filtered.diagnostics };
+    const diagnostics = {
+      providerItemsRead: result.rawCount, ...filtered.diagnostics,
+      normalizedCount: result.leads.length, matchedCount: leads.length,
+      ...(geographicallyFiltered?.diagnostics ?? {}),
+    };
     const { data: finalized, error: finalizeError } = await admin.rpc('finalize_prospecting_run', {
       p_run_id: runId, p_organization_id: organizationId, p_requested_by: existingRun?.requested_by || requestedBy,
       p_provider_run_id: result.providerRunId,
-      p_cache_filters: { source: sourceKey, uf: filters.estado || null, municipio: filters.cidade || null, keyword: sourceKey === 'linkedin' ? terms(filters)[0] : terms(filters).join(' '), limit: filters.volumeMaximo },
+      p_cache_filters: { source: sourceKey, uf: filters.estado || null, municipio: filters.cidade || null, keyword: sourceKey === 'linkedin' ? terms(filters)[0] : terms(filters).join(' '), limit: filters.volumeMaximo, ...(geo ?? {}) },
       p_results: leads,
       p_name: `${sourceKey} · ${filters.cidade || filters.estado || 'Brasil'} · ${new Date().toLocaleDateString('pt-BR')}`,
     });

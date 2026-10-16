@@ -1,5 +1,5 @@
 import { supabase } from '@/lib/supabase';
-import { resolveOrganizationSession } from '@/lib/organizationSession';
+import { assertOrganizationSession, resolveOrganizationSession } from '@/lib/organizationSession';
 import { detalheDoErroDeFuncao } from '@/lib/transportador';
 
 export type KnowledgeCatalogItemType = 'product' | 'service' | 'catalog' | 'document';
@@ -208,6 +208,38 @@ export async function loadKnowledgeCatalogItems(input: {
     ].filter(Boolean).join(' '));
     return terms.every((term) => searchable.includes(term));
   });
+}
+
+/** Complete active offer list from enabled sources, bounded to avoid a silent Supabase row-limit cutoff. */
+export async function loadProspectingCatalogOffers(sourceIds: readonly string[]): Promise<KnowledgeCatalogItem[]> {
+  const enabledSourceIds = [...new Set(sourceIds.filter(Boolean))];
+  if (!enabledSourceIds.length) return [];
+  const session = await resolveOrganizationSession();
+  const pageSize = 200;
+  const maxItems = 1000;
+  const offers: KnowledgeCatalogItem[] = [];
+  let offset = 0;
+
+  for (;;) {
+    // One extra row proves whether a catalogue at the cap is complete.
+    const size = Math.min(pageSize, maxItems - offers.length + 1);
+    const { data, error } = await supabase.from('knowledge_catalog_items')
+      .select('id,source_id,item_type,external_key,status,ana_enabled,name,code,short_description,technical_description,category,material,applications,qualification_questions,keywords,image_url,attachment_url,website_url,source_url,source_label,imported_at,updated_at')
+      .eq('organization_id', session.organizationId)
+      .eq('status', 'active')
+      .in('source_id', enabledSourceIds)
+      .in('item_type', ['product', 'service'])
+      .order('updated_at', { ascending: false })
+      .order('id', { ascending: true })
+      .range(offset, offset + size - 1);
+    assertOrganizationSession(session);
+    if (error) throw error;
+    const rows = data ?? [];
+    if (rows.length > maxItems - offers.length) throw new Error('prospecting_catalog_limit_exceeded');
+    offers.push(...rows.map((row) => mapItem(row as CatalogItemRow)));
+    if (rows.length < size) return offers;
+    offset += rows.length;
+  }
 }
 
 export async function loadRelatedKnowledgeItems(itemId: string, includeInactive = false): Promise<KnowledgeCatalogItem[]> {

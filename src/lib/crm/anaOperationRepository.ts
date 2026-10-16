@@ -70,6 +70,66 @@ export interface AnaAutomaticToggleResult {
   cancelled_runs: number;
 }
 
+/**
+ * This is deliberately independent from the paid Apify prospecting routine.
+ * The browser only receives policy and aggregate queue state: candidate lead
+ * identifiers and contact data stay on the server-side selection path.
+ */
+export type AnaExistingLeadWorkMode = 'review_only' | 'approved_followup';
+
+export interface AnaExistingLeadWorkSettings {
+  enabled: boolean;
+  mode: AnaExistingLeadWorkMode;
+  batchLimit: number;
+}
+
+export const DEFAULT_ANA_EXISTING_LEAD_WORK_SETTINGS: AnaExistingLeadWorkSettings = {
+  enabled: false,
+  mode: 'review_only',
+  batchLimit: 10,
+};
+
+export type AnaExistingLeadWorkRequestState = 'disabled' | 'review_ready' | 'blocked';
+
+/**
+ * The UI can only request a review batch. Any future follow-up mode remains
+ * unavailable here until the server confirms its independent safety gates.
+ */
+export function getAnaExistingLeadWorkRequestState(settings: AnaExistingLeadWorkSettings): AnaExistingLeadWorkRequestState {
+  if (!settings.enabled) return 'disabled';
+  return settings.mode === 'review_only' ? 'review_ready' : 'blocked';
+}
+
+export type AnaExistingLeadWorkBatchStatus =
+  | 'selected'
+  | 'queued'
+  | 'processing'
+  | 'completed'
+  | 'skipped'
+  | 'needs_review'
+  | 'cancelled'
+  | 'blocked';
+
+export interface AnaExistingLeadWorkBatch {
+  status: AnaExistingLeadWorkBatchStatus;
+  requestedAt: string | null;
+  candidateCount: number;
+  queuedCount: number;
+  completedCount: number;
+  skippedCount: number;
+  reviewCount: number;
+  errorCode: string | null;
+  reviewReason: string | null;
+}
+
+export interface AnaExistingLeadWorkSnapshot {
+  settings: AnaExistingLeadWorkSettings;
+  nextRunAt: string | null;
+  eligibleCount: number;
+  queuedCount: number;
+  latestBatch: AnaExistingLeadWorkBatch | null;
+}
+
 async function invoke<T>(action: string, payload: Record<string, unknown> = {}): Promise<T> {
   const context = sessionContext.requireReady();
   const { data, error } = await supabase.functions.invoke('ana-operations', { body: { action, ...payload } });
@@ -92,3 +152,12 @@ export const setAnaAutomaticOperation = (enabled: boolean) => invoke<{ ok: true;
 export const runAnaOperationNow = () => invoke<{ ok: true; run: AnaOperationRun }>('run_now');
 export const simulateAnaOperation = () => invoke<{ ok: true; run: AnaOperationRun }>('simulate');
 export const approveAnaOperationRun = (runId: string) => invoke<{ ok: true; run: AnaOperationRun }>('approve_run', { runId });
+
+/**
+ * Existing-lead work is a separate, fail-closed flow. These calls never carry
+ * lead IDs, phone numbers, contact data, organization IDs, or secrets from the
+ * browser; the server derives tenant scope and selects eligible leads itself.
+ */
+export const getAnaExistingLeadWork = () => invoke<AnaExistingLeadWorkSnapshot & { ok: true }>('get_existing_lead_work');
+export const saveAnaExistingLeadWork = (settings: AnaExistingLeadWorkSettings) => invoke<AnaExistingLeadWorkSnapshot & { ok: true }>('save_existing_lead_work_policy', { settings });
+export const requestAnaExistingLeadWork = () => invoke<AnaExistingLeadWorkSnapshot & { ok: true }>('request_existing_lead_work');

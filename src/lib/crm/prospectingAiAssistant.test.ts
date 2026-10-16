@@ -69,10 +69,15 @@ describe('assistente IA de prospecção', () => {
     });
   });
 
+  it('preserva setor da base da empresa selecionado pelo usuário sem aceitar setor inventado pela IA', () => {
+    const plan = normalizeProspectingAiPlan({ customerSegments: ['Naval', 'Setor inventado'] }, { ...current, customerSegments: ['Naval'] });
+    expect(plan.customerSegments).toEqual(['Naval']);
+  });
+
   it('oferece fallback local baseado no perfil comercial sem iniciar uma busca', () => {
     const plan = buildLocalProspectingAiPlan(current);
 
-    expect(plan.terms).toEqual(expect.arrayContaining(['vedação industrial', 'artefatos de borracha', 'perfis de silicone']));
+    expect(plan.terms).toEqual(['vedação industrial']);
     expect(plan.summary).toContain('revisão');
   });
 });

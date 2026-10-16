@@ -7,6 +7,8 @@ export interface ProspectingResultDiagnostics {
   rejectedByContact: number;
   rejectedByEmail: number;
   rejectedByWebsite: number;
+  rejectedByRadius?: number;
+  missingCoordinates?: number;
 }
 
 export function prospectingFilterSummary(diagnostics?: ProspectingResultDiagnostics): string {
@@ -18,8 +20,11 @@ export function prospectingFilterSummary(diagnostics?: ProspectingResultDiagnost
     diagnostics.rejectedByContact > 0 ? `${diagnostics.rejectedByContact} sem telefone` : '',
     diagnostics.rejectedByEmail > 0 ? `${diagnostics.rejectedByEmail} sem e-mail` : '',
     diagnostics.rejectedByWebsite > 0 ? `${diagnostics.rejectedByWebsite} sem site` : '',
+    (diagnostics.rejectedByRadius ?? 0) > 0 ? `${diagnostics.rejectedByRadius} fora do raio` : '',
+    (diagnostics.missingCoordinates ?? 0) > 0 ? `${diagnostics.missingCoordinates} sem coordenadas` : '',
   ].filter(Boolean).join(', ');
-  const overlapping = diagnostics.rejectedByContact + diagnostics.rejectedByEmail + diagnostics.rejectedByWebsite > discarded;
+  const overlapping = diagnostics.rejectedByContact + diagnostics.rejectedByEmail + diagnostics.rejectedByWebsite
+    + (diagnostics.rejectedByRadius ?? 0) + (diagnostics.missingCoordinates ?? 0) > discarded;
   return `${throughput}. ${discarded} fora dos critérios${reasons ? `: ${reasons}` : ''}.${overlapping ? ' Os motivos podem se sobrepor.' : ''}`;
 }
 
@@ -27,6 +32,9 @@ export function prospectingEmptyResultMessage(sourceName: string, diagnostics?: 
   if (!diagnostics) return `${sourceName} concluiu a busca sem leads para estes filtros. Nenhum lead foi importado.`;
   if (diagnostics.providerItemsRead === 0) return `${sourceName} não encontrou empresas para o termo e a região escolhidos. Tente um termo mais amplo ou outra região; nenhuma importação foi feita.`;
   if (diagnostics.normalizedCount === 0) return `${sourceName} devolveu ${diagnostics.providerItemsRead} registros, mas nenhum pôde ser identificado como empresa. Verifique o formato de saída da fonte; nenhuma importação foi feita.`;
+  if ((diagnostics.rejectedByRadius ?? 0) + (diagnostics.missingCoordinates ?? 0) === diagnostics.normalizedCount) {
+    return `${diagnostics.normalizedCount} empresas foram descartadas pela área no mapa. ${prospectingFilterSummary(diagnostics)} Revise o centro ou amplie o raio antes de iniciar outra busca paga.`;
+  }
   if (diagnostics.matchedCount === 0) return `${diagnostics.normalizedCount} empresas foram descartadas pelos critérios obrigatórios. ${prospectingFilterSummary(diagnostics)} Desmarque um critério e faça uma nova busca somente após revisar o custo da fonte.`;
   return `${sourceName} concluiu a busca sem leads revisáveis. Nenhuma importação foi feita.`;
 }

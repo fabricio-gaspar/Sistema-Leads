@@ -6,6 +6,7 @@ import {
   extractSpaModuleUrls,
   extractWayflexSegmentSnapshotItems,
   extractWayflexSpaBundleItems,
+  mergeImportedApplications,
   type CatalogKnowledgeImportShape,
   type CatalogKnowledgeSourceDefinition,
   type ExtractedCatalogKnowledgeItem,
@@ -137,7 +138,7 @@ Deno.serve(async (request) => {
     const shapeCounts = shapesOf(items);
     const keys = items.map((item) => item.externalKey);
     const { data: existing, error: existingError } = await admin.from('knowledge_catalog_items')
-      .select('external_key,status,ana_enabled').eq('organization_id', organizationId).eq('source_id', sourceId).in('external_key', keys);
+      .select('external_key,status,ana_enabled,applications').eq('organization_id', organizationId).eq('source_id', sourceId).in('external_key', keys);
     if (existingError) throw existingError;
     const existingByKey = new Map((existing ?? []).map((row) => [row.external_key, row]));
     const now = new Date().toISOString();
@@ -148,7 +149,7 @@ Deno.serve(async (request) => {
         organization_id: organizationId, source_id: sourceId, item_type: item.type, external_key: item.externalKey,
         status: prior?.status ?? 'active', ana_enabled: prior?.ana_enabled ?? true,
         name: item.name, short_description: item.shortDescription, technical_description: item.technicalDescription,
-        category: item.category || definition.scope, material: null, applications: item.applications ?? [], keywords: item.keywords, image_url: item.imageUrl,
+        category: item.category || definition.scope, material: null, applications: mergeImportedApplications(item.applications, prior?.applications), keywords: item.keywords, image_url: item.imageUrl,
         attachment_url: item.attachmentUrl, website_url: item.websiteUrl || definition.url, source_url: traceUrl,
         source_label: definition.name,
         source_payload: {

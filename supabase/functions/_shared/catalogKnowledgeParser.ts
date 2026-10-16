@@ -45,6 +45,15 @@ const clean = (value: unknown, max = 12_000): string => typeof value === 'string
 const normalize = (value: string) => clean(value, 800).toLocaleLowerCase('pt-BR').normalize('NFD')
   .replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
 
+/** A source with no structured applications must not erase applications curated in the CRM. */
+export function mergeImportedApplications(imported: unknown, existing: unknown): string[] {
+  const valid = (value: unknown) => Array.isArray(value)
+    ? value.filter((entry): entry is string => typeof entry === 'string').map((entry) => clean(entry, 120)).filter(Boolean).slice(0, 40)
+    : [];
+  const fromSource = valid(imported);
+  return fromSource.length ? fromSource : valid(existing);
+}
+
 function htmlText(value: string, max = 12_000): string {
   const withoutUnsafeContent = value
     .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, ' ')

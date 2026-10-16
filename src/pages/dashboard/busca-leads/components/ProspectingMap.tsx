@@ -70,7 +70,7 @@ export default function ProspectingMap({ leads, selectedIds, onSelect }: Prospec
         <div>
           <h3 className="font-heading text-sm font-bold text-foreground-900">Mapa dos resultados</h3>
           <p className="mt-0.5 text-xs text-foreground-500">
-            {points.length ? `${points.length} de ${leads.length} leads com localização exata` : 'A fonte não retornou coordenadas para estes leads'}
+            {points.length ? `${points.length} de ${leads.length} leads com coordenadas informadas pela fonte` : 'A fonte não retornou coordenadas para estes leads'}
           </p>
         </div>
         <span className="rounded-full bg-primary-50 px-2.5 py-1 text-[11px] font-semibold text-primary-700">Dados da busca</span>
@@ -121,7 +121,7 @@ export default function ProspectingMap({ leads, selectedIds, onSelect }: Prospec
           </a>
         </div>
       ) : (
-        <div className="flex h-[360px] flex-col items-center justify-center bg-[linear-gradient(135deg,rgba(16,185,129,.08),rgba(255,255,255,.9))] px-6 text-center">
+        <div className="flex h-[360px] flex-col items-center justify-center bg-background-50 px-6 text-center">
           <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-primary-100 text-primary-700"><i className="ri-map-pin-line text-xl" /></div>
           <p className="text-sm font-semibold text-foreground-800">Localização indisponível nesta resposta</p>
           <p className="mt-1 max-w-xs text-xs leading-5 text-foreground-500">Os resultados sem latitude e longitude continuam disponíveis na lista para revisão e importação.</p>

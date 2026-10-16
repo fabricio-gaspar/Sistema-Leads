@@ -9,8 +9,10 @@ import {
   type ProspectingAiPlan,
 } from '@/lib/crm/prospectingAiAssistant';
 
-export default function ProspectingAiAssistantDialog({ currentFilters, onClose, onApply }: {
+export default function ProspectingAiAssistantDialog({ currentFilters, selectedCatalogItemId, localBuyerTerms, onClose, onApply }: {
   currentFilters: ProspectingAiDraft;
+  selectedCatalogItemId?: string;
+  localBuyerTerms?: string[];
   onClose: () => void;
   onApply: (plan: ProspectingAiPlan) => void;
 }) {
@@ -36,13 +38,14 @@ export default function ProspectingAiAssistantDialog({ currentFilters, onClose, 
           organizationId: session.organizationId,
           request,
           currentFilters,
+          selectedCatalogItemId,
         },
       });
       if (error || !data?.plan) throw new Error('ai_unavailable');
       setPlan(normalizeProspectingAiPlan(data.plan, currentFilters));
       if (data?.source === 'fallback') setNotice('A IA não está disponível agora; foram usadas sugestões locais do seu perfil comercial.');
     } catch {
-      setPlan(buildLocalProspectingAiPlan(currentFilters));
+      setPlan(buildLocalProspectingAiPlan({ ...currentFilters, terms: [...currentFilters.terms, ...(localBuyerTerms || [])] }));
       setNotice('A IA não está disponível agora; foram usadas sugestões locais do seu perfil comercial.');
     } finally {
       setLoading(false);

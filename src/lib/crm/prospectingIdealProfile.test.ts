@@ -6,9 +6,9 @@ import {
 } from './prospectingIdealProfile';
 
 describe('ideal profile terms', () => {
-  it('uses Wayflex catalogue suggestions and selected customer segments without a provider call', () => {
+  it('for potential customers suggests buyer segments, not sellers of the offered material', () => {
     expect(termsFromIdealProfile('Soluções em borracha e silicone', 'potential_customers', ['Mineração']))
-      .toEqual(expect.arrayContaining(['artefatos de borracha', 'perfis de silicone', 'Mineração']));
+      .toEqual(['Mineração']);
   });
 
   it('adds a target-company term only when that target is not potential customers', () => {

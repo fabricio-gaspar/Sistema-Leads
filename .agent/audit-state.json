@@ -1,5 +1,30 @@
 {
   "schema_version": 1,
+  "csv_ana_existing_leads_20261015": {
+    "baseline_commit": "090736371807e94533013e034fc25285ddbc1f01",
+    "scope": "Importação CSV direta para Leads e seleção segura de até 10 leads existentes para revisão humana da Ana.",
+    "implementation": [
+      "src/components/feature/CsvImportModal.tsx",
+      "src/lib/crm/csvImportNavigation.ts",
+      "src/lib/crm/leadMapper.ts",
+      "src/pages/dashboard/busca-leads/page.tsx",
+      "src/pages/dashboard/leads/page.tsx",
+      "src/pages/dashboard/personalizacao-ana/AnaAutomaticOperation.tsx",
+      "supabase/migrations/20261015160000_harden_prospecting_csv_import_dedupe.sql",
+      "supabase/migrations/20261015170000_ana_existing_lead_work_queue.sql"
+    ],
+    "safety": "A fila criada é review_only: não inicia busca paga, não cria ana_jobs e não envia mensagem. Colisão de CSV fora da carteira falha antes de anexar ou retornar o lead canônico.",
+    "validation": "Vitest 134 arquivos/800 aprovados e 25 skips; type-check app/Edge, lint direcionado, build Vite/artefato Sites e diff check aprovados.",
+    "postgres_rls_concurrency": "Não executado; migrations permanecem locais e exigem homologação PostgreSQL isolada.",
+    "messages_sent": false,
+    "paid_search": false,
+    "customer_data_changed": false,
+    "migration_applied": false,
+    "edge_functions_deployed": false,
+    "site_deployed": false,
+    "status": "LOCAL_VALIDADO_PENDENTE_DE_HOMOLOGACAO",
+    "next_action": "Aplicar e testar as duas migrations em ambiente isolado com dois perfis/carteiras antes de qualquer deploy coordenado."
+  },
   "google_places_retirement_20261015": {
     "baseline_commit": "36f67844105b68ba3e7a873c043ace1a3c23e114",
     "scope": "Retirada completa do conector Google Places do fluxo ativo, preservando histórico de leads, runs e caches.",

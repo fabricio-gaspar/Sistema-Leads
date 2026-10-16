@@ -1,10 +1,17 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
+  DEFAULT_ANA_EXISTING_LEAD_WORK_SETTINGS,
   approveAnaOperationRun,
+  getAnaExistingLeadWork,
+  getAnaExistingLeadWorkRequestState,
   loadAnaOperation,
+  requestAnaExistingLeadWork,
   runAnaOperationNow,
+  saveAnaExistingLeadWork,
   saveAnaOperation,
   simulateAnaOperation,
+  type AnaExistingLeadWorkSettings,
+  type AnaExistingLeadWorkSnapshot,
   type AnaHandoffStage,
   type AnaOperationMode,
   type AnaOperationRun,
@@ -13,6 +20,7 @@ import {
 import { anaLocationErrors, validateAnaOperationForActivation, type AnaOperationField } from '@/lib/crm/anaOperationValidation';
 import { loadTeamMembers, type TeamMember } from '@/lib/crm/teamMembersRepository';
 import { loadOperationalStatus, setOperationalKillSwitch } from '@/lib/crm/operationalDiagnosticsRepository';
+import { useCurrentAccess } from '@/hooks/useCurrentAccess';
 
 const DAYS = [{ id: 1, label: 'Seg' }, { id: 2, label: 'Ter' }, { id: 3, label: 'Qua' }, { id: 4, label: 'Qui' }, { id: 5, label: 'Sex' }, { id: 6, label: 'Sáb' }, { id: 0, label: 'Dom' }];
 const HANDOFF_STAGES: Array<{ id: AnaHandoffStage; label: string }> = [
@@ -61,8 +69,41 @@ const split = (value: string) => [...new Set(value.split(/[,\n]/).map((item) => 
 const clock = (value: unknown, fallback: string) => typeof value === 'string' ? value.slice(0, 5) : fallback;
 const asId = (value: unknown) => typeof value === 'string' && value ? value : null;
 const formatDate = (value: unknown) => typeof value === 'string' ? new Date(value).toLocaleString('pt-BR') : 'Ainda não executada';
+const existingLeadWorkErrorCopy: Record<string, string> = {
+  existing_lead_work_not_ready: 'A carteira existente ainda não passou pelas proteções necessárias.',
+  existing_lead_work_policy_disabled: 'Ative primeiro a regra de revisão da carteira existente.',
+  existing_lead_work_review_required: 'Este fluxo permanece em revisão humana antes de qualquer acompanhamento.',
+  existing_lead_work_not_eligible: 'Nenhum lead elegível foi encontrado sem expor dados de contato.',
+  existing_lead_followup_not_enabled: 'O acompanhamento automático por mensagem ainda não está liberado nesta etapa.',
+  permission_denied: 'Seu acesso não permite alterar esta regra.',
+};
+const existingLeadWorkReasonCopy: Record<string, string> = {
+  no_eligible_leads: 'Nenhum lead elegível no momento.',
+  policy_disabled: 'A regra da carteira está desativada.',
+  review_required: 'A revisão humana é obrigatória.',
+  inbound_preempted: 'Uma mensagem recebida deu prioridade ao atendimento humano.',
+  preempted_by_inbound: 'Uma mensagem recebida deu prioridade ao atendimento humano.',
+  existing_lead_preempted_by_inbound: 'Uma mensagem recebida deu prioridade ao atendimento humano.',
+  existing_lead_policy_changed: 'A regra foi alterada e este item precisa de uma nova revisão.',
+  ana_existing_lead_scheduler_lease_invalid: 'A seleção automática expirou e será revista com segurança.',
+  existing_lead_whatsapp_channel_required: 'Somente leads autorizados no canal WhatsApp entram nesta revisão.',
+  contact_protected: 'Contatos protegidos permaneceram fora da automação.',
+};
+const existingLeadWorkReason = (code: string | null | undefined) => code ? existingLeadWorkReasonCopy[code] || 'A revisão ficou pendente de uma nova checagem segura.' : null;
+const boundedBatchLimit = (value: number) => Math.min(10, Math.max(1, Math.round(value) || 1));
+const existingLeadWorkStatusCopy: Record<string, string> = {
+  selected: 'Selecionado para validação',
+  queued: 'Em revisão segura',
+  processing: 'Validando proteções',
+  completed: 'Revisão concluída',
+  skipped: 'Sem ação automática',
+  needs_review: 'Requer revisão humana',
+  cancelled: 'Cancelado com segurança',
+  blocked: 'Bloqueado por proteção',
+};
 
 export default function AnaAutomaticOperation() {
+  const { access, loading: accessLoading } = useCurrentAccess();
   const [settings, setSettings] = useState(DEFAULTS);
   const [runs, setRuns] = useState<AnaOperationRun[]>([]);
   const [checks, setChecks] = useState<Record<string, boolean>>({});
@@ -75,11 +116,25 @@ export default function AnaAutomaticOperation() {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<AnaOperationField, string>>>({});
+  const [existingLeadWork, setExistingLeadWork] = useState<AnaExistingLeadWorkSnapshot | null>(null);
+  const [existingLeadWorkSettings, setExistingLeadWorkSettings] = useState<AnaExistingLeadWorkSettings>({ ...DEFAULT_ANA_EXISTING_LEAD_WORK_SETTINGS });
+  const [existingLeadWorkError, setExistingLeadWorkError] = useState('');
 
-  const hydrate = async () => {
+  const applyExistingLeadWork = useCallback((snapshot: AnaExistingLeadWorkSnapshot) => {
+    setExistingLeadWork(snapshot);
+    setExistingLeadWorkSettings({ ...snapshot.settings, batchLimit: boundedBatchLimit(snapshot.settings.batchLimit) });
+    setExistingLeadWorkError('');
+  }, []);
+
+  const hydrate = useCallback(async () => {
     setLoading(true); setError('');
     try {
-      const [snapshot, operational, team] = await Promise.all([loadAnaOperation(), loadOperationalStatus(), loadTeamMembers()]);
+      const [snapshot, operational, team, existingLeadWorkResult] = await Promise.all([
+        loadAnaOperation(),
+        loadOperationalStatus(),
+        loadTeamMembers(),
+        getAnaExistingLeadWork().then((value) => ({ value })).catch(() => ({ value: null })),
+      ]);
       const schedule = snapshot.schedule || {};
       const filters = (schedule.filters && typeof schedule.filters === 'object' ? schedule.filters : {}) as Record<string, unknown>;
       const assignment = schedule.initial_assignment_mode === 'human' || schedule.initial_assignment_mode === 'team' ? schedule.initial_assignment_mode : 'ana';
@@ -105,10 +160,19 @@ export default function AnaAutomaticOperation() {
       setRuns(snapshot.runs); setChecks(snapshot.readiness.checks); setAutomaticReady(snapshot.readiness.automaticReady);
       setKillSwitch(Boolean(operational.killSwitch)); setMembers(team.filter((member) => member.status === 'active'));
       setScheduleTimes({ lastRunAt: asId(schedule.last_run_at), nextRunAt: asId(schedule.next_run_at) });
-    } catch { setError('Não foi possível confirmar a configuração operacional da Ana.'); }
+      if (existingLeadWorkResult.value) applyExistingLeadWork(existingLeadWorkResult.value);
+      else {
+        setExistingLeadWork(null);
+        setExistingLeadWorkError('Não foi possível confirmar a regra da carteira existente. Atualize a leitura antes de alterar ou solicitar revisão.');
+      }
+    } catch {
+      setExistingLeadWork(null);
+      setExistingLeadWorkError('Não foi possível confirmar a regra da carteira existente. Atualize a leitura antes de alterar ou solicitar revisão.');
+      setError('Não foi possível confirmar a configuração operacional da Ana.');
+    }
     finally { setLoading(false); }
-  };
-  useEffect(() => { void hydrate(); }, []);
+  }, [applyExistingLeadWork]);
+  useEffect(() => { void hydrate(); }, [hydrate]);
 
   const readinessItems = useMemo(() => READINESS_ITEMS, []);
   const pendingReadiness = useMemo(() => readinessItems.filter((item) => checks[item.key] !== true), [checks, readinessItems]);
@@ -124,6 +188,59 @@ export default function AnaAutomaticOperation() {
   const changeAssignment = (mode: AnaOperationSettings['initialAssignmentMode']) => {
     update('initialAssignmentMode', mode);
     if (mode !== 'ana') { update('handoffStage', null); update('handoffAssigneeUserId', null); update('handoffNotifyWhatsapp', false); }
+  };
+  const canManageExistingLeadWork = access?.permissions['configuration.manage'] === true;
+  const existingLeadWorkRequestState = getAnaExistingLeadWorkRequestState(existingLeadWorkSettings);
+  const existingLeadWorkLocked = !existingLeadWork || existingLeadWorkRequestState === 'blocked';
+
+  const saveExistingLeadWork = async () => {
+    if (!canManageExistingLeadWork) {
+      setExistingLeadWorkError('Seu acesso não permite alterar esta regra.');
+      return;
+    }
+    if (existingLeadWorkLocked) {
+      setExistingLeadWorkError('O modo de acompanhamento permanece bloqueado até a confirmação das proteções no servidor.');
+      return;
+    }
+    setBusy('existing-lead-work-save'); setExistingLeadWorkError(''); setError(''); setMessage('');
+    try {
+      const result = await saveAnaExistingLeadWork({
+        enabled: existingLeadWorkSettings.enabled,
+        mode: 'review_only',
+        batchLimit: boundedBatchLimit(existingLeadWorkSettings.batchLimit),
+      });
+      applyExistingLeadWork(result);
+      setMessage(result.settings.enabled
+        ? 'Regra de revisão da carteira salva. A Ana não envia mensagens nem aborda contatos neste fluxo.'
+        : 'Regra de revisão da carteira desativada. Nenhum novo lote será solicitado.');
+    } catch (reason) {
+      const code = reason instanceof Error ? reason.message : '';
+      setExistingLeadWorkError(existingLeadWorkErrorCopy[code] || 'Não foi possível confirmar o salvamento da carteira existente. Atualize a leitura antes de repetir.');
+    } finally { setBusy(''); }
+  };
+
+  const requestExistingLeadWork = async () => {
+    if (!canManageExistingLeadWork) {
+      setExistingLeadWorkError('Seu acesso não permite solicitar a revisão da carteira.');
+      return;
+    }
+    if (existingLeadWorkLocked) {
+      setExistingLeadWorkError('A carteira existente precisa ser confirmada no servidor antes de solicitar uma revisão.');
+      return;
+    }
+    if (existingLeadWorkRequestState !== 'review_ready') {
+      setExistingLeadWorkError('Ative e salve a regra de revisão antes de solicitar um lote.');
+      return;
+    }
+    setBusy('existing-lead-work-request'); setExistingLeadWorkError(''); setError(''); setMessage('');
+    try {
+      const result = await requestAnaExistingLeadWork();
+      applyExistingLeadWork(result);
+      setMessage('Solicitação de revisão registrada. A Ana não enviará mensagens, não fará primeiro contato e não exporá a lista no navegador.');
+    } catch (reason) {
+      const code = reason instanceof Error ? reason.message : '';
+      setExistingLeadWorkError(existingLeadWorkErrorCopy[code] || 'Não foi possível confirmar a solicitação. Atualize a leitura antes de repetir.');
+    } finally { setBusy(''); }
   };
 
   const save = async (activate: boolean) => {
@@ -212,6 +329,49 @@ export default function AnaAutomaticOperation() {
       <div className="mt-5 grid gap-3 lg:grid-cols-3">{(Object.keys(MODE_COPY) as AnaOperationMode[]).map((mode) => <button type="button" key={mode} onClick={() => update('mode', mode)} className={`rounded-xl border p-4 text-left ${settings.mode === mode ? 'border-primary-500 bg-primary-50 ring-1 ring-primary-500' : 'border-background-200 bg-white'}`}><i className={`${MODE_COPY[mode].icon} text-xl text-primary-600`} /><strong className="ml-2 text-foreground-900">{MODE_COPY[mode].title}</strong><p className="mt-2 text-sm leading-5 text-foreground-500">{MODE_COPY[mode].text}</p></button>)}</div>
       <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 rounded-lg bg-background-100 p-3 text-sm text-foreground-600"><span><i className="ri-time-line mr-1 text-primary-600" />Próxima: {formatDate(scheduleTimes.nextRunAt)}</span><span><i className="ri-history-line mr-1 text-primary-600" />Última: {formatDate(scheduleTimes.lastRunAt)}</span><span className={settings.enabled ? 'text-primary-700' : 'text-foreground-600'}><i className={`${settings.enabled ? 'ri-checkbox-circle-fill' : 'ri-draft-line'} mr-1`} />{settings.enabled ? 'Rotina ativa' : 'Rascunho inativo'}</span></div>
       {settings.mode === 'automatic' && !automaticReady && <div className="mt-4 flex flex-col gap-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950 sm:flex-row sm:items-center sm:justify-between"><div><strong className="block">{pendingReadiness.length} {pendingReadiness.length === 1 ? 'pendência impede' : 'pendências impedem'} a ativação</strong><span className="mt-0.5 block text-xs leading-5 text-amber-800">{pendingReadiness.map((item) => item.label).join(' · ')}</span></div>{pendingReadiness[0] && <button type="button" onClick={() => focusReadiness(pendingReadiness[0].key)} className="shrink-0 rounded-lg border border-amber-400 bg-white px-3 py-2 text-xs font-semibold text-amber-900">Ver o que falta</button>}</div>}
+    </section>
+
+    <section className="wf-surface p-5" aria-labelledby="ana-existing-lead-work-title">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="wf-eyebrow">Carteira existente · revisão segura</p>
+          <h3 id="ana-existing-lead-work-title" className="mt-1 font-semibold text-foreground-900">Ana na carteira já cadastrada</h3>
+          <p className="mt-1 max-w-3xl text-sm leading-5 text-foreground-500">Separado da prospecção Apify. A Ana pode preparar no máximo 10 leads já elegíveis para revisão, sem buscar novos leads, enviar mensagens, fazer primeiro contato ou expor contatos no navegador.</p>
+        </div>
+        <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${existingLeadWorkRequestState === 'review_ready' ? 'bg-primary-50 text-primary-800' : existingLeadWorkRequestState === 'blocked' ? 'bg-amber-100 text-amber-900' : 'bg-background-100 text-foreground-600'}`}>
+          {existingLeadWorkRequestState === 'review_ready' ? 'Revisão disponível' : existingLeadWorkRequestState === 'blocked' ? 'Proteção pendente' : 'Desativada'}
+        </span>
+      </div>
+      {existingLeadWorkError && <p className="mt-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900" role="status">{existingLeadWorkError}</p>}
+      {!existingLeadWork && !existingLeadWorkError && <p className="mt-4 text-sm text-foreground-500">Conferindo a regra e a fila da carteira existente…</p>}
+      {existingLeadWork && <>
+        <div className="mt-4 grid gap-3 lg:grid-cols-[1.15fr_.85fr]">
+          <div className="rounded-xl border border-background-200 bg-background-100/40 p-4">
+            <label className="flex items-start gap-2 text-sm text-foreground-800">
+              <input className="mt-0.5" type="checkbox" checked={existingLeadWorkSettings.enabled} disabled={!canManageExistingLeadWork || accessLoading || Boolean(busy) || existingLeadWorkLocked} onChange={(event) => setExistingLeadWorkSettings((current) => ({ ...current, enabled: event.target.checked }))} />
+              <span><strong>Permitir revisão da carteira existente</strong><span className="mt-0.5 block text-xs leading-5 text-foreground-500">A regra apenas autoriza a seleção protegida no servidor. Ela não libera abordagem automática.</span></span>
+            </label>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <label className="text-sm text-foreground-800">Máximo por solicitação<input className="mt-1 w-full" type="number" min="1" max="10" value={existingLeadWorkSettings.batchLimit} disabled={!canManageExistingLeadWork || accessLoading || Boolean(busy) || existingLeadWorkLocked} onChange={(event) => setExistingLeadWorkSettings((current) => ({ ...current, batchLimit: boundedBatchLimit(Number(event.target.value)) }))} /></label>
+              <div className="rounded-lg border border-primary-100 bg-primary-50/60 p-3 text-sm text-primary-900"><strong>Modo fixo: revisão humana</strong><span className="mt-1 block text-xs leading-5 text-primary-800">Acompanhamento aprovado continua indisponível nesta tela até a validação completa do backend.</span></div>
+            </div>
+            {existingLeadWorkSettings.mode === 'approved_followup' && <p className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs leading-5 text-amber-900">O servidor informou um modo que esta tela ainda não libera. Nenhuma solicitação será aceita até a regra voltar para revisão humana e as proteções forem confirmadas.</p>}
+            {!canManageExistingLeadWork && !accessLoading && <p className="mt-3 text-xs text-foreground-500">Seu acesso permite consultar o estado, mas não alterar a regra.</p>}
+          </div>
+          <div className="rounded-xl border border-background-200 p-4">
+            <h4 className="text-sm font-semibold text-foreground-900">Estado agregado</h4>
+            <dl className="mt-3 grid grid-cols-2 gap-3 text-sm"><div><dt className="text-foreground-500">Elegíveis agora</dt><dd className="mt-0.5 font-semibold text-foreground-900">{existingLeadWork.eligibleCount}</dd></div><div><dt className="text-foreground-500">Na fila</dt><dd className="mt-0.5 font-semibold text-foreground-900">{existingLeadWork.queuedCount}</dd></div><div className="col-span-2"><dt className="text-foreground-500">Próxima checagem</dt><dd className="mt-0.5 font-medium text-foreground-900">{formatDate(existingLeadWork.nextRunAt)}</dd></div></dl>
+          </div>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-3">
+          <button type="button" onClick={() => void saveExistingLeadWork()} disabled={!canManageExistingLeadWork || accessLoading || Boolean(busy) || existingLeadWorkLocked} className="rounded-lg border border-background-300 px-4 py-2 text-sm font-semibold text-foreground-800 disabled:cursor-not-allowed disabled:opacity-60">{busy === 'existing-lead-work-save' ? 'Salvando…' : 'Salvar regra de revisão'}</button>
+          <button type="button" onClick={() => void requestExistingLeadWork()} disabled={!canManageExistingLeadWork || accessLoading || Boolean(busy) || existingLeadWorkRequestState !== 'review_ready'} className="rounded-lg border border-primary-300 bg-primary-50 px-4 py-2 text-sm font-semibold text-primary-800 disabled:cursor-not-allowed disabled:opacity-60">{busy === 'existing-lead-work-request' ? 'Solicitando…' : 'Solicitar lote de revisão'}</button>
+        </div>
+        <div className="mt-4 rounded-xl border border-background-200 bg-background-100/40 p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3"><div><h4 className="text-sm font-semibold text-foreground-900">Última solicitação</h4><p className="mt-1 text-xs leading-5 text-foreground-500">Somente contagens e razões seguras ficam visíveis aqui.</p></div>{existingLeadWork.latestBatch && <span className="rounded-full bg-background-100 px-2.5 py-1 text-xs font-semibold text-foreground-700">{existingLeadWorkStatusCopy[existingLeadWork.latestBatch.status] || 'Em revisão'}</span>}</div>
+          {existingLeadWork.latestBatch ? <><div className="mt-3 grid gap-3 text-sm sm:grid-cols-5"><div><span className="block text-foreground-500">Candidatos</span><strong className="text-foreground-900">{existingLeadWork.latestBatch.candidateCount}</strong></div><div><span className="block text-foreground-500">Na fila</span><strong className="text-foreground-900">{existingLeadWork.latestBatch.queuedCount}</strong></div><div><span className="block text-foreground-500">Concluídos</span><strong className="text-foreground-900">{existingLeadWork.latestBatch.completedCount}</strong></div><div><span className="block text-foreground-500">Ignorados</span><strong className="text-foreground-900">{existingLeadWork.latestBatch.skippedCount}</strong></div><div><span className="block text-foreground-500">Para revisão</span><strong className="text-foreground-900">{existingLeadWork.latestBatch.reviewCount}</strong></div></div><p className="mt-3 text-xs text-foreground-500">Solicitada: {formatDate(existingLeadWork.latestBatch.requestedAt)}</p>{existingLeadWorkReason(existingLeadWork.latestBatch.reviewReason || existingLeadWork.latestBatch.errorCode) && <p className="mt-3 rounded-lg bg-amber-50 p-3 text-xs text-amber-900">{existingLeadWorkReason(existingLeadWork.latestBatch.reviewReason || existingLeadWork.latestBatch.errorCode)}</p>}</> : <p className="mt-3 text-sm text-foreground-500">Nenhuma solicitação de revisão foi registrada.</p>}
+        </div>
+      </>}
     </section>
 
     <section className="grid gap-5 xl:grid-cols-[1.35fr_.65fr]">

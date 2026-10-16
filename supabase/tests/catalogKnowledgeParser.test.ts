@@ -1,11 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { catalogItemTraceUrl, extractCatalogKnowledgeItems, extractWayflexSegmentSnapshotItems, extractWayflexSpaBundleItems, type CatalogKnowledgeSourceDefinition } from '../functions/_shared/catalogKnowledgeParser';
+import { catalogItemTraceUrl, extractCatalogKnowledgeItems, extractWayflexSegmentSnapshotItems, extractWayflexSpaBundleItems, mergeImportedApplications, type CatalogKnowledgeSourceDefinition } from '../functions/_shared/catalogKnowledgeParser';
 
 const productSource: CatalogKnowledgeSourceDefinition = {
   url: 'https://wayflex.ind.br/acessorios', itemType: 'product', scope: 'products', name: 'Wayflex — Produtos e acessórios',
 };
 
 describe('catalogKnowledgeParser', () => {
+  it('preserva aplicações enriquecidas pelo usuário quando a fonte pública não informa aplicações', () => {
+    expect(mergeImportedApplications([], ['Indústria naval'])).toEqual(['Indústria naval']);
+    expect(mergeImportedApplications(['Refrigeração'], ['Indústria naval'])).toEqual(['Refrigeração']);
+    expect(mergeImportedApplications([], null)).toEqual([]);
+  });
   it('imports product cards without relying on DOMParser', () => {
     const items = extractCatalogKnowledgeItems(`
       <main><h1>Acessórios</h1><article class="product-card"><h2>Perfil de borracha</h2>

@@ -7,6 +7,8 @@ describe('seletor de APIs da Busca de Leads', () => {
     const page = readFileSync(resolve('src/pages/dashboard/busca-leads/page.tsx'), 'utf8');
 
     expect(page).toContain('void recarregarFontes()');
+    expect(page).toContain("window.addEventListener('focus', atualizarCatalogoAoRetomar)");
+    expect(page).toContain("window.removeEventListener('focus', atualizarCatalogoAoRetomar)");
     expect(page).toContain('aria-label="Fonte da busca"');
     expect(page).toContain('fontesDisponiveis.some');
     expect(page).toContain('Fonte selecionada:');

@@ -44,6 +44,11 @@ describe('leadMapper', () => {
     expect(row).toMatchObject({ contact_approval_status: 'pending', automation_status: 'pending_approval', opt_out: false, whatsapp: null });
   });
 
+  it('usa telefone normalizado como identidade forte quando o CSV ainda não tem WhatsApp aprovado', () => {
+    const row = leadToCrmRow({ ...lead, cnpj: '', email: '', whatsapp: '', telefone: '(11) 99999-0000' }, '22222222-2222-4222-8222-222222222222');
+    expect(row.deduplication_key).toBe('phone:5511999990000');
+  });
+
   it('persiste pontuação explicável e origem rastreável', () => {
     const row = leadToCrmRow({ ...lead, fitScore: 84, contactabilityScore: 55, engagementScore: 0, sourceRecordId: 'place-123', sourceUrl: 'https://example.invalid/place', scoreExplanation: 'atividade e região compatíveis' }, '22222222-2222-4222-8222-222222222222');
     expect(row).toMatchObject({ source_record_id: 'place-123', score_snapshot: { fit: 84, contactability: 55, engagement: 0 }, score_explanation: 'atividade e região compatíveis' });

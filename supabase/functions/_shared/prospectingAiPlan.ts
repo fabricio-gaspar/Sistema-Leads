@@ -52,6 +52,13 @@ function terms(value: unknown, fallback: string[]): string[] {
   return normalized.length ? normalized : fallback;
 }
 
+function selectedCustomerSegments(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value.filter((item): item is string => typeof item === 'string')
+    .map((item) => item.trim().replace(/\s+/g, ' '))
+    .filter((item) => item.length > 0 && item.length <= 120))].slice(0, 20);
+}
+
 export function normalizeProspectingAiFilters(input: unknown, fallback: ProspectingAiFilters): ProspectingAiPlan {
   const raw = record(input);
   const state = text(raw.state, fallback.state, 2).toUpperCase();
@@ -59,7 +66,7 @@ export function normalizeProspectingAiFilters(input: unknown, fallback: Prospect
     ? raw.targetProfile as ProspectingTargetProfile
     : fallback.targetProfile;
   const selectedSegments = Array.isArray(raw.customerSegments)
-    ? [...new Set(raw.customerSegments.filter((item): item is string => typeof item === 'string').map((item) => item.trim()).filter((item) => CUSTOMER_SEGMENTS.has(item)))].slice(0, 5)
+    ? selectedCustomerSegments(raw.customerSegments).filter((item) => CUSTOMER_SEGMENTS.has(item) || fallback.customerSegments.includes(item))
     : fallback.customerSegments;
 
   return {
@@ -81,7 +88,7 @@ export function normalizeProspectingAiFilters(input: unknown, fallback: Prospect
 export function currentProspectingAiFilters(value: unknown): ProspectingAiFilters {
   const raw = record(value);
   return normalizeProspectingAiFilters(raw, {
-    city: '', state: 'SP', offer: '', targetProfile: 'potential_customers', customerSegments: [], terms: [], volume: 10,
+    city: '', state: 'SP', offer: '', targetProfile: 'potential_customers', customerSegments: selectedCustomerSegments(raw.customerSegments), terms: [], volume: 10,
     requireSite: false, requireWhatsApp: false, requireEmail: false,
   });
 }
@@ -97,4 +104,17 @@ export function companyProspectingContext(value: unknown): Record<string, string
     description: text(company.description, text(ui.publico, '', 500), 500),
     city: text(company.city, text(ui.regiao, '', 120), 120),
   };
+}
+
+/** Only a currently active offer from an enabled knowledge source may guide buyer suggestions. */
+export function catalogProspectingContext(value: unknown, sourceEnabled: boolean): { name: string; category: string; description: string; applications: string[] } | null {
+  const item = record(value);
+  if (!sourceEnabled || item.status !== 'active' || !['product', 'service'].includes(String(item.item_type))) return null;
+  const name = text(item.name, '', 160);
+  if (!name) return null;
+  const applications = Array.isArray(item.applications)
+    ? item.applications.filter((entry): entry is string => typeof entry === 'string')
+      .map((entry) => text(entry, '', 100)).filter(Boolean).slice(0, 8)
+    : [];
+  return { name, category: text(item.category, '', 120), description: text(item.short_description, '', 500), applications };
 }

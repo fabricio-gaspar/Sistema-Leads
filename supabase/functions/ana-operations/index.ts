@@ -5,7 +5,11 @@ import { resolveWaAkgOperational } from '../_shared/waAkgOperational.ts';
 
 type OperationMode = 'simulation' | 'supervised' | 'automatic';
 type InitialAssignmentMode = 'ana' | 'human' | 'team';
-const ACTIONS = new Set(['get', 'save', 'set_automatic', 'simulate', 'run_now', 'approve_run']);
+const ACTIONS = new Set([
+  'get', 'save', 'set_automatic', 'simulate', 'run_now', 'approve_run',
+  // Existing-lead work is deliberately separate from paid Apify prospecting.
+  'get_existing_lead_work', 'save_existing_lead_work_policy', 'request_existing_lead_work',
+]);
 const HANDOFF_STAGES = new Set(['novo', 'apresentado', 'qualificando', 'reuniao', 'orcamento']);
 const asObject = (value: unknown): Record<string, unknown> => value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {};
 const asText = (value: unknown, max = 1_000) => typeof value === 'string' ? value.trim().slice(0, max) : '';
@@ -20,6 +24,32 @@ const isUuid = (value: unknown): value is string => typeof value === 'string' &&
 const uuidList = (value: unknown, max = 30) => Array.isArray(value)
   ? [...new Set(value.filter(isUuid))].slice(0, max)
   : [];
+
+type ExistingLeadWorkMode = 'review_only' | 'approved_followup';
+function normalizeExistingLeadWorkSettings(value: unknown) {
+  const source = asObject(value);
+  const rawMode = asText(source.mode, 40);
+  // The portfolio selector is intentionally review-only in this release.
+  // A changed browser payload must never silently enable an outbound path.
+  if (rawMode === 'approved_followup') throw new Error('existing_lead_followup_not_enabled');
+  const mode: ExistingLeadWorkMode = 'review_only';
+  return {
+    enabled: source.enabled === true,
+    mode,
+    batchLimit: bounded(source.batchLimit, 10, 1, 10),
+  };
+}
+
+async function existingLeadWorkSnapshot(
+  admin: ReturnType<typeof createAdminClient>,
+  organizationId: string,
+) {
+  const { data, error } = await admin.rpc('get_ana_existing_lead_work_snapshot', {
+    p_organization_id: organizationId,
+  });
+  if (error || !data) throw error ?? new Error('existing_lead_work_snapshot_failed');
+  return data;
+}
 
 function validTimezone(value: unknown): string {
   const timezone = asText(value, 80) || 'America/Sao_Paulo';
@@ -219,6 +249,13 @@ Deno.serve(async (request) => {
     const organizationId = profile.active_organization_id as string;
     await requireOrganizationRole(admin, user.id, organizationId, ['owner','admin','manager','seller','sdr']);
 
+    if (action === 'get_existing_lead_work') {
+      // The RPC is service-only and returns only aggregate, tenant-scoped
+      // state.  Candidate identities never cross this control boundary.
+      const snapshot = await existingLeadWorkSnapshot(admin, organizationId);
+      return json({ ok: true, ...asObject(snapshot) }, 200, headers);
+    }
+
     if (action === 'get') {
       const [{ data: company }, { data: schedule }, { data: runs }, { data: preference }, operationReadiness] = await Promise.all([
         admin.from('company_settings').select('ana_operation_enabled,ana_operation_mode').eq('organization_id', organizationId).maybeSingle(),
@@ -231,6 +268,58 @@ Deno.serve(async (request) => {
     }
 
     await requireOrganizationPermission(admin, organizationId, user.id, 'configuration.manage');
+    if (action === 'save_existing_lead_work_policy') {
+      const settings = normalizeExistingLeadWorkSettings(body.settings);
+      const { data: snapshot, error } = await admin.rpc('save_ana_existing_lead_work_policy', {
+        p_organization_id: organizationId,
+        p_actor_id: user.id,
+        p_enabled: settings.enabled,
+        p_mode: settings.mode,
+        p_batch_limit: settings.batchLimit,
+      });
+      if (error || !snapshot) throw error ?? new Error('existing_lead_work_policy_not_saved');
+      await admin.from('audit_logs').insert({
+        organization_id: organizationId,
+        actor_id: user.id,
+        actor_name: profile.name,
+        actor_type: 'user',
+        action: 'ana.existing_lead_work_policy_saved',
+        detail: 'A política da carteira existente da Ana foi atualizada.',
+        entity_table: 'ana_existing_lead_policies',
+        entity_id: organizationId,
+        event_data: { enabled: settings.enabled, mode: settings.mode, batch_limit: settings.batchLimit },
+      });
+      return json({ ok: true, ...asObject(snapshot) }, 200, headers);
+    }
+    if (action === 'request_existing_lead_work') {
+      // The browser cannot nominate leads.  The server reserves a small,
+      // policy-filtered portfolio with an opaque request key instead.
+      const { data: batch, error } = await admin.rpc('reserve_existing_leads_for_ana', {
+        p_organization_id: organizationId,
+        p_requested_by: user.id,
+        p_request_key: `ui:${user.id}:${crypto.randomUUID()}`,
+        p_requested_limit: null,
+        p_scheduler_lease_id: null,
+      });
+      if (error || !batch) throw error ?? new Error('existing_lead_work_request_failed');
+      const snapshot = await existingLeadWorkSnapshot(admin, organizationId);
+      await admin.from('audit_logs').insert({
+        organization_id: organizationId,
+        actor_id: user.id,
+        actor_name: profile.name,
+        actor_type: 'user',
+        action: 'ana.existing_lead_work_requested',
+        detail: 'Uma rodada protegida da carteira existente foi solicitada.',
+        entity_table: 'ana_existing_lead_batches',
+        entity_id: typeof asObject(batch).batch_id === 'string' ? asObject(batch).batch_id as string : null,
+        event_data: {
+          candidate_count: Number(asObject(batch).candidate_count ?? 0),
+          queued_count: Number(asObject(batch).queued_count ?? 0),
+          review_count: Number(asObject(batch).review_count ?? 0),
+        },
+      });
+      return json({ ok: true, ...asObject(snapshot) }, 200, headers);
+    }
     if (action === 'set_automatic') {
       const enabled = body.enabled === true;
       const [{ data: schedule, error: scheduleError }, operationReadiness] = await Promise.all([

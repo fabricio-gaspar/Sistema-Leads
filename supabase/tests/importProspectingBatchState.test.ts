@@ -8,6 +8,11 @@ const migration = readFileSync(
   'utf8',
 );
 
+const hardenedCsvMigration = readFileSync(
+  new URL('../migrations/20261015160000_harden_prospecting_csv_import_dedupe.sql', import.meta.url),
+  'utf8',
+);
+
 const lead = {
   id: '11111111-1111-4111-8111-111111111111',
   nome: 'Contato de teste', empresa: 'Empresa de teste', cnpj: '', email: '', telefone: '', whatsapp: '',
@@ -29,5 +34,26 @@ describe('import_prospecting_batch — contrato do estado', () => {
     expect(migration).toContain("raise exception 'prospecting_import_invalid_lead_fields' using errcode = '22023'");
     expect(migration).toContain('revoke all on function public.import_prospecting_batch(uuid, jsonb, text, jsonb) from public, anon');
     expect(migration).toContain('grant execute on function public.import_prospecting_batch(uuid, jsonb, text, jsonb) to authenticated');
+  });
+
+  it('não revela nem vincula uma colisão de identidade fora da carteira do autor', () => {
+    const reserveFunction = hardenedCsvMigration.slice(
+      hardenedCsvMigration.indexOf('create or replace function private.reserve_prospecting_import_identity'),
+      hardenedCsvMigration.indexOf('revoke all on function private.reserve_prospecting_import_identity'),
+    );
+    const membershipWrite = hardenedCsvMigration.indexOf('insert into public.lead_list_members');
+    const accessFence = hardenedCsvMigration.indexOf('private.can_access_lead(p_organization_id, v_lead_id, v_actor)');
+
+    expect(reserveFunction).toContain("raise exception 'prospecting_import_identity_conflict' using errcode = '42501'");
+    expect(accessFence).toBeGreaterThan(-1);
+    expect(accessFence).toBeLessThan(membershipWrite);
+  });
+
+  it('adia a FK da reserva e calcula a identidade forte no servidor', () => {
+    expect(hardenedCsvMigration).toContain('on delete cascade deferrable initially deferred');
+    expect(hardenedCsvMigration).toContain('v_whatsapp_identity := public.normalize_phone_identity(v_lead.whatsapp)');
+    expect(hardenedCsvMigration).toContain('v_phone_identity := public.normalize_phone_identity(v_lead.phone)');
+    expect(hardenedCsvMigration).toContain('v_lead.deduplication_key := v_identity_key');
+    expect(hardenedCsvMigration).toContain('v_identity_key,');
   });
 });

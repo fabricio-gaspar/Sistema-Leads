@@ -1788,14 +1788,63 @@ async function processAnaOperations(admin: Admin, organizationId: string, schedu
 }
 
 // The scheduler is the recovery path for Ana jobs whose original webhook
-// request ended early. Each call claims at most one leased job, preserving the
-// FIFO barrier per lead established by the database.
+// request ended early. A proactive existing-lead selection never takes more
+// than one queue slot in a worker tick; fresh inbound work stays first.
 async function drainAnaQueue(admin: ReturnType<typeof createAdminClient>, limit = 12) {
   const results: Array<Record<string, unknown>> = [];
   for (let count = 0; count < limit; count += 1) {
     const result = await processNextAnaJob(admin);
     if (result.idle === true) break;
     results.push(result);
+    if (result.event === 'existing_lead.selected') break;
+  }
+  return { processed: results.length, results };
+}
+
+// This scheduler path never receives lead identifiers from the browser and
+// never calls a paid search source. It merely reserves one policy batch; the
+// database applies every contact, owner, WA-AKG and protection fence again.
+async function processExistingLeadWork(
+  admin: ReturnType<typeof createAdminClient>,
+  organizationId: string,
+  limit = 1,
+) {
+  const maximumPolicies = Math.min(1, Math.max(1, limit));
+  const results: Array<Record<string, unknown>> = [];
+  for (let index = 0; index < maximumPolicies; index += 1) {
+    const { data: claimData, error: claimError } = await admin.rpc('claim_due_existing_lead_policy', {
+      p_organization_id: organizationId,
+    });
+    if (claimError) throw new Error('existing_lead_policy_claim_failed');
+    const claim = asObject(claimData);
+    const leaseId = asText(claim.lease_id, 80);
+    if (!leaseId || !isUuid(leaseId)) break;
+    const batchLimit = boundedInteger(claim.batch_limit, 10, 1, 10);
+    const requestKey = `scheduler:${asText(claim.policy_version, 30) || '1'}:${leaseId}`;
+    const { data: reservationData, error: reservationError } = await admin.rpc('reserve_existing_leads_for_ana', {
+      p_organization_id: organizationId,
+      p_requested_by: null,
+      p_request_key: requestKey,
+      p_requested_limit: batchLimit,
+      p_scheduler_lease_id: leaseId,
+    });
+    if (reservationError) {
+      // Keep the lease until it expires. Retrying a partially observed reserve
+      // is safer than advancing the schedule without a durable outcome.
+      throw new Error('existing_lead_policy_reservation_failed');
+    }
+    const { data: finished, error: finishError } = await admin.rpc('finish_due_existing_lead_policy', {
+      p_organization_id: organizationId,
+      p_lease_id: leaseId,
+    });
+    if (finishError || finished !== true) throw new Error('existing_lead_policy_finish_failed');
+    const reservation = asObject(reservationData);
+    results.push({
+      status: asText(reservation.status, 40) || 'reserved',
+      candidate_count: Number(reservation.candidate_count ?? 0),
+      queued_count: Number(reservation.queued_count ?? 0),
+      review_count: Number(reservation.review_count ?? 0),
+    });
   }
   return { processed: results.length, results };
 }
@@ -1925,31 +1974,17 @@ Deno.serve(async (request) => {
         .eq("organization_id", orgId);
       if (error) throw new Error("scheduler_heartbeat_persist_failed");
     }
+    // Start every automatic path as an inert result. The real/company gates
+    // below must pass before the worker may create a batch, drain Ana, or
+    // send a report. This is especially important for the existing-lead
+    // selector: a sandbox or inactive company may not reserve real work.
     let reconciledProviderAcceptances = 0;
-    if (serverScheduler) {
-      const { data: reconciled, error: reconciliationError } = await admin.rpc(
-        "reconcile_provider_accepted_outreach",
-        { p_organization_id: orgId, p_limit: 100 },
-      );
-      if (reconciliationError)
-        throw new Error("provider_acceptance_reconciliation_failed");
-      reconciledProviderAcceptances = Number(reconciled ?? 0);
-    }
-    const knowledgeMaintenance = serverScheduler
-      ? await maintainKnowledgeEmbeddings(admin, orgId)
-      : { processed: 0, remaining: 0, status: "manual_skip" };
-    const anaOperations = serverScheduler && schedulerToken
-      ? await processAnaOperations(admin, orgId, schedulerToken)
-      : { status: 'manual_skip', digest_created: 0 };
-    const anaQueue = serverScheduler && (body.run === 'all' || body.run === 'outreach')
-      ? await drainAnaQueue(admin)
-      : { processed: 0, results: [], status: 'manual_skip' };
-    const dailyWhatsappReports = serverScheduler
-      ? await processDailyWhatsappReports(admin, orgId)
-      : { status: 'manual_skip', due: 0, sent: 0, failed: 0, reconciliationRequired: 0 };
-    const handoffWhatsappNotifications = serverScheduler
-      ? await processHandoffWhatsappNotifications(admin, orgId)
-      : { status: 'manual_skip', queued: 0, sent: 0, failed: 0, reconciliationRequired: 0 };
+    let knowledgeMaintenance: Record<string, unknown> = { processed: 0, remaining: 0, status: "manual_skip" };
+    let anaOperations: Record<string, unknown> = { status: 'manual_skip', digest_created: 0 };
+    let existingLeadWork: Record<string, unknown> = { processed: 0, results: [], status: 'manual_skip' };
+    let anaQueue: Record<string, unknown> = { processed: 0, results: [], status: 'manual_skip' };
+    let dailyWhatsappReports: Record<string, unknown> = { status: 'manual_skip', due: 0, sent: 0, failed: 0, reconciliationRequired: 0 };
+    let handoffWhatsappNotifications: Record<string, unknown> = { status: 'manual_skip', queued: 0, sent: 0, failed: 0, reconciliationRequired: 0 };
     let waAkgQueues: Record<string, unknown> = { status: 'manual_skip' };
     const blocked =
       reads[0].data?.active !== true ? "company_not_active" : null;
@@ -2010,10 +2045,35 @@ Deno.serve(async (request) => {
           headers,
         );
     }
+    if (serverScheduler) {
+      const { data: reconciled, error: reconciliationError } = await admin.rpc(
+        "reconcile_provider_accepted_outreach",
+        { p_organization_id: orgId, p_limit: 100 },
+      );
+      if (reconciliationError)
+        throw new Error("provider_acceptance_reconciliation_failed");
+      reconciledProviderAcceptances = Number(reconciled ?? 0);
+    }
+    // A controlled sandbox run can exercise its explicitly marked outbound
+    // job below, but it never starts generic Ana work or scheduled follow-up.
+    if (serverScheduler && reads[0].data?.sandbox_mode !== true) {
+      knowledgeMaintenance = await maintainKnowledgeEmbeddings(admin, orgId);
+      anaOperations = schedulerToken
+        ? await processAnaOperations(admin, orgId, schedulerToken)
+        : { status: 'manual_skip', digest_created: 0 };
+      existingLeadWork = (body.run === 'all' || body.run === 'outreach')
+        ? await processExistingLeadWork(admin, orgId, 1)
+        : { processed: 0, results: [], status: 'manual_skip' };
+      anaQueue = (body.run === 'all' || body.run === 'outreach')
+        ? await drainAnaQueue(admin)
+        : { processed: 0, results: [], status: 'manual_skip' };
+      dailyWhatsappReports = await processDailyWhatsappReports(admin, orgId);
+      handoffWhatsappNotifications = await processHandoffWhatsappNotifications(admin, orgId);
+    }
     // Do not wake any external connector in sandbox or while the company is
     // inactive. WA-AKG consumes only after the same real-mode gate used by the
     // canonical outbound queue has passed.
-    if (serverScheduler) waAkgQueues = await processWaAkgQueues(orgId);
+    if (serverScheduler && reads[0].data?.sandbox_mode !== true) waAkgQueues = await processWaAkgQueues(orgId);
     const since = new Date(Date.now() - 86400000).toISOString();
     const [
       { count: sent },
@@ -2950,6 +3010,7 @@ Deno.serve(async (request) => {
         knowledge_embeddings: knowledgeMaintenance,
         reconciled_provider_acceptances: reconciledProviderAcceptances,
         ana_operations: anaOperations,
+        existing_lead_work: existingLeadWork,
         ana_queue: anaQueue,
         daily_whatsapp_reports: dailyWhatsappReports,
         handoff_whatsapp_notifications: handoffWhatsappNotifications,

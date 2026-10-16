@@ -10,7 +10,7 @@ import { validatedAnaMeetingRequest as meetingRequest } from '../_shared/anaMeet
 import { knowledgeUsage } from '../_shared/commercialCatalogPolicy.ts';
 import { callFreeLlm } from '../_shared/freellm.ts';
 
-const EVENTS = new Set(['lead.created', 'message.received', 'stage.changed', 'meeting.done', 'timeout.48h', 'manual.run', 'cadence.followup']);
+const EVENTS = new Set(['lead.created', 'message.received', 'stage.changed', 'meeting.done', 'timeout.48h', 'manual.run', 'cadence.followup', 'existing_lead.selected']);
 const MODES = new Set(['ia', 'humano']);
 const STAGES = ['novo', 'apresentado', 'qualificando', 'reuniao', 'orcamento', 'fechado'] as const;
 type AnaStage = (typeof STAGES)[number];
@@ -730,7 +730,9 @@ Deno.serve(async (request) => {
 
     admin = createAdminClient();
     const internal = await isAuthenticatedInternalRequest(admin, request, body);
-    if (event === 'cadence.followup' && !internal) throw new Error('ana_cadence_internal_only');
+    if ((event === 'cadence.followup' || event === 'existing_lead.selected') && !internal) {
+      throw new Error('ana_internal_event_only');
+    }
     let actorId: string | null = null;
     let actorName = 'Ana';
     if (internal) {
@@ -771,6 +773,9 @@ Deno.serve(async (request) => {
     const modo = mode as AnaMode;
     const currentStage = (lead.ana_stage || 'novo') as AnaStage;
     const executionContext = asObject(body.contexto);
+    const existingLeadBatchItemId = event === 'existing_lead.selected'
+      ? asText(executionContext.existing_lead_batch_item_id, 80)
+      : '';
     const requestedDryRun = executionContext.dry_run === true || canonicalChannel(body.channel) === 'demo';
     if (event === 'timeout.48h') {
       // Existing cron owns a transactional lock + handoff + task. Do not race it here.
@@ -789,6 +794,9 @@ Deno.serve(async (request) => {
     if (Boolean(requestedJobId) !== Boolean(requestedJobLeaseId) || (requestedJobId && (!internal || !isUuid(requestedJobId) || !isUuid(requestedJobLeaseId)))) {
       throw new Error('ana_job_context_invalid');
     }
+    if (event === 'existing_lead.selected' && (!isUuid(existingLeadBatchItemId) || !requestedJobId || !requestedJobLeaseId)) {
+      throw new Error('ana_existing_lead_job_context_required');
+    }
     if (requestedJobId) {
       const { data: jobData, error: jobError } = await admin.rpc('validate_ana_job_lease', {
         p_job_id: requestedJobId, p_lease_id: requestedJobLeaseId,
@@ -796,11 +804,27 @@ Deno.serve(async (request) => {
       const job = asObject(jobData);
       if (jobError || job.organization_id !== organizationId || job.lead_id !== leadId
         || job.event !== event || job.modo !== modo || job.request_id !== requestId
-        || (messageId && job.source_message_id !== messageId)) {
+        || (messageId && job.source_message_id !== messageId)
+        || (event === 'existing_lead.selected' && job.existing_lead_batch_item_id !== existingLeadBatchItemId)) {
         throw new Error('ana_job_lease_invalid');
       }
       anaJobId = requestedJobId;
     }
+    const existingLeadWorkAllowed = async (): Promise<{ allowed: boolean; reason: string }> => {
+      if (event !== 'existing_lead.selected') return { allowed: true, reason: '' };
+      const { data, error } = await admin.rpc('assert_existing_lead_work_allowed', {
+        p_organization_id: organizationId,
+        p_item_id: existingLeadBatchItemId,
+        p_job_id: requestedJobId,
+        p_lease_id: requestedJobLeaseId,
+      });
+      const result = asObject(data);
+      if (error) throw new Error('ana_existing_lead_fence_read_failed');
+      return {
+        allowed: result.allowed === true,
+        reason: asText(result.reason, 120) || 'ana_existing_lead_fence_blocked',
+      };
+    };
     const idempotencyKey = `${requestedDryRun ? 'simulation:' : ''}${anaEventKey(event, leadId, messageId, requestId)}`;
 
     const { data: previousRun, error: previousError } = await admin.from('agent_runs').select('id,status,result,error_code,error_message,retryable,lease_id,lease_expires_at,attempt_count')
@@ -828,6 +852,7 @@ Deno.serve(async (request) => {
       const { data: run, error: runError } = await admin.from('agent_runs').insert({
         organization_id: organizationId, lead_id: leadId, actor_id: actorId, event, modo, status: 'running',
         input_context: executionContext, idempotency_key: idempotencyKey,
+        existing_lead_batch_item_id: existingLeadBatchItemId || null,
         attempt_count: 1, lease_id: requestedJobLeaseId || null,
         lease_expires_at: requestedJobLeaseId ? new Date(Date.now() + 60_000).toISOString() : null,
       }).select('id').single();
@@ -844,6 +869,23 @@ Deno.serve(async (request) => {
     }
     if (!runId) throw new Error('agent_run_not_created');
     const confirmedRunId = runId;
+
+    const existingLeadFence = await existingLeadWorkAllowed();
+    if (!existingLeadFence.allowed) {
+      const result = {
+        skipped: true,
+        reason: existingLeadFence.reason,
+        status_canal: 'carteira_existente_bloqueada',
+        mensagem_sugerida: '',
+        acoes: [],
+      };
+      const { error } = await admin.from('agent_runs').update({
+        status: 'skipped', result, retryable: false, lease_id: null,
+        lease_expires_at: null, completed_at: new Date().toISOString(),
+      }).eq('id', runId).eq('organization_id', organizationId);
+      if (error) throw error;
+      return json({ ok: true, run_id: runId, ...result }, 200, headers);
+    }
 
     const activeChannel = canonicalChannel(lead.active_channel);
     let whatsappAccount: Record<string, unknown> | null = null;
@@ -1062,6 +1104,8 @@ Deno.serve(async (request) => {
       companyOperationMode: company?.ana_operation_mode, requiresApprovedContact: event !== 'message.received',
     };
     const assertEffect = async () => {
+      const currentExistingLeadFence = await existingLeadWorkAllowed();
+      if (!currentExistingLeadFence.allowed) throw new Error(currentExistingLeadFence.reason);
       await assertAnaKnowledgeSnapshot(admin!, organizationId!, knowledgeFence.snapshot);
       await assertAnaEffectAllowed(admin!, organizationId!, effectExpected);
     };

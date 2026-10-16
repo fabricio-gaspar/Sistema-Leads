@@ -142,11 +142,25 @@ function leadChannelLabel(value: string | null): string | undefined {
   return ({ whatsapp: 'WhatsApp', email: 'E-mail', instagram: 'Instagram', voice: 'VoIP' } as Record<string, string>)[canonicalLeadChannel(value) ?? ''] ?? value ?? undefined;
 }
 
+function normalizedPhoneIdentity(value: string): string {
+  const trimmed = value.trim();
+  const digits = trimmed.replace(/\D/g, '');
+  if (!digits) return '';
+  if (!trimmed.startsWith('+') && (digits.length === 10 || digits.length === 11)) return `55${digits}`;
+  if ((digits.length === 12 || digits.length === 13) && digits.startsWith('55')) return digits;
+  return digits.length >= 8 && digits.length <= 15 ? digits : '';
+}
+
 function normalizedIdentity(lead: Lead): string | null {
   const cnpj = lead.cnpj.replace(/\D/g, '');
   if (cnpj.length === 14) return `cnpj:${cnpj}`;
-  const whatsapp = lead.whatsapp.replace(/\D/g, '');
+  const whatsapp = normalizedPhoneIdentity(lead.whatsapp);
   if (whatsapp.length >= 10) return `whatsapp:${whatsapp}`;
+  // CSV imports deliberately keep WhatsApp empty until contact approval.  A
+  // phone still remains a strong, normalized identity for the server-side
+  // import fence; otherwise two companies with the same phone could bypass it.
+  const phone = normalizedPhoneIdentity(lead.telefone);
+  if (phone.length >= 10) return `phone:${phone}`;
   const email = lead.email.trim().toLowerCase();
   if (email) return `email:${email}`;
   const company = lead.empresa.toLocaleLowerCase('pt-BR').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();

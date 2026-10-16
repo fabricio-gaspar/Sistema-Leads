@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   nextProspectingWizardStep,
+  prospectingAreaChanged,
   prospectingWizardBlockReason,
   validateProspectingWizardStep,
   type ProspectingWizardDraft,
@@ -45,6 +46,25 @@ describe('wizard da Busca de Leads', () => {
     expect(validateProspectingWizardStep(2, completeDraft)).toBeNull();
     expect(validateProspectingWizardStep(3, completeDraft)).toBeNull();
     expect(validateProspectingWizardStep(4, completeDraft)).toBeNull();
+  });
+
+  it('exige centro confirmado e raio válido quando a busca usa o mapa', () => {
+    const draft = { ...completeDraft, sourceKey: 'apify', radiusEnabled: true, radiusKm: 25, center: null };
+    expect(validateProspectingWizardStep(2, draft)).toMatch(/centro/i);
+    expect(validateProspectingWizardStep(2, { ...draft, center: { latitude: -23.55, longitude: -46.63 } })).toBeNull();
+    expect(validateProspectingWizardStep(2, { ...draft, radiusKm: 0, center: { latitude: -23.55, longitude: -46.63 } })).toMatch(/raio/i);
+    expect(validateProspectingWizardStep(2, { ...draft, sourceKey: 'linkedin', center: { latitude: -23.55, longitude: -46.63 } })).toMatch(/Google Maps/i);
+  });
+
+  it('preserva o centro da busca após sugestão da IA somente se cidade e UF continuarem iguais', () => {
+    expect(prospectingAreaChanged({ city: 'São Paulo', state: 'SP' }, { city: ' são paulo ', state: 'sp' })).toBe(false);
+    expect(prospectingAreaChanged({ city: 'São Paulo', state: 'SP' }, { city: 'Campinas', state: 'SP' })).toBe(true);
+    expect(prospectingAreaChanged({ city: 'São Paulo', state: 'SP' }, { city: 'São Paulo', state: 'RJ' })).toBe(true);
+  });
+
+  it('não inicia Google Maps com mais termos do que o limite de leads solicitado', () => {
+    expect(validateProspectingWizardStep(4, { ...completeDraft, sourceKey: 'apify', terms: ['Indústria', 'Mineração'], volume: 1 }))
+      .toMatch(/quantidade.*termos/i);
   });
 
   it('avança linearmente e não ultrapassa a revisão', () => {

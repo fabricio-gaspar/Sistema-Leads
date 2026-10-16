@@ -25,6 +25,16 @@ export async function processInboundWork(admin: Admin, provider: Provider, event
   const saved = object(data);
   if (saved.review === true) return saved.reason === 'whatsapp_inbound_route_disabled' ? { ignored: true } : { review: true };
   const payload = object(event.sanitized_payload);
+  // A fresh inbound always takes precedence over a queued proactive review of
+  // the same lead.  The database keeps a running item auditable but marks it
+  // review-only, and ana-run rechecks that fence before every effect.
+  if (typeof saved.lead_id === 'string' && saved.lead_id) {
+    const preempt = await admin.rpc('preempt_existing_lead_work_for_inbound', {
+      p_organization_id: String(event.organization_id ?? ''),
+      p_lead_id: saved.lead_id,
+    });
+    if (preempt.error) throw new Error('existing_lead_work_preemption_failed');
+  }
   const dispatch = await admin.rpc('begin_whatsapp_inbound_dispatch', params(provider, event));
   if (dispatch.error || !dispatch.data) throw new Error('whatsapp_inbound_dispatch_fence_failed');
   const ticket = object(dispatch.data);

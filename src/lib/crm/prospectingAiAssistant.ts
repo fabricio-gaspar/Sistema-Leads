@@ -55,12 +55,12 @@ function targetProfile(value: unknown, fallback: ProspectingTargetProfile): Pros
 
 function segments(value: unknown, fallback: string[]): string[] {
   if (!Array.isArray(value)) return fallback;
-  const allowed = new Set<string>(PROSPECTING_CUSTOMER_SEGMENTS);
+  const allowed = new Set<string>([...PROSPECTING_CUSTOMER_SEGMENTS, ...fallback]);
   const selected = value
     .filter((item): item is string => typeof item === 'string')
     .map((item) => item.trim())
     .filter((item) => allowed.has(item));
-  return [...new Set(selected)].slice(0, PROSPECTING_CUSTOMER_SEGMENTS.length);
+  return [...new Set(selected)].slice(0, 20);
 }
 
 function terms(value: unknown, fallback: string[]): string[] {
@@ -92,7 +92,7 @@ export function normalizeProspectingAiPlan(candidate: unknown, current: Prospect
 }
 
 /**
- * Fallback determinístico: oferece termos curados, mas nunca consulta um
+ * Fallback determinístico: oferece segmentos compradores, mas nunca consulta um
  * provedor nem interpreta dados fora do perfil já confirmado pelo usuário.
  */
 export function buildLocalProspectingAiPlan(current: ProspectingAiDraft): ProspectingAiPlan {
@@ -101,6 +101,6 @@ export function buildLocalProspectingAiPlan(current: ProspectingAiDraft): Prospe
     ...current,
     terms: normalizeProspectingTerms([...current.terms, ...suggested]),
     summary: 'Sugestões locais preparadas para sua revisão; nenhuma busca foi iniciada.',
-    rationale: 'Use os termos curados do perfil comercial ou ajuste os filtros antes de executar a busca.',
+    rationale: 'Revise tipos de compradores em vez de pesquisar produtos que possam retornar fornecedores concorrentes.',
   }, current);
 }

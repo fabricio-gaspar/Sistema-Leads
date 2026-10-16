@@ -30,10 +30,11 @@ export const waitForListsPersistence = store.wait;
 
 export function useListasStore(): {
   listas: ListaDeLeads[];
+  status: 'loading' | 'ready' | 'error';
   criar: (lista: Omit<ListaDeLeads, 'id' | 'criadaEm'>) => ListaDeLeads;
   atualizar: (id: string, patch: Partial<ListaDeLeads>) => void;
 } {
-  const listas = store.useData();
+  const { data: listas, status } = store.useSnapshot();
   const updateState = store.bindUpdate();
 
   const criar = (lista: Omit<ListaDeLeads, 'id' | 'criadaEm'>): ListaDeLeads => {
@@ -50,7 +51,7 @@ export function useListasStore(): {
     updateState((prev) => prev.map((l) => (l.id === id ? { ...l, ...patch } : l)));
   };
 
-  return { listas, criar, atualizar };
+  return { listas, status, criar, atualizar };
 }
 
 export function getListasSnapshot(): ListaDeLeads[] {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { Lead } from '@/mocks/leadsData';
 import { refreshLeadsStore, useLeadsStore } from '@/hooks/useLeadsStore';
@@ -6,6 +6,7 @@ import { refreshListsStore } from '@/hooks/useListasStore';
 import { fontesApiProspeccao, fontesAtivas, useFontesStore } from '@/hooks/useFontesStore';
 import { templatesMensagem } from '@/mocks/templatesData';
 import { useAuth } from '@/hooks/useAuth';
+import { useCurrentAccess } from '@/hooks/useCurrentAccess';
 import { sessionContext } from '@/lib/sessionContext';
 import { loadCurrentAccess } from '@/lib/crm/currentAccessRepository';
 import { findActiveAssignee, loadTeamMembers, roleLabel, type TeamMember } from '@/lib/crm/teamMembersRepository';
@@ -15,13 +16,18 @@ import PromptAgent from '@/pages/dashboard/busca-leads/components/PromptAgent';
 import ProspectingAiAssistantDialog from '@/pages/dashboard/busca-leads/components/ProspectingAiAssistantDialog';
 import LeadPreviewDrawer from '@/pages/dashboard/busca-leads/components/LeadPreviewDrawer';
 import ProspectingMap from '@/pages/dashboard/busca-leads/components/ProspectingMap';
+import ProspectingAreaMap from '@/pages/dashboard/busca-leads/components/ProspectingAreaMap';
 import CsvImportModal from '@/components/feature/CsvImportModal';
 import type { CampoImportacao, ResultadoImportacao } from '@/components/feature/CsvImportModal';
 import { useOperationalMode } from '@/hooks/useOperationalMode';
 import { supabase } from '@/lib/supabase';
 import { resolveOrganizationSession } from '@/lib/organizationSession';
 import { prospectingImportDetails } from '@/lib/crm/prospectingImportDetails';
+import { loadProspectingCatalogOffers, loadKnowledgeSources, type KnowledgeCatalogItem } from '@/lib/crm/catalogKnowledgeRepository';
+import { suggestBuyerSearchTerms } from '@/lib/crm/prospectingBuyerTerms';
+import { extractCatalogBuyerSectors, type CatalogBuyerSectorOption } from '@/lib/crm/prospectingCatalogSectors';
 import { importProspectingBatch, type ProspectingBatchInput } from '@/lib/crm/prospectingBatchRepository';
+import { importedLeadListHref } from '@/lib/crm/csvImportNavigation';
 import InfoTooltip from '@/components/feature/InfoTooltip';
 import {
   MAX_PROSPECTING_TERMS,
@@ -41,21 +47,17 @@ import {
   type ProspectingReviewFilter,
 } from '@/lib/crm/prospectingUi';
 import {
-  PROSPECTING_TERM_SUGGESTION_GROUPS,
-  findProspectingTermSuggestions,
-} from '@/lib/crm/prospectingTermSuggestions';
-import {
   PROSPECTING_CUSTOMER_SEGMENTS,
   PROSPECTING_TARGET_PROFILES,
   termsFromIdealProfile,
   type ProspectingTargetProfile,
 } from '@/lib/crm/prospectingIdealProfile';
-import { PROSPECTING_QUICK_PROCESSES, type ProspectingQuickProcess } from '@/lib/crm/prospectingQuickProcesses';
 import { adviseProspectingSearch } from '@/lib/crm/prospectingSearchAdvisor';
 import { prospectingSourceDisplayName } from '@/lib/crm/prospectingSourcePresentation';
 import {
   PROSPECTING_WIZARD_STEPS,
   nextProspectingWizardStep,
+  prospectingAreaChanged,
   validateProspectingWizardStep,
   prospectingWizardBlockReason,
   type ProspectingWizardStep,
@@ -238,12 +240,19 @@ export default function BuscaLeads() {
   const [cidade, setCidade] = useState('');
   const [estado, setEstado] = useState('');
   const [pais, setPais] = useState('Brasil');
-  const [ofertaEmpresa, setOfertaEmpresa] = useState('Peças e soluções em borracha, silicone e poliuretano');
+  const [ofertaEmpresa, setOfertaEmpresa] = useState('');
+  const [catalogItems, setCatalogItems] = useState<KnowledgeCatalogItem[]>([]);
+  const [catalogBuyerSectors, setCatalogBuyerSectors] = useState<CatalogBuyerSectorOption[]>([]);
+  const [catalogStatus, setCatalogStatus] = useState<'loading' | 'ready' | 'error'>('loading');
+  const [catalogError, setCatalogError] = useState('');
+  const [selectedCatalogIds, setSelectedCatalogIds] = useState<string[]>([]);
+  const [radiusEnabled, setRadiusEnabled] = useState(false);
+  const [radiusKm, setRadiusKm] = useState(25);
+  const [searchCenter, setSearchCenter] = useState<{ latitude: number; longitude: number } | null>(null);
   const [tipoEmpresaAlvo, setTipoEmpresaAlvo] = useState<ProspectingTargetProfile>('potential_customers');
   const [segmentosCliente, setSegmentosCliente] = useState<string[]>([]);
   const [termosBusca, setTermosBusca] = useState<string[]>([]);
   const [novoTermo, setNovoTermo] = useState('');
-  const [segmentoSugestao, setSegmentoSugestao] = useState('');
   const [leadsDia, setLeadsDia] = useState(DEFAULT_PROSPECTING_VOLUME);
   const [temSite, setTemSite] = useState<boolean | null>(null);
   const [temWhatsApp, setTemWhatsApp] = useState<boolean | null>(null);
@@ -294,8 +303,18 @@ export default function BuscaLeads() {
   const { fontes, status: statusFontes, recarregar: recarregarFontes } = useFontesStore();
   const { mode: operationalMode } = useOperationalMode();
   const { user } = useAuth();
+  const { access: csvCurrentAccess, loading: csvAccessLoading } = useCurrentAccess();
   const [csvModal, setCsvModal] = useState(false);
   const [csvConfirmacaoPendente, setCsvConfirmacaoPendente] = useState(false);
+  const csvFileRef = useRef<HTMLInputElement>(null);
+  const csvImportAccess = csvAccessLoading
+    ? 'loading'
+    : csvCurrentAccess?.permissions['leads.create'] === true
+      ? 'allowed'
+      : 'denied';
+  const [csvSelectedFile, setCsvSelectedFile] = useState<File | null>(null);
+  const [csvSelectionRevision, setCsvSelectionRevision] = useState(0);
+  const csvRefreshPendingResult = useRef<ResultadoImportacao | null>(null);
   const membrosAtivos = membros.filter((member) => member.status === 'active');
 
   useEffect(() => {
@@ -304,6 +323,58 @@ export default function BuscaLeads() {
     window.addEventListener('focus', atualizarAoRetomar);
     return () => window.removeEventListener('focus', atualizarAoRetomar);
   }, [recarregarFontes]);
+
+  useEffect(() => {
+    // A seleção local e qualquer confirmação pendente pertencem à empresa ativa.
+    // Ao trocar de organização, não permita reaproveitar um arquivo/lote anterior.
+    setCsvModal(false);
+    setCsvConfirmacaoPendente(false);
+    setCsvSelectedFile(null);
+    setCsvSelectionRevision(0);
+    csvRefreshPendingResult.current = null;
+    loteCsvPendente.current = null;
+    if (csvFileRef.current) csvFileRef.current.value = '';
+  }, [csvCurrentAccess?.organizationId]);
+
+  useEffect(() => {
+    if (!user?.id) return;
+    let mounted = true;
+    let revision = 0;
+    const atualizarCatalogoAoRetomar = () => {
+      const requestedRevision = ++revision;
+      setCatalogStatus('loading');
+      void loadKnowledgeSources()
+      .then(async (sources) => {
+        const enabledSourceIds = sources.filter((source) => source.enabled).map((source) => source.id);
+        const items = await loadProspectingCatalogOffers(enabledSourceIds);
+        return { items, sources };
+      })
+      .then(({ items, sources }) => {
+        if (!mounted || requestedRevision !== revision) return;
+        const enabledSourceIds = new Set(sources.filter((source) => source.enabled).map((source) => source.id));
+        const buyerSectors = extractCatalogBuyerSectors({ items, sources });
+        const buyerSectorIds = new Set(buyerSectors.map((sector) => sector.itemId));
+        const activeOffers = items.filter((item) => enabledSourceIds.has(item.sourceId) && !buyerSectorIds.has(item.id));
+        setCatalogBuyerSectors(buyerSectors);
+        setCatalogItems(activeOffers);
+        setCatalogError('');
+        // Never auto-select a catalog item: the operator may have typed a different offer while loading.
+        setSelectedCatalogIds((current) => current.filter((id) => activeOffers.some((item) => item.id === id)));
+        setCatalogStatus('ready');
+      })
+      .catch((error: unknown) => { if (mounted && requestedRevision === revision) {
+        setCatalogItems([]);
+        setCatalogBuyerSectors([]);
+        setCatalogError(error instanceof Error && error.message === 'prospecting_catalog_limit_exceeded'
+          ? 'O catálogo tem mais de 1.000 itens ativos. Refine o catálogo da empresa antes de selecionar uma oferta; a busca manual continua disponível.'
+          : 'Não foi possível consultar o catálogo da empresa. Informe a oferta e os compradores manualmente.');
+        setCatalogStatus('error');
+      } });
+    };
+    atualizarCatalogoAoRetomar();
+    window.addEventListener('focus', atualizarCatalogoAoRetomar);
+    return () => { mounted = false; revision += 1; window.removeEventListener('focus', atualizarCatalogoAoRetomar); };
+  }, [user?.id]);
 
   useEffect(() => {
     if (aba !== 'busca' || etapa !== 4) return;
@@ -321,11 +392,12 @@ export default function BuscaLeads() {
   const fonteSelecionadaAtual = useMemo(() => fontesProspecao.find((fonte) => fonte.id === fonteSelecionada), [fontesProspecao, fonteSelecionada]);
   const sourceKeySelecionada = fonteSelecionadaAtual?.sourceKey || '';
   const fonteUnicaAtiva = statusFontes === 'ready' && fontesDisponiveis.length === 1 ? fontesDisponiveis[0] : null;
-  const gruposSugeridos = useMemo(() => findProspectingTermSuggestions(segmentoSugestao), [segmentoSugestao]);
   const termosSelecionados = useMemo(() => new Set(normalizeProspectingTerms(termosBusca).map((term) => normalizarTermoSugerido(term))), [termosBusca]);
+  const selectedCatalogItems = useMemo(() => catalogItems.filter((item) => selectedCatalogIds.includes(item.id)), [catalogItems, selectedCatalogIds]);
+  const buyerSuggestions = useMemo(() => suggestBuyerSearchTerms({ items: selectedCatalogItems, selectedSegments: segmentosCliente }), [selectedCatalogItems, segmentosCliente]);
   const termosDoPerfil = useMemo(
-    () => termsFromIdealProfile(ofertaEmpresa, tipoEmpresaAlvo, segmentosCliente),
-    [ofertaEmpresa, tipoEmpresaAlvo, segmentosCliente],
+    () => normalizeProspectingTerms([...buyerSuggestions.map((suggestion) => suggestion.term), ...termsFromIdealProfile(ofertaEmpresa, tipoEmpresaAlvo, segmentosCliente)]),
+    [buyerSuggestions, ofertaEmpresa, tipoEmpresaAlvo, segmentosCliente],
   );
   // Só os termos marcados pelo usuário seguem para o provedor. O perfil ideal
   // oferece sugestões, mas não dispara uma busca com filtros implícitos.
@@ -340,10 +412,15 @@ export default function BuscaLeads() {
   const activeSearchStage = etapa;
   const wizardDraft = useMemo(() => ({
     sourceId: fonteSelecionada,
+    sourceKey: sourceKeySelecionada,
     city: cidade,
     offer: ofertaEmpresa,
     terms: termosAplicados,
-  }), [cidade, fonteSelecionada, ofertaEmpresa, termosAplicados]);
+    volume: leadsDia,
+    radiusEnabled,
+    radiusKm,
+    center: searchCenter,
+  }), [cidade, fonteSelecionada, sourceKeySelecionada, ofertaEmpresa, termosAplicados, leadsDia, radiusEnabled, radiusKm, searchCenter]);
   const wizardBlockReason = prospectingWizardBlockReason(wizardStep, wizardDraft, buscando);
   const searchActionLabel = `Buscar ${leadsDia} ${leadsDia === 1 ? 'lead' : 'leads'}`;
 
@@ -366,6 +443,13 @@ export default function BuscaLeads() {
     if (!fonteUnicaAtiva || fonteSelecionada) return;
     setFonteSelecionada(fonteUnicaAtiva.id);
   }, [fonteSelecionada, fonteUnicaAtiva]);
+
+  useEffect(() => {
+    if (sourceKeySelecionada && sourceKeySelecionada !== 'apify') {
+      setRadiusEnabled(false);
+      setSearchCenter(null);
+    }
+  }, [sourceKeySelecionada]);
 
   useEffect(() => {
     setHistoricoCarregado(false);
@@ -510,41 +594,13 @@ export default function BuscaLeads() {
     setErroBusca(null);
   };
 
-  const adicionarGrupoSugerido = (terms: string[]) => {
-    const next = normalizeProspectingTerms([...termosBusca, ...terms]);
-    if (next.length === termosBusca.length) {
-      setErroBusca(termosBusca.length >= MAX_PROSPECTING_TERMS
-        ? `O limite é de ${MAX_PROSPECTING_TERMS} termos. Remova um termo antes de adicionar outras opções.`
-        : 'As opções deste segmento já estão selecionadas.');
-      return;
-    }
-    setTermosBusca(next);
-    setErroBusca(null);
-  };
-
-  const aplicarProcessoRapido = (processo: ProspectingQuickProcess) => {
-    setOfertaEmpresa(processo.offer);
-    setTipoEmpresaAlvo(processo.targetProfile);
-    setSegmentosCliente(processo.customerSegments);
-    setTermosBusca(processo.terms);
-    setLeadsDia(processo.volume);
-    setTemSite(processo.requireSite);
-    setTemWhatsApp(processo.requireWhatsApp);
-    setTemEmail(processo.requireEmail);
-    setNovoTermo('');
-    setSegmentoSugestao('');
-    setWizardError(null);
-    setErroBusca(null);
-    setResultado(null);
-    setEtapa(2);
-    setWizardStep(4);
-    setAba('busca');
-  };
-
   const aplicarPlanoDaIa = (plano: ProspectingAiPlan) => {
+    const areaChanged = prospectingAreaChanged({ city: cidade, state: estado }, { city: plano.city, state: plano.state });
     setCidade(plano.city);
     setEstado(plano.state);
+    if (areaChanged) setSearchCenter(null);
     setOfertaEmpresa(plano.offer);
+    setSelectedCatalogIds((current) => current.filter((id) => catalogItems.some((item) => item.id === id && item.name === plano.offer)));
     setTipoEmpresaAlvo(plano.targetProfile);
     setSegmentosCliente(plano.customerSegments);
     setTermosBusca(plano.terms);
@@ -553,13 +609,14 @@ export default function BuscaLeads() {
     setTemWhatsApp(plano.requireWhatsApp ? true : null);
     setTemEmail(plano.requireEmail ? true : null);
     setNovoTermo('');
-    setSegmentoSugestao('');
     setErroBusca(null);
     setWizardError(null);
-    setResultado('Filtros sugeridos pela IA foram aplicados. Revise-os e clique em Buscar para iniciar uma consulta real.');
+    setResultado(radiusEnabled && areaChanged
+      ? 'Filtros sugeridos pela IA foram aplicados. A região mudou: marque novamente o centro no mapa antes de buscar.'
+      : 'Filtros sugeridos pela IA foram aplicados. Revise-os e clique em Buscar para iniciar uma consulta real.');
     setAba('busca');
     setEtapa(fonteSelecionada ? 2 : 1);
-    setWizardStep(fonteSelecionada ? 4 : 1);
+    setWizardStep(fonteSelecionada ? (radiusEnabled && areaChanged ? 2 : 4) : 1);
     setIaBuscaAberta(false);
   };
 
@@ -569,11 +626,25 @@ export default function BuscaLeads() {
       : [...current, segment]);
   };
 
+  const selecionarOfertaCatalogo = (id: string) => {
+    const item = catalogItems.find((candidate) => candidate.id === id);
+    setSelectedCatalogIds(item ? [item.id] : []);
+    setOfertaEmpresa(item?.name || '');
+    setTermosBusca([]);
+    setWizardError(null);
+  };
+
+  const editarOfertaEmpresa = (value: string) => {
+    setOfertaEmpresa(value);
+    // Manual text is no longer the selected catalog item: never send stale item context to AI.
+    if (selectedCatalogIds.length && selectedCatalogItems[0]?.name !== value) setSelectedCatalogIds([]);
+  };
+
   const gerarSugestoesDoPerfil = () => {
-    const suggested = termsFromIdealProfile(ofertaEmpresa, tipoEmpresaAlvo, segmentosCliente);
+    const suggested = termosDoPerfil;
     const next = normalizeProspectingTerms([...termosBusca, ...suggested]);
     if (!suggested.length) {
-      setErroBusca('Informe a oferta da empresa ou selecione segmentos para gerar termos relacionados.');
+      setErroBusca('Escolha um segmento comprador ou um produto com aplicações cadastradas; também é possível informar o tipo de empresa manualmente.');
       return;
     }
     if (next.length === termosBusca.length) {
@@ -703,7 +774,7 @@ export default function BuscaLeads() {
     setPreview(cruzados);
     setSelecionados(cruzados.filter((lead) => !lead.duplicado).map((lead) => lead.id));
     setFiltroRevisao('todos');
-    setMapaAberto(false);
+    setMapaAberto(cruzados.some((lead) => Number.isFinite(lead.latitude) && Number.isFinite(lead.longitude)));
     setFeedbackRevisao('');
     setClassificacoesAmostra(Object.fromEntries(cruzados.map((lead) => [lead.id, lead.duplicado ? 'duplicada' : 'adequada'])));
     setMotivosForaPerfil({});
@@ -743,12 +814,15 @@ export default function BuscaLeads() {
       if (!fontesDisponiveis.some((item) => item.id === fonteSelecionada)) throw new Error('source_disabled');
       if (!sourceKey) throw new Error('source_not_configured');
       if (!cidade.trim()) throw new Error('prospecting_city_required');
+      if (radiusEnabled && (sourceKey !== 'apify' || !searchCenter || !Number.isInteger(radiusKm) || radiusKm < 1 || radiusKm > 200)) throw new Error('prospecting_radius_invalid');
       const terms = termsForProspectingSource(sourceKey, termosAplicados);
       if (!terms.length) throw new Error('prospecting_terms_required');
+      if (sourceKey === 'apify' && terms.length > leadsDia) throw new Error('prospecting_volume_below_terms');
       const filters = {
         pais,
         estado,
         cidade: cidade.trim(),
+        ...(radiusEnabled && searchCenter ? { centerLatitude: searchCenter.latitude, centerLongitude: searchCenter.longitude, raio: radiusKm } : {}),
         atividades: terms,
         segmentos: [] as string[],
         exigeSite: temSite === true,
@@ -860,7 +934,11 @@ export default function BuscaLeads() {
       prospecting_idempotency_conflict: 'Esta tentativa de busca já está vinculada a filtros diferentes. Atualize a página antes de criar uma nova busca.',
       prospecting_run_reservation_failed: 'Não foi possível reservar esta busca com segurança. Nenhum novo pedido foi enviado ao provedor.',
       prospecting_city_required: 'Informe a cidade antes de buscar.',
+      prospecting_radius_invalid: 'Marque um centro no mapa e informe um raio válido entre 1 e 200 km.',
+      prospecting_radius_source_unsupported: 'A busca por raio está disponível apenas para Google Maps.',
+      prospecting_radius_actor_unsupported: 'O raio exige o Actor Google Maps compatível. Peça ao administrador para usar “Actor Google Maps” na configuração da fonte; nenhuma busca foi iniciada.',
       prospecting_terms_required: 'Adicione pelo menos um termo de busca para evitar uma consulta ampla e imprecisa.',
+      prospecting_volume_below_terms: 'A quantidade de leads deve ser igual ou maior que o número de termos no Google Maps.',
       prospecting_volume_invalid: `Informe uma quantidade entre 1 e ${MAX_PROSPECTING_VOLUME} leads.`,
       prospecting_run_not_started: `A fonte não confirmou o início da execução. A busca não foi enviada para revisão.`,
       prospecting_run_not_found: `A execução não pertence à empresa ativa ou não está mais disponível para consulta.`,
@@ -1076,13 +1154,51 @@ export default function BuscaLeads() {
     await confirmarLote(input);
   };
 
+  const requestCsvFile = () => {
+    if (csvImportAccess !== 'allowed') return;
+    csvFileRef.current?.click();
+  };
+
+  const onCsvFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0] ?? null;
+    event.currentTarget.value = '';
+    if (csvImportAccess !== 'allowed' || !file) return;
+    setCsvSelectedFile(file);
+    setCsvSelectionRevision((current) => current + 1);
+    setCsvModal(true);
+  };
+
+  const openCsvImport = () => {
+    if (csvImportAccess !== 'allowed') return;
+    if (csvConfirmacaoPendente) {
+      setCsvModal(true);
+      return;
+    }
+    requestCsvFile();
+  };
+
   const confirmarImportacaoCsv = async (pending: PendingCsvBatch): Promise<ResultadoImportacao> => {
     try {
       const result = await importProspectingBatch(pending.input);
-      await Promise.all([refreshLeadsStore(), refreshListsStore()]);
+      const confirmed: ResultadoImportacao = {
+        importados: result.leadIds.length,
+        duplicados: pending.duplicateCount,
+        listId: result.listId,
+        listName: pending.input.listName,
+        recovered: result.alreadyImported,
+      };
+      try {
+        await Promise.all([refreshLeadsStore(), refreshListsStore()]);
+      } catch {
+        loteCsvPendente.current = null;
+        setCsvConfirmacaoPendente(false);
+        csvRefreshPendingResult.current = confirmed;
+        return { ...confirmed, refreshPending: true };
+      }
       loteCsvPendente.current = null;
       setCsvConfirmacaoPendente(false);
-      return { importados: result.leadIds.length, duplicados: pending.duplicateCount };
+      csvRefreshPendingResult.current = null;
+      return confirmed;
     } catch (error) {
       const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : '';
       if (['22023', '42501', '23505', '23514'].includes(code)) {
@@ -1102,6 +1218,22 @@ export default function BuscaLeads() {
     const pending = loteCsvPendente.current;
     if (!pending) throw new Error('O lote pendente não está mais disponível nesta página. Reabra o arquivo para uma nova verificação.');
     return confirmarImportacaoCsv(pending);
+  };
+
+  const recuperarImportacaoCsv = async (): Promise<ResultadoImportacao> => {
+    const confirmed = csvRefreshPendingResult.current;
+    if (!confirmed) throw new Error('Não há uma importação confirmada aguardando atualização nesta tela. Reabra Leads para conferir a lista.');
+    await Promise.all([refreshLeadsStore(), refreshListsStore()]);
+    csvRefreshPendingResult.current = null;
+    return { ...confirmed, refreshPending: false };
+  };
+
+  const abrirLeadsImportados = (result: ResultadoImportacao) => {
+    if (result.refreshPending || !result.listId) return;
+    const href = importedLeadListHref(result.listId);
+    if (!href) return;
+    setCsvModal(false);
+    navigate(href);
   };
 
   const importarLeads = async (linhas: Record<string, string>[]): Promise<ResultadoImportacao> => {
@@ -1347,31 +1479,6 @@ export default function BuscaLeads() {
           {/* ETAPA 2: Filtros */}
           {etapa === 2 && (
             <div className="space-y-5">
-              {wizardStep === 2 && (
-                <section className="rounded-2xl border border-primary-200 bg-primary-50/50 p-4" aria-labelledby="quick-processes-title">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary-700">Atalho de prospecção</p>
-                      <h2 id="quick-processes-title" className="mt-1 text-base font-heading font-bold text-foreground-900">Processos rápidos Wayflex</h2>
-                      <p className="mt-1 max-w-3xl text-sm text-foreground-600">Aplique um exemplo pronto. Ele mantém sua cidade, preenche um único termo e não inicia uma busca automaticamente.</p>
-                    </div>
-                    <span className="rounded-full border border-primary-200 bg-white px-3 py-1.5 text-xs font-semibold text-primary-800">10 leads · site informado</span>
-                  </div>
-                  {(['materials', 'applications'] as const).map((group) => {
-                    const processes = PROSPECTING_QUICK_PROCESSES.filter((process) => process.group === group);
-                    return <div key={group} className="mt-4">
-                      <h3 className="text-xs font-semibold text-foreground-700">{group === 'materials' ? 'Materiais, acessórios e produtos' : 'Setores de aplicação'}</h3>
-                      <div className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-                        {processes.map((process) => <button key={process.id} type="button" onClick={() => aplicarProcessoRapido(process)} className="rounded-xl border border-background-200 bg-white p-3 text-left transition-colors hover:border-primary-300 hover:bg-primary-50">
-                          <span className="block text-sm font-semibold text-foreground-900">{process.label}</span>
-                          <span className="mt-1 block text-xs leading-5 text-foreground-600">{process.description}</span>
-                          <span className="mt-2 inline-block rounded-full bg-background-100 px-2 py-1 text-[11px] font-semibold text-foreground-600">{process.terms[0]}</span>
-                        </button>)}
-                      </div>
-                    </div>;
-                  })}
-                </section>
-              )}
               <section className="rounded-2xl border border-primary-100 bg-primary-50/60 p-4">
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
@@ -1402,10 +1509,10 @@ export default function BuscaLeads() {
                     </div>
                     <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                       <label className="text-xs font-semibold text-foreground-700">Cidade <span className="font-normal text-foreground-500">(obrigatória)</span>
-                        <input type="text" value={cidade} onChange={(event) => setCidade(event.target.value)} placeholder="Ex.: São Paulo" className="mt-1.5 w-full rounded-lg border border-background-300 bg-background-50 px-3 py-2 text-sm text-foreground-900" />
+                        <input type="text" value={cidade} onChange={(event) => { setCidade(event.target.value); setSearchCenter(null); }} placeholder="Ex.: São Paulo" className="mt-1.5 w-full rounded-lg border border-background-300 bg-background-50 px-3 py-2 text-sm text-foreground-900" />
                       </label>
                       <label className="text-xs font-semibold text-foreground-700">UF
-                        <select value={estado} onChange={(event) => setEstado(event.target.value)} className="mt-1.5 w-full rounded-lg border border-background-300 bg-background-50 px-3 py-2 text-sm text-foreground-900">
+                        <select value={estado} onChange={(event) => { setEstado(event.target.value); setSearchCenter(null); }} className="mt-1.5 w-full rounded-lg border border-background-300 bg-background-50 px-3 py-2 text-sm text-foreground-900">
                           <option value="">Selecione a UF (opcional)</option>
                           {estados.map((uf) => <option key={uf} value={uf}>{uf}</option>)}
                         </select>
@@ -1413,10 +1520,25 @@ export default function BuscaLeads() {
                       <label className="text-xs font-semibold text-foreground-700">País
                         <input type="text" value={pais} onChange={(event) => setPais(event.target.value)} className="mt-1.5 w-full rounded-lg border border-background-300 bg-background-50 px-3 py-2 text-sm text-foreground-900" />
                       </label>
-                      <div className="text-xs font-semibold text-foreground-700">Abrangência <InfoTooltip text="A fonte ativa recebe cidade e UF. Raio de alcance não é aplicado pelo conector atual e, por isso, não é exibido como filtro." label="Sobre a abrangência" />
-                        <div className="mt-1.5 flex h-[38px] items-center rounded-lg border border-background-200 bg-background-100 px-3 text-sm font-medium text-foreground-500">Toda a cidade</div>
-                      </div>
                     </div>
+                    <fieldset className="mt-4 border-t border-background-200 pt-4">
+                      <legend className="text-xs font-semibold text-foreground-700">Área de atuação</legend>
+                      <div className="mt-2 flex flex-wrap gap-4 text-sm text-foreground-700">
+                        <label className="inline-flex items-center gap-2"><input type="radio" name="search-area" checked={!radiusEnabled} onChange={() => setRadiusEnabled(false)} />Cidade informada</label>
+                        <label className="inline-flex items-center gap-2"><input type="radio" name="search-area" checked={radiusEnabled} disabled={sourceKeySelecionada !== 'apify'} onChange={() => setRadiusEnabled(true)} />Raio no mapa</label>
+                      </div>
+                      {sourceKeySelecionada === 'linkedin' && <p className="mt-2 text-xs text-foreground-500">LinkedIn permite somente filtro textual por localização; o raio é exclusivo do Google Maps.</p>}
+                    </fieldset>
+                    {radiusEnabled && sourceKeySelecionada === 'apify' && <div className="mt-4 space-y-3">
+                      <label className="block text-xs font-semibold text-foreground-700" htmlFor="prospecting-radius">Raio de alcance (km)
+                        <input id="prospecting-radius" type="number" min={1} max={200} step={1} value={radiusKm} onChange={(event) => setRadiusKm(Number(event.target.value))} className="mt-1.5 w-full max-w-40 rounded-lg border border-background-300 bg-background-50 px-3 py-2 text-sm text-foreground-900" />
+                      </label>
+                      <div className="flex flex-wrap gap-2" aria-label="Sugestões de raio">
+                        {[5, 10, 25, 50, 100].map((value) => <button key={value} type="button" aria-pressed={radiusKm === value} onClick={() => setRadiusKm(value)} className={`rounded-lg border px-2.5 py-1.5 text-xs font-semibold ${radiusKm === value ? 'border-primary-400 bg-primary-50 text-primary-800' : 'border-background-300 text-foreground-700'}`}>{value} km</button>)}
+                      </div>
+                      <ProspectingAreaMap center={searchCenter} radiusKm={radiusKm} onCenterChange={setSearchCenter} />
+                      <p className="text-xs leading-5 text-foreground-600">Marque o centro no mapa e confirme o alcance visualmente. Nesse modo, o ponto marcado define a região efetiva; cidade e UF ficam como referência no histórico. O backend exclui resultados cuja distância não pode ser comprovada.</p>
+                    </div>}
                     <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-background-200 bg-background-50 px-3 py-2.5">
                       <p className="text-xs text-foreground-600"><strong className="text-foreground-800">Fonte selecionada:</strong> {fontesProspecao.find((fonte) => fonte.id === fonteSelecionada)?.nome || 'Nenhuma fonte selecionada'}</p>
                       <button type="button" onClick={() => { setWizardError(null); setEtapa(1); setWizardStep(1); }} className="text-xs font-semibold text-primary-700 hover:text-primary-900">Trocar fonte</button>
@@ -1430,9 +1552,18 @@ export default function BuscaLeads() {
                       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary-100 text-primary-700"><i className="ri-group-line" aria-hidden="true" /></span>
                       <div><h3 className="text-sm font-heading font-bold text-foreground-900">2. Perfil de cliente ideal</h3><p className="mt-0.5 text-xs text-foreground-500">Conte o que sua empresa vende e quem pode comprar.</p></div>
                     </div>
-                    <label className="block text-xs font-semibold text-foreground-700">O que sua empresa vende?
-                      <input value={ofertaEmpresa} onChange={(event) => setOfertaEmpresa(event.target.value)} maxLength={240} className="mt-1.5 w-full rounded-lg border border-background-300 bg-background-50 px-3 py-2 text-sm text-foreground-900" />
+                    <label className="block text-xs font-semibold text-foreground-700" htmlFor="prospecting-catalog-offer">Produto ou serviço cadastrado
+                      <select id="prospecting-catalog-offer" value={selectedCatalogIds[0] || ''} onChange={(event) => selecionarOfertaCatalogo(event.target.value)} disabled={catalogStatus !== 'ready' || !catalogItems.length} className="mt-1.5 w-full rounded-lg border border-background-300 bg-background-50 px-3 py-2 text-sm text-foreground-900 disabled:opacity-60">
+                        <option value="">{catalogStatus === 'loading' ? 'Carregando catálogo...' : catalogStatus === 'error' ? 'Catálogo indisponível' : catalogItems.length ? 'Escolher manualmente' : 'Nenhum item ativo em fonte habilitada'}</option>
+                        {catalogItems.map((item) => <option key={item.id} value={item.id}>{item.name}{item.category ? ` · ${item.category}` : ''}</option>)}
+                      </select>
                     </label>
+                    {catalogStatus === 'error' && <p role="status" className="mt-2 text-xs text-amber-800">{catalogError}</p>}
+                    {catalogStatus === 'ready' && !catalogItems.length && <p role="status" className="mt-2 text-xs text-foreground-600">Cadastre e ative produtos/serviços em Configurações → Empresa e conhecimento para receber sugestões baseadas nas aplicações.</p>}
+                    <label className="mt-3 block text-xs font-semibold text-foreground-700">O que sua empresa vende?
+                      <input value={ofertaEmpresa} onChange={(event) => editarOfertaEmpresa(event.target.value)} maxLength={240} placeholder="Descreva a oferta, se não estiver no catálogo" className="mt-1.5 w-full rounded-lg border border-background-300 bg-background-50 px-3 py-2 text-sm text-foreground-900" />
+                    </label>
+                    {selectedCatalogItems.length > 0 && <p className="mt-2 text-xs leading-5 text-foreground-600">{selectedCatalogItems[0].applications.length ? `Aplicações cadastradas: ${selectedCatalogItems[0].applications.slice(0, 4).join(', ')}.` : 'Este item não informa aplicações; escolha segmentos compradores ou descreva-os nos termos de busca.'} Isso sugere possíveis compradores, não comprova interesse de compra.</p>}
                     <fieldset className="mt-4"><legend className="text-xs font-semibold text-foreground-700">Quem você quer encontrar?</legend>
                       <div className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
                         {PROSPECTING_TARGET_PROFILES.map((profile) => {
@@ -1442,6 +1573,16 @@ export default function BuscaLeads() {
                       </div>
                     </fieldset>
                     <div className="mt-4"><p className="text-xs font-semibold text-foreground-700">Segmentos dos clientes</p>
+                      {catalogBuyerSectors.length > 0 && <div className="mt-2">
+                        <label htmlFor="prospecting-company-sector" className="text-xs text-foreground-600">Setores atendidos no histórico da empresa</label>
+                        <select id="prospecting-company-sector" value="" onChange={(event) => { if (event.target.value) alternarSegmentoCliente(event.target.value); }} className="mt-1 block w-full max-w-md rounded-lg border border-background-300 bg-background-50 px-3 py-2 text-sm text-foreground-900">
+                          <option value="">Escolha um setor comprador para revisar</option>
+                          {catalogBuyerSectors.filter((sector) => !segmentosCliente.includes(sector.label)).map((sector) => <option key={sector.itemId} value={sector.label}>{sector.label} · {sector.sourceName}</option>)}
+                        </select>
+                        <p className="mt-1 text-[11px] text-foreground-500">Estar no histórico indica atuação da empresa; confirme a relação com o produto antes de buscar.</p>
+                        {segmentosCliente.some((segment) => catalogBuyerSectors.some((sector) => sector.label === segment)) && <div className="mt-2 flex flex-wrap gap-2">{segmentosCliente.filter((segment) => catalogBuyerSectors.some((sector) => sector.label === segment)).map((segment) => <button key={segment} type="button" onClick={() => alternarSegmentoCliente(segment)} aria-label={`Remover setor ${segment}`} className="rounded-full border border-primary-300 bg-primary-50 px-2.5 py-1 text-xs font-semibold text-primary-800">{segment} <i className="ri-close-line" aria-hidden="true" /></button>)}</div>}
+                      </div>}
+                      <p className="mt-3 text-[11px] font-semibold uppercase tracking-wide text-foreground-500">Sugestões gerais</p>
                       <div className="mt-2 flex flex-wrap gap-2">
                         {PROSPECTING_CUSTOMER_SEGMENTS.map((segment) => {
                           const selected = segmentosCliente.includes(segment);
@@ -1509,10 +1650,8 @@ export default function BuscaLeads() {
                     <div className="flex gap-2"><input type="text" value={novoTermo} onChange={(event) => setNovoTermo(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); adicionarTermo(); } }} maxLength={80} placeholder="Ex.: manutenção industrial" className="min-w-0 flex-1 rounded-lg border border-background-300 bg-background-50 px-3 py-2 text-sm text-foreground-900" /><button type="button" onClick={adicionarTermo} disabled={!novoTermo.trim() || termosBusca.length >= MAX_PROSPECTING_TERMS} className="rounded-lg bg-background-950 px-3 py-2 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-40">Adicionar</button></div>
                     {termosBusca.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{termosBusca.map((term) => <span key={term} className="inline-flex items-center gap-1 rounded-full border border-primary-200 bg-primary-50 px-2.5 py-1 text-xs font-semibold text-primary-800">{term}<button type="button" onClick={() => removerTermo(term)} aria-label={`Remover ${term}`} className="rounded-full text-primary-700 hover:text-primary-950"><i className="ri-close-line" aria-hidden="true" /></button></span>)}</div>}
                     <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-background-200 pt-3"><button type="button" onClick={gerarSugestoesDoPerfil} disabled={termosBusca.length >= MAX_PROSPECTING_TERMS} className="inline-flex items-center gap-1.5 rounded-lg border border-primary-300 px-3 py-2 text-xs font-semibold text-primary-800 hover:bg-primary-50 disabled:opacity-40"><i className="ri-refresh-line" aria-hidden="true" />Gerar novas sugestões</button><button type="button" onClick={() => setAba('agente')} className="inline-flex items-center gap-1.5 rounded-lg px-2 py-2 text-xs font-semibold text-foreground-600 hover:bg-background-100"><i className="ri-magic-line" aria-hidden="true" />Usar assistente de busca</button></div>
-                    {termosDoPerfil.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{termosDoPerfil.map((term) => { const selected = termosSelecionados.has(normalizarTermoSugerido(term)); return <button key={term} type="button" onClick={() => alternarTermoSugerido(term)} aria-pressed={selected} disabled={!selected && termosBusca.length >= MAX_PROSPECTING_TERMS} className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${selected ? 'border-primary-300 bg-primary-100 text-primary-900' : 'border-background-300 bg-white text-foreground-700 hover:border-primary-300'}`}>{selected ? <i className="ri-checkbox-circle-fill mr-1" aria-hidden="true" /> : <i className="ri-add-circle-line mr-1" aria-hidden="true" />}{term}</button>; })}</div>}
-                    <div className="mt-4 border-t border-background-200 pt-4"><label className="block text-xs font-semibold text-foreground-700">Segmento da empresa<input type="text" value={segmentoSugestao} onChange={(event) => setSegmentoSugestao(event.target.value)} placeholder="Ex.: borracha, silicone ou poliuretano" className="mt-1.5 w-full rounded-lg border border-background-300 bg-background-50 px-3 py-2 text-sm text-foreground-900" /></label><div className="mt-2 flex flex-wrap gap-1.5" aria-label="Segmentos sugeridos">{PROSPECTING_TERM_SUGGESTION_GROUPS.map((group) => <button key={group.id} type="button" onClick={() => setSegmentoSugestao(group.label)} className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${gruposSugeridos.some((item) => item.id === group.id) ? 'border-primary-300 bg-primary-50 text-primary-800' : 'border-background-200 bg-white text-foreground-600 hover:border-background-300'}`}>{group.label}</button>)}</div>
-                      {gruposSugeridos.length > 0 && <div className="mt-3 space-y-2">{gruposSugeridos.map((group) => <div key={group.id} className="rounded-xl border border-background-200 bg-background-50/70 p-3"><div className="flex flex-wrap items-start justify-between gap-2"><div><p className="text-sm font-semibold text-foreground-900">{group.label}</p><p className="mt-0.5 text-xs text-foreground-500">{group.description}</p></div><button type="button" onClick={() => adicionarGrupoSugerido(group.terms)} className="rounded-lg border border-primary-200 bg-white px-2.5 py-1.5 text-xs font-semibold text-primary-800 hover:bg-primary-50">Marcar disponíveis</button></div></div>)}</div>}
-                    </div>
+                    {termosDoPerfil.length > 0 && <div className="mt-3"><p className="mb-2 text-xs font-semibold text-foreground-700">Segmentos e aplicações — confirme quais descrevem compradores</p><div className="flex flex-wrap gap-2">{termosDoPerfil.map((term) => { const selected = termosSelecionados.has(normalizarTermoSugerido(term)); return <button key={term} type="button" onClick={() => alternarTermoSugerido(term)} aria-pressed={selected} title={buyerSuggestions.find((suggestion) => suggestion.term === term)?.rationale || 'Perfil escolhido por você'} disabled={!selected && termosBusca.length >= MAX_PROSPECTING_TERMS} className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${selected ? 'border-primary-300 bg-primary-100 text-primary-900' : 'border-background-300 bg-white text-foreground-700 hover:border-primary-300'}`}>{selected ? <i className="ri-checkbox-circle-fill mr-1" aria-hidden="true" /> : <i className="ri-add-circle-line mr-1" aria-hidden="true" />}{term}</button>; })}</div></div>}
+                    <p className="mt-4 border-t border-background-200 pt-3 text-xs leading-5 text-foreground-600">Os termos devem descrever empresas que podem usar sua oferta. Produtos e materiais não viram termos automaticamente para evitar encontrar apenas fornecedores concorrentes.</p>
                   </section>
                   </>
                   )}
@@ -1524,6 +1663,7 @@ export default function BuscaLeads() {
                     <p className="mt-2 flex items-center gap-2 text-lg font-heading font-bold"><i className="ri-map-pin-line text-primary-300" aria-hidden="true" />{cidade || 'Cidade'} · {estado}</p>
                     <dl className="mt-4 divide-y divide-white/10 text-xs">
                       <div className="flex justify-between gap-3 py-2"><dt className="text-background-400">Fonte</dt><dd className="text-right font-semibold">{fontesProspecao.find((fonte) => fonte.id === fonteSelecionada)?.nome || 'Pendente'}</dd></div>
+                      <div className="flex justify-between gap-3 py-2"><dt className="text-background-400">Área</dt><dd className="text-right font-semibold">{radiusEnabled ? `${radiusKm} km do ponto marcado` : 'Cidade informada'}</dd></div>
                       <div className="flex justify-between py-2"><dt className="text-background-400">Perfil</dt><dd className="font-semibold">{tipoEmpresaAlvoLabel}</dd></div>
                       <div className="flex justify-between py-2"><dt className="text-background-400">Segmentos</dt><dd className="font-semibold">{segmentosCliente.length}</dd></div>
                       <div className="flex justify-between gap-3 py-2"><dt className="text-background-400">Termos enviados</dt><dd className="max-w-[65%] text-right font-semibold break-words">{termsForProspectingSource(sourceKeySelecionada, termosAplicados).join(', ') || 'Nenhum'}</dd></div>
@@ -1852,6 +1992,14 @@ export default function BuscaLeads() {
 
       {aba === 'importar' && (
         <div className="mx-auto max-w-xl rounded-xl border border-background-200/70 bg-white p-6 text-center">
+          <input
+            ref={csvFileRef}
+            type="file"
+            accept=".csv,text/csv"
+            className="hidden"
+            disabled={csvImportAccess !== 'allowed'}
+            onChange={onCsvFileChange}
+          />
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary-100">
             <i className="ri-upload-cloud-line text-xl text-primary-700"></i>
           </div>
@@ -1861,12 +2009,14 @@ export default function BuscaLeads() {
           </p>
           <div className="mb-5 rounded-lg border border-primary-200 bg-primary-50 px-3 py-2.5 text-left text-xs text-primary-800"><i className="ri-shield-check-line mr-1.5" aria-hidden="true" />Os leads entram pendentes de aprovação. Nenhuma mensagem nem automação da Ana será iniciada.</div>
           <button
-            onClick={() => setCsvModal(true)}
-            className="px-6 py-3 bg-primary-500 hover:bg-primary-600 text-background-50 rounded-lg text-sm font-bold cursor-pointer whitespace-nowrap"
+            onClick={openCsvImport}
+            disabled={csvImportAccess !== 'allowed'}
+            className="px-6 py-3 bg-primary-500 hover:bg-primary-600 text-background-50 rounded-lg text-sm font-bold cursor-pointer whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50"
           >
             <i className="ri-file-upload-line mr-2"></i>
-            Selecionar arquivo CSV
+            {csvImportAccess === 'loading' ? 'Verificando acesso…' : csvConfirmacaoPendente ? 'Confirmar lote CSV original' : 'Selecionar arquivo CSV'}
           </button>
+          {csvImportAccess === 'denied' && <p role="status" className="mt-3 text-xs text-accent-700">Seu usuário não tem permissão para importar leads.</p>}
         </div>
       )}
 
@@ -1877,6 +2027,11 @@ export default function BuscaLeads() {
           aviso="Os registros desta importação ficam pendentes de aprovação de contato. Telefone não é convertido em WhatsApp e nenhum disparo será iniciado."
           confirmarLotePendente={csvConfirmacaoPendente}
           onConfirmarLotePendente={confirmarLoteCsvPendente}
+          selectedFile={csvSelectedFile}
+          selectionRevision={csvSelectionRevision}
+          onRequestFile={requestCsvFile}
+          onRecuperarImportacao={recuperarImportacaoCsv}
+          onAbrirLeadsImportados={abrirLeadsImportados}
           campos={camposLeadImport}
           onImportar={importarLeads}
           onClose={() => setCsvModal(false)}
@@ -1893,6 +2048,8 @@ export default function BuscaLeads() {
       )}
 
       {iaBuscaAberta && <ProspectingAiAssistantDialog
+        selectedCatalogItemId={selectedCatalogIds[0]}
+        localBuyerTerms={buyerSuggestions.map((suggestion) => suggestion.term)}
         currentFilters={{
           city: cidade,
           state: estado,

@@ -58,6 +58,7 @@ export async function processNextAnaJob(admin: Admin, requestedJobId?: string | 
   if (!claimedData) return { idle: true };
   const job = record(claimedData);
   const jobId = text(job.id, 80);
+  const event = text(job.event, 40);
   const leaseId = text(job.lease_id, 80);
   const organizationId = text(job.organization_id, 80);
   const leadId = text(job.lead_id, 80);
@@ -84,7 +85,7 @@ export async function processNextAnaJob(admin: Admin, requestedJobId?: string | 
 
   if (!credential || !organizationId || !leadId || !jobId || !leaseId) {
     const failed = await fail('ana_job_internal_credential_missing', 'A execução automática não encontrou uma credencial interna válida.', false);
-    return { job_id: jobId, status: failed.status ?? 'needs_review' };
+    return { job_id: jobId, event, status: failed.status ?? 'needs_review' };
   }
 
   try {
@@ -96,7 +97,7 @@ export async function processNextAnaJob(admin: Admin, requestedJobId?: string | 
         'x-internal-worker-secret': credential,
       },
       body: JSON.stringify({
-        event: text(job.event, 40),
+        event,
         lead_id: leadId,
         modo: text(job.modo, 12),
         organization_id: organizationId,
@@ -115,6 +116,7 @@ export async function processNextAnaJob(admin: Admin, requestedJobId?: string | 
       await finish(result.skipped === true ? 'skipped' : 'completed', result.run_id);
       return {
         job_id: jobId,
+        event,
         status: result.skipped === true ? 'skipped' : 'completed',
         run_id: result.run_id ?? null,
         skipped: result.skipped === true,
@@ -127,13 +129,13 @@ export async function processNextAnaJob(admin: Admin, requestedJobId?: string | 
       result.retryable === true,
       result.run_id,
     );
-    return { job_id: jobId, status: failed.status ?? 'needs_review', run_id: result.run_id ?? null };
+    return { job_id: jobId, event, status: failed.status ?? 'needs_review', run_id: result.run_id ?? null };
   } catch {
     const failed = await fail(
       'ana_run_response_unknown',
       'A resposta da Ana não foi confirmada; o comando foi mantido para revisão e não será reenviado automaticamente.',
       false,
     );
-    return { job_id: jobId, status: failed.status ?? 'needs_review' };
+    return { job_id: jobId, event, status: failed.status ?? 'needs_review' };
   }
 }

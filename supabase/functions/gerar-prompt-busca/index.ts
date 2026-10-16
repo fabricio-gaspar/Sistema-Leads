@@ -1,7 +1,7 @@
 import { createAdminClient, requireOrganizationRole, requireUser } from '../_shared/auth.ts';
 import { allowedCorsHeaders, hasAllowedOrigin, json, preflight, safeError } from '../_shared/http.ts';
 import { readJson, requiredString, requiredUuid } from '../_shared/validation.ts';
-import { companyProspectingContext, currentProspectingAiFilters, normalizeProspectingAiFilters } from '../_shared/prospectingAiPlan.ts';
+import { catalogProspectingContext, companyProspectingContext, currentProspectingAiFilters, normalizeProspectingAiFilters } from '../_shared/prospectingAiPlan.ts';
 
 const CONTRIBUTOR_ROLES = ['owner', 'admin', 'manager', 'seller'];
 
@@ -16,6 +16,20 @@ async function suggestFilters(body: Record<string, unknown>, organizationId: str
     .maybeSingle();
   if (companyError) throw new Error('company_context_unavailable');
   const context = companyProspectingContext(company);
+  const selectedItemId = body.selectedCatalogItemId == null ? '' : requiredUuid(body.selectedCatalogItemId, 'selected_catalog_item_id');
+  let catalogContext: ReturnType<typeof catalogProspectingContext> = null;
+  if (selectedItemId) {
+    const { data: item, error: itemError } = await admin.from('knowledge_catalog_items')
+      .select('name,category,short_description,applications,item_type,status,source_id')
+      .eq('organization_id', organizationId).eq('id', selectedItemId).eq('status', 'active').maybeSingle();
+    if (itemError) throw new Error('catalog_context_unavailable');
+    if (item) {
+      const { data: source, error: sourceError } = await admin.from('knowledge_sources')
+        .select('enabled').eq('organization_id', organizationId).eq('id', item.source_id).maybeSingle();
+      if (sourceError) throw new Error('catalog_context_unavailable');
+      catalogContext = catalogProspectingContext(item, source?.enabled === true);
+    }
+  }
   const response = await fetch('https://api.openai.com/v1/chat/completions', {
     method: 'POST',
     headers: { 'content-type': 'application/json', authorization: `Bearer ${apiKey}` },
@@ -27,11 +41,11 @@ async function suggestFilters(body: Record<string, unknown>, organizationId: str
       messages: [
         {
           role: 'system',
-          content: 'Você é um assistente de filtros de prospecção B2B. Retorne somente JSON válido. Nunca execute buscas, nunca inclua nomes, contatos ou dados pessoais. Preserve a região atual se o usuário não pedir outra. Use apenas targetProfile entre potential_customers, distributors, resellers, suppliers; customerSegments entre Automotivo, Alimentos e bebidas, Máquinas e equipamentos, Construção, Mineração; volume entre 1 e 100. O JSON deve conter city,state,offer,targetProfile,customerSegments,terms,volume,requireSite,requireWhatsApp,requireEmail,summary,rationale.',
+          content: 'Você é um assistente de filtros de prospecção B2B. Retorne somente JSON válido. Nunca execute buscas, nunca inclua nomes, contatos ou dados pessoais. Sugira tipos de empresas potencialmente usuárias a partir das aplicações do produto selecionado, não fornecedores do mesmo produto/material. Uma aplicação sugere afinidade, não comprova demanda ou intenção de compra. Preserve a região atual se o usuário não pedir outra. Use apenas targetProfile entre potential_customers, distributors, resellers, suppliers; customerSegments entre Automotivo, Alimentos e bebidas, Máquinas e equipamentos, Construção, Mineração ou os segmentos já selecionados em currentFilters; preserve os segmentos atuais salvo pedido explícito de mudança. volume entre 1 e 100. O JSON deve conter city,state,offer,targetProfile,customerSegments,terms,volume,requireSite,requireWhatsApp,requireEmail,summary,rationale.',
         },
         {
           role: 'user',
-          content: JSON.stringify({ company: context, currentFilters: current, request }),
+          content: JSON.stringify({ company: context, selectedOffer: catalogContext, currentFilters: current, request }),
         },
       ],
     }),

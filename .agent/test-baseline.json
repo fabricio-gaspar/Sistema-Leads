@@ -1,5 +1,37 @@
 {
   "schema_version": 1,
+  "csv_ana_existing_leads_20261015": {
+    "focused_vitest": "8 files, 185 passed, 25 skipped; exit 0",
+    "full_vitest": "800 passed, 25 skipped, 134 files; exit 0",
+    "frontend_typecheck": "passed; tsc --noEmit --project tsconfig.app.json",
+    "edge_typecheck": "passed; tsc --noEmit --project tsconfig.edge.json",
+    "lint": "passed; eslint nos arquivos frontend alterados com --max-warnings 0",
+    "vite_build": "passed; aviso preexistente de runtime-config.js sem type=module",
+    "sites_artifact": "passed; scripts/build-sites-artifact.mjs",
+    "diff_check": "passed",
+    "postgres_rls_concurrency": "not run; migrations remain local and no isolated PostgreSQL environment was started",
+    "messages_sent": false,
+    "paid_search": false,
+    "customer_data_changed": false,
+    "edge_functions_deployed": false,
+    "site_deployed": false
+  },
+  "prospecting_buyer_radius_20261015": {
+    "full_vitest": "768 passed, 25 skipped, 130 files; exit 0",
+    "frontend_typecheck": "passed; tsc --noEmit --project tsconfig.app.json",
+    "edge_typecheck": "passed; tsc --project tsconfig.edge.json",
+    "lint": "passed; eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "vite_build": "passed; aviso preexistente de runtime-config.js sem type=module",
+    "sites_artifact": "passed; scripts/build-sites-artifact.mjs",
+    "diff_check": "passed",
+    "local_http_preview": "not run; sandbox listen EPERM on 127.0.0.1:4173",
+    "provider_e2e": "not run; consulta paga e credencial real exigem homologacao separada",
+    "messages_sent": false,
+    "paid_search": false,
+    "customer_data_changed": false,
+    "edge_functions_deployed": false,
+    "site_deployed": false
+  },
   "google_places_retirement_20261015": {
     "focused_vitest": "139 passed, 25 skipped, 7 files",
     "full_vitest": "735 passed, 25 skipped, 125 files; exit 0",

@@ -1,5 +1,4 @@
 import { normalizeProspectingTerms } from './prospectingUi';
-import { findProspectingTermSuggestions } from './prospectingTermSuggestions';
 
 export const PROSPECTING_TARGET_PROFILES = [
   { id: 'potential_customers', label: 'Clientes potenciais', searchTerm: '' },
@@ -19,19 +18,17 @@ export const PROSPECTING_CUSTOMER_SEGMENTS = [
 ] as const;
 
 /**
- * Combina somente dados que o operador informou com termos curados já
- * publicados no catálogo Wayflex. Não chama IA nem um provedor externo.
+ * Só usa categorias de compradores escolhidas pelo operador. O nome do
+ * produto/material pode atrair fornecedores concorrentes, não compradores.
  */
 export function termsFromIdealProfile(
-  offering: string,
+  _offering: string,
   targetProfile: ProspectingTargetProfile,
   customerSegments: string[],
 ): string[] {
   const profile = PROSPECTING_TARGET_PROFILES.find((item) => item.id === targetProfile);
-  const catalogueTerms = findProspectingTermSuggestions(offering).flatMap((group) => group.terms);
   return normalizeProspectingTerms([
     ...customerSegments,
     profile?.searchTerm || '',
-    ...catalogueTerms,
   ]);
 }

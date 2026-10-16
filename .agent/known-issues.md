@@ -1,5 +1,10 @@
 # Problemas conhecidos
 
+## 15/10/2026 — CSV/Ana local aguardando homologação PostgreSQL
+
+- As migrations locais de importação atômica e fila de leads existentes da Ana não foram aplicadas. Os testes de contrato cobrem a lógica e a suíte passou, mas ainda falta exercício real de FK adiada, RLS de duas carteiras e disputa concorrente em PostgreSQL isolado.
+- Até essa homologação, não tratar o recurso como operacional online nem publicar frontend/Edge de forma isolada. Nenhuma mensagem, busca paga ou dado de cliente foi alterado por este lote.
+
 ## 15/10/2026 — Google Places aposentado (resolvido)
 
 - O conector não faz mais parte da operação. Configurações atuais, fontes e Edge Functions não o oferecem; chamadas legadas são recusadas com `source_not_supported` sem ler segredo ou iniciar provedor.

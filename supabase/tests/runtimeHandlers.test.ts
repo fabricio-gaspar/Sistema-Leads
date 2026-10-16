@@ -4,13 +4,13 @@ import { readAnaKnowledgeFence, type AnaKnowledgeSnapshot } from '../functions/_
 type Row = Record<string, unknown>;
 type Query = { table: string; operation: string; value?: Row; filters: Record<string, unknown> };
 type Result = { data: unknown; error: null | { message: string; code?: string }; count?: number };
-const state = vi.hoisted(() => ({ admin: {} as object, createUser: vi.fn(), deleteUser: vi.fn(), updateUser: vi.fn(), storageRemove: vi.fn() }));
+const state = vi.hoisted(() => ({ admin: {} as object, userId: 'owner', createUser: vi.fn(), deleteUser: vi.fn(), updateUser: vi.fn(), storageRemove: vi.fn() }));
 vi.mock('../functions/_shared/auth.ts', () => ({
   createAdminClient: () => state.admin,
   hasOrganizationPermission: async () => true,
   requireUser: async (request: Request) => {
     if (!request.headers.get('Authorization')) throw new Error('authentication_required');
-    return { user: { id: 'owner' }, client: state.admin };
+    return { user: { id: state.userId }, client: state.admin };
   },
   requireOrganizationRole: async () => undefined,
   requireOrganizationPermission: async () => undefined,
@@ -137,7 +137,7 @@ function queryFor(table: string) {
 }
 
 beforeEach(() => {
-  vi.resetModules(); calls = []; override = undefined; acceptedLeadState = {};
+  vi.resetModules(); calls = []; override = undefined; acceptedLeadState = {}; state.userId = 'owner';
   state.deleteUser = vi.fn(async () => ({ data: { user: { id: 'deleted-user' } }, error: null }));
   state.createUser = vi.fn(async () => ({ data: { user: { id: 'e1111111-1111-4111-8111-111111111111' } }, error: null }));
   state.updateUser = vi.fn(async () => ({ data: { user: { id: 'updated-user' } }, error: null }));
@@ -354,6 +354,145 @@ describe('R4 team membership and identity boundary — mocked HTTP', () => {
 });
 
 describe('Prospecting handler persistence contract', () => {
+  it('uses a real bounded map radius and excludes distant or unlocated places', async () => {
+    override = (q) => {
+      if (q.table === 'lead_source_configs' && q.operation === 'select') return ok({ id: 'source-config', enabled: true, mode: 'production', connection_status: 'connected' });
+      if (q.table === 'integrations' && q.operation === 'select') return ok({ id: integrationId, provider: 'Apify', enabled: true, connected: true, paused: false });
+      if (q.table === 'read_integration_secret' && q.operation === 'rpc') return ok({ api_token: 'synthetic-apify-token', actor_id: 'compass/google-maps-extractor', input_json: JSON.stringify({ locationQuery: 'Rio de Janeiro', countryCode: 'US', startUrls: [{ url: 'https://maps.google.com/?cid=old-location' }], placeIds: ['old-place'], customGeolocation: { type: 'Point', coordinates: [0, 0], radiusKm: 30 } }) });
+      if (q.table === 'finalize_prospecting_run' && q.operation === 'rpc') return ok([{ cache_id: 'result-cache', newly_completed: true }]);
+      return undefined;
+    };
+    fetchMock
+      .mockResolvedValueOnce(providerResponse({ data: { id: 'provider-run', status: 'SUCCEEDED', defaultDatasetId: 'dataset-id' } }))
+      .mockResolvedValueOnce(providerResponse([
+        { title: 'Dentro', placeId: 'near', latitude: -23.5505, longitude: -46.6333 },
+        { title: 'Fora', placeId: 'far', latitude: -22.9068, longitude: -43.1729 },
+        { title: 'Sem localização', placeId: 'unknown' },
+      ]));
+    await import('../functions/prospectar-leads/index');
+    const response = await handler(new Request('https://example.invalid/prospectar-leads', {
+      method: 'POST', headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sourceKey: 'apify', mode: 'production', idempotencyKey: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', filters: { cidade: 'São Paulo', estado: 'SP', atividades: ['Indústria'], volumeMaximo: 3, centerLatitude: -23.5505, centerLongitude: -46.6333, raio: 10 } }),
+    }));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ leads: [{ source_record_id: 'near', distance_km: 0 }], diagnostics: { rejectedByRadius: 1, missingCoordinates: 1 } });
+    const startRequest = fetchMock.mock.calls[0]?.[0] as Request;
+    const actorInput = JSON.parse(await startRequest.clone().text());
+    expect(actorInput).toMatchObject({ customGeolocation: { type: 'Point', coordinates: [-46.6333, -23.5505], radiusKm: 10 } });
+    expect(actorInput).not.toHaveProperty('locationQuery');
+    expect(actorInput).not.toHaveProperty('countryCode');
+    expect(actorInput).not.toHaveProperty('startUrls');
+    expect(actorInput).not.toHaveProperty('placeIds');
+    expect(calls.find((q) => q.table === 'reserve_prospecting_run' && q.operation === 'rpc')?.value)
+      .toMatchObject({ p_filters: { centerLatitude: -23.5505, centerLongitude: -46.6333, raio: 10 } });
+    expect(calls.find((q) => q.table === 'finalize_prospecting_run' && q.operation === 'rpc')?.value)
+      .toMatchObject({ p_results: [{ source_record_id: 'near', distance_km: 0 }] });
+  });
+
+  it.each([
+    { centerLatitude: -23.55, centerLongitude: -46.63, raio: 0 },
+    { centerLatitude: -23.55, centerLongitude: -46.63, raio: 201 },
+    { centerLatitude: 91, centerLongitude: -46.63, raio: 10 },
+    { centerLatitude: -23.55, centerLongitude: -181, raio: 10 },
+    { centerLatitude: -23.55, raio: 10 },
+    { centerLatitude: '-23.55', centerLongitude: -46.63, raio: 10 },
+  ])('rejects invalid radius input before reserving or charging the Actor: %j', async (geo) => {
+    override = (q) => {
+      if (q.table === 'lead_source_configs' && q.operation === 'select') return ok({ id: 'source-config', enabled: true, mode: 'production', connection_status: 'connected' });
+      if (q.table === 'integrations' && q.operation === 'select') return ok({ id: integrationId, provider: 'Apify', enabled: true, connected: true, paused: false });
+      if (q.table === 'read_integration_secret' && q.operation === 'rpc') return ok({ api_token: 'synthetic-apify-token', actor_id: 'synthetic-google-maps-actor' });
+      return undefined;
+    };
+    await import('../functions/prospectar-leads/index');
+    const response = await handler(new Request('https://example.invalid/prospectar-leads', {
+      method: 'POST', headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sourceKey: 'apify', mode: 'production', idempotencyKey: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', filters: { cidade: 'São Paulo', atividades: ['Indústria'], ...geo } }),
+    }));
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ ok: false, error: 'prospecting_radius_invalid' });
+    expect(calls.some((q) => q.table === 'reserve_prospecting_run')).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects more Google Maps terms than the requested lead budget before charging the Actor', async () => {
+    override = (q) => {
+      if (q.table === 'lead_source_configs' && q.operation === 'select') return ok({ id: 'source-config', enabled: true, mode: 'production', connection_status: 'connected' });
+      if (q.table === 'integrations' && q.operation === 'select') return ok({ id: integrationId, provider: 'Apify', enabled: true, connected: true, paused: false });
+      if (q.table === 'read_integration_secret' && q.operation === 'rpc') return ok({ api_token: 'synthetic-apify-token', actor_id: 'compass/google-maps-extractor' });
+      return undefined;
+    };
+    await import('../functions/prospectar-leads/index');
+    const response = await handler(new Request('https://example.invalid/prospectar-leads', {
+      method: 'POST', headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sourceKey: 'apify', mode: 'production', idempotencyKey: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', filters: { cidade: 'São Paulo', atividades: ['Indústria', 'Mineração'], volumeMaximo: 1, centerLatitude: -23.55, centerLongitude: -46.63, raio: 10 } }),
+    }));
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ ok: false, error: 'prospecting_volume_below_terms' });
+    expect(calls.some((q) => q.table === 'reserve_prospecting_run')).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects radius when the configured Apify Actor has no verified geolocation contract', async () => {
+    override = (q) => {
+      if (q.table === 'lead_source_configs' && q.operation === 'select') return ok({ id: 'source-config', enabled: true, mode: 'production', connection_status: 'connected' });
+      if (q.table === 'integrations' && q.operation === 'select') return ok({ id: integrationId, provider: 'Apify', enabled: true, connected: true, paused: false });
+      if (q.table === 'read_integration_secret' && q.operation === 'rpc') return ok({ api_token: 'synthetic-apify-token', actor_id: 'other/unknown-actor' });
+      return undefined;
+    };
+    await import('../functions/prospectar-leads/index');
+    const response = await handler(new Request('https://example.invalid/prospectar-leads', {
+      method: 'POST', headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sourceKey: 'apify', mode: 'production', idempotencyKey: 'ffffffff-ffff-4fff-8fff-ffffffffffff', filters: { cidade: 'São Paulo', atividades: ['Indústria'], volumeMaximo: 1, centerLatitude: -23.55, centerLongitude: -46.63, raio: 10 } }),
+    }));
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ ok: false, error: 'prospecting_radius_actor_unsupported' });
+    expect(calls.some((q) => q.table === 'reserve_prospecting_run')).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects a LinkedIn radius instead of pretending its location text is a circular search', async () => {
+    override = (q) => {
+      if (q.table === 'lead_source_configs' && q.operation === 'select') return ok({ id: 'linkedin-source', enabled: true, mode: 'production', connection_status: 'connected' });
+      if (q.table === 'integrations' && q.operation === 'select') return ok({ id: integrationId, provider: 'Apify', enabled: true, connected: true, paused: false });
+      if (q.table === 'read_integration_secret' && q.operation === 'rpc') return ok({ api_token: 'synthetic-apify-token', actor_id: 'synthetic-linkedin-actor' });
+      return undefined;
+    };
+    await import('../functions/prospectar-leads/index');
+    const response = await handler(new Request('https://example.invalid/prospectar-leads', {
+      method: 'POST', headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sourceKey: 'linkedin', mode: 'production', idempotencyKey: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', filters: { cidade: 'São Paulo', atividades: ['Indústria'], centerLatitude: -23.55, centerLongitude: -46.63, raio: 10 } }),
+    }));
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ ok: false, error: 'prospecting_radius_source_unsupported' });
+    expect(calls.some((q) => q.table === 'reserve_prospecting_run')).toBe(false);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('includes both selected map center and radius in the idempotency filter hash', async () => {
+    override = (q) => {
+      if (q.table === 'lead_source_configs' && q.operation === 'select') return ok({ id: 'source-config', enabled: true, mode: 'production', connection_status: 'connected' });
+      if (q.table === 'integrations' && q.operation === 'select') return ok({ id: integrationId, provider: 'Apify', enabled: true, connected: true, paused: false });
+      if (q.table === 'read_integration_secret' && q.operation === 'rpc') return ok({ api_token: 'synthetic-apify-token', actor_id: 'compass/google-maps-extractor' });
+      if (q.table === 'reserve_prospecting_run' && q.operation === 'rpc') return ok([{ run_id: 'reserved-run', run_status: 'failed', provider_run_id: null, result_cache_id: null, provider_start_state: 'rejected', reused: false, start_claimed: false }]);
+      return undefined;
+    };
+    await import('../functions/prospectar-leads/index');
+    for (const geo of [
+      { centerLatitude: -23.55, centerLongitude: -46.63, raio: 10 },
+      { centerLatitude: -23.56, centerLongitude: -46.63, raio: 10 },
+      { centerLatitude: -23.55, centerLongitude: -46.63, raio: 20 },
+    ]) {
+      await handler(new Request('https://example.invalid/prospectar-leads', {
+        method: 'POST', headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sourceKey: 'apify', mode: 'production', idempotencyKey: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', filters: { cidade: 'São Paulo', atividades: ['Indústria'], ...geo } }),
+      }));
+    }
+    const hashes = calls.filter((q) => q.table === 'reserve_prospecting_run' && q.operation === 'rpc').map((q) => q.value?.p_filters_hash);
+    expect(hashes).toHaveLength(3);
+    expect(new Set(hashes).size).toBe(3);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('creates an executable Apify run with every required database field before contacting the provider', async () => {
     override = (q) => {
       if (q.table === 'lead_source_configs' && q.operation === 'select') {
@@ -1554,6 +1693,80 @@ describe('Central manual WhatsApp gateway', () => {
 });
 
 describe('Lead workflow compatibility', () => {
+  function leadWorkflowRequest(body: Row) {
+    return new Request('https://example.invalid/lead-workflow', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ lead_id: leadId, ...body }),
+    });
+  }
+
+  it.each(['seller', 'vendedor', 'sdr'])('refuses %s outside its assigned portfolio before any mutation or Ana run', async (role) => {
+    state.userId = 'seller-user';
+    override = (query) => {
+      if (query.table === 'organization_members') return ok({ role, status: 'active' });
+      if (query.table === 'leads') return ok({ ...readyLead, owner_id: 'another-user', assigned_to: 'another-user' });
+      return undefined;
+    };
+
+    await import('../functions/lead-workflow/index');
+    const response = await handler(leadWorkflowRequest({ action: 'assign_human' }));
+
+    expect(await response.json()).toMatchObject({ ok: false, error: 'lead_access_denied' });
+    expectNoBusinessWrites();
+  });
+
+  it.each(['owner', 'admin', 'manager', 'administrador', 'gerente'])('allows elevated %s roles to operate another lead in the same organization', async (role) => {
+    state.userId = 'manager-user';
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ ok: true, run_id: 'synthetic-run' }), { status: 200 }));
+    override = (query) => {
+      if (query.table === 'organization_members') return ok({ role, status: 'active' });
+      if (query.table === 'leads') return ok({ ...readyLead, owner_id: 'another-user', assigned_to: 'another-user' });
+      return undefined;
+    };
+
+    await import('../functions/lead-workflow/index');
+    const response = await handler(leadWorkflowRequest({
+      action: 'start_ai',
+      whatsapp: '11999990000',
+      approve_whatsapp_contact: true,
+      approval_reason: 'Teste autorizado.',
+    }));
+
+    expect(await response.json()).toMatchObject({ ok: true, canonical_authority: 'ana-run' });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('allows a seller assigned to the lead without widening access to other leads', async () => {
+    state.userId = 'seller-user';
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ ok: true, run_id: 'synthetic-run' }), { status: 200 }));
+    override = (query) => {
+      if (query.table === 'organization_members') return ok({ role: 'seller', status: 'active' });
+      if (query.table === 'leads') return ok({ ...readyLead, owner_id: 'another-user', assigned_to: 'seller-user' });
+      return undefined;
+    };
+
+    await import('../functions/lead-workflow/index');
+    const response = await handler(leadWorkflowRequest({
+      action: 'start_ai',
+      whatsapp: '11999990000',
+      approve_whatsapp_contact: true,
+      approval_reason: 'Teste autorizado.',
+    }));
+
+    expect(await response.json()).toMatchObject({ ok: true, canonical_authority: 'ana-run' });
+  });
+
+  it('reports a cross-organization lead as not found without leaking or mutating it', async () => {
+    override = (query) => query.table === 'leads' ? ok(null) : undefined;
+
+    await import('../functions/lead-workflow/index');
+    const response = await handler(leadWorkflowRequest({ action: 'assign_human' }));
+
+    expect(await response.json()).toMatchObject({ ok: false, error: 'lead_not_found' });
+    expectNoBusinessWrites();
+  });
+
   it('forwards a stable request id to the canonical Ana authority', async () => {
     fetchMock.mockResolvedValue(new Response(JSON.stringify({ ok: true, run_id: 'synthetic-run' }), { status: 200 }));
     await import('../functions/lead-workflow/index');

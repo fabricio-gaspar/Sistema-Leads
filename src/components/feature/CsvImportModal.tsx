@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { CSV_MAX_BYTES, CsvParseError, parseCsv, detectarMapeamento } from '@/lib/csv';
 import AccessibleDialog from './AccessibleDialog';
 
@@ -13,6 +13,10 @@ export interface ResultadoImportacao {
   importados: number;
   duplicados: number;
   invalidos?: number;
+  listId?: string;
+  listName?: string;
+  recovered?: boolean;
+  refreshPending?: boolean;
 }
 
 interface CsvImportModalProps {
@@ -21,6 +25,11 @@ interface CsvImportModalProps {
   aviso?: string;
   confirmarLotePendente?: boolean;
   onConfirmarLotePendente?: () => ResultadoImportacao | Promise<ResultadoImportacao>;
+  selectedFile?: File | null;
+  selectionRevision?: number;
+  onRequestFile?: () => void;
+  onRecuperarImportacao?: () => ResultadoImportacao | Promise<ResultadoImportacao>;
+  onAbrirLeadsImportados?: (resultado: ResultadoImportacao) => void;
   campos: CampoImportacao[];
   onImportar: (linhas: Record<string, string>[]) => ResultadoImportacao | Promise<ResultadoImportacao>;
   onClose: () => void;
@@ -35,6 +44,11 @@ export default function CsvImportModal({
   aviso,
   confirmarLotePendente = false,
   onConfirmarLotePendente,
+  selectedFile = null,
+  selectionRevision = 0,
+  onRequestFile,
+  onRecuperarImportacao,
+  onAbrirLeadsImportados,
   campos,
   onImportar,
   onClose,
@@ -43,6 +57,7 @@ export default function CsvImportModal({
   const fieldId = useId();
   const readerRef = useRef<FileReader | null>(null);
   const readGeneration = useRef(0);
+  const externalSelectionRevision = useRef(0);
   useEffect(() => () => { readGeneration.current += 1; readerRef.current?.abort(); }, []);
   const [arquivoNome, setArquivoNome] = useState('');
   const [cabecalho, setCabecalho] = useState<string[]>([]);
@@ -53,7 +68,7 @@ export default function CsvImportModal({
   const [importando, setImportando] = useState(false);
   const alteracoesBloqueadas = importando || confirmarLotePendente;
 
-  const aoSelecionar = (arquivo: File) => {
+  const aoSelecionar = useCallback((arquivo: File) => {
     if (alteracoesBloqueadas) return;
     const generation = ++readGeneration.current;
     readerRef.current?.abort();
@@ -86,7 +101,15 @@ export default function CsvImportModal({
     };
     leitor.onerror = () => { if (readGeneration.current === generation) setErro('Falha ao ler o arquivo.'); };
     leitor.readAsText(arquivo);
-  };
+  }, [alteracoesBloqueadas, campos]);
+
+  useEffect(() => {
+    // A confirmação pendente deve reenviar o lote original. Nunca releia o
+    // arquivo externo nesse estado: ele poderia ocultar a ação de recuperação.
+    if (confirmarLotePendente || !selectedFile || selectionRevision <= 0 || selectionRevision === externalSelectionRevision.current) return;
+    externalSelectionRevision.current = selectionRevision;
+    aoSelecionar(selectedFile);
+  }, [aoSelecionar, confirmarLotePendente, selectedFile, selectionRevision]);
 
   const linhasMapeadas = linhas.map((linha) => {
     const obj: Record<string, string> = {};
@@ -132,6 +155,29 @@ export default function CsvImportModal({
     } finally {
       setImportando(false);
     }
+  };
+
+  const recuperarImportacao = async () => {
+    if (importando || !onRecuperarImportacao) return;
+    setErro('');
+    setImportando(true);
+    try {
+      setResultado(await onRecuperarImportacao());
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Não foi possível atualizar os dados importados.';
+      setErro(message || 'Não foi possível atualizar os dados importados.');
+    } finally {
+      setImportando(false);
+    }
+  };
+
+  const solicitarArquivo = () => {
+    if (alteracoesBloqueadas) return;
+    if (onRequestFile) {
+      onRequestFile?.();
+      return;
+    }
+    fileRef.current?.click();
   };
 
   const reiniciar = () => {
@@ -196,7 +242,7 @@ export default function CsvImportModal({
               <p className="text-sm text-foreground-600 mb-4">
                 Envie um arquivo CSV. As colunas serão detectadas e mapeadas automaticamente.
               </p>
-              <input
+              {!onRequestFile && <input
                 ref={fileRef}
                 type="file"
                 accept=".csv,text/csv"
@@ -206,9 +252,9 @@ export default function CsvImportModal({
                   if (arquivo) aoSelecionar(arquivo);
                   e.target.value = '';
                 }}
-              />
+              />}
               <button
-                onClick={() => fileRef.current?.click()}
+                onClick={solicitarArquivo}
                 disabled={alteracoesBloqueadas}
                 className="px-6 py-3 bg-primary-500 hover:bg-primary-600 text-background-50 rounded-lg text-sm font-bold cursor-pointer whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50"
               >
@@ -305,15 +351,27 @@ export default function CsvImportModal({
                 <i className={`text-2xl ${resultado.importados > 0 ? 'ri-check-line text-primary-600' : 'ri-information-line text-accent-600'}`}></i>
               </div>
               <p className="text-base font-semibold text-foreground-900">
-                {resultado.importados > 0
-                  ? `${resultado.importados} registro(s) importado(s)`
+                {resultado.refreshPending
+                  ? 'Lote confirmado; atualização pendente'
+                  : resultado.recovered
+                    ? 'Lote CSV confirmado'
+                    : resultado.importados > 0
+                      ? `${resultado.importados} registro(s) importado(s)`
                   : 'Nada foi importado'}
               </p>
               <p className="text-sm text-foreground-500 mt-1">
-                {resultado.duplicados > 0 ? `${resultado.duplicados} duplicado(s) não foram enviados.` : 'Nenhum duplicado encontrado.'}
+                {resultado.refreshPending
+                  ? 'Os dados foram gravados, mas a carteira ainda não pôde ser atualizada nesta tela. Atualize antes de abrir os leads.'
+                  : resultado.duplicados > 0 ? `${resultado.duplicados} duplicado(s) não foram enviados.` : 'Nenhum duplicado encontrado.'}
                 {resultado.invalidos ? ` ${resultado.invalidos} linha(s) inválida(s) não foram enviadas.` : ''}
               </p>
               <div className="mt-5 flex justify-center gap-2">
+                {resultado.refreshPending && onRecuperarImportacao && <button onClick={() => void recuperarImportacao()} disabled={importando} className="px-4 py-2.5 border border-primary-300 bg-primary-50 text-primary-800 rounded-lg text-sm font-semibold hover:bg-primary-100 cursor-pointer whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50">
+                  {importando ? 'Atualizando…' : 'Atualizar dados'}
+                </button>}
+                {!resultado.refreshPending && resultado.listId && onAbrirLeadsImportados && <button onClick={() => onAbrirLeadsImportados(resultado)} disabled={importando} className="px-4 py-2.5 border border-primary-300 bg-primary-50 text-primary-800 rounded-lg text-sm font-semibold hover:bg-primary-100 cursor-pointer whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50">
+                  Ver leads importados
+                </button>}
                 <button onClick={reiniciar} disabled={importando} className="px-4 py-2.5 border border-background-300 text-foreground-700 rounded-lg text-sm font-semibold hover:bg-background-100 cursor-pointer whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50">
                   Importar outro
                 </button>

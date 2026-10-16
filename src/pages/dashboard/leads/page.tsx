@@ -13,7 +13,7 @@ import { useLocalStorageState } from '@/hooks/useLocalStorageState';
 import { segmentos } from '@/mocks/leadsData';
 import type { Lead } from '@/mocks/leadsData';
 import { canonicalStageKeyFromLabel, canonicalStageOptions, CommercialTransitionError, isTerminalStage, transitionOperationalLeadStage } from '@/lib/crm/leadStageRepository';
-import { useListasStore } from '@/hooks/useListasStore';
+import { refreshListsStore, useListasStore } from '@/hooks/useListasStore';
 import { useAuth } from '@/hooks/useAuth';
 import { useCurrentAccess } from '@/hooks/useCurrentAccess';
 import { loadTeamMembers, type TeamMember } from '@/lib/crm/teamMembersRepository';
@@ -37,6 +37,7 @@ import {
   type PotentialLeadDuplicate,
 } from '@/lib/crm/leadPortfolio';
 import { factualLeadDisplayName } from '@/lib/crm/contactIdentity';
+import { indexLeadListMemberships, leadMatchesExactList } from '@/lib/crm/csvImportNavigation';
 
 const etapaCores: Record<string, string> = {
   'Novo': 'bg-background-200 text-foreground-600',
@@ -130,6 +131,7 @@ export default function Leads() {
   const [scoreMax, setScoreMax] = useState(() => searchParams.get('scoreMax') || '');
   const [origemFiltro, setOrigemFiltro] = useState(() => searchParams.get('origem') || '');
   const [listaFiltro, setListaFiltro] = useState(() => searchParams.get('lista') || '');
+  const [listaIdFiltro, setListaIdFiltro] = useState(() => searchParams.get('listaId') || '');
   const [criadoDe, setCriadoDe] = useState(() => searchParams.get('criadoDe') || '');
   const [criadoAte, setCriadoAte] = useState(() => searchParams.get('criadoAte') || '');
   const [atualizadoDe, setAtualizadoDe] = useState(() => searchParams.get('atualizadoDe') || '');
@@ -163,6 +165,8 @@ export default function Leads() {
   const [purgingLeads, setPurgingLeads] = useState(false);
   const navigate = useNavigate();
   const listas = useListasStore();
+  const listaImportadaCarregando = Boolean(listaIdFiltro) && listas.status === 'loading';
+  const listaImportadaComErro = Boolean(listaIdFiltro) && listas.status === 'error';
 
   useEffect(() => {
     void loadTeamMembers()
@@ -212,6 +216,7 @@ export default function Leads() {
     set('scoreMax', scoreMax);
     set('origem', origemFiltro);
     set('lista', listaFiltro);
+    set('listaId', listaIdFiltro);
     set('criadoDe', criadoDe);
     set('criadoAte', criadoAte);
     set('atualizadoDe', atualizadoDe);
@@ -220,7 +225,7 @@ export default function Leads() {
     set('duplicidade', suspeitaDuplicidade ? '1' : '');
     set('arquivados', mostrarArquivados ? '1' : '');
     if (next.toString() !== searchParams.toString()) setSearchParams(next, { replace: true });
-  }, [atualizadoAte, atualizadoDe, busca, cidadeFiltro, criadoAte, criadoDe, etapaFiltro, listaFiltro, mostrarArquivados, ordenacao, origemFiltro, pagina, proximaAcaoFiltro, quickView, responsavelFiltro, scoreMax, scoreMin, searchParams, segmentoFiltro, setSearchParams, situacaoContato, suspeitaDuplicidade, ufFiltro]);
+  }, [atualizadoAte, atualizadoDe, busca, cidadeFiltro, criadoAte, criadoDe, etapaFiltro, listaFiltro, listaIdFiltro, mostrarArquivados, ordenacao, origemFiltro, pagina, proximaAcaoFiltro, quickView, responsavelFiltro, scoreMax, scoreMin, searchParams, segmentoFiltro, setSearchParams, situacaoContato, suspeitaDuplicidade, ufFiltro]);
 
   const mostrarToast = (msg: string) => {
     setToast(msg);
@@ -486,13 +491,16 @@ export default function Leads() {
     return byLead;
   }, [tarefas]);
 
-  const listaPorLead = useMemo(() => {
-    const result = new Map<string, string>();
-    for (const lista of listas.listas) {
-      for (const leadId of lista.leadIds) result.set(leadId, lista.nome);
+  const listaIdsPorLead = useMemo(() => indexLeadListMemberships(listas.listas), [listas.listas]);
+
+  const listaNamesPorLead = useMemo(() => {
+    const listNames = new Map(listas.listas.map((lista) => [lista.id, lista.nome]));
+    const result = new Map<string, Set<string>>();
+    for (const [leadId, listIds] of listaIdsPorLead) {
+      result.set(leadId, new Set([...listIds].map((listId) => listNames.get(listId)).filter((name): name is string => Boolean(name))));
     }
     return result;
-  }, [listas.listas]);
+  }, [listaIdsPorLead, listas.listas]);
 
   const possibleDuplicateIds = useMemo(() => {
     const result = new Set<string>();
@@ -518,6 +526,9 @@ export default function Leads() {
   );
 
   const filtrados = useMemo(() => {
+    // A associação de uma importação é N:N e vem da store autorizada. Enquanto
+    // ela não está disponível, não exponha a carteira inteira nem um vazio falso.
+    if (listaImportadaCarregando || listaImportadaComErro) return [];
     const minimum = scoreMin ? Number(scoreMin) : null;
     const maximum = scoreMax ? Number(scoreMax) : null;
     const dateInRange = (value: string | null | undefined, start: string, end: string) => {
@@ -541,7 +552,8 @@ export default function Leads() {
       if (minimum !== null && (!Number.isFinite(minimum) || lead.score < minimum)) return false;
       if (maximum !== null && (!Number.isFinite(maximum) || lead.score > maximum)) return false;
       if (origemFiltro && lead.origem !== origemFiltro) return false;
-      if (listaFiltro && listaPorLead.get(lead.id) !== listaFiltro) return false;
+      if (listaIdFiltro && !leadMatchesExactList(listaIdsPorLead, lead.id, listaIdFiltro)) return false;
+      if (listaFiltro && !listaNamesPorLead.get(lead.id)?.has(listaFiltro)) return false;
       if (!dateInRange(lead.createdAt ?? lead.criadoEm, criadoDe, criadoAte)) return false;
       if (!dateInRange(lead.updatedAt, atualizadoDe, atualizadoAte)) return false;
       if (proximaAcaoFiltro === 'with' && !hasNextAction) return false;
@@ -559,7 +571,7 @@ export default function Leads() {
       if (ordenacao === 'created') return (right.createdAt ?? right.criadoEm).localeCompare(left.createdAt ?? left.criadoEm);
       return (right.updatedAt ?? '').localeCompare(left.updatedAt ?? '');
     });
-  }, [atualizadoAte, atualizadoDe, base, busca, cidadeFiltro, criadoAte, criadoDe, etapaFiltro, listaFiltro, listaPorLead, ordenacao, origemFiltro, possibleDuplicateIds, proximaAcaoFiltro, qualificacoes, quickView, responsavelFiltro, scoreMax, scoreMin, segmentoFiltro, situacaoContato, suspeitaDuplicidade, tarefasAbertasPorLead, ufFiltro]);
+  }, [atualizadoAte, atualizadoDe, base, busca, cidadeFiltro, criadoAte, criadoDe, etapaFiltro, listaFiltro, listaIdFiltro, listaIdsPorLead, listaImportadaCarregando, listaImportadaComErro, listaNamesPorLead, ordenacao, origemFiltro, possibleDuplicateIds, proximaAcaoFiltro, qualificacoes, quickView, responsavelFiltro, scoreMax, scoreMin, segmentoFiltro, situacaoContato, suspeitaDuplicidade, tarefasAbertasPorLead, ufFiltro]);
 
   const totalPaginas = Math.max(1, Math.ceil(filtrados.length / PAGE_SIZE));
   const paginaAtual = Math.min(pagina, totalPaginas);
@@ -575,7 +587,7 @@ export default function Leads() {
   const responsaveisDisponiveis = useMemo(() => Array.from(new Set(leads.map((lead) => lead.responsavel).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pt-BR')), [leads]);
   const segmentosDisponiveis = useMemo(() => Array.from(new Set(leads.map((lead) => lead.segmento).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pt-BR')), [leads]);
   const origensDisponiveis = useMemo(() => Array.from(new Set(leads.map((lead) => lead.origem).filter(Boolean))).sort((a, b) => a.localeCompare(b, 'pt-BR')), [leads]);
-  const listasDisponiveis = useMemo(() => Array.from(new Set(Array.from(listaPorLead.values()))).sort((a, b) => a.localeCompare(b, 'pt-BR')), [listaPorLead]);
+  const listasDisponiveis = useMemo(() => Array.from(new Set(listas.listas.map((lista) => lista.nome))).sort((a, b) => a.localeCompare(b, 'pt-BR')), [listas.listas]);
   const leadsDoEnvioParaKanban = useMemo(() => {
     const targetIds = new Set(envioAlvo ?? []);
     return leads.filter((lead) => targetIds.has(lead.id));
@@ -660,7 +672,7 @@ export default function Leads() {
   const aplicarFiltros = (filters: PortfolioFilters) => {
     setBuscaDigitada(filters.query); setBusca(filters.query); setEtapaFiltro(filters.stage); setSegmentoFiltro(filters.segment); setResponsavelFiltro(filters.owner);
     setMostrarArquivados(filters.archived); setCidadeFiltro(filters.city); setUfFiltro(filters.state); setSituacaoContato(filters.contact);
-    setScoreMin(filters.scoreMin); setScoreMax(filters.scoreMax); setOrigemFiltro(filters.origin); setListaFiltro(filters.sourceList);
+    setScoreMin(filters.scoreMin); setScoreMax(filters.scoreMax); setOrigemFiltro(filters.origin); setListaFiltro(filters.sourceList); setListaIdFiltro('');
     setCriadoDe(filters.createdFrom); setCriadoAte(filters.createdTo); setAtualizadoDe(filters.updatedFrom); setAtualizadoAte(filters.updatedTo);
     setProximaAcaoFiltro(filters.nextAction); setSuspeitaDuplicidade(filters.duplicate); setQuickView(filters.quickView); setOrdenacao(filters.sort);
     setColunasVisiveis(filters.columns.length ? filters.columns : DEFAULT_COLUMNS); setPagina(1);
@@ -668,7 +680,7 @@ export default function Leads() {
 
   const limparFiltros = () => {
     setBuscaDigitada(''); setBusca(''); setEtapaFiltro('Todas'); setSegmentoFiltro('Todos'); setResponsavelFiltro('Todos'); setCidadeFiltro(''); setUfFiltro('');
-    setSituacaoContato('all'); setScoreMin(''); setScoreMax(''); setOrigemFiltro(''); setListaFiltro(''); setCriadoDe(''); setCriadoAte('');
+    setSituacaoContato('all'); setScoreMin(''); setScoreMax(''); setOrigemFiltro(''); setListaFiltro(''); setListaIdFiltro(''); setCriadoDe(''); setCriadoAte('');
     setAtualizadoDe(''); setAtualizadoAte(''); setProximaAcaoFiltro('all'); setSuspeitaDuplicidade(false); setQuickView('all'); setPagina(1);
   };
 
@@ -680,6 +692,7 @@ export default function Leads() {
     cidadeFiltro ? { label: 'Cidade', value: cidadeFiltro, onRemove: () => { setCidadeFiltro(''); setPagina(1); } } : null,
     ufFiltro ? { label: 'UF', value: ufFiltro, onRemove: () => { setUfFiltro(''); setPagina(1); } } : null,
     origemFiltro ? { label: 'Origem', value: origemFiltro, onRemove: () => { setOrigemFiltro(''); setPagina(1); } } : null,
+    listaIdFiltro ? { label: 'Lista importada', value: listas.listas.find((lista) => lista.id === listaIdFiltro)?.nome || 'Lista selecionada', onRemove: () => { setListaIdFiltro(''); setPagina(1); } } : null,
     listaFiltro ? { label: 'Lista', value: listaFiltro, onRemove: () => { setListaFiltro(''); setPagina(1); } } : null,
     situacaoContato !== 'all' ? { label: 'Contato', value: situacaoContato === 'without-contact' ? 'Sem contato' : situacaoContato === 'with-contact' ? 'Com contato' : situacaoContato === 'whatsapp' ? 'WhatsApp' : 'E-mail', onRemove: () => { setSituacaoContato('all'); setPagina(1); } } : null,
     proximaAcaoFiltro !== 'all' ? { label: 'Próxima ação', value: proximaAcaoFiltro === 'with' ? 'Com ação' : 'Sem ação', onRemove: () => { setProximaAcaoFiltro('all'); setPagina(1); } } : null,
@@ -857,7 +870,7 @@ export default function Leads() {
           <label className="text-xs font-semibold text-foreground-600">Situação do contato<select value={situacaoContato} onChange={(event) => { setSituacaoContato(event.target.value as ContactFilter); setPagina(1); }} className="mt-1.5 w-full rounded-lg border border-background-300 bg-white px-3 py-2 text-sm font-normal text-foreground-800"><option value="all">Todas</option><option value="with-contact">Com contato</option><option value="without-contact">Sem contato</option><option value="whatsapp">WhatsApp identificado</option><option value="email">E-mail informado</option></select></label>
           <div><p className="text-xs font-semibold text-foreground-600">Faixa de aderência</p><div className="mt-1.5 grid grid-cols-2 gap-2"><input type="number" min="0" max="100" value={scoreMin} onChange={(event) => { setScoreMin(event.target.value); setPagina(1); }} className="w-full rounded-lg border border-background-300 bg-white px-3 py-2 text-sm" placeholder="Mín." /><input type="number" min="0" max="100" value={scoreMax} onChange={(event) => { setScoreMax(event.target.value); setPagina(1); }} className="w-full rounded-lg border border-background-300 bg-white px-3 py-2 text-sm" placeholder="Máx." /></div></div>
           <label className="text-xs font-semibold text-foreground-600">Origem<select value={origemFiltro} onChange={(event) => { setOrigemFiltro(event.target.value); setPagina(1); }} className="mt-1.5 w-full rounded-lg border border-background-300 bg-white px-3 py-2 text-sm font-normal text-foreground-800"><option value="">Todas</option>{origensDisponiveis.map((origin) => <option key={origin} value={origin}>{leadOriginLabel(origin)}</option>)}</select></label>
-          <label className="text-xs font-semibold text-foreground-600">Lista de origem<select value={listaFiltro} onChange={(event) => { setListaFiltro(event.target.value); setPagina(1); }} className="mt-1.5 w-full rounded-lg border border-background-300 bg-white px-3 py-2 text-sm font-normal text-foreground-800"><option value="">Todas</option>{listasDisponiveis.map((list) => <option key={list} value={list}>{list}</option>)}</select></label>
+          <label className="text-xs font-semibold text-foreground-600">Lista de origem<select value={listaFiltro} onChange={(event) => { setListaFiltro(event.target.value); setListaIdFiltro(''); setPagina(1); }} className="mt-1.5 w-full rounded-lg border border-background-300 bg-white px-3 py-2 text-sm font-normal text-foreground-800"><option value="">Todas</option>{listasDisponiveis.map((list) => <option key={list} value={list}>{list}</option>)}</select></label>
           <div><p className="text-xs font-semibold text-foreground-600">Data de criação</p><div className="mt-1.5 grid grid-cols-2 gap-2"><input type="date" value={criadoDe} onChange={(event) => { setCriadoDe(event.target.value); setPagina(1); }} className="w-full rounded-lg border border-background-300 bg-white px-2 py-2 text-sm" /><input type="date" value={criadoAte} onChange={(event) => { setCriadoAte(event.target.value); setPagina(1); }} className="w-full rounded-lg border border-background-300 bg-white px-2 py-2 text-sm" /></div></div>
           <div><p className="text-xs font-semibold text-foreground-600">Última atualização</p><div className="mt-1.5 grid grid-cols-2 gap-2"><input type="date" value={atualizadoDe} onChange={(event) => { setAtualizadoDe(event.target.value); setPagina(1); }} className="w-full rounded-lg border border-background-300 bg-white px-2 py-2 text-sm" /><input type="date" value={atualizadoAte} onChange={(event) => { setAtualizadoAte(event.target.value); setPagina(1); }} className="w-full rounded-lg border border-background-300 bg-white px-2 py-2 text-sm" /></div></div>
           <label className="text-xs font-semibold text-foreground-600">Próxima ação<select value={proximaAcaoFiltro} onChange={(event) => { setProximaAcaoFiltro(event.target.value as 'all' | 'with' | 'without'); setPagina(1); }} className="mt-1.5 w-full rounded-lg border border-background-300 bg-white px-3 py-2 text-sm font-normal text-foreground-800"><option value="all">Todas</option><option value="with">Com ação</option><option value="without">Sem ação</option></select></label>
@@ -865,7 +878,7 @@ export default function Leads() {
         </div>}
 
         {chips.length > 0 && <div className="flex flex-wrap items-center justify-between gap-2 px-4 pb-3"><FilterChips chips={chips} /><button type="button" onClick={limparFiltros} className="text-xs font-semibold text-primary-700 hover:text-primary-900">Limpar filtros</button></div>}
-        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-background-200 px-4 py-3"><p className="text-sm font-medium text-foreground-700">{filtrados.length} {filtrados.length === 1 ? 'lead encontrado' : 'leads encontrados'}</p><div className="relative flex flex-wrap items-center gap-2"><label className="text-xs text-foreground-500">Ordenar por <select value={ordenacao} onChange={(event) => { setOrdenacao(event.target.value as PortfolioSort); setPagina(1); }} className="ml-1 rounded-lg border border-background-300 bg-white px-3 py-2 text-sm font-medium text-foreground-700"><option value="updated">Atualizados recentemente</option><option value="created">Criados recentemente</option><option value="score-desc">Maior aderência</option><option value="score-asc">Menor aderência</option><option value="company">Nome da empresa</option></select></label><button type="button" onClick={() => setColumnMenuOpen((open) => !open)} aria-expanded={columnMenuOpen} className="inline-flex items-center gap-2 rounded-lg border border-background-300 bg-white px-3 py-2 text-sm font-semibold text-foreground-700 hover:bg-background-100"><i className="ri-layout-column-line" />Colunas</button>{columnMenuOpen && <div className="absolute right-0 top-full z-30 mt-2 w-56 rounded-xl border border-background-200 bg-white p-2 shadow-lg">{([
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-background-200 px-4 py-3"><p className="text-sm font-medium text-foreground-700">{listaImportadaCarregando ? 'Carregando a lista importada…' : listaImportadaComErro ? 'Lista importada indisponível' : `${filtrados.length} ${filtrados.length === 1 ? 'lead encontrado' : 'leads encontrados'}`}</p><div className="relative flex flex-wrap items-center gap-2"><label className="text-xs text-foreground-500">Ordenar por <select value={ordenacao} onChange={(event) => { setOrdenacao(event.target.value as PortfolioSort); setPagina(1); }} className="ml-1 rounded-lg border border-background-300 bg-white px-3 py-2 text-sm font-medium text-foreground-700"><option value="updated">Atualizados recentemente</option><option value="created">Criados recentemente</option><option value="score-desc">Maior aderência</option><option value="score-asc">Menor aderência</option><option value="company">Nome da empresa</option></select></label><button type="button" onClick={() => setColumnMenuOpen((open) => !open)} aria-expanded={columnMenuOpen} className="inline-flex items-center gap-2 rounded-lg border border-background-300 bg-white px-3 py-2 text-sm font-semibold text-foreground-700 hover:bg-background-100"><i className="ri-layout-column-line" />Colunas</button>{columnMenuOpen && <div className="absolute right-0 top-full z-30 mt-2 w-56 rounded-xl border border-background-200 bg-white p-2 shadow-lg">{([
             ['contact', 'Contato'], ['segment-location', 'Segmento / local'], ['fit', 'Aderência'], ['stage', 'Etapa'], ['last-interaction', 'Última interação'], ['next-action', 'Próxima ação'], ['owner', 'Responsável'],
           ] as const).map(([column, label]) => <label key={column} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-sm text-foreground-700 hover:bg-background-100"><input type="checkbox" checked={columnVisible(column)} onChange={(event) => setColunasVisiveis((current) => event.target.checked ? [...new Set([...current, column])] : current.filter((item) => item !== column))} className="h-4 w-4 accent-primary-600" />{label}</label>)}</div>}</div></div>
       </section>
@@ -873,8 +886,10 @@ export default function Leads() {
       <section className="mt-5 overflow-hidden rounded-xl border border-background-200 bg-white shadow-2xs">
         {selecionados.length > 0 ? <div className="flex flex-wrap items-center gap-2 border-b border-primary-200 bg-primary-50 px-4 py-3"><span className="mr-2 text-sm font-semibold text-primary-900">{selecionados.length} selecionado(s)</span>{canEditAll && <select defaultValue="" onChange={(event) => { if (event.target.value) { void atribuirResponsavel(selecionados, event.target.value); event.target.value = ''; } }} className="rounded-lg border border-primary-200 bg-white px-3 py-2 text-sm text-foreground-700"><option value="" disabled>Atribuir responsável…</option>{membros.map((member) => <option key={member.userId} value={member.userId}>{member.name}</option>)}</select>}<select aria-describedby="bulk-stage-governance" disabled={stageChangePending === 'bulk'} defaultValue="" onChange={(event) => { if (event.target.value) { void mudarEtapaEmMassa(event.target.value); event.target.value = ''; } }} className="rounded-lg border border-primary-200 bg-white px-3 py-2 text-sm text-foreground-700"><option value="" disabled>Alterar etapa…</option>{canonicalStageOptions.map((stage) => <option key={stage.key} value={stage.label} disabled={isTerminalStage(stage.key)}>{isTerminalStage(stage.key) ? `${stage.label} — concluir no orçamento` : stage.label}</option>)}</select><span id="bulk-stage-governance" className="sr-only">Ganho e Perdido são etapas finais e devem ser concluídos individualmente pelo orçamento.</span><button type="button" onClick={abrirEnvioParaKanban} className="rounded-lg border border-primary-300 bg-white px-3 py-2 text-sm font-semibold text-primary-800 hover:bg-primary-100"><i className="ri-kanban-view-2-line mr-1" />Enviar para o Kanban</button><button type="button" onClick={exportarSelecionados} className="rounded-lg border border-primary-200 bg-white px-3 py-2 text-sm font-semibold text-primary-800 hover:bg-primary-100"><i className="ri-download-2-line mr-1" />Exportar</button><button type="button" onClick={() => void arquivarSelecionados()} className="rounded-lg border border-accent-200 bg-white px-3 py-2 text-sm font-semibold text-accent-700 hover:bg-accent-50"><i className="ri-archive-line mr-1" />Arquivar</button>{canDelete && <button type="button" onClick={() => openLeadPurge(selecionados)} className="rounded-lg border border-accent-300 bg-white px-3 py-2 text-sm font-semibold text-accent-700 hover:bg-accent-50"><i className="ri-delete-bin-6-line mr-1" />Excluir definitivamente</button>}<button type="button" onClick={() => setSelecionados([])} className="px-2 py-2 text-sm font-semibold text-foreground-600 hover:text-foreground-900">Limpar seleção</button></div> : <p className="border-b border-background-200 bg-background-50 px-4 py-3 text-sm text-foreground-500"><i className="ri-information-line mr-1.5" />Selecione leads para enviar ao Kanban, atribuir responsável, alterar etapa, exportar, arquivar ou excluir.</p>}
         <div className="overflow-x-auto"><table className="w-full min-w-[1220px] text-sm"><thead><tr className="border-b border-background-200 bg-background-100/60 text-left text-[11px] font-semibold uppercase tracking-wide text-foreground-500"><th className="w-12 px-4 py-3"><input aria-label="Selecionar leads desta página" type="checkbox" checked={leadsDaPagina.length > 0 && leadsDaPagina.every((lead) => selecionados.includes(lead.id))} onChange={(event) => setSelecionados((current) => event.target.checked ? [...new Set([...current, ...leadsDaPagina.map((lead) => lead.id)])] : current.filter((id) => !leadsDaPagina.some((lead) => lead.id === id)))} className="h-4 w-4 accent-primary-600" /></th><th className="min-w-[180px] px-4 py-3">Lead / empresa</th>{columnVisible('contact') && <th className="min-w-[170px] px-4 py-3">Contato</th>}{columnVisible('segment-location') && <th className="min-w-[150px] px-4 py-3">Segmento / local</th>}{columnVisible('fit') && <th className="min-w-[120px] px-4 py-3">Aderência</th>}{columnVisible('stage') && <th className="min-w-[145px] px-4 py-3">Etapa</th>}{columnVisible('last-interaction') && <th className="min-w-[155px] px-4 py-3">Última interação</th>}{columnVisible('next-action') && <th className="min-w-[175px] px-4 py-3">Próxima ação</th>}{columnVisible('owner') && <th className="min-w-[150px] px-4 py-3">Responsável</th>}<th className="w-12 px-4 py-3"><span className="sr-only">Ações</span></th></tr></thead><tbody>
-          {loadStatus === 'loading' && <tr><td colSpan={3 + colunasVisiveis.length} className="px-4 py-12 text-center text-foreground-500"><i className="ri-loader-4-line mr-2 inline-block animate-spin" />Carregando carteira operacional…</td></tr>}
-          {loadStatus !== 'loading' && leadsDaPagina.map((rawLead) => {
+          {loadStatus === 'loading' && !listaImportadaCarregando && !listaImportadaComErro && <tr><td colSpan={3 + colunasVisiveis.length} className="px-4 py-12 text-center text-foreground-500"><i className="ri-loader-4-line mr-2 inline-block animate-spin" />Carregando carteira operacional…</td></tr>}
+          {listaImportadaCarregando && <tr><td colSpan={3 + colunasVisiveis.length} className="px-4 py-12 text-center text-foreground-500"><i className="ri-loader-4-line mr-2 inline-block animate-spin" />Carregando a lista importada…</td></tr>}
+          {listaImportadaComErro && <tr><td colSpan={3 + colunasVisiveis.length} className="px-4 py-12 text-center text-foreground-500"><p>Não foi possível carregar a lista importada.</p><button type="button" onClick={() => { void refreshListsStore().catch(() => undefined); }} className="mt-3 rounded-lg border border-primary-300 px-3 py-2 text-xs font-semibold text-primary-800 hover:bg-primary-50">Tentar novamente</button></td></tr>}
+          {loadStatus !== 'loading' && !listaImportadaCarregando && !listaImportadaComErro && leadsDaPagina.map((rawLead) => {
             const lead = { ...rawLead, nome: factualLeadDisplayName(rawLead) };
             const action = actionFor(lead);
             const hasContact = leadHasContact(lead);
@@ -889,7 +904,7 @@ export default function Leads() {
               {columnVisible('owner') && <td className="px-4 py-4" onClick={(event) => event.stopPropagation()}><div className="flex items-center gap-2"><span className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary-100 text-[11px] font-bold text-primary-800">{(lead.responsavel || '?').split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase()}</span>{canEditAll ? <select aria-label={`Responsável por ${lead.empresa || lead.nome}`} value={lead.responsavelId ?? '__ana__'} onChange={(event) => { if (event.target.value !== '__ana__') void atribuirResponsavel([lead.id], event.target.value); }} className="max-w-[120px] bg-transparent text-xs font-medium text-foreground-700"><option value="__ana__">{lead.responsavel || 'Ana (IA)'}</option>{membros.filter((member) => member.userId !== lead.responsavelId).map((member) => <option key={member.userId} value={member.userId}>{member.name}</option>)}</select> : <span className="text-xs font-medium text-foreground-700">{lead.responsavel || 'Sem responsável'}</span>}</div></td>}
               <td className="relative px-4 py-4" onClick={(event) => event.stopPropagation()}><button type="button" aria-label={`Ações de ${lead.empresa || lead.nome}`} aria-expanded={menuAbertoId === lead.id} onClick={() => setMenuAbertoId((current) => current === lead.id ? null : lead.id)} className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-foreground-500 hover:bg-background-100 hover:text-foreground-900"><i className="ri-more-2-fill" /></button>{menuAbertoId === lead.id && <div className="absolute right-4 top-12 z-20 w-56 rounded-xl border border-background-200 bg-white p-1.5 shadow-lg"><button type="button" onClick={() => { setDetalhe(lead); setMenuAbertoId(null); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-foreground-700 hover:bg-background-100"><i className="ri-eye-line" />Ver detalhes</button>{canEdit && <button type="button" onClick={() => { abrirEnvioParaKanban([lead.id]); setMenuAbertoId(null); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-primary-800 hover:bg-primary-50"><i className="ri-kanban-view-2-line" />Enviar ao Kanban</button>}{canEdit && lead.modoAtendimento === 'IA' && lead.contactApprovalStatus !== 'approved' && <button type="button" onClick={() => { abrirAtivacaoAna(lead); setMenuAbertoId(null); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-secondary-800 hover:bg-secondary-50"><i className="ri-robot-2-line" />Autorizar e iniciar Ana</button>}{canEdit && <button type="button" onClick={() => { abrirEdicao(lead); setMenuAbertoId(null); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-foreground-700 hover:bg-background-100"><i className="ri-edit-line" />Editar</button>}{canEdit && <button type="button" onClick={() => { void (lead.arquivado ? restaurarLead(lead.id) : arquivarLead(lead.id)); setMenuAbertoId(null); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-foreground-700 hover:bg-background-100"><i className={lead.arquivado ? 'ri-arrow-go-back-line' : 'ri-archive-line'} />{lead.arquivado ? 'Restaurar' : 'Arquivar'}</button>}{canDelete && <button type="button" onClick={() => { openLeadPurge([lead.id]); setMenuAbertoId(null); }} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-accent-700 hover:bg-accent-50"><i className="ri-delete-bin-line" />Excluir definitivamente</button>}</div>}</td></tr>;
           })}
-          {loadStatus !== 'loading' && filtrados.length === 0 && <tr><td colSpan={3 + colunasVisiveis.length} className="px-4 py-12 text-center text-foreground-500"><i className="ri-search-line mb-2 block text-2xl text-foreground-400" />{leads.length === 0 ? 'Nenhum lead cadastrado ainda.' : 'Nenhum lead encontrado com os filtros selecionados.'}</td></tr>}
+          {loadStatus !== 'loading' && !listaImportadaCarregando && !listaImportadaComErro && filtrados.length === 0 && <tr><td colSpan={3 + colunasVisiveis.length} className="px-4 py-12 text-center text-foreground-500"><i className="ri-search-line mb-2 block text-2xl text-foreground-400" />{leads.length === 0 ? 'Nenhum lead cadastrado ainda.' : 'Nenhum lead encontrado com os filtros selecionados.'}</td></tr>}
         </tbody></table></div>
         {filtrados.length > 0 && <div className="flex flex-wrap items-center justify-between gap-3 border-t border-background-200 px-4 py-3"><p className="text-xs text-foreground-500">Exibindo {(paginaAtual - 1) * PAGE_SIZE + 1}–{Math.min(paginaAtual * PAGE_SIZE, filtrados.length)} de {filtrados.length} leads</p>{totalPaginas > 1 && <div className="flex items-center gap-2"><button type="button" disabled={paginaAtual === 1} onClick={() => setPagina((current) => Math.max(1, current - 1))} className="rounded-lg border border-background-300 px-3 py-1.5 text-xs font-semibold text-foreground-700 disabled:opacity-40">Anterior</button><span className="text-xs text-foreground-500">Página {paginaAtual} de {totalPaginas}</span><button type="button" disabled={paginaAtual === totalPaginas} onClick={() => setPagina((current) => Math.min(totalPaginas, current + 1))} className="rounded-lg border border-background-300 px-3 py-1.5 text-xs font-semibold text-foreground-700 disabled:opacity-40">Próxima</button></div>}</div>}
       </section>
