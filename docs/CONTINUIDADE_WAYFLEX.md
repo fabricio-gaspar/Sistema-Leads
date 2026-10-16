@@ -2400,3 +2400,10 @@ webhook em ambiente controlado.
 - A migration `20261012123000_wa_akg_directory_lead_link` mantém o contato sincronizado ligado ao lead existente quando houver correspondência, evitando duplicação ao promover um contato.
 - A Central exibe o estado de proteção e os dois comandos de decisão. **Tornar lead** apenas autoriza o cadastro e começa em modo humano; a ativação da Ana continua sendo uma decisão separada.
 - Validação remota estrutural: 7 colunas, 4 funções, 2 triggers e 1.137 contatos com estado seguro padrão confirmados. Validação local: 7 testes focados, type-check, lint, build Vite e `git diff --check` aprovados. Nenhuma mensagem real foi enviada.
+
+## 15/10/2026 — Busca de Leads, CSV e fila segura da Ana
+
+- A Busca de Leads recebeu assistente em quatro etapas, atalhos baseados no catálogo da empresa, área de atuação com cidade/raio e mapa, revisão antes da importação e LinkedIn separado do Google Maps. O fluxo não inicia busca enquanto o usuário configura os critérios.
+- A importação CSV abre o seletor nativo, valida e deduplica os registros e oferece envio explícito para Leads. A Ana pode apenas enfileirar até 10 leads já existentes para revisão humana; não cria campanhas, não envia mensagens e não ativa contatos automaticamente.
+- O lote foi validado localmente com Vitest completo (800 aprovados, 25 ignorados), type-check do frontend e Edge Functions, lint direcionado, build Vite, pacote do Site e `git diff --check` aprovados.
+- **PUBLICADO:** GitHub `2ee8a81` e Site existente versão **212**, origem reconciliada em `9f411084c1b180f467bc85681733d7c47aab1d04`, deploy `appgdep_6ad1718ccd74819186438a085f3d03fb` com estado `succeeded`, domínio oficial `https://prospect.wfdigital.com.br`. Nenhuma migration ou Edge Function foi publicada nesta etapa.
