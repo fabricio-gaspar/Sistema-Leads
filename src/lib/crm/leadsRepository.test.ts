@@ -4,6 +4,7 @@ import { assertLeadUpdatePersisted } from './leadsRepository';
 const remote = vi.hoisted(() => ({
   leadRows: [] as Array<Record<string, unknown>>,
   policyLeadIdBatches: [] as string[][],
+  policyOrganizationFilters: [] as string[],
   from: vi.fn(),
 }));
 
@@ -40,12 +41,16 @@ function leadRow(id: string, sourceMetadata: Record<string, unknown> = {}) {
 beforeEach(() => {
   remote.leadRows.splice(0);
   remote.policyLeadIdBatches.splice(0);
+  remote.policyOrganizationFilters.splice(0);
   remote.from.mockReset();
   remote.from.mockImplementation((table: string) => {
     const rows = table === 'leads' ? remote.leadRows : [];
     const query = {
       select: vi.fn(() => query),
-      eq: vi.fn(() => query),
+      eq: vi.fn((column: string, value: string) => {
+        if (table === 'lead_handoff_policies' && column === 'organization_id') remote.policyOrganizationFilters.push(value);
+        return query;
+      }),
       in: vi.fn((_column: string, ids: string[]) => {
         remote.policyLeadIdBatches.push(ids);
         return query;
@@ -67,7 +72,7 @@ describe('assertLeadUpdatePersisted', () => {
     expect(() => assertLeadUpdatePersisted({ id: 'lead-1' }, 'lead-1')).not.toThrow();
   });
 
-  it('keeps WA-AKG contact-only shells out of commercial leads and their handoff-policy query', async () => {
+  it('keeps WA-AKG contact-only shells out of commercial leads while loading policies once per organization', async () => {
     const { loadOperationalLeads } = await import('./leadsRepository');
     remote.leadRows.push(
       leadRow('lead-commercial'),
@@ -77,6 +82,7 @@ describe('assertLeadUpdatePersisted', () => {
     const leads = await loadOperationalLeads('organization-1');
 
     expect(leads.map((lead) => lead.id)).toEqual(['lead-commercial']);
-    expect(remote.policyLeadIdBatches).toEqual([['lead-commercial']]);
+    expect(remote.policyLeadIdBatches).toEqual([]);
+    expect(remote.policyOrganizationFilters).toEqual(['organization-1']);
   });
 });

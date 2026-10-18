@@ -13,7 +13,7 @@ import { useLocalStorageState } from '@/hooks/useLocalStorageState';
 import { segmentos } from '@/mocks/leadsData';
 import type { Lead } from '@/mocks/leadsData';
 import { canonicalStageKeyFromLabel, canonicalStageOptions, CommercialTransitionError, isTerminalStage, transitionOperationalLeadStage } from '@/lib/crm/leadStageRepository';
-import { refreshListsStore, useListasStore } from '@/hooks/useListasStore';
+import { refreshListsStore, useListasStore, waitForListsPersistence } from '@/hooks/useListasStore';
 import { useAuth } from '@/hooks/useAuth';
 import { useCurrentAccess } from '@/hooks/useCurrentAccess';
 import { loadTeamMembers, type TeamMember } from '@/lib/crm/teamMembersRepository';
@@ -26,6 +26,7 @@ import { loadLeadQualifications, type LeadQualification } from '@/lib/crm/leadQu
 import { leadPurgeErrorMessage, purgeOperationalLeads } from '@/lib/crm/leadGovernanceRepository';
 import { isLeadPurgeConfirmationValid, leadPurgeConfirmation } from './components/leadPurgeConfirmation';
 import {
+  findPotentialDuplicateLeadIds,
   findPotentialLeadDuplicates,
   formatPortfolioDate,
   HIGH_FIT_SCORE,
@@ -165,8 +166,8 @@ export default function Leads() {
   const [purgingLeads, setPurgingLeads] = useState(false);
   const navigate = useNavigate();
   const listas = useListasStore();
-  const listaImportadaCarregando = Boolean(listaIdFiltro) && listas.status === 'loading';
-  const listaImportadaComErro = Boolean(listaIdFiltro) && listas.status === 'error';
+  const listaImportadaCarregando = Boolean(listaIdFiltro || listaFiltro) && listas.status === 'loading';
+  const listaImportadaComErro = Boolean(listaIdFiltro || listaFiltro) && listas.status === 'error';
 
   useEffect(() => {
     void loadTeamMembers()
@@ -382,8 +383,9 @@ export default function Leads() {
       mostrarToast('Sua sessão não possui um responsável válido. Entre novamente antes de enviar ao Kanban.');
       return;
     }
-    const targetLeads = leads.filter((lead) => ids.includes(lead.id));
-    if (targetLeads.length !== new Set(ids).size) {
+    const idsSet = new Set(ids);
+    const targetLeads = leads.filter((lead) => idsSet.has(lead.id));
+    if (targetLeads.length !== idsSet.size) {
       mostrarToast('Um ou mais leads não estão mais disponíveis. Atualize a página antes de enviar ao Kanban.');
       return;
     }
@@ -392,13 +394,24 @@ export default function Leads() {
       mostrarToast('Há lead(s) sem modo de atendimento ou responsável técnico definido. Revise a importação antes de enviar ao Kanban.');
       return;
     }
+    const coveredPendingLists = listas.listas.filter((lista) =>
+      lista.status === 'pendente'
+      && lista.leadIds.length > 0
+      && lista.leadIds.every((leadId) => idsSet.has(leadId))
+    );
     if (!plan.needsRoutingLeadIds.length) {
-      mostrarToast(`${ids.length} lead(s) já estão no Kanban. Nenhum registro novo foi criado.`);
+      coveredPendingLists.forEach((lista) => listas.atualizar(lista.id, { status: 'ativada' }));
+      try {
+        await waitForListsPersistence();
+      } catch {
+        mostrarToast('Os leads já estão no Kanban, mas a lista não confirmou a revisão. Atualize a página e tente novamente.');
+        return;
+      }
+      mostrarToast(`${ids.length} lead(s) já estão no Kanban. A revisão da lista foi confirmada sem alterar os registros.`);
       setSelecionados([]);
       resetEnvioParaKanban();
       return;
     }
-    const idsSet = new Set(ids);
     const routingIds = new Set(plan.needsRoutingLeadIds);
     setLeads((current) => current.map((lead) => routingIds.has(lead.id) ? assignKanbanRoutingUser(lead, user.id) : lead));
     try {
@@ -407,11 +420,13 @@ export default function Leads() {
       mostrarToast('O Kanban não confirmou o vínculo técnico do lead. Nenhuma automação foi iniciada; atualize a página e tente novamente.');
       return;
     }
-    listas.listas.forEach((lista) => {
-      if (lista.status === 'pendente' && lista.leadIds.length > 0 && lista.leadIds.every((lid) => idsSet.has(lid))) {
-        listas.atualizar(lista.id, { status: 'ativada' });
-      }
-    });
+    coveredPendingLists.forEach((lista) => listas.atualizar(lista.id, { status: 'ativada' }));
+    try {
+      await waitForListsPersistence();
+    } catch {
+      mostrarToast('Os leads foram enviados ao Kanban, mas o estado da lista não foi confirmado. Atualize a página antes de repetir.');
+      return;
+    }
     const jaNoKanban = plan.alreadyInKanbanLeadIds.length;
     mostrarToast(`${plan.needsRoutingLeadIds.length} lead(s) enviado(s) ao Kanban${jaNoKanban ? ` · ${jaNoKanban} já estava(m) disponível(is)` : ''}.`);
     setSelecionados([]);
@@ -502,13 +517,7 @@ export default function Leads() {
     return result;
   }, [listaIdsPorLead, listas.listas]);
 
-  const possibleDuplicateIds = useMemo(() => {
-    const result = new Set<string>();
-    for (const lead of leads) {
-      if (findPotentialLeadDuplicates(lead, leads).length) result.add(lead.id);
-    }
-    return result;
-  }, [leads]);
+  const possibleDuplicateIds = useMemo(() => findPotentialDuplicateLeadIds(leads), [leads]);
 
   const actionFor = (lead: Lead) => {
     const task = tarefasAbertasPorLead.get(lead.id);
@@ -602,15 +611,18 @@ export default function Leads() {
       .map((lead) => lead.responsavel || 'Sem responsável'),
   )), [leadsDoEnvioParaKanban, planoEnvioParaKanban.humanLeadIds]);
   const listasPendentes = listas.listas.filter((lista) => lista.status === 'pendente' && lista.leadIds.length > 0);
+  const gruposPendentes = new Set(listasPendentes.map((lista) => lista.nome)).size;
   const canEditAll = access?.permissions['leads.edit_all'] === true;
   const canEditLead = (lead: Lead) => canEditAll || (access?.permissions['leads.edit_assigned'] === true && lead.responsavelId === user?.id);
   const canDelete = access?.permissions['leads.delete'] === true;
   const canCreate = access?.permissions['leads.create'] === true;
+  const canBulkImport = canCreate && access?.permissions['leads.read_all'] === true;
   const columnVisible = (column: LeadColumn) => colunasVisiveis.includes(column);
 
   const abrirEnvioParaKanban = (input?: unknown) => {
     const leadIds = Array.isArray(input) ? input.filter((id): id is string => typeof id === 'string') : selecionados;
-    const targets = leads.filter((lead) => leadIds.includes(lead.id));
+    const leadIdSet = new Set(leadIds);
+    const targets = leads.filter((lead) => leadIdSet.has(lead.id));
     if (!targets.length) {
       mostrarToast('Selecione ao menos um lead para enviar ao Kanban.');
       return;
@@ -832,6 +844,7 @@ export default function Leads() {
         <div className="flex flex-wrap items-center justify-end gap-2">
           <span className="rounded-full border border-background-200 bg-background-50 px-3 py-2 text-xs font-semibold tabular-nums text-foreground-600">{carteirasAtivas.length} {carteirasAtivas.length === 1 ? 'lead na carteira' : 'leads na carteira'}</span>
           <button onClick={() => navigate('/dashboard/busca-leads')} className="wf-btn-primary cursor-pointer whitespace-nowrap"><i className="ri-search-line" aria-hidden="true" />Buscar novos leads</button>
+          <button onClick={() => navigate('/dashboard/busca-leads?aba=importar')} disabled={accessLoading || !canBulkImport} className="wf-btn-secondary cursor-pointer whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50"><i className="ri-upload-cloud-line" aria-hidden="true" />Importar lista</button>
           <button onClick={() => setNovoModal(true)} disabled={accessLoading || !canCreate} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-foreground-950 px-4 py-2 text-sm font-bold text-white hover:bg-foreground-800 disabled:cursor-not-allowed disabled:opacity-50"><i className="ri-add-line" aria-hidden="true" />Novo lead</button>
         </div>
       </header>
@@ -839,7 +852,7 @@ export default function Leads() {
       {toast && <div role="status" className="mb-4 flex items-center gap-2 rounded-lg border border-primary-200 bg-primary-100 px-4 py-3 text-sm text-primary-800"><i className="ri-information-line" />{toast}</div>}
 
       {listasPendentes.length > 0 && <section className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-primary-200 bg-primary-50 px-4 py-3" aria-label="Listas aguardando revisão">
-        <div className="flex items-center gap-2 text-sm text-primary-900"><i className="ri-list-check-3-line text-lg" /><span><strong>{listasPendentes.length}</strong> {listasPendentes.length === 1 ? 'lista recebida aguarda' : 'listas recebidas aguardam'} revisão antes do Kanban.</span></div>
+        <div className="flex items-center gap-2 text-sm text-primary-900"><i className="ri-list-check-3-line text-lg" /><span><strong>{gruposPendentes}</strong> {gruposPendentes === 1 ? 'lista recebida aguarda' : 'listas recebidas aguardam'} revisão antes do Kanban.</span></div>
         <button type="button" onClick={() => abrirEnvioParaKanban(listasPendentes.flatMap((lista) => lista.leadIds))} className="text-sm font-semibold text-primary-800 hover:text-primary-950">Revisar <i className="ri-arrow-right-line" /></button>
       </section>}
 

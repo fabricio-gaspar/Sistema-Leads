@@ -10,6 +10,12 @@ export function importedLeadListHref(listId: string): string | null {
   return UUID.test(listId) ? `/dashboard/leads?listaId=${encodeURIComponent(listId)}` : null;
 }
 
+/** A large file is persisted as several atomic lists sharing one unique name. */
+export function importedLeadListNameHref(listName: string): string | null {
+  const normalized = listName.trim();
+  return normalized ? `/dashboard/leads?lista=${encodeURIComponent(normalized)}` : null;
+}
+
 /** A lead may belong to more than one saved list, so preserve every membership. */
 export function indexLeadListMemberships(lists: readonly LeadListMembership[]): Map<string, Set<string>> {
   const memberships = new Map<string, Set<string>>();

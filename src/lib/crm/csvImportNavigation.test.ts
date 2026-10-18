@@ -1,11 +1,17 @@
 import { describe, expect, it } from 'vitest';
-import { importedLeadListHref, indexLeadListMemberships, leadMatchesExactList } from './csvImportNavigation';
+import { importedLeadListHref, importedLeadListNameHref, indexLeadListMemberships, leadMatchesExactList } from './csvImportNavigation';
 
 describe('CSV import navigation', () => {
   it('opens the exact imported list by immutable list id instead of its display name', () => {
     expect(importedLeadListHref('11111111-1111-4111-8111-111111111111'))
       .toBe('/dashboard/leads?listaId=11111111-1111-4111-8111-111111111111');
     expect(importedLeadListHref('Importação CSV · 15/10/2026')).toBeNull();
+  });
+
+  it('opens every atomic chunk from one file through its unique shared name', () => {
+    expect(importedLeadListNameHref('Importação · Base · abc123'))
+      .toBe('/dashboard/leads?lista=Importa%C3%A7%C3%A3o%20%C2%B7%20Base%20%C2%B7%20abc123');
+    expect(importedLeadListNameHref(' ')).toBeNull();
   });
 
   it('keeps multiple list memberships without losing an earlier list name', () => {

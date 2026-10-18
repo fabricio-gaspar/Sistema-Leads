@@ -1,5 +1,11 @@
-import { useCallback, useEffect, useId, useRef, useState } from 'react';
-import { CSV_MAX_BYTES, CsvParseError, parseCsv, detectarMapeamento } from '@/lib/csv';
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { detectarMapeamento } from '@/lib/csv';
+import {
+  detectLeadImportFormat,
+  LeadImportParseError,
+  parseLeadImportFile,
+  type LeadImportFormat,
+} from '@/lib/leadImportFile';
 import AccessibleDialog from './AccessibleDialog';
 
 export interface CampoImportacao {
@@ -14,6 +20,7 @@ export interface ResultadoImportacao {
   duplicados: number;
   invalidos?: number;
   listId?: string;
+  listIds?: string[];
   listName?: string;
   recovered?: boolean;
   refreshPending?: boolean;
@@ -31,11 +38,16 @@ interface CsvImportModalProps {
   onRecuperarImportacao?: () => ResultadoImportacao | Promise<ResultadoImportacao>;
   onAbrirLeadsImportados?: (resultado: ResultadoImportacao) => void;
   campos: CampoImportacao[];
-  onImportar: (linhas: Record<string, string>[]) => ResultadoImportacao | Promise<ResultadoImportacao>;
+  acceptedFormats?: LeadImportFormat[];
+  onImportar: (linhas: Record<string, string>[], metadata: {
+    format: LeadImportFormat;
+    fileName: string;
+    onProgress: (current: number, total: number) => void;
+  }) => ResultadoImportacao | Promise<ResultadoImportacao>;
   onClose: () => void;
 }
 
-// Wizard reutilizável de importação CSV: seleciona o arquivo, detecta as
+// Wizard reutilizável de importação tabular: seleciona o arquivo, detecta as
 // colunas automaticamente, permite ajustar o mapeamento, mostra uma prévia e
 // chama onImportar com as linhas já mapeadas para { chave: valor }.
 export default function CsvImportModal({
@@ -50,75 +62,73 @@ export default function CsvImportModal({
   onRecuperarImportacao,
   onAbrirLeadsImportados,
   campos,
+  acceptedFormats = ['csv'],
   onImportar,
   onClose,
 }: CsvImportModalProps) {
   const fileRef = useRef<HTMLInputElement>(null);
   const fieldId = useId();
-  const readerRef = useRef<FileReader | null>(null);
   const readGeneration = useRef(0);
   const externalSelectionRevision = useRef(0);
-  useEffect(() => () => { readGeneration.current += 1; readerRef.current?.abort(); }, []);
+  useEffect(() => () => { readGeneration.current += 1; }, []);
   const [arquivoNome, setArquivoNome] = useState('');
   const [cabecalho, setCabecalho] = useState<string[]>([]);
   const [linhas, setLinhas] = useState<string[][]>([]);
+  const [formato, setFormato] = useState<LeadImportFormat>('csv');
+  const [avisosArquivo, setAvisosArquivo] = useState<string[]>([]);
   const [mapeamento, setMapeamento] = useState<Record<string, number>>({});
   const [erro, setErro] = useState('');
   const [resultado, setResultado] = useState<ResultadoImportacao | null>(null);
   const [importando, setImportando] = useState(false);
+  const [progresso, setProgresso] = useState<{ current: number; total: number } | null>(null);
   const alteracoesBloqueadas = importando || confirmarLotePendente;
 
-  const aoSelecionar = useCallback((arquivo: File) => {
+  const aoSelecionar = useCallback(async (arquivo: File) => {
     if (alteracoesBloqueadas) return;
     const generation = ++readGeneration.current;
-    readerRef.current?.abort();
     setErro('');
     setResultado(null);
     setArquivoNome('');
     setCabecalho([]);
     setLinhas([]);
+    setAvisosArquivo([]);
     setMapeamento({});
-    if (arquivo.size > CSV_MAX_BYTES) { setErro('O arquivo CSV deve ter no máximo 5 MB.'); return; }
-    const leitor = new FileReader();
-    readerRef.current = leitor;
-    leitor.onload = () => {
-      if (readGeneration.current !== generation) return;
-      try {
-        const { cabecalho: cab, linhas: lns } = parseCsv(String(leitor.result || ''));
-        if (cab.length === 0 || lns.length === 0) {
-          setErro('Arquivo vazio ou sem linhas de dados.');
-          setCabecalho([]);
-          setLinhas([]);
-          return;
-        }
-        setCabecalho(cab);
-        setLinhas(lns);
-        setArquivoNome(arquivo.name);
-        setMapeamento(detectarMapeamento(cab, campos));
-      } catch (error) {
-        setErro(error instanceof CsvParseError ? error.message : 'Não foi possível ler o arquivo. Verifique o formato CSV.');
+    try {
+      const detectedFormat = detectLeadImportFormat(arquivo);
+      if (!acceptedFormats.includes(detectedFormat)) {
+        throw new LeadImportParseError('Este importador aceita somente arquivos CSV.');
       }
-    };
-    leitor.onerror = () => { if (readGeneration.current === generation) setErro('Falha ao ler o arquivo.'); };
-    leitor.readAsText(arquivo);
-  }, [alteracoesBloqueadas, campos]);
+      const { cabecalho: cab, linhas: lns, format, warnings } = await parseLeadImportFile(arquivo);
+      if (readGeneration.current !== generation) return;
+      if (cab.length === 0 || lns.length === 0) throw new LeadImportParseError('Arquivo vazio ou sem linhas de dados.');
+      setCabecalho(cab);
+      setLinhas(lns);
+      setFormato(format);
+      setAvisosArquivo(warnings);
+      setArquivoNome(arquivo.name);
+      setMapeamento(detectarMapeamento(cab, campos));
+    } catch (error) {
+      if (readGeneration.current !== generation) return;
+      setErro(error instanceof Error ? error.message : 'Não foi possível ler o arquivo. Verifique o formato.');
+    }
+  }, [acceptedFormats, alteracoesBloqueadas, campos]);
 
   useEffect(() => {
     // A confirmação pendente deve reenviar o lote original. Nunca releia o
     // arquivo externo nesse estado: ele poderia ocultar a ação de recuperação.
     if (confirmarLotePendente || !selectedFile || selectionRevision <= 0 || selectionRevision === externalSelectionRevision.current) return;
     externalSelectionRevision.current = selectionRevision;
-    aoSelecionar(selectedFile);
+    void aoSelecionar(selectedFile);
   }, [aoSelecionar, confirmarLotePendente, selectedFile, selectionRevision]);
 
-  const linhasMapeadas = linhas.map((linha) => {
+  const linhasMapeadas = useMemo(() => linhas.map((linha) => {
     const obj: Record<string, string> = {};
     campos.forEach((c) => {
       const idx = mapeamento[c.chave];
       obj[c.chave] = idx !== undefined && linha[idx] !== undefined ? linha[idx] : '';
     });
     return obj;
-  });
+  }), [campos, linhas, mapeamento]);
 
   const obrigatoriasFaltando = campos.filter(
     (c) => c.obrigatorio && mapeamento[c.chave] === undefined
@@ -133,13 +143,18 @@ export default function CsvImportModal({
     setErro('');
     setImportando(true);
     try {
-      const result = await onImportar(linhasMapeadas);
+      const result = await onImportar(linhasMapeadas, {
+        format: formato,
+        fileName: arquivoNome,
+        onProgress: (current, total) => setProgresso({ current, total }),
+      });
       setResultado(result);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Não foi possível confirmar a importação.';
       setErro(message || 'Não foi possível confirmar a importação.');
     } finally {
       setImportando(false);
+      setProgresso(null);
     }
   };
 
@@ -183,10 +198,10 @@ export default function CsvImportModal({
   const reiniciar = () => {
     if (alteracoesBloqueadas) return;
     readGeneration.current += 1;
-    readerRef.current?.abort();
     setArquivoNome('');
     setCabecalho([]);
     setLinhas([]);
+    setAvisosArquivo([]);
     setMapeamento({});
     setResultado(null);
     setErro('');
@@ -223,7 +238,7 @@ export default function CsvImportModal({
               <div className="w-14 h-14 bg-accent-100 rounded-full flex items-center justify-center mx-auto mb-3">
                 <i className="ri-time-line text-accent-700 text-2xl" aria-hidden="true"></i>
               </div>
-              <p className="text-sm text-foreground-700 mb-2">Há um lote CSV aguardando confirmação.</p>
+              <p className="text-sm text-foreground-700 mb-2">Há um lote de importação aguardando confirmação.</p>
               <p className="text-xs text-foreground-500 mb-4">A confirmação usa exatamente o lote já preparado nesta página; nenhum novo arquivo ou lote será criado.</p>
               <button
                 onClick={confirmarPendente}
@@ -240,16 +255,16 @@ export default function CsvImportModal({
                 <i className="ri-file-upload-line text-foreground-400 text-2xl"></i>
               </div>
               <p className="text-sm text-foreground-600 mb-4">
-                Envie um arquivo CSV. As colunas serão detectadas e mapeadas automaticamente.
+                Envie {acceptedFormats.includes('xlsx') ? 'um arquivo CSV ou Excel (.xlsx)' : 'um arquivo CSV'}. As colunas serão detectadas e mapeadas automaticamente.
               </p>
               {!onRequestFile && <input
                 ref={fileRef}
                 type="file"
-                accept=".csv,text/csv"
+                accept={acceptedFormats.includes('xlsx') ? '.csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' : '.csv,text/csv'}
                 className="hidden"
                 onChange={(e) => {
                   const arquivo = e.target.files?.[0];
-                  if (arquivo) aoSelecionar(arquivo);
+                  if (arquivo) void aoSelecionar(arquivo);
                   e.target.value = '';
                 }}
               />}
@@ -259,7 +274,7 @@ export default function CsvImportModal({
                 className="px-6 py-3 bg-primary-500 hover:bg-primary-600 text-background-50 rounded-lg text-sm font-bold cursor-pointer whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <i className="ri-file-upload-line mr-2"></i>
-                Selecionar arquivo CSV
+                Selecionar arquivo {acceptedFormats.includes('xlsx') ? 'CSV ou Excel' : 'CSV'}
               </button>
             </div>
           )}
@@ -354,7 +369,7 @@ export default function CsvImportModal({
                 {resultado.refreshPending
                   ? 'Lote confirmado; atualização pendente'
                   : resultado.recovered
-                    ? 'Lote CSV confirmado'
+                    ? 'Lote confirmado'
                     : resultado.importados > 0
                       ? `${resultado.importados} registro(s) importado(s)`
                   : 'Nada foi importado'}
@@ -369,7 +384,7 @@ export default function CsvImportModal({
                 {resultado.refreshPending && onRecuperarImportacao && <button onClick={() => void recuperarImportacao()} disabled={importando} className="px-4 py-2.5 border border-primary-300 bg-primary-50 text-primary-800 rounded-lg text-sm font-semibold hover:bg-primary-100 cursor-pointer whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50">
                   {importando ? 'Atualizando…' : 'Atualizar dados'}
                 </button>}
-                {!resultado.refreshPending && resultado.listId && onAbrirLeadsImportados && <button onClick={() => onAbrirLeadsImportados(resultado)} disabled={importando} className="px-4 py-2.5 border border-primary-300 bg-primary-50 text-primary-800 rounded-lg text-sm font-semibold hover:bg-primary-100 cursor-pointer whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50">
+                {!resultado.refreshPending && (resultado.listId || resultado.listIds?.length) && onAbrirLeadsImportados && <button onClick={() => onAbrirLeadsImportados(resultado)} disabled={importando} className="px-4 py-2.5 border border-primary-300 bg-primary-50 text-primary-800 rounded-lg text-sm font-semibold hover:bg-primary-100 cursor-pointer whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50">
                   Ver leads importados
                 </button>}
                 <button onClick={reiniciar} disabled={importando} className="px-4 py-2.5 border border-background-300 text-foreground-700 rounded-lg text-sm font-semibold hover:bg-background-100 cursor-pointer whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50">
@@ -388,6 +403,12 @@ export default function CsvImportModal({
               {erro}
             </div>
           )}
+          {!erro && avisosArquivo.map((aviso) => (
+            <div key={aviso} role="status" className="bg-accent-50 border border-accent-200 text-accent-800 px-4 py-3 rounded-lg text-sm flex items-start gap-2">
+              <i className="ri-alert-line mt-0.5" aria-hidden="true"></i>
+              <span>{aviso}</span>
+            </div>
+          ))}
         </div>
 
         {cabecalho.length > 0 && !resultado && (
@@ -401,7 +422,9 @@ export default function CsvImportModal({
               className="px-5 py-2.5 bg-primary-500 hover:bg-primary-600 disabled:bg-primary-300 text-background-50 rounded-lg text-sm font-bold cursor-pointer whitespace-nowrap"
             >
               {importando ? <i className="ri-loader-4-line mr-1.5 animate-spin"></i> : <i className="ri-download-2-line mr-1.5"></i>}
-              {importando ? 'Confirmando no banco...' : confirmarLotePendente ? 'Confirmar lote original' : `Importar ${linhas.length} linha(s)`}
+              {importando
+                ? progresso ? `Importando lote ${progresso.current} de ${progresso.total}...` : 'Confirmando no banco...'
+                : confirmarLotePendente ? 'Confirmar lote original' : `Importar ${linhas.length} linha(s)`}
             </button>
           </div>
         )}

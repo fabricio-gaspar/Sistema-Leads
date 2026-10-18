@@ -53,4 +53,9 @@ describe('leadMapper', () => {
     const row = leadToCrmRow({ ...lead, fitScore: 84, contactabilityScore: 55, engagementScore: 0, sourceRecordId: 'place-123', sourceUrl: 'https://example.invalid/place', scoreExplanation: 'atividade e região compatíveis' }, '22222222-2222-4222-8222-222222222222');
     expect(row).toMatchObject({ source_record_id: 'place-123', score_snapshot: { fit: 84, contactability: 55, engagement: 0 }, score_explanation: 'atividade e região compatíveis' });
   });
+
+  it('preserva pontuação ainda não verificada para reenvio idempotente de arquivo', () => {
+    const row = leadToCrmRow({ ...lead, scoreVerifiedAt: null }, '22222222-2222-4222-8222-222222222222');
+    expect(row.score_verified_at).toBeNull();
+  });
 });

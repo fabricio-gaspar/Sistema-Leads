@@ -24,6 +24,9 @@ export interface Lead {
   segmento: string;
   cidade: string;
   estado: string;
+  endereco?: string;
+  site?: string;
+  sourceImportedAt?: string;
   porte: string;
   score: number;
   temperatura: 'Frio' | 'Morno' | 'Quente';

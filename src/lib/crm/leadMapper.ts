@@ -212,8 +212,18 @@ export function leadToCrmRow(lead: Lead, organizationId: string): Partial<CrmLea
     score_snapshot: scoreSnapshot,
     score_explanation: lead.scoreExplanation?.trim() || null,
     score_source: lead.origem.trim() || null,
-    score_verified_at: lead.scoreVerifiedAt || new Date().toISOString(),
-    source_metadata: { cnpj: lead.cnpj, estado: lead.estado, tags: lead.tags, cargo: lead.cargo, campanha: lead.campanha, score_breakdown: scoreSnapshot },
+    score_verified_at: lead.scoreVerifiedAt === undefined ? new Date().toISOString() : lead.scoreVerifiedAt,
+    source_metadata: {
+      cnpj: lead.cnpj,
+      estado: lead.estado,
+      endereco: lead.endereco,
+      site: lead.site,
+      data_origem: lead.sourceImportedAt,
+      tags: lead.tags,
+      cargo: lead.cargo,
+      campanha: lead.campanha,
+      score_breakdown: scoreSnapshot,
+    },
   };
 }
 
@@ -232,7 +242,11 @@ export function crmRowToLead(row: CrmLeadRow, handoffPolicy?: LeadHandoffPolicyR
   return {
     id: row.id, nome: row.contact ?? '', empresa: row.company,
     cnpj: typeof meta.cnpj === 'string' ? meta.cnpj : '—', email: row.email ?? '', telefone: row.phone ?? '', whatsapp: row.whatsapp ?? '',
-    segmento: row.segment ?? '', cidade: row.city ?? '', estado: row.uf ?? (typeof meta.estado === 'string' ? meta.estado : ''), porte: row.size ?? '',
+    segmento: row.segment ?? '', cidade: row.city ?? '', estado: row.uf ?? (typeof meta.estado === 'string' ? meta.estado : ''),
+    endereco: typeof meta.endereco === 'string' ? meta.endereco : undefined,
+    site: typeof meta.site === 'string' ? meta.site : undefined,
+    sourceImportedAt: typeof meta.data_origem === 'string' ? meta.data_origem : undefined,
+    porte: row.size ?? '',
     score, temperatura: temperature(row.temp, score), etapa: etapaAna, origem: row.origin ?? '',
     responsavel: row.owner === 'ia' || !row.owner ? 'Ana (IA)' : row.owner,
     tags: Array.isArray(meta.tags) ? meta.tags.filter((tag): tag is string => typeof tag === 'string') : [],

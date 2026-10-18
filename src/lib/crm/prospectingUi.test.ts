@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  chunkProspectingImportRows,
   MAX_PROSPECTING_TERMS,
   csvLeadIdentity,
   deterministicProspectingUuid,
@@ -10,6 +11,7 @@ import {
   prospectingEmptyResultMessage,
   prospectingFilterSummary,
   normalizeProspectingMinimumScore,
+  normalizeProspectingPhone,
   normalizeProspectingScore,
   prospectingSourceCriteria,
   sourceSupportsProspectingCompanySize,
@@ -26,6 +28,10 @@ import {
 } from '@/lib/crm/prospectingTermSuggestions';
 
 describe('prospecting UI safeguards', () => {
+  it('preserves an explicit international country code in lead identities', () => {
+    expect(normalizeProspectingPhone('+1 202 555 0123')).toBe('12025550123');
+  });
+
   it('keeps up to three explicitly selected catalog offers without replacing an earlier choice', () => {
     expect(toggleProspectingCatalogOffer([], 'offer-a')).toEqual(['offer-a']);
     expect(toggleProspectingCatalogOffer(['offer-a', 'offer-b'], 'offer-c')).toEqual(['offer-a', 'offer-b', 'offer-c']);
@@ -211,9 +217,64 @@ describe('prospecting UI safeguards', () => {
       { nome: 'Davi', empresa: 'Alpha', email: '', telefone: '' },
     ]);
 
-    expect(result.rows.map((row) => row.nome)).toEqual(['Ana', 'Davi']);
+    expect(result.rows.map((row) => row.nome)).toEqual(['Ana', 'Sem contato', 'Davi']);
     expect(result.duplicateLines).toEqual([3, 4]);
-    expect(result.invalidLines).toEqual([5, 6]);
+    expect(result.invalidLines).toEqual([6]);
     expect(csvLeadIdentity(result.rows[0])).toEqual(['email:ana@example.com', 'phone:5511999991111']);
+  });
+
+  it('accepts company-only spreadsheet rows and normalizes full Brazilian state names', () => {
+    const result = prepareCsvLeads([
+      {
+        nome: '',
+        empresa: 'Empresa teste',
+        email: 'CONTATO@EXAMPLE.COM',
+        telefone: '(15) 3000-0000',
+        segmento: 'Indústria',
+        cidade: 'Sorocaba',
+        estado: 'São Paulo',
+        endereco: 'Rua exemplo',
+        site: 'https://example.com',
+        data: '2026-10-14',
+      },
+    ]);
+
+    expect(result.invalidLines).toEqual([]);
+    expect(result.rows[0]).toMatchObject({
+      nome: 'Empresa teste',
+      empresa: 'Empresa teste',
+      email: 'contato@example.com',
+      estado: 'SP',
+      endereco: 'Rua exemplo',
+      site: 'https://example.com/',
+      data: '2026-10-14',
+    });
+  });
+
+  it('rejects oversized fields and drops unsafe optional website schemes', () => {
+    const result = prepareCsvLeads([
+      { empresa: 'A'.repeat(201), nome: '', site: 'https://example.com' },
+      { empresa: 'Empresa segura', nome: '', site: 'javascript:alert(1)' },
+    ]);
+    expect(result.invalidLines).toEqual([2]);
+    expect(result.rows[0].site).toBe('');
+  });
+
+  it('deduplicates company-only rows because the server also falls back to company identity', () => {
+    const result = prepareCsvLeads([
+      { empresa: 'Empresa Ágil', nome: '' },
+      { empresa: 'empresa agil', nome: '' },
+    ]);
+    expect(result.rows).toHaveLength(1);
+    expect(result.duplicateLines).toEqual([3]);
+    expect(csvLeadIdentity(result.rows[0])).toEqual(['company:empresa agil']);
+  });
+
+  it('splits a large spreadsheet into the backend atomic limit without losing order', () => {
+    const rows = Array.from({ length: 236 }, (_, index) => index + 1);
+    const chunks = chunkProspectingImportRows(rows);
+    expect(chunks.map((chunk) => chunk.length)).toEqual([100, 100, 36]);
+    expect(chunks.flat()).toEqual(rows);
+    expect(() => chunkProspectingImportRows(rows, 101)).toThrow('prospecting_import_invalid_chunk_size');
   });
 });

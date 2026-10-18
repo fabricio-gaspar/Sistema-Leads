@@ -11,6 +11,7 @@
     "react-dom": "^19.1.0",
     "react-i18next": "^15.6.0",
     "react-router-dom": "^7.6.3",
+    "read-excel-file": "9.3.10",
     "recharts": "3.2.0"
   },
   "devDependencies": {

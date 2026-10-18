@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabase';
 import { resolveOrganizationSession, assertOrganizationSession } from '@/lib/organizationSession';
 import { isUuid } from '@/lib/crm/leadMapper';
+import { readAllPages } from '@/lib/crm/paginatedRead';
 import type { ListaDeLeads, StatusLista } from '@/hooks/useListasStore';
 import type { ProdutoCatalogo } from '@/hooks/useCatalogoStore';
 import type { FluxoAutomatizacao } from '@/hooks/useFluxosAutomatizacaoStore';
@@ -165,29 +166,34 @@ function rowToCatalog(row: CatalogRow): ProdutoCatalogo {
 
 export async function loadOperationalLists(): Promise<ListaDeLeads[]> {
   const session = await resolveOrganizationSession();
-  assertOrganizationSession(session);
-  const { data: lists, error: listsError } = await supabase
-    .from('lead_lists')
-    .select('id, name, status, criteria, created_at')
-    .eq('organization_id', session.organizationId)
-    .order('created_at', { ascending: false });
-  if (listsError) throw listsError;
-  const listIds = (lists ?? []).map((list) => list.id);
-  if (listIds.length === 0) return [];
-  assertOrganizationSession(session);
-  const { data: members, error: membersError } = await supabase
-    .from('lead_list_members')
-    .select('list_id, lead_id')
-    .eq('organization_id', session.organizationId)
-    .in('list_id', listIds);
-  if (membersError) throw membersError;
+  const lists = await readAllPages<ListRow>((from, to) => {
+    assertOrganizationSession(session);
+    return supabase
+      .from('lead_lists')
+      .select('id, name, status, criteria, created_at')
+      .eq('organization_id', session.organizationId)
+      .order('created_at', { ascending: false })
+      .order('id')
+      .range(from, to);
+  });
+  if (lists.length === 0) return [];
+  const members = await readAllPages<{ list_id: string; lead_id: string }>((from, to) => {
+    assertOrganizationSession(session);
+    return supabase
+      .from('lead_list_members')
+      .select('list_id, lead_id')
+      .eq('organization_id', session.organizationId)
+      .order('list_id')
+      .order('lead_id')
+      .range(from, to);
+  });
   const membersByList = new Map<string, string[]>();
-  for (const member of members ?? []) {
+  for (const member of members) {
     const current = membersByList.get(member.list_id) ?? [];
     current.push(member.lead_id);
     membersByList.set(member.list_id, current);
   }
-  return (lists as ListRow[]).map((list) => rowToList(list, membersByList.get(list.id) ?? []));
+  return lists.map((list) => rowToList(list, membersByList.get(list.id) ?? []));
 }
 
 export async function persistOperationalLists(previous: ListaDeLeads[], next: ListaDeLeads[]): Promise<ListaDeLeads[]> {

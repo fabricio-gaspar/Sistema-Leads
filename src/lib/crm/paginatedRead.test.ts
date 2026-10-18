@@ -14,4 +14,12 @@ describe('paginated reads', () => {
   it('returns a confirmed empty result', async () => {
     expect(await readAllPages(async () => ({ data: [], error: null }))).toEqual([]);
   });
+  it('confirms an exact configured limit with a final empty page', async () => {
+    const data = [1, 2, 3, 4];
+    await expect(readAllPages(async (from) => ({ data: data.slice(from, from + 2), error: null }), 4)).resolves.toEqual(data);
+  });
+  it('rejects instead of returning a partial result above the configured limit', async () => {
+    const data = [1, 2, 3, 4, 5];
+    await expect(readAllPages(async (from) => ({ data: data.slice(from, from + 2), error: null }), 4)).rejects.toThrow('excede o limite');
+  });
 });

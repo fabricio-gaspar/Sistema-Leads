@@ -22,10 +22,16 @@ export async function loadOperationalLeads(organizationId?: string): Promise<Lea
     .eq('organization_id', resolvedId)
     .order('id').range(from, to))).filter((lead) => !isWaAkgContactOnly(lead));
   const ids = rows.map((lead) => lead.id).filter((id): id is string => Boolean(id));
+  const visibleIds = new Set(ids);
   const policyByLead = new Map<string, LeadHandoffPolicyRow>();
-  for (let index = 0; index < ids.length; index += 100) {
-    const policies = await readAllPages<LeadHandoffPolicyRow>((from, to) => supabase.from('lead_handoff_policies').select('lead_id,handoff_stage,assignee_user_id,notify_whatsapp').in('lead_id', ids.slice(index, index + 100)).order('lead_id').range(from, to));
-    for (const policy of policies) policyByLead.set(policy.lead_id, policy);
+  const policies = ids.length ? await readAllPages<LeadHandoffPolicyRow>((from, to) => supabase
+    .from('lead_handoff_policies')
+    .select('lead_id,handoff_stage,assignee_user_id,notify_whatsapp')
+    .eq('organization_id', resolvedId)
+    .order('lead_id')
+    .range(from, to)) : [];
+  for (const policy of policies) {
+    if (visibleIds.has(policy.lead_id)) policyByLead.set(policy.lead_id, policy);
   }
   return rows.sort((a, b) => (b.updated_at ?? '').localeCompare(a.updated_at ?? '')).map((lead) => crmRowToLead(lead, policyByLead.get(lead.id)));
 }

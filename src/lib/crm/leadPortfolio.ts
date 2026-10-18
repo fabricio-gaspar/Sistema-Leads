@@ -78,6 +78,40 @@ export interface PotentialLeadDuplicate {
   reasons: PotentialLeadDuplicateReason[];
 }
 
+function duplicateIdentityKeys(lead: Pick<Lead, 'email' | 'telefone' | 'whatsapp' | 'empresa' | 'cidade' | 'estado' | 'sourceUrl' | 'sourceRecordId'>): string[] {
+  const email = lead.email.trim().toLocaleLowerCase('pt-BR');
+  const phones = [lead.telefone, lead.whatsapp].map(normalizePortfolioPhone).filter(Boolean);
+  const domain = emailDomain(lead.email) || domainFrom(lead.sourceUrl ?? '');
+  const company = normalizePortfolioText(lead.empresa);
+  const city = normalizePortfolioText(lead.cidade);
+  const state = normalizePortfolioText(lead.estado);
+  return [
+    email ? `email:${email}` : '',
+    ...phones.map((phone) => `phone:${phone}`),
+    domain ? `domain:${domain}` : '',
+    lead.sourceRecordId ? `external:${lead.sourceRecordId}` : '',
+    company && city && state ? `company-location:${company}:${city}:${state}` : '',
+  ].filter(Boolean);
+}
+
+/** Marks every possible duplicate in one pass, avoiding a quadratic portfolio scan. */
+export function findPotentialDuplicateLeadIds(leads: readonly Lead[]): Set<string> {
+  const firstLeadByIdentity = new Map<string, string>();
+  const duplicateIds = new Set<string>();
+  for (const lead of leads) {
+    for (const identity of duplicateIdentityKeys(lead)) {
+      const firstId = firstLeadByIdentity.get(identity);
+      if (!firstId) {
+        firstLeadByIdentity.set(identity, lead.id);
+      } else if (firstId !== lead.id) {
+        duplicateIds.add(firstId);
+        duplicateIds.add(lead.id);
+      }
+    }
+  }
+  return duplicateIds;
+}
+
 export function findPotentialLeadDuplicates(candidate: Pick<Lead, 'id' | 'email' | 'telefone' | 'whatsapp' | 'empresa' | 'cidade' | 'estado' | 'sourceUrl' | 'sourceRecordId'>, leads: Lead[]): PotentialLeadDuplicate[] {
   const candidateEmail = candidate.email.trim().toLocaleLowerCase('pt-BR');
   const candidatePhones = [candidate.telefone, candidate.whatsapp].map(normalizePortfolioPhone).filter(Boolean);

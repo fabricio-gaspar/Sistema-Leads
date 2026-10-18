@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { findPotentialLeadDuplicates, leadHasContact, leadMatchesPortfolioQuery, normalizePortfolioPhone } from './leadPortfolio';
+import { findPotentialDuplicateLeadIds, findPotentialLeadDuplicates, leadHasContact, leadMatchesPortfolioQuery, normalizePortfolioPhone } from './leadPortfolio';
 import type { Lead } from '@/mocks/leadsData';
 
 const lead = (patch: Partial<Lead> = {}): Lead => ({
@@ -27,5 +27,12 @@ describe('leadPortfolio', () => {
     const duplicates = findPotentialLeadDuplicates(candidate, [original]);
     expect(duplicates).toHaveLength(1);
     expect(duplicates[0]?.reasons).toContain('company-location');
+  });
+
+  it('indexa possíveis duplicidades da carteira em uma única passagem', () => {
+    const original = lead();
+    const sameEmail = lead({ id: 'lead-2', telefone: '', whatsapp: '' });
+    const unique = lead({ id: 'lead-3', empresa: 'Outra', email: 'outra@example.net', telefone: '21999990000', whatsapp: '', cidade: 'Rio', estado: 'RJ' });
+    expect([...findPotentialDuplicateLeadIds([original, sameEmail, unique])].sort()).toEqual(['lead-1', 'lead-2']);
   });
 });

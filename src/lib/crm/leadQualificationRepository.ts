@@ -1,4 +1,6 @@
 import { supabase } from '@/lib/supabase';
+import { assertOrganizationSession, resolveOrganizationSession } from '@/lib/organizationSession';
+import { readAllPages } from '@/lib/crm/paginatedRead';
 
 export type TechnicalDossier = {
   application: string | null;
@@ -88,17 +90,21 @@ export async function loadLeadQualification(leadId: string): Promise<LeadQualifi
  */
 export async function loadLeadQualifications(leadIds: string[]): Promise<Map<string, LeadQualification>> {
   const result = new Map<string, LeadQualification>();
-  for (let index = 0; index < leadIds.length; index += 100) {
-    const ids = leadIds.slice(index, index + 100);
-    if (!ids.length) continue;
-    const { data, error } = await supabase.from('lead_qualifications')
+  if (!leadIds.length) return result;
+  const visibleIds = new Set(leadIds);
+  const session = await resolveOrganizationSession();
+  const rows = await readAllPages<QualificationRow>((from, to) => {
+    assertOrganizationSession(session);
+    return supabase.from('lead_qualifications')
       .select('lead_id,summary,next_action,next_action_due_at,readiness_score,interest_level,requested_action,decision_maker,objections,missing_fields,technical_context,updated_at')
-      .in('lead_id', ids);
-    if (error) throw error;
-    for (const row of (data ?? []) as QualificationRow[]) {
-      const qualification = mapLeadQualification(row);
-      result.set(qualification.leadId, qualification);
-    }
+      .eq('organization_id', session.organizationId)
+      .order('lead_id')
+      .range(from, to);
+  });
+  for (const row of rows) {
+    if (!visibleIds.has(row.lead_id)) continue;
+    const qualification = mapLeadQualification(row);
+    result.set(qualification.leadId, qualification);
   }
   return result;
 }

@@ -193,6 +193,9 @@ export interface PreparedCsvLead {
   segmento: string;
   cidade: string;
   estado: string;
+  endereco: string;
+  site: string;
+  data: string;
 }
 
 export interface PreparedCsvLeads {
@@ -201,16 +204,59 @@ export interface PreparedCsvLeads {
   duplicateLines: number[];
 }
 
+export function chunkProspectingImportRows<T>(rows: readonly T[], chunkSize = 100): T[][] {
+  if (!Number.isInteger(chunkSize) || chunkSize < 1 || chunkSize > 100) {
+    throw new Error('prospecting_import_invalid_chunk_size');
+  }
+  const chunks: T[][] = [];
+  for (let offset = 0; offset < rows.length; offset += chunkSize) chunks.push(rows.slice(offset, offset + chunkSize));
+  return chunks;
+}
+
 export function normalizeProspectingPhone(value: string): string {
-  const digits = value.replace(/\D/g, '');
+  const trimmed = value.trim();
+  const digits = trimmed.replace(/\D/g, '');
   if (!digits) return '';
-  if (digits.length === 10 || digits.length === 11) return `55${digits}`;
+  if (!trimmed.startsWith('+') && (digits.length === 10 || digits.length === 11)) return `55${digits}`;
   if ((digits.length === 12 || digits.length === 13) && digits.startsWith('55')) return digits;
   return digits.length >= 8 && digits.length <= 15 ? digits : '';
 }
 
+export function normalizeProspectingCompanyIdentity(value: string): string {
+  return value.trim().toLocaleLowerCase('pt-BR').normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
 function isValidEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+function normalizeImportWebsite(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed || trimmed.length > 500) return '';
+  const candidate = /^[a-z][a-z\d+.-]*:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  try {
+    const parsed = new URL(candidate);
+    return (parsed.protocol === 'http:' || parsed.protocol === 'https:') && parsed.hostname ? parsed.toString() : '';
+  } catch {
+    return '';
+  }
+}
+
+const BRAZIL_STATE_CODES: Record<string, string> = {
+  acre: 'AC', alagoas: 'AL', amapa: 'AP', amazonas: 'AM', bahia: 'BA', ceara: 'CE',
+  'distrito federal': 'DF', 'espirito santo': 'ES', goias: 'GO', maranhao: 'MA',
+  'mato grosso': 'MT', 'mato grosso do sul': 'MS', 'minas gerais': 'MG', para: 'PA',
+  paraiba: 'PB', parana: 'PR', pernambuco: 'PE', piaui: 'PI', 'rio de janeiro': 'RJ',
+  'rio grande do norte': 'RN', 'rio grande do sul': 'RS', rondonia: 'RO', roraima: 'RR',
+  'santa catarina': 'SC', 'sao paulo': 'SP', sergipe: 'SE', tocantins: 'TO',
+};
+
+export function normalizeBrazilState(value: string): string {
+  const trimmed = value.trim();
+  if (!trimmed) return '';
+  const key = trimmed.toLocaleLowerCase('pt-BR').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ');
+  return BRAZIL_STATE_CODES[key] ?? trimmed.toLocaleUpperCase('pt-BR');
 }
 
 export function prepareCsvLeads(rows: CsvLeadInput[]): PreparedCsvLeads {
@@ -221,12 +267,21 @@ export function prepareCsvLeads(rows: CsvLeadInput[]): PreparedCsvLeads {
 
   rows.forEach((row, index) => {
     const sourceLine = index + 2;
-    const nome = (row.nome ?? '').trim();
     const empresa = (row.empresa ?? '').trim();
+    const nome = (row.nome ?? '').trim() || empresa;
     const email = (row.email ?? '').trim().toLocaleLowerCase('pt-BR');
     const telefone = (row.telefone ?? '').trim();
+    const segmento = (row.segmento ?? '').trim();
+    const cidade = (row.cidade ?? '').trim();
+    const estadoOriginal = (row.estado ?? '').trim();
+    const endereco = (row.endereco ?? '').trim();
+    const siteOriginal = (row.site ?? '').trim();
+    const data = (row.data ?? '').trim();
 
-    if (!nome || !empresa || (email && !isValidEmail(email))) {
+    if (!nome || !empresa || (email && (!isValidEmail(email) || email.length > 254))
+      || nome.length > 200 || empresa.length > 200 || telefone.length > 32
+      || segmento.length > 160 || cidade.length > 120 || estadoOriginal.length > 64
+      || endereco.length > 500 || siteOriginal.length > 500 || data.length > 64) {
       invalidLines.push(sourceLine);
       return;
     }
@@ -235,6 +290,10 @@ export function prepareCsvLeads(rows: CsvLeadInput[]): PreparedCsvLeads {
       email ? `email:${email}` : '',
       normalizeProspectingPhone(telefone).length >= 10 ? `phone:${normalizeProspectingPhone(telefone)}` : '',
     ].filter(Boolean);
+    if (!strongIdentities.length) {
+      const company = normalizeProspectingCompanyIdentity(empresa);
+      if (company) strongIdentities.push(`company:${company}`);
+    }
 
     if (strongIdentities.some((identity) => identities.has(identity))) {
       duplicateLines.push(sourceLine);
@@ -248,19 +307,27 @@ export function prepareCsvLeads(rows: CsvLeadInput[]): PreparedCsvLeads {
       empresa,
       email,
       telefone,
-      segmento: (row.segmento ?? '').trim(),
-      cidade: (row.cidade ?? '').trim(),
-      estado: (row.estado ?? '').trim().toUpperCase(),
+      segmento,
+      cidade,
+      estado: normalizeBrazilState(estadoOriginal),
+      endereco,
+      site: normalizeImportWebsite(siteOriginal),
+      data,
     });
   });
 
   return { rows: prepared, invalidLines, duplicateLines };
 }
 
-export function csvLeadIdentity(row: Pick<PreparedCsvLead, 'email' | 'telefone'>): string[] {
+export function csvLeadIdentity(row: Pick<PreparedCsvLead, 'email' | 'telefone' | 'empresa'>): string[] {
   const phone = normalizeProspectingPhone(row.telefone);
-  return [
+  const identities = [
     row.email ? `email:${row.email.trim().toLocaleLowerCase('pt-BR')}` : '',
     phone.length >= 10 ? `phone:${phone}` : '',
   ].filter(Boolean);
+  if (!identities.length) {
+    const company = normalizeProspectingCompanyIdentity(row.empresa);
+    if (company) identities.push(`company:${company}`);
+  }
+  return identities;
 }

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import type { Lead } from '@/mocks/leadsData';
 import { refreshLeadsStore, useLeadsStore } from '@/hooks/useLeadsStore';
 import { refreshListsStore } from '@/hooks/useListasStore';
@@ -22,6 +22,7 @@ import type { CampoImportacao, ResultadoImportacao } from '@/components/feature/
 import { useOperationalMode } from '@/hooks/useOperationalMode';
 import { supabase } from '@/lib/supabase';
 import { resolveOrganizationSession } from '@/lib/organizationSession';
+import type { OrganizationSession } from '@/lib/organizationSession';
 import { prospectingImportDetails } from '@/lib/crm/prospectingImportDetails';
 import { loadProspectingCatalogOffers, loadKnowledgeSources, type KnowledgeCatalogItem } from '@/lib/crm/catalogKnowledgeRepository';
 import {
@@ -30,17 +31,17 @@ import {
   suggestBuyerSearchTerms,
 } from '@/lib/crm/prospectingBuyerTerms';
 import { extractCatalogBuyerSectors, type CatalogBuyerSectorOption } from '@/lib/crm/prospectingCatalogSectors';
-import { importProspectingBatch, type ProspectingBatchInput } from '@/lib/crm/prospectingBatchRepository';
-import { importedLeadListHref } from '@/lib/crm/csvImportNavigation';
+import { importProspectingBatch, importProspectingBulkBatch, type ProspectingBatchInput } from '@/lib/crm/prospectingBatchRepository';
+import { importedLeadListHref, importedLeadListNameHref } from '@/lib/crm/csvImportNavigation';
+import type { LeadImportFormat } from '@/lib/leadImportFile';
 import InfoTooltip from '@/components/feature/InfoTooltip';
 import {
   MAX_PROSPECTING_CATALOG_OFFERS,
   MAX_PROSPECTING_TERMS,
   PROSPECTING_MINIMUM_SCORE_OPTIONS,
-  csvLeadIdentity,
+  chunkProspectingImportRows,
   deterministicProspectingUuid,
   nextProspectingTerms,
-  normalizeProspectingPhone,
   normalizeProspectingScore,
   normalizeProspectingTerms,
   prepareCsvLeads,
@@ -177,8 +178,14 @@ interface ProspectingResponse {
 
 interface PendingCsvBatch {
   fingerprint: string;
-  input: ProspectingBatchInput;
+  session: OrganizationSession;
+  inputs: ProspectingBatchInput[];
+  nextIndex: number;
+  imported: number;
+  listIds: string[];
+  allRecovered: boolean;
   duplicateCount: number;
+  invalidCount: number;
 }
 
 async function listarExecucoesFonte(sourceKey = 'apify'): Promise<ProspectingRunSummary[]> {
@@ -248,18 +255,22 @@ function normalizarTermoSugerido(value: string): string {
 }
 
 const camposLeadImport: CampoImportacao[] = [
-  { chave: 'nome', rotulo: 'Nome', obrigatorio: true, aliases: ['contato', 'cliente'] },
+  { chave: 'nome', rotulo: 'Contato (opcional)', aliases: ['contato', 'cliente', 'nome do contato'] },
   { chave: 'empresa', rotulo: 'Empresa', obrigatorio: true, aliases: ['empresa_nome', 'razao_social'] },
   { chave: 'email', rotulo: 'E-mail', aliases: ['e-mail', 'correio'] },
   { chave: 'telefone', rotulo: 'Telefone', aliases: ['whatsapp', 'celular', 'fone'] },
-  { chave: 'segmento', rotulo: 'Segmento' },
+  { chave: 'segmento', rotulo: 'Segmento', aliases: ['categoria', 'setor', 'ramo'] },
+  { chave: 'endereco', rotulo: 'Endereço', aliases: ['endereço', 'logradouro'] },
   { chave: 'cidade', rotulo: 'Cidade' },
   { chave: 'estado', rotulo: 'Estado (UF)', aliases: ['uf'] },
+  { chave: 'site', rotulo: 'Site', aliases: ['website', 'url'] },
+  { chave: 'data', rotulo: 'Data de origem', aliases: ['data cadastro', 'data de cadastro'] },
 ];
 
 export default function BuscaLeads() {
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const [aba, setAba] = useState<'agente' | 'busca' | 'importar' | 'salvas'>('busca');
+  const [aba, setAba] = useState<'agente' | 'busca' | 'importar' | 'salvas'>(() => searchParams.get('aba') === 'importar' ? 'importar' : 'busca');
   const [iaBuscaAberta, setIaBuscaAberta] = useState(false);
   const [etapa, setEtapa] = useState(1);
   const [wizardStep, setWizardStep] = useState<ProspectingWizardStep>(1);
@@ -353,6 +364,7 @@ export default function BuscaLeads() {
   const csvImportAccess = csvAccessLoading
     ? 'loading'
     : csvCurrentAccess?.permissions['leads.create'] === true
+      && csvCurrentAccess.permissions['leads.read_all'] === true
       ? 'allowed'
       : 'denied';
   const [csvSelectedFile, setCsvSelectedFile] = useState<File | null>(null);
@@ -635,13 +647,16 @@ export default function BuscaLeads() {
     segmento: dados.segmento || '',
     cidade: dados.cidade || '',
     estado: dados.estado || '',
+    endereco: dados.endereco,
+    site: dados.site,
+    sourceImportedAt: dados.sourceImportedAt,
     porte: dados.porte || '',
     score,
     temperatura: dados.temperatura || temperaturaDe(score),
     etapa: dados.etapa || 'Novo',
     origem: dados.origem || 'Importação',
     responsavel: dados.responsavel || responsavelNome,
-    responsavelId: modo === 'IA' ? '' : responsavel,
+    responsavelId: dados.responsavelId || (modo === 'IA' ? '' : responsavel),
     modoAtendimento: modo,
     automacaoStatus: contatoAprovado && modo === 'IA' ? 'ATIVA' : 'PAUSADA',
     canalPreferencial: dados.canalPreferencial ?? canal,
@@ -661,7 +676,7 @@ export default function BuscaLeads() {
     contactabilityScore: dados.contactabilityScore,
     engagementScore: dados.engagementScore ?? 0,
     scoreExplanation: dados.scoreExplanation,
-    scoreVerifiedAt: dados.scoreVerifiedAt || new Date().toISOString(),
+    scoreVerifiedAt: dados.scoreVerifiedAt === undefined ? new Date().toISOString() : dados.scoreVerifiedAt,
     maxFollowUps: 2,
     followUpCount: 0,
     intencao: null,
@@ -1447,15 +1462,28 @@ export default function BuscaLeads() {
     requestCsvFile();
   };
 
-  const confirmarImportacaoCsv = async (pending: PendingCsvBatch): Promise<ResultadoImportacao> => {
+  const confirmarImportacaoCsv = async (
+    pending: PendingCsvBatch,
+    onProgress?: (current: number, total: number) => void,
+  ): Promise<ResultadoImportacao> => {
     try {
-      const result = await importProspectingBatch(pending.input);
+      for (let index = pending.nextIndex; index < pending.inputs.length; index += 1) {
+        onProgress?.(index + 1, pending.inputs.length);
+        const result = await importProspectingBulkBatch(pending.inputs[index], pending.session);
+        pending.nextIndex = index + 1;
+        pending.imported += result.leadIds.length;
+        pending.duplicateCount += result.duplicateCount;
+        pending.listIds.push(result.listId);
+        pending.allRecovered = pending.allRecovered && result.alreadyImported;
+      }
       const confirmed: ResultadoImportacao = {
-        importados: result.leadIds.length,
+        importados: pending.imported,
         duplicados: pending.duplicateCount,
-        listId: result.listId,
-        listName: pending.input.listName,
-        recovered: result.alreadyImported,
+        invalidos: pending.invalidCount,
+        listId: pending.listIds.length === 1 ? pending.listIds[0] : undefined,
+        listIds: pending.listIds,
+        listName: pending.inputs[0]?.listName,
+        recovered: pending.allRecovered,
       };
       try {
         await Promise.all([refreshLeadsStore(), refreshListsStore()]);
@@ -1471,16 +1499,26 @@ export default function BuscaLeads() {
       return confirmed;
     } catch (error) {
       const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : '';
-      if (['22023', '42501', '23505', '23514'].includes(code)) {
+      const message = error instanceof Error ? error.message : '';
+      const dataRejection = ['22023', '23505', '23514'].includes(code);
+      const permissionRejection = code === '42501';
+      const hasConfirmedChunks = pending.nextIndex > 0;
+      if (message === 'prospecting_import_organization_changed') {
         loteCsvPendente.current = null;
         setCsvConfirmacaoPendente(false);
+        throw new Error(`A empresa ativa mudou durante a importação.${hasConfirmedChunks ? ` ${pending.nextIndex} de ${pending.inputs.length} lotes já foram confirmados na empresa original.` : ''} Volte para a empresa original e selecione o mesmo arquivo para retomar sem duplicação.`);
       }
-      if (code === '42501') throw new Error('Seu usuário não tem permissão para importar leads. Nenhum dado foi gravado.');
-      if (code === '22023') throw new Error('O banco recusou os dados antes de confirmar o lote. Revise o arquivo e tente novamente.');
-      if (code === '23505') throw new Error('O banco encontrou um lote existente com conteúdo diferente. Nenhum lote novo será criado; confira em Leads ou solicite reconciliação.');
-      if (code === '23514') throw new Error('O lote existente está incompleto no banco. Nenhum lote novo será criado; solicite reconciliação antes de importar novamente.');
-      setCsvConfirmacaoPendente(true);
-      throw new Error('Não foi possível confirmar a resposta do banco. O mesmo lote foi mantido nesta página para uma confirmação segura, sem duplicar registros.');
+      if (dataRejection || (permissionRejection && !hasConfirmedChunks)) loteCsvPendente.current = null;
+      const preservePending = (!dataRejection && !permissionRejection) || (permissionRejection && hasConfirmedChunks);
+      setCsvConfirmacaoPendente(preservePending);
+      const progress = pending.nextIndex > 0 ? ` ${pending.nextIndex} de ${pending.inputs.length} lotes já foram confirmados.` : '';
+      if (code === '42501') throw new Error(hasConfirmedChunks
+        ? `Sua permissão foi recusada durante a importação.${progress} O restante foi preservado para retomada após a correção do acesso.`
+        : 'Seu usuário não tem permissão para importar leads. Nenhum dado foi gravado.');
+      if (code === '22023') throw new Error(`O banco recusou o lote atual.${progress} Revise o arquivo antes de retomar.`);
+      if (code === '23505') throw new Error(`O banco encontrou conteúdo divergente para o lote atual.${progress} Os lotes confirmados foram preservados; solicite reconciliação antes de continuar.`);
+      if (code === '23514') throw new Error(`O lote atual está incompleto no banco.${progress} Os lotes confirmados foram preservados; solicite reconciliação antes de continuar.`);
+      throw new Error(`Não foi possível concluir a importação.${progress} O mesmo arquivo pode ser retomado com segurança, sem duplicar registros.`);
     }
   };
 
@@ -1499,96 +1537,97 @@ export default function BuscaLeads() {
   };
 
   const abrirLeadsImportados = (result: ResultadoImportacao) => {
-    if (result.refreshPending || !result.listId) return;
-    const href = importedLeadListHref(result.listId);
+    if (result.refreshPending) return;
+    const href = result.listIds && result.listIds.length > 1 && result.listName
+      ? importedLeadListNameHref(result.listName)
+      : result.listId ? importedLeadListHref(result.listId) : null;
     if (!href) return;
     setCsvModal(false);
     navigate(href);
   };
 
-  const importarLeads = async (linhas: Record<string, string>[]): Promise<ResultadoImportacao> => {
+  const importarLeads = async (
+    linhas: Record<string, string>[],
+    metadata: { format: LeadImportFormat; fileName: string; onProgress: (current: number, total: number) => void },
+  ): Promise<ResultadoImportacao> => {
     const prepared = prepareCsvLeads(linhas);
-    if (prepared.invalidLines.length) {
-      throw new Error(`Corrija as linhas inválidas antes de importar: ${prepared.invalidLines.join(', ')}.`);
-    }
-    if (prepared.rows.length > 100) {
-      throw new Error('O arquivo possui mais de 100 leads válidos. Divida-o em arquivos de no máximo 100 linhas para uma importação auditável.');
-    }
+    if (!prepared.rows.length) throw new Error('Nenhuma linha válida foi encontrada. Informe ao menos a empresa e corrija e-mails inválidos.');
 
-    // A comparação usa as linhas canônicas do arquivo, antes de olhar a store.
-    // Assim, uma confirmação incerta na mesma página reenviará o mesmo lote.
-    const fingerprint = JSON.stringify(prepared.rows);
+    // A matriz canônica completa define lotes e IDs. O banco reconcilia leads já
+    // existentes, então uma retomada mantém os mesmos limites mesmo após refresh.
+    const fingerprint = JSON.stringify({ format: metadata.format, rows: prepared.rows });
     const pending = loteCsvPendente.current;
     if (pending) {
       setCsvConfirmacaoPendente(true);
     }
     if (pending && pending.fingerprint !== fingerprint) {
-      throw new Error('Há uma importação CSV anterior sem confirmação. Confirme o lote original antes de escolher outro arquivo; nenhum novo lote será criado até isso ser resolvido.');
+      throw new Error('Há uma importação anterior sem confirmação. Confirme o lote original antes de escolher outro arquivo; nenhum novo lote será criado até isso ser resolvido.');
     }
     if (pending) return confirmarImportacaoCsv(pending);
 
-    let duplicatesInExistingLeads = 0;
-    const existingIdentities = new Set<string>();
-    leads.forEach((lead) => {
-      if (lead.email.trim()) existingIdentities.add(`email:${lead.email.trim().toLocaleLowerCase('pt-BR')}`);
-      [lead.telefone, lead.whatsapp].forEach((contact) => {
-        const phone = normalizeProspectingPhone(contact || '');
-        if (phone.length >= 10) existingIdentities.add(`phone:${phone}`);
-      });
-    });
-    const rowsToImport = prepared.rows.filter((row) => {
-      const identities = csvLeadIdentity(row);
-      if (identities.some((identity) => existingIdentities.has(identity))) {
-        duplicatesInExistingLeads += 1;
-        return false;
-      }
-      identities.forEach((identity) => existingIdentities.add(identity));
-      return true;
-    });
-    if (!rowsToImport.length) {
-      throw new Error('Nenhum lead novo ficou disponível após a verificação de identificadores fortes. Nenhum dado foi enviado ao banco.');
-    }
     const session = await resolveOrganizationSession();
-    const cidades = [...new Set(rowsToImport.map((row) => row.cidade).filter(Boolean))].join(', ');
-    const segmentosCsv = [...new Set(rowsToImport.map((row) => row.segmento).filter(Boolean))].join(', ');
-    const input: ProspectingBatchInput = {
-      // O mesmo CSV para a mesma organização produz a mesma chave atômica.
-      // Em uma recarga, uma resposta já persistida volta como conflito/replay
-      // seguro; nunca como um segundo lote automático.
-      batchId: await deterministicProspectingUuid(`wayflex:csv:${session.organizationId}:${fingerprint}`),
-      leads: rowsToImport.map((row) => mapearNovoLead({
+    const groupId = await deterministicProspectingUuid(`wayflex:file:${session.organizationId}:${session.userId}:${fingerprint}`);
+    const sourceLabel = metadata.format === 'xlsx' ? 'Importação Excel' : 'Importação CSV';
+    const listName = `${sourceLabel} · ${groupId.slice(0, 8)}`;
+    const leadRows: Lead[] = [];
+    for (let start = 0; start < prepared.rows.length; start += 250) {
+      const block = prepared.rows.slice(start, start + 250);
+      const mappedBlock = await Promise.all(block.map(async (row, offset) => mapearNovoLead({
+        id: await deterministicProspectingUuid(`wayflex:file-lead:${session.organizationId}:${groupId}:${start + offset}`),
         nome: row.nome,
         empresa: row.empresa,
         email: row.email,
         telefone: row.telefone,
         whatsapp: '',
         segmento: row.segmento,
+        endereco: row.endereco,
         cidade: row.cidade,
         estado: row.estado,
+        site: row.site,
+        sourceImportedAt: row.data,
+        sourceUrl: row.site,
         score: 0,
-        origem: 'Importação CSV',
+        scoreVerifiedAt: null,
+        origem: sourceLabel,
         modoAtendimento: 'IA',
         responsavel: 'Ana (IA)',
         canalPreferencial: '',
         tags: [],
         contactApprovalStatus: 'pending',
-        contactApprovalReason: 'Importação CSV exige aprovação de contato antes de qualquer automação.',
-      })),
-      listName: `Importação CSV · ${new Date().toLocaleDateString('pt-BR')}`,
-      listCriteria: {
-        segmento: segmentosCsv,
-        cidade: cidades,
-        estado: [...new Set(rowsToImport.map((row) => row.estado).filter(Boolean))].join(', '),
-        fonte: 'Importação CSV',
-      },
-    };
+        contactApprovalReason: `${sourceLabel} exige aprovação de contato antes de qualquer automação.`,
+      })));
+      leadRows.push(...mappedBlock);
+    }
+    const inputs: ProspectingBatchInput[] = [];
+    const chunks = chunkProspectingImportRows(leadRows);
+    for (let chunkNumber = 0; chunkNumber < chunks.length; chunkNumber += 1) {
+      const chunk = chunks[chunkNumber];
+      inputs.push({
+        importGroupId: groupId,
+        batchId: await deterministicProspectingUuid(`wayflex:file-batch:${session.organizationId}:${groupId}:${chunkNumber}`),
+        leads: chunk,
+        listName,
+        listCriteria: {
+          segmento: [...new Set(chunk.map((row) => row.segmento).filter(Boolean))].join(', '),
+          cidade: [...new Set(chunk.map((row) => row.cidade).filter(Boolean))].join(', '),
+          estado: [...new Set(chunk.map((row) => row.estado).filter(Boolean))].join(', '),
+          fonte: sourceLabel,
+        },
+      });
+    }
     const nextPending: PendingCsvBatch = {
       fingerprint,
-      input,
-      duplicateCount: prepared.duplicateLines.length + duplicatesInExistingLeads,
+      session,
+      inputs,
+      nextIndex: 0,
+      imported: 0,
+      listIds: [],
+      allRecovered: true,
+      duplicateCount: prepared.duplicateLines.length,
+      invalidCount: prepared.invalidLines.length,
     };
     loteCsvPendente.current = nextPending;
-    return confirmarImportacaoCsv(nextPending);
+    return confirmarImportacaoCsv(nextPending, metadata.onProgress);
   };
 
   const etapaLabel = ['Escolher fonte', 'Configurar busca', 'Revisar amostra', 'Importar'];
@@ -1622,7 +1661,7 @@ export default function BuscaLeads() {
           [
             { id: 'busca', label: 'Nova busca' },
             { id: 'agente', label: 'Assistente de termos' },
-            { id: 'importar', label: 'Importar CSV' },
+            { id: 'importar', label: 'Importar lista' },
             { id: 'salvas', label: 'Buscas salvas' },
           ] as const
         ).map((t) => (
@@ -2317,7 +2356,7 @@ export default function BuscaLeads() {
           <input
             ref={csvFileRef}
             type="file"
-            accept=".csv,text/csv"
+            accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             className="hidden"
             disabled={csvImportAccess !== 'allowed'}
             onChange={onCsvFileChange}
@@ -2325,28 +2364,28 @@ export default function BuscaLeads() {
           <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary-100">
             <i className="ri-upload-cloud-line text-xl text-primary-700"></i>
           </div>
-          <h3 className="mb-2 font-heading font-bold text-foreground-900">Importar lista por CSV</h3>
+          <h3 className="mb-2 font-heading font-bold text-foreground-900">Importar lista de leads</h3>
           <p className="mx-auto mb-4 max-w-md text-sm text-foreground-500">
-            Confira o mapeamento e envie até 100 leads válidos em um único lote transacional.
+            Selecione CSV ou Excel (.xlsx). Listas grandes são gravadas em lotes seguros de até 100 leads e podem ser retomadas sem duplicação.
           </p>
-          <div className="mb-5 rounded-lg border border-primary-200 bg-primary-50 px-3 py-2.5 text-left text-xs text-primary-800"><i className="ri-shield-check-line mr-1.5" aria-hidden="true" />Os leads entram pendentes de aprovação. Nenhuma mensagem nem automação da Ana será iniciada.</div>
+          <div className="mb-5 rounded-lg border border-primary-200 bg-primary-50 px-3 py-2.5 text-left text-xs text-primary-800"><i className="ri-shield-check-line mr-1.5" aria-hidden="true" />Novos leads entram pendentes de aprovação; leads existentes preservam seu estado. A importação não inicia mensagens nem automações.</div>
           <button
             onClick={openCsvImport}
             disabled={csvImportAccess !== 'allowed'}
             className="px-6 py-3 bg-primary-500 hover:bg-primary-600 text-background-50 rounded-lg text-sm font-bold cursor-pointer whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50"
           >
             <i className="ri-file-upload-line mr-2"></i>
-            {csvImportAccess === 'loading' ? 'Verificando acesso…' : csvConfirmacaoPendente ? 'Confirmar lote CSV original' : 'Selecionar arquivo CSV'}
+            {csvImportAccess === 'loading' ? 'Verificando acesso…' : csvConfirmacaoPendente ? 'Confirmar importação original' : 'Selecionar CSV ou Excel'}
           </button>
-          {csvImportAccess === 'denied' && <p role="status" className="mt-3 text-xs text-accent-700">Seu usuário não tem permissão para importar leads.</p>}
+          {csvImportAccess === 'denied' && <p role="status" className="mt-3 text-xs text-accent-700">A importação de listas exige permissão para criar e visualizar a carteira completa.</p>}
         </div>
       )}
 
       {csvModal && (
         <CsvImportModal
-          titulo="Importar leads por CSV"
-          subtitulo="Mapeie as colunas; o lote só será confirmado após a gravação atômica no banco."
-          aviso="Os registros desta importação ficam pendentes de aprovação de contato. Telefone não é convertido em WhatsApp e nenhum disparo será iniciado."
+          titulo="Importar lista de leads"
+          subtitulo="Mapeie as colunas; cada lote só é confirmado após a gravação atômica no banco."
+          aviso="Linhas sem empresa ou com e-mail inválido serão ignoradas e contabilizadas. Novos leads ficam pendentes de aprovação; leads já existentes preservam seu estado. A importação não inicia disparos."
           confirmarLotePendente={csvConfirmacaoPendente}
           onConfirmarLotePendente={confirmarLoteCsvPendente}
           selectedFile={csvSelectedFile}
@@ -2355,6 +2394,7 @@ export default function BuscaLeads() {
           onRecuperarImportacao={recuperarImportacaoCsv}
           onAbrirLeadsImportados={abrirLeadsImportados}
           campos={camposLeadImport}
+          acceptedFormats={['csv', 'xlsx']}
           onImportar={importarLeads}
           onClose={() => setCsvModal(false)}
         />
