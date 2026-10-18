@@ -1,0 +1,290 @@
+/*
+ * Dashboard Premium experiment
+ *
+ * Scoped deliberately to the Dashboard route. It reuses WayFlex tokens and
+ * existing components only; it does not change data, actions or navigation.
+ */
+.wf-app .wf-dashboard-experiment {
+  container-type: inline-size;
+  gap: 1rem;
+}
+
+.wf-app .wf-dashboard-experiment .wf-page-header {
+  align-items: flex-start;
+  gap: .75rem 1rem;
+  margin-bottom: .15rem;
+  padding-bottom: 0;
+}
+
+.wf-app .wf-dashboard-experiment .wf-page-header > :first-child {
+  min-width: 0;
+}
+
+.wf-app .wf-dashboard-experiment .wf-page-header > :last-child {
+  gap: .5rem;
+}
+
+.wf-app .wf-dashboard-experiment .wf-page-header > :last-child > * {
+  min-height: 2.5rem;
+}
+
+.wf-app .wf-dashboard-experiment [aria-label='Alertas prioritários'] {
+  grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr));
+  margin-block: .25rem .5rem;
+}
+
+.wf-app .wf-dashboard-experiment [aria-label='Alertas prioritários'] > article {
+  min-height: 7.5rem;
+  border-radius: .85rem;
+  padding: .85rem;
+  box-shadow: 0 1px 2px rgb(27 36 32 / .02);
+}
+
+.wf-app .wf-dashboard-experiment .wf-analytics {
+  gap: .85rem;
+}
+
+.wf-app .wf-dashboard-experiment .wf-analytics-toolbar {
+  align-items: flex-end;
+  gap: .75rem;
+  border: 1px solid var(--wf-line);
+  border-radius: .85rem;
+  background: #fff;
+  padding: .75rem;
+  box-shadow: 0 1px 2px rgb(27 36 32 / .02);
+}
+
+.wf-app .wf-dashboard-experiment .wf-analytics-filters {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: .65rem;
+}
+
+.wf-app .wf-dashboard-experiment .wf-analytics-filters > svg {
+  display: none;
+}
+
+.wf-app .wf-dashboard-experiment .wf-analytics-filters label {
+  min-width: 0;
+  max-width: none;
+}
+
+.wf-app .wf-dashboard-experiment .wf-analytics-filters label > span {
+  font-weight: 650;
+}
+
+.wf-app .wf-dashboard-experiment .wf-analytics-tools {
+  gap: .4rem;
+}
+
+.wf-app .wf-dashboard-experiment .wf-data-freshness {
+  min-height: 1.25rem;
+  padding-inline: .15rem;
+}
+
+.wf-app .wf-dashboard-experiment .wf-stat-strip {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  padding: .2rem;
+  border-radius: .9rem;
+}
+
+.wf-app .wf-dashboard-experiment .wf-stat-strip article {
+  min-height: 6.9rem;
+  padding: .85rem 1rem;
+}
+
+.wf-app .wf-dashboard-experiment .wf-stat-strip article strong {
+  font-size: clamp(1.65rem, 2.25vw, 2.1rem);
+  margin: .28rem 0;
+}
+
+.wf-app .wf-dashboard-experiment .wf-stat-strip article small {
+  line-height: 1.35;
+}
+
+.wf-app .wf-dashboard-experiment .wf-cohort-note {
+  margin-top: -.15rem;
+}
+
+.wf-app .wf-dashboard-experiment .wf-analytics-main {
+  grid-template-columns: minmax(0, 1fr) minmax(16rem, .34fr);
+  gap: .85rem;
+}
+
+.wf-app .wf-dashboard-experiment .wf-chart-panel {
+  border-radius: .9rem;
+}
+
+.wf-app .wf-dashboard-experiment .wf-chart-panel > header {
+  padding: 1rem 1.1rem .75rem;
+}
+
+.wf-app .wf-dashboard-experiment .wf-chart-canvas {
+  height: 15.5rem;
+}
+
+.wf-app .wf-dashboard-experiment .wf-chart-empty {
+  min-height: 10.5rem;
+}
+
+.wf-app .wf-dashboard-experiment .wf-chart-caption {
+  padding: .65rem 1.1rem;
+}
+
+.wf-app .wf-dashboard-experiment .wf-analytics-aside {
+  position: sticky;
+  top: 1rem;
+}
+
+.wf-app .wf-dashboard-experiment .wf-next-actions {
+  min-height: 100%;
+}
+
+.wf-app .wf-dashboard-experiment .wf-next-actions > :first-child {
+  padding: .9rem 1rem;
+}
+
+.wf-app .wf-dashboard-experiment .wf-next-actions > p {
+  min-height: 9.5rem;
+  display: flex;
+  align-items: center;
+}
+
+.wf-app .wf-dashboard-experiment .wf-analytics-bottom {
+  gap: .85rem;
+}
+
+.wf-app .wf-dashboard-experiment [aria-label='Controle da Ana automática'] {
+  border-left: 3px solid var(--wf-green);
+  border-radius: .9rem;
+  padding-block: .8rem;
+}
+
+.wf-app .wf-dashboard-experiment .wf-dashboard-operations {
+  grid-template-columns: minmax(19rem, .94fr) minmax(0, 1.06fr);
+  gap: .85rem;
+}
+
+.wf-app .wf-dashboard-experiment .wf-contact-activity__grid > div {
+  padding: .85rem .9rem;
+}
+
+.wf-app .wf-dashboard-experiment .wf-health-heading {
+  padding: .75rem .9rem;
+}
+
+.wf-app .wf-dashboard-experiment .wf-health-grid--compact .wf-health-item {
+  min-height: 6.25rem;
+  padding: .75rem .8rem;
+}
+
+@container (max-width: 1120px) {
+  .wf-app .wf-dashboard-experiment .wf-analytics-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .wf-app .wf-dashboard-experiment .wf-stat-strip {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .wf-app .wf-dashboard-experiment .wf-stat-strip article:nth-child(3) {
+    border-right: 0;
+  }
+
+  .wf-app .wf-dashboard-experiment .wf-stat-strip article:nth-child(-n + 3) {
+    border-bottom: 1px solid var(--wf-line);
+  }
+
+  .wf-app .wf-dashboard-experiment .wf-analytics-main {
+    grid-template-columns: 1fr;
+  }
+
+  .wf-app .wf-dashboard-experiment .wf-analytics-aside {
+    position: static;
+  }
+
+  .wf-app .wf-dashboard-experiment .wf-next-actions > p {
+    min-height: auto;
+  }
+
+  .wf-app .wf-dashboard-experiment .wf-dashboard-operations {
+    grid-template-columns: 1fr;
+  }
+}
+
+@container (max-width: 680px) {
+  .wf-app .wf-dashboard-experiment .wf-page-header > :last-child {
+    justify-content: flex-start;
+  }
+
+  .wf-app .wf-dashboard-experiment .wf-stat-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .wf-app .wf-dashboard-experiment .wf-stat-strip article:nth-child(3) {
+    border-right: 1px solid var(--wf-line);
+  }
+
+  .wf-app .wf-dashboard-experiment .wf-stat-strip article:nth-child(even) {
+    border-right: 0;
+  }
+
+  .wf-app .wf-dashboard-experiment .wf-stat-strip article:nth-child(-n + 4) {
+    border-bottom: 1px solid var(--wf-line);
+  }
+
+  .wf-app .wf-dashboard-experiment .wf-contact-activity__grid,
+  .wf-app .wf-dashboard-experiment .wf-health-grid--compact {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .wf-app .wf-dashboard-experiment .wf-contact-activity__grid > div:nth-child(2) {
+    border-right: 0;
+  }
+
+  .wf-app .wf-dashboard-experiment .wf-contact-activity__grid > div:nth-child(-n + 2) {
+    border-bottom: 1px solid var(--wf-line);
+  }
+}
+
+@container (max-width: 460px) {
+  .wf-app .wf-dashboard-experiment .wf-analytics-toolbar {
+    padding: .65rem;
+  }
+
+  .wf-app .wf-dashboard-experiment .wf-analytics-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .wf-app .wf-dashboard-experiment .wf-analytics-tools {
+    width: 100%;
+    justify-content: flex-end;
+  }
+
+  .wf-app .wf-dashboard-experiment .wf-stat-strip {
+    grid-template-columns: 1fr;
+  }
+
+  .wf-app .wf-dashboard-experiment .wf-stat-strip article,
+  .wf-app .wf-dashboard-experiment .wf-stat-strip article:nth-child(3) {
+    border-right: 0;
+  }
+
+  .wf-app .wf-dashboard-experiment .wf-stat-strip article:not(:last-child) {
+    border-bottom: 1px solid var(--wf-line);
+  }
+
+  .wf-app .wf-dashboard-experiment .wf-chart-canvas {
+    height: 14rem;
+    padding-inline: .25rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wf-app .wf-dashboard-experiment *,
+  .wf-app .wf-dashboard-experiment *::before,
+  .wf-app .wf-dashboard-experiment *::after {
+    scroll-behavior: auto !important;
+    transition-duration: .01ms !important;
+  }
+}

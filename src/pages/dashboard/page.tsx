@@ -10,6 +10,7 @@ import InfoTooltip from '@/components/feature/InfoTooltip';
 import AnaAutomaticControl from './components/AnaAutomaticControl';
 import { useCurrentAccess } from '@/hooks/useCurrentAccess';
 import { hasAnyPermission } from '@/lib/crm/currentAccessRepository';
+import './dashboard-premium-experiment.css';
 
 function PanelHeading({ title, help, link, linkLabel = 'Abrir' }: { title: string; help: string; link?: string; linkLabel?: string }) {
   return <div className="wf-overview-heading">
@@ -106,7 +107,7 @@ export default function Dashboard() {
     { label: 'Processamento', icon: 'ri-pulse-line', ...diagnosticStatus(processing.label, processing.tone), detail: processing.detail, link: '/dashboard/configuracoes?tab=operacao' },
   ];
 
-  return <div className="wf-page wf-overview wf-commercial-dashboard">
+  return <div className="wf-page wf-overview wf-commercial-dashboard wf-dashboard-experiment">
     <header className="wf-page-header">
       <div><p className="wf-eyebrow">Dashboard</p><div className="mt-1 flex items-center gap-2"><h1 className="wf-page-title">Visão geral</h1><span className="text-sm text-foreground-500">Resumo da operação comercial.</span><InfoTooltip text="Indicadores comerciais e condição operacional consultados automaticamente a cada 60 segundos. Não há stream simulado nesta tela." label="Sobre a Dashboard" align="start" /></div></div>
       <div className="flex flex-wrap items-center justify-end gap-2"><span className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-semibold ${diagnosticError ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-primary-100 bg-primary-50 text-primary-800'}`}><span className="h-2 w-2 rounded-full bg-current" />{freshness}</span><label className="inline-flex items-center gap-2 rounded-lg border border-background-200 bg-white px-3 py-2 text-xs font-semibold text-foreground-700"><span>Atualização automática</span><button type="button" role="switch" aria-checked={liveUpdates} onClick={() => setLiveUpdates((value) => !value)} className={`relative h-5 w-9 rounded-full ${liveUpdates ? 'bg-primary-600' : 'bg-background-300'}`}><span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition ${liveUpdates ? 'left-4' : 'left-0.5'}`} /></button><span>{liveUpdates ? 'Ativa' : 'Pausada'}</span></label><Link to="/dashboard/agenda" className="wf-btn-secondary text-xs"><i className="ri-calendar-line" />Minha agenda</Link></div>
