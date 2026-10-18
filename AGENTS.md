@@ -1,35 +1,10 @@
-# Continuidade do WayFlex CRM
+# WayFlex CRM
+Ao entrar, leia .agent/AGENT_OS.md uma vez e reutilize enquanto válido.
+Para implementar ou retomar, localize apenas o checkpoint/módulo pertinente em docs/CONTINUIDADE_WAYFLEX.md e .agent/modules/. Leia detalhes por dependência; não recarregue todo o histórico.
+Após alteração relevante, confira o delta e impacto, atualize um registro canônico com evidência, estado LOCAL/APLICADO/PUBLICADO e próxima ação. Salve as alterações autorizadas no Git remoto sem incluir trabalho preexistente. Perguntas e leituras não exigem checkpoint ou commit.
+Use este projeto, stack e hospedagem; não crie outro Site.
 
-Leia `.agent/AGENT_OS.md` ao entrar no projeto e reutilize enquanto não mudar.
-A cada pedido, use BASELINE → DELTA → IMPACTO no módulo afetado. Para implementar ou
-retomar, localize e leia somente o checkpoint pertinente em `docs/CONTINUIDADE_WAYFLEX.md`;
-não recarregue o histórico inteiro nem todos os registros de `.agent/`.
-Este é o projeto existente; não criar outro Site nem substituir a stack.
-
-- Preservar alterações em andamento. Salvar etapas pequenas no Git remoto antes de encerrar.
-- Após mudança relevante, atualizar um checkpoint com evidências, estado LOCAL/APLICADO/PUBLICADO e próxima ação exata.
-- Não afirmar prontidão completa sem homologação; diferenciar evidência de hipótese.
-- Ana automática tem como alvo `ana-run`, com Claude configurado por empresa.
-- Não ativar produção nem enviar mensagens reais para terceiros durante testes.
-- Não reprocessar callbacks antigos automaticamente; podem disparar respostas atrasadas.
-- Orçamentos somente: preço, desconto, prazo final e ganho exigem humano.
-- Preservar isolamento por empresa/carteira, segredos e auditoria.
-- Layout/login empresarial elegante é a etapa final, após estabilizar fluxos.
-- Documentos de continuidade fazem parte deste repositório; não duplicar o código em outro armazenamento.
-- Atualizar somente os registros canônicos afetados em `.agent/` após validar cada lote,
-  sem duplicar relatos. Não registrar commit, teste, integração ou publicação sem evidência real.
-
-## Organização de produto e interface
-
-- Antes de criar ou mover telas, consultar `docs/MAPA_PRODUTO_PERMISSOES.md` e
-  `docs/DESIGN_SYSTEM_WAYFLEX.md`: tarefa → perfil → escopo → permissão → superfície.
-- Em tarefas de organização visual, usar `.agents/skills/wayflex-product-ui/SKILL.md`.
-  Ela complementa o AGENT OS; não substitui regras de segurança ou skills locais não inspecionadas.
-- `administrador` é papel da empresa; não conceder administração global por inferência.
-  Consultar a definição canônica de permissões, sem duplicar sua lógica em documentos ou CSS.
-- Conectar o próprio WhatsApp é autoatendimento autorizado. Gerir canais de terceiros,
-  credenciais e políticas é administração. Reorganizar a interface não amplia permissões.
-- Na Central, priorizar conversa e próximo passo; consultar
-  `docs/REDESIGN_ATENDIMENTO_2026-10-09.md` antes de implementar o redesenho proposto.
-- Distinguir documentação aplicada, código implementado, testes executados e Site publicado.
-  Checkpoint deste lote: `.agent/modules/product-ui.md`.
+## Interface
+Antes de criar/mover telas, consulte os trechos pertinentes de docs/MAPA_PRODUTO_PERMISSOES.md e docs/DESIGN_SYSTEM_WAYFLEX.md: tarefa → perfil → escopo → permissão → superfície.
+Organização visual: .agents/skills/wayflex-product-ui/SKILL.md. Na Central, priorize conversa e próximo passo; leia docs/REDESIGN_ATENDIMENTO_2026-10-09.md quando implementar esse redesenho.
+Estado e prioridades visuais ficam em .agent/modules/product-ui.md. Respeite a estabilização dos fluxos antes da etapa final de layout/login empresarial.
