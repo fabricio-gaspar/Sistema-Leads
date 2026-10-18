@@ -1,5 +1,12 @@
 # Produto e interface — checkpoint incremental
 
+## 18/10/2026 — Busca de Leads: ofertas e segmentos em chips (local)
+
+- “O que você vende?” e “Em quais segmentos atuam?” passaram a usar chips selecionáveis, responsivos e acessíveis, com estado marcado e foco visível.
+- Cada grupo recebeu uma ação “+ Adicionar” com entrada manual, normalização de espaços, deduplicação sem diferença de caixa/acentos e limites explícitos. Inclusões manuais valem somente para a busca atual e não alteram o catálogo da empresa.
+- O payload real combina ofertas cadastradas e manuais em `offerKeywords` e mantém os segmentos selecionados em `buyerActivities`; selecionar ou incluir chips não dispara consulta ao provedor.
+- Validação: teste dirigido (46 aprovados), suíte Vitest completa (136 arquivos; 830 aprovados; 25 ignorados), type-check, lint, build Vite/Sites e `git diff --check` aprovados. A prévia local não autenticou sem a configuração pública do Supabase; a publicação autorizada será confirmada no handoff da release.
+
 ## 18/10/2026 — Busca de Leads: perfil de cliente mais claro (local)
 
 - Reorganizado o passo de Perfil em três grupos explícitos: oferta, tipo de empresa e segmentos compradores. Os perfis agora exibem descrições curtas; o resumo e o payload da busca permanecem inalterados.

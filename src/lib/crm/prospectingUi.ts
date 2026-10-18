@@ -10,6 +10,23 @@ export function toggleProspectingCatalogOffer(current: readonly string[], offerI
   return [...current, id];
 }
 
+export function addProspectingManualChoice(current: readonly string[], value: string, limit: number): string[] {
+  const maxItems = Number.isFinite(limit) ? Math.max(0, Math.trunc(limit)) : 0;
+  if (!maxItems) return [...current];
+
+  const choices: string[] = [];
+  const seen = new Set<string>();
+  for (const candidate of [...current, value]) {
+    const choice = candidate.trim().replace(/\s+/g, ' ');
+    const key = normalizeKey(choice);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    choices.push(choice);
+    if (choices.length === maxItems) break;
+  }
+  return choices;
+}
+
 export function sourceSupportsProspectingCompanySize(sourceKey: string): boolean {
   return sourceKey === 'linkedin';
 }

@@ -32,4 +32,22 @@ describe('seletor de APIs da Busca de Leads', () => {
     expect(page).toContain('const buyerActivities = normalizeProspectingTerms(segmentosCliente)');
     expect(page).not.toContain('normalizeProspectingTerms([...segmentosCliente, ...selectedCatalogApplications])');
   });
+
+  it('offers accessible chip selectors with an inline add action for offers and segments', () => {
+    const page = readFileSync(resolve('src/pages/dashboard/busca-leads/page.tsx'), 'utf8');
+
+    expect(page).toContain('aria-label="O que eu vendo"');
+    expect(page).toContain('aria-label="Adicionar o que eu vendo"');
+    expect(page).toContain('aria-label="Em quais segmentos atuam"');
+    expect(page).toContain('aria-label="Adicionar segmento"');
+    expect(page).toContain('adicionarOfertaManual');
+    expect(page).toContain('adicionarSegmentoManual');
+    expect(page).toContain('offerKeywords: reviewedOfferTerms');
+    expect(page).toContain('setSelectedManualOffers(planCatalogOffer || !planOffer ? [] : [planOffer])');
+    expect(page).toContain('setSelectedOfferTerms(planCatalogOffer ? [planCatalogOffer.name] : [])');
+    expect(page).toContain('manualOfferChipOptions.map');
+    expect(page).toContain('const MAX_PROSPECTING_SEGMENTS = 20');
+    expect(page).not.toContain('id="prospecting-catalog-offer"');
+    expect(page).not.toContain('id="prospecting-company-sector"');
+  });
 });

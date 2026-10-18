@@ -18,6 +18,7 @@ import {
   shouldApplyProspectingHistoryResponse,
   termsForProspectingSource,
   toggleProspectingCatalogOffer,
+  addProspectingManualChoice,
 } from '@/lib/crm/prospectingUi';
 import {
   PROSPECTING_TERM_SUGGESTION_GROUPS,
@@ -30,6 +31,17 @@ describe('prospecting UI safeguards', () => {
     expect(toggleProspectingCatalogOffer(['offer-a', 'offer-b'], 'offer-c')).toEqual(['offer-a', 'offer-b', 'offer-c']);
     expect(toggleProspectingCatalogOffer(['offer-a', 'offer-b', 'offer-c'], 'offer-d')).toEqual(['offer-a', 'offer-b', 'offer-c']);
     expect(toggleProspectingCatalogOffer(['offer-a', 'offer-b'], 'offer-a')).toEqual(['offer-b']);
+  });
+
+  it('normalizes a manual offer or segment without duplicating it or exceeding its limit', () => {
+    expect(addProspectingManualChoice(['Automotivo'], '  Alimentos   e bebidas  ', 3))
+      .toEqual(['Automotivo', 'Alimentos e bebidas']);
+    expect(addProspectingManualChoice(['Automotivo'], 'automotívo', 3))
+      .toEqual(['Automotivo']);
+    expect(addProspectingManualChoice(['Automotivo', 'Construção'], 'Mineração', 2))
+      .toEqual(['Automotivo', 'Construção']);
+    expect(addProspectingManualChoice(['Automotivo'], '   ', 3))
+      .toEqual(['Automotivo']);
   });
 
   it('allows company-size criteria only for the source that actually returns it', () => {

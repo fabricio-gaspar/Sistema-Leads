@@ -49,6 +49,7 @@ import {
   shouldClearProspectingRequestKey,
   requestKeyBelongsToRun,
   shouldApplyProspectingHistoryResponse,
+  addProspectingManualChoice,
   prospectingSourceCriteria,
   sourceSupportsProspectingCompanySize,
   termsForProspectingSource,
@@ -79,6 +80,9 @@ const fasesBusca = ['Iniciando a busca', 'Aguardando resposta da fonte', 'Prepar
 const PROSPECTING_REQUEST_STORAGE_KEY = 'wayflex.prospecting.pending-request.v1';
 const DEFAULT_PROSPECTING_VOLUME = 10;
 const MAX_PROSPECTING_VOLUME = 100;
+const MAX_PROSPECTING_SEGMENTS = 20;
+const MAX_PROSPECTING_MANUAL_OPTIONS = 50;
+const MAX_VISIBLE_CATALOG_OFFERS = 12;
 const PROSPECTING_VOLUME_PRESETS = [10, 20, 50, 100] as const;
 const OFFER_TERM_ORIGIN_LABELS = {
   material: 'material',
@@ -273,11 +277,22 @@ export default function BuscaLeads() {
   const [catalogError, setCatalogError] = useState('');
   const [selectedCatalogIds, setSelectedCatalogIds] = useState<string[]>([]);
   const [selectedOfferTerms, setSelectedOfferTerms] = useState<string[]>([]);
+  const [manualOfferOptions, setManualOfferOptions] = useState<string[]>([]);
+  const [selectedManualOffers, setSelectedManualOffers] = useState<string[]>([]);
+  const [manualOfferDraft, setManualOfferDraft] = useState('');
+  const [offerComposerOpen, setOfferComposerOpen] = useState(false);
+  const manualOfferInputRef = useRef<HTMLInputElement>(null);
+  const offerAddButtonRef = useRef<HTMLButtonElement>(null);
   const [radiusEnabled, setRadiusEnabled] = useState(false);
   const [radiusKm, setRadiusKm] = useState(25);
   const [searchCenter, setSearchCenter] = useState<{ latitude: number; longitude: number } | null>(null);
   const [tipoEmpresaAlvo, setTipoEmpresaAlvo] = useState<ProspectingTargetProfile>('potential_customers');
   const [segmentosCliente, setSegmentosCliente] = useState<string[]>([]);
+  const [manualSegmentOptions, setManualSegmentOptions] = useState<string[]>([]);
+  const [manualSegmentDraft, setManualSegmentDraft] = useState('');
+  const [segmentComposerOpen, setSegmentComposerOpen] = useState(false);
+  const manualSegmentInputRef = useRef<HTMLInputElement>(null);
+  const segmentAddButtonRef = useRef<HTMLButtonElement>(null);
   const [termosBusca, setTermosBusca] = useState<string[]>([]);
   const [novoTermo, setNovoTermo] = useState('');
   const [leadsDia, setLeadsDia] = useState(DEFAULT_PROSPECTING_VOLUME);
@@ -423,14 +438,48 @@ export default function BuscaLeads() {
   const fonteUnicaAtiva = statusFontes === 'ready' && fontesDisponiveis.length === 1 ? fontesDisponiveis[0] : null;
   const termosSelecionados = useMemo(() => new Set(normalizeProspectingTerms(termosBusca).map((term) => normalizarTermoSugerido(term))), [termosBusca]);
   const selectedCatalogItems = useMemo(() => catalogItems.filter((item) => selectedCatalogIds.includes(item.id)), [catalogItems, selectedCatalogIds]);
+  const visibleCatalogItems = useMemo(() => {
+    const visibleIds = new Set(catalogItems.slice(0, MAX_VISIBLE_CATALOG_OFFERS).map((item) => item.id));
+    selectedCatalogIds.forEach((id) => visibleIds.add(id));
+    return catalogItems.filter((item) => visibleIds.has(item.id));
+  }, [catalogItems, selectedCatalogIds]);
+  const selectedOfferItemCount = selectedCatalogIds.length + selectedManualOffers.length;
   const offerTermOptions = useMemo(() => catalogOfferTermOptions(selectedCatalogItems), [selectedCatalogItems]);
   const selectedOfferTermKeys = useMemo(() => new Set(selectedOfferTerms.map(normalizarTermoSugerido)), [selectedOfferTerms]);
+  const reviewedOfferTerms = useMemo(
+    () => normalizeProspectingTerms([...selectedManualOffers, ...selectedOfferTerms]),
+    [selectedManualOffers, selectedOfferTerms],
+  );
+  const manualOfferChipOptions = useMemo(() => {
+    const options: string[] = [];
+    const seen = new Set<string>();
+    for (const value of [...manualOfferOptions, ...selectedManualOffers]) {
+      const label = value.trim().replace(/\s+/g, ' ');
+      const key = normalizarTermoSugerido(label);
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      options.push(label);
+    }
+    return options;
+  }, [manualOfferOptions, selectedManualOffers]);
+  const segmentOptions = useMemo(() => {
+    const options: string[] = [];
+    const seen = new Set<string>();
+    for (const value of [...catalogBuyerSectors.map((sector) => sector.label), ...PROSPECTING_CUSTOMER_SEGMENTS, ...manualSegmentOptions, ...segmentosCliente]) {
+      const label = value.trim().replace(/\s+/g, ' ');
+      const key = normalizarTermoSugerido(label);
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      options.push(label);
+    }
+    return options;
+  }, [catalogBuyerSectors, manualSegmentOptions, segmentosCliente]);
   const buyerSuggestions = useMemo(() => suggestBuyerSearchTerms({ items: selectedCatalogItems, selectedSegments: segmentosCliente }), [selectedCatalogItems, segmentosCliente]);
   const connectedOfferTerms = useMemo(() => composeCatalogBuyerSearchTerms({
-    offerTerms: selectedOfferTerms,
+    offerTerms: reviewedOfferTerms,
     targetProfile: tipoEmpresaAlvo,
     selectedSegments: segmentosCliente,
-  }), [segmentosCliente, selectedOfferTerms, tipoEmpresaAlvo]);
+  }), [reviewedOfferTerms, segmentosCliente, tipoEmpresaAlvo]);
   const termosDoPerfil = useMemo(
     () => {
       const connectedKeys = new Set(connectedOfferTerms.map(normalizarTermoSugerido));
@@ -479,6 +528,14 @@ export default function BuscaLeads() {
       return next.length === current.length ? current : next;
     });
   }, [offerTermOptions]);
+
+  useEffect(() => {
+    if (offerComposerOpen) manualOfferInputRef.current?.focus();
+  }, [offerComposerOpen]);
+
+  useEffect(() => {
+    if (segmentComposerOpen) manualSegmentInputRef.current?.focus();
+  }, [segmentComposerOpen]);
 
   useEffect(() => {
     if (wizardError && !validateProspectingWizardStep(wizardStep, wizardDraft)) {
@@ -668,16 +725,41 @@ export default function BuscaLeads() {
     setErroBusca(null);
   };
 
+  const fecharCompositorOferta = () => {
+    setManualOfferDraft('');
+    setOfferComposerOpen(false);
+    offerAddButtonRef.current?.focus();
+  };
+
+  const fecharCompositorSegmento = () => {
+    setManualSegmentDraft('');
+    setSegmentComposerOpen(false);
+    segmentAddButtonRef.current?.focus();
+  };
+
   const aplicarPlanoDaIa = (plano: ProspectingAiPlan) => {
     const areaChanged = prospectingAreaChanged({ city: cidade, state: estado }, { city: plano.city, state: plano.state });
+    const planOffer = plano.offer.trim().replace(/\s+/g, ' ');
+    const planCatalogOffer = catalogItems.find((item) => normalizarTermoSugerido(item.name) === normalizarTermoSugerido(planOffer));
+    const planSegments = plano.customerSegments.reduce<string[]>(
+      (current, segment) => addProspectingManualChoice(current, segment, MAX_PROSPECTING_SEGMENTS),
+      [],
+    );
     setCidade(plano.city);
     setEstado(plano.state);
     if (areaChanged) setSearchCenter(null);
-    setOfertaEmpresa(plano.offer);
-    setSelectedCatalogIds((current) => current.filter((id) => catalogItems.some((item) => item.id === id && item.name === plano.offer)));
-    setSelectedOfferTerms([]);
+    setOfertaEmpresa(planOffer);
+    setSelectedCatalogIds(planCatalogOffer ? [planCatalogOffer.id] : []);
+    setSelectedOfferTerms(planCatalogOffer ? [planCatalogOffer.name] : []);
+    setManualOfferOptions(planCatalogOffer || !planOffer ? [] : [planOffer]);
+    setSelectedManualOffers(planCatalogOffer || !planOffer ? [] : [planOffer]);
+    setManualOfferDraft('');
+    setOfferComposerOpen(false);
     setTipoEmpresaAlvo(plano.targetProfile);
-    setSegmentosCliente(plano.customerSegments);
+    setSegmentosCliente(planSegments);
+    setManualSegmentOptions([]);
+    setManualSegmentDraft('');
+    setSegmentComposerOpen(false);
     setTermosBusca(plano.terms);
     setLeadsDia(plano.volume);
     setTemSite(plano.requireSite ? true : null);
@@ -696,17 +778,102 @@ export default function BuscaLeads() {
   };
 
   const alternarSegmentoCliente = (segment: string) => {
-    setSegmentosCliente((current) => current.includes(segment)
-      ? current.filter((item) => item !== segment)
-      : [...current, segment]);
+    const key = normalizarTermoSugerido(segment);
+    const selected = segmentosCliente.some((item) => normalizarTermoSugerido(item) === key);
+    if (selected) {
+      setSegmentosCliente((current) => current.filter((item) => normalizarTermoSugerido(item) !== key));
+      setErroBusca(null);
+      return;
+    }
+    if (segmentosCliente.length >= MAX_PROSPECTING_SEGMENTS) {
+      setErroBusca(`Escolha no máximo ${MAX_PROSPECTING_SEGMENTS} segmentos.`);
+      return;
+    }
+    setSegmentosCliente((current) => addProspectingManualChoice(current, segment, MAX_PROSPECTING_SEGMENTS));
+    setErroBusca(null);
   };
 
   const selecionarOfertaCatalogo = (id: string) => {
     const item = catalogItems.find((candidate) => candidate.id === id);
     if (!item) return;
+    const selected = selectedCatalogIds.includes(item.id);
+    if (selected) {
+      const remainingCatalogIds = selectedCatalogIds.filter((selectedId) => selectedId !== item.id);
+      const nextOffer = [...catalogItems.filter((candidate) => remainingCatalogIds.includes(candidate.id)).map((candidate) => candidate.name), ...selectedManualOffers][0] || '';
+      setSelectedCatalogIds(remainingCatalogIds);
+      setOfertaEmpresa((current) => normalizarTermoSugerido(current) === normalizarTermoSugerido(item.name) ? nextOffer : current);
+      setErroBusca(null);
+      return;
+    }
+    if (!selected && selectedOfferItemCount >= MAX_PROSPECTING_CATALOG_OFFERS) {
+      setErroBusca(`Escolha no máximo ${MAX_PROSPECTING_CATALOG_OFFERS} produtos ou serviços.`);
+      return;
+    }
     setSelectedCatalogIds((current) => toggleProspectingCatalogOffer(current, item.id));
-    setOfertaEmpresa((current) => current.trim() ? current : item.name);
+    if (!selected) setOfertaEmpresa((current) => current.trim() ? current : item.name);
+    setErroBusca(null);
     setWizardError(null);
+  };
+
+  const alternarOfertaManual = (offer: string) => {
+    const label = offer.trim().replace(/\s+/g, ' ');
+    const key = normalizarTermoSugerido(label);
+    const selected = selectedManualOffers.some((item) => normalizarTermoSugerido(item) === key);
+    if (selected) {
+      const remainingManualOffers = selectedManualOffers.filter((item) => normalizarTermoSugerido(item) !== key);
+      const nextOffer = [...selectedCatalogItems.map((item) => item.name), ...remainingManualOffers][0] || '';
+      setSelectedManualOffers(remainingManualOffers);
+      setOfertaEmpresa((current) => normalizarTermoSugerido(current) === key ? nextOffer : current);
+      setErroBusca(null);
+      return;
+    }
+    if (selectedOfferItemCount >= MAX_PROSPECTING_CATALOG_OFFERS) {
+      setErroBusca(`Escolha no máximo ${MAX_PROSPECTING_CATALOG_OFFERS} produtos ou serviços.`);
+      return;
+    }
+    setSelectedManualOffers((current) => addProspectingManualChoice(
+      current,
+      label,
+      Math.max(0, MAX_PROSPECTING_CATALOG_OFFERS - selectedCatalogIds.length),
+    ));
+    setOfertaEmpresa((current) => current.trim() ? current : label);
+    setErroBusca(null);
+  };
+
+  const adicionarOfertaManual = () => {
+    const label = manualOfferDraft.trim().replace(/\s+/g, ' ');
+    if (!label) return;
+    const key = normalizarTermoSugerido(label);
+    const catalogMatch = catalogItems.find((item) => normalizarTermoSugerido(item.name) === key);
+    const catalogSelected = catalogMatch ? selectedCatalogIds.includes(catalogMatch.id) : false;
+    const manualSelected = selectedManualOffers.some((item) => normalizarTermoSugerido(item) === key);
+    if (!catalogSelected && !manualSelected && selectedOfferItemCount >= MAX_PROSPECTING_CATALOG_OFFERS) {
+      setErroBusca(`Escolha no máximo ${MAX_PROSPECTING_CATALOG_OFFERS} produtos ou serviços.`);
+      return;
+    }
+    if (catalogMatch) {
+      if (!catalogSelected) selecionarOfertaCatalogo(catalogMatch.id);
+    } else {
+      setManualOfferOptions((current) => addProspectingManualChoice(current, label, MAX_PROSPECTING_MANUAL_OPTIONS));
+      if (!manualSelected) alternarOfertaManual(label);
+    }
+    fecharCompositorOferta();
+  };
+
+  const adicionarSegmentoManual = () => {
+    const label = manualSegmentDraft.trim().replace(/\s+/g, ' ');
+    if (!label) return;
+    const key = normalizarTermoSugerido(label);
+    const selected = segmentosCliente.some((item) => normalizarTermoSugerido(item) === key);
+    if (!selected && segmentosCliente.length >= MAX_PROSPECTING_SEGMENTS) {
+      setErroBusca(`Escolha no máximo ${MAX_PROSPECTING_SEGMENTS} segmentos.`);
+      return;
+    }
+    const known = segmentOptions.some((item) => normalizarTermoSugerido(item) === key);
+    if (!known) setManualSegmentOptions((current) => addProspectingManualChoice(current, label, MAX_PROSPECTING_SEGMENTS));
+    if (!selected) setSegmentosCliente((current) => addProspectingManualChoice(current, label, MAX_PROSPECTING_SEGMENTS));
+    fecharCompositorSegmento();
+    setErroBusca(null);
   };
 
   const alternarPalavraOferta = (term: string) => {
@@ -716,8 +883,8 @@ export default function BuscaLeads() {
       setErroBusca(null);
       return;
     }
-    if (selectedOfferTerms.length >= MAX_PROSPECTING_TERMS) {
-      setErroBusca(`O limite é de ${MAX_PROSPECTING_TERMS} palavras do catálogo. Remova uma antes de marcar outra.`);
+    if (reviewedOfferTerms.length >= MAX_PROSPECTING_TERMS) {
+      setErroBusca(`O limite é de ${MAX_PROSPECTING_TERMS} palavras da oferta. Remova uma antes de marcar outra.`);
       return;
     }
     setSelectedOfferTerms((current) => normalizeProspectingTerms([...current, term]));
@@ -809,6 +976,7 @@ export default function BuscaLeads() {
   const aplicarBuscaMaisAmpla = () => {
     if (!orientacaoDaBusca) return;
     setSelectedOfferTerms([]);
+    setSelectedManualOffers([]);
     setTermosBusca([orientacaoDaBusca.primaryTerm]);
     if (orientacaoDaBusca.removeContactRequirements) {
       setTemWhatsApp(null);
@@ -923,7 +1091,7 @@ export default function BuscaLeads() {
         ...(radiusEnabled && searchCenter ? { centerLatitude: searchCenter.latitude, centerLongitude: searchCenter.longitude, raio: radiusKm } : {}),
         searchTerms: terms,
         buyerActivities,
-        offerKeywords: selectedOfferTerms,
+        offerKeywords: reviewedOfferTerms,
         // Compatibilidade com a versão anterior da função durante publicação coordenada.
         atividades: terms,
         segmentos: [] as string[],
@@ -1655,26 +1823,41 @@ export default function BuscaLeads() {
                       <div><h3 className="text-sm font-heading font-bold text-foreground-900">2. Defina seu público</h3><p className="mt-0.5 text-xs text-foreground-500">Escolha em ordem: o que você vende, quem compra e onde atua.</p></div>
                     </div>
                     <fieldset className="rounded-xl border border-background-200 bg-background-50/60 p-3"><legend className="px-1 text-xs font-semibold text-foreground-800">1. O que você vende?</legend>
-                      <p className="mt-1 text-xs leading-5 text-foreground-500">Escolha até {MAX_PROSPECTING_CATALOG_OFFERS} itens do seu site e marque as palavras que descrevem o que empresas podem utilizar.</p>
-                    <label className="sr-only" htmlFor="prospecting-catalog-offer">Adicionar produto ou serviço</label>
-                      <select id="prospecting-catalog-offer" value="" onChange={(event) => selecionarOfertaCatalogo(event.target.value)} disabled={catalogStatus !== 'ready' || !catalogItems.length} className="mt-1.5 w-full rounded-lg border border-background-300 bg-background-50 px-3 py-2 text-sm text-foreground-900 disabled:opacity-60">
-                        <option value="">{catalogStatus === 'loading' ? 'Carregando catálogo...' : catalogStatus === 'error' ? 'Catálogo indisponível' : catalogItems.length ? 'Adicionar produto ou serviço' : 'Nenhum item ativo em fonte habilitada'}</option>
-                        {catalogItems.map((item) => <option key={item.id} value={item.id} disabled={!selectedCatalogIds.includes(item.id) && selectedCatalogIds.length >= MAX_PROSPECTING_CATALOG_OFFERS}>{item.name}{item.category ? ` · ${item.category}` : ''}</option>)}
-                    </select>
+                      <p className="mt-1 text-xs leading-5 text-foreground-500">Selecione até {MAX_PROSPECTING_CATALOG_OFFERS} itens. Use “+ Adicionar” quando o que você vende ainda não aparecer.</p>
+                    <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label="O que eu vendo">
+                      {visibleCatalogItems.map((item) => {
+                        const selected = selectedCatalogIds.includes(item.id);
+                        return <button key={item.id} type="button" aria-pressed={selected} onClick={() => selecionarOfertaCatalogo(item.id)} disabled={!selected && selectedOfferItemCount >= MAX_PROSPECTING_CATALOG_OFFERS} className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40 ${selected ? 'border-primary-300 bg-primary-50 text-primary-800' : 'border-background-200 bg-white text-foreground-600 hover:border-primary-300'}`}>{selected && <i className="ri-check-line mr-1" aria-hidden="true" />}{item.name}</button>;
+                      })}
+                      {manualOfferChipOptions.map((offer) => {
+                        const selected = selectedManualOffers.some((item) => normalizarTermoSugerido(item) === normalizarTermoSugerido(offer));
+                        return <button key={normalizarTermoSugerido(offer)} type="button" aria-pressed={selected} onClick={() => alternarOfertaManual(offer)} disabled={!selected && selectedOfferItemCount >= MAX_PROSPECTING_CATALOG_OFFERS} className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40 ${selected ? 'border-primary-300 bg-primary-50 text-primary-800' : 'border-background-200 bg-white text-foreground-600 hover:border-primary-300'}`}>{selected && <i className="ri-check-line mr-1" aria-hidden="true" />}{offer}</button>;
+                      })}
+                      <button ref={offerAddButtonRef} type="button" aria-label="Adicionar o que eu vendo" aria-expanded={offerComposerOpen} onClick={() => { if (offerComposerOpen) fecharCompositorOferta(); else setOfferComposerOpen(true); }} disabled={selectedOfferItemCount >= MAX_PROSPECTING_CATALOG_OFFERS} className="inline-flex items-center gap-1 rounded-full border border-dashed border-primary-400 bg-white px-3 py-1.5 text-xs font-semibold text-primary-800 transition-colors hover:bg-primary-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40"><i className="ri-add-line" aria-hidden="true" />Adicionar</button>
+                    </div>
+                    {offerComposerOpen && <div className="mt-3 rounded-lg border border-primary-200 bg-white p-3">
+                      <label htmlFor="prospecting-manual-offer" className="text-xs font-semibold text-foreground-700">Produto ou serviço</label>
+                      <div className="mt-1.5 flex flex-col gap-2 sm:flex-row">
+                        <input ref={manualOfferInputRef} id="prospecting-manual-offer" value={manualOfferDraft} onChange={(event) => setManualOfferDraft(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); adicionarOfertaManual(); } if (event.key === 'Escape') fecharCompositorOferta(); }} maxLength={80} placeholder="Ex.: mangueiras industriais" className="min-w-0 flex-1 rounded-lg border border-background-300 bg-background-50 px-3 py-2 text-sm text-foreground-900" />
+                        <div className="flex gap-2"><button type="button" onClick={adicionarOfertaManual} disabled={!manualOfferDraft.trim()} className="rounded-lg bg-background-950 px-3 py-2 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-40">Adicionar</button><button type="button" onClick={fecharCompositorOferta} className="rounded-lg border border-background-300 px-3 py-2 text-xs font-semibold text-foreground-700">Cancelar</button></div>
+                      </div>
+                      {manualOfferDraft.trim() && <div className="mt-2 flex flex-wrap gap-2" aria-label="Itens do catálogo encontrados">{catalogItems.filter((item) => normalizarTermoSugerido(item.name).includes(normalizarTermoSugerido(manualOfferDraft))).slice(0, 6).map((item) => <button key={item.id} type="button" onClick={() => { selecionarOfertaCatalogo(item.id); fecharCompositorOferta(); }} className="rounded-full border border-background-300 bg-white px-2.5 py-1 text-xs font-semibold text-foreground-700 hover:border-primary-300">{item.name}</button>)}</div>}
+                      <p className="mt-2 text-[11px] leading-4 text-foreground-500">A inclusão manual vale somente para esta busca; o catálogo oficial continua em Configurações.</p>
+                    </div>}
                     {catalogStatus === 'error' && <p role="status" className="mt-2 text-xs text-amber-800">{catalogError}</p>}
                     {catalogStatus === 'ready' && !catalogItems.length && <p role="status" className="mt-2 text-xs text-foreground-600">Cadastre e ative produtos/serviços em Configurações → Empresa e conhecimento para receber sugestões baseadas nas aplicações.</p>}
-                    {selectedCatalogItems.length > 0 && <div className="mt-2 flex flex-wrap gap-2" aria-label="Produtos selecionados">{selectedCatalogItems.map((item) => <button key={item.id} type="button" onClick={() => selecionarOfertaCatalogo(item.id)} aria-label={`Remover ${item.name}`} className="inline-flex items-center gap-1 rounded-full border border-primary-300 bg-primary-50 px-2.5 py-1 text-xs font-semibold text-primary-800">{item.name}<i className="ri-close-line" aria-hidden="true" /></button>)}</div>}
-                    {selectedCatalogIds.length >= MAX_PROSPECTING_CATALOG_OFFERS && <p role="status" className="mt-2 text-xs text-foreground-500">Remova uma seleção para escolher outro produto ou serviço.</p>}
+                    {catalogItems.length > visibleCatalogItems.length && <p className="mt-2 text-[11px] text-foreground-500">Mostrando os itens mais recentes. Use “+ Adicionar” para localizar os demais.</p>}
+                    {selectedOfferItemCount >= MAX_PROSPECTING_CATALOG_OFFERS && <p role="status" className="mt-2 text-xs text-foreground-500">Remova uma seleção para escolher outro produto ou serviço.</p>}
                     {selectedCatalogItems.length > 0 && <div className="mt-3 rounded-lg border border-background-200 bg-white p-3">
                       <div className="flex flex-wrap items-start justify-between gap-2">
                         <div><p className="text-xs font-semibold text-foreground-800">Palavras do seu catálogo</p><p className="mt-0.5 text-[11px] leading-4 text-foreground-500">Marque uma ou mais. O sistema conectará cada palavra a “Quem você quer encontrar”.</p></div>
-                        <span role="status" className="rounded-full bg-background-100 px-2 py-1 text-[11px] font-semibold text-foreground-600">{selectedOfferTerms.length}/{MAX_PROSPECTING_TERMS}</span>
+                        <span role="status" className="rounded-full bg-background-100 px-2 py-1 text-[11px] font-semibold text-foreground-600">{reviewedOfferTerms.length}/{MAX_PROSPECTING_TERMS}</span>
                       </div>
                       {offerTermOptions.length ? <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label="Palavras do catálogo para a busca">
                         {offerTermOptions.map((option) => {
                           const selected = selectedOfferTermKeys.has(normalizarTermoSugerido(option.term));
                           const originLabel = OFFER_TERM_ORIGIN_LABELS[option.origin];
-                          return <button key={`${option.itemId}:${option.origin}:${normalizarTermoSugerido(option.term)}`} type="button" aria-pressed={selected} aria-label={`${selected ? 'Remover' : 'Adicionar'} ${option.term}, ${originLabel} de ${option.itemName}`} title={`${originLabel} · ${option.itemName}`} onClick={() => alternarPalavraOferta(option.term)} disabled={!selected && selectedOfferTerms.length >= MAX_PROSPECTING_TERMS} className={`rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40 ${selected ? 'border-primary-400 bg-primary-100 text-primary-900' : 'border-background-300 bg-white text-foreground-700 hover:border-primary-300'}`}>{selected ? <i className="ri-checkbox-circle-fill mr-1" aria-hidden="true" /> : <i className="ri-add-circle-line mr-1" aria-hidden="true" />}{option.term}</button>;
+                          return <button key={`${option.itemId}:${option.origin}:${normalizarTermoSugerido(option.term)}`} type="button" aria-pressed={selected} aria-label={`${selected ? 'Remover' : 'Adicionar'} ${option.term}, ${originLabel} de ${option.itemName}`} title={`${originLabel} · ${option.itemName}`} onClick={() => alternarPalavraOferta(option.term)} disabled={!selected && reviewedOfferTerms.length >= MAX_PROSPECTING_TERMS} className={`rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40 ${selected ? 'border-primary-400 bg-primary-100 text-primary-900' : 'border-background-300 bg-white text-foreground-700 hover:border-primary-300'}`}>{selected ? <i className="ri-checkbox-circle-fill mr-1" aria-hidden="true" /> : <i className="ri-add-circle-line mr-1" aria-hidden="true" />}{option.term}</button>;
                         })}
                       </div> : <p role="status" className="mt-2 text-xs leading-5 text-foreground-600">Os itens escolhidos ainda não têm nome, material, palavra-chave ou aplicação utilizável.</p>}
                     </div>}
@@ -1693,23 +1876,24 @@ export default function BuscaLeads() {
                       </div>
                     </fieldset>
                     <fieldset className="mt-3 rounded-xl border border-background-200 bg-background-50/60 p-3"><legend className="px-1 text-xs font-semibold text-foreground-800">3. Em quais segmentos atuam?</legend>
-                      <p className="mt-1 text-xs leading-5 text-foreground-500">Use vários segmentos quando qualquer um deles for válido. Eles ampliam a busca dentro da região.</p>
-                      {catalogBuyerSectors.length > 0 && <div className="mt-2">
-                        <label htmlFor="prospecting-company-sector" className="text-xs font-semibold text-foreground-700">Adicionar segmento do histórico</label>
-                        <select id="prospecting-company-sector" value="" onChange={(event) => { if (event.target.value) alternarSegmentoCliente(event.target.value); }} className="mt-1 block w-full max-w-md rounded-lg border border-background-300 bg-background-50 px-3 py-2 text-sm text-foreground-900">
-                          <option value="">Selecione um segmento comprador</option>
-                          {catalogBuyerSectors.filter((sector) => !segmentosCliente.includes(sector.label)).map((sector) => <option key={sector.itemId} value={sector.label}>{sector.label} · {sector.sourceName}</option>)}
-                        </select>
-                        <p className="mt-1 text-[11px] text-foreground-500">O histórico indica onde sua empresa já atua; confirme a relação antes de buscar.</p>
-                        {segmentosCliente.some((segment) => catalogBuyerSectors.some((sector) => sector.label === segment)) && <div className="mt-2 flex flex-wrap gap-2">{segmentosCliente.filter((segment) => catalogBuyerSectors.some((sector) => sector.label === segment)).map((segment) => <button key={segment} type="button" onClick={() => alternarSegmentoCliente(segment)} aria-label={`Remover setor ${segment}`} className="rounded-full border border-primary-300 bg-primary-50 px-2.5 py-1 text-xs font-semibold text-primary-800">{segment} <i className="ri-close-line" aria-hidden="true" /></button>)}</div>}
-                      </div>}
-                      <p className="mt-3 text-[11px] font-semibold text-foreground-600">Atalhos de setor</p>
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {PROSPECTING_CUSTOMER_SEGMENTS.map((segment) => {
-                          const selected = segmentosCliente.includes(segment);
-                          return <button key={segment} type="button" aria-pressed={selected} onClick={() => alternarSegmentoCliente(segment)} className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${selected ? 'border-primary-300 bg-primary-50 text-primary-800' : 'border-background-200 bg-white text-foreground-600 hover:border-primary-300'}`}>{selected && <i className="ri-check-line mr-1" aria-hidden="true" />}{segment}</button>;
+                      <p className="mt-1 text-xs leading-5 text-foreground-500">Selecione os segmentos atendidos. Use “+ Adicionar” quando precisar incluir outro.</p>
+                      <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label="Em quais segmentos atuam">
+                        {segmentOptions.map((segment) => {
+                          const selected = segmentosCliente.some((item) => normalizarTermoSugerido(item) === normalizarTermoSugerido(segment));
+                          return <button key={normalizarTermoSugerido(segment)} type="button" aria-pressed={selected} onClick={() => alternarSegmentoCliente(segment)} disabled={!selected && segmentosCliente.length >= MAX_PROSPECTING_SEGMENTS} className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40 ${selected ? 'border-primary-300 bg-primary-50 text-primary-800' : 'border-background-200 bg-white text-foreground-600 hover:border-primary-300'}`}>{selected && <i className="ri-check-line mr-1" aria-hidden="true" />}{segment}</button>;
                         })}
+                        <button ref={segmentAddButtonRef} type="button" aria-label="Adicionar segmento" aria-expanded={segmentComposerOpen} onClick={() => { if (segmentComposerOpen) fecharCompositorSegmento(); else setSegmentComposerOpen(true); }} disabled={segmentosCliente.length >= MAX_PROSPECTING_SEGMENTS} className="inline-flex items-center gap-1 rounded-full border border-dashed border-primary-400 bg-white px-3 py-1.5 text-xs font-semibold text-primary-800 transition-colors hover:bg-primary-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40"><i className="ri-add-line" aria-hidden="true" />Adicionar</button>
                       </div>
+                      {segmentComposerOpen && <div className="mt-3 rounded-lg border border-primary-200 bg-white p-3">
+                        <label htmlFor="prospecting-manual-segment" className="text-xs font-semibold text-foreground-700">Novo segmento</label>
+                        <div className="mt-1.5 flex flex-col gap-2 sm:flex-row">
+                          <input ref={manualSegmentInputRef} id="prospecting-manual-segment" value={manualSegmentDraft} onChange={(event) => setManualSegmentDraft(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); adicionarSegmentoManual(); } if (event.key === 'Escape') fecharCompositorSegmento(); }} maxLength={80} placeholder="Ex.: Indústria farmacêutica" className="min-w-0 flex-1 rounded-lg border border-background-300 bg-background-50 px-3 py-2 text-sm text-foreground-900" />
+                          <div className="flex gap-2"><button type="button" onClick={adicionarSegmentoManual} disabled={!manualSegmentDraft.trim()} className="rounded-lg bg-background-950 px-3 py-2 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-40">Adicionar</button><button type="button" onClick={fecharCompositorSegmento} className="rounded-lg border border-background-300 px-3 py-2 text-xs font-semibold text-foreground-700">Cancelar</button></div>
+                        </div>
+                        <p className="mt-2 text-[11px] leading-4 text-foreground-500">O novo segmento vale somente para esta busca.</p>
+                      </div>}
+                      {catalogBuyerSectors.length > 0 && <p className="mt-2 text-[11px] text-foreground-500">Os segmentos do histórico aparecem junto dos atalhos; confirme a relação antes de buscar.</p>}
+                      {segmentosCliente.length >= MAX_PROSPECTING_SEGMENTS && <p role="status" className="mt-2 text-xs text-foreground-500">Remova uma seleção para adicionar outro segmento.</p>}
                     </fieldset>
                     <p className="mt-3 rounded-lg border border-primary-100 bg-primary-50/60 px-3 py-2 text-xs leading-5 text-primary-900"><strong>Como a busca combina:</strong> região + oferta + perfil. Segmentos selecionados funcionam como alternativas dentro do mesmo grupo.</p>
                   </section>
@@ -1800,8 +1984,8 @@ export default function BuscaLeads() {
                       <div className="flex justify-between gap-3 py-2"><dt className="text-background-400">Área</dt><dd className="text-right font-semibold">{radiusEnabled ? `${radiusKm} km do ponto marcado` : 'Cidade informada'}</dd></div>
                       <div className="flex justify-between py-2"><dt className="text-background-400">Perfil</dt><dd className="font-semibold">{tipoEmpresaAlvoLabel}</dd></div>
                       <div className="flex justify-between py-2"><dt className="text-background-400">Segmentos</dt><dd className="font-semibold">{segmentosCliente.length}</dd></div>
-                      <div className="flex justify-between gap-3 py-2"><dt className="text-background-400">Produtos</dt><dd className="max-w-[65%] text-right font-semibold break-words">{selectedCatalogItems.length ? selectedCatalogItems.map((item) => item.name).join(', ') : ofertaEmpresa || 'Pendente'}</dd></div>
-                      <div className="flex justify-between gap-3 py-2"><dt className="text-background-400">Palavras</dt><dd className="max-w-[65%] text-right font-semibold break-words">{selectedOfferTerms.join(', ') || 'Nenhuma'}</dd></div>
+                      <div className="flex justify-between gap-3 py-2"><dt className="text-background-400">Produtos</dt><dd className="max-w-[65%] text-right font-semibold break-words">{[...selectedCatalogItems.map((item) => item.name), ...selectedManualOffers].join(', ') || ofertaEmpresa || 'Pendente'}</dd></div>
+                      <div className="flex justify-between gap-3 py-2"><dt className="text-background-400">Palavras</dt><dd className="max-w-[65%] text-right font-semibold break-words">{reviewedOfferTerms.join(', ') || 'Nenhuma'}</dd></div>
                       <div className="flex justify-between gap-3 py-2"><dt className="text-background-400">Termos enviados</dt><dd className="max-w-[65%] text-right font-semibold break-words">{termsForProspectingSource(sourceKeySelecionada, termosAplicados).join(', ') || 'Nenhum'}</dd></div>
                       <div className="flex justify-between gap-3 py-2"><dt className="text-background-400">Porte</dt><dd className="max-w-[65%] text-right font-semibold break-words">{sourceSupportsCompanySize ? linkedinCompanySizes.length ? linkedinCompanySizes.join(', ') : 'Qualquer' : 'Não verificado pela fonte'}</dd></div>
                       <div className="flex justify-between py-2"><dt className="text-background-400">Aderência</dt><dd className="font-semibold">{minimumProspectingScore ? `${minimumProspectingScore}+` : 'Sem mínimo'}</dd></div>
