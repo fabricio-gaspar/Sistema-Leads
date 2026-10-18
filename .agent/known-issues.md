@@ -1,5 +1,10 @@
 # Problemas conhecidos
 
+## 18/10/2026 — Busca de Leads: homologação de provedor continua pendente
+
+- A publicação confirma o contrato da interface, da Edge e da rota pública, mas não executou uma consulta ao provedor: ela pode gerar cobrança e criar resultados para revisão. A busca real controlada continua dependente de credencial válida e decisão comercial explícita.
+- O filtro não inventa porte, canal de contato ou interesse de compra quando a fonte não fornece essa evidência. Resultado vazio pode ser correto para os critérios escolhidos e deve exibir o diagnóstico da fonte, não ser tratado como falha automática.
+
 ## 18/10/2026 — Revisão visual autenticada do novo Dashboard pendente
 
 - O redesign da central de comando foi validado por contrato, type-check, lint, suíte Vitest e build local. A prévia Vite chegou à tela de configuração obrigatória porque este checkout não contém a URL/chave pública do Supabase; nenhuma credencial foi adicionada para contornar essa limitação.

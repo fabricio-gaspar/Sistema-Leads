@@ -1,5 +1,27 @@
 {
   "schema_version": 1,
+  "prospecting_targeting_20261018": {
+    "baseline_commit": "70c618a3ef1320f85414f51ce2e098f09e801c4f",
+    "code_commit": "90472efc977578d2243b98803681eefaec92af11",
+    "scope": "Busca de Leads com porte, catálogo comercial, cidade/UF, raio, volume e score mínimo; filtro server-side explicável e deduplicação antes do limite.",
+    "implementation": [
+      "src/lib/crm/prospectingUi.ts",
+      "src/pages/dashboard/busca-leads/page.tsx",
+      "supabase/functions/prospectar-leads/index.ts",
+      "supabase/functions/_shared/prospectingScore.ts",
+      "supabase/functions/_shared/prospectingState.ts",
+      "supabase/functions/_shared/prospectingResultFilter.ts"
+    ],
+    "validation": "npm test: 136 arquivos, 816 aprovados, 25 skips; lint, type-check app/Edge, build Vite/artefato Sites e diff check aprovados.",
+    "remote_edge": "prospectar-leads v30 ACTIVE com JWT obrigatório; preflight OPTIONS do domínio oficial retornou 204.",
+    "site": "Site v217 publicado a partir do commit da origem Sites 6d52a7ac2ea32d67d0bbde65aa8faa058fb76fc4, reconciliado sem force push a partir do código GitHub 90472ef; /login retornou 200 com Accept text/html.",
+    "paid_search": false,
+    "messages_sent": false,
+    "customer_data_changed": false,
+    "migration_applied": false,
+    "status": "PUBLICADO_TECNICAMENTE_SEM_BUSCA_PAGA",
+    "next_action": "Validar uma única busca real e controlada somente após confirmar credencial e custo do provedor."
+  },
   "dashboard_command_center_20261018": {
     "baseline_commit": "3e52fd9b331933a1c62c3559c7dbe920a2d92734",
     "scope": "Redesign visual perceptível do Dashboard existente, preservando métricas, rotas, alertas, controles e dados operacionais.",
@@ -14,9 +36,10 @@
     "messages_sent": false,
     "migration_applied": false,
     "edge_functions_deployed": false,
-    "site_deployed": false,
-    "status": "LOCAL_VALIDADO_PENDENTE_DE_PUBLICACAO_E_REVISAO_VISUAL_AUTENTICADA",
-    "next_action": "Com autorização específica, publicar somente este lote validado e conferir o Dashboard autenticado no domínio oficial."
+    "site_deployed": true,
+    "site_version": 217,
+    "status": "PUBLICADO_TECNICAMENTE_REVISAO_VISUAL_AUTENTICADA_PENDENTE",
+    "next_action": "Conferir o Dashboard autenticado no domínio oficial; a publicação técnica não substitui essa revisão visual."
   },
   "csv_ana_existing_leads_20261015": {
     "baseline_commit": "090736371807e94533013e034fc25285ddbc1f01",

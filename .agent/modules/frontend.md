@@ -138,6 +138,11 @@ Auth → sessionContext (user/org/generation) → OrganizationGate → stores po
 - A última etapa exige seleção e leva ao módulo Leads após a persistência. Não há promessa nem
   disparo automático da Ana ou de WhatsApp nesse fluxo.
 
+## Busca de Leads — 18/10/2026
+
+- A tela publicada passou a concentrar os critérios comerciais no mesmo wizard: porte, até três itens do catálogo, cidade/UF, raio, volume e score mínimo. A interface explica que produto/serviço é critério de evidência e não confirmação de compra.
+- A publicação técnica está no Site v217; não houve consulta ao provedor, importação ou envio durante a entrega. Estados vazios devem expor o diagnóstico devolvido pelo backend.
+
 ## Governança e entrada do site — 16/09/2026
 
 - Leads inclui a Base de Leads: filtros por ciclo de atividade, seleção explícita e confirmação

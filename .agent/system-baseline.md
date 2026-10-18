@@ -1,5 +1,12 @@
 # Baseline do sistema
 
+## 18/10/2026 — Busca de Leads: filtros comerciais publicados
+
+- O fluxo publicado permite escolher porte, até três itens do catálogo comercial, cidade/UF, raio, quantidade e score mínimo. Porte só é aplicado a fontes que realmente o fornecem; produtos/serviços são tratados como critério de evidência, não como prova automática de compra.
+- A Edge `prospectar-leads` está em **v30 ACTIVE** com JWT obrigatório. O filtro server-side deduplica antes de limitar, exige evidência de atividade para score mínimo de 50 ou mais e não executa retry cego de início de busca.
+- O código GitHub é `90472efc977578d2243b98803681eefaec92af11`; o Site v217 foi publicado por uma reconciliação normal da origem do Site (`6d52a7ac2ea32d67d0bbde65aa8faa058fb76fc4`), sem force push. A rota `/login` respondeu 200 como navegação HTML.
+- Validação: 816 testes aprovados em 136 arquivos (25 skips), lint, type-check frontend/Edge, build e diff check. Não houve busca paga, importação, mensagem, migration ou alteração de dado de cliente.
+
 ## 18/10/2026 — Dashboard: composição de central de comando (LOCAL)
 
 - O Dashboard local recebeu um cabeçalho operacional em alto contraste, alertas priorizados, leitura mais clara de métricas e painéis de próxima ação/Ana com estados existentes. Dados, rotas, permissões, controles, polling e integrações permanecem os mesmos.

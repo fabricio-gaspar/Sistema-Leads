@@ -1,5 +1,9 @@
 # Backend
 
+## 18/10/2026 — Prospecção comercial publicada
+
+`prospectar-leads` v30 está ACTIVE com JWT obrigatório. O handler normaliza estado/portes antes da reserva idempotente, aplica score com evidência de atividade e deduplica antes de limitar resultados; em score mínimo 50 ou maior, dados de canal, região ou porte não substituem evidência da atividade solicitada. O OPTIONS do domínio oficial respondeu 204. Nenhuma busca externa, migration, mensagem ou dado de cliente foi executado nesta publicação.
+
 ## 06/10/2026 — Evolution GO multi-tenant local, sem aplicação remota
 
 `team-members` observa o job já criado pelo vínculo e só acorda o worker quando ele existe; não recria instância após o vendedor estar ativo. `evolution-go` recusa criação/configuração manual de conta seller, preservando conta corporativa/admin e o convite/autodefinição segura de senha. O lifecycle por trigger mantém job único por organização/usuário, self-service só do titular e histórico pós-desconexão. Validação: 769 Vitest/93 arquivos, type-check app/Edge, lint, build/artefato, PGlite 6/6 e PostgreSQL nativo 2/2. Não aplicado a migrations/Supabase/Edge/Site/GitHub; sem QR, chamada a provedor, mensagem ou dado de cliente. Drift remoto, QR Evolution 400/500 e política de senha/Auth pendente exigem staging/homologação coordenada.

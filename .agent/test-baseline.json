@@ -1,5 +1,19 @@
 {
   "schema_version": 1,
+  "prospecting_targeting_20261018": {
+    "full_vitest": "816 passed, 25 skipped, 136 files; exit 0",
+    "frontend_typecheck": "passed; tsc --noEmit --project tsconfig.app.json",
+    "edge_typecheck": "passed; tsc --project tsconfig.edge.json",
+    "lint": "passed; eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "vite_build": "passed; aviso preexistente de runtime-config.js sem type=module",
+    "sites_artifact": "passed; scripts/build-sites-artifact.mjs",
+    "diff_check": "passed",
+    "remote_edge": "prospectar-leads v30 ACTIVE, verify_jwt=true; OPTIONS 204",
+    "remote_site": "v217 publicado; /login 200 com Accept text/html",
+    "paid_search": false,
+    "messages_sent": false,
+    "customer_data_changed": false
+  },
   "dashboard_command_center_20261018": {
     "commands": [
       { "command": "vitest run src/pages/dashboard/dashboardVisualContract.test.ts", "status": "red before implementation; green after implementation; 3 passed" },

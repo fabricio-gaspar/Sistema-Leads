@@ -1712,3 +1712,10 @@ Comparado `225a379` com HEAD `52ac6fe`: a remoção do formulário com senha e o
 - Aplicado redesign visual do Dashboard nos componentes e estilos existentes, sem mudar comportamento, dados, permissões, rotas ou integrações.
 - Validação executada: contrato visual em ciclo red/green, type-check, lint, Vitest completo (134 arquivos; 803 aprovados; 25 skips), build Vite/artefato Sites e diff check.
 - A prévia local não autenticou porque o checkout não contém configuração pública do Supabase. Nenhuma credencial foi adicionada; publicação e revisão visual autenticada seguem pendentes de autorização específica.
+
+## 2026-10-18 — Busca de Leads: publicação coordenada de filtros comerciais
+
+- Commit `90472efc977578d2243b98803681eefaec92af11` enviado sem force push ao `main` do GitHub. Ele adiciona filtros de porte, catálogo, cidade/UF, raio, quantidade e score mínimo, com deduplicação e evidência de atividade no backend.
+- A Edge `prospectar-leads` foi publicada em v30, ACTIVE e com JWT obrigatório; o preflight OPTIONS respondeu 204. Não foram aplicadas migrations nem iniciada uma busca externa.
+- A origem do Site estava em histórico divergente. Foi criado checkout temporário, aplicado o conteúdo rastreado do commit e publicado por commit normal da origem Sites `6d52a7ac2ea32d67d0bbde65aa8faa058fb76fc4`, sem sobrescrita. Site v217 sucedeu; `/login` devolveu 200 como navegação HTML.
+- Validações frescas: 816 Vitest aprovados/25 skips, lint, type-check app/Edge, build/artefato Sites e diff check. Não houve importação, mensagem, cobrança, migration ou alteração de dado de cliente.

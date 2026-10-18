@@ -2,6 +2,14 @@
   "schema_version": 1,
   "requirements": [
     {
+      "id": "REQ-PROSPECTING-TARGETING-20261018",
+      "description": "Permitir configurar porte de empresa, até três itens do catálogo, cidade/UF, raio, quantidade e score mínimo, retornando somente resultados com evidência factual compatível e sem criar dados automaticamente.",
+      "module": "busca_leads",
+      "status": "PUBLICADO_TECNICAMENTE",
+      "evidence": "Commit 90472ef no GitHub; prospectar-leads v30 ACTIVE com JWT obrigatório e OPTIONS 204; Site v217 publicado. npm test: 136 arquivos, 816 aprovados, 25 skips; lint, type-check app/Edge e build passaram. Nenhuma busca paga, importação, mensagem, migration ou dado de cliente foi executado.",
+      "last_validation": "2026-10-18"
+    },
+    {
       "id": "REQ-DASHBOARD-COMMAND-CENTER-20261018",
       "description": "Dar ao Dashboard uma hierarquia visual de central de comando, com prioridade para estado operacional, alertas, métricas reais, próxima ação e controle da Ana, sem alterar regras de negócio ou integrações.",
       "module": "dashboard",
