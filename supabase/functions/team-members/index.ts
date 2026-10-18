@@ -233,10 +233,6 @@ Deno.serve(async (request) => {
       }
       return json({ ok: true, ...data, provisioning_state: provisioningState, provisioning_warning: provisioningWarning }, 200, headers);
     }
-    if (action === 'update_member' || action === 'reset_password') {
-      throw new Error('global_identity_self_service_required');
-    }
-
     const { data: profile, error: profileError } = await admin.from('profiles').select('active_organization_id,name').eq('id', user.id).maybeSingle();
     if (profileError || !profile?.active_organization_id) throw new Error('organization_context_required');
     const organizationId = profile.active_organization_id;
@@ -358,6 +354,74 @@ Deno.serve(async (request) => {
     const { data: current, error: currentError } = await admin.from('organization_members').select('role,status')
       .eq('organization_id', organizationId).eq('user_id', targetUserId).maybeSingle();
     if (currentError || !current) throw currentError ?? new Error('member_not_found');
+
+    if (action === 'update_member') {
+      const name = text(body.name, 120);
+      const email = memberEmail(body.email);
+      if (!name) throw new Error('invalid_member_name');
+      const { data: previousProfile, error: previousProfileError } = await admin.from('profiles')
+        .select('name,email').eq('id', targetUserId).maybeSingle();
+      if (previousProfileError || !previousProfile) throw previousProfileError ?? new Error('member_profile_not_found');
+
+      const { error: authUpdateError } = await admin.auth.admin.updateUserById(targetUserId, {
+        email,
+        email_confirm: true,
+        user_metadata: { name },
+      });
+      if (authUpdateError) {
+        if (isExistingAuthUser(authUpdateError)) throw new Error('member_email_already_registered');
+        throw new Error('member_profile_update_failed');
+      }
+
+      const now = new Date().toISOString();
+      const { error: profileUpdateError } = await admin.from('profiles').update({ name, email, updated_at: now }).eq('id', targetUserId);
+      if (profileUpdateError) {
+        await admin.auth.admin.updateUserById(targetUserId, {
+          email: previousProfile.email,
+          email_confirm: true,
+          user_metadata: { name: previousProfile.name },
+        });
+        throw new Error('member_profile_update_failed');
+      }
+      await admin.from('audit_logs').insert({
+        organization_id: organizationId,
+        actor_id: user.id,
+        actor_name: profile.name,
+        actor_type: 'user',
+        action: 'team.member_updated',
+        detail: 'Cadastro de membro atualizado.',
+        entity_table: 'profiles',
+        entity_id: targetUserId,
+        event_data: { user_id: targetUserId, name, email },
+      });
+      return json({ ok: true }, 200, headers);
+    }
+
+    if (action === 'reset_password') {
+      const password = memberPassword(body.password);
+      const { error: passwordError } = await admin.auth.admin.updateUserById(targetUserId, { password });
+      if (passwordError) throw new Error('member_password_reset_failed');
+
+      const adminAuth = admin.auth.admin as unknown as { signOut?: (userId: string, scope?: 'global' | 'local' | 'others') => Promise<{ error: unknown }> };
+      let sessionsRevoked = false;
+      if (typeof adminAuth.signOut === 'function') {
+        const result = await adminAuth.signOut(targetUserId, 'global');
+        if (result?.error) throw new Error('member_password_reset_session_revoke_failed');
+        sessionsRevoked = true;
+      }
+      await admin.from('audit_logs').insert({
+        organization_id: organizationId,
+        actor_id: user.id,
+        actor_name: profile.name,
+        actor_type: 'user',
+        action: 'team.member_password_reset',
+        detail: 'Senha temporária de membro redefinida.',
+        entity_table: 'organization_members',
+        entity_id: targetUserId,
+        event_data: { user_id: targetUserId, sessions_revoked: sessionsRevoked },
+      });
+      return json({ ok: true, sessions_revoked: sessionsRevoked }, 200, headers);
+    }
 
     if (action === 'permissions_get') {
       const { data: rows, error } = await admin.from('team_member_permissions')

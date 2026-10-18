@@ -136,6 +136,14 @@ export async function createTeamMember(input: { name: string; email: string; pas
   return mutate('create', input);
 }
 
+export async function updateTeamMemberProfile(userId: string, input: { name: string; email: string }): Promise<void> {
+  await mutate('update_member', { user_id: userId, name: input.name, email: input.email });
+}
+
+export async function resetTeamMemberPassword(userId: string, password: string): Promise<void> {
+  await mutate('reset_password', { user_id: userId, password });
+}
+
 export interface DailyLeadReportSettings {
   enabled: boolean;
   phoneSuffix: string | null;

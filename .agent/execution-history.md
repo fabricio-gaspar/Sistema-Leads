@@ -19,6 +19,13 @@
 - Edge Functions republicadas com JWT obrigatório: `configurar-integracao` v33, `testar-integracao` v30 e `prospectar-leads` v29. Local: 125 arquivos Vitest, 735 aprovações, 25 skips históricos; type-check, lint dirigido, build e diff check aprovados.
 - Commit funcional `a4e642d46b6c3055dc842082cdc3aa6e6950b0f9` enviado em fast-forward ao GitHub `main`; o Site existente foi publicado na versão 211 e `/login` respondeu 200 com cabeçalhos de segurança. A alteração local `supabase/.temp/cli-latest` permaneceu fora do commit e do artefato público.
 
+## 17/10/2026 — Painel de usuários completo (LOCAL)
+
+- Restauradas as ações reais **Editar cadastro** e **Redefinir senha** no menu de membros, mantendo a criação direta sem convite já existente.
+- Backend local: `team-members` aceita `update_member` e `reset_password` somente após `team.manage` e vínculo da organização; atualiza Auth/perfil, evita retorno de senha, tenta encerrar sessões anteriores e audita cada operação.
+- Validação: 3 arquivos focados (145 aprovados/25 ignorados), type-check frontend/Edge, lint, build/artefato Sites e `git diff --check`. Nenhum acesso, senha, mensagem, dado de cliente, migration remota, Edge deploy ou Site foi alterado.
+- Próxima ação: publicar o conjunto no Supabase/Site somente com autorização explícita; a tela oficial continua na versão anterior.
+
 ## 2026-10-15 — Busca de Leads: filtros, diagnóstico e execução segura (PUBLICADO)
 
 - Confirmados: última falha remota de Google Maps/Apify por token rejeitado; Google Places usava IDs de execução divergentes, impedindo salvar resultados válidos. Corrigidos o ID, filtros factuais, aviso de fonte, termo único do LinkedIn, histórico por fonte e encerramento manual auditado de pendência Google incerta.

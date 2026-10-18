@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { acceptTeamInvite, createTeamMember, defaultPermissionsForRole, findActiveAssignee, inviteTeamMember, loadPendingTeamInvites, removeTeamMember, teamPermissions, updateTeamRole, type TeamMember } from './teamMembersRepository';
+import { acceptTeamInvite, createTeamMember, defaultPermissionsForRole, findActiveAssignee, inviteTeamMember, loadPendingTeamInvites, removeTeamMember, resetTeamMemberPassword, teamPermissions, updateTeamMemberProfile, updateTeamRole, type TeamMember } from './teamMembersRepository';
 import { sessionContext } from '@/lib/sessionContext';
 const mocks = vi.hoisted(() => ({ invoke: vi.fn(), clear: vi.fn() }));
 vi.mock('@/lib/supabase', () => ({ supabase: { functions: { invoke: mocks.invoke } } }));
@@ -50,6 +50,17 @@ describe('R4 team access client contracts', () => {
   it('invalidates cached access after a role mutation', async () => {
     mocks.invoke.mockResolvedValue({ data: { ok: true }, error: null });
     await updateTeamRole('target', 'cx'); expect(mocks.clear).toHaveBeenCalledTimes(1);
+  });
+  it('uses protected actions for profile and password administration', async () => {
+    mocks.invoke.mockResolvedValue({ data: { ok: true }, error: null });
+    await updateTeamMemberProfile(member.userId, { name: 'Novo nome', email: 'novo@example.test' });
+    await resetTeamMemberPassword(member.userId, 'temporary-secret');
+    expect(mocks.invoke).toHaveBeenNthCalledWith(1, 'team-members', {
+      body: { action: 'update_member', user_id: member.userId, name: 'Novo nome', email: 'novo@example.test' },
+    });
+    expect(mocks.invoke).toHaveBeenNthCalledWith(2, 'team-members', {
+      body: { action: 'reset_password', user_id: member.userId, password: 'temporary-secret' },
+    });
   });
   it('routes deletion through the isolated WA-AKG removal handler', async () => {
     mocks.invoke.mockResolvedValue({ data: { ok: true, membership_removed: true, history_preserved: true, identity_deleted: true }, error: null });

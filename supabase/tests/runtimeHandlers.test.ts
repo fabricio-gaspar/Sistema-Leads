@@ -159,13 +159,24 @@ describe('R4 team membership and identity boundary — mocked HTTP', () => {
     method: 'POST', headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
     body: JSON.stringify({ action, user_id: target, ...fields }),
   });
-  for (const action of ['update_member', 'reset_password']) it(action + ' refuses global identity mutation', async () => {
+  it('updates a member profile through the tenant-scoped admin action and audits it', async () => {
     await import('../functions/team-members/index');
-    const response = await handler(request(action, { name: 'Synthetic', email: 'synthetic@example.test', password: 'synthetic-password', role: 'vendedor' }));
-    expect(response.status).toBe(400);
-    expect(await response.json()).toMatchObject({ erro: 'global_identity_self_service_required' });
-    expect(state.updateUser).not.toHaveBeenCalled(); expect(state.deleteUser).not.toHaveBeenCalled();
-    expect(calls.some(q => q.operation !== 'select')).toBe(false);
+    const response = await handler(request('update_member', { name: 'Synthetic updated', email: 'synthetic.updated@example.test' }));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ ok: true });
+    expect(state.updateUser).toHaveBeenCalledWith(target, expect.objectContaining({ email: 'synthetic.updated@example.test', email_confirm: true }));
+    expect(calls.some(q => q.table === 'profiles' && q.operation === 'update')).toBe(true);
+    expect(calls.some(q => q.table === 'audit_logs' && q.operation === 'insert')).toBe(true);
+  });
+  it('resets a member password without returning the secret and audits the action', async () => {
+    await import('../functions/team-members/index');
+    const response = await handler(request('reset_password', { password: 'synthetic-password' }));
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body).toMatchObject({ ok: true, sessions_revoked: false });
+    expect(JSON.stringify(body)).not.toContain('synthetic-password');
+    expect(state.updateUser).toHaveBeenCalledWith(target, { password: 'synthetic-password' });
+    expect(calls.some(q => q.table === 'audit_logs' && q.operation === 'insert')).toBe(true);
   });
   it('refuses direct creation before Auth if the coordinated backend is missing', async () => {
     override = q => q.table === 'team_direct_create_preflight' ? { data: null, error: { message: 'function unavailable' } } : undefined;

@@ -10,6 +10,10 @@ describe('Configurações > Usuários', () => {
     expect(source).toContain('Senha temporária');
     expect(source).toContain('Confirmar senha');
     expect(source).toContain('createTeamMember({ name: createForm.name.trim(), email: createForm.email.trim(), password: createForm.password, role: createForm.role })');
+    expect(source).toContain('updateTeamMemberProfile');
+    expect(source).toContain('resetTeamMemberPassword');
+    expect(source).toContain('Editar cadastro');
+    expect(source).toContain('Redefinir senha');
     expect(source).not.toContain("['invites', 'Convites'");
     expect(source).not.toContain('loadOrganizationInvites()');
     expect(source).not.toContain('resendOrganizationInvite(');

@@ -2407,3 +2407,10 @@ webhook em ambiente controlado.
 - A importação CSV abre o seletor nativo, valida e deduplica os registros e oferece envio explícito para Leads. A Ana pode apenas enfileirar até 10 leads já existentes para revisão humana; não cria campanhas, não envia mensagens e não ativa contatos automaticamente.
 - O lote foi validado localmente com Vitest completo (800 aprovados, 25 ignorados), type-check do frontend e Edge Functions, lint direcionado, build Vite, pacote do Site e `git diff --check` aprovados.
 - **PUBLICADO:** GitHub `2ee8a81` e Site existente versão **212**, origem reconciliada em `9f411084c1b180f467bc85681733d7c47aab1d04`, deploy `appgdep_6ad1718ccd74819186438a085f3d03fb` com estado `succeeded`, domínio oficial `https://prospect.wfdigital.com.br`. Nenhuma migration ou Edge Function foi publicada nesta etapa.
+
+## 17/10/2026 — Painel de usuários: criação direta, edição e redefinição de senha (LOCAL)
+
+- O botão existente **Criar usuário** permanece como criação direta, sem convite, com nome, e-mail, papel e senha temporária; o servidor continua exigindo `team.manage`, pré-flight coordenado e vínculo na organização antes de concluir.
+- As ações que estavam ocultas/bloqueadas foram restauradas no menu de cada membro: **Editar cadastro** atualiza nome/e-mail no CRM e no login; **Redefinir senha** troca a senha no Auth, não expõe o segredo e registra a operação. Ambas usam a Edge Function `team-members`, isolamento da organização e auditoria; não alteram o papel nem dados comerciais.
+- Validação local: 3 arquivos focados (145 testes aprovados, 25 ignorados), type-check frontend/Edge, lint direcionado, build Vite/artefato Sites e `git diff --check` aprovados. Nenhum usuário real foi alterado, nenhuma senha real foi enviada e nenhuma migration, Edge Function ou Site foi publicado.
+- **Pendente exato:** o código da Edge Function e a migration/RPC de criação direta estão somente neste checkout; para a tela online refletir as ações é necessário publicar coordenadamente a função e o frontend após autorização explícita. O estado remoto do Supabase não foi presumido.

@@ -714,5 +714,21 @@
     "customer_data_changed": false,
     "remote_access": "read-only metadata/catalogs/advisors and one Edge bundle; no customer records",
     "remaining": "Full integrated homologation, corrected WA-AKG gateway and hosting, product/authority/MFA choices, selective schema/bundle reconciliation, broader accessibility; production remains NO-GO"
+  },
+  "users_panel_management_20261017": {
+    "scope": [
+      "direct_user_creation",
+      "member_profile_edit",
+      "member_password_reset"
+    ],
+    "status": "LOCAL_VALIDADO; NAO_PUBLICADO",
+    "local_commit": "working-tree",
+    "remote_migrations_applied": false,
+    "edge_functions_deployed": false,
+    "site_deployed": false,
+    "real_users_changed": false,
+    "real_passwords_changed": false,
+    "validation": "145 testes aprovados e 25 ignorados em 3 arquivos focados; type-check frontend/Edge; lint; build Vite/artefato Sites; diff check",
+    "next_action": "Publicar Edge Function team-members e frontend coordenadamente somente após autorização explícita; não aplicar migration remota sem confirmação do contrato team_direct_create"
   }
 }
