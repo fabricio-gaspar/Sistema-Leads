@@ -24,7 +24,11 @@ import { supabase } from '@/lib/supabase';
 import { resolveOrganizationSession } from '@/lib/organizationSession';
 import { prospectingImportDetails } from '@/lib/crm/prospectingImportDetails';
 import { loadProspectingCatalogOffers, loadKnowledgeSources, type KnowledgeCatalogItem } from '@/lib/crm/catalogKnowledgeRepository';
-import { suggestBuyerSearchTerms } from '@/lib/crm/prospectingBuyerTerms';
+import {
+  catalogOfferTermOptions,
+  composeCatalogBuyerSearchTerms,
+  suggestBuyerSearchTerms,
+} from '@/lib/crm/prospectingBuyerTerms';
 import { extractCatalogBuyerSectors, type CatalogBuyerSectorOption } from '@/lib/crm/prospectingCatalogSectors';
 import { importProspectingBatch, type ProspectingBatchInput } from '@/lib/crm/prospectingBatchRepository';
 import { importedLeadListHref } from '@/lib/crm/csvImportNavigation';
@@ -76,6 +80,12 @@ const PROSPECTING_REQUEST_STORAGE_KEY = 'wayflex.prospecting.pending-request.v1'
 const DEFAULT_PROSPECTING_VOLUME = 10;
 const MAX_PROSPECTING_VOLUME = 100;
 const PROSPECTING_VOLUME_PRESETS = [10, 20, 50, 100] as const;
+const OFFER_TERM_ORIGIN_LABELS = {
+  material: 'material',
+  keyword: 'palavra-chave',
+  name: 'nome do item',
+  application: 'aplicação',
+} as const;
 const LINKEDIN_COMPANY_SIZE_OPTIONS = [
   { value: '1-10', label: '1–10 pessoas' },
   { value: '11-50', label: '11–50 pessoas' },
@@ -262,6 +272,7 @@ export default function BuscaLeads() {
   const [catalogStatus, setCatalogStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [catalogError, setCatalogError] = useState('');
   const [selectedCatalogIds, setSelectedCatalogIds] = useState<string[]>([]);
+  const [selectedOfferTerms, setSelectedOfferTerms] = useState<string[]>([]);
   const [radiusEnabled, setRadiusEnabled] = useState(false);
   const [radiusKm, setRadiusKm] = useState(25);
   const [searchCenter, setSearchCenter] = useState<{ latitude: number; longitude: number } | null>(null);
@@ -412,18 +423,33 @@ export default function BuscaLeads() {
   const fonteUnicaAtiva = statusFontes === 'ready' && fontesDisponiveis.length === 1 ? fontesDisponiveis[0] : null;
   const termosSelecionados = useMemo(() => new Set(normalizeProspectingTerms(termosBusca).map((term) => normalizarTermoSugerido(term))), [termosBusca]);
   const selectedCatalogItems = useMemo(() => catalogItems.filter((item) => selectedCatalogIds.includes(item.id)), [catalogItems, selectedCatalogIds]);
-  const selectedCatalogApplications = useMemo(
-    () => normalizeProspectingTerms(selectedCatalogItems.flatMap((item) => item.applications)).slice(0, 8),
-    [selectedCatalogItems],
-  );
+  const offerTermOptions = useMemo(() => catalogOfferTermOptions(selectedCatalogItems), [selectedCatalogItems]);
+  const selectedOfferTermKeys = useMemo(() => new Set(selectedOfferTerms.map(normalizarTermoSugerido)), [selectedOfferTerms]);
   const buyerSuggestions = useMemo(() => suggestBuyerSearchTerms({ items: selectedCatalogItems, selectedSegments: segmentosCliente }), [selectedCatalogItems, segmentosCliente]);
+  const connectedOfferTerms = useMemo(() => composeCatalogBuyerSearchTerms({
+    offerTerms: selectedOfferTerms,
+    targetProfile: tipoEmpresaAlvo,
+    selectedSegments: segmentosCliente,
+  }), [segmentosCliente, selectedOfferTerms, tipoEmpresaAlvo]);
   const termosDoPerfil = useMemo(
-    () => normalizeProspectingTerms([...buyerSuggestions.map((suggestion) => suggestion.term), ...termsFromIdealProfile(ofertaEmpresa, tipoEmpresaAlvo, segmentosCliente)]),
-    [buyerSuggestions, ofertaEmpresa, tipoEmpresaAlvo, segmentosCliente],
+    () => {
+      const connectedKeys = new Set(connectedOfferTerms.map(normalizarTermoSugerido));
+      return normalizeProspectingTerms([...buyerSuggestions.map((suggestion) => suggestion.term), ...termsFromIdealProfile(ofertaEmpresa, tipoEmpresaAlvo, segmentosCliente)])
+        .filter((term) => !connectedKeys.has(normalizarTermoSugerido(term)));
+    },
+    [buyerSuggestions, connectedOfferTerms, ofertaEmpresa, tipoEmpresaAlvo, segmentosCliente],
   );
-  // Só os termos marcados pelo usuário seguem para o provedor. O perfil ideal
-  // oferece sugestões, mas não dispara uma busca com filtros implícitos.
-  const termosAplicados = useMemo(() => normalizeProspectingTerms(termosBusca), [termosBusca]);
+  // Palavras explicitamente marcadas no catálogo são conectadas ao perfil;
+  // termos manuais continuam editáveis. Nada daqui inicia a consulta.
+  const termosAplicados = useMemo(
+    () => normalizeProspectingTerms([...connectedOfferTerms, ...termosBusca]),
+    [connectedOfferTerms, termosBusca],
+  );
+  const termosAplicadosKeys = useMemo(() => new Set(termosAplicados.map(normalizarTermoSugerido)), [termosAplicados]);
+  const termosManuaisAplicados = useMemo(
+    () => termosBusca.filter((term) => termosAplicadosKeys.has(normalizarTermoSugerido(term))),
+    [termosAplicadosKeys, termosBusca],
+  );
   const orientacaoDaBusca = useMemo(() => adviseProspectingSearch({
     terms: termosAplicados,
     requireSite: temSite === true,
@@ -445,6 +471,14 @@ export default function BuscaLeads() {
   }), [cidade, fonteSelecionada, sourceKeySelecionada, ofertaEmpresa, termosAplicados, leadsDia, radiusEnabled, radiusKm, searchCenter]);
   const wizardBlockReason = prospectingWizardBlockReason(wizardStep, wizardDraft, buscando);
   const searchActionLabel = `Buscar ${leadsDia} ${leadsDia === 1 ? 'lead' : 'leads'}`;
+
+  useEffect(() => {
+    const available = new Set(offerTermOptions.map((option) => normalizarTermoSugerido(option.term)));
+    setSelectedOfferTerms((current) => {
+      const next = current.filter((term) => available.has(normalizarTermoSugerido(term)));
+      return next.length === current.length ? current : next;
+    });
+  }, [offerTermOptions]);
 
   useEffect(() => {
     if (wizardError && !validateProspectingWizardStep(wizardStep, wizardDraft)) {
@@ -587,8 +621,17 @@ export default function BuscaLeads() {
   };
 
   const adicionarTermo = () => {
-    const next = nextProspectingTerms(termosBusca, novoTermo);
     if (!novoTermo.trim()) return;
+    const candidateKey = normalizarTermoSugerido(novoTermo);
+    if (termosAplicados.some((term) => normalizarTermoSugerido(term) === candidateKey)) {
+      setErroBusca('Esse termo já está incluído na revisão.');
+      return;
+    }
+    if (termosAplicados.length >= MAX_PROSPECTING_TERMS) {
+      setErroBusca(`O limite é de ${MAX_PROSPECTING_TERMS} termos. Remova uma palavra do catálogo ou um termo manual.`);
+      return;
+    }
+    const next = nextProspectingTerms(termosBusca, novoTermo);
     if (next.length === termosBusca.length) {
       setErroBusca(`Use termos diferentes e mantenha no máximo ${MAX_PROSPECTING_TERMS}.`);
       return;
@@ -608,6 +651,14 @@ export default function BuscaLeads() {
       removerTermo(term);
       return;
     }
+    if (termosAplicados.some((value) => normalizarTermoSugerido(value) === normalizarTermoSugerido(term))) {
+      setErroBusca('Esse termo já é gerado pelas palavras do catálogo e pelo perfil escolhido.');
+      return;
+    }
+    if (termosAplicados.length >= MAX_PROSPECTING_TERMS) {
+      setErroBusca(`O limite é de ${MAX_PROSPECTING_TERMS} termos. Remova uma palavra do catálogo ou um termo manual.`);
+      return;
+    }
     const next = nextProspectingTerms(termosBusca, term);
     if (next.length === termosBusca.length) {
       setErroBusca(`O limite é de ${MAX_PROSPECTING_TERMS} termos. Remova um termo antes de marcar outra opção.`);
@@ -624,6 +675,7 @@ export default function BuscaLeads() {
     if (areaChanged) setSearchCenter(null);
     setOfertaEmpresa(plano.offer);
     setSelectedCatalogIds((current) => current.filter((id) => catalogItems.some((item) => item.id === id && item.name === plano.offer)));
+    setSelectedOfferTerms([]);
     setTipoEmpresaAlvo(plano.targetProfile);
     setSegmentosCliente(plano.customerSegments);
     setTermosBusca(plano.terms);
@@ -657,6 +709,21 @@ export default function BuscaLeads() {
     setWizardError(null);
   };
 
+  const alternarPalavraOferta = (term: string) => {
+    const key = normalizarTermoSugerido(term);
+    if (selectedOfferTermKeys.has(key)) {
+      setSelectedOfferTerms((current) => current.filter((value) => normalizarTermoSugerido(value) !== key));
+      setErroBusca(null);
+      return;
+    }
+    if (selectedOfferTerms.length >= MAX_PROSPECTING_TERMS) {
+      setErroBusca(`O limite é de ${MAX_PROSPECTING_TERMS} palavras do catálogo. Remova uma antes de marcar outra.`);
+      return;
+    }
+    setSelectedOfferTerms((current) => normalizeProspectingTerms([...current, term]));
+    setErroBusca(null);
+  };
+
   const editarOfertaEmpresa = (value: string) => {
     setOfertaEmpresa(value);
   };
@@ -668,14 +735,15 @@ export default function BuscaLeads() {
   };
 
   const gerarSugestoesDoPerfil = () => {
-    const suggested = termosDoPerfil;
-    const next = normalizeProspectingTerms([...termosBusca, ...suggested]);
+    const suggested = termosDoPerfil.filter((term) => !termosAplicados.some((value) => normalizarTermoSugerido(value) === normalizarTermoSugerido(term)));
+    const remaining = Math.max(0, MAX_PROSPECTING_TERMS - termosAplicados.length);
+    const next = normalizeProspectingTerms([...termosBusca, ...suggested.slice(0, remaining)]);
     if (!suggested.length) {
       setErroBusca('Escolha um segmento comprador ou um produto com aplicações cadastradas; também é possível informar o tipo de empresa manualmente.');
       return;
     }
     if (next.length === termosBusca.length) {
-      setErroBusca(termosBusca.length >= MAX_PROSPECTING_TERMS
+      setErroBusca(termosAplicados.length >= MAX_PROSPECTING_TERMS
         ? `O limite é de ${MAX_PROSPECTING_TERMS} termos. Remova um termo antes de gerar outras sugestões.`
         : 'As sugestões deste perfil já estão selecionadas.');
       return;
@@ -740,6 +808,7 @@ export default function BuscaLeads() {
 
   const aplicarBuscaMaisAmpla = () => {
     if (!orientacaoDaBusca) return;
+    setSelectedOfferTerms([]);
     setTermosBusca([orientacaoDaBusca.primaryTerm]);
     if (orientacaoDaBusca.removeContactRequirements) {
       setTemWhatsApp(null);
@@ -846,11 +915,16 @@ export default function BuscaLeads() {
       if (!terms.length) throw new Error('prospecting_terms_required');
       if (sourceKey === 'apify' && terms.length > leadsDia) throw new Error('prospecting_volume_below_terms');
       const sourceCriteria = prospectingSourceCriteria(sourceKey, linkedinCompanySizes, minimumProspectingScore);
+      const buyerActivities = normalizeProspectingTerms(segmentosCliente);
       const filters = {
         pais,
         estado,
         cidade: cidade.trim(),
         ...(radiusEnabled && searchCenter ? { centerLatitude: searchCenter.latitude, centerLongitude: searchCenter.longitude, raio: radiusKm } : {}),
+        searchTerms: terms,
+        buyerActivities,
+        offerKeywords: selectedOfferTerms,
+        // Compatibilidade com a versão anterior da função durante publicação coordenada.
         atividades: terms,
         segmentos: [] as string[],
         exigeSite: temSite === true,
@@ -1581,7 +1655,7 @@ export default function BuscaLeads() {
                       <div><h3 className="text-sm font-heading font-bold text-foreground-900">2. Defina seu público</h3><p className="mt-0.5 text-xs text-foreground-500">Escolha em ordem: o que você vende, quem compra e onde atua.</p></div>
                     </div>
                     <fieldset className="rounded-xl border border-background-200 bg-background-50/60 p-3"><legend className="px-1 text-xs font-semibold text-foreground-800">1. O que você vende?</legend>
-                      <p className="mt-1 text-xs leading-5 text-foreground-500">Selecione até {MAX_PROSPECTING_CATALOG_OFFERS} itens cadastrados. Eles ajudam a formar o contexto da busca.</p>
+                      <p className="mt-1 text-xs leading-5 text-foreground-500">Escolha até {MAX_PROSPECTING_CATALOG_OFFERS} itens do seu site e marque as palavras que descrevem o que empresas podem utilizar.</p>
                     <label className="sr-only" htmlFor="prospecting-catalog-offer">Adicionar produto ou serviço</label>
                       <select id="prospecting-catalog-offer" value="" onChange={(event) => selecionarOfertaCatalogo(event.target.value)} disabled={catalogStatus !== 'ready' || !catalogItems.length} className="mt-1.5 w-full rounded-lg border border-background-300 bg-background-50 px-3 py-2 text-sm text-foreground-900 disabled:opacity-60">
                         <option value="">{catalogStatus === 'loading' ? 'Carregando catálogo...' : catalogStatus === 'error' ? 'Catálogo indisponível' : catalogItems.length ? 'Adicionar produto ou serviço' : 'Nenhum item ativo em fonte habilitada'}</option>
@@ -1591,10 +1665,23 @@ export default function BuscaLeads() {
                     {catalogStatus === 'ready' && !catalogItems.length && <p role="status" className="mt-2 text-xs text-foreground-600">Cadastre e ative produtos/serviços em Configurações → Empresa e conhecimento para receber sugestões baseadas nas aplicações.</p>}
                     {selectedCatalogItems.length > 0 && <div className="mt-2 flex flex-wrap gap-2" aria-label="Produtos selecionados">{selectedCatalogItems.map((item) => <button key={item.id} type="button" onClick={() => selecionarOfertaCatalogo(item.id)} aria-label={`Remover ${item.name}`} className="inline-flex items-center gap-1 rounded-full border border-primary-300 bg-primary-50 px-2.5 py-1 text-xs font-semibold text-primary-800">{item.name}<i className="ri-close-line" aria-hidden="true" /></button>)}</div>}
                     {selectedCatalogIds.length >= MAX_PROSPECTING_CATALOG_OFFERS && <p role="status" className="mt-2 text-xs text-foreground-500">Remova uma seleção para escolher outro produto ou serviço.</p>}
+                    {selectedCatalogItems.length > 0 && <div className="mt-3 rounded-lg border border-background-200 bg-white p-3">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div><p className="text-xs font-semibold text-foreground-800">Palavras do seu catálogo</p><p className="mt-0.5 text-[11px] leading-4 text-foreground-500">Marque uma ou mais. O sistema conectará cada palavra a “Quem você quer encontrar”.</p></div>
+                        <span role="status" className="rounded-full bg-background-100 px-2 py-1 text-[11px] font-semibold text-foreground-600">{selectedOfferTerms.length}/{MAX_PROSPECTING_TERMS}</span>
+                      </div>
+                      {offerTermOptions.length ? <div className="mt-2 flex flex-wrap gap-2" role="group" aria-label="Palavras do catálogo para a busca">
+                        {offerTermOptions.map((option) => {
+                          const selected = selectedOfferTermKeys.has(normalizarTermoSugerido(option.term));
+                          const originLabel = OFFER_TERM_ORIGIN_LABELS[option.origin];
+                          return <button key={`${option.itemId}:${option.origin}:${normalizarTermoSugerido(option.term)}`} type="button" aria-pressed={selected} aria-label={`${selected ? 'Remover' : 'Adicionar'} ${option.term}, ${originLabel} de ${option.itemName}`} title={`${originLabel} · ${option.itemName}`} onClick={() => alternarPalavraOferta(option.term)} disabled={!selected && selectedOfferTerms.length >= MAX_PROSPECTING_TERMS} className={`rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40 ${selected ? 'border-primary-400 bg-primary-100 text-primary-900' : 'border-background-300 bg-white text-foreground-700 hover:border-primary-300'}`}>{selected ? <i className="ri-checkbox-circle-fill mr-1" aria-hidden="true" /> : <i className="ri-add-circle-line mr-1" aria-hidden="true" />}{option.term}</button>;
+                        })}
+                      </div> : <p role="status" className="mt-2 text-xs leading-5 text-foreground-600">Os itens escolhidos ainda não têm nome, material, palavra-chave ou aplicação utilizável.</p>}
+                    </div>}
                     <label className="mt-3 block text-xs font-semibold text-foreground-700">Contexto da oferta <span className="font-normal text-foreground-500">(opcional)</span>
                       <input value={ofertaEmpresa} onChange={(event) => editarOfertaEmpresa(event.target.value)} maxLength={240} placeholder="Ex.: vedação para manutenção de máquinas" className="mt-1.5 w-full rounded-lg border border-background-300 bg-background-50 px-3 py-2 text-sm text-foreground-900" />
                     </label>
-                    {selectedCatalogItems.length > 0 && <p className="mt-2 text-xs leading-5 text-foreground-600">{selectedCatalogApplications.length ? `Aplicações cadastradas: ${selectedCatalogApplications.join(', ')}.` : 'Os itens selecionados não informam aplicações; escolha segmentos compradores ou descreva-os nos termos de busca.'} O catálogo sugere contexto, mas não comprova interesse de compra.</p>}
+                    {selectedCatalogItems.length > 0 && <p className="mt-2 text-xs leading-5 text-foreground-600">{selectedOfferTerms.length ? `${selectedOfferTerms.length} palavra${selectedOfferTerms.length === 1 ? '' : 's'} selecionada${selectedOfferTerms.length === 1 ? '' : 's'}.` : 'Marque ao menos uma palavra para conectá-la ao perfil comprador.'} O catálogo sugere possíveis usuárias; não comprova interesse de compra.</p>}
                     </fieldset>
                     <fieldset className="mt-3 rounded-xl border border-background-200 bg-white p-3"><legend className="px-1 text-xs font-semibold text-foreground-800">2. Quem você quer encontrar?</legend>
                       <p className="mt-1 text-xs leading-5 text-foreground-500">Escolha um perfil. O sistema usa este perfil junto com a região e a oferta.</p>
@@ -1691,12 +1778,14 @@ export default function BuscaLeads() {
                   </section>}
 
                   <section className="rounded-2xl border border-background-200/80 bg-white p-4 shadow-sm">
-                    <div className="mb-3 flex flex-wrap items-start justify-between gap-2"><div className="flex items-start gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary-100 text-primary-700"><i className="ri-file-list-3-line" aria-hidden="true" /></span><div><h3 className="text-sm font-heading font-bold text-foreground-900">4. Termos sugeridos</h3><p className="mt-0.5 text-xs text-foreground-500">Revise os termos que serão enviados à fonte de dados.</p></div></div><span className="rounded-full bg-background-100 px-2 py-1 text-[11px] font-semibold text-foreground-600">{termosBusca.length}/{MAX_PROSPECTING_TERMS}</span></div>
-                    <div className="flex gap-2"><input type="text" value={novoTermo} onChange={(event) => setNovoTermo(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); adicionarTermo(); } }} maxLength={80} placeholder="Ex.: manutenção industrial" className="min-w-0 flex-1 rounded-lg border border-background-300 bg-background-50 px-3 py-2 text-sm text-foreground-900" /><button type="button" onClick={adicionarTermo} disabled={!novoTermo.trim() || termosBusca.length >= MAX_PROSPECTING_TERMS} className="rounded-lg bg-background-950 px-3 py-2 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-40">Adicionar</button></div>
-                    {termosBusca.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{termosBusca.map((term) => <span key={term} className="inline-flex items-center gap-1 rounded-full border border-primary-200 bg-primary-50 px-2.5 py-1 text-xs font-semibold text-primary-800">{term}<button type="button" onClick={() => removerTermo(term)} aria-label={`Remover ${term}`} className="rounded-full text-primary-700 hover:text-primary-950"><i className="ri-close-line" aria-hidden="true" /></button></span>)}</div>}
-                    <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-background-200 pt-3"><button type="button" onClick={gerarSugestoesDoPerfil} disabled={termosBusca.length >= MAX_PROSPECTING_TERMS} className="inline-flex items-center gap-1.5 rounded-lg border border-primary-300 px-3 py-2 text-xs font-semibold text-primary-800 hover:bg-primary-50 disabled:opacity-40"><i className="ri-refresh-line" aria-hidden="true" />Gerar novas sugestões</button><button type="button" onClick={() => setAba('agente')} className="inline-flex items-center gap-1.5 rounded-lg px-2 py-2 text-xs font-semibold text-foreground-600 hover:bg-background-100"><i className="ri-magic-line" aria-hidden="true" />Usar assistente de busca</button></div>
-                    {termosDoPerfil.length > 0 && <div className="mt-3"><p className="mb-2 text-xs font-semibold text-foreground-700">Segmentos e aplicações — confirme quais descrevem compradores</p><div className="flex flex-wrap gap-2">{termosDoPerfil.map((term) => { const selected = termosSelecionados.has(normalizarTermoSugerido(term)); return <button key={term} type="button" onClick={() => alternarTermoSugerido(term)} aria-pressed={selected} title={buyerSuggestions.find((suggestion) => suggestion.term === term)?.rationale || 'Perfil escolhido por você'} disabled={!selected && termosBusca.length >= MAX_PROSPECTING_TERMS} className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${selected ? 'border-primary-300 bg-primary-100 text-primary-900' : 'border-background-300 bg-white text-foreground-700 hover:border-primary-300'}`}>{selected ? <i className="ri-checkbox-circle-fill mr-1" aria-hidden="true" /> : <i className="ri-add-circle-line mr-1" aria-hidden="true" />}{term}</button>; })}</div></div>}
-                    <p className="mt-4 border-t border-background-200 pt-3 text-xs leading-5 text-foreground-600">Os termos devem descrever empresas que podem usar sua oferta. Produtos e materiais não viram termos automaticamente para evitar encontrar apenas fornecedores concorrentes.</p>
+                    <div className="mb-3 flex flex-wrap items-start justify-between gap-2"><div className="flex items-start gap-3"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary-100 text-primary-700"><i className="ri-file-list-3-line" aria-hidden="true" /></span><div><h3 className="text-sm font-heading font-bold text-foreground-900">4. Revisar termos</h3><p className="mt-0.5 text-xs text-foreground-500">Confira exatamente o que será enviado. A busca só começa no botão Buscar.</p></div></div><span className="rounded-full bg-background-100 px-2 py-1 text-[11px] font-semibold text-foreground-600">{termosAplicados.length}/{MAX_PROSPECTING_TERMS}</span></div>
+                    {connectedOfferTerms.length > 0 && <div className="mb-3 rounded-lg border border-primary-100 bg-primary-50/60 p-3"><p className="text-xs font-semibold text-primary-900">Palavras conectadas ao perfil</p><p className="mt-0.5 text-[11px] leading-4 text-primary-800">Geradas apenas com as palavras e o perfil que você marcou.</p><div className="mt-2 flex flex-wrap gap-2">{connectedOfferTerms.map((term) => <span key={term} className="rounded-full border border-primary-200 bg-white px-2.5 py-1 text-xs font-semibold text-primary-900">{term}</span>)}</div></div>}
+                    <label htmlFor="prospecting-manual-term" className="mb-1.5 block text-xs font-semibold text-foreground-700">Complemento manual <span className="font-normal text-foreground-500">(opcional)</span></label>
+                    <div className="flex gap-2"><input id="prospecting-manual-term" type="text" value={novoTermo} onChange={(event) => setNovoTermo(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); adicionarTermo(); } }} maxLength={80} placeholder="Ex.: manutenção industrial" className="min-w-0 flex-1 rounded-lg border border-background-300 bg-background-50 px-3 py-2 text-sm text-foreground-900" /><button type="button" onClick={adicionarTermo} disabled={!novoTermo.trim() || termosAplicados.length >= MAX_PROSPECTING_TERMS} className="rounded-lg bg-background-950 px-3 py-2 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-40">Adicionar</button></div>
+                    {termosManuaisAplicados.length > 0 && <div className="mt-3 flex flex-wrap gap-2" aria-label="Termos manuais incluídos">{termosManuaisAplicados.map((term) => <span key={term} className="inline-flex items-center gap-1 rounded-full border border-background-300 bg-background-50 px-2.5 py-1 text-xs font-semibold text-foreground-700">{term}<button type="button" onClick={() => removerTermo(term)} aria-label={`Remover ${term}`} className="rounded-full text-foreground-600 hover:text-foreground-950"><i className="ri-close-line" aria-hidden="true" /></button></span>)}</div>}
+                    <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-background-200 pt-3"><button type="button" onClick={gerarSugestoesDoPerfil} disabled={termosAplicados.length >= MAX_PROSPECTING_TERMS} className="inline-flex items-center gap-1.5 rounded-lg border border-primary-300 px-3 py-2 text-xs font-semibold text-primary-800 hover:bg-primary-50 disabled:opacity-40"><i className="ri-refresh-line" aria-hidden="true" />Adicionar sugestões</button><button type="button" onClick={() => setAba('agente')} className="inline-flex items-center gap-1.5 rounded-lg px-2 py-2 text-xs font-semibold text-foreground-600 hover:bg-background-100"><i className="ri-magic-line" aria-hidden="true" />Usar assistente de busca</button></div>
+                    {termosDoPerfil.length > 0 && <div className="mt-3"><p className="mb-2 text-xs font-semibold text-foreground-700">Outros segmentos e aplicações</p><div className="flex flex-wrap gap-2">{termosDoPerfil.map((term) => { const selected = termosSelecionados.has(normalizarTermoSugerido(term)); return <button key={term} type="button" onClick={() => alternarTermoSugerido(term)} aria-pressed={selected} title={buyerSuggestions.find((suggestion) => suggestion.term === term)?.rationale || 'Perfil escolhido por você'} disabled={!selected && termosAplicados.length >= MAX_PROSPECTING_TERMS} className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${selected ? 'border-primary-300 bg-primary-100 text-primary-900' : 'border-background-300 bg-white text-foreground-700 hover:border-primary-300'}`}>{selected ? <i className="ri-checkbox-circle-fill mr-1" aria-hidden="true" /> : <i className="ri-add-circle-line mr-1" aria-hidden="true" />}{term}</button>; })}</div></div>}
+                    <p className="mt-4 border-t border-background-200 pt-3 text-xs leading-5 text-foreground-600">Somente palavras marcadas e complementos confirmados seguem para a fonte. Os resultados são possíveis usuárias da oferta e sempre passam por revisão.</p>
                   </section>
                   </>
                   )}
@@ -1712,6 +1801,7 @@ export default function BuscaLeads() {
                       <div className="flex justify-between py-2"><dt className="text-background-400">Perfil</dt><dd className="font-semibold">{tipoEmpresaAlvoLabel}</dd></div>
                       <div className="flex justify-between py-2"><dt className="text-background-400">Segmentos</dt><dd className="font-semibold">{segmentosCliente.length}</dd></div>
                       <div className="flex justify-between gap-3 py-2"><dt className="text-background-400">Produtos</dt><dd className="max-w-[65%] text-right font-semibold break-words">{selectedCatalogItems.length ? selectedCatalogItems.map((item) => item.name).join(', ') : ofertaEmpresa || 'Pendente'}</dd></div>
+                      <div className="flex justify-between gap-3 py-2"><dt className="text-background-400">Palavras</dt><dd className="max-w-[65%] text-right font-semibold break-words">{selectedOfferTerms.join(', ') || 'Nenhuma'}</dd></div>
                       <div className="flex justify-between gap-3 py-2"><dt className="text-background-400">Termos enviados</dt><dd className="max-w-[65%] text-right font-semibold break-words">{termsForProspectingSource(sourceKeySelecionada, termosAplicados).join(', ') || 'Nenhum'}</dd></div>
                       <div className="flex justify-between gap-3 py-2"><dt className="text-background-400">Porte</dt><dd className="max-w-[65%] text-right font-semibold break-words">{sourceSupportsCompanySize ? linkedinCompanySizes.length ? linkedinCompanySizes.join(', ') : 'Qualquer' : 'Não verificado pela fonte'}</dd></div>
                       <div className="flex justify-between py-2"><dt className="text-background-400">Aderência</dt><dd className="font-semibold">{minimumProspectingScore ? `${minimumProspectingScore}+` : 'Sem mínimo'}</dd></div>

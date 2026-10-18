@@ -504,6 +504,41 @@ describe('Prospecting handler persistence contract', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
+  it('keeps the new search contract hash stable when only ignored legacy search fields differ', async () => {
+    override = (q) => {
+      if (q.table === 'lead_source_configs' && q.operation === 'select') return ok({ id: 'source-config', enabled: true, mode: 'production', connection_status: 'connected' });
+      if (q.table === 'integrations' && q.operation === 'select') return ok({ id: integrationId, provider: 'Apify', enabled: true, connected: true, paused: false });
+      if (q.table === 'read_integration_secret' && q.operation === 'rpc') return ok({ api_token: 'synthetic-apify-token', actor_id: 'synthetic-google-maps-actor' });
+      if (q.table === 'reserve_prospecting_run' && q.operation === 'rpc') return ok([{ run_id: 'reserved-run', run_status: 'failed', provider_run_id: null, result_cache_id: null, provider_start_state: 'rejected', reused: false, start_claimed: false }]);
+      return undefined;
+    };
+    await import('../functions/prospectar-leads/index');
+    for (const legacy of [
+      { atividades: ['frase antiga'], segmentos: ['segmento antigo'] },
+      { atividades: ['outra frase antiga'], segmentos: ['outro segmento antigo'] },
+    ]) {
+      await handler(new Request('https://example.invalid/prospectar-leads', {
+        method: 'POST', headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sourceKey: 'apify',
+          mode: 'production',
+          idempotencyKey: '45454545-4545-4454-8454-454545454545',
+          filters: {
+            cidade: 'São Paulo',
+            searchTerms: ['empresa que usa EPDM'],
+            buyerActivities: ['Indústria automotiva'],
+            offerKeywords: ['EPDM'],
+            ...legacy,
+          },
+        }),
+      }));
+    }
+    const hashes = calls.filter((q) => q.table === 'reserve_prospecting_run' && q.operation === 'rpc').map((q) => q.value?.p_filters_hash);
+    expect(hashes).toHaveLength(2);
+    expect(hashes[0]).toBe(hashes[1]);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
   it('creates an executable Apify run with every required database field before contacting the provider', async () => {
     override = (q) => {
       if (q.table === 'lead_source_configs' && q.operation === 'select') {
@@ -548,11 +583,122 @@ describe('Prospecting handler persistence contract', () => {
       p_mode: 'production',
       p_idempotency_key: 'manual:owner:11111111-1111-4111-8111-111111111111',
     });
+    const legacyFilters = calls.find((q) => q.table === 'reserve_prospecting_run' && q.operation === 'rpc')?.value?.p_filters as Row;
+    expect(legacyFilters).not.toHaveProperty('searchTerms');
+    expect(legacyFilters).not.toHaveProperty('buyerActivities');
+    expect(legacyFilters).not.toHaveProperty('offerKeywords');
     expect(fetchMock).toHaveBeenCalledTimes(2);
     const startRequest = fetchMock.mock.calls[0]?.[0] as Request;
     expect(JSON.parse(await startRequest.clone().text())).toMatchObject({ searchStringsArray: ['Indústria'], maxCrawledPlacesPerSearch: 30 });
     expect(calls.find((q) => q.table === 'finalize_prospecting_run' && q.operation === 'rpc')?.value)
       .toMatchObject({ p_run_id: 'reserved-run', p_results: [{ source_record_id: 'maps-place-1' }] });
+  });
+
+  it('uses explicit search terms for Google Maps while buyer activities drive fit and offer keywords remain traceable', async () => {
+    override = (q) => {
+      if (q.table === 'lead_source_configs' && q.operation === 'select') return ok({ id: 'source-config', enabled: true, mode: 'production', connection_status: 'connected' });
+      if (q.table === 'integrations' && q.operation === 'select') return ok({ id: integrationId, provider: 'Apify', enabled: true, connected: true, paused: false });
+      if (q.table === 'read_integration_secret' && q.operation === 'rpc') return ok({ api_token: 'synthetic-apify-token', actor_id: 'synthetic-google-maps-actor' });
+      if (q.table === 'finalize_prospecting_run' && q.operation === 'rpc') return ok([{ cache_id: 'result-cache', newly_completed: true }]);
+      return undefined;
+    };
+    fetchMock
+      .mockResolvedValueOnce(providerResponse({ data: { id: 'provider-run', status: 'SUCCEEDED', defaultDatasetId: 'dataset-id' } }))
+      .mockResolvedValueOnce(providerResponse([{
+        title: 'Montadora aderente',
+        placeId: 'maps-buyer-1',
+        categoryName: 'Indústria automotiva',
+        city: 'São Paulo',
+        state: 'São Paulo',
+        website: 'https://buyer.example.invalid',
+      }]));
+
+    await import('../functions/prospectar-leads/index');
+    const response = await handler(new Request('https://example.invalid/prospectar-leads', {
+      method: 'POST',
+      headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sourceKey: 'apify',
+        mode: 'production',
+        idempotencyKey: '12121212-1212-4212-8212-121212121212',
+        filters: {
+          cidade: 'São Paulo',
+          estado: 'SP',
+          searchTerms: ['indústria que usa EPDM', 'fabricante que usa silicone'],
+          buyerActivities: ['Indústria automotiva'],
+          offerKeywords: ['EPDM', 'silicone'],
+          atividades: ['Fornecedor de borracha'],
+          segmentos: ['Distribuidor industrial'],
+          minimumScore: 50,
+          volumeMaximo: 4,
+        },
+      }),
+    }));
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      leads: [{ source_record_id: 'maps-buyer-1', cnae_descricao: 'Indústria automotiva' }],
+      diagnostics: { matchedCount: 1, rejectedByActivityEvidence: 0 },
+    });
+    const startRequest = fetchMock.mock.calls[0]?.[0] as Request;
+    expect(JSON.parse(await startRequest.clone().text())).toMatchObject({
+      searchStringsArray: ['indústria que usa EPDM', 'fabricante que usa silicone'],
+      maxCrawledPlacesPerSearch: 2,
+    });
+    expect(calls.find((q) => q.table === 'reserve_prospecting_run' && q.operation === 'rpc')?.value).toMatchObject({
+      p_filters: {
+        searchTerms: ['indústria que usa EPDM', 'fabricante que usa silicone'],
+        buyerActivities: ['Indústria automotiva'],
+        offerKeywords: ['EPDM', 'silicone'],
+      },
+    });
+  });
+
+  it('does not turn explicit search phrases into buyer-activity requirements when none were provided', async () => {
+    override = (q) => {
+      if (q.table === 'lead_source_configs' && q.operation === 'select') return ok({ id: 'source-config', enabled: true, mode: 'production', connection_status: 'connected' });
+      if (q.table === 'integrations' && q.operation === 'select') return ok({ id: integrationId, provider: 'Apify', enabled: true, connected: true, paused: false });
+      if (q.table === 'read_integration_secret' && q.operation === 'rpc') return ok({ api_token: 'synthetic-apify-token', actor_id: 'synthetic-google-maps-actor' });
+      if (q.table === 'finalize_prospecting_run' && q.operation === 'rpc') return ok([{ cache_id: 'result-cache', newly_completed: true }]);
+      return undefined;
+    };
+    fetchMock
+      .mockResolvedValueOnce(providerResponse({ data: { id: 'provider-run', status: 'SUCCEEDED', defaultDatasetId: 'dataset-id' } }))
+      .mockResolvedValueOnce(providerResponse([{
+        title: 'Comprador ainda sem segmento configurado',
+        placeId: 'maps-buyer-2',
+        categoryName: 'Fabricação de componentes',
+        city: 'São Paulo',
+        state: 'São Paulo',
+        phone: '11999990000',
+        emails: ['buyer@example.invalid'],
+        website: 'https://buyer-two.example.invalid',
+      }]));
+
+    await import('../functions/prospectar-leads/index');
+    const response = await handler(new Request('https://example.invalid/prospectar-leads', {
+      method: 'POST', headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sourceKey: 'apify',
+        mode: 'production',
+        idempotencyKey: '34343434-3434-4343-8343-343434343434',
+        filters: {
+          cidade: 'São Paulo',
+          estado: 'SP',
+          searchTerms: ['empresa que usa EPDM'],
+          offerKeywords: ['EPDM'],
+          atividades: ['empresa que usa EPDM'],
+          minimumScore: 50,
+          volumeMaximo: 1,
+        },
+      }),
+    }));
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      leads: [{ source_record_id: 'maps-buyer-2' }],
+      diagnostics: { matchedCount: 1, rejectedByActivityEvidence: 0 },
+    });
   });
 
   it('returns phone-only Google Maps records for the telephone option and reports filter counts', async () => {
@@ -670,6 +816,46 @@ describe('Prospecting handler persistence contract', () => {
     expect(calls.find((q) => q.table === 'reserve_prospecting_run' && q.operation === 'rpc')?.value)
       .toMatchObject({ p_filters: { atividades: ['borracha'], segmentos: [] } });
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('uses only the first explicit search term for LinkedIn without discarding buyer or offer context', async () => {
+    override = (q) => {
+      if (q.table === 'lead_source_configs' && q.operation === 'select') return ok({ id: 'source-config', enabled: true, mode: 'production', connection_status: 'connected' });
+      if (q.table === 'integrations' && q.operation === 'select') return ok({ id: integrationId, provider: 'Apify', enabled: true, connected: true, paused: false });
+      if (q.table === 'read_integration_secret' && q.operation === 'rpc') return ok({ api_token: 'synthetic-apify-token', actor_id: 'synthetic-linkedin-actor' });
+      return undefined;
+    };
+    fetchMock.mockResolvedValueOnce(providerResponse({ data: { id: 'provider-run', status: 'RUNNING', defaultDatasetId: 'dataset-id' } }));
+
+    await import('../functions/prospectar-leads/index');
+    const response = await handler(new Request('https://example.invalid/prospectar-leads', {
+      method: 'POST', headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sourceKey: 'linkedin',
+        mode: 'production',
+        idempotencyKey: '23232323-2323-4232-8232-232323232323',
+        filters: {
+          cidade: 'São Paulo',
+          estado: 'SP',
+          searchTerms: ['EPDM automotivo', 'silicone industrial'],
+          buyerActivities: ['Indústria automotiva'],
+          offerKeywords: ['EPDM', 'silicone'],
+          atividades: ['termo legado que não deve ser enviado'],
+          volumeMaximo: 10,
+        },
+      }),
+    }));
+
+    expect(response.status).toBe(202);
+    const startRequest = fetchMock.mock.calls[0]?.[0] as Request;
+    expect(JSON.parse(await startRequest.clone().text())).toMatchObject({ searchQuery: 'EPDM automotivo' });
+    expect(calls.find((q) => q.table === 'reserve_prospecting_run' && q.operation === 'rpc')?.value).toMatchObject({
+      p_filters: {
+        searchTerms: ['EPDM automotivo'],
+        buyerActivities: ['Indústria automotiva'],
+        offerKeywords: ['EPDM', 'silicone'],
+      },
+    });
   });
 
   it('classifies a LinkedIn start rejection as a credential failure before another paid start', async () => {

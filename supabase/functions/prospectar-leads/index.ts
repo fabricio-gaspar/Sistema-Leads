@@ -10,6 +10,7 @@ import { readJson, requiredString } from '../_shared/validation.ts';
 
 type Filters = {
   pais?: string; estado?: string; cidade?: string; raio?: number; centerLatitude?: number; centerLongitude?: number; atividades?: string[]; segmentos?: string[];
+  searchTerms?: string[]; buyerActivities?: string[]; offerKeywords?: string[];
   portes?: string[]; cargo?: string; exigeSite?: boolean; exigeWhatsApp?: boolean; exigeEmail?: boolean; minimumScore?: number; volumeMaximo?: number;
   industryIds?: string[]; companySize?: string[]; scraperMode?: 'short' | 'full'; startPage?: number; takePages?: number;
 };
@@ -47,9 +48,15 @@ function normalizeFilters(value: unknown): Filters {
   const input = object(value);
   const volume = typeof input.volumeMaximo === 'number' && Number.isFinite(input.volumeMaximo) ? Math.floor(input.volumeMaximo) : 30;
   const geo = parseProspectingGeoRadius(input, false);
+  const searchTerms = list(input.searchTerms, 10);
+  const buyerActivities = list(input.buyerActivities);
+  const offerKeywords = list(input.offerKeywords);
   return {
     pais: text(input.pais, 80) || 'Brasil', estado: normalizeBrazilianState(text(input.estado, 120) || list(input.estados, 27)[0] || ''), cidade: text(input.cidade, 120),
     ...(geo ?? {}), atividades: list(input.atividades), segmentos: list(input.segmentos), portes: list(input.portes),
+    ...(searchTerms.length ? { searchTerms } : {}),
+    ...(buyerActivities.length ? { buyerActivities } : {}),
+    ...(offerKeywords.length ? { offerKeywords } : {}),
     cargo: text(input.cargo, 80), exigeSite: input.exigeSite === true, exigeWhatsApp: input.exigeWhatsApp === true,
     exigeEmail: input.exigeEmail === true,
     minimumScore: typeof input.minimumScore === 'number' && Number.isFinite(input.minimumScore) ? Math.max(0, Math.min(100, Math.round(input.minimumScore))) : 0,
@@ -62,25 +69,51 @@ function normalizeFilters(value: unknown): Filters {
 }
 
 function locationQuery(filters: Filters) { return [filters.cidade, filters.estado, filters.pais || 'Brasil'].filter(Boolean).join(', '); }
-function terms(filters: Filters) {
+function uniqueTerms(values: string[], maximum = 10) {
   const seen = new Set<string>();
-  const values = [...(filters.atividades ?? []), ...(filters.segmentos ?? [])]
-    .map((value) => value.trim().replace(/\s+/g, ' '))
+  return values.map((value) => value.trim().replace(/\s+/g, ' '))
     .filter((value) => {
       const key = value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR');
       if (!key || seen.has(key)) return false;
       seen.add(key);
       return true;
     })
-    .slice(0, 10);
-  return values;
+    .slice(0, maximum);
+}
+function legacyTerms(filters: Filters) {
+  return uniqueTerms([...(filters.atividades ?? []), ...(filters.segmentos ?? [])]);
+}
+function providerSearchTerms(filters: Filters) {
+  const explicit = uniqueTerms(filters.searchTerms ?? []);
+  return explicit.length ? explicit : legacyTerms(filters);
+}
+function buyerActivityTerms(filters: Filters) {
+  const explicit = uniqueTerms(filters.buyerActivities ?? [], 20);
+  if (explicit.length) return explicit;
+  return filters.searchTerms?.length ? [] : legacyTerms(filters);
+}
+function scoringFilters(filters: Filters): Filters {
+  return { ...filters, atividades: buyerActivityTerms(filters) };
 }
 function canonicalFilterHashPayload(filters: Filters) {
   const normalize = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR');
-  const canonicalTerms = terms(filters).map(normalize).sort((left, right) => left.localeCompare(right, 'pt-BR'));
+  const canonical = (values: string[]) => [...new Set(values.map(normalize))].sort((left, right) => left.localeCompare(right, 'pt-BR'));
+  const explicitContract = Boolean(filters.searchTerms?.length || filters.buyerActivities?.length || filters.offerKeywords?.length);
+  const explicitSearchContract = Boolean(filters.searchTerms?.length);
+  const canonicalTerms = canonical(providerSearchTerms(filters));
   const canonicalPorte = [...new Set((filters.portes ?? []).map(normalize))].sort((left, right) => left.localeCompare(right, 'pt-BR'));
   const canonicalCompanySize = [...new Set((filters.companySize ?? []).map(normalize))].sort((left, right) => left.localeCompare(right, 'pt-BR'));
-  return JSON.stringify({ ...filters, atividades: canonicalTerms, segmentos: [], portes: canonicalPorte, companySize: canonicalCompanySize });
+  if (!explicitContract) return JSON.stringify({ ...filters, atividades: canonicalTerms, segmentos: [], portes: canonicalPorte, companySize: canonicalCompanySize });
+  return JSON.stringify({
+    ...filters,
+    searchTerms: canonicalTerms,
+    buyerActivities: canonical(buyerActivityTerms(filters)),
+    offerKeywords: canonical(uniqueTerms(filters.offerKeywords ?? [], 20)),
+    atividades: explicitSearchContract ? [] : canonical(filters.atividades ?? []),
+    segmentos: explicitSearchContract ? [] : canonical(filters.segmentos ?? []),
+    portes: canonicalPorte,
+    companySize: canonicalCompanySize,
+  });
 }
 function stringFrom(record: Record<string, unknown>, keys: string[]): string { for (const key of keys) { const value = record[key]; if (typeof value === 'string' && value.trim()) return value.trim().slice(0, 1_000); } return ''; }
 function firstString(record: Record<string, unknown>, keys: string[]): string {
@@ -97,7 +130,7 @@ type RawProspect = { id: string; name: string; phone: string; whatsapp: string; 
 
 function external(source: 'apify' | 'linkedin', raw: RawProspect, filters: Filters) {
   const telefone = raw.phone || null, whatsapp = raw.whatsapp || null, website = raw.website || null;
-  const scored = calculateProspectingScore(raw, filters);
+  const scored = calculateProspectingScore(raw, scoringFilters(filters));
   return {
     cnpj: raw.cnpj || null, razao_social: raw.name, nome_fantasia: raw.name || null, cnae_principal: null, cnae_descricao: raw.segment || null,
     porte: raw.porte || null, capital_social: null, situacao: null, data_abertura: null, telefone, whatsapp, email: raw.email || null,
@@ -130,7 +163,7 @@ function normalizeApify(item: unknown, filters: Filters) {
 function linkedinFilters(filters: Filters): LinkedInCompanyFilters {
   return {
     // This Actor accepts one search expression, not a list of alternatives.
-    searchQuery: terms(filters)[0] || '',
+    searchQuery: providerSearchTerms(filters)[0] || '',
     locations: [locationQuery(filters)],
     industryIds: filters.industryIds,
     companySize: filters.companySize?.length ? filters.companySize : filters.portes,
@@ -166,7 +199,7 @@ function apifyInput(credentials: Record<string, unknown>, filters: Filters) {
   const inputJson = text(credentials.input_json, 20_000);
   if (inputJson) { try { configured = object(JSON.parse(inputJson)); } catch { throw new Error('source_input_invalid'); } }
   const volume = filters.volumeMaximo ?? 30;
-  const searchStringsArray = terms(filters).slice(0, volume);
+  const searchStringsArray = providerSearchTerms(filters).slice(0, volume);
   const geo = parseProspectingGeoRadius(filters as Record<string, unknown>, false);
   if (geo) {
     // The Google Maps Actor treats customGeolocation and text geography as alternatives.
@@ -380,11 +413,15 @@ Deno.serve(async (request) => {
       if (sourceKey === 'apify' && selectedGeo && !supportsMapRadius(credentials as Record<string, unknown>)) throw new Error('prospecting_radius_actor_unsupported');
       filters = normalizeFilters(body.filters);
       if (!filters.cidade?.trim()) throw new Error('prospecting_city_required');
-      if (!terms(filters).length) throw new Error('prospecting_terms_required');
-      if (sourceKey === 'apify' && terms(filters).length > (filters.volumeMaximo ?? 30)) throw new Error('prospecting_volume_below_terms');
+      if (!providerSearchTerms(filters).length) throw new Error('prospecting_terms_required');
+      if (sourceKey === 'apify' && providerSearchTerms(filters).length > (filters.volumeMaximo ?? 30)) throw new Error('prospecting_volume_below_terms');
       if (sourceKey === 'linkedin') {
-        filters.atividades = terms(filters).slice(0, 1);
-        filters.segmentos = [];
+        const linkedInSearchTerms = providerSearchTerms(filters).slice(0, 1);
+        if (filters.searchTerms?.length) filters.searchTerms = linkedInSearchTerms;
+        else {
+          filters.atividades = linkedInSearchTerms;
+          filters.segmentos = [];
+        }
       }
       const filtersJson = JSON.parse(JSON.stringify(filters));
       const filtersHash = await hash(`${sourceKey}:${canonicalFilterHashPayload(filters)}`);
@@ -494,7 +531,7 @@ Deno.serve(async (request) => {
       : { providerRunId, ...await linkedinItems(credentials as Record<string, unknown>, datasetId, filters) };
     const geo = parseProspectingGeoRadius(filters as Record<string, unknown>, false);
     const geographicallyFiltered = geo ? filterProspectsByRadius(result.leads, geo) : null;
-    const filtered = filterProspectingCandidates(geographicallyFiltered?.leads ?? result.leads, filters, filters.volumeMaximo ?? 30);
+    const filtered = filterProspectingCandidates(geographicallyFiltered?.leads ?? result.leads, scoringFilters(filters), filters.volumeMaximo ?? 30);
     const leads = filtered.leads;
     const diagnostics = {
       providerItemsRead: result.rawCount, ...filtered.diagnostics,
@@ -505,7 +542,7 @@ Deno.serve(async (request) => {
     const { data: finalized, error: finalizeError } = await admin.rpc('finalize_prospecting_run', {
       p_run_id: runId, p_organization_id: organizationId, p_requested_by: existingRun?.requested_by || requestedBy,
       p_provider_run_id: result.providerRunId,
-      p_cache_filters: { source: sourceKey, uf: filters.estado || null, municipio: filters.cidade || null, keyword: sourceKey === 'linkedin' ? terms(filters)[0] : terms(filters).join(' '), limit: filters.volumeMaximo, ...(geo ?? {}) },
+      p_cache_filters: { source: sourceKey, uf: filters.estado || null, municipio: filters.cidade || null, keyword: sourceKey === 'linkedin' ? providerSearchTerms(filters)[0] : providerSearchTerms(filters).join(' '), limit: filters.volumeMaximo, ...(geo ?? {}) },
       p_results: leads,
       p_name: `${sourceKey} · ${filters.cidade || filters.estado || 'Brasil'} · ${new Date().toLocaleDateString('pt-BR')}`,
     });

@@ -29,5 +29,7 @@ describe('seletor de APIs da Busca de Leads', () => {
     expect(page).toContain('PROSPECTING_MINIMUM_SCORE_OPTIONS');
     expect(page).toContain('prospectingSourceCriteria(sourceKey');
     expect(page).toContain('sourceSupportsProspectingCompanySize(sourceKeySelecionada)');
+    expect(page).toContain('const buyerActivities = normalizeProspectingTerms(segmentosCliente)');
+    expect(page).not.toContain('normalizeProspectingTerms([...segmentosCliente, ...selectedCatalogApplications])');
   });
 });
