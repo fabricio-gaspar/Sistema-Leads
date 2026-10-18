@@ -1,12 +1,13 @@
 # Continuidade do WayFlex CRM
 
-Antes de qualquer solicitação de desenvolvimento, ler `.agent/AGENT_OS.md` e seguir o
-protocolo BASELINE → DELTA → IMPACTO. Antes de implementar ou responder a "pode seguir",
-ler também `docs/CONTINUIDADE_WAYFLEX.md`.
+Leia `.agent/AGENT_OS.md` ao entrar no projeto e reutilize enquanto não mudar.
+A cada pedido, use BASELINE → DELTA → IMPACTO no módulo afetado. Para implementar ou
+retomar, localize e leia somente o checkpoint pertinente em `docs/CONTINUIDADE_WAYFLEX.md`;
+não recarregue o histórico inteiro nem todos os registros de `.agent/`.
 Este é o projeto existente; não criar outro Site nem substituir a stack.
 
 - Preservar alterações em andamento. Salvar etapas pequenas no Git remoto antes de encerrar.
-- Atualizar o checkpoint com testes, estado LOCAL/APLICADO/PUBLICADO e próxima ação exata.
+- Após mudança relevante, atualizar um checkpoint com evidências, estado LOCAL/APLICADO/PUBLICADO e próxima ação exata.
 - Não afirmar prontidão completa sem homologação; diferenciar evidência de hipótese.
 - Ana automática tem como alvo `ana-run`, com Claude configurado por empresa.
 - Não ativar produção nem enviar mensagens reais para terceiros durante testes.
@@ -15,8 +16,8 @@ Este é o projeto existente; não criar outro Site nem substituir a stack.
 - Preservar isolamento por empresa/carteira, segredos e auditoria.
 - Layout/login empresarial elegante é a etapa final, após estabilizar fluxos.
 - Documentos de continuidade fazem parte deste repositório; não duplicar o código em outro armazenamento.
-- Atualizar a memória técnica em `.agent/` ao concluir e validar cada lote. Não registrar
-  commit, teste, integração ou publicação sem evidência real.
+- Atualizar somente os registros canônicos afetados em `.agent/` após validar cada lote,
+  sem duplicar relatos. Não registrar commit, teste, integração ou publicação sem evidência real.
 
 ## Organização de produto e interface
 
