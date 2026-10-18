@@ -1,14 +1,16 @@
 import { createAdminClient, requireOrganizationRole, requireUser } from '../_shared/auth.ts';
 import { allowedCorsHeaders, hasAllowedOrigin, json, preflight, safeError } from '../_shared/http.ts';
 import { getApifyRun, listApifyItems, startApifyRun } from '../_shared/apifyClient.ts';
-import { buildLinkedInActorInput, dedupeLinkedInCompanies, linkedInErrorCode, normalizeLinkedInCompany, type LinkedInCompanyFilters } from '../_shared/linkedinCompanySearch.ts';
+import { buildLinkedInActorInput, linkedInErrorCode, normalizeLinkedInCompany, type LinkedInCompanyFilters } from '../_shared/linkedinCompanySearch.ts';
 import { filterProspectingCandidates } from '../_shared/prospectingResultFilter.ts';
 import { filterProspectsByRadius, parseProspectingGeoRadius } from '../_shared/prospectingGeo.ts';
+import { calculateProspectingScore } from '../_shared/prospectingScore.ts';
+import { normalizeBrazilianState } from '../_shared/prospectingState.ts';
 import { readJson, requiredString } from '../_shared/validation.ts';
 
 type Filters = {
   pais?: string; estado?: string; cidade?: string; raio?: number; centerLatitude?: number; centerLongitude?: number; atividades?: string[]; segmentos?: string[];
-  portes?: string[]; cargo?: string; exigeSite?: boolean; exigeWhatsApp?: boolean; exigeEmail?: boolean; volumeMaximo?: number;
+  portes?: string[]; cargo?: string; exigeSite?: boolean; exigeWhatsApp?: boolean; exigeEmail?: boolean; minimumScore?: number; volumeMaximo?: number;
   industryIds?: string[]; companySize?: string[]; scraperMode?: 'short' | 'full'; startPage?: number; takePages?: number;
 };
 type SourceRow = { id: string; enabled: boolean; mode: string; connection_status: string };
@@ -46,10 +48,12 @@ function normalizeFilters(value: unknown): Filters {
   const volume = typeof input.volumeMaximo === 'number' && Number.isFinite(input.volumeMaximo) ? Math.floor(input.volumeMaximo) : 30;
   const geo = parseProspectingGeoRadius(input, false);
   return {
-    pais: text(input.pais, 80) || 'Brasil', estado: (text(input.estado, 2) || list(input.estados, 27)[0] || '').toUpperCase().slice(0, 2), cidade: text(input.cidade, 120),
+    pais: text(input.pais, 80) || 'Brasil', estado: normalizeBrazilianState(text(input.estado, 120) || list(input.estados, 27)[0] || ''), cidade: text(input.cidade, 120),
     ...(geo ?? {}), atividades: list(input.atividades), segmentos: list(input.segmentos), portes: list(input.portes),
     cargo: text(input.cargo, 80), exigeSite: input.exigeSite === true, exigeWhatsApp: input.exigeWhatsApp === true,
-    exigeEmail: input.exigeEmail === true, volumeMaximo: Math.max(1, Math.min(100, volume)),
+    exigeEmail: input.exigeEmail === true,
+    minimumScore: typeof input.minimumScore === 'number' && Number.isFinite(input.minimumScore) ? Math.max(0, Math.min(100, Math.round(input.minimumScore))) : 0,
+    volumeMaximo: Math.max(1, Math.min(100, volume)),
     industryIds: list(input.industryIds, 20), companySize: list(input.companySize, 10),
     scraperMode: input.scraperMode === 'full' ? 'full' : 'short',
     startPage: typeof input.startPage === 'number' && Number.isFinite(input.startPage) ? Math.max(1, Math.min(100, Math.floor(input.startPage))) : 1,
@@ -75,7 +79,8 @@ function canonicalFilterHashPayload(filters: Filters) {
   const normalize = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('pt-BR');
   const canonicalTerms = terms(filters).map(normalize).sort((left, right) => left.localeCompare(right, 'pt-BR'));
   const canonicalPorte = [...new Set((filters.portes ?? []).map(normalize))].sort((left, right) => left.localeCompare(right, 'pt-BR'));
-  return JSON.stringify({ ...filters, atividades: canonicalTerms, segmentos: [], portes: canonicalPorte });
+  const canonicalCompanySize = [...new Set((filters.companySize ?? []).map(normalize))].sort((left, right) => left.localeCompare(right, 'pt-BR'));
+  return JSON.stringify({ ...filters, atividades: canonicalTerms, segmentos: [], portes: canonicalPorte, companySize: canonicalCompanySize });
 }
 function stringFrom(record: Record<string, unknown>, keys: string[]): string { for (const key of keys) { const value = record[key]; if (typeof value === 'string' && value.trim()) return value.trim().slice(0, 1_000); } return ''; }
 function firstString(record: Record<string, unknown>, keys: string[]): string {
@@ -88,46 +93,15 @@ function firstString(record: Record<string, unknown>, keys: string[]): string {
   return '';
 }
 function coordinate(value: unknown, limit: number): number | null { if (value == null || value === '') return null; const parsed = typeof value === 'number' ? value : Number(value); return Number.isFinite(parsed) && Math.abs(parsed) <= limit ? parsed : null; }
-const brazilianStates: Record<string, string> = { acre: 'AC', alagoas: 'AL', amapa: 'AP', amazonas: 'AM', bahia: 'BA', ceara: 'CE', distritofederal: 'DF', espiritosanto: 'ES', goias: 'GO', maranhao: 'MA', matogrosso: 'MT', matogrossodosul: 'MS', minasgerais: 'MG', para: 'PA', paraiba: 'PB', parana: 'PR', pernambuco: 'PE', piaui: 'PI', riodejaneiro: 'RJ', riograndedonorte: 'RN', riograndedosul: 'RS', rondonia: 'RO', roraima: 'RR', santacatarina: 'SC', saopaulo: 'SP', sergipe: 'SE', tocantins: 'TO' };
-function stateCode(value: string): string {
-  const clean = value.trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z]/g, '').toLowerCase();
-  return clean.length === 2 ? clean.toUpperCase() : brazilianStates[clean] || '';
-}
-
 type RawProspect = { id: string; name: string; phone: string; whatsapp: string; email: string; website: string; sourceUrl: string; cnpj: string; city: string; uf: string; segment: string; address: string; porte?: string; latitude?: number | null; longitude?: number | null };
-
-function score(raw: RawProspect, filters: Filters) {
-  const reasons: string[] = [];
-  const requestedTerms = terms(filters).map((item) => item.toLocaleLowerCase('pt-BR'));
-  const segment = raw.segment.toLocaleLowerCase('pt-BR');
-  const segmentMatch = Boolean(segment) && requestedTerms.some((term) => segment.includes(term) || term.includes(segment));
-  let fit = raw.name ? 20 : 0;
-  if (segmentMatch) { fit += 40; reasons.push('atividade compatível com o filtro'); }
-  else if (raw.segment) { fit += 20; reasons.push('atividade empresarial identificada'); }
-  if (filters.estado && raw.uf.toUpperCase() === filters.estado) { fit += 20; reasons.push('região desejada'); }
-  if (raw.website) { fit += 10; reasons.push('site empresarial encontrado'); }
-  if (raw.id) fit += 10;
-
-  let contactability = 0;
-  if (raw.phone) { contactability += 30; reasons.push('telefone encontrado, ainda não validado como WhatsApp'); }
-  if (raw.whatsapp) { contactability += 30; reasons.push('WhatsApp informado explicitamente pela fonte'); }
-  if (raw.email) { contactability += 25; reasons.push('e-mail encontrado'); }
-  if (raw.website) contactability += 15;
-  const engagement = 0;
-  if ((filters.exigeWhatsApp && !raw.phone && !raw.whatsapp) || (filters.exigeEmail && !raw.email) || (filters.exigeSite && !raw.website)) {
-    reasons.push('um canal obrigatório não foi comprovado');
-  }
-  const overall = Math.round(Math.min(100, fit) * 0.65 + Math.min(100, contactability) * 0.35);
-  return { overall, fit: Math.min(100, fit), contactability: Math.min(100, contactability), engagement, reason: reasons.join(' · ') || 'Empresa identificada pela fonte configurada' };
-}
 
 function external(source: 'apify' | 'linkedin', raw: RawProspect, filters: Filters) {
   const telefone = raw.phone || null, whatsapp = raw.whatsapp || null, website = raw.website || null;
-  const scored = score(raw, filters);
+  const scored = calculateProspectingScore(raw, filters);
   return {
     cnpj: raw.cnpj || null, razao_social: raw.name, nome_fantasia: raw.name || null, cnae_principal: null, cnae_descricao: raw.segment || null,
     porte: raw.porte || null, capital_social: null, situacao: null, data_abertura: null, telefone, whatsapp, email: raw.email || null,
-    logradouro: raw.address || null, numero: null, bairro: null, municipio: raw.city || null, uf: stateCode(raw.uf) || null,
+    logradouro: raw.address || null, numero: null, bairro: null, municipio: raw.city || null, uf: normalizeBrazilianState(raw.uf) || null,
     cep: null, website, latitude: raw.latitude ?? null, longitude: raw.longitude ?? null, distance_km: null,
     deterministic_score: scored.overall, score: scored.overall, fit_score: scored.fit, contactability_score: scored.contactability, engagement_score: scored.engagement,
     score_reason: scored.reason, source, source_record_id: raw.id, source_url: raw.sourceUrl || null,
@@ -248,14 +222,7 @@ async function linkedinStart(credentials: Record<string, unknown>, filters: Filt
 
 async function linkedinItems(credentials: Record<string, unknown>, datasetId: string, filters: Filters) {
   const items = await listApifyItems(credentials, datasetId, filters.volumeMaximo ?? 30);
-  const normalized = items.map((item) => normalizeLinkedIn(item, filters)).filter((item): item is NonNullable<typeof item> => item !== null);
-  const leads = dedupeLinkedInCompanies(normalized.map((item) => ({
-    name: item.razao_social || '', linkedinUrl: item.source_url || '', website: item.website || '', phone: item.telefone || null,
-    email: item.email || null, city: item.municipio || '', state: item.uf || '', segment: item.cnae_descricao || '', size: item.porte || '', sourceUrl: item.source_url || '',
-  }))).map((company) => external('linkedin', {
-    id: company.linkedinUrl, name: company.name, phone: company.phone || '', whatsapp: '', email: company.email || '', website: company.website,
-    sourceUrl: company.sourceUrl, cnpj: '', city: company.city, uf: company.state, segment: company.segment, porte: company.size, address: '',
-  }, filters));
+  const leads = items.map((item) => normalizeLinkedIn(item, filters)).filter((item): item is NonNullable<typeof item> => item !== null);
   return { rawCount: items.length, leads };
 }
 
@@ -270,7 +237,7 @@ async function loadRunDiagnostics(admin: ReturnType<typeof createAdminClient>, o
   const keys = ['providerItemsRead', 'normalizedCount', 'matchedCount', 'rejectedByContact', 'rejectedByEmail', 'rejectedByWebsite'] as const;
   if (!keys.every((key) => Number.isInteger(recorded[key]) && Number(recorded[key]) >= 0)) return undefined;
   const diagnostics = Object.fromEntries(keys.map((key) => [key, recorded[key]]));
-  for (const key of ['rejectedByRadius', 'missingCoordinates']) {
+  for (const key of ['rejectedByRadius', 'missingCoordinates', 'rejectedByDuplicate', 'rejectedByMinimumScore', 'rejectedByActivityEvidence']) {
     if (Number.isInteger(recorded[key]) && Number(recorded[key]) >= 0) diagnostics[key] = recorded[key];
   }
   return diagnostics;
@@ -531,7 +498,8 @@ Deno.serve(async (request) => {
     const leads = filtered.leads;
     const diagnostics = {
       providerItemsRead: result.rawCount, ...filtered.diagnostics,
-      normalizedCount: result.leads.length, matchedCount: leads.length,
+      normalizedCount: result.leads.length,
+      matchedCount: leads.length,
       ...(geographicallyFiltered?.diagnostics ?? {}),
     };
     const { data: finalized, error: finalizeError } = await admin.rpc('finalize_prospecting_run', {

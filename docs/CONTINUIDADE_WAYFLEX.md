@@ -1,5 +1,14 @@
 # Checkpoint — WayFlex CRM
 
+## 18/10/2026 — Busca de Leads por oferta, porte e aderência (local)
+
+- O wizard permite selecionar até três produtos ou serviços ativos do catálogo, mantendo as aplicações como sugestão explícita de compradores. A tela não afirma que uma empresa usa ou deseja comprar o produto: o operador continua confirmando termos e resultados antes da busca e da importação.
+- Cidade/UF, mapa com raio de 1–200 km e quantidade de 1–100 leads foram preservados. O porte passou a ser uma seleção estruturada enviada somente ao LinkedIn, fonte que realmente informa esse atributo; Google Maps informa claramente que não pode comprovar porte.
+- A aderência mínima oferece cortes de 50, 70 e 85, ou nenhuma exigência. O backend calcula o score somente com evidências retornadas (atividade, região, porte quando disponível e canais), remove duplicidades antes do limite, ordena a revisão por aderência e explica resultados repetidos ou excluídos pelo corte. Nos cortes de 50 ou mais, a atividade devolvida pela fonte também precisa conter explicitamente a atividade solicitada; canais de contato, região ou porte não bastam para atestar aderência. A regra é compartilhada pelo score e pelo filtro final. Registros sem score deixam de receber a nota fictícia 60.
+- A combinação de portes é canonizada no navegador e no backend antes da reserva idempotente, evitando que a mesma seleção em outra ordem inicie uma busca duplicada.
+- Validação local: Vitest **136 arquivos, 816 aprovados e 25 skips históricos**; type-check frontend e Edge, lint, build Vite/artefato Sites e `git diff --check` aprovados. Não houve busca paga, importação, mensagem, alteração de dados de clientes, migration, deploy de Edge Function, push ou publicação do Site.
+- Estado: **LOCAL VALIDADO / NÃO APLICADO / NÃO PUBLICADO**. O arquivo preexistente `supabase/.temp/cli-latest` permanece fora deste lote. Próxima ação: revisar a experiência autenticada em homologação e, se autorizada, publicar o commit e o Site existente separadamente.
+
 ## 15/10/2026 — CSV direto e fila segura de leads existentes da Ana (local)
 
 - A Busca de Leads agora encaminha um CSV validado diretamente para a lista em Leads, com reenvio idempotente, navegação somente após a confirmação da RPC e sem transformar o navegador em fonte operacional.

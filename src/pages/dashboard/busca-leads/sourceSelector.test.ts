@@ -21,4 +21,13 @@ describe('seletor de APIs da Busca de Leads', () => {
     expect(page).not.toContain('Apify · fonte habilitada');
     expect(page).not.toContain('Buscar no Apify');
   });
+
+  it('wires catalog offers and source-safe audience criteria into the real search payload', () => {
+    const page = readFileSync(resolve('src/pages/dashboard/busca-leads/page.tsx'), 'utf8');
+
+    expect(page).toContain('toggleProspectingCatalogOffer');
+    expect(page).toContain('PROSPECTING_MINIMUM_SCORE_OPTIONS');
+    expect(page).toContain('prospectingSourceCriteria(sourceKey');
+    expect(page).toContain('sourceSupportsProspectingCompanySize(sourceKeySelecionada)');
+  });
 });

@@ -9,10 +9,15 @@ import {
   prospectingVolumePerTerm,
   prospectingEmptyResultMessage,
   prospectingFilterSummary,
+  normalizeProspectingMinimumScore,
+  normalizeProspectingScore,
+  prospectingSourceCriteria,
+  sourceSupportsProspectingCompanySize,
   shouldClearProspectingRequestKey,
   requestKeyBelongsToRun,
   shouldApplyProspectingHistoryResponse,
   termsForProspectingSource,
+  toggleProspectingCatalogOffer,
 } from '@/lib/crm/prospectingUi';
 import {
   PROSPECTING_TERM_SUGGESTION_GROUPS,
@@ -20,6 +25,47 @@ import {
 } from '@/lib/crm/prospectingTermSuggestions';
 
 describe('prospecting UI safeguards', () => {
+  it('keeps up to three explicitly selected catalog offers without replacing an earlier choice', () => {
+    expect(toggleProspectingCatalogOffer([], 'offer-a')).toEqual(['offer-a']);
+    expect(toggleProspectingCatalogOffer(['offer-a', 'offer-b'], 'offer-c')).toEqual(['offer-a', 'offer-b', 'offer-c']);
+    expect(toggleProspectingCatalogOffer(['offer-a', 'offer-b', 'offer-c'], 'offer-d')).toEqual(['offer-a', 'offer-b', 'offer-c']);
+    expect(toggleProspectingCatalogOffer(['offer-a', 'offer-b'], 'offer-a')).toEqual(['offer-b']);
+  });
+
+  it('allows company-size criteria only for the source that actually returns it', () => {
+    expect(sourceSupportsProspectingCompanySize('linkedin')).toBe(true);
+    expect(sourceSupportsProspectingCompanySize('apify')).toBe(false);
+    expect(sourceSupportsProspectingCompanySize('unknown')).toBe(false);
+  });
+
+  it('accepts only the score thresholds the operator can choose in the wizard', () => {
+    expect(normalizeProspectingMinimumScore(0)).toBe(0);
+    expect(normalizeProspectingMinimumScore(50)).toBe(50);
+    expect(normalizeProspectingMinimumScore(70)).toBe(70);
+    expect(normalizeProspectingMinimumScore(85)).toBe(85);
+    expect(normalizeProspectingMinimumScore(71)).toBe(0);
+  });
+
+  it('never invents a warm score when a source did not calculate one', () => {
+    expect(normalizeProspectingScore(undefined)).toBe(0);
+    expect(normalizeProspectingScore(Number.NaN)).toBe(0);
+    expect(normalizeProspectingScore(73.6)).toBe(74);
+    expect(normalizeProspectingScore(120)).toBe(100);
+  });
+
+  it('sends company-size criteria only to LinkedIn while retaining the chosen minimum score', () => {
+    expect(prospectingSourceCriteria('linkedin', ['51-200', '11-50', '51-200'], 70)).toEqual({
+      companySize: ['11-50', '51-200'],
+      portes: ['11-50', '51-200'],
+      minimumScore: 70,
+    });
+    expect(prospectingSourceCriteria('apify', ['11-50'], 85)).toEqual({
+      companySize: [],
+      portes: [],
+      minimumScore: 85,
+    });
+  });
+
   it('derives a stable UUID without persisting CSV data in the browser', async () => {
     const first = await deterministicProspectingUuid('org-a:canonical-csv');
     const replay = await deterministicProspectingUuid('org-a:canonical-csv');
@@ -76,6 +122,35 @@ describe('prospecting UI safeguards', () => {
     expect(prospectingFilterSummary(diagnostics)).toContain('5 fora do raio');
     expect(prospectingFilterSummary(diagnostics)).toContain('3 sem coordenadas');
     expect(prospectingEmptyResultMessage('Google Maps', diagnostics)).toContain('centro ou amplie o raio');
+  });
+
+  it('explica resultados repetidos e abaixo da aderência mínima sem ocultar o motivo', () => {
+    const diagnostics = {
+      providerItemsRead: 6,
+      normalizedCount: 5,
+      matchedCount: 0,
+      rejectedByContact: 0,
+      rejectedByEmail: 0,
+      rejectedByWebsite: 0,
+      rejectedByDuplicate: 1,
+      rejectedByMinimumScore: 5,
+    };
+
+    expect(prospectingFilterSummary(diagnostics)).toContain('1 duplicada');
+    expect(prospectingFilterSummary(diagnostics)).toContain('5 abaixo da aderência mínima');
+    expect(prospectingEmptyResultMessage('Google Maps', diagnostics)).toContain('aderência mínima');
+
+    const withoutActivityEvidence = {
+      providerItemsRead: 2,
+      normalizedCount: 2,
+      matchedCount: 0,
+      rejectedByContact: 0,
+      rejectedByEmail: 0,
+      rejectedByWebsite: 0,
+      rejectedByActivityEvidence: 2,
+    };
+    expect(prospectingFilterSummary(withoutActivityEvidence)).toContain('2 sem atividade compatível');
+    expect(prospectingEmptyResultMessage('Google Maps', withoutActivityEvidence)).toContain('atividade compatível');
   });
 
   it('releases the idempotency key after a rejected token but preserves uncertain provider starts', () => {

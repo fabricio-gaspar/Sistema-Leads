@@ -386,7 +386,7 @@ describe('Prospecting handler persistence contract', () => {
       body: JSON.stringify({ sourceKey: 'apify', mode: 'production', idempotencyKey: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', filters: { cidade: 'São Paulo', estado: 'SP', atividades: ['Indústria'], volumeMaximo: 3, centerLatitude: -23.5505, centerLongitude: -46.6333, raio: 10 } }),
     }));
     expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ leads: [{ source_record_id: 'near', distance_km: 0 }], diagnostics: { rejectedByRadius: 1, missingCoordinates: 1 } });
+    expect(await response.json()).toMatchObject({ leads: [{ source_record_id: 'near', distance_km: 0 }], diagnostics: { normalizedCount: 3, matchedCount: 1, rejectedByRadius: 1, missingCoordinates: 1 } });
     const startRequest = fetchMock.mock.calls[0]?.[0] as Request;
     const actorInput = JSON.parse(await startRequest.clone().text());
     expect(actorInput).toMatchObject({ customGeolocation: { type: 'Point', coordinates: [-46.6333, -23.5505], radiusKm: 10 } });
@@ -949,7 +949,7 @@ describe('Prospecting handler persistence contract', () => {
     expect(updates[updates.length - 1]?.value).toMatchObject({ provider_start_state: 'unknown', last_error: 'prospecting_provider_id_not_saved' });
   });
 
-  it('uses the same reservation hash when search terms arrive in a different order', async () => {
+  it('uses the same reservation hash when search terms and company sizes arrive in a different order', async () => {
     override = (q) => {
       if (q.table === 'lead_source_configs' && q.operation === 'select') return ok({ id: 'source-config', enabled: true, mode: 'production', connection_status: 'connected' });
       if (q.table === 'integrations' && q.operation === 'select') return ok({ id: integrationId, provider: 'Apify', enabled: true, connected: true, paused: false });
@@ -962,13 +962,13 @@ describe('Prospecting handler persistence contract', () => {
     };
 
     await import('../functions/prospectar-leads/index');
-    for (const [idempotencyKey, atividades] of [
-      ['bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', ['Vedação', 'Indústria']],
-      ['cccccccc-cccc-4ccc-8ccc-cccccccccccc', ['industria', 'vedação']],
+    for (const { idempotencyKey, atividades, companySize } of [
+      { idempotencyKey: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', atividades: ['Vedação', 'Indústria'], companySize: ['11-50', '51-200'] },
+      { idempotencyKey: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', atividades: ['industria', 'vedação'], companySize: ['51-200', '11-50'] },
     ] as const) {
       await handler(new Request('https://example.invalid/prospectar-leads', {
         method: 'POST', headers: { Authorization: 'Bearer synthetic-user', 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sourceKey: 'apify', mode: 'production', idempotencyKey, filters: { cidade: 'São Paulo', estado: 'SP', atividades } }),
+        body: JSON.stringify({ sourceKey: 'apify', mode: 'production', idempotencyKey, filters: { cidade: 'São Paulo', estado: 'SP', atividades, companySize } }),
       }));
     }
     const hashes = calls.filter((q) => q.table === 'reserve_prospecting_run').map((q) => q.value?.p_filters_hash);

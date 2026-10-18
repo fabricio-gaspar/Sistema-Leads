@@ -30,11 +30,14 @@ import { importProspectingBatch, type ProspectingBatchInput } from '@/lib/crm/pr
 import { importedLeadListHref } from '@/lib/crm/csvImportNavigation';
 import InfoTooltip from '@/components/feature/InfoTooltip';
 import {
+  MAX_PROSPECTING_CATALOG_OFFERS,
   MAX_PROSPECTING_TERMS,
+  PROSPECTING_MINIMUM_SCORE_OPTIONS,
   csvLeadIdentity,
   deterministicProspectingUuid,
   nextProspectingTerms,
   normalizeProspectingPhone,
+  normalizeProspectingScore,
   normalizeProspectingTerms,
   prepareCsvLeads,
   prospectingEmptyResultMessage,
@@ -42,7 +45,10 @@ import {
   shouldClearProspectingRequestKey,
   requestKeyBelongsToRun,
   shouldApplyProspectingHistoryResponse,
+  prospectingSourceCriteria,
+  sourceSupportsProspectingCompanySize,
   termsForProspectingSource,
+  toggleProspectingCatalogOffer,
   type ProspectingResultDiagnostics,
   type ProspectingReviewFilter,
 } from '@/lib/crm/prospectingUi';
@@ -70,6 +76,16 @@ const PROSPECTING_REQUEST_STORAGE_KEY = 'wayflex.prospecting.pending-request.v1'
 const DEFAULT_PROSPECTING_VOLUME = 10;
 const MAX_PROSPECTING_VOLUME = 100;
 const PROSPECTING_VOLUME_PRESETS = [10, 20, 50, 100] as const;
+const LINKEDIN_COMPANY_SIZE_OPTIONS = [
+  { value: '1-10', label: '1–10 pessoas' },
+  { value: '11-50', label: '11–50 pessoas' },
+  { value: '51-200', label: '51–200 pessoas' },
+  { value: '201-500', label: '201–500 pessoas' },
+  { value: '501-1000', label: '501–1.000 pessoas' },
+  { value: '1001-5000', label: '1.001–5.000 pessoas' },
+  { value: '5001-10000', label: '5.001–10.000 pessoas' },
+  { value: '10001+', label: '10.001+ pessoas' },
+] as const;
 
 type SampleClassification = 'adequada' | 'fora_do_perfil' | 'duplicada' | 'sem_contato_util';
 const SAMPLE_CLASSIFICATIONS: Array<{ id: SampleClassification; label: string }> = [
@@ -166,7 +182,7 @@ function prospectingLeadToPreview(lead: ProspectingLeadResponse, fonte: string, 
   const telefone = lead.telefone || lead.phone || whatsapp;
   const email = lead.email || '';
   const site = lead.site || lead.website || '';
-  const score = typeof lead.score === 'number' ? Math.max(0, Math.min(100, Math.round(lead.score))) : 60;
+  const score = normalizeProspectingScore(lead.score);
   const details = prospectingImportDetails(lead);
   const latitudeValue = lead.latitude ?? lead.lat;
   const longitudeValue = lead.longitude ?? lead.lng;
@@ -258,7 +274,8 @@ export default function BuscaLeads() {
   const [temWhatsApp, setTemWhatsApp] = useState<boolean | null>(null);
   const [temEmail, setTemEmail] = useState<boolean | null>(null);
   const [linkedinIndustryIds, setLinkedinIndustryIds] = useState('');
-  const [linkedinCompanySize, setLinkedinCompanySize] = useState('');
+  const [linkedinCompanySizes, setLinkedinCompanySizes] = useState<string[]>([]);
+  const [minimumProspectingScore, setMinimumProspectingScore] = useState(0);
   const [linkedinScraperMode, setLinkedinScraperMode] = useState<'short' | 'full'>('short');
   const [filtrosAvancados, setFiltrosAvancados] = useState(false);
   const [buscando, setBuscando] = useState(false);
@@ -391,9 +408,14 @@ export default function BuscaLeads() {
   const fontesDisponiveis = useMemo(() => fontesAtivas(fontesProspecao), [fontesProspecao]);
   const fonteSelecionadaAtual = useMemo(() => fontesProspecao.find((fonte) => fonte.id === fonteSelecionada), [fontesProspecao, fonteSelecionada]);
   const sourceKeySelecionada = fonteSelecionadaAtual?.sourceKey || '';
+  const sourceSupportsCompanySize = sourceSupportsProspectingCompanySize(sourceKeySelecionada);
   const fonteUnicaAtiva = statusFontes === 'ready' && fontesDisponiveis.length === 1 ? fontesDisponiveis[0] : null;
   const termosSelecionados = useMemo(() => new Set(normalizeProspectingTerms(termosBusca).map((term) => normalizarTermoSugerido(term))), [termosBusca]);
   const selectedCatalogItems = useMemo(() => catalogItems.filter((item) => selectedCatalogIds.includes(item.id)), [catalogItems, selectedCatalogIds]);
+  const selectedCatalogApplications = useMemo(
+    () => normalizeProspectingTerms(selectedCatalogItems.flatMap((item) => item.applications)).slice(0, 8),
+    [selectedCatalogItems],
+  );
   const buyerSuggestions = useMemo(() => suggestBuyerSearchTerms({ items: selectedCatalogItems, selectedSegments: segmentosCliente }), [selectedCatalogItems, segmentosCliente]);
   const termosDoPerfil = useMemo(
     () => normalizeProspectingTerms([...buyerSuggestions.map((suggestion) => suggestion.term), ...termsFromIdealProfile(ofertaEmpresa, tipoEmpresaAlvo, segmentosCliente)]),
@@ -510,6 +532,7 @@ export default function BuscaLeads() {
   const mapearNovoLead = (dados: Partial<Lead> & { nome: string; empresa: string }): Lead => {
     const contatoAprovado = dados.contactApprovalStatus === 'approved';
     const modo = dados.modoAtendimento || modoAtendimento;
+    const score = normalizeProspectingScore(dados.score);
     return ({
     id: dados.id || crypto.randomUUID(),
     nome: dados.nome,
@@ -522,8 +545,8 @@ export default function BuscaLeads() {
     cidade: dados.cidade || '',
     estado: dados.estado || '',
     porte: dados.porte || '',
-    score: dados.score ?? 60,
-    temperatura: dados.temperatura || (dados.score !== undefined && dados.score >= 80 ? 'Quente' : dados.score !== undefined && dados.score >= 60 ? 'Morno' : 'Frio'),
+    score,
+    temperatura: dados.temperatura || temperaturaDe(score),
     etapa: dados.etapa || 'Novo',
     origem: dados.origem || 'Importação',
     responsavel: dados.responsavel || responsavelNome,
@@ -628,16 +651,20 @@ export default function BuscaLeads() {
 
   const selecionarOfertaCatalogo = (id: string) => {
     const item = catalogItems.find((candidate) => candidate.id === id);
-    setSelectedCatalogIds(item ? [item.id] : []);
-    setOfertaEmpresa(item?.name || '');
-    setTermosBusca([]);
+    if (!item) return;
+    setSelectedCatalogIds((current) => toggleProspectingCatalogOffer(current, item.id));
+    setOfertaEmpresa((current) => current.trim() ? current : item.name);
     setWizardError(null);
   };
 
   const editarOfertaEmpresa = (value: string) => {
     setOfertaEmpresa(value);
-    // Manual text is no longer the selected catalog item: never send stale item context to AI.
-    if (selectedCatalogIds.length && selectedCatalogItems[0]?.name !== value) setSelectedCatalogIds([]);
+  };
+
+  const alternarPorteEmpresa = (size: string) => {
+    setLinkedinCompanySizes((current) => current.includes(size)
+      ? current.filter((selected) => selected !== size)
+      : [...current, size]);
   };
 
   const gerarSugestoesDoPerfil = () => {
@@ -818,6 +845,7 @@ export default function BuscaLeads() {
       const terms = termsForProspectingSource(sourceKey, termosAplicados);
       if (!terms.length) throw new Error('prospecting_terms_required');
       if (sourceKey === 'apify' && terms.length > leadsDia) throw new Error('prospecting_volume_below_terms');
+      const sourceCriteria = prospectingSourceCriteria(sourceKey, linkedinCompanySizes, minimumProspectingScore);
       const filters = {
         pais,
         estado,
@@ -829,8 +857,8 @@ export default function BuscaLeads() {
         exigeWhatsApp: temWhatsApp === true,
         exigeEmail: temEmail === true,
         volumeMaximo: requestedVolume,
+        ...sourceCriteria,
         industryIds: sourceKey === 'linkedin' ? linkedinIndustryIds.split(',').map((value) => value.trim()).filter(Boolean).slice(0, 20) : [],
-        companySize: sourceKey === 'linkedin' ? linkedinCompanySize.split(',').map((value) => value.trim()).filter(Boolean).slice(0, 10) : [],
         scraperMode: sourceKey === 'linkedin' ? linkedinScraperMode : undefined,
       };
       requestKey = requestKeyFor(sourceKey, filters);
@@ -1552,18 +1580,20 @@ export default function BuscaLeads() {
                       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary-100 text-primary-700"><i className="ri-group-line" aria-hidden="true" /></span>
                       <div><h3 className="text-sm font-heading font-bold text-foreground-900">2. Perfil de cliente ideal</h3><p className="mt-0.5 text-xs text-foreground-500">Conte o que sua empresa vende e quem pode comprar.</p></div>
                     </div>
-                    <label className="block text-xs font-semibold text-foreground-700" htmlFor="prospecting-catalog-offer">Produto ou serviço cadastrado
-                      <select id="prospecting-catalog-offer" value={selectedCatalogIds[0] || ''} onChange={(event) => selecionarOfertaCatalogo(event.target.value)} disabled={catalogStatus !== 'ready' || !catalogItems.length} className="mt-1.5 w-full rounded-lg border border-background-300 bg-background-50 px-3 py-2 text-sm text-foreground-900 disabled:opacity-60">
-                        <option value="">{catalogStatus === 'loading' ? 'Carregando catálogo...' : catalogStatus === 'error' ? 'Catálogo indisponível' : catalogItems.length ? 'Escolher manualmente' : 'Nenhum item ativo em fonte habilitada'}</option>
-                        {catalogItems.map((item) => <option key={item.id} value={item.id}>{item.name}{item.category ? ` · ${item.category}` : ''}</option>)}
+                    <label className="block text-xs font-semibold text-foreground-700" htmlFor="prospecting-catalog-offer">Produtos ou serviços cadastrados <span className="font-normal text-foreground-500">(até {MAX_PROSPECTING_CATALOG_OFFERS})</span>
+                      <select id="prospecting-catalog-offer" value="" onChange={(event) => selecionarOfertaCatalogo(event.target.value)} disabled={catalogStatus !== 'ready' || !catalogItems.length} className="mt-1.5 w-full rounded-lg border border-background-300 bg-background-50 px-3 py-2 text-sm text-foreground-900 disabled:opacity-60">
+                        <option value="">{catalogStatus === 'loading' ? 'Carregando catálogo...' : catalogStatus === 'error' ? 'Catálogo indisponível' : catalogItems.length ? 'Adicionar produto ou serviço' : 'Nenhum item ativo em fonte habilitada'}</option>
+                        {catalogItems.map((item) => <option key={item.id} value={item.id} disabled={!selectedCatalogIds.includes(item.id) && selectedCatalogIds.length >= MAX_PROSPECTING_CATALOG_OFFERS}>{item.name}{item.category ? ` · ${item.category}` : ''}</option>)}
                       </select>
                     </label>
                     {catalogStatus === 'error' && <p role="status" className="mt-2 text-xs text-amber-800">{catalogError}</p>}
                     {catalogStatus === 'ready' && !catalogItems.length && <p role="status" className="mt-2 text-xs text-foreground-600">Cadastre e ative produtos/serviços em Configurações → Empresa e conhecimento para receber sugestões baseadas nas aplicações.</p>}
-                    <label className="mt-3 block text-xs font-semibold text-foreground-700">O que sua empresa vende?
-                      <input value={ofertaEmpresa} onChange={(event) => editarOfertaEmpresa(event.target.value)} maxLength={240} placeholder="Descreva a oferta, se não estiver no catálogo" className="mt-1.5 w-full rounded-lg border border-background-300 bg-background-50 px-3 py-2 text-sm text-foreground-900" />
+                    {selectedCatalogItems.length > 0 && <div className="mt-2 flex flex-wrap gap-2" aria-label="Produtos selecionados">{selectedCatalogItems.map((item) => <button key={item.id} type="button" onClick={() => selecionarOfertaCatalogo(item.id)} aria-label={`Remover ${item.name}`} className="inline-flex items-center gap-1 rounded-full border border-primary-300 bg-primary-50 px-2.5 py-1 text-xs font-semibold text-primary-800">{item.name}<i className="ri-close-line" aria-hidden="true" /></button>)}</div>}
+                    {selectedCatalogIds.length >= MAX_PROSPECTING_CATALOG_OFFERS && <p role="status" className="mt-2 text-xs text-foreground-500">Remova uma seleção para escolher outro produto ou serviço.</p>}
+                    <label className="mt-3 block text-xs font-semibold text-foreground-700">Complemento da oferta <span className="font-normal text-foreground-500">(opcional)</span>
+                      <input value={ofertaEmpresa} onChange={(event) => editarOfertaEmpresa(event.target.value)} maxLength={240} placeholder="Descreva o que vende, se quiser complementar" className="mt-1.5 w-full rounded-lg border border-background-300 bg-background-50 px-3 py-2 text-sm text-foreground-900" />
                     </label>
-                    {selectedCatalogItems.length > 0 && <p className="mt-2 text-xs leading-5 text-foreground-600">{selectedCatalogItems[0].applications.length ? `Aplicações cadastradas: ${selectedCatalogItems[0].applications.slice(0, 4).join(', ')}.` : 'Este item não informa aplicações; escolha segmentos compradores ou descreva-os nos termos de busca.'} Isso sugere possíveis compradores, não comprova interesse de compra.</p>}
+                    {selectedCatalogItems.length > 0 && <p className="mt-2 text-xs leading-5 text-foreground-600">{selectedCatalogApplications.length ? `Aplicações cadastradas: ${selectedCatalogApplications.join(', ')}.` : 'Os itens selecionados não informam aplicações; escolha segmentos compradores ou descreva-os nos termos de busca.'} Isso sugere possíveis compradores, não comprova interesse de compra.</p>}
                     <fieldset className="mt-4"><legend className="text-xs font-semibold text-foreground-700">Quem você quer encontrar?</legend>
                       <div className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
                         {PROSPECTING_TARGET_PROFILES.map((profile) => {
@@ -1613,6 +1643,20 @@ export default function BuscaLeads() {
                       <div className="inline-flex items-center gap-2"><label className="inline-flex cursor-pointer items-center gap-2"><input type="checkbox" checked={temWhatsApp === true} onChange={() => setTemWhatsApp(temWhatsApp === true ? null : true)} /> Telefone ou WhatsApp informado</label><InfoTooltip text="Aceita telefone comum ou WhatsApp explicitamente informado. Telefone comum permanece não verificado para envio por WhatsApp." label="Sobre a evidência de WhatsApp" /></div>
                       <label className="inline-flex cursor-pointer items-center gap-2"><input type="checkbox" checked={temEmail === true} onChange={() => setTemEmail(temEmail === true ? null : true)} /> E-mail informado</label>
                     </div>
+                    <fieldset className="mt-4 border-t border-background-200 pt-4">
+                      <legend className="text-xs font-semibold text-foreground-700">Aderência mínima</legend>
+                      <div className="mt-2 flex flex-wrap gap-2" aria-label="Aderência mínima">
+                        {PROSPECTING_MINIMUM_SCORE_OPTIONS.map((score) => <button key={score} type="button" aria-pressed={minimumProspectingScore === score} onClick={() => setMinimumProspectingScore(score)} className={`rounded-lg border px-3 py-1.5 text-xs font-semibold ${minimumProspectingScore === score ? 'border-primary-400 bg-primary-50 text-primary-800' : 'border-background-300 bg-white text-foreground-700 hover:border-primary-300'}`}>{score === 0 ? 'Sem mínimo' : `${score}+`}</button>)}
+                      </div>
+                      <p className="mt-2 text-xs leading-5 text-foreground-500">O score ordena e filtra apenas os resultados recebidos, usando atividade, região, porte quando disponível e canais informados. Ele não inicia outra consulta.</p>
+                    </fieldset>
+                    {sourceSupportsCompanySize ? <fieldset className="mt-4 border-t border-background-200 pt-4">
+                      <legend className="text-xs font-semibold text-foreground-700">Porte da empresa <span className="font-normal text-foreground-500">(LinkedIn)</span></legend>
+                      <div className="mt-2 flex flex-wrap gap-2" aria-label="Porte da empresa">
+                        {LINKEDIN_COMPANY_SIZE_OPTIONS.map((option) => <button key={option.value} type="button" aria-pressed={linkedinCompanySizes.includes(option.value)} onClick={() => alternarPorteEmpresa(option.value)} className={`rounded-lg border px-3 py-1.5 text-xs font-semibold ${linkedinCompanySizes.includes(option.value) ? 'border-primary-400 bg-primary-50 text-primary-800' : 'border-background-300 bg-white text-foreground-700 hover:border-primary-300'}`}>{option.label}</button>)}
+                      </div>
+                      <p className="mt-2 text-xs leading-5 text-foreground-500">O filtro só é enviado ao LinkedIn, fonte que informa o porte. Resultados seguem para revisão antes de virarem leads.</p>
+                    </fieldset> : <p role="status" className="mt-4 border-t border-background-200 pt-4 text-xs leading-5 text-foreground-500">Google Maps não devolve porte verificável. Para filtrar porte, selecione LinkedIn como fonte.</p>}
                     {sourceKeySelecionada === 'linkedin' && termosAplicados.length > 1 && <p role="status" className="mt-2 text-xs text-amber-800">O LinkedIn pesquisa um termo por execução: será usado “{termosAplicados[0]}”. Remova ou reorganize os demais termos antes de buscar; nenhuma busca adicional será iniciada automaticamente.</p>}
                     <button type="button" onClick={() => setFiltrosAvancados((visible) => !visible)} aria-expanded={filtrosAvancados} className="mt-4 inline-flex items-center gap-1.5 text-xs font-semibold text-foreground-600 hover:text-foreground-900"><i className={filtrosAvancados ? 'ri-arrow-up-s-line' : 'ri-arrow-down-s-line'} aria-hidden="true" /> Filtros avançados</button>
                     {filtrosAvancados && <div className="mt-3 space-y-3 rounded-xl border border-background-200 bg-background-50 px-3 py-2.5 text-xs leading-5 text-foreground-600">
@@ -1621,10 +1665,6 @@ export default function BuscaLeads() {
                         <label className="text-xs font-semibold text-foreground-700">IDs de setor (opcional)
                           <input value={linkedinIndustryIds} onChange={(event) => setLinkedinIndustryIds(event.target.value)} placeholder="Ex.: 25, 27" className="mt-1.5 w-full rounded-lg border border-background-300 bg-white px-3 py-2 text-sm text-foreground-900" />
                           <span className="mt-1 block text-[11px] font-normal text-foreground-500">Separe por vírgula conforme a taxonomia do Actor.</span>
-                        </label>
-                        <label className="text-xs font-semibold text-foreground-700">Porte (opcional)
-                          <input value={linkedinCompanySize} onChange={(event) => setLinkedinCompanySize(event.target.value)} placeholder="Ex.: 11-50, 51-200" className="mt-1.5 w-full rounded-lg border border-background-300 bg-white px-3 py-2 text-sm text-foreground-900" />
-                          <span className="mt-1 block text-[11px] font-normal text-foreground-500">Use os valores aceitos pelo Actor selecionado.</span>
                         </label>
                         <label className="text-xs font-semibold text-foreground-700 sm:col-span-2">Modo de coleta
                           <select value={linkedinScraperMode} onChange={(event) => setLinkedinScraperMode(event.target.value === 'full' ? 'full' : 'short')} className="mt-1.5 w-full rounded-lg border border-background-300 bg-white px-3 py-2 text-sm text-foreground-900">
@@ -1666,7 +1706,10 @@ export default function BuscaLeads() {
                       <div className="flex justify-between gap-3 py-2"><dt className="text-background-400">Área</dt><dd className="text-right font-semibold">{radiusEnabled ? `${radiusKm} km do ponto marcado` : 'Cidade informada'}</dd></div>
                       <div className="flex justify-between py-2"><dt className="text-background-400">Perfil</dt><dd className="font-semibold">{tipoEmpresaAlvoLabel}</dd></div>
                       <div className="flex justify-between py-2"><dt className="text-background-400">Segmentos</dt><dd className="font-semibold">{segmentosCliente.length}</dd></div>
+                      <div className="flex justify-between gap-3 py-2"><dt className="text-background-400">Produtos</dt><dd className="max-w-[65%] text-right font-semibold break-words">{selectedCatalogItems.length ? selectedCatalogItems.map((item) => item.name).join(', ') : ofertaEmpresa || 'Pendente'}</dd></div>
                       <div className="flex justify-between gap-3 py-2"><dt className="text-background-400">Termos enviados</dt><dd className="max-w-[65%] text-right font-semibold break-words">{termsForProspectingSource(sourceKeySelecionada, termosAplicados).join(', ') || 'Nenhum'}</dd></div>
+                      <div className="flex justify-between gap-3 py-2"><dt className="text-background-400">Porte</dt><dd className="max-w-[65%] text-right font-semibold break-words">{sourceSupportsCompanySize ? linkedinCompanySizes.length ? linkedinCompanySizes.join(', ') : 'Qualquer' : 'Não verificado pela fonte'}</dd></div>
+                      <div className="flex justify-between py-2"><dt className="text-background-400">Aderência</dt><dd className="font-semibold">{minimumProspectingScore ? `${minimumProspectingScore}+` : 'Sem mínimo'}</dd></div>
                       <div className="flex justify-between py-2"><dt className="text-background-400">Quantidade</dt><dd className="font-semibold">{leadsDia} lead{leadsDia === 1 ? '' : 's'}</dd></div>
                       <div className="flex justify-between py-2"><dt className="text-background-400">Obrigatórios</dt><dd className="font-semibold">{[temSite, temWhatsApp, temEmail].filter(Boolean).length}</dd></div>
                     </dl>

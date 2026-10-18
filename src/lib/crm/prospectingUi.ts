@@ -1,4 +1,39 @@
 export const MAX_PROSPECTING_TERMS = 10;
+export const MAX_PROSPECTING_CATALOG_OFFERS = 3;
+export const PROSPECTING_MINIMUM_SCORE_OPTIONS = [0, 50, 70, 85] as const;
+
+export function toggleProspectingCatalogOffer(current: readonly string[], offerId: string): string[] {
+  const id = offerId.trim();
+  if (!id) return [...current];
+  if (current.includes(id)) return current.filter((selectedId) => selectedId !== id);
+  if (current.length >= MAX_PROSPECTING_CATALOG_OFFERS) return [...current];
+  return [...current, id];
+}
+
+export function sourceSupportsProspectingCompanySize(sourceKey: string): boolean {
+  return sourceKey === 'linkedin';
+}
+
+export function normalizeProspectingMinimumScore(value: number): number {
+  return PROSPECTING_MINIMUM_SCORE_OPTIONS.includes(value as typeof PROSPECTING_MINIMUM_SCORE_OPTIONS[number]) ? value : 0;
+}
+
+export function normalizeProspectingScore(value: unknown): number {
+  return typeof value === 'number' && Number.isFinite(value) ? Math.max(0, Math.min(100, Math.round(value))) : 0;
+}
+
+export function prospectingSourceCriteria(sourceKey: string, companySizes: readonly string[], minimumScore: number) {
+  const sizes = sourceSupportsProspectingCompanySize(sourceKey)
+    ? [...new Set(companySizes.map((size) => size.trim()).filter(Boolean))]
+      .sort((left, right) => left.localeCompare(right, 'pt-BR'))
+      .slice(0, 10)
+    : [];
+  return {
+    companySize: sizes,
+    portes: sizes,
+    minimumScore: normalizeProspectingMinimumScore(minimumScore),
+  };
+}
 
 export interface ProspectingResultDiagnostics {
   providerItemsRead: number;
@@ -9,6 +44,9 @@ export interface ProspectingResultDiagnostics {
   rejectedByWebsite: number;
   rejectedByRadius?: number;
   missingCoordinates?: number;
+  rejectedByDuplicate?: number;
+  rejectedByMinimumScore?: number;
+  rejectedByActivityEvidence?: number;
 }
 
 export function prospectingFilterSummary(diagnostics?: ProspectingResultDiagnostics): string {
@@ -22,9 +60,12 @@ export function prospectingFilterSummary(diagnostics?: ProspectingResultDiagnost
     diagnostics.rejectedByWebsite > 0 ? `${diagnostics.rejectedByWebsite} sem site` : '',
     (diagnostics.rejectedByRadius ?? 0) > 0 ? `${diagnostics.rejectedByRadius} fora do raio` : '',
     (diagnostics.missingCoordinates ?? 0) > 0 ? `${diagnostics.missingCoordinates} sem coordenadas` : '',
+    (diagnostics.rejectedByMinimumScore ?? 0) > 0 ? `${diagnostics.rejectedByMinimumScore} abaixo da aderência mínima` : '',
+    (diagnostics.rejectedByActivityEvidence ?? 0) > 0 ? `${diagnostics.rejectedByActivityEvidence} sem atividade compatível` : '',
+    (diagnostics.rejectedByDuplicate ?? 0) > 0 ? `${diagnostics.rejectedByDuplicate} duplicada${diagnostics.rejectedByDuplicate === 1 ? '' : 's'} removida${diagnostics.rejectedByDuplicate === 1 ? '' : 's'} antes da revisão` : '',
   ].filter(Boolean).join(', ');
   const overlapping = diagnostics.rejectedByContact + diagnostics.rejectedByEmail + diagnostics.rejectedByWebsite
-    + (diagnostics.rejectedByRadius ?? 0) + (diagnostics.missingCoordinates ?? 0) > discarded;
+    + (diagnostics.rejectedByRadius ?? 0) + (diagnostics.missingCoordinates ?? 0) + (diagnostics.rejectedByMinimumScore ?? 0) + (diagnostics.rejectedByActivityEvidence ?? 0) > discarded;
   return `${throughput}. ${discarded} fora dos critérios${reasons ? `: ${reasons}` : ''}.${overlapping ? ' Os motivos podem se sobrepor.' : ''}`;
 }
 
@@ -34,6 +75,12 @@ export function prospectingEmptyResultMessage(sourceName: string, diagnostics?: 
   if (diagnostics.normalizedCount === 0) return `${sourceName} devolveu ${diagnostics.providerItemsRead} registros, mas nenhum pôde ser identificado como empresa. Verifique o formato de saída da fonte; nenhuma importação foi feita.`;
   if ((diagnostics.rejectedByRadius ?? 0) + (diagnostics.missingCoordinates ?? 0) === diagnostics.normalizedCount) {
     return `${diagnostics.normalizedCount} empresas foram descartadas pela área no mapa. ${prospectingFilterSummary(diagnostics)} Revise o centro ou amplie o raio antes de iniciar outra busca paga.`;
+  }
+  if ((diagnostics.rejectedByMinimumScore ?? 0) === diagnostics.normalizedCount) {
+    return `${diagnostics.normalizedCount} empresas ficaram abaixo da aderência mínima escolhida. ${prospectingFilterSummary(diagnostics)} Reduza a aderência mínima ou revise os termos antes de iniciar outra busca paga.`;
+  }
+  if ((diagnostics.rejectedByActivityEvidence ?? 0) === diagnostics.normalizedCount) {
+    return `${diagnostics.normalizedCount} empresas não demonstraram atividade compatível com a oferta escolhida. ${prospectingFilterSummary(diagnostics)} Revise os produtos ou reduza a aderência mínima antes de iniciar outra busca paga.`;
   }
   if (diagnostics.matchedCount === 0) return `${diagnostics.normalizedCount} empresas foram descartadas pelos critérios obrigatórios. ${prospectingFilterSummary(diagnostics)} Desmarque um critério e faça uma nova busca somente após revisar o custo da fonte.`;
   return `${sourceName} concluiu a busca sem leads revisáveis. Nenhuma importação foi feita.`;
