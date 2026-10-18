@@ -1,10 +1,10 @@
 import { normalizeProspectingTerms } from './prospectingUi';
 
 export const PROSPECTING_TARGET_PROFILES = [
-  { id: 'potential_customers', label: 'Clientes potenciais', searchTerm: '' },
-  { id: 'distributors', label: 'Distribuidores', searchTerm: 'distribuidores industriais' },
-  { id: 'resellers', label: 'Revendedores', searchTerm: 'revendedores industriais' },
-  { id: 'suppliers', label: 'Fornecedores', searchTerm: 'fornecedores industriais' },
+  { id: 'potential_customers', label: 'Clientes potenciais', description: 'Empresas que podem comprar sua oferta.', searchTerm: '' },
+  { id: 'distributors', label: 'Distribuidores', description: 'Empresas que revendem ou distribuem produtos.', searchTerm: 'distribuidores industriais' },
+  { id: 'resellers', label: 'Revendedores', description: 'Empresas que comercializam para o cliente final.', searchTerm: 'revendedores industriais' },
+  { id: 'suppliers', label: 'Fornecedores', description: 'Empresas que fornecem materiais ou componentes.', searchTerm: 'fornecedores industriais' },
 ] as const;
 
 export type ProspectingTargetProfile = typeof PROSPECTING_TARGET_PROFILES[number]['id'];

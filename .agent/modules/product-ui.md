@@ -1,5 +1,11 @@
 # Produto e interface — checkpoint incremental
 
+## 18/10/2026 — Busca de Leads: perfil de cliente mais claro (local)
+
+- Reorganizado o passo de Perfil em três grupos explícitos: oferta, tipo de empresa e segmentos compradores. Os perfis agora exibem descrições curtas; o resumo e o payload da busca permanecem inalterados.
+- Mantidos os mesmos handlers, catálogo, termos, permissões e filtros. A mudança é visual e de microcopy; nenhuma consulta externa é iniciada ao preencher o formulário.
+- Validação: teste do perfil em TDD (4 testes), suíte Vitest completa (136 arquivos; 817 aprovados; 25 skips), type-check, type-check Edge, lint, build Vite e `git diff --check` aprovados. Publicação autorizada nesta etapa; a confirmação do Site será registrada no handoff da release.
+
 ## 18/10/2026 — Dashboard: central de comando visual (local)
 
 - Composição visual reforçada no Dashboard existente: cabeçalho operacional escuro, ações e status agrupados, alertas priorizados, leitura mais nítida da faixa de indicadores, painel de próxima ação e controle da Ana destacados pelos estados já fornecidos pelo produto.

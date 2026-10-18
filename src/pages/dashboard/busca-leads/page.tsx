@@ -1578,48 +1578,53 @@ export default function BuscaLeads() {
                   <section className="rounded-2xl border border-background-200/80 bg-white p-4 shadow-sm">
                     <div className="mb-4 flex items-start gap-3">
                       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-primary-100 text-primary-700"><i className="ri-group-line" aria-hidden="true" /></span>
-                      <div><h3 className="text-sm font-heading font-bold text-foreground-900">2. Perfil de cliente ideal</h3><p className="mt-0.5 text-xs text-foreground-500">Conte o que sua empresa vende e quem pode comprar.</p></div>
+                      <div><h3 className="text-sm font-heading font-bold text-foreground-900">2. Defina seu público</h3><p className="mt-0.5 text-xs text-foreground-500">Escolha em ordem: o que você vende, quem compra e onde atua.</p></div>
                     </div>
-                    <label className="block text-xs font-semibold text-foreground-700" htmlFor="prospecting-catalog-offer">Produtos ou serviços cadastrados <span className="font-normal text-foreground-500">(até {MAX_PROSPECTING_CATALOG_OFFERS})</span>
+                    <fieldset className="rounded-xl border border-background-200 bg-background-50/60 p-3"><legend className="px-1 text-xs font-semibold text-foreground-800">1. O que você vende?</legend>
+                      <p className="mt-1 text-xs leading-5 text-foreground-500">Selecione até {MAX_PROSPECTING_CATALOG_OFFERS} itens cadastrados. Eles ajudam a formar o contexto da busca.</p>
+                    <label className="sr-only" htmlFor="prospecting-catalog-offer">Adicionar produto ou serviço</label>
                       <select id="prospecting-catalog-offer" value="" onChange={(event) => selecionarOfertaCatalogo(event.target.value)} disabled={catalogStatus !== 'ready' || !catalogItems.length} className="mt-1.5 w-full rounded-lg border border-background-300 bg-background-50 px-3 py-2 text-sm text-foreground-900 disabled:opacity-60">
                         <option value="">{catalogStatus === 'loading' ? 'Carregando catálogo...' : catalogStatus === 'error' ? 'Catálogo indisponível' : catalogItems.length ? 'Adicionar produto ou serviço' : 'Nenhum item ativo em fonte habilitada'}</option>
                         {catalogItems.map((item) => <option key={item.id} value={item.id} disabled={!selectedCatalogIds.includes(item.id) && selectedCatalogIds.length >= MAX_PROSPECTING_CATALOG_OFFERS}>{item.name}{item.category ? ` · ${item.category}` : ''}</option>)}
-                      </select>
-                    </label>
+                    </select>
                     {catalogStatus === 'error' && <p role="status" className="mt-2 text-xs text-amber-800">{catalogError}</p>}
                     {catalogStatus === 'ready' && !catalogItems.length && <p role="status" className="mt-2 text-xs text-foreground-600">Cadastre e ative produtos/serviços em Configurações → Empresa e conhecimento para receber sugestões baseadas nas aplicações.</p>}
                     {selectedCatalogItems.length > 0 && <div className="mt-2 flex flex-wrap gap-2" aria-label="Produtos selecionados">{selectedCatalogItems.map((item) => <button key={item.id} type="button" onClick={() => selecionarOfertaCatalogo(item.id)} aria-label={`Remover ${item.name}`} className="inline-flex items-center gap-1 rounded-full border border-primary-300 bg-primary-50 px-2.5 py-1 text-xs font-semibold text-primary-800">{item.name}<i className="ri-close-line" aria-hidden="true" /></button>)}</div>}
                     {selectedCatalogIds.length >= MAX_PROSPECTING_CATALOG_OFFERS && <p role="status" className="mt-2 text-xs text-foreground-500">Remova uma seleção para escolher outro produto ou serviço.</p>}
-                    <label className="mt-3 block text-xs font-semibold text-foreground-700">Complemento da oferta <span className="font-normal text-foreground-500">(opcional)</span>
-                      <input value={ofertaEmpresa} onChange={(event) => editarOfertaEmpresa(event.target.value)} maxLength={240} placeholder="Descreva o que vende, se quiser complementar" className="mt-1.5 w-full rounded-lg border border-background-300 bg-background-50 px-3 py-2 text-sm text-foreground-900" />
+                    <label className="mt-3 block text-xs font-semibold text-foreground-700">Contexto da oferta <span className="font-normal text-foreground-500">(opcional)</span>
+                      <input value={ofertaEmpresa} onChange={(event) => editarOfertaEmpresa(event.target.value)} maxLength={240} placeholder="Ex.: vedação para manutenção de máquinas" className="mt-1.5 w-full rounded-lg border border-background-300 bg-background-50 px-3 py-2 text-sm text-foreground-900" />
                     </label>
-                    {selectedCatalogItems.length > 0 && <p className="mt-2 text-xs leading-5 text-foreground-600">{selectedCatalogApplications.length ? `Aplicações cadastradas: ${selectedCatalogApplications.join(', ')}.` : 'Os itens selecionados não informam aplicações; escolha segmentos compradores ou descreva-os nos termos de busca.'} Isso sugere possíveis compradores, não comprova interesse de compra.</p>}
-                    <fieldset className="mt-4"><legend className="text-xs font-semibold text-foreground-700">Quem você quer encontrar?</legend>
-                      <div className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                    {selectedCatalogItems.length > 0 && <p className="mt-2 text-xs leading-5 text-foreground-600">{selectedCatalogApplications.length ? `Aplicações cadastradas: ${selectedCatalogApplications.join(', ')}.` : 'Os itens selecionados não informam aplicações; escolha segmentos compradores ou descreva-os nos termos de busca.'} O catálogo sugere contexto, mas não comprova interesse de compra.</p>}
+                    </fieldset>
+                    <fieldset className="mt-3 rounded-xl border border-background-200 bg-white p-3"><legend className="px-1 text-xs font-semibold text-foreground-800">2. Quem você quer encontrar?</legend>
+                      <p className="mt-1 text-xs leading-5 text-foreground-500">Escolha um perfil. O sistema usa este perfil junto com a região e a oferta.</p>
+                      <div className="mt-2 grid gap-2 sm:grid-cols-2">
                         {PROSPECTING_TARGET_PROFILES.map((profile) => {
                           const selected = tipoEmpresaAlvo === profile.id;
-                          return <button key={profile.id} type="button" aria-pressed={selected} onClick={() => setTipoEmpresaAlvo(profile.id)} className={`flex min-h-10 items-center gap-2 rounded-lg border px-3 text-left text-xs font-semibold transition-colors ${selected ? 'border-primary-400 bg-primary-50 text-primary-800' : 'border-background-200 bg-white text-foreground-600 hover:border-background-300'}`}><i className={selected ? 'ri-checkbox-circle-fill text-primary-600' : 'ri-checkbox-blank-circle-line'} aria-hidden="true" />{profile.label}</button>;
+                          return <button key={profile.id} type="button" aria-pressed={selected} onClick={() => setTipoEmpresaAlvo(profile.id)} className={`flex min-h-[4.5rem] items-start gap-2 rounded-lg border px-3 py-2.5 text-left transition-colors ${selected ? 'border-primary-400 bg-primary-50 text-primary-800' : 'border-background-200 bg-white text-foreground-700 hover:border-background-300'}`}><i className={`mt-0.5 text-base ${selected ? 'ri-checkbox-circle-fill text-primary-600' : 'ri-checkbox-blank-circle-line text-foreground-400'}`} aria-hidden="true" /><span><span className="block text-xs font-semibold">{profile.label}</span><span className={`mt-0.5 block text-[11px] leading-4 ${selected ? 'text-primary-700' : 'text-foreground-500'}`}>{profile.description}</span></span></button>;
                         })}
                       </div>
                     </fieldset>
-                    <div className="mt-4"><p className="text-xs font-semibold text-foreground-700">Segmentos dos clientes</p>
+                    <fieldset className="mt-3 rounded-xl border border-background-200 bg-background-50/60 p-3"><legend className="px-1 text-xs font-semibold text-foreground-800">3. Em quais segmentos atuam?</legend>
+                      <p className="mt-1 text-xs leading-5 text-foreground-500">Use vários segmentos quando qualquer um deles for válido. Eles ampliam a busca dentro da região.</p>
                       {catalogBuyerSectors.length > 0 && <div className="mt-2">
-                        <label htmlFor="prospecting-company-sector" className="text-xs text-foreground-600">Setores atendidos no histórico da empresa</label>
+                        <label htmlFor="prospecting-company-sector" className="text-xs font-semibold text-foreground-700">Adicionar segmento do histórico</label>
                         <select id="prospecting-company-sector" value="" onChange={(event) => { if (event.target.value) alternarSegmentoCliente(event.target.value); }} className="mt-1 block w-full max-w-md rounded-lg border border-background-300 bg-background-50 px-3 py-2 text-sm text-foreground-900">
-                          <option value="">Escolha um setor comprador para revisar</option>
+                          <option value="">Selecione um segmento comprador</option>
                           {catalogBuyerSectors.filter((sector) => !segmentosCliente.includes(sector.label)).map((sector) => <option key={sector.itemId} value={sector.label}>{sector.label} · {sector.sourceName}</option>)}
                         </select>
-                        <p className="mt-1 text-[11px] text-foreground-500">Estar no histórico indica atuação da empresa; confirme a relação com o produto antes de buscar.</p>
+                        <p className="mt-1 text-[11px] text-foreground-500">O histórico indica onde sua empresa já atua; confirme a relação antes de buscar.</p>
                         {segmentosCliente.some((segment) => catalogBuyerSectors.some((sector) => sector.label === segment)) && <div className="mt-2 flex flex-wrap gap-2">{segmentosCliente.filter((segment) => catalogBuyerSectors.some((sector) => sector.label === segment)).map((segment) => <button key={segment} type="button" onClick={() => alternarSegmentoCliente(segment)} aria-label={`Remover setor ${segment}`} className="rounded-full border border-primary-300 bg-primary-50 px-2.5 py-1 text-xs font-semibold text-primary-800">{segment} <i className="ri-close-line" aria-hidden="true" /></button>)}</div>}
                       </div>}
-                      <p className="mt-3 text-[11px] font-semibold uppercase tracking-wide text-foreground-500">Sugestões gerais</p>
+                      <p className="mt-3 text-[11px] font-semibold text-foreground-600">Atalhos de setor</p>
                       <div className="mt-2 flex flex-wrap gap-2">
                         {PROSPECTING_CUSTOMER_SEGMENTS.map((segment) => {
                           const selected = segmentosCliente.includes(segment);
                           return <button key={segment} type="button" aria-pressed={selected} onClick={() => alternarSegmentoCliente(segment)} className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${selected ? 'border-primary-300 bg-primary-50 text-primary-800' : 'border-background-200 bg-white text-foreground-600 hover:border-primary-300'}`}>{selected && <i className="ri-check-line mr-1" aria-hidden="true" />}{segment}</button>;
                         })}
                       </div>
-                    </div>
+                    </fieldset>
+                    <p className="mt-3 rounded-lg border border-primary-100 bg-primary-50/60 px-3 py-2 text-xs leading-5 text-primary-900"><strong>Como a busca combina:</strong> região + oferta + perfil. Segmentos selecionados funcionam como alternativas dentro do mesmo grupo.</p>
                   </section>
                   )}
 

@@ -20,4 +20,8 @@ describe('ideal profile terms', () => {
     expect(new Set(PROSPECTING_TARGET_PROFILES.map((item) => item.id)).size).toBe(PROSPECTING_TARGET_PROFILES.length);
     expect(new Set(PROSPECTING_CUSTOMER_SEGMENTS).size).toBe(PROSPECTING_CUSTOMER_SEGMENTS.length);
   });
+
+  it('provides a concise explanation for every target profile', () => {
+    expect(PROSPECTING_TARGET_PROFILES.every((profile) => profile.description.trim().length > 0)).toBe(true);
+  });
 });
