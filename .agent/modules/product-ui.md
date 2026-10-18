@@ -1,5 +1,11 @@
 # Produto e interface — checkpoint incremental
 
+## 18/10/2026 — Dashboard: central de comando visual (local)
+
+- Composição visual reforçada no Dashboard existente: cabeçalho operacional escuro, ações e status agrupados, alertas priorizados, leitura mais nítida da faixa de indicadores, painel de próxima ação e controle da Ana destacados pelos estados já fornecidos pelo produto.
+- Não foram alterados dados, regras, textos operacionais, permissões, rotas, handlers, frequência de atualização, componentes de métricas ou integrações. A mudança usa apenas classes locais e tokens visuais existentes.
+- Validação: contrato visual em TDD, type-check, lint, Vitest completo (134 arquivos; 803 aprovados; 25 skips), build e diff check. A prévia local não autentica sem a configuração pública de Supabase deste checkout; homologação visual autenticada e publicação permanecem pendentes.
+
 ## 09/10/2026 — organização por perfil e conceito da Central
 
 Pedido autorizado: analisar o link da Central, aplicar regras de organização para o

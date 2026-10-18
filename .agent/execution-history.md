@@ -1707,3 +1707,8 @@ Comparado `225a379` com HEAD `52ac6fe`: a remoção do formulário com senha e o
 - O frontend não importa a dependência e nenhum token foi lido ou salvo. LinkedIn/Instagram permanecem fora do escopo operacional até existir Actor/Task e autorização reais para cada fonte.
 - Validação: Vitest 121 arquivos/714 testes aprovados/16 skips; type-check app/Edge, lint direcionado, build Vite, artefato Sites e `git diff --check`. Sem chamadas externas, busca paga, mensagem, migration, Edge deploy ou Site.
 - Estado: LOCAL_VALIDADO; publicação pendente de configuração real e aprovação explícita.
+## 2026-10-18 — Dashboard: central de comando visual (local)
+
+- Aplicado redesign visual do Dashboard nos componentes e estilos existentes, sem mudar comportamento, dados, permissões, rotas ou integrações.
+- Validação executada: contrato visual em ciclo red/green, type-check, lint, Vitest completo (134 arquivos; 803 aprovados; 25 skips), build Vite/artefato Sites e diff check.
+- A prévia local não autenticou porque o checkout não contém configuração pública do Supabase. Nenhuma credencial foi adicionada; publicação e revisão visual autenticada seguem pendentes de autorização específica.

@@ -2,6 +2,14 @@
   "schema_version": 1,
   "requirements": [
     {
+      "id": "REQ-DASHBOARD-COMMAND-CENTER-20261018",
+      "description": "Dar ao Dashboard uma hierarquia visual de central de comando, com prioridade para estado operacional, alertas, métricas reais, próxima ação e controle da Ana, sem alterar regras de negócio ou integrações.",
+      "module": "dashboard",
+      "status": "LOCAL_VALIDADO",
+      "evidence": "Composição visual implementada em page.tsx/CSS existente e coberta por contrato visual TDD. Type-check, lint, Vitest completo (134 arquivos; 803 aprovados; 25 skips), build e diff check passaram. A revisão visual autenticada e a publicação permanecem pendentes.",
+      "last_validation": "2026-10-18"
+    },
+    {
       "id": "REQ-CSV-ANA-EXISTING-LEADS-20261015",
       "description": "Importar CSV com deduplicação atômica e permitir que a Ana selecione até 10 leads existentes somente para revisão humana, sem busca paga ou envio automático.",
       "module": "busca_leads_e_ana",

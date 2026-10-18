@@ -1,5 +1,11 @@
 # Baseline do sistema
 
+## 18/10/2026 — Dashboard: composição de central de comando (LOCAL)
+
+- O Dashboard local recebeu um cabeçalho operacional em alto contraste, alertas priorizados, leitura mais clara de métricas e painéis de próxima ação/Ana com estados existentes. Dados, rotas, permissões, controles, polling e integrações permanecem os mesmos.
+- A verificação local passou: contrato visual em TDD, type-check, lint, Vitest completo (134 arquivos; 803 aprovados; 25 skips), build Vite/artefato Sites e diff check. O aviso preexistente sobre `runtime-config.js` sem `type="module"` não bloqueou o build.
+- Estado: local validado e não publicado. A inspeção autenticada continua pendente, pois o checkout não possui configuração pública do Supabase; nenhuma configuração foi copiada para o projeto.
+
 ## 15/10/2026 — Busca de Leads: publicação técnica e limite operacional
 
 - O backend `prospectar-leads` v28 e o Site v209 contêm o commit de código `b8466d8`; a rota personalizada `/login` respondeu 200 e o asset principal coincidiu com o build local. A função continua com JWT obrigatório. Não houve busca paga, importação ou mensagem.

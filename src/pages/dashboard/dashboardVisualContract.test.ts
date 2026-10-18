@@ -17,4 +17,13 @@ describe('Dashboard visual contract', () => {
     expect(stylesheet()).toContain('.wf-dashboard-experiment .wf-stat-strip');
     expect(stylesheet()).toContain('repeat(5, minmax(0, 1fr))');
   });
+
+  it('uses a distinct command-center composition without changing the operational components', () => {
+    expect(source).toContain('wf-dashboard-hero');
+    expect(source).toContain('wf-dashboard-alerts');
+    expect(source).toContain('wf-dashboard-ana');
+    expect(stylesheet()).toContain('.wf-dashboard-experiment .wf-dashboard-hero');
+    expect(stylesheet()).toContain('background: var(--wf-ink)');
+    expect(stylesheet()).toContain('.wf-dashboard-experiment .wf-dashboard-alerts');
+  });
 });

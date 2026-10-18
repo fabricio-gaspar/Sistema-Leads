@@ -1,5 +1,23 @@
 {
   "schema_version": 1,
+  "dashboard_command_center_20261018": {
+    "baseline_commit": "3e52fd9b331933a1c62c3559c7dbe920a2d92734",
+    "scope": "Redesign visual perceptível do Dashboard existente, preservando métricas, rotas, alertas, controles e dados operacionais.",
+    "implementation": [
+      "src/pages/dashboard/page.tsx",
+      "src/pages/dashboard/dashboard-premium-experiment.css",
+      "src/pages/dashboard/dashboardVisualContract.test.ts"
+    ],
+    "validation": "TDD: contrato visual falhou antes da implementação e passou depois. Type-check, lint, Vitest completo (134 arquivos; 803 aprovados; 25 skips) e build Vite/artefato Sites locais passaram.",
+    "visual_review": "A prévia local abriu, mas não autenticou porque este checkout não contém configuração pública do Supabase. Revisão visual autenticada da nova composição permanece pendente de publicação autorizada.",
+    "customer_data_changed": false,
+    "messages_sent": false,
+    "migration_applied": false,
+    "edge_functions_deployed": false,
+    "site_deployed": false,
+    "status": "LOCAL_VALIDADO_PENDENTE_DE_PUBLICACAO_E_REVISAO_VISUAL_AUTENTICADA",
+    "next_action": "Com autorização específica, publicar somente este lote validado e conferir o Dashboard autenticado no domínio oficial."
+  },
   "csv_ana_existing_leads_20261015": {
     "baseline_commit": "090736371807e94533013e034fc25285ddbc1f01",
     "scope": "Importação CSV direta para Leads e seleção segura de até 10 leads existentes para revisão humana da Ana.",

@@ -1,5 +1,10 @@
 # Problemas conhecidos
 
+## 18/10/2026 — Revisão visual autenticada do novo Dashboard pendente
+
+- O redesign da central de comando foi validado por contrato, type-check, lint, suíte Vitest e build local. A prévia Vite chegou à tela de configuração obrigatória porque este checkout não contém a URL/chave pública do Supabase; nenhuma credencial foi adicionada para contornar essa limitação.
+- Até uma publicação autorizada e inspeção em sessão autenticada, não declarar a nova composição visual homologada no domínio oficial. Não há impacto conhecido em dados, permissões, integrações, filas ou automações: o lote altera somente marcação e estilos do Dashboard.
+
 ## 15/10/2026 — CSV/Ana local aguardando homologação PostgreSQL
 
 - As migrations locais de importação atômica e fila de leads existentes da Ana não foram aplicadas. Os testes de contrato cobrem a lógica e a suíte passou, mas ainda falta exercício real de FK adiada, RLS de duas carteiras e disputa concorrente em PostgreSQL isolado.
