@@ -208,9 +208,9 @@ export default function CsvImportModal({
   };
 
   return (
-    <AccessibleDialog title={titulo} onClose={() => { if (!importando) onClose(); }} className="w-full max-w-2xl">
-      <div className="bg-background-50 rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
-        <div className="px-6 py-4 border-b border-background-200/70 flex items-center justify-between sticky top-0 bg-background-50 z-10">
+    <AccessibleDialog title={titulo} onClose={() => { if (!importando) onClose(); }} className="wf-accessible-dialog--compact">
+      <div className="wf-import-dialog bg-background-50 rounded-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="wf-import-dialog__header px-6 py-4 border-b border-background-200/70 flex items-center justify-between sticky top-0 bg-background-50 z-10">
           <div>
             <h3 className="font-heading font-bold text-foreground-950">{titulo}</h3>
             <p className="text-xs text-foreground-500">{subtitulo}</p>
@@ -220,7 +220,7 @@ export default function CsvImportModal({
           </button>
         </div>
 
-        <div className="p-6 space-y-5">
+        <div className="wf-import-dialog__body p-6 space-y-5">
           {aviso && (
             <div className="flex items-start gap-2 rounded-lg border border-primary-200 bg-primary-50 px-3 py-2.5 text-xs text-primary-800">
               <i className="ri-shield-check-line mt-0.5" aria-hidden="true" />
@@ -281,22 +281,25 @@ export default function CsvImportModal({
 
           {cabecalho.length > 0 && !resultado && (
             <>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-foreground-700 flex items-center gap-2">
+              <div className="wf-import-dialog__file flex items-center justify-between">
+                <span className="text-sm text-foreground-700 flex min-w-0 items-center gap-2">
                   <i className="ri-file-list-3-line text-primary-600"></i>
-                  {arquivoNome}
+                  <span className="truncate" title={arquivoNome}>{arquivoNome}</span>
                 </span>
                 <button onClick={reiniciar} disabled={alteracoesBloqueadas} className="text-xs font-medium text-foreground-500 hover:text-foreground-700 cursor-pointer whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50">
                   <i className="ri-refresh-line mr-1"></i>Trocar arquivo
                 </button>
               </div>
 
-              <div>
-                <h4 className="text-sm font-semibold text-foreground-800 mb-2">Mapeamento de colunas</h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="wf-import-dialog__mapping">
+                <div className="mb-2.5 flex items-center justify-between gap-3">
+                  <h4 className="text-sm font-semibold text-foreground-800">Mapeamento de colunas</h4>
+                  <span className="wf-import-dialog__counter">{Object.keys(mapeamento).length}/{campos.length} campos reconhecidos</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   {campos.map((c) => (
-                    <div key={c.chave} className="flex items-center gap-2">
-                      <label htmlFor={`${fieldId}-${c.chave}`} className="w-32 flex-shrink-0 text-sm text-foreground-700">
+                    <div key={c.chave} className="wf-import-dialog__mapping-field flex items-center gap-2">
+                      <label htmlFor={`${fieldId}-${c.chave}`} className="w-32 flex-shrink-0 text-xs font-medium text-foreground-600">
                         {c.rotulo}
                         {c.obrigatorio && <span className="text-accent-600"> *</span>}
                       </label>
@@ -331,7 +334,7 @@ export default function CsvImportModal({
                   <h4 className="text-sm font-semibold text-foreground-800">Prévia</h4>
                   <span className="text-xs text-foreground-500">{linhas.length} linha(s) no total</span>
                 </div>
-                <div className="border border-background-200/70 rounded-lg overflow-x-auto">
+                <div className="wf-import-dialog__preview border border-background-200/70 rounded-lg overflow-x-auto">
                   <table className="w-full text-xs">
                     <thead>
                       <tr className="bg-background-100/50 border-b border-background-200/70">
@@ -404,15 +407,27 @@ export default function CsvImportModal({
             </div>
           )}
           {!erro && avisosArquivo.map((aviso) => (
-            <div key={aviso} role="status" className="bg-accent-50 border border-accent-200 text-accent-800 px-4 py-3 rounded-lg text-sm flex items-start gap-2">
+            <div key={aviso} role="status" className="wf-import-dialog__warning bg-accent-50 border border-accent-200 text-accent-800 px-4 py-3 rounded-lg text-sm flex items-start gap-2">
               <i className="ri-alert-line mt-0.5" aria-hidden="true"></i>
               <span>{aviso}</span>
             </div>
           ))}
         </div>
 
+        {importando && progresso && (
+          <div className="wf-import-dialog__progress px-6 pb-3" role="status" aria-live="polite">
+            <div className="mb-1.5 flex items-center justify-between gap-3 text-xs text-foreground-600">
+              <span>Importando em lotes seguros</span>
+              <strong className="text-foreground-800">{progresso.current} de {progresso.total}</strong>
+            </div>
+            <div className="h-1.5 overflow-hidden rounded-full bg-primary-100" aria-hidden="true">
+              <div className="h-full rounded-full bg-primary-500 transition-[width] duration-200" style={{ width: `${Math.min(100, Math.round((progresso.current / Math.max(1, progresso.total)) * 100))}%` }} />
+            </div>
+          </div>
+        )}
+
         {cabecalho.length > 0 && !resultado && (
-          <div className="px-6 py-4 border-t border-background-200/70 flex justify-end gap-2">
+          <div className="wf-import-dialog__footer px-6 py-4 border-t border-background-200/70 flex justify-end gap-2">
             <button onClick={onClose} disabled={importando} className="px-4 py-2.5 border border-background-300 text-foreground-700 rounded-lg text-sm font-semibold hover:bg-background-100 cursor-pointer whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50">
               Cancelar
             </button>
