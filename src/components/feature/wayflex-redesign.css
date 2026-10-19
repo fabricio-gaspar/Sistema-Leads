@@ -229,3 +229,107 @@
 @media (max-width:1100px) { .wf-funnel-stat-grid { grid-template-columns:repeat(3,minmax(0,1fr)); } .wf-funnel-grid--primary,.wf-funnel-grid--secondary { grid-template-columns:1fr; } }
 @media (max-width:700px) { .wf-funnel-header { align-items:flex-start; flex-direction:column; } .wf-funnel-header-actions { width:100%; } .wf-funnel-header-actions > * { flex:1; } .wf-funnel-filter-row { display:grid; grid-template-columns:1fr 1fr; } .wf-funnel-filter-row > svg { display:none; } .wf-funnel-filter { min-width:0; } .wf-funnel-filter-action,.wf-funnel-compare { grid-column:span 1; } .wf-funnel-compare { white-space:normal; } .wf-funnel-stat-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } .wf-funnel-stat:nth-child(5) { grid-column:span 2; } .wf-funnel-stage { grid-template-columns:4.5rem 1fr auto; } .wf-funnel-stage > svg { display:none; } .wf-funnel-progression-list > div { grid-template-columns:1fr auto; } .wf-funnel-progression-list .wf-funnel-stage-track { grid-column:1/-1; grid-row:2; } .wf-funnel-note { align-items:flex-start; flex-wrap:wrap; } .wf-funnel-note button { margin-left:0; } .wf-funnel-explore { align-items:flex-start; flex-direction:column; } .wf-funnel-explore > div:last-child { flex-wrap:wrap; } }
 @media (prefers-reduced-motion:reduce) { .wf-app *, .wf-app *::before, .wf-app *::after { scroll-behavior:auto!important; animation-duration:.01ms!important; transition-duration:.01ms!important; } }
+
+/* Reference design layer: clear surfaces, violet actions and quiet elevation.
+ * This layer is intentionally additive so product flows, permissions and data
+ * contracts remain unchanged while every shared screen gets the same language.
+ */
+.wf-app {
+  --wf-ink: var(--ds-ink, #171e2e);
+  --wf-canvas: var(--ds-canvas, #fdfcfa);
+  --wf-surface: var(--ds-surface, #fff);
+  --wf-line: var(--ds-line, #ecebf2);
+  --wf-green: var(--ds-action, #6d5ef5);
+  --wf-green-strong: var(--ds-action-strong, #6652e8);
+  --wf-green-soft: var(--ds-surface-selected, #f1f0fe);
+  --wf-lime: #dfe6ff;
+  --wf-muted: var(--ds-ink-muted, #5f667a);
+  --wf-muted-soft: #f2f3fb;
+  --wf-shadow-card: 0 8px 24px rgb(74 61 44 / .065), 0 2px 6px rgb(35 27 52 / .035);
+  --wf-shadow-floating: 0 14px 36px rgb(35 27 52 / .12), 0 3px 10px rgb(35 27 52 / .06);
+  color: var(--wf-ink);
+  font-optical-sizing: auto;
+}
+
+.wf-app .wf-main { background: var(--wf-canvas) !important; }
+.wf-app .wf-page { max-width: 1540px; padding: 1.5rem 1.5rem 2.5rem; }
+.wf-app .wf-page-header { margin-bottom: 1.25rem; padding-bottom: .75rem; border-bottom: 1px solid var(--wf-line); }
+.wf-app .wf-page-title { color: var(--wf-ink); font-size: clamp(1.75rem, 2.3vw, 2.2rem); font-weight: 750; letter-spacing: -.04em; }
+.wf-app .wf-page-description { color: var(--wf-muted); }
+.wf-app .wf-sidebar { background: var(--wf-surface) !important; border-right-color: var(--wf-line); box-shadow: 4px 0 20px rgb(35 27 52 / .025); }
+.wf-app .wf-sidebar > div { border-color: var(--wf-line); }
+.wf-app .wf-brand-mark { background: var(--ds-action) !important; border-radius: .65rem; }
+.wf-app .wf-sidebar .wf-brand-copy strong,
+.wf-app .wf-sidebar-user-name { color: var(--wf-ink); }
+.wf-app .wf-sidebar .wf-brand-copy small { color: var(--wf-muted); }
+.wf-app .wf-sidebar .wf-icon-button { color: var(--wf-muted); }
+.wf-app .wf-sidebar .wf-icon-button:hover { background: var(--wf-surface-muted, #f7f7fc); color: var(--wf-ink); }
+.wf-app .wf-nav-section-label { color: #72788b; }
+.wf-app .wf-nav-item { color: #525a70 !important; border-radius: .5rem; }
+.wf-app .wf-nav-item:hover { background: #f4f3fc !important; color: var(--ds-action-strong) !important; }
+.wf-app .wf-nav-item.is-active { background: var(--ds-surface-selected) !important; color: var(--ds-action-strong) !important; box-shadow: inset 3px 0 0 var(--ds-action); }
+.wf-app .wf-sidebar a:focus-visible,
+.wf-app .wf-sidebar button:focus-visible { outline: 2px solid var(--ds-action); }
+.wf-app .wf-topbar { background: var(--wf-surface) !important; border-bottom-color: var(--wf-line) !important; }
+.wf-app .wf-global-search input { border-color: var(--wf-line); background: var(--ds-surface-muted); color: var(--wf-ink); }
+.wf-app .wf-global-search input:focus { border-color: var(--ds-action); box-shadow: 0 0 0 3px rgb(109 94 245 / .14); }
+.wf-app .wf-global-search-results { border-color: var(--wf-line); box-shadow: var(--wf-shadow-floating); }
+.wf-app .wf-global-search-result:hover { background: var(--ds-surface-selected); color: var(--ds-action-strong); }
+.wf-app .wf-quick-nav { background: var(--wf-surface); }
+
+.wf-app :is(.wf-surface, .wf-card, .wf-settings-section, .wf-toolbar, .wf-table-shell, .wf-chart-panel) {
+  border-color: var(--wf-line);
+  border-radius: .75rem;
+  box-shadow: var(--wf-shadow-card);
+}
+.wf-app .wf-card-interactive:hover { box-shadow: var(--wf-shadow-floating); }
+.wf-app .wf-btn-primary,
+.wf-app .wf-spotlight-button,
+.wf-app .wf-action-spotlight .wf-btn-primary {
+  background: var(--ds-action) !important;
+  color: var(--ds-action-on) !important;
+  border-radius: .5rem;
+  box-shadow: 0 4px 12px rgb(109 94 245 / .18);
+}
+.wf-app .wf-btn-primary:hover,
+.wf-app .wf-spotlight-button:hover { background: var(--ds-action-strong) !important; }
+.wf-app .wf-btn-primary:active { background: #c9c7ee !important; color: #332b63 !important; }
+.wf-app .wf-btn-primary:disabled { background: #eeeff3 !important; color: #757789 !important; box-shadow: none; }
+.wf-app .wf-btn-secondary { border-color: var(--wf-line); background: var(--wf-surface); color: var(--wf-ink); border-radius: .5rem; }
+.wf-app .wf-btn-secondary:hover { border-color: #c9c5eb; background: var(--ds-surface-selected); color: #332b63; }
+.wf-app .wf-icon-button:hover { border-color: var(--wf-line); background: var(--ds-surface-selected); color: var(--ds-action-strong); }
+.wf-app :is(button, a, input, select, textarea):focus-visible { outline: 2px solid var(--ds-action); outline-offset: 2px; box-shadow: 0 0 0 3px rgb(109 94 245 / .14); }
+
+.wf-app :is(input:not([type='checkbox']):not([type='radio']), select, textarea, .wf-input) {
+  border-color: var(--wf-line);
+  border-radius: .5rem;
+  background: var(--wf-surface);
+  color: var(--wf-ink);
+}
+.wf-app :is(input:not([type='checkbox']):not([type='radio']), select, textarea, .wf-input)::placeholder { color: #8b8fa1; }
+.wf-app table th { background: var(--ds-surface-muted); color: #6c7285; border-color: var(--wf-line); }
+.wf-app table td { border-color: var(--wf-line); color: var(--wf-ink); }
+.wf-app table tbody tr:hover { background: #faf9ff; }
+.wf-app .wf-empty-state { color: var(--wf-muted); }
+.wf-app .wf-skeleton { background: #e8e7f2; }
+.wf-app .wf-dashboard-updated { border-color: var(--wf-line); background: rgb(255 255 255 / .85); color: var(--wf-muted); }
+.wf-app .wf-action-spotlight { border-color: #d9d4fb; background: linear-gradient(135deg, #ebf5fe 0%, #f1f0fe 100%); }
+.wf-app .wf-action-spotlight.is-calm { border-color: var(--wf-line); background: var(--wf-surface); }
+.wf-app .wf-overview-metric { border-color: var(--wf-line); background: var(--wf-surface); box-shadow: var(--wf-shadow-surface); }
+.wf-app .wf-overview-metric--green .wf-metric-icon { background: var(--ds-surface-selected); color: var(--ds-action-strong); }
+.wf-app .wf-review-callout { border-color: #d9d4fb; background: linear-gradient(135deg, #ebf5fe 0%, #f1f0fe 100%); }
+.wf-app .wf-review-callout .wf-btn-primary { background: var(--ds-action) !important; color: #fff !important; }
+.wf-app .wf-value-summary { background: #171e2e; box-shadow: var(--wf-shadow-floating); }
+.wf-app .wf-value-summary > svg { color: #01c0e9; }
+.wf-app .wf-secondary-kpi,
+.wf-app .wf-secondary-panel,
+.wf-app .wf-secondary-filter { border-color: var(--wf-line); border-radius: .75rem; box-shadow: var(--wf-shadow-card); }
+.wf-app .cc-settings .cc-settings-nav .cc-settings-nav-item[aria-current='page'] { background: var(--ds-surface-selected); color: var(--ds-action-strong); }
+.wf-app .ana-config.ana-cc .steps button.active { background: var(--ds-action) !important; color: #fff; }
+.wf-app .ana-config.ana-cc .steps button.active span { background: #332b63; }
+
+@media (max-width: 767px) {
+  .wf-app .wf-page { padding: 1rem; }
+  .wf-app .wf-page-title { font-size: 1.65rem; }
+  .wf-app :is(.wf-surface, .wf-card, .wf-settings-section, .wf-toolbar, .wf-table-shell) { border-radius: .65rem; }
+}
