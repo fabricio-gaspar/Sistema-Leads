@@ -43,13 +43,26 @@ export default function Dashboard() {
   const [operacao, setOperacao] = useState<OperationalDiagnostics | null>(null);
   const [diagnosticError, setDiagnosticError] = useState(false);
   const [liveUpdates, setLiveUpdates] = useState(true);
-  const { access } = useCurrentAccess();
+  const { access, loading: accessLoading, error: accessError } = useCurrentAccess();
+  const accessReady = Boolean(access);
+  const accessOrganizationId = access?.organizationId;
   const canUseOwnWhatsapp = hasAnyPermission(access, ['channels.view_own', 'channels.connect_own']);
   const whatsappWorkspaceLink = canUseOwnWhatsapp ? '/dashboard/meu-whatsapp' : '/dashboard/configuracoes?tab=canais';
   const whatsappWorkspaceLabel = canUseOwnWhatsapp ? 'Meu WhatsApp' : 'Ver canal';
 
   useEffect(() => {
     let disposed = false;
+
+    // The diagnostic response is fenced to the active organization.  During
+    // startup the access context may still be settling; issuing the request
+    // before that point makes a valid response look stale and leaves the
+    // dashboard in a permanent loading/error state until the next poll.
+    if (accessLoading || !accessReady) {
+      setOperacao(null);
+      setDiagnosticError(Boolean(accessError));
+      return () => { disposed = true; };
+    }
+
     const refreshOperationalData = async () => {
       try {
         const diagnostic = await loadOperationalDiagnostics();
@@ -68,7 +81,7 @@ export default function Dashboard() {
       disposed = true;
       window.clearInterval(interval);
     };
-  }, [liveUpdates]);
+  }, [accessError, accessLoading, accessOrganizationId, accessReady, liveUpdates]);
 
   const integrationsByKey = new Map((diagnosticError ? [] : operacao?.status.integrations ?? []).map((item) => [item.key, item]));
   const whatsappMonitoring = diagnosticError ? undefined : operacao?.status.whatsappMonitoring;

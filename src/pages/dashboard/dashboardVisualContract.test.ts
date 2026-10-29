@@ -26,4 +26,11 @@ describe('Dashboard visual contract', () => {
     expect(stylesheet()).toContain('background: var(--wf-ink)');
     expect(stylesheet()).toContain('.wf-dashboard-experiment .wf-dashboard-alerts');
   });
+
+  it('waits for the organization access context before reading operational diagnostics', () => {
+    expect(source).toContain('loading: accessLoading');
+    expect(source).toContain('const accessReady = Boolean(access);');
+    expect(source).toContain('if (accessLoading || !accessReady)');
+    expect(source).toContain('[accessError, accessLoading, accessOrganizationId, accessReady, liveUpdates]');
+  });
 });
